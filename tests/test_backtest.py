@@ -17,6 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from src.backtest.engine import (  # noqa: E402
     DEFAULT_COST_SIDE_BPS,
     run_backtest,
+    summarize,
 )
 from src.backtest.walkforward import (  # noqa: E402
     assert_no_leakage,
@@ -87,6 +88,67 @@ class TestHLMode(unittest.TestCase):
         self.assertEqual(trades.at[0, "outcome"], "SL")
         self.assertAlmostEqual(trades.at[0, "exit"], 95.0)   # worse fill
         self.assertAlmostEqual(trades.at[0, "gross_ret"], -0.05)
+
+    def test_unadjusted_corporate_action_flagged_data_invalid(self):
+        """10:1 par reconstruction must NOT book a fake -90% loss (SO-3)."""
+        df = oc_frame([
+            (D0, 99.0, 99.0),
+            (D1, 100.0, 100.2),                  # entry 100
+            (D2, 10.5, 10.0),                    # reconstruction crash
+        ])
+        trades, s = run_backtest(df, SIG)
+        self.assertEqual(trades.at[0, "outcome"], "SL")
+        self.assertTrue(bool(trades.at[0, "data_invalid"]))
+        self.assertEqual(s["n_data_invalid"], 1)
+        self.assertNotIn("win_rate", s)          # excluded from metrics
+
+    def test_max_drawdown_is_chronological(self):
+        """Trades arrive symbol-ordered; the equity curve must NOT compound
+        that order (unrelated losses chaining into a fake 100% wipeout)."""
+        def row(sym, exit_date, net):
+            return {"symbol": sym, "entry_date": exit_date, "exit_date": exit_date,
+                    "net_ret": net, "gross_ret": net, "outcome": "SL",
+                    "bars_held": 1, "mae": min(net, 0.0), "mfe": max(net, 0.0),
+                    "data_invalid": False, "touch_mode": "close"}
+        # frame order (symbol-ordered): -50%, +25%, -50%, +10%;
+        # chronological order (by exit_date): +10%, -50%, +25%, -50%
+        df = pd.DataFrame([
+            row("DDD", "2026-01-06", -0.50),
+            row("CCC", "2026-01-05", 0.25),
+            row("BBB", "2026-01-04", -0.50),
+            row("AAA", "2026-01-02", 0.10),
+        ])
+        s = summarize(df, skipped=0, touch_mode="close", tp=0.02, sl=0.01, max_hold=3)
+        # chronological equity: 1.0 -> 1.10 -> 0.55 -> 0.6875 -> 0.34375;
+        # peak stays 1.10 -> worst dd = 1 - 0.34375/1.10 = 0.6875
+        # (symbol-ordered compounding would fake only ~0.10)
+        self.assertAlmostEqual(s["max_drawdown"], 0.6875, places=6)
+        self.assertAlmostEqual(s["final_equity"], 0.34375, places=6)
+
+    def test_normal_stop_loss_not_flagged(self):
+        df = oc_frame([
+            (D0, 99.0, 99.0),
+            (D1, 100.0, 100.2),
+            (D2, 100.0, 95.0),                   # honest -5% close exit
+        ])
+        trades, s = run_backtest(df, SIG)
+        self.assertFalse(bool(trades.at[0, "data_invalid"]))
+        # summary always reports the counter; honest data -> zero flagged
+        self.assertEqual(s.get("n_data_invalid", 0), 0)
+
+    def test_ten_x_open_vs_close_column_corruption_flagged(self):
+        """Real corpus defect: open column ~10x close column (BLUEX et al.).
+        Closes are self-consistent, so only a print-pair screen catches it."""
+        df = oc_frame([
+            (D0, 99.0, 6.45),
+            (D1, 65.0, 6.37),                    # open 10x the close column
+            (D2, 64.0, 6.30),
+        ])
+        trades, s = run_backtest(df, SIG)
+        self.assertEqual(trades.at[0, "outcome"], "SL")
+        self.assertTrue(bool(trades.at[0, "data_invalid"]))
+        self.assertEqual(s["n_data_invalid"], 1)
+        self.assertNotIn("win_rate", s)          # excluded from metrics
 
     def test_mae_mfe_track_excursions(self):
         df = hl_frame([
