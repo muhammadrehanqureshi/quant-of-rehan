@@ -2,6 +2,8 @@
 
 **Date:** 2026-10-04 · **Prepared by:** the QUANT · **Status:** verdict final
 for free/public sources; forward-capture plan pending owner go-ahead.
+**Update (same day):** PSX Data Portal redesigned — the 5-year-per-GET EOD
+endpoint is dead; see §7.
 
 ## 1. The mandate
 
@@ -50,10 +52,12 @@ when labeled degraded. They are never presented as true order flow.
 - No new source: the existing local runner records 1m/5m/15m/1h bars daily.
 - Builds the intraday dataset the backtester eventually needs.
 
-### Path C — Daily OHLCV backfill (already available, free, official)
-- PSX Data Portal / CSOR daily files cover years of history for the whole
-  market, including the KMIALL universe. This is the backbone of the 5-year
-  backtest **today**.
+### Path C — Daily OHLCV backfill (DEGRADED — see §7)
+- ~~PSX Data Portal / CSOR daily files cover years of history~~ The portal
+  redesign removed the 5-year-per-GET EOD endpoint. The current backbone is
+  the sentinel's local 177-session corpus (2026-01-05 .. 2026-09-23, 305
+  KMIALL symbols); the remaining free lead for 5-year history is the
+  portal's per-date "Daily Downloads" files (§7.3).
 
 ### Path D — Paid vendor (not pursued)
 - If genuine historical tick data ever becomes a hard requirement, the only
@@ -74,3 +78,41 @@ when labeled degraded. They are never presented as true order flow.
 
 Approve Path A (read-only feed capture from `oms1.eclear.com.pk:8484`)?
 Everything else in this memo is already actionable without further input.
+
+## 7. Addendum (2026-10-04): DPS portal redesign — 5-year EOD source lost
+
+### 7.1 What died
+The old programmatic endpoint `dps.psx.com.pk/timeseries/eod/{SYM}` — which
+returned the FULL ~1,240-session close/volume/open history per symbol in one
+GET (rows `[epoch, close, volume, open]`, no high/low) — is gone:
+- script requests now get **403 (WAF)** or **404** (path removed);
+- the redesigned portal's API surface (`/symbols`, `/calendar`, `/performers`,
+  `/timeseries/int/{SYM}`) serves **intraday only** — no EOD-history endpoint;
+- the `/historical` page renders a server-side OHLCV table **with high/low**
+  (591 symbols) but its date form POST is ignored by the server (same table
+  regardless of date), and symbol×month search reaches only 2022.
+
+Consequence: **the 5-year-per-GET EOD source is gone.** Any backtest claiming
+5 years today would need a new legitimate source, not the old endpoint.
+
+### 7.2 What we run on meanwhile (local, honest)
+The sentinel's `eod_corpus.json`: 305 KMIALL symbols with data (8 empty of
+313), 177 sessions 2026-01-05..2026-09-23, ~51,452 rows, no high/low → engine
+runs in close mode. Known defects, found by probing and now screened by the
+engine (SO-3):
+- 128 rows with `open = 0.0` (suspended scrips, e.g. AKGL);
+- **6 symbols (BLUEX, CLOV, ITANZ, MTL, SRVI, STL) have an OPEN column left
+  ~10x the CLOSE column** on every row — unadjusted 10:1 par-value
+  reconstruction. Closes are self-consistent, so the defect is only visible
+  open-vs-close. The engine's adjacent-print invalid screen flags all such
+  trades (120 in the smoke run); zero valid trades remain below -50% gross;
+- ITANZ prints one +109% close-to-close move (2026-02-17, resumption-like);
+  also flagged.
+
+### 7.3 Remaining free lead for the 5-year fill
+The redesigned portal's `/downloads` page links per-date **Daily Downloads**
+files (e.g. Market Summary ZIP, Closing Rate Summary PDF). If a stable URL
+pattern exists, ~1,240 dates could be fetched — but raw script requests are
+WAF-blocked, so this needs either (a) browser-context fetching from the real
+page, or (b) the owner downloading manually. Coverage/format still unprobed.
+This is the only known free route back to ~2021 daily OHLCV with high/low.
