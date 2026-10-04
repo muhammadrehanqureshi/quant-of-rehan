@@ -26,6 +26,7 @@ sys.path.insert(0, str(ROOT))
 
 from src.backtest.engine import run_backtest  # noqa: E402
 from src.backtest.walkforward import walk_forward_splits  # noqa: E402
+from src.data.corpus import load_corpus  # noqa: E402
 
 
 def placeholder_signals(df: pd.DataFrame) -> list[tuple]:
@@ -49,18 +50,26 @@ def placeholder_signals(df: pd.DataFrame) -> list[tuple]:
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--dataset", type=Path, default=ROOT / "data/eod_dataset.csv.gz")
+    ap.add_argument("--dataset", type=Path, default=None,
+                    help="Long-frame dataset (data/eod_dataset.csv.gz)")
+    ap.add_argument("--corpus", type=Path, default=None,
+                    help="Sentinel's eod_corpus.json (fallback source)")
     ap.add_argument("--out", type=Path, default=ROOT / "data/backtest_smoke.json")
     args = ap.parse_args(argv)
 
-    if not args.dataset.is_file():
-        print(f"Dataset missing: {args.dataset}\n"
-              f"Build it first:  python -m src.data.psx_eod --universe <kmiall_tickers.json>")
+    if args.dataset and args.dataset.is_file():
+        df = pd.read_csv(args.dataset, parse_dates=["date"])
+        source = f"dataset {args.dataset}"
+    elif args.corpus and args.corpus.is_file():
+        df, info = load_corpus(args.corpus)
+        source = f"corpus {args.corpus}"
+        print(f"Corpus: {info}")
+    else:
+        print("No data. Build a dataset (python -m src.data.psx_eod --universe ...) "
+              "or pass --corpus <path to the sentinel's eod_corpus.json>")
         return 1
-
-    df = pd.read_csv(args.dataset, parse_dates=["date"])
     print(f"Loaded {len(df):,} rows, {df['symbol'].nunique()} symbols, "
-          f"{df['date'].min().date()} .. {df['date'].max().date()}")
+          f"{df['date'].min().date()} .. {df['date'].max().date()} [{source}]")
 
     sigs = placeholder_signals(df)
     print(f"PLACEHOLDER-BASELINE signals (not a strategy): {len(sigs):,}")
