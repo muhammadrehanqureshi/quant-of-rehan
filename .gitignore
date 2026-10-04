@@ -8,8 +8,8 @@ secrets*
 data/secrets/
 !**/.gitkeep
 
-# --- Local data / research artifacts ---
-data/
+# --- Local data / research artifacts (root-anchored: never ignore src/data/) ---
+/data/
 *.sqlite
 *.db
 *.parquet
