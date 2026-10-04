@@ -109,10 +109,26 @@ engine (SO-3):
 - ITANZ prints one +109% close-to-close move (2026-02-17, resumption-like);
   also flagged.
 
-### 7.3 Remaining free lead for the 5-year fill
-The redesigned portal's `/downloads` page links per-date **Daily Downloads**
-files (e.g. Market Summary ZIP, Closing Rate Summary PDF). If a stable URL
-pattern exists, ~1,240 dates could be fetched — but raw script requests are
-WAF-blocked, so this needs either (a) browser-context fetching from the real
-page, or (b) the owner downloading manually. Coverage/format still unprobed.
-This is the only known free route back to ~2021 daily OHLCV with high/low.
+### 7.3 5-year fill: SOLVED — Daily Downloads mkt_summary (confirmed 2026-10-04)
+The redesigned portal's `/downloads` page exposes per-date files with a
+stable URL pattern:
+
+    https://dps.psx.com.pk/download/mkt_summary/{YYYY-MM-DD}.Z
+
+Probed and confirmed: `.{Z}` is a misnamed container — ZIP (`PK`) from ~2021
+onward, gzip (`1f8b`) in older years — holding one pipe-delimited listing
+`closing11.lis` per session:
+
+    02OCT2026|OGDC|0820|Oil & Gas Dev|313.01|315.95|311.8|314.62|1836867|313.39|||
+
+= date|symbol|code|name|**OPEN|HIGH|LOW|CLOSE|VOLUME**|rate2|||. That is full
+OHLCV **with high/low** — strictly better than the dead endpoint. Raw
+`requests` fetches work (no WAF on `/download/*`); non-session dates 404.
+Archive depth: 2015-01-02 returns 200, 2010-01-04 is 404 → coverage ≥ 2015,
+far beyond the 5-year need. ~1,240 sessions × ~20KB ≈ 30MB total.
+
+Builder: `python scripts/build_eod_history.py --start 2021-10-04 --end
+2026-10-02` (LOCAL ONLY, resumable, 0.35s pause, 404=holiday). Fetcher/tests:
+`src/data/psx_daily_downloads.py`. PSX's legal notice prohibits commercial
+redistribution of market data; this crawl is private research on the owner's
+machine, dataset gitignored under `/data/`.
