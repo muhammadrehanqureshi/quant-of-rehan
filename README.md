@@ -23,6 +23,10 @@ only. Sole contributor and owner: Rehan (muhammadrehanqureshi).
   blocked inside Pakistan, so only the relay worker talks to Telegram and the
   owner reads messages on his phone over his VPN. Edge crons send the two
   daily texts even with the PC off.
+- **Android companion app** (`android/`, APK on the Desktop): logo-branded
+  dark console showing the live system verdict from the relay, plus
+  signal and status notifications on the phone. Polls `/health` and
+  `/signals` on the edge, 15-minute watchdog, survives reboot.
 - **Governance guard** in CI: secret scan, footprint honesty, owner-only
   commit identity, human-style enforcement, Karachi-pin check.
 
@@ -64,6 +68,7 @@ src/notify/telegram.py      env-driven notifier (fail closed)
 src/notify/schedule_runner.py  local open/close scheduler with journal
 cloud/worker.js             Cloudflare relay + edge crons (Karachi math)
 cloud/pair.py               deploy + pair + test from the owner's PC
+android/                    companion app source (signals + status on phone)
 scripts/build_eod_history.py  resumable 5-year dataset crawler
 scripts/entry_metrics.py    MAE/MFE, time-to-target and horizon study
 scripts/check_governance.py secret, style, identity and SO-8 enforcement
