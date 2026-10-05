@@ -42,6 +42,16 @@ only. Sole contributor and owner: Rehan (muhammadrehanqureshi).
    at open; "Market is closed and the system is sleeping now." at close,
    through the Cloudflare relay.
 
+## Research notes
+
+- Entry-metrics study (`scripts/entry_metrics.py`, report in
+  `data/entry_metrics_report.json`, local only): MAE/MFE distributions,
+  time-to-target, and horizon returns over 272,835 clean next-bar-open
+  entries. Headline: within the 3-bar hold, +2% is reachable in 59.6% of all
+  entries (63.0% baseline) with median time one bar, while 78.1% of all
+  entries (80.3% baseline) touch -1% intraday. Stop placement is the binding
+  constraint on this universe.
+
 ## Layout
 
 ```
@@ -55,6 +65,7 @@ src/notify/schedule_runner.py  local open/close scheduler with journal
 cloud/worker.js             Cloudflare relay + edge crons (Karachi math)
 cloud/pair.py               deploy + pair + test from the owner's PC
 scripts/build_eod_history.py  resumable 5-year dataset crawler
+scripts/entry_metrics.py    MAE/MFE, time-to-target and horizon study
 scripts/check_governance.py secret, style, identity and SO-8 enforcement
 legacy/                     quarantined code from the deleted sentinel repos
 data/                       gitignored: datasets, journals, relay url
