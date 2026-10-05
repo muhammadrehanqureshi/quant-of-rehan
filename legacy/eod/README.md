@@ -98,7 +98,7 @@ logic still rules on it.
 python -m pytest -q
 ```
 
-Current: **v2.6.2** - the SENTINELS OF REHAN rebrand and the
+Current: **v2.6.3** - every-return-path heartbeat stamp on the EOD runner (2026-10-03): the runner now writes a live_py heartbeat on EVERY return path inside mode_reference, mode_pick and mode_trace (holiday/weekend/window skip, window-open-only, card error, corporate-actions skip, gate skip, no-candidate, and the except-block fallback) - not only on the success path. The Cloudflare seatbelt Guard B and the owner phone feed read this during the EOD session; without it the freshness clock drifts back to the last scheduled cron and can lie "heartbeat: N min ago" when GitHub scheduler drops a slot (the same shape as the-sentinel 109-min lie on 2026-10-02). src/run_eod_hb.py is the new helper (stamp(source) + mode_tail(source) alias); src/run_eod.py imports mode_tail and calls it as the last line before every return 0. Tests: 62 passed, 4 skipped.
 verdict-card fix (2026-10-02): the "no live candidate" Telegram
 card now actually sends - a NameError on an undefined name
 silently ate the 2026-10-01 evening card (GitHub got it, Telegram
