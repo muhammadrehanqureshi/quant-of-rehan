@@ -31,3 +31,6 @@ Thumbs.db
 *.lnk
 desktop.ini
 .freebuff/
+
+# --- Android build outputs ---
+android/app/build/

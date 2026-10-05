@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@color/bg_deep"/>
+    <foreground>
+        <vector android:width="108dp" android:height="108dp"
+            android:viewportWidth="108" android:viewportHeight="108">
+            <!-- gold frame corners echo the logo plate -->
+            <path android:fillColor="#FFD9A441"
+                android:pathData="M54,22 L58,26 L54,30 L50,26 Z"/>
+            <!-- ascending candles -->
+            <path android:fillColor="#FF2FAE6F"
+                android:pathData="M36,56 h6 v16 h-6 Z M39,50 v6 M39,72 v4"/>
+            <path android:fillColor="#FF2FAE6F"
+                android:pathData="M51,50 h6 v22 h-6 Z M54,43 v7 M54,72 v5"/>
+            <path android:fillColor="#FF2FAE6F"
+                android:pathData="M66,44 h6 v28 h-6 Z M69,36 v8 M69,72 v6"/>
+            <!-- wick glow line -->
+            <path android:strokeColor="#FFD9A441" android:strokeWidth="1.5"
+                android:pathData="M30,72 H78"/>
+        </vector>
+    </foreground>
+</adaptive-icon>

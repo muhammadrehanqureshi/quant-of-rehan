@@ -112,17 +112,27 @@ def cf_upload(cf_token: str, acct: str, bindings: list[dict]) -> None:
     check(r, "worker upload")
 
 
+def cf_headers() -> tuple[str, str, dict]:
+    cf_token, acct, _ = read_creds()
+    return cf_token, acct, {"Authorization": f"Bearer {cf_token}"}
+
+
+def kv_id() -> str:
+    p = ROOT / "data" / "relay_kv_id.txt"
+    if not p.is_file():
+        raise SystemExit("data/relay_kv_id.txt missing; create the KV namespace first")
+    return p.read_text(encoding="utf-8").strip()
+
+
 def deploy() -> None:
     cf_token, acct, tg_token = read_creds()
     admin = env_get("RELAY_ADMIN_TOKEN") or secrets.token_urlsafe(24)
     env_set("RELAY_ADMIN_TOKEN", admin)
-    chat = env_get("PAIRED_CHAT_ID")
     bindings = [
         {"type": "secret_text", "name": "TELEGRAM_BOT_TOKEN", "text": tg_token},
         {"type": "secret_text", "name": "RELAY_ADMIN_TOKEN", "text": admin},
+        {"type": "kv_namespace", "name": "RELAY_KV", "namespace_id": kv_id()},
     ]
-    if chat:
-        bindings.append({"type": "secret_text", "name": "PAIRED_CHAT_ID", "text": chat})
     cf_upload(cf_token, acct, bindings)
     H = {"Authorization": f"Bearer {cf_token}"}
     check(requests.put(f"{API}/accounts/{acct}/workers/scripts/{WORKER}/schedules",
@@ -138,23 +148,28 @@ def deploy() -> None:
 
 
 def discover() -> None:
-    cf_token, acct, _ = read_creds()
+    """Two-step pairing: start (bot sends the owner a code), then confirm."""
     admin = env_get("RELAY_ADMIN_TOKEN")
     if not admin:
         raise SystemExit("no admin token; run deploy first")
-    r = requests.post(f"{relay_url()}/pair", headers={"x-admin-token": admin},
-                      json={}, timeout=60)
+    H = {"x-admin-token": admin}
+    r = requests.post(f"{relay_url()}/pair/start", headers=H, json={}, timeout=60)
     d = r.json()
     if not d.get("ok"):
-        print(f"discover failed: {d.get('error')}")
+        print(f"pair/start failed: {d.get('error')}")
         print("send the bot a message on Telegram from your phone, then rerun")
         sys.exit(2)
-    chat = str(d["chat_id"])
-    print(f"chat discovered: kind={d.get('chat_kind')} name={d.get('chat_name')!r} "
-          f"id={chat[:4]}...{chat[-3:]}")
-    env_set("PAIRED_CHAT_ID", chat)
-    print("chat id stored in .env; redeploying with pairing...")
-    deploy()
+    print(f"pairing code sent to chat ({d.get('chat_kind')} "
+          f"{d.get('chat_name') or 'unnamed'}); check the bot chat")
+    code = input("enter the 4-digit code: ").strip()
+    r = requests.post(f"{relay_url()}/pair/confirm", headers=H,
+                      json={"code": code}, timeout=60)
+    d = r.json()
+    if not d.get("ok"):
+        print(f"pair/confirm failed: {d.get('error')}")
+        sys.exit(3)
+    print(f"paired with chat {d['paired_chat'][:4]}...{d['paired_chat'][-3:]}; "
+          f"confirmation message sent by the bot")
 
 
 def test() -> None:

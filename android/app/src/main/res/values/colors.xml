@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="bg_deep">#FF0B070D</color>
+    <color name="bg_panel">#FF170D1C</color>
+    <color name="bg_panel_edge">#FF2A1730</color>
+    <color name="gold">#FFD9A441</color>
+    <color name="gold_bright">#FFF8CE66</color>
+    <color name="green">#FF2FAE6F</color>
+    <color name="red">#FFC14A52</color>
+    <color name="teal">#FF4A9C95</color>
+    <color name="text_soft">#FFB9A6C2</color>
+    <color name="text_bright">#FFF0EAF4</color>
+    <color name="field_bg">#FF120A16</color>
+    <color name="green_soft">#FF1E3F30</color>
+    <color name="red_soft">#FF3F2226</color>
+</resources>
