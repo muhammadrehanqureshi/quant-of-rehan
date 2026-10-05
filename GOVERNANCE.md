@@ -15,6 +15,38 @@ stocks. It must never place, modify, cancel, or transmit any order to any
 broker. No trade-side socket messages, ever. Broker credentials are never
 loaded by any module in this repository.
 
+### SO-1a · Owner-authorized exception: AKD demo account only (2026-10-05)
+
+The owner (Mr. Rehan) has explicitly authorized one narrow exception to the
+signal-only rule. It is recorded here because the standing order says "never",
+and a standing order is only ever changed by the owner's instruction, in
+writing, in this file.
+
+- **Scope:** order automation against the owner's AKD Trade Pro **demo
+  (virtual trading) account** only. Demo accounts trade with virtual money on
+  AKD's virtual trading service; no real capital is ever involved.
+- **What is permitted:** programmatic login, order placement, order status,
+  and cancellation against AKD's virtual trading endpoints, so that signals
+  can be forward-tested end to end without touching the signal-only platform
+  core.
+- **What stays banned:** any order transmission to a real / live trading
+  account, real broker credentials in this repository or in any module, and
+  any use of the demo exception as a stepping stone to live trading. A live
+  trading exception would need a new written owner instruction and a new
+  amendment here.
+- **Separation law:** demo automation lives in its own module namespace
+  (AKD demo client), imports nothing from the signal engine, and the signal
+  engine never calls it. Signals may be *forwarded* to the demo client by the
+  orchestrator; the platform core remains signal-only in behavior and in code.
+- **Credentials:** AKD demo credentials stay in local desktop files or
+  environment variables exactly like every other secret (SO-5). They are never
+  committed, logged, or embedded in source.
+- **Guardrail:** if the demo client cannot positively verify it is talking to
+  the virtual trading service (demo userCode, demo account), it must stop and
+  refuse to send orders rather than risk a real account.
+
+The rest of SO-1 stands unchanged for everything outside this exception.
+
 ## SO-2 · Pull request first, merge to `master` by the agent
 
 - Every change lands on a feature branch, is opened as a pull request against
