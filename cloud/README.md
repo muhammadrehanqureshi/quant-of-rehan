@@ -7,11 +7,16 @@ Telegram; you read the messages on your phone over your VPN as usual.
 
 ## What it does
 
-- `GET /health`: liveness, current Karachi wall clock, next open/close event
-- `POST /pair` (admin token): asks Telegram which chat last messaged the bot,
-  returns that chat id so `pair.py` can store it
+- `GET /health`: liveness, current Karachi wall clock, next open/close event,
+  pairing state
+- `POST /pair/start` (admin token): finds the chat that last messaged the
+  bot, stores a 4-digit code in KV, and sends that code to the chat
+- `POST /pair/confirm` (admin token): `{code}` binds the chat; the bot
+  confirms in the chat
 - `POST /notify` (admin token): `{text, kind}` forwarded to your chat; this
   is the local runner's delivery path
+- `GET /signals` (admin token): the app's signal feed; `POST /signals`
+  stores new signal lines from the local runner
 - `GET /updates` (admin token): raw getUpdates proxy for local debugging
 - Cron triggers fire the two daily texts from the edge even if your PC is off:
 
@@ -26,18 +31,21 @@ src/data/sessions.py. The Karachi offset is hardcoded UTC+5 forever (SO-8).
 ## Secrets (SO-5)
 
 Worker bindings, set only by cloud/pair.py from the owner's PC:
-`TELEGRAM_BOT_TOKEN`, `RELAY_ADMIN_TOKEN`, `PAIRED_CHAT_ID`. Nothing secret
-is stored in this repo.
+`TELEGRAM_BOT_TOKEN` and `RELAY_ADMIN_TOKEN`. The paired chat id and the
+pending pairing code live in the RELAY_KV namespace. Nothing secret is
+stored in this repo.
 
-## Setup (owner's PC)
+## Setup (owner's PC, already completed on 2026-10-05)
 
 ```bash
 python cloud/pair.py deploy     # upload worker, set crons, save relay url
 # ... message the new bot once from your phone (VPN on) ...
-python cloud/pair.py discover   # find your chat, redeploy paired
+python cloud/pair.py discover   # bot sends a 4-digit code; type it back
 python cloud/pair.py test       # full-path test message
 python cloud/pair.py health     # live status from the edge
 ```
+
+Pairing state lives in KV; re-running discover re-pairs safely.
 
 ## Local scheduler (optional second delivery path)
 
