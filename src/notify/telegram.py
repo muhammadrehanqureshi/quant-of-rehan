@@ -1,6 +1,6 @@
 """Signal-only Telegram notifier for quant-of-rehan.
 
-Delivery channel for owner notifications (SO-1: signal-only — this module
+Delivery channel for owner notifications (SO-1: signal-only: this module
 sends messages, never trades). Token source of truth:
 
     1. explicit `token` argument (tests only)
@@ -8,14 +8,14 @@ sends messages, never trades). Token source of truth:
     3. local <repo>/.env  (gitignored; KEY=VALUE lines)
 
 The canonical token lives in the owner's Desktop credentials.txt and is
-mirrored into .env by the owner/QUANT — never hardcoded, never committed,
+mirrored into .env by the owner/QUANT: never hardcoded, never committed,
 never logged in full. The sentinel's old bot token is retired and must not
 be reused anywhere.
 
 Network reality (observed 2026-10-05): api.telegram.org can be blocked or
 throttled by the local ISP. send_message therefore fails CLOSED: on
 transport failure it returns False after retries and the caller must keep
-the signal locally — no signal is ever lost silently, none is fabricated.
+the signal locally: no signal is ever lost silently, none is fabricated.
 """
 
 from __future__ import annotations
@@ -37,7 +37,7 @@ RETRY_PAUSE_S = 2.0
 def load_bot_token() -> Optional[str]:
     """Resolve the bot token: env var first, then the gitignored .env file.
 
-    Returns None when unset — callers decide how loud to be. The value is
+    Returns None when unset: callers decide how loud to be. The value is
     never printed, logged, or embedded in exceptions.
     """
     tok = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
@@ -72,7 +72,7 @@ def send_message(text: str, *, token: Optional[str] = None,
 
     chat_id resolution: explicit arg, then TELEGRAM_CHAT_ID env, then
     TELEGRAM_CHAT_ID in .env. Transport failures return False (fail
-    closed) — callers must treat the signal as undelivered, not lost.
+    closed): callers must treat the signal as undelivered, not lost.
     """
     tok = token or load_bot_token()
     if not tok:

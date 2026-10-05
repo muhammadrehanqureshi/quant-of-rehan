@@ -1,7 +1,7 @@
-# GOVERNANCE — Hardcoded Standing Orders
+# GOVERNANCE: Hardcoded Standing Orders
 
-**Owner:** Rehan (muhammadrehanqureshi) — the mastermind. All instructions flow
-from him. **Agent:** Buffy / the QUANT — executes, never self-directs scope.
+**Owner:** Rehan (muhammadrehanqureshi): the mastermind. All instructions flow
+from him. **Agent:** Buffy / the QUANT: executes, never self-directs scope.
 
 These orders are binding on every future session, agent, or model working in
 this repository. They are enforced by `scripts/check_governance.py` (runs on
@@ -29,7 +29,7 @@ loaded by any module in this repository.
   `GOVERNANCE.md` and that CI is wired; branch protection on GitHub is the
   owner-side belt-and-suspenders.
 
-## SO-3 · Never fabricate data — footprint honesty law
+## SO-3 · Never fabricate data: footprint honesty law
 
 - If a data source (especially bid/ask, order flow, footprint candles) does not
   **genuinely** exist, the system must state
@@ -65,9 +65,58 @@ loaded by any module in this repository.
 The agent is responsible for opening **and** merging every pull request on the
 owner's GitHub. The owner gives instructions; he does not click buttons. If a
 merge fails (rules, conflicts, instability), the agent reports honestly and
-retries deliberately — never blindly.
+retries deliberately: never blindly.
 
 ## Change procedure for this file
 
 GOVERNANCE.md itself is amended only via pull request, and only on an explicit
 instruction from the owner.
+
+## SO-7 · Sole contributor and human-looking code (owner order, 2026-10-05)
+
+- The owner, Rehan (muhammadrehanqureshi), is the only contributor this
+  repository may ever show. Every commit carries his verified identity:
+  `Mr. Rehan <muhammadrehanqureshi@users.noreply.github.com>`. No bot
+  accounts, no co-author trailers, no generated-by footers, ever.
+- Code, comments, and commit messages must read as if a careful human wrote
+  them. No machine-generated stylistic artifacts. The strongest one: the
+  em dash and any similar decorative dash are banned from every committed
+  file and every commit message. Use a comma, a colon, parentheses, or
+  split the sentence.
+- `scripts/check_governance.py` enforces both rules: it scans tracked files
+  (excluding `legacy/`, which is quarantined reference material from the
+  deleted sentinel repos and is never modified) and every new PR commit
+  message. A violation fails the PR.
+
+## SO-8 · Karachi time, forever (owner order, 2026-10-05)
+
+- Every session time, schedule, cron, timestamp, and log line in this system
+  is fixed to Pakistan Standard Time: UTC+5, Asia/Karachi, no daylight
+  saving. This is hardcoded and may never depend on the machine's local
+  timezone or on any other zone.
+- Market sessions (Mon to Thu 09:32 open and 15:30 close, Friday 09:17 open
+  and 16:30 close) are computed only from this fixed zone, adjusted for PSX
+  holidays from the maintained holiday list.
+- Any future change to this rule requires an explicit owner instruction and
+  an amendment to this file.
+
+## SO-9 · Notifications reach the owner reliably (owner order, 2026-10-05)
+
+- Telegram is blocked for direct connections inside Pakistan. The system
+  therefore never calls api.telegram.org from the owner's PC. Delivery goes
+  through the quant-of-rehan Cloudflare Worker relay, which runs on the
+  Cloudflare edge outside that block. The owner reads messages on his phone
+  over his VPN as he always has.
+- The owner receives, every trading day: "Market is open and the system is
+  online." at open, and "Market is closed and the system is sleeping now."
+  at close, per the SO-8 schedule. These texts are fixed by the owner.
+- The local scheduler retries through the relay and fails closed with a
+  clear log line when delivery is impossible. No signal is ever silently
+  dropped and none is ever fabricated.
+
+## Standing orders index
+
+SO-1 signal-only · SO-2 PR first, agent merges · SO-3 never fabricate data ·
+SO-4 backtest locally only · SO-5 secrets stay out · SO-6 the agent merges ·
+SO-7 sole contributor, human-looking code, no em dashes · SO-8 Karachi time
+forever · SO-9 owner notifications via the Cloudflare relay.
