@@ -1,5 +1,8 @@
 """PSX Data Portal "Daily Downloads" EOD fetcher (mkt_summary).
 
+All session dates handled here are Asia/Karachi calendar dates (UTC+5).
+The session schedule itself lives in src/data/sessions.py.
+
 The 2026-09 portal redesign killed the old 5-year-per-GET timeseries
 endpoint, but the /downloads page exposes per-date files with a stable
 URL pattern:
@@ -15,7 +18,7 @@ listing, `closing11.lis`:
     fields: session-date | symbol | code | name | OPEN | HIGH | LOW |
             CLOSE | VOLUME | rate2 (unverified: LDCP or weighted avg) | | |
 
-This gives full OHLCV **with high/low** — strictly better than the old
+This gives full OHLCV **with high/low**: strictly better than the old
 endpoint, which had no high/low at all. Non-session dates (weekends,
 holidays, pre-archive dates) return 404.
 
@@ -138,7 +141,7 @@ def fetch_mkt_summary(d: date_cls, pause: float = REQUEST_PAUSE,
     """Fetch one session's mkt_summary file.
 
     Returns (rows, info). rows is None when there was no session (404) or
-    the payload was unreadable — both recorded in info, never fabricated.
+    the payload was unreadable: both recorded in info, never fabricated.
     """
     url = MKT_SUMMARY_URL.format(date=d.isoformat())
     last_err = None

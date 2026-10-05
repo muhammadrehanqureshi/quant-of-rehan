@@ -2,7 +2,7 @@
 """LOCAL-ONLY smoke backtest (SO-4: never run in GitHub Actions).
 
 Validates the engine end-to-end on the real 5-year KMIALL dataset using a
-PLACEHOLDER BASELINE entry rule — explicitly NOT the strategy. Purpose:
+PLACEHOLDER BASELINE entry rule: explicitly NOT the strategy. Purpose:
 prove plumbing, produce first honest numbers for the ENGINE, not a claim
 about any edge. The real signal engine (FVG/liquidity/auction layers)
 comes after this pipeline is proven and walk-forwarded.
@@ -30,7 +30,7 @@ from src.data.corpus import load_corpus  # noqa: E402
 
 
 def placeholder_signals(df: pd.DataFrame) -> list[tuple]:
-    """PLACEHOLDER BASELINE — trend+participation filter, decided at close T.
+    """PLACEHOLDER BASELINE: trend+participation filter, decided at close T.
 
     Uses only information up to and including T (rolling windows end at T);
     the engine then enters at T+1's open. This is plumbing validation, not

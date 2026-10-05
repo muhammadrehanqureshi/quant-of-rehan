@@ -1,4 +1,4 @@
-"""Data-source capability registry — the footprint honesty layer.
+"""Data-source capability registry: the footprint honesty layer.
 
 Single source of truth for what data this system *genuinely* has. Engines must
 consult this registry and refuse to run when their data is UNAVAILABLE.
@@ -10,7 +10,7 @@ Usage in engines::
     from src.data.registry import availability, require
 
     if availability("footprint") is Availability.UNAVAILABLE:
-        print("FOOTPRINT DATA UNAVAILABLE / DEGRADED — footprint engine disabled")
+        print("FOOTPRINT DATA UNAVAILABLE / DEGRADED: footprint engine disabled")
         return None
 """
 
@@ -23,7 +23,7 @@ from typing import Dict
 
 class Availability(str, Enum):
     AVAILABLE = "AVAILABLE"      # genuine, verified source currently feeding it
-    DEGRADED = "DEGRADED"        # partial / delayed / proxy — must be labeled
+    DEGRADED = "DEGRADED"        # partial / delayed / proxy: must be labeled
     UNAVAILABLE = "UNAVAILABLE"  # no genuine source; engine must disable itself
 
 
@@ -103,10 +103,10 @@ def require(key: str) -> DataSource:
 
 
 def degraded_keys() -> tuple:
-    """Keys that are only DEGRADED — reports must label these."""
+    """Keys that are only DEGRADED: reports must label these."""
     return tuple(k for k, v in REGISTRY.items() if v.availability is Availability.DEGRADED)
 
 
 def unavailable_keys() -> tuple:
-    """Keys that are UNAVAILABLE — engines for these must be disabled."""
+    """Keys that are UNAVAILABLE: engines for these must be disabled."""
     return tuple(k for k, v in REGISTRY.items() if v.availability is Availability.UNAVAILABLE)

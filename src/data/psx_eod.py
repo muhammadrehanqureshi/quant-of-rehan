@@ -1,4 +1,4 @@
-"""PSX DPS EOD downloader — self-contained port of the verified fetch layer.
+"""PSX DPS EOD downloader: self-contained port of the verified fetch layer.
 
 Provenance: endpoint, headers, row layout, and retry policy are ported from
 the owner's existing `the-sentinel` bot (`src/scan_positive_opens.py`),
@@ -7,7 +7,7 @@ live poll snapshot (MLCF, 2026-09-08). One GET returns the FULL history
 (~1,240 sessions ≈ 5 years) per symbol.
 
 Row limitation (documented, not hidden): DPS timeseries provides
-open/close/volume only — no high/low. Backtests must therefore run in
+open/close/volume only: no high/low. Backtests must therefore run in
 `close`-touch mode (see src/backtest/engine.py) and say so in their reports.
 
 Universe: KMIALL tickers are loaded from the owner's local sentinel data
@@ -51,7 +51,7 @@ def fetch_eod(symbol: str, http: requests.Session) -> list[dict] | None:
     """Full EOD history for one symbol, oldest first.
 
     Returns list of {"date", "open", "close", "volume"} dicts.
-    None  = fetch failed after retries (network/5xx) — caller must treat
+    None  = fetch failed after retries (network/5xx): caller must treat
             this as a data-quality failure (GOVERNANCE SO-3: never fill gaps
             with fabricated rows).
     []    = valid response, symbol genuinely has no history.
@@ -89,7 +89,7 @@ def fetch_eod(symbol: str, http: requests.Session) -> list[dict] | None:
 def load_universe(path: Path) -> list[str]:
     """KMIALL symbols from the sentinel's kmiall_tickers.json.
 
-    Keeps rows listed in KMIALLSHR. Raises loudly if the file is missing —
+    Keeps rows listed in KMIALLSHR. Raises loudly if the file is missing:
     the universe must be explicit, never silently empty.
     """
     if not path.is_file():
@@ -109,7 +109,7 @@ def load_universe(path: Path) -> list[str]:
 
 
 # ---------------------------------------------------------------------------
-# Dataset build (local only — data/ is gitignored)
+# Dataset build (local only: data/ is gitignored)
 # ---------------------------------------------------------------------------
 
 def build_dataset(
@@ -120,10 +120,10 @@ def build_dataset(
 ) -> pd.DataFrame:
     """Download (with per-symbol cache) and combine into one long frame.
 
-    Columns: symbol, date, open, close, volume — sorted by (symbol, date).
+    Columns: symbol, date, open, close, volume: sorted by (symbol, date).
     Per-symbol JSON caches make re-runs incremental and offline-friendly.
     Symbols whose fetch failed are recorded in out_path.with_suffix('.failures')
-    and excluded — the report must state this count (SO-3 honesty).
+    and excluded: the report must state this count (SO-3 honesty).
     """
     cache_dir.mkdir(parents=True, exist_ok=True)
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -158,7 +158,7 @@ def build_dataset(
         encoding="utf-8",
     )
     if not frames:
-        raise RuntimeError("No symbol data fetched — dataset build aborted.")
+        raise RuntimeError("No symbol data fetched: dataset build aborted.")
     df = pd.concat(frames, ignore_index=True)
     df = df.sort_values(["symbol", "date"]).reset_index(drop=True)
     df.to_csv(out_path, index=False, compression="gzip" if out_path.suffix == ".gz" else None)
