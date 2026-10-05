@@ -16,10 +16,12 @@
 //   PAIRED_CHAT_ID      the owner's chat, set by the pairing script
 //
 // Endpoints:
-//   GET  /health   liveness, current Karachi clock, next scheduled event
-//   POST /pair     admin only: discover the chatting owner, return chat id
-//   POST /notify   admin only: {text, kind} forwarded to the paired chat
-//   GET  /updates  admin only: raw getUpdates proxy for local debugging
+//   GET  /health        liveness, current Karachi clock, next scheduled event
+//   POST /pair/start    admin only: find the chat that just messaged the bot,
+//                       store a pairing code in KV and send the code to it
+//   POST /pair/confirm  admin only: {code} -> sets the paired chat id
+//   POST /notify        admin only: {text, kind} forwarded to the paired chat
+//   GET  /updates       admin only: raw getUpdates proxy for local debugging
 //
 // Cron triggers (UTC, set by cloud/pair.py):
 //   04:32 Mon-Thu = 09:32 PKT open | 10:30 Mon-Thu = 15:30 PKT close
@@ -89,6 +91,19 @@ function adminOk(request, env) {
   return env.RELAY_ADMIN_TOKEN && got === env.RELAY_ADMIN_TOKEN;
 }
 
+async function latestChat(env) {
+  const updates = await tgCall(env, "getUpdates", { limit: 50 });
+  if (!updates.ok) return { error: updates.description || "getUpdates refused" };
+  let best = null;
+  for (const u of updates.result || []) {
+    const m = u.message || u.channel_post || {};
+    if (!m.chat || m.chat.id === undefined) continue;
+    if (!best || (m.date || 0) > (best.date || 0)) best = m;
+  }
+  if (!best) return { error: "no chat has messaged this bot recently" };
+  return { chat: best.chat, date: best.date || 0 };
+}
+
 async function tgCall(env, method, params) {
   const r = await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/${method}`, {
     method: "POST",
@@ -118,51 +133,70 @@ export default {
         ok: true,
         service: "quant-of-rehan-relay",
         karachi_now: `${dayStamp(k)} ${hhmm(k)} PKT`,
-        paired: Boolean(env.PAIRED_CHAT_ID),
+        paired: Boolean((await env.RELAY_KV.get("PAIRED_CHAT_ID")) || env.PAIRED_CHAT_ID),
         next_event: next.event
           ? { event: next.event, at_pk: `${dayStamp(karachiView(next.at.getTime()))} ${hhmm(karachiView(next.at.getTime()))}` }
           : null,
       });
     }
 
-    if (request.method === "POST" && path === "/pair") {
+    if (request.method === "POST" && path === "/pair/start") {
       if (!adminOk(request, env)) {
         return json({ ok: false, error: "admin token required" }, 403);
       }
-      const updates = await tgCall(env, "getUpdates", { limit: 50 });
-      if (!updates.ok) {
-        return json({ ok: false, error: updates.description || "getUpdates refused" }, 502);
+      const found = await latestChat(env);
+      if (found.error) {
+        return json({ ok: false, error: found.error }, 404);
       }
-      let best = null;
-      for (const u of updates.result || []) {
-        const m = u.message || u.channel_post || {};
-        if (!m.chat || m.chat.id === undefined) continue;
-        if (!best || (m.date || 0) > (best.date || 0)) best = m;
-      }
-      if (!best) {
-        return json({ ok: false, error: "no chat has messaged this bot recently; send it a message from the owner phone, then rerun pairing" }, 404);
-      }
-      return json({
-        ok: true,
-        chat_id: String(best.chat.id),
-        chat_kind: best.chat.type,
-        chat_name: best.chat.title || best.chat.username || best.chat.first_name || "",
+      const code = String(Math.floor(1000 + Math.random() * 9000));
+      await env.RELAY_KV.put("PENDING_CODE", code, { expirationTtl: 3600 });
+      await env.RELAY_KV.put("PENDING_CHAT", String(found.chat.id), { expirationTtl: 3600 });
+      const name = found.chat.title || found.chat.username || found.chat.first_name || "";
+      await tgCall(env, "sendMessage", {
+        chat_id: found.chat.id,
+        text: `Pairing code for quant-of-rehan: ${code}\nIf you did not request this, ignore it.`,
       });
+      return json({ ok: true, chat_kind: found.chat.type, chat_name: name });
+    }
+
+    if (request.method === "POST" && path === "/pair/confirm") {
+      if (!adminOk(request, env)) {
+        return json({ ok: false, error: "admin token required" }, 403);
+      }
+      const body = await request.json().catch(() => ({}));
+      const code = String(body.code || "").trim();
+      const pending = (await env.RELAY_KV.get("PENDING_CODE")) || "";
+      const chat = (await env.RELAY_KV.get("PENDING_CHAT")) || "";
+      if (!pending || !chat) {
+        return json({ ok: false, error: "no pending pairing; run pair/start" }, 409);
+      }
+      if (code !== pending) {
+        return json({ ok: false, error: "wrong code" }, 403);
+      }
+      await env.RELAY_KV.put("PAIRED_CHAT_ID", chat);
+      await env.RELAY_KV.delete("PENDING_CODE");
+      await env.RELAY_KV.delete("PENDING_CHAT");
+      await tgCall(env, "sendMessage", {
+        chat_id: chat,
+        text: "quant-of-rehan relay paired with this chat. Daily open and close notifications and trading signals will arrive here.",
+      });
+      return json({ ok: true, paired_chat: chat });
     }
 
     if (request.method === "POST" && path === "/notify") {
       if (!adminOk(request, env)) {
         return json({ ok: false, error: "admin token required" }, 403);
       }
-      if (!env.PAIRED_CHAT_ID) {
-        return json({ ok: false, error: "not paired; run cloud/pair.py first" }, 409);
+      const paired = (await env.RELAY_KV.get("PAIRED_CHAT_ID")) || env.PAIRED_CHAT_ID;
+      if (!paired) {
+        return json({ ok: false, error: "not paired; run cloud/pair.py start then confirm" }, 409);
       }
       const body = await request.json().catch(() => ({}));
       const text = String(body.text || "");
       if (!text) {
         return json({ ok: false, error: "empty text" }, 400);
       }
-      const sent = await tgCall(env, "sendMessage", { chat_id: env.PAIRED_CHAT_ID, text });
+      const sent = await tgCall(env, "sendMessage", { chat_id: paired, text });
       if (sent.ok) return json({ ok: true });
       return json({ ok: false, error: sent.description || "telegram refused" }, 502);
     }
@@ -175,6 +209,37 @@ export default {
       return json(updates);
     }
 
+    if (request.method === "GET" && path === "/signals") {
+      // Companion app poll (admin gated). Serves the latest signals the
+      // local runner pushed to KV plus the Karachi schedule for the card.
+      if (!adminOk(request, env)) {
+        return json({ ok: false, error: "admin token required" }, 403);
+      }
+      const now = new Date();
+      const k = karachiView(now.getTime());
+      const next = nextEvent(now);
+      const signals = (await env.RELAY_KV.get("SIGNALS")) || "";
+      return json({
+        ok: true,
+        signals,
+        karachi_now: `${dayStamp(k)} ${hhmm(k)} PKT`,
+        next_event: next.event
+          ? { event: next.event, at_pk: `${dayStamp(karachiView(next.at.getTime()))} ${hhmm(karachiView(next.at.getTime()))}` }
+          : null,
+      });
+    }
+
+    if (request.method === "POST" && path === "/signals") {
+      // Local runner pushes fresh signal lines here (admin gated).
+      if (!adminOk(request, env)) {
+        return json({ ok: false, error: "admin token required" }, 403);
+      }
+      const body = await request.json().catch(() => ({}));
+      const text = String(body.signals || "").slice(0, 4000);
+      await env.RELAY_KV.put("SIGNALS", text);
+      return json({ ok: true, stored: text.length });
+    }
+
     return json({ ok: false, error: "not found" }, 404);
   },
 
@@ -183,7 +248,8 @@ export default {
     const now = new Date();
     const k = karachiView(now.getTime());
     if (!isTradingDay(k)) return;
-    if (!env.PAIRED_CHAT_ID) return;
+    const paired = (await env.RELAY_KV.get("PAIRED_CHAT_ID")) || env.PAIRED_CHAT_ID;
+    if (!paired) return;
 
     const hm = [k.getUTCHours(), k.getUTCMinutes()];
     const near = (h, m) => Math.abs(hm[0] * 60 + hm[1] - (h * 60 + m)) <= 2;
@@ -193,6 +259,6 @@ export default {
     else if (near(...closeHM(k))) text = MSG_CLOSED;
     if (!text) return;
 
-    ctx.waitUntil(tgCall(env, "sendMessage", { chat_id: env.PAIRED_CHAT_ID, text }));
+    ctx.waitUntil(tgCall(env, "sendMessage", { chat_id: paired, text }));
   },
 };
