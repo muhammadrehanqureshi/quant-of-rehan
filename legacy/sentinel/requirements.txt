@@ -1,0 +1,48 @@
+# PSX KMIALL Bot - Python dependencies
+#
+# THE PROJECT ENVIRONMENT IS THE BUNDLED VIRTUALENV, NOT THE SYSTEM PYTHON.
+#
+#   .venv\Scripts\python.exe          <- use this
+#   Python 3.13.15 (created from C:\Users\rehan\AppData\Local\Programs\Python\Python313)
+#
+# The system interpreter also has numpy/pandas/requests, but it does NOT have
+# pyarrow, so running the pipeline with it silently downgrades every Parquet
+# output to CSV only. Always invoke the venv explicitly:
+#
+#   .venv\Scripts\python.exe src\build_intraday_dataset.py
+#
+# Install / verify:
+#   .venv\Scripts\python.exe -m pip install -r requirements.txt
+#   .venv\Scripts\python.exe -m pip freeze
+
+
+# --- Core pipeline ---------------------------------------------------------
+numpy==2.5.2
+pandas==3.0.5
+python-dateutil==2.9.0.post0
+requests==2.34.2
+tzdata==2026.3            # zoneinfo needs this on Windows for Asia/Karachi
+
+# --- Columnar output ------------------------------------------------------
+# Without this the dataset builder and feature engine warn and write CSV only.
+# Parquet is ~11x smaller: 16.1 MB of feature CSV becomes 1.4 MB.
+pyarrow==25.0.1
+
+# --- Private web console (src/web_console.py) -----------------------------
+# Localhost-only control panel: start/stop the bot and stream its trade
+# calls from the browser. Bound to 127.0.0.1 with a per-install token.
+flask==3.1.3
+
+# --- Transitive, pinned so a fresh install reproduces this environment ----
+certifi==2026.7.22
+charset-normalizer==3.5.1
+idna==3.19
+six==1.17.0
+typing_extensions==4.16.0
+urllib3==2.7.0
+
+
+# --- Testing --------------------------------------------------------------
+# NOT yet present in .venv. tests/ needs it:
+#   .venv\Scripts\python.exe -m pip install pytest==9.1.1
+pytest==9.1.1
