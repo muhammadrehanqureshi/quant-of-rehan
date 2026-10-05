@@ -69,10 +69,15 @@ when labeled degraded. They are never presented as true order flow.
 
 | Name | Used by | Lives in |
 |---|---|---|
-| `TELEGRAM_BOT_TOKEN` | Signal notifications | GitHub Secrets, Cloudflare worker secret |
-| `TELEGRAM_CHAT_ID` | Signal notifications | GitHub Secrets, Cloudflare worker secret |
+| `TELEGRAM_BOT_TOKEN` | [src/notify/telegram.py](src/notify/telegram.py) — env first, then gitignored `.env` | Owner's Desktop credentials.txt (canonical) + local `.env`. **NEW quant-of-rehan bot token** (2026-10-05); the sentinel's old token is retired and never reused |
+| `TELEGRAM_CHAT_ID` | same | Owner sends the bot one message, then the id goes into local `.env` |
 | `GITHUB_TOKEN` | Automation | GitHub-internal (Actions), not readable |
-| Broker creds | **Nothing in this repo** (SO-1) | Owner's Desktop only |
+| Broker creds | **Nothing in this repo** (SO-1/SO-6) | Owner's Desktop only |
+
+(Update 2026-10-05: the GitHub-Secrets / Cloudflare-worker stores mentioned
+here earlier belonged to the deleted sentinel repos and no longer exist.
+Delivery is currently fail-closed: api.telegram.org is unreachable from the
+owner's network — ISP-level block/throttle observed 2026-10-05.)
 
 ## 6. Decision requested from the owner
 
