@@ -8,9 +8,9 @@ Execution model (conservative by construction):
   for that symbol. If no next bar exists, the signal is skipped (no
   look-ahead, ever).
 - TP is a limit order: always fills at exactly tp_price, even if price
-  gapped above it (conservative — never books a better fill).
+  gapped above it (conservative: never books a better fill).
 - SL fills at sl_price, EXCEPT gap-throughs: if a bar's open is already
-  below the stop, the fill is at that open (worse — conservative).
+  below the stop, the fill is at that open (worse: conservative).
 - If both TP and SL are touchable in the same bar, SL wins (pessimistic
   ordering). In close mode "touchable" means the close crossed the level;
   in hl mode it means high/low touched it.
@@ -22,9 +22,9 @@ Cost model (owner's real fee schedule, from the sentinel overnight study):
     CGT 15% applied to positive net per-trade returns (configurable).
 
 DPS timeseries has NO high/low. touch_mode:
-    "close" — TP/SL evaluated on closes only (works with DPS data).
-    "hl"    — requires high/low columns; sharper but only for future data.
-    "auto"  — use hl if columns present, else close. Reports state the mode.
+    "close": TP/SL evaluated on closes only (works with DPS data).
+    "hl"   : requires high/low columns; sharper but only for future data.
+    "auto" : use hl if columns present, else close. Reports state the mode.
 """
 
 from __future__ import annotations
@@ -41,7 +41,7 @@ DEFAULT_INVALID_BAND = 0.60   # adjacent-print |move| (open-vs-prior-close,
                               # close-vs-open, close-vs-prior-close) beyond
                               # ANY PSX circuit band; near-certain unadjusted
                               # corporate action (e.g. 10:1 par
-                              # reconstruction) or corrupt column —
+                              # reconstruction) or corrupt column:
                               # data-invalid
 
 
@@ -157,7 +157,7 @@ def run_backtest(
             if start_ref is not None and math.isfinite(c) and c > 0:
                 worst_bar_ret = max(worst_bar_ret, abs(c / start_ref - 1.0))
 
-            # stop first — pessimistic ordering, every bar
+            # stop first: pessimistic ordering, every bar
             stop_hit, tp_hit = False, False
             if mode == "hl":
                 stop_hit = lo <= sl_price
@@ -194,7 +194,7 @@ def run_backtest(
         gross = exit_price / entry - 1.0
 
         # Data-quality screen: any adjacent-print move beyond any PSX
-        # circuit band is not a tradable loss/gain — it is an unadjusted
+        # circuit band is not a tradable loss/gain: it is an unadjusted
         # corporate action (10:1 par reconstruction, e.g. an open column
         # left 10x the close column) or a corrupt print. Worst single
         # print pair, NOT a per-bar average: a slow -90% bleed spread over
@@ -242,7 +242,7 @@ def summarize(trades_df: pd.DataFrame, *, skipped: int, touch_mode: str,
         "tp": tp, "sl": sl, "max_hold": max_hold,
     }
     if n == 0:
-        out["note"] = "NO TRADES — engine validated on zero fills only"
+        out["note"] = "NO TRADES: engine validated on zero fills only"
         return out
 
     if "data_invalid" in trades_df.columns:
@@ -253,7 +253,7 @@ def summarize(trades_df: pd.DataFrame, *, skipped: int, touch_mode: str,
         invalid_mask = pd.Series(False, index=trades_df.index)
         valid = trades_df
     if len(valid) == 0:
-        out["note"] = "ALL TRADES DATA-INVALID — no metrics without honest data"
+        out["note"] = "ALL TRADES DATA-INVALID: no metrics without honest data"
         return out
 
     net = valid["net_ret"]

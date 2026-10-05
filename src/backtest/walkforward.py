@@ -1,4 +1,4 @@
-"""Walk-forward split logic — chronological, non-overlapping, leak-free.
+"""Walk-forward split logic: chronological, non-overlapping, leak-free.
 
 The final evaluation segment must remain untouched during model
 development. This module produces the skeleton; parameter fitting happens

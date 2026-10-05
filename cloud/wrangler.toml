@@ -1,0 +1,25 @@
+# Wrangler config for the quant-of-rehan Telegram relay.
+# Deploy: npx wrangler deploy (then: npx wrangler secret put TELEGRAM_BOT_TOKEN)
+
+name = "quant-of-rehan-relay"
+main = "worker.js"
+compatibility_date = "2026-10-01"
+
+# SO-8: Workers crons run on UTC; the worker converts to Karachi (UTC+5)
+# internally and re-checks the schedule edge before firing, so a one-minute
+# cron drift still sends exactly one notification per event.
+# 04:32 UTC = 09:32 PKT (Mon-Thu open)
+# 04:17 UTC = 09:17 PKT (Friday open)
+# 10:30 UTC = 15:30 PKT (Mon-Thu close)
+# 11:30 UTC = 16:30 PKT (Friday close)
+[triggers]
+crons = [
+  "32 4 * * 1-4",
+  "17 4 * * 5",
+  "30 10 * * 1-4",
+  "30 11 * * 5",
+]
+
+[[kv_namespaces]]
+binding = "RELAY_KV"
+id = "PASTE_KV_NAMESPACE_ID_AFTER_CREATION"

@@ -19,7 +19,7 @@ import pandas as pd
 def load_corpus(path: Path) -> tuple[pd.DataFrame, dict]:
     """Return (long DataFrame [symbol, date, open, close, volume], info dict).
 
-    Empty symbols are skipped and counted — never silently (SO-3).
+    Empty symbols are skipped and counted: never silently (SO-3).
     """
     if not path.is_file():
         raise FileNotFoundError(f"Corpus not found: {path}")
