@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Sentinel - Console</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: "Segoe UI", system-ui, sans-serif;
+    background: #0d1117; color: #e6edf3;
+    margin: 0; padding: 24px;
+  }
+  .wrap { max-width: 1100px; margin: 0 auto; }
+  h1 { font-size: 1.35rem; margin: 0 0 4px; }
+  .sub { color: #8b949e; font-size: .85rem; margin-bottom: 18px; }
+  .row { display: flex; gap: 16px; flex-wrap: wrap; align-items: stretch; }
+  .card {
+    background: #161b22; border: 1px solid #30363d;
+    border-radius: 10px; padding: 16px; margin-bottom: 16px;
+  }
+  .card h2 { font-size: .8rem; text-transform: uppercase;
+    letter-spacing: .08em; color: #8b949e; margin: 0 0 10px; }
+  button {
+    background: #238636; color: #fff; border: 0; border-radius: 8px;
+    padding: 10px 22px; font-size: .95rem; font-weight: 600; cursor: pointer;
+  }
+  button.stop { background: #b62324; }
+  button:disabled { background: #30363d; color: #8b949e; cursor: not-allowed; }
+  select, input {
+    background: #0d1117; color: #e6edf3; border: 1px solid #30363d;
+    border-radius: 8px; padding: 9px 10px; font-size: .9rem;
+  }
+  .status { display: inline-block; padding: 4px 12px; border-radius: 999px;
+    font-size: .8rem; font-weight: 600; }
+  .on  { background: #12351c; color: #3fb950; }
+  .off { background: #3a1d1e; color: #f85149; }
+  .mkt { background: #1c2a3a; color: #58a6ff; }
+  .stats { display: flex; gap: 22px; flex-wrap: wrap; }
+  .stat b { display: block; font-size: 1.5rem; }
+  .stat span { color: #8b949e; font-size: .75rem; }
+  .pos { color: #3fb950; } .neg { color: #f85149; }
+  pre#log {
+    background: #0a0d12; border: 1px solid #30363d; border-radius: 8px;
+    padding: 12px; height: 320px; overflow-y: auto; margin: 0;
+    font-size: .8rem; line-height: 1.5; white-space: pre-wrap;
+  }
+  table { width: 100%; border-collapse: collapse; font-size: .82rem; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #21262d; }
+  th { color: #8b949e; font-weight: 600; }
+  .enter { color: #3fb950; font-weight: 700; }
+  .stand { color: #8b949e; }
+  .msg { font-size: .85rem; color: #d29922; min-height: 1.2em; margin-top: 8px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>The Sentinel <span class="sub">- private console, this machine only</span></h1>
+  <div class="sub">PSX · KMIALL · intraday longs · signals appear here and in the log stream below</div>
+
+  <div class="card">
+    <div class="row" style="align-items:center;">
+      <span id="runState" class="status off">STOPPED</span>
+      <span id="mktState" class="status mkt">MARKET ?</span>
+      <span style="flex:1"></span>
+      <label style="font-size:.85rem;color:#8b949e;">Decide every
+        <select id="interval">
+          <option value="60">60s (sharp)</option>
+          <option value="90" selected>90s (balanced)</option>
+          <option value="120">120s (light)</option>
+          <option value="180">180s (lightest)</option>
+        </select>
+      </label>
+      <button id="startBtn">Start the bot</button>
+      <button id="stopBtn" class="stop" disabled>Stop</button>
+    </div>
+    <div id="msg" class="msg"></div>
+  </div>
+
+  <div class="card">
+    <h2>Paper book - labeled outcomes</h2>
+    <div class="stats" id="stats"></div>
+  </div>
+
+  <div class="card">
+    <h2>Latest decisions</h2>
+    <table id="decisions">
+      <thead><tr><th>Time</th><th>Action</th><th>Symbol</th><th>Detail</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>Live console</h2>
+    <pre id="log"></pre>
+  </div>
+</div>
+
+<script>
+const params = new URLSearchParams(location.search);
+const token = params.get("token") || localStorage.getItem("sentinel_token") || "";
+if (token) localStorage.setItem("sentinel_token", token);
+
+async function api(path, opts={}) {
+  const r = await fetch(path, {
+    ...opts,
+    headers: { "X-Sentinel-Token": token,
+               "Content-Type": "application/json" },
+  });
+  if (r.status === 401) { document.body.innerHTML =
+    "<p>Unauthorized - open the URL with ?token=… from the console window.</p>";
+    throw new Error("unauthorized"); }
+  return r.json();
+}
+
+function fmtRow(d) {
+  const t = (d.at || d.timestamp || "").replace("T"," ").slice(5,19);
+  const a = d.action || "";
+  const cls = a === "ENTER" ? "enter" : "stand";
+  const sym = d.symbol || "-";
+  let det = (d.reason || "").slice(0, 90);
+  return `<tr><td>${t}</td><td class="${cls}">${a}</td>` +
+         `<td>${sym}</td><td>${det}</td></tr>`;
+}
+
+let lastLineCount = -1;
+async function tick() {
+  try {
+    const s = await api("/api/state");
+    const rs = document.getElementById("runState");
+    rs.textContent = s.running ? "RUNNING" : "STOPPED";
+    rs.className = "status " + (s.running ? "on" : "off");
+    document.getElementById("mktState").textContent =
+      "MARKET " + (s.market_open ? "OPEN" : "CLOSED");
+    document.getElementById("startBtn").disabled = s.running;
+    document.getElementById("stopBtn").disabled = !s.running;
+
+    const st = s.summary || {};
+    document.getElementById("stats").innerHTML = `
+      <div class="stat"><b>${st.trades ?? 0}</b><span>trades</span></div>
+      <div class="stat"><b>${st.wins ?? 0}W / ${st.losses ?? 0}L</b><span>labeled</span></div>
+      <div class="stat"><b>${st.win_rate != null ? Math.round(st.win_rate*100)+"%" : "-"}</b><span>win rate</span></div>
+      <div class="stat"><b class="${(st.total_pnl_pct||0)>=0?"pos":"neg"}">${st.total_pnl_pct!=null?(st.total_pnl_pct>0?"+":"")+st.total_pnl_pct+"%":"-"}</b><span>total P&L</span></div>`;
+
+    document.querySelector("#decisions tbody").innerHTML =
+      (s.decisions || []).map(fmtRow).join("");
+
+    const log = document.getElementById("log");
+    const lines = s.lines || [];
+    if (lines.length !== lastLineCount) {
+      lastLineCount = lines.length;
+      log.textContent = lines.join("\n");
+      log.scrollTop = log.scrollHeight;
+    }
+  } catch (e) { /* keep polling */ }
+}
+
+document.getElementById("startBtn").onclick = async () => {
+  const iv = document.getElementById("interval").value;
+  const r = await api("/api/start", {
+    method: "POST", body: JSON.stringify({ decide_interval: +iv }) });
+  document.getElementById("msg").textContent = r.message || "";
+  tick();
+};
+document.getElementById("stopBtn").onclick = async () => {
+  const r = await api("/api/stop", { method: "POST", body: "{}" });
+  document.getElementById("msg").textContent = r.message || "";
+  tick();
+};
+
+tick();
+setInterval(tick, 3000);
+</script>
+</body>
+</html>
