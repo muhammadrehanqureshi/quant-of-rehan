@@ -33,7 +33,7 @@ def hl_frame(rows: list[tuple]) -> pd.DataFrame:
 
 
 def oc_frame(rows: list[tuple]) -> pd.DataFrame:
-    """rows: (date, open, close) — DPS timeseries reality (no high/low)."""
+    """rows: (date, open, close): DPS timeseries reality (no high/low)."""
     return pd.DataFrame(rows, columns=["date", "open", "close"]).assign(symbol="TEST")
 
 

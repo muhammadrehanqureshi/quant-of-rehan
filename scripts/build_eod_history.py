@@ -2,10 +2,10 @@
 """LOCAL-ONLY 5-year EOD history builder from PSX Daily Downloads (SO-4).
 
 Walks weekdays in [start, end], fetches each session's mkt_summary file
-(see src/data/psx_daily_downloads.py — full OHLCV WITH high/low), and
+(see src/data/psx_daily_downloads.py: full OHLCV WITH high/low), and
 writes a long-frame CSV. CHECKPOINTED: rows flush to a `.partial.csv`
 every --flush-every sessions, so an interrupted crawl loses at most the
-last few sessions — just re-run to resume.
+last few sessions: just re-run to resume.
 
     python scripts/build_eod_history.py --start 2021-10-04 --end 2026-10-02
 

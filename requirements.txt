@@ -1,4 +1,4 @@
-# quant-of-rehan — local backtesting stack
+# quant-of-rehan: local backtesting stack
 # CI installs exactly this (PR-only workflow, seconds per run; SO-4).
 pandas>=2.2,<3.1
 requests>=2.31

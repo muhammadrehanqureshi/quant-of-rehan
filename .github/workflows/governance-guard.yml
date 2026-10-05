@@ -1,4 +1,4 @@
-# GOVERNANCE GUARD — runs ONLY on pull requests, finishes in seconds.
+# GOVERNANCE GUARD: runs ONLY on pull requests, finishes in seconds.
 # SO-4: no scheduled jobs, no backtests, no data pipelines in Actions.
 # Monthly budget protection: this workflow consumes well under 1 minute per PR.
 name: governance-guard
@@ -15,7 +15,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
+      # fetch-depth: 0 lets the SO-7 check read PR commit authors/messages.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-python@v5
         with:
@@ -24,7 +27,11 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Governance check (secrets, footprint honesty, standing orders)
+      # SO-7: verify every PR commit is authored by the owner, with no bot
+      # trailers and no banned dash characters in the message.
+      - name: Governance check (secrets, style, identity, standing orders)
+        env:
+          GOVERN_COMMIT_RANGE: origin/master..HEAD
         run: python scripts/check_governance.py
 
       - name: Unit tests

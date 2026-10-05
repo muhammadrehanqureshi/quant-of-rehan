@@ -3,35 +3,87 @@
 ![Quant of Rehan](assets/quant_of_rehan_logo.png)
 
 **Private, signal-only quantitative research platform for PSX KMIALL stocks.**
-No order placement. No broker integration for trading. Signals and research only.
+No order placement. No broker integration for trading. Signals and research
+only. Sole contributor and owner: Rehan (muhammadrehanqureshi).
 
-## Standing Orders (hardcoded — see [GOVERNANCE.md](GOVERNANCE.md))
+## What is running today
 
-1. **Signal-only.** The bot never places, modifies, or cancels any order. Ever.
-2. **PR first, merge to `master` myself.** Every change lands via a pull request
-   that the agent opens and merges. No direct pushes to `master` after bootstrap.
-3. **Never fabricate data.** If footprint / order-flow data does not exist, the
-   system prints `FOOTPRINT DATA UNAVAILABLE / DEGRADED` and disables that
-   engine. No fake bid/ask, ever.
-4. **Backtesting runs locally only.** GitHub Actions minutes are capped
-   (2,000/month plan); heavy compute never touches Actions.
-5. **Secrets never enter the repo.** Credentials live on the owner's Desktop
-   files, Windows Credential Manager, and GitHub Secrets — nothing else.
+- **Backtest engine** with the owner's TP +2% / SL -1% law (2:1 RR, long-only,
+  max hold 3 days), real PSX cost schedule (22.4 bps/side + 15% CGT), and a
+  data-quality screen that flags unadjusted corporate actions instead of
+  booking fake losses (SO-3). Validated on 5 years of real KMIALL daily data
+  (Oct 2021 to Oct 2026, 74,654 placeholder-baseline trades, high/low fills).
+- **5-year EOD dataset** built from the PSX Data Portal Daily Downloads
+  (`/download/mkt_summary/{date}.Z`, full OHLCV with high/low, archive back
+  to 2015). Crawler is local-only and resumable (SO-4).
+- **Market clock** pinned to Asia/Karachi (UTC+5) forever (SO-8), with the
+  owner's session law: Mon-Thu open 09:32 close 15:30, Friday open 09:17
+  close 16:30, PSX holidays and weekends skipped.
+- **Telegram delivery through the Cloudflare edge** (SO-9): Telegram is
+  blocked inside Pakistan, so only the relay worker talks to Telegram and the
+  owner reads messages on his phone over his VPN. Edge crons send the two
+  daily texts even with the PC off.
+- **Governance guard** in CI: secret scan, footprint honesty, owner-only
+  commit identity, human-style enforcement, Karachi-pin check.
+
+## Standing Orders (hardcoded, see [GOVERNANCE.md](GOVERNANCE.md))
+
+1. **Signal-only.** The bot never places, modifies, or cancels any order.
+2. **Pull request first, merged to `master` by the agent.** No direct pushes.
+3. **Never fabricate data.** Missing footprint/order-flow is labeled
+   UNAVAILABLE, never invented.
+4. **Backtest locally only.** CI runs seconds of checks, never research.
+5. **Secrets never enter the repo.** Desktop files and worker bindings only.
+6. **Sole contributor, human style (SO-7).** Every commit is authored by
+   Mr. Rehan. Em dashes are banned from commits and files. `legacy/` is
+   quarantined reference material from the deleted sentinel repos.
+7. **Karachi time forever (SO-8).** UTC+5, hardcoded, no other zone.
+8. **Owner notifications (SO-9).** "Market is open and the system is online."
+   at open; "Market is closed and the system is sleeping now." at close,
+   through the Cloudflare relay.
 
 ## Layout
 
 ```
-assets/                 Branding (Quant of Rehan logo)
-src/data/registry.py    Data-source capability registry (footprint honesty layer)
-tests/                  Unit tests (run locally: python -m unittest discover -s tests)
-scripts/check_governance.py   Secret-leak + governance scanner (run in CI on every PR)
-GOVERNANCE.md           Hardcoded standing orders
-DATA_SOURCING.md        Market-data research memo: what exists, what does not
+src/data/sessions.py        Karachi-pinned clock, session law, owner texts
+src/data/psx_daily_downloads.py   PSX Daily Downloads fetcher/parser
+src/data/corpus.py          legacy eod_corpus.json loader
+src/backtest/engine.py      TP/SL engine (conservative fills, invalid screen)
+src/backtest/walkforward.py rolling-origin folds + leakage assertions
+src/notify/telegram.py      env-driven notifier (fail closed)
+src/notify/schedule_runner.py  local open/close scheduler with journal
+cloud/worker.js             Cloudflare relay + edge crons (Karachi math)
+cloud/pair.py               deploy + pair + test from the owner's PC
+scripts/build_eod_history.py  resumable 5-year dataset crawler
+scripts/check_governance.py secret, style, identity and SO-8 enforcement
+legacy/                     quarantined code from the deleted sentinel repos
+data/                       gitignored: datasets, journals, relay url
 ```
 
-## Running the checks locally
+## Running things locally
 
 ```bash
+# checks (same as CI)
 python scripts/check_governance.py
 python -m unittest discover -s tests
+
+# notifications: one-time setup (message the bot on Telegram first)
+python cloud/pair.py deploy && python cloud/pair.py discover && python cloud/pair.py test
+
+# local scheduler (edge crons already deliver without the PC)
+python -m src.notify.schedule_runner      # foreground
+python scripts/install_scheduler.py       # auto-start at login
+
+# data and research
+python scripts/build_eod_history.py --start 2021-10-04 --end 2026-10-02
+python scripts/smoke_backtest.py --dataset data/eod_history_kmi.csv.gz
 ```
+
+## Current status
+
+- Placeholder-baseline 5-year result: expectancy -1.06% per trade, win rate
+  27.5%. That verdict belongs to the placeholder entry rule, not to the
+  owner's law. The real signal engine (FVG / liquidity / auction layers) is
+  the next milestone, measured on this exact honest pipeline.
+- Footprint and order-flow data: UNAVAILABLE (registry-enforced). Path A
+  (read-only broker feed capture) awaits the owner's approval.
