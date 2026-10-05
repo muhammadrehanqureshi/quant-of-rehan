@@ -3,8 +3,9 @@
 
 Walks weekdays in [start, end], fetches each session's mkt_summary file
 (see src/data/psx_daily_downloads.py — full OHLCV WITH high/low), and
-appends to a long-frame CSV (+ .gz). Resumable: already-present session
-dates are skipped, so an interrupted crawl can just be re-run.
+writes a long-frame CSV. CHECKPOINTED: rows flush to a `.partial.csv`
+every --flush-every sessions, so an interrupted crawl loses at most the
+last few sessions — just re-run to resume.
 
     python scripts/build_eod_history.py --start 2021-10-04 --end 2026-10-02
 
@@ -42,48 +43,75 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--end", required=True, help="YYYY-MM-DD (inclusive)")
     ap.add_argument("--out", type=Path, default=ROOT / "data/eod_history.csv.gz")
     ap.add_argument("--pause", type=float, default=REQUEST_PAUSE)
+    ap.add_argument("--flush-every", type=int, default=25,
+                    help="checkpoint rows to the partial file every N sessions")
     args = ap.parse_args(argv)
+
+    # Append-mode checkpoint file: a killed crawl loses at most the last
+    # --flush-every sessions, not the whole run (lesson from the first
+    # 5-year attempt: write-only-at-end lost 30+ minutes to a restart).
+    partial = args.out.with_suffix(".partial.csv")
 
     want = iter_weekdays(args.start, args.end)
     print(f"LOCAL-ONLY PSX EOD crawl: {len(want)} weekdays "
           f"{args.start} .. {args.end} (holidays just 404)\n"
-          f"pause={args.pause}s  out={args.out}")
+          f"pause={args.pause}s  out={args.out}  flush_every={args.flush_every}")
 
     have: set[str] = set()
-    if args.out.is_file():
-        old = pd.read_csv(args.out)
-        have = set(old["date"].unique())
-        print(f"resuming: {len(have)} sessions already present")
+    for src in (args.out, partial):
+        if src.is_file():
+            old = pd.read_csv(src, usecols=["date"])
+            have |= set(old["date"].unique())
+            print(f"resume source {src.name}: "
+                  f"{old['date'].nunique()} sessions")
+    if have:
+        print(f"resuming: {len(have)} sessions already on disk")
 
     todo = [d for d in want if d.isoformat() not in have]
     print(f"to fetch: {len(todo)} sessions")
 
-    frames = [] if not have else []
     fetched, no_session, bad = 0, 0, []
     buf: list[dict] = []
+    new_rows_total = 0
+    partial.parent.mkdir(parents=True, exist_ok=True)
+
+    def flush() -> None:
+        """Append buffered rows to the partial checkpoint file."""
+        if not buf:
+            return
+        pd.DataFrame(buf)[["date", "symbol", "name", "open", "high",
+                           "low", "close", "volume", "rate2"]].to_csv(
+            partial, mode="a", header=not partial.is_file(), index=False)
+        buf.clear()
+
     for i, d in enumerate(todo, 1):
         rows, info = fetch_mkt_summary(d, pause=args.pause)
         if info["status"] == "ok":
             buf.extend(rows)
             fetched += 1
+            new_rows_total += len(rows)
         elif info["status"] == "no_session":
             no_session += 1
         else:
             bad.append(info)
-            print(f"  !! {d}: {info.get('status')} {info.get('error', '')}")
-        if buf and i % 60 == 0:
+            print(f"  !! {d}: {info.get('status')} {info.get('error', '')}",
+                  flush=True)
+        if i % args.flush_every == 0:
+            flush()
+        if i % 60 == 0:
             print(f"  ...{i}/{len(todo)} fetched={fetched} "
                   f"no_session={no_session} bad={len(bad)} "
-                  f"rows={len(buf):,}")
+                  f"rows={new_rows_total:,}", flush=True)
+    flush()
 
-    if not buf:
+    if new_rows_total == 0:
         print("Nothing new fetched.")
         return 0
 
-    new = pd.DataFrame(buf)[["date", "symbol", "name", "open", "high",
-                             "low", "close", "volume", "rate2"]]
     old = pd.read_csv(args.out) if args.out.is_file() else None
-    df = pd.concat([old, new], ignore_index=True) if old is not None else new
+    add = pd.read_csv(partial) if partial.is_file() else None
+    parts = [p for p in (old, add) if p is not None]
+    df = pd.concat(parts, ignore_index=True)
     df = df.sort_values(["symbol", "date"]).reset_index(drop=True)
     args.out.parent.mkdir(parents=True, exist_ok=True)
     df.to_csv(args.out, index=False)
