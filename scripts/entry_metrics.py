@@ -95,46 +95,72 @@ def study(df: pd.DataFrame, entry_mask: pd.Series, label: str) -> dict:
     gap = (o2 / c1 - 1).where((c1 > 0) & (o2 > 0))
     out["overnight_gap_bar1_close_to_bar2_open"] = describe(gap.dropna())
 
-    # MAE / MFE within 1 and within HOLD bars (lows/highs vs entry open)
-    gsym = df.groupby("symbol", sort=False)
+    # MAE / MFE within 1 and within HOLD bars (lows/highs vs entry open).
+    # Grouped shifts only: a symbol-block end must never borrow the next
+    # symbol's bar. Rows with a missing bar inside the window are NaN and
+    # therefore excluded, keeping MAE/MFE window lengths honest.
     low_m = df["low"].where(df["low"] > 0)
     high_m = df["high"].where(df["high"] > 0)
+    gsym = df.groupby("symbol", sort=False)
     mae1 = (low_m / entry - 1).loc[d.index]
     mfe1 = (high_m / entry - 1).loc[d.index]
-    lo_w = low_m.loc[d.index]
-    hi_w = high_m.loc[d.index]
-    for k in range(1, HOLD):
-        lo_w = np.minimum(lo_w, low_m.shift(-k).loc[d.index])
-        hi_w = np.maximum(hi_w, high_m.shift(-k).loc[d.index].fillna(-np.inf))
+
+    # Window extremes per bar offset j (j=0 is the entry bar itself), all
+    # symbol-grouped so block ends yield NaN instead of a neighbor's bar.
+    lo_j = {}
+    hi_j = {}
+    for j in range(HOLD):
+        lo_j[j] = gsym["low"].shift(-j).loc[d.index]
+        hi_j[j] = gsym["high"].shift(-j).loc[d.index]
+        lo_j[j] = lo_j[j].where(lo_j[j] > 0)
+        hi_j[j] = hi_j[j].where(hi_j[j] > 0)
+
+    def extremes(span: int) -> tuple[pd.Series, pd.Series, pd.Series]:
+        """(min low, max high, all-bars-present mask) over bars 0..span-1.
+        pandas min/max skip NaN, so partially present windows still get an
+        extreme; the ok mask then drops them from reported stats."""
+        lo = lo_j[0].copy()
+        hi = hi_j[0].copy()
+        ok = lo.notna() & hi.notna()
+        for j in range(1, span):
+            lo = pd.concat([lo, lo_j[j]], axis=1).min(axis=1)
+            hi = pd.concat([hi, hi_j[j]], axis=1).max(axis=1)
+            ok &= lo_j[j].notna() & hi_j[j].notna()
+        return lo, hi, ok
+
+    lo3, hi3, ok3 = extremes(HOLD)
     out["mae_within_1_bar"] = describe(mae1.dropna())
     out["mfe_within_1_bar"] = describe(mfe1.dropna())
-    out["mae_within_3_bars"] = describe(pd.Series(lo_w / entry - 1).dropna())
-    out["mfe_within_3_bars"] = describe(pd.Series(hi_w / entry - 1).dropna())
+    out["mae_within_3_bars"] = describe((lo3 / entry - 1)[ok3].dropna())
+    out["mfe_within_3_bars"] = describe((hi3 / entry - 1)[ok3].dropna())
 
-    # stop/TP touch rates within the hold window
-    mae3 = pd.Series(lo_w / entry - 1)
-    mfe3 = pd.Series(hi_w / entry - 1)
+    # stop/TP touch rates within the hold window (complete windows only)
+    mae3 = lo3 / entry - 1
+    mfe3 = hi3 / entry - 1
     out["touch_rates_within_3_bars"] = {
-        "mae_le_-1pct": float((mae3 <= -0.01).mean()),
-        "mae_le_-2pct": float((mae3 <= -0.02).mean()),
-        "mfe_ge_+0.5pct": float((mfe3 >= 0.005).mean()),
-        "mfe_ge_+1pct": float((mfe3 >= 0.01).mean()),
-        "mfe_ge_+2pct": float((mfe3 >= 0.02).mean()),
+        "mae_le_-1pct": float((mae3[ok3] <= -0.01).mean()),
+        "mae_le_-2pct": float((mae3[ok3] <= -0.02).mean()),
+        "mfe_ge_+0.5pct": float((mfe3[ok3] >= 0.005).mean()),
+        "mfe_ge_+1pct": float((mfe3[ok3] >= 0.01).mean()),
+        "mfe_ge_+2pct": float((mfe3[ok3] >= 0.02).mean()),
     }
 
-    # time to target: first bar j (1..HOLD) with high_j >= entry*(1+x)
+    # time to target: first bar j (1..HOLD) whose high reaches entry*(1+x).
+    # hi_j indexes bar offsets 0..HOLD-1, so bar number = j+1. Only entries
+    # whose high_j exists count toward the reach rate.
     tt = {}
-    hi_j = {j: high_m.shift(-j + 1).loc[d.index] for j in range(1, HOLD + 1)}
     for t in TARGETS:
-        thresh = entry * (1 + t)
         reach = pd.Series(False, index=d.index)
         bars = pd.Series(np.nan, index=d.index)
-        for j in range(1, HOLD + 1):
-            hit = (hi_j[j] >= thresh) & ~reach
-            bars = bars.where(~hit, float(j))
-            reach = reach | (hi_j[j] >= thresh).fillna(False)
+        for j in range(HOLD):
+            hit = (hi_j[j] >= entry * (1 + t)) & ~reach
+            bars = bars.where(~hit, float(j + 1))
+            reach = reach | hit.fillna(False)
+        known = pd.Series(True, index=d.index)
+        for j in range(HOLD):
+            known &= hi_j[j].notna()
         tt[f"+{t*100:g}pct"] = {
-            "reached_within_3_bars": float(reach.mean()),
+            "reached_within_3_bars": float(reach[known].mean()),
             "median_bars_when_reached": float(bars.dropna().median()) if reach.any() else None,
         }
     out["time_to_target"] = tt
