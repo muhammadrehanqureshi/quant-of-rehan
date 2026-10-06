@@ -53,6 +53,18 @@ when labeled degraded. They are never presented as true order flow.
 - The archive grows day by day; weeks of banked sessions are required before
   any intraday claim (registry: intraday_ohlcv DEGRADED, footprint
   UNAVAILABLE until a genuine archive exists AND is backtestable).
+- **Anonymous-tier limits (measured live 2026-10-06):** the feed socket
+  accepts the connection and streams EXS-FEED (index), MKT-Movers and
+  MKT-STATS, but does NOT stream per-symbol MKT-FEED ticks without a
+  session: a 319-symbol and a 13-symbol liquid subscription both produced
+  zero tick frames during the live afternoon session; anonymous
+  singlefeed/GetSingleFeedWithMarketCap HTTP endpoints also refuse. Genuine
+  1-minute OHLC bars and index snapshots ARE banking. Per-symbol L1 quote
+  capture needs the owner's credentialed read-only mobile-REST chain
+  (PartialLoginServlet -> FeedSessionID -> session-tier feed servlets),
+  which was live-verified during the September recon and stays strictly
+  read-only; it requires the owner's credential sheet from the local
+  Desktop (SO-5: never in the repo, never printed).
 
 ### Path B: Forward intraday bar capture from the local runner
 - No new source: the existing local runner records 1m/5m/15m/1h bars daily.
