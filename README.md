@@ -99,7 +99,14 @@ python scripts/smoke_backtest.py --dataset data/eod_history_kmi.csv.gz
 
 - Placeholder-baseline 5-year result: expectancy -1.06% per trade, win rate
   27.5%. That verdict belongs to the placeholder entry rule, not to the
-  owner's law. The real signal engine (FVG / liquidity / auction layers) is
-  the next milestone, measured on this exact honest pipeline.
+  owner's law.
+- Phase 1 research (2026-10-06, see RESEARCH_PHASE1.md): 74,654-trade causal
+  matrix, A-G path analysis, survivorship sensitivity, frozen filter matrix.
+  No edge claim; the stop/TP grid is banked pending the owner's review.
+- Signal engine v1 (UNGRADED) pushes daily signals to Telegram + the phone
+  app after the close (src/signals/).
 - Footprint and order-flow data: UNAVAILABLE (registry-enforced). Path A
-  (read-only broker feed capture) awaits the owner's approval.
+  (read-only broker feed capture) is APPROVED and RUNNING since 2026-10-06:
+  genuine 1-minute OHLC bars and index snapshots bank daily under
+  data/feed_capture/; per-symbol tick capture needs the read-only
+  credentialed chain (see DATA_SOURCING.md).
