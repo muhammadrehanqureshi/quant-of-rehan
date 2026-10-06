@@ -40,13 +40,19 @@ when labeled degraded. They are never presented as true order flow.
 
 ## 4. The real paths to genuine order flow
 
-### Path A: Forward capture from the read-only broker feed (recommended)
-- Feed socket: `oms1.eclear.com.pk:8484` (per owner's credential sheet).
-- Owner's own rules sanction **READ-ONLY** use: no order-side messages, ever.
-- A local recorder would bank genuine tick/depth data **from today onward**,
-  building a private historical archive week by week.
-- **Needs owner go-ahead** before any socket is connected (it touches broker
-  infrastructure, so this is the one thing the QUANT asks for).
+### Path A: Forward capture from the read-only broker feed: APPROVED AND RUNNING
+- **Owner approved 2026-10-06.** Capture is LIVE (read-only, no credentials,
+  no session, no login of any kind):
+  - `src/data/feed_capture.py`: the broker's own MKT-FEED socket
+    (nxg1.eclear.com.pk:8484), KMIALL universe subscription + heartbeats
+    only, frames banked as NDJSON under `data/feed_capture/`;
+  - `src/data/ohlc_poller.py`: 1-minute OHLC bars via GetOHLCData (public
+    read tier), full-day refresh per pass so no bar is lost on rotation;
+  - an outgoing-frame guard allows exactly three prefixes (MKT-FEED / EXS-FEED
+    / HELLO); anything else raises. The read-only law is enforced in code.
+- The archive grows day by day; weeks of banked sessions are required before
+  any intraday claim (registry: intraday_ohlcv DEGRADED, footprint
+  UNAVAILABLE until a genuine archive exists AND is backtestable).
 
 ### Path B: Forward intraday bar capture from the local runner
 - No new source: the existing local runner records 1m/5m/15m/1h bars daily.
