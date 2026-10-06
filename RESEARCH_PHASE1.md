@@ -1,12 +1,12 @@
 # RESEARCH PHASE 1: trade matrix, path analysis, survivorship, filters
 
-Generated: 2026-10-06T14:10:18+05:00 (Karachi, SO-8). LOCAL ONLY (SO-4).
+Generated: 2026-10-06T15:49:03+05:00 (Karachi, SO-8). LOCAL ONLY (SO-4).
 Population: placeholder-baseline entries (close > MA20 and volume > 20d median at T). This is an entry-quality audit, NOT a strategy and NOT an edge claim.
 Costs quoted where relevant: 22.4 bps/side + 15% CGT (owner schedule). No filter is ranked by profit anywhere in this report.
 
 ## 1. Data quality findings
 
-- dataset: 283,630 rows, 305 symbols, 2021-10-04..2026-10-02, sha256 f539c950
+- dataset: 287,962 rows, 320 symbols, 2021-10-04..2026-10-05, sha256 55fd6d21
 - signals 75,096; skipped (no next bar) 442; matrix rows 74,654 (reconciles with the audit's 74,654)
 - data_invalid (engine print-chain screen, band 0.60): 760 (1.02%) excluded from every metric below
 - entry gap (next open vs signal close): median +0.26%, p95 +6.99%
@@ -35,9 +35,9 @@ Group G exists at meaningful scale: n=13,232 (17.9% of all valid trades); persis
 
 ## 4. SURVIVORSHIP SENSITIVITY ONLY (current-membership universe; does NOT solve point-in-time membership)
 
-- symbols in dataset: 305; complete-5y symbols: 256; dead in trailing ~60 sessions: 1 (0.0% of trades)
-- first-print years: {"2021": 259, "2022": 4, "2023": 6, "2024": 11, "2025": 13, "2026": 12}
-- last-print years: {"2022": 1, "2026": 304}
+- symbols in dataset: 320; complete-5y symbols: 257; dead in trailing ~60 sessions: 8 (0.0% of trades)
+- first-print years: {"2021": 270, "2022": 4, "2023": 6, "2024": 12, "2025": 14, "2026": 14}
+- last-print years: {"2021": 6, "2022": 1, "2026": 313}
 - trades from symbols listed after 2021: 6.9%; from symbols younger than 1y at signal: 15.2%
 
 | population | n | MAE med | MFE med | +2 before -1 | reach +2 | touch -1 | ret3 mean |
