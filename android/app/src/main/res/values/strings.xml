@@ -4,6 +4,15 @@
     <string name="app_name_upper">QUANT OF REHAN</string>
     <string name="tagline">PSX KMIALL · SIGNAL-ONLY · KARACHI TIME</string>
     <string name="checking">Checking system…</string>
-    <string name="pair_hint">1. Send the new bot any message on Telegram (VPN on).\n2. Run: python cloud/pair.py discover\n3. Enter the 4-digit code the bot sends you.\n4. Paste the admin token from .env here to receive signals.</string>
-    <string name="keepalive_hint">The app checks the system every 15 minutes and notifies you. On some phones, also allow autostart and remove battery limits for reliability.</string>
+    <string name="no_signals">No signal right now.</string>
+    <string name="gear_glyph">⚙</string>
+    <string name="diamond">◆</string>
+    <string name="label_system">SYSTEM STATUS</string>
+    <string name="label_signal">LATEST SIGNAL</string>
+    <string name="label_settings">SETTINGS</string>
+    <string name="token_hint">relay admin token</string>
+    <string name="btn_save">Save token</string>
+    <string name="btn_relay">Relay status</string>
+    <string name="btn_arm">Arm 15-minute watchdog</string>
+    <string name="settings_hint">Paste the relay admin token once to receive signals. The app checks the system every 15 minutes; on some phones also allow autostart and remove battery limits.</string>
 </resources>

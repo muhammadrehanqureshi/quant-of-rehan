@@ -50,32 +50,98 @@ public final class Watcher {
         return saved.isEmpty() ? DEFAULT_RELAY : saved;
     }
 
-    /** One fetch round: health always, signals when the token is stored. */
+    /** One raw GET; returns the parsed body or throws. */
+    private static JSONObject get(String url, String admin) throws Exception {
+        HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
+        conn.setConnectTimeout(8000);
+        conn.setReadTimeout(12000);
+        if (admin != null && !admin.isEmpty()) {
+            conn.setRequestProperty("x-admin-token", admin);
+        }
+        BufferedReader r = new BufferedReader(new InputStreamReader(
+                conn.getResponseCode() >= 400 ? conn.getErrorStream()
+                        : conn.getInputStream(),
+                StandardCharsets.UTF_8));
+        StringBuilder sb = new StringBuilder();
+        String line;
+        while ((line = r.readLine()) != null) {
+            sb.append(line);
+        }
+        r.close();
+        return new JSONObject(sb.toString());
+    }
+
+    /** Health with one retry, so a single dropped packet does not alarm. */
+    private static JSONObject healthWithRetry(String base) throws Exception {
+        Exception last = null;
+        for (int attempt = 0; attempt < 2; attempt++) {
+            try {
+                return get(base + "/health", null);
+            } catch (Exception e) {
+                last = e;
+                try {
+                    Thread.sleep(1500);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw ie;
+                }
+            }
+        }
+        throw last;
+    }
+
+    /**
+     * One fetch round. ONLINE means the relay answered /health; the signals
+     * call never flips the status, it only fills or empties the signal card.
+     */
     static void fetchStatus(final Context c, final String admin, final Callback cb) {
         POOL.execute(() -> {
+            String base = relayUrl(c);
             try {
-                JSONObject health = get(relayUrl(c) + "/health", null);
+                JSONObject health = healthWithRetry(base);
                 boolean online = health.optBoolean("ok", false);
-                String next = health.optJSONObject("next_event") == null ? ""
-                        : health.optJSONObject("next_event").optString("event", "") + " at "
-                        + health.optJSONObject("next_event").optString("at_pk", "");
+                JSONObject next = health.optJSONObject("next_event");
+                String nextTxt = next == null ? ""
+                        : next.optString("event", "") + " " + next.optString("at_pk", "");
                 String karachi = health.optString("karachi_now", "");
-                String detail = ("System clock: " + karachi
-                        + (next.isEmpty() ? "" : "  ·  Next: " + next)).trim();
+                String detail = online
+                        ? joinNonEmpty("Karachi: ", karachi,
+                          nextTxt.isEmpty() ? "" : "   |   Next: " + nextTxt)
+                        : "The relay answered but reported a fault.";
 
                 String signals = "";
+                String signalNote = "";
                 if (!admin.isEmpty()) {
-                    JSONObject sig = get(relayUrl(c) + "/signals", admin);
-                    if (sig.optBoolean("ok")) {
-                        signals = sig.optString("signals", "");
+                    try {
+                        JSONObject sig = get(base + "/signals", admin);
+                        if (sig.optBoolean("ok")) {
+                            signals = sig.optString("signals", "");
+                        } else {
+                            signalNote = "The relay rejected the token. Paste the current admin token (gear icon).";
+                        }
+                    } catch (Exception se) {
+                        signalNote = "Signals could not load just now.";
                     }
+                }
+                if (!signalNote.isEmpty() && signals.trim().isEmpty()) {
+                    signals = signalNote;
                 }
                 cb.done(online, detail, signals);
             } catch (Exception e) {
-                cb.done(false, "Relay unreachable from the edge: "
-                        + e.getClass().getSimpleName(), "");
+                String why = e.getClass().getSimpleName();
+                String hint = why.contains("UnknownHost") || why.contains("Connect")
+                        ? "No route to the relay from this phone. Check internet or VPN."
+                        : "The relay did not answer in time. Will retry.";
+                cb.done(false, hint + " (" + why + ")", "");
             }
         });
+    }
+
+    private static String joinNonEmpty(String a, String b, String c) {
+        StringBuilder sb = new StringBuilder(a);
+        if (!b.isEmpty()) sb.append(b);
+        if (!c.isEmpty()) sb.append(c);
+        return sb.toString();
     }
 
     /** Watchdog beat: fetch, compare, notify on change or on signals. */
@@ -91,12 +157,15 @@ public final class Watcher {
                 // quiet heartbeat: refresh the "still working" timestamp only
                 p.edit().putLong("last_seen_ms", System.currentTimeMillis()).apply();
             }
-            if (!signals.trim().isEmpty()) {
-                String last = p.getString("last_signal", "");
-                if (!signals.trim().equals(last)) {
-                    notifySignal(c, signals.trim());
-                    p.edit().putString("last_signal", signals.trim()).apply();
-                }
+            if (signals.trim().isEmpty()
+                    || signals.trim().startsWith("The relay ")
+                    || signals.trim().startsWith("Signals ")) {
+                return; // informational note, never a signal alert
+            }
+            String last = p.getString("last_signal", "");
+            if (!signals.trim().equals(last)) {
+                notifySignal(c, signals.trim());
+                p.edit().putString("last_signal", signals.trim()).apply();
             }
         });
     }
@@ -148,25 +217,5 @@ public final class Watcher {
                                 .bigText(text))
                         .setAutoCancel(true);
         nm.notify(tag, id, b.build());
-    }
-
-    private static JSONObject get(String url, String admin) throws Exception {
-        HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
-        conn.setConnectTimeout(10000);
-        conn.setReadTimeout(15000);
-        if (admin != null && !admin.isEmpty()) {
-            conn.setRequestProperty("x-admin-token", admin);
-        }
-        BufferedReader r = new BufferedReader(new InputStreamReader(
-                conn.getResponseCode() >= 400 ? conn.getErrorStream()
-                        : conn.getInputStream(),
-                StandardCharsets.UTF_8));
-        StringBuilder sb = new StringBuilder();
-        String line;
-        while ((line = r.readLine()) != null) {
-            sb.append(line);
-        }
-        r.close();
-        return new JSONObject(sb.toString());
     }
 }
