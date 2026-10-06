@@ -40,6 +40,9 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 from src.data.sessions import is_market_open, now_karachi  # noqa: E402
+# SO-8: every session/market decision here comes from src/data/sessions.py,
+# which pins Asia/Karachi UTC+5; this module never builds a market time
+# itself. The 15:30 close and the 09:32/09:17 opens live there only.
 from src.data.registry import availability  # noqa: E402
 from src.notify.schedule_runner import load_relay_url  # noqa: E402
 from src.signals.engine import run  # noqa: E402
