@@ -49,7 +49,12 @@ REGISTRY: Dict[str, DataSource] = {
         availability=Availability.DEGRADED,
         detail="No free historical intraday archive for PSX. Bars are only "
                "captured forward by the local runner; the archive grows over "
-               "time. Historical intraday backtests are limited to banked data.",
+               "time. Historical intraday backtests are limited to banked data. "
+               "UPDATE 2026-10-06: Path A approved by the owner; the read-only "
+               "broker feed capture (src/data/feed_capture.py) and 1-minute "
+               "OHLC poller (src/data/ohlc_poller.py) now bank genuine bars "
+               "daily. Forward-only: no historical claims, DEGRADED until "
+               "weeks of banked sessions exist.",
     ),
     "footprint": DataSource(
         key="footprint",
@@ -58,8 +63,11 @@ REGISTRY: Dict[str, DataSource] = {
         detail="FOOTPRINT DATA UNAVAILABLE / DEGRADED: no historical PSX "
                "Level-2 or tick bid/ask data exists in any free source. "
                "Forward capture via the read-only broker feed socket is the "
-               "only path and awaits owner approval. Until weeks of genuine "
-               "data are banked, the footprint engine stays disabled.",
+               "only path. Owner approved Path A on 2026-10-06: the feed "
+               "daemon banks genuine ticks daily (data/feed_capture/); a "
+               "genuine footprint archive begins accumulating from that date. "
+               "No historical footprint exists, so the footprint engine stays "
+               "disabled until a real archive is banked AND backtestable.",
     ),
     "market_breadth": DataSource(
         key="market_breadth",
