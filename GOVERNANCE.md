@@ -151,4 +151,26 @@ instruction from the owner.
 SO-1 signal-only · SO-2 PR first, agent merges · SO-3 never fabricate data ·
 SO-4 backtest locally only · SO-5 secrets stay out · SO-6 the agent merges ·
 SO-7 sole contributor, human-looking code, no em dashes · SO-8 Karachi time
-forever · SO-9 owner notifications via the Cloudflare relay.
+forever · SO-9 owner notifications via the Cloudflare relay · SO-10 resource law: cloud-first, local only for backtests.
+
+## SO-10 · Resource law: the owner's PC is for backtesting and local trials only (owner order, 2026-10-06)
+
+- The owner's PC is NEVER hammered for always-on or recurring workloads.
+  Backtesting, local feature trials, and one-shot maintenance runs are the
+  ONLY permitted local work. Everything else runs on cloud minutes:
+  GitHub Actions (2000 free minutes/month) and the Cloudflare Worker relay.
+- Live signals and their daily schedule run in the cloud: the relay's cron
+  fires the owner's fixed texts; any recurring computation that fits the
+  free Actions budget may run there within it. Backtesting is the sole
+  exception that runs locally (SO-4), precisely because a 5-year grid would
+  burn the entire monthly Actions budget.
+- Local capture daemons and watch loops are forbidden as a standing
+  condition. Any future capture or polling need must be either a bounded,
+  owner-approved run or moved to cloud minutes. Agents do not leave
+  background processes on the owner's machine; a session ends with zero
+  resident agent processes (verified).
+- The 2000-minute Actions budget is a hard ceiling: a job estimated to
+  threaten it is redesigned (sampled, folded into fewer runs, or run
+  locally under SO-4) before it is proposed.
+- Any change to this rule requires an explicit owner instruction and an
+  amendment to this file.
