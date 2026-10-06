@@ -10,46 +10,112 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="22dp">
+        android:paddingLeft="20dp"
+        android:paddingRight="20dp"
+        android:paddingTop="18dp"
+        android:paddingBottom="24dp">
 
-        <TextView
+        <!-- ══════════ header: brand block + settings gear ══════════ -->
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:gravity="center"
-            android:letterSpacing="0.12"
-            android:text="@string/app_name_upper"
-            android:textColor="@color/gold_bright"
-            android:textSize="22sp"
-            android:textStyle="bold"/>
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
 
-        <TextView
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:letterSpacing="0.06"
+                    android:shadowColor="@color/crimson_logo"
+                    android:shadowDy="2"
+                    android:shadowRadius="6"
+                    android:text="@string/app_name_upper"
+                    android:textColor="@color/gold_bright"
+                    android:textSize="24sp"
+                    android:textStyle="bold"/>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="3dp"
+                    android:letterSpacing="0.18"
+                    android:text="@string/tagline"
+                    android:textColor="@color/teal"
+                    android:textSize="10sp"/>
+            </LinearLayout>
+
+            <!-- neutral plum in every state; gold ring only while the
+                 settings panel is open -->
+            <TextView
+                android:id="@+id/btn_settings"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:background="@drawable/gear_bg"
+                android:contentDescription="@string/settings_hint"
+                android:gravity="center"
+                android:text="@string/gear_glyph"
+                android:textColor="@color/gold"
+                android:textSize="18sp"/>
+        </LinearLayout>
+
+        <!-- brand rule: line, diamond, line (from the logo frame) -->
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:gravity="center"
-            android:letterSpacing="0.08"
-            android:text="@string/tagline"
-            android:textColor="@color/teal"
-            android:textSize="11sp"/>
+            android:layout_marginTop="12dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
 
+            <View
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_weight="1"
+                android:background="@color/gold_deep"/>
+
+            <TextView
+                style="@style/QorDiamond"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:paddingLeft="8dp"
+                android:paddingRight="8dp"
+                android:text="@string/diamond"/>
+
+            <View
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_weight="1"
+                android:background="@color/gold_deep"/>
+        </LinearLayout>
+
+        <!-- ══════════ system status card ══════════ -->
         <LinearLayout style="@style/QorPanel"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="18dp"
+            android:layout_marginTop="16dp"
             android:orientation="vertical">
+
+            <TextView style="@style/QorLabel"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/label_system"/>
 
             <TextView
                 android:id="@+id/status_pill"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_gravity="center_horizontal"
-                android:background="@drawable/pill_bg"
+                android:layout_marginTop="10dp"
                 android:paddingLeft="14dp"
                 android:paddingRight="14dp"
-                android:paddingTop="4dp"
-                android:paddingBottom="4dp"
+                android:paddingTop="5dp"
+                android:paddingBottom="5dp"
                 android:text="@string/checking"
-                android:textSize="12sp"
+                android:textSize="13sp"
                 android:textStyle="bold"/>
 
             <TextView
@@ -57,10 +123,9 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="10dp"
-                android:gravity="center"
                 android:text="@string/checking"
                 android:textColor="@color/gold_bright"
-                android:textSize="19sp"
+                android:textSize="21sp"
                 android:textStyle="bold"/>
 
             <TextView
@@ -68,10 +133,10 @@
                 style="@style/QorBody"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
-                android:gravity="center"/>
+                android:layout_marginTop="4dp"/>
         </LinearLayout>
 
+        <!-- ══════════ latest signal card ══════════ -->
         <LinearLayout style="@style/QorPanel"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -81,33 +146,37 @@
             <TextView style="@style/QorLabel"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="LATEST SIGNALS"/>
+                android:text="@string/label_signal"/>
 
             <TextView
                 android:id="@+id/signal_list"
                 style="@style/QorBody"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
-                android:text="No signals yet. The engine ships next."/>
+                android:layout_marginTop="8dp"
+                android:text="@string/no_signals"/>
         </LinearLayout>
 
-        <LinearLayout style="@style/QorPanel"
+        <!-- ══════════ settings (hidden until the gear is tapped) ══════════ -->
+        <LinearLayout
+            android:id="@+id/settings_panel"
+            style="@style/QorPanel"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="14dp"
-            android:orientation="vertical">
+            android:orientation="vertical"
+            android:visibility="gone">
 
             <TextView style="@style/QorLabel"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="PAIR WITH YOUR SYSTEM"/>
+                android:text="@string/label_settings"/>
 
             <TextView style="@style/QorBody"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="6dp"
-                android:text="@string/pair_hint"/>
+                android:text="@string/settings_hint"/>
 
             <EditText
                 android:id="@+id/token_box"
@@ -115,9 +184,9 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="10dp"
                 android:background="@drawable/field_bg"
-                android:hint="relay admin token (signals only)"
+                android:hint="@string/token_hint"
                 android:inputType="textVisiblePassword"
-                android:padding="10dp"
+                android:padding="12dp"
                 android:textColor="@color/text_bright"
                 android:textColorHint="#FF6E5A78"
                 android:textSize="12sp"/>
@@ -125,7 +194,7 @@
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
+                android:layout_marginTop="10dp"
                 android:orientation="horizontal">
 
                 <Button
@@ -134,7 +203,7 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="Save token"/>
+                    android:text="@string/btn_save"/>
 
                 <Button
                     android:id="@+id/btn_open"
@@ -143,34 +212,23 @@
                     android:layout_height="wrap_content"
                     android:layout_marginLeft="8dp"
                     android:layout_weight="1"
-                    android:text="Relay status"/>
+                    android:text="@string/btn_relay"/>
             </LinearLayout>
-        </LinearLayout>
-
-        <LinearLayout style="@style/QorPanel"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="14dp"
-            android:orientation="vertical">
-
-            <TextView style="@style/QorLabel"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="KEEP THE WATCHER ALIVE"/>
-
-            <TextView style="@style/QorBody"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
-                android:text="@string/keepalive_hint"/>
 
             <Button
                 android:id="@+id/btn_arm"
                 style="@style/QorButton"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
-                android:text="Arm 15-minute watchdog"/>
+                android:layout_marginTop="8dp"
+                android:text="@string/btn_arm"/>
         </LinearLayout>
+
+        <!-- footer diamond, closing the frame like the logo plate -->
+        <TextView style="@style/QorDiamond"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="18dp"
+            android:text="@string/diamond"/>
     </LinearLayout>
 </ScrollView>
