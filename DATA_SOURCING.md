@@ -41,18 +41,19 @@ when labeled degraded. They are never presented as true order flow.
 ## 4. The real paths to genuine order flow
 
 ### Path A: Forward capture from the read-only broker feed: APPROVED
-- **Owner approved 2026-10-06.** The OHLC capture is scheduled on weekdays in
-  GitHub Actions at 16:45 Karachi time, after the regular PSX close. It makes
-  one read-only pass and retains the resulting artifact for 90 days. Manual
-  workflow dispatch is also available. No credentials or broker session are
-  used:
+- **Owner approved 2026-10-06.** The OHLC capture is scheduled on weekdays
+  in GitHub Actions at 11:45 and 14:45 Karachi time during the session, then
+  at 16:45 after the regular close. Each run makes one read-only pass and
+  retains the resulting artifact for 90 days. Manual workflow dispatch is
+  also available. No credentials or broker session are used:
   - `src/data/feed_capture.py`: the broker's own MKT-FEED socket
     (nxg1.eclear.com.pk:8484), KMIALL universe subscription + heartbeats
     only, frames banked as NDJSON under `data/feed_capture/`;
   - `src/data/ohlc_poller.py`: 1-minute OHLC bars via GetOHLCData (public
     read tier), full-day refresh per pass so no bar is lost on rotation;
-  - `.github/workflows/intraday-capture.yml`: one post-close weekday pass,
-    uploaded with its health status as a 90-day artifact;
+  - `.github/workflows/intraday-capture.yml`: two weekday market-hour passes
+    and one post-close pass, each uploaded with its health status as a
+    90-day artifact;
   - an outgoing-frame guard allows exactly three prefixes (MKT-FEED / EXS-FEED
     / HELLO); anything else raises. The read-only law is enforced in code.
 - The downloadable artifacts grow day by day; weeks of banked sessions are
