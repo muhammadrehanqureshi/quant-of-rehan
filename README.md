@@ -49,7 +49,10 @@ diamond-and-rule motif above AND below the candles at the same distance
 2. **Pull request first, merged to `master` by the agent.** No direct pushes.
 3. **Never fabricate data.** Missing footprint/order-flow is labeled
    UNAVAILABLE, never invented.
-4. **Backtest locally only.** CI runs seconds of checks, never research.
+4. **Backtest locally only.** No backtest, walk-forward or grid ever runs
+   in CI. The one cloud exception (SO-10, owner approved): the daily
+   post-close signal job on GitHub Actions fetches a bounded trailing EOD
+   window and pushes the verdict; full-history crawls stay on the PC.
 5. **Secrets never enter the repo.** Desktop files and worker bindings only.
 6. **Sole contributor, human style (SO-7).** Every commit is authored by
    Mr. Rehan. Em dashes are banned from commits and files. `legacy/` is
@@ -116,10 +119,13 @@ python scripts/smoke_backtest.py --dataset data/eod_history_kmi.csv.gz
   matrix, A-G path analysis, survivorship sensitivity, frozen filter matrix.
   No edge claim; the stop/TP grid is banked pending the owner's review.
 - Signal engine v1 (UNGRADED) pushes daily signals to Telegram + the phone
-  app after the close (src/signals/). App v1.3.0 (2026-10-07): centered
-  brand header, "Quant is working." status line, motivational panel, framed
-  dividers top and bottom, mirrored icon motif, "Quant is online/sleeping
-  now." texts on the edge crons and relay.
+  app after the close (src/signals/). Since 2026-10-07 the search runs
+  itself on GitHub Actions (post-close cron + pre-open safety net, see
+  .github/workflows/signal-push.yml); the PC hosts no daemon (SO-10).
+  App v1.3.0: centered brand header, "Quant is working." status line,
+  motivational panel, framed dividers top and bottom, mirrored icon
+  motif, "Quant is online/sleeping now." texts on the edge crons and
+  relay.
 - Footprint and order-flow data: UNAVAILABLE (registry-enforced). Path A
   (read-only broker feed capture) is APPROVED and RUNNING since 2026-10-06:
   genuine 1-minute OHLC bars and index snapshots bank daily under
