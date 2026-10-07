@@ -48,7 +48,7 @@ REGISTRY: Dict[str, DataSource] = {
         description="Intraday bars (1m/5m/15m/1h)",
         availability=Availability.DEGRADED,
         detail="No free historical intraday archive for PSX. Bars are only "
-               "captured forward by the post-close GitHub Actions workflow; "
+               "captured forward by the scheduled GitHub Actions workflow; "
                "each run retains its artifact for 90 days. Historical intraday "
                "backtests are limited to banked data. "
                "UPDATE 2026-10-06: Path A approved by the owner; the read-only "
