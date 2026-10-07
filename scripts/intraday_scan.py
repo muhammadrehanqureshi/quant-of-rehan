@@ -117,12 +117,12 @@ def evaluate_scan(history: pd.DataFrame, partial: pd.DataFrame,
 def alert_text(signal, scan_time: datetime) -> str:
     price = float(signal.close)
     return (
-        f"INTRADAY ALERT {signal.signal_date} (Karachi)\\n"
+        f"INTRADAY ALERT {signal.signal_date} (Karachi)\n"
         f"OBSERVE {signal.symbol} | reference price {price:.4f} "
-        f"at {scan_time:%H:%M} PKT\\n"
+        f"at {scan_time:%H:%M} PKT\n"
         f"Reference only: +2% level {price * 1.02:.4f}, "
         f"-1% level {price * 0.99:.4f}; levels are from this reference price, "
-        f"not an executable fill.\\n"
+        f"not an executable fill.\n"
         f"Existing daily rule: regime {signal.regime}, sweep-low and "
         f"FVG-retrace. UNGRADED; no proven intraday edge, no order placed."
     )
