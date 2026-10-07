@@ -2,8 +2,9 @@ name: daily KMIALL intraday capture
 
 # UTC+5 schedule: 11:45 and 14:45 PKT during the session, then 16:45 PKT
 # after close. Each run downloads the current full-day minute bars for KMIALL.
-# Three runs with a 12-minute ceiling use at most 792 minutes in a 22-day
-# month. The two daily signal-run ceilings add at most 880 minutes.
+# Three runs with a 15-minute ceiling use at most 990 minutes in a 22-day
+# month. The daily signal-run ceilings add at most 880 minutes, below the
+# repository's 2,000-minute monthly budget.
 on:
   schedule:
     - cron: "45 6,9,11 * * 1-5"
@@ -19,7 +20,7 @@ concurrency:
 jobs:
   capture:
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
@@ -27,12 +28,20 @@ jobs:
         with:
           python-version: "3.13"
 
+      - name: Install scan dependencies
+        run: pip install pandas numpy requests
+
       - name: Fetch one complete KMIALL bar pass
         run: |
           mkdir -p data/feed_capture
           python -m src.data.ohlc_poller --symbols-file src/data/universe_kmiall.json --once
 
-      - name: Summarize capture
+      - name: Evaluate one intraday observation
+        env:
+          RELAY_ADMIN_TOKEN: ${{ secrets.RELAY_ADMIN_TOKEN }}
+        run: python scripts/intraday_scan.py
+
+      - name: Summarize capture and scan
         if: always()
         run: |
           python - <<'PY'
