@@ -116,7 +116,14 @@ def relay_already_has(url: str, token: str, signal_date: str) -> bool:
         text = str(r.json().get("signals", ""))
     except Exception:
         return False  # cannot see the relay; the journal gate still applies
-    return f"QoR signals {signal_date}" in text
+    return relay_has_session_alert(text, signal_date)
+
+
+def relay_has_session_alert(text: str, signal_date: str) -> bool:
+    """Prevent the post-close daily job from replacing an intraday card."""
+    markers = (f"QoR signals {signal_date}",
+               f"INTRADAY ALERT {signal_date}")
+    return any(marker in text for marker in markers)
 
 
 def build_signal_text(signals, signal_date: str) -> str:
