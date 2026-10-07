@@ -1,8 +1,12 @@
 name: daily KMIALL intraday capture
 
+# UTC+5 schedule: 11:45 and 14:45 PKT during the session, then 16:45 PKT
+# after close. Each run downloads the current full-day minute bars for KMIALL.
+# Three runs with a 12-minute ceiling use at most 792 minutes in a 22-day
+# month. The two daily signal-run ceilings add at most 880 minutes.
 on:
   schedule:
-    - cron: "45 11 * * 1-5"
+    - cron: "45 6,9,11 * * 1-5"
   workflow_dispatch:
 
 permissions:
@@ -15,7 +19,7 @@ concurrency:
 jobs:
   capture:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
 
