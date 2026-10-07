@@ -1,6 +1,6 @@
 # RESEARCH PHASE 2A: can Group G be identified prospectively?
 
-Generated: 2026-10-07T09:35:33+05:00 (Karachi, SO-8). LOCAL ONLY (SO-4).
+Generated: 2026-10-07T09:51:07+05:00 (Karachi, SO-8). LOCAL ONLY (SO-4).
 
 Scope and constraints honored: NO live trading, NO production threshold changes, NO TP/SL optimization, NO machine learning, NO future information. The live v1 stack and every production file are untouched by this study. Daily OHLCV only: no bid/ask, depth, order-flow or footprint data exists in this project (registry: footprint UNAVAILABLE) and none is implied.
 
@@ -108,13 +108,15 @@ Not rankable (reported for completeness): clv_position < 0.33 (discount) (n=209,
 
 ## 5. Top 10 candidate combinations (ranked on discovery only)
 
-| rank | combo | n sub | G rate | G-SC lift pp [CI95] | p_adj | G entry lift | MAE-SC lift | MFE-SC lift | +2 before -1 | capture | precision | D/V/OOS G-SC lift | stable |
+| rank | combo | n sub | G rate | G-SC lift pp [CI95] | p_adj | G entry lift | MAE-SC lift | MFE-SC lift | +2 before -1 | capture | precision | D/V/OOS G lift (entry) | stable |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | 1 | ret_20d 0..+5% x rs20>0 | 3,545 | 0.220 | -1.55 [-2.99, -0.22] | 1.000 | -0.01 | +0.36 | -0.95 | 0.426 | 0.143 | 0.220 | -0.0/+2.7/-0.6 | no |
 | 2 | ret_20d 0..+5% x sweep_low | 1,012 | 0.219 | -1.16 [-3.58, +1.33] | 1.000 | -0.05 | -0.01 | -0.21 | 0.450 | 0.041 | 0.219 | -0.0/+1.9/+3.3 | no |
 | 3 | sweep_low x displacement | 1,207 | 0.216 | -2.09 [-4.42, +0.20] | 1.000 | -0.38 | -0.80 | +0.59 | 0.504 | 0.048 | 0.216 | -0.4/+0.6/+1.5 | no |
 | 4 | sweep_low x bos_up | 718 | 0.206 | -0.14 [-3.15, +2.83] | 1.000 | -1.41 | -0.72 | +0.52 | 0.487 | 0.027 | 0.206 | -1.4/+0.2/+1.0 | no |
 | 5 | rs20>0 x sweep_low | 1,990 | 0.205 | -3.07 [-4.80, -1.38] | 0.000 | -1.61 | -0.62 | +0.13 | 0.472 | 0.075 | 0.205 | -1.6/-1.2/+0.0 | no |
+
+Combos not rankable on discovery (n < 500; full records in the JSON): sweep_low x fvg_retrace (n=238); ret_20d 0..+5% x sweep_low x fvg_retrace (n=77); live v1 stack: regime_bull x sweep_low x fvg_retrace (n=106)
 
 The owner's sweep- and FVG-based combinations do not enrich G: every rankable combo shows a G entry lift at or below +0.1 pp on discovery, and most are negative. The live v1 stack's building blocks select ordinary-quality entries with respect to G membership.
 
