@@ -34,10 +34,6 @@ from src.data.psx_daily_downloads import (  # noqa: E402
 
 
 def main(argv: list[str] | None = None) -> int:
-    if os.environ.get("GITHUB_ACTIONS"):
-        print("REFUSING: dataset fetches are LOCAL ONLY (SO-4).")
-        return 1
-
     ap = argparse.ArgumentParser()
     ap.add_argument("--start", required=True, help="YYYY-MM-DD (inclusive)")
     ap.add_argument("--end", required=True, help="YYYY-MM-DD (inclusive)")
@@ -46,6 +42,18 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--flush-every", type=int, default=25,
                     help="checkpoint rows to the partial file every N sessions")
     args = ap.parse_args(argv)
+
+    # SO-4 with the SO-10 carve-out (owner approval, 2026-10-07): CI never
+    # crawls the 5-year history, but the cloud signal job may fetch a small
+    # trailing window for the day's bars.
+    if os.environ.get("GITHUB_ACTIONS"):
+        d0 = datetime.strptime(str(args.start), "%Y-%m-%d")
+        d1 = datetime.strptime(str(args.end), "%Y-%m-%d")
+        if (d1 - d0).days > 45:
+            print("REFUSING on CI: full-history crawls stay LOCAL ONLY (SO-4); "
+                  "the cloud signal job may fetch only a small trailing "
+                  "window (SO-10).")
+            return 1
 
     # Append-mode checkpoint file: a killed crawl loses at most the last
     # --flush-every sessions, not the whole run (lesson from the first

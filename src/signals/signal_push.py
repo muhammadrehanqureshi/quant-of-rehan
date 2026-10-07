@@ -16,8 +16,9 @@ Guardrails:
   - signals are generated for TODAY only after the 15:30 close (the daily
     signal is a close-of-day decision; intraday pushing would be pretending
     to trade the same bar);
-  - the same (date, symbol) is never pushed twice: data/signal_push_log.jsonl
-    records every delivery attempt and the sent set is enforced;
+  - the same session's verdict is never pushed twice: the local journal
+    (data/signal_push_log.jsonl) AND the relay's stored signal card are
+    both checked before any send;
   - relay failures fail CLOSED (exit 1): the signal is not lost, the owner
     reruns the command.
 
@@ -30,6 +31,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -54,13 +56,18 @@ UNGRADED_NOTE = ("UNGRADED engine v1 (Phase 1: no edge claim; entry filters "
 
 
 def read_admin_token() -> str:
-    """RELAY_ADMIN_TOKEN from repo .env (never printed, never logged)."""
+    """RELAY_ADMIN_TOKEN: environment first, then repo .env (SO-5: never
+    printed, never logged). The env path is how GitHub Actions supplies the
+    secret; the .env path is the owner's PC."""
+    tok = os.environ.get("RELAY_ADMIN_TOKEN", "").strip()
+    if tok:
+        return tok
     env = ROOT / ".env"
     if env.is_file():
         for line in env.read_text(encoding="utf-8").splitlines():
             if "=" in line and line.split("=", 1)[0].strip() == "RELAY_ADMIN_TOKEN":
                 return line.split("=", 1)[1].strip()
-    raise RuntimeError("RELAY_ADMIN_TOKEN missing from .env")
+    raise RuntimeError("RELAY_ADMIN_TOKEN missing (env and .env)")
 
 
 def post_json(url: str, path: str, payload: dict, token: str,
@@ -97,6 +104,21 @@ def already_sent(signal_date: str) -> bool:
     return False
 
 
+def relay_already_has(url: str, token: str, signal_date: str) -> bool:
+    """True when the relay's stored signal card already carries this
+    session's verdict. Server-side dedupe: the Actions workspace journal is
+    ephemeral, so repeated runs (evening + morning safety net) must check
+    the durable state on the relay before resending."""
+    import requests
+    try:
+        r = requests.get(url + "/signals", headers={"x-admin-token": token},
+                         timeout=15)
+        text = str(r.json().get("signals", ""))
+    except Exception:
+        return False  # cannot see the relay; the journal gate still applies
+    return f"QoR signals {signal_date}" in text
+
+
 def build_signal_text(signals, signal_date: str) -> str:
     lines = [f"QoR signals {signal_date} (Karachi):"]
     if not signals:
@@ -126,10 +148,6 @@ def main(argv: list[str] | None = None) -> int:
     if not args.dataset.is_file():
         print(f"dataset missing: {args.dataset}")
         return 1
-    if not args.dry_run and already_sent(today):
-        print(f"signals for {today} were already delivered today; "
-              f"nothing sent twice.")
-        return 0
 
     fp = availability("footprint")
     if fp.value == "UNAVAILABLE":
@@ -146,6 +164,13 @@ def main(argv: list[str] | None = None) -> int:
     else:
         signal_date_label = today
 
+    # dedupe on the SIGNAL's date, not the runtime date: a morning safety
+    # net the day after must never resend the same session's verdict
+    if not args.dry_run and already_sent(signal_date_label):
+        print(f"signals for {signal_date_label} were already delivered; "
+              f"nothing sent twice.")
+        return 0
+
     signals, _feat = run(df)
     today_signals = [s for s in signals if s.signal_date == signal_date_label]
     text = build_signal_text(today_signals, signal_date_label)
@@ -157,6 +182,12 @@ def main(argv: list[str] | None = None) -> int:
 
     token = read_admin_token()
     url = load_relay_url()
+    if relay_already_has(url, token, signal_date_label):
+        journal(f"push {signal_date_label}", True,
+                "relay already holds this session's verdict; nothing resent")
+        print(f"relay already holds the {signal_date_label} verdict; "
+              f"nothing sent twice.")
+        return 0
     try:
         post_json(url, "/signals", {"signals": text}, token)
         post_json(url, "/notify", {"text": text, "kind": "signals"}, token)
