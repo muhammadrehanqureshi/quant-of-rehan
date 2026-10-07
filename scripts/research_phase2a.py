@@ -874,7 +874,7 @@ def render_md(res: dict) -> str:
         A("")
     A("## 5. Top 10 candidate combinations (ranked on discovery only)")
     A("")
-    A("| rank | combo | n sub | G rate | G-SC lift pp [CI95] | p_adj | G entry lift | MAE-SC lift | MFE-SC lift | +2 before -1 | capture | precision | D/V/OOS G-SC lift | stable |")
+    A("| rank | combo | n sub | G rate | G-SC lift pp [CI95] | p_adj | G entry lift | MAE-SC lift | MFE-SC lift | +2 before -1 | capture | precision | D/V/OOS G lift (entry) | stable |")
     A("|---|---|---|---|---|---|---|---|---|---|---|---|---|---|")
     for i, r in enumerate(res["combos"]["top10"], 1):
         d = r["discovery"]
@@ -892,12 +892,10 @@ def render_md(res: dict) -> str:
           f"{fmt(r['persistence']['g_rate_lift_pp_oos_entry_view'],1,True)} | "
           f"{'yes' if r['persistence']['stable_positive_all_splits'] else 'no'} |")
     A("")
-    nonrank_c = [r for r in res["combos"]["all_ranked"]
-                 if r not in res["combos"]["top10"]]
-    if nonrank_c:
-        A("Combos not rankable on discovery (n < 500; reported in the JSON): " +
+    if res["combos"]["excluded_n"]:
+        A("Combos not rankable on discovery (n < 500; full records in the JSON): " +
           "; ".join(f"{r['filter']} (n={r['discovery']['n_sub']})"
-                    for r in nonrank_c))
+                    for r in res["combos"]["excluded_n"]))
         A("")
     A("The owner's sweep- and FVG-based combinations do not enrich G: every "
       "rankable combo shows a G entry lift at or below +0.1 pp on discovery, "
@@ -1102,6 +1100,8 @@ def main(argv: list[str] | None = None) -> int:
                          else "n < 500 on discovery")
                   for r in filter_records
                   if not (r["valid_min_n"] and not r.get("entry_reference_coupled"))]
+    excluded_c = [dict(r, exclude_reason="n < 500 on discovery")
+                  for r in combo_records if not r["valid_min_n"]]
 
     # ---- deep dive: top 5 filters + top 3 combos + any stable &
     # Bonferroni-significant filter not already selected (cap 8) ----
@@ -1419,6 +1419,7 @@ def main(argv: list[str] | None = None) -> int:
         "combos": {
             "n_tests": len(combo_records),
             "top10": ranked_c[:10],
+            "excluded_n": excluded_c,
             "all_ranked": ranked_c,
         },
         "best_candidates": best,
