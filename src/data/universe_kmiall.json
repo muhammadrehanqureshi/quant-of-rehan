@@ -1,0 +1,2873 @@
+[
+  {
+    "symbol": "AASM",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "AL-Abid Silk Mills"
+  },
+  {
+    "symbol": "ABOT",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Abbott Lab."
+  },
+  {
+    "symbol": "ACPL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Attock Cement"
+  },
+  {
+    "symbol": "ADAMS",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Adam Sugar"
+  },
+  {
+    "symbol": "AGIL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Agriautos Ind."
+  },
+  {
+    "symbol": "AGP",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "AGP Limited"
+  },
+  {
+    "symbol": "AGTL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "AL-Ghazi Tractors"
+  },
+  {
+    "symbol": "AHTM",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Ahmed Hassan"
+  },
+  {
+    "symbol": "AIRLINK",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Air Link Commun"
+  },
+  {
+    "symbol": "AKGL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "AL-Khair Gadoon"
+  },
+  {
+    "symbol": "ALNRS",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "AL-Noor Sugar"
+  },
+  {
+    "symbol": "ANL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Azgard Nine"
+  },
+  {
+    "symbol": "ANTM",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "AN Textile Mill"
+  },
+  {
+    "symbol": "ARCTM",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Arctic Textile"
+  },
+  {
+    "symbol": "ARPL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Archroma Pak"
+  },
+  {
+    "symbol": "ASC",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Al-Shaheer Corp"
+  },
+  {
+    "symbol": "ASHT",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Ashfaq Textile"
+  },
+  {
+    "symbol": "ASL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Aisha Steel Mill"
+  },
+  {
+    "symbol": "ASTM",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Asim Textile"
+  },
+  {
+    "symbol": "ATBA",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Atlas Battery"
+  },
+  {
+    "symbol": "ATRL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Attock Refinery"
+  },
+  {
+    "symbol": "AVN",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Avanceon Ltd"
+  },
+  {
+    "symbol": "AWTX",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Allawasaya Tex"
+  },
+  {
+    "symbol": "BAFS",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Baba Farid"
+  },
+  {
+    "symbol": "BATA",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Bata (Pak) Ltd."
+  },
+  {
+    "symbol": "BBFL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Big Bird Foods Ltd."
+  },
+  {
+    "symbol": "BCL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Bolan Casting"
+  },
+  {
+    "symbol": "BECO",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Beco Steel Ltd"
+  },
+  {
+    "symbol": "BERG",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Berger Paints"
+  },
+  {
+    "symbol": "BFAGRO",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Barkat Frisian Agro"
+  },
+  {
+    "symbol": "BFBIO",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "BF Biosciences"
+  },
+  {
+    "symbol": "BFMOD",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "B.F.Modaraba"
+  },
+  {
+    "symbol": "BHAT",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Bhanero Tex."
+  },
+  {
+    "symbol": "BIFO",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Biafo Industries"
+  },
+  {
+    "symbol": "BIPL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Bankislami PakXD"
+  },
+  {
+    "symbol": "BLUEX",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Blue-Ex Limited"
+  },
+  {
+    "symbol": "BNL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Bunnys Limited"
+  },
+  {
+    "symbol": "BNWM",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Bannu Woollen"
+  },
+  {
+    "symbol": "BPL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Burshane LPGXB"
+  },
+  {
+    "symbol": "BRRG",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "B.R.R Guardia Ltd"
+  },
+  {
+    "symbol": "BTL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Blessed Tex."
+  },
+  {
+    "symbol": "BUXL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Buxly Paints"
+  },
+  {
+    "symbol": "BWHL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Bal.WheelsXD"
+  },
+  {
+    "symbol": "CCM",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Crescent Cotton"
+  },
+  {
+    "symbol": "CEPB",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Century Paper"
+  },
+  {
+    "symbol": "CFL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Crescent Fibres"
+  },
+  {
+    "symbol": "CHAS",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Chashma Sugar"
+  },
+  {
+    "symbol": "CHCC",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Cherat Cement"
+  },
+  {
+    "symbol": "CLOV",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Clover Pakistan"
+  },
+  {
+    "symbol": "CNERGY",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Cnergyico PK"
+  },
+  {
+    "symbol": "COLG",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Colgate PalmXD"
+  },
+  {
+    "symbol": "CPHL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Citi Pharma Ltd"
+  },
+  {
+    "symbol": "CPPL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Cherat PackagingXD"
+  },
+  {
+    "symbol": "CRTM",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Crescent Tex."
+  },
+  {
+    "symbol": "CSAP",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Crescent Steel"
+  },
+  {
+    "symbol": "DAAG",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Data Agro"
+  },
+  {
+    "symbol": "DADX",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Dadex Eternit"
+  },
+  {
+    "symbol": "DBSL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Dadabhoy Sack"
+  },
+  {
+    "symbol": "DCL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Dewan Cement"
+  },
+  {
+    "symbol": "DCR",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Dolmen City"
+  },
+  {
+    "symbol": "DFSM",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Dewan Farooque Sp."
+  },
+  {
+    "symbol": "DGKC",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "D.G.K.Cement"
+  },
+  {
+    "symbol": "DINT",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Din Textile"
+  },
+  {
+    "symbol": "DMC",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "D.M. Corporation Ltd"
+  },
+  {
+    "symbol": "DNCC",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Dandot Cement"
+  },
+  {
+    "symbol": "DOL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Descon Oxychem"
+  },
+  {
+    "symbol": "DSL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Dost Steels Ltd."
+  },
+  {
+    "symbol": "DWSM",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Dewan Sugar"
+  },
+  {
+    "symbol": "DYNO",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Dynea Pakistan"
+  },
+  {
+    "symbol": "ECOP",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "ECOPACK Ltd"
+  },
+  {
+    "symbol": "EFERT",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Engro Fertert"
+  },
+  {
+    "symbol": "ELCM",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Elahi Cotton"
+  },
+  {
+    "symbol": "ELSM",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Ellcot Spinning"
+  },
+  {
+    "symbol": "EMCO",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "EMCO Industries"
+  },
+  {
+    "symbol": "ENGROH",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Engro Holdings"
+  },
+  {
+    "symbol": "EPCL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Engro Polymer"
+  },
+  {
+    "symbol": "EPQL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Engro Powergen"
+  },
+  {
+    "symbol": "EXIDE",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Exide (PAK)"
+  },
+  {
+    "symbol": "FABL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Faysal Bank"
+  },
+  {
+    "symbol": "FANM",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "AL-Noor Mod"
+  },
+  {
+    "symbol": "FASM",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Faisal Spinning"
+  },
+  {
+    "symbol": "FATIMA",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Fatima Fert"
+  },
+  {
+    "symbol": "FCCL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Fauji CementXD"
+  },
+  {
+    "symbol": "FCEPL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Frieslandcampina"
+  },
+  {
+    "symbol": "FCL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Fast Cables Ltd."
+  },
+  {
+    "symbol": "FECM",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Elite Cap.Mod"
+  },
+  {
+    "symbol": "FECTC",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Fecto Cement"
+  },
+  {
+    "symbol": "FEM",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Equity Modaraba"
+  },
+  {
+    "symbol": "FEROZ",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Ferozsons (Lab)"
+  },
+  {
+    "symbol": "FFC",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Fauji Fert"
+  },
+  {
+    "symbol": "FFL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Fauji Foods Ltd"
+  },
+  {
+    "symbol": "FFLM",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "1st.Fid.Leasing"
+  },
+  {
+    "symbol": "FHAM",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Habib ModarabaXD"
+  },
+  {
+    "symbol": "FIBLM",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "I.B.L.Modarab"
+  },
+  {
+    "symbol": "FIL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Fateh Industries"
+  },
+  {
+    "symbol": "FIMM",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Imrooz Modaraba"
+  },
+  {
+    "symbol": "FLYNG",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Flying Cement"
+  },
+  {
+    "symbol": "FML",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Feroze 1888"
+  },
+  {
+    "symbol": "FNBM",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Nat.Bank Mod."
+  },
+  {
+    "symbol": "FPJM",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Punjab Mod"
+  },
+  {
+    "symbol": "FPRM",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Paramount Mod"
+  },
+  {
+    "symbol": "FRCL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Frontier Ceram"
+  },
+  {
+    "symbol": "FRSM",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Faran Sugar Mills"
+  },
+  {
+    "symbol": "FTMM",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "F.Treet Manuf"
+  },
+  {
+    "symbol": "FTSM",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Tri-Star 1st Mod."
+  },
+  {
+    "symbol": "FZCM",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Fazal Cloth"
+  },
+  {
+    "symbol": "GADT",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Gadoon TextileXD"
+  },
+  {
+    "symbol": "GAL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Ghandhara Automobile"
+  },
+  {
+    "symbol": "GATI",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Gatron Ind."
+  },
+  {
+    "symbol": "GATM",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Gul Ahmed"
+  },
+  {
+    "symbol": "GCIL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Ghani Chemical"
+  },
+  {
+    "symbol": "GCWL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Ghani Chemworld"
+  },
+  {
+    "symbol": "GDL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Ghani Dairies Ltd."
+  },
+  {
+    "symbol": "GEMBCEM",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Burj Clean Energy"
+  },
+  {
+    "symbol": "GEMMEL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Mughal Energy Ltd"
+  },
+  {
+    "symbol": "GEMPACRA",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "The Pakistan Credit"
+  },
+  {
+    "symbol": "GEMPAPL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Pak Agro Pack"
+  },
+  {
+    "symbol": "GFIL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Ghazi Fabrics"
+  },
+  {
+    "symbol": "GGGL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "GhaniGlobalGlass"
+  },
+  {
+    "symbol": "GGL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Ghani Glo Hol"
+  },
+  {
+    "symbol": "GHGL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Ghani Glass Ltd"
+  },
+  {
+    "symbol": "GHNI",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Ghandhara Ind."
+  },
+  {
+    "symbol": "GIL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Goodluck Ind."
+  },
+  {
+    "symbol": "GLAXO",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "GlaxoSmithKline"
+  },
+  {
+    "symbol": "GOC",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "GOC (Pak) Ltd."
+  },
+  {
+    "symbol": "GTYR",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Ghandhara Tyre"
+  },
+  {
+    "symbol": "GVGL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Ghani Value Glass"
+  },
+  {
+    "symbol": "GWLC",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Gharibwal Cement"
+  },
+  {
+    "symbol": "HAEL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Hala Enterprise"
+  },
+  {
+    "symbol": "HAFL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Hafiz Limited"
+  },
+  {
+    "symbol": "HALEON",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Haleon Pakistan"
+  },
+  {
+    "symbol": "HATM",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": ""
+  },
+  {
+    "symbol": "HCAR",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Honda Atlas Cars"
+  },
+  {
+    "symbol": "HINO",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Hinopak Motor"
+  },
+  {
+    "symbol": "HINOON",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Highnoon (Lab)"
+  },
+  {
+    "symbol": "HPL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Hoechst Pak Ltd"
+  },
+  {
+    "symbol": "HRPL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Habib Rice Prod"
+  },
+  {
+    "symbol": "HTL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "HI-Tech Lub."
+  },
+  {
+    "symbol": "HUBC",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Hub Power Co."
+  },
+  {
+    "symbol": "IBFL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Ibrahim Fibres"
+  },
+  {
+    "symbol": "IBLHL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "IBL HealthCare"
+  },
+  {
+    "symbol": "ICCI",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "ICC Industries"
+  },
+  {
+    "symbol": "ICL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Ittehad Chemicals"
+  },
+  {
+    "symbol": "IDRT",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Idrees Textile"
+  },
+  {
+    "symbol": "IDSM",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": ""
+  },
+  {
+    "symbol": "ILP",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Interloop Ltd."
+  },
+  {
+    "symbol": "IMAGE",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Image Pakistan"
+  },
+  {
+    "symbol": "INIL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Int. Ind.Ltd.XD"
+  },
+  {
+    "symbol": "INKL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Int.Knitwear"
+  },
+  {
+    "symbol": "IPAK",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Int. Packaging"
+  },
+  {
+    "symbol": "IREIT",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Image REIT"
+  },
+  {
+    "symbol": "ISIL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Ismail Ind."
+  },
+  {
+    "symbol": "ISL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Inter.Steel LtdXD"
+  },
+  {
+    "symbol": "ITANZ",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Itanz Technologies"
+  },
+  {
+    "symbol": "ITTEFAQ",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Ittefaq Iron Ind"
+  },
+  {
+    "symbol": "JATM",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "J.A.Textile"
+  },
+  {
+    "symbol": "JDMT",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Janana D Mal"
+  },
+  {
+    "symbol": "JDWS",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "J.D.W.Sugar"
+  },
+  {
+    "symbol": "JSML",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Jauharabad Sug"
+  },
+  {
+    "symbol": "JUBS",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Jubilee Spinning"
+  },
+  {
+    "symbol": "JVDC",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Javedan Corp.XD"
+  },
+  {
+    "symbol": "KCL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Karam Ceramics"
+  },
+  {
+    "symbol": "KEL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "K-Electric Ltd."
+  },
+  {
+    "symbol": "KHYT",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Khyber Textile"
+  },
+  {
+    "symbol": "KOHC",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Kohat Cement"
+  },
+  {
+    "symbol": "KOHE",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Kohinoor Energy"
+  },
+  {
+    "symbol": "KOHTM",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Kohat Textile"
+  },
+  {
+    "symbol": "KPUS",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Khairpur Sugar"
+  },
+  {
+    "symbol": "KSBP",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "K.S.B.Pumps"
+  },
+  {
+    "symbol": "KSTM",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Khalid Siraj"
+  },
+  {
+    "symbol": "KTML",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Kohinoor Textile"
+  },
+  {
+    "symbol": "LCI",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Lucky Core Ind.XD"
+  },
+  {
+    "symbol": "LEUL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Leather Up Ltd."
+  },
+  {
+    "symbol": "LIVEN",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Liven Pharma"
+  },
+  {
+    "symbol": "LOADS",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Loads Limited"
+  },
+  {
+    "symbol": "LOTCHEM",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Lotte Chemical"
+  },
+  {
+    "symbol": "LPGL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Leiner Pak Gelat"
+  },
+  {
+    "symbol": "LUCK",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Lucky CementXD"
+  },
+  {
+    "symbol": "MACFL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "MACPAC Films"
+  },
+  {
+    "symbol": "MACTER",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Macter Int. Ltd"
+  },
+  {
+    "symbol": "MARI",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Mari Energies Ltd."
+  },
+  {
+    "symbol": "MEBL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Meezan Bank Ltd"
+  },
+  {
+    "symbol": "MEHT",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Mehmood Tex."
+  },
+  {
+    "symbol": "MERIT",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Merit Packaging"
+  },
+  {
+    "symbol": "MFFL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "MithchellsFruit"
+  },
+  {
+    "symbol": "MFL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Matco Foods Ltd"
+  },
+  {
+    "symbol": "MIIETF",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Mahaana Islamic"
+  },
+  {
+    "symbol": "MIRKS",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Mirpurkhas Sugar"
+  },
+  {
+    "symbol": "MLCF",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Maple Leaf"
+  },
+  {
+    "symbol": "MQTM",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Maqbool Textile"
+  },
+  {
+    "symbol": "MRNS",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Mehran Sugar"
+  },
+  {
+    "symbol": "MSCL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Metro Steel"
+  },
+  {
+    "symbol": "MTL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Millat Tractors"
+  },
+  {
+    "symbol": "MUBT",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Mubarak Textile"
+  },
+  {
+    "symbol": "MUGHAL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Mughal Iron"
+  },
+  {
+    "symbol": "MWMP",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Mandviwala"
+  },
+  {
+    "symbol": "MZNPETF",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Meezan Pakistan"
+  },
+  {
+    "symbol": "NATM",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Nadeem Textile"
+  },
+  {
+    "symbol": "NCML",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Nazir Cotton Mills"
+  },
+  {
+    "symbol": "NESTLE",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Nestle Pakistan"
+  },
+  {
+    "symbol": "NETSOL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Netsol Tech."
+  },
+  {
+    "symbol": "NML",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Nishat Mills Ltd"
+  },
+  {
+    "symbol": "NONS",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Noon Sugar"
+  },
+  {
+    "symbol": "NRL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "National Refinery"
+  },
+  {
+    "symbol": "NRSL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Nimir Resins"
+  },
+  {
+    "symbol": "NSRM",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "National Silk"
+  },
+  {
+    "symbol": "OCTOPUS",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Octopus Digital"
+  },
+  {
+    "symbol": "OGDC",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Oil & Gas Dev"
+  },
+  {
+    "symbol": "OLPM",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "OLP Modaraba"
+  },
+  {
+    "symbol": "OML",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Olympia Mills"
+  },
+  {
+    "symbol": "ORM",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Orient Rental"
+  },
+  {
+    "symbol": "OTSU",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Otsuka Pak"
+  },
+  {
+    "symbol": "PAEL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Pak Elektron"
+  },
+  {
+    "symbol": "PAKD",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Pak Datacom"
+  },
+  {
+    "symbol": "PAKOXY",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Pak Oxygen Ltd."
+  },
+  {
+    "symbol": "PAKQATAR",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Pak Qatar Family"
+  },
+  {
+    "symbol": "PIBTL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Pak Int.Bulk"
+  },
+  {
+    "symbol": "PICT",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Pak.Int.Container"
+  },
+  {
+    "symbol": "PIM",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Popular Islamic"
+  },
+  {
+    "symbol": "PIOC",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Pioneer Cement"
+  },
+  {
+    "symbol": "PKGS",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Packages Ltd."
+  },
+  {
+    "symbol": "PMRS",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Premier Suger"
+  },
+  {
+    "symbol": "POML",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Punjab Oil"
+  },
+  {
+    "symbol": "POWER",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Power Cement"
+  },
+  {
+    "symbol": "PPL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Pak Petroleum"
+  },
+  {
+    "symbol": "PPP",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Pak Paper Prod"
+  },
+  {
+    "symbol": "PQGTL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Pak Qatar General"
+  },
+  {
+    "symbol": "PREMA",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "At-Tahur Ltd."
+  },
+  {
+    "symbol": "PRL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Pak Refinery"
+  },
+  {
+    "symbol": "PSEL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Pak Services"
+  },
+  {
+    "symbol": "PSO",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "P.S.O."
+  },
+  {
+    "symbol": "PSYL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Pak Synthetics"
+  },
+  {
+    "symbol": "PTL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Panther Tyres Ltd."
+  },
+  {
+    "symbol": "QTECH",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Quantum Data"
+  },
+  {
+    "symbol": "QUET",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Quetta Textile"
+  },
+  {
+    "symbol": "QUICE",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Quice Food"
+  },
+  {
+    "symbol": "RCML",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": ""
+  },
+  {
+    "symbol": "REDCO",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Redco Textile"
+  },
+  {
+    "symbol": "REWM",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Reliance Weaving"
+  },
+  {
+    "symbol": "RMPL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Rafhan Maize"
+  },
+  {
+    "symbol": "RPL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Roshan Packages"
+  },
+  {
+    "symbol": "RUBY",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Ruby Textile"
+  },
+  {
+    "symbol": "RUPL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Rupali Polyester"
+  },
+  {
+    "symbol": "SANSM",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Sanghar Sugar"
+  },
+  {
+    "symbol": "SAPT",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Sapphire Tex."
+  },
+  {
+    "symbol": "SARC",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Sardar Chemical"
+  },
+  {
+    "symbol": "SASML",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Sindh Abadgar"
+  },
+  {
+    "symbol": "SAZEW",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Sazgar EngineeringXD"
+  },
+  {
+    "symbol": "SCL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": ""
+  },
+  {
+    "symbol": "SEARL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "The Searle Company"
+  },
+  {
+    "symbol": "SEL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Sitara Energy"
+  },
+  {
+    "symbol": "SELECT",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Select Technologies"
+  },
+  {
+    "symbol": "SERT",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Service Ind Tex"
+  },
+  {
+    "symbol": "SGABL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "SG.Allied Businesses"
+  },
+  {
+    "symbol": "SGF",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Service Global"
+  },
+  {
+    "symbol": "SGPL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "S.G.Power"
+  },
+  {
+    "symbol": "SGPLR",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": ""
+  },
+  {
+    "symbol": "SHCM",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Shadman Cotton"
+  },
+  {
+    "symbol": "SHDT",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Shadab Textile"
+  },
+  {
+    "symbol": "SHFA",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Shifa Int.Hospital"
+  },
+  {
+    "symbol": "SHSML",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Shahmurad Sugar"
+  },
+  {
+    "symbol": "SIEM",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Siemens Pak."
+  },
+  {
+    "symbol": "SINDM",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Sindh Modaraba"
+  },
+  {
+    "symbol": "SITC",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Sitara Chemical"
+  },
+  {
+    "symbol": "SKRS",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Sakrand Sugar"
+  },
+  {
+    "symbol": "SLGL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Secure Logistics -Tr"
+  },
+  {
+    "symbol": "SLM",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Service Long March"
+  },
+  {
+    "symbol": "SMCPL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Safe Mix Con.Ltd"
+  },
+  {
+    "symbol": "SML",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Shakarganj Limited"
+  },
+  {
+    "symbol": "SNAI",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Sana Ind."
+  },
+  {
+    "symbol": "SNGP",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Sui North Gas"
+  },
+  {
+    "symbol": "SOYASUP",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Agro Processors"
+  },
+  {
+    "symbol": "SPEL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "SPEL Limited"
+  },
+  {
+    "symbol": "SPL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Sitara Peroxide"
+  },
+  {
+    "symbol": "SPSL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Sitara Petroleum"
+  },
+  {
+    "symbol": "SRR",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Signature Residency"
+  },
+  {
+    "symbol": "SRVI",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Service Ind.Ltd"
+  },
+  {
+    "symbol": "SSGC",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Sui South Gas"
+  },
+  {
+    "symbol": "SSML",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Saritow Spinning"
+  },
+  {
+    "symbol": "SSOM",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "S.S.Oil"
+  },
+  {
+    "symbol": "STCL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Shabbir Tiles"
+  },
+  {
+    "symbol": "STJT",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Shahtaj Textile"
+  },
+  {
+    "symbol": "STL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Supernet Techno"
+  },
+  {
+    "symbol": "STLR",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Supernet Tech(R)"
+  },
+  {
+    "symbol": "STML",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Shams Textile"
+  },
+  {
+    "symbol": "STYLERS",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Stylers Int.Ltd."
+  },
+  {
+    "symbol": "SUHJ",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Suhail Jute"
+  },
+  {
+    "symbol": "SURC",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Suraj Cotton Mills"
+  },
+  {
+    "symbol": "SWL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Standard Worldwide"
+  },
+  {
+    "symbol": "SYM",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Symmetry Group Ltd"
+  },
+  {
+    "symbol": "SYS",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Systems Limited"
+  },
+  {
+    "symbol": "SZTM",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Shahzad Tex."
+  },
+  {
+    "symbol": "TATM",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Tata Textile"
+  },
+  {
+    "symbol": "TCORP",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Tariq Corp Ltd."
+  },
+  {
+    "symbol": "TELE",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Telecard Limited"
+  },
+  {
+    "symbol": "TGL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Tariq Glass Ind"
+  },
+  {
+    "symbol": "THCCL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Thatta Cement"
+  },
+  {
+    "symbol": "TICL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Thal Ind.Corp."
+  },
+  {
+    "symbol": "TISL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Tasdeeq Information"
+  },
+  {
+    "symbol": "TOMCL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "The Organic Meat"
+  },
+  {
+    "symbol": "TOWL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Towellers Limited"
+  },
+  {
+    "symbol": "TPLRF1",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "TPL REIT Fund I"
+  },
+  {
+    "symbol": "TREET",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Treet Corp"
+  },
+  {
+    "symbol": "TRSM",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Trust Modaraba"
+  },
+  {
+    "symbol": "TSIL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": ""
+  },
+  {
+    "symbol": "UBDL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "United Brands"
+  },
+  {
+    "symbol": "UDLI",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "UDL Int.Ltd."
+  },
+  {
+    "symbol": "UDPL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "United Distributor"
+  },
+  {
+    "symbol": "UNITY",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Unity Foods Ltd"
+  },
+  {
+    "symbol": "UPFL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Unilever Foods"
+  },
+  {
+    "symbol": "WAFI",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Wafi Energy Pak"
+  },
+  {
+    "symbol": "WAHDAT",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Wahdat Poultry Farm"
+  },
+  {
+    "symbol": "WAHN",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Wah-Noble"
+  },
+  {
+    "symbol": "WASL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Wasl Mobility Mod"
+  },
+  {
+    "symbol": "WAVES",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Waves Corp Ltd."
+  },
+  {
+    "symbol": "ZAHID",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "ZahidJee Tex."
+  },
+  {
+    "symbol": "ZAL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Zarea Limited"
+  },
+  {
+    "symbol": "ZIL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "ZIL Limited"
+  },
+  {
+    "symbol": "ZTL",
+    "isShariahCompliant": true,
+    "listedIn": [
+      "KMIALLSHR",
+      "ALLSHR"
+    ],
+    "name": "Zephyr Textile"
+  }
+]
