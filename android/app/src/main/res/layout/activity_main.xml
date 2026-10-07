@@ -107,12 +107,14 @@
             <TextView style="@style/QorLabel"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:gravity="center"
                 android:text="@string/label_system"/>
 
             <TextView
                 android:id="@+id/status_pill"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:layout_gravity="center_horizontal"
                 android:layout_marginTop="10dp"
                 android:paddingLeft="14dp"
                 android:paddingRight="14dp"
@@ -127,6 +129,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="10dp"
+                android:gravity="center"
                 android:text="@string/checking"
                 android:textColor="@color/gold_bright"
                 android:textSize="21sp"
@@ -137,7 +140,8 @@
                 style="@style/QorBody"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"/>
+                android:layout_marginTop="4dp"
+                android:gravity="center"/>
         </LinearLayout>
 
         <!-- ══════════ latest signal card ══════════ -->
@@ -150,6 +154,7 @@
             <TextView style="@style/QorLabel"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:gravity="center"
                 android:text="@string/label_signal"/>
 
             <TextView
@@ -158,6 +163,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
+                android:gravity="center"
                 android:text="@string/no_signals"/>
         </LinearLayout>
 
@@ -258,7 +264,7 @@
                 android:text="@string/btn_arm"/>
         </LinearLayout>
 
-        <!-- the owner's words, centered in whatever screen is left -->
+        <!-- the owner's words, cursive, centered in whatever screen is left -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="0dp"
@@ -267,6 +273,7 @@
             android:orientation="vertical">
 
             <TextView
+                android:id="@+id/motivation_text"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:gravity="center"
@@ -275,7 +282,7 @@
                 android:paddingRight="6dp"
                 android:text="@string/motivation"
                 android:textColor="@color/gold"
-                android:textSize="15sp"
+                android:textSize="17sp"
                 android:textStyle="italic"/>
         </LinearLayout>
 
