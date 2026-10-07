@@ -23,12 +23,14 @@ Usage (from repo root):
     python -m src.data.ohlc_poller                  # run until Ctrl+C
     python -m src.data.ohlc_poller --once           # one full pass, exit
     python -m src.data.ohlc_poller --limit 5        # first N symbols only
+    python -m src.data.ohlc_poller --status          # show heartbeat health
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import ssl
 import sys
 import time
@@ -42,6 +44,7 @@ sys.path.insert(0, str(ROOT))
 KARACHI = timezone(timedelta(hours=5))  # SO-8
 
 from src.data.feed_capture import load_universe, UNIVERSE_FILE  # noqa: E402
+from src.data.capture_health import status_view  # noqa: E402
 from src.data.registry import availability, Availability  # noqa: E402
 
 OHLC_HOSTS = ["vt.eclear.com.pk", "nxg1.eclear.com.pk", "nxg2.eclear.com.pk"]
@@ -99,6 +102,7 @@ class OhlcPoller:
                          "bars": 0, "errors": 0}
         self.last_error: str | None = None
         self.last_symbol_at: str | None = None
+        self.running = False
         self.started_at = now().isoformat()
         self._fh = None
         self._fh_day = None
@@ -129,7 +133,8 @@ class OhlcPoller:
     def write_status(self) -> None:
         CAPTURE_DIR.mkdir(parents=True, exist_ok=True)
         status = {
-            "running": True,
+            "pid": os.getpid() if self.running else None,
+            "running": self.running,
             "started_at": self.started_at,
             "updated_at": now().isoformat(),
             "universe_size": len(self.symbols),
@@ -142,6 +147,7 @@ class OhlcPoller:
         tmp.replace(STATUS_PATH)
 
     def close(self) -> None:
+        self.running = False
         if self._fh is not None:
             self._fh.close()
             self._fh = None
@@ -149,6 +155,7 @@ class OhlcPoller:
 
     def run_pass(self) -> None:
         self.counters["passes"] += 1
+        last_status = time.monotonic()
         for symbol in self.symbols:
             bars = fetch_bars(self.opener, symbol)
             if bars is None:
@@ -159,9 +166,14 @@ class OhlcPoller:
                 self.bank(symbol, bars)
                 self.last_symbol_at = f"{symbol} {len(bars)}b"
             time.sleep(PACING_SECONDS)
+            if time.monotonic() - last_status >= 20:
+                self.write_status()
+                last_status = time.monotonic()
         self.write_status()
 
     def run(self) -> None:
+        self.running = True
+        self.write_status()
         while True:
             try:
                 self.run_pass()
@@ -186,7 +198,17 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--limit", type=int, default=None,
                         help="only the first N symbols (testing)")
     parser.add_argument("--symbols-file", type=Path, default=UNIVERSE_FILE)
+    parser.add_argument("--status", action="store_true",
+                        help="print the saved heartbeat and its liveness")
     args = parser.parse_args(argv)
+
+    if args.status:
+        if not STATUS_PATH.is_file():
+            print("no ohlc_status.json yet: the poller has not run")
+            return 1
+        saved = json.loads(STATUS_PATH.read_text(encoding="utf-8"))
+        print(json.dumps(status_view(saved), indent=1))
+        return 0
 
     symbols = load_universe(args.symbols_file)
     # SO-3: this poller IS the forward-capture path that moves intraday_ohlcv
@@ -213,3 +235,4 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
