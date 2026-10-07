@@ -23,6 +23,7 @@ Usage (from repo root):
     python -m src.data.ohlc_poller                  # run until Ctrl+C
     python -m src.data.ohlc_poller --once           # one full pass, exit
     python -m src.data.ohlc_poller --limit 5        # first N symbols only
+    python -m src.data.ohlc_poller --status          # show heartbeat health
 """
 
 from __future__ import annotations
