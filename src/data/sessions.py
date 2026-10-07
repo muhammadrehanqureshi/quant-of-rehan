@@ -29,9 +29,11 @@ WEEKDAY_CLOSE = (15, 30)
 FRIDAY_OPEN = (9, 17)
 FRIDAY_CLOSE = (16, 30)
 
-# Owner's exact texts (SO-9). Do not reword, ever.
-MSG_MARKET_OPEN = "Market is open and the system is online."
-MSG_MARKET_CLOSED = "Market is closed and the system is sleeping now."
+# Owner's exact texts (SO-9, reworded by owner order 2026-10-07: say
+# "quant is online/sleeping now" instead of the market/system phrasing).
+# Do not reword, ever.
+MSG_MARKET_OPEN = "Quant is online now."
+MSG_MARKET_CLOSED = "Quant is sleeping now."
 
 # PSX trading holidays for 2026 (published by PSX; salvaged from the
 # sentinel's maintained list, data/legacy_sentinel/data/psx_holidays.json).
