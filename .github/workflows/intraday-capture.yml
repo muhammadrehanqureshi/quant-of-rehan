@@ -1,13 +1,12 @@
 name: daily KMIALL intraday capture
 
-# UTC+5 schedule: 11:45 and 14:45 PKT during the session, then 16:45 PKT
-# after close. Each run downloads the current full-day minute bars for KMIALL.
-# Three runs with a 15-minute ceiling use at most 990 minutes in a 22-day
-# month. The daily signal-run ceilings add at most 880 minutes, below the
-# repository's 2,000-minute monthly budget.
+# UTC+5 schedule: 10:45, 12:45, and 14:45 PKT scans, then 16:45 PKT
+# after-close capture. At most 92 runs x 15 minutes = 1,380 minutes in a
+# 23-weekday month. The daily signal workflow is capped at 460 more minutes,
+# for a scheduled maximum of 1,840 within the 2,000-minute monthly budget.
 on:
   schedule:
-    - cron: "45 6,9,11 * * 1-5"
+    - cron: "45 5,7,9,11 * * 1-5"
   workflow_dispatch:
 
 permissions:

@@ -12,7 +12,8 @@
 #   14:45 Fri     = 19:45 PKT, after the 16:30 close
 #   03:45 Tue-Sat = 08:45 PKT safety net, before the 09:32/09:17 open
 #
-# Budget: 3 short runs/day, ~2 min each, well inside the 2,000 min/month.
+# Budget: up to 46 scheduled runs/month, capped at 10 minutes each.
+# Combined with intraday capture, scheduled ceilings are 1,840 minutes/month.
 
 name: daily signal push
 
@@ -38,7 +39,7 @@ concurrency:
 jobs:
   push:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 10
     env:
       RELAY_ADMIN_TOKEN: ${{ secrets.RELAY_ADMIN_TOKEN }}
     steps:
