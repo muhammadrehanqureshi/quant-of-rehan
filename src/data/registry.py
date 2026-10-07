@@ -48,8 +48,9 @@ REGISTRY: Dict[str, DataSource] = {
         description="Intraday bars (1m/5m/15m/1h)",
         availability=Availability.DEGRADED,
         detail="No free historical intraday archive for PSX. Bars are only "
-               "captured forward by the local runner; the archive grows over "
-               "time. Historical intraday backtests are limited to banked data. "
+               "captured forward by the post-close GitHub Actions workflow; "
+               "each run retains its artifact for 90 days. Historical intraday "
+               "backtests are limited to banked data. "
                "UPDATE 2026-10-06: Path A approved by the owner; the read-only "
                "broker feed capture (src/data/feed_capture.py) and 1-minute "
                "OHLC poller (src/data/ohlc_poller.py) now bank genuine bars "
@@ -118,3 +119,4 @@ def degraded_keys() -> tuple:
 def unavailable_keys() -> tuple:
     """Keys that are UNAVAILABLE: engines for these must be disabled."""
     return tuple(k for k, v in REGISTRY.items() if v.availability is Availability.UNAVAILABLE)
+
