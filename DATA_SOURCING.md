@@ -1,7 +1,7 @@
 # DATA_SOURCING: Market Data Research Memo (PSX KMIALL)
 
 **Date:** 2026-10-04 · **Prepared by:** the QUANT · **Status:** verdict final
-for free/public sources; forward-capture plan pending owner go-ahead.
+for free/public sources; forward OHLC capture runs in GitHub Actions.
 **Update (same day):** PSX Data Portal redesigned: the 5-year-per-GET EOD
 endpoint is dead; see §7.
 
@@ -40,19 +40,24 @@ when labeled degraded. They are never presented as true order flow.
 
 ## 4. The real paths to genuine order flow
 
-### Path A: Forward capture from the read-only broker feed: APPROVED AND RUNNING
-- **Owner approved 2026-10-06.** Capture is LIVE (read-only, no credentials,
-  no session, no login of any kind):
+### Path A: Forward capture from the read-only broker feed: APPROVED
+- **Owner approved 2026-10-06.** The OHLC capture is scheduled on weekdays in
+  GitHub Actions at 16:45 Karachi time, after the regular PSX close. It makes
+  one read-only pass and retains the resulting artifact for 90 days. Manual
+  workflow dispatch is also available. No credentials or broker session are
+  used:
   - `src/data/feed_capture.py`: the broker's own MKT-FEED socket
     (nxg1.eclear.com.pk:8484), KMIALL universe subscription + heartbeats
     only, frames banked as NDJSON under `data/feed_capture/`;
   - `src/data/ohlc_poller.py`: 1-minute OHLC bars via GetOHLCData (public
     read tier), full-day refresh per pass so no bar is lost on rotation;
+  - `.github/workflows/intraday-capture.yml`: one post-close weekday pass,
+    uploaded with its health status as a 90-day artifact;
   - an outgoing-frame guard allows exactly three prefixes (MKT-FEED / EXS-FEED
     / HELLO); anything else raises. The read-only law is enforced in code.
-- The archive grows day by day; weeks of banked sessions are required before
-  any intraday claim (registry: intraday_ohlcv DEGRADED, footprint
-  UNAVAILABLE until a genuine archive exists AND is backtestable).
+- The downloadable artifacts grow day by day; weeks of banked sessions are
+  required before any intraday claim (registry: intraday_ohlcv DEGRADED,
+  footprint UNAVAILABLE until a genuine archive exists AND is backtestable).
 - **Anonymous-tier limits (measured live 2026-10-06):** the feed socket
   accepts the connection and streams EXS-FEED (index), MKT-Movers and
   MKT-STATS, but does NOT stream per-symbol MKT-FEED ticks without a
@@ -66,9 +71,10 @@ when labeled degraded. They are never presented as true order flow.
   read-only; it requires the owner's credential sheet from the local
   Desktop (SO-5: never in the repo, never printed).
 
-### Path B: Forward intraday bar capture from the local runner
-- No new source: the existing local runner records 1m/5m/15m/1h bars daily.
-- Builds the intraday dataset the backtester eventually needs.
+### Path B: Longer-term intraday archive
+- The 90-day workflow artifacts must be downloaded and consolidated for
+  research before they expire. No historical bars are inferred from daily
+  data, and no local background capture process is required.
 
 ### Path C: Daily OHLCV backfill (DEGRADED: see §7)
 - ~~PSX Data Portal / CSOR daily files cover years of history~~ The portal
@@ -155,3 +161,4 @@ Builder: `python scripts/build_eod_history.py --start 2021-10-04 --end
 `src/data/psx_daily_downloads.py`. PSX's legal notice prohibits commercial
 redistribution of market data; this crawl is private research on the owner's
 machine, dataset gitignored under `/data/`.
+

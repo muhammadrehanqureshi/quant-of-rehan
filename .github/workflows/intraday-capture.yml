@@ -1,0 +1,66 @@
+name: daily KMIALL intraday capture
+
+on:
+  schedule:
+    - cron: "45 11 * * 1-5"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: intraday-capture
+  cancel-in-progress: false
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Fetch one complete KMIALL bar pass
+        run: |
+          mkdir -p data/feed_capture
+          python -m src.data.ohlc_poller --symbols-file src/data/universe_kmiall.json --once
+
+      - name: Summarize capture
+        if: always()
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          path = Path("data/feed_capture/ohlc_status.json")
+          if not path.exists():
+              summary = "Capture status was not produced. Check the failed run."
+          else:
+              status = json.loads(path.read_text(encoding="utf-8"))
+              counters = status.get("counters", {})
+              summary = (
+                  f"Date: {status.get('started_at', 'unknown')}\n\n"
+                  f"Symbols with data: {counters.get('symbols_ok', 0)}\n\n"
+                  f"Symbols without data: {counters.get('symbols_err', 0)}\n\n"
+                  f"One-minute bars banked: {counters.get('bars', 0)}\n\n"
+                  f"Errors: {counters.get('errors', 0)}"
+              )
+          with open(Path(os.environ["GITHUB_STEP_SUMMARY"]), "a", encoding="utf-8") as output:
+              output.write("## Intraday capture\n\n" + summary + "\n")
+          PY
+
+      - name: Retain captured bars and status
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kmiall-intraday-${{ github.run_id }}
+          path: |
+            data/feed_capture/ohlc_*.ndjson
+            data/feed_capture/ohlc_status.json
+          if-no-files-found: warn
+          retention-days: 90
+
