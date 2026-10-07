@@ -40,11 +40,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import socket
 import sys
 import time
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
+
+from src.data.capture_health import status_view
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
@@ -145,6 +148,7 @@ class CaptureSession:
         self.counters = {"messages": 0, "ticks": 0, "reconnects": 0, "errors": 0}
         self.last_frame_at: str | None = None
         self.last_error: str | None = None
+        self.running = False
         self.started_at = now_karachi().isoformat()
         self._fh = None
         self._fh_day = None
@@ -183,8 +187,8 @@ class CaptureSession:
     def write_status(self) -> None:
         CAPTURE_DIR.mkdir(parents=True, exist_ok=True)
         status = {
-            "pid": None,
-            "running": True,
+            "pid": os.getpid() if self.running else None,
+            "running": self.running,
             "started_at": self.started_at,
             "updated_at": now_karachi().isoformat(),
             "feed_hosts": FEED_HOSTS,
@@ -200,6 +204,7 @@ class CaptureSession:
         tmp.replace(STATUS_PATH)
 
     def close(self) -> None:
+        self.running = False
         if self._fh is not None:
             self._fh.close()
             self._fh = None
@@ -218,6 +223,8 @@ class CaptureSession:
         raise ConnectionError(f"all feed hosts unreachable: {last_exc}")
 
     def run(self) -> None:
+        self.running = True
+        self.write_status()
         backoff = 2.0
         while self.deadline is None or time.time() < self.deadline:
             buf = b""
@@ -288,7 +295,8 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.status:
         if STATUS_PATH.exists():
-            print(STATUS_PATH.read_text(encoding="utf-8"))
+            saved = json.loads(STATUS_PATH.read_text(encoding="utf-8"))
+            print(json.dumps(status_view(saved), indent=1))
             return 0
         print("no status.json yet: the capture daemon has not run")
         return 1
@@ -310,3 +318,4 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
