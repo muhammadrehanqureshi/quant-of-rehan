@@ -26,12 +26,20 @@ public class MainActivity extends Activity {
     private TextView statusPill, statusTitle, statusDetail, signalList;
     private TextView btnSettings;
     private View settingsPanel;
+    private android.graphics.Typeface scriptFont;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         prefs = getSharedPreferences("qor", MODE_PRIVATE);
         setContentView(R.layout.activity_main);
+
+        // the owner's cursive for the motivation quote. "Pepita Script" is a
+        // commercial Fenotype family; until the owner licenses it, the face
+        // shipped is a close free (OFL) script: Dancing Script. Swapping the
+        // res/font TTFs is the only change a real license needs.
+        scriptFont = getResources().getFont(R.font.dancing_script_regular);
+        ((TextView) findViewById(R.id.motivation_text)).setTypeface(scriptFont);
 
         statusPill = findViewById(R.id.status_pill);
         statusTitle = findViewById(R.id.status_title);
@@ -92,7 +100,11 @@ public class MainActivity extends Activity {
         bg.setColor(getColor(online ? R.color.green_soft : R.color.red_soft));
         bg.setStroke(dp(1), getColor(online ? R.color.green : R.color.red));
         statusPill.setBackground(bg);
-        statusPill.setText(online ? "●  ONLINE" : "●  OFFLINE");
+        // the owner's marker law: a green check on ONLINE, a red cross on
+        // OFFLINE (the round dot is retired)
+        statusPill.setText(online ? "✓  ONLINE" : "✗  OFFLINE");
+        statusPill.setTextColor(getColor(online
+                ? R.color.green : R.color.red));
 
         statusTitle.setText(online ? "Quant is working." : "Quant is offline.");
         statusTitle.setTextColor(getColor(online
