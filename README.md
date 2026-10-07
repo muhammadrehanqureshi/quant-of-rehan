@@ -30,7 +30,9 @@ only. Sole contributor and owner: Rehan (muhammadrehanqureshi).
 
 ## The app
 
-![App UI](docs/app_ui.png)
+<p align="center">
+  <img src="docs/app_ui.png" alt="Quant of Rehan app UI" width="320">
+</p>
 
 The console opens with the brand mark centered between gold rules, the
 live status card ("Quant is working." with the Karachi clock), the latest
