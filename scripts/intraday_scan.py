@@ -148,8 +148,8 @@ def deliver_once(text: str, signal_date: str) -> bool:
         return False
 
     # Keep the alert in the APK card and deliver the same text to Telegram.
-    post_json(relay_url, "/signals", {"signals": text}, token)
     post_json(relay_url, "/notify", {"text": text, "kind": "signals"}, token)
+    post_json(relay_url, "/signals", {"signals": text}, token)
     return True
 
 
@@ -169,7 +169,6 @@ def main(argv: list[str] | None = None) -> int:
         f"ohlc_{scan_time:%Y%m%d}.ndjson"
     )
     from src.data.feed_capture import load_universe
-    from src.data.psx_eod import load_universe as load_eod_universe
     from scripts.signal_daily import (
         UNIVERSE_LEGACY, UNIVERSE_FALLBACK, WINDOW_KMI, fetch_window,
         filter_to_universe,
@@ -181,7 +180,7 @@ def main(argv: list[str] | None = None) -> int:
 
     # Reuse the bounded EOD fetch used by the existing daily action. Exclude
     # today's portal row so only the captured, time-bounded minute bars form T.
-    fetch_window(scan_time.date())
+    fetch_window(scan_time.date() - timedelta(days=1))
     filter_to_universe()
     history = pd.read_csv(WINDOW_KMI, parse_dates=["date"])
     history = history[history["symbol"].isin(set(symbols))]
