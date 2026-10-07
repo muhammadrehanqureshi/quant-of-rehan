@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Quant of Rehan</string>
-    <string name="app_name_upper">QUANT OF REHAN</string>
     <string name="tagline">PSX KMIALL · SIGNAL-ONLY · KARACHI TIME</string>
     <string name="checking">Checking system…</string>
     <string name="no_signals">No signal right now.</string>
@@ -10,6 +9,7 @@
     <string name="label_system">SYSTEM STATUS</string>
     <string name="label_signal">LATEST SIGNAL</string>
     <string name="label_settings">SETTINGS</string>
+    <string name="motivation">Don\'t worry, Rehan. Nothing is permanent. Market will move down and will move up as well. Allah SWT is with you and Insha\'a\'Allah your portfolio will rise exponentially. Just keep working hard and trade with analysis not emotions. Also, keep making your trades better each time.</string>
     <string name="token_hint">relay admin token</string>
     <string name="btn_save">Save token</string>
     <string name="btn_relay">Relay status</string>

@@ -139,9 +139,10 @@ instruction from the owner.
   through the quant-of-rehan Cloudflare Worker relay, which runs on the
   Cloudflare edge outside that block. The owner reads messages on his phone
   over his VPN as he always has.
-- The owner receives, every trading day: "Market is open and the system is
-  online." at open, and "Market is closed and the system is sleeping now."
-  at close, per the SO-8 schedule. These texts are fixed by the owner.
+- The owner receives, every trading day: "Quant is online now." at open,
+  and "Quant is sleeping now." at close, per the SO-8 schedule (owner order
+  2026-10-07 reworded the texts from the market/system phrasing). These
+  texts are fixed by the owner.
 - The local scheduler retries through the relay and fails closed with a
   clear log line when delivery is impossible. No signal is ever silently
   dropped and none is ever fabricated.

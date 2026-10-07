@@ -100,13 +100,11 @@ public final class Watcher {
             try {
                 JSONObject health = healthWithRetry(base);
                 boolean online = health.optBoolean("ok", false);
-                JSONObject next = health.optJSONObject("next_event");
-                String nextTxt = next == null ? ""
-                        : next.optString("event", "") + " " + next.optString("at_pk", "");
                 String karachi = health.optString("karachi_now", "");
+                // owner order 2026-10-07: the app shows only the Karachi
+                // clock; the next-event line is gone
                 String detail = online
-                        ? joinNonEmpty("Karachi: ", karachi,
-                          nextTxt.isEmpty() ? "" : "   |   Next: " + nextTxt)
+                        ? "Karachi: " + karachi
                         : "The relay answered but reported a fault.";
 
                 String signals = "";
@@ -135,13 +133,6 @@ public final class Watcher {
                 cb.done(false, hint + " (" + why + ")", "");
             }
         });
-    }
-
-    private static String joinNonEmpty(String a, String b, String c) {
-        StringBuilder sb = new StringBuilder(a);
-        if (!b.isEmpty()) sb.append(b);
-        if (!c.isEmpty()) sb.append(c);
-        return sb.toString();
     }
 
     /** Watchdog beat: fetch, compare, notify on change or on signals. */
@@ -187,9 +178,9 @@ public final class Watcher {
     }
 
     private static void notifyStatus(Context c, boolean online, String detail) {
-        String title = online ? "Quant of Rehan: system is working."
-                : "Quant of Rehan: system unreachable";
-        String text = online ? "Market clock synced. " + detail
+        String title = online ? "Quant of Rehan: quant is online now."
+                : "Quant of Rehan: quant unreachable";
+        String text = online ? detail
                 : "The relay did not answer. Check the PC and the VPN.";
         post(c, CHANNEL_STATUS, "system", 2, title, text);
     }
