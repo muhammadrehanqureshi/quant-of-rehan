@@ -94,7 +94,7 @@ public class MainActivity extends Activity {
         statusPill.setBackground(bg);
         statusPill.setText(online ? "●  ONLINE" : "●  OFFLINE");
 
-        statusTitle.setText(online ? "System is working." : "System is offline.");
+        statusTitle.setText(online ? "Quant is working." : "Quant is offline.");
         statusTitle.setTextColor(getColor(online
                 ? R.color.gold_bright : R.color.red));
 
