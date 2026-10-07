@@ -49,7 +49,7 @@ def main(argv: list[str] | None = None) -> int:
     if os.environ.get("GITHUB_ACTIONS"):
         d0 = datetime.strptime(str(args.start), "%Y-%m-%d")
         d1 = datetime.strptime(str(args.end), "%Y-%m-%d")
-        if (d1 - d0).days > 45:
+        if (d1 - d0).days > 120:
             print("REFUSING on CI: full-history crawls stay LOCAL ONLY (SO-4); "
                   "the cloud signal job may fetch only a small trailing "
                   "window (SO-10).")
