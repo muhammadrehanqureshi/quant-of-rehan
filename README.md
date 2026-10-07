@@ -1,6 +1,6 @@
 # Quant of Rehan
 
-![Quant of Rehan](assets/quant_of_rehan_logo.png)
+![Quant of Rehan](assets/quant-of-rehan-logo.png)
 
 **Private, signal-only quantitative research platform for PSX KMIALL stocks.**
 No order placement. No broker integration for trading. Signals and research
@@ -23,10 +23,21 @@ only. Sole contributor and owner: Rehan (muhammadrehanqureshi).
   blocked inside Pakistan, so only the relay worker talks to Telegram and the
   owner reads messages on his phone over his VPN. Edge crons send the two
   daily texts even with the PC off.
-- **Android companion app** (`android/`, APK on the Desktop): logo-branded
-  dark console showing the live system verdict from the relay, plus
+- **Android companion app** (`android/`, APK on the Desktop, v1.3.0):
+  logo-branded dark console showing whether the quant is working, plus
   signal and status notifications on the phone. Polls `/health` and
   `/signals` on the edge, 15-minute watchdog, survives reboot.
+
+## The app
+
+![App UI](docs/app_ui.png)
+
+The console opens with the brand mark centered between gold rules, the
+live status card ("Quant is working." with the Karachi clock), the latest
+signal, the owner's reminder in the quiet of the screen, and the diamond
+rule closing the frame at the bottom. The launcher icon mirrors the logo's
+diamond-and-rule motif above AND below the candles at the same distance
+(v1.3.0).
 - **Governance guard** in CI: secret scan, footprint honesty, owner-only
   commit identity, human-style enforcement, Karachi-pin check.
 
@@ -42,9 +53,8 @@ only. Sole contributor and owner: Rehan (muhammadrehanqureshi).
    Mr. Rehan. Em dashes are banned from commits and files. `legacy/` is
    quarantined reference material from the deleted sentinel repos.
 7. **Karachi time forever (SO-8).** UTC+5, hardcoded, no other zone.
-8. **Owner notifications (SO-9).** "Market is open and the system is online."
-   at open; "Market is closed and the system is sleeping now." at close,
-   through the Cloudflare relay.
+8. **Owner notifications (SO-9).** "Quant is online now." at open;
+   "Quant is sleeping now." at close, through the Cloudflare relay.
 
 ## Research notes
 
@@ -104,7 +114,10 @@ python scripts/smoke_backtest.py --dataset data/eod_history_kmi.csv.gz
   matrix, A-G path analysis, survivorship sensitivity, frozen filter matrix.
   No edge claim; the stop/TP grid is banked pending the owner's review.
 - Signal engine v1 (UNGRADED) pushes daily signals to Telegram + the phone
-  app after the close (src/signals/).
+  app after the close (src/signals/). App v1.3.0 (2026-10-07): centered
+  brand header, "Quant is working." status line, motivational panel, framed
+  dividers top and bottom, mirrored icon motif, "Quant is online/sleeping
+  now." texts on the edge crons and relay.
 - Footprint and order-flow data: UNAVAILABLE (registry-enforced). Path A
   (read-only broker feed capture) is APPROVED and RUNNING since 2026-10-06:
   genuine 1-minute OHLC bars and index snapshots bank daily under
