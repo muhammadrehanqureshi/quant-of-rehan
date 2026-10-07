@@ -1,9 +1,8 @@
-"""Market-hour KMIALL observation scan using only captured bars available now.
+"""Cloud KMIALL intraday scanner.
 
-The daily engine is UNGRADED and produces OBSERVE, never an order. This
-script builds one partial daily candle per symbol from genuine minute bars,
-combines it with a bounded trailing EOD window, and sends an alert only when
-coverage is adequate and exactly one candidate passes the existing rule.
+Production signal path. It evaluates genuine captured 1-minute bars with the
+causal intraday engine and delivers at most one BUY per Karachi session.
+No broker order is placed here.
 """
 from __future__ import annotations
 
@@ -18,23 +17,21 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from src.data.sessions import is_market_open, now_karachi  # noqa: E402
-from src.signals.engine import run  # noqa: E402
-from src.signals.signal_push import load_relay_url, post_json, read_admin_token  # noqa: E402
+from src.data.sessions import is_market_open, now_karachi
+from src.signals.intraday_engine import choose, validate_signal
+from src.signals.signal_push import load_relay_url, post_json, read_admin_token
 
 MIN_COVERAGE = 0.80
-MIN_HISTORY_SESSIONS = 21
-MAX_BAR_AGE_MINUTES = 20
+MAX_BAR_AGE_MINUTES = 10
 
 
 def aggregate_minute_bars(path: Path, symbols: list[str], session_day: str,
                           as_of: datetime) -> pd.DataFrame:
-    """Aggregate only today's bars timestamped no later than as_of."""
     allowed = set(symbols)
     collected: dict[str, list[tuple[datetime, dict]]] = {}
     if not path.is_file():
         return pd.DataFrame(columns=["symbol", "date", "open", "high", "low",
-                                     "close", "volume", "bar_time"])
+                                     "close", "bar_time"])
     for line in path.read_text(encoding="utf-8").splitlines():
         try:
             record = json.loads(line)
@@ -50,7 +47,7 @@ def aggregate_minute_bars(path: Path, symbols: list[str], session_day: str,
                     tzinfo=as_of.tzinfo)
                 if minute > as_of:
                     continue
-                values = {key: float(bar[key]) for key in ("o", "h", "l", "c")}
+                values = {k: float(bar[k]) for k in ("o", "h", "l", "c")}
                 if min(values.values()) <= 0:
                     continue
                 collected.setdefault(symbol, []).append((minute, values))
@@ -59,145 +56,102 @@ def aggregate_minute_bars(path: Path, symbols: list[str], session_day: str,
 
     rows = []
     for symbol, items in collected.items():
-        items.sort(key=lambda item: item[0])
-        times = [item[0] for item in items]
-        last_time = times[-1]
+        items.sort(key=lambda x: x[0])
+        last_time = items[-1][0]
         if as_of - last_time > timedelta(minutes=MAX_BAR_AGE_MINUTES):
             continue
-        bars = [item[1] for item in items]
+        bars = [x[1] for x in items]
         rows.append({
             "symbol": symbol,
             "date": pd.Timestamp(session_day),
             "open": bars[0]["o"],
-            "high": max(bar["h"] for bar in bars),
-            "low": min(bar["l"] for bar in bars),
+            "high": max(x["h"] for x in bars),
+            "low": min(x["l"] for x in bars),
             "close": bars[-1]["c"],
-            # Minute feed has no volume field. Never invent one.
-            "volume": float("nan"),
-            "bar_time": last_time.isoformat(),
+            "bar_time": last_time,
         })
     return pd.DataFrame(rows)
 
 
-def candidate_for_session(signals: list, session_day: str):
-    """Return one signal only; ambiguous candidate sets fail closed."""
-    candidates = [signal for signal in signals
-                  if signal.signal_date == session_day]
-    if len(candidates) == 1:
-        return candidates[0], "one candidate"
-    if not candidates:
-        return None, "no candidate passed the existing rule"
-    return None, f"{len(candidates)} candidates; no arbitrary ranking applied"
+def build_history(session_day: str) -> pd.DataFrame:
+    from scripts.signal_daily import WINDOW_KMI, fetch_window, filter_to_universe
+    d = datetime.fromisoformat(session_day).date() - timedelta(days=1)
+    fetch_window(d)
+    filter_to_universe()
+    history = pd.read_csv(WINDOW_KMI, parse_dates=["date"])
+    return history[history["date"].dt.date.astype(str) < session_day].copy()
 
 
-def evaluate_scan(history: pd.DataFrame, partial: pd.DataFrame,
-                  universe_size: int, session_day: str):
-    coverage = len(partial) / max(universe_size, 1)
-    if coverage < MIN_COVERAGE:
-        return None, (f"NO TRADE: minute-bar coverage {coverage:.1%} is below "
-                      f"the {MIN_COVERAGE:.0%} minimum")
-    sessions = pd.to_datetime(history["date"]).dt.date.nunique()
-    if sessions < MIN_HISTORY_SESSIONS:
-        return None, (f"NO TRADE: only {sessions} prior EOD sessions; "
-                      f"{MIN_HISTORY_SESSIONS} required")
-    if partial.empty:
-        return None, "NO TRADE: no fresh minute bars"
-
-    prior = history.copy()
-    prior["date"] = pd.to_datetime(prior["date"])
-    prior = prior[prior["date"].dt.date.astype(str) < session_day]
-    combined = pd.concat([prior, partial.drop(columns=["bar_time"], errors="ignore")],
-                         ignore_index=True, sort=False)
-    combined = combined.drop_duplicates(["symbol", "date"], keep="last")
-    signals, _features = run(combined)
-    selected, reason = candidate_for_session(signals, session_day)
-    return selected, reason
-
-
-def alert_text(signal, scan_time: datetime) -> str:
-    price = float(signal.close)
-    return (
-        f"INTRADAY ALERT {signal.signal_date} (Karachi)\n"
-        f"OBSERVE {signal.symbol} | reference price {price:.4f} "
-        f"at {scan_time:%H:%M} PKT\n"
-        f"Reference only: +2% level {price * 1.02:.4f}, "
-        f"-1% level {price * 0.99:.4f}; levels are from this reference price, "
-        f"not an executable fill.\n"
-        f"Existing daily rule: regime {signal.regime}, sweep-low and "
-        f"FVG-retrace. UNGRADED; no proven intraday edge, no order placed."
-    )
-
-
-def deliver_once(text: str, signal_date: str) -> bool:
+def deliver_once(signal, scan_time: datetime) -> bool:
+    validate_signal(signal)
     token = read_admin_token()
     relay_url = load_relay_url()
     import requests
 
     try:
-        response = requests.get(
-            relay_url + "/signals",
-            headers={"x-admin-token": token},
-            timeout=15,
-        )
-        response.raise_for_status()
-        stored = str(response.json().get("signals", ""))
+        r = requests.get(relay_url + "/signals",
+                         headers={"x-admin-token": token}, timeout=15)
+        r.raise_for_status()
+        stored = str(r.json().get("signals", ""))
     except Exception as exc:
-        raise RuntimeError(f"could not check relay deduplication state: {exc}") from exc
-    if f"INTRADAY ALERT {signal_date}" in stored:
-        print(f"relay already has an intraday alert for {signal_date}; no repeat")
+        raise RuntimeError(f"relay state check failed: {exc}") from exc
+
+    if "INTRADAY BUY " in stored and signal.session_day in stored:
+        print("An intraday signal already exists for this session; no repeat.")
         return False
 
-    # Keep the alert in the APK card and deliver the same text to Telegram.
-    post_json(relay_url, "/notify", {"text": text, "kind": "signals"}, token)
+    text = (
+        f"INTRADAY BUY {signal.symbol} {signal.session_day} (Karachi)\n"
+        f"Entry reference: {signal.entry_price:.4f} @ {signal.bar_time} PKT\n"
+        f"TP: {signal.target_price:.4f} (+2.00% from entry reference)\n"
+        f"Score: {signal.score:.2f} | KMIALL breadth: {signal.market_breadth:.0%}\n"
+        f"Day: {signal.day_change_pct:+.2f}% | RS: {signal.relative_strength_pct:+.2f}%\n"
+        f"Structure: sweep={'Y' if signal.swept_low else 'N'}, "
+        f"displacement={'Y' if signal.displacement else 'N'}, "
+        f"FVG-retrace={'Y' if signal.fvg_retrace else 'N'}\n"
+        "Signal only. No broker order was placed."
+    )
     post_json(relay_url, "/signals", {"signals": text}, token)
+    post_json(relay_url, "/notify", {"text": text, "kind": "signals"}, token)
     return True
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="KMIALL market-hour observation scan")
+    parser = argparse.ArgumentParser()
     parser.add_argument("--bars", type=Path)
-    args = parser.parse_args(argv)
+    parser.add_argument("--history", type=Path)
+    args = parser.parse_args()
 
-    scan_time = now_karachi()
-    if not is_market_open(scan_time):
-        print(f"SKIPPED: market closed at {scan_time:%H:%M} PKT")
+    now = now_karachi()
+    if not is_market_open(now):
+        print(f"SKIPPED: market closed at {now:%H:%M} PKT")
         return 0
 
-    session_day = scan_time.date().isoformat()
-    bars_path = args.bars or (
-        ROOT / "data" / "feed_capture" /
-        f"ohlc_{scan_time:%Y%m%d}.ndjson"
-    )
+    session_day = now.date().isoformat()
     from src.data.feed_capture import load_universe
-    from scripts.signal_daily import (
-        UNIVERSE_LEGACY, UNIVERSE_FALLBACK, WINDOW_KMI, fetch_window,
-        filter_to_universe,
-    )
-
+    from scripts.signal_daily import UNIVERSE_FALLBACK, UNIVERSE_LEGACY
     universe_path = UNIVERSE_LEGACY if UNIVERSE_LEGACY.is_file() else UNIVERSE_FALLBACK
     symbols = load_universe(universe_path)
-    partial = aggregate_minute_bars(bars_path, symbols, session_day, scan_time)
 
-    # Reuse the bounded EOD fetch used by the existing daily action. Exclude
-    # today's portal row so only the captured, time-bounded minute bars form T.
-    fetch_window(scan_time.date() - timedelta(days=1))
-    filter_to_universe()
-    history = pd.read_csv(WINDOW_KMI, parse_dates=["date"])
-    history = history[history["symbol"].isin(set(symbols))]
-    history = history[history["date"].dt.date.astype(str) < session_day]
+    bars_path = args.bars or ROOT / "data" / "feed_capture" / f"ohlc_{now:%Y%m%d}.ndjson"
+    partial = aggregate_minute_bars(bars_path, symbols, session_day, now)
+    coverage = partial["symbol"].nunique() / max(len(symbols), 1)
+    print(f"Scan {session_day} {now:%H:%M} PKT: "
+          f"{partial['symbol'].nunique()}/{len(symbols)} symbols ({coverage:.1%})")
+    if coverage < MIN_COVERAGE:
+        print("NO TRADE: insufficient current-session KMIALL coverage")
+        return 0
 
-    selected, reason = evaluate_scan(history, partial, len(symbols), session_day)
-    coverage = len(partial) / max(len(symbols), 1)
-    print(f"Scan {session_day} {scan_time:%H:%M} PKT: "
-          f"{len(partial)}/{len(symbols)} symbols ({coverage:.1%} coverage)")
-    if selected is None:
+    history = (pd.read_csv(args.history, parse_dates=["date"])
+               if args.history else build_history(session_day))
+    signal, reason = choose(partial, history, len(symbols), session_day)
+    if signal is None:
         print(f"NO TRADE: {reason}")
         return 0
 
-    text = alert_text(selected, scan_time)
-    print(text)
+    print(signal.line())
     try:
-        sent = deliver_once(text, session_day)
+        sent = deliver_once(signal, now)
     except Exception as exc:
         print(f"DELIVERY FAILED: {type(exc).__name__}: {exc}")
         return 1
