@@ -76,8 +76,13 @@ The rest of SO-1 stands unchanged for everything outside this exception.
 
 - All backtesting, walk-forward validation, and Monte Carlo runs execute on
   the owner's local PC.
-- GitHub Actions is limited to lightweight governance/health jobs measured in
-  seconds. No scheduled jobs. No data pipelines. No backtests in CI.
+- Backtesting, walk-forward validation, and Monte Carlo runs never execute
+  in CI, and full dataset crawls stay on the owner's PC (a CI crawl of the
+  5-year history is refused in code).
+- Exception carved by SO-10 (owner approval, 2026-10-07): the daily signal
+  job runs on GitHub Actions within the budget below. It may fetch only a
+  small trailing EOD window (bounded by the CI guard in
+  scripts/build_eod_history.py), never a full-history crawl.
 - Monthly Actions budget: 2,000 minutes. Nothing in this repo may put that at
   risk.
 
