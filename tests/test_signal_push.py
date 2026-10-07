@@ -9,7 +9,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from src.signals.signal_push import build_signal_text, UNGRADED_NOTE  # noqa: E402
+from src.signals.signal_push import (  # noqa: E402
+    build_signal_text, relay_has_session_alert, UNGRADED_NOTE,
+)
 from src.signals.engine import Signal  # noqa: E402
 
 
@@ -43,6 +45,12 @@ class TestSignalPush(unittest.TestCase):
         text = build_signal_text([], "2026-10-05")
         self.assertIn("No signal today", text)
         self.assertIn("UNGRADED", text)
+
+    def test_intraday_result_blocks_daily_card_overwrite(self):
+        self.assertTrue(relay_has_session_alert(
+            "INTRADAY ALERT 2026-10-07 (Karachi)", "2026-10-07"))
+        self.assertFalse(relay_has_session_alert(
+            "INTRADAY ALERT 2026-10-06 (Karachi)", "2026-10-07"))
 
     def test_line_is_ascii_safe(self):
         text = sig().line()
