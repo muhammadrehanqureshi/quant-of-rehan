@@ -16,8 +16,8 @@ from src.signals.engine import Signal  # noqa: E402
 def sig(sym="OGDC", date="2026-10-05", close=314.62):
     return Signal(
         symbol=sym, name="Oil & Gas Dev", signal_date=date, close=close,
-        entry_plan="entry next open, max hold 3 bars",
-        tp_price=round(close * 1.02, 2), sl_price=round(close * 0.99, 2),
+        entry_plan="reference entry: next session open; max hold 3 sessions",
+        tp_pct=2.0, sl_pct=1.0,
         regime="weak_bull", regime_ret20=0.031, sweep_low=True,
         fvg_age=1, fvg_low=300.0, fvg_mid=305.0, fvg_size_pct=0.02,
         relvol=1.4, displacement=False, bos_up=True, clv_position=0.42,
@@ -28,9 +28,14 @@ def sig(sym="OGDC", date="2026-10-05", close=314.62):
 class TestSignalPush(unittest.TestCase):
     def test_text_contains_plan_and_ungraded_note(self):
         text = build_signal_text([sig()], "2026-10-05")
-        self.assertIn("BUY OGDC", text)
-        self.assertIn("TP 320.91", text)
-        self.assertIn("SL 311.47", text)
+        self.assertIn("OBSERVE OGDC", text)
+        self.assertIn("reference entry: next session open", text)
+        self.assertIn("TP +2% from actual entry", text)
+        self.assertIn("SL -1% from actual entry", text)
+        self.assertIn("max hold 3 sessions", text)
+        self.assertNotIn("BUY OGDC", text)
+        self.assertNotIn("TP 320.91", text)
+        self.assertNotIn("SL 311.47", text)
         self.assertIn("UNGRADED", UNGRADED_NOTE)
         self.assertIn("UNGRADED", text)
 
@@ -46,3 +51,4 @@ class TestSignalPush(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

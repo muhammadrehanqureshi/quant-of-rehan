@@ -17,8 +17,8 @@ equal lows, volume acceleration) travel with the signal as context for
 later slicing; they are NOT conditions in v1.
 
 Signal payload honesty (GOVERNANCE.md SO-1/SO-3): every signal carries the
-full execution plan of the owner's law (entry next open, TP +2%, SL -1%,
-max hold 3) and the data caveats. The engine refuses to emit anything when
+the owner's TP and SL percentages from the next session's executable open,
+with a three-session holding cap and the data caveats. The engine refuses to emit anything when
 its input data is insufficient (see registry.py).
 """
 
@@ -31,7 +31,7 @@ import pandas as pd
 
 TP_PCT = 2.0    # owner's law: TP +2.0%
 SL_PCT = 1.0    # owner's law: SL -1.0%
-MAX_HOLD = 3    # owner's law: 3-bar holding cap
+MAX_HOLD = 3    # owner's law: 3-session holding cap
 
 # Section 12 regime bands on the equal-weight proxy 20-day return.
 REGIME_BANDS = {
@@ -51,8 +51,8 @@ class Signal:
     signal_date: str
     close: float
     entry_plan: str
-    tp_price: float
-    sl_price: float
+    tp_pct: float
+    sl_pct: float
     regime: str
     regime_ret20: float
     sweep_low: bool
@@ -67,9 +67,9 @@ class Signal:
     equal_lows: bool
 
     def line(self) -> str:
-        return (f"BUY {self.symbol} @close {self.close:g} | "
-                f"{self.entry_plan} | TP {self.tp_price:g} (+{TP_PCT:g}%) "
-                f"SL {self.sl_price:g} (-{SL_PCT:g}%) | regime {self.regime} "
+        return (f"OBSERVE {self.symbol} @close {self.close:g} | "
+                f"{self.entry_plan} | TP +{self.tp_pct:g}% from actual entry "
+                f"SL -{self.sl_pct:g}% from actual entry | regime {self.regime} "
                 f"({self.regime_ret20 * 100:+.1f}%/20d) | sweep_low + "
                 f"FVG-retrace(age {self.fvg_age}) | relvol {self.relvol:.2f}x "
                 f"| {'BOS ' if self.bos_up else ''}"
@@ -212,9 +212,9 @@ def select_signals(df_feat: pd.DataFrame, proxy_regime: pd.DataFrame) -> list[Si
             name=getattr(row, "name", "") or "",
             signal_date=str(pd.Timestamp(row.date).date()),
             close=float(row.close),
-            entry_plan=f"entry next open, max hold {MAX_HOLD} bars",
-            tp_price=round(row.close * (1.0 + TP_PCT / 100.0), 2),
-            sl_price=round(row.close * (1.0 - SL_PCT / 100.0), 2),
+            entry_plan=f"reference entry: next session open; max hold {MAX_HOLD} sessions",
+            tp_pct=TP_PCT,
+            sl_pct=SL_PCT,
             regime=row.regime,
             regime_ret20=float(row.proxy_ret20),
             sweep_low=bool(row.sweep_low),
@@ -249,3 +249,4 @@ def historical_signals(df: pd.DataFrame) -> list[tuple]:
     """
     signals, _ = run(df)
     return [(s.signal_date, s.symbol) for s in signals]
+
