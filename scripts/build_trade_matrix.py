@@ -55,6 +55,7 @@ FEATURE_COLS = [
     "ma20", "relvol", "vol_accel", "sweep_low", "sweep_high", "bos_up",
     "displacement", "clv_position", "equal_lows", "fvg_bull_age1",
     "fvg_size_pct", "fvg_retrace", "break20", "body",
+    "lower_wick", "range_expansion", "pullback_resume",  # Phase 2A
 ]
 
 
@@ -80,6 +81,7 @@ class SymbolFrame:
         self.high = g["high"].to_numpy(dtype=float)
         self.low = g["low"].to_numpy(dtype=float)
         self.close = g["close"].to_numpy(dtype=float)
+        self.volume = g["volume"].to_numpy(dtype=float)
         self.feat = {c: feat_g[c].to_numpy() for c in FEATURE_COLS}
 
     def pos(self, signal_date: pd.Timestamp) -> int:
@@ -110,6 +112,37 @@ def build_trade_rows(df: pd.DataFrame, signals: list[tuple]) -> pd.DataFrame:
     regime = regime_of(proxy)
     reg_map = {pd.Timestamp(d): r for d, r in regime["regime"].items()}
     ret_map = {pd.Timestamp(d): float(v) for d, v in regime["proxy_ret20"].items()}
+
+    # ---- Phase 2A cross-sectional market state (per date, causal: a date's
+    # value uses that date's rows and earlier dates ONLY) ----
+    elig = feat["ma20"].notna() & feat["close"].notna()
+    above = (feat.loc[elig, "close"] > feat.loc[elig, "ma20"]).astype(float)
+    breadth = above.groupby(feat.loc[elig, "date"]).mean()
+
+    # composition-safe market returns: the mean of per-symbol returns over
+    # the window. A level ratio of mean closes jumps whenever symbols enter
+    # or leave the panel, which is composition, not return. The regime and
+    # proxy_ret20 columns keep the Phase 1 level definition; only these NEW
+    # columns use the return basis.
+    def cross_ret(nb: int) -> pd.Series:
+        r = df.groupby("symbol", sort=False)["close"].transform(
+            lambda s: s / s.shift(nb) - 1.0)
+        return r.groupby(df["date"]).mean()
+
+    mkt_ret1 = cross_ret(1)
+    proxy_rvol20 = mkt_ret1.rolling(20, min_periods=20).std()
+    pr5 = cross_ret(5)
+    pr10 = cross_ret(10)
+    pr20 = cross_ret(20)
+    day_turnover = (df["close"] * df["volume"]).groupby(df["date"]).sum()
+    turn_ratio = (day_turnover.rolling(20, min_periods=20).mean()
+                  / day_turnover.rolling(60, min_periods=60).mean())
+    breadth_map = {pd.Timestamp(d): float(x) for d, x in breadth.items()}
+    rvol_map = {pd.Timestamp(d): float(x) for d, x in proxy_rvol20.items()}
+    pr5_map = {pd.Timestamp(d): float(x) for d, x in pr5.items()}
+    pr10_map = {pd.Timestamp(d): float(x) for d, x in pr10.items()}
+    pr20_map = {pd.Timestamp(d): float(x) for d, x in pr20.items()}
+    turn_map = {pd.Timestamp(d): float(x) for d, x in turn_ratio.items()}
 
     rows: list[dict] = []
     skipped = 0
@@ -237,7 +270,40 @@ def build_trade_rows(df: pd.DataFrame, signals: list[tuple]) -> pd.DataFrame:
         rec["feat_ret_20d"] = (sf.close[t] / sf.close[t - 20] - 1.0
                                if t >= 20 and sf.close[t - 20] > 0 else np.nan)
 
+        # ---- Phase 2A per-row features (all causal, bars <= T) ----
+        rec["feat_lower_wick"] = float(sf.feat["lower_wick"][t])
+        rec["feat_range_expansion"] = bool(sf.feat["range_expansion"][t])
+        rec["feat_pullback_resume"] = bool(sf.feat["pullback_resume"][t])
+        rec["feat_breadth"] = breadth_map.get(pd.Timestamp(signal_date), np.nan)
+        rec["feat_rvol20"] = rvol_map.get(pd.Timestamp(signal_date), np.nan)
+        rec["feat_mkt_turn_ratio"] = turn_map.get(pd.Timestamp(signal_date), np.nan)
+        rec["feat_turnover"] = (float(sf.close[t]) * float(sf.volume[t])
+                                if np.isfinite(sf.volume[t]) and sf.volume[t] > 0
+                                else np.nan)
+
+        # relative strength vs the equal-weight proxy; positional bar offsets,
+        # the same convention as feat_ret_20d
+        def ret_bars(nb: int) -> float:
+            if t >= nb and np.isfinite(sf.close[t - nb]) and sf.close[t - nb] > 0:
+                return float(sf.close[t] / sf.close[t - nb] - 1.0)
+            return np.nan
+        r5, r10 = ret_bars(5), ret_bars(10)
         d = pd.Timestamp(signal_date)
+        rec["feat_ret_5d"] = r5
+        rec["feat_ret_10d"] = r10
+        rec["feat_rs5"] = r5 - pr5_map.get(d, np.nan)
+        rec["feat_rs10"] = r10 - pr10_map.get(d, np.nan)
+        rec["feat_rs20"] = rec["feat_ret_20d"] - pr20_map.get(d, np.nan)
+        if t >= 10 and np.isfinite(r5):
+            r5_prev = (float(sf.close[t - 5] / sf.close[t - 10] - 1.0)
+                       if np.isfinite(sf.close[t - 10]) and sf.close[t - 10] > 0
+                       else np.nan)
+            d_prev = pd.Timestamp(sf.dates[t - 5])
+            rec["feat_rs_accel"] = ((r5 - pr5_map.get(d, np.nan))
+                                    - (r5_prev - pr5_map.get(d_prev, np.nan)))
+        else:
+            rec["feat_rs_accel"] = np.nan
+
         rec["regime"] = reg_map.get(d, "unknown")
         rec["proxy_ret20"] = ret_map.get(d, np.nan)
         rec["member_note"] = MEMBER_NOTE
@@ -311,6 +377,12 @@ def main(argv: list[str] | None = None) -> int:
                         "reproduces identical rows"),
         "causality": ("feat_* columns use bars up to and including T only; "
                       "verified by tests/test_trade_matrix.py"),
+        "phase2a_columns": (
+            "added for the Group G study: feat_lower_wick, feat_range_expansion, "
+            "feat_pullback_resume (per-symbol, engine add_features); "
+            "feat_breadth, feat_rvol20, feat_mkt_turn_ratio (cross-sectional "
+            "per date); feat_turnover (close x volume at T); feat_ret_5d/10d, "
+            "feat_rs5/rs10/rs20/rs_accel (vs the equal-weight proxy)"),
     }
     PROVENANCE_PATH.write_text(json.dumps(prov, indent=2), encoding="utf-8")
     print(f"provenance -> {PROVENANCE_PATH.name}")

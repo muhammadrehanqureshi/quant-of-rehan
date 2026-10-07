@@ -71,6 +71,11 @@ class TestTradeMatrix(unittest.TestCase):
                     "feat_clv_position", "feat_equal_lows",
                     "feat_fvg_bull_age1", "feat_fvg_size_pct", "feat_fvg_retrace",
                     "feat_20d_high_break", "feat_ret_20d",
+                    "feat_lower_wick", "feat_range_expansion",
+                    "feat_pullback_resume", "feat_breadth", "feat_rvol20",
+                    "feat_mkt_turn_ratio", "feat_turnover", "feat_ret_5d",
+                    "feat_ret_10d", "feat_rs5", "feat_rs10", "feat_rs20",
+                    "feat_rs_accel",
                     "regime", "proxy_ret20", "member_note"}
         missing = required - set(self.matrix.columns)
         self.assertEqual(missing, set(), f"missing columns: {missing}")
