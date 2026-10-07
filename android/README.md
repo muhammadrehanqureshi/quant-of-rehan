@@ -50,7 +50,7 @@ with zipfile.ZipFile(f"{B}/app.apk", "a", zipfile.ZIP_DEFLATED) as z:
 PY
 "$JDK/bin/java" -jar $TOOLS/uber-apk-signer.jar -a $B/app.apk --out $B/signed
 cp $B/signed/app-aligned-debugSigned.apk \
-  /c/Users/rehan/OneDrive/Desktop/QuantOfRehan-v1.0.0.apk
+  /c/Users/rehan/OneDrive/Desktop/QuantOfRehan-v1.2.0.apk
 ```
 
 The APK is signed with the local debug key (v2+v3), which is enough for

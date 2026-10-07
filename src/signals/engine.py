@@ -167,6 +167,28 @@ def add_features(df: pd.DataFrame) -> pd.DataFrame:
     df["fvg_mid"] = (lag1_low + lag3_high) / 2.0
     df["fvg_size_pct"] = (lag1_low - lag3_high) / lag1_close
     df["fvg_retrace"] = df["fvg_bull_age1"] & (low <= df["fvg_mid"])
+
+    # --- Phase 2A research additions (causal; NOT part of the v1 live rule).
+    # These columns exist so the trade matrix can carry them for the Group G
+    # study. The selection rule above is untouched.
+    # lower wick: the lower shadow's share of the bar's own range
+    bar_range = high - low
+    df["lower_wick"] = np.where(bar_range > 0,
+                                (np.minimum(opn, close) - low) / bar_range,
+                                np.nan)
+    # range expansion: true range above 1.5x the trailing 20-bar median TR
+    prev_close = g["close"].shift(1)
+    tr = pd.concat([bar_range,
+                    (high - prev_close).abs(),
+                    (low - prev_close).abs()], axis=1).max(axis=1)
+    tr_med20 = tr.groupby(df["symbol"], sort=False).transform(
+        lambda s: s.rolling(20, min_periods=20).median())
+    df["range_expansion"] = tr > 1.5 * tr_med20
+    # pullback resumption: three consecutive lower closes at T-1..T-3 while
+    # close(T) still holds above its own MA20
+    c1, c2, c3, c4 = (g["close"].shift(i) for i in (1, 2, 3, 4))
+    three_down = (c1 < c2) & (c2 < c3) & (c3 < c4)
+    df["pullback_resume"] = three_down & (close > df["ma20"])
     return df
 
 
