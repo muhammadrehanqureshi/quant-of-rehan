@@ -381,6 +381,12 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("--scan requires --slot")
     slot = args.slot or "16:45"
     day = now_karachi().date()
+    # PSX holidays and weekends: the cron fires anyway; skip cleanly so the
+    # run stays green instead of failing on a market that never opened.
+    if not is_trading_day(day):
+        mode = "scan" if args.scan else "finalize"
+        print(f"{day.isoformat()} is not a PSX trading day: {mode} skipped")
+        return 0
     capture = args.capture or DATA_DIR / f"ohlc_{day:%Y%m%d}.ndjson"
     if args.scan:
         run_scan(slot, capture)

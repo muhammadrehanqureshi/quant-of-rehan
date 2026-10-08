@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 import tempfile
 import unittest
@@ -18,7 +19,7 @@ from src.data.feed_capture import CaptureSession  # noqa: E402
 from src.data.ohlc_poller import (  # noqa: E402
     OhlcPoller, capture_coverage_ok, make_opener,
 )
-from scripts.notify_capture_failure import build_message  # noqa: E402
+from scripts.ops_alert import capture_health_message, main as ops_main  # noqa: E402
 
 
 KARACHI = timezone(timedelta(hours=5))
@@ -71,12 +72,38 @@ class TestCaptureHealth(unittest.TestCase):
         self.assertFalse(capture_coverage_ok(79, 100))
         self.assertFalse(capture_coverage_ok(0, 0))
 
-    def test_capture_failure_alert_says_no_trade_without_market_data(self):
-        message = build_message("https://github.com/owner/repo/actions/runs/123")
-        self.assertIn("NO TRADE", message)
+    def test_capture_degraded_alert_says_what_happened(self):
+        message = capture_health_message()
+        self.assertIn("capture degraded", message)
         self.assertIn("production remains disabled", message)
-        self.assertIn("https://github.com/owner/repo/actions/runs/123", message)
+        self.assertIn("once per day", message)
         self.assertNotIn("Entry reference", message)
+
+    def test_capture_degraded_alert_includes_run_details_when_in_ci(self):
+        with patch.dict(os.environ, {
+            "GITHUB_REPOSITORY": "owner/repo",
+            "GITHUB_RUN_ID": "123",
+        }):
+            message = capture_health_message()
+        self.assertIn("https://github.com/owner/repo/actions/runs/123", message)
+
+    def test_healthy_capture_writes_no_alert(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            flag = Path(temp_dir) / "ohlc_low_coverage.flag"
+            with patch("scripts.ops_alert.FLAG", flag):
+                self.assertEqual(ops_main(["--capture-health"]), 0)
+            self.assertFalse(flag.exists())
+
+    def test_low_coverage_flag_is_consumed_by_the_alert_step(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            flag = Path(temp_dir) / "ohlc_low_coverage.flag"
+            flag.write_text(json.dumps({"coverage": 0.0, "symbols_ok": 0,
+                                        "universe": 5}), encoding="utf-8")
+            with patch("scripts.ops_alert.FLAG", flag), \
+                    patch.dict(os.environ, {"RELAY_ADMIN_TOKEN": ""}):
+                self.assertEqual(ops_main(["--capture-health"]), 0)
+            # the flag is cleared either way so the next slot starts clean
+            self.assertFalse(flag.exists())
 
     def test_closed_collectors_write_stopped_status(self):
         with tempfile.TemporaryDirectory() as temp_dir:

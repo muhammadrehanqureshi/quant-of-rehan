@@ -56,7 +56,12 @@ jobs:
           mkdir -p data
           ARGS=""
           if [ "${{ inputs.dry_run }}" = "true" ]; then ARGS="--dry-run"; fi
-          python scripts/signal_daily.py $ARGS
+          # Owner order 2026-10-08: keep the scheduled run green; a failed
+          # push raises ONE deduped Telegram ops alert instead of a GitHub
+          # failure email. The next cron slot retries automatically (the
+          # per-session journal prevents double sends).
+          python scripts/signal_daily.py $ARGS \
+            || python scripts/ops_alert.py --text "Quant of Rehan: the daily signal push failed this slot. It retries at the next scheduled run; nothing is sent twice."
 
       - name: Upload the push journal
         if: always()
