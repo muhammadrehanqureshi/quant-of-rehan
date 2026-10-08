@@ -18,15 +18,13 @@ only. Sole contributor and owner: Rehan (muhammadrehanqureshi).
 - **Market clock** pinned to Asia/Karachi (UTC+5) forever (SO-8), with the
   owner's session law: Mon-Thu open 09:32 close 15:30, Friday open 09:17
   close 16:30, PSX holidays and weekends skipped.
-- **Telegram delivery through the Cloudflare edge** (SO-9): the scheduled
-  GitHub Actions job keeps delivering a clear NO TRADE status to the app and
-  Telegram while no candidate engine has passed economic validation.
-- **Intraday paper research**: the scheduled market-hour workflow now runs
-  a chronological one-minute to five-minute KMIALL scanner and stores daily
-  forward outcomes behind a locked production gate. It sends no live signal
-  until the evidence criteria pass. See
-  [INTRADAY_FORWARD_SYSTEM.md](INTRADAY_FORWARD_SYSTEM.md). Cloudflare research
-  routes must be deployed before persistent forward accumulation can begin.
+- **Telegram delivery through the Cloudflare edge** (SO-9): scheduled
+  GitHub Actions jobs keep sending system status to the app and Telegram.
+- **Intraday paper research**: the scheduled workflow evaluates a small,
+  preregistered one-minute to five-minute KMIALL strategy library. A research
+  candidate is labeled PAPER SIGNAL. Production is gated by locked OOS
+  economics plus confirmed data rights and latency. See
+  [INTRADAY_FORWARD_SYSTEM.md](INTRADAY_FORWARD_SYSTEM.md).
 - **Android companion app** (`android/`, APK on the Desktop, v1.3.0):
   logo-branded dark console showing whether the quant is working, plus
   signal and status notifications on the phone. Polls `/health` and
@@ -68,8 +66,10 @@ diamond-and-rule motif above AND below the candles at the same distance
 ## Research notes
 
 - [Final research and production audit](RESEARCH_FINAL_AUDIT.md): explains the
-  27% result, data limitations, OOS economics, disabled signal path, and
-  current NO TRADE readiness decision.
+  27% result, data limitations, OOS economics, and current signal status.
+- [Intraday forward system](INTRADAY_FORWARD_SYSTEM.md): documents registered
+  candidates, automatic promotion/demotion rules, source checks, and current
+  data limitations.
 - Entry-metrics study (`scripts/entry_metrics.py`, report in
   `data/entry_metrics_report.json`, local only): MAE/MFE distributions,
   time-to-target, and horizon returns over 272,835 clean next-bar-open
@@ -125,10 +125,10 @@ python scripts/smoke_backtest.py --dataset data/eod_history_kmi.csv.gz
 - Phase 1 research (2026-10-06, see RESEARCH_PHASE1.md): 74,654-trade causal
   matrix, A-G path analysis, survivorship sensitivity, frozen filter matrix.
   No edge claim; the stop/TP grid is banked pending the owner's review.
-- Signal delivery runs on GitHub Actions after the close and before the next
-  session, with the PC off. It currently sends NO TRADE ENGINE READY to the
-  app and Telegram. Daily FVG/sweep candidates remain research-only. The
-  intraday workflow captures one-minute bars but does not generate signals.
+- Signal delivery runs on GitHub Actions and Cloudflare with the PC off.
+  Daily FVG/sweep candidates remain research-only. The intraday workflow may
+  send one PAPER SIGNAL per day; production stays disabled until every gate
+  passes.
   App v1.3.0: centered brand header, "Quant is working." status line,
   motivational panel, framed dividers top and bottom, mirrored icon
   motif, "Quant is online/sleeping now." texts on the edge crons and
