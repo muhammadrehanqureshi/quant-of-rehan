@@ -208,8 +208,8 @@ export default {
 
     if (request.method === "POST" && path === "/research/observation") {
       const body = await request.json().catch(() => null);
-      if (!body || !/^\\d{4}-\\d{2}-\\d{2}$/.test(String(body.date || "")) ||
-          !/^\\d{2}:\\d{2}$/.test(String(body.slot || "")) ||
+      if (!body || !/^\d{4}-\d{2}-\d{2}$/.test(String(body.date || "")) ||
+          !/^\d{2}:\d{2}$/.test(String(body.slot || "")) ||
           !body.snapshot || typeof body.snapshot !== "object") {
         return json({ ok: false, error: "invalid observation" }, 400);
       }
@@ -220,7 +220,7 @@ export default {
 
     if (request.method === "GET" && path === "/research/observations") {
       const date = url.searchParams.get("date") || "";
-      if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(date)) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
         return json({ ok: false, error: "date required" }, 400);
       }
       const listed = await env.RELAY_KV.list({ prefix: `RESEARCH:OBS:${date}:`, limit: 100 });
@@ -235,7 +235,7 @@ export default {
 
     if (request.method === "POST" && path === "/research/outcome") {
       const body = await request.json().catch(() => null);
-      if (!body || !/^\\d{4}-\\d{2}-\\d{2}$/.test(String(body.date || "")) ||
+      if (!body || !/^\d{4}-\d{2}-\d{2}$/.test(String(body.date || "")) ||
           !Array.isArray(body.sessions) || body.sessions.length !== 1) {
         return json({ ok: false, error: "invalid daily outcome" }, 400);
       }
