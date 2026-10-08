@@ -227,6 +227,22 @@ class TestForwardLabelsAndGate(unittest.TestCase):
         failed = evaluate_gate(rows)
         self.assertFalse(failed["eligible"])
 
+    def test_all_positive_oos_keeps_undefined_profit_factor_gateable(self):
+        rows = []
+        start = datetime(2025, 1, 1)
+        for i in range(180):
+            rows.append({
+                "date": (start + timedelta(days=i)).date().isoformat(),
+                "candidate": {"symbol": f"S{i % 20:02d}"},
+                "label": "TP_FIRST",
+                "gross_return": 0.02,
+                "net_return": 0.01,
+                "minutes_held": 45,
+            })
+        gate = evaluate_gate(rows)
+        self.assertTrue(gate["eligible"])
+        self.assertIsNone(gate["metrics"]["oos"]["profit_factor"])
+
     def test_signal_payload_labels_entry_as_reference_and_has_target(self):
         candidate = {
             "symbol": "AAA", "timestamp": "2026-10-08T10:00+05:00",
