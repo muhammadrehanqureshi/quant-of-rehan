@@ -15,4 +15,4 @@
     <string name="btn_relay">Relay status</string>
     <string name="btn_arm">Arm 15-minute watchdog</string>
     <string name="settings_hint">Paste the relay admin token once to receive signals. The app checks the system every 15 minutes; on some phones also allow autostart and remove battery limits.</string>
-</resources>
+</resources>
