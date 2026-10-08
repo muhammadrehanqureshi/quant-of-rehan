@@ -180,6 +180,17 @@ def main(argv: list[str] | None = None) -> int:
         print("\nDRY RUN: nothing sent.")
         return 0
 
+    # Owner order 2026-10-08: a day without signals is a quiet day. The
+    # "No signal today" notice is retired: no relay card rewrite, no
+    # Telegram push, no phone buzz. Silence IS the no-signal verdict.
+    if not today_signals:
+        journal(f"push {signal_date_label}", True,
+                "0 signal(s); quiet day, nothing pushed (owner order "
+                "2026-10-08)")
+        print(f"quiet day: 0 signals for {signal_date_label}; "
+              f"nothing pushed (app and Telegram stay silent).")
+        return 0
+
     token = read_admin_token()
     url = load_relay_url()
     if relay_already_has(url, token, signal_date_label):

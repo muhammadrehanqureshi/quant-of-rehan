@@ -148,10 +148,34 @@ public final class Watcher {
                 // quiet heartbeat: refresh the "still working" timestamp only
                 p.edit().putLong("last_seen_ms", System.currentTimeMillis()).apply();
             }
+
+            // owner order 2026-10-08: the app must send EVERY notification,
+            // including market open and close, not only relay up/down. The
+            // market state is derived from the relay's Karachi clock (PSX
+            // session: Mon-Fri 09:30-15:30 PKT, PKT is fixed UTC+5).
+            if (online) {
+                int mkt = marketState(detail);
+                if (mkt >= 0) {
+                    int prev = p.getInt("last_market_open", -1);
+                    if (prev == -1) {
+                        // first reading after install: record silently
+                        p.edit().putInt("last_market_open", mkt).apply();
+                    } else if (mkt != prev) {
+                        notifyMarket(c, mkt == 1, detail);
+                        p.edit().putInt("last_market_open", mkt).apply();
+                    }
+                }
+            }
+
             if (signals.trim().isEmpty()
                     || signals.trim().startsWith("The relay ")
                     || signals.trim().startsWith("Signals ")) {
                 return; // informational note, never a signal alert
+            }
+            // owner order 2026-10-08: the daily "No signal today" notice is
+            // not a signal and must not ring the phone.
+            if (signals.contains("No signal today")) {
+                return;
             }
             String last = p.getString("last_signal", "");
             if (!signals.trim().equals(last)) {
@@ -159,6 +183,34 @@ public final class Watcher {
                 p.edit().putString("last_signal", signals.trim()).apply();
             }
         });
+    }
+
+    /**
+     * PSX market state from the detail line's Karachi clock
+     * ("Karachi: 2026-10-08 10:48 PKT"). Returns 1 open, 0 closed, -1 when
+     * the clock cannot be parsed. No java.time (API 24 floor): the day of
+     * week comes from Sakamoto's method.
+     */
+    static int marketState(String detail) {
+        if (detail == null) return -1;
+        int k = detail.indexOf("Karachi: ");
+        if (k < 0) return -1;
+        String s = detail.substring(k + "Karachi: ".length()).trim();
+        try {
+            int y = Integer.parseInt(s.substring(0, 4));
+            int mo = Integer.parseInt(s.substring(5, 7));
+            int d = Integer.parseInt(s.substring(8, 10));
+            int hh = Integer.parseInt(s.substring(11, 13));
+            int mm = Integer.parseInt(s.substring(14, 16));
+            int[] t = {0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4};
+            int yy = mo < 3 ? y - 1 : y;
+            int dow = (yy + yy / 4 - yy / 100 + yy / 400 + t[mo - 1] + d) % 7;
+            if (dow == 0 || dow == 6) return 0; // Sun/Sat: closed
+            int mins = hh * 60 + mm;
+            return (mins >= 9 * 60 + 30 && mins < 15 * 60 + 30) ? 1 : 0;
+        } catch (Exception e) {
+            return -1;
+        }
     }
 
     static void armAlarms(Context c) {
@@ -187,6 +239,14 @@ public final class Watcher {
 
     private static void notifySignal(Context c, String text) {
         post(c, CHANNEL_SIGNALS, "signals", 5, "Quant of Rehan signal", text);
+    }
+
+    /** Market open/close in the owner's own wording (2026-10-08). */
+    private static void notifyMarket(Context c, boolean open, String detail) {
+        String title = open ? "Market is open. Quant is online now."
+                : "Market is closed. Quant is sleeping now.";
+        post(c, CHANNEL_STATUS, "market", 3, title,
+                detail == null ? "" : detail.trim());
     }
 
     private static void post(Context c, String channelId, String tag, int id,
