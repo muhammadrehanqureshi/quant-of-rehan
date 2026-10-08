@@ -67,7 +67,7 @@ from src.backtest.engine import DEFAULT_COST_SIDE_BPS, DEFAULT_CGT_RATE  # noqa:
 from scripts.phase2b_lib import (  # noqa: E402
     label_frame, headline_block, boot_rate_diff, veto_report,
     rank_and_pick, daily_one_winner, daily_winner_recall,
-    TP_PCT, SL_PCT, MAX_HOLD, BOOT_SEED, VETO_CUT,
+    TP_PCT, SL_PCT, MAX_HOLD, BOOT_SEED, VETO_CUT, stop_fill_price,
 )
 
 KARACHI = timezone(timedelta(hours=5))  # SO-8
@@ -269,9 +269,8 @@ def net_of(x: pd.DataFrame, slip_bps: float = 0.0) -> tuple[float, float, int]:
     """Engine-equivalent per-trade expectancy for a labeled population.
 
     TP_FIRST exits at exactly +2% (limit fills exactly, engine law);
-    SL_FIRST / ambiguous exit at -1% (or the gapped open when the bar's
-    open is already through the stop; ambiguous rows share the -1%
-    treatment because the conservative rule treats them as stops);
+    SL_FIRST / ambiguous exits use the open of the actual first stop-touch
+    bar when it gaps below -1%, otherwise the stop;
     NEITHER exits at the last held close (bar 3, forward-filled on a
     dataset-end truncation, never a fabricated bar).
     Cost formula is the engine's exact one.
@@ -280,14 +279,23 @@ def net_of(x: pd.DataFrame, slip_bps: float = 0.0) -> tuple[float, float, int]:
         return (float("nan"), float("nan"), 0)
     entry = x["entry_price"].to_numpy(dtype=float)
     lab = x["label"].to_numpy()
-    o1 = x["o1"].to_numpy(dtype=float)
+    opens = x[["o1", "o2", "o3"]].to_numpy(dtype=float)
+    sl_bar = x["t_sl_first"].to_numpy(dtype=int)
     held = x[["c1", "c2", "c3"]].ffill(axis=1)["c3"].to_numpy(dtype=float)
     exit_price = np.where(lab == "TP_FIRST", entry * (1 + TP_PCT / 100.0),
                           entry * (1 - SL_PCT / 100.0))
-    # gap-through stop: when the ENTRY bar's open already gapped below the
-    # stop on a stop-labeled row, the engine fills at that (worse) open
-    gap_open = np.where(np.isfinite(o1), o1, entry) < entry * (1 - SL_PCT / 100.0)
-    exit_price = np.where((lab != "TP_FIRST") & gap_open, o1, exit_price)
+    stopped = np.isin(lab, ["SL_FIRST", "TP_FIRST_AMBIG"])
+    rows = np.flatnonzero(stopped & (sl_bar > 0))
+    stop_fills = entry * (1 - SL_PCT / 100.0)
+    stop_fills = stop_fills.astype(float)
+    if len(rows):
+        bar_indices = sl_bar[rows] - 1
+        open_at_stop = opens[rows, bar_indices]
+        stop_fills[rows] = [
+            stop_fill_price(entry[row], opening)
+            for row, opening in zip(rows, open_at_stop)
+        ]
+    exit_price = np.where(stopped, stop_fills, exit_price)
     exit_price = np.where(lab == "NEITHER", held, exit_price)
     with np.errstate(invalid="ignore", divide="ignore"):
         gross = exit_price / entry - 1.0
