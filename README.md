@@ -61,6 +61,9 @@ diamond-and-rule motif above AND below the candles at the same distance
 
 ## Research notes
 
+- [Final research and production audit](RESEARCH_FINAL_AUDIT.md): explains the
+  27% result, data limitations, OOS economics, disabled signal path, and
+  current NO TRADE readiness decision.
 - Entry-metrics study (`scripts/entry_metrics.py`, report in
   `data/entry_metrics_report.json`, local only): MAE/MFE distributions,
   time-to-target, and horizon returns over 272,835 clean next-bar-open
