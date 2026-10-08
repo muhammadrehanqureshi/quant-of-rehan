@@ -1,4 +1,4 @@
-"""Push the day's genuine signals to the relay (phone app + Telegram).
+"""Push the daily fail-closed signal status to the relay (app + Telegram).
 
 LOCAL ONLY (SO-4). Reads nothing but the local 5-year dataset and the
 relay URL/admin token (repo .env, SO-5). Delivery path (SO-9):
@@ -6,11 +6,9 @@ relay URL/admin token (repo .env, SO-5). Delivery path (SO-9):
     POST {relay}/signals  {signals: text}   -> phone app card (x-admin-token)
     POST {relay}/notify   {text, kind}      -> Telegram via the worker
 
-HONESTY LABELS (SO-1/SO-3): engine v1 is UNGRADED until Phase 2 lands. The
-Phase 1 matrix showed its FVG-retrace leg fires on only ~4.4k baseline
-trades with NO MAE compression (SC lift -0.15 pp) and its sweep_low leg is
-flat (+0.12 pp entry / -0.07 SC). Every signal therefore travels with the
-UNGRADED caveat and none of this is a trade recommendation.
+READINESS: no rule has demonstrated positive net expectancy under a valid
+one-winner evaluation. Candidate delivery is disabled; the live payload
+states NO TRADE ENGINE READY.
 
 Guardrails:
   - signals are generated for TODAY only after the 15:30 close (the daily
@@ -51,8 +49,14 @@ from src.signals.engine import run  # noqa: E402
 
 DATASET = ROOT / "data" / "eod_history_kmi.csv.gz"
 LOG = ROOT / "data" / "signal_push_log.jsonl"
-UNGRADED_NOTE = ("UNGRADED engine v1 (Phase 1: no edge claim; entry filters "
-                 "under review). Observation only, not a recommendation.")
+# No candidate rule has demonstrated positive net expectancy under a valid
+# one-winner evaluation. Keep production delivery alive, but fail closed.
+PRODUCTION_SIGNAL_ENABLED = False
+NO_TRADE_NOTE = (
+    "NO TRADE ENGINE READY. The current rules are research-only: no tested "
+    "one-winner strategy has demonstrated positive net expectancy. "
+    "Intraday captures are data collection, not intraday signals."
+)
 
 
 def read_admin_token() -> str:
@@ -129,12 +133,11 @@ def relay_has_session_alert(text: str, signal_date: str) -> bool:
 def build_signal_text(signals, signal_date: str) -> str:
     lines = [f"QoR signals {signal_date} (Karachi):"]
     if not signals:
-        lines.append("No signal today: the v1 stack (regime x sweep_low x "
-                     "FVG-retrace) did not fire on today's close.")
+        lines.append("NO TRADE")
+        lines.append(NO_TRADE_NOTE)
     else:
         for s in signals:
             lines.append(s.line())
-    lines.append(UNGRADED_NOTE)
     return "\n".join(lines)
 
 
@@ -178,8 +181,14 @@ def main(argv: list[str] | None = None) -> int:
               f"nothing sent twice.")
         return 0
 
-    signals, _feat = run(df)
-    today_signals = [s for s in signals if s.signal_date == signal_date_label]
+    # The daily FVG/sweep stack and the Phase 2B rankers have not passed the
+    # economic and one-winner gates. Do not emit candidates while disabled.
+    # Keep run() available for local research and dry-run experiments only.
+    if PRODUCTION_SIGNAL_ENABLED:
+        signals, _feat = run(df)
+        today_signals = [s for s in signals if s.signal_date == signal_date_label]
+    else:
+        today_signals = []
     text = build_signal_text(today_signals, signal_date_label)
 
     print(text)

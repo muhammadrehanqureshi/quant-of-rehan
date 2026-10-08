@@ -16,7 +16,9 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from scripts.build_trade_matrix import build_trade_rows, FEATURE_COLS  # noqa: E402
+from scripts.build_trade_matrix import (  # noqa: E402
+    build_trade_rows, FEATURE_COLS, reached_before,
+)
 from src.signals.engine import add_features  # noqa: E402
 
 
@@ -48,6 +50,16 @@ def baseline_signals(df: pd.DataFrame) -> list[tuple]:
 
 
 class TestTradeMatrix(unittest.TestCase):
+    def test_same_bar_target_adverse_touch_is_not_target_first(self):
+        self.assertFalse(reached_before(1, 1))
+        self.assertFalse(reached_before(2, 2))
+
+    def test_strictly_earlier_target_is_target_first(self):
+        self.assertTrue(reached_before(1, 2))
+        self.assertTrue(reached_before(2, 0))
+        self.assertFalse(reached_before(2, 1))
+        self.assertFalse(reached_before(0, 0))
+
     def setUp(self):
         self.df = make_df()
         self.signals = baseline_signals(self.df)

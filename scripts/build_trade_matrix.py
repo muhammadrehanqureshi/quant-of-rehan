@@ -51,6 +51,16 @@ MEMBER_NOTE = "current-membership universe (survivorship-biased)"
 LEVELS = [0.5, 1.0, 1.5, 2.0]   # favorable % levels for reach timing
 HORIZONS = [1, 2, 3, 5, 10]     # close-return horizons from entry
 
+
+def reached_before(target_bar: int, adverse_bar: int) -> bool:
+    """True only when the target is observed strictly before adverse touch.
+
+    Daily OHLC cannot determine order within the same bar. Same-bar ties
+    therefore fail the target-first test, matching the backtest's stop-first
+    convention.
+    """
+    return target_bar != 0 and (adverse_bar == 0 or target_bar < adverse_bar)
+
 FEATURE_COLS = [
     "ma20", "relvol", "vol_accel", "sweep_low", "sweep_high", "bos_up",
     "displacement", "clv_position", "equal_lows", "fvg_bull_age1",
@@ -214,15 +224,14 @@ def build_trade_rows(df: pd.DataFrame, signals: list[tuple]) -> pd.DataFrame:
             rec[f"t_to_p{key}"] = first_touch("high", lv)
             rec[f"t_to_m{key}"] = first_touch("low", lv)
 
-        # ordering flags within bars 1..3 (same-bar tie counts as reached)
-        def p_first(p_t: int, m_t: int) -> bool:
-            return p_t != 0 and (m_t == 0 or p_t <= m_t)
-        rec["p05_before_m10"] = p_first(rec["t_to_p05"], rec["t_to_m10"])
-        rec["p10_before_m10"] = p_first(rec["t_to_p10"], rec["t_to_m10"])
-        rec["p15_before_m10"] = p_first(rec["t_to_p15"], rec["t_to_m10"])
-        rec["p20_before_m10"] = p_first(rec["t_to_p20"], rec["t_to_m10"])
-        rec["m10_before_p20"] = p_first(rec["t_to_m10"], rec["t_to_p20"])
-        rec["p20_before_m20"] = p_first(rec["t_to_p20"], rec["t_to_m20"])
+        # Ordering flags within bars 1..3. A same-bar touch has unknown order
+        # and is not counted as target-first.
+        rec["p05_before_m10"] = reached_before(rec["t_to_p05"], rec["t_to_m10"])
+        rec["p10_before_m10"] = reached_before(rec["t_to_p10"], rec["t_to_m10"])
+        rec["p15_before_m10"] = reached_before(rec["t_to_p15"], rec["t_to_m10"])
+        rec["p20_before_m10"] = reached_before(rec["t_to_p20"], rec["t_to_m10"])
+        rec["m10_before_p20"] = reached_before(rec["t_to_m10"], rec["t_to_p20"])
+        rec["p20_before_m20"] = reached_before(rec["t_to_p20"], rec["t_to_m20"])
 
         # close returns from ENTRY price at horizons (last available bar
         # stands in when the horizon runs past the dataset end: labeled by

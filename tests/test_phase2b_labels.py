@@ -17,9 +17,11 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+from scripts.research_phase2b import net_of  # noqa: E402
 from scripts.phase2b_lib import (  # noqa: E402
     TP_PCT, SL_PCT, label_row, label_frame, headline_block, veto_mask,
     VETO_CUT, rank_and_pick, daily_one_winner, daily_winner_recall,
+    stop_fill_price,
 )
 
 
@@ -93,8 +95,27 @@ class TestLabelRow(unittest.TestCase):
     def test_law_constants_frozen(self):
         self.assertEqual((TP_PCT, SL_PCT), (2.0, 1.0))
 
+    def test_gap_through_stop_fills_at_bar_open(self):
+        self.assertAlmostEqual(stop_fill_price(100.0, 97.5), 97.5)
+        self.assertAlmostEqual(stop_fill_price(100.0, 99.2), 99.0)
+        self.assertAlmostEqual(stop_fill_price(100.0, np.nan), 99.0)
+
 
 class TestLabelFrame(unittest.TestCase):
+    def test_net_expectancy_uses_open_of_actual_stop_bar(self):
+        trade = pd.DataFrame([{
+            "entry_price": 100.0,
+            "h1": 101.0, "l1": 99.5,
+            "h2": 101.0, "l2": 97.0,
+            "h3": np.nan, "l3": np.nan,
+            "o1": 100.0, "o2": 97.5, "o3": np.nan,
+            "c1": 100.0, "c2": 98.0, "c3": np.nan,
+        }])
+        labelled = label_frame(trade)
+        _net, gross, count = net_of(labelled)
+        self.assertEqual(count, 1)
+        self.assertAlmostEqual(gross, -0.025)
+
     def setUp(self):
         rows = [
             dict(symbol="A", signal_date="2026-01-01", entry_price=100.0,
