@@ -40,6 +40,14 @@ LABELS = ("TP_FIRST", "SL_FIRST", "NEITHER", "TP_FIRST_AMBIG")
 VETO_CUT = 0.3750
 
 
+def stop_fill_price(entry: float, open_price: float) -> float:
+    """Daily stop execution: fill at the open when it gaps below the stop."""
+    stop = entry * (1.0 - SL_PCT / 100.0)
+    if np.isfinite(open_price) and open_price < stop:
+        return float(open_price)
+    return float(stop)
+
+
 def label_row(entry: float, highs: list[float], lows: list[float]) -> tuple[str, int, int]:
     """Label one (entry, highs 1..k, lows 1..k) trade path.
 
