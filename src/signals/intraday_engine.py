@@ -29,6 +29,33 @@ MAX_DISTANCE_FROM_HIGH = 0.005
 MIN_RELATIVE_STRENGTH = 0.0025
 MIN_WINNER_MARGIN = 0.001
 RULE_VERSION = "opening_range_breakout_rs_v1"
+CANDIDATE_RULES = {
+    RULE_VERSION: {
+        "opening_range_bars": 6, "min_relative_strength": 0.0025,
+        "market_gate": True, "max_return_from_open": 0.01,
+        "max_distance_from_high": 0.005,
+    },
+    "opening_range_breakout_no_rs_floor_v1": {
+        "opening_range_bars": 6, "min_relative_strength": 0.0,
+        "market_gate": True, "max_return_from_open": 0.01,
+        "max_distance_from_high": 0.005,
+    },
+    "opening_range_60m_rs_v1": {
+        "opening_range_bars": 12, "min_relative_strength": 0.0025,
+        "market_gate": True, "max_return_from_open": 0.01,
+        "max_distance_from_high": 0.005,
+    },
+    "opening_range_breakout_no_breadth_gate_v1": {
+        "opening_range_bars": 6, "min_relative_strength": 0.0025,
+        "market_gate": False, "max_return_from_open": 0.01,
+        "max_distance_from_high": 0.005,
+    },
+    "opening_range_breakout_no_extension_cap_v1": {
+        "opening_range_bars": 6, "min_relative_strength": 0.0025,
+        "market_gate": True, "max_return_from_open": None,
+        "max_distance_from_high": None,
+    },
+}
 
 
 @dataclass(frozen=True)
@@ -156,22 +183,31 @@ def aggregate_5m(rows: list[Bar], session_open: datetime, as_of: datetime) -> li
 
 
 def scan_snapshot(bars_by_symbol: dict[str, list[Bar]], universe: list[str],
-                  as_of: datetime, quality: dict) -> dict:
+                  as_of: datetime, quality: dict,
+                  rule_version: str = RULE_VERSION) -> dict:
     """Return one causal paper candidate or NO TRADE for this scan time."""
+    if rule_version not in CANDIDATE_RULES:
+        raise ValueError(f"unknown candidate rule: {rule_version}")
+    rule = CANDIDATE_RULES[rule_version]
+    opening_range_bars = rule["opening_range_bars"]
+    min_relative_strength = rule["min_relative_strength"]
+    market_gate = rule["market_gate"]
+    max_return_from_open = rule["max_return_from_open"]
+    max_distance_from_high = rule["max_distance_from_high"]
     day = as_of.date()
     if quality.get("quality") != "verified":
-        return {"rule_version": RULE_VERSION, "status": "NO_TRADE",
+        return {"rule_version": rule_version, "status": "NO_TRADE",
                 "reason": "market data quality gate failed", "candidate": None,
                 "as_of": as_of.isoformat(), "data_quality": quality}
     if not is_trading_day(day):
-        return {"rule_version": RULE_VERSION, "status": "NO_TRADE",
+        return {"rule_version": rule_version, "status": "NO_TRADE",
                 "reason": "not a PSX trading day", "candidate": None,
                 "as_of": as_of.isoformat(), "data_quality": quality}
 
     session_open = datetime.combine(day, time(*open_time(day)), tzinfo=as_of.tzinfo)
     elapsed = (as_of - session_open).total_seconds() / 60
-    if elapsed < MIN_OBSERVATION_TIME:
-        return {"rule_version": RULE_VERSION, "status": "NO_TRADE",
+    if elapsed < max(MIN_OBSERVATION_TIME, (opening_range_bars + 1) * 5):
+        return {"rule_version": rule_version, "status": "NO_TRADE",
                 "reason": "market observation period not complete", "candidate": None,
                 "as_of": as_of.isoformat(), "data_quality": quality}
 
@@ -180,7 +216,7 @@ def scan_snapshot(bars_by_symbol: dict[str, list[Bar]], universe: list[str],
     for sym in universe:
         rows = bars_by_symbol.get(sym, [])
         bars = aggregate_5m(rows, session_open, as_of)
-        if len(bars) < OPENING_RANGE_BARS + 1:
+        if len(bars) < opening_range_bars + 1:
             continue
         five[sym] = bars
         first_open = bars[0]["open"]
@@ -189,7 +225,7 @@ def scan_snapshot(bars_by_symbol: dict[str, list[Bar]], universe: list[str],
 
     coverage = len(returns) / max(len(universe), 1)
     if coverage < MIN_COVERAGE:
-        return {"rule_version": RULE_VERSION, "status": "NO_TRADE",
+        return {"rule_version": rule_version, "status": "NO_TRADE",
                 "reason": "insufficient complete five-minute coverage",
                 "candidate": None, "as_of": as_of.isoformat(),
                 "market": {"coverage": coverage}, "data_quality": quality}
@@ -199,15 +235,15 @@ def scan_snapshot(bars_by_symbol: dict[str, list[Bar]], universe: list[str],
     market = {"proxy": "cross-sectional median and advancer share, not official KMIALL index",
               "median_return": median_return, "advancer_share": advancer_share,
               "coverage": coverage}
-    if median_return < 0.001 or advancer_share < 0.55:
-        return {"rule_version": RULE_VERSION, "status": "NO_TRADE",
+    if market_gate and (median_return < 0.001 or advancer_share < 0.55):
+        return {"rule_version": rule_version, "status": "NO_TRADE",
                 "reason": "broad KMIALL proxy is not supportive",
                 "candidate": None, "as_of": as_of.isoformat(),
                 "market": market, "data_quality": quality}
 
     candidates: list[Candidate] = []
     for sym, series in five.items():
-        opening = series[:OPENING_RANGE_BARS]
+        opening = series[:opening_range_bars]
         opening_high = max(b["high"] for b in opening)
         previous = series[-2]
         bar = series[-1]
@@ -221,13 +257,20 @@ def scan_snapshot(bars_by_symbol: dict[str, list[Bar]], universe: list[str],
                           if b["timestamp"] <= bar["timestamp"])
         distance_from_high = high_so_far / close - 1.0
         relative_strength = session_return - median_return
-        if (0 < session_return <= MAX_RETURN_FROM_OPEN
-                and distance_from_high <= MAX_DISTANCE_FROM_HIGH
-                and relative_strength >= MIN_RELATIVE_STRENGTH):
-            # Candidates must break out on the latest completed bar visible
-            # at this scheduled scan. Older breakouts are never replayed as
-            # new entries at a stale price.
+        return_ok = (session_return > 0 and
+                     (max_return_from_open is None or session_return <= max_return_from_open))
+        distance_ok = (max_distance_from_high is None or
+                       distance_from_high <= max_distance_from_high)
+        if (as_of - bar["timestamp"] <= timedelta(minutes=5)
+                and return_ok and distance_ok
+                and relative_strength >= min_relative_strength):
+            # Candidates must break out on a recent completed bar. Older
+            # breakouts are never replayed as fresh entry references.
             score = relative_strength
+            rationale = "latest completed bar broke the registered range"
+            rationale += "; cross-sectional KMIALL breadth gate applied" if market_gate else "; breadth gate omitted for comparison"
+            rationale += "; relative-strength floor applied" if min_relative_strength else "; no relative-strength floor"
+            rationale += "; extension caps applied" if max_return_from_open is not None else "; extension caps omitted for comparison"
             candidates.append(Candidate(
                 symbol=sym,
                 timestamp=bar["timestamp"].isoformat(timespec="minutes"),
@@ -238,10 +281,7 @@ def scan_snapshot(bars_by_symbol: dict[str, list[Bar]], universe: list[str],
                 relative_strength=relative_strength,
                 session_return=session_return,
                 distance_from_high=distance_from_high,
-                rationale=("latest completed bar broke the first 30-minute "
-                           "range; market breadth supportive; relative "
-                           "strength positive; extension within anti-chasing "
-                           "limits"),
+                rationale=rationale,
             ))
 
     candidates.sort(key=lambda c: (-c.score, c.symbol))
@@ -254,7 +294,7 @@ def scan_snapshot(bars_by_symbol: dict[str, list[Bar]], universe: list[str],
             selected = asdict(candidates[0])
             reason = "one clear paper winner"
     return {
-        "rule_version": RULE_VERSION,
+        "rule_version": rule_version,
         "status": "PAPER_CANDIDATE" if selected else "NO_TRADE",
         "reason": reason,
         "candidate": selected,

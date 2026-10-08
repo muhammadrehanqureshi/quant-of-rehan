@@ -5,6 +5,7 @@ import json
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -18,9 +19,12 @@ from src.research.forward_validation import (
     evaluate_gate, label_candidate, COST_SIDE_BPS, SLIPPAGE_SIDE_BPS,
 )
 from src.signals.intraday_engine import (
-    Bar, aggregate_5m, parse_capture, scan_snapshot, TP_PCT,
+    Bar, CANDIDATE_RULES, aggregate_5m, parse_capture, scan_snapshot, TP_PCT,
 )
-from scripts.intraday_pipeline import load_kmiall, signal_text
+from scripts.intraday_pipeline import (
+    annotate_source_quality, load_kmiall, missing_scan_slots, signal_text,
+    universe_fingerprint,
+)
 
 
 def session_open(day):
@@ -37,6 +41,63 @@ def make_minute_rows(symbol, op, closes, day):
                         min(prev, close) - 0.01, close))
         prev = close
     return rows
+
+
+class TestUniverseFingerprint(unittest.TestCase):
+    def test_fingerprint_is_order_independent_and_changes_with_membership(self):
+        self.assertEqual(universe_fingerprint(["AAA", "BBB"]),
+                         universe_fingerprint(["BBB", "AAA"]))
+        self.assertNotEqual(universe_fingerprint(["AAA", "BBB"]),
+                            universe_fingerprint(["AAA", "CCC"]))
+
+
+class TestSourceApproval(unittest.TestCase):
+    def test_production_data_is_not_ready_without_rights_and_latency_confirmation(self):
+        with patch.dict("os.environ", {}, clear=True):
+            result = annotate_source_quality({"quality": "verified"})
+        self.assertFalse(result["production_data_ready"])
+        self.assertEqual(result["source_latency"], "unverified")
+        self.assertEqual(result["data_rights"], "unverified")
+        self.assertEqual(result["universe_membership"], "unverified-currentness")
+
+    def test_production_data_requires_both_confirmations(self):
+        with patch.dict("os.environ", {
+                "KMIALL_DATA_RIGHTS_CONFIRMED": "true",
+                "KMIALL_DATA_LATENCY_CONFIRMED": "true",
+                "KMIALL_UNIVERSE_CONFIRMED": "true",
+        }, clear=True):
+            result = annotate_source_quality({"quality": "verified"})
+        self.assertTrue(result["production_data_ready"])
+
+
+class TestPipelineCaptureCompleteness(unittest.TestCase):
+    @staticmethod
+    def _verified(slot):
+        return {"slot": slot, "snapshot": {
+            "data_quality": {"quality": "verified"},
+        }}
+
+    def test_missing_weekday_scan_is_unverifiable(self):
+        day = datetime(2026, 10, 8, tzinfo=KARACHI).date()
+        missing = missing_scan_slots(day, [
+            self._verified("10:45"), self._verified("14:45"),
+        ])
+        self.assertEqual(missing, ["12:45"])
+
+    def test_friday_midday_break_is_not_a_required_scan(self):
+        day = datetime(2026, 10, 9, tzinfo=KARACHI).date()
+        missing = missing_scan_slots(day, [
+            self._verified("10:45"), self._verified("14:45"),
+        ])
+        self.assertEqual(missing, [])
+
+    def test_degraded_scan_does_not_count_as_a_complete_session(self):
+        day = datetime(2026, 10, 8, tzinfo=KARACHI).date()
+        observations = [self._verified(slot) for slot in ("10:45", "12:45")]
+        observations.append({"slot": "14:45", "snapshot": {
+            "data_quality": {"quality": "degraded"},
+        }})
+        self.assertEqual(missing_scan_slots(day, observations), ["14:45"])
 
 
 class TestUniverse(unittest.TestCase):
@@ -125,6 +186,28 @@ class TestChronologicalIntradayEngine(unittest.TestCase):
         self.assertEqual(candidate["symbol"], "AAA")
         self.assertAlmostEqual(candidate["target"] / candidate["entry_reference"] - 1, TP_PCT)
         self.assertLessEqual(candidate["session_return"], 0.01)
+
+    def test_candidate_is_rejected_when_latest_complete_bar_is_stale(self):
+        day = datetime(2026, 10, 8, tzinfo=KARACHI).date()
+        start = session_open(day)
+        closes = [100.02] * 65 + [100.85] * 5
+        bars = {"AAA": make_minute_rows("AAA", 100, closes, day),
+                "BBB": make_minute_rows("BBB", 100, [100.01] * 70, day)}
+        snap = scan_snapshot(bars, ["AAA", "BBB"], start + timedelta(minutes=80),
+                             {"quality": "verified"})
+        self.assertEqual(snap["status"], "NO_TRADE")
+        self.assertIsNone(snap["candidate"])
+
+    def test_60_minute_range_rule_waits_for_its_full_opening_range(self):
+        day = datetime(2026, 10, 8, tzinfo=KARACHI).date()
+        start = session_open(day)
+        bars = {"AAA": make_minute_rows("AAA", 100, [100.02] * 64, day),
+                "BBB": make_minute_rows("BBB", 100, [100.01] * 64, day)}
+        snap = scan_snapshot(bars, ["AAA", "BBB"], start + timedelta(minutes=64),
+                             {"quality": "verified"},
+                             rule_version="opening_range_60m_rs_v1")
+        self.assertEqual(snap["status"], "NO_TRADE")
+        self.assertEqual(snap["reason"], "market observation period not complete")
 
     def test_old_breakout_is_not_replayed_at_a_later_scan(self):
         day = datetime(2026, 10, 8, tzinfo=KARACHI).date()
@@ -220,50 +303,87 @@ class TestForwardLabelsAndGate(unittest.TestCase):
         self.assertEqual(result["label"], "UNCLOSED")
         self.assertIsNone(result["net_return"])
 
-    def test_eligibility_requires_locked_positive_chronological_evidence(self):
-        too_early = evaluate_gate([{"date": f"2026-01-{i:02d}", "candidate": None}
-                                   for i in range(1, 60)])
-        self.assertFalse(too_early["eligible"])
+    def _synthetic_rows(self, oos_win=True):
         rows = []
         start = datetime(2025, 1, 1)
         for i in range(180):
-            win = i % 4 != 0
-            net = 0.01 if win else -0.004
+            outcomes = {}
+            for rule in CANDIDATE_RULES:
+                win = oos_win or i < 120 or i % 4 != 0
+                net = 0.01 if win else -0.02
+                outcomes[rule] = {
+                    "candidate": {"symbol": f"S{i % 20:02d}"},
+                    "label": "TP_FIRST" if win else "SL_FIRST",
+                    "gross_return": 0.02 if win else -0.01,
+                    "net_return": net,
+                    "minutes_held": 45,
+                }
             rows.append({
                 "date": (start + timedelta(days=i)).date().isoformat(),
-                "candidate": {"symbol": f"S{i % 20:02d}"},
-                "label": "TP_FIRST" if win else "SL_FIRST",
-                "gross_return": 0.02 if win else -0.01,
-                "net_return": net,
-                "minutes_held": 45,
+                "data_quality": {"quality": "verified", "production_data_ready": True},
+                "storage_status": "available",
+                "outcomes_by_rule": outcomes,
             })
-        gate = evaluate_gate(rows)
+        return rows
+
+    def test_candidate_library_passes_only_after_locked_chronological_evidence(self):
+        gate = evaluate_gate(self._synthetic_rows())
         self.assertTrue(gate["eligible"])
         self.assertTrue(gate["window_locked"])
         self.assertEqual(gate["window_sessions"], 180)
-        for row in rows[120:]:
-            row["net_return"] = -0.10
-            row["label"] = "SL_FIRST"
-        failed = evaluate_gate(rows)
-        self.assertFalse(failed["eligible"])
-
-    def test_all_positive_oos_keeps_undefined_profit_factor_gateable(self):
-        rows = []
-        start = datetime(2025, 1, 1)
-        for i in range(180):
-            rows.append({
-                "date": (start + timedelta(days=i)).date().isoformat(),
-                "candidate": {"symbol": f"S{i % 20:02d}"},
-                "label": "TP_FIRST",
-                "gross_return": 0.02,
-                "net_return": 0.01,
-                "minutes_held": 45,
-            })
-        gate = evaluate_gate(rows)
-        self.assertTrue(gate["eligible"])
+        self.assertIn(gate["selected_rule_version"], CANDIDATE_RULES)
+        self.assertGreater(gate["metrics"]["oos"]["net_expectancy_ci_lower"], 0)
         self.assertIsNone(gate["metrics"]["oos"]["profit_factor"])
 
-    def test_signal_payload_labels_entry_as_reference_and_has_target(self):
+    def test_positive_statistics_without_source_approval_remain_paper_only(self):
+        rows = self._synthetic_rows()
+        for row in rows:
+            row["data_quality"]["production_data_ready"] = False
+        gate = evaluate_gate(rows)
+        self.assertEqual(gate["status"], "PAPER_VALIDATED")
+        self.assertFalse(gate["eligible"])
+        self.assertFalse(gate["live_signal_enabled"])
+        self.assertIn("rights and latency", gate["previous_cycle"]["reason"])
+
+    def test_failed_locked_oos_does_not_reselect_from_oos(self):
+        gate = evaluate_gate(self._synthetic_rows(oos_win=False))
+        self.assertFalse(gate["eligible"])
+        self.assertFalse(gate["live_signal_enabled"])
+        self.assertIn(gate["previous_cycle"]["status"], {"RESEARCH_FAILED", "PAPER_VALIDATED"})
+
+    def test_production_monitoring_automatically_demotes_after_health_failure(self):
+        rows = self._synthetic_rows()
+        start = datetime(2025, 7, 1)
+        for i in range(20):
+            for outcome in rows[0]["outcomes_by_rule"].values():
+                outcome["net_return"] = -0.02
+                outcome["gross_return"] = -0.01
+                outcome["label"] = "SL_FIRST"
+            row = {
+                "date": (start + timedelta(days=i)).date().isoformat(),
+                "data_quality": {"quality": "verified", "production_data_ready": True},
+                "storage_status": "available",
+                "outcomes_by_rule": {
+                    rule: dict(value) for rule, value in rows[0]["outcomes_by_rule"].items()
+                },
+            }
+            rows.append(row)
+        gate = evaluate_gate(rows)
+        self.assertEqual(gate["status"], "PRODUCTION_DEGRADED")
+        self.assertFalse(gate["eligible"])
+        self.assertFalse(gate["live_signal_enabled"])
+
+    def test_unverifiable_days_do_not_consume_research_sessions(self):
+        rows = self._synthetic_rows()[:119]
+        rows.append({
+            "date": "2026-01-01", "data_quality": {"quality": "degraded"},
+            "storage_status": "available", "outcomes_by_rule": {},
+        })
+        gate = evaluate_gate(rows)
+        self.assertFalse(gate["eligible"])
+        self.assertEqual(gate["sessions_collected"], 119)
+
+    def test_signal_payload_is_explicitly_paper_and_has_exact_target(self):
         candidate = {
             "symbol": "AAA", "timestamp": "2026-10-08T10:00+05:00",
             "entry_reference": 100.0, "target": 102.0,
@@ -271,10 +391,12 @@ class TestForwardLabelsAndGate(unittest.TestCase):
         }
         text = signal_text(candidate, {"median_return": 0.003},
                            {"quality": "verified"})
-        self.assertIn("KMIALL LONG SIGNAL", text)
+        self.assertIn("PAPER SIGNAL | KMIALL LONG ONLY", text)
+        self.assertIn("PAPER CANDIDATE: AAA", text)
         self.assertIn("Entry reference: 100.0000", text)
         self.assertIn("Target: 102.0000 (+2.00%)", text)
         self.assertIn("not executable", text)
+        self.assertNotIn("PRODUCTION SIGNAL", text)
         self.assertNotIn("BUY AAA", text)
 
 

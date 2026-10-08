@@ -50,15 +50,16 @@ from src.data.registry import availability, Availability  # noqa: E402
 OHLC_HOSTS = ["vt.eclear.com.pk", "nxg1.eclear.com.pk", "nxg2.eclear.com.pk"]
 OHLC_PATH = "/pero/GetOHLCData"
 PACING_SECONDS = 1.3
+MIN_CAPTURE_COVERAGE = 0.80
 CAPTURE_DIR = ROOT / "data" / "feed_capture"
 STATUS_PATH = CAPTURE_DIR / "ohlc_status.json"
 
 
 def make_opener() -> urllib.request.OpenerDirector:
-    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-    ctx.set_ciphers("ALL:@SECLEVEL=1")
-    ctx.check_hostname = False
-    ctx.verify_mode = ssl.CERT_NONE
+    ctx = ssl.create_default_context()
+    ctx.set_ciphers("DEFAULT:@SECLEVEL=1")
+    ctx.check_hostname = True
+    ctx.verify_mode = ssl.CERT_REQUIRED
     return urllib.request.build_opener(urllib.request.HTTPSHandler(context=ctx))
 
 
@@ -90,6 +91,12 @@ def fetch_bars(opener: urllib.request.OpenerDirector, symbol: str,
         except ValueError:
             continue
     return bars or None
+
+
+def capture_coverage_ok(symbols_with_data: int, universe_size: int) -> bool:
+    """Fail closed when the collector cannot substantiate broad market coverage."""
+    return (universe_size > 0 and
+            symbols_with_data / universe_size >= MIN_CAPTURE_COVERAGE)
 
 
 class OhlcPoller:
@@ -230,6 +237,12 @@ def main(argv: list[str] | None = None) -> int:
         poller.close()
     print(f"banked {poller.counters['bars']} bars over "
           f"{poller.counters['passes']} pass(es)")
+    if args.once and not capture_coverage_ok(
+            poller.counters["symbols_ok"], len(poller.symbols)):
+        coverage = poller.counters["symbols_ok"] / max(len(poller.symbols), 1)
+        print(f"capture rejected: coverage {coverage:.1%} is below "
+              f"{MIN_CAPTURE_COVERAGE:.0%}; no scan or outcome will run")
+        return 1
     return 0
 
 
