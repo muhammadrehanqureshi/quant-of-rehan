@@ -23,7 +23,7 @@ import android.widget.Toast;
 public class MainActivity extends Activity {
 
     private SharedPreferences prefs;
-    private TextView statusPill, statusTitle, statusDetail, signalList;
+    private TextView statusPill, statusDetail, signalList;
     private TextView btnSettings;
     private View settingsPanel;
     private android.graphics.Typeface scriptFont;
@@ -34,15 +34,12 @@ public class MainActivity extends Activity {
         prefs = getSharedPreferences("qor", MODE_PRIVATE);
         setContentView(R.layout.activity_main);
 
-        // the owner's cursive for the motivation quote. "Pepita Script" is a
-        // commercial Fenotype family; until the owner licenses it, the face
-        // shipped is a close free (OFL) script: Dancing Script. Swapping the
-        // res/font TTFs is the only change a real license needs.
-        scriptFont = getResources().getFont(R.font.dancing_script_regular);
+        // the owner's chosen face for the motivation quote: FSP DEMO - Liana
+        // (free demo download, bundled as res/font/fsp_demo_liana.otf).
+        scriptFont = getResources().getFont(R.font.fsp_demo_liana);
         ((TextView) findViewById(R.id.motivation_text)).setTypeface(scriptFont);
 
         statusPill = findViewById(R.id.status_pill);
-        statusTitle = findViewById(R.id.status_title);
         statusDetail = findViewById(R.id.status_detail);
         signalList = findViewById(R.id.signal_list);
         settingsPanel = findViewById(R.id.settings_panel);
@@ -105,10 +102,6 @@ public class MainActivity extends Activity {
         statusPill.setText(online ? "✓  ONLINE" : "✗  OFFLINE");
         statusPill.setTextColor(getColor(online
                 ? R.color.green : R.color.red));
-
-        statusTitle.setText(online ? "Quant is working." : "Quant is offline.");
-        statusTitle.setTextColor(getColor(online
-                ? R.color.gold_bright : R.color.red));
 
         String d = detail == null ? "" : detail.trim();
         if (d.isEmpty()) {

@@ -29,9 +29,10 @@
 
 const KARACHI_OFFSET_MIN = 5 * 60; // SO-8: UTC+5, fixed forever
 
-// Owner order 2026-10-07: say "quant is online/sleeping now" (SO-9).
-const MSG_OPEN = "Quant is online now.";
-const MSG_CLOSED = "Quant is sleeping now.";
+// Owner order 2026-10-08: name the market event first, then the quant
+// state (SO-9).
+const MSG_OPEN = "Market is open. Quant is online now.";
+const MSG_CLOSED = "Market is closed. Quant is sleeping now.";
 
 // PSX trading holidays 2026; mirrors src/data/sessions.py. Refresh yearly.
 const PSX_HOLIDAYS_2026 = new Set([
