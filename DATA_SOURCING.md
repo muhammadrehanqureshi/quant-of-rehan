@@ -41,24 +41,28 @@ when labeled degraded. They are never presented as true order flow.
 ## 4. The real paths to genuine order flow
 
 ### Path A: Forward capture from the read-only broker feed: APPROVED
-- **Owner approved 2026-10-06.** The OHLC capture is scheduled on weekdays
-  in GitHub Actions at 11:45 and 14:45 Karachi time during the session, then
-  at 16:45 after the regular close. Each run makes one read-only pass and
-  retains the resulting artifact for 90 days. Manual workflow dispatch is
-  also available. No credentials or broker session are used:
+- **Owner approved 2026-10-06.** OHLC capture is scheduled on weekdays in
+  GitHub Actions at 10:45, 12:45, and 14:45 Karachi time during the session,
+  then at 16:45 after the regular close. Each run makes one read-only pass
+  and retains the artifact for 90 days. Manual workflow dispatch is also
+  available. These captures are data collection only and are not evaluated
+  as signals. No credentials or broker session are used:
   - `src/data/feed_capture.py`: the broker's own MKT-FEED socket
     (nxg1.eclear.com.pk:8484), KMIALL universe subscription + heartbeats
     only, frames banked as NDJSON under `data/feed_capture/`;
   - `src/data/ohlc_poller.py`: 1-minute OHLC bars via GetOHLCData (public
     read tier), full-day refresh per pass so no bar is lost on rotation;
-  - `.github/workflows/intraday-capture.yml`: two weekday market-hour passes
+  - `.github/workflows/intraday-capture.yml`: three weekday market-hour passes
     and one post-close pass, each uploaded with its health status as a
     90-day artifact;
   - an outgoing-frame guard allows exactly three prefixes (MKT-FEED / EXS-FEED
     / HELLO); anything else raises. The read-only law is enforced in code.
 - The downloadable artifacts grow day by day; weeks of banked sessions are
-  required before any intraday claim (registry: intraday_ohlcv DEGRADED,
-  footprint UNAVAILABLE until a genuine archive exists AND is backtestable).
+  required before any intraday claim. The available local audit has one
+  session only (2026-10-06), which is not enough for training, validation,
+  or an untouched test. Until a chronological intraday engine is validated,
+  GitHub Actions stores captures but sends no intraday candidate alerts.
+  Registry: intraday_ohlcv DEGRADED; footprint UNAVAILABLE.
 - **Anonymous-tier limits (measured live 2026-10-06):** the feed socket
   accepts the connection and streams EXS-FEED (index), MKT-Movers and
   MKT-STATS, but does NOT stream per-symbol MKT-FEED ticks without a
