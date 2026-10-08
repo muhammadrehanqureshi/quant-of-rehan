@@ -51,8 +51,14 @@ from src.signals.engine import run  # noqa: E402
 
 DATASET = ROOT / "data" / "eod_history_kmi.csv.gz"
 LOG = ROOT / "data" / "signal_push_log.jsonl"
-UNGRADED_NOTE = ("UNGRADED engine v1 (Phase 1: no edge claim; entry filters "
-                 "under review). Observation only, not a recommendation.")
+# No candidate rule has demonstrated positive net expectancy under a valid
+# one-winner evaluation. Keep production delivery alive, but fail closed.
+PRODUCTION_SIGNAL_ENABLED = False
+NO_TRADE_NOTE = (
+    "NO TRADE ENGINE READY. The current rules are research-only: no tested "
+    "one-winner strategy has demonstrated positive net expectancy. "
+    "Intraday captures are data collection, not intraday signals."
+)
 
 
 def read_admin_token() -> str:
@@ -129,12 +135,11 @@ def relay_has_session_alert(text: str, signal_date: str) -> bool:
 def build_signal_text(signals, signal_date: str) -> str:
     lines = [f"QoR signals {signal_date} (Karachi):"]
     if not signals:
-        lines.append("No signal today: the v1 stack (regime x sweep_low x "
-                     "FVG-retrace) did not fire on today's close.")
+        lines.append("NO TRADE")
+        lines.append(NO_TRADE_NOTE)
     else:
         for s in signals:
             lines.append(s.line())
-    lines.append(UNGRADED_NOTE)
     return "\n".join(lines)
 
 
@@ -178,8 +183,14 @@ def main(argv: list[str] | None = None) -> int:
               f"nothing sent twice.")
         return 0
 
-    signals, _feat = run(df)
-    today_signals = [s for s in signals if s.signal_date == signal_date_label]
+    # The daily FVG/sweep stack and the Phase 2B rankers have not passed the
+    # economic and one-winner gates. Do not emit candidates while disabled.
+    # Keep run() available for local research and dry-run experiments only.
+    if PRODUCTION_SIGNAL_ENABLED:
+        signals, _feat = run(df)
+        today_signals = [s for s in signals if s.signal_date == signal_date_label]
+    else:
+        today_signals = []
     text = build_signal_text(today_signals, signal_date_label)
 
     print(text)
