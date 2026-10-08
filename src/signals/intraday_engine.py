@@ -208,40 +208,41 @@ def scan_snapshot(bars_by_symbol: dict[str, list[Bar]], universe: list[str],
     candidates: list[Candidate] = []
     for sym, series in five.items():
         opening = series[:OPENING_RANGE_BARS]
-        later = series[OPENING_RANGE_BARS:]
         opening_high = max(b["high"] for b in opening)
-        prior_close = opening[-1]["close"]
-        for bar in later:
-            close = bar["close"]
-            if prior_close <= opening_high < close:
-                first_open = series[0]["open"]
-                session_return = close / first_open - 1.0
-                high_so_far = max(b["high"] for b in series
-                                  if b["timestamp"] <= bar["timestamp"])
-                distance_from_high = high_so_far / close - 1.0
-                relative_strength = session_return - median_return
-                if (0 < session_return <= MAX_RETURN_FROM_OPEN
-                        and distance_from_high <= MAX_DISTANCE_FROM_HIGH
-                        and relative_strength >= MIN_RELATIVE_STRENGTH):
-                    # Higher relative strength ranks first. This rule and its
-                    # thresholds are frozen before forward validation.
-                    score = relative_strength
-                    candidates.append(Candidate(
-                        symbol=sym,
-                        timestamp=bar["timestamp"].isoformat(timespec="minutes"),
-                        entry_reference=close,
-                        target=close * (1.0 + TP_PCT),
-                        stop_reference=close * (1.0 - SL_PCT),
-                        score=score,
-                        relative_strength=relative_strength,
-                        session_return=session_return,
-                        distance_from_high=distance_from_high,
-                        rationale=("close broke the first 30-minute range; "
-                                   "market breadth supportive; relative strength "
-                                   "positive; extension within anti-chasing limits"),
-                    ))
-                break
-            prior_close = close
+        previous = series[-2]
+        bar = series[-1]
+        close = bar["close"]
+        if not (previous["close"] <= opening_high < close):
+            continue
+
+        first_open = series[0]["open"]
+        session_return = close / first_open - 1.0
+        high_so_far = max(b["high"] for b in series
+                          if b["timestamp"] <= bar["timestamp"])
+        distance_from_high = high_so_far / close - 1.0
+        relative_strength = session_return - median_return
+        if (0 < session_return <= MAX_RETURN_FROM_OPEN
+                and distance_from_high <= MAX_DISTANCE_FROM_HIGH
+                and relative_strength >= MIN_RELATIVE_STRENGTH):
+            # Candidates must break out on the latest completed bar visible
+            # at this scheduled scan. Older breakouts are never replayed as
+            # new entries at a stale price.
+            score = relative_strength
+            candidates.append(Candidate(
+                symbol=sym,
+                timestamp=bar["timestamp"].isoformat(timespec="minutes"),
+                entry_reference=close,
+                target=close * (1.0 + TP_PCT),
+                stop_reference=close * (1.0 - SL_PCT),
+                score=score,
+                relative_strength=relative_strength,
+                session_return=session_return,
+                distance_from_high=distance_from_high,
+                rationale=("latest completed bar broke the first 30-minute "
+                           "range; market breadth supportive; relative "
+                           "strength positive; extension within anti-chasing "
+                           "limits"),
+            ))
 
     candidates.sort(key=lambda c: (-c.score, c.symbol))
     selected = None
