@@ -65,7 +65,7 @@ Metrics include trade count, positive-net trade rate, gross and net total return
 
 ## Cloud operation and messages
 
-GitHub Actions is scheduled at 10:45, 12:45 Monday to Thursday, 14:45, and 16:45 PKT. Friday's midday break is skipped. The first scan slots evaluate the candidate rules; the last slot labels the day's outcomes and updates the gate. A one-pass capture below 80% symbol coverage fails before scanning or recording an outcome. Raw capture artifacts are retained for 90 days. Research observations, daily outcomes, and the current gate are stored in Cloudflare KV with a two-year retention. Existing observation and outcome keys are write-once.
+GitHub Actions is scheduled at 10:45, 12:45 Monday to Thursday, 14:45, and 16:45 PKT. Friday's midday break is skipped. The first scan slots evaluate the candidate rules; the last slot labels the day's outcomes and updates the gate. A one-pass capture below 80% symbol coverage fails before scanning or recording an outcome, and the owner receives a data-free NO TRADE alert with the failed run link. Raw capture artifacts are retained for 90 days. Research observations, daily outcomes, and the current gate are stored in Cloudflare KV with a two-year retention. Existing observation and outcome keys are write-once.
 
 A research candidate message begins `PAPER SIGNAL`; the eligible path begins `PRODUCTION SIGNAL` and says `BUY <SYMBOL>`. The daily status message may say NO TRADE. The bot does not place orders or connect to broker order endpoints.
 

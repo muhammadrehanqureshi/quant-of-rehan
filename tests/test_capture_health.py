@@ -18,6 +18,7 @@ from src.data.feed_capture import CaptureSession  # noqa: E402
 from src.data.ohlc_poller import (  # noqa: E402
     OhlcPoller, capture_coverage_ok, make_opener,
 )
+from scripts.notify_capture_failure import build_message  # noqa: E402
 
 
 KARACHI = timezone(timedelta(hours=5))
@@ -69,6 +70,13 @@ class TestCaptureHealth(unittest.TestCase):
         self.assertTrue(capture_coverage_ok(80, 100))
         self.assertFalse(capture_coverage_ok(79, 100))
         self.assertFalse(capture_coverage_ok(0, 0))
+
+    def test_capture_failure_alert_says_no_trade_without_market_data(self):
+        message = build_message("https://github.com/owner/repo/actions/runs/123")
+        self.assertIn("NO TRADE", message)
+        self.assertIn("production remains disabled", message)
+        self.assertIn("https://github.com/owner/repo/actions/runs/123", message)
+        self.assertNotIn("Entry reference", message)
 
     def test_closed_collectors_write_stopped_status(self):
         with tempfile.TemporaryDirectory() as temp_dir:
