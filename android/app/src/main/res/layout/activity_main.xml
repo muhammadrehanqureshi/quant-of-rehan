@@ -125,17 +125,6 @@
                 android:textStyle="bold"/>
 
             <TextView
-                android:id="@+id/status_title"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
-                android:gravity="center"
-                android:text="@string/checking"
-                android:textColor="@color/gold_bright"
-                android:textSize="21sp"
-                android:textStyle="bold"/>
-
-            <TextView
                 android:id="@+id/status_detail"
                 style="@style/QorBody"
                 android:layout_width="match_parent"
@@ -278,12 +267,11 @@
                 android:layout_height="wrap_content"
                 android:gravity="center"
                 android:lineSpacingExtra="6dp"
-                android:paddingLeft="6dp"
-                android:paddingRight="6dp"
+                android:paddingLeft="4dp"
+                android:paddingRight="4dp"
                 android:text="@string/motivation"
                 android:textColor="@color/gold"
-                android:textSize="17sp"
-                android:textStyle="italic"/>
+                android:textSize="51sp"/>
         </LinearLayout>
 
         <!-- footer rule: line, diamond, line, ending the frame like the
