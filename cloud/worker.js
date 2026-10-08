@@ -263,8 +263,8 @@ export default {
 
     if (request.method === "POST" && path === "/research/claim") {
       const body = await request.json().catch(() => null);
-      if (!body || !/^\\d{4}-\\d{2}-\\d{2}$/.test(String(body.date || "")) ||
-          !/^\\d{2}:\\d{2}$/.test(String(body.slot || ""))) {
+      if (!body || !/^\d{4}-\d{2}-\d{2}$/.test(String(body.date || "")) ||
+          !/^\d{2}:\d{2}$/.test(String(body.slot || ""))) {
         return json({ ok: false, error: "invalid signal claim" }, 400);
       }
       const key = `RESEARCH:SENT:${body.date}`;
