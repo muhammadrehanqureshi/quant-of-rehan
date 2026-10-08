@@ -8,21 +8,19 @@ only. Sole contributor and owner: Rehan (muhammadrehanqureshi).
 
 ## What is running today
 
-- **Backtest engine** with the owner's TP +2% / SL -1% law (2:1 RR, long-only,
-  max hold 3 days), real PSX cost schedule (22.4 bps/side + 15% CGT), and a
-  data-quality screen that flags unadjusted corporate actions instead of
-  booking fake losses (SO-3). Validated on 5 years of real KMIALL daily data
-  (Oct 2021 to Oct 2026, 74,654 placeholder-baseline trades, high/low fills).
+- **Daily-bar research engine** for the owner's TP +2% / SL -1% law. Its
+  historical universe is today's KMIALL list and its prices are not fully
+  corporate-action adjusted, so those results are survivorship-biased and
+  affected by unadjusted prints. They do not validate the live signal rule.
 - **5-year EOD dataset** built from the PSX Data Portal Daily Downloads
   (`/download/mkt_summary/{date}.Z`, full OHLCV with high/low, archive back
   to 2015). Crawler is local-only and resumable (SO-4).
 - **Market clock** pinned to Asia/Karachi (UTC+5) forever (SO-8), with the
   owner's session law: Mon-Thu open 09:32 close 15:30, Friday open 09:17
   close 16:30, PSX holidays and weekends skipped.
-- **Telegram delivery through the Cloudflare edge** (SO-9): Telegram is
-  blocked inside Pakistan, so only the relay worker talks to Telegram and the
-  owner reads messages on his phone over his VPN. Edge crons send the two
-  daily texts even with the PC off.
+- **Telegram delivery through the Cloudflare edge** (SO-9): the scheduled
+  GitHub Actions job keeps delivering a clear NO TRADE status to the app and
+  Telegram while no candidate engine has passed economic validation.
 - **Android companion app** (`android/`, APK on the Desktop, v1.3.0):
   logo-branded dark console showing whether the quant is working, plus
   signal and status notifications on the phone. Polls `/health` and
@@ -118,16 +116,16 @@ python scripts/smoke_backtest.py --dataset data/eod_history_kmi.csv.gz
 - Phase 1 research (2026-10-06, see RESEARCH_PHASE1.md): 74,654-trade causal
   matrix, A-G path analysis, survivorship sensitivity, frozen filter matrix.
   No edge claim; the stop/TP grid is banked pending the owner's review.
-- Signal engine v1 (UNGRADED) pushes daily signals to Telegram + the phone
-  app after the close (src/signals/). Since 2026-10-07 the search runs
-  itself on GitHub Actions (post-close cron + pre-open safety net, see
-  .github/workflows/signal-push.yml); the PC hosts no daemon (SO-10).
+- Signal delivery runs on GitHub Actions after the close and before the next
+  session, with the PC off. It currently sends NO TRADE ENGINE READY to the
+  app and Telegram. Daily FVG/sweep candidates remain research-only. The
+  intraday workflow captures one-minute bars but does not generate signals.
   App v1.3.0: centered brand header, "Quant is working." status line,
   motivational panel, framed dividers top and bottom, mirrored icon
   motif, "Quant is online/sleeping now." texts on the edge crons and
   relay.
-- Footprint and order-flow data: UNAVAILABLE (registry-enforced). Path A
-  (read-only broker feed capture) is APPROVED and RUNNING since 2026-10-06:
-  genuine 1-minute OHLC bars and index snapshots bank daily under
-  data/feed_capture/; per-symbol tick capture needs the read-only
-  credentialed chain (see DATA_SOURCING.md).
+- Historical intraday coverage is not sufficient: only one captured session
+  (2026-10-06) is available in the local audit. GitHub Actions retains capture
+  artifacts for 90 days. No historical minute-bar signal validation exists.
+- Footprint and order-flow data: UNAVAILABLE. Captures contain OHLC, not
+  order-book depth or bid/ask flow (see DATA_SOURCING.md).
