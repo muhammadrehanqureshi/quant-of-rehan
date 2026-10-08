@@ -184,11 +184,15 @@ def evaluate_gate(daily_rows: list[dict]) -> dict:
         metrics[name]["net_expectancy"] > 0 for name in ("discovery", "validation", "oos")
     )
     oos = metrics["oos"]
+    profit_factor = oos.get("profit_factor")
+    # No losing trades makes profit factor mathematically undefined, which is
+    # at least as strong as the minimum ratio when the independent OOS CI is
+    # also positive. Keep the report value null rather than serializing infinity.
+    profit_factor_ok = profit_factor is None or profit_factor >= 1.10
     oos_clear = (
         enough
         and oos.get("net_expectancy_ci95_lower", float("-inf")) > 0
-        and oos.get("profit_factor", 0) is not None
-        and oos.get("profit_factor", 0) >= 1.10
+        and profit_factor_ok
         and oos.get("top_10_symbol_pick_share", 1) <= 0.60
     )
     passed = economic and oos_clear
