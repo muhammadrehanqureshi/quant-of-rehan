@@ -1,7 +1,9 @@
 name: daily KMIALL intraday capture
 
-# UTC+5 schedule: 10:45, 12:45, and 14:45 PKT scans, then 16:45 PKT
-# after-close capture. At most 92 runs x 15 minutes = 1,380 minutes in a
+# UTC+5 schedule: 10:45, 12:45, 14:45, and 16:45 PKT market-data
+# captures. These runs bank data only. No intraday signal is generated until
+# chronological intraday research and validation are available. At most 92
+# runs x 15 minutes = 1,380 minutes in a
 # 23-weekday month. The daily signal workflow is capped at 460 more minutes,
 # for a scheduled maximum of 1,840 within the 2,000-minute monthly budget.
 on:
@@ -35,12 +37,7 @@ jobs:
           mkdir -p data/feed_capture
           python -m src.data.ohlc_poller --symbols-file src/data/universe_kmiall.json --once
 
-      - name: Evaluate one intraday observation
-        env:
-          RELAY_ADMIN_TOKEN: ${{ secrets.RELAY_ADMIN_TOKEN }}
-        run: python scripts/intraday_scan.py
-
-      - name: Summarize capture and scan
+      - name: Summarize capture
         if: always()
         run: |
           python - <<'PY'
