@@ -261,6 +261,18 @@ export default {
       return json({ ok: true, sessions, complete: !listed.list_complete });
     }
 
+    if (request.method === "POST" && path === "/research/claim") {
+      const body = await request.json().catch(() => null);
+      if (!body || !/^\\d{4}-\\d{2}-\\d{2}$/.test(String(body.date || "")) ||
+          !/^\\d{2}:\\d{2}$/.test(String(body.slot || ""))) {
+        return json({ ok: false, error: "invalid signal claim" }, 400);
+      }
+      const key = `RESEARCH:SENT:${body.date}`;
+      if (await env.RELAY_KV.get(key)) return json({ ok: true, claimed: false });
+      await env.RELAY_KV.put(key, String(body.slot), { expirationTtl: 86400 });
+      return json({ ok: true, claimed: true });
+    }
+
     if (request.method === "GET" && path === "/research/gate") {
       const value = await env.RELAY_KV.get("RESEARCH:PRODUCTION_GATE");
       return json({ ok: true, gate: value ? JSON.parse(value) : null });
