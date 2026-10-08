@@ -110,7 +110,7 @@ class TestChronologicalIntradayEngine(unittest.TestCase):
         as_of = start + timedelta(minutes=asof_minute)
         # First 30 one-minute bars define the opening range. A breakout
         # after that range remains at the requested session return.
-        a_closes = [100.02] * 30 + [100.0 * (1 + a_return)] * 40
+        a_closes = [100.02] * 65 + [100.0 * (1 + a_return)] * 5
         b_closes = [100.01 + i * (b_return / 69) for i in range(70)]
         a_rows = make_minute_rows("AAA", 100.0, a_closes, day)
         b_rows = make_minute_rows("BBB", 100.0, b_closes, day)
@@ -125,6 +125,20 @@ class TestChronologicalIntradayEngine(unittest.TestCase):
         self.assertEqual(candidate["symbol"], "AAA")
         self.assertAlmostEqual(candidate["target"] / candidate["entry_reference"] - 1, TP_PCT)
         self.assertLessEqual(candidate["session_return"], 0.01)
+
+    def test_old_breakout_is_not_replayed_at_a_later_scan(self):
+        day = datetime(2026, 10, 8, tzinfo=KARACHI).date()
+        start = session_open(day)
+        as_of = start + timedelta(minutes=70)
+        old_breakout = [100.02] * 30 + [100.85] * 40
+        steady_peer = [100.01] * 70
+        bars = {
+            "AAA": make_minute_rows("AAA", 100, old_breakout, day),
+            "BBB": make_minute_rows("BBB", 100, steady_peer, day),
+        }
+        snap = scan_snapshot(bars, ["AAA", "BBB"], as_of,
+                             {"quality": "verified"})
+        self.assertEqual(snap["status"], "NO_TRADE")
 
     def test_bad_data_and_hostile_market_fail_closed(self):
         day = datetime(2026, 10, 8, tzinfo=KARACHI).date()
@@ -143,8 +157,8 @@ class TestChronologicalIntradayEngine(unittest.TestCase):
         day = datetime(2026, 10, 8, tzinfo=KARACHI).date()
         start = session_open(day)
         as_of = start + timedelta(minutes=70)
-        closes_a = [100.02] * 30 + [100.85] + [100.85] * 39
-        closes_b = [100.01] * 30 + [100.84] + [100.84] * 39
+        closes_a = [100.02] * 65 + [100.85] * 5
+        closes_b = [100.01] * 65 + [100.84] * 5
         bars = {
             "AAA": make_minute_rows("AAA", 100, closes_a, day),
             "BBB": make_minute_rows("BBB", 100, closes_b, day),
