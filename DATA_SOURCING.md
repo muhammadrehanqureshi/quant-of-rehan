@@ -1,7 +1,7 @@
 # DATA_SOURCING: Market Data Research Memo (PSX KMIALL)
 
-**Date:** 2026-10-04 · **Prepared by:** the QUANT · **Status:** verdict final
-for free/public sources; forward OHLC capture runs in GitHub Actions.
+**Date:** 2026-10-08 · **Prepared by:** the QUANT · **Status:** source audit
+for free/public sources; scheduled OHLC capture is configured in GitHub Actions.
 **Update (same day):** PSX Data Portal redesigned: the 5-year-per-GET EOD
 endpoint is dead; see §7.
 
@@ -40,41 +40,31 @@ when labeled degraded. They are never presented as true order flow.
 
 ## 4. The real paths to genuine order flow
 
-### Path A: Forward capture from the read-only broker feed: APPROVED
-- **Owner approved 2026-10-06.** OHLC capture is scheduled on weekdays in
-  GitHub Actions at 10:45, 12:45, and 14:45 Karachi time during the session,
-  then at 16:45 after the regular close. Each run makes one read-only pass
-  and retains the artifact for 90 days. Manual workflow dispatch is also
-  available. These captures are data collection only and are not evaluated
-  as signals. No credentials or broker session are used:
-  - `src/data/feed_capture.py`: the broker's own MKT-FEED socket
-    (nxg1.eclear.com.pk:8484), KMIALL universe subscription + heartbeats
-    only, frames banked as NDJSON under `data/feed_capture/`;
-  - `src/data/ohlc_poller.py`: 1-minute OHLC bars via GetOHLCData (public
-    read tier), full-day refresh per pass so no bar is lost on rotation;
-  - `.github/workflows/intraday-capture.yml`: three weekday market-hour passes
-    and one post-close pass, each uploaded with its health status as a
-    90-day artifact;
-  - an outgoing-frame guard allows exactly three prefixes (MKT-FEED / EXS-FEED
-    / HELLO); anything else raises. The read-only law is enforced in code.
-- The downloadable artifacts grow day by day; weeks of banked sessions are
-  required before any intraday claim. The available local audit has one
-  session only (2026-10-06), which is not enough for training, validation,
-  or an untouched test. Until a chronological intraday engine is validated,
-  GitHub Actions stores captures but sends no intraday candidate alerts.
-  Registry: intraday_ohlcv DEGRADED; footprint UNAVAILABLE.
-- **Anonymous-tier limits (measured live 2026-10-06):** the feed socket
-  accepts the connection and streams EXS-FEED (index), MKT-Movers and
-  MKT-STATS, but does NOT stream per-symbol MKT-FEED ticks without a
-  session: a 319-symbol and a 13-symbol liquid subscription both produced
-  zero tick frames during the live afternoon session; anonymous
-  singlefeed/GetSingleFeedWithMarketCap HTTP endpoints also refuse. Genuine
-  1-minute OHLC bars and index snapshots ARE banking. Per-symbol L1 quote
-  capture needs the owner's credentialed read-only mobile-REST chain
-  (PartialLoginServlet -> FeedSessionID -> session-tier feed servlets),
-  which was live-verified during the September recon and stays strictly
-  read-only; it requires the owner's credential sheet from the local
-  Desktop (SO-5: never in the repo, never printed).
+### Path A: Forward capture from the read-only broker feed: approved for capture
+- The owner approved read-only capture on 2026-10-06. GitHub Actions collects
+  one-minute OHLC at 10:45, 12:45, 14:45, and 16:45 Karachi time. Capture
+  artifacts are retained for 90 days and daily summaries are stored in
+  Cloudflare KV. No order or broker session credentials are used.
+- `src/data/ohlc_poller.py` reads the eClear `GetOHLCData` public read tier.
+  TLS certificate and hostname verification are enabled. The feed provides
+  OHLC only, without volume, bid/ask, or order flow.
+- Capture is not proof of source latency or rights for cloud retention and
+  signal redistribution. Both remain unconfirmed. The GitHub Actions
+  variables `KMIALL_DATA_RIGHTS_CONFIRMED`,
+  `KMIALL_DATA_LATENCY_CONFIRMED`, and `KMIALL_UNIVERSE_CONFIRMED` default to
+  false. The production gate
+  cannot open until both are confirmed and the full evidence window uses the
+  approved source.
+- The local audit contains one session only (2026-10-06), with 32,639 bars
+  across 298 symbols. It cannot establish strategy performance.
+- A read-only source check on 2026-10-08 at 10:09 PKT returned HTTP 200 from
+  the eClear host but only the `OGDC;REG;` header and no bars for requested
+  1-, 5-, or 15-minute intervals. Therefore the feed was not verified as
+  operational in that check. A one-pass scheduled collector now fails closed
+  below 80% symbol coverage, so a blank feed cannot silently advance research.
+- The separate MKT-FEED socket did not deliver per-symbol ticks in anonymous
+  mode during the 2026-10-06 probe. It is not used for OHLC strategy signals.
+  Credentialed read-only L1 collection is not configured.
 
 ### Path B: Longer-term intraday archive
 - The 90-day workflow artifacts must be downloaded and consolidated for
@@ -94,7 +84,17 @@ when labeled degraded. They are never presented as true order flow.
   is a cost decision reserved for the owner, only if the bot proves
   profitable first (per his own rule: VPS/infrastructure follows profit).
 
-## 5. Secrets: canonical names (values never in this repo)
+## 5. Market-data rights and latency
+
+The official PSX Data Portal labels its displayed data as delayed by five
+minutes and includes a notice requiring rights or a license for data
+transmission. The eClear public read-tier endpoint used here is a separate
+source; its timing and redistribution rights have not been independently
+verified. Structural bar checks do not establish either. Research snapshots
+stay paper-only unless the owner confirms both source rights and data latency
+in the two GitHub Actions variables described above.
+
+## 6. Secrets: canonical names (values never in this repo)
 
 | Name | Used by | Lives in |
 |---|---|---|
@@ -103,19 +103,19 @@ when labeled degraded. They are never presented as true order flow.
 | `GITHUB_TOKEN` | Automation | GitHub-internal (Actions), not readable |
 | Broker creds | **Nothing in this repo** (SO-1/SO-6) | Owner's Desktop only |
 
-(Update 2026-10-05: the GitHub-Secrets / Cloudflare-worker stores mentioned
-here earlier belonged to the deleted sentinel repos and no longer exist.
-Delivery is currently fail-closed: api.telegram.org is unreachable from the
-owner's network: ISP-level block/throttle observed 2026-10-05.)
+Cloudflare Worker deployment and the private GitHub Actions relay secret are
+active. Secret values are never recorded in repository files or reports.
 
-## 6. Decision requested from the owner
+## 7. Current decision
 
-Approve Path A (read-only feed capture from `oms1.eclear.com.pk:8484`)?
+Read-only capture is approved and scheduled. Production remains closed until
+historical membership, data-source rights, and latency are adequately
+verified. The code does not infer those permissions from public reachability.
 Everything else in this memo is already actionable without further input.
 
-## 7. Addendum (2026-10-04): DPS portal redesign: 5-year EOD source lost
+## 8. Addendum (2026-10-04): DPS portal redesign: 5-year EOD source lost
 
-### 7.1 What died
+### 8.1 What died
 The old programmatic endpoint `dps.psx.com.pk/timeseries/eod/{SYM}`: which
 returned the FULL ~1,240-session close/volume/open history per symbol in one
 GET (rows `[epoch, close, volume, open]`, no high/low): is gone:
@@ -129,7 +129,7 @@ GET (rows `[epoch, close, volume, open]`, no high/low): is gone:
 Consequence: **the 5-year-per-GET EOD source is gone.** Any backtest claiming
 5 years today would need a new legitimate source, not the old endpoint.
 
-### 7.2 What we run on meanwhile (local, honest)
+### 8.2 What we run on meanwhile (local, honest)
 The sentinel's `eod_corpus.json`: 305 KMIALL symbols with data (8 empty of
 313), 177 sessions 2026-01-05..2026-09-23, ~51,452 rows, no high/low → engine
 runs in close mode. Known defects, found by probing and now screened by the
@@ -143,7 +143,7 @@ engine (SO-3):
 - ITANZ prints one +109% close-to-close move (2026-02-17, resumption-like);
   also flagged.
 
-### 7.3 5-year fill: SOLVED: Daily Downloads mkt_summary (confirmed 2026-10-04)
+### 8.3 5-year fill: SOLVED: Daily Downloads mkt_summary (confirmed 2026-10-04)
 The redesigned portal's `/downloads` page exposes per-date files with a
 stable URL pattern:
 

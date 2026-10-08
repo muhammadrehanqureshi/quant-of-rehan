@@ -15,7 +15,9 @@ sys.path.insert(0, str(ROOT))
 
 from src.data.capture_health import status_view  # noqa: E402
 from src.data.feed_capture import CaptureSession  # noqa: E402
-from src.data.ohlc_poller import OhlcPoller  # noqa: E402
+from src.data.ohlc_poller import (  # noqa: E402
+    OhlcPoller, capture_coverage_ok, make_opener,
+)
 
 
 KARACHI = timezone(timedelta(hours=5))
@@ -55,6 +57,18 @@ class TestCaptureHealth(unittest.TestCase):
 
         self.assertEqual(view["health_state"], "UNKNOWN")
         self.assertFalse(view["running"])
+
+    def test_ohlc_poller_verifies_tls_certificate_and_hostname(self):
+        opener = make_opener()
+        context = next(handler._context for handler in opener.handlers
+                         if hasattr(handler, "_context"))
+        self.assertTrue(context.check_hostname)
+        self.assertEqual(context.verify_mode, __import__("ssl").CERT_REQUIRED)
+
+    def test_one_pass_capture_requires_eighty_percent_symbol_coverage(self):
+        self.assertTrue(capture_coverage_ok(80, 100))
+        self.assertFalse(capture_coverage_ok(79, 100))
+        self.assertFalse(capture_coverage_ok(0, 0))
 
     def test_closed_collectors_write_stopped_status(self):
         with tempfile.TemporaryDirectory() as temp_dir:

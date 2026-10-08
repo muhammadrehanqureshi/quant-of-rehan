@@ -7,6 +7,7 @@ The script has no broker interface and cannot place orders.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import sys
@@ -21,7 +22,7 @@ sys.path.insert(0, str(ROOT))
 from src.data.sessions import KARACHI, close_time, open_time, is_trading_day, now_karachi
 from src.research.forward_validation import evaluate_gate, label_candidate
 from src.signals.intraday_engine import (
-    aggregate_5m, parse_capture, scan_snapshot,
+    CANDIDATE_RULES, RULE_VERSION, aggregate_5m, parse_capture, scan_snapshot,
 )
 
 UNIVERSE_FILE = ROOT / "src" / "data" / "universe_kmiall.json"
@@ -42,6 +43,11 @@ def load_kmiall(path: Path = UNIVERSE_FILE) -> list[str]:
     if not symbols:
         raise RuntimeError("KMIALL/Shariah universe resolved to zero symbols")
     return symbols
+
+
+def universe_fingerprint(symbols: list[str]) -> str:
+    payload = "\n".join(sorted(set(symbols))).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
 
 
 def relay_url() -> str:
@@ -84,18 +90,55 @@ def compact_market(snapshot: dict) -> dict:
     return snapshot.get("market") or {}
 
 
-def signal_text(candidate: dict, market: dict, data_quality: dict) -> str:
+def annotate_source_quality(quality: dict) -> dict:
+    """Separate structural bar checks from source rights and latency evidence."""
+    rights_confirmed = os.environ.get("KMIALL_DATA_RIGHTS_CONFIRMED", "").lower() == "true"
+    latency_confirmed = os.environ.get("KMIALL_DATA_LATENCY_CONFIRMED", "").lower() == "true"
+    universe_confirmed = os.environ.get("KMIALL_UNIVERSE_CONFIRMED", "").lower() == "true"
+    return {
+        **quality,
+        "source": "eClear GetOHLCData public read tier",
+        "source_latency": "owner-confirmed" if latency_confirmed else "unverified",
+        "data_rights": "owner-confirmed" if rights_confirmed else "unverified",
+        "universe_membership": "owner-confirmed-current" if universe_confirmed else "unverified-currentness",
+        "production_data_ready": bool(
+            quality.get("quality") == "verified"
+            and rights_confirmed and latency_confirmed and universe_confirmed
+        ),
+    }
+
+
+def signal_text(candidate: dict, market: dict, data_quality: dict,
+                signal_kind: str = "PAPER SIGNAL") -> str:
     entry = float(candidate["entry_reference"])
     target = entry * 1.02
     stamp = datetime.fromisoformat(candidate["timestamp"])
+    lead = (f"BUY {candidate['symbol']}" if signal_kind == "PRODUCTION SIGNAL"
+            else f"PAPER CANDIDATE: {candidate['symbol']}")
+    rule = CANDIDATE_RULES.get(candidate.get("rule_version", RULE_VERSION), {})
+    breadth = ("breadth filter applied" if rule.get("market_gate")
+               else "breadth filter omitted for candidate comparison")
+    median = market.get("median_return")
+    advancers = market.get("advancer_share")
+    market_line = (
+        "Market proxy: unavailable\n" if median is None or advancers is None else
+        f"Market proxy: median {median:+.2%}, advancers {advancers:.1%}; {breadth}\n"
+    )
+    entry_kind = "paper reference" if signal_kind == "PAPER SIGNAL" else "signal reference"
+    evidence = (
+        "frozen 60/60/60 evidence gate passed"
+        if signal_kind == "PRODUCTION SIGNAL"
+        else "paper observation; no validated edge yet"
+    )
     return (
         f"QoR signals {stamp.date().isoformat()} (Karachi):\n"
-        "KMIALL LONG SIGNAL\n\n"
-        f"Symbol: {candidate['symbol']}\n"
-        f"Entry reference: {entry:.4f} (paper reference, not executable)\n"
+        f"{signal_kind} | KMIALL LONG ONLY\n"
+        f"{lead}\n\n"
+        f"Entry reference: {entry:.4f} ({entry_kind}, not executable)\n"
         f"Target: {target:.4f} (+2.00%)\n"
         f"Timestamp: {stamp:%H:%M} PKT\n"
-        "Market: SUPPORTIVE (cross-sectional KMIALL proxy)\n"
+        f"Evidence: {evidence}\n"
+        f"{market_line}"
         f"Setup: {candidate['rationale']}\n"
         "Expected horizon: intraday, close by session end\n"
         f"Data: {data_quality.get('quality')}; volume unavailable; "
@@ -107,45 +150,99 @@ def signal_text(candidate: dict, market: dict, data_quality: dict) -> str:
 def run_scan(slot: str, capture: Path) -> dict:
     as_of = scheduled_as_of(slot)
     symbols = load_kmiall()
-    bars, quality = parse_capture(capture, symbols, as_of)
-    snapshot = scan_snapshot(bars, symbols, as_of, quality)
-    snapshot["date"] = as_of.date().isoformat()
-    snapshot["slot"] = slot
+    bars, raw_quality = parse_capture(capture, symbols, as_of)
+    quality = annotate_source_quality(raw_quality)
+    strategy_snapshots = {
+        rule: scan_snapshot(bars, symbols, as_of, quality, rule_version=rule)
+        for rule in CANDIDATE_RULES
+    }
+    has_paper_candidate = any(
+        item.get("candidate") for item in strategy_snapshots.values()
+    )
+    snapshot = {
+        "date": as_of.date().isoformat(),
+        "slot": slot,
+        "universe_source": "versioned current KMIALL membership snapshot",
+        "universe_size": len(symbols),
+        "universe_sha256": universe_fingerprint(symbols),
+        "as_of": as_of.isoformat(),
+        "status": "PAPER_CANDIDATE" if has_paper_candidate else "NO_TRADE",
+        "reason": "registered candidates evaluated; candidate details are per rule",
+        "strategies": strategy_snapshots,
+        "data_quality": quality,
+        "target_pct": 0.02,
+        "stop_pct": 0.01,
+        "volume": "unavailable; not used",
+        "order_flow": "unavailable",
+    }
 
     gate_result = None
     storage_status = "available"
+    candidate = None
+    signal_kind = None
     try:
         gate_result = relay_request("GET", "/research/gate").get("gate")
         snapshot["production_gate"] = gate_result
-        relay_request("POST", "/research/observation", {
+        if gate_result and gate_result.get("eligible") is True \
+                and gate_result.get("live_signal_enabled") is True \
+                and quality.get("production_data_ready") is True:
+            selected_rule = gate_result.get("selected_rule_version")
+            selected = strategy_snapshots.get(selected_rule, {})
+            candidate = selected.get("candidate")
+            if candidate:
+                candidate["rule_version"] = selected_rule
+                signal_kind = "PRODUCTION SIGNAL"
+        else:
+            # The original rule remains an explicitly paper-only observation
+            # while the candidate library is being evaluated.
+            candidate = strategy_snapshots.get(RULE_VERSION, {}).get("candidate")
+            if candidate:
+                candidate["rule_version"] = RULE_VERSION
+                signal_kind = "PAPER SIGNAL"
+
+        if candidate and signal_kind:
+            snapshot["candidate"] = candidate
+            snapshot["signal_kind"] = signal_kind
+            snapshot["signal_intent"] = "one-per-day claim required before delivery"
+        else:
+            snapshot["signal_kind"] = "NO TRADE"
+            snapshot["signal_intent"] = "no qualifying candidate at this scan"
+
+        saved_observation = relay_request("POST", "/research/observation", {
             "date": snapshot["date"], "slot": slot, "snapshot": snapshot,
         })
+        if not saved_observation.get("stored", True):
+            snapshot["signal_sent"] = False
+            snapshot["reason"] = "immutable observation already exists; duplicate scan not delivered"
+            candidate = None
+            signal_kind = None
 
-        candidate = snapshot.get("candidate")
-        if candidate and gate_result and gate_result.get("eligible") is True:
+        if candidate and signal_kind:
             claim = relay_request("POST", "/research/claim",
                                   {"date": snapshot["date"], "slot": slot})
             if claim.get("claimed"):
-                message = signal_text(candidate, compact_market(snapshot), quality)
+                selected_market = strategy_snapshots.get(
+                    candidate.get("rule_version", RULE_VERSION), {}).get("market", {})
+                message = signal_text(candidate, selected_market, quality, signal_kind)
                 relay_request("POST", "/signals", {"signals": message})
-                relay_request("POST", "/notify", {"text": message, "kind": "signals"})
-                snapshot["live_signal_sent"] = True
+                relay_request("POST", "/notify", {
+                    "text": message, "kind": "signals",
+                })
+                snapshot["status"] = signal_kind
+                snapshot["signal_sent"] = True
             else:
-                snapshot["live_signal_sent"] = False
-                snapshot["reason"] = "daily one-winner signal already claimed"
+                snapshot["signal_sent"] = False
+                snapshot["reason"] = "one candidate for this day was already sent"
         else:
-            snapshot["live_signal_sent"] = False
+            snapshot["signal_sent"] = False
     except (requests.RequestException, RuntimeError, ValueError):
-        # Keep the cloud capture usable even if the research routes have not
-        # yet been deployed. No signal is allowed without the persistent gate.
         storage_status = "unavailable"
         gate_result = None
         snapshot["production_gate"] = {
             "status": "RESEARCH_NOT_READY", "eligible": False,
             "live_signal_enabled": False,
         }
-        snapshot["live_signal_sent"] = False
-        snapshot["storage_status"] = storage_status
+        snapshot["signal_sent"] = False
         snapshot["reason"] += "; research relay unavailable"
 
     snapshot["storage_status"] = storage_status
@@ -154,11 +251,29 @@ def run_scan(slot: str, capture: Path) -> dict:
     out.write_text(json.dumps(snapshot, indent=2, allow_nan=False), encoding="utf-8")
     print(json.dumps({
         "date": snapshot["date"], "slot": slot, "status": snapshot["status"],
-        "reason": snapshot["reason"], "candidate": candidate,
+        "reason": snapshot["reason"],
+        "candidate": snapshot.get("candidate"),
+        "signal_kind": snapshot.get("signal_kind"),
         "production_eligible": bool(gate_result and gate_result.get("eligible")),
         "data_quality": quality,
+        "candidate_statuses": {
+            rule: item.get("status") for rule, item in strategy_snapshots.items()
+        },
     }, indent=2, allow_nan=False))
     return snapshot
+
+def missing_scan_slots(day, observations: list[dict]) -> list[str]:
+    """List scheduled slots without a structurally verified observation."""
+    required = {"10:45", "14:45"} if day.weekday() == 4 else {
+        "10:45", "12:45", "14:45",
+    }
+    seen = {
+        str(row.get("slot", ""))
+        for row in observations
+        if (row.get("snapshot", {}).get("data_quality", {}).get("quality")
+            == "verified")
+    }
+    return sorted(required - seen)
 
 
 def run_finalize(capture: Path) -> dict:
@@ -169,7 +284,8 @@ def run_finalize(capture: Path) -> dict:
     as_of = datetime(day.year, day.month, day.day, close_h, close_m,
                      tzinfo=KARACHI) + timedelta(minutes=1)
     symbols = load_kmiall()
-    bars, quality = parse_capture(capture, symbols, as_of)
+    bars, raw_quality = parse_capture(capture, symbols, as_of)
+    quality = annotate_source_quality(raw_quality)
     all_5m = {sym: aggregate_5m(rows, datetime(
         day.year, day.month, day.day, *open_time(day),
         tzinfo=KARACHI), as_of) for sym, rows in bars.items()}
@@ -182,40 +298,50 @@ def run_finalize(capture: Path) -> dict:
     except (requests.RequestException, RuntimeError, ValueError):
         observations = []
         storage_status = "unavailable"
-    chosen = None
-    source_snapshot = None
+
+    missing_slots = missing_scan_slots(day, observations)
+    if missing_slots:
+        quality = {**quality, "quality": "degraded",
+                   "reason": "missing scheduled paper observations: " + ", ".join(missing_slots)}
+    candidates: dict[str, dict | None] = {rule: None for rule in CANDIDATE_RULES}
     for record in sorted(observations, key=lambda r: r.get("slot", "")):
         snap = record.get("snapshot", {})
-        candidate = snap.get("candidate")
-        if candidate:
-            chosen = candidate
-            source_snapshot = snap
-            break
+        strategies = snap.get("strategies", {})
+        for rule in CANDIDATE_RULES:
+            candidate = strategies.get(rule, {}).get("candidate")
+            if candidates[rule] is None and candidate:
+                candidates[rule] = candidate
+
+    outcomes_by_rule = {}
+    for rule, candidate in candidates.items():
+        if storage_status != "available":
+            label = {"label": "UNVERIFIABLE", "gross_return": None,
+                     "net_return": None, "minutes_held": None}
+        elif candidate is None:
+            label = {"label": "NO_CANDIDATE", "gross_return": None,
+                     "net_return": None, "minutes_held": None}
+        elif quality.get("quality") != "verified" or candidate["symbol"] not in all_5m:
+            label = {"label": "UNVERIFIABLE", "gross_return": None,
+                     "net_return": None, "minutes_held": None}
+        else:
+            label = label_candidate(candidate, all_5m[candidate["symbol"]])
+        outcomes_by_rule[rule] = {"candidate": candidate, **label}
 
     outcome = {
         "date": day.isoformat(),
-        "candidate": chosen,
-        "market": None if source_snapshot is None else source_snapshot.get("market"),
+        "universe_source": "versioned current KMIALL membership snapshot",
+        "universe_size": len(symbols),
+        "universe_sha256": universe_fingerprint(symbols),
         "data_quality": quality,
         "storage_status": storage_status,
+        "outcomes_by_rule": outcomes_by_rule,
     }
-    if storage_status != "available":
-        outcome.update({"label": "UNVERIFIABLE", "gross_return": None,
-                        "net_return": None, "minutes_held": None,
-                        "reason": "paper observations unavailable from persistent relay"})
-    elif chosen is None:
-        outcome.update({"label": "NO_CANDIDATE", "gross_return": None,
-                        "net_return": None, "minutes_held": None})
-    elif quality.get("quality") != "verified" or chosen["symbol"] not in all_5m:
-        outcome.update({"label": "UNVERIFIABLE", "gross_return": None,
-                        "net_return": None, "minutes_held": None})
-    else:
-        outcome.update(label_candidate(chosen, all_5m[chosen["symbol"]]))
-
     gate = evaluate_gate([])
+    rows = []
     try:
-        daily_record = {"date": day.isoformat(), "sessions": [outcome]}
-        relay_request("POST", "/research/outcome", daily_record)
+        relay_request("POST", "/research/outcome", {
+            "date": day.isoformat(), "sessions": [outcome],
+        })
         history = relay_request("GET", "/research/history")
         rows = history.get("sessions", [])
         if not history.get("complete", True):
@@ -241,7 +367,6 @@ def run_finalize(capture: Path) -> dict:
         "history_sessions": len(rows),
     }, indent=2, allow_nan=False))
     return {"outcome": outcome, "gate": gate}
-
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Causal KMIALL intraday scan")
