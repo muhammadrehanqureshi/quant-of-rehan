@@ -165,7 +165,7 @@ class TestChronologicalIntradayEngine(unittest.TestCase):
         }
         for symbol in ("CCC", "DDD", "EEE"):
             bars[symbol] = make_minute_rows(
-                symbol, 100, [100.01] * 70, day)
+                symbol, 100, [100.15] * 70, day)
         universe = ["AAA", "BBB", "CCC", "DDD", "EEE"]
         snap = scan_snapshot(bars, universe, as_of,
                              {"quality": "verified"})
