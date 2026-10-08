@@ -106,9 +106,9 @@ class TestNextEvent(unittest.TestCase):
 class TestOwnerTexts(unittest.TestCase):
     def test_texts_are_exactly_as_ordered(self):
         self.assertEqual(MSG_MARKET_OPEN,
-                         "Quant is online now.")
+                         "Market is open. Quant is online now.")
         self.assertEqual(MSG_MARKET_CLOSED,
-                         "Quant is sleeping now.")
+                         "Market is closed. Quant is sleeping now.")
 
 
 class TestScheduleRunner(unittest.TestCase):
