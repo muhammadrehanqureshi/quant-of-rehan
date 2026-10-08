@@ -266,12 +266,12 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:gravity="center"
-                android:lineSpacingExtra="6dp"
+                android:lineSpacingExtra="4dp"
                 android:paddingLeft="4dp"
                 android:paddingRight="4dp"
                 android:text="@string/motivation"
                 android:textColor="@color/gold"
-                android:textSize="51sp"/>
+                android:textSize="15sp"/>
         </LinearLayout>
 
         <!-- footer rule: line, diamond, line, ending the frame like the
