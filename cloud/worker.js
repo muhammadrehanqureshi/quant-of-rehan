@@ -258,7 +258,7 @@ export default {
         }
       }
       sessions.sort((a, b) => a.date.localeCompare(b.date));
-      return json({ ok: true, sessions, complete: !listed.list_complete });
+      return json({ ok: true, sessions, complete: Boolean(listed.list_complete) });
     }
 
     if (request.method === "POST" && path === "/research/claim") {
