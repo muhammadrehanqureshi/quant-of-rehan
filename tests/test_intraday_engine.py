@@ -111,7 +111,7 @@ class TestChronologicalIntradayEngine(unittest.TestCase):
         # First 30 one-minute bars define the opening range. A breakout
         # after that range remains at the requested session return.
         a_closes = [100.02] * 65 + [100.0 * (1 + a_return)] * 5
-        b_closes = [100.01 + i * (b_return / 69) for i in range(70)]
+        b_closes = [100.0 + i * (b_return / 69) for i in range(70)]
         a_rows = make_minute_rows("AAA", 100.0, a_closes, day)
         b_rows = make_minute_rows("BBB", 100.0, b_closes, day)
         q = quality or {"quality": "verified", "coverage": 1.0}
