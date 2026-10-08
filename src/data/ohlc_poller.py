@@ -44,6 +44,7 @@ sys.path.insert(0, str(ROOT))
 KARACHI = timezone(timedelta(hours=5))  # SO-8
 
 from src.data.feed_capture import load_universe, UNIVERSE_FILE  # noqa: E402
+from src.data.sessions import is_trading_day  # noqa: E402
 from src.data.capture_health import status_view  # noqa: E402
 from src.data.registry import availability, Availability  # noqa: E402
 
@@ -53,6 +54,7 @@ PACING_SECONDS = 1.3
 MIN_CAPTURE_COVERAGE = 0.80
 CAPTURE_DIR = ROOT / "data" / "feed_capture"
 STATUS_PATH = CAPTURE_DIR / "ohlc_status.json"
+LOW_COVERAGE_FLAG = CAPTURE_DIR / "ohlc_low_coverage.flag"
 
 
 def make_opener() -> urllib.request.OpenerDirector:
@@ -218,6 +220,11 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     symbols = load_universe(args.symbols_file)
+    # PSX holidays and weekends: the cron fires anyway; skip cleanly so the
+    # run stays green and no capture-degraded alert fires (SO-8 calendar).
+    if not is_trading_day(now().date()):
+        print(f"{now():%Y-%m-%d %H:%M} is not a PSX trading day: capture skipped")
+        return 0
     # SO-3: this poller IS the forward-capture path that moves intraday_ohlcv
     # from UNAVAILABLE toward AVAILABLE; until weeks are banked it stays
     # DEGRADED and every consumer must keep labeling it so.
@@ -242,7 +249,18 @@ def main(argv: list[str] | None = None) -> int:
         coverage = poller.counters["symbols_ok"] / max(len(poller.symbols), 1)
         print(f"capture rejected: coverage {coverage:.1%} is below "
               f"{MIN_CAPTURE_COVERAGE:.0%}; no scan or outcome will run")
-        return 1
+        # Owner order 2026-10-08: a thin capture must NOT turn the scheduled
+        # run red (GitHub failure emails per run are unwanted). The run
+        # stays green; the flag file tells the alert step to send ONE
+        # deduped Telegram notice for the day. Data quality stays honest:
+        # the scan step still sees the thin capture and reports it.
+        LOW_COVERAGE_FLAG.parent.mkdir(parents=True, exist_ok=True)
+        LOW_COVERAGE_FLAG.write_text(json.dumps({
+            "ts": now().isoformat(timespec="seconds"),
+            "coverage": round(coverage, 4),
+            "symbols_ok": poller.counters["symbols_ok"],
+            "universe": len(poller.symbols),
+        }, indent=1), encoding="utf-8")
     return 0
 
 

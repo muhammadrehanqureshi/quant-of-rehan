@@ -1,0 +1,119 @@
+#!/usr/bin/env python3
+"""Ops alerts to the owner's Telegram, deduped to one per day.
+
+Owner order 2026-10-08: GitHub failure emails per run are unwanted. The
+scheduled workflows therefore stay GREEN and report through this channel
+instead; the relay's /notify with kind "ops" dedupes on (UTC date, text),
+so repeated failing slots cost at most ONE Telegram message per day.
+
+Also implements the capture-health check: when the intraday capture pass
+cannot substantiate coverage, ohlc_poller leaves
+data/feed_capture/ohlc_low_coverage.flag behind; this script turns that
+flag into exactly one deduped alert and clears the flag. A healthy pass
+leaves no flag and this script stays silent.
+
+Usage (from repo root, CI):
+    python scripts/ops_alert.py --capture-health          # flag-gated
+    python scripts/ops_alert.py --text "daily signal push failed; ..."
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sys
+from pathlib import Path
+
+import requests
+
+ROOT = Path(__file__).resolve().parents[1]
+FLAG = ROOT / "data" / "feed_capture" / "ohlc_low_coverage.flag"
+DEFAULT_RELAY = "https://quant-of-rehan-relay.mrmrehanqureshi.workers.dev"
+
+
+def relay_url() -> str:
+    configured = os.environ.get("RELAY_URL", "").strip()
+    if configured:
+        return configured.rstrip("/")
+    path = ROOT / "data" / "relay_url.txt"
+    if path.is_file():
+        return path.read_text(encoding="utf-8").strip().rstrip("/")
+    return DEFAULT_RELAY
+
+
+def run_url() -> str:
+    repository = os.environ.get("GITHUB_REPOSITORY", "").strip()
+    run_id = os.environ.get("GITHUB_RUN_ID", "").strip()
+    if repository and run_id:
+        return f"\nRun details: https://github.com/{repository}/actions/runs/{run_id}"
+    return ""
+
+
+def capture_health_message() -> str:
+    coverage = ""
+    try:
+        detail = json.loads(FLAG.read_text(encoding="utf-8"))
+        coverage = (f" (coverage {detail.get('coverage', 0):.1%}, "
+                    f"{detail.get('symbols_ok', 0)}/{detail.get('universe', 0)} symbols)")
+    except (OSError, ValueError):
+        pass
+    return (
+        "Quant of Rehan capture degraded"
+        + coverage + ".\n"
+        "The KMIALL intraday data source is not serving bars, so no scan or "
+        "outcome ran for this slot. Paper observations pause; production "
+        "remains disabled. This alert repeats at most once per day."
+        + run_url()
+    )
+
+
+def send(text: str) -> bool:
+    token = os.environ.get("RELAY_ADMIN_TOKEN", "").strip()
+    if not token:
+        print("ops alert skipped: relay admin token is missing")
+        return False
+    try:
+        response = requests.post(
+            relay_url() + "/notify",
+            json={"kind": "ops", "text": text},
+            headers={"x-admin-token": token},
+            timeout=20,
+        )
+        if response.status_code == 200 and response.json().get("ok"):
+            if response.json().get("deduped"):
+                print("ops alert deduped (already sent today)")
+            else:
+                print("ops alert delivered")
+            return True
+        print(f"ops alert delivery failed: HTTP {response.status_code}")
+        return False
+    except (requests.RequestException, ValueError):
+        print("ops alert delivery failed")
+        return False
+
+
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(description="deduped ops alert (one per day)")
+    mode = ap.add_mutually_exclusive_group(required=True)
+    mode.add_argument("--capture-health", action="store_true",
+                      help="alert only if the low-coverage flag exists")
+    mode.add_argument("--text", help="send this deduped ops alert")
+    args = ap.parse_args(argv)
+
+    if args.capture_health:
+        if not FLAG.is_file():
+            print("capture healthy: no alert needed")
+            return 0
+        send(capture_health_message())
+        try:
+            FLAG.unlink()
+        except OSError:
+            pass
+        return 0
+
+    send(args.text)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

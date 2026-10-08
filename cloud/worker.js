@@ -195,8 +195,32 @@ export default {
       }
       const body = await request.json().catch(() => ({}));
       const text = String(body.text || "");
+      const kind = String(body.kind || "signals");
       if (!text) {
         return json({ ok: false, error: "empty text" }, 400);
+      }
+      // Owner order 2026-10-08: scheduled ops alerts (capture degraded,
+      // push retry pending) must cost at most ONE Telegram message per day
+      // per distinct text. kind "ops" dedupes on (UTC date, text); signal
+      // traffic (kind "signals") is deduped upstream by the push journal.
+      if (kind === "ops") {
+        const day = new Date().toISOString().slice(0, 10);
+        let digest = "";
+        try {
+          digest = await crypto.subtle.digest("SHA-256",
+              new TextEncoder().encode(text));
+          digest = Array.from(new Uint8Array(digest)).slice(0, 8)
+              .map((b) => b.toString(16).padStart(2, "0")).join("");
+        } catch (e) {
+          digest = String(text.length);
+        }
+        const alertKey = `ALERT:${day}:${digest}`;
+        const seen = await env.RELAY_KV.get(alertKey);
+        if (seen) return json({ ok: true, deduped: true });
+        await env.RELAY_KV.put(alertKey, "1", { expirationTtl: 172800 });
+        const sent = await tgCall(env, "sendMessage", { chat_id: paired, text });
+        if (sent.ok) return json({ ok: true, deduped: false });
+        return json({ ok: false, error: sent.description || "telegram refused" }, 502);
       }
       const sent = await tgCall(env, "sendMessage", { chat_id: paired, text });
       if (sent.ok) return json({ ok: true });

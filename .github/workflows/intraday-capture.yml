@@ -80,11 +80,11 @@ jobs:
             python scripts/intraday_pipeline.py --scan --slot "$SLOT"
           fi
 
-      - name: Notify owner when capture fails
-        if: failure() && (steps.fetch_capture.outcome == 'failure' || steps.capture_and_scan.outcome == 'failure')
+      - name: Ops alert if capture degraded (deduped, one per day)
+        if: always()
         env:
           RELAY_ADMIN_TOKEN: ${{ secrets.RELAY_ADMIN_TOKEN }}
-        run: python scripts/notify_capture_failure.py
+        run: python scripts/ops_alert.py --capture-health
 
       - name: Retain paper observation
         if: success() && github.event_name == 'schedule' && github.event.schedule != '45 11 * * 1-5' || success() && github.event_name == 'workflow_dispatch' && inputs.slot != '16:45'
