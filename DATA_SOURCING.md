@@ -67,9 +67,18 @@ when labeled degraded. They are never presented as true order flow.
   Credentialed read-only L1 collection is not configured.
 
 ### Path B: Longer-term intraday archive
+- A no-login `pypsx-toolkit` check returned 667 OGDC ticks and 1,192 rows for
+  five liquid KMIALL symbols on 2026-10-08. The returned records covered only
+  that current session, so they do not provide a historical research window.
+  No prices were committed or sent to Cloudflare from this probe.
+- The authenticated pyPSX Trading API documents 1-minute intraday OHLCV from
+  2025-10-20 onward, with a known 2026-06-22 to 2026-06-29 coverage gap. No
+  pyPSX key is configured in this project. Its terms assign the user
+  responsibility for redistribution rights from original sources. Therefore
+  this route is not connected to Cloudflare, Telegram, or the production gate.
 - The 90-day workflow artifacts must be downloaded and consolidated for
-  research before they expire. No historical bars are inferred from daily
-  data, and no local background capture process is required.
+  local research before they expire. No historical bars are inferred from
+  daily data, and no local background capture process is required.
 
 ### Path C: Daily OHLCV backfill (DEGRADED: see §7)
 - ~~PSX Data Portal / CSOR daily files cover years of history~~ The portal
