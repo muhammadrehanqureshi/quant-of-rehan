@@ -18,7 +18,7 @@ import requests
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from src.data.sessions import KARACHI, close_time, is_trading_day, now_karachi
+from src.data.sessions import KARACHI, close_time, open_time, is_trading_day, now_karachi
 from src.research.forward_validation import evaluate_gate, label_candidate
 from src.signals.intraday_engine import (
     aggregate_5m, parse_capture, scan_snapshot,
@@ -89,6 +89,7 @@ def signal_text(candidate: dict, market: dict, data_quality: dict) -> str:
     target = entry * 1.02
     stamp = datetime.fromisoformat(candidate["timestamp"])
     return (
+        f"QoR signals {stamp.date().isoformat()} (Karachi):\n"
         "KMIALL LONG SIGNAL\n\n"
         f"Symbol: {candidate['symbol']}\n"
         f"Entry reference: {entry:.4f} (paper reference, not executable)\n"
@@ -154,8 +155,7 @@ def run_finalize(capture: Path) -> dict:
     symbols = load_kmiall()
     bars, quality = parse_capture(capture, symbols, as_of)
     all_5m = {sym: aggregate_5m(rows, datetime(
-        day.year, day.month, day.day,
-        *(__import__("src.data.sessions", fromlist=["open_time"]).open_time(day)),
+        day.year, day.month, day.day, *open_time(day),
         tzinfo=KARACHI), as_of) for sym, rows in bars.items()}
 
     observations = relay_request(
