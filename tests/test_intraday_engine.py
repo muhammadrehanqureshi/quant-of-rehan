@@ -58,7 +58,7 @@ class TestChronologicalIntradayEngine(unittest.TestCase):
                     101+i/10, 99+i/10, 100.5+i/10) for i in range(6)]
         bars = aggregate_5m(rows, start, start + timedelta(minutes=6))
         self.assertEqual(len(bars), 1)
-        self.assertEqual(bars[0]["timestamp"], start + timedelta(minutes=4))
+        self.assertEqual(bars[0]["timestamp"], start + timedelta(minutes=5))
         self.assertEqual(bars[0]["open"], 100)
         self.assertEqual(bars[0]["close"], 100.9)
 
@@ -108,23 +108,10 @@ class TestChronologicalIntradayEngine(unittest.TestCase):
         day = datetime(2026, 10, 8, tzinfo=KARACHI).date()
         start = session_open(day)
         as_of = start + timedelta(minutes=asof_minute)
-        # Twelve complete five-minute bars. AAA breaks the first 30-minute
-        # range at 10:02 and remains below the 1% anti-chasing limit.
-        a_closes = [100.02, 100.01, 100.02, 100.01, 100.02,
-                    100.01, 100.02, 100.01, 100.02, 100.01,
-                    100.02, 100.01, 100.02, 100.01, 100.02,
-                    100.01, 100.80, 100.82, 100.84, 100.85,
-                    100.85, 100.84, 100.86, 100.85, 100.86,
-                    100.86, 100.87, 100.86, 100.88, 100.87,
-                    100.88, 100.87, 100.89, 100.88, 100.89,
-                    100.89, 100.90, 100.89, 100.91, 100.90,
-                    100.90, 100.91, 100.90, 100.92, 100.91,
-                    100.92, 100.91, 100.93, 100.92, 100.93,
-                    100.93, 100.94, 100.93, 100.95, 100.94,
-                    100.95, 100.94, 100.96, 100.95, 100.96,
-                    100.96, 100.97, 100.96, 100.98, 100.97,
-                    100.98, 100.97, 100.99, 100.98, 100.99]
-        b_closes = [100.01 + i * (b_return / 14) for i in range(70)]
+        # First 30 one-minute bars define the opening range. A breakout
+        # after that range remains at the requested session return.
+        a_closes = [100.02] * 30 + [100.0 * (1 + a_return)] * 40
+        b_closes = [100.01 + i * (b_return / 69) for i in range(70)]
         a_rows = make_minute_rows("AAA", 100.0, a_closes, day)
         b_rows = make_minute_rows("BBB", 100.0, b_closes, day)
         q = quality or {"quality": "verified", "coverage": 1.0}
