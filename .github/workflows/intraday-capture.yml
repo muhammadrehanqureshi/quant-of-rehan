@@ -8,10 +8,24 @@ name: daily KMIALL intraday capture
 # for a scheduled maximum of 1,840 within the 2,000-minute monthly budget.
 on:
   schedule:
-    - cron: "45 5,7,9,11 * * 1-5"
+    - cron: "45 5 * * 1-5"
+    - cron: "45 7 * * 1-5"
+    - cron: "45 9 * * 1-5"
+    - cron: "45 11 * * 1-5"
   workflow_dispatch:
+    inputs:
+      slot:
+        description: "Karachi scan time"
+        type: choice
+        options:
+          - "10:45"
+          - "12:45"
+          - "14:45"
+          - "16:45"
+        default: "10:45"
 
 permissions:
+  actions: read
   contents: read
 
 concurrency:
@@ -22,6 +36,10 @@ jobs:
   capture:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      RELAY_ADMIN_TOKEN: ${{ secrets.RELAY_ADMIN_TOKEN }}
+      GITHUB_TOKEN: ${{ github.token }}
+      GITHUB_REPOSITORY: ${{ github.repository }}
     steps:
       - uses: actions/checkout@v4
 
@@ -29,13 +47,52 @@ jobs:
         with:
           python-version: "3.13"
 
-      - name: Install scan dependencies
+      - name: Install capture and research dependencies
         run: pip install pandas numpy requests
 
       - name: Fetch one complete KMIALL bar pass
         run: |
           mkdir -p data/feed_capture
           python -m src.data.ohlc_poller --symbols-file src/data/universe_kmiall.json --once
+
+      - name: Scan causally or finalize forward outcome
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            SLOT="${{ inputs.slot }}"
+          else
+            case "${{ github.event.schedule }}" in
+              "45 5 * * 1-5") SLOT="10:45" ;;
+              "45 7 * * 1-5") SLOT="12:45" ;;
+              "45 9 * * 1-5") SLOT="14:45" ;;
+              "45 11 * * 1-5") SLOT="16:45" ;;
+              *) echo "Unknown schedule slot"; exit 2 ;;
+            esac
+          fi
+          if [ "$SLOT" = "16:45" ]; then
+            python scripts/intraday_pipeline.py --finalize
+          else
+            python scripts/intraday_pipeline.py --scan --slot "$SLOT"
+          fi
+
+      - name: Retain paper observation
+        if: success() && github.event_name == 'schedule' && github.event.schedule != '45 11 * * 1-5' || success() && github.event_name == 'workflow_dispatch' && inputs.slot != '16:45'
+        uses: actions/upload-artifact@v4
+        with:
+          name: kmiall-observation-${{ github.run_id }}
+          path: data/forward/observation.json
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Retain daily forward-validation result
+        if: success() && github.event.schedule == '45 11 * * 1-5' || success() && github.event_name == 'workflow_dispatch' && inputs.slot == '16:45'
+        uses: actions/upload-artifact@v4
+        with:
+          name: kmiall-forward-${{ github.run_id }}
+          path: |
+            data/forward/daily_outcome.json
+            data/forward/production_gate.json
+          if-no-files-found: error
+          retention-days: 90
 
       - name: Summarize capture
         if: always()

@@ -21,6 +21,12 @@ only. Sole contributor and owner: Rehan (muhammadrehanqureshi).
 - **Telegram delivery through the Cloudflare edge** (SO-9): the scheduled
   GitHub Actions job keeps delivering a clear NO TRADE status to the app and
   Telegram while no candidate engine has passed economic validation.
+- **Intraday paper research**: the scheduled market-hour workflow now runs
+  a chronological one-minute to five-minute KMIALL scanner and stores daily
+  forward outcomes behind a locked production gate. It sends no live signal
+  until the evidence criteria pass. See
+  [INTRADAY_FORWARD_SYSTEM.md](INTRADAY_FORWARD_SYSTEM.md). Cloudflare research
+  routes must be deployed before persistent forward accumulation can begin.
 - **Android companion app** (`android/`, APK on the Desktop, v1.3.0):
   logo-branded dark console showing whether the quant is working, plus
   signal and status notifications on the phone. Polls `/health` and

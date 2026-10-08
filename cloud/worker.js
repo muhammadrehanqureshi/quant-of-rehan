@@ -202,6 +202,92 @@ export default {
       return json({ ok: false, error: sent.description || "telegram refused" }, 502);
     }
 
+    if (path.startsWith("/research/") && !adminOk(request, env)) {
+      return json({ ok: false, error: "admin token required" }, 403);
+    }
+
+    if (request.method === "POST" && path === "/research/observation") {
+      const body = await request.json().catch(() => null);
+      if (!body || !/^\d{4}-\d{2}-\d{2}$/.test(String(body.date || "")) ||
+          !/^\d{2}:\d{2}$/.test(String(body.slot || "")) ||
+          !body.snapshot || typeof body.snapshot !== "object") {
+        return json({ ok: false, error: "invalid observation" }, 400);
+      }
+      const key = `RESEARCH:OBS:${body.date}:${body.slot.replace(":", "")}`;
+      await env.RELAY_KV.put(key, JSON.stringify(body), { expirationTtl: 63072000 });
+      return json({ ok: true, key });
+    }
+
+    if (request.method === "GET" && path === "/research/observations") {
+      const date = url.searchParams.get("date") || "";
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        return json({ ok: false, error: "date required" }, 400);
+      }
+      const listed = await env.RELAY_KV.list({ prefix: `RESEARCH:OBS:${date}:`, limit: 100 });
+      const observations = [];
+      for (const item of listed.keys) {
+        const value = await env.RELAY_KV.get(item.name);
+        if (value) observations.push(JSON.parse(value));
+      }
+      observations.sort((a, b) => a.slot.localeCompare(b.slot));
+      return json({ ok: true, observations });
+    }
+
+    if (request.method === "POST" && path === "/research/outcome") {
+      const body = await request.json().catch(() => null);
+      if (!body || !/^\d{4}-\d{2}-\d{2}$/.test(String(body.date || "")) ||
+          !Array.isArray(body.sessions) || body.sessions.length !== 1) {
+        return json({ ok: false, error: "invalid daily outcome" }, 400);
+      }
+      await env.RELAY_KV.put(`RESEARCH:OUTCOME:${body.date}`, JSON.stringify(body),
+        { expirationTtl: 63072000 });
+      return json({ ok: true });
+    }
+
+    if (request.method === "GET" && path === "/research/history") {
+      const listed = await env.RELAY_KV.list({ prefix: "RESEARCH:OUTCOME:", limit: 1000 });
+      const sessions = [];
+      for (const item of listed.keys) {
+        const value = await env.RELAY_KV.get(item.name);
+        if (!value) continue;
+        try {
+          const row = JSON.parse(value);
+          if (Array.isArray(row.sessions)) sessions.push(...row.sessions);
+        } catch (_) {
+          // Ignore a malformed stored row; the research gate will remain closed.
+        }
+      }
+      sessions.sort((a, b) => a.date.localeCompare(b.date));
+      return json({ ok: true, sessions, complete: Boolean(listed.list_complete) });
+    }
+
+    if (request.method === "POST" && path === "/research/claim") {
+      const body = await request.json().catch(() => null);
+      if (!body || !/^\d{4}-\d{2}-\d{2}$/.test(String(body.date || "")) ||
+          !/^\d{2}:\d{2}$/.test(String(body.slot || ""))) {
+        return json({ ok: false, error: "invalid signal claim" }, 400);
+      }
+      const key = `RESEARCH:SENT:${body.date}`;
+      if (await env.RELAY_KV.get(key)) return json({ ok: true, claimed: false });
+      await env.RELAY_KV.put(key, String(body.slot), { expirationTtl: 86400 });
+      return json({ ok: true, claimed: true });
+    }
+
+    if (request.method === "GET" && path === "/research/gate") {
+      const value = await env.RELAY_KV.get("RESEARCH:PRODUCTION_GATE");
+      return json({ ok: true, gate: value ? JSON.parse(value) : null });
+    }
+
+    if (request.method === "POST" && path === "/research/gate") {
+      const body = await request.json().catch(() => null);
+      if (!body || typeof body.eligible !== "boolean" ||
+          typeof body.status !== "string" || !body.rule_version) {
+        return json({ ok: false, error: "invalid gate record" }, 400);
+      }
+      await env.RELAY_KV.put("RESEARCH:PRODUCTION_GATE", JSON.stringify(body));
+      return json({ ok: true });
+    }
+
     if (request.method === "GET" && path === "/updates") {
       if (!adminOk(request, env)) {
         return json({ ok: false, error: "admin token required" }, 403);
