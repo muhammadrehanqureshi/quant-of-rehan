@@ -34,9 +34,11 @@ public class MainActivity extends Activity {
         prefs = getSharedPreferences("qor", MODE_PRIVATE);
         setContentView(R.layout.activity_main);
 
-        // the owner's chosen face for the motivation quote: FSP DEMO - Liana
-        // (free demo download, bundled as res/font/fsp_demo_liana.otf).
-        scriptFont = getResources().getFont(R.font.fsp_demo_liana);
+        // the owner's chosen face for the motivation quote: Great Vibes
+        // (SIL Open Font License, bundled as res/font/great_vibes_regular.ttf
+        // with its license at android/LICENSES/GreatVibes-OFL.txt). It
+        // replaces the FSP demo face whose glyphs carried a DEMO watermark.
+        scriptFont = getResources().getFont(R.font.great_vibes_regular);
         ((TextView) findViewById(R.id.motivation_text)).setTypeface(scriptFont);
 
         statusPill = findViewById(R.id.status_pill);
