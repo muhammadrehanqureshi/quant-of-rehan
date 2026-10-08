@@ -163,7 +163,11 @@ class TestChronologicalIntradayEngine(unittest.TestCase):
             "AAA": make_minute_rows("AAA", 100, closes_a, day),
             "BBB": make_minute_rows("BBB", 100, closes_b, day),
         }
-        snap = scan_snapshot(bars, ["AAA", "BBB"], as_of,
+        for symbol in ("CCC", "DDD", "EEE"):
+            bars[symbol] = make_minute_rows(
+                symbol, 100, [100.01] * 70, day)
+        universe = ["AAA", "BBB", "CCC", "DDD", "EEE"]
+        snap = scan_snapshot(bars, universe, as_of,
                              {"quality": "verified"})
         self.assertEqual(snap["status"], "NO_TRADE")
         self.assertIn("too close", snap["reason"])
