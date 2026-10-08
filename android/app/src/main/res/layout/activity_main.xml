@@ -264,15 +264,15 @@
             <TextView
                 android:id="@+id/motivation_text"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:gravity="center"
-                android:lineSpacingExtra="4dp"
-                android:paddingLeft="4dp"
-                android:paddingRight="4dp"
+                android:layout_height="wrap_content"                android:gravity="center"
+                android:lineSpacingExtra="6dp"
+                android:paddingLeft="8dp"
+                android:paddingRight="8dp"
                 android:text="@string/motivation"
                 android:textColor="@color/gold"
-                android:textSize="15sp"/>
+                android:textSize="20sp"/>
         </LinearLayout>
+
 
         <!-- footer rule: line, diamond, line, ending the frame like the
              logo plate -->
