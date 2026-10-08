@@ -1,4 +1,4 @@
-"""Push the day's genuine signals to the relay (phone app + Telegram).
+"""Push the daily fail-closed signal status to the relay (app + Telegram).
 
 LOCAL ONLY (SO-4). Reads nothing but the local 5-year dataset and the
 relay URL/admin token (repo .env, SO-5). Delivery path (SO-9):
@@ -6,11 +6,9 @@ relay URL/admin token (repo .env, SO-5). Delivery path (SO-9):
     POST {relay}/signals  {signals: text}   -> phone app card (x-admin-token)
     POST {relay}/notify   {text, kind}      -> Telegram via the worker
 
-HONESTY LABELS (SO-1/SO-3): engine v1 is UNGRADED until Phase 2 lands. The
-Phase 1 matrix showed its FVG-retrace leg fires on only ~4.4k baseline
-trades with NO MAE compression (SC lift -0.15 pp) and its sweep_low leg is
-flat (+0.12 pp entry / -0.07 SC). Every signal therefore travels with the
-UNGRADED caveat and none of this is a trade recommendation.
+READINESS: no rule has demonstrated positive net expectancy under a valid
+one-winner evaluation. Candidate delivery is disabled; the live payload
+states NO TRADE ENGINE READY.
 
 Guardrails:
   - signals are generated for TODAY only after the 15:30 close (the daily
