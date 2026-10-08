@@ -265,12 +265,12 @@
                 android:id="@+id/motivation_text"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"                android:gravity="center"
-                android:lineSpacingExtra="6dp"
+                android:lineSpacingExtra="10dp"
                 android:paddingLeft="8dp"
                 android:paddingRight="8dp"
                 android:text="@string/motivation"
                 android:textColor="@color/gold"
-                android:textSize="20sp"/>
+                android:textSize="34sp"/>
         </LinearLayout>
 
 
