@@ -1,6 +1,6 @@
-# Final Research and Production Audit
+# Research and Production Audit
 
-Audit date: 2026-10-08 (Karachi)
+Original audit snapshot: 2026-10-08 (Karachi), before PR #44. Its daily research results remain historical. The current implementation status is in the addendum at the end of this file.
 
 ## A. Current diagnosis
 
@@ -11,7 +11,7 @@ The project had four material problems:
 3. The Phase 2B cost helper looked at the entry bar's open for a gap-through stop. That open is the entry itself, so it missed stop gaps on that bar and all later bars.
 4. The scheduled "intraday" scanner aggregated all available one-minute bars into a single partial daily candle, then passed it to the daily engine. That is not chronological intraday signal logic.
 
-Production now fails closed: GitHub Actions still captures market data and sends a daily NO TRADE ENGINE READY status to the app and Telegram. The broken intraday scanner and its tests are removed. No order placement or broker execution was added.
+At this original audit snapshot, production failed closed and the broken intraday scanner had been removed. PR #44 later added a chronological paper scanner. No order placement or broker execution was added.
 
 ## B. What the 27% result means
 
@@ -38,7 +38,7 @@ The local five-year file is not fully adjusted for corporate actions. The 60% ad
 | Official market index history | Not available in the research inputs audited | The daily engine's equal-weight stock proxy is not the KMIALL index |
 | Footprint / bid-ask / depth | Unavailable | OHLC cannot be relabeled as order flow |
 
-The scheduled capture stores four daily snapshots at 10:45, 12:45, 14:45, and 16:45 PKT. The scanner does not treat a snapshot as an intraday strategy. Workflow artifacts expire after 90 days, so they need consolidation before expiry to build a durable archive. The scheduled ceiling remains about 1,840 GitHub Actions minutes per 23-weekday month: 1,380 capture minutes plus 460 daily-signal minutes.
+At the original audit snapshot, the scheduled capture stored four daily snapshots at 10:45, 12:45, 14:45, and 16:45 PKT and did not generate intraday candidates. PR #44 later added the chronological scanner and Cloudflare outcome storage. Raw workflow artifacts still expire after 90 days. The scheduled ceiling remains about 1,840 GitHub Actions minutes per 23-weekday month: 1,380 capture minutes plus 460 daily-signal minutes.
 
 ## D. Strategy audit
 
@@ -67,15 +67,15 @@ The major unresolved limitations are current-universe survivorship, incomplete c
 
 ## F. New strategy
 
-No candidate strategy survived the economic and evidence gates. The deployed decision rule is deliberately **NO TRADE** until a rule has a causal entry, validated one-winner selection, realistic costs, and positive OOS expectancy. Captured intraday OHLC is data collection only. There is no claim of 90% accuracy.
+No candidate strategy survived the daily-bar economic and evidence gates in this report. The later intraday candidates are separate paper rules and have not been validated. There is no claim of 90% accuracy.
 
 ## G. One-winner selection
 
-Production emits zero candidates while the engine is disabled. This enforces the daily limit without inventing a ranking. No research ranking tested so far is suitable for production.
+At the original audit snapshot, production emitted zero candidates while the engine was disabled. PR #44 later added a one-winner paper ranking. No research ranking has established production eligibility.
 
 ## H. NO TRADE conditions
 
-The system sends NO TRADE ENGINE READY every scheduled daily evaluation because no validated strategy is enabled. An intraday candidate is never sent from one-minute data until a chronological intraday engine and an adequate historical archive have been validated.
+The daily signal job sends NO TRADE ENGINE READY because no daily-bar strategy is enabled. The later intraday pipeline may send a clearly labeled PAPER SIGNAL; it cannot send a production signal until its own evidence and source gates pass.
 
 ## I. Final OOS results
 
@@ -112,13 +112,23 @@ Slippage sensitivity for this selected set: -0.8514% at 0 bps/side, -0.9481% at 
 
 **NOT READY**
 
-The bot remains active as a cloud-hosted market-data capture and NO TRADE notification service. It is not currently a validated long-signal engine. The minimum missing evidence is a multi-session chronological intraday archive with durable retention, point-in-time KMIALL membership, corporate-action-adjusted daily data, a correct causal intraday label/entry model, and a fresh discovery/validation/untouched-OOS evaluation that clears costs with a deployable one-winner selector.
+The historical findings in this report remain unchanged. The implementation state below supersedes its older scanner and deployment descriptions.
+
+## Current implementation addendum (2026-10-08)
+
+Remote master at the start of the addendum was `d6ef9bb56c050ef293f7ea4d0df688d5f4ac94d9`. PR #44 added a chronological one-minute to five-minute KMIALL paper scanner, persistent observations and outcomes, and a closed statistical gate. A new implementation update preregisters five controlled candidates, excludes invalid sessions, locks chronological OOS, cycles to fresh cohorts after failure, monitors the latest 20 production outcomes, and makes stored observations/outcomes immutable.
+
+The Cloudflare research history is currently empty. The only local capture is the genuine 2026-10-06 session: 32,639 one-minute OHLC bars across 298 symbols. There is no historical intraday sample large enough to evaluate any of the new candidates. The repository's KMIALL universe is a static current-membership file, so it does not provide point-in-time historical membership.
+
+The collector uses an eClear public read-tier endpoint. The source's latency and rights for cloud retention or signal redistribution are not independently verified. Production remains disabled unless the full 60/60/60 evidence gate passes and the GitHub Actions variables `KMIALL_DATA_RIGHTS_CONFIRMED`, `KMIALL_DATA_LATENCY_CONFIRMED`, and `KMIALL_UNIVERSE_CONFIRMED` are true for the full evidence window. Paper messages are explicitly labeled. The official PSX Data Portal states that its own data is delayed five minutes and publishes a data-rights notice; that statement does not certify the separate eClear endpoint.
+
+The 27.487% figure remains the placeholder daily rule's positive-net trade rate. It is not intraday accuracy or evidence for any current candidate. All financial metrics in this historical report remain tied to their listed daily-bar assumptions and bias limitations.
 
 ## Changes in this repair
 
 - Removed the partial-daily-candle scanner and its alert route.
 - Kept scheduled one-minute market data capture and 90-day artifact retention.
-- Disabled candidate delivery and made the daily app/Telegram payload explicitly NO TRADE ENGINE READY.
+- At the original audit snapshot, candidate delivery was disabled and the daily app/Telegram payload was NO TRADE ENGINE READY. Later intraday paper messages are covered by the current implementation addendum.
 - Changed trade-matrix target-before-stop logic to count only a strictly earlier target touch; added same-bar ordering tests.
 - Corrected Phase 2B gap-stop cost logic to use the open of the actual stop-touch bar; added gap-fill regression tests.
 - Corrected README and data-source descriptions to match the running architecture and evidence.

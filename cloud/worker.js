@@ -214,8 +214,10 @@ export default {
         return json({ ok: false, error: "invalid observation" }, 400);
       }
       const key = `RESEARCH:OBS:${body.date}:${body.slot.replace(":", "")}`;
+      const existing = await env.RELAY_KV.get(key);
+      if (existing) return json({ ok: true, key, stored: false, immutable: true });
       await env.RELAY_KV.put(key, JSON.stringify(body), { expirationTtl: 63072000 });
-      return json({ ok: true, key });
+      return json({ ok: true, key, stored: true });
     }
 
     if (request.method === "GET" && path === "/research/observations") {
@@ -239,9 +241,12 @@ export default {
           !Array.isArray(body.sessions) || body.sessions.length !== 1) {
         return json({ ok: false, error: "invalid daily outcome" }, 400);
       }
-      await env.RELAY_KV.put(`RESEARCH:OUTCOME:${body.date}`, JSON.stringify(body),
+      const key = `RESEARCH:OUTCOME:${body.date}`;
+      const existing = await env.RELAY_KV.get(key);
+      if (existing) return json({ ok: true, stored: false, immutable: true });
+      await env.RELAY_KV.put(key, JSON.stringify(body),
         { expirationTtl: 63072000 });
-      return json({ ok: true });
+      return json({ ok: true, stored: true });
     }
 
     if (request.method === "GET" && path === "/research/history") {
