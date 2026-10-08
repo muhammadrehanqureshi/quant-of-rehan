@@ -146,7 +146,7 @@ def aggregate_5m(rows: list[Bar], session_open: datetime, as_of: datetime) -> li
         if [b.timestamp for b in minute_bars] != expected:
             continue
         result.append({
-            "timestamp": minute_bars[-1].timestamp,
+            "timestamp": minute_bars[-1].timestamp + timedelta(minutes=1),
             "open": minute_bars[0].open,
             "high": max(b.high for b in minute_bars),
             "low": min(b.low for b in minute_bars),
