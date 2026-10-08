@@ -112,27 +112,43 @@ def run_scan(slot: str, capture: Path) -> dict:
     snapshot["date"] = as_of.date().isoformat()
     snapshot["slot"] = slot
 
-    gate_result = relay_request("GET", "/research/gate").get("gate")
-    snapshot["production_gate"] = gate_result
-    relay_request("POST", "/research/observation", {
-        "date": snapshot["date"], "slot": slot, "snapshot": snapshot,
-    })
+    gate_result = None
+    storage_status = "available"
+    try:
+        gate_result = relay_request("GET", "/research/gate").get("gate")
+        snapshot["production_gate"] = gate_result
+        relay_request("POST", "/research/observation", {
+            "date": snapshot["date"], "slot": slot, "snapshot": snapshot,
+        })
 
-    candidate = snapshot.get("candidate")
-    if candidate and gate_result and gate_result.get("eligible") is True:
-        claim = relay_request("POST", "/research/claim",
-                              {"date": snapshot["date"], "slot": slot})
-        if claim.get("claimed"):
-            message = signal_text(candidate, compact_market(snapshot), quality)
-            relay_request("POST", "/signals", {"signals": message})
-            relay_request("POST", "/notify", {"text": message, "kind": "signals"})
-            snapshot["live_signal_sent"] = True
+        candidate = snapshot.get("candidate")
+        if candidate and gate_result and gate_result.get("eligible") is True:
+            claim = relay_request("POST", "/research/claim",
+                                  {"date": snapshot["date"], "slot": slot})
+            if claim.get("claimed"):
+                message = signal_text(candidate, compact_market(snapshot), quality)
+                relay_request("POST", "/signals", {"signals": message})
+                relay_request("POST", "/notify", {"text": message, "kind": "signals"})
+                snapshot["live_signal_sent"] = True
+            else:
+                snapshot["live_signal_sent"] = False
+                snapshot["reason"] = "daily one-winner signal already claimed"
         else:
             snapshot["live_signal_sent"] = False
-            snapshot["reason"] = "daily one-winner signal already claimed"
-    else:
+    except (requests.RequestException, RuntimeError, ValueError):
+        # Keep the cloud capture usable even if the research routes have not
+        # yet been deployed. No signal is allowed without the persistent gate.
+        storage_status = "unavailable"
+        gate_result = None
+        snapshot["production_gate"] = {
+            "status": "RESEARCH_NOT_READY", "eligible": False,
+            "live_signal_enabled": False,
+        }
         snapshot["live_signal_sent"] = False
+        snapshot["storage_status"] = storage_status
+        snapshot["reason"] += "; research relay unavailable"
 
+    snapshot["storage_status"] = storage_status
     FORWARD_DIR.mkdir(parents=True, exist_ok=True)
     out = FORWARD_DIR / "observation.json"
     out.write_text(json.dumps(snapshot, indent=2, allow_nan=False), encoding="utf-8")
@@ -158,9 +174,14 @@ def run_finalize(capture: Path) -> dict:
         day.year, day.month, day.day, *open_time(day),
         tzinfo=KARACHI), as_of) for sym, rows in bars.items()}
 
-    observations = relay_request(
-        "GET", f"/research/observations?date={day.isoformat()}",
-    ).get("observations", [])
+    storage_status = "available"
+    try:
+        observations = relay_request(
+            "GET", f"/research/observations?date={day.isoformat()}",
+        ).get("observations", [])
+    except (requests.RequestException, RuntimeError, ValueError):
+        observations = []
+        storage_status = "unavailable"
     chosen = None
     source_snapshot = None
     for record in sorted(observations, key=lambda r: r.get("slot", "")):
@@ -176,8 +197,13 @@ def run_finalize(capture: Path) -> dict:
         "candidate": chosen,
         "market": None if source_snapshot is None else source_snapshot.get("market"),
         "data_quality": quality,
+        "storage_status": storage_status,
     }
-    if chosen is None:
+    if storage_status != "available":
+        outcome.update({"label": "UNVERIFIABLE", "gross_return": None,
+                        "net_return": None, "minutes_held": None,
+                        "reason": "paper observations unavailable from persistent relay"})
+    elif chosen is None:
         outcome.update({"label": "NO_CANDIDATE", "gross_return": None,
                         "net_return": None, "minutes_held": None})
     elif quality.get("quality") != "verified" or chosen["symbol"] not in all_5m:
@@ -186,16 +212,23 @@ def run_finalize(capture: Path) -> dict:
     else:
         outcome.update(label_candidate(chosen, all_5m[chosen["symbol"]]))
 
-    daily_record = {"date": day.isoformat(), "sessions": [outcome]}
-    relay_request("POST", "/research/outcome", daily_record)
-    history = relay_request("GET", "/research/history")
-    rows = history.get("sessions", [])
-    if not history.get("complete", True):
-        raise RuntimeError("research history exceeds worker response limit")
-    if not any(r.get("date") == day.isoformat() for r in rows):
-        rows.append(outcome)
-    gate = evaluate_gate(rows)
-    relay_request("POST", "/research/gate", gate)
+    gate = evaluate_gate([])
+    try:
+        daily_record = {"date": day.isoformat(), "sessions": [outcome]}
+        relay_request("POST", "/research/outcome", daily_record)
+        history = relay_request("GET", "/research/history")
+        rows = history.get("sessions", [])
+        if not history.get("complete", True):
+            raise RuntimeError("research history exceeds worker response limit")
+        if not any(r.get("date") == day.isoformat() for r in rows):
+            rows.append(outcome)
+        gate = evaluate_gate(rows)
+        relay_request("POST", "/research/gate", gate)
+    except (requests.RequestException, RuntimeError, ValueError):
+        storage_status = "unavailable"
+        gate = evaluate_gate([])
+        gate["storage_status"] = storage_status
+        outcome["storage_status"] = storage_status
 
     FORWARD_DIR.mkdir(parents=True, exist_ok=True)
     (FORWARD_DIR / "daily_outcome.json").write_text(
