@@ -20,6 +20,7 @@ sys.path.insert(0, str(ROOT))
 from scripts.phase2b_lib import (  # noqa: E402
     TP_PCT, SL_PCT, label_row, label_frame, headline_block, veto_mask,
     VETO_CUT, rank_and_pick, daily_one_winner, daily_winner_recall,
+    stop_fill_price,
 )
 
 
@@ -92,6 +93,11 @@ class TestLabelRow(unittest.TestCase):
 
     def test_law_constants_frozen(self):
         self.assertEqual((TP_PCT, SL_PCT), (2.0, 1.0))
+
+    def test_gap_through_stop_fills_at_bar_open(self):
+        self.assertAlmostEqual(stop_fill_price(100.0, 97.5), 97.5)
+        self.assertAlmostEqual(stop_fill_price(100.0, 99.2), 99.0)
+        self.assertAlmostEqual(stop_fill_price(100.0, np.nan), 99.0)
 
 
 class TestLabelFrame(unittest.TestCase):
