@@ -55,11 +55,13 @@ jobs:
         run: pip install pandas numpy requests
 
       - name: Fetch one complete KMIALL bar pass
+        id: fetch_capture
         run: |
           mkdir -p data/feed_capture
           python -m src.data.ohlc_poller --symbols-file src/data/universe_kmiall.json --once
 
       - name: Scan causally or finalize forward outcome
+        id: capture_and_scan
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             SLOT="${{ inputs.slot }}"
@@ -77,6 +79,12 @@ jobs:
           else
             python scripts/intraday_pipeline.py --scan --slot "$SLOT"
           fi
+
+      - name: Notify owner when capture fails
+        if: failure() && (steps.fetch_capture.outcome == 'failure' || steps.capture_and_scan.outcome == 'failure')
+        env:
+          RELAY_ADMIN_TOKEN: ${{ secrets.RELAY_ADMIN_TOKEN }}
+        run: python scripts/notify_capture_failure.py
 
       - name: Retain paper observation
         if: success() && github.event_name == 'schedule' && github.event.schedule != '45 11 * * 1-5' || success() && github.event_name == 'workflow_dispatch' && inputs.slot != '16:45'
