@@ -10,7 +10,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from src.signals.signal_push import (  # noqa: E402
-    build_signal_text, relay_has_session_alert, UNGRADED_NOTE,
+    build_signal_text, relay_has_session_alert, NO_TRADE_NOTE,
+    PRODUCTION_SIGNAL_ENABLED,
 )
 from src.signals.engine import Signal  # noqa: E402
 
@@ -28,23 +29,13 @@ def sig(sym="OGDC", date="2026-10-05", close=314.62):
 
 
 class TestSignalPush(unittest.TestCase):
-    def test_text_contains_plan_and_ungraded_note(self):
-        text = build_signal_text([sig()], "2026-10-05")
-        self.assertIn("OBSERVE OGDC", text)
-        self.assertIn("reference entry: next session open", text)
-        self.assertIn("TP +2% from actual entry", text)
-        self.assertIn("SL -1% from actual entry", text)
-        self.assertIn("max hold 3 sessions", text)
-        self.assertNotIn("BUY OGDC", text)
-        self.assertNotIn("TP 320.91", text)
-        self.assertNotIn("SL 311.47", text)
-        self.assertIn("UNGRADED", UNGRADED_NOTE)
-        self.assertIn("UNGRADED", text)
-
-    def test_no_signal_day_is_honest(self):
+    def test_production_is_fail_closed(self):
+        self.assertFalse(PRODUCTION_SIGNAL_ENABLED)
         text = build_signal_text([], "2026-10-05")
-        self.assertIn("No signal today", text)
-        self.assertIn("UNGRADED", text)
+        self.assertIn("NO TRADE", text)
+        self.assertIn("NO TRADE ENGINE READY", text)
+        self.assertIn("research-only", text)
+        self.assertNotIn("OBSERVE OGDC", text)
 
     def test_intraday_result_blocks_daily_card_overwrite(self):
         self.assertTrue(relay_has_session_alert(
