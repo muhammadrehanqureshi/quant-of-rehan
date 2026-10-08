@@ -241,7 +241,9 @@ class TestForwardLabelsAndGate(unittest.TestCase):
         self.assertTrue(gate["eligible"])
         self.assertTrue(gate["window_locked"])
         self.assertEqual(gate["window_sessions"], 180)
-        rows[-1]["net_return"] = -0.10
+        for row in rows[120:]:
+            row["net_return"] = -0.10
+            row["label"] = "SL_FIRST"
         failed = evaluate_gate(rows)
         self.assertFalse(failed["eligible"])
 
