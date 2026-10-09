@@ -8,7 +8,13 @@ Telegram; you read the messages on your phone over your VPN as usual.
 ## What it does
 
 - `GET /health`: liveness, current Karachi wall clock, next open/close event,
-  pairing state
+  pairing state, and `market_open` per the owner's session law (the app shows
+  ONLINE only while that is true)
+- `GET /market` (public): KSE100 points and percentage plus the top three
+  KMIALL stocks by current session volume, parsed from the PSX Data Portal's
+  own pages and cached for five minutes; `POST /market` (admin token)
+  stores a snapshot built by `python -m src.data.market_snapshot --push`,
+  which then takes precedence for five minutes
 - `POST /pair/start` (admin token): finds the chat that last messaged the
   bot, stores a 4-digit code in KV, and sends that code to the chat
 - `POST /pair/confirm` (admin token): `{code}` binds the chat; the bot

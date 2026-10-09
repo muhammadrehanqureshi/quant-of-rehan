@@ -34,7 +34,8 @@ public class StatusService extends Service {
     }
 
     interface Callback {
-        void done(boolean online, String detail, String signals);
+        void done(boolean online, boolean reachable, String detail,
+                  String signals, Watcher.Market market);
     }
 
     static void fetchStatus(Context c, String admin, Callback cb) {
