@@ -9,6 +9,7 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Build;
 
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.BufferedReader;
@@ -16,13 +17,15 @@ import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
  * Talks to the relay on the Cloudflare edge, posts notifications, and keeps
- * the 15-minute watchdog armed. All system questions are answered by the
- * relay; this app never talks to Telegram or the broker (SO-1, SO-9).
+ * the watchdog armed. All system questions are answered by the relay; this
+ * app never talks to Telegram, the broker or the exchange (SO-1, SO-9).
  */
 public final class Watcher {
 
@@ -30,15 +33,39 @@ public final class Watcher {
             "https://quant-of-rehan-relay.mrmrehanqureshi.workers.dev";
     private static final String CHANNEL_STATUS = "system_status";
     private static final String CHANNEL_SIGNALS = "signals";
-    private static final long WATCHDOG_MS = 15 * 60 * 1000;
+
+    // owner order 2026-10-09: the app refreshes the index and the volume
+    // leaders every 5 minutes (was 15)
+    static final long REFRESH_MS = 5 * 60 * 1000;
 
     private static final ExecutorService POOL = Executors.newSingleThreadExecutor();
 
     private Watcher() {
     }
 
+    /** What the app knows about the exchange at this instant. */
+    static final class Market {
+        boolean answered;
+        boolean open;
+        double indexValue = Double.NaN;
+        double indexChange;
+        double indexPct;
+        String indexAsOf = "";
+        int members;
+        /** symbol, volume, price for the day's most traded index members. */
+        final List<String[]> leaders = new ArrayList<>();
+        String basis = "";
+        String note = "";
+        int cacheAgeSeconds = -1;
+
+        boolean hasIndex() {
+            return !Double.isNaN(indexValue);
+        }
+    }
+
     interface Callback {
-        void done(boolean online, String detail, String signals);
+        void done(boolean online, boolean reachable, String detail,
+                  String signals, Market market);
     }
 
     static SharedPreferences prefs(Context c) {
@@ -91,21 +118,79 @@ public final class Watcher {
     }
 
     /**
-     * One fetch round. ONLINE means the relay answered /health; the signals
-     * call never flips the status, it only fills or empties the signal card.
+     * The relay's market card: KSE100 and the day's volume leaders, rebuilt
+     * at most once every five minutes by the relay itself. A failure here
+     * never changes the status badge, it only empties the card.
+     */
+    static Market fetchMarket(String base) {
+        Market market = new Market();
+        try {
+            JSONObject body = get(base + "/market", null);
+            market.answered = body.optBoolean("ok", false);
+            market.open = body.optBoolean("market_open", false);
+            market.cacheAgeSeconds = body.optInt("cache_age_seconds", -1);
+            market.members = body.optInt("kmiall_members", 0);
+            market.basis = body.optString("top_volume_basis", "");
+
+            JSONObject index = body.optJSONObject("index");
+            if (index != null) {
+                market.indexValue = index.optDouble("value", Double.NaN);
+                market.indexChange = index.optDouble("change", 0);
+                market.indexPct = index.optDouble("change_pct", 0);
+                market.indexAsOf = index.optString("as_of", "");
+            }
+
+            JSONArray tops = body.optJSONArray("top_volume");
+            if (tops != null) {
+                for (int i = 0; i < tops.length() && i < 3; i++) {
+                    JSONObject row = tops.optJSONObject(i);
+                    if (row == null) continue;
+                    market.leaders.add(new String[]{
+                            row.optString("symbol", ""),
+                            String.valueOf(row.optLong("volume", 0)),
+                            row.isNull("price") ? "" : String.valueOf(row.optDouble("price")),
+                    });
+                }
+            }
+            JSONArray notes = body.optJSONArray("notes");
+            if (notes != null && notes.length() > 0) {
+                market.note = notes.optString(0, "");
+            }
+            if (body.optBoolean("stale", false)) {
+                market.note = "relay last refreshed earlier: " + market.note;
+            }
+        } catch (Exception e) {
+            market.note = "Market card could not load (" + e.getClass().getSimpleName() + ").";
+        }
+        return market;
+    }
+
+    /**
+     * One fetch round. ONLINE means a live session AND a relay that answers.
+     * The owner's rule (2026-10-09): when the market is closed the app must
+     * say OFFLINE with a red cross, never ONLINE.
      */
     static void fetchStatus(final Context c, final String admin, final Callback cb) {
         POOL.execute(() -> {
             String base = relayUrl(c);
             try {
                 JSONObject health = healthWithRetry(base);
-                boolean online = health.optBoolean("ok", false);
+                boolean reachable = health.optBoolean("ok", false);
+                boolean marketOpen = health.optBoolean("market_open", false);
                 String karachi = health.optString("karachi_now", "");
+                boolean online = reachable && marketOpen;
+
                 // owner order 2026-10-07: the app shows only the Karachi
                 // clock; the next-event line is gone
-                String detail = online
-                        ? "Karachi: " + karachi
-                        : "The relay answered but reported a fault.";
+                String detail;
+                if (!reachable) {
+                    detail = "The relay answered but reported a fault.";
+                } else if (marketOpen) {
+                    detail = "Karachi: " + karachi;
+                } else {
+                    detail = "Karachi: " + karachi
+                            + "\nPSX session closed. Quant is sleeping.";
+                }
 
                 String signals = "";
                 String signalNote = "";
@@ -124,13 +209,15 @@ public final class Watcher {
                 if (!signalNote.isEmpty() && signals.trim().isEmpty()) {
                     signals = signalNote;
                 }
-                cb.done(online, detail, signals);
+                cb.done(online, reachable, detail, signals, fetchMarket(base));
             } catch (Exception e) {
                 String why = e.getClass().getSimpleName();
                 String hint = why.contains("UnknownHost") || why.contains("Connect")
                         ? "No route to the relay from this phone. Check internet or VPN."
                         : "The relay did not answer in time. Will retry.";
-                cb.done(false, hint + " (" + why + ")", "");
+                Market market = new Market();
+                market.note = "Relay unreachable, so the market card is empty.";
+                cb.done(false, false, hint + " (" + why + ")", "", market);
             }
         });
     }
@@ -138,33 +225,32 @@ public final class Watcher {
     /** Watchdog beat: fetch, compare, notify on change or on signals. */
     static void beat(final Context c) {
         final String admin = prefs(c).getString("admin_token", "");
-        fetchStatus(c, admin, (online, detail, signals) -> {
+        fetchStatus(c, admin, (online, reachable, detail, signals, market) -> {
             SharedPreferences p = prefs(c);
-            boolean was = p.getBoolean("last_online", false);
-            if (online != was) {
-                notifyStatus(c, online, detail);
-                p.edit().putBoolean("last_online", online).apply();
-            } else if (online) {
+
+            // The relay's reachability is its own event; a closed market is
+            // not an outage and must never be reported as one.
+            boolean wasReachable = p.getBoolean("last_reachable", true);
+            if (reachable != wasReachable) {
+                notifyStatus(c, reachable);
+                p.edit().putBoolean("last_reachable", reachable).apply();
+            } else if (reachable) {
                 // quiet heartbeat: refresh the "still working" timestamp only
                 p.edit().putLong("last_seen_ms", System.currentTimeMillis()).apply();
             }
+            p.edit().putBoolean("last_online", online).apply();
+            p.edit().putLong("market_fetched_ms", System.currentTimeMillis()).apply();
 
             // owner order 2026-10-08: the app must send EVERY notification,
-            // including market open and close, not only relay up/down. The
-            // market state is derived from the relay's Karachi clock (PSX
-            // session: Mon-Fri 09:30-15:30 PKT, PKT is fixed UTC+5).
-            if (online) {
-                int mkt = marketState(detail);
-                if (mkt >= 0) {
-                    int prev = p.getInt("last_market_open", -1);
-                    if (prev == -1) {
-                        // first reading after install: record silently
-                        p.edit().putInt("last_market_open", mkt).apply();
-                    } else if (mkt != prev) {
-                        notifyMarket(c, mkt == 1, detail);
-                        p.edit().putInt("last_market_open", mkt).apply();
-                    }
-                }
+            // including market open and close, not only relay up/down.
+            int mkt = market.open ? 1 : 0;
+            int prev = p.getInt("last_market_open", -1);
+            if (prev == -1) {
+                // first reading after install: record silently
+                p.edit().putInt("last_market_open", mkt).apply();
+            } else if (mkt != prev) {
+                notifyMarket(c, mkt == 1, detail);
+                p.edit().putInt("last_market_open", mkt).apply();
             }
 
             if (signals.trim().isEmpty()
@@ -185,34 +271,6 @@ public final class Watcher {
         });
     }
 
-    /**
-     * PSX market state from the detail line's Karachi clock
-     * ("Karachi: 2026-10-08 10:48 PKT"). Returns 1 open, 0 closed, -1 when
-     * the clock cannot be parsed. No java.time (API 24 floor): the day of
-     * week comes from Sakamoto's method.
-     */
-    static int marketState(String detail) {
-        if (detail == null) return -1;
-        int k = detail.indexOf("Karachi: ");
-        if (k < 0) return -1;
-        String s = detail.substring(k + "Karachi: ".length()).trim();
-        try {
-            int y = Integer.parseInt(s.substring(0, 4));
-            int mo = Integer.parseInt(s.substring(5, 7));
-            int d = Integer.parseInt(s.substring(8, 10));
-            int hh = Integer.parseInt(s.substring(11, 13));
-            int mm = Integer.parseInt(s.substring(14, 16));
-            int[] t = {0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4};
-            int yy = mo < 3 ? y - 1 : y;
-            int dow = (yy + yy / 4 - yy / 100 + yy / 400 + t[mo - 1] + d) % 7;
-            if (dow == 0 || dow == 6) return 0; // Sun/Sat: closed
-            int mins = hh * 60 + mm;
-            return (mins >= 9 * 60 + 30 && mins < 15 * 60 + 30) ? 1 : 0;
-        } catch (Exception e) {
-            return -1;
-        }
-    }
-
     static void armAlarms(Context c) {
         AlarmManager am = (AlarmManager) c.getSystemService(Context.ALARM_SERVICE);
         Intent i = new Intent(c, PollReceiver.class);
@@ -220,7 +278,7 @@ public final class Watcher {
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         if (am != null) {
             am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP,
-                    System.currentTimeMillis() + WATCHDOG_MS, pi);
+                    System.currentTimeMillis() + REFRESH_MS, pi);
         }
     }
 
@@ -229,10 +287,10 @@ public final class Watcher {
         armAlarms(c);
     }
 
-    private static void notifyStatus(Context c, boolean online, String detail) {
-        String title = online ? "Quant of Rehan: quant is online now."
+    private static void notifyStatus(Context c, boolean reachable) {
+        String title = reachable ? "Quant of Rehan: quant is online now."
                 : "Quant of Rehan: quant unreachable";
-        String text = online ? detail
+        String text = reachable ? "The relay answered again."
                 : "The relay did not answer. Check the PC and the VPN.";
         post(c, CHANNEL_STATUS, "system", 2, title, text);
     }

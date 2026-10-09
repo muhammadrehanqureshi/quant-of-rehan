@@ -253,26 +253,60 @@
                 android:text="@string/btn_arm"/>
         </LinearLayout>
 
-        <!-- the owner's words, cursive, centered in whatever screen is left -->
-        <LinearLayout
+        <!-- ══════════ market now card (owner order 2026-10-09) ══════════
+             Third box, same shape as the two above: KSE100 points and
+             percentage plus the day's top three KMIALL stocks by volume,
+             rebuilt by the relay every five minutes. -->
+        <LinearLayout style="@style/QorPanel"
             android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1"
-            android:gravity="center"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
             android:orientation="vertical">
 
-            <TextView
-                android:id="@+id/motivation_text"
+            <TextView style="@style/QorLabel"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"                android:gravity="center"
-                android:lineSpacingExtra="8dp"
-                android:paddingLeft="8dp"
-                android:paddingRight="8dp"
-                android:text="@string/motivation"
-                android:textColor="@color/gold"
-                android:textSize="27sp"/>
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:text="@string/label_market"/>
+
+            <TextView
+                android:id="@+id/market_index"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:gravity="center"
+                android:text="@string/market_waiting"
+                android:textColor="@color/text_bright"
+                android:textSize="17sp"
+                android:textStyle="bold"/>
+
+            <TextView
+                android:id="@+id/market_leaders"
+                style="@style/QorBody"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:gravity="center"
+                android:lineSpacingExtra="3dp"
+                android:text="@string/market_leaders_waiting"/>
+
+            <TextView
+                android:id="@+id/market_foot"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:gravity="center"
+                android:textColor="@color/text_soft"
+                android:textSize="10sp"/>
         </LinearLayout>
 
+
+        <!-- spacer: keeps the closing rule at the bottom of the screen now
+             that the quote panel (which used to take the slack) is gone -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"/>
 
         <!-- footer rule: line, diamond, line, ending the frame like the
              logo plate -->

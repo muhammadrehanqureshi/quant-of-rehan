@@ -7,12 +7,19 @@ Cloudflare relay, never to Telegram, never to a broker.
 
 ## What it shows
 
-- A live status card: ONLINE when the relay (and behind it, the whole
-  pipeline) answers, with the relay's Karachi clock (v1.3.0 dropped the
-  next-event line by owner order).
+- A live status card: ONLINE when a session is live AND the relay answers,
+  with the relay's Karachi clock (v1.3.0 dropped the next-event line by
+  owner order). Outside the session, and on weekends and PSX holidays, the
+  pill shows OFFLINE with a red cross: a closed market is never reported as
+  ONLINE (owner order 2026-10-09).
 - A signals panel fed by the relay's `/signals` feed (admin token required,
   stored once in the app).
-- Phone notifications on status changes and new signals, checked every 15
+- A MARKET NOW card (v1.5.0, replacing the motivational panel): the KSE100
+  index with its points and percentage, then the three KMIALL stocks with
+  the highest current session volume, each with its volume and price. The
+  relay builds it from the PSX Data Portal's own pages and caches it for
+  five minutes, so the card is at most five minutes old.
+- Phone notifications on status changes and new signals, refreshed every 5
   minutes by a watchdog that re-arms itself and survives phone restarts.
 
 ## Branding
@@ -54,8 +61,13 @@ with zipfile.ZipFile(f"{B}/app.apk", "a", zipfile.ZIP_DEFLATED) as z:
 PY
 "$JDK/bin/java" -jar $TOOLS/uber-apk-signer.jar -a $B/app.apk --out $B/signed
 cp $B/signed/app-aligned-debugSigned.apk \
-  /c/Users/rehan/OneDrive/Desktop/QuantOfRehan-v1.3.0.apk
+  /c/Users/rehan/OneDrive/Desktop/QuantOfRehan-v1.5.0.apk
 ```
+
+The Always Classy face (res/font/always_classy.ttf, licence in
+android/LICENSES/) was bundled for the motivational panel. That panel is
+gone as of v1.5.0, so the font is no longer referenced by any layout; it is
+kept in the tree with its licence rather than deleted.
 
 The APK is signed with the local debug key (v2+v3), which is enough for
 direct installation on the owner's phone. Install: copy the APK to the
