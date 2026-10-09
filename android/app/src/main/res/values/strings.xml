@@ -9,10 +9,14 @@
     <string name="label_system">SYSTEM STATUS</string>
     <string name="label_signal">LATEST SIGNAL</string>
     <string name="label_settings">SETTINGS</string>
-    <string name="motivation">Don\'t worry, Mr. Rehan. Nothing is permanent. Market will move down and will move up as well. Allah SWT is with you and Insha\'a\'Allah, your portfolio will rise exponentially. Just keep working hard and trade with analysis not with emotions. Also, keep making your trades better each time.</string>
+    <string name="label_market">MARKET NOW</string>
+    <string name="market_waiting">KSE100  ·  loading</string>
+    <string name="market_leaders_waiting">Top three by volume load with the next refresh.</string>
+    <string name="market_none_yet">No KMIALL stock has traded yet this session.</string>
+    <string name="market_unavailable">Volume leaders unavailable right now.</string>
     <string name="token_hint">relay admin token</string>
     <string name="btn_save">Save token</string>
     <string name="btn_relay">Relay status</string>
-    <string name="btn_arm">Arm 15-minute watchdog</string>
-    <string name="settings_hint">Paste the relay admin token once to receive signals. The app checks the system every 15 minutes; on some phones also allow autostart and remove battery limits.</string>
+    <string name="btn_arm">Arm 5-minute watchdog</string>
+    <string name="settings_hint">Paste the relay admin token once to receive signals. The app refreshes the system status, the KSE100 index and the day\'s top three volume leaders every 5 minutes; on some phones also allow autostart and remove battery limits.</string>
 </resources>

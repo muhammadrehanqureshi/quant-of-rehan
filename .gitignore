@@ -34,3 +34,6 @@ desktop.ini
 
 # --- Android build outputs ---
 android/app/build/
+
+# --- Local tool output (worker_check.py harness) ---
+/tmp/

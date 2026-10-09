@@ -41,10 +41,13 @@ momentum plus volume acceleration, one trade a day, +2% target.
   SCAN BLOCKED with measured coverage and never a market verdict. See
   [DATA_SOURCING.md](DATA_SOURCING.md) and
   [INTRADAY_FORWARD_SYSTEM.md](INTRADAY_FORWARD_SYSTEM.md).
-- **Android companion app** (`android/`, APK on the Desktop, v1.3.0):
-  logo-branded dark console showing whether the quant is working, plus
-  signal and status notifications on the phone. Polls `/health` and
-  `/signals` on the edge, 15-minute watchdog, survives reboot.
+- **Android companion app** (`android/`, APK on the Desktop, v1.5.0):
+  logo-branded dark console showing whether the quant is working, the latest
+  signal, and the market right now (KSE100 points and percentage plus the
+  day's top three KMIALL stocks by volume, from the PSX Data Portal through
+  the relay). Polls `/health`, `/signals` and `/market` on the edge every 5
+  minutes, survives reboot, and shows OFFLINE with a red cross whenever the
+  session is closed.
 
 ## The app
 
@@ -53,11 +56,14 @@ momentum plus volume acceleration, one trade a day, +2% target.
 </p>
 
 The console opens with the brand mark centered between gold rules, the
-live status card ("Quant is working." with the Karachi clock), the latest
-signal, the owner's reminder in the quiet of the screen, and the diamond
-rule closing the frame at the bottom. The launcher icon mirrors the logo's
-diamond-and-rule motif above AND below the candles at the same distance
-(v1.3.0).
+live status card (with the Karachi clock), the latest signal, and the
+MARKET NOW card: KSE100 points and percentage, then the three most traded
+KMIALL stocks with their volume and price, refreshed every 5 minutes. The
+motivational panel was retired by owner order on 2026-10-09 and its place
+is taken by that card. The status pill shows a green check while a session
+is live and a red cross otherwise, so a closed market is never reported as
+ONLINE. The launcher icon mirrors the logo's diamond-and-rule motif above
+AND below the candles at the same distance (v1.3.0).
 - **Governance guard** in CI: secret scan, footprint honesty, owner-only
   commit identity, human-style enforcement, Karachi-pin check, and the
   schedule checks in `tests/test_rebuild_schedule.py`.
@@ -104,6 +110,7 @@ src/signals/trade_state.py  the ONE persisted daily state and trade lock
 scripts/intraday_pipeline.py      scheduled orchestrator (scan, finalize)
 src/data/sessions.py        Karachi-pinned clock, session law, owner texts
 src/data/psx_daily_downloads.py   PSX Daily Downloads fetcher/parser
+src/data/market_snapshot.py       KSE100 + KMIALL volume leaders (app card)
 src/data/corpus.py          legacy eod_corpus.json loader
 src/backtest/engine.py      TP/SL engine (conservative fills, invalid screen)
 src/backtest/walkforward.py rolling-origin folds + leakage assertions
@@ -115,6 +122,7 @@ android/                    companion app source (signals + status on phone)
 scripts/build_eod_history.py  resumable 5-year dataset crawler
 scripts/entry_metrics.py    MAE/MFE, time-to-target and horizon study
 scripts/check_governance.py secret, style, identity and SO-8 enforcement
+tools/worker_check.py       runs cloud/worker.js in a browser engine (no Node)
 legacy/                     quarantined code from the deleted sentinel repos
 data/                       gitignored: datasets, journals, relay url
 ```
@@ -179,10 +187,11 @@ then monitor and sleep.
   No edge claim; the stop/TP grid is banked pending the owner's review.
 - Production stays disabled until the frozen paper gate opens: the rebuilt
   cycle must accumulate genuine sessions first.
-  App v1.3.0: centered brand header, "Quant is working." status line,
-  motivational panel, framed dividers top and bottom, mirrored icon
-  motif, "Quant is online/sleeping now." texts on the edge crons and
-  relay.
+  App v1.5.0: centered brand header, framed dividers top and bottom,
+  mirrored icon motif, "Quant is online/sleeping now." texts on the edge
+  crons and relay, and the MARKET NOW card (KSE100 plus the day's top three
+  KMIALL volume leaders from the PSX Data Portal, refreshed every five
+  minutes, with OFFLINE and a red cross outside a live session).
 - Historical intraday coverage is not sufficient: only one captured session
   (2026-10-06) is available in the local audit. GitHub Actions retains capture
   artifacts for 90 days. No historical minute-bar signal validation exists.
