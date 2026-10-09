@@ -10,7 +10,16 @@ broker's public read tier (no session, no credentials, GET only):
 Each response carries the FULL day's 1-minute bars for the symbol (rows
 `SYM;REG;open;high;low;close;HH:MM` joined by '|'), so even a slow rotation
 never loses bars: every pass re-fetches the whole day and only new bar times
-are banked.
+are banked. That is why the 16:45 PKT pass (after the close) is essential: it
+is the pass the end-of-day finalize step reads, and it must be allowed to
+fetch the finished session rather than be skipped as "outside hours".
+
+When the source has no bars to serve it answers HTTP 200 with a bare
+`SYM;MKT;` acknowledgement instead of data (measured live 2026-10-09 during
+the session, for every symbol, interval, market, header and cookie variant).
+That envelope is rejected as a failed symbol, so symbol coverage collapses,
+the low-coverage flag is written, and no scan or outcome can run - the
+capture path stays fail-closed and never invents bars.
 
 These hosts reject the default Python TLS hello; they accept a legacy
 SECLEVEL=1 context (verified live 2026-10-06). Requests are paced 1.2s+.
@@ -24,12 +33,14 @@ Usage (from repo root):
     python -m src.data.ohlc_poller --once           # one full pass, exit
     python -m src.data.ohlc_poller --limit 5        # first N symbols only
     python -m src.data.ohlc_poller --status          # show heartbeat health
+    python -m src.data.ohlc_poller --probe OGDC      # ask the source now, print what it really returns
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import ssl
 import sys
@@ -41,7 +52,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-KARACHI = timezone(timedelta(hours=5))  # SO-8
+# SO-8: every timestamp this poller writes is Karachi wall clock, i.e.
+# Asia/Karachi UTC+5, pinned here as a fixed offset (no DST in Karachi).
+KARACHI = timezone(timedelta(hours=5))  # Asia/Karachi = UTC+5, SO-8
 
 from src.data.feed_capture import load_universe, UNIVERSE_FILE  # noqa: E402
 from src.data.sessions import is_trading_day  # noqa: E402
@@ -65,21 +78,47 @@ def make_opener() -> urllib.request.OpenerDirector:
     return urllib.request.build_opener(urllib.request.HTTPSHandler(context=ctx))
 
 
-def fetch_bars(opener: urllib.request.OpenerDirector, symbol: str,
-               interval: int = 1) -> list[dict] | None:
-    """Return [{t,o,h,l,c}] for today, or None on failure."""
+def fetch_body(opener: urllib.request.OpenerDirector, symbol: str,
+               interval: int = 1) -> tuple[str, bytes] | None:
+    """Return (host, raw_body) from the first mirror that answers, or None."""
     for host in OHLC_HOSTS:
         url = (f"https://{host}{OHLC_PATH}?scrip={symbol}"
                f"&market=REG&check=symbol&interval={interval}")
         try:
             req = urllib.request.Request(url, headers={"User-Agent": "okhttp/4.9.0"})
             with opener.open(req, timeout=15) as resp:
-                text = resp.read().decode("utf-8", "replace")
-            break
+                return host, resp.read()
         except OSError:
             continue
-    else:
+    return None
+
+
+def acknowledged_without_bars(text: str) -> bool:
+    """True for the source's bare "SYM;MKT;" envelope, which carries no bars.
+
+    Measured live on 2026-10-09, inside the Friday session: the servlet
+    answers HTTP 200 and echoes "<scrip>;<market>;" with zero OHLC rows for
+    every symbol (even a nonexistent scrip), every interval, every market
+    value, every header set and with and without cookies. That envelope is a
+    rejection, never an empty set of genuine bars, so a pass receiving it
+    must count the symbol as failed and leave the coverage gate closed.
+    """
+    rows = [row.strip() for row in text.split("|") if row.strip()]
+    if not rows:
+        return True
+    return len(rows) == 1 and rows[0].count(";") == 2 and rows[0].endswith(";")
+
+
+def fetch_bars(opener: urllib.request.OpenerDirector, symbol: str,
+               interval: int = 1) -> list[dict] | None:
+    """Return [{t,o,h,l,c}] for today, or None when the source serves no bars."""
+    fetched = fetch_body(opener, symbol, interval)
+    if fetched is None:
         return None
+    text = fetched[1].decode("utf-8", "replace")
+    if acknowledged_without_bars(text):
+        return None
+
     bars = []
     for row in text.split("|"):
         parts = row.strip().split(";")
@@ -87,11 +126,14 @@ def fetch_bars(opener: urllib.request.OpenerDirector, symbol: str,
         if len(parts) != 7 or parts[0] != symbol:
             continue
         try:
-            bars.append({"t": parts[6], "o": float(parts[2]),
-                         "h": float(parts[3]), "l": float(parts[4]),
-                         "c": float(parts[5])})
+            values = [float(parts[i]) for i in (2, 3, 4, 5)]
         except ValueError:
             continue
+        # NaN/Inf are parseable but are not prices; never bank them.
+        if not all(math.isfinite(value) for value in values):
+            continue
+        bars.append({"t": parts[6], "o": values[0], "h": values[1],
+                     "l": values[2], "c": values[3]})
     return bars or None
 
 
@@ -209,7 +251,35 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--symbols-file", type=Path, default=UNIVERSE_FILE)
     parser.add_argument("--status", action="store_true",
                         help="print the saved heartbeat and its liveness")
+    parser.add_argument("--probe", metavar="SYMBOL", default=None,
+                        help="one read-only source check: report exactly what the "
+                             "endpoint returns for SYMBOL, then exit")
     args = parser.parse_args(argv)
+
+    if args.probe:
+        # Honest source check: report what the source really returned, and
+        # never let a bare acknowledgement count as a healthy capture.
+        probe = args.probe.strip().upper()
+        opener = make_opener()
+        fetched = fetch_body(opener, probe)
+        if fetched is None:
+            print(f"probe {probe}: no mirror answered: NOT capturing")
+            return 1
+        host, raw = fetched
+        text = raw.decode("utf-8", "replace")
+        if acknowledged_without_bars(text):
+            print(f"probe {probe}: {host} answered HTTP 200 with the bare "
+                  f"acknowledgement {text.strip()!r} and zero bar rows: "
+                  f"NOT capturing (the source is serving no OHLC)")
+            return 1
+        bars = fetch_bars(opener, probe)
+        if not bars:
+            print(f"probe {probe}: {host} answered {len(raw)}B with no usable row "
+                  f"for this symbol: NOT capturing")
+            return 1
+        print(f"probe {probe}: {host} served {len(bars)} bar row(s), "
+              f"first={bars[0]['t']} last={bars[-1]['t']}")
+        return 0
 
     if args.status:
         if not STATUS_PATH.is_file():

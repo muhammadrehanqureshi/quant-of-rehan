@@ -1,9 +1,20 @@
-"""Causal intraday candidate generation from timestamped one-minute OHLC.
+"""RETIRED SCANNER (rebuild 2026-10-09). Do not use for signals.
 
-This is a paper-research engine. It preserves chronology, builds only closed
-five-minute bars, rejects stale or malformed data, applies a broad-market gate,
-and returns at most one ranked long candidate. It never places an order and
-does not use volume because the captured feed does not contain it.
+This was the opening-range breakout candidate library. It is no longer an
+active scanner: the ONE authoritative scanner is
+src/signals/momentum_scanner.py, which scores fast momentum, momentum
+acceleration and volume expansion, as the owner specified.
+
+Why the file still exists: src/research/forward_validation.py (the frozen
+paper-validation gate) imports the rule constants below. Nothing else in the
+scheduled system imports this module, and no code path here can emit a
+signal any more. Its tests were quarantined to
+legacy/retired_scanners/test_intraday_engine_retired.py.
+
+History: it preserves chronology, builds only closed five-minute bars,
+rejects stale or malformed data, applies a broad-market gate, and returned at
+most one ranked long candidate. It never placed an order and did not use
+volume because the captured feed does not contain it.
 """
 from __future__ import annotations
 

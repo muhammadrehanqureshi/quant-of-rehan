@@ -1,49 +1,65 @@
-name: daily KMIALL intraday capture
+name: KMIALL intraday momentum scan
 
-# UTC+5 schedule: 10:45, 12:45 Mon-Thu, 14:45, and 16:45 PKT.
-# Friday's split-session break skips 12:45. Scans deliver clearly labeled
-# paper observations; production messages remain gated by frozen evidence.
-# At most 92
-# runs x 15 minutes = 1,380 minutes in a
-# 23-weekday month. The daily signal workflow is capped at 460 more minutes,
-# for a scheduled maximum of 1,840 within the 2,000-minute monthly budget.
+# Rebuild 2026-10-09. Karachi is UTC+5 (SO-8), so every cron below is the
+# UTC form of a Karachi wall-clock time:
+#
+#   05:00 UTC = 10:00 PKT   scan (inside Mon-Thu 09:32-15:30 and Fri 09:17-16:30)
+#   06:30 UTC = 11:30 PKT   scan (inside both sessions)
+#   08:00 UTC = 13:00 PKT   scan (inside both sessions)
+#   09:30 UTC = 14:30 PKT   scan (inside both sessions)
+#   11:00 UTC = 16:00 PKT   scan (Friday only, inside the Friday session)
+#   10:45 UTC = 15:45 PKT   finalize (Mon-Thu, strictly after the 15:30 close)
+#   11:45 UTC = 16:45 PKT   finalize (Friday, strictly after the 16:30 close)
+#
+# The scan never starts outside the session, and the finalize never starts
+# before the close. tests/test_rebuild_schedule.py re-derives every one of
+# these conversions and fails the build if a cron ever drifts.
+#
+# Budget: 5 scans plus 1 finalize per weekday, 10 minutes each at most, is
+# about 1,300 minutes a month, inside the 2,000 minute monthly ceiling.
+
 on:
   schedule:
-    - cron: "45 5 * * 1-5"
-    - cron: "45 7 * * 1-4"
-    - cron: "45 9 * * 1-5"
-    - cron: "45 11 * * 1-5"
+    - cron: "0 5 * * 1-5"
+    - cron: "30 6 * * 1-5"
+    - cron: "0 8 * * 1-5"
+    - cron: "30 9 * * 1-5"
+    - cron: "0 11 * * 5"
+    - cron: "45 10 * * 1-4"
+    - cron: "45 11 * * 5"
   workflow_dispatch:
     inputs:
       slot:
-        description: "Karachi scan time"
+        description: "Karachi scan slot, or finalize"
         type: choice
         options:
-          - "10:45"
-          - "12:45"
-          - "14:45"
-          - "16:45"
-        default: "10:45"
+          - "10:00"
+          - "11:30"
+          - "13:00"
+          - "14:30"
+          - "16:00"
+          - "finalize"
+        default: "10:00"
 
 permissions:
   actions: read
   contents: read
 
 concurrency:
-  group: intraday-capture
+  group: intraday-momentum
   cancel-in-progress: false
 
 jobs:
-  capture:
+  scan:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     env:
       RELAY_ADMIN_TOKEN: ${{ secrets.RELAY_ADMIN_TOKEN }}
       KMIALL_DATA_RIGHTS_CONFIRMED: ${{ vars.KMIALL_DATA_RIGHTS_CONFIRMED }}
       KMIALL_DATA_LATENCY_CONFIRMED: ${{ vars.KMIALL_DATA_LATENCY_CONFIRMED }}
       KMIALL_UNIVERSE_CONFIRMED: ${{ vars.KMIALL_UNIVERSE_CONFIRMED }}
-      GITHUB_TOKEN: ${{ github.token }}
-      GITHUB_REPOSITORY: ${{ github.repository }}
+      PAPER_TRADING_ENABLED: "true"
+      LIVE_TRADING_ENABLED: "false"
     steps:
       - uses: actions/checkout@v4
 
@@ -51,62 +67,43 @@ jobs:
         with:
           python-version: "3.13"
 
-      - name: Install capture and research dependencies
+      - name: Install dependencies
         run: pip install pandas numpy requests
 
       - name: Fetch one complete KMIALL bar pass
-        id: fetch_capture
         run: |
-          mkdir -p data/feed_capture
+          mkdir -p data/feed_capture data/forward
           python -m src.data.ohlc_poller --symbols-file src/data/universe_kmiall.json --once
 
-      - name: Scan causally or finalize forward outcome
-        id: capture_and_scan
+      - name: Scan the whole KMIALL universe, or finalize the session
         run: |
+          SLOT=""
+          FINALIZE=""
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            SLOT="${{ inputs.slot }}"
+            if [ "${{ inputs.slot }}" = "finalize" ]; then FINALIZE="1"; else SLOT="${{ inputs.slot }}"; fi
           else
             case "${{ github.event.schedule }}" in
-              "45 5 * * 1-5") SLOT="10:45" ;;
-              "45 7 * * 1-5") SLOT="12:45" ;;
-              "45 9 * * 1-5") SLOT="14:45" ;;
-              "45 11 * * 1-5") SLOT="16:45" ;;
-              *) echo "Unknown schedule slot"; exit 2 ;;
+              "0 5 * * 1-5") SLOT="10:00" ;;
+              "30 6 * * 1-5") SLOT="11:30" ;;
+              "0 8 * * 1-5") SLOT="13:00" ;;
+              "30 9 * * 1-5") SLOT="14:30" ;;
+              "0 11 * * 5") SLOT="16:00" ;;
+              "45 10 * * 1-4") FINALIZE="1" ;;
+              "45 11 * * 5") FINALIZE="1" ;;
+              *) echo "unknown schedule"; exit 2 ;;
             esac
           fi
-          if [ "$SLOT" = "16:45" ]; then
+          if [ -n "$FINALIZE" ]; then
             python scripts/intraday_pipeline.py --finalize
           else
             python scripts/intraday_pipeline.py --scan --slot "$SLOT"
           fi
 
-      - name: Ops alert if capture degraded (deduped, one per day)
+      - name: Ops alert if the capture was degraded (deduped, one per day)
         if: always()
-        env:
-          RELAY_ADMIN_TOKEN: ${{ secrets.RELAY_ADMIN_TOKEN }}
         run: python scripts/ops_alert.py --capture-health
 
-      - name: Retain paper observation
-        if: success() && github.event_name == 'schedule' && github.event.schedule != '45 11 * * 1-5' || success() && github.event_name == 'workflow_dispatch' && inputs.slot != '16:45'
-        uses: actions/upload-artifact@v4
-        with:
-          name: kmiall-observation-${{ github.run_id }}
-          path: data/forward/observation.json
-          if-no-files-found: error
-          retention-days: 90
-
-      - name: Retain daily forward-validation result
-        if: success() && github.event.schedule == '45 11 * * 1-5' || success() && github.event_name == 'workflow_dispatch' && inputs.slot == '16:45'
-        uses: actions/upload-artifact@v4
-        with:
-          name: kmiall-forward-${{ github.run_id }}
-          path: |
-            data/forward/daily_outcome.json
-            data/forward/production_gate.json
-          if-no-files-found: error
-          retention-days: 90
-
-      - name: Summarize capture
+      - name: Summarize the scan
         if: always()
         run: |
           python - <<'PY'
@@ -114,31 +111,48 @@ jobs:
           import os
           from pathlib import Path
 
-          path = Path("data/feed_capture/ohlc_status.json")
+          path = Path("data/forward/observation.json")
           if not path.exists():
-              summary = "Capture status was not produced. Check the failed run."
+              summary = "No observation was produced. Check the failed run."
           else:
-              status = json.loads(path.read_text(encoding="utf-8"))
-              counters = status.get("counters", {})
-              summary = (
-                  f"Date: {status.get('started_at', 'unknown')}\n\n"
-                  f"Symbols with data: {counters.get('symbols_ok', 0)}\n\n"
-                  f"Symbols without data: {counters.get('symbols_err', 0)}\n\n"
-                  f"One-minute bars banked: {counters.get('bars', 0)}\n\n"
-                  f"Errors: {counters.get('errors', 0)}"
-              )
-          with open(Path(os.environ["GITHUB_STEP_SUMMARY"]), "a", encoding="utf-8") as output:
-              output.write("## Intraday capture\n\n" + summary + "\n")
+              snap = json.loads(path.read_text(encoding="utf-8"))
+              quality = snap.get("data_quality", {})
+              state = snap.get("trade_state", {})
+              lines = [
+                  f"Status: {snap.get('status')}",
+                  f"Slot: {snap.get('slot')}",
+                  f"Reason: {snap.get('reason')}",
+                  f"KMIALL coverage: {quality.get('symbols_with_bars')}/"
+                  f"{quality.get('symbols_expected')} "
+                  f"({quality.get('coverage')})",
+                  f"Volume available: {quality.get('volume_available')}",
+                  f"Eligible candidates: {snap.get('eligible_count')}",
+                  f"Trade state: {state.get('state')}",
+                  f"Trades taken today: {state.get('trades_today')}",
+              ]
+              candidate = snap.get("candidate")
+              if candidate:
+                  lines.append(
+                      f"Candidate: {candidate.get('symbol')} score "
+                      f"{candidate.get('score')}")
+              summary = "\n".join(f"- {line}" for line in lines)
+          with open(Path(os.environ["GITHUB_STEP_SUMMARY"]), "a",
+                    encoding="utf-8") as output:
+              output.write("## KMIALL momentum scan\n\n" + summary + "\n")
           PY
 
-      - name: Retain captured bars and status
+      - name: Retain the session record, gate and captured bars
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: kmiall-intraday-${{ github.run_id }}
+          name: kmiall-session-${{ github.run_id }}
           path: |
+            data/forward/observation.json
+            data/forward/daily_outcome.json
+            data/forward/production_gate.json
+            data/forward/session_journal.jsonl
+            data/forward/session_state.json
             data/feed_capture/ohlc_*.ndjson
             data/feed_capture/ohlc_status.json
           if-no-files-found: warn
           retention-days: 90
-
