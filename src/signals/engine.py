@@ -1,4 +1,11 @@
-"""Signal engine v1: FVG / liquidity-sweep / auction layers on daily bars.
+"""DEPRECATED daily-bar research engine (FVG / sweep / auction). Not a live scanner.
+
+Rebuild 2026-10-09: the ONE authoritative intraday scanner is
+src/signals/momentum_scanner.py. This module is research-only history: the
+concepts it encodes (liquidity sweeps, fair value gaps, market structure) are
+retired from the trading path and must never be reintroduced as filters.
+It still feeds the local research scripts and the daily EOD status push,
+which reports NO TRADE while the rebuilt paper cycle accumulates sessions.
 
 Implements the pre-registered definitions of RESEARCH_AUDIT.md sections 5,
 6 and 12, with the leakage rules of section 10:

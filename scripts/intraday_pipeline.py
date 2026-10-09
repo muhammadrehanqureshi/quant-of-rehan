@@ -1,8 +1,28 @@
 #!/usr/bin/env python3
-"""Scheduled causal scan and close-of-day forward evaluation.
+"""The one scheduled intraday job: scan all KMIALL, then decide.
 
-All candidate observations are paper-only until the frozen evidence gate opens.
-The script has no broker interface and cannot place orders.
+Rebuild 2026-10-09. This script no longer contains strategy logic. It is the
+orchestrator only:
+
+    scan  ->  src/signals/momentum_scanner.py (the ONE scanner)
+          ->  src/signals/trade_state.py      (the ONE daily trade state)
+          ->  Cloudflare relay                (signals, notify, research log)
+
+Modes:
+
+    --scan --slot HH:MM   one in-session pass: capture, validate coverage,
+                          rank every eligible KMIALL symbol, enter at most one
+                          paper trade, monitor the +2% target
+    --finalize            post-close pass: value the paper position, write the
+                          session record, lock the day, update the paper gate
+
+Honesty rules enforced here:
+
+  * the scanner never runs outside the configured Karachi session (SO-8);
+  * a data failure is reported as SCAN BLOCKED with measured coverage and
+    never as a market NO TRADE;
+  * one trade per market day, persisted on disk, so a restart cannot reset it;
+  * live trading stays disabled; this script can only record paper outcomes.
 """
 from __future__ import annotations
 
@@ -11,7 +31,7 @@ import hashlib
 import json
 import os
 import sys
-from datetime import datetime, time, timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import requests
@@ -19,11 +39,13 @@ import requests
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from src.data.sessions import KARACHI, close_time, open_time, is_trading_day, now_karachi
-from src.research.forward_validation import evaluate_gate, label_candidate
-from src.signals.intraday_engine import (
-    CANDIDATE_RULES, RULE_VERSION, aggregate_5m, parse_capture, scan_snapshot,
+from src import config  # noqa: E402
+from src.data.sessions import (  # noqa: E402
+    KARACHI, close_time, is_trading_day, now_karachi, open_time,
 )
+from src.signals import momentum_scanner as scanner  # noqa: E402
+from src.signals.trade_state import SessionState, State  # noqa: E402
+from src.research.forward_validation import evaluate_gate  # noqa: E402
 
 UNIVERSE_FILE = ROOT / "src" / "data" / "universe_kmiall.json"
 DATA_DIR = ROOT / "data" / "feed_capture"
@@ -80,203 +102,179 @@ def relay_request(method: str, route: str, payload: dict | None = None):
     return result
 
 
+def deliver(text: str, kind: str) -> bool:
+    """Best-effort delivery. A delivery failure never changes a data verdict."""
+    try:
+        relay_request("POST", "/notify", {"text": text, "kind": kind})
+        return True
+    except (requests.RequestException, RuntimeError, ValueError) as exc:
+        print(f"delivery failed ({kind}): {type(exc).__name__}")
+        return False
+
+
 def scheduled_as_of(slot: str, day=None) -> datetime:
     d = day or now_karachi().date()
     hm = tuple(int(part) for part in slot.split(":"))
     return datetime(d.year, d.month, d.day, hm[0], hm[1], tzinfo=KARACHI)
 
 
-def compact_market(snapshot: dict) -> dict:
-    return snapshot.get("market") or {}
+def session_legal(as_of: datetime) -> bool:
+    """The scanner may only run inside the configured session (SO-8)."""
+    day = as_of.date()
+    if not is_trading_day(day):
+        return False
+    return open_time(day) <= (as_of.hour, as_of.minute) <= close_time(day)
 
 
-def annotate_source_quality(quality: dict) -> dict:
-    """Separate structural bar checks from source rights and latency evidence."""
-    rights_confirmed = os.environ.get("KMIALL_DATA_RIGHTS_CONFIRMED", "").lower() == "true"
-    latency_confirmed = os.environ.get("KMIALL_DATA_LATENCY_CONFIRMED", "").lower() == "true"
-    universe_confirmed = os.environ.get("KMIALL_UNIVERSE_CONFIRMED", "").lower() == "true"
-    return {
-        **quality,
-        "source": "eClear GetOHLCData public read tier",
-        "source_latency": "owner-confirmed" if latency_confirmed else "unverified",
-        "data_rights": "owner-confirmed" if rights_confirmed else "unverified",
-        "universe_membership": "owner-confirmed-current" if universe_confirmed else "unverified-currentness",
-        "production_data_ready": bool(
-            quality.get("quality") == "verified"
-            and rights_confirmed and latency_confirmed and universe_confirmed
-        ),
-    }
+def capture_path(day) -> Path:
+    return DATA_DIR / f"ohlc_{day:%Y%m%d}.ndjson"
 
 
-def signal_text(candidate: dict, market: dict, data_quality: dict,
-                signal_kind: str = "PAPER SIGNAL") -> str:
-    entry = float(candidate["entry_reference"])
-    target = entry * 1.02
-    stamp = datetime.fromisoformat(candidate["timestamp"])
-    lead = (f"BUY {candidate['symbol']}" if signal_kind == "PRODUCTION SIGNAL"
-            else f"PAPER CANDIDATE: {candidate['symbol']}")
-    rule = CANDIDATE_RULES.get(candidate.get("rule_version", RULE_VERSION), {})
-    breadth = ("breadth filter applied" if rule.get("market_gate")
-               else "breadth filter omitted for candidate comparison")
-    median = market.get("median_return")
-    advancers = market.get("advancer_share")
-    market_line = (
-        "Market proxy: unavailable\n" if median is None or advancers is None else
-        f"Market proxy: median {median:+.2%}, advancers {advancers:.1%}; {breadth}\n"
-    )
-    entry_kind = "paper reference" if signal_kind == "PAPER SIGNAL" else "signal reference"
-    evidence = (
-        "frozen 60/60/60 evidence gate passed"
-        if signal_kind == "PRODUCTION SIGNAL"
-        else "paper observation; no validated edge yet"
-    )
-    return (
-        f"QoR signals {stamp.date().isoformat()} (Karachi):\n"
-        f"{signal_kind} | KMIALL LONG ONLY\n"
-        f"{lead}\n\n"
-        f"Entry reference: {entry:.4f} ({entry_kind}, not executable)\n"
-        f"Target: {target:.4f} (+2.00%)\n"
-        f"Timestamp: {stamp:%H:%M} PKT\n"
-        f"Evidence: {evidence}\n"
-        f"{market_line}"
-        f"Setup: {candidate['rationale']}\n"
-        "Expected horizon: intraday, close by session end\n"
-        f"Data: {data_quality.get('quality')}; volume unavailable; "
-        "order flow unavailable\n"
-        f"Rule: {candidate.get('rule_version', 'opening_range_breakout_rs_v1')}"
-    )
+def target_check(state: SessionState, session: scanner.SessionData):
+    """Was the +2% target touched by any bar after the recorded entry?"""
+    if not state.in_position() or state.entry_time is None:
+        return None
+    entry_at = datetime.fromisoformat(state.entry_time)
+    rows = session.bars.get(state.symbol or "", [])
+    for bar in rows:
+        if bar.timestamp <= entry_at:
+            continue
+        if bar.high >= state.target_price:
+            return bar
+    return None
 
 
-def run_scan(slot: str, capture: Path) -> dict:
-    as_of = scheduled_as_of(slot)
-    symbols = load_kmiall()
-    bars, raw_quality = parse_capture(capture, symbols, as_of)
-    quality = annotate_source_quality(raw_quality)
-    strategy_snapshots = {
-        rule: scan_snapshot(bars, symbols, as_of, quality, rule_version=rule)
-        for rule in CANDIDATE_RULES
-    }
-    has_paper_candidate = any(
-        item.get("candidate") for item in strategy_snapshots.values()
-    )
-    snapshot = {
-        "date": as_of.date().isoformat(),
-        "slot": slot,
-        "universe_source": "versioned current KMIALL membership snapshot",
-        "universe_size": len(symbols),
-        "universe_sha256": universe_fingerprint(symbols),
-        "as_of": as_of.isoformat(),
-        "status": "PAPER_CANDIDATE" if has_paper_candidate else "NO_TRADE",
-        "reason": "registered candidates evaluated; candidate details are per rule",
-        "strategies": strategy_snapshots,
-        "data_quality": quality,
-        "target_pct": 0.02,
-        "stop_pct": 0.01,
-        "volume": "unavailable; not used",
-        "order_flow": "unavailable",
-    }
+def last_price(session: scanner.SessionData, symbol: str | None) -> float | None:
+    rows = session.bars.get(symbol or "")
+    return rows[-1].close if rows else None
 
-    gate_result = None
-    storage_status = "available"
-    candidate = None
-    signal_kind = None
-    try:
-        gate_result = relay_request("GET", "/research/gate").get("gate")
-        snapshot["production_gate"] = gate_result
-        if gate_result and gate_result.get("eligible") is True \
-                and gate_result.get("live_signal_enabled") is True \
-                and quality.get("production_data_ready") is True:
-            selected_rule = gate_result.get("selected_rule_version")
-            selected = strategy_snapshots.get(selected_rule, {})
-            candidate = selected.get("candidate")
-            if candidate:
-                candidate["rule_version"] = selected_rule
-                signal_kind = "PRODUCTION SIGNAL"
-        else:
-            # The original rule remains an explicitly paper-only observation
-            # while the candidate library is being evaluated.
-            candidate = strategy_snapshots.get(RULE_VERSION, {}).get("candidate")
-            if candidate:
-                candidate["rule_version"] = RULE_VERSION
-                signal_kind = "PAPER SIGNAL"
 
-        if candidate and signal_kind:
-            snapshot["candidate"] = candidate
-            snapshot["signal_kind"] = signal_kind
-            snapshot["signal_intent"] = "one-per-day claim required before delivery"
-        else:
-            snapshot["signal_kind"] = "NO TRADE"
-            snapshot["signal_intent"] = "no qualifying candidate at this scan"
-
-        saved_observation = relay_request("POST", "/research/observation", {
-            "date": snapshot["date"], "slot": slot, "snapshot": snapshot,
-        })
-        if not saved_observation.get("stored", True):
-            snapshot["signal_sent"] = False
-            snapshot["reason"] = "immutable observation already exists; duplicate scan not delivered"
-            candidate = None
-            signal_kind = None
-
-        if candidate and signal_kind:
-            claim = relay_request("POST", "/research/claim",
-                                  {"date": snapshot["date"], "slot": slot})
-            if claim.get("claimed"):
-                selected_market = strategy_snapshots.get(
-                    candidate.get("rule_version", RULE_VERSION), {}).get("market", {})
-                message = signal_text(candidate, selected_market, quality, signal_kind)
-                relay_request("POST", "/signals", {"signals": message})
-                relay_request("POST", "/notify", {
-                    "text": message, "kind": "signals",
-                })
-                snapshot["status"] = signal_kind
-                snapshot["signal_sent"] = True
-            else:
-                snapshot["signal_sent"] = False
-                snapshot["reason"] = "one candidate for this day was already sent"
-        else:
-            snapshot["signal_sent"] = False
-    except (requests.RequestException, RuntimeError, ValueError):
-        storage_status = "unavailable"
-        gate_result = None
-        snapshot["production_gate"] = {
-            "status": "RESEARCH_NOT_READY", "eligible": False,
-            "live_signal_enabled": False,
-        }
-        snapshot["signal_sent"] = False
-        snapshot["reason"] += "; research relay unavailable"
-
-    snapshot["storage_status"] = storage_status
+def write_observation(payload: dict) -> Path:
     FORWARD_DIR.mkdir(parents=True, exist_ok=True)
     out = FORWARD_DIR / "observation.json"
-    out.write_text(json.dumps(snapshot, indent=2, allow_nan=False), encoding="utf-8")
-    print(json.dumps({
-        "date": snapshot["date"], "slot": slot, "status": snapshot["status"],
-        "reason": snapshot["reason"],
-        "candidate": snapshot.get("candidate"),
-        "signal_kind": snapshot.get("signal_kind"),
-        "production_eligible": bool(gate_result and gate_result.get("eligible")),
-        "data_quality": quality,
-        "candidate_statuses": {
-            rule: item.get("status") for rule, item in strategy_snapshots.items()
-        },
-    }, indent=2, allow_nan=False))
-    return snapshot
+    out.write_text(json.dumps(payload, indent=2, allow_nan=False), encoding="utf-8")
+    return out
 
-def missing_scan_slots(day, observations: list[dict]) -> list[str]:
-    """List scheduled slots without a structurally verified observation."""
-    required = {"10:45", "14:45"} if day.weekday() == 4 else {
-        "10:45", "12:45", "14:45",
+
+def run_scan(slot: str, capture: Path | None = None) -> dict:
+    day = now_karachi().date()
+    as_of = scheduled_as_of(slot, day)
+    symbols = load_kmiall()
+    path = capture or capture_path(day)
+
+    if not session_legal(as_of):
+        print(f"{as_of:%Y-%m-%d %H:%M} PKT is outside the Karachi session: "
+              f"the scanner does not run")
+        return {"status": "OUTSIDE_SESSION", "slot": slot}
+
+    state = SessionState.load(day)
+    state.begin_session()
+    state.begin_scan()
+
+    session = scanner.load_capture(path, symbols, as_of)
+    quality = scanner.assess_quality(session, symbols)
+
+    if quality.status == scanner.DATA_BLOCKED:
+        state.block(quality.reason, coverage=quality.coverage,
+                    scanned=quality.symbols_with_bars,
+                    expected=quality.symbols_expected)
+        state.save()
+        text = scanner.scan_blocked_message(quality)
+        payload = {
+            "date": day.isoformat(), "slot": slot, "as_of": as_of.isoformat(),
+            "status": scanner.DATA_BLOCKED, "reason": quality.reason,
+            "data_quality": quality.as_dict(), "trade_state": state.to_dict(),
+            "universe_size": len(symbols),
+            "universe_sha256": universe_fingerprint(symbols),
+            "scanner_version": config.SCANNER_VERSION,
+            "config": config.config_snapshot(),
+        }
+        write_observation(payload)
+        deliver(text, "ops")
+        print(json.dumps(payload, indent=2, allow_nan=False))
+        return payload
+
+    result = scanner.select_one(session, quality)
+    context = result.market
+
+    if state.in_position():
+        hit = target_check(state, session)
+        if hit is not None:
+            state.mark_target_hit(hit.close, hit.timestamp)
+            state.save()
+            text = scanner.target_hit_message(state.symbol or "", state.entry_price or 0.0,
+                                              state.target_price or 0.0, hit.close,
+                                              hit.timestamp)
+            deliver(text, "signals")
+            print(text)
+        else:
+            state.last_reason = "position open, monitoring the target"
+        state.save()
+
+    delivered = None
+    entered = None
+    observed = result.candidate
+    if result.status == scanner.TRADE and state.can_enter():
+        entry = result.candidate["price"]["last"]
+        state.note_candidate(result.candidate["symbol"], result.candidate["score"])
+        state.enter(result.candidate["symbol"], entry, as_of, result.candidate["score"])
+        state.save()
+        text = scanner.signal_message(result.candidate, context, entry, as_of)
+        deliver(text, "signals")
+        delivered = "TRADE"
+        entered = result.candidate
+        status = result.status
+        reason = result.reason
+    elif state.trade_taken:
+        # The day already has its one trade. A taken trade is NEVER reported as
+        # NO TRADE, and a second candidate is never presented as actionable.
+        status = (State.TARGET_MONITORING if state.in_position()
+                  else State.DAILY_LOCKED)
+        reason = "one trade already taken today; no further entry is possible"
+        if observed is not None:
+            reason += "; a fresh candidate was observed and refused"
+            state.last_reason = reason
+            state.save()
+        delivered = "LOCKED"
+    else:
+        status = result.status
+        reason = result.reason
+        if result.status == scanner.NO_TRADE:
+            state.no_trade(result.reason, coverage=quality.coverage,
+                           scanned=quality.symbols_with_bars,
+                           expected=quality.symbols_expected)
+            state.save()
+            deliver(scanner.no_trade_message(quality, context), "ops")
+            delivered = "NO_TRADE"
+
+    payload = {
+        "date": day.isoformat(),
+        "slot": slot,
+        "as_of": as_of.isoformat(),
+        "status": status,
+        "reason": reason,
+        "delivered": delivered,
+        "data_quality": quality.as_dict(),
+        "market": context,
+        "candidate": entered,
+        "observed_candidate": None if entered else observed,
+        "ranked_top": [{k: row[k] for k in ("symbol", "score", "momentum",
+                                            "acceleration_label", "volume_label")}
+                       for row in result.ranked],
+        "eligible_count": len(result.ranked),
+        "coverage_text": result.coverage_text,
+        "trade_state": state.to_dict(),
+        "universe_size": len(symbols),
+        "universe_sha256": universe_fingerprint(symbols),
+        "scanner_version": config.SCANNER_VERSION,
+        "config": config.config_snapshot(),
     }
-    seen = {
-        str(row.get("slot", ""))
-        for row in observations
-        if (row.get("snapshot", {}).get("data_quality", {}).get("quality")
-            == "verified")
-    }
-    return sorted(required - seen)
+    write_observation(payload)
+    print(json.dumps(payload, indent=2, allow_nan=False))
+    return payload
 
 
-def run_finalize(capture: Path) -> dict:
+def run_finalize(capture: Path | None = None) -> dict:
     day = now_karachi().date()
     if not is_trading_day(day):
         raise RuntimeError("finalization requested on a non-trading day")
@@ -284,114 +282,90 @@ def run_finalize(capture: Path) -> dict:
     as_of = datetime(day.year, day.month, day.day, close_h, close_m,
                      tzinfo=KARACHI) + timedelta(minutes=1)
     symbols = load_kmiall()
-    bars, raw_quality = parse_capture(capture, symbols, as_of)
-    quality = annotate_source_quality(raw_quality)
-    all_5m = {sym: aggregate_5m(rows, datetime(
-        day.year, day.month, day.day, *open_time(day),
-        tzinfo=KARACHI), as_of) for sym, rows in bars.items()}
+    path = capture or capture_path(day)
 
-    storage_status = "available"
-    try:
-        observations = relay_request(
-            "GET", f"/research/observations?date={day.isoformat()}",
-        ).get("observations", [])
-    except (requests.RequestException, RuntimeError, ValueError):
-        observations = []
-        storage_status = "unavailable"
+    state = SessionState.load(day)
+    session = scanner.load_capture(path, symbols, as_of)
+    quality = scanner.assess_quality(session, symbols)
+    context = scanner.market_context(session) if session.bars else {}
 
-    missing_slots = missing_scan_slots(day, observations)
-    if missing_slots:
-        quality = {**quality, "quality": "degraded",
-                   "reason": "missing scheduled paper observations: " + ", ".join(missing_slots)}
-    candidates: dict[str, dict | None] = {rule: None for rule in CANDIDATE_RULES}
-    for record in sorted(observations, key=lambda r: r.get("slot", "")):
-        snap = record.get("snapshot", {})
-        strategies = snap.get("strategies", {})
-        for rule in CANDIDATE_RULES:
-            candidate = strategies.get(rule, {}).get("candidate")
-            if candidates[rule] is None and candidate:
-                candidates[rule] = candidate
+    outcome_label = "NO_CANDIDATE"
+    gross_return = net_return = None
+    minutes_held = None
+    hit_bar = target_check(state, session)
+    if hit_bar is not None and not state.target_hit:
+        state.mark_target_hit(hit_bar.close, hit_bar.timestamp)
+    if state.target_hit:
+        outcome_label = "TARGET_HIT"
+        gross_return = round(config.TARGET_PCT, 6)
+    elif state.entry_price and quality.status == scanner.DATA_BLOCKED:
+        # An open paper position that cannot be valued from real bars is never
+        # given a made-up return. It is labelled UNVERIFIABLE instead.
+        outcome_label = "UNVERIFIABLE"
+    elif state.entry_price:
+        final = last_price(session, state.symbol)
+        if final is not None:
+            gross_return = round(final / state.entry_price - 1.0, 6)
+            outcome_label = "CLOSED_AT_SESSION_END"
+    if state.entry_time and gross_return is not None:
+        end_at = datetime.fromisoformat(state.exit_time) if state.exit_time else as_of
+        minutes_held = int((end_at - datetime.fromisoformat(state.entry_time))
+                           .total_seconds() // 60)
+    net_return = gross_return  # no execution cost model exists yet, so net = gross
+    if state.entry_price:
+        state.close_day(None if state.target_hit else last_price(session, state.symbol), as_of)
+    else:
+        state.close_day(None, as_of)
 
-    outcomes_by_rule = {}
-    for rule, candidate in candidates.items():
-        if storage_status != "available":
-            label = {"label": "UNVERIFIABLE", "gross_return": None,
-                     "net_return": None, "minutes_held": None}
-        elif candidate is None:
-            label = {"label": "NO_CANDIDATE", "gross_return": None,
-                     "net_return": None, "minutes_held": None}
-        elif quality.get("quality") != "verified" or candidate["symbol"] not in all_5m:
-            label = {"label": "UNVERIFIABLE", "gross_return": None,
-                     "net_return": None, "minutes_held": None}
-        else:
-            label = label_candidate(candidate, all_5m[candidate["symbol"]])
-        outcomes_by_rule[rule] = {"candidate": candidate, **label}
+    record = {
+        **state.session_record(),
+        "gross_return": gross_return,
+        "net_return": net_return,
+        "minutes_held": minutes_held,
+        "outcome": outcome_label,
+        "market": context,
+        "data_quality": quality.as_dict(),
+        "universe_size": len(symbols),
+        "universe_sha256": universe_fingerprint(symbols),
+        "scanner_version": config.SCANNER_VERSION,
+    }
+    state.append_journal(record)
+    state.save()
 
     outcome = {
         "date": day.isoformat(),
-        "universe_source": "versioned current KMIALL membership snapshot",
-        "universe_size": len(symbols),
-        "universe_sha256": universe_fingerprint(symbols),
-        "data_quality": quality,
-        "storage_status": storage_status,
-        "outcomes_by_rule": outcomes_by_rule,
+        "scanner_version": config.SCANNER_VERSION,
+        "outcomes_by_rule": {config.SCANNER_VERSION: record},
+        "data_quality": quality.as_dict(),
+        "storage_status": "local",
     }
     gate = evaluate_gate([])
-    rows = []
-    try:
-        relay_request("POST", "/research/outcome", {
-            "date": day.isoformat(), "sessions": [outcome],
-        })
-        history = relay_request("GET", "/research/history")
-        rows = history.get("sessions", [])
-        if not history.get("complete", True):
-            raise RuntimeError("research history exceeds worker response limit")
-        if not any(r.get("date") == day.isoformat() for r in rows):
-            rows.append(outcome)
-        gate = evaluate_gate(rows)
-        relay_request("POST", "/research/gate", gate)
-    except (requests.RequestException, RuntimeError, ValueError):
-        storage_status = "unavailable"
-        gate = evaluate_gate([])
-        gate["storage_status"] = storage_status
-        outcome["storage_status"] = storage_status
-
+    gate = {**gate, "storage_status": "local",
+            "scanner_version": config.SCANNER_VERSION}
     FORWARD_DIR.mkdir(parents=True, exist_ok=True)
     (FORWARD_DIR / "daily_outcome.json").write_text(
         json.dumps(outcome, indent=2, allow_nan=False), encoding="utf-8")
     (FORWARD_DIR / "production_gate.json").write_text(
         json.dumps(gate, indent=2, allow_nan=False), encoding="utf-8")
-    print(json.dumps({
-        "outcome": outcome,
-        "gate": gate,
-        "history_sessions": len(rows),
-    }, indent=2, allow_nan=False))
+    print(json.dumps({"outcome": outcome, "gate": gate}, indent=2, allow_nan=False))
     return {"outcome": outcome, "gate": gate}
 
+
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Causal KMIALL intraday scan")
+    parser = argparse.ArgumentParser(description="KMIALL momentum + volume scan")
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--scan", action="store_true")
     mode.add_argument("--finalize", action="store_true")
-    parser.add_argument("--slot", choices=("10:45", "12:45", "14:45", "16:45"))
+    parser.add_argument("--slot", choices=("10:00", "11:30", "13:00", "14:30", "16:00"))
     parser.add_argument("--capture", type=Path)
     args = parser.parse_args(argv)
 
     if args.scan and not args.slot:
         parser.error("--scan requires --slot")
-    slot = args.slot or "16:45"
-    day = now_karachi().date()
-    # PSX holidays and weekends: the cron fires anyway; skip cleanly so the
-    # run stays green instead of failing on a market that never opened.
-    if not is_trading_day(day):
-        mode = "scan" if args.scan else "finalize"
-        print(f"{day.isoformat()} is not a PSX trading day: {mode} skipped")
-        return 0
-    capture = args.capture or DATA_DIR / f"ohlc_{day:%Y%m%d}.ndjson"
-    if args.scan:
-        run_scan(slot, capture)
+    if args.finalize:
+        run_finalize(args.capture)
     else:
-        run_finalize(capture)
+        run_scan(args.slot, args.capture)
     return 0
 
 

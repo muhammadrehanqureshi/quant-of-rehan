@@ -8,22 +8,38 @@ only. Sole contributor and owner: Rehan (muhammadrehanqureshi).
 
 ## What is running today
 
-- **Daily-bar research engine** for the owner's TP +2% / SL -1% law. Its
-  historical universe is today's KMIALL list and its prices are not fully
-  corporate-action adjusted, so those results are survivorship-biased and
-  affected by unadjusted prints. They do not validate the live signal rule.
-- **5-year EOD dataset** built from the PSX Data Portal Daily Downloads
-  (`/download/mkt_summary/{date}.Z`, full OHLCV with high/low, archive back
-  to 2015). Crawler is local-only and resumable (SO-4).
-- **Market clock** pinned to Asia/Karachi (UTC+5) forever (SO-8), with the
-  owner's session law: Mon-Thu open 09:32 close 15:30, Friday open 09:17
-  close 16:30, PSX holidays and weekends skipped.
-- **Telegram delivery through the Cloudflare edge** (SO-9): scheduled
-  GitHub Actions jobs keep sending system status to the app and Telegram.
-- **Intraday paper research**: the scheduled workflow evaluates a small,
-  preregistered one-minute to five-minute KMIALL strategy library. A research
-  candidate is labeled PAPER SIGNAL. Production is gated by locked OOS
-  economics plus confirmed data rights and latency. See
+Rebuilt 2026-10-09 around one simple strategy: the fastest current KMIALL
+momentum plus volume acceleration, one trade a day, +2% target.
+
+- **One authoritative scanner**: [src/signals/momentum_scanner.py](src/signals/momentum_scanner.py).
+  It scores every eligible KMIALL symbol on fast momentum, momentum
+  acceleration, relative volume, volume acceleration and liquidity, then
+  applies a market-context gate and a late-move decay, and returns exactly
+  one winner, NO TRADE, or DATA BLOCKED. The old opening-range library and
+  the FVG / sweep daily engine are retired from the trading path.
+- **One daily trade state**: [src/signals/trade_state.py](src/signals/trade_state.py).
+  A persisted state machine (MARKET_OPEN, SCANNING, TRADE_ENTERED,
+  TARGET_MONITORING, TARGET_HIT, DAILY_LOCKED, DATA_BLOCKED) with a hard
+  one-trade-per-day lock that survives a process or runner restart.
+- **One configuration file**: [src/config.py](src/config.py) holds the
+  target, the coverage floor, the score weights and the live-trading switch.
+  Live trading is disabled and paper mode is the default.
+- **One market clock**: Asia/Karachi UTC+5 forever (SO-8) in
+  [src/data/sessions.py](src/data/sessions.py), with the owner's session law:
+  Mon-Thu open 09:32 close 15:30, Friday open 09:17 close 16:30, PSX holidays
+  and weekends skipped.
+- **Scheduled scans**: [.github/workflows/intraday-capture.yml](.github/workflows/intraday-capture.yml)
+  scans at 10:00, 11:30, 13:00 and 14:30 PKT every weekday (plus 16:00 PKT on
+  Friday) and finalizes after the close. Every cron is the UTC form of a
+  Karachi wall-clock time and is re-verified by a test.
+- **Telegram delivery through the Cloudflare edge** (SO-9): the worker's four
+  crons fire the owner's open and close texts at exactly 09:32 / 15:30
+  (Mon-Thu) and 09:17 / 16:30 (Friday), plus signal, target-hit and
+  data-failure notices. The scheduled jobs stay green and report through a
+  deduped ops alert instead of GitHub failure emails.
+- **Honest data states**: a broken, thin, stale or volume-less source reports
+  SCAN BLOCKED with measured coverage and never a market verdict. See
+  [DATA_SOURCING.md](DATA_SOURCING.md) and
   [INTRADAY_FORWARD_SYSTEM.md](INTRADAY_FORWARD_SYSTEM.md).
 - **Android companion app** (`android/`, APK on the Desktop, v1.3.0):
   logo-branded dark console showing whether the quant is working, plus
@@ -43,7 +59,8 @@ rule closing the frame at the bottom. The launcher icon mirrors the logo's
 diamond-and-rule motif above AND below the candles at the same distance
 (v1.3.0).
 - **Governance guard** in CI: secret scan, footprint honesty, owner-only
-  commit identity, human-style enforcement, Karachi-pin check.
+  commit identity, human-style enforcement, Karachi-pin check, and the
+  schedule checks in `tests/test_rebuild_schedule.py`.
 
 ## Standing Orders (hardcoded, see [GOVERNANCE.md](GOVERNANCE.md))
 
@@ -81,6 +98,10 @@ diamond-and-rule motif above AND below the candles at the same distance
 ## Layout
 
 ```
+src/config.py               the ONE configuration surface (target, floors, weights)
+src/signals/momentum_scanner.py   the ONE scanner (momentum + volume + acceleration)
+src/signals/trade_state.py  the ONE persisted daily state and trade lock
+scripts/intraday_pipeline.py      scheduled orchestrator (scan, finalize)
 src/data/sessions.py        Karachi-pinned clock, session law, owner texts
 src/data/psx_daily_downloads.py   PSX Daily Downloads fetcher/parser
 src/data/corpus.py          legacy eod_corpus.json loader
@@ -105,6 +126,11 @@ data/                       gitignored: datasets, journals, relay url
 python scripts/check_governance.py
 python -m unittest discover -s tests
 
+# the scheduled cycle by hand (paper only, no orders)
+python scripts/intraday_pipeline.py --scan --slot 10:00
+python scripts/intraday_pipeline.py --finalize
+python -m src.data.ohlc_poller --probe OGDC   # what is the source serving now?
+
 # notifications: one-time setup (message the bot on Telegram first)
 python cloud/pair.py deploy && python cloud/pair.py discover && python cloud/pair.py test
 
@@ -117,18 +143,42 @@ python scripts/build_eod_history.py --start 2021-10-04 --end 2026-10-02
 python scripts/smoke_backtest.py --dataset data/eod_history_kmi.csv.gz
 ```
 
+## The strategy, in one paragraph
+
+Scan the whole current KMIALL universe. For each symbol measure the last
+five minutes of price change, whether that change is accelerating versus the
+previous five minutes, the volume of the latest five-minute bucket against
+the session's own median bucket, whether that volume is still growing, and
+the session's traded value as a liquidity screen. Penalise anything that has
+already run too far or is drifting away from its session high, because those
+are late. Gate the whole thing on market context: if the KMIALL universe is
+not broadly advancing, there is no trade. Take the single highest score above
+the configured minimum, enter it on paper at the observed price, set the
+target at entry x 1.02, and lock the day. One winner, one entry, one target,
+then monitor and sleep.
+
 ## Current status
 
+- The rebuilt scanner, state machine, schedule and configuration are in place
+  and covered by 173 offline tests (`python -m unittest discover -s tests`).
+- **Blocked on the data source.** The only configured intraday source (the
+  eClear `GetOHLCData` read tier) is returning HTTP 200 with a bare
+  acknowledgement and zero bar rows, measured inside the trading session on
+  2026-10-09, and it never carried volume even when it did return bars. Since
+  this strategy needs volume, the pipeline reports SCAN BLOCKED, banks
+  nothing and trades nothing. That is the correct, fail-closed behaviour, not
+  a working capture.
+- Historical intraday coverage is not sufficient: the single genuine captured
+  session (2026-10-06, 32,639 one-minute bars, 298 symbols) survives only as
+  a 90-day GitHub Actions artifact.
 - Placeholder-baseline 5-year result: expectancy -1.06% per trade, win rate
   27.5%. That verdict belongs to the placeholder entry rule, not to the
   owner's law.
 - Phase 1 research (2026-10-06, see RESEARCH_PHASE1.md): 74,654-trade causal
   matrix, A-G path analysis, survivorship sensitivity, frozen filter matrix.
   No edge claim; the stop/TP grid is banked pending the owner's review.
-- Signal delivery runs on GitHub Actions and Cloudflare with the PC off.
-  Daily FVG/sweep candidates remain research-only. The intraday workflow may
-  send one PAPER SIGNAL per day; production stays disabled until every gate
-  passes.
+- Production stays disabled until the frozen paper gate opens: the rebuilt
+  cycle must accumulate genuine sessions first.
   App v1.3.0: centered brand header, "Quant is working." status line,
   motivational panel, framed dividers top and bottom, mirrored icon
   motif, "Quant is online/sleeping now." texts on the edge crons and
