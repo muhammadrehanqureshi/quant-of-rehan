@@ -1,15 +1,19 @@
 name: KMIALL intraday momentum scan
 
 # Rebuild 2026-10-09. Karachi is UTC+5 (SO-8), so every cron below is the
-# UTC form of a Karachi wall-clock time:
+# UTC form of a Karachi wall-clock time. Each cron fires a few minutes past
+# the hour rather than on it: GitHub documents that the top of every hour is
+# a high-load window in which queued schedule events are delayed or dropped
+# outright. The DECISION time is still the round slot (a cron offset changes
+# only when the runner wakes, never what the scanner is allowed to see).
 #
-#   05:00 UTC = 10:00 PKT   scan (inside Mon-Thu 09:32-15:30 and Fri 09:17-16:30)
-#   06:30 UTC = 11:30 PKT   scan (inside both sessions)
-#   08:00 UTC = 13:00 PKT   scan (inside both sessions)
-#   09:30 UTC = 14:30 PKT   scan (inside both sessions)
-#   11:00 UTC = 16:00 PKT   scan (Friday only, inside the Friday session)
-#   10:45 UTC = 15:45 PKT   finalize (Mon-Thu, strictly after the 15:30 close)
-#   11:45 UTC = 16:45 PKT   finalize (Friday, strictly after the 16:30 close)
+#   05:07 UTC = 10:07 PKT   scan (inside Mon-Thu 09:32-15:30 and Fri 09:17-16:30)
+#   06:37 UTC = 11:37 PKT   scan (inside both sessions)
+#   08:07 UTC = 13:07 PKT   scan (inside both sessions)
+#   09:37 UTC = 14:37 PKT   scan (inside both sessions)
+#   11:07 UTC = 16:07 PKT   scan (Friday only, inside the Friday session)
+#   10:47 UTC = 15:47 PKT   finalize (Mon-Thu, strictly after the 15:30 close)
+#   11:47 UTC = 16:47 PKT   finalize (Friday, strictly after the 16:30 close)
 #
 # The scan never starts outside the session, and the finalize never starts
 # before the close. tests/test_rebuild_schedule.py re-derives every one of
@@ -20,13 +24,13 @@ name: KMIALL intraday momentum scan
 
 on:
   schedule:
-    - cron: "0 5 * * 1-5"
-    - cron: "30 6 * * 1-5"
-    - cron: "0 8 * * 1-5"
-    - cron: "30 9 * * 1-5"
-    - cron: "0 11 * * 5"
-    - cron: "45 10 * * 1-4"
-    - cron: "45 11 * * 5"
+    - cron: "7 5 * * 1-5"
+    - cron: "37 6 * * 1-5"
+    - cron: "7 8 * * 1-5"
+    - cron: "37 9 * * 1-5"
+    - cron: "7 11 * * 5"
+    - cron: "47 10 * * 1-4"
+    - cron: "47 11 * * 5"
   workflow_dispatch:
     inputs:
       slot:
@@ -83,13 +87,13 @@ jobs:
             if [ "${{ inputs.slot }}" = "finalize" ]; then FINALIZE="1"; else SLOT="${{ inputs.slot }}"; fi
           else
             case "${{ github.event.schedule }}" in
-              "0 5 * * 1-5") SLOT="10:00" ;;
-              "30 6 * * 1-5") SLOT="11:30" ;;
-              "0 8 * * 1-5") SLOT="13:00" ;;
-              "30 9 * * 1-5") SLOT="14:30" ;;
-              "0 11 * * 5") SLOT="16:00" ;;
-              "45 10 * * 1-4") FINALIZE="1" ;;
-              "45 11 * * 5") FINALIZE="1" ;;
+              "7 5 * * 1-5") SLOT="10:00" ;;
+              "37 6 * * 1-5") SLOT="11:30" ;;
+              "7 8 * * 1-5") SLOT="13:00" ;;
+              "37 9 * * 1-5") SLOT="14:30" ;;
+              "7 11 * * 5") SLOT="16:00" ;;
+              "47 10 * * 1-4") FINALIZE="1" ;;
+              "47 11 * * 5") FINALIZE="1" ;;
               *) echo "unknown schedule"; exit 2 ;;
             esac
           fi
