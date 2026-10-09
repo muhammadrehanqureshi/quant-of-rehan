@@ -1,0 +1,249 @@
+"""Explicit, persisted trade state machine with the one-trade-per-day lock.
+
+Owner spec (2026-10-09): one trade per market day, and a process restart must
+never let the bot forget that it already traded. The state therefore lives on
+disk (data/forward/session_state.json) and is keyed by the Karachi trading
+date. A new Karachi trading date starts a fresh state; history is preserved by
+appending every finished session to data/forward/session_journal.jsonl.
+
+States:
+
+    MARKET_CLOSED -> MARKET_OPEN -> SCANNING -> CANDIDATE_FOUND
+                  -> TRADE_ENTERED -> TARGET_MONITORING -> TARGET_HIT
+                  -> TRADE_CLOSED -> DAILY_LOCKED
+    any state     -> DATA_BLOCKED (data failure, no trade, retried next slot)
+
+Only one transition into TRADE_ENTERED is allowed per trading day, and once
+the day is DAILY_LOCKED no further entry is possible until the next session.
+Nothing here can place an order: it records a paper position only.
+"""
+
+from __future__ import annotations
+
+import json
+from dataclasses import asdict, dataclass, field
+from datetime import date, datetime
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+
+from src import config  # noqa: E402
+from src.data.sessions import KARACHI, now_karachi  # noqa: E402
+
+
+class State:
+    MARKET_CLOSED = "MARKET_CLOSED"
+    MARKET_OPEN = "MARKET_OPEN"
+    SCANNING = "SCANNING"
+    CANDIDATE_FOUND = "CANDIDATE_FOUND"
+    TRADE_ENTERED = "TRADE_ENTERED"
+    TARGET_MONITORING = "TARGET_MONITORING"
+    TARGET_HIT = "TARGET_HIT"
+    TRADE_CLOSED = "TRADE_CLOSED"
+    DAILY_LOCKED = "DAILY_LOCKED"
+    DATA_BLOCKED = "DATA_BLOCKED"
+
+    ALL = (MARKET_CLOSED, MARKET_OPEN, SCANNING, CANDIDATE_FOUND, TRADE_ENTERED,
+           TARGET_MONITORING, TARGET_HIT, TRADE_CLOSED, DAILY_LOCKED, DATA_BLOCKED)
+
+    # States in which a new entry is allowed (subject to the daily lock).
+    ENTRY_OPEN = (MARKET_OPEN, SCANNING, CANDIDATE_FOUND)
+
+    # States that represent a position that is open or was taken today.
+    IN_POSITION = (TRADE_ENTERED, TARGET_MONITORING)
+
+    # Terminal for the day.
+    TERMINAL = (TRADE_CLOSED, DAILY_LOCKED)
+
+
+@dataclass
+class SessionState:
+    """One trading day's state. Persisted after every transition."""
+
+    day: str
+    state: str = State.MARKET_CLOSED
+    trades_today: int = 0
+    symbol: str | None = None
+    entry_price: float | None = None
+    entry_time: str | None = None
+    entry_score: float | None = None
+    target_price: float | None = None
+    exit_price: float | None = None
+    exit_time: str | None = None
+    return_pct: float | None = None
+    target_hit: bool = False
+    scans: int = 0
+    coverage: float | None = None
+    symbols_scanned: int | None = None
+    symbols_expected: int | None = None
+    blocked_reason: str | None = None
+    last_reason: str | None = None
+    scanner_version: str = config.SCANNER_VERSION
+    history: list[dict] = field(default_factory=list)
+
+    # ------------------------------------------------------------- persistence
+    @classmethod
+    def path(cls) -> Path:
+        return ROOT / config.SESSION_STATE_FILE
+
+    @classmethod
+    def journal_path(cls) -> Path:
+        return ROOT / config.SESSION_JOURNAL_FILE
+
+    @classmethod
+    def load(cls, day: date | None = None, path: Path | None = None) -> "SessionState":
+        """Load today's state, or a fresh one when the day has turned over."""
+        today = (day or now_karachi().date()).isoformat()
+        target = path or cls.path()
+        if target.is_file():
+            try:
+                saved = json.loads(target.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                saved = {}
+            if saved.get("day") == today:
+                known = {f for f in cls.__dataclass_fields__}
+                return cls(**{k: v for k, v in saved.items() if k in known})
+        return cls(day=today)
+
+    def save(self, path: Path | None = None) -> Path:
+        target = path or self.path()
+        target.parent.mkdir(parents=True, exist_ok=True)
+        tmp = target.with_suffix(".tmp")
+        tmp.write_text(json.dumps(asdict(self), indent=1), encoding="utf-8")
+        tmp.replace(target)
+        return target
+
+    def append_journal(self, record: dict, path: Path | None = None) -> Path:
+        target = path or self.journal_path()
+        target.parent.mkdir(parents=True, exist_ok=True)
+        with open(target, "a", encoding="utf-8") as handle:
+            handle.write(json.dumps(record, ensure_ascii=False) + "\n")
+        return target
+
+    # ---------------------------------------------------------------- queries
+    @property
+    def trade_taken(self) -> bool:
+        return self.trades_today >= config.MAX_TRADES_PER_DAY
+
+    def can_enter(self) -> bool:
+        """A new entry needs an open slot AND an unused daily allowance."""
+        return (self.state in State.ENTRY_OPEN
+                and not self.trade_taken
+                and self.trades_today < config.MAX_TRADES_PER_DAY)
+
+    def in_position(self) -> bool:
+        return self.state in State.IN_POSITION
+
+    def locked_for_day(self) -> bool:
+        return self.state in State.TERMINAL or self.trade_taken
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+    # ------------------------------------------------------------- transitions
+    def begin_session(self) -> None:
+        if self.state in (State.MARKET_CLOSED, State.DATA_BLOCKED):
+            self.state = State.MARKET_OPEN
+
+    def begin_scan(self) -> None:
+        self.scans += 1
+        if self.state in (State.MARKET_OPEN, State.DATA_BLOCKED, State.SCANNING):
+            self.state = State.SCANNING
+
+    def note_candidate(self, symbol: str, score: float) -> None:
+        self.state = State.CANDIDATE_FOUND
+        self.symbol = symbol
+        self.entry_score = score
+
+    def block(self, reason: str, coverage: float | None = None,
+              scanned: int | None = None, expected: int | None = None) -> None:
+        """Data failure: no trade, recorded so the next slot reports the same
+        honest reason (it never masquerades as a market NO TRADE)."""
+        self.blocked_reason = reason
+        self.last_reason = reason
+        if coverage is not None:
+            self.coverage = coverage
+        if scanned is not None:
+            self.symbols_scanned = scanned
+        if expected is not None:
+            self.symbols_expected = expected
+        if not self.trade_taken:
+            self.state = State.DATA_BLOCKED
+
+    def no_trade(self, reason: str, coverage: float | None = None,
+                 scanned: int | None = None, expected: int | None = None) -> None:
+        self.last_reason = reason
+        self.blocked_reason = None
+        if coverage is not None:
+            self.coverage = coverage
+        if scanned is not None:
+            self.symbols_scanned = scanned
+        if expected is not None:
+            self.symbols_expected = expected
+        if not self.trade_taken:
+            self.state = State.SCANNING
+
+    def enter(self, symbol: str, entry_price: float, entry_time: datetime,
+              score: float) -> None:
+        """Record the paper entry and lock the day to this one trade."""
+        if not self.can_enter():
+            raise RuntimeError(
+                f"entry refused: state {self.state}, trades_today "
+                f"{self.trades_today} of {config.MAX_TRADES_PER_DAY}")
+        self.state = State.TRADE_ENTERED
+        self.trades_today += 1
+        self.symbol = symbol
+        self.entry_price = float(entry_price)
+        self.entry_time = entry_time.isoformat()
+        self.entry_score = float(score)
+        self.target_price = round(float(entry_price) * (1.0 + config.TARGET_PCT), 4)
+        self.target_hit = False
+        self.last_reason = "entered one KMIALL long, daily lock engaged"
+        self.state = State.TARGET_MONITORING
+
+    def mark_target_hit(self, exit_price: float, hit_at: datetime) -> None:
+        self.state = State.TARGET_HIT
+        self.target_hit = True
+        self.exit_price = float(exit_price)
+        self.exit_time = hit_at.isoformat()
+        if self.entry_price:
+            self.return_pct = round(self.exit_price / self.entry_price - 1.0, 6)
+        self.last_reason = "target hit, paper position closed"
+
+    def close_day(self, last_price: float | None, closed_at: datetime) -> None:
+        """Close out the session: value the position if it is still open, then
+        lock the day. The bot stays online and reports the close."""
+        if self.in_position():
+            self.state = State.TRADE_CLOSED
+            if last_price is not None:
+                self.exit_price = float(last_price)
+                self.exit_time = closed_at.isoformat()
+                if self.entry_price:
+                    self.return_pct = round(self.exit_price / self.entry_price - 1.0, 6)
+            self.last_reason = "closed at session end without reaching target"
+        self.state = State.DAILY_LOCKED
+        return None
+
+    def session_record(self) -> dict:
+        """The persisted record for this market session (owner spec 26)."""
+        return {
+            "date": self.day,
+            "trades_taken": self.trades_today,
+            "trade_status": self.state,
+            "symbol": self.symbol,
+            "entry": self.entry_price,
+            "entry_time": self.entry_time,
+            "target": self.target_price,
+            "target_hit": self.target_hit,
+            "exit": self.exit_price,
+            "exit_time": self.exit_time,
+            "return_pct": self.return_pct,
+            "scans": self.scans,
+            "coverage": self.coverage,
+            "symbols_scanned": self.symbols_scanned,
+            "symbols_expected": self.symbols_expected,
+            "blocked_reason": self.blocked_reason,
+            "last_reason": self.last_reason,
+            "entry_score": self.entry_score,
+            "scanner_version": self.scanner_version,
+        }
