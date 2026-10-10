@@ -10,13 +10,40 @@
     <string name="label_signal">LATEST SIGNAL</string>
     <string name="label_settings">SETTINGS</string>
     <string name="label_market">MARKET NOW</string>
+    <!-- ============ status pill ============
+         Owner order 2026-10-10: professional checkmark and cross glyphs in
+         place of the round dot. The glyph is part of the resource text so the
+         pill and its accessibility description can never drift apart. -->
+    <string name="status_checking">"…  CHECKING"</string>
+    <string name="status_online">"✓  ONLINE"</string>
+    <string name="status_offline">"✗  OFFLINE"</string>
+    <string name="cd_status_checking">System status: checking.</string>
+    <string name="cd_status_online">System status: online. The market is open and the quant is running.</string>
+    <string name="cd_status_offline">System status: offline. The market is closed, or the relay cannot be reached.</string>
+
+    <!-- ============ session copy ============
+         Owner order 2026-10-10: "PSX session closed" is retired. The relay's
+         own market_state phase decides which of these the app shows, and the
+         app never derives a session from its own clock (SO-8). -->
+    <string name="market_closed_now">Market is closed now.</string>
+    <string name="market_on_break">Market is on a break right now.</string>
+    <!-- %1$s is the resume time reported by the relay, for example 14:32 -->
+    <string name="market_break_resumes">Market is on a break right now (trading resumes %1$s PKT).</string>
+    <!-- Shown only when the relay reports no phase at all. The app refuses to
+         guess a session, so it says so instead of claiming the market is shut. -->
+    <string name="market_status_unreported">Market status not reported by the relay yet.</string>
+
     <string name="market_waiting">KSE100  ·  loading</string>
     <string name="market_leaders_waiting">Top three by volume load with the next refresh.</string>
     <string name="market_none_yet">No KMIALL stock has traded yet this session.</string>
     <string name="market_unavailable">Volume leaders unavailable right now.</string>
+    <!-- %1$s is a short failure name, never a token or a URL -->
+    <string name="market_card_failed">Market card could not load (%1$s).</string>
+    <string name="market_relay_unreachable">Relay unreachable, so the market card is empty.</string>
+    <string name="market_payload_too_large">The relay sent more data than this app accepts, so the card was skipped.</string>
     <string name="token_hint">relay admin token</string>
     <string name="btn_save">Save token</string>
     <string name="btn_relay">Relay status</string>
     <string name="btn_arm">Arm 5-minute watchdog</string>
     <string name="settings_hint">Paste the relay admin token once to receive signals. The app refreshes the system status, the KSE100 index and the day\'s top three volume leaders every 5 minutes; on some phones also allow autostart and remove battery limits.</string>
-</resources>
+</resources>

@@ -238,6 +238,11 @@ python scripts/scan_loop.py --status               # phase, window and loop heal
 # one scan by hand, with every layer printed (offline, synthetic if no capture)
 python examples/scan_once.py
 
+# the core model driven through market edge cases (volatility spike, thin
+# sample, stale feed, limit lock, absent volume, gap open, malformed print).
+# Exits 1 on the first violated reading, so it works as a gate.
+python examples/deep_scan_stress.py
+
 # the session law and the phase the app will show, right now
 python -c "from src.data.sessions import market_state; import json; print(json.dumps(market_state(), indent=2))"
 
@@ -261,6 +266,13 @@ python -m src.data.ohlc_poller --probe OGDC      # what is the source serving no
 - [Final research and production audit](RESEARCH_FINAL_AUDIT.md): explains the
   27% result, the data limitations, the out-of-sample economics and the current
   signal status.
+- [Deep scan audit, 2026-10-10](AUDIT_DEEP_SCAN_2026-10-10.md): the
+  governance guard failure on `860fdab`, the locale dependent decode inside the
+  gate itself, the thin sample regime that contradicted its own contract, the
+  measured scan cost, and the hardened workflow template in `docs/ci/`.
+- [Android update, 2026-10-10](ANDROID_APP_UPDATE_2026-10-10.md): why the app
+  showed no percentages (the relay was older than the repo), the owner's new
+  session copy, and strict typing for the card's financial values.
 - [Intraday forward system](INTRADAY_FORWARD_SYSTEM.md): registered candidates,
   promotion and demotion rules, source checks, and the data limitations.
 - Entry-metrics study (`scripts/entry_metrics.py`, report in
@@ -292,9 +304,10 @@ monitor and sleep.
 
 ## Current status, 2026-10-10
 
-- **Suite green.** 233 tests and 62 subtests pass (`python -m pytest tests -q`
-  and `python -m unittest discover -s tests` both exit 0). The governance guard
-  passes. All 22 modules under `src/` import cleanly.
+- **Suite green.** 348 tests pass (`python -m pytest tests -q` reports 348
+  passed and 115 subtests; `python -m unittest discover -s tests` reports
+  `Ran 348 tests`, OK). The governance guard passes. All 22 modules under
+  `src/` import cleanly.
 - **Relay healthy.** `/health` returns 200 with `paired: true` and the correct
   next session (`OPEN at 2026-10-12 09:32`); the market card and the research
   gate answer; an unauthenticated read is refused with 403.
@@ -328,11 +341,35 @@ monitor and sleep.
   weekend. Fixing the PC clock is a housekeeping task, not a code change: the
   verifier's "relay agrees with the local clock" check passes once the clock
   is right.
-- **The relay is still running the pre-band worker.** `cloud/worker.js` now
-  carries the Friday band table and `market_state`, and `cloud/pair.py` sets
-  the six crons, but the live worker needs a deploy for the app to show the
-  break sentence. There is no Node or wrangler on this PC, so the deploy is
-  the owner's step (`python cloud/pair.py deploy`).
+- **The relay is deployed and current.** `python cloud/pair.py deploy` runs
+  from this PC over the Cloudflare REST API, so no Node and no wrangler are
+  needed. Verified live after the deploy: `/health` and `/market` both carry
+  `market_state` (phase `CLOSED`, next event `OPEN 2026-10-12 09:32`), every
+  volume leader carries `change_pct`, and `volume_split_basis` explains the
+  missing split. The phone card therefore shows the day's move and the session
+  sentence instead of a bare total.
+- **The cron schedule is capped at five triggers, not six.** Workers Free
+  allows 5 cron triggers per ACCOUNT, so the six edge list was rejected with
+  Cloudflare error `10072`, and that rejection used to abort the deploy AFTER
+  the script upload, leaving the code live and the schedules stale. The two
+  Friday midday edges are now packed into one expression
+  (`0,32 7,9 * * 5`); the worker's handler only sends within two minutes of a
+  real edge, so the extra fires are discarded and no edge fires twice. The
+  schedule test proves coverage, uniqueness, the harmless extras and the five
+  trigger cap, and a mutation check confirms it catches a dropped edge.
+- **The relay admin token has been rotated** (it had been exposed in a chat
+  transcript). The new value lives in the gitignored `.env`, in the worker
+  binding, and in the `RELAY_ADMIN_TOKEN` Actions secret, which was updated in
+  the same pass so the scheduled workflows keep authenticating. Verified: the
+  new token returns 200 from `/signals` and a bogus one is refused with 403.
+  The phone's gear panel still holds the old token, so the signals card will
+  ask for the new one until it is pasted again; the status and market cards
+  need no token and are unaffected.
+- **The Telegram bot token could NOT be rotated here.** It is the same value
+  that was exposed, so it still needs regenerating with BotFather on the
+  owner's phone. After regenerating, paste the new token into
+  `Desktop/credentials.txt` and rerun `python cloud/pair.py deploy` to rebind
+  it; nothing else has to change.
 - **The buy/sell split has no live data yet.** The engine, the card plumbing
   and the tests are done; the broker sends per-symbol ticks only while the
   exchange is trading (its own recon report says the same about the Friday
