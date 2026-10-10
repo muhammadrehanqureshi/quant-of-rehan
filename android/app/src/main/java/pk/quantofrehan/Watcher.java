@@ -13,6 +13,8 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -38,29 +40,58 @@ public final class Watcher {
     // leaders every 5 minutes (was 15)
     static final long REFRESH_MS = 5 * 60 * 1000;
 
+    /**
+     * Hard cap on an accepted relay body.
+     *
+     * The card is a few kilobytes of JSON, so anything past this is a spike, a
+     * truncated stream or a wrong endpoint. Reading it unbounded would let one
+     * bad response exhaust the heap and kill the app, which is exactly the
+     * "broker feed data spike" failure this cap exists to prevent.
+     */
+    private static final int MAX_BODY_CHARS = 512 * 1024;
+
     private static final ExecutorService POOL = Executors.newSingleThreadExecutor();
 
     private Watcher() {
     }
 
-    /** One of the day's most traded KMIALL stocks, typed rather than indexed.
+    /** The relay answered with more data than this app accepts. */
+    static final class PayloadTooLarge extends IOException {
+        PayloadTooLarge() {
+            super("relay body exceeded " + MAX_BODY_CHARS + " characters");
+        }
+    }
+
+    /**
+     * One of the day's most traded KMIALL stocks.
      *
-     * v1.6.0: the owner's card shows the day's move and the buy/sell/total
-     * volume per stock, so a row is no longer a bare String[].  A field left
-     * at its sentinel (NaN or -1) means the relay did not have that number,
-     * and the card says so instead of printing a zero as if it were data.
+     * Strict typing for the financial fields: every value is a boxed Number
+     * whose null means "the relay did not report this". A primitive with a
+     * NaN or -1 sentinel looks like a value to the compiler, so an unknown
+     * price silently flows through arithmetic and prints as a number. Boxed
+     * nulls make the unknown case impossible to ignore at the read site.
      */
     static final class Leader {
         String symbol = "";
-        double price = Double.NaN;
-        double changePct = Double.NaN;
-        long volume = -1L;
-        long buy = -1L;
-        long sell = -1L;
+        /** null: the relay reported no price for this symbol. */
+        Double price;
+        /** null: the relay reported no day's movement. */
+        Double changePct;
+        /** null: the relay reported no volume. */
+        Long volume;
+        /** null: no genuine buy/sell split arrived. */
+        Long buy;
+        /** null: no genuine buy/sell split arrived. */
+        Long sell;
 
         /** True only when a genuine buy/sell split arrived for this stock. */
         boolean hasSplit() {
-            return buy >= 0L && sell >= 0L;
+            return buy != null && sell != null;
+        }
+
+        /** True when the exchange's own total volume arrived. */
+        boolean hasVolume() {
+            return volume != null;
         }
     }
 
@@ -68,13 +99,14 @@ public final class Watcher {
     static final class Market {
         boolean answered;
         boolean open;
-        /** OPEN, BREAK, CLOSED, PRE_OPEN or POST_CLOSE, from the relay. */
-        String phase = "";
+        /** OPEN, BREAK, CLOSED, PRE_OPEN or POST_CLOSE, or null when the
+         *  relay did not report a phase. The app never guesses one. */
+        String phase;
         boolean tradingDay = true;
         String nextEvent = "";
-        double indexValue = Double.NaN;
-        double indexChange;
-        double indexPct;
+        Double indexValue;
+        Double indexChange;
+        Double indexPct;
         String indexAsOf = "";
         int members;
         final List<Leader> leaders = new ArrayList<>();
@@ -83,8 +115,14 @@ public final class Watcher {
         String note = "";
         int cacheAgeSeconds = -1;
 
+        /** True only when the index and both of its movements are known. */
         boolean hasIndex() {
-            return !Double.isNaN(indexValue);
+            return indexValue != null && indexChange != null && indexPct != null;
+        }
+
+        /** True only when the relay actually reported a session phase. */
+        boolean phaseKnown() {
+            return phase != null && !phase.isEmpty();
         }
 
         boolean isLive() {
@@ -106,7 +144,52 @@ public final class Watcher {
         return saved.isEmpty() ? DEFAULT_RELAY : saved;
     }
 
-    /** One raw GET; returns the parsed body or throws. */
+    /**
+     * A JSON number, or null when the relay sent null, omitted the key, or
+     * sent a value that is not a finite number.
+     *
+     * This is the numeric hygiene gate for every financial field on the card:
+     * a NaN or an infinity can never reach the UI, because it becomes an
+     * explicit "unknown" instead.
+     */
+    private static Double numberOrNull(JSONObject row, String key) {
+        if (row == null || row.isNull(key)) {
+            return null;
+        }
+        double value = row.optDouble(key, Double.NaN);
+        return (Double.isNaN(value) || Double.isInfinite(value)) ? null : value;
+    }
+
+    /** A whole number of shares or rupees, or null when it is not reported. */
+    private static Long integerOrNull(JSONObject row, String key) {
+        Double value = numberOrNull(row, key);
+        return value == null ? null : Math.round(value);
+    }
+
+    /** Read at most MAX_BODY_CHARS characters, so a spike cannot exhaust the heap. */
+    private static String readBounded(InputStream stream) throws IOException {
+        StringBuilder sb = new StringBuilder(4096);
+        char[] buffer = new char[8192];
+        try (BufferedReader reader = new BufferedReader(
+                new InputStreamReader(stream, StandardCharsets.UTF_8))) {
+            int read;
+            while ((read = reader.read(buffer)) != -1) {
+                if (sb.length() + read > MAX_BODY_CHARS) {
+                    throw new PayloadTooLarge();
+                }
+                sb.append(buffer, 0, read);
+            }
+        }
+        return sb.toString();
+    }
+
+    /**
+     * One raw GET; returns the parsed body or throws.
+     *
+     * A truncated or malformed body makes the JSON constructor throw, and the
+     * callers below turn that into a footnote. A bad payload empties the card,
+     * it never crashes the app.
+     */
     private static JSONObject get(String url, String admin) throws Exception {
         HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
         conn.setConnectTimeout(8000);
@@ -114,17 +197,14 @@ public final class Watcher {
         if (admin != null && !admin.isEmpty()) {
             conn.setRequestProperty("x-admin-token", admin);
         }
-        BufferedReader r = new BufferedReader(new InputStreamReader(
-                conn.getResponseCode() >= 400 ? conn.getErrorStream()
-                        : conn.getInputStream(),
-                StandardCharsets.UTF_8));
-        StringBuilder sb = new StringBuilder();
-        String line;
-        while ((line = r.readLine()) != null) {
-            sb.append(line);
+        int code = conn.getResponseCode();
+        InputStream stream = code >= 400 ? conn.getErrorStream() : conn.getInputStream();
+        if (stream == null) {
+            // getErrorStream() is null for some failures, so say so rather than
+            // dereferencing it and throwing a NullPointerException.
+            throw new IOException("relay returned HTTP " + code + " with no body");
         }
-        r.close();
-        return new JSONObject(sb.toString());
+        return new JSONObject(readBounded(stream));
     }
 
     /** Health with one retry, so a single dropped packet does not alarm. */
@@ -151,7 +231,7 @@ public final class Watcher {
      * at most once every five minutes by the relay itself. A failure here
      * never changes the status badge, it only empties the card.
      */
-    static Market fetchMarket(String base) {
+    static Market fetchMarket(Context c, String base) {
         Market market = new Market();
         try {
             JSONObject body = get(base + "/market", null);
@@ -165,9 +245,9 @@ public final class Watcher {
 
             JSONObject index = body.optJSONObject("index");
             if (index != null) {
-                market.indexValue = index.optDouble("value", Double.NaN);
-                market.indexChange = index.optDouble("change", 0);
-                market.indexPct = index.optDouble("change_pct", 0);
+                market.indexValue = numberOrNull(index, "value");
+                market.indexChange = numberOrNull(index, "change");
+                market.indexPct = numberOrNull(index, "change_pct");
                 market.indexAsOf = index.optString("as_of", "");
             }
 
@@ -178,16 +258,11 @@ public final class Watcher {
                     if (row == null) continue;
                     Leader leader = new Leader();
                     leader.symbol = row.optString("symbol", "");
-                    leader.volume = row.isNull("volume") ? -1L
-                            : row.optLong("volume", -1L);
-                    leader.price = row.isNull("price") ? Double.NaN
-                            : row.optDouble("price", Double.NaN);
-                    leader.changePct = row.isNull("change_pct") ? Double.NaN
-                            : row.optDouble("change_pct", Double.NaN);
-                    leader.buy = row.isNull("buy_volume") ? -1L
-                            : row.optLong("buy_volume", -1L);
-                    leader.sell = row.isNull("sell_volume") ? -1L
-                            : row.optLong("sell_volume", -1L);
+                    leader.volume = integerOrNull(row, "volume");
+                    leader.price = numberOrNull(row, "price");
+                    leader.changePct = numberOrNull(row, "change_pct");
+                    leader.buy = integerOrNull(row, "buy_volume");
+                    leader.sell = integerOrNull(row, "sell_volume");
                     market.leaders.add(leader);
                 }
             }
@@ -198,8 +273,13 @@ public final class Watcher {
             if (body.optBoolean("stale", false)) {
                 market.note = "relay last refreshed earlier: " + market.note;
             }
+        } catch (PayloadTooLarge spike) {
+            // Distinguished from a generic failure on purpose: a payload spike
+            // is an operational fact the owner can act on, not a parse error.
+            market.note = c.getString(R.string.market_payload_too_large);
         } catch (Exception e) {
-            market.note = "Market card could not load (" + e.getClass().getSimpleName() + ").";
+            market.note = c.getString(R.string.market_card_failed,
+                    e.getClass().getSimpleName());
         }
         return market;
     }
@@ -211,10 +291,16 @@ public final class Watcher {
      * never derives a session from its own clock, which is how a phone in
      * another timezone (or a PC whose clock has drifted) would otherwise
      * disagree with the exchange about the Friday midday break.
+     *
+     * A missing or empty phase leaves `phase` null, which the copy then
+     * reports as unreported rather than guessing a session (SO-3, SO-8).
      */
     private static void readPhase(JSONObject state, Market market) {
         if (state == null) return;
-        market.phase = state.optString("phase", market.phase);
+        String phase = state.optString("phase", "");
+        if (!phase.isEmpty()) {
+            market.phase = phase;
+        }
         market.tradingDay = state.optBoolean("trading_day", market.tradingDay);
         if (state.has("market_open")) {
             market.open = state.optBoolean("market_open", market.open);
@@ -225,32 +311,31 @@ public final class Watcher {
         }
     }
 
-    /** The owner-facing sentence for a phase. Never guesses a session. */
-    static String phaseLine(Market market) {
-        if (market == null || market.phase.isEmpty()) {
-            return market != null && market.open ? "" : "PSX session closed.";
+    /**
+     * The owner-facing sentence for a session phase. Never guesses a session.
+     *
+     * Owner order 2026-10-10: "PSX session closed" is retired. The exchange's
+     * real midday break says the market is on a break, every other shut state
+     * says the market is closed now, a live band says nothing (the pill
+     * already reads ONLINE), and an unreported phase says so instead of
+     * claiming a session the relay never confirmed.
+     */
+    static String phaseLine(Context c, Market market) {
+        if (market == null || !market.phaseKnown()) {
+            return c.getString(R.string.market_status_unreported);
         }
-        if ("OPEN".equals(market.phase) || "WARMUP".equals(market.phase)) {
+        String phase = market.phase;
+        if ("OPEN".equals(phase) || "WARMUP".equals(phase)) {
             return "";
         }
-        if ("BREAK".equals(market.phase)) {
+        if ("BREAK".equals(phase)) {
             return market.nextEvent.isEmpty()
-                    ? "Market break: the exchange is between sessions."
-                    : "Market break: trading resumes " + market.nextEvent + " PKT.";
+                    ? c.getString(R.string.market_on_break)
+                    : c.getString(R.string.market_break_resumes, market.nextEvent);
         }
-        if ("CLOSED".equals(market.phase)) {
-            return market.tradingDay
-                    ? "PSX holiday: no session today. Quant is sleeping."
-                    : "Weekend: the exchange is closed. Quant is sleeping.";
-        }
-        if ("PRE_OPEN".equals(market.phase)) {
-            return market.nextEvent.isEmpty() ? "Before today's open."
-                    : "Before today's open (" + market.nextEvent + " PKT).";
-        }
-        if ("POST_CLOSE".equals(market.phase)) {
-            return "Today's sessions have closed. Quant is sleeping.";
-        }
-        return "";
+        // CLOSED (a weekend or a PSX holiday), PRE_OPEN and POST_CLOSE all read
+        // as "closed now": that is the owner's wording, and it is true in each.
+        return c.getString(R.string.market_closed_now);
     }
 
     /**
@@ -280,7 +365,7 @@ public final class Watcher {
                 if (!reachable) {
                     detail = "The relay answered but reported a fault.";
                 } else {
-                    String line = phaseLine(healthMarket);
+                    String line = phaseLine(c, healthMarket);
                     detail = "Karachi: " + karachi
                             + (line.isEmpty() ? "" : "\n" + line);
                 }
@@ -302,8 +387,8 @@ public final class Watcher {
                 if (!signalNote.isEmpty() && signals.trim().isEmpty()) {
                     signals = signalNote;
                 }
-                Market market = fetchMarket(base);
-                if (market.phase.isEmpty()) {
+                Market market = fetchMarket(c, base);
+                if (!market.phaseKnown()) {
                     // the card failed to load: keep the phase the relay already
                     // told us, so the pill and the footnote never disagree
                     market.phase = healthMarket.phase;

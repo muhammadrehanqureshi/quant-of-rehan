@@ -12,12 +12,22 @@ Cloudflare relay, never to Telegram, never to a broker.
   owner order). Outside the session, and on weekends and PSX holidays, the
   pill shows OFFLINE with a red cross: a closed market is never reported as
   ONLINE (owner order 2026-10-09).
-- v1.6.0: the pill follows the relay's `market_state` phase, so the
-  exchange's Friday midday break (12:00 to 14:32) reads OFFLINE with the line
-  "Market break: trading resumes 2026-10-09 14:32 PKT", a weekend reads
-  "Weekend: the exchange is closed", and a PSX holiday reads "PSX holiday: no
-  session today". The app never derives a session from its own clock, which is
-  what keeps a phone, the PC and the edge in agreement.
+- The pill follows the relay's `market_state` phase and carries the shipped
+  glyphs (U+2713 check, U+2717 cross) from string resources, with a spoken
+  accessibility description, so a screen reader never reads a bare
+  "multiplication X".
+- Owner order 2026-10-10 retired "PSX session closed". The exchange's midday
+  break now reads "Market is on a break right now (trading resumes 14:32 PKT)"
+  and every other shut state reads "Market is closed now.". A phase the relay
+  did not report reads "Market status not reported by the relay yet." rather
+  than guessing a session, because a wrong "closed" on a live session is the
+  worst thing this card can say. The app never derives a session from its own
+  clock, which is what keeps a phone, the PC and the edge in agreement.
+- Financial values are boxed and nullable rather than sentinel encoded, so
+  "the relay did not report this" is explicit and the compiler forces every
+  read site to handle it. A NaN or an infinity from the feed becomes unknown
+  instead of reaching the card. The relay body is read with a 512 KB cap so a
+  data spike empties the card instead of crashing the app.
 - A signals panel fed by the relay's `/signals` feed (admin token required,
   stored once in the app).
 - A MARKET NOW card (v1.5.0, extended in v1.6.0): the KSE100 index with its

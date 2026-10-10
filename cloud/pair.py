@@ -44,16 +44,23 @@ SUBDOMAIN = "mrmrehanqureshi"  # workers.dev subdomain of this account
 #   Mon-Thu open  09:32 PKT = 04:32 UTC | close 15:30 PKT = 10:30 UTC
 #   Friday  s1    09:17 PKT = 04:17 UTC | close 12:00 PKT = 07:00 UTC
 #   Friday  s2    14:32 PKT = 09:32 UTC | close 16:30 PKT = 11:30 UTC
-# The two extra Friday crons exist because the exchange shuts for its
-# midday break: without them the owner would get no "market is closed"
-# at 12:00 and no "market is open" at 14:32.
+# The Friday midday break needs two more edges than this account can hold.
+# Workers Free allows 5 cron triggers per ACCOUNT, so the obvious six entry
+# list is rejected with Cloudflare error 10072, and that rejection used to
+# abort the deploy AFTER the script upload, leaving the schedules stale while
+# the code was already live. That partial deploy is the trap this fixes.
+#
+# `0,32 7,9 * * 5` packs both Friday midday edges into one trigger. It also
+# fires at 07:32 and 09:00 UTC, which is safe by construction: the worker's
+# scheduled() handler sends only when the Karachi minute is within two minutes
+# of a real band edge, so a non-edge fire returns without a message. Each edge
+# is still covered by exactly one trigger, so nothing is sent twice.
 CRONS = [
-    "32 4 * * 1-4",   # Mon-Thu open
-    "30 10 * * 1-4",  # Mon-Thu close
-    "17 4 * * 5",     # Friday session 1 open
-    "0 7 * * 5",      # Friday session 1 close (midday break begins)
-    "32 9 * * 5",     # Friday session 2 open (trading resumes)
-    "30 11 * * 5",    # Friday session 2 close
+    "32 4 * * 1-4",      # Mon-Thu open 09:32 PKT
+    "30 10 * * 1-4",     # Mon-Thu close 15:30 PKT
+    "17 4 * * 5",        # Friday session 1 open 09:17 PKT
+    "0,32 7,9 * * 5",    # Friday 12:00 PKT close and 14:32 PKT reopen
+    "30 11 * * 5",       # Friday session 2 close 16:30 PKT
 ]
 
 
