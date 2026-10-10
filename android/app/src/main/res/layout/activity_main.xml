@@ -120,7 +120,9 @@
                 android:paddingRight="14dp"
                 android:paddingTop="5dp"
                 android:paddingBottom="5dp"
-                android:text="@string/checking"
+                android:accessibilityLiveRegion="polite"
+                android:contentDescription="@string/cd_status_checking"
+                android:text="@string/status_checking"
                 android:textSize="13sp"
                 android:textStyle="bold"/>
 

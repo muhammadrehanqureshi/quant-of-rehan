@@ -168,9 +168,15 @@ def check_commit_messages(errors: list) -> None:
     if not rng:
         return
     try:
+        # SO-7: decode as UTF-8 explicitly. With text=True and no encoding,
+        # Python uses the ambient locale, so the same commit message could be
+        # judged differently on a cp1252 Windows box and a UTF-8 CI runner:
+        # the robot emoji (U+1F916) ends in byte 0x96, which cp1252 maps to
+        # U+2013 EN DASH and falsely trips the banned-dash rule below.
         out = subprocess.run(
             ["git", "log", rng, "--format=%an%x09%ae%x09%B%x00"],
-            capture_output=True, text=True, timeout=30, check=True,
+            capture_output=True, text=True, encoding="utf-8",
+            errors="replace", timeout=30, check=True,
         ).stdout
     except (subprocess.SubprocessError, OSError):
         return  # range not resolvable here; CI covers it
