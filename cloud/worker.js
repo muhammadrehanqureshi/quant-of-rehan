@@ -30,9 +30,11 @@
 //   POST /notify        admin only: {text, kind} forwarded to the paired chat
 //   GET  /updates       admin only: raw getUpdates proxy for local debugging
 //
-// Cron triggers (UTC, set by cloud/pair.py):
-//   04:32 Mon-Thu = 09:32 PKT open | 10:30 Mon-Thu = 15:30 PKT close
-//   04:17 Fri     = 09:17 PKT open | 11:30 Fri     = 16:30 PKT close
+// Cron triggers (UTC, set by cloud/pair.py). Friday is TWO sessions with
+// the exchange's midday break between them, so it has four edges:
+//   04:32 Mon-Thu = 09:32 PKT open  | 10:30 Mon-Thu = 15:30 PKT close
+//   04:17 Fri     = 09:17 PKT open  | 07:00 Fri     = 12:00 PKT close
+//   09:32 Fri     = 14:32 PKT open  | 11:30 Fri     = 16:30 PKT close
 
 const KARACHI_OFFSET_MIN = 5 * 60; // SO-8: UTC+5, fixed forever
 
@@ -71,22 +73,94 @@ function isTradingDay(k) {
   return !PSX_HOLIDAYS_2026.has(dayStamp(k));
 }
 
-function openHM(k) {
-  return k.getUTCDay() === 5 ? [9, 17] : [9, 32];
+// Owner's session law (SO-8), mirroring src/data/sessions.py exactly.
+// Monday to Thursday is ONE band; Friday is TWO, with the exchange's real
+// midday break between them (09:17-12:00 and 14:32-16:30). Before this the
+// worker treated Friday as one continuous 09:17-16:30 session, so /health
+// answered market_open true at 14:23 while the exchange was shut.
+// A parity test (tests/test_session_law_parity.py) fails if this table and
+// the Python one ever drift.
+const WEEKDAY_BANDS = [[[9, 32], [15, 30]]];
+const FRIDAY_BANDS = [[[9, 17], [12, 0]], [[14, 32], [16, 30]]];
+
+function bandsFor(k) {
+  if (!isTradingDay(k)) return [];
+  return k.getUTCDay() === 5 ? FRIDAY_BANDS : WEEKDAY_BANDS;
 }
 
-function closeHM(k) {
-  return k.getUTCDay() === 5 ? [16, 30] : [15, 30];
+function minutesOf(k) {
+  return k.getUTCHours() * 60 + k.getUTCMinutes();
 }
 
-// Owner's session law (SO-8): is a session live at this instant?
-function marketOpenNow(nowUtc) {
+function hmText(hm) {
+  return `${pad(hm[0])}:${pad(hm[1])}`;
+}
+
+function bandsText(k) {
+  const bands = bandsFor(k);
+  if (!bands.length) return "closed (weekend or PSX holiday)";
+  return bands.map((b) => `${hmText(b[0])}-${hmText(b[1])}`).join(", ");
+}
+
+// Which part of the trading day this instant is in. The names are the
+// Python MarketPhase names, because the app renders them verbatim.
+function marketPhase(nowUtc) {
   const k = karachiView(nowUtc.getTime());
-  if (!isTradingDay(k)) return false;
-  const o = openHM(k);
-  const c = closeHM(k);
-  const mins = k.getUTCHours() * 60 + k.getUTCMinutes();
-  return mins >= o[0] * 60 + o[1] && mins < c[0] * 60 + c[1];
+  const bands = bandsFor(k);
+  if (!bands.length) return "CLOSED";
+  const mins = minutesOf(k);
+  const firstOpen = bands[0][0];
+  const lastClose = bands[bands.length - 1][1];
+  if (mins < firstOpen[0] * 60 + firstOpen[1]) return "PRE_OPEN";
+  if (mins >= lastClose[0] * 60 + lastClose[1]) return "POST_CLOSE";
+  for (const band of bands) {
+    const from = band[0][0] * 60 + band[0][1];
+    const to = band[1][0] * 60 + band[1][1];
+    if (mins >= from && mins < to) return "OPEN";
+  }
+  return "BREAK";
+}
+
+function liveBand(k) {
+  const mins = minutesOf(k);
+  for (const band of bandsFor(k)) {
+    const from = band[0][0] * 60 + band[0][1];
+    const to = band[1][0] * 60 + band[1][1];
+    if (mins >= from && mins < to) {
+      return { open: hmText(band[0]), close: hmText(band[1]) };
+    }
+  }
+  return null;
+}
+
+// Owner's session law (SO-8): is a session live at this instant? A break, a
+// weekend, a holiday and the hours before the open are all false.
+function marketOpenNow(nowUtc) {
+  return marketPhase(nowUtc) === "OPEN";
+}
+
+// The typed status block the app and the verifier both read.
+function marketState(nowUtc) {
+  const k = karachiView(nowUtc.getTime());
+  const phase = marketPhase(nowUtc);
+  const next = nextEvent(nowUtc);
+  return {
+    phase,
+    market_open: phase === "OPEN",
+    date: dayStamp(k),
+    as_of: `${dayStamp(k)}T${hhmm(k)}:00+05:00`,
+    trading_day: isTradingDay(k),
+    live_band: liveBand(k),
+    bands: bandsFor(k).map((b) => ({ open: hmText(b[0]), close: hmText(b[1]) })),
+    next_event: next.event
+      ? {
+        event: next.event,
+        at_pk: `${dayStamp(karachiView(next.at.getTime()))} ` +
+          `${hhmm(karachiView(next.at.getTime()))}`,
+      }
+      : null,
+    timezone: "Asia/Karachi",
+  };
 }
 
 // ---------------------------------------------------------------- market data
@@ -186,6 +260,18 @@ function topByVolume(rows, limit) {
       symbol: r.symbol,
       volume: Math.round(r.volume),
       price: r.current,
+      // The owner's card shows the day's move per leader, so the parsed
+      // percentage is carried instead of being dropped (it was parsed and
+      // then discarded, which is why the app had no percentage to show).
+      change_pct: r.change_pct,
+      // The exchange's constituent table carries ONE volume column, so the
+      // edge can never split it. Null means "unknown", and the app renders
+      // the split as unavailable rather than inventing a buy/sell ratio
+      // (SO-3). The local runner fills these from the broker tick capture.
+      buy_volume: null,
+      sell_volume: null,
+      split_source: "unavailable at the edge: the exchange table carries " +
+        "total volume only",
       basis: "current session volume (PSX " + MARKET_MEMBERSHIP + " constituents)",
     }));
 }
@@ -212,10 +298,14 @@ async function buildMarketSnapshot(now) {
     date: dayStamp(k),
     timezone: "Asia/Karachi",
     market_open: marketOpenNow(now),
+    market_state: marketState(now),
     index: null,
     kmiall_members: 0,
     top_volume: null,
     top_volume_basis: null,
+    volume_split_basis: "buy/sell split needs the broker tick capture " +
+      "(direction and last-trade size); the exchange table gives total " +
+      "volume only",
     notes: [],
   };
   try {
@@ -243,6 +333,44 @@ async function buildMarketSnapshot(now) {
   return snapshot;
 }
 
+// The card reads a fixed field set, and a snapshot can come from either
+// producer: the edge's own portal build, or the owner's local runner push
+// (POST /market). Normalizing on the way out means a partial push can never
+// strip `index`, `top_volume`, `notes` or `kmiall_members` from the app's
+// contract: a missing field becomes an explicit null instead of a missing key.
+function normalizeMarket(raw) {
+  const s = (raw && typeof raw === "object" && !Array.isArray(raw)) ? raw : {};
+  const index = (s.index && typeof s.index === "object") ? s.index : null;
+  const rows = Array.isArray(s.top_volume)
+    ? s.top_volume.filter((row) => row && typeof row === "object" &&
+                                  typeof row.symbol === "string")
+    : null;
+  const members = Number.isFinite(Number(s.kmiall_members))
+    ? Number(s.kmiall_members) : (rows ? rows.length : 0);
+  return { ...s,
+    index,
+    kmiall_members: members,
+    top_volume: rows,
+    top_volume_basis:
+      typeof s.top_volume_basis === "string" ? s.top_volume_basis : null,
+    notes: Array.isArray(s.notes) ? s.notes : [] };
+}
+
+// A pushed snapshot must carry the two fields the card renders, so an agent
+// that pushes a partial body is told so instead of blanking the app.
+function snapshotShapeError(body) {
+  if (!("index" in body)) return "snapshot is missing index";
+  if (!(body.index === null || (typeof body.index === "object" &&
+                                !Array.isArray(body.index)))) {
+    return "index must be an object or null";
+  }
+  if (!("top_volume" in body)) return "snapshot is missing top_volume";
+  if (!(body.top_volume === null || Array.isArray(body.top_volume))) {
+    return "top_volume must be an array or null";
+  }
+  return null;
+}
+
 // Cached copy, refreshed at most once per five minutes. `force` is used by the
 // runner's own push path, never by an app poll.
 async function marketSnapshot(env, now) {
@@ -253,14 +381,17 @@ async function marketSnapshot(env, now) {
       const built = Date.parse(cached.built_at || "");
       if (Number.isFinite(built) && now.getTime() - built < MARKET_TTL_MS) {
         cached.market_open = marketOpenNow(now); // always current
+        cached.market_state = marketState(now);  // phase, break, next edge
         cached.cache_age_seconds = Math.round((now.getTime() - built) / 1000);
-        return cached;
+        // A pushed snapshot lives in this key too, so normalize whatever
+        // came back before the app sees it.
+        return normalizeMarket(cached);
       }
     } catch (_) {
       // malformed cache: fall through and rebuild
     }
   }
-  const fresh = await buildMarketSnapshot(now);
+  const fresh = normalizeMarket(await buildMarketSnapshot(now));
   fresh.built_at = now.toISOString();
   fresh.cache_age_seconds = 0;
   await env.RELAY_KV.put("MARKET", JSON.stringify(fresh), { expirationTtl: 3600 });
@@ -271,14 +402,17 @@ function pktInstant(k, hm) {
   return new Date(`${dayStamp(k)}T${pad(hm[0])}:${pad(hm[1])}:00+05:00`);
 }
 
+// Band aware: a Friday has FOUR edges (two opens, two closes), so the break
+// shows as a CLOSE at 12:00 and an OPEN at 14:32 rather than one long day.
 function nextEvent(nowUtc) {
   for (let offset = 0; offset < 10; offset++) {
     const probe = karachiView(nowUtc.getTime() + offset * 86400000);
-    if (!isTradingDay(probe)) continue;
-    const o = pktInstant(probe, openHM(probe));
-    const c = pktInstant(probe, closeHM(probe));
-    if (o.getTime() > nowUtc.getTime()) return { event: "OPEN", at: o };
-    if (c.getTime() > nowUtc.getTime()) return { event: "CLOSE", at: c };
+    for (const band of bandsFor(probe)) {
+      const o = pktInstant(probe, band[0]);
+      const c = pktInstant(probe, band[1]);
+      if (o.getTime() > nowUtc.getTime()) return { event: "OPEN", at: o };
+      if (c.getTime() > nowUtc.getTime()) return { event: "CLOSE", at: c };
+    }
   }
   return { event: null, at: null };
 }
@@ -332,7 +466,11 @@ export default {
         karachi_now: `${dayStamp(k)} ${hhmm(k)} PKT`,
         // The app shows ONLINE only while a session is live, so the state is
         // answered by the same session law the notifications use (SO-8).
+        // `market_state.phase` is the authoritative word (OPEN, BREAK,
+        // CLOSED, PRE_OPEN, POST_CLOSE); `market_open` is kept for older
+        // clients and is exactly `phase === "OPEN"`.
         market_open: marketOpenNow(now),
+        market_state: marketState(now),
         paired: Boolean((await env.RELAY_KV.get("PAIRED_CHAT_ID")) || env.PAIRED_CHAT_ID),
         next_event: next.event
           ? { event: next.event, at_pk: `${dayStamp(karachiView(next.at.getTime()))} ${hhmm(karachiView(next.at.getTime()))}` }
@@ -436,15 +574,26 @@ export default {
         const fallback = await env.RELAY_KV.get("MARKET");
         if (!fallback) {
           return json({ ok: false, error: "market data unavailable",
-            market_open: marketOpenNow(now) }, 503);
+            market_open: marketOpenNow(now), market_state: marketState(now) }, 503);
         }
-        snapshot = JSON.parse(fallback);
+        snapshot = normalizeMarket(JSON.parse(fallback));
         snapshot.stale = true;
         snapshot.market_open = marketOpenNow(now);
+        snapshot.market_state = marketState(now);
       }
       const k = karachiView(now.getTime());
+      const edgeState = marketState(now);
       return json({ ok: true, karachi_now: `${dayStamp(k)} ${hhmm(k)} PKT`,
-        market_open: marketOpenNow(now), ...snapshot });
+        ...snapshot,
+        // The relay is the authority on the SESSION, so its own phase is
+        // applied last and wins over a snapshot pushed by the owner's PC.
+        // The pushed snapshot owns the market DATA (index, leaders, split);
+        // the edge owns whether the exchange is open, because the edge's
+        // clock is the world's and the PC's may not be (measured drift on
+        // 2026-10-10). Otherwise a stale local push could report ONLINE
+        // during the Friday break.
+        market_open: edgeState.market_open,
+        market_state: edgeState });
     }
 
     if (request.method === "POST" && path === "/market") {
@@ -456,6 +605,10 @@ export default {
       const body = await request.json().catch(() => null);
       if (!body || typeof body !== "object" || Array.isArray(body)) {
         return json({ ok: false, error: "invalid snapshot" }, 400);
+      }
+      const shapeError = snapshotShapeError(body);
+      if (shapeError) {
+        return json({ ok: false, error: shapeError }, 400);
       }
       body.source = body.source || "local runner";
       body.built_at = new Date().toISOString();
@@ -596,20 +749,26 @@ export default {
     return json({ ok: false, error: "not found" }, 404);
   },
 
-  // Cron handler: fires the owner's two texts at the PKT schedule edges.
+  // Cron handler: fires the owner's two texts at EVERY PKT band edge, so a
+  // Friday break produces the exact pair of texts the owner already knows:
+  // "Market is closed. Quant is sleeping now." at 12:00 and "Market is open.
+  // Quant is online now." at 14:32.
   async scheduled(controller, env, ctx) {
     const now = new Date();
     const k = karachiView(now.getTime());
-    if (!isTradingDay(k)) return;
+    const bands = bandsFor(k);
+    if (!bands.length) return;
     const paired = (await env.RELAY_KV.get("PAIRED_CHAT_ID")) || env.PAIRED_CHAT_ID;
     if (!paired) return;
 
-    const hm = [k.getUTCHours(), k.getUTCMinutes()];
-    const near = (h, m) => Math.abs(hm[0] * 60 + hm[1] - (h * 60 + m)) <= 2;
+    const mins = minutesOf(k);
+    const near = (hm) => Math.abs(mins - (hm[0] * 60 + hm[1])) <= 2;
 
     let text = null;
-    if (near(...openHM(k))) text = MSG_OPEN;
-    else if (near(...closeHM(k))) text = MSG_CLOSED;
+    for (const band of bands) {
+      if (near(band[0])) { text = MSG_OPEN; break; }
+      if (near(band[1])) { text = MSG_CLOSED; break; }
+    }
     if (!text) return;
 
     ctx.waitUntil(tgCall(env, "sendMessage", { chat_id: paired, text }));

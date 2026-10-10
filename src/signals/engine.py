@@ -246,14 +246,3 @@ def run(df: pd.DataFrame) -> tuple[list[Signal], pd.DataFrame]:
     signals = select_signals(feat, regime)
     return signals, feat
 
-
-def historical_signals(df: pd.DataFrame) -> list[tuple]:
-    """(signal_date, symbol) pairs for EVERY session the v1 stack fired.
-
-    Used by the sanity backtest: the same causal rule evaluated on the
-    whole history. Universe membership is today's list (survivorship
-    caveat, audit section 8), so results are labeled leaky.
-    """
-    signals, _ = run(df)
-    return [(s.signal_date, s.symbol) for s in signals]
-

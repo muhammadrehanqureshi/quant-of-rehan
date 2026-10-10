@@ -89,11 +89,39 @@ def relay_url_file() -> None:
         print(f"relay url written ({url})")
 
 
+def relay_preflight() -> str:
+    """Check the relay and the admin token BEFORE fetching the window.
+
+    Owner bug report, 2026-10-10: the scheduled job reported "the daily
+    signal push failed" with no cause. Most of the failures it can hit are
+    cheap to detect and expensive to discover: the EOD window fetch takes
+    minutes, so a rotated token or an unpaired relay was only announced
+    after the whole job had run. This runs first and names the reason.
+    """
+    from src.notify.schedule_runner import load_relay_url
+    from src.signals.signal_push import read_admin_token, relay_preflight as check
+
+    try:
+        token = read_admin_token()
+    except RuntimeError as exc:
+        return str(exc)
+    return check(load_relay_url(), token)
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="daily signal job (SO-10)")
     ap.add_argument("--dry-run", action="store_true",
                     help="verdict only, sends nothing")
+    ap.add_argument("--skip-preflight", action="store_true",
+                    help="push without checking the relay and token first")
     args = ap.parse_args(argv)
+
+    if not args.dry_run and not args.skip_preflight:
+        blocked = relay_preflight()
+        if blocked:
+            print(f"PREFLIGHT FAILED: {blocked}")
+            print("the EOD fetch was skipped: a push could not have succeeded.")
+            return 1
 
     kdate = now_karachi().date()
     fetch_window(kdate)

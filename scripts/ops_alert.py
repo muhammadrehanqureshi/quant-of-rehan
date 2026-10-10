@@ -27,6 +27,9 @@ from pathlib import Path
 import requests
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+
+from src.notify.schedule_runner import load_relay_admin_token  # noqa: E402
 FLAG = ROOT / "data" / "feed_capture" / "ohlc_low_coverage.flag"
 DEFAULT_RELAY = "https://quant-of-rehan-relay.mrmrehanqureshi.workers.dev"
 
@@ -68,9 +71,13 @@ def capture_health_message() -> str:
 
 
 def send(text: str) -> bool:
-    token = os.environ.get("RELAY_ADMIN_TOKEN", "").strip()
-    if not token:
-        print("ops alert skipped: relay admin token is missing")
+    # One resolver with the rest of the notification path (env, then repo
+    # .env). This script is the one that reports failures, so it must not be
+    # the one that silently cannot speak.
+    try:
+        token = load_relay_admin_token()
+    except RuntimeError as exc:
+        print(f"ops alert skipped: {exc}")
         return False
     try:
         response = requests.post(

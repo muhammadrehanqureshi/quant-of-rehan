@@ -43,23 +43,52 @@ public final class Watcher {
     private Watcher() {
     }
 
+    /** One of the day's most traded KMIALL stocks, typed rather than indexed.
+     *
+     * v1.6.0: the owner's card shows the day's move and the buy/sell/total
+     * volume per stock, so a row is no longer a bare String[].  A field left
+     * at its sentinel (NaN or -1) means the relay did not have that number,
+     * and the card says so instead of printing a zero as if it were data.
+     */
+    static final class Leader {
+        String symbol = "";
+        double price = Double.NaN;
+        double changePct = Double.NaN;
+        long volume = -1L;
+        long buy = -1L;
+        long sell = -1L;
+
+        /** True only when a genuine buy/sell split arrived for this stock. */
+        boolean hasSplit() {
+            return buy >= 0L && sell >= 0L;
+        }
+    }
+
     /** What the app knows about the exchange at this instant. */
     static final class Market {
         boolean answered;
         boolean open;
+        /** OPEN, BREAK, CLOSED, PRE_OPEN or POST_CLOSE, from the relay. */
+        String phase = "";
+        boolean tradingDay = true;
+        String nextEvent = "";
         double indexValue = Double.NaN;
         double indexChange;
         double indexPct;
         String indexAsOf = "";
         int members;
-        /** symbol, volume, price for the day's most traded index members. */
-        final List<String[]> leaders = new ArrayList<>();
+        final List<Leader> leaders = new ArrayList<>();
         String basis = "";
+        String splitBasis = "";
         String note = "";
         int cacheAgeSeconds = -1;
 
         boolean hasIndex() {
             return !Double.isNaN(indexValue);
+        }
+
+        boolean isLive() {
+            return open && !"BREAK".equals(phase);
         }
     }
 
@@ -131,6 +160,8 @@ public final class Watcher {
             market.cacheAgeSeconds = body.optInt("cache_age_seconds", -1);
             market.members = body.optInt("kmiall_members", 0);
             market.basis = body.optString("top_volume_basis", "");
+            market.splitBasis = body.optString("volume_split_basis", "");
+            readPhase(body.optJSONObject("market_state"), market);
 
             JSONObject index = body.optJSONObject("index");
             if (index != null) {
@@ -145,11 +176,19 @@ public final class Watcher {
                 for (int i = 0; i < tops.length() && i < 3; i++) {
                     JSONObject row = tops.optJSONObject(i);
                     if (row == null) continue;
-                    market.leaders.add(new String[]{
-                            row.optString("symbol", ""),
-                            String.valueOf(row.optLong("volume", 0)),
-                            row.isNull("price") ? "" : String.valueOf(row.optDouble("price")),
-                    });
+                    Leader leader = new Leader();
+                    leader.symbol = row.optString("symbol", "");
+                    leader.volume = row.isNull("volume") ? -1L
+                            : row.optLong("volume", -1L);
+                    leader.price = row.isNull("price") ? Double.NaN
+                            : row.optDouble("price", Double.NaN);
+                    leader.changePct = row.isNull("change_pct") ? Double.NaN
+                            : row.optDouble("change_pct", Double.NaN);
+                    leader.buy = row.isNull("buy_volume") ? -1L
+                            : row.optLong("buy_volume", -1L);
+                    leader.sell = row.isNull("sell_volume") ? -1L
+                            : row.optLong("sell_volume", -1L);
+                    market.leaders.add(leader);
                 }
             }
             JSONArray notes = body.optJSONArray("notes");
@@ -163,6 +202,55 @@ public final class Watcher {
             market.note = "Market card could not load (" + e.getClass().getSimpleName() + ").";
         }
         return market;
+    }
+
+    /**
+     * Read the relay's market_state block into the card state.
+     *
+     * The relay is the authority on whether the exchange is open: the app
+     * never derives a session from its own clock, which is how a phone in
+     * another timezone (or a PC whose clock has drifted) would otherwise
+     * disagree with the exchange about the Friday midday break.
+     */
+    private static void readPhase(JSONObject state, Market market) {
+        if (state == null) return;
+        market.phase = state.optString("phase", market.phase);
+        market.tradingDay = state.optBoolean("trading_day", market.tradingDay);
+        if (state.has("market_open")) {
+            market.open = state.optBoolean("market_open", market.open);
+        }
+        JSONObject next = state.optJSONObject("next_event");
+        if (next != null) {
+            market.nextEvent = next.optString("at_pk", "");
+        }
+    }
+
+    /** The owner-facing sentence for a phase. Never guesses a session. */
+    static String phaseLine(Market market) {
+        if (market == null || market.phase.isEmpty()) {
+            return market != null && market.open ? "" : "PSX session closed.";
+        }
+        if ("OPEN".equals(market.phase) || "WARMUP".equals(market.phase)) {
+            return "";
+        }
+        if ("BREAK".equals(market.phase)) {
+            return market.nextEvent.isEmpty()
+                    ? "Market break: the exchange is between sessions."
+                    : "Market break: trading resumes " + market.nextEvent + " PKT.";
+        }
+        if ("CLOSED".equals(market.phase)) {
+            return market.tradingDay
+                    ? "PSX holiday: no session today. Quant is sleeping."
+                    : "Weekend: the exchange is closed. Quant is sleeping.";
+        }
+        if ("PRE_OPEN".equals(market.phase)) {
+            return market.nextEvent.isEmpty() ? "Before today's open."
+                    : "Before today's open (" + market.nextEvent + " PKT).";
+        }
+        if ("POST_CLOSE".equals(market.phase)) {
+            return "Today's sessions have closed. Quant is sleeping.";
+        }
+        return "";
     }
 
     /**
@@ -180,16 +268,21 @@ public final class Watcher {
                 String karachi = health.optString("karachi_now", "");
                 boolean online = reachable && marketOpen;
 
+                // The relay's own phase decides the sentence, so a break reads
+                // as a break and a weekend reads as a weekend (v1.6.0).
+                Market healthMarket = new Market();
+                healthMarket.open = marketOpen;
+                readPhase(health.optJSONObject("market_state"), healthMarket);
+
                 // owner order 2026-10-07: the app shows only the Karachi
                 // clock; the next-event line is gone
                 String detail;
                 if (!reachable) {
                     detail = "The relay answered but reported a fault.";
-                } else if (marketOpen) {
-                    detail = "Karachi: " + karachi;
                 } else {
+                    String line = phaseLine(healthMarket);
                     detail = "Karachi: " + karachi
-                            + "\nPSX session closed. Quant is sleeping.";
+                            + (line.isEmpty() ? "" : "\n" + line);
                 }
 
                 String signals = "";
@@ -209,7 +302,16 @@ public final class Watcher {
                 if (!signalNote.isEmpty() && signals.trim().isEmpty()) {
                     signals = signalNote;
                 }
-                cb.done(online, reachable, detail, signals, fetchMarket(base));
+                Market market = fetchMarket(base);
+                if (market.phase.isEmpty()) {
+                    // the card failed to load: keep the phase the relay already
+                    // told us, so the pill and the footnote never disagree
+                    market.phase = healthMarket.phase;
+                    market.tradingDay = healthMarket.tradingDay;
+                    market.nextEvent = healthMarket.nextEvent;
+                    market.open = healthMarket.open;
+                }
+                cb.done(online, reachable, detail, signals, market);
             } catch (Exception e) {
                 String why = e.getClass().getSimpleName();
                 String hint = why.contains("UnknownHost") || why.contains("Connect")

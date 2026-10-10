@@ -12,15 +12,33 @@ Cloudflare relay, never to Telegram, never to a broker.
   owner order). Outside the session, and on weekends and PSX holidays, the
   pill shows OFFLINE with a red cross: a closed market is never reported as
   ONLINE (owner order 2026-10-09).
+- v1.6.0: the pill follows the relay's `market_state` phase, so the
+  exchange's Friday midday break (12:00 to 14:32) reads OFFLINE with the line
+  "Market break: trading resumes 2026-10-09 14:32 PKT", a weekend reads
+  "Weekend: the exchange is closed", and a PSX holiday reads "PSX holiday: no
+  session today". The app never derives a session from its own clock, which is
+  what keeps a phone, the PC and the edge in agreement.
 - A signals panel fed by the relay's `/signals` feed (admin token required,
   stored once in the app).
-- A MARKET NOW card (v1.5.0, replacing the motivational panel): the KSE100
-  index with its points and percentage, then the three KMIALL stocks with
-  the highest current session volume, each with its volume and price. The
-  relay builds it from the PSX Data Portal's own pages and caches it for
-  five minutes, so the card is at most five minutes old.
+- A MARKET NOW card (v1.5.0, extended in v1.6.0): the KSE100 index with its
+  points and percentage, then the three KMIALL stocks with the highest current
+  session volume, each with its day's percentage change (green up, red down)
+  and its volume. The relay builds it from the PSX Data Portal's own pages and
+  caches it for five minutes, so the card is at most five minutes old.
+- v1.6.0 volume rows read
+  `1. CNERGY   B=12,345  S=9,876  T=22,221   Rs 12.52   up 1.05%`, where B and
+  S are the session's buy and sell volumes and T is the exchange's own total.
+  The split comes from the broker tick capture (`src/data/tick_volume.py`),
+  which is the only genuine source of it; when no capture exists for the
+  session the row shows `T=` alone and the footnote says exactly why. A made
+  up buy/sell ratio would be a lie about the tape, so the app never shows one.
+- v1.6.0 footnote: "Index as of <portal time> PKT - current session volume,
+  top 3 of N KMIALLSHR members - <split basis>", replacing the old truncated
+  "volume: today, top of N KMIALLSHR members" line.
 - Phone notifications on status changes and new signals, refreshed every 5
   minutes by a watchdog that re-arms itself and survives phone restarts.
+  v1.5.1 adds a one time battery optimisation exemption request: see
+  "Watchdog and battery" below.
 
 ## Branding
 
@@ -50,6 +68,7 @@ B=android/app/build
 find android/app/src/main/java $B/gen -name "*.java" > $B/sources.txt
 "$JDK/bin/javac" -encoding UTF-8 -source 8 -target 8 -classpath "$PLAT" \
   -d $B/classes @$B/sources.txt
+mkdir -p $B/dex      # D8 refuses an output directory that does not exist yet
 "$JDK/bin/java" -cp $TOOLS/r8.jar com.android.tools.r8.D8 --release \
   --lib "$PLAT" --output $B/dex $(find $B/classes -name "*.class")
 python - <<'PY'
@@ -61,8 +80,28 @@ with zipfile.ZipFile(f"{B}/app.apk", "a", zipfile.ZIP_DEFLATED) as z:
 PY
 "$JDK/bin/java" -jar $TOOLS/uber-apk-signer.jar -a $B/app.apk --out $B/signed
 cp $B/signed/app-aligned-debugSigned.apk \
-  /c/Users/rehan/OneDrive/Desktop/QuantOfRehan-v1.5.0.apk
+  /c/Users/rehan/OneDrive/Desktop/QuantOfRehan-v1.5.1.apk
 ```
+
+## Watchdog and battery
+
+The 5 minute refresh is a best effort schedule, and the app cannot make it
+stronger than Android allows. What it already does:
+
+- `AlarmManager.setExactAndAllowWhileIdle(RTC_WAKEUP, now + 5 min)` with a
+  broadcast receiver that re-arms itself on every tick, plus a re-arm on
+  `BOOT_COMPLETED`, so a phone restart does not silence it;
+- the app refreshes on open and on resume, so the cards are never stale
+  while the owner is actually looking at them.
+
+What can still delay a background tick: Doze, and OEM battery managers that
+kill background work outright (roughly a 9 minute cap, or a stopped alarm, on
+the most aggressive phones). The mitigation an app can legitimately ask for
+is a battery optimisation exemption. Since v1.5.1 the app requests it once,
+quietly, on first run, and the Arm button requests it again on demand; the
+power user can also confirm it under Settings, Apps, Quant of Rehan, Battery.
+If the exemption is granted the watchdog keeps its cadence; if it is refused
+the app still refreshes whenever it is opened or resumed.
 
 The Always Classy face (res/font/always_classy.ttf, licence in
 android/LICENSES/) was bundled for the motivational panel. That panel is

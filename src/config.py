@@ -108,6 +108,66 @@ MAX_MARKET_DROP = _number("MAX_MARKET_DROP", -0.01)
 
 SCANNER_VERSION = "momentum_volume_acceleration_v1"
 
+# ---------------------------------------------------------------- volatility
+# Session volatility regime, measured from the captured bars
+# (src/signals/volatility.py). The regime is REPORTED with every scan. The two
+# levers below are OFF by default so the live strategy is unchanged until the
+# owner turns them on: VOLATILITY_AWARE_TARGETS scales the +2% target by
+# TARGET_MULTIPLIER_BY_REGIME, and VOLATILITY_VETO_ENABLED refuses names that
+# could not have been filled at all (a limit-locked print with no volume).
+ATR_CALM_PCT = _number("ATR_CALM_PCT", 0.0025)
+ATR_ELEVATED_PCT = _number("ATR_ELEVATED_PCT", 0.0075)
+ATR_EXTREME_PCT = _number("ATR_EXTREME_PCT", 0.0200)
+MAX_GAP_PCT = _number("MAX_GAP_PCT", 0.05)
+MAX_INTRADAY_SWING_PCT = _number("MAX_INTRADAY_SWING_PCT", 0.10)
+VOLATILITY_AWARE_TARGETS = _flag("VOLATILITY_AWARE_TARGETS", False)
+VOLATILITY_VETO_ENABLED = _flag("VOLATILITY_VETO_ENABLED", False)
+TARGET_MULTIPLIER_BY_REGIME = {
+    "CALM": _number("TARGET_MULT_CALM", 0.8),
+    "NORMAL": _number("TARGET_MULT_NORMAL", 1.0),
+    "ELEVATED": _number("TARGET_MULT_ELEVATED", 1.25),
+    "EXTREME": _number("TARGET_MULT_EXTREME", 1.5),
+    "UNKNOWN": 1.0,
+}
+
+# ---------------------------------------------------------------- scheduler
+# The local 5-minute tick (scripts/kmiall_tick.py). Task Scheduler fires every
+# TICK_INTERVAL_MINUTES all day; the tick itself pauses outside the session, so
+# a dumb scheduler fire costs nothing. TICK_WARMUP_MINUTES keeps the runner from
+# scanning before the strategy's own minimum bar and volume-bucket requirements
+# can be met (MIN_BARS_PER_SYMBOL is 20 and VOLUME_WINDOW is 5).
+TICK_INTERVAL_MINUTES = _number("TICK_INTERVAL_MINUTES", 5)
+TICK_WARMUP_MINUTES = _number("TICK_WARMUP_MINUTES", 20)
+TICK_STALE_LOCK_MINUTES = _number("TICK_STALE_LOCK_MINUTES", 15)
+
+# ---------------------------------------------------------------- AI signal
+# The AI component (src/signals/ai_model.py) is a trained DAILY prior: the
+# probability that a symbol touches +2% before -0.5% within 10 sessions. It is
+# a different horizon from the intraday rule, so it is wired in as a bounded
+# PRIOR and never as a hidden decision: recorded per candidate, used to break a
+# near-tie between the top two rule scores, and optionally to veto the weakest
+# sliver of the model's own distribution. AI_TIE_BAND is the rule-score gap
+# inside which the prior may reorder; outside it the rule score wins outright.
+AI_SIGNAL_ENABLED = _flag("AI_SIGNAL_ENABLED", True)
+AI_TIE_BREAK_ENABLED = _flag("AI_TIE_BREAK_ENABLED", True)
+AI_TIE_BAND = _number("AI_TIE_BAND", 2.0)
+# The veto is OFF by default: the fitted edge is weak (holdout AUC ~0.56), so
+# the honest default is to record the prior without letting it refuse a signal.
+AI_GATE_ENABLED = _flag("AI_GATE_ENABLED", False)
+AI_REJECT_PERCENTILE = _number("AI_REJECT_PERCENTILE", 0.25)
+MODEL_FILE = "models/kmiall_signal_v1.json"
+
+# ---------------------------------------------------------------- cost model
+# Single source of truth for execution costs. The frozen research gate
+# (src/research/forward_validation.py) and the live paper cycle both read
+# these numbers, so "net return" means exactly one thing everywhere. Live
+# trading is off, so these are paper accounting only: PSX commission, the
+# 16% sales tax on commission, levies, modelled slippage and 15% CGT on
+# positive net returns (owner's cost schedule, 2026-10-07).
+COST_SIDE_BPS = _number("COST_SIDE_BPS", 22.4)
+SLIPPAGE_SIDE_BPS = _number("SLIPPAGE_SIDE_BPS", 10.0)
+CGT_RATE = _number("CGT_RATE", 0.15)
+
 # ---------------------------------------------------------------- storage
 SESSION_STATE_FILE = "data/forward/session_state.json"
 SESSION_JOURNAL_FILE = "data/forward/session_journal.jsonl"
@@ -116,6 +176,28 @@ DAILY_OUTCOME_FILE = "data/forward/daily_outcome.json"
 PRODUCTION_GATE_FILE = "data/forward/production_gate.json"
 
 assert abs(sum(SCORE_WEIGHTS.values()) - 1.0) < 1e-9, "score weights must sum to 1.0"
+assert 0.0 <= CGT_RATE < 1.0, "CGT rate must be a fraction"
+
+
+def round_trip_cost() -> float:
+    """Total modelled cost of a round trip, as a fraction of entry value:
+    both sides at COST_SIDE_BPS plus both sides of slippage."""
+    return 2.0 * (COST_SIDE_BPS + SLIPPAGE_SIDE_BPS) / 10000.0
+
+
+def net_return(gross_return: float | None) -> float | None:
+    """Net return after round-trip costs and CGT on a positive result.
+
+    Mirrors the frozen research gate exactly (src/research/forward_validation
+    .label_candidate) so a paper outcome and a research label agree. A None
+    input stays None: an unvalued position is never given a made-up net.
+    """
+    if gross_return is None:
+        return None
+    net = float(gross_return) - round_trip_cost()
+    if net > 0:
+        net *= 1.0 - CGT_RATE
+    return round(net, 6)
 
 
 def live_trading_enabled() -> bool:
@@ -140,6 +222,17 @@ def config_snapshot() -> dict:
         "min_session_traded_value": MIN_SESSION_TRADED_VALUE,
         "score_weights": dict(SCORE_WEIGHTS),
         "scanner_version": SCANNER_VERSION,
+        "ai_signal_enabled": AI_SIGNAL_ENABLED,
+        "ai_tie_break_enabled": AI_TIE_BREAK_ENABLED,
+        "ai_tie_band": AI_TIE_BAND,
+        "ai_gate_enabled": AI_GATE_ENABLED,
+        "ai_reject_percentile": AI_REJECT_PERCENTILE,
+        "model_file": MODEL_FILE,
+        "atr_thresholds_pct": [ATR_CALM_PCT, ATR_ELEVATED_PCT, ATR_EXTREME_PCT],
+        "max_gap_pct": MAX_GAP_PCT,
+        "max_intraday_swing_pct": MAX_INTRADAY_SWING_PCT,
+        "volatility_aware_targets": VOLATILITY_AWARE_TARGETS,
+        "volatility_veto_enabled": VOLATILITY_VETO_ENABLED,
         "bar_resolution": BAR_RESOLUTION,
         "paper_trading_enabled": PAPER_TRADING_ENABLED,
         "live_trading_enabled": live_trading_enabled(),

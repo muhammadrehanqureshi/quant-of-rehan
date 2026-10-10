@@ -120,17 +120,24 @@ def parse_message(text: str) -> dict | None:
         return None
     kind, payload = text.split("*", 1)
     record = {"kind": kind, "raw": text}
-    rows = payload.split("$") if kind.startswith("MKT-FEED") else [payload]
+    is_tick_frame = kind.startswith("MKT-FEED")
+    rows = payload.split("$") if is_tick_frame else [payload]
     ticks = []
     for row in rows:
         if not row or ";" not in row:
             continue
         fields = row.split(";")
-        # Positional fields kept under string indices plus named fields.
+        # Positional fields are always kept. The NAMED fields are only
+        # applied to MKT-FEED rows: the same file also carries EXS-FEED,
+        # MKT-Movers and MKT-STATS frames whose semicolon lists are a
+        # different layout, and naming them with the tick map labelled a
+        # market-stats row as a trade with a 45,745,000 share buy (found
+        # while building the buy/sell split, 2026-10-10).
         tick = {str(i): v for i, v in enumerate(fields)}
-        for idx, name in TICK_FIELDS.items():
-            if idx < len(fields):
-                tick[name] = fields[idx]
+        if is_tick_frame:
+            for idx, name in TICK_FIELDS.items():
+                if idx < len(fields):
+                    tick[name] = fields[idx]
         ticks.append(tick)
     if ticks:
         record["ticks"] = ticks

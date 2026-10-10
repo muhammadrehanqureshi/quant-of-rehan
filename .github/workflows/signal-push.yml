@@ -60,13 +60,41 @@ jobs:
           # push raises ONE deduped Telegram ops alert instead of a GitHub
           # failure email. The next cron slot retries automatically (the
           # per-session journal prevents double sends).
-          python scripts/signal_daily.py $ARGS \
-            || python scripts/ops_alert.py --text "Quant of Rehan: the daily signal push failed this slot. It retries at the next scheduled run; nothing is sent twice."
+          #
+          # Owner bug report, 2026-10-10: the alert used to say only that the
+          # push had failed, so the cause lived in a GitHub log the owner
+          # never opens. The job output is now captured, the reason travels
+          # with the alert, and the same reason is written to the run summary
+          # (which is readable even when the relay itself is the thing that
+          # is broken and no Telegram message can be delivered).
+          set +e
+          python scripts/signal_daily.py $ARGS > /tmp/signal_push.log 2>&1
+          STATUS=$?
+          set -e
+          cat /tmp/signal_push.log
+          REASON=$(tr -d '\r' < /tmp/signal_push.log | grep -v '^$' | tail -n 4)
+          if [ "$STATUS" -ne 0 ]; then
+            {
+              echo "## Daily signal push failed"
+              echo ""
+              echo '```'
+              echo "${REASON}"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            python scripts/ops_alert.py --text "Quant of Rehan: the daily signal push failed this slot. Reason: ${REASON} It retries at the next scheduled run; nothing is sent twice." || true
+          fi
 
-      - name: Upload the push journal
+      - name: Keep the job output regardless of the outcome
+        if: always()
+        run: |
+          cp /tmp/signal_push.log data/signal_push_run.log 2>/dev/null || true
+
+      - name: Upload the push journal and this run's output
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: signal-push-journal-${{ github.run_id }}
-          path: data/signal_push_log.jsonl
+          path: |
+            data/signal_push_log.jsonl
+            data/signal_push_run.log
           if-no-files-found: ignore

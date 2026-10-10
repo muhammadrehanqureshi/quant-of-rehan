@@ -6,10 +6,36 @@ a fixed UTC+5 offset with no daylight saving. PKT has been UTC+5 since
 The schedule can never drift with a timezone database update and never
 depends on the machine's own clock settings.
 
-Owner's session law (2026-10-05):
-    Monday to Thursday: opens 09:32, closes 15:30
-    Friday:             opens 09:17, closes 16:30
-    PSX holidays:       no session (list below, refreshed yearly)
+Owner's session law, corrected 2026-10-10 against the exchange's own
+published trading hours (psx.com.pk/psx/exchange/general/trading-hours):
+
+    Monday to Thursday:  ONE session   opens 09:32, closes 15:30
+    Friday:              TWO sessions  opens 09:17, closes 12:00
+                                       opens 14:32, closes 16:30
+    PSX holidays:        no session (list below, refreshed yearly)
+
+The Friday midday break is real and the exchange does not trade through
+it. Before this correction the law described Friday as one continuous
+09:17 to 16:30 session, which made the app claim ONLINE while the
+exchange was shut (observed at 14:23 on a Friday, with trading resuming
+at 14:32). A session is therefore a set of BANDS, not one window, and
+every phase decision in the repository comes from `market_phase` below:
+the local runner, the tick script, the Cloudflare relay and the phone
+app must all agree about which band, if any, is live.
+
+Phases (`MarketPhase`):
+
+    CLOSED      weekend or a PSX holiday
+    PRE_OPEN    a trading day, before the first band of the day
+    WARMUP      inside a band, but within its first N minutes
+    OPEN        inside a band
+    BREAK       between two bands on the same day (Friday 12:00 to 14:32)
+    POST_CLOSE  after the last band of the day
+
+This module is the only place that may build a market time (SO-8). It
+never invents a band: what the exchange publishes is what is encoded
+here, and the phone app is never the authority on whether the market is
+open, it only renders what the relay answers.
 
 Notification texts are fixed by the owner (SO-9) and live here so every
 caller (local runner, Cloudflare worker) uses identical wording.
@@ -18,16 +44,30 @@ caller (local runner, Cloudflare worker) uses identical wording.
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta, timezone
+from enum import Enum
 
 # SO-8: the one and only zone this system may ever use.
 KARACHI = timezone(timedelta(hours=5), name="Asia/Karachi")
 KARACHI_UTC_OFFSET_HOURS = 5
 
-# Owner's session law, in Karachi wall-clock time.
+# Owner's session law, in Karachi wall-clock time, as bands per weekday.
+# Monday to Thursday one band; Friday two, with the exchange's own midday
+# break between them.
 WEEKDAY_OPEN = (9, 32)    # Mon, Tue, Wed, Thu
 WEEKDAY_CLOSE = (15, 30)
 FRIDAY_OPEN = (9, 17)
+FRIDAY_FIRST_CLOSE = (12, 0)
+FRIDAY_SECOND_OPEN = (14, 32)
 FRIDAY_CLOSE = (16, 30)
+
+#: A band is ((open_hour, open_minute), (close_hour, close_minute)).
+Band = tuple[tuple[int, int], tuple[int, int]]
+
+WEEKDAY_BANDS: tuple[Band, ...] = ((WEEKDAY_OPEN, WEEKDAY_CLOSE),)
+FRIDAY_BANDS: tuple[Band, ...] = (
+    (FRIDAY_OPEN, FRIDAY_FIRST_CLOSE),
+    (FRIDAY_SECOND_OPEN, FRIDAY_CLOSE),
+)
 
 # Owner's exact texts (SO-9, reworded by owner order 2026-10-08: name the
 # market event first, then the quant state).
@@ -49,9 +89,38 @@ PSX_HOLIDAYS_2026 = frozenset({
 TradingDay = int
 
 
+class MarketPhase(str, Enum):
+    """Which part of the trading day an instant is in.
+
+    `is_market_open` is true only for OPEN and WARMUP, so a break, a
+    weekend, a holiday and the hours before the open are all OFFLINE.
+    """
+
+    CLOSED = "CLOSED"
+    PRE_OPEN = "PRE_OPEN"
+    WARMUP = "WARMUP"
+    OPEN = "OPEN"
+    BREAK = "BREAK"
+    POST_CLOSE = "POST_CLOSE"
+
+    @property
+    def is_live(self) -> bool:
+        """True only while the exchange is actually trading."""
+        return self in (MarketPhase.OPEN, MarketPhase.WARMUP)
+
+
 def now_karachi() -> datetime:
     """Current instant in the one true zone."""
     return datetime.now(KARACHI)
+
+
+def as_karachi(moment: datetime | None = None) -> datetime:
+    """Interpret an instant in Karachi time (naive input is local Karachi)."""
+    if moment is None:
+        return now_karachi()
+    if moment.tzinfo is None:
+        return moment.replace(tzinfo=KARACHI)
+    return moment.astimezone(KARACHI)
 
 
 def is_trading_day(d: date) -> bool:
@@ -61,55 +130,179 @@ def is_trading_day(d: date) -> bool:
     return d.isoformat() not in PSX_HOLIDAYS_2026
 
 
+def session_bands(d: date) -> tuple[Band, ...]:
+    """The bands the exchange trades on Karachi date d (empty when closed)."""
+    if not is_trading_day(d):
+        return ()
+    return FRIDAY_BANDS if d.weekday() == 4 else WEEKDAY_BANDS
+
+
 def open_time(d: date) -> tuple[int, int]:
-    """(hour, minute) of the open for Karachi date d."""
-    return FRIDAY_OPEN if d.weekday() == 4 else WEEKDAY_OPEN
+    """(hour, minute) of the FIRST open for Karachi date d.
+
+    Kept for callers that only care when the trading day begins; use
+    `session_bands` when the break matters.
+    """
+    bands = session_bands(d)
+    return bands[0][0] if bands else (WEEKDAY_OPEN if d.weekday() != 4
+                                      else FRIDAY_OPEN)
 
 
 def close_time(d: date) -> tuple[int, int]:
-    """(hour, minute) of the close for Karachi date d."""
-    return FRIDAY_CLOSE if d.weekday() == 4 else WEEKDAY_CLOSE
+    """(hour, minute) of the LAST close for Karachi date d."""
+    bands = session_bands(d)
+    return bands[-1][1] if bands else (WEEKDAY_CLOSE if d.weekday() != 4
+                                       else FRIDAY_CLOSE)
 
 
 def _at(d: date, hm: tuple[int, int]) -> datetime:
     return datetime(d.year, d.month, d.day, hm[0], hm[1], tzinfo=KARACHI)
 
 
+def band_bounds(d: date, band: Band) -> tuple[datetime, datetime]:
+    """Open and close instants (Karachi zone) of one band on date d."""
+    return _at(d, band[0]), _at(d, band[1])
+
+
 def session_bounds(d: date) -> tuple[datetime, datetime]:
-    """Open and close instants (Karachi zone) for trading date d."""
+    """First open and last close (Karachi zone) for trading date d."""
     return _at(d, open_time(d)), _at(d, close_time(d))
 
 
-def is_market_open(now: datetime | None = None) -> bool:
-    """True only inside a live session, per the owner's law."""
-    n = (now or now_karachi()).astimezone(KARACHI)
-    if not is_trading_day(n.date()):
-        return False
-    o, c = session_bounds(n.date())
-    return o <= n < c
+def current_band(moment: datetime | None = None) -> Band | None:
+    """The band that is live at this instant, or None (break, closed, pre)."""
+    k = as_karachi(moment)
+    for band in session_bands(k.date()):
+        opens, closes = band_bounds(k.date(), band)
+        if opens <= k < closes:
+            return band
+    return None
 
 
-def next_event(now: datetime | None = None) -> tuple[str, datetime]:
-    """Next (OPEN, instant) or (CLOSE, instant) the runner must fire.
+def market_phase(moment: datetime | None = None, *,
+                 warmup_minutes: float = 0.0) -> MarketPhase:
+    """Which part of the trading day this instant is in.
 
-    Scans forward at most 10 calendar days; a market that never opens in
-    10 days means the holiday list is stale and we say so in the result.
+    `warmup_minutes` marks the first N minutes of each band as WARMUP, so
+    a runner can tell "the session is live" from "the session is live but
+    the strategy has not had enough bars yet". A break is never warmup:
+    after the Friday midday break the second band gets its own warmup.
     """
-    n = (now or now_karachi()).astimezone(KARACHI)
+    k = as_karachi(moment)
+    day = k.date()
+    bands = session_bands(day)
+    if not bands:
+        return MarketPhase.CLOSED
+    first_open = _at(day, bands[0][0])
+    last_close = _at(day, bands[-1][1])
+    if k < first_open:
+        return MarketPhase.PRE_OPEN
+    if k >= last_close:
+        return MarketPhase.POST_CLOSE
+    for band in bands:
+        opens, closes = band_bounds(day, band)
+        if opens <= k < closes:
+            if warmup_minutes and k < opens + timedelta(minutes=warmup_minutes):
+                return MarketPhase.WARMUP
+            return MarketPhase.OPEN
+    return MarketPhase.BREAK
+
+
+def is_market_open(moment: datetime | None = None) -> bool:
+    """True only inside a live band, per the owner's law (SO-8).
+
+    The Friday midday break and the whole weekend are closed. This is the
+    single answer every caller (runner, relay, app) must render as ONLINE
+    or OFFLINE.
+    """
+    return market_phase(moment).is_live
+
+
+def market_state(moment: datetime | None = None) -> dict:
+    """The typed, serialisable answer the relay and the app both consume.
+
+    Returns the phase, the live band (if any), and the next band edge, so
+    a UI can say "OFFLINE, break until 14:32" without re-deriving the law.
+    """
+    k = as_karachi(moment)
+    phase = market_phase(k)
+    band = current_band(k)
+    event, at = next_event(k)
+    live_band = (None if band is None
+                 else {"open": _hm(band[0]), "close": _hm(band[1])})
+    return {
+        "phase": phase.value,
+        "market_open": phase.is_live,
+        "as_of": k.isoformat(timespec="seconds"),
+        "date": k.date().isoformat(),
+        "trading_day": is_trading_day(k.date()),
+        "live_band": live_band,
+        "bands": [{"open": _hm(b[0]), "close": _hm(b[1])}
+                  for b in session_bands(k.date())],
+        "next_event": (None if event is None else
+                       {"event": event,
+                        "at_pk": at.strftime("%Y-%m-%d %H:%M")}),
+        "timezone": "Asia/Karachi",
+    }
+
+
+def _hm(hm: tuple[int, int]) -> str:
+    return f"{hm[0]:02d}:{hm[1]:02d}"
+
+
+def next_event(moment: datetime | None = None) -> tuple[str, datetime] | tuple[None, None]:
+    """Next ("OPEN", band start) or ("CLOSE", band end) the relay fires.
+
+    With the Friday break there are four edges on a Friday: two opens and
+    two closes. Scans forward at most 10 calendar days; a market that
+    never opens in 10 days means the holiday list is stale and we say so
+    in the result rather than guessing a date.
+    """
+    k = as_karachi(moment)
     for offset in range(10):
-        d = (n + timedelta(days=offset)).date()
-        if not is_trading_day(d):
-            continue
-        o, c = session_bounds(d)
-        if o > n:
-            return "OPEN", o
-        if c > n:
-            return "CLOSE", c
-    # Stale holiday list: treat tomorrow 09:32 as a hard fallback so the
-    # runner never goes silent, and let the failure be loud (SO-9).
-    fallback_date = (n + timedelta(days=1)).date()
-    fallback = _at(fallback_date, (9, 32))
+        d = (k + timedelta(days=offset)).date()
+        for band in session_bands(d):
+            opens, closes = band_bounds(d, band)
+            if opens > k:
+                return "OPEN", opens
+            if closes > k:
+                return "CLOSE", closes
+    # Stale holiday list: treat tomorrow's scheduled open as a hard
+    # fallback so the runner never goes silent, and let the failure be
+    # loud (SO-9). Friday opens at 09:17, everything else at 09:32.
+    fallback_date = (k + timedelta(days=1)).date()
+    fallback = _at(fallback_date, open_time(fallback_date))
     return "OPEN", fallback
+
+
+def next_open(moment: datetime | None = None) -> datetime:
+    """The next band start after this instant (used by the runners)."""
+    k = as_karachi(moment)
+    for offset in range(11):
+        d = (k + timedelta(days=offset)).date()
+        for band in session_bands(d):
+            opens, _ = band_bounds(d, band)
+            if opens > k:
+                return opens
+    return _at((k + timedelta(days=1)).date(), open_time((k + timedelta(days=1)).date()))
+
+
+def session_window_text(d: date) -> str:
+    """Human window text for a date, break included: "09:17-12:00, 14:32-16:30"."""
+    bands = session_bands(d)
+    if not bands:
+        return "closed (weekend or PSX holiday)"
+    return ", ".join(f"{_hm(band[0])}-{_hm(band[1])}" for band in bands)
+
+
+def closing_edges(d: date) -> tuple[tuple[int, int], ...]:
+    """Every band end on a date: the instants the quant sleeps."""
+    return tuple(band[1] for band in session_bands(d))
+
+
+def opening_edges(d: date) -> tuple[tuple[int, int], ...]:
+    """Every band start on a date: the instants the quant wakes."""
+    return tuple(band[0] for band in session_bands(d))
 
 
 def ms_until(instant: datetime, now: datetime | None = None) -> int:

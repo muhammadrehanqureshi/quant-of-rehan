@@ -55,7 +55,8 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 from src import config  # noqa: E402
-from src.data.sessions import is_market_open, now_karachi  # noqa: E402
+from src.data import tick_volume  # noqa: E402
+from src.data.sessions import is_market_open, market_state, now_karachi  # noqa: E402
 
 PORTAL_HOME = "https://dps.psx.com.pk/"
 PORTAL_INDEX = "https://dps.psx.com.pk/indices/"
@@ -147,13 +148,21 @@ def parse_constituents(html: str) -> list[dict]:
 
 
 def volume_leaders(rows: list[dict], top_n: int = TOP_N) -> list[dict]:
-    """Top members of the index by the current session volume, highest first."""
+    """Top members of the index by the current session volume, highest first.
+
+    Each leader carries its day's percentage change (the exchange prints it
+    in the same row, so it is a measurement, not a derivation) and, when a
+    genuine tick capture exists, its buy and sell volumes.
+    """
     ranked = [row for row in rows if row["volume"] and row["volume"] > 0]
     ranked.sort(key=lambda row: (-row["volume"], row["symbol"]))
     return [{
         "symbol": row["symbol"],
         "volume": int(row["volume"]),
         "price": row["current"],
+        "change_pct": row.get("change_pct"),
+        "buy_volume": None,
+        "sell_volume": None,
         "basis": "current session volume (PSX KMIALLSHR constituents)",
     } for row in ranked[:top_n]]
 
@@ -174,10 +183,14 @@ def build_snapshot() -> dict:
         "date": now.date().isoformat(),
         "timezone": config.MARKET_TIMEZONE,
         "market_open": is_market_open(now),
+        # The phase the app renders (OPEN, BREAK, CLOSED, PRE_OPEN,
+        # POST_CLOSE) comes from the one session law, never from the app.
+        "market_state": market_state(now),
         "index": None,
         "kmiall_members": 0,
         "top_volume": None,
         "top_volume_basis": None,
+        "volume_split_basis": None,
         "notes": [],
     }
     try:
@@ -193,9 +206,15 @@ def build_snapshot() -> dict:
         if not rows:
             snapshot["notes"].append(
                 f"{INDEX_MEMBERSHIP} constituent table was empty")
+            snapshot["volume_split_basis"] = (
+                "no leaders, so there is no split to report")
         else:
             leaders = volume_leaders(rows)
             if leaders:
+                # Buy/sell split from the broker tick capture, or an explicit
+                # "unavailable" with the reason (SO-3: never invented).
+                snapshot["volume_split_basis"] = tick_volume.attach_splits(
+                    leaders, now.date())
                 snapshot["top_volume"] = leaders
                 snapshot["top_volume_basis"] = (
                     f"current session volume, top {len(leaders)} of "
@@ -208,6 +227,8 @@ def build_snapshot() -> dict:
         snapshot["top_volume_basis"] = (
             f"{INDEX_MEMBERSHIP} constituent table unreachable, so the "
             "session volume ranking is unavailable")
+        snapshot["volume_split_basis"] = (
+            "no volume ranking, so the buy/sell split is unavailable")
     return snapshot
 
 
