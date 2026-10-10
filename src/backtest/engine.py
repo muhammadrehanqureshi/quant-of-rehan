@@ -30,7 +30,7 @@ DPS timeseries has NO high/low. touch_mode:
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Iterable, Optional
 
 import pandas as pd

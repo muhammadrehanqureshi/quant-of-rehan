@@ -24,13 +24,16 @@ name: KMIALL intraday momentum scan
 
 on:
   schedule:
-    - cron: "7 5 * * 1-5"
-    - cron: "37 6 * * 1-5"
-    - cron: "7 8 * * 1-5"
-    - cron: "37 9 * * 1-5"
-    - cron: "7 11 * * 5"
-    - cron: "47 10 * * 1-4"
-    - cron: "47 11 * * 5"
+    # Friday (PKT) is two sessions, 09:17-12:00 and 14:32-16:30, with the
+    # exchange's midday break in between; the 13:00 scan slot is Mon-Thu
+    # only for that reason. See src/data/sessions.py for the one session law.
+    - cron: "7 5 * * 1-5"     # 10:07 PKT
+    - cron: "37 6 * * 1-5"    # 11:37 PKT
+    - cron: "7 8 * * 1-4"     # 13:07 PKT, never on Friday (break)
+    - cron: "37 9 * * 1-5"    # 14:37 PKT
+    - cron: "7 11 * * 5"      # 16:07 PKT Friday session 2
+    - cron: "47 10 * * 1-4"   # 15:47 PKT finalize
+    - cron: "47 11 * * 5"     # 16:47 PKT Friday finalize
   workflow_dispatch:
     inputs:
       slot:
@@ -89,7 +92,10 @@ jobs:
             case "${{ github.event.schedule }}" in
               "7 5 * * 1-5") SLOT="10:00" ;;
               "37 6 * * 1-5") SLOT="11:30" ;;
-              "7 8 * * 1-5") SLOT="13:00" ;;
+              # Mon-Thu only: 13:07 PKT falls inside the exchange's Friday
+              # midday break (12:00 to 14:32), and no scan may run then.
+              # Friday's afternoon coverage comes from the 14:37 slot.
+              "7 8 * * 1-4") SLOT="13:00" ;;
               "37 9 * * 1-5") SLOT="14:30" ;;
               "7 11 * * 5") SLOT="16:00" ;;
               "47 10 * * 1-4") FINALIZE="1" ;;
