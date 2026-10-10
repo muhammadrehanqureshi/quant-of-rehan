@@ -31,7 +31,6 @@ import argparse
 import json
 import os
 import sys
-from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
@@ -74,16 +73,95 @@ def read_admin_token() -> str:
     raise RuntimeError("RELAY_ADMIN_TOKEN missing (env and .env)")
 
 
+def _hint_for(status: int, body: dict) -> str:
+    """Turn a relay refusal into a sentence the owner can act on.
+
+    Owner bug report, 2026-10-10: the scheduled job reported only "the daily
+    signal push failed" through Telegram, with no cause. The relay answers
+    with a specific status and message, and each one has exactly one fix, so
+    the fix is named here instead of being buried in a GitHub log nobody
+    reads.
+    """
+    detail = str(body.get("error", ""))
+    if status == 403:
+        return ("the relay refused the admin token (HTTP 403). The GitHub "
+                "secret RELAY_ADMIN_TOKEN no longer matches the worker "
+                "binding; re-pair or rotate both from the same value")
+    if status == 409:
+        return ("the relay is not paired with the owner's chat (HTTP 409). "
+                "Run cloud/pair.py discover then confirm")
+    if status == 502:
+        return (f"the relay reached Telegram and Telegram refused the send "
+                f"(HTTP 502: {detail or 'no description'}). Check the bot "
+                f"token binding and that the paired chat still exists")
+    if status == 503:
+        return "the relay is up but its backing store is unavailable (HTTP 503)"
+    return f"the relay refused {detail or 'the request'} (HTTP {status})"
+
+
 def post_json(url: str, path: str, payload: dict, token: str,
-              timeout_s: float = 30.0) -> dict:
+              timeout_s: float = 30.0, attempts: int = 3) -> dict:
+    """POST with bounded retries, then a specific, actionable failure.
+
+    A transient network error (the API-downtime case) is retried with a
+    short backoff; a refusal from the relay is NOT retried, because the
+    same request will be refused again and the owner needs the reason.
+    """
+    import time
+
     import requests
-    r = requests.post(url + path, json=payload, timeout=timeout_s,
-                      headers={"x-admin-token": token})
-    body = r.json()
-    if r.status_code != 200 or not body.get("ok"):
-        raise RuntimeError(f"relay {path} refused: HTTP {r.status_code} "
-                           f"{json.dumps(body)[:120]}")
-    return body
+
+    last: str = ""
+    for attempt in range(1, attempts + 1):
+        try:
+            r = requests.post(url + path, json=payload, timeout=timeout_s,
+                              headers={"x-admin-token": token})
+        except requests.RequestException as exc:
+            last = f"{type(exc).__name__}: {exc}"
+        else:
+            try:
+                body = r.json()
+            except ValueError:
+                body = {}
+            if r.status_code == 200 and body.get("ok"):
+                return body
+            raise RuntimeError(f"relay {path} refused: {_hint_for(r.status_code, body)} "
+                               f"[HTTP {r.status_code} {json.dumps(body)[:120]}]")
+        if attempt < attempts:
+            time.sleep(2.0 * attempt)
+    raise RuntimeError(f"relay {path} unreachable after {attempts} attempts: {last}")
+
+
+def relay_preflight(url: str, token: str, timeout_s: float = 15.0) -> str:
+    """Answer "can a push work right now?" before spending a fetch on it.
+
+    Checks the relay is alive and that it accepts this admin token, because
+    a token that has been rotated on one side produces a failure that looks
+    like a broken push and is otherwise only discoverable after the whole
+    EOD fetch has run. Returns "" when the relay is ready, else the reason.
+    """
+    import requests
+
+    try:
+        health = requests.get(url + "/health", timeout=timeout_s).json()
+    except (requests.RequestException, ValueError) as exc:
+        return f"the relay did not answer /health ({type(exc).__name__})"
+    if not health.get("ok"):
+        return "the relay answered /health with a fault"
+    if not health.get("paired"):
+        return ("the relay is not paired with the owner's Telegram chat; "
+                "run cloud/pair.py discover then confirm")
+    try:
+        r = requests.get(url + "/signals", timeout=timeout_s,
+                         headers={"x-admin-token": token})
+    except requests.RequestException as exc:
+        return f"the relay did not answer /signals ({type(exc).__name__})"
+    if r.status_code == 200 and r.json().get("ok"):
+        return ""
+    if r.status_code == 403:
+        return ("the relay refused this admin token (HTTP 403): the GitHub "
+                "secret and the worker binding disagree")
+    return f"the relay refused /signals with HTTP {r.status_code}"
 
 
 def journal(event: str, ok: bool, detail: str) -> None:
@@ -209,6 +287,14 @@ def main(argv: list[str] | None = None) -> int:
 
     token = read_admin_token()
     url = load_relay_url()
+    blocked = relay_preflight(url, token)
+    if blocked:
+        # Fail before the expensive work with the real reason, and journal it
+        # so the next scheduled slot can see what happened.
+        journal(f"preflight {signal_date_label}", False, blocked)
+        print(f"relay preflight failed: {blocked}\n"
+              f"the signal is NOT lost; rerun once the relay is fixed.")
+        return 1
     if relay_already_has(url, token, signal_date_label):
         journal(f"push {signal_date_label}", True,
                 "relay already holds this session's verdict; nothing resent")

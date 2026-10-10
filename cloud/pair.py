@@ -9,7 +9,8 @@ What this script does, idempotently:
        bindings (bot token, an admin token it generates and stores in .env)
     3. asks the worker which chat last messaged the bot (you send it a
        message from your phone), then writes PAIRED_CHAT_ID as a binding
-    4. sets the four cron triggers on the SO-8 schedule
+    4. sets the six cron triggers on the SO-8 schedule (Friday is two
+       sessions, so it has four edges: 09:17, 12:00, 14:32, 16:30 PKT)
     5. enables the workers.dev URL, writes data/relay_url.txt
     6. sends one test message through the full relay path
 
@@ -39,7 +40,21 @@ WORKER = "quant-of-rehan-relay"
 API = "https://api.cloudflare.com/client/v4"
 SUBDOMAIN = "mrmrehanqureshi"  # workers.dev subdomain of this account
 
-CRONS = ["32 4 * * 1-4", "17 4 * * 5", "30 10 * * 1-4", "30 11 * * 5"]
+# SO-8, band aware (2026-10-10). Karachi is UTC+5.
+#   Mon-Thu open  09:32 PKT = 04:32 UTC | close 15:30 PKT = 10:30 UTC
+#   Friday  s1    09:17 PKT = 04:17 UTC | close 12:00 PKT = 07:00 UTC
+#   Friday  s2    14:32 PKT = 09:32 UTC | close 16:30 PKT = 11:30 UTC
+# The two extra Friday crons exist because the exchange shuts for its
+# midday break: without them the owner would get no "market is closed"
+# at 12:00 and no "market is open" at 14:32.
+CRONS = [
+    "32 4 * * 1-4",   # Mon-Thu open
+    "30 10 * * 1-4",  # Mon-Thu close
+    "17 4 * * 5",     # Friday session 1 open
+    "0 7 * * 5",      # Friday session 1 close (midday break begins)
+    "32 9 * * 5",     # Friday session 2 open (trading resumes)
+    "30 11 * * 5",    # Friday session 2 close
+]
 
 
 def read_creds() -> tuple[str, str, str]:
