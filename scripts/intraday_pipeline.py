@@ -41,16 +41,30 @@ sys.path.insert(0, str(ROOT))
 
 from src import config  # noqa: E402
 from src.data.sessions import (  # noqa: E402
-    KARACHI, close_time, is_trading_day, now_karachi, open_time,
+    KARACHI, close_time, is_market_open, is_trading_day, now_karachi,
 )
+from src.signals import ai_model  # noqa: E402
 from src.signals import momentum_scanner as scanner  # noqa: E402
+from src.signals import trade_state  # noqa: E402
 from src.signals.trade_state import SessionState, State  # noqa: E402
 from src.research.forward_validation import evaluate_gate  # noqa: E402
 
 UNIVERSE_FILE = ROOT / "src" / "data" / "universe_kmiall.json"
 DATA_DIR = ROOT / "data" / "feed_capture"
-FORWARD_DIR = ROOT / "data" / "forward"
 RELAY_DEFAULT = "https://quant-of-rehan-relay.mrmrehanqureshi.workers.dev"
+
+
+def forward_dir() -> Path:
+    """The ONE forward-state directory.
+
+    Derived from ``trade_state.ROOT`` at CALL time, never frozen at import, so
+    the daily state machine and every file this orchestrator writes share a
+    single root. That is what lets a test redirect the whole forward-state
+    surface by patching one attribute, and it is why an offline test run can
+    never overwrite the owner's real session records (observation, outcome and
+    gate are read as evidence of what actually happened on the market).
+    """
+    return trade_state.ROOT / "data" / "forward"
 
 
 def load_kmiall(path: Path = UNIVERSE_FILE) -> list[str]:
@@ -112,6 +126,58 @@ def deliver(text: str, kind: str) -> bool:
         return False
 
 
+def push_card(text: str, state: SessionState | None = None) -> bool:
+    """Write the current verdict to the app's signal card (POST /signals).
+
+    The card must show what the scan decided TODAY. Without this the app kept
+    a stale multi-day-old line, because scan verdicts only travelled to
+    Telegram through /notify. Best-effort: a card failure never changes a
+    verdict, and the local observation file remains the record of truth.
+
+    When a session state is supplied the push is IDEMPOTENT: a tick that
+    reaches the same verdict as the previous tick does not republish it. That
+    is what makes a 5-minute local runner safe to fire all session without
+    filling the card with identical lines.
+    """
+    if state is not None and not state.card_is_new(text):
+        print("card verdict unchanged; not republished")
+        return False
+    try:
+        relay_request("POST", "/signals", {"signals": text})
+    except (requests.RequestException, RuntimeError, ValueError) as exc:
+        print(f"card push failed: {type(exc).__name__}")
+        return False
+    if state is not None:
+        state.note_card(text)
+        state.save()
+    return True
+
+
+def archive(route: str, payload: dict) -> bool:
+    """Best-effort write to the relay's durable research archive.
+
+    Observations, daily outcomes and the production gate are stored in KV for
+    two years (SO: research retention), so the record survives even though the
+    GitHub Actions artifacts expire after 90 days. A failure is reported, never
+    hidden: the caller records the honest storage status either way.
+    """
+    try:
+        relay_request("POST", route, payload)
+        return True
+    except (requests.RequestException, RuntimeError, ValueError) as exc:
+        print(f"research archive {route} failed: {type(exc).__name__}")
+        return False
+
+
+def card_text(day, slot: str, body: str, alert: bool) -> str:
+    """Dated card header so the app never shows an undated verdict, and a
+    trade alert carries the INTRADAY ALERT marker the daily push looks for
+    before it overwrites an intraday card (src/signals/signal_push.py)."""
+    header = (f"INTRADAY ALERT {day.isoformat()}" if alert
+              else f"QoR intraday {day.isoformat()}")
+    return f"{header} \u00b7 {slot} PKT\n{body}"
+
+
 def scheduled_as_of(slot: str, day=None) -> datetime:
     d = day or now_karachi().date()
     hm = tuple(int(part) for part in slot.split(":"))
@@ -119,11 +185,13 @@ def scheduled_as_of(slot: str, day=None) -> datetime:
 
 
 def session_legal(as_of: datetime) -> bool:
-    """The scanner may only run inside the configured session (SO-8)."""
-    day = as_of.date()
-    if not is_trading_day(day):
-        return False
-    return open_time(day) <= (as_of.hour, as_of.minute) <= close_time(day)
+    """The scanner may only run inside a live band (SO-8).
+
+    Band aware: the Friday midday break is not a session, so a scheduled
+    scan that lands in it is refused rather than run against a shut
+    market. The law itself lives in src/data/sessions.py.
+    """
+    return is_market_open(as_of)
 
 
 def capture_path(day) -> Path:
@@ -150,10 +218,38 @@ def last_price(session: scanner.SessionData, symbol: str | None) -> float | None
 
 
 def write_observation(payload: dict) -> Path:
-    FORWARD_DIR.mkdir(parents=True, exist_ok=True)
-    out = FORWARD_DIR / "observation.json"
+    target = forward_dir()
+    target.mkdir(parents=True, exist_ok=True)
+    out = target / "observation.json"
     out.write_text(json.dumps(payload, indent=2, allow_nan=False), encoding="utf-8")
     return out
+
+
+def ai_component() -> tuple[dict, dict[str, float] | None]:
+    """The trained AI prior and an honest status, both best effort.
+
+    A missing artifact, an ineligible model or an unreadable panel disables the
+    prior and is REPORTED; it never blocks the rule scan, because the rule
+    scanner is the strategy and the prior is a second opinion on it.
+    """
+    status = ai_model.status()
+    prior = None
+    if status.get("active"):
+        try:
+            prior = ai_model.live_probabilities()
+            # Record WHICH session's features produced the prior. A probability
+            # computed from a stale daily panel is still a probability, but the
+            # observation must say so rather than imply it is yesterday's setup.
+            cache_path = ai_model.live_feature_cache()
+            if cache_path.is_file():
+                cached = json.loads(cache_path.read_text(encoding="utf-8"))
+                status = {**status,
+                          "prior_panel_as_of": cached.get("panel_as_of"),
+                          "prior_symbols": len(cached.get("probabilities") or {})}
+        except Exception as exc:  # noqa: BLE001 - reported, never invented
+            status = {**status, "active": False,
+                      "reason": f"prior unavailable: {type(exc).__name__}"}
+    return status, prior
 
 
 def run_scan(slot: str, capture: Path | None = None) -> dict:
@@ -184,6 +280,7 @@ def run_scan(slot: str, capture: Path | None = None) -> dict:
             "date": day.isoformat(), "slot": slot, "as_of": as_of.isoformat(),
             "status": scanner.DATA_BLOCKED, "reason": quality.reason,
             "data_quality": quality.as_dict(), "trade_state": state.to_dict(),
+            "ai": ai_model.status(),
             "universe_size": len(symbols),
             "universe_sha256": universe_fingerprint(symbols),
             "scanner_version": config.SCANNER_VERSION,
@@ -191,10 +288,14 @@ def run_scan(slot: str, capture: Path | None = None) -> dict:
         }
         write_observation(payload)
         deliver(text, "ops")
+        push_card(card_text(day, slot, text, alert=False), state)
+        archive("/research/observation",
+                {"date": day.isoformat(), "slot": slot, "snapshot": payload})
         print(json.dumps(payload, indent=2, allow_nan=False))
         return payload
 
-    result = scanner.select_one(session, quality)
+    ai_status, ai_prior = ai_component()
+    result = scanner.select_one(session, quality, ai_prior, ai_status)
     context = result.market
 
     if state.in_position():
@@ -206,6 +307,7 @@ def run_scan(slot: str, capture: Path | None = None) -> dict:
                                               state.target_price or 0.0, hit.close,
                                               hit.timestamp)
             deliver(text, "signals")
+            push_card(card_text(day, slot, text, alert=True), state)
             print(text)
         else:
             state.last_reason = "position open, monitoring the target"
@@ -221,6 +323,7 @@ def run_scan(slot: str, capture: Path | None = None) -> dict:
         state.save()
         text = scanner.signal_message(result.candidate, context, entry, as_of)
         deliver(text, "signals")
+        push_card(card_text(day, slot, text, alert=True), state)
         delivered = "TRADE"
         entered = result.candidate
         status = result.status
@@ -236,6 +339,10 @@ def run_scan(slot: str, capture: Path | None = None) -> dict:
             state.last_reason = reason
             state.save()
         delivered = "LOCKED"
+        card_body = (f"One trade already taken today: {state.symbol} entered at "
+                     f"{state.entry_price}, target {state.target_price}. "
+                     f"{state.last_reason or 'position being monitored'}.")
+        push_card(card_text(day, slot, card_body, alert=state.target_hit), state)
     else:
         status = result.status
         reason = result.reason
@@ -244,7 +351,9 @@ def run_scan(slot: str, capture: Path | None = None) -> dict:
                            scanned=quality.symbols_with_bars,
                            expected=quality.symbols_expected)
             state.save()
-            deliver(scanner.no_trade_message(quality, context), "ops")
+            no_trade_text = scanner.no_trade_message(quality, context)
+            deliver(no_trade_text, "ops")
+            push_card(card_text(day, slot, no_trade_text, alert=False), state)
             delivered = "NO_TRADE"
 
     payload = {
@@ -258,18 +367,24 @@ def run_scan(slot: str, capture: Path | None = None) -> dict:
         "market": context,
         "candidate": entered,
         "observed_candidate": None if entered else observed,
-        "ranked_top": [{k: row[k] for k in ("symbol", "score", "momentum",
-                                            "acceleration_label", "volume_label")}
+        "ranked_top": [{k: row.get(k) for k in ("symbol", "score", "momentum",
+                                                "acceleration_label",
+                                                "volume_label",
+                                                "ai_probability",
+                                                "ai_percentile")}
                        for row in result.ranked],
         "eligible_count": len(result.ranked),
         "coverage_text": result.coverage_text,
         "trade_state": state.to_dict(),
+        "ai": ai_status,
         "universe_size": len(symbols),
         "universe_sha256": universe_fingerprint(symbols),
         "scanner_version": config.SCANNER_VERSION,
         "config": config.config_snapshot(),
     }
     write_observation(payload)
+    archive("/research/observation",
+            {"date": day.isoformat(), "slot": slot, "snapshot": payload})
     print(json.dumps(payload, indent=2, allow_nan=False))
     return payload
 
@@ -311,7 +426,10 @@ def run_finalize(capture: Path | None = None) -> dict:
         end_at = datetime.fromisoformat(state.exit_time) if state.exit_time else as_of
         minutes_held = int((end_at - datetime.fromisoformat(state.entry_time))
                            .total_seconds() // 60)
-    net_return = gross_return  # no execution cost model exists yet, so net = gross
+    # Net is gross minus the modelled round trip and CGT on a positive result,
+    # using the ONE cost schedule in src/config.py (the same numbers the frozen
+    # research gate labels with, so a paper outcome and a research label agree).
+    net_return = config.net_return(gross_return)
     if state.entry_price:
         state.close_day(None if state.target_hit else last_price(session, state.symbol), as_of)
     else:
@@ -321,6 +439,11 @@ def run_finalize(capture: Path | None = None) -> dict:
         **state.session_record(),
         "gross_return": gross_return,
         "net_return": net_return,
+        "cost_model": {
+            "cost_side_bps": config.COST_SIDE_BPS,
+            "slippage_side_bps": config.SLIPPAGE_SIDE_BPS,
+            "cgt_rate": config.CGT_RATE,
+        },
         "minutes_held": minutes_held,
         "outcome": outcome_label,
         "market": context,
@@ -337,15 +460,25 @@ def run_finalize(capture: Path | None = None) -> dict:
         "scanner_version": config.SCANNER_VERSION,
         "outcomes_by_rule": {config.SCANNER_VERSION: record},
         "data_quality": quality.as_dict(),
-        "storage_status": "local",
     }
     gate = evaluate_gate([])
-    gate = {**gate, "storage_status": "local",
-            "scanner_version": config.SCANNER_VERSION}
-    FORWARD_DIR.mkdir(parents=True, exist_ok=True)
-    (FORWARD_DIR / "daily_outcome.json").write_text(
+    gate = {**gate, "scanner_version": config.SCANNER_VERSION}
+
+    # Durable archive first (two year KV retention on the relay), then the
+    # honest storage status is written into the local record. The GitHub
+    # Actions artifact expires after 90 days, so this is the long lived copy.
+    outcome_ok = archive("/research/outcome",
+                         {"date": day.isoformat(), "sessions": [record]})
+    gate_ok = archive("/research/gate", gate)
+    storage = "relay+local" if (outcome_ok and gate_ok) else "local-only"
+    outcome["storage_status"] = storage
+    gate["storage_status"] = storage
+
+    target = forward_dir()
+    target.mkdir(parents=True, exist_ok=True)
+    (target / "daily_outcome.json").write_text(
         json.dumps(outcome, indent=2, allow_nan=False), encoding="utf-8")
-    (FORWARD_DIR / "production_gate.json").write_text(
+    (target / "production_gate.json").write_text(
         json.dumps(gate, indent=2, allow_nan=False), encoding="utf-8")
     print(json.dumps({"outcome": outcome, "gate": gate}, indent=2, allow_nan=False))
     return {"outcome": outcome, "gate": gate}

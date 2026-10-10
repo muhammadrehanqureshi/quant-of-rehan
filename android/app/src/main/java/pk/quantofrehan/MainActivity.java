@@ -16,6 +16,7 @@ import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
@@ -83,10 +84,40 @@ public class MainActivity extends Activity {
 
         findViewById(R.id.btn_arm).setOnClickListener(v -> {
             Watcher.armAlarms(this);
+            maybeRequestBatteryExemption(true);
             toast("Watchdog armed. Refreshing every 5 minutes.");
         });
 
         Watcher.kick(this);
+        // v1.5.1: ask once, quietly, so Doze and OEM battery managers do not
+        // defer the watchdog. The Arm button can always ask again on demand.
+        maybeRequestBatteryExemption(false);
+    }
+
+    /**
+     * A 5 minute watchdog on Android is best effort: setExactAndAllowWhileIdle
+     * is capped inside Doze and some OEM battery managers stop the app
+     * entirely. A battery optimisation exemption is the one thing an app can
+     * ask for, so ask for it. Never nag: the first run asks once and the Arm
+     * button asks again only because the owner pressed it.
+     */
+    private void maybeRequestBatteryExemption(boolean byOwner) {
+        android.os.PowerManager pm =
+                (android.os.PowerManager) getSystemService(POWER_SERVICE);
+        if (pm == null || pm.isIgnoringBatteryOptimizations(getPackageName())) {
+            return; // already exempt: nothing to ask for
+        }
+        if (!byOwner && prefs.getBoolean("asked_battery", false)) {
+            return;
+        }
+        prefs.edit().putBoolean("asked_battery", true).apply();
+        try {
+            startActivity(new Intent(
+                    android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                    Uri.parse("package:" + getPackageName())));
+        } catch (Exception e) {
+            toast("Allow the battery exemption so the watchdog is never frozen.");
+        }
     }
 
     @Override
@@ -182,7 +213,7 @@ public class MainActivity extends Activity {
             marketIndex.setText(getString(R.string.market_waiting));
         }
 
-        List<String[]> leaders = market.leaders;
+        List<Watcher.Leader> leaders = market.leaders;
         if (leaders.isEmpty()) {
             if (!market.answered) {
                 marketLeaders.setText(getString(R.string.market_leaders_waiting));
@@ -192,47 +223,94 @@ public class MainActivity extends Activity {
                 marketLeaders.setText(getString(R.string.market_unavailable));
             }
         } else {
-            StringBuilder sb = new StringBuilder();
-            for (int i = 0; i < leaders.size(); i++) {
-                String[] row = leaders.get(i);
-                long volume;
-                try {
-                    volume = Long.parseLong(row[1]);
-                } catch (NumberFormatException nfe) {
-                    volume = 0;
-                }
-                if (i > 0) sb.append('\n');
-                sb.append(String.format(Locale.US, "%d. %s   %,d shares",
-                        i + 1, row[0], volume));
-                if (row[2] != null && !row[2].isEmpty()) {
-                    try {
-                        sb.append(String.format(Locale.US, "   Rs %,.2f",
-                                Double.parseDouble(row[2])));
-                    } catch (NumberFormatException ignored) {
-                        // price is optional decoration; volume is the ranking
-                    }
-                }
-            }
-            marketLeaders.setText(sb.toString());
+            marketLeaders.setText(leadersText(leaders));
         }
 
+        marketFoot.setText(footText(market, leaders.size()));
+    }
+
+    /**
+     * "1. ABC   B=12,345  S=9,876  T=22,221   Rs 12.52   green 1.05%"
+     *
+     * The owner asked for the split as separate buy and sell volumes next to
+     * the total. When the relay has no genuine split (no broker tick capture
+     * for the session) the line says so through the footnote and shows the
+     * total only: a made up buy/sell ratio would be a lie about the tape.
+     */
+    private SpannableString leadersText(List<Watcher.Leader> leaders) {
+        StringBuilder sb = new StringBuilder();
+        List<Integer> spanStart = new ArrayList<>();
+        List<Integer> spanEnd = new ArrayList<>();
+        List<Boolean> spanUp = new ArrayList<>();
+        for (int i = 0; i < leaders.size(); i++) {
+            Watcher.Leader row = leaders.get(i);
+            if (i > 0) {
+                sb.append('\n');
+            }
+            sb.append(String.format(Locale.US, "%d. %s", i + 1, row.symbol));
+            if (row.hasSplit()) {
+                sb.append(String.format(Locale.US, "   B=%,d  S=%,d  T=%,d",
+                        row.buy, row.sell, row.volume));
+            } else if (row.volume >= 0) {
+                sb.append(String.format(Locale.US, "   T=%,d", row.volume));
+            }
+            if (!Double.isNaN(row.price)) {
+                sb.append(String.format(Locale.US, "   Rs %,.2f", row.price));
+            }
+            if (!Double.isNaN(row.changePct)) {
+                int from = sb.length();
+                sb.append(String.format(Locale.US, "   %s %.2f%%",
+                        row.changePct >= 0 ? "▲" : "▼",
+                        Math.abs(row.changePct)));
+                spanStart.add(from);
+                spanEnd.add(sb.length());
+                spanUp.add(row.changePct >= 0);
+            }
+        }
+        SpannableString sp = new SpannableString(sb.toString());
+        for (int i = 0; i < spanStart.size(); i++) {
+            sp.setSpan(new ForegroundColorSpan(getColor(
+                            spanUp.get(i) ? R.color.green : R.color.red)),
+                    spanStart.get(i), spanEnd.get(i), 0);
+        }
+        return sp;
+    }
+
+    /**
+     * The card's footnote, built from what actually arrived.
+     *
+     * The old line said "volume: today, top of N KMIALLSHR members", which
+     * read as a truncated sentence and never named how many leaders were
+     * shown. The relay's own basis sentence is used when it is present, and
+     * the local fallback states the same facts from the same numbers.
+     */
+    private String footText(Watcher.Market market, int shown) {
         StringBuilder foot = new StringBuilder();
         if (!market.indexAsOf.isEmpty()) {
             foot.append("Index as of ").append(market.indexAsOf).append(" PKT");
         }
-        if (market.members > 0) {
-            foot.append(foot.length() > 0 ? " · " : "")
-                    .append("volume: today, top of ").append(market.members)
-                    .append(" KMIALLSHR members");
+        String basis = market.basis == null ? "" : market.basis.trim();
+        if (basis.isEmpty() && market.members > 0 && shown > 0) {
+            basis = String.format(Locale.US,
+                    "current session volume, top %d of %d KMIALLSHR members",
+                    shown, market.members);
         }
+        appendPart(foot, basis);
+        appendPart(foot, market.splitBasis == null ? "" : market.splitBasis.trim());
         if (!market.open) {
-            foot.append(foot.length() > 0 ? " · " : "")
-                    .append("session closed");
+            appendPart(foot, Watcher.phaseLine(market));
         }
-        if (!market.note.isEmpty()) {
-            foot.append(foot.length() > 0 ? "\n" : "").append(market.note);
+        if (market.note != null && !market.note.trim().isEmpty()) {
+            foot.append(foot.length() > 0 ? "\n" : "").append(market.note.trim());
         }
-        marketFoot.setText(foot.toString());
+        return foot.toString();
+    }
+
+    private void appendPart(StringBuilder foot, String part) {
+        if (part == null || part.trim().isEmpty()) {
+            return;
+        }
+        foot.append(foot.length() > 0 ? " · " : "").append(part.trim());
     }
 
     private void toast(String s) {

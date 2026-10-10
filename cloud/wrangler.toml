@@ -8,15 +8,24 @@ compatibility_date = "2026-10-01"
 # SO-8: Workers crons run on UTC; the worker converts to Karachi (UTC+5)
 # internally and re-checks the schedule edge before firing, so a one-minute
 # cron drift still sends exactly one notification per event.
+#
+# Friday is TWO sessions with the exchange's midday break between them, so
+# it has four edges. The worker's band table (worker.js) is the same table
+# src/data/sessions.py computes, and tests/test_session_law_parity.py fails
+# if the two ever drift.
 # 04:32 UTC = 09:32 PKT (Mon-Thu open)
-# 04:17 UTC = 09:17 PKT (Friday open)
 # 10:30 UTC = 15:30 PKT (Mon-Thu close)
-# 11:30 UTC = 16:30 PKT (Friday close)
+# 04:17 UTC = 09:17 PKT (Friday session 1 open)
+# 07:00 UTC = 12:00 PKT (Friday session 1 close, midday break begins)
+# 09:32 UTC = 14:32 PKT (Friday session 2 open, trading resumes)
+# 11:30 UTC = 16:30 PKT (Friday session 2 close)
 [triggers]
 crons = [
   "32 4 * * 1-4",
-  "17 4 * * 5",
   "30 10 * * 1-4",
+  "17 4 * * 5",
+  "0 7 * * 5",
+  "32 9 * * 5",
   "30 11 * * 5",
 ]
 

@@ -1,0 +1,20 @@
+{
+  "karachi_pin_files": [
+    "src/config.py",
+    "src/data/capture_health.py",
+    "src/data/feed_capture.py",
+    "src/data/market_snapshot.py",
+    "src/data/ohlc_poller.py",
+    "src/data/psx_daily_downloads.py",
+    "src/data/sessions.py",
+    "src/data/tick_volume.py",
+    "src/data/universe_refresh.py",
+    "src/notify/schedule_runner.py",
+    "src/signals/ai_model.py",
+    "src/signals/contracts.py",
+    "src/signals/intraday_engine.py",
+    "src/signals/momentum_scanner.py",
+    "src/signals/signal_push.py",
+    "src/signals/trade_state.py"
+  ]
+}

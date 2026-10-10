@@ -7,14 +7,20 @@ Telegram; you read the messages on your phone over your VPN as usual.
 
 ## What it does
 
-- `GET /health`: liveness, current Karachi wall clock, next open/close event,
-  pairing state, and `market_open` per the owner's session law (the app shows
-  ONLINE only while that is true)
+- `GET /health`: liveness, current Karachi wall clock, next band edge,
+  pairing state, `market_open`, and `market_state` with the phase
+  (`OPEN`, `BREAK`, `CLOSED`, `PRE_OPEN`, `POST_CLOSE`), the live band and the
+  day's bands per the owner's session law (the app shows ONLINE only while the
+  phase is OPEN)
 - `GET /market` (public): KSE100 points and percentage plus the top three
-  KMIALL stocks by current session volume, parsed from the PSX Data Portal's
-  own pages and cached for five minutes; `POST /market` (admin token)
-  stores a snapshot built by `python -m src.data.market_snapshot --push`,
-  which then takes precedence for five minutes
+  KMIALL stocks by current session volume, each with its day's percentage
+  change and, when a genuine one exists, its buy/sell split, parsed from the
+  PSX Data Portal's own pages and cached for five minutes; `POST /market`
+  (admin token) stores a snapshot built by
+  `python -m src.data.market_snapshot --push`, which then takes precedence for
+  five minutes. The edge cannot split volume (the exchange table has one
+  volume column), so the split fields are null there and the local runner
+  fills them from the broker tick capture (`src/data/tick_volume.py`).
 - `POST /pair/start` (admin token): finds the chat that last messaged the
   bot, stores a 4-digit code in KV, and sends that code to the chat
 - `POST /pair/confirm` (admin token): `{code}` binds the chat; the bot
@@ -24,15 +30,28 @@ Telegram; you read the messages on your phone over your VPN as usual.
 - `GET /signals` (admin token): the app's signal feed; `POST /signals`
   stores new signal lines from the local runner
 - `GET /updates` (admin token): raw getUpdates proxy for local debugging
-- Cron triggers fire the two daily texts from the edge even if your PC is off:
+- Cron triggers fire the daily texts from the edge even if your PC is off.
+  Friday is TWO sessions with the exchange's midday break between them, so it
+  has four edges and six crons in all:
 
 | Event | Mon-Thu | Friday | Cron (UTC) |
 |---|---|---|---|
-| Open | 09:32 PKT | 09:17 PKT | `32 4 * * 1-4` and `17 4 * * 5` |
-| Close | 15:30 PKT | 16:30 PKT | `30 10 * * 1-4` and `30 11 * * 5` |
+| Open | 09:32 PKT | 09:17 PKT (session 1) | `32 4 * * 1-4` and `17 4 * * 5` |
+| Close | 15:30 PKT | 12:00 PKT (session 1) | `30 10 * * 1-4` and `0 7 * * 5` |
+| Open | - | 14:32 PKT (session 2) | `32 9 * * 5` |
+| Close | - | 16:30 PKT (session 2) | `30 11 * * 5` |
 
-Weekends and the 2026 PSX holiday list are skipped, mirroring
-src/data/sessions.py. The Karachi offset is hardcoded UTC+5 forever (SO-8).
+Weekends, the 2026 PSX holiday list and the midday break are all closed,
+mirroring `src/data/sessions.py` (the worker's band table is a copy of the
+Python one, and a test fails if the two drift). The Karachi offset is
+hardcoded UTC+5 forever (SO-8).
+
+## Deploying a change
+
+`cloud/pair.py deploy` uploads `worker.js` and sets the six crons in the same
+run. The relay currently running in production predates the band table and
+`market_state`, so a deploy is needed for the app to show the phase sentence
+and to stop reporting ONLINE between 12:00 and 14:32 on a Friday.
 
 ## Secrets (SO-5)
 

@@ -235,6 +235,41 @@ async function endpoints() {{
   }}), env);
   say(refused.status === 403, "POST /market refuses a stranger",
       "status " + refused.status);
+  // A partial push must be refused, and the app's field set must survive a
+  // push that carries only part of the snapshot (2026-10-10 audit).
+  const partial = await handler.fetch(new Request("https://relay.test/market", {{
+    method: "POST",
+    headers: {{ "content-type": "application/json", "x-admin-token": "test-token" }},
+    body: JSON.stringify({{ top_volume: [] }}),
+  }}), env);
+  say(partial.status === 400, "POST /market refuses a partial snapshot",
+      "status " + partial.status);
+  const readBack = await (await handler.fetch(
+      new Request("https://relay.test/market"), env)).json();
+  say(EXCEPT_KEYS.every((k) => k in readBack),
+      "a pushed snapshot still carries every field the app reads",
+      EXCEPT_KEYS.filter((k) => !(k in readBack)).join(",") || "all");
+  say(readBack.index === null || typeof readBack.index === "object",
+      "a snapshot without an index reads back as an explicit null",
+      JSON.stringify(readBack.index));
+
+  // Portal outage with an empty cache: the field set must still hold.
+  const deadPortal = async () => new Response("boom", {{ status: 500 }});
+  window.fetch = deadPortal;
+  globalThis.fetch = deadPortal;
+  const emptyEnv = {{ ...env, RELAY_KV: {{
+    get: async () => null, put: async () => {{}}, delete: async () => {{}},
+    list: async () => ({{ keys: [] }}),
+  }} }};
+  const outage = await (await handler.fetch(
+      new Request("https://relay.test/market"), emptyEnv)).json();
+  say(EXCEPT_KEYS.every((k) => k in outage) && outage.index === null &&
+      Array.isArray(outage.notes) && outage.notes.length > 0,
+      "a dead portal still answers the full field set, with notes",
+      EXCEPT_KEYS.filter((k) => !(k in outage)).join(",") || "all keys");
+  window.fetch = stub;
+  globalThis.fetch = stub;
+
   const missing = await handler.fetch(new Request("https://relay.test/nope"), env);
   say(missing.status === 404, "unknown paths still 404", "status " + missing.status);
   result.endpoint_portal_calls = portalCalls;

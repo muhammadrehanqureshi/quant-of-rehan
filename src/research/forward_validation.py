@@ -8,11 +8,15 @@ from typing import Any
 
 import numpy as np
 
+from src import config
 from src.signals.intraday_engine import CANDIDATE_RULES, TP_PCT, SL_PCT, RULE_VERSION
 
-COST_SIDE_BPS = 22.4
-SLIPPAGE_SIDE_BPS = 10.0
-CGT_RATE = 0.15
+# The cost schedule is defined once, in src/config.py, and read from there so
+# the frozen gate and the live paper cycle can never drift apart. Values are
+# identical to the schedule the candidate library was frozen against.
+COST_SIDE_BPS = config.COST_SIDE_BPS
+SLIPPAGE_SIDE_BPS = config.SLIPPAGE_SIDE_BPS
+CGT_RATE = config.CGT_RATE
 DISCOVERY_SESSIONS = 60
 VALIDATION_SESSIONS = 60
 OOS_SESSIONS = 60

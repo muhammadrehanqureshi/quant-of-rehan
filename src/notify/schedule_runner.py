@@ -17,10 +17,8 @@ Usage (owner's PC, from the repo root):
 from __future__ import annotations
 
 import json
-import os
 import sys
 import time
-from datetime import datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -35,6 +33,7 @@ from src.data.sessions import (  # noqa: E402
 )
 
 RELAY_URL_FILE = ROOT / "data" / "relay_url.txt"
+ENV_FILE = ROOT / ".env"
 NOTIFY_LOG = ROOT / "data" / "notify_log.jsonl"
 MAX_DELAY_MS = 10 * 60 * 1000   # wake at least every 10 min to re-check
 RETRY_AFTER_FAIL_S = 120        # retry a failed send after 2 minutes
@@ -49,6 +48,35 @@ def load_relay_url() -> str:
     raise RuntimeError(
         "data/relay_url.txt missing: deploy the worker and paste its URL "
         "(see cloud/README.md)"
+    )
+
+
+def load_relay_admin_token() -> str:
+    """Resolve RELAY_ADMIN_TOKEN: environment first, then the repo .env.
+
+    One resolver for the whole notification path. Owner bug report,
+    2026-10-10: the daily-push failure alert was the one thing that could
+    explain a failure, and it read the environment only, so on the owner's
+    PC it quietly printed "relay admin token is missing" and sent nothing
+    while every other module happily found the token in .env. The token is
+    never printed, logged or embedded in an exception (SO-5).
+    """
+    import os
+
+    token = os.environ.get("RELAY_ADMIN_TOKEN", "").strip()
+    if token:
+        return token
+    if ENV_FILE.is_file():
+        for line in ENV_FILE.read_text(encoding="utf-8").splitlines():
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#") or "=" not in stripped:
+                continue
+            key, value = stripped.split("=", 1)
+            if key.strip() == "RELAY_ADMIN_TOKEN" and value.strip():
+                return value.strip()
+    raise RuntimeError(
+        "RELAY_ADMIN_TOKEN missing (set the environment variable or add it "
+        "to the gitignored repo .env)"
     )
 
 
