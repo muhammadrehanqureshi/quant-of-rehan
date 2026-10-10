@@ -28,7 +28,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 
 from src import config  # noqa: E402
-from src.data.sessions import KARACHI, now_karachi  # noqa: E402
+from src.data.sessions import now_karachi  # noqa: E402
 
 
 class State:
@@ -81,6 +81,14 @@ class SessionState:
     scanner_version: str = config.SCANNER_VERSION
     history: list[dict] = field(default_factory=list)
 
+    # Scheduler bookkeeping (local 5-minute runner, scripts/kmiall_tick.py).
+    # These exist so a tick that is repeated -- a manual run, a Task Scheduler
+    # retry, a laptop waking from sleep -- is idempotent instead of duplicating
+    # work or spamming the app card.
+    last_tick_slot: str | None = None
+    last_card_signature: str | None = None
+    finalized: bool = False
+
     # ------------------------------------------------------------- persistence
     @classmethod
     def path(cls) -> Path:
@@ -119,6 +127,36 @@ class SessionState:
         with open(target, "a", encoding="utf-8") as handle:
             handle.write(json.dumps(record, ensure_ascii=False) + "\n")
         return target
+
+    # ------------------------------------------------------- scheduler helpers
+    def card_is_new(self, text: str) -> bool:
+        """Has the verdict on the app card actually changed?
+
+        A 5-minute scanner recomputes the same answer many times a session.
+        Republishing an identical card would be noise, so the signature of the
+        last published card is kept and compared.
+        """
+        return self.card_signature(text) != self.last_card_signature
+
+    @staticmethod
+    def card_signature(text: str) -> str:
+        import hashlib
+
+        return hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
+
+    def note_card(self, text: str) -> None:
+        self.last_card_signature = self.card_signature(text)
+
+    def claimed_slot(self, slot: str) -> bool:
+        """Has this exact 5-minute slot already been scanned today?
+
+        Used by the local tick runner to make one invocation per slot, even if
+        the scheduler fires twice or the owner runs it by hand mid-slot.
+        """
+        return self.last_tick_slot == slot
+
+    def note_tick(self, slot: str) -> None:
+        self.last_tick_slot = slot
 
     # ---------------------------------------------------------------- queries
     @property

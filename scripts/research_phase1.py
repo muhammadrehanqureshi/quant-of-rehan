@@ -34,7 +34,6 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from src.backtest.engine import DEFAULT_COST_SIDE_BPS, DEFAULT_CGT_RATE  # noqa: E402
 from src.data.registry import availability  # noqa: E402
 
 KARACHI = timezone(timedelta(hours=5))  # SO-8

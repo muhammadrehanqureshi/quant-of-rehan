@@ -10,11 +10,17 @@ data/secrets/
 
 # --- Local data / research artifacts (root-anchored: never ignore src/data/) ---
 /data/
+/logs/
 *.sqlite
 *.db
 *.parquet
 *.csv.gz
 backtests/output/
+
+# --- Legacy local secrets: a token file is never a tracked artifact ---
+legacy/eod/data/
+legacy/sentinel/data/
+*_token.txt
 
 # --- Python ---
 __pycache__/

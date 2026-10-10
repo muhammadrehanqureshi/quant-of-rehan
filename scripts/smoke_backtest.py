@@ -25,7 +25,6 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from src.backtest.engine import run_backtest  # noqa: E402
-from src.backtest.walkforward import walk_forward_splits  # noqa: E402
 from src.data.corpus import load_corpus  # noqa: E402
 
 

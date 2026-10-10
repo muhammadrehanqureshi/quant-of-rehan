@@ -36,7 +36,7 @@ import io
 import time
 import zipfile
 from datetime import date as date_cls, datetime, timedelta
-from typing import Callable, Optional
+from typing import Optional
 
 import requests
 

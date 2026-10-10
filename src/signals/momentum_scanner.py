@@ -66,6 +66,7 @@ from statistics import median
 
 from src import config
 from src.data.sessions import KARACHI, is_trading_day, open_time
+from src.signals import ai_model
 
 DATA_BLOCKED = "DATA_BLOCKED"
 NO_TRADE = "NO_TRADE"
@@ -566,21 +567,37 @@ def score_symbol(symbol: str, rows: list[MinuteBar], session: SessionData) -> di
     }
 
 
-def rank_candidates(session: SessionData) -> list[dict]:
-    """Score and rank every eligible symbol in the captured universe."""
+def rank_candidates(session: SessionData,
+                    ai_prior: dict[str, float] | None = None) -> list[dict]:
+    """Score and rank every eligible symbol in the captured universe.
+
+    ``ai_prior`` is the optional trained daily probability per symbol
+    (src/signals/ai_model.py). It is ATTACHED to every row for the record and
+    never changes a rule score: the ordering here is pure rule score. The
+    prior's only lever is the bounded tie-break applied in select_one.
+    """
     scored = []
     for symbol in sorted(session.bars):
         row = score_symbol(symbol, session.bars[symbol], session)
         if row is not None:
             scored.append(row)
+    if ai_prior:
+        ai_model.attach(ai_prior, scored)
     scored.sort(key=lambda row: (-row["score"], row["symbol"]))
     return scored
 
 
 # --------------------------------------------------------------- selection
 
-def select_one(session: SessionData, quality: QualityReport) -> ScanResult:
-    """The whole decision: DATA BLOCKED, market NO TRADE, or ONE candidate."""
+def select_one(session: SessionData, quality: QualityReport,
+               ai_prior: dict[str, float] | None = None,
+               ai_status: dict | None = None) -> ScanResult:
+    """The whole decision: DATA BLOCKED, market NO TRADE, or ONE candidate.
+
+    The AI prior, when active, may reorder a near-tie and (only if the owner
+    turned the veto on) refuse the weakest sliver of its own ranking. It can
+    never create a candidate, raise a score, or override a clear rule gap.
+    """
     coverage_text = (f"{quality.symbols_with_bars}/{quality.symbols_expected} "
                      f"({quality.coverage:.1%})")
     if quality.status == DATA_BLOCKED:
@@ -589,7 +606,9 @@ def select_one(session: SessionData, quality: QualityReport) -> ScanResult:
                           market={}, coverage_text=coverage_text)
 
     context = market_context(session)
-    ranked = rank_candidates(session)
+    if ai_status:
+        context["ai"] = ai_status
+    ranked = rank_candidates(session, ai_prior)
 
     # The market gate is reported first: when the whole universe is falling it
     # is the dominant, honest explanation, and a momentum strategy must not
@@ -608,6 +627,18 @@ def select_one(session: SessionData, quality: QualityReport) -> ScanResult:
                     "volume gates"),
             quality=quality, market=context, ranked=[], coverage_text=coverage_text)
 
+    # Bounded AI routing, in one place and in this order:
+    #   1. a near-tie between the top two rule scores may be reordered by the
+    #      trained prior (never a clear rule win);
+    #   2. if the owner enabled the veto, a winner sitting in the weakest sliver
+    #      of the model's own ranking is refused, and the refusal is reported as
+    #      the decision rather than silently turned into a lower-ranked entry.
+    ai_note = ""
+    if ai_prior and ai_status and ai_status.get("active"):
+        index, ai_note = ai_model.tie_break_winner(ranked)
+        if index == 1:
+            ranked[0], ranked[1] = ranked[1], ranked[0]
+
     winner = ranked[0]
     if winner["score"] < config.MIN_SIGNAL_SCORE:
         return ScanResult(
@@ -617,7 +648,24 @@ def select_one(session: SessionData, quality: QualityReport) -> ScanResult:
             quality=quality, market=context, ranked=ranked[:10],
             coverage_text=coverage_text)
 
-    return ScanResult(status=TRADE, reason="strongest current momentum plus volume",
+    passed, veto_reason = ai_model.gate(winner.get("ai_probability"),
+                                        winner.get("ai_percentile"))
+    if not passed:
+        return ScanResult(
+            status=NO_TRADE,
+            reason=(f"AI veto refused {winner['symbol']} (rule score "
+                    f"{winner['score']:.2f}): {veto_reason}"),
+            quality=quality, market=context, ranked=ranked[:10],
+            coverage_text=coverage_text)
+
+    reason = "strongest current momentum plus volume"
+    if ai_note and ai_note.startswith("AI prior promoted"):
+        reason = f"strongest current momentum plus volume; {ai_note}"
+    elif winner.get("ai_probability") is not None:
+        reason = (f"strongest current momentum plus volume; AI prior "
+                  f"{winner['ai_probability']:.3f} "
+                  f"({winner['ai_percentile']:.0%} percentile)")
+    return ScanResult(status=TRADE, reason=reason,
                       quality=quality, market=context, candidate=winner,
                       ranked=ranked[:10], coverage_text=coverage_text)
 
