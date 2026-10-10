@@ -8,7 +8,8 @@ Owner acceptance list (2026-10-09) covered here:
   TEST 16  the open/close texts are the owner's exact words, one per edge
   TEST 17  every GitHub Actions cron lands inside the session (scan) or
            strictly after the close (finalize) once converted to PKT
-  TEST 18  every Cloudflare cron matches a session edge exactly
+  TEST 18  every session edge is covered by the Cloudflare crons exactly once,
+           within the Workers Free five cron cap
   TEST 19  the scanner refuses to run outside the configured session
 
 Parsing the two schedule files is deliberate: a cron string that is merely
@@ -89,6 +90,32 @@ def weekdays_of(mask: str) -> list[int]:
         else:
             out.add(int(part))
     return sorted(out)
+
+
+def cron_fires(expression: str) -> list[tuple[int, int, list[int]]]:
+    """Every (hour, minute, weekdays) a cron expression can fire.
+
+    Comma lists are expanded, because one expression may carry several times:
+    `0,32 7,9 * * 5` fires at four instants, which is how the two Friday midday
+    edges fit inside the Workers Free cap of five cron triggers per account.
+    """
+    minute_field, hour_field, _dom, _month, weekday_field = expression.split()
+    minutes = [int(value) for value in minute_field.split(",")]
+    hours = [int(value) for value in hour_field.split(",")]
+    weekdays = weekdays_of(weekday_field)
+    return [(hour, minute, weekdays) for hour in hours for minute in minutes]
+
+
+def crons_deployed_by_pair(path: Path) -> list[str]:
+    """The CRONS list cloud/pair.py actually pushes to Cloudflare.
+
+    Tested separately from wrangler.toml because the two are independent
+    edits: if they drift, the deployed schedule stops matching the schedule
+    this suite proved correct.
+    """
+    block = re.search(r"^CRONS = \[(.*?)\]", path.read_text(encoding="utf-8"),
+                      re.DOTALL | re.MULTILINE)
+    return re.findall(r'"([^"]+)"', block.group(1)) if block else []
 
 
 class TestSessionBoundaries(unittest.TestCase):
@@ -309,8 +336,30 @@ class TestGitHubActionsSchedule(unittest.TestCase):
 
 
 class TestCloudflareSchedule(unittest.TestCase):
-    def test_worker_crons_match_the_session_edges_exactly(self):
-        """TEST 18: one authoritative clock, the worker included."""
+    """TEST 18: one authoritative clock, the worker included.
+
+    The schedule must hit every session edge of the week exactly once. It used
+    to do that with one cron per edge, six strings, which the Workers Free plan
+    rejects outright: Cloudflare caps cron triggers at five per ACCOUNT and
+    answers error 10072. Two Friday edges are therefore packed into one
+    expression.
+
+    So this checks the property that actually matters rather than the shape of
+    the list, and it is a stronger check than the old count:
+
+      * every edge of the week is covered, and
+      * every edge is covered EXACTLY ONCE, because the worker notifies
+        whenever a cron lands within two minutes of an edge, so a second fire
+        in that window would send the owner the same message twice, and
+      * a fire near no edge sends nothing (the harmless extra fires), and
+      * the list fits the plan cap, so the deploy cannot be rejected, and
+      * pair.py deploys the same list wrangler.toml declares.
+    """
+
+    #: Cloudflare Workers Free: cron triggers per account, per its own docs.
+    FREE_PLAN_CRON_LIMIT = 5
+
+    def test_worker_crons_cover_every_session_edge_exactly_once(self):
         crons = crons_of(WRANGLER)
         edges = []
         # Every band edge of the week: Friday is two sessions, so the worker
@@ -320,19 +369,57 @@ class TestCloudflareSchedule(unittest.TestCase):
             for band in bands:
                 for hour_minute in (band[0], band[1]):
                     converted = ((hour_minute[0] - 5) % 24, hour_minute[1])
-                    edges.append((converted, weekday, hour_minute))
+                    edges.append((converted, set(weekday), hour_minute))
         expected = len(WEEKDAY_BANDS) * 2 + len(FRIDAY_BANDS) * 2
-        self.assertEqual(len(crons), expected,
-                         f"the worker must fire exactly {expected} edges")
         self.assertEqual(expected, 6, "the exchange's week has six edges")
-        for converted, weekday, hour_minute in edges:
-            minute, hour, mask = parse_cron(
-                next(expression for expression in crons
-                     if parse_cron(expression)[0] == converted[1]
-                     and parse_cron(expression)[1] == converted[0]))
+        self.assertLessEqual(
+            len(crons), self.FREE_PLAN_CRON_LIMIT,
+            "Workers Free allows at most five cron triggers per account; a "
+            "six entry list is rejected with Cloudflare error 10072")
+
+        # Expand each cron to the instants it fires, then apply the worker's
+        # own rule: a fire notifies only within two minutes of a band edge.
+        fires: list[tuple[tuple[int, int], set[int]]] = []
+        for expression in crons:
+            for hour, minute, mask in cron_fires(expression):
+                fires.append(((hour, minute), set(mask)))
+
+        def minutes_of(hm: tuple[int, int]) -> int:
+            return hm[0] * 60 + hm[1]
+
+        for converted, weekdays, hour_minute in edges:
+            hits = [(h, m) for (h, m), days in fires
+                    if (h, m) == converted and days & weekdays]
             with self.subTest(edge=hour_minute):
-                self.assertEqual((hour, minute), converted)
-                self.assertTrue(set(weekdays_of(mask)) == set(weekday))
+                self.assertEqual(
+                    len(hits), 1,
+                    f"edge {hour_minute} PKT must be covered exactly once, "
+                    f"found {len(hits)} covering fires")
+
+        # A fire that lands within the worker's two minute window of an edge on
+        # a day it shares would send a second, duplicate notification.
+        for (hour, minute), days in fires:
+            for converted, weekdays, hour_minute in edges:
+                if not (days & weekdays):
+                    continue
+                gap = abs(minutes_of((hour, minute)) - minutes_of(converted))
+                if (hour, minute) == converted:
+                    continue
+                with self.subTest(extra=(hour, minute), near=hour_minute):
+                    self.assertGreater(
+                        gap, 2,
+                        f"the fire at {hour}:{minute:02d} UTC sits {gap} "
+                        f"minutes from the {hour_minute} PKT edge, inside the "
+                        f"worker's window, so it would duplicate it")
+
+    def test_pair_deploys_the_same_schedule_as_wrangler(self):
+        """The deployed list and the declared list must be one schedule."""
+        pair_crons = crons_deployed_by_pair(ROOT / "cloud" / "pair.py")
+        self.assertTrue(pair_crons, "cloud/pair.py must declare a CRONS list")
+        self.assertEqual(sorted(pair_crons), sorted(crons_of(WRANGLER)),
+                         "cloud/pair.py and cloud/wrangler.toml disagree about "
+                         "the cron schedule, so the deploy would set something "
+                         "other than the schedule this suite just proved")
 
 
 class TestScheduleRobustness(unittest.TestCase):

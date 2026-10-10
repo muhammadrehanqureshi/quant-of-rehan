@@ -231,7 +231,12 @@ def assess(symbol: str, bars: Sequence[Bar], as_of: datetime,
         swing = (high - low) / low if low > 0 else None
 
     edge_cases = detect_edge_cases(ordered, as_of, previous_close)
-    regime = classify(atr_pct)
+    # A reading from fewer than MIN_BARS_FOR_VOLATILITY bars is reported as
+    # UNKNOWN rather than guessed, exactly as this module's contract states.
+    # Classifying a two or three bar sample produced a confident-looking
+    # regime (ELEVATED on three bars) that contradicted the documented law.
+    regime = (classify(atr_pct) if len(ordered) >= MIN_BARS_FOR_VOLATILITY
+              else Regime.UNKNOWN)
     notes: list[str] = []
     if regime is Regime.EXTREME:
         notes.append("session volatility is extreme for this universe; a late "

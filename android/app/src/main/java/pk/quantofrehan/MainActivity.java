@@ -32,6 +32,12 @@ import java.util.Locale;
  * taken by a third card showing the KSE100 index and the day's top three
  * KMIALL stocks by volume, plus the rule that a closed market shows OFFLINE
  * with a red cross.
+ *
+ * Owner order 2026-10-10: every sentence and glyph now comes from a string
+ * resource so the copy, the accessibility description and the layout can
+ * never drift apart; the checkmark and the cross are the shipped glyphs
+ * (U+2713 and U+2717); and a session that is shut reads "Market is closed
+ * now." or "Market is on a break right now." instead of "PSX session closed".
  */
 public class MainActivity extends Activity {
 
@@ -141,9 +147,15 @@ public class MainActivity extends Activity {
         statusPill.setBackground(bg);
         // the owner's marker law: a green check on ONLINE, a red cross on
         // OFFLINE (the round dot is retired). A closed session is OFFLINE.
-        statusPill.setText(online ? "✓  ONLINE" : "✗  OFFLINE");
+        statusPill.setText(getString(online
+                ? R.string.status_online : R.string.status_offline));
         statusPill.setTextColor(getColor(online
                 ? R.color.green : R.color.red));
+        // Material accessibility: the pill is a live state indicator, so it
+        // announces itself and carries a spoken description. A glyph alone
+        // reads as "multiplication X" to a screen reader.
+        statusPill.setContentDescription(getString(online
+                ? R.string.cd_status_online : R.string.cd_status_offline));
 
         String d = detail == null ? "" : detail.trim();
         if (d.isEmpty()) {
@@ -196,15 +208,18 @@ public class MainActivity extends Activity {
         }
 
         if (market.hasIndex()) {
+            // hasIndex() guarantees all three are non-null, so the unboxing
+            // below cannot throw. A half-reported index renders as waiting
+            // instead of as a zero.
             String line = String.format(Locale.US, "KSE100  %,.2f   %s %,.2f (%.2f%%)",
                     market.indexValue,
-                    market.indexChange >= 0 ? "▲" : "▼",
+                    market.indexChange >= 0 ? "\u25B2" : "\u25BC",
                     Math.abs(market.indexChange),
                     Math.abs(market.indexPct));
             SpannableString sp = new SpannableString(line);
             int color = getColor(market.indexChange >= 0
                     ? R.color.green : R.color.red);
-            int from = line.indexOf(market.indexChange >= 0 ? "▲" : "▼");
+            int from = line.indexOf(market.indexChange >= 0 ? "\u25B2" : "\u25BC");
             if (from >= 0) {
                 sp.setSpan(new ForegroundColorSpan(color), from, line.length(), 0);
             }
@@ -236,6 +251,9 @@ public class MainActivity extends Activity {
      * the total. When the relay has no genuine split (no broker tick capture
      * for the session) the line says so through the footnote and shows the
      * total only: a made up buy/sell ratio would be a lie about the tape.
+     *
+     * Every field is a boxed Number, so a null means the relay did not report
+     * it and the field is skipped rather than printed as a zero.
      */
     private SpannableString leadersText(List<Watcher.Leader> leaders) {
         StringBuilder sb = new StringBuilder();
@@ -251,16 +269,16 @@ public class MainActivity extends Activity {
             if (row.hasSplit()) {
                 sb.append(String.format(Locale.US, "   B=%,d  S=%,d  T=%,d",
                         row.buy, row.sell, row.volume));
-            } else if (row.volume >= 0) {
+            } else if (row.hasVolume()) {
                 sb.append(String.format(Locale.US, "   T=%,d", row.volume));
             }
-            if (!Double.isNaN(row.price)) {
+            if (row.price != null) {
                 sb.append(String.format(Locale.US, "   Rs %,.2f", row.price));
             }
-            if (!Double.isNaN(row.changePct)) {
+            if (row.changePct != null) {
                 int from = sb.length();
                 sb.append(String.format(Locale.US, "   %s %.2f%%",
-                        row.changePct >= 0 ? "▲" : "▼",
+                        row.changePct >= 0 ? "\u25B2" : "\u25BC",
                         Math.abs(row.changePct)));
                 spanStart.add(from);
                 spanEnd.add(sb.length());
@@ -283,6 +301,9 @@ public class MainActivity extends Activity {
      * read as a truncated sentence and never named how many leaders were
      * shown. The relay's own basis sentence is used when it is present, and
      * the local fallback states the same facts from the same numbers.
+     *
+     * The session sentence comes from Watcher.phaseLine, which is the single
+     * place the owner's closed and break wording lives (2026-10-10).
      */
     private String footText(Watcher.Market market, int shown) {
         StringBuilder foot = new StringBuilder();
@@ -298,7 +319,7 @@ public class MainActivity extends Activity {
         appendPart(foot, basis);
         appendPart(foot, market.splitBasis == null ? "" : market.splitBasis.trim());
         if (!market.open) {
-            appendPart(foot, Watcher.phaseLine(market));
+            appendPart(foot, Watcher.phaseLine(this, market));
         }
         if (market.note != null && !market.note.trim().isEmpty()) {
             foot.append(foot.length() > 0 ? "\n" : "").append(market.note.trim());

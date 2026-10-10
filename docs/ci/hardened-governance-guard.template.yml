@@ -1,0 +1,161 @@
+# HARDENED GOVERNANCE GUARD (template).
+#
+# This is a drop-in replacement for .github/workflows/governance-guard.yml.
+# It is kept OUTSIDE .github/workflows on purpose, so it cannot run until the
+# owner copies it into place:
+#
+#     cp docs/ci/hardened-governance-guard.template.yml \
+#        .github/workflows/governance-guard.yml
+#
+# What is different from the current guard, and why:
+#
+#   1. set -euo pipefail on every multi-step script. Without pipefail a step
+#      like `pip install ... | tail` returns tail's status, so a failed install
+#      reports success. This is the single most common way a CI job lies.
+#   2. A PREFLIGHT step that separates an ENVIRONMENT fault (no python, no
+#      requirements.txt, no node) from a CODE fault (governance violation,
+#      failing test). A red job should say which one it is on sight.
+#   3. Explicit exit code capture and annotation, so a failure prints the
+#      numeric status through the job summary instead of only in the raw log.
+#   4. Governed range derived from the PR base ref, not a hardcoded
+#      origin/master, so a retargeted PR cannot silently scan the wrong range.
+#   5. A dedicated EDGE CASE VALIDATION gate (the deep scan stress harness).
+#      A governance guard that only checks style and identity lets a numerically
+#      broken reading merge; this gate refuses it.
+#   6. Concurrency cancellation, least privilege, and a bounded timeout, so the
+#      guard stays seconds-long and never burns the monthly Actions budget.
+#
+# Fail-fast is intentional and is the point of the file:
+#   * no `continue-on-error: true` anywhere;
+#   * no `|| true` and no `set +e`;
+#   * the first failing step stops the job, because a later green step must
+#     never be able to mask an earlier red one.
+
+name: governance-guard
+
+on:
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+# Least privilege. The guard reads the repo and runs the tests; it needs
+# nothing else. Never grant write scope to a job that runs fork code.
+permissions:
+  contents: read
+
+# A new push supersedes the previous run for the same PR: cancel the old one so
+# the newest commit's verdict is the one that gates the merge.
+concurrency:
+  group: governance-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Unbuffered output so a crash does not hide its own last lines, and no
+  # stray .pyc files in the workspace the governance scanner walks.
+  PYTHONUNBUFFERED: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+
+jobs:
+  governance:
+    name: governance
+    runs-on: ubuntu-latest
+    # A guard that runs long is a guard that breaks the merge flow. Bound it.
+    timeout-minutes: 5
+
+    steps:
+      # fetch-depth: 0 so the SO-7 check can read every commit on the PR.
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      # ENVIRONMENT PREFLIGHT: fail here only if the runner or the repo layout
+      # is broken, never because of a code defect. Distinguishing the two is
+      # what makes a red job diagnosable at a glance.
+      - name: Preflight (runner and repo layout)
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "python:  $(python --version 2>&1)"
+          echo "pip:     $(python -m pip --version 2>&1)"
+          echo "git:     $(git --version)"
+          echo "node:    $(node --version)"
+          for required in requirements.txt scripts/check_governance.py GOVERNANCE.md cloud/worker.js; do
+            if [ ! -e "$required" ]; then
+              echo "::error title=Preflight failed::$required is missing from the checkout"
+              exit 1
+            fi
+          done
+          echo "preflight: ok"
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          # No pipe to tail here: the real exit status of pip is what must
+          # decide this step's result.
+          python -m pip install -r requirements.txt
+
+      # SO-7 / SO-5 / SO-3 / SO-2 / SO-8: identity, secrets, style, standing
+      # orders. The range is built from the PR's own base ref so a retargeted
+      # pull request is scanned against the branch it will actually merge into.
+      - name: Governance check (secrets, style, identity, standing orders)
+        shell: bash
+        env:
+          GOVERN_COMMIT_RANGE: origin/${{ github.base_ref || 'master' }}..HEAD
+        run: |
+          set -euo pipefail
+          echo "governed range: $GOVERN_COMMIT_RANGE"
+          git log --oneline "$GOVERN_COMMIT_RANGE"
+          # Capture the status explicitly so the numeric code reaches the
+          # annotation, then re-raise it. The code is reported, never swallowed.
+          set +e
+          python scripts/check_governance.py
+          status=$?
+          set -e
+          if [ "$status" -ne 0 ]; then
+            echo "::error title=Governance violation::check_governance.py exited $status; this PR must not merge"
+            exit "$status"
+          fi
+
+      - name: Unit tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m unittest discover -s tests -v
+
+      # EDGE CASE VALIDATION. Assert the numerically pathological inputs
+      # (volatility spike, thin sample, stale feed, limit lock, absent volume,
+      # gap open, malformed print) produce the readings the model declares.
+      # Exits non-zero on the first violated expectation.
+      - name: Edge case validation (deep scan stress harness)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python examples/deep_scan_stress.py --json stress-report.json
+
+      - name: Validate Cloudflare worker syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module --check < cloud/worker.js
+          echo "worker syntax: ok"
+
+      # Evidence is uploaded on success AND failure, so a red job still leaves
+      # the artifact that explains it.
+      - name: Upload CI evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-evidence
+          path: stress-report.json
+          if-no-files-found: warn
+          retention-days: 7
