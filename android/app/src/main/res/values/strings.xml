@@ -21,6 +21,16 @@
     <string name="cd_status_online">System status: online. The market is open and the quant is running.</string>
     <string name="cd_status_offline">System status: offline. The market is closed, or the relay cannot be reached.</string>
 
+    <!-- ============ scan cadence ============
+         Owner order 2026-10-11, exact text: the main screen states the scan
+         cadence. The 4 is the real interval, not decoration: it is
+         config.TICK_INTERVAL_MINUTES = 4, which drives the Windows tick, the
+         supervised scan loop and the slot guard. The scanning itself happens
+         only inside the MARKET phase (09:32-15:30, Friday 09:17-16:30 with the
+         midday break); this line states the cadence, and the pill above states
+         whether the quant is online. -->
+    <string name="scan_cadence">Quant is scanning the market every 4 minutes.</string>
+
     <!-- ============ session copy ============
          Owner order 2026-10-10: "PSX session closed" is retired. The relay's
          own market_state phase decides which of these the app shows, and the

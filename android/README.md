@@ -45,6 +45,11 @@ Cloudflare relay, never to Telegram, never to a broker.
 - v1.6.0 footnote: "Index as of <portal time> PKT - current session volume,
   top 3 of N KMIALLSHR members - <split basis>", replacing the old truncated
   "volume: today, top of N KMIALLSHR members" line.
+- v1.6.1 states the cadence on the main screen: "Quant is scanning the market
+  every 4 minutes." under the system status pill. Owner order 2026-10-11,
+  verbatim. The 4 is the real interval (`config.TICK_INTERVAL_MINUTES`), and
+  the line states the cadence only: the pill above states whether the quant is
+  online, and the scanning itself happens inside the MARKET phase.
 - Phone notifications on status changes and new signals, refreshed every 5
   minutes by a watchdog that re-arms itself and survives phone restarts.
   v1.5.1 adds a one time battery optimisation exemption request: see
@@ -90,8 +95,14 @@ with zipfile.ZipFile(f"{B}/app.apk", "a", zipfile.ZIP_DEFLATED) as z:
 PY
 "$JDK/bin/java" -jar $TOOLS/uber-apk-signer.jar -a $B/app.apk --out $B/signed
 cp $B/signed/app-aligned-debugSigned.apk \
-  /c/Users/rehan/OneDrive/Desktop/QuantOfRehan-v1.5.1.apk
+  /c/Users/rehan/OneDrive/Desktop/QuantOfRehan-v1.6.1.apk
 ```
+
+The Desktop this machine actually shows is `C:/Users/rehan/OneDrive/Desktop`
+(`[Environment]::GetFolderPath('Desktop')`), which is NOT the same folder as
+`C:/Users/rehan/Desktop`. A build copied to the wrong one is invisible to the
+owner: the v1.6.0 APK went to `C:/Users/rehan/Desktop` and was reported missing.
+v1.6.1 was copied to both.
 
 ## Watchdog and battery
 

@@ -133,6 +133,18 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
                 android:gravity="center"/>
+
+            <!-- Owner order 2026-10-11: the scan cadence is stated on the main
+                 screen. Static text, a real interval, never a live claim. -->
+            <TextView
+                android:id="@+id/scan_cadence"
+                style="@style/QorBody"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:gravity="center"
+                android:textSize="11sp"
+                android:text="@string/scan_cadence"/>
         </LinearLayout>
 
         <!-- ══════════ latest signal card ══════════ -->
