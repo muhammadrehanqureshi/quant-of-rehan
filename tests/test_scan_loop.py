@@ -11,7 +11,7 @@ import random
 import sys
 import tempfile
 import unittest
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from pathlib import Path
 from unittest.mock import patch
 
