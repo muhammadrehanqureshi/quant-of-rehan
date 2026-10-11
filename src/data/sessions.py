@@ -56,6 +56,24 @@ true only in MARKET. Pre-market and post-market are watched, logged and
 reported, but the owner's standing order is that the quant never scans in
 them.
 
+Owner's condition law (2026-10-11), the owner-facing half of the same clock:
+
+`market_condition_at` folds the six phases into the three conditions the
+phone app and the card are allowed to speak about, so no caller ever has to
+invent a sentence from a phase name:
+
+    OPERATIONAL  the exchange is trading (phase OPEN or WARMUP)
+    BREAK        a trading day between two bands, the exchange's own
+                 midday break: Friday 12:00 to 14:32
+    CLOSED       everything else: before the first band, after the last
+                 one, the weekend, a PSX holiday, and the two minute gap
+                 after each close
+
+`condition_text` returns the owner's exact sentence for that condition
+("Market is on a break right now." and "Market is closed right now."), and
+an empty string while the exchange is trading, because the pill already
+says ONLINE.
+
 This module is the only place that may build a market time (SO-8). It
 never invents a band: what the exchange publishes is what is encoded
 here, and the phone app is never the authority on whether the market is
@@ -108,6 +126,12 @@ FRIDAY_BANDS: tuple[Band, ...] = (
 # Do not reword, ever.
 MSG_MARKET_OPEN = "Market is open. Quant is online now."
 MSG_MARKET_CLOSED = "Market is closed. Quant is sleeping now."
+
+# Owner's exact condition texts (order of 2026-10-11). The break sentence is
+# for the exchange's own Friday midday break and nothing else: a weekend and
+# a holiday are CLOSED, and calling either of them a break would be wrong.
+MSG_CONDITION_BREAK = "Market is on a break right now."
+MSG_CONDITION_CLOSED = "Market is closed right now."
 
 # PSX trading holidays for 2026 (published by PSX; salvaged from the
 # sentinel's maintained list, data/legacy_sentinel/data/psx_holidays.json).
@@ -164,6 +188,30 @@ class MarketState(str, Enum):
     def is_scan_window(self) -> bool:
         """True only in MARKET: the one state the scanner may run in."""
         return self is MarketState.MARKET
+
+
+class MarketCondition(str, Enum):
+    """The owner's three owner-facing conditions (order of 2026-10-11).
+
+    The phases describe the trading day; these three describe what the
+    owner is told. OPERATIONAL is the exchange trading inside a band,
+    BREAK is the exchange's own midday break (Friday 12:00 to 14:32), and
+    CLOSED is every instant at which the exchange is not trading and not
+    on that break: before the first band, after the last one, the weekend,
+    a PSX holiday, and the two minute gap after each close.
+
+    The texts are returned by `condition_text`, so no caller has to build a
+    sentence from a phase name, and the app and the worker cannot drift.
+    """
+
+    OPERATIONAL = "OPERATIONAL"
+    BREAK = "BREAK"
+    CLOSED = "CLOSED"
+
+    @property
+    def is_live(self) -> bool:
+        """True only while the exchange is actually trading."""
+        return self is MarketCondition.OPERATIONAL
 
 
 def now_karachi() -> datetime:
@@ -353,6 +401,37 @@ def is_scan_window(moment: datetime | None = None) -> bool:
     return market_state_at(moment).is_scan_window
 
 
+def market_condition_at(moment: datetime | None = None) -> MarketCondition:
+    """Which of the owner's three conditions this instant is in.
+
+    A single fold of `market_phase`, so the condition can never disagree
+    with the session bands: WARMUP and OPEN are OPERATIONAL, the Friday
+    midday break is BREAK, and every other phase is CLOSED. The morning
+    gap (09:15 to 09:32) and the two minute gap after a close are CLOSED,
+    because the exchange is not trading in either.
+    """
+    phase = market_phase(moment)
+    if phase.is_live:
+        return MarketCondition.OPERATIONAL
+    if phase is MarketPhase.BREAK:
+        return MarketCondition.BREAK
+    return MarketCondition.CLOSED
+
+
+def condition_text(moment: datetime | None = None) -> str:
+    """The owner's exact sentence for this instant, or '' while trading.
+
+    Nothing is returned while the exchange is trading: the app's pill
+    already says ONLINE, and a second sentence would only repeat it.
+    """
+    condition = market_condition_at(moment)
+    if condition is MarketCondition.BREAK:
+        return MSG_CONDITION_BREAK
+    if condition is MarketCondition.CLOSED:
+        return MSG_CONDITION_CLOSED
+    return ""
+
+
 def market_state(moment: datetime | None = None) -> dict:
     """The typed, serialisable answer the relay and the app both consume.
 
@@ -365,9 +444,12 @@ def market_state(moment: datetime | None = None) -> dict:
     event, at = next_event(k)
     live_band = (None if band is None
                  else {"open": _hm(band[0]), "close": _hm(band[1])})
+    condition = market_condition_at(k)
     return {
         "phase": phase.value,
         "market_open": phase.is_live,
+        "condition": condition.value,
+        "condition_text": condition_text(k),
         "as_of": k.isoformat(timespec="seconds"),
         "date": k.date().isoformat(),
         "trading_day": is_trading_day(k.date()),

@@ -1,16 +1,18 @@
-"""The buy/sell volume split, and the market card that carries it.
+"""The banked session tape, and the measured split it can produce.
 
 Owner order 2026-10-10: the app must show, for each of the day's top three
-KMIALL stocks, ``B=``, ``S=`` and ``T=``. The only genuine source of a
-split is the read-only broker tick capture, so these tests pin the two
-things that keep it honest:
+stocks, ``B=``, ``S=`` and ``T=``. This module is one of the two sources
+src/data/volume_split.py uses, and the only MEASURED one: the per-trade
+tape, with a side carried by each trade. The split a card shows is measured
+when this tape covers the symbol and reconciles with the venue's own
+cumulative total, and otherwise an explicitly labelled estimate, so these
+tests pin the two things that keep the measured path honest:
 
   * only MKT-FEED frames are ticks. The same capture file also holds index,
-    movers and market-stats frames, and counting those would fabricate
-    volume (SO-3);
+    movers and market-stats frames whose fields are NOT the tick layout, and
+    counting those would fabricate thousands of shares (SO-3);
   * an unclassifiable trade is reported as unclassified rather than being
-    assigned a side, and the card shows the total with an explicit reason
-    when no split exists.
+    given a side, and a partial capture is never printed as the whole day.
 
 Everything here is offline: the capture is a fixture written to a temp
 directory, and the network is never touched.
@@ -28,7 +30,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from src.data import market_snapshot, tick_volume  # noqa: E402
+from src.data import market_snapshot, tick_volume, volume_split  # noqa: E402
 
 DAY = date(2026, 10, 9)
 
@@ -134,7 +136,9 @@ class TickParsingTest(unittest.TestCase):
                          {})
 
 
-class SplitAttachmentTest(unittest.TestCase):
+class MeasuredSplitTest(unittest.TestCase):
+    """When the tape is allowed to answer, and what the card then says."""
+
     def setUp(self) -> None:
         self._dir = tempfile.TemporaryDirectory()
         self.addCleanup(self._dir.cleanup)
@@ -147,34 +151,66 @@ class SplitAttachmentTest(unittest.TestCase):
         tick_volume.CAPTURE_DIR = self._real_dir
 
     def leaders(self) -> list[dict]:
-        return [{"symbol": "OGDC", "volume": 1000},
-                {"symbol": "PSO", "volume": 900}]
+        return [{"symbol": "OGDC", "volume": 1000, "price": 95.0},
+                {"symbol": "PSO", "volume": 900, "price": 96.0}]
 
-    def test_without_a_capture_the_card_says_why(self):
-        rows = self.leaders()
-        basis = tick_volume.attach_splits(rows, DAY)
-        self.assertIn("no broker tick capture banked", basis)
-        for row in rows:
-            self.assertIsNone(row["buy_volume"])
-            self.assertIsNone(row["sell_volume"])
-            self.assertIn("no broker tick capture", row["split_source"])
+    def attach(self, rows=None) -> tuple[list[dict], str]:
+        rows = self.leaders() if rows is None else rows
+        flows = tick_volume.session_flow(tick_volume.capture_path(DAY),
+                                        [row["symbol"] for row in rows])
+        basis = volume_split.attach_splits(rows, quotes={}, flows=flows)
+        return rows, basis
 
-    def test_with_a_capture_the_leaders_carry_their_split(self):
+    def test_a_reconciled_tape_is_used_and_labelled_measured(self):
         write_capture(tick_volume.capture_path(DAY), [
             {"kind": "MKT-FEED", "ticks": [
                 tick("OGDC", "B", size="600", total="1000", when="10:01"),
                 tick("OGDC", "S", size="400", total="1000", when="10:02"),
             ]},
         ])
-        rows = self.leaders()
-        basis = tick_volume.attach_splits(rows, DAY)
-        self.assertIn("broker tick capture", basis)
+        rows, basis = self.attach()
         self.assertEqual(rows[0]["buy_volume"], 600)
         self.assertEqual(rows[0]["sell_volume"], 400)
-        self.assertEqual(rows[0]["split_total_volume"], 1000)
-        # a leader with no ticks says so rather than showing a fake zero
+        self.assertEqual(rows[0]["split_method"], volume_split.METHOD_MEASURED)
+        self.assertIn("measured", basis)
+        # a leader the tape never covered carries no numbers at all
         self.assertIsNone(rows[1]["buy_volume"])
-        self.assertIn("no MKT-FEED ticks", rows[1]["split_source"])
+        self.assertIsNone(rows[1]["sell_volume"])
+        self.assertIn("no published session range", rows[1]["split_source"])
+        self.assertIn("(1 of 2)", basis)
+
+    def test_a_partial_capture_is_not_printed_as_the_whole_day(self):
+        """Classified 400 of a stated 1000: a floor, not the day."""
+        write_capture(tick_volume.capture_path(DAY), [
+            {"kind": "MKT-FEED", "ticks": [
+                tick("OGDC", "B", size="400", total="1000", when="10:01"),
+            ]},
+        ])
+        rows, basis = self.attach()
+        self.assertIsNone(rows[0]["buy_volume"])
+        self.assertEqual(rows[0]["split_method"], volume_split.METHOD_NONE)
+        self.assertIn("no published session range", rows[0]["split_source"])
+
+    def test_a_capture_without_ticks_cannot_split_a_row(self):
+        """A stats frame is not a trade: the row stays without numbers."""
+        write_capture(tick_volume.capture_path(DAY), [
+            {"kind": "MKT-STATS", "ticks": [
+                {"0": "REG", "1": "OPEN", "last": "150219.00",
+                 "direction": "17799.00", "last_volume": "45745000.00"}]},
+        ])
+        rows, basis = self.attach()
+        for row in rows:
+            self.assertIsNone(row["buy_volume"])
+            self.assertIsNone(row["sell_volume"])
+        self.assertNotIn("measured", basis)
+        self.assertNotIn("broker", basis)
+
+    def test_no_capture_at_all_leaves_every_row_unavailable(self):
+        rows, basis = self.attach()
+        self.assertEqual(basis, "B/S unavailable for the leaders right now")
+        for row in rows:
+            self.assertEqual(row["split_method"], volume_split.METHOD_NONE)
+            self.assertTrue(row["split_source"])
 
 
 class MarketCardTest(unittest.TestCase):
@@ -192,14 +228,16 @@ class MarketCardTest(unittest.TestCase):
         self.assertAlmostEqual(leaders[1]["change_pct"], -2.14)
         self.assertIsNone(leaders[0]["buy_volume"])
 
-    def test_the_footnote_states_the_real_membership(self):
+    def test_the_basis_names_the_ranking_and_not_the_membership(self):
+        """Owner order 2026-10-11: the membership wording is gone."""
         rows = [{"symbol": f"S{index}", "current": 10.0, "change_pct": 0.5,
                  "volume": 1000 - index} for index in range(313)]
         leaders = market_snapshot.volume_leaders(rows)
-        basis = (f"current session volume, top {len(leaders)} of "
-                 f"{len(rows)} KMIALLSHR members")
-        self.assertEqual(basis, "current session volume, top 3 of 313 "
-                                "KMIALLSHR members")
+        self.assertEqual(len(leaders), 3)
+        for row in leaders:
+            self.assertEqual(row["basis"],
+                             "current session volume (PSX constituent table)")
+            self.assertNotIn("KMIALLSHR", row["basis"])
 
     def test_portal_downtime_is_a_stated_gap_not_a_number(self):
         """API downtime: the snapshot says what is missing and invents none."""
@@ -234,6 +272,16 @@ class MarketCardTest(unittest.TestCase):
                       {"OPEN", "BREAK", "CLOSED", "PRE_OPEN", "POST_CLOSE"})
         self.assertEqual(state["market_open"],
                          state["phase"] in ("OPEN", "WARMUP"))
+        # Owner order 2026-10-11: the card reads the condition and its exact
+        # sentence from here, so both must travel with every snapshot.
+        self.assertIn(state["condition"],
+                      {"OPERATIONAL", "BREAK", "CLOSED"})
+        if state["condition"] == "OPERATIONAL":
+            self.assertEqual(state["condition_text"], "")
+        else:
+            self.assertIn(state["condition_text"],
+                          ("Market is on a break right now.",
+                           "Market is closed right now."))
 
 
 class MarketCardExampleTest(unittest.TestCase):
@@ -250,10 +298,16 @@ class MarketCardExampleTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr[-800:])
         self.assertIn("MARKET NOW", result.stdout)
         self.assertIn("T=27,276,548", result.stdout)
-        # The fixture has no genuine split, so no B=/S= may be rendered for
-        # it: showing one would be the fabrication this whole layer refuses.
-        self.assertNotIn("B=", result.stdout)
-        self.assertIn("split unavailable", result.stdout)
+        # The fixture carries the day's split, labelled as the estimate it is:
+        # the venue publishes total volume only, so a bare B=/S= would claim
+        # more than anyone can know (SO-3).
+        self.assertIn("B=14,547,492", result.stdout)
+        self.assertIn("S=12,729,056", result.stdout)
+        self.assertIn("B/S estimated from the day's range, not order flow",
+                      result.stdout)
+        self.assertIn("Market is on a break right now.", result.stdout)
+        self.assertNotIn("KMIALLSHR members", result.stdout)
+        self.assertNotIn("broker", result.stdout)
         refusals = [line for line in result.stdout.splitlines()
                     if line.strip().startswith("refused")]
         self.assertEqual(len(refusals), 5, result.stdout)
@@ -270,6 +324,9 @@ class MarketCardExampleTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr[-800:])
         self.assertIn('"phase": "BREAK"', result.stdout)
         self.assertIn('"market_open": false', result.stdout)
+        self.assertIn('"condition": "BREAK"', result.stdout)
+        self.assertIn('"condition_text": "Market is on a break right now."',
+                      result.stdout)
         self.assertIn("OFFLINE", result.stdout)
 
 

@@ -26,11 +26,13 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from src.data import market_snapshot as ms  # noqa: E402
+from src.data import volume_split  # noqa: E402
 
 OUT_HTML = ROOT / "tmp" / "worker_check.html"
 OUT_JSON = ROOT / "tmp" / "worker_check_result.json"
 PORTAL_HOME = "https://dps.psx.com.pk/"
 PORTAL_INDEX = "https://dps.psx.com.pk/indices/KMIALLSHR"
+PORTAL_COMPANY = "https://dps.psx.com.pk/company/"
 
 
 def worker_source() -> str:
@@ -50,6 +52,29 @@ def trim(row_html: str) -> str:
     return re.sub(r"\s+", " ", row_html).strip()
 
 
+def company_panels(symbols: list[str]) -> dict:
+    """The REG panel of each leader's company page, plus python's parse of it.
+
+    The panel is what the worker reads for the buy/sell split, so the harness
+    stubs exactly that slice of live markup and compares the two parsers on
+    it. Only the REG panel is carried: the rest of the page would be dead
+    weight in the harness and would make the stub look unlike the site.
+    """
+    pages: dict[str, str] = {}
+    parsed: dict[str, dict] = {}
+    for symbol in symbols:
+        html = ms._get(PORTAL_COMPANY + symbol)
+        panel = ms.reg_panel(html)
+        if not panel:
+            continue
+        pages[symbol] = ('<div class="tabs__panel" data-name="REG">'
+                         + panel + "</div>")
+        quote = ms.parse_symbol_quote(html, symbol)
+        if quote:
+            parsed[symbol] = quote
+    return {"pages": pages, "parsed": parsed}
+
+
 def fixtures() -> dict:
     home = ms._get(PORTAL_HOME)  # noqa: SLF001 - same fetch the module uses
     panel = re.search(
@@ -59,17 +84,36 @@ def fixtures() -> dict:
     rows = re.findall(r"<tr[^>]*>.*?</tr>", constituents, re.S)
     # header row plus the three highest-volume rows, so ordering is exercised
     parsed = ms.parse_constituents(constituents)
-    top = [r["symbol"] for r in ms.volume_leaders(parsed)]
+    leaders = ms.volume_leaders(parsed)
+    top = [r["symbol"] for r in leaders]
     wanted = set(top) | {"AASM"}
     kept = [trim(r) for r in rows
             if any(f'data-order="{s}"' in r for s in wanted)]
+    panel_html = company_panels(top)
+    # What python's own splitter answers for these rows from these panels, so
+    # the engine check is a parity test and not a second implementation. The
+    # rows are filled here exactly as src/data/market_snapshot.py fills them,
+    # so the label the card would print is derived from real rows too.
+    expected_rows = [dict(row) for row in leaders]
+    expected_label = volume_split.attach_splits(
+        expected_rows, quotes=panel_html["parsed"], flows={})
+    expected_splits = {
+        row["symbol"]: {"buy": row["buy_volume"],
+                        "sell": row["sell_volume"],
+                        "method": row["split_method"]}
+        for row in expected_rows
+    }
     return {
         "home": panel.group(0),
         "constituents": "<table><thead><tr><th>SYMBOL</th></tr></thead><tbody>"
                         + "".join(kept) + "</tbody></table>",
         "top_symbols": top,
         "python_index": ms.parse_index(home),
-        "python_leaders": ms.volume_leaders(parsed),
+        "python_leaders": leaders,
+        "company_pages": panel_html["pages"],
+        "python_quotes": panel_html["parsed"],
+        "python_splits": expected_splits,
+        "split_label": expected_label,
     }
 
 
@@ -86,6 +130,11 @@ const WORKER_SRC = {json.dumps(src)};
 const FUNCS_SRC = {json.dumps(fns)};
 const HOME = {json.dumps(fx["home"])};
 const CONST = {json.dumps(fx["constituents"])};
+const COMPANY = {json.dumps({"prefix": PORTAL_COMPANY,
+                            "pages": fx["company_pages"]})};
+const SPLITS = {json.dumps({"expected": fx["python_splits"],
+                            "quotes": fx["python_quotes"],
+                            "label": fx["split_label"]})};
 const EXPECT = {json.dumps({"top_symbols": fx["top_symbols"],
                             "python_index": fx["python_index"],
                             "python_leaders": fx["python_leaders"]})};
@@ -162,7 +211,11 @@ async function endpoints() {{
   let stubErrors = [];
   const stub = async (url) => {{
     const u = String(url);
-    const body = u === PORTAL ? HOME : (u === INDEX_PAGE ? CONST : null);
+    let body = u === PORTAL ? HOME : (u === INDEX_PAGE ? CONST : null);
+    if (body === null && u.startsWith(COMPANY.prefix)) {{
+      const symbol = u.slice(COMPANY.prefix.length);
+      body = COMPANY.pages[symbol] || null;
+    }}
     if (body === null) return new Response("not stubbed", {{ status: 404 }});
     portalCalls++;
     return new Response(body, {{ status: 200,
@@ -203,6 +256,63 @@ async function endpoints() {{
   say(EXCEPT_KEYS.every((k) => k in body),
       "every field the app reads is present",
       EXCEPT_KEYS.filter((k) => !(k in body)).join(",") || "all");
+
+  // The buy/sell split, end to end: the worker fetched each leader's own
+  // company page through this stubbed portal and split it with its own code.
+  // Every number must equal what src/data/volume_split.py answers for the
+  // same markup, and the sum invariant must hold on the edge as well.
+  const rows = Array.isArray(body.top_volume) ? body.top_volume : [];
+  const expected = SPLITS.expected;
+  for (const row of rows) {{
+    const want = expected[row.symbol] || {{}};
+    const got = {{ buy: row.buy_volume, sell: row.sell_volume,
+                   method: row.split_method }};
+    say(want.buy === got.buy && want.sell === got.sell,
+        "".concat(row.symbol, " split matches the python splitter"),
+        JSON.stringify(got) + " vs " + JSON.stringify(want));
+    if (Number.isFinite(got.buy) && Number.isFinite(got.sell)) {{
+      say(got.buy + got.sell === row.volume,
+          "".concat(row.symbol, " buy + sell equals the published volume"),
+          "".concat(got.buy, " + ", got.sell, " vs ", row.volume));
+      say(got.buy >= 0 && got.sell >= 0, "".concat(row.symbol, " sides are not negative"));
+    }}
+  }}
+  say(body.volume_split_basis === SPLITS.label,
+      "the split label names the method that produced the numbers",
+      JSON.stringify(body.volume_split_basis) + " vs " + JSON.stringify(SPLITS.label));
+  say(!/broker|KMIALLSHR members/i.test(String(body.volume_split_basis || "") +
+      String(body.top_volume_basis || "")),
+      "the card carries no legacy membership or broker capture wording",
+      JSON.stringify({{ split: body.volume_split_basis,
+                        top: body.top_volume_basis }}));
+  say(body.market_state && typeof body.market_state.condition === "string" &&
+      typeof body.market_state.condition_text === "string",
+      "market_state carries the condition and its sentence",
+      JSON.stringify(body.market_state && body.market_state.condition));
+  // The served state must carry the sentence for the same instant the
+  // condition helpers answer for, which is how the app reads it.
+  say(body.market_state.condition === marketCondition(new Date()) &&
+      body.market_state.condition_text === conditionText(new Date()),
+      "the served market_state condition equals the condition helpers at this instant",
+      JSON.stringify(body.market_state.condition_text));
+
+  // The Friday midday break, the one condition that is neither closed nor
+  // operational (SO-8). Both band edges and the middle are checked.
+  const friday = (h, mi) => new Date(Date.UTC(2026, 9, 9, h - 5, mi));
+  say(marketCondition(friday(11, 59)) === "OPERATIONAL",
+      "friday 11:59 is operational");
+  say(marketCondition(friday(12, 0)) === "BREAK" &&
+      conditionText(friday(12, 0)) === "Market is on a break right now.",
+      "friday 12:00 opens the break with the owner's sentence",
+      conditionText(friday(12, 0)));
+  say(marketCondition(friday(14, 31)) === "BREAK",
+      "friday 14:31 is still the break");
+  say(marketCondition(friday(14, 32)) === "OPERATIONAL" &&
+      conditionText(friday(14, 32)) === "",
+      "friday 14:32 resumes trading with no sentence",
+      conditionText(friday(14, 32)));
+  say(marketCondition(friday(16, 30)) === "CLOSED",
+      "friday 16:30 is closed, not a break");
   const firstCalls = portalCalls;
 
   const res2 = await handler.fetch(new Request("https://relay.test/market"), env);

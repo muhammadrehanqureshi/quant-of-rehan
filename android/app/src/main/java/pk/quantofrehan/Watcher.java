@@ -79,12 +79,19 @@ public final class Watcher {
         Double changePct;
         /** null: the relay reported no volume. */
         Long volume;
-        /** null: no genuine buy/sell split arrived. */
+        /** null: no buy/sell split arrived. */
         Long buy;
-        /** null: no genuine buy/sell split arrived. */
+        /** null: no buy/sell split arrived. */
         Long sell;
 
-        /** True only when a genuine buy/sell split arrived for this stock. */
+        /**
+         * True when a labelled buy/sell split arrived for this stock.
+         *
+         * Labeled, not proven: the relay says in its own footnote whether the
+         * numbers were measured from the session tape or estimated from the
+         * day's range (SO-3). The app renders the split either way and never
+         * presents the estimate as order flow of its own accord.
+         */
         boolean hasSplit() {
             return buy != null && sell != null;
         }
@@ -102,13 +109,18 @@ public final class Watcher {
         /** OPEN, BREAK, CLOSED, PRE_OPEN or POST_CLOSE, or null when the
          *  relay did not report a phase. The app never guesses one. */
         String phase;
+        /** OPERATIONAL, BREAK or CLOSED, or empty when the relay reported
+         *  none. This is the relay's own three valued condition (2026-10-11),
+         *  and it is the field the session sentences are read from. */
+        String condition = "";
+        /** The relay's exact sentence for that condition, or empty. */
+        String conditionText = "";
         boolean tradingDay = true;
         String nextEvent = "";
         Double indexValue;
         Double indexChange;
         Double indexPct;
         String indexAsOf = "";
-        int members;
         final List<Leader> leaders = new ArrayList<>();
         String basis = "";
         String splitBasis = "";
@@ -238,7 +250,6 @@ public final class Watcher {
             market.answered = body.optBoolean("ok", false);
             market.open = body.optBoolean("market_open", false);
             market.cacheAgeSeconds = body.optInt("cache_age_seconds", -1);
-            market.members = body.optInt("kmiall_members", 0);
             market.basis = body.optString("top_volume_basis", "");
             market.splitBasis = body.optString("volume_split_basis", "");
             readPhase(body.optJSONObject("market_state"), market);
@@ -301,6 +312,11 @@ public final class Watcher {
         if (!phase.isEmpty()) {
             market.phase = phase;
         }
+        String condition = state.optString("condition", "");
+        if (!condition.isEmpty()) {
+            market.condition = condition;
+        }
+        market.conditionText = state.optString("condition_text", "");
         market.tradingDay = state.optBoolean("trading_day", market.tradingDay);
         if (state.has("market_open")) {
             market.open = state.optBoolean("market_open", market.open);
@@ -312,30 +328,58 @@ public final class Watcher {
     }
 
     /**
-     * The owner-facing sentence for a session phase. Never guesses a session.
+     * The owner-facing sentence for the market's condition, or "" while the
+     * exchange is trading. Never guesses a session.
      *
-     * Owner order 2026-10-10: "PSX session closed" is retired. The exchange's
-     * real midday break says the market is on a break, every other shut state
-     * says the market is closed now, a live band says nothing (the pill
-     * already reads ONLINE), and an unreported phase says so instead of
-     * claiming a session the relay never confirmed.
+     * Owner order 2026-10-11: the relay reports its three valued condition and
+     * its sentence, and both are the owner's exact words, so they win whenever
+     * they arrive. A relay too old to carry them falls back to the phase, and
+     * CLOSED, PRE_OPEN and POST_CLOSE all read as one closed sentence, which
+     * is true in each. An unreported phase still says so rather than claiming
+     * a session the relay never confirmed.
      */
     static String phaseLine(Context c, Market market) {
         if (market == null || !market.phaseKnown()) {
             return c.getString(R.string.market_status_unreported);
+        }
+        if ("OPERATIONAL".equals(market.condition)) {
+            return "";
+        }
+        if ("BREAK".equals(market.condition)) {
+            return market.conditionText.isEmpty()
+                    ? c.getString(R.string.market_on_break) : market.conditionText;
+        }
+        if ("CLOSED".equals(market.condition)) {
+            return market.conditionText.isEmpty()
+                    ? c.getString(R.string.market_closed_now) : market.conditionText;
         }
         String phase = market.phase;
         if ("OPEN".equals(phase) || "WARMUP".equals(phase)) {
             return "";
         }
         if ("BREAK".equals(phase)) {
-            return market.nextEvent.isEmpty()
-                    ? c.getString(R.string.market_on_break)
-                    : c.getString(R.string.market_break_resumes, market.nextEvent);
+            return c.getString(R.string.market_on_break);
         }
         // CLOSED (a weekend or a PSX holiday), PRE_OPEN and POST_CLOSE all read
-        // as "closed now": that is the owner's wording, and it is true in each.
+        // as one closed sentence: that is the owner's wording, and it is true
+        // in each of them.
         return c.getString(R.string.market_closed_now);
+    }
+
+    /**
+     * "Trading resumes 14:32 PKT.", or "" while the exchange is trading.
+     *
+     * Its own sentence under the condition, never inside it: the condition
+     * texts are the owner's exact words and nothing is edited into them. The
+     * time comes from the relay's next band edge, so a Friday afternoon
+     * resumes at 14:32 and a weekday morning at 09:32 without the app knowing
+     * either schedule (SO-8).
+     */
+    static String resumeLine(Context c, Market market) {
+        if (market == null || market.open || market.nextEvent.isEmpty()) {
+            return "";
+        }
+        return c.getString(R.string.market_resume_hint, market.nextEvent);
     }
 
     /**
@@ -365,9 +409,17 @@ public final class Watcher {
                 if (!reachable) {
                     detail = "The relay answered but reported a fault.";
                 } else {
+                    StringBuilder d = new StringBuilder("Karachi: ")
+                            .append(karachi);
                     String line = phaseLine(c, healthMarket);
-                    detail = "Karachi: " + karachi
-                            + (line.isEmpty() ? "" : "\n" + line);
+                    if (!line.isEmpty()) {
+                        d.append('\n').append(line);
+                    }
+                    String resume = resumeLine(c, healthMarket);
+                    if (!resume.isEmpty()) {
+                        d.append('\n').append(resume);
+                    }
+                    detail = d.toString();
                 }
 
                 String signals = "";
@@ -403,7 +455,7 @@ public final class Watcher {
                         ? "No route to the relay from this phone. Check internet or VPN."
                         : "The relay did not answer in time. Will retry.";
                 Market market = new Market();
-                market.note = "Relay unreachable, so the market card is empty.";
+                market.note = c.getString(R.string.market_relay_unreachable);
                 cb.done(false, false, hint + " (" + why + ")", "", market);
             }
         });
