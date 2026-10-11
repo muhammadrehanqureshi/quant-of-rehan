@@ -110,6 +110,16 @@ python scripts/install_kmiall_tick.py --show    # query it
 python scripts/install_kmiall_tick.py --remove  # delete it
 ```
 
+The task registers the WINDOWLESS interpreter (`pythonw.exe`). It used to
+register `python.exe`, a console program, in the owner's own session, so
+Windows opened a console and a Windows Terminal window on every fire, several
+times an hour around the clock, and the tick (under a second on a closed day)
+had come and gone before it could be read. That is what the owner reported on
+2026-10-11 as a window flashing too fast to see. `pythonw` is the same
+interpreter with no console, so the scan is unchanged and nothing appears on
+screen; the record a console used to provide now lives in
+`logs/kmiall_tick.log`, `data/tick_health.json` and the task's own run history.
+
 ## The AI prior, exactly
 
 "AI-driven signals" in this repository means one concrete, auditable thing:
@@ -332,9 +342,9 @@ monitor and sleep.
   scheduler, #62 the relay URL resolution and the push preflight, #63 the
   backtest engine and optimizer, #64 SO-4 enforced in code, #65 the app v1.6.1
   scan-cadence line, #66 these docs.
-- **Suite green.** 581 tests pass (`python -m pytest tests -q` reports 581
+- **Suite green.** 583 tests pass (`python -m pytest tests -q` reports 583
   passed and 239 subtests; `python -m unittest discover -s tests` reports
-  `Ran 581 tests`, OK). All 32 modules under `src/` import cleanly. The
+  `Ran 583 tests`, OK). All 32 modules under `src/` import cleanly. The
   governance guard passes end to end (SO-7 dashes, SO-8 Karachi pin, secrets,
   footprint honesty, standing orders).
 - **Scanning is 4 minutes, and only in MARKET.** Owner order 2026-10-11:
@@ -405,6 +415,11 @@ monitor and sleep.
   binding, and in the `RELAY_ADMIN_TOKEN` Actions secret, which was updated in
   the same pass so the scheduled workflows keep authenticating. Verified: the
   new token returns 200 from `/signals` and a bogus one is refused with 403.
+- **The local scan tick runs with no window.** The task used to register
+  `python.exe`, a console program, in the owner's session, so Windows opened a
+  console and a Windows Terminal window on every fire, around the clock, and the
+  tick finished faster than the window could be read. It now registers
+  `pythonw.exe`: same scan, same cadence, nothing on screen.
 - **Backtesting is local-only in code, not just in a document.** Owner order
   2026-10-11: the Actions minutes are reserved for the market-hours scans, so
   `src/ci/local_only.py` lists every backtest and history-research entry point
