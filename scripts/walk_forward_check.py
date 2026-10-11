@@ -16,7 +16,9 @@ import numpy as np
 import pandas as pd
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, ROOT)
 OUT = os.path.join(ROOT, "data", "event_study")
+from src.ci.local_only import guard_local_only  # noqa: E402
 COST_SIDE = 0.00224
 CGT = 0.15
 H = 10
@@ -75,6 +77,7 @@ def stats(e: pd.DataFrame) -> dict:
 
 
 def main() -> int:
+    guard_local_only("scripts/walk_forward_check.py")
     ev = pd.read_parquet(os.path.join(OUT, "events.parquet"))
     ev["entry_date"] = pd.to_datetime(ev["entry_date"])
     conds = {

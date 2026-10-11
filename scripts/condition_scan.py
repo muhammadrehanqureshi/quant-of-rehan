@@ -13,7 +13,9 @@ import numpy as np
 import pandas as pd
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, ROOT)
 OUT = os.path.join(ROOT, "data", "event_study")
+from src.ci.local_only import guard_local_only  # noqa: E402
 
 TGT = "t0.02_first_vs_a05"      # headline: +2% before -0.5%
 TGT1 = "t0.01_first_vs_a05"     # secondary: +1% before -0.5%
@@ -94,6 +96,7 @@ def scan(ev: pd.DataFrame, tgt: str) -> list[dict]:
 
 
 def main() -> int:
+    guard_local_only("scripts/condition_scan.py")
     ev = pd.read_parquet(os.path.join(OUT, "events.parquet"))
     ev["entry_date"] = pd.to_datetime(ev["entry_date"])
     for tgt, label in [(TGT1, "+1% before -0.5%"), (TGT, "+2% before -0.5%"), (TGT3, "+3% before -0.5%")]:

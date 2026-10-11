@@ -61,6 +61,7 @@ import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
+from src.ci.local_only import guard_local_only  # noqa: E402
 
 from src.data.registry import availability  # noqa: E402
 from src.backtest.engine import DEFAULT_COST_SIDE_BPS, DEFAULT_CGT_RATE  # noqa: E402
@@ -308,6 +309,7 @@ def net_of(x: pd.DataFrame, slip_bps: float = 0.0) -> tuple[float, float, int]:
 
 
 def main(argv: list[str] | None = None) -> int:
+    guard_local_only("scripts/research_phase2b.py")
     if not MATRIX_PATH.is_file():
         print("trade matrix missing; run scripts/build_trade_matrix.py first")
         return 1

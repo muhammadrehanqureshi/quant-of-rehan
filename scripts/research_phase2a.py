@@ -59,6 +59,7 @@ import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
+from src.ci.local_only import guard_local_only  # noqa: E402
 
 from src.data.registry import availability  # noqa: E402
 
@@ -997,6 +998,7 @@ def render_md(res: dict) -> str:
 
 # ------------------------------------------------------------------ main
 def main(argv: list[str] | None = None) -> int:
+    guard_local_only("scripts/research_phase2a.py")
     ap = argparse.ArgumentParser(description="Phase 2A: Group G identifiability")
     ap.add_argument("--matrix", type=Path, default=MATRIX_PATH)
     args = ap.parse_args(argv)

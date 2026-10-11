@@ -30,6 +30,7 @@ import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
+from src.ci.local_only import guard_local_only  # noqa: E402
 
 DATASET = ROOT / "data" / "eod_history_kmi.csv.gz"
 OUT = ROOT / "data" / "entry_metrics_report.json"
@@ -187,6 +188,7 @@ def baseline_mask(df: pd.DataFrame) -> pd.Series:
 
 
 def main() -> int:
+    guard_local_only("scripts/entry_metrics.py")
     df = load()
     df = add_flags(df)
     wc3 = window_clean(df, HOLD)
