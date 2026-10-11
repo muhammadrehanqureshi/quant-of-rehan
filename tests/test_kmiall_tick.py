@@ -269,6 +269,33 @@ class CadenceTest(unittest.TestCase):
         self.assertIn("/mo", command)
         self.assertEqual(command[command.index("/mo") + 1], "4")
 
+    def test_the_installed_task_cannot_flash_a_console_window(self):
+        """Owner report 2026-10-11: a window flashed every few minutes.
+
+        The task ran python.exe, a console program, in the owner's own
+        session, so Windows opened a console on every fire and the tick (a
+        second or less on a closed day) had come and gone before he could
+        read it. The registered action must name the windowless interpreter,
+        so a re-install cannot bring the flash back.
+        """
+        import install_kmiall_tick
+
+        action = install_kmiall_tick.create_command()[
+            install_kmiall_tick.create_command().index("/tr") + 1]
+        interpreter = install_kmiall_tick.windowless_interpreter()
+        self.assertEqual(interpreter.name, "pythonw.exe")
+        self.assertIn(str(interpreter), action)
+        self.assertNotIn("python.exe", action.replace("pythonw.exe", ""))
+        self.assertIn(str(install_kmiall_tick.TICK_SCRIPT), action)
+
+    def test_a_build_without_pythonw_still_registers_something(self):
+        import install_kmiall_tick
+        from unittest import mock
+
+        with mock.patch("pathlib.Path.is_file", return_value=False):
+            fallback = install_kmiall_tick.windowless_interpreter()
+        self.assertEqual(fallback, Path(sys.executable))
+
 
 class FinalizeTest(TickTestCase):
     def test_a_finalized_day_is_not_finalized_twice(self):
