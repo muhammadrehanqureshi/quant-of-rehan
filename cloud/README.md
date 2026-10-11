@@ -53,6 +53,18 @@ run. The relay currently running in production predates the band table and
 `market_state`, so a deploy is needed for the app to show the phase sentence
 and to stop reporting ONLINE between 12:00 and 14:32 on a Friday.
 
+## Where a runner finds the relay URL
+
+`data/relay_url.txt` is gitignored (the pairing above writes it on this PC),
+so a fresh checkout or a GitHub runner does not have it. Resolution order is
+therefore the `RELAY_URL` environment variable first, then that file, and if
+neither is present the runner fails closed and names both in the error -- a
+notification must never travel to a guessed address. In GitHub Actions the
+public worker URL can be set once as a repository **variable** (Settings >
+Secrets and variables > Actions > Variables > `RELAY_URL`), which is not a
+secret; `scripts/signal_daily.py` also writes the file before its preflight,
+so a runner with no configuration at all still checks a real URL.
+
 ## Secrets (SO-5)
 
 Worker bindings, set only by cloud/pair.py from the owner's PC:
