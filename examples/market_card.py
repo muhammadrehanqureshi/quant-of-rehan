@@ -13,9 +13,10 @@ the app answers, using the same modules the app's data comes from.
        PC whose clock has drifted, cannot disagree with the exchange.
 
     2. WHAT IS THE MARKET DOING?  src/data/market_snapshot.py reads the PSX
-       Data Portal's own pages for the KSE100 index and the KMIALLSHR volume
-       leaders, and src/data/tick_volume.py adds a genuine buy/sell split when
-       a broker tick capture exists for the session.
+       Data Portal's own pages for the KSE100 index and the volume leaders,
+       and src/data/volume_split.py answers the buy and sell volumes: measured
+       from a banked session tape when one exists, and otherwise an estimate
+       from the day's published range that is labelled as one (SO-3).
 
 Every field is validated before it is rendered: a snapshot with a missing
 index, a negative volume, a percentage that is not a number, a split that is
@@ -41,6 +42,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+from src.data import registry  # noqa: E402  (SO-3: truth source)
 from src.data.sessions import (  # noqa: E402
     KARACHI, market_state, session_window_text,
 )
@@ -82,12 +84,14 @@ class Leader:
 @dataclass(frozen=True)
 class Card:
     phase: str
+    condition: str
+    condition_text: str
     open_now: bool
     window: str
     index_value: float | None
     index_pct: float | None
-    members: int | None
     leaders: tuple[Leader, ...]
+    top_basis: str
     split_basis: str
     notes: tuple[str, ...]
 
@@ -107,10 +111,12 @@ class Card:
             lines.append("no volume leaders to show")
         for position, leader in enumerate(self.leaders, start=1):
             lines.append(f"{position}. {leader.line()}")
-        if self.members:
-            lines.append(f"   volume: top {len(self.leaders)} of "
-                         f"{self.members} KMIALLSHR members")
+        if self.top_basis:
+            lines.append(f"   {self.top_basis}")
         if not self.is_live:
+            # The owner's three conditions, his exact sentence, then a plain
+            # statement that no session is live (the example's own wording).
+            lines.append(f"   {self.condition_text or 'Market status unreported.'}")
             lines.append("   OFFLINE: no session is live at this instant")
         if self.split_basis:
             lines.append(f"   {self.split_basis}")
@@ -174,6 +180,8 @@ def validate_card(snapshot: Any) -> Card:
     if not isinstance(snapshot, dict):
         raise CardError(f"snapshot is {type(snapshot).__name__}, not an object")
     state = snapshot.get("market_state")
+    condition = ""
+    condition_text = ""
     if not isinstance(state, dict):
         # The relay's older shape: fall back to the boolean, but say so by
         # leaving the phase empty rather than inventing one.
@@ -183,6 +191,16 @@ def validate_card(snapshot: Any) -> Card:
         if phase not in ("CLOSED", "PRE_OPEN", "WARMUP", "OPEN", "BREAK",
                          "POST_CLOSE"):
             raise CardError(f"unknown market phase: {phase!r}")
+        condition = str(state.get("condition", ""))
+        if condition and condition not in ("OPERATIONAL", "BREAK", "CLOSED"):
+            raise CardError(f"unknown market condition: {condition!r}")
+        condition_text = str(state.get("condition_text", ""))
+        # A condition and its sentence must agree: an OPERATIONAL market has
+        # no sentence, and a shut one never claims to be trading.
+        if condition == "OPERATIONAL" and condition_text:
+            raise CardError("an operational market carried a shut sentence")
+        if condition in ("BREAK", "CLOSED") and not condition_text:
+            raise CardError(f"condition {condition} arrived with no sentence")
     index = snapshot.get("index") or {}
     leaders = tuple(validate_leader(row)
                     for row in (snapshot.get("top_volume") or ()))
@@ -191,20 +209,27 @@ def validate_card(snapshot: Any) -> Card:
         raise CardError("the same symbol appears twice in the leaders")
     return Card(
         phase=phase or "UNKNOWN",
+        condition=condition,
+        condition_text=condition_text,
         open_now=bool(snapshot.get("market_open")),
         window=session_window_text(datetime.now(KARACHI).date()),
         index_value=_number(index.get("value"), "index.value", low=0.0),
         index_pct=_number(index.get("change_pct"), "index.change_pct"),
-        members=_count(snapshot.get("kmiall_members"), "kmiall_members", low=0),
         leaders=leaders,
+        top_basis=str(snapshot.get("top_volume_basis", "") or ""),
         split_basis=str(snapshot.get("volume_split_basis", "") or ""),
         notes=tuple(str(note) for note in (snapshot.get("notes") or ())),
     )
 
 
+#: The Friday midday break, with the day's split carried the way the relay
+#: carries it: labelled as an estimate, because the venue publishes total
+#: volume only (src/data/volume_split.py).
 OFFLINE_FIXTURE: dict = {
     "market_open": False,
     "market_state": {"phase": "BREAK", "market_open": False,
+                     "condition": "BREAK",
+                     "condition_text": "Market is on a break right now.",
                      "trading_day": True,
                      "next_event": {"event": "OPEN",
                                     "at_pk": "2026-10-09 14:32"}},
@@ -213,15 +238,16 @@ OFFLINE_FIXTURE: dict = {
     "kmiall_members": 313,
     "top_volume": [
         {"symbol": "CNERGY", "volume": 27276548, "price": 12.52,
-         "change_pct": 1.049, "buy_volume": None, "sell_volume": None},
+         "change_pct": 1.049, "buy_volume": 14547492,
+         "sell_volume": 12729056, "split_method": "range_position"},
         {"symbol": "PRL", "volume": 24123072, "price": 93.07,
-         "change_pct": -2.14, "buy_volume": None, "sell_volume": None},
+         "change_pct": -2.14, "buy_volume": 11782216,
+         "sell_volume": 12340856, "split_method": "range_position"},
         {"symbol": "TREET", "volume": 22903682, "price": 41.1,
          "change_pct": 0.51, "buy_volume": None, "sell_volume": None},
     ],
-    "top_volume_basis": "current session volume, top 3 of 313 KMIALLSHR members",
-    "volume_split_basis": ("buy/sell split unavailable: no broker tick capture "
-                           "banked for 2026-10-09"),
+    "top_volume_basis": "current session volume, top 3",
+    "volume_split_basis": "B/S estimated from the day's range, not order flow (SO-3: proxy; truth source src/data/registry.py)",
     "notes": [],
 }
 

@@ -33,11 +33,13 @@ import java.util.Locale;
  * KMIALL stocks by volume, plus the rule that a closed market shows OFFLINE
  * with a red cross.
  *
- * Owner order 2026-10-10: every sentence and glyph now comes from a string
- * resource so the copy, the accessibility description and the layout can
- * never drift apart; the checkmark and the cross are the shipped glyphs
- * (U+2713 and U+2717); and a session that is shut reads "Market is closed
- * now." or "Market is on a break right now." instead of "PSX session closed".
+ * Owner order 2026-10-11: the checkmark and the cross are retired. ONLINE and
+ * OFFLINE are shown as a vector status light beside the word
+ * (drawable/ic_status_online and ic_status_offline), the volume leaders carry
+ * their labelled buy and sell volumes, the scan cadence is pinned to the
+ * bottom of the interface, and the legacy lines about index membership and a
+ * broker capture are gone. Every sentence still comes from a string resource,
+ * so the copy, the accessibility description and the layout cannot drift.
  */
 public class MainActivity extends Activity {
 
@@ -145,8 +147,12 @@ public class MainActivity extends Activity {
         bg.setColor(getColor(online ? R.color.green_soft : R.color.red_soft));
         bg.setStroke(dp(1), getColor(online ? R.color.green : R.color.red));
         statusPill.setBackground(bg);
-        // the owner's marker law: a green check on ONLINE, a red cross on
-        // OFFLINE (the round dot is retired). A closed session is OFFLINE.
+        // The owner's marker law, 2026-10-11: one status light beside the
+        // word, lit for ONLINE and hollow for OFFLINE, so the badge reads as
+        // an indicator rather than as an emoji. A shut session is OFFLINE.
+        statusPill.setCompoundDrawablesRelativeWithIntrinsicBounds(online
+                ? R.drawable.ic_status_online : R.drawable.ic_status_offline,
+                0, 0, 0);
         statusPill.setText(getString(online
                 ? R.string.status_online : R.string.status_offline));
         statusPill.setTextColor(getColor(online
@@ -247,19 +253,21 @@ public class MainActivity extends Activity {
     /**
      * "1. ABC   B=12,345  S=9,876  T=22,221   Rs 12.52   green 1.05%"
      *
-     * The owner asked for the split as separate buy and sell volumes next to
-     * the total. When the relay has no genuine split (no broker tick capture
-     * for the session) the line says so through the footnote and shows the
-     * total only: a made up buy/sell ratio would be a lie about the tape.
+     * The buy and sell volumes are the owner's request of 2026-10-10, now
+     * always shown for the top three when the relay reports them: buying is
+     * green, selling is red, the total stays neutral, so the two sides read
+     * apart before the digits do.
+     *
+     * What the numbers MEAN travels in the card's footnote, never in the row:
+     * the relay says whether they were measured from the session tape or
+     * estimated from the day's range (SO-3).
      *
      * Every field is a boxed Number, so a null means the relay did not report
      * it and the field is skipped rather than printed as a zero.
      */
     private SpannableString leadersText(List<Watcher.Leader> leaders) {
         StringBuilder sb = new StringBuilder();
-        List<Integer> spanStart = new ArrayList<>();
-        List<Integer> spanEnd = new ArrayList<>();
-        List<Boolean> spanUp = new ArrayList<>();
+        List<int[]> spans = new ArrayList<>();   // {from, to, colour resource}
         for (int i = 0; i < leaders.size(); i++) {
             Watcher.Leader row = leaders.get(i);
             if (i > 0) {
@@ -267,8 +275,15 @@ public class MainActivity extends Activity {
             }
             sb.append(String.format(Locale.US, "%d. %s", i + 1, row.symbol));
             if (row.hasSplit()) {
-                sb.append(String.format(Locale.US, "   B=%,d  S=%,d  T=%,d",
-                        row.buy, row.sell, row.volume));
+                sb.append("   B=");
+                int buyFrom = sb.length();
+                sb.append(String.format(Locale.US, "%,d", row.buy));
+                spans.add(new int[]{buyFrom, sb.length(), R.color.green});
+                sb.append("  S=");
+                int sellFrom = sb.length();
+                sb.append(String.format(Locale.US, "%,d", row.sell));
+                spans.add(new int[]{sellFrom, sb.length(), R.color.red});
+                sb.append(String.format(Locale.US, "  T=%,d", row.volume));
             } else if (row.hasVolume()) {
                 sb.append(String.format(Locale.US, "   T=%,d", row.volume));
             }
@@ -280,16 +295,14 @@ public class MainActivity extends Activity {
                 sb.append(String.format(Locale.US, "   %s %.2f%%",
                         row.changePct >= 0 ? "\u25B2" : "\u25BC",
                         Math.abs(row.changePct)));
-                spanStart.add(from);
-                spanEnd.add(sb.length());
-                spanUp.add(row.changePct >= 0);
+                spans.add(new int[]{from, sb.length(), row.changePct >= 0
+                        ? R.color.green : R.color.red});
             }
         }
         SpannableString sp = new SpannableString(sb.toString());
-        for (int i = 0; i < spanStart.size(); i++) {
-            sp.setSpan(new ForegroundColorSpan(getColor(
-                            spanUp.get(i) ? R.color.green : R.color.red)),
-                    spanStart.get(i), spanEnd.get(i), 0);
+        for (int[] span : spans) {
+            sp.setSpan(new ForegroundColorSpan(getColor(span[2])),
+                    span[0], span[1], 0);
         }
         return sp;
     }
@@ -297,13 +310,15 @@ public class MainActivity extends Activity {
     /**
      * The card's footnote, built from what actually arrived.
      *
-     * The old line said "volume: today, top of N KMIALLSHR members", which
-     * read as a truncated sentence and never named how many leaders were
-     * shown. The relay's own basis sentence is used when it is present, and
-     * the local fallback states the same facts from the same numbers.
+     * Owner order 2026-10-11: the legacy sentences are gone. Nothing names an
+     * index membership or a capture process any more. The ranking sentence
+     * states the basis, the relay's split sentence states how the buy and
+     * sell numbers were produced (measured or estimated), and a failure is
+     * still reported in the relay's own words.
      *
-     * The session sentence comes from Watcher.phaseLine, which is the single
-     * place the owner's closed and break wording lives (2026-10-10).
+     * The session sentence is deliberately NOT repeated here: it belongs to
+     * the status card above, and saying it twice made this line read as
+     * noise. It lives in exactly one place, Watcher.phaseLine.
      */
     private String footText(Watcher.Market market, int shown) {
         StringBuilder foot = new StringBuilder();
@@ -311,16 +326,14 @@ public class MainActivity extends Activity {
             foot.append("Index as of ").append(market.indexAsOf).append(" PKT");
         }
         String basis = market.basis == null ? "" : market.basis.trim();
-        if (basis.isEmpty() && market.members > 0 && shown > 0) {
+        if (basis.isEmpty() && shown > 0) {
+            // The relay normally sends its own basis sentence; this states the
+            // same fact from the same row count when it does not.
             basis = String.format(Locale.US,
-                    "current session volume, top %d of %d KMIALLSHR members",
-                    shown, market.members);
+                    "current session volume, top %d", shown);
         }
         appendPart(foot, basis);
         appendPart(foot, market.splitBasis == null ? "" : market.splitBasis.trim());
-        if (!market.open) {
-            appendPart(foot, Watcher.phaseLine(this, market));
-        }
         if (market.note != null && !market.note.trim().isEmpty()) {
             foot.append(foot.length() > 0 ? "\n" : "").append(market.note.trim());
         }

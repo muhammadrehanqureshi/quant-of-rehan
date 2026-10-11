@@ -19,8 +19,9 @@
 //   GET  /health        liveness, current Karachi clock, next scheduled event,
 //                       and market_open per the owner's session law
 //   GET  /market        public: KSE100 points and percentage plus the top
-//                       three KMIALL stocks by current session volume, served
-//                       from a five minute cache of the PSX Data Portal
+//                       three stocks by current session volume with their
+//                       labelled buy/sell split, served from a five minute
+//                       cache of the PSX Data Portal
 //   POST /market        admin only: store a snapshot built by the local runner
 //                       (src/data/market_snapshot.py), which takes precedence
 //                       over the edge's own cache for five minutes
@@ -42,6 +43,12 @@ const KARACHI_OFFSET_MIN = 5 * 60; // SO-8: UTC+5, fixed forever
 // state (SO-9).
 const MSG_OPEN = "Market is open. Quant is online now.";
 const MSG_CLOSED = "Market is closed. Quant is sleeping now.";
+
+// Owner's exact condition texts (order of 2026-10-11), mirroring
+// src/data/sessions.py. The break sentence is for the exchange's own Friday
+// midday break and nothing else.
+const CONDITION_BREAK = "Market is on a break right now.";
+const CONDITION_CLOSED = "Market is closed right now.";
 
 // PSX trading holidays 2026; mirrors src/data/sessions.py. Refresh yearly.
 const PSX_HOLIDAYS_2026 = new Set([
@@ -139,6 +146,24 @@ function marketOpenNow(nowUtc) {
   return marketPhase(nowUtc) === "OPEN";
 }
 
+// The owner's three conditions, folded from the same phases the session law
+// produces: OPERATIONAL while the exchange trades, BREAK for its own midday
+// break, CLOSED for every other shut instant. The app renders the sentence,
+// so it never has to build one from a phase name.
+function marketCondition(nowUtc) {
+  const phase = marketPhase(nowUtc);
+  if (phase === "OPEN" || phase === "WARMUP") return "OPERATIONAL";
+  if (phase === "BREAK") return "BREAK";
+  return "CLOSED";
+}
+
+function conditionText(nowUtc) {
+  const condition = marketCondition(nowUtc);
+  if (condition === "BREAK") return CONDITION_BREAK;
+  if (condition === "CLOSED") return CONDITION_CLOSED;
+  return "";
+}
+
 // The typed status block the app and the verifier both read.
 function marketState(nowUtc) {
   const k = karachiView(nowUtc.getTime());
@@ -147,6 +172,8 @@ function marketState(nowUtc) {
   return {
     phase,
     market_open: phase === "OPEN",
+    condition: marketCondition(nowUtc),
+    condition_text: conditionText(nowUtc),
     date: dayStamp(k),
     as_of: `${dayStamp(k)}T${hhmm(k)}:00+05:00`,
     trading_day: isTradingDay(k),
@@ -165,12 +192,14 @@ function marketState(nowUtc) {
 
 // ---------------------------------------------------------------- market data
 // Owner order 2026-10-09: the app shows the KSE100 index with its points and
-// percentage, and the top three KMIALL stocks by volume, refreshed every five
+// percentage, and the top three stocks by volume, refreshed every five
 // minutes. Both come from the PSX Data Portal's own server rendered pages,
-// which are public and live during the session. Nothing is estimated here: an
-// unreachable portal yields a stated gap, never a made up number.
+// which are public and live during the session. An unreachable portal yields a
+// stated gap, never a made up number, and the buy/sell split is labelled with
+// the method that produced it (SO-3).
 const PORTAL_HOME = "https://dps.psx.com.pk/";
 const PORTAL_INDEX = "https://dps.psx.com.pk/indices/"; // + membership name
+const PORTAL_COMPANY = "https://dps.psx.com.pk/company/"; // + symbol
 const INDEX_NAME = "KSE100";
 const MARKET_MEMBERSHIP = "KMIALLSHR";
 const MARKET_TOP_N = 3;
@@ -251,6 +280,118 @@ function parseConstituents(html) {
   return rows;
 }
 
+// One <div class="stats_label">NAME</div><div class="stats_value">VALUE</div>
+// pair, which is how every number on a company page's panel is published.
+const STATS_PAIR = /stats_label">\s*([^<]{1,40}?)\s*<\/div>\s*<div class="stats_value">\s*(.*?)\s*<\/div>/gs;
+// The REG panel is the regular equity market. The page also renders FUT, CSF
+// and ODL panels plus futures contract blocks with the same label markup, so
+// the parse is scoped to REG before any value is read (mirrors
+// src/data/market_snapshot.py).
+const REG_PANEL_START = /<div[^>]*class="tabs__panel[^"]*"[^>]*data-name="REG"[^>]*>/;
+const PANEL_EDGE = /<div[^>]*class="tabs__panel[^"]*"[^>]*data-name="/g;
+
+function regPanel(html) {
+  const start = REG_PANEL_START.exec(html);
+  if (!start) return "";
+  PANEL_EDGE.lastIndex = start.index + start[0].length;
+  const edge = PANEL_EDGE.exec(html);
+  return html.slice(start.index + start[0].length, edge ? edge.index : html.length);
+}
+
+// The session range and volume one symbol's REG panel publishes, or null when
+// it publishes no session at all (a closed market clears these fields).
+function parseSymbolRange(html) {
+  const panel = regPanel(html);
+  if (!panel) return null;
+  const pairs = {};
+  STATS_PAIR.lastIndex = 0;
+  let m;
+  while ((m = STATS_PAIR.exec(panel)) !== null) {
+    const label = m[1].replace(/<[^>]*>/g, "").trim();
+    if (!(label in pairs)) pairs[label] = m[2].replace(/<[^>]*>/g, "").trim();
+  }
+  const value = (name) => {
+    const raw = pairs[name];
+    if (raw === undefined || raw === "") return null;
+    const parsed = parseFloat(String(raw).replace(/,/g, ""));
+    return Number.isFinite(parsed) ? parsed : null;
+  };
+  const quote = { high: value("High"), low: value("Low"), volume: value("Volume") };
+  if (!quote.high && !quote.low && !quote.volume) return null;
+  return quote;
+}
+
+// The money flow multiplier split of one session's volume. Buying is the
+// volume the close's position in the range attributes to buyers, so buy + sell
+// is exactly the volume it was given, which is the same total the card prints
+// as T. This is a proxy for order flow and every caller labels it as one
+// (SO-3). Returns null rather than guessing when the venue's fields are
+// missing, contradictory, or describe no session.
+function rangePositionSplit(high, low, close, volume) {
+  if (![high, low, close, volume].every((v) => Number.isFinite(v))) return null;
+  if (high < low || volume <= 0 || close < low || close > high) return null;
+  const total = Math.round(volume);
+  if (total <= 0) return null;
+  const position = high === low ? 0.5 : (close - low) / (high - low);
+  const buy = Math.min(Math.max(Math.round(total * position), 0), total);
+  return { buy_volume: buy, sell_volume: total - buy, split_volume: total };
+}
+
+// Fetch each leader's published range and fill its split, one bounded fetch
+// per leader. A symbol that cannot be read keeps nulls and a stated reason.
+async function attachSplits(rows) {
+  for (const row of rows) {
+    const tableVolume = Number.isFinite(row.volume) ? row.volume : null;
+    let quote = null;
+    try {
+      quote = parseSymbolRange(await portalText(PORTAL_COMPANY + row.symbol));
+    } catch (e) {
+      quote = null;
+    }
+    if (!quote) {
+      row.split_method = "unavailable";
+      row.split_source = "no published session range for this symbol";
+      continue;
+    }
+    if (tableVolume !== null && Number.isFinite(quote.volume) &&
+        quote.volume < tableVolume) {
+      row.split_method = "unavailable";
+      row.split_source = "the per-symbol panel reported less volume than " +
+        "the ranking table, so its range is stale";
+      continue;
+    }
+    // Decompose the session total the card prints as T, not the panel's own
+    // copy of it: buy and sell must add up to that T on the same row, and the
+    // panel's copy is fetched seconds later, so it can only be newer.
+    const total = Number.isFinite(tableVolume) ? tableVolume : quote.volume;
+    const split = rangePositionSplit(quote.high, quote.low, row.price, total);
+    if (!split) {
+      row.split_method = "unavailable";
+      row.split_source = "the published session range is incomplete";
+      continue;
+    }
+    Object.assign(row, split);
+    row.split_method = "range_position";
+    row.split_source = "B/S estimated from the day's range, not order flow";
+  }
+  return rows;
+}
+
+// The card's one sentence about the split, naming the weakest method used and
+// counting any row that carries no split at all.
+function splitLabel(rows) {
+  const available = rows.filter((r) => Number.isFinite(r.buy_volume));
+  if (!available.length) return "B/S unavailable for the leaders right now";
+  const measured = available.filter((r) => r.split_method === "measured_tape").length;
+  let text = measured === available.length
+    ? "B/S measured from the session tape"
+    : "B/S estimated from the day's range, not order flow";
+  if (available.length < rows.length) {
+    text += ` (${available.length} of ${rows.length})`;
+  }
+  return text;
+}
+
 function topByVolume(rows, limit) {
   return rows
     .filter((r) => r.volume && r.volume > 0)
@@ -264,15 +405,15 @@ function topByVolume(rows, limit) {
       // percentage is carried instead of being dropped (it was parsed and
       // then discarded, which is why the app had no percentage to show).
       change_pct: r.change_pct,
-      // The exchange's constituent table carries ONE volume column, so the
-      // edge can never split it. Null means "unknown", and the app renders
-      // the split as unavailable rather than inventing a buy/sell ratio
-      // (SO-3). The local runner fills these from the broker tick capture.
+      // The exchange's own table carries ONE volume column, so the split
+      // comes from the symbol's published session range instead, and the
+      // method that produced it always travels with the numbers. Null here
+      // means "not read yet", never "zero" (SO-3).
       buy_volume: null,
       sell_volume: null,
-      split_source: "unavailable at the edge: the exchange table carries " +
-        "total volume only",
-      basis: "current session volume (PSX " + MARKET_MEMBERSHIP + " constituents)",
+      split_method: "unavailable",
+      split_source: "split not read yet",
+      basis: "current session volume (PSX constituent table)",
     }));
 }
 
@@ -303,9 +444,7 @@ async function buildMarketSnapshot(now) {
     kmiall_members: 0,
     top_volume: null,
     top_volume_basis: null,
-    volume_split_basis: "buy/sell split needs the broker tick capture " +
-      "(direction and last-trade size); the exchange table gives total " +
-      "volume only",
+    volume_split_basis: null,
     notes: [],
   };
   try {
@@ -318,17 +457,21 @@ async function buildMarketSnapshot(now) {
     const rows = parseConstituents(await portalText(PORTAL_INDEX + MARKET_MEMBERSHIP));
     snapshot.kmiall_members = rows.length;
     if (!rows.length) {
-      snapshot.notes.push(`${MARKET_MEMBERSHIP} constituent table was empty`);
+      snapshot.notes.push("the index constituent table was empty");
+      snapshot.volume_split_basis = "no leaders, so there is no split to report";
     } else {
-      snapshot.top_volume = topByVolume(rows, MARKET_TOP_N);
+      snapshot.top_volume = await attachSplits(topByVolume(rows, MARKET_TOP_N));
       snapshot.top_volume_basis = snapshot.top_volume.length
-        ? `current session volume, top ${snapshot.top_volume.length} of ${rows.length} ${MARKET_MEMBERSHIP} members`
-        : "no member of the index has traded yet this session";
+        ? `current session volume, top ${snapshot.top_volume.length}`
+        : "no stock has traded yet this session";
+      snapshot.volume_split_basis = splitLabel(snapshot.top_volume);
     }
   } catch (e) {
     snapshot.notes.push("constituents fetch failed: " + describe(e));
     snapshot.top_volume_basis =
-      `${MARKET_MEMBERSHIP} constituent table unreachable, so the session volume ranking is unavailable`;
+      "the index constituent table was unreachable, so the session volume ranking is unavailable";
+    snapshot.volume_split_basis =
+      "no volume ranking, so the buy/sell split is unavailable";
   }
   return snapshot;
 }
