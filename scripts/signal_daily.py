@@ -97,6 +97,13 @@ def relay_preflight() -> str:
     cheap to detect and expensive to discover: the EOD window fetch takes
     minutes, so a rotated token or an unpaired relay was only announced
     after the whole job had run. This runs first and names the reason.
+
+    Owner bug report, 2026-10-11: the fix above went red on a fresh runner
+    with a traceback ("data/relay_url.txt missing") instead of a reason,
+    because both the token and the URL resolution can raise and only the
+    token was guarded. Every resolution failure is now a sentence the
+    owner can act on, never a traceback; main() writes the relay URL file
+    before this runs, so a runner with no config still resolves one.
     """
     from src.notify.schedule_runner import load_relay_url
     from src.signals.signal_push import read_admin_token, relay_preflight as check
@@ -105,7 +112,11 @@ def relay_preflight() -> str:
         token = read_admin_token()
     except RuntimeError as exc:
         return str(exc)
-    return check(load_relay_url(), token)
+    try:
+        url = load_relay_url()
+    except RuntimeError as exc:
+        return str(exc)
+    return check(url, token)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -117,6 +128,12 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
 
     if not args.dry_run and not args.skip_preflight:
+        # Owner bug report, 2026-10-11: the preflight reads the relay URL
+        # with src.notify.schedule_runner.load_relay_url, which reads
+        # data/relay_url.txt. A fresh checkout (GitHub Actions) has no such
+        # file until this call writes one, so the write MUST come first:
+        # the order here is load-bearing, not cosmetic.
+        relay_url_file()
         blocked = relay_preflight()
         if blocked:
             print(f"PREFLIGHT FAILED: {blocked}")

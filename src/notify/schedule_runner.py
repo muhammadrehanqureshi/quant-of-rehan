@@ -40,13 +40,35 @@ RETRY_AFTER_FAIL_S = 120        # retry a failed send after 2 minutes
 
 
 def load_relay_url() -> str:
-    """Read the worker relay URL from data/relay_url.txt (gitignored)."""
+    """Resolve the worker relay URL, or fail closed.
+
+    Order: the RELAY_URL environment variable, then data/relay_url.txt
+    (gitignored, written by cloud/pair.py and scripts/signal_daily.py).
+
+    Owner bug report, 2026-10-11: the scheduled daily push went red with
+    this RuntimeError's traceback, because a fresh runner (GitHub Actions)
+    has no data/relay_url.txt -- the file cannot be committed. Two things
+    changed: scripts/signal_daily.py now writes the file before it
+    preflights, and the public URL may be supplied through RELAY_URL (the
+    same order scripts/intraday_pipeline.py, scripts/ops_alert.py and
+    cloud/pair.py already use, so the preflight and the send can no longer
+    read two different URLs). The URL is public; it is never a secret.
+
+    Still fail closed with nothing configured: a notification must never
+    travel to a guessed address.
+    """
+    import os
+
+    configured = os.environ.get("RELAY_URL", "").strip()
+    if configured:
+        return configured.rstrip("/")
     if RELAY_URL_FILE.is_file():
         url = RELAY_URL_FILE.read_text(encoding="utf-8").strip()
         if url:
             return url.rstrip("/")
     raise RuntimeError(
-        "data/relay_url.txt missing: deploy the worker and paste its URL "
+        "no relay URL configured: set RELAY_URL or write "
+        "data/relay_url.txt with the deployed worker's URL "
         "(see cloud/README.md)"
     )
 
