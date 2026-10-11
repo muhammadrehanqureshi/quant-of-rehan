@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -310,6 +311,232 @@ class CadenceTest(unittest.TestCase):
         with mock.patch("pathlib.Path.is_file", return_value=False):
             fallback = install_kmiall_tick.windowless_interpreter()
         self.assertEqual(fallback, Path(sys.executable))
+
+
+class SessionTriggerTest(unittest.TestCase):
+    """The task must not fire outside the owner's session windows at all.
+
+    Owner order 2026-10-11: scan every 4 minutes, in market hours only, with
+    pre-market, post-market and the Friday midday break explicitly excluded.
+    Before this the registered trigger repeated every 4 minutes around the
+    clock for ever and relied entirely on the tick to pause, so the machine
+    woke 360 times a day to do nothing.
+    """
+
+    MON_THU = ("Monday", "Tuesday", "Wednesday", "Thursday")
+
+    def setUp(self) -> None:
+        import install_kmiall_tick
+
+        self.installer = install_kmiall_tick
+        self.triggers = install_kmiall_tick.session_triggers()
+
+    @staticmethod
+    def _minute(hhmm: str) -> int:
+        return int(hhmm[:2]) * 60 + int(hhmm[3:])
+
+    def bands_for(self, day: str) -> list[tuple[int, int]]:
+        return [
+            (self._minute("09:32"), self._minute("15:30")),
+        ] if day in self.MON_THU else [
+            (self._minute("09:17"), self._minute("12:00")),
+            (self._minute("14:32"), self._minute("16:30")),
+        ]
+
+    def fires(self, trigger: dict) -> list[tuple[str, int]]:
+        """Every (weekday, minute of day) this trigger can fire at."""
+        start = self._minute(trigger["start"])
+        if not trigger["every_minutes"]:
+            minutes = [start]
+        else:
+            minutes = list(range(start,
+                                 start + trigger["duration_minutes"] + 1,
+                                 trigger["every_minutes"]))
+        return [(day, minute) for day in trigger["days"] for minute in minutes]
+
+    def scan_triggers(self) -> list[dict]:
+        return [t for t in self.triggers if t["every_minutes"]]
+
+    def finalize_triggers(self) -> list[dict]:
+        return [t for t in self.triggers if not t["every_minutes"]]
+
+    def test_the_cadence_is_the_owner_four_minutes(self):
+        self.assertEqual(kmiall_tick.config.TICK_INTERVAL_MINUTES, 4)
+        for trigger in self.scan_triggers():
+            self.assertEqual(trigger["every_minutes"], 4, trigger)
+
+    def test_every_scan_fire_lands_inside_a_live_band(self):
+        for trigger in self.scan_triggers():
+            for day, minute in self.fires(trigger):
+                bands = self.bands_for(day)
+                self.assertTrue(
+                    any(opens <= minute < closes for opens, closes in bands),
+                    f"{trigger['name']} would fire at "
+                    f"{minute // 60:02d}:{minute % 60:02d} on {day}, outside "
+                    f"{bands}")
+
+    def test_a_band_trigger_covers_the_whole_band_and_nothing_else(self):
+        for trigger in self.scan_triggers():
+            for day in trigger["days"]:
+                start = self._minute(trigger["start"])
+                match = [band for band in self.bands_for(day) if band[0] == start]
+                self.assertEqual(len(match), 1,
+                                 f"{trigger['name']} on {day} starts "
+                                 f"{trigger['start']}, which is no band edge")
+                self.assertEqual(start + trigger["duration_minutes"],
+                                 match[0][1], trigger)
+
+    def test_nothing_fires_in_the_pre_market_window(self):
+        pre_open = self._minute("09:00")
+        pre_close = self._minute("09:15")
+        for trigger in self.triggers:
+            for day, minute in self.fires(trigger):
+                self.assertFalse(pre_open <= minute < pre_close,
+                                 f"{trigger['name']} fires inside the "
+                                 f"pre-market window on {day}")
+
+    def test_nothing_fires_in_the_friday_midday_break(self):
+        break_open = self._minute("12:00")
+        break_close = self._minute("14:32")
+        for trigger in self.triggers:
+            if "Friday" not in trigger["days"]:
+                continue
+            for day, minute in self.fires(trigger):
+                self.assertFalse(break_open <= minute < break_close,
+                                 f"{trigger['name']} fires inside the break")
+
+    def test_the_finalize_fires_once_inside_the_post_market_window(self):
+        for trigger in self.finalize_triggers():
+            fires = self.fires(trigger)
+            days = set(day for day, _ in fires)
+            for day in days:
+                at = [m for d, m in fires if d == day]
+                self.assertEqual(len(at), 1, trigger)
+            if days == set(self.MON_THU):
+                at, opens, closes = "15:47", "15:32", "15:49"
+            else:
+                at, opens, closes = "16:47", "16:32", "16:49"
+            self.assertEqual(self._minute(trigger["start"]), self._minute(at))
+            self.assertTrue(self._minute(opens) <= self._minute(at)
+                            < self._minute(closes), trigger)
+
+    def test_the_task_xml_parses_and_carries_the_cadence(self):
+        from xml.etree import ElementTree
+
+        xml = self.installer.task_xml()
+        root = ElementTree.fromstring(xml)
+        namespace = "{http://schemas.microsoft.com/windows/2004/02/mit/task}"
+
+        intervals = [node.text for node in root.iter(f"{namespace}Interval")]
+        self.assertEqual(intervals, ["PT4M"] * 3)
+        self.assertEqual(len(list(root.iter(f"{namespace}CalendarTrigger"))), 5)
+        # The definition must name the interpreter the installer chose, which
+        # is pythonw.exe wherever it exists and the running interpreter
+        # everywhere else (the CI job runs on Linux, where the first version of
+        # this test wrongly demanded an .exe). Asserting the installer's own
+        # answer keeps that one contract on every platform.
+        command = next(root.iter(f"{namespace}Command")).text
+        self.assertEqual(command, str(self.installer.windowless_interpreter()))
+        arguments = next(root.iter(f"{namespace}Arguments")).text
+        self.assertIn("kmiall_tick.py", arguments)
+
+    def test_the_definition_still_works_where_there_is_no_pythonw(self):
+        """The CI runner is Linux and has no pythonw.exe at all.
+
+        The first version of the test above asserted an .exe suffix and went
+        red in CI while passing on Windows, which is the same mistake this
+        repository already recorded once for the installer test. So the
+        no-pythonw case is asserted directly: the XML must still be a working
+        definition that names the interpreter the installer picked.
+        """
+        from unittest import mock
+        from xml.etree import ElementTree
+
+        namespace = "{http://schemas.microsoft.com/windows/2004/02/mit/task}"
+        with mock.patch("pathlib.Path.is_file", return_value=False):
+            xml = self.installer.task_xml()
+            expected = self.installer.windowless_interpreter()
+
+        root = ElementTree.fromstring(xml)
+        self.assertEqual(next(root.iter(f"{namespace}Command")).text,
+                         str(expected))
+        self.assertIn("kmiall_tick.py",
+                      next(root.iter(f"{namespace}Arguments")).text)
+        self.assertEqual(
+            [node.text for node in root.iter(f"{namespace}Interval")],
+            ["PT4M"] * 3)
+
+    def test_the_written_task_file_is_utf16_for_schtasks(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            target = Path(temp_dir) / "task.xml"
+            self.installer.write_xml(target)
+            raw = target.read_bytes()
+
+        self.assertTrue(raw.startswith(b"\xff\xfe"), "schtasks wants UTF-16")
+
+class CaptureBudgetTest(unittest.TestCase):
+    """The capture must be given a budget it can meet.
+
+    Owner report 2026-10-11, found in logs/kmiall_tick.log: on a trading day
+    every tick logged "capture FAILED: capture timed out after 240s", because
+    the flat limit was smaller than one sequential pass over the 319 symbol
+    universe (about seven minutes). The tick now derives the budget from the
+    cadence the owner fixed and reports a short pass as a short pass.
+    """
+
+    @staticmethod
+    def _finished(returncode: int, stdout: str = ""):
+        return subprocess.CompletedProcess([], returncode, stdout, "")
+
+    def test_the_budget_is_the_cadence_minus_the_scan_reserve(self):
+        expected = (kmiall_tick.config.TICK_INTERVAL_MINUTES * 60
+                    - kmiall_tick.config.CAPTURE_BUDGET_RESERVE_SECONDS)
+        self.assertEqual(kmiall_tick.capture_budget_seconds(), expected)
+
+    def test_an_explicit_budget_wins_over_the_derived_one(self):
+        with patch.object(kmiall_tick.config, "CAPTURE_BUDGET_SECONDS", 900.0):
+            self.assertEqual(kmiall_tick.capture_budget_seconds(), 900.0)
+
+    def test_the_universe_size_comes_from_the_tracked_file(self):
+        self.assertGreater(kmiall_tick.universe_size(), 0)
+
+    def test_the_capture_is_told_its_budget(self):
+        with patch.object(kmiall_tick.subprocess, "run",
+                          return_value=self._finished(0, "banked 12 bars")) as run:
+            ok, detail = kmiall_tick.run_capture()
+
+        self.assertTrue(ok, detail)
+        command = run.call_args[0][0]
+        self.assertIn("--deadline-seconds", command)
+        self.assertEqual(command[command.index("--deadline-seconds") + 1],
+                         f"{kmiall_tick.capture_budget_seconds():.0f}")
+        # The subprocess timeout is a backstop above the budget, so a pass
+        # that respects its budget is never the thing that gets killed.
+        self.assertEqual(
+            run.call_args.kwargs["timeout"],
+            kmiall_tick.capture_budget_seconds()
+            + kmiall_tick.config.CAPTURE_KILL_MARGIN_SECONDS)
+
+    def test_a_partial_pass_is_reported_with_the_arithmetic(self):
+        with patch.object(
+                kmiall_tick.subprocess, "run",
+                return_value=self._finished(
+                    3, "capture pass stopped at its 195s budget")):
+            ok, detail = kmiall_tick.run_capture()
+
+        self.assertFalse(ok)
+        self.assertIn("partial", detail)
+        self.assertIn("budget", detail)
+        self.assertIn(f"{kmiall_tick.universe_size()} symbols", detail)
+        self.assertIn("cadence cannot contain", detail)
+
+    def test_a_capture_that_ignores_its_budget_is_reported_as_killed(self):
+        with patch.object(kmiall_tick.subprocess, "run",
+                          side_effect=subprocess.TimeoutExpired([], 1)):
+            ok, detail = kmiall_tick.run_capture()
+
+        self.assertFalse(ok)
+        self.assertIn("killed", detail)
 
 
 class FinalizeTest(TickTestCase):

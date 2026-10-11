@@ -1,4 +1,8 @@
 # quant-of-rehan: local backtesting stack
 # CI installs exactly this (PR-only workflow, seconds per run; SO-4).
+# numpy is imported directly by 20 modules (src/signals/engine.py,
+# src/backtest/*, the research scripts) and used to arrive only as a pandas
+# dependency. Declaring it is what makes the direct import honest.
 pandas>=2.2,<3.1
+numpy>=1.26,<3
 requests>=2.31

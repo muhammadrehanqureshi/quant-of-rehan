@@ -227,5 +227,87 @@ class TestBanking(unittest.TestCase):
         self.assertEqual(len(written), 1)
 
 
+class TestPassBudget(unittest.TestCase):
+    """A pass must be able to tell a short refresh from a complete one.
+
+    Found in logs/kmiall_tick.log (owner report 2026-10-11): on a trading day
+    every single tick logged "capture FAILED: capture timed out after 240s",
+    while one sequential pass over the 319 symbol universe needs about seven
+    minutes. The limit was smaller than the work, so the pass was killed
+    mid-flight and the logged reason was never the truth. The poller now stops
+    itself at a budget and says what it did not reach.
+    """
+
+    BAR = {"t": "09:31", "o": 10.0, "h": 11.0, "l": 9.5, "c": 10.5}
+
+    def _machine(self, symbols: list[str], deadline: float | None,
+                 bars: list[dict] | None = None):
+        """A poller whose fetch, status and banks never touch real data."""
+        temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+        machine = poller.OhlcPoller(symbols, once=True,
+                                    deadline_seconds=deadline)
+        self.addCleanup(patch.stopall)
+        self.addCleanup(machine.close)
+        patch.object(poller, "CAPTURE_DIR", Path(temp_dir.name)).start()
+        patch.object(poller, "STATUS_PATH",
+                     Path(temp_dir.name) / "ohlc_status.json").start()
+        patch.object(poller, "fetch_bars",
+                     return_value=([self.BAR] if bars is None else bars)
+                     ).start()
+        patch.object(poller.time, "sleep", lambda _seconds: None).start()
+        return machine
+
+    def test_the_nominal_estimate_scales_with_the_universe(self):
+        self.assertEqual(poller.nominal_pass_seconds(0), 0)
+        self.assertAlmostEqual(poller.nominal_pass_seconds(200),
+                               2 * poller.nominal_pass_seconds(100), places=6)
+        # Calibrated on the measured pass: 741s for 319 symbols in CI.
+        self.assertAlmostEqual(
+            poller.nominal_pass_seconds(319),
+            319 * (poller.PACING_SECONDS + poller.REQUEST_ALLOWANCE_SECONDS),
+            places=6)
+
+    def test_the_budget_is_the_cadence_minus_the_scan_reserve(self):
+        self.assertEqual(
+            poller.capture_budget_seconds(240, reserve_seconds=45), 195.0)
+        self.assertEqual(poller.capture_budget_seconds(240),
+                         240 - poller.config.CAPTURE_BUDGET_RESERVE_SECONDS)
+
+    def test_a_silly_cadence_still_gets_a_usable_floor(self):
+        self.assertEqual(poller.capture_budget_seconds(10), 60.0)
+
+    def test_a_spent_budget_stops_the_pass_before_any_fetch(self):
+        machine = self._machine(["A", "B", "C"], deadline=0)
+        machine.run_pass()
+
+        self.assertFalse(machine.pass_complete)
+        self.assertEqual(machine.counters["symbols_skipped"], 3)
+        self.assertEqual(machine.counters["symbols_ok"], 0)
+        poller.fetch_bars.assert_not_called()
+
+    def test_a_pass_inside_its_budget_is_complete(self):
+        machine = self._machine(["A", "B"], deadline=600)
+        machine.run_pass()
+
+        self.assertTrue(machine.pass_complete)
+        self.assertEqual(machine.counters["symbols_skipped"], 0)
+        self.assertEqual(machine.counters["symbols_ok"], 2)
+
+    def test_the_status_file_carries_the_budget_and_completeness(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            status = Path(temp_dir) / "ohlc_status.json"
+            machine = poller.OhlcPoller(["A"], once=True, deadline_seconds=0)
+            with patch.object(poller, "STATUS_PATH", status), \
+                    patch.object(poller, "CAPTURE_DIR", Path(temp_dir)), \
+                    patch.object(poller.time, "sleep", lambda _s: None):
+                machine.run_pass()
+            saved = json.loads(status.read_text(encoding="utf-8"))
+
+        self.assertEqual(saved["budget_seconds"], 0)
+        self.assertFalse(saved["pass_complete"])
+        self.assertEqual(saved["counters"]["symbols_skipped"], 1)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -147,6 +147,20 @@ TICK_INTERVAL_MINUTES = _number("TICK_INTERVAL_MINUTES", 4)
 TICK_WARMUP_MINUTES = _number("TICK_WARMUP_MINUTES", 20)
 TICK_STALE_LOCK_MINUTES = _number("TICK_STALE_LOCK_MINUTES", 15)
 
+# The bar capture is ONE polite, sequential pass over the universe
+# (src/data/ohlc_poller.py). The 319 symbol KMIALL universe needs about seven
+# minutes at the source's own 1.3s pacing, and no timeout can make that faster.
+# Owner order 2026-10-11 fixes the cadence at 4 minutes, so the capture is given
+# the cadence minus a reserve for the scan that follows it, and it stops CLEANLY
+# at that budget instead of being killed. Before this, every tick on a trading
+# day logged "capture timed out after 240s" against a pass that needed about
+# 415s: the limit was smaller than the work.
+CAPTURE_BUDGET_SECONDS = _number("CAPTURE_BUDGET_SECONDS", 0)   # 0 = derive
+CAPTURE_BUDGET_RESERVE_SECONDS = _number("CAPTURE_BUDGET_RESERVE_SECONDS", 45)
+#: Backstop only: a capture that ignores its own budget is killed after the
+#: budget plus this margin, so a wedged pass can never hold the tick lock.
+CAPTURE_KILL_MARGIN_SECONDS = _number("CAPTURE_KILL_MARGIN_SECONDS", 90)
+
 # ---------------------------------------------------------------- session gate
 # The sleep gate (src/data/session_gate.py) is the first question a scheduled
 # job asks. Outside the session it must cost seconds, so it runs before any

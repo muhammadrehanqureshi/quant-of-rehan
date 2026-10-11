@@ -268,13 +268,6 @@ def session_flow(path: Path,
     return flows
 
 
-def flow_for(day: date, symbol: str,
-             symbols: Iterable[str] | None = None) -> SymbolFlow | None:
-    """One symbol's flow for a date, or None when no split is available."""
-    flows = session_flow(capture_path(day), symbols or [symbol])
-    return flows.get(symbol.strip().upper())
-
-
 def attach_splits(leaders: list[dict], day: date) -> str:
     """Add buy_volume, sell_volume and a split basis to leader rows in place.
 

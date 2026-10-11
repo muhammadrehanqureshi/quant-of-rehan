@@ -53,7 +53,7 @@ import math
 from dataclasses import field
 from datetime import date, datetime, timedelta
 from enum import Enum
-from typing import Any, Iterable, Mapping, Sequence
+from typing import Any, Iterable, Mapping
 
 try:  # optional strict-validation layer
     from pydantic import ValidationError  # noqa: F401  (re-exported for callers)
@@ -728,9 +728,3 @@ def verdict_from_status(status: Any) -> Verdict | None:
     return None
 
 
-def verdict_ordinal(verdict: Verdict) -> int:
-    """Ranking so callers can compare severities without string logic."""
-    order = (Verdict.TRADE, Verdict.MONITORING, Verdict.NO_TRADE,
-             Verdict.OUTSIDE_SESSION, Verdict.FINALIZED, Verdict.DATA_BLOCKED,
-             Verdict.ABORTED)
-    return order.index(verdict)
