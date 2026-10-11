@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The local 5-minute KMIALL scanner tick (owner's own PC, Windows).
+"""The local 4-minute KMIALL scanner tick (owner's own PC, Windows).
 
 Why a tick script plus Windows Task Scheduler, and not an in-process loop:
 
@@ -9,18 +9,20 @@ Why a tick script plus Windows Task Scheduler, and not an in-process loop:
     prevent;
   * Task Scheduler survives logoff, sleep and reboot, needs no terminal open,
     and its own retry/history is visible in Task Scheduler;
-  * the loop's job is trivial (fire every 5 minutes), and every part that needs
-    judgement -- is the market open, was this slot already scanned, did the
-    capture work, is it time to finalize -- belongs in code that can be tested.
-    That is this file.
+  * the loop's job is trivial (fire every 4 minutes, the owner's standing
+    order of 2026-10-11), and every part that needs judgement -- which market
+    state is this, was this slot already scanned, did the capture work, is it
+    time to finalize -- belongs in code that can be tested. That is this file.
 
 What a tick does, in order:
 
-    1. PAUSE     outside the session, before the open, or during the warm-up
-                 window, the tick exits 0 immediately and says so. It never
-                 scans a closed market and never scans before enough bars exist
-                 to score anything.
-    2. GUARD     one scan per 5-minute slot per trading day (persisted in the
+    1. PAUSE     outside the session, in the pre-market window, before the
+                 open, or during the warm-up window, the tick exits 0
+                 immediately and says so. It never scans a closed market,
+                 never scans pre-market or post-market (owner order
+                 2026-10-11) and never scans before enough bars exist to score
+                 anything. Post-market is finalize-only.
+    2. GUARD     one scan per 4-minute slot per trading day (persisted in the
                  session state), so a scheduler retry, a manual run or a laptop
                  waking from sleep cannot double-scan.
     3. LOCK      one tick at a time. A lock file holding a live pid makes a
@@ -63,7 +65,8 @@ sys.path.insert(0, str(ROOT))
 
 from src import config  # noqa: E402
 from src.data.sessions import (  # noqa: E402
-    KARACHI, MarketPhase, market_phase, now_karachi, session_window_text,
+    KARACHI, MarketPhase, MarketState, market_phase, market_state_at,
+    now_karachi, session_window_text,
 )
 from src.signals.trade_state import SessionState  # noqa: E402
 
@@ -80,6 +83,12 @@ PHASE_WARMUP = "WARMUP"
 PHASE_OPEN = "OPEN"
 PHASE_BREAK = "BREAK"
 PHASE_POST_CLOSE = "POST_CLOSE"
+
+# Owner's market states (2026-10-11 order). A tick scans only in MARKET;
+# PRE_MARKET is logged and skipped, POST_MARKET is finalize-only.
+STATE_MARKET = MarketState.MARKET.value
+STATE_PRE_MARKET = MarketState.PRE_MARKET.value
+STATE_POST_MARKET = MarketState.POST_MARKET.value
 
 CAPTURE_TIMEOUT = 240
 ALERT_AFTER_FAILURES = 3
@@ -102,10 +111,23 @@ def log(message: str) -> None:
 
 
 def slot_of(moment: datetime) -> str:
-    """The 5-minute slot a tick belongs to, floored: 10:07 -> 10:05."""
+    """The scan slot a tick belongs to, floored to the interval.
+
+    At the owner's standing 4-minute cadence: 10:07 -> 10:04, 10:59 -> 10:56.
+    """
     interval = max(1, int(config.TICK_INTERVAL_MINUTES))
     minute = (moment.minute // interval) * interval
     return f"{moment.hour:02d}:{minute:02d}"
+
+
+def state_of(moment: datetime) -> str:
+    """Which of the owner's four market states this instant is in.
+
+    Delegates to src/data/sessions.py (SO-8). MARKET is the only state the
+    scanner may run in; PRE_MARKET and POST_MARKET exist so the tick can say
+    exactly why it is not scanning (owner order 2026-10-11).
+    """
+    return market_state_at(moment).value
 
 
 def phase_of(moment: datetime) -> str:
@@ -205,7 +227,7 @@ def note_health(ok: bool, detail: str) -> dict:
     """Record capture health and alert once when it starts failing repeatedly.
 
     The alert fires exactly at the threshold, not every failure after it, so a
-    broken feed produces one message rather than one every five minutes.
+    broken feed produces one message rather than one per failed tick.
     """
     health = read_health()
     failures = 0 if ok else int(health.get("consecutive_failures") or 0) + 1
@@ -237,14 +259,14 @@ def note_health(ok: bool, detail: str) -> dict:
 
 def status_line(moment: datetime) -> str:
     state = SessionState.load(moment.date())
-    return (f"phase={phase_of(moment)} slot={slot_of(moment)} "
-            f"day={state.day} state={state.state} scans={state.scans} "
-            f"trades={state.trades_today} last_tick={state.last_tick_slot} "
-            f"finalized={state.finalized}")
+    return (f"state={state_of(moment)} phase={phase_of(moment)} "
+            f"slot={slot_of(moment)} day={state.day} trade_state="
+            f"{state.state} scans={state.scans} trades={state.trades_today} "
+            f"last_tick={state.last_tick_slot} finalized={state.finalized}")
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="local 5-minute KMIALL tick")
+    parser = argparse.ArgumentParser(description="local 4-minute KMIALL tick")
     parser.add_argument("--force", action="store_true",
                         help="ignore the slot and finalize guards")
     parser.add_argument("--status", action="store_true",
@@ -260,6 +282,16 @@ def main(argv: list[str] | None = None) -> int:
 
     log(f"tick start: {status_line(moment)}")
     phase = phase_of(moment)
+    market_state = state_of(moment)
+
+    # Owner order 2026-10-11: the pre-market and post-market windows are
+    # never scanned. Pre-market is caught here, post-market below (it is
+    # finalize-only, which is not a scan).
+    if market_state == STATE_PRE_MARKET:
+        log(f"paused: {STATE_PRE_MARKET} window is never scanned "
+            f"(owner order 2026-10-11). nothing scanned.")
+        return 0
+
     if phase in (PHASE_CLOSED, PHASE_PRE_OPEN, PHASE_WARMUP, PHASE_BREAK):
         reason = {
             PHASE_CLOSED: "not a PSX trading day (weekend or holiday)",
@@ -275,7 +307,9 @@ def main(argv: list[str] | None = None) -> int:
     state = SessionState.load(moment.date())
     slot = slot_of(moment)
 
-    if phase == PHASE_POST_CLOSE:
+    if market_state == STATE_POST_MARKET or phase == PHASE_POST_CLOSE:
+        # Post-market values the session that has just closed. It is
+        # finalize-only and never scans (owner order 2026-10-11).
         if state.finalized and not args.force:
             log("day already finalized; nothing to do")
             return 0

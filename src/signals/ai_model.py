@@ -427,7 +427,7 @@ def panel_signature(path: Path | None = None) -> str | None:
     """Identity of the daily panel file: size and mtime.
 
     The panel only changes once a day, after the close. Keying the cached
-    probabilities on this lets a 5-minute scheduler reuse one computation per
+    probabilities on this lets a 4-minute scheduler reuse one computation per
     session instead of refitting the whole panel every tick, and it can never
     serve probabilities built from a different panel file.
     """
