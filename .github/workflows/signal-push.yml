@@ -41,6 +41,12 @@ jobs:
     timeout-minutes: 10
     env:
       RELAY_ADMIN_TOKEN: ${{ secrets.RELAY_ADMIN_TOKEN }}
+      # The relay URL is public, so it is a repository variable, not a
+      # secret. Leave it unset to use the known default in
+      # scripts/signal_daily.py; set it here if the worker is redeployed
+      # under another URL. Without this, a runner that has never paired
+      # could only learn the URL from the gitignored data/relay_url.txt.
+      RELAY_URL: ${{ vars.RELAY_URL }}
     steps:
       - uses: actions/checkout@v4
 
