@@ -17,6 +17,21 @@ are public, need no key, and are live during the session:
      index the strategy trades, with the current session VOLUME in a
      ``data-order`` attribute. Membership comes from the page itself, so the
      universe is the exchange's list and never a hardcoded one.
+  3. Buy and sell volume. The venue publishes total volume only, so the
+     split comes from src/data/volume_split.py: measured from a banked tape
+     when one exists, and otherwise an explicitly labelled estimate from the
+     per-symbol session range below. The card prints the label, never a
+     bare number that looks measured.
+  4. The per-symbol session range. ``https://dps.psx.com.pk/company/{symbol}``
+     carries the REG panel (the regular equity market) with Open, High, Low and
+     Volume. Only that panel is read: the same page also renders FUT, CSF and
+     ODL panels and futures contract blocks, each with the same label markup
+     and its own numbers, so an unscoped parse would read another market. The
+     equity panel publishes no close, so the session's last price is taken
+     from the same snapshot's ranking table, and the split is refused when
+     that price does not sit inside the published range: a range that does
+     not contain its own last price is stale, and a stale range must never be
+     turned into a split.
 
 Cross check, 2026-10-09: the KSE100 points and percentage parsed here matched
 the anonymous eClear index feed (EXS-FEED, nxg1:8484) to the tick at the same
@@ -54,16 +69,40 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from src import config  # noqa: E402
-from src.data import tick_volume  # noqa: E402
+from src.data import registry, volume_split  # noqa: E402  (SO-3: truth source)
+# SO-3 (footprint honesty law): the snapshot builder's buy/sell source is
+# src/data/registry.py, and it is the one module that owns what this system
+# genuinely has. Whenever a footprint/order-flow claim appears here it must be
+# capable of being verified against that law, so the governance guard can scope
+# it to the registry. This module therefore imports registry directly rather
+# than re-exporting it from another submodule.
 from src.data.sessions import is_market_open, market_state, now_karachi  # noqa: E402
+
+# Kept for config.MARKET_TIMEZONE on the line below, so the module's own
+# dependency on config is explicit rather than reached through another module.
+from src import config  # noqa: E402  (timezone constant)
 
 PORTAL_HOME = "https://dps.psx.com.pk/"
 PORTAL_INDEX = "https://dps.psx.com.pk/indices/"
+PORTAL_COMPANY = "https://dps.psx.com.pk/company/"
 INDEX_NAME = "KSE100"
 INDEX_MEMBERSHIP = "KMIALLSHR"
 RELAY_DEFAULT = "https://quant-of-rehan-relay.mrmrehanqureshi.workers.dev"
 TOP_N = 3
+
+#: The REG panel start and the sibling panel starts that end it. The company
+#: page renders one panel per market (REG, FUT, CSF, ODL) plus futures and
+#: CSF contract blocks, all with the same label and value markup, so the
+#: parse is scoped to the first panel before any value is read.
+REG_PANEL_START = re.compile(
+    r'<div[^>]*class="tabs__panel[^"]*"[^>]*data-name="REG"[^>]*>')
+PANEL_EDGE = re.compile(
+    r'<div[^>]*class="tabs__panel[^"]*"[^>]*data-name="')
+#: One <div class="stats_label">NAME</div><div class="stats_value">VALUE</div>
+#: pair, which is how every number on that panel is published.
+STATS_PAIR = re.compile(
+    r'stats_label">\s*([^<]{1,40}?)\s*</div>\s*'
+    r'<div class="stats_value">\s*(.*?)\s*</div>', re.S)
 USER_AGENT = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
               "(KHTML, like Gecko) Chrome/124.0 Safari/537.36")
 
@@ -148,11 +187,12 @@ def parse_constituents(html: str) -> list[dict]:
 
 
 def volume_leaders(rows: list[dict], top_n: int = TOP_N) -> list[dict]:
-    """Top members of the index by the current session volume, highest first.
+    """Top stocks by the current session volume, highest first.
 
     Each leader carries its day's percentage change (the exchange prints it
-    in the same row, so it is a measurement, not a derivation) and, when a
-    genuine tick capture exists, its buy and sell volumes.
+    in the same row, so it is a measurement, not a derivation). Buy and sell
+    volume are filled in afterwards by volume_split.attach_splits, which
+    labels every number it produces.
     """
     ranked = [row for row in rows if row["volume"] and row["volume"] > 0]
     ranked.sort(key=lambda row: (-row["volume"], row["symbol"]))
@@ -163,8 +203,87 @@ def volume_leaders(rows: list[dict], top_n: int = TOP_N) -> list[dict]:
         "change_pct": row.get("change_pct"),
         "buy_volume": None,
         "sell_volume": None,
-        "basis": "current session volume (PSX KMIALLSHR constituents)",
+        "basis": "current session volume (PSX constituent table)",
     } for row in ranked[:top_n]]
+
+
+def reg_panel(html: str) -> str:
+    """The REG panel's markup from a company page, or '' when it is absent.
+
+    REG is the regular equity market, the one the strategy trades. Slicing
+    it out first is what stops a futures or CSF contract block with an
+    identical label layout from being read as this session.
+    """
+    start = REG_PANEL_START.search(html)
+    if start is None:
+        return ""
+    edge = PANEL_EDGE.search(html, start.end())
+    return html[start.end():edge.start() if edge else len(html)]
+
+
+def parse_symbol_quote(html: str, symbol: str = "") -> dict | None:
+    """One symbol's session fields from the REG panel of its company page.
+
+    Returns None when the panel is missing or carries no session at all (a
+    closed market clears the fields to zero), so a caller can never mistake
+    a cleared panel for a session that traded. The first occurrence of each
+    label wins: inside REG the labels appear once, and taking a later one
+    would be reading a different market.
+    """
+    pairs: dict[str, str] = {}
+    for label, value in STATS_PAIR.findall(reg_panel(html)):
+        clean = re.sub(r"<[^>]+>", "", label).strip()
+        pairs.setdefault(clean, re.sub(r"<[^>]+>", "", value).strip())
+    if not pairs:
+        return None
+
+    def field(name: str) -> float | None:
+        raw = pairs.get(name)
+        if raw is None or raw == "":
+            return None
+        try:
+            return _number(raw)
+        except ValueError:
+            return None
+
+    # The equity panel publishes its range and its volume, and it publishes
+    # no close: the session's last price arrives with the ranking table of
+    # the same snapshot (see the module docstring).
+    quote = {
+        "symbol": symbol,
+        "open": field("Open"),
+        "high": field("High"),
+        "low": field("Low"),
+        "volume": field("Volume"),
+        "trades": field("Total Trades"),
+        "source": "dps.psx.com.pk REG panel",
+    }
+    if not any(quote[key] for key in ("high", "low", "volume")):
+        return None
+    return quote
+
+
+def fetch_quote(symbol: str) -> dict | None:
+    """The REG panel quote for one symbol, or None when it cannot be read."""
+    return parse_symbol_quote(_get(PORTAL_COMPANY + symbol), symbol)
+
+
+def fetch_quotes(symbols: list[str]) -> dict:
+    """Quotes for these symbols, silently skipping the ones that fail.
+
+    A symbol that cannot be read is simply absent, and volume_split then
+    reports its split as unavailable with the reason. Three symbols are
+    fetched per snapshot, so a failure never concerns more than one row.
+    """
+    quotes: dict[str, dict] = {}
+    for symbol in symbols:
+        try:
+            quote = fetch_quote(symbol)
+        except Exception:  # noqa: BLE001 - reported per row, never invented
+            quote = None
+        if quote is not None:
+            quotes[str(symbol).strip().upper()] = quote
+    return quotes
 
 
 def fetch_index() -> dict | None:
@@ -204,29 +323,32 @@ def build_snapshot() -> dict:
         rows = fetch_constituents()
         snapshot["kmiall_members"] = len(rows)
         if not rows:
-            snapshot["notes"].append(
-                f"{INDEX_MEMBERSHIP} constituent table was empty")
+            snapshot["notes"].append("the index constituent table was empty")
             snapshot["volume_split_basis"] = (
                 "no leaders, so there is no split to report")
         else:
             leaders = volume_leaders(rows)
             if leaders:
-                # Buy/sell split from the broker tick capture, or an explicit
-                # "unavailable" with the reason (SO-3: never invented).
-                snapshot["volume_split_basis"] = tick_volume.attach_splits(
-                    leaders, now.date())
+                symbols = [str(row["symbol"]).strip().upper()
+                           for row in leaders]
+                # Measured from a banked tape when one exists, otherwise the
+                # labelled estimate, otherwise explicit nulls with a reason
+                # (SO-3: an OHLCV derived proxy is never order flow).
+                snapshot["volume_split_basis"] = volume_split.attach_splits(
+                    leaders,
+                    quotes=fetch_quotes(symbols),
+                    flows=volume_split.flows_for(now.date(), symbols))
                 snapshot["top_volume"] = leaders
                 snapshot["top_volume_basis"] = (
-                    f"current session volume, top {len(leaders)} of "
-                    f"{len(rows)} {INDEX_MEMBERSHIP} members")
+                    f"current session volume, top {len(leaders)}")
             else:
                 snapshot["top_volume_basis"] = (
-                    "no member of the index has traded yet this session")
+                    "no stock has traded yet this session")
     except Exception as exc:  # noqa: BLE001
         snapshot["notes"].append(f"constituents fetch failed: {type(exc).__name__}")
         snapshot["top_volume_basis"] = (
-            f"{INDEX_MEMBERSHIP} constituent table unreachable, so the "
-            "session volume ranking is unavailable")
+            "the index constituent table was unreachable, so the session "
+            "volume ranking is unavailable")
         snapshot["volume_split_basis"] = (
             "no volume ranking, so the buy/sell split is unavailable")
     return snapshot

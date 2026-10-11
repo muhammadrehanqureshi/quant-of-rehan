@@ -110,14 +110,23 @@
                 android:gravity="center"
                 android:text="@string/label_system"/>
 
+            <!-- Owner order 2026-10-11: the state is a status light plus the
+                 word, in one badge. The indicator is a vector drawable and
+                 MainActivity swaps it with the state, so ONLINE and OFFLINE
+                 are the same shape lit and unlit rather than two glyphs. -->
             <TextView
                 android:id="@+id/status_pill"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="center_horizontal"
                 android:layout_marginTop="10dp"
-                android:paddingLeft="14dp"
-                android:paddingRight="14dp"
+                android:drawableStart="@drawable/ic_status_checking"
+                android:drawablePadding="8dp"
+                android:gravity="center_vertical"
+                android:letterSpacing="0.08"
+                android:minHeight="34dp"
+                android:paddingLeft="16dp"
+                android:paddingRight="16dp"
                 android:paddingTop="5dp"
                 android:paddingBottom="5dp"
                 android:accessibilityLiveRegion="polite"
@@ -134,17 +143,6 @@
                 android:layout_marginTop="4dp"
                 android:gravity="center"/>
 
-            <!-- Owner order 2026-10-11: the scan cadence is stated on the main
-                 screen. Static text, a real interval, never a live claim. -->
-            <TextView
-                android:id="@+id/scan_cadence"
-                style="@style/QorBody"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
-                android:gravity="center"
-                android:textSize="11sp"
-                android:text="@string/scan_cadence"/>
         </LinearLayout>
 
         <!-- ══════════ latest signal card ══════════ -->
@@ -315,12 +313,28 @@
         </LinearLayout>
 
 
-        <!-- spacer: keeps the closing rule at the bottom of the screen now
-             that the quote panel (which used to take the slack) is gone -->
+        <!-- spacer: keeps the pinned block below at the bottom of the screen
+             now that the quote panel (which used to take the slack) is gone -->
         <View
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1"/>
+
+        <!-- ══════════ pinned cadence (owner order 2026-10-11) ══════════
+             Pinned to the bottom of the interface, below every card, so it is
+             read last and cannot be scrolled away on a short screen: the
+             spacer above takes the slack and this block follows it.
+             Static text, a real interval, never a live claim. -->
+        <TextView
+            android:id="@+id/scan_cadence"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:alpha="0.9"
+            android:gravity="center"
+            android:text="@string/scan_cadence"
+            android:textColor="@color/teal_bright"
+            android:textSize="12sp"/>
 
         <!-- footer rule: line, diamond, line, ending the frame like the
              logo plate -->

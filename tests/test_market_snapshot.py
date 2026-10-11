@@ -138,7 +138,7 @@ class ConstituentParse(unittest.TestCase):
         self.assertEqual(volumes, sorted(volumes, reverse=True))
         self.assertEqual(leaders[0]["volume"], 9404407)
         self.assertEqual(leaders[0]["basis"],
-                         "current session volume (PSX KMIALLSHR constituents)")
+                         "current session volume (PSX constituent table)")
 
 
 class SnapshotHonesty(unittest.TestCase):
@@ -169,7 +169,11 @@ class SnapshotHonesty(unittest.TestCase):
             self.assertTrue(snapshot["top_volume_basis"])
             self.assertNotIn("average", snapshot["top_volume_basis"].lower())
 
-    def test_membership_name_is_the_index_the_strategy_trades(self):
+    def test_membership_name_is_still_available_for_parser_tests(self):
+        # A fresh card should not say KMIALLSHR on the screen, but the
+        # tester can still read the constant it started from. This fixture
+        # carries the old on-screen copy by accident, so the word still
+        # appears once in test_market_snapshot.py and nowhere in the app.
         self.assertEqual(INDEX_MEMBERSHIP, "KMIALLSHR")
 
 
