@@ -119,7 +119,16 @@ def def_hits(files: list[Path], source_roots: tuple[str, ...]) -> list[tuple]:
 
 
 def import_hits(source_roots: tuple[str, ...]) -> list[tuple]:
-    """Imported names that never appear again in the importing file."""
+    """Imported names that never appear again in the importing file.
+
+    The import statements are removed by their AST line ranges, not by a
+    regex over whole lines. The regex version blanked a line only when it
+    started with ``from`` or ``import``, so a name inside a parenthesised
+    multi-line import kept counting as a use of itself. That blind spot hid
+    five genuinely unused imports (for example ``KARACHI`` in
+    scripts/kmiall_tick.py), which is exactly the kind of dead import this
+    tool exists to find.
+    """
     hits = []
     for root in source_roots:
         base = ROOT / root
@@ -131,22 +140,31 @@ def import_hits(source_roots: tuple[str, ...]) -> list[tuple]:
                 tree = ast.parse(text)
             except SyntaxError:
                 continue
+            imports: list[tuple[str, int, ast.AST]] = []
             for node in ast.walk(tree):
-                names: list[str] = []
                 if isinstance(node, ast.Import):
                     names = [alias.asname or alias.name.split(".")[0]
                              for alias in node.names]
                 elif isinstance(node, ast.ImportFrom):
                     names = [alias.asname or alias.name for alias in node.names
                              if alias.name != "*"]
+                else:
+                    continue
                 for name in names:
-                    if name in ("annotations",):
-                        continue
-                    body = re.sub(rf"^\s*(from|import)\s.*$", "", text,
-                                  flags=re.MULTILINE)
-                    if not re.search(rf"\b{re.escape(name)}\b", body):
-                        hits.append((f"{module.relative_to(ROOT)}:{node.lineno}",
-                                     name, "import"))
+                    imports.append((name, node.lineno, node))
+
+            lines = text.splitlines()
+            for _, _, node in imports:
+                for index in range(node.lineno - 1,
+                                   getattr(node, "end_lineno", node.lineno)):
+                    lines[index] = ""
+            body = "\n".join(lines)
+            for name, lineno, _ in imports:
+                if name == "annotations":
+                    continue
+                if not re.search(rf"\b{re.escape(name)}\b", body):
+                    hits.append((f"{module.relative_to(ROOT)}:{lineno}",
+                                 name, "import"))
     return hits
 
 

@@ -67,7 +67,7 @@ from src.data.registry import availability  # noqa: E402
 from src.backtest.engine import DEFAULT_COST_SIDE_BPS, DEFAULT_CGT_RATE  # noqa: E402
 from scripts.phase2b_lib import (  # noqa: E402
     label_frame, headline_block, boot_rate_diff, veto_report,
-    rank_and_pick, daily_one_winner, daily_winner_recall,
+    daily_one_winner, daily_winner_recall,
     TP_PCT, SL_PCT, MAX_HOLD, BOOT_SEED, VETO_CUT, stop_fill_price,
 )
 
