@@ -10,8 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from src.signals.signal_push import (  # noqa: E402
-    build_signal_text, relay_has_session_alert, NO_TRADE_NOTE,
-    PRODUCTION_SIGNAL_ENABLED,
+    build_signal_text, relay_has_session_alert, PRODUCTION_SIGNAL_ENABLED,
 )
 from src.signals.engine import Signal  # noqa: E402
 
