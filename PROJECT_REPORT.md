@@ -550,7 +550,14 @@ observation in the local `data/forward/observation.json` is a test artifact, per
 defect 1, not a record of a real scan.
 
 ---
-## 12. 2026-10-10: the AI prior, the local 5-minute runner, and the audit
+## 12. 2026-10-10: the AI prior, the local runner, and the audit
+
+> **Superseded in part, 2026-10-11.** Every "5-minute runner" below is
+> history: the owner's order of 2026-10-11 sets the scan cadence to 4 minutes
+> (`config.TICK_INTERVAL_MINUTES = 4`), and the runner now scans only in the
+> MARKET state, never pre-market or post-market. See README,
+> MARKET_SCHEDULING.md section 2.1 and `src/data/sessions.py`. The section is
+> left as written because it records what was true on its date.
 
 Written after the work described here, from commands actually run on this PC
 between 08:45 and 09:15 PKT on Saturday 2026-10-10 (market closed, so the
@@ -1190,6 +1197,162 @@ file now prints the bands it thinks it is inside. I did not change the clock.
   proved to connect; making it survive reboots needs a second Windows task in
   the style of `install_kmiall_tick.py`, and it must run during a live session
   to bank ticks.
+
+### 14.9 The scheduled push that failed on its own configuration (2026-10-11)
+
+The owner received this Telegram alert, and the reason in it was a traceback:
+
+```
+Quant of Rehan: the daily signal push failed this slot. Reason:
+    raise RuntimeError(
+    ...<2 lines>...
+    )
+RuntimeError: data/relay_url.txt missing: deploy the worker and paste its URL
+```
+
+Nothing was wrong with the relay, the token or the exchange. The 2026-10-10
+preflight (14.5, item 3) resolves the relay URL through
+`schedule_runner.load_relay_url`, which read `data/relay_url.txt` -- a
+gitignored file that cannot exist in a fresh GitHub Actions checkout -- and
+`signal_daily.py` wrote that file only *after* the preflight and after the
+multi-minute EOD fetch. On this PC the file had been created by
+`cloud/pair.py`, which is exactly why the failure could not be reproduced
+locally: the runner was the only place the file was ever missing. The
+preflight guarded the admin token against raising and did not guard the URL
+decision, so the exception escaped `main()`, the job exited 1, and the
+workflow's four-line reason became that RuntimeError. Three fixes:
+
+1. **The URL file is written before the preflight reads it**
+   (`signal_daily.main`), so the preflight and the push can no longer use two
+   different URLs and a config-free runner still preflights a real one.
+2. **Nothing on that path raises any more.** The token decision and the URL
+   decision are both returned as sentences naming their own fix, so a
+   misconfiguration arrives as "no relay URL configured: set RELAY_URL or
+   write data/relay_url.txt", which is actionable, instead of a stack tail.
+3. **`load_relay_url` now takes the public URL from `RELAY_URL` first**, then
+   the file, and still fails closed with neither -- the order the intraday
+   pipeline, the ops alert and the worker pairing already used. The workflow
+   passes `vars.RELAY_URL` through, so a redeployed worker needs one repository
+   variable rather than a YAML edit. The URL is public; nothing secret moved.
+
+Evidence: the new tests fail against the un-fixed code (restoring the old
+call order gives `['preflight', 'fetch']` instead of `['url_file',
+'preflight']`, and the unguarded loader raises), and with the fix the live
+preflight -- no `RELAY_URL`, no URL file, real admin token, the deployed
+worker -- returned ready in 0.8 s: `/health` ok, paired true, `/signals`
+accepting the token. So the next scheduled slot proceeds to the fetch and the
+push instead of dying on configuration. What this does not prove: the run
+itself (fetch, verdict, Telegram delivery) still only happens in the cloud at
+the next cron edge.
+
+Changed: `src/notify/schedule_runner.py` (layered URL resolution),
+`scripts/signal_daily.py` (order and guarded preflight),
+`.github/workflows/signal-push.yml` (`RELAY_URL` passthrough),
+`tests/test_sessions_and_schedule.py` (four tests plus one hermeticity fix),
+`README.md`, `cloud/README.md`, this report.
+
+### 14.10 The APK that was delivered to the wrong Desktop (2026-10-11)
+
+The owner asked four times where the updated APK was. It existed:
+`C:/Users/rehan/Desktop/Quant.apk`, written 2026-10-10 13:12. The folder this
+machine actually shows as the Desktop is `C:/Users/rehan/OneDrive/Desktop`
+(`[Environment]::GetFolderPath('Desktop')`), and that folder held the project
+checkout and no APK at all. Two folders are named Desktop, and the build was
+copied to the one the owner cannot see; the old `QuantOfRehan-v1.5.1.apk` path
+in the android build block had pointed at the OneDrive one, so the habit and
+the destination had drifted apart. Nothing was hidden and nothing failed: the
+APK was simply in the other Desktop.
+
+Fixed: v1.6.1 (versionCode 15) was built with the project's no-Gradle pipeline
+and copied to both folders as `QuantOfRehan-v1.6.1.apk`, with `Quant.apk`
+refreshed alongside it. The build block in `android/README.md` now names the
+OneDrive path and states that the two Desktop folders are not the same place.
+
+App change, owner order 2026-10-11: the main screen states "Quant is scanning
+the market every 4 minutes." as a small line under the system status pill
+(string `scan_cadence`, view `@+id/scan_cadence` in the system status card).
+The 4 is the real cadence, not decoration: `config.TICK_INTERVAL_MINUTES = 4`
+drives the Windows tick, the supervised loop and the slot guard. The sentence
+states the cadence rather than a live state -- the pill above it is what says
+whether the quant is online, and the scanning itself runs only inside the
+MARKET phase.
+
+Verified in the packaged artifact, not only in the source: `aapt2 dump badging`
+reports `pk.quantofrehan` versionCode 15 versionName 1.6.1; the sentence is
+present in the APK's `resources.arsc`; `aapt2 dump xmltree` on
+`res/layout/activity_main.xml` shows the new TextView with `id=@0x7f040007` and
+`text=@0x7f07001a`; `aapt2 dump resources` resolves that id to the exact
+sentence; zipalign verified, signature verified [v2, v3], 0 errors; and both
+deployed copies match the signed artifact byte for byte
+(sha256 `fa279c008a98b77bb8ddb50a76f44b60f408f94e2cb379ff7e48bfd05d683998`). The
+5-minute watchdog string is untouched: the app still refreshes every 5 minutes
+and the quant still scans every 4.
+
+Limitation: there is no emulator or phone on this machine, so the visual result
+is unverified. The change is additive (one plain centered TextView inside an
+existing card) and every reference in it resolves, which bounds the risk
+without removing it.
+
+Changed: `android/app/src/main/res/values/strings.xml`,
+`android/app/src/main/res/layout/activity_main.xml`,
+`android/app/src/main/AndroidManifest.xml`, `android/README.md`, `README.md`,
+this report.
+
+### 14.11 Backtesting made local-only in code (2026-10-11)
+
+Owner order 2026-10-11: "you will only do the backtesting on my local PC,
+github actions minutes are strictly for market hours for the usual market
+scans every 4 minutes."
+
+SO-4 has said since the first day that backtesting, walk-forward validation
+and Monte Carlo runs never execute in CI. It was true in practice, but only
+because nobody had put one in a workflow: the rule lived in prose and in
+script docstrings, so nothing would have objected. This session made it
+mechanical.
+
+- `src/ci/local_only.py` is the single list of local-only entry points, with
+  the task named for each. Twelve scripts carry `guard_local_only`, always the
+  first statement of `main()` so no expensive work can happen before it: the
+  smoke backtest, the staged parameter search, the walk-forward check, the
+  stop and target grid, the trade matrix build, the entry edge study, the
+  event study, the condition scan, the AI prior fit, and the three research
+  phases.
+- In GitHub Actions the guard stops the job with `REFUSED (SO-4)`, the reason,
+  and the command to run on the PC. It raises SystemExit on purpose: that line
+  travels into the Telegram ops alert as the failure reason, so it must read
+  as a sentence, not as a stack trace.
+- Detection errs toward refusing. `GITHUB_ACTIONS` is `true` in every Actions
+  job and unset on the PC, and anything that is not clearly a no (`false`,
+  `0`, `no`, empty) counts as Actions, because a false negative spends cloud
+  minutes while a false positive only stops a run started in the wrong place.
+- `scripts/check_governance.py` now enforces SO-4: every listed script must
+  exist and must call its guard, and no workflow file may invoke one. A PR
+  that removes a guard or adds a backtest step fails.
+
+Evidence, through the real command line rather than by inspection:
+`GITHUB_ACTIONS=true python scripts/smoke_backtest.py` prints the refusal and
+exits 1; the same for `scripts/backtest_optimize.py`, even with `--help`; on
+the PC the same script prints its help and exits 0, so local use is
+untouched; and the market-hours jobs are not caught by the guard
+(`signal_daily.py --help` and `intraday_pipeline.py --help` still run under
+`GITHUB_ACTIONS=true`). Removing a guard fails three tests and the governance
+check (mutation-verified in this session), and deleting the SO-4 clause from
+GOVERNANCE.md fails the doc check. The suite is 579 tests, OK under both
+runners.
+
+One detail worth recording: the doc check compares GOVERNANCE.md on collapsed
+whitespace. The clause is hand-wrapped, and the first version of the check
+missed it purely because the phrase straddled a line break, which is a bug in
+the checker that this session found and fixed.
+
+Nothing in the market-hours path changed. `src/ci/budget.py` already refuses
+to build a market instant of its own and takes its session windows from
+`src/data/sessions.py`, so the cloud side keeps its own single source of
+truth for when a scheduled job is allowed to do anything.
+
+Changed: `src/ci/local_only.py` (new), the twelve declared scripts,
+`scripts/check_governance.py`, `GOVERNANCE.md` (SO-4 clause), `README.md`,
+`tests/test_local_only.py` (new), this report.
 
 Added: `src/data/tick_volume.py`, `tests/test_tick_volume.py`.
 
