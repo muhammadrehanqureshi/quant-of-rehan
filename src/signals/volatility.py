@@ -37,7 +37,7 @@ import math
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
-from statistics import median, pstdev
+from statistics import pstdev
 from typing import Sequence
 
 from src import config

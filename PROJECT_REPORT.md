@@ -1432,3 +1432,71 @@ Changed: `src/data/sessions.py` (bands and phases), `scripts/kmiall_tick.py`,
 `.github/workflows/signal-push.yml`, `android/.../Watcher.java`,
 `android/.../MainActivity.java`, `android/app/src/main/AndroidManifest.xml`,
 `tests/test_rebuild_schedule.py`, plus the READMEs in this section.
+
+## 15. 2026-10-11, the cleanup pass, the scheduler that no longer fires outside the session, and two defects it exposed
+
+Owner request: audit and clean the codebase, make the scanning engine adhere
+strictly to PSX market hours with scans every 4 minutes in live hours only,
+make GitHub Actions enforce the same hours so minutes are not wasted, harden the
+error handling so runs do not fail, and report. The full write up, including
+every command and result, is `CLEANUP_AND_TIMING_2026-10-11.md`. This is the
+short version.
+
+**Most of the timing enforcement already existed and was kept.** The session law,
+the sleep gate that runs before the pip install and before the bar fetch, the
+local-only backtest guard, and the 4 minute cadence were all in place. What was
+missing was narrower: the registered Windows task fired every 4 minutes around
+the clock for ever and relied on the tick to pause, because
+`schtasks /sc MINUTE /mo 4` cannot express per-weekday windows.
+
+**So the task is now registered from an XML definition whose triggers are
+derived from the session law**: one repeating trigger per band (09:32 to 15:30
+Mon-Thu, 09:17 to 12:00 and 14:32 to 16:30 Friday) at the owner's cadence, plus
+one post-market fire per trading day for the finalize (15:47 and 16:47 PKT).
+Nothing is registered for the pre-market window, the Friday break, the evening,
+the night or the weekend. Verified live: 5 triggers with `PT4M` repetitions,
+next run Monday 09:32, a manual fire under `pythonw` logged a clean pause with
+result 0, and a 300 second watch spanning two would-be fires recorded none (log
+unchanged, Last Run Time unchanged). The runtime state check stays, so the
+triggers are the schedule and the check is the guarantee.
+
+**Two defects the request exposed, both real:**
+
+1. Every trading-day tick had been logging `capture FAILED: capture timed out
+   after 240s` against a pass that needs about 734 seconds (319 symbols, and the
+   CI job measured 741s for the same pass). The limit was smaller than the work.
+   The budget is now derived from the cadence, a pass stops itself at it and says
+   what it did not reach, and the subprocess timeout is only a backstop, so
+   nothing is killed mid-write.
+2. Every recent cloud scan run was cancelled at 10 to 12 minutes, because the
+   fetch needs about 12 minutes against a 10 minute job timeout, and the scan
+   step was skipped every single time. The fetch is now bounded at 420s and the
+   run finishes; a degraded capture and a failing scan both keep the run green
+   and report their reason through the run summary and one deduped ops alert,
+   which is the policy the owner already set for the daily push.
+
+**Cleanup:** 16 dead items removed (4 unreferenced functions, 11 unused imports,
+1 stale constant), the dead-code audit tool fixed (its multi-line import blind
+spot had been hiding 5 of those imports), the two copies of the market-hours
+pause table collapsed into one shared module, and a latent `NameError` fixed in
+the notification runner (`ms_until` was used but never imported). `numpy` is now
+declared in `requirements.txt` because 20 modules import it directly.
+
+**Honest limitations:** no live session was exercised (today is a Sunday), the
+intraday source serves no bars at all (coverage 0/319, so the scanner reports
+`DATA_BLOCKED`), a complete and fresh pass cannot fit a 4 minute cadence on this
+source (734s of fetching against 240s), and resolving that is the owner's choice:
+bounded concurrency at the source, a smaller universe, a longer cadence, or a
+different source.
+
+Changed: `src/config.py`, `src/data/sessions.py`, `src/data/tick_volume.py`,
+`src/data/ohlc_poller.py`, `src/signals/contracts.py`, `src/signals/volatility.py`,
+`src/notify/schedule_runner.py`, `scripts/kmiall_tick.py`, `scripts/scan_loop.py`,
+`scripts/install_kmiall_tick.py`, `scripts/dead_code_audit.py`,
+`scripts/research_phase2b.py`, `tools/worker_check.py`, `requirements.txt`,
+`README.md`, `MARKET_SCHEDULING.md`,
+`.github/workflows/intraday-capture.yml`, `tests/test_kmiall_tick.py`,
+`tests/test_ohlc_poller.py`, this report.
+
+Added: `src/data/scan_schedule.py`, `tools/no_fire_watch.py`,
+`CLEANUP_AND_TIMING_2026-10-11.md`.

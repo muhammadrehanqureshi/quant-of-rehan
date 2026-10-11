@@ -21,10 +21,16 @@ name: KMIALL intraday momentum scan
 #
 # Budget: 25 scheduled fires a week. Only a fire inside a live PSX band does
 # real work, and the sleep gate below runs before setup-python, before the pip
-# install and before the twelve minute bar fetch, so a weekend, a holiday and
-# every non-session slot bill about one minute instead of eleven. A live scan is
-# still roughly fourteen minutes. See AUDIT_AND_CI_BUDGET_2026-10-10.md for the
-# measured per-run figures.
+# install and before the bar fetch, so a weekend, a holiday and every
+# non-session slot bill about one minute instead of eleven.
+#
+# A working fire used to bill 11 to 14 minutes AND end "cancelled" without ever
+# reaching the scan step: one polite pass over the 319 symbol universe needs
+# about 12 minutes (741s measured) against a 10 minute job timeout, so the
+# fetch was killed and the scan step was skipped every single time. The fetch is
+# now bounded at 420s, so a working fire bills about 8 minutes and always
+# finishes, and a short capture is reported as a degraded one instead of
+# killing the run. Measured figures behind this: AUDIT_AND_CI_BUDGET_2026-10-10.md.
 
 on:
   schedule:
@@ -106,11 +112,42 @@ jobs:
         if: steps.gate.outputs.should_run == 'true'
         run: pip install pandas numpy requests
 
-      - name: Fetch one complete KMIALL bar pass
+      - name: Fetch one KMIALL bar pass, inside a budget this job can afford
         if: steps.gate.outputs.should_run == 'true'
         run: |
+          # Owner order 2026-10-11 plus the audit of the same day: this job's
+          # timeout is 10 minutes, and one polite pass over the 319 symbol
+          # universe takes about 12 (741s measured, 319 x 2.32s). Every
+          # scheduled run was therefore killed mid-fetch and ended
+          # "cancelled" with the scan step skipped: the scan never happened.
+          # The pass now stops itself at 420s (7 minutes) and reports what it
+          # did not reach, which leaves about three minutes for the scan, the
+          # summary and the artifacts inside the timeout. A short pass is a
+          # degraded capture and is reported as one; it is never padded or
+          # invented.
           mkdir -p data/feed_capture data/forward
-          python -m src.data.ohlc_poller --symbols-file src/data/universe_kmiall.json --once
+          set +e
+          python -m src.data.ohlc_poller \
+            --symbols-file src/data/universe_kmiall.json --once \
+            --deadline-seconds 420 > /tmp/kmi_capture.log 2>&1
+          status=$?
+          set -e
+          cat /tmp/kmi_capture.log
+          if [ "$status" -ne 0 ]; then
+            # Owner order 2026-10-08: a degraded capture must not turn the
+            # scheduled run red. Exit 3 means the pass stopped at its own
+            # budget; a coverage shortfall leaves the low-coverage flag behind.
+            # Both are reported ONCE per day by the capture-health alert below,
+            # and the scan step still sees the thin capture and reports it as
+            # DATA_BLOCKED rather than inventing a market verdict.
+            {
+              echo "## Capture degraded (exit ${status})"
+              echo ""
+              echo '```'
+              tr -d '\r' < /tmp/kmi_capture.log | tail -n 6
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Scan the whole KMIALL universe, or finalize the session
         if: steps.gate.outputs.should_run == 'true'
@@ -120,10 +157,37 @@ jobs:
           # this step keeps no schedule table of its own. Friday's 13:07 PKT
           # slot is Mon-Thu only because it falls inside the exchange's midday
           # break (12:00 to 14:32); Friday's afternoon coverage is 14:37.
+          #
+          # Owner order 2026-10-08, applied here exactly as it already is in
+          # the daily push: a scheduled run stays GREEN and a failure raises
+          # ONE deduped Telegram ops alert carrying the reason, instead of a
+          # GitHub failure email for every fire. Nothing is hidden: the reason
+          # is printed, written to the run summary (readable even when the
+          # relay itself is what is broken) and sent to the owner's phone.
+          run_and_report() {
+            set +e
+            "$@" > /tmp/kmi_scan.log 2>&1
+            status=$?
+            set -e
+            cat /tmp/kmi_scan.log
+            if [ "$status" -ne 0 ]; then
+              reason=$(tr -d '\r' < /tmp/kmi_scan.log | grep -v '^$' | tail -n 4)
+              {
+                echo "## KMIALL ${MODE} failed (exit ${status})"
+                echo ""
+                echo '```'
+                echo "${reason}"
+                echo '```'
+              } >> "$GITHUB_STEP_SUMMARY"
+              python scripts/ops_alert.py --text "Quant of Rehan: the scheduled KMIALL ${MODE} failed (exit ${status}). Reason: ${reason} The next scheduled slot retries it; nothing is fabricated and nothing is dropped." || true
+            fi
+          }
           if [ "${{ steps.gate.outputs.purpose }}" = "finalize" ]; then
-            python scripts/intraday_pipeline.py --finalize
+            MODE=finalize
+            run_and_report python scripts/intraday_pipeline.py --finalize
           else
-            python scripts/intraday_pipeline.py --scan \
+            MODE=scan
+            run_and_report python scripts/intraday_pipeline.py --scan \
               --slot "${{ steps.gate.outputs.slot }}"
           fi
 

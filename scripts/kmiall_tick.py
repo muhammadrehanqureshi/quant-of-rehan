@@ -57,16 +57,35 @@ import os
 import subprocess
 import sys
 import traceback
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from src import config  # noqa: E402
-from src.data.sessions import (  # noqa: E402
-    KARACHI, MarketPhase, MarketState, market_phase, market_state_at,
-    now_karachi, session_window_text,
+from src.data.sessions import now_karachi  # noqa: E402
+from src.data import scan_schedule  # noqa: E402
+
+# One pause table and one slot clock, shared with scripts/scan_loop.py. The
+# tick used to carry its own copy of the phase check, which is how the Friday
+# midday break and the owner's pre-market and post-market never-scan rules
+# came to exist twice (see src/data/scan_schedule.py).
+from src.data.scan_schedule import (  # noqa: E402
+    ACTION_FINALIZE,
+    ACTION_WAIT,
+    decide,
+    phase_of,
+    slot_of,
+    state_of,
+)
+
+# The capture owns its own pacing and pass estimate, so the tick asks the
+# poller how long a pass needs rather than guessing a timeout of its own.
+from src.data.ohlc_poller import (  # noqa: E402
+    EXIT_PASS_INCOMPLETE,
+    capture_budget_seconds as budget_for_cadence,
+    nominal_pass_seconds,
 )
 from src.signals.trade_state import SessionState  # noqa: E402
 
@@ -75,22 +94,16 @@ LOCK_FILE = ROOT / "data" / "tick.lock"
 HEALTH_FILE = ROOT / "data" / "tick_health.json"
 UNIVERSE = ROOT / "src" / "data" / "universe_kmiall.json"
 
-# Phase names as strings, mirroring src.data.sessions.MarketPhase (SO-8).
-# Kept as module constants because the tick log and its tests read them.
-PHASE_CLOSED = "CLOSED"
-PHASE_PRE_OPEN = "PRE_OPEN"
-PHASE_WARMUP = "WARMUP"
-PHASE_OPEN = "OPEN"
-PHASE_BREAK = "BREAK"
-PHASE_POST_CLOSE = "POST_CLOSE"
-
-# Owner's market states (2026-10-11 order). A tick scans only in MARKET;
+# Phase names as strings, re-exported from the one schedule law (SO-8) so the
+# tick log and its tests keep reading them here. A tick scans only in MARKET;
 # PRE_MARKET is logged and skipped, POST_MARKET is finalize-only.
-STATE_MARKET = MarketState.MARKET.value
-STATE_PRE_MARKET = MarketState.PRE_MARKET.value
-STATE_POST_MARKET = MarketState.POST_MARKET.value
+PHASE_CLOSED = scan_schedule.PHASE_CLOSED
+PHASE_PRE_OPEN = scan_schedule.PHASE_PRE_OPEN
+PHASE_WARMUP = scan_schedule.PHASE_WARMUP
+PHASE_OPEN = scan_schedule.PHASE_OPEN
+PHASE_BREAK = scan_schedule.PHASE_BREAK
+PHASE_POST_CLOSE = scan_schedule.PHASE_POST_CLOSE
 
-CAPTURE_TIMEOUT = 240
 ALERT_AFTER_FAILURES = 3
 
 
@@ -108,37 +121,6 @@ def log(message: str) -> None:
     except OSError:
         # A tick must never fail because its log could not be written.
         pass
-
-
-def slot_of(moment: datetime) -> str:
-    """The scan slot a tick belongs to, floored to the interval.
-
-    At the owner's standing 4-minute cadence: 10:07 -> 10:04, 10:59 -> 10:56.
-    """
-    interval = max(1, int(config.TICK_INTERVAL_MINUTES))
-    minute = (moment.minute // interval) * interval
-    return f"{moment.hour:02d}:{minute:02d}"
-
-
-def state_of(moment: datetime) -> str:
-    """Which of the owner's four market states this instant is in.
-
-    Delegates to src/data/sessions.py (SO-8). MARKET is the only state the
-    scanner may run in; PRE_MARKET and POST_MARKET exist so the tick can say
-    exactly why it is not scanning (owner order 2026-10-11).
-    """
-    return market_state_at(moment).value
-
-
-def phase_of(moment: datetime) -> str:
-    """Which part of the trading day this instant is in.
-
-    Delegates to src/data/sessions.py, the one session law (SO-8). Before
-    the Friday midday break existed as a band, this function computed the
-    phase from a single open/close window and therefore called the break
-    OPEN, so the tick tried to scan a market that was shut.
-    """
-    return market_phase(moment, warmup_minutes=config.TICK_WARMUP_MINUTES).value
 
 
 # ------------------------------------------------------------------------ lock
@@ -198,19 +180,60 @@ def release_lock() -> None:
 
 # --------------------------------------------------------------------- capture
 
+def universe_size() -> int:
+    """How many symbols the tracked KMIALL universe holds (0 if unreadable)."""
+    try:
+        payload = json.loads(UNIVERSE.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return 0
+    return len(payload) if isinstance(payload, list) else 0
+
+
+def capture_budget_seconds() -> float:
+    """Seconds one capture may spend inside a single tick cadence.
+
+    The owner's cadence is 4 minutes (2026-10-11) and one full sequential pass
+    over the universe needs about seven, so the capture gets the cadence minus
+    a reserve for the scan and stops itself at that budget. It used to be given
+    a flat CAPTURE_TIMEOUT of 240s, which every trading-day tick exceeded: the
+    tick then logged a timeout for a pass that was never allowed to finish.
+    config.CAPTURE_BUDGET_SECONDS overrides the derivation when a longer
+    cadence or a one-off manual run should be allowed to complete a pass.
+    """
+    if config.CAPTURE_BUDGET_SECONDS > 0:
+        return config.CAPTURE_BUDGET_SECONDS
+    cadence = max(1.0, config.TICK_INTERVAL_MINUTES) * 60.0
+    return budget_for_cadence(cadence)
+
+
 def run_capture() -> tuple[bool, str]:
-    """Refresh the bar capture. Never raises: a failure is data, not a crash."""
+    """Refresh the bar capture. Never raises: a failure is data, not a crash.
+
+    The pass is handed the tick's own budget, so it stops itself cleanly and
+    says how much of the universe it did not reach. The subprocess timeout is
+    only a backstop for a wedged process, never the expected outcome.
+    """
+    budget = capture_budget_seconds()
+    kill_after = budget + config.CAPTURE_KILL_MARGIN_SECONDS
     command = [sys.executable, "-m", "src.data.ohlc_poller",
-               "--symbols-file", str(UNIVERSE.relative_to(ROOT)), "--once"]
+               "--symbols-file", str(UNIVERSE.relative_to(ROOT)), "--once",
+               "--deadline-seconds", f"{budget:.0f}"]
     try:
         result = subprocess.run(command, cwd=str(ROOT), capture_output=True,
-                                text=True, timeout=CAPTURE_TIMEOUT)
+                                text=True, timeout=kill_after)
     except subprocess.TimeoutExpired:
-        return False, f"capture timed out after {CAPTURE_TIMEOUT}s"
+        return False, (f"capture ignored its {budget:.0f}s budget and was "
+                       f"killed after {kill_after:.0f}s")
     except OSError as exc:
         return False, f"capture could not start: {type(exc).__name__}: {exc}"
     tail = (result.stdout or result.stderr or "").strip().splitlines()[-3:]
     detail = " | ".join(line.strip() for line in tail if line.strip())
+    if result.returncode == EXIT_PASS_INCOMPLETE:
+        nominal = nominal_pass_seconds(universe_size())
+        return False, (f"capture stopped at its {budget:.0f}s budget, a partial "
+                       f"pass: a full pass needs about {nominal:.0f}s for "
+                       f"{universe_size()} symbols at the source's pacing, so "
+                       f"the 4 minute cadence cannot contain one: {detail}")
     if result.returncode != 0:
         return False, f"capture exit {result.returncode}: {detail}"
     return True, detail or "capture ok"
@@ -281,33 +304,20 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     log(f"tick start: {status_line(moment)}")
-    phase = phase_of(moment)
-    market_state = state_of(moment)
 
-    # Owner order 2026-10-11: the pre-market and post-market windows are
-    # never scanned. Pre-market is caught here, post-market below (it is
-    # finalize-only, which is not a scan).
-    if market_state == STATE_PRE_MARKET:
-        log(f"paused: {STATE_PRE_MARKET} window is never scanned "
-            f"(owner order 2026-10-11). nothing scanned.")
-        return 0
+    # One decision table, shared with scripts/scan_loop.py. It answers scan,
+    # finalize or wait and names the market state that decided, so the owner's
+    # never-scan rules live in src/data/scan_schedule.py rather than in a copy
+    # per runner.
+    action, reason = decide(moment)
 
-    if phase in (PHASE_CLOSED, PHASE_PRE_OPEN, PHASE_WARMUP, PHASE_BREAK):
-        reason = {
-            PHASE_CLOSED: "not a PSX trading day (weekend or holiday)",
-            PHASE_PRE_OPEN: "before the session open",
-            PHASE_WARMUP: (f"inside the first {config.TICK_WARMUP_MINUTES:g} "
-                           f"minutes after the open; not enough bars yet"),
-            PHASE_BREAK: ("the exchange is in its midday break "
-                          f"(today {session_window_text(moment.date())})"),
-        }[phase]
+    if action == ACTION_WAIT:
         log(f"paused: {reason}. nothing scanned.")
         return 0
 
     state = SessionState.load(moment.date())
-    slot = slot_of(moment)
 
-    if market_state == STATE_POST_MARKET or phase == PHASE_POST_CLOSE:
+    if action == ACTION_FINALIZE:
         # Post-market values the session that has just closed. It is
         # finalize-only and never scans (owner order 2026-10-11).
         if state.finalized and not args.force:
@@ -315,6 +325,8 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         return _finalize(moment, args.skip_capture)
 
+    # action is ACTION_SCAN: the owner's never-scan windows are already gone.
+    slot = slot_of(moment)
     if state.claimed_slot(slot) and not args.force:
         log(f"slot {slot} already scanned today; skipping this tick")
         return 0

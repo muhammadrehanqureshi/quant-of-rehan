@@ -56,6 +56,7 @@ sys.path.insert(0, str(ROOT))
 # Asia/Karachi UTC+5, pinned here as a fixed offset (no DST in Karachi).
 KARACHI = timezone(timedelta(hours=5))  # Asia/Karachi = UTC+5, SO-8
 
+from src import config  # noqa: E402
 from src.data.feed_capture import load_universe, UNIVERSE_FILE  # noqa: E402
 from src.data.sessions import is_trading_day  # noqa: E402
 from src.data.capture_health import status_view  # noqa: E402
@@ -64,7 +65,17 @@ from src.data.registry import availability, Availability  # noqa: E402
 OHLC_HOSTS = ["vt.eclear.com.pk", "nxg1.eclear.com.pk", "nxg2.eclear.com.pk"]
 OHLC_PATH = "/pero/GetOHLCData"
 PACING_SECONDS = 1.3
+#: One request per symbol, sequential and polite. This is the allowance on top
+#: of the pacing sleep for TLS, the request itself and the parse, used to size
+#: a pass budget. Calibrated on the measured CI pass over this universe: 741s
+#: for 319 symbols is 2.32s per symbol, i.e. about 1s of work per request on
+#: top of the 1.3s pacing sleep.
+REQUEST_ALLOWANCE_SECONDS = 1.0
 MIN_CAPTURE_COVERAGE = 0.80
+#: Exit status for a pass that stopped at its own budget. Distinct on purpose:
+#: a caller can tell "the source served nothing" (coverage fail-closed, still
+#: exit 0) from "we ran out of the time the cadence allows" (a partial pass).
+EXIT_PASS_INCOMPLETE = 3
 CAPTURE_DIR = ROOT / "data" / "feed_capture"
 STATUS_PATH = CAPTURE_DIR / "ohlc_status.json"
 LOW_COVERAGE_FLAG = CAPTURE_DIR / "ohlc_low_coverage.flag"
@@ -143,14 +154,47 @@ def capture_coverage_ok(symbols_with_data: int, universe_size: int) -> bool:
             symbols_with_data / universe_size >= MIN_CAPTURE_COVERAGE)
 
 
+def nominal_pass_seconds(symbol_count: int) -> float:
+    """Nominal wall clock for one full sequential pass over N symbols.
+
+    An estimate, never a promise: it is used to size a budget and to explain a
+    shortfall in the log. The KMIALL universe (319 symbols) needs about seven
+    minutes at the source's own pacing, which is why a four-minute cadence
+    cannot contain a complete pass and no timeout setting can change that.
+    """
+    return max(0, int(symbol_count)) * (PACING_SECONDS + REQUEST_ALLOWANCE_SECONDS)
+
+
+def capture_budget_seconds(cadence_seconds: float,
+                           reserve_seconds: float | None = None,
+                           floor_seconds: float = 60.0) -> float:
+    """Seconds a capture may spend inside one cadence, reserving work time.
+
+    `reserve_seconds` defaults to config.CAPTURE_BUDGET_RESERVE_SECONDS and is
+    the room left for the scan that follows the capture. The floor keeps a
+    silly cadence from producing a zero-second budget.
+    """
+    if reserve_seconds is None:
+        reserve_seconds = config.CAPTURE_BUDGET_RESERVE_SECONDS
+    return max(float(floor_seconds), float(cadence_seconds) - float(reserve_seconds))
+
+
 class OhlcPoller:
-    def __init__(self, symbols: list[str], once: bool = False, limit: int | None = None):
+    def __init__(self, symbols: list[str], once: bool = False,
+                 limit: int | None = None,
+                 deadline_seconds: float | None = None):
         self.symbols = symbols[:limit] if limit else symbols
         self.once = once
+        #: Stop a pass cleanly once this many seconds have been spent. None
+        #: means "no budget", which is what a manual run and CI want.
+        self.deadline_seconds = deadline_seconds
+        #: False once any pass has stopped at its budget, so a caller can tell
+        #: a complete refresh from a partial one.
+        self.pass_complete = True
         self.opener = make_opener()
         self.seen: dict[str, set[str]] = {}
         self.counters = {"passes": 0, "symbols_ok": 0, "symbols_err": 0,
-                         "bars": 0, "errors": 0}
+                         "symbols_skipped": 0, "bars": 0, "errors": 0}
         self.last_error: str | None = None
         self.last_symbol_at: str | None = None
         self.running = False
@@ -192,6 +236,8 @@ class OhlcPoller:
             "counters": self.counters,
             "last_symbol_at": self.last_symbol_at,
             "last_error": self.last_error,
+            "budget_seconds": self.deadline_seconds,
+            "pass_complete": self.pass_complete,
         }
         tmp = STATUS_PATH.with_suffix(".tmp")
         tmp.write_text(json.dumps(status, indent=1), encoding="utf-8")
@@ -204,10 +250,32 @@ class OhlcPoller:
             self._fh = None
         self.write_status()
 
+    def budget_spent(self, started: float) -> bool:
+        """True when this pass has used the time the cadence allows it."""
+        return (self.deadline_seconds is not None
+                and time.monotonic() - started >= self.deadline_seconds)
+
     def run_pass(self) -> None:
         self.counters["passes"] += 1
+        self.counters["symbols_skipped"] = 0
+        self.pass_complete = True
+        started = time.monotonic()
         last_status = time.monotonic()
-        for symbol in self.symbols:
+        for index, symbol in enumerate(self.symbols):
+            if self.budget_spent(started):
+                # Stop cleanly rather than be killed mid-write at a subprocess
+                # timeout: every bar banked so far is already flushed, and the
+                # status says out loud that this pass was short.
+                skipped = len(self.symbols) - index
+                self.counters["symbols_skipped"] = skipped
+                self.pass_complete = False
+                print(f"{now():%H:%M:%S} capture budget of "
+                      f"{self.deadline_seconds:.0f}s spent after {index} of "
+                      f"{len(self.symbols)} symbols: stopping this pass "
+                      f"cleanly, {skipped} symbol(s) not refreshed "
+                      f"(nominal full pass "
+                      f"{nominal_pass_seconds(len(self.symbols)):.0f}s)")
+                break
             bars = fetch_bars(self.opener, symbol)
             if bars is None:
                 self.counters["symbols_err"] += 1
@@ -251,6 +319,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--symbols-file", type=Path, default=UNIVERSE_FILE)
     parser.add_argument("--status", action="store_true",
                         help="print the saved heartbeat and its liveness")
+    parser.add_argument("--deadline-seconds", type=float, default=None,
+                        help="stop the pass cleanly after this many seconds "
+                             "(a scheduled caller passes its own cadence "
+                             "minus the time its scan needs)")
     parser.add_argument("--probe", metavar="SYMBOL", default=None,
                         help="one read-only source check: report exactly what the "
                              "endpoint returns for SYMBOL, then exit")
@@ -303,9 +375,18 @@ def main(argv: list[str] | None = None) -> int:
           f"(this poller banks genuine bars forward; no historical claims)")
     if intraday is Availability.UNAVAILABLE:
         print("no banked intraday archive yet: captured bars are forward-only")
-    poller = OhlcPoller(symbols, once=args.once, limit=args.limit)
+    poller = OhlcPoller(symbols, once=args.once, limit=args.limit,
+                        deadline_seconds=args.deadline_seconds)
     print(f"{now():%Y-%m-%d %H:%M:%S} OHLC capture starting: "
           f"{len(poller.symbols)} symbols, pacing {PACING_SECONDS}s")
+    nominal = nominal_pass_seconds(len(poller.symbols))
+    print(f"nominal full pass: {nominal:.0f}s for "
+          f"{len(poller.symbols)} symbols")
+    if args.deadline_seconds is not None and args.deadline_seconds < nominal:
+        # Say it before the work starts, so a short pass is expected and
+        # explained rather than discovered as a mysterious timeout later.
+        print(f"budget {args.deadline_seconds:.0f}s is below the nominal "
+              f"{nominal:.0f}s pass: this pass will be partial by design")
     try:
         poller.run()
     except KeyboardInterrupt:
@@ -331,6 +412,14 @@ def main(argv: list[str] | None = None) -> int:
             "symbols_ok": poller.counters["symbols_ok"],
             "universe": len(poller.symbols),
         }, indent=1), encoding="utf-8")
+    if not poller.pass_complete:
+        # A partial pass is a degraded capture, not a clean one: the caller
+        # gets a distinct status so its log can carry the arithmetic.
+        print(f"capture pass stopped at its {poller.deadline_seconds:.0f}s "
+              f"budget: {poller.counters['symbols_skipped']} of "
+              f"{len(poller.symbols)} symbol(s) were not refreshed this pass "
+              f"(partial capture)")
+        return EXIT_PASS_INCOMPLETE
     return 0
 
 
