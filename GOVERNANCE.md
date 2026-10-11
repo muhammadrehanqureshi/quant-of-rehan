@@ -85,6 +85,16 @@ The rest of SO-1 stands unchanged for everything outside this exception.
   scripts/build_eod_history.py), never a full-history crawl.
 - Monthly Actions budget: 2,000 minutes. Nothing in this repo may put that at
   risk.
+- Owner order 2026-10-11: the GitHub Actions minutes are reserved for the
+  market-hours scans, the 4-minute KMIALL work. Backtesting, walk-forward
+  validation, Monte Carlo runs and the history research scripts run on the
+  owner's PC and nowhere else.
+- This is enforced in code, not only here. `src/ci/local_only.py` lists every
+  local-only entry point, each of those scripts calls `guard_local_only` as the
+  first statement of its `main()`, and that call stops a job running in
+  GitHub Actions with the reason named and no traceback.
+  `scripts/check_governance.py` fails a pull request that removes a guard,
+  deletes a listed script, or teaches a workflow to invoke one.
 
 ## SO-5 · Secrets stay out
 

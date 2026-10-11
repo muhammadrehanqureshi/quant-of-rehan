@@ -38,6 +38,7 @@ import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
+from src.ci.local_only import guard_local_only  # noqa: E402
 
 from src.data.sessions import now_karachi  # noqa: E402
 from src.signals import ai_model  # noqa: E402
@@ -189,6 +190,7 @@ def build_dataset(events: pd.DataFrame, train_cut: pd.Timestamp):
 
 
 def main(argv: list[str] | None = None) -> int:
+    guard_local_only("scripts/train_signal_model.py")
     parser = argparse.ArgumentParser(description="Train the AI signal model")
     parser.add_argument("--events", type=Path, default=EVENTS)
     parser.add_argument("--panel", type=Path, default=PANEL)
