@@ -21,7 +21,7 @@ fastest current KMIALL momentum plus volume acceleration, one trade a day,
 - **One daily trade state**: [src/signals/trade_state.py](src/signals/trade_state.py).
   A persisted state machine with a hard one-trade-per-day lock that survives a
   process or runner restart, plus the tick bookkeeping that makes the local
-  5-minute runner idempotent.
+  4-minute runner idempotent.
 - **One configuration file**: [src/config.py](src/config.py) holds the target,
   the coverage floor, the score weights, the AI routing rules, the tick cadence
   and the live-trading switch. Live trading is disabled and paper mode is the
@@ -32,8 +32,15 @@ fastest current KMIALL momentum plus volume acceleration, one trade a day,
   (09:17 to 12:00 and 14:32 to 16:30) with the exchange's midday break between
   them, and weekends plus PSX holidays closed. `market_phase()` answers
   CLOSED, PRE_OPEN, WARMUP, OPEN, BREAK or POST_CLOSE, and every consumer
-  (the 5-minute runners, the scanner guard, the Cloudflare relay, the phone
+  (the 4-minute runners, the scanner guard, the Cloudflare relay, the phone
   app) renders that one answer, so the app cannot call a break ONLINE.
+  Beside the phases sits the owner's four-state law of 2026-10-11:
+  `market_state_at()` answers PRE_MARKET (09:00 to 09:15), MARKET (every
+  band), POST_MARKET (15:32 to 15:49, Friday 16:32 to 16:49) or CLOSED,
+  with half-open edges so an instant exactly on a boundary belongs to the
+  window that starts there. `is_scan_window()` is true only in MARKET: the
+  owner's standing order is that the quant never scans pre-market or
+  post-market, and the 4-minute cadence below is the standing scan timing.
 - **One trained AI prior**: [src/signals/ai_model.py](src/signals/ai_model.py),
   described in full below. It is a confirmation prior on the scanner's winner,
   never the decider.
@@ -41,7 +48,9 @@ fastest current KMIALL momentum plus volume acceleration, one trade a day,
   SCAN BLOCKED with measured coverage and never a market verdict. See
   [DATA_SOURCING.md](DATA_SOURCING.md) and
   [INTRADAY_FORWARD_SYSTEM.md](INTRADAY_FORWARD_SYSTEM.md).
-- **The phone card** (Android `android/`, v1.6.0 APK built and signed today):
+- **The phone card** (Android `android/`, v1.6.1 APK built and signed today,
+  `QuantOfRehan-v1.6.1.apk` on the OneDrive Desktop; the main screen also
+  states "Quant is scanning the market every 4 minutes."):
   KSE100 points and percentage, then the day's top three KMIALL stocks by
   volume with each one's percentage change and its buy/sell/total volume
   (`B=`,`S=`,`T=`) when a genuine split exists, from the PSX Data Portal
@@ -69,10 +78,10 @@ On this PC the scheduled tick stays the primary runner: a loop dies with the
 shell that started it, and this project has already lost a running loop to a
 desktop restart.
 
-| | GitHub Actions | Local 5-minute tick |
+| | GitHub Actions | Local 4-minute tick |
 |---|---|---|
 | File | [.github/workflows/intraday-capture.yml](.github/workflows/intraday-capture.yml) | [scripts/kmiall_tick.py](scripts/kmiall_tick.py) |
-| Cadence | 5 scans a day (10:00, 11:30, 13:00, 14:30, and 16:00 on Friday) plus a post-close finalize | every 5 minutes all day, pausing itself outside the session |
+| Cadence | 5 scans a day (10:00, 11:30, 13:00, 14:30, and 16:00 on Friday) plus a post-close finalize | every 4 minutes all day, scanning only in MARKET and pausing itself in every other state |
 | Why it exists | runs without the owner's PC | sees the whole session, not four snapshots of it |
 | Cost | about 1,300 runner minutes a month, inside the 2,000 minute ceiling | nothing but a few seconds of CPU per tick |
 | State | its own forward state on the runner | `data/forward/` in this checkout |
@@ -86,9 +95,11 @@ run history. Everything that needs judgement, meaning whether the market is
 open, whether this slot was already scanned, whether the capture worked and
 whether it is time to finalize, lives in the tick script where it is tested.
 
-The local tick refuses to run outside the session, refuses to run during the
-first 20 minutes after the open (the strategy needs 20 bars and three volume
-buckets before it can score anything), scans each 5-minute slot at most once,
+The local tick refuses to run outside the session, never scans the
+pre-market or post-market windows (owner order 2026-10-11; post-market is
+finalize-only), refuses to run during the first 20 minutes after the open
+(the strategy needs 20 bars and three volume buckets before it can score
+anything), scans each 4-minute slot at most once,
 holds a lock so two ticks cannot fight over the state file, reclaims a stale
 lock left by a crashed tick, alerts once after three consecutive capture
 failures, and finalizes the day exactly once. Install it with:
@@ -177,7 +188,8 @@ src/signals/trade_state.py        the ONE persisted daily state, trade lock and 
 src/signals/contracts.py          the typed boundary: validated models, fault taxonomy, ingestion guard
 src/signals/volatility.py         volatility regime and edge cases (measured, picks nothing, off by default)
 scripts/intraday_pipeline.py      the orchestrator (scan, finalize, card, archive)
-scripts/kmiall_tick.py            the local 5-minute tick (pause, guard, lock, capture, finalize)
+scripts/kmiall_tick.py            the local 4-minute tick (pause, guard, lock, capture, finalize)
+examples/market_state_walk.py     the owner's four market states, walked edge by edge
 scripts/scan_loop.py              supervised interval scan loop (portable alternative to the task)
 examples/scan_once.py             one scan by hand, printing every layer of the decision path
 scripts/install_kmiall_tick.py    registers the Windows scheduled task
@@ -193,8 +205,9 @@ scripts/entry_metrics.py          MAE/MFE, time-to-target and horizon study (loc
 scripts/condition_scan.py         per-condition lift table over the event study
 scripts/event_study.py            builds the frozen daily event study and its labels
 scripts/walk_forward_check.py     chronological persistence check on the study
-src/backtest/engine.py            TP/SL engine (conservative fills, invalid screen)
-src/backtest/walkforward.py       rolling-origin folds + leakage assertions
+src/backtest/engine.py            TP/SL engine (conservative fills, invalid screen)src/backtest/walkforward.py      rolling-origin folds + leakage assertions
+src/ci/budget.py                  adaptive Actions budget: the scan interval left in the cycle
+src/ci/budget_orchestrator.py     the scheduler as a CLI: report or JSON plan for a cycle
 src/notify/telegram.py            env-driven notifier (fail closed)
 src/notify/schedule_runner.py     local open/close notifier with journal
 src/signals/engine.py             retired daily research engine (feeds the EOD push, not the intraday path)
@@ -215,6 +228,11 @@ python scripts/check_governance.py
 python -m unittest discover -s tests
 python -m pytest tests -q                        # same suite, pytest runner
 
+# how often may the scan run inside the rest of the Actions budget?
+python -m src.ci.budget_orchestrator --known-used 1369 --period-end 2026-10-31
+python -m src.ci.budget_orchestrator --known-used 398 --json
+python examples/budget_plan.py                   # the month, day by day
+
 # is the whole system actually working? (one command, honest verdict)
 python scripts/verify_market_signals.py          # config, universe, local state, AI, scheduler
 python scripts/verify_market_signals.py --live   # also dial the relay and read the cards
@@ -224,14 +242,14 @@ python scripts/verify_market_signals.py --all    # add the test suite
 python scripts/intraday_pipeline.py --scan --slot 10:00
 python scripts/intraday_pipeline.py --finalize
 
-# the local 5-minute runner
+# the local 4-minute runner
 python scripts/kmiall_tick.py --status           # where are we right now
 python scripts/kmiall_tick.py                    # one tick, what the task runs
 python scripts/kmiall_tick.py --force            # ignore the slot and finalize guards
 
 # the supervised loop (same orchestrator, owns its own cadence)
 python scripts/scan_loop.py --once --skip-capture  # one cycle, no capture
-python scripts/scan_loop.py --loop --interval 300  # run until stopped
+python scripts/scan_loop.py --loop --interval 240  # run until stopped (4 minutes)
 python scripts/scan_loop.py --dry-run --loop       # decide and log, never scan
 python scripts/scan_loop.py --status               # phase, window and loop health
 
@@ -302,18 +320,43 @@ disliked candidate, enter on paper at the observed price, set the target at
 entry x 1.02, and lock the day. One winner, one entry, one target, then
 monitor and sleep.
 
-## Current status, 2026-10-10
+## Current status, 2026-10-11
 
-- **Suite green.** 348 tests pass (`python -m pytest tests -q` reports 348
-  passed and 115 subtests; `python -m unittest discover -s tests` reports
-  `Ran 348 tests`, OK). The governance guard passes. All 22 modules under
-  `src/` import cleanly.
+- **Every change lands as a pull request.** One PR per change, based on
+  `master`, and the `governance-guard` workflow has to pass on it first: the
+  governance check (secrets, footprint honesty, standing orders, SO-7 style and
+  identity, SO-8 Karachi pin, SO-4 local-only backtests), the whole unit suite,
+  and the worker's JavaScript syntax. The agent then merges it to `master` with
+  a merge commit. There are no direct pushes. The 2026-10-11 batch is the
+  pattern: #60 the session law and the 4-minute cadence, #61 the CI budget
+  scheduler, #62 the relay URL resolution and the push preflight, #63 the
+  backtest engine and optimizer, #64 SO-4 enforced in code, #65 the app v1.6.1
+  scan-cadence line, #66 these docs.
+- **Suite green.** 581 tests pass (`python -m pytest tests -q` reports 581
+  passed and 239 subtests; `python -m unittest discover -s tests` reports
+  `Ran 581 tests`, OK). All 32 modules under `src/` import cleanly. The
+  governance guard passes end to end (SO-7 dashes, SO-8 Karachi pin, secrets,
+  footprint honesty, standing orders).
+- **Scanning is 4 minutes, and only in MARKET.** Owner order 2026-10-11:
+  `config.TICK_INTERVAL_MINUTES = 4` drives the Windows tick, the supervised
+  loop and the slot guard, and `is_scan_window` (src/data/sessions.py) is true
+  only in the MARKET state. Pre-market (09:00 to 09:15) and post-market
+  (15:32 to 15:49, Friday 16:32 to 16:49) are reported and never scanned;
+  post-market stays finalize-only. GitHub Actions cannot express a 4-minute
+  cron (its floor is 5), so the 4-minute full-universe scan is the local
+  always-on runner and the Actions path stays at its 5 gated scans a day.
+- **The Actions budget answers for itself.** [src/ci/budget.py](src/ci/budget.py)
+  reproduces the audit's figures (1,369 min a month, 68.5%, 630.8 to spare)
+  and converts the minutes left into a scan interval: 53 min on the 1st,
+  172 min on the audit day with 1,369 burned, nothing once the runway is
+  gone. The reset on the 1st, a 28-day February, the fire margin and a burst
+  mid-month are all covered by [tests/ci/test_budget.py](tests/ci/test_budget.py).
 - **Relay healthy.** `/health` returns 200 with `paired: true` and the correct
   next session (`OPEN at 2026-10-12 09:32`); the market card and the research
   gate answer; an unauthenticated read is refused with 403.
 - **The published signal card is stale.** It still carries the 2026-10-07
   verdict from the retired v1 stack, two trading sessions behind the last
-  completed session. The 5-minute runner rewrites the card whenever its verdict
+  completed session. The 4-minute runner rewrites the card whenever its verdict
   changes, so the first in-session tick on the next trading day replaces it.
   Until then the app shows an old line and the verifier says so.
 - **The AI prior is live but the daily panel is behind.** The artifact was
@@ -362,6 +405,23 @@ monitor and sleep.
   binding, and in the `RELAY_ADMIN_TOKEN` Actions secret, which was updated in
   the same pass so the scheduled workflows keep authenticating. Verified: the
   new token returns 200 from `/signals` and a bogus one is refused with 403.
+- **Backtesting is local-only in code, not just in a document.** Owner order
+  2026-10-11: the Actions minutes are reserved for the market-hours scans, so
+  `src/ci/local_only.py` lists every backtest and history-research entry point
+  and each one calls `guard_local_only` first. Run a backtest in Actions and
+  it stops with `REFUSED (SO-4)` and the reason, instead of burning minutes;
+  `check_governance.py` fails a pull request that drops a guard, deletes a
+  listed script, or puts one into a workflow. Verified live: the guard refuses
+  under `GITHUB_ACTIONS=true` and does not touch the market-hours jobs.
+- **The scheduled daily push went red on its own configuration file.**
+  `data/relay_url.txt` is gitignored, so a fresh Actions runner never has it;
+  the preflight added on 2026-10-10 read that file before the job wrote it,
+  and the RuntimeError it raised was the whole alert (the last four log lines).
+  The order is load-bearing and is now tested, resolution failures come back
+  as a sentence instead of a traceback, and the public worker URL can be given
+  to any runner as the `RELAY_URL` repository variable
+  (`schedule_runner.load_relay_url`: env, then file, else fail closed).
+  Verified by mutation: restoring the old order fails the new tests.
   The phone's gear panel still holds the old token, so the signals card will
   ask for the new one until it is pasted again; the status and market cards
   need no token and are unaffected.
