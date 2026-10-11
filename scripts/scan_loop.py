@@ -2,7 +2,7 @@
 """The supervised scan loop: one process, interval scans, typed outcomes.
 
 Rebuild 2026-10-10. This is the second supported way to drive the ONE
-orchestrator, next to the Windows 5-minute tick:
+orchestrator, next to the Windows 4-minute tick:
 
     tick       scripts/kmiall_tick.py + Task Scheduler   (survives reboots)
     loop       scripts/scan_loop.py --loop               (supervises itself)
@@ -35,7 +35,7 @@ What the loop is responsible for:
 Usage:
     python scripts/scan_loop.py --once                 # one cycle, then exit
     python scripts/scan_loop.py --loop                 # run until stopped
-    python scripts/scan_loop.py --loop --interval 300  # 5 minutes
+    python scripts/scan_loop.py --loop --interval 240  # 4 minutes (owner order)
     python scripts/scan_loop.py --dry-run --loop       # decide, never scan
     python scripts/scan_loop.py --status               # print loop health
 """
@@ -61,8 +61,8 @@ sys.path.insert(0, str(ROOT))
 
 from src import config  # noqa: E402
 from src.data.sessions import (  # noqa: E402
-    KARACHI, MarketPhase, market_phase, next_open, now_karachi,
-    session_window_text,
+    KARACHI, MarketPhase, MarketState, market_phase, market_state_at,
+    next_open, now_karachi, session_window_text,
 )
 from src.signals import ai_model  # noqa: E402
 from src.signals.contracts import (  # noqa: E402
@@ -90,7 +90,10 @@ LOGGER = logging.getLogger("scan_loop")
 class LoopConfig:
     """Everything the loop's behaviour depends on, in one typed place."""
 
-    interval_seconds: float = 300.0
+    # Owner order 2026-10-11: scan the whole KMIALL universe every 4
+    # minutes, forever until further notice. config.TICK_INTERVAL_MINUTES is
+    # the same 4, so the tick and this loop share one cadence.
+    interval_seconds: float = 240.0
     warmup_minutes: float = 20.0
     max_consecutive_failures: int = 5
     backoff_base_seconds: float = 30.0
@@ -273,7 +276,11 @@ class ScanLoop:
         decision table is testable without sleeping.
         """
         phase = phase_of(moment, self.config.warmup_minutes)
+        state = market_state_at(moment)
         if phase in (PHASE_CLOSED, PHASE_PRE_OPEN):
+            if state is MarketState.PRE_MARKET:
+                return "wait", (f"{state.value}: the pre-market window is "
+                                f"never scanned (owner order 2026-10-11)")
             return "wait", (f"{phase}: {session_window_text(moment.date())}")
         if phase == PHASE_WARMUP:
             return "wait", (f"{phase}: first {self.config.warmup_minutes:g} "
@@ -282,7 +289,15 @@ class ScanLoop:
             return "wait", (f"{phase}: the exchange's midday break; "
                             f"today {session_window_text(moment.date())}")
         if phase == PHASE_OPEN:
+            if state is not MarketState.MARKET:
+                # Defensive: the band law and the state law are both in
+                # src/data/sessions.py, and only MARKET may be scanned.
+                return "wait", (f"{state.value}: outside the scan window "
+                                f"(owner order 2026-10-11)")
             return "scan", f"{phase}: inside the session"
+        if state is MarketState.POST_MARKET:
+            return "finalize", (f"{state.value}: the session has closed; "
+                                 f"post-market is finalize-only")
         return "finalize", f"{phase}: the session has closed"
 
     def next_delay(self, action: str) -> float:

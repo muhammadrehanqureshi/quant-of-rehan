@@ -81,7 +81,7 @@ class SessionState:
     scanner_version: str = config.SCANNER_VERSION
     history: list[dict] = field(default_factory=list)
 
-    # Scheduler bookkeeping (local 5-minute runner, scripts/kmiall_tick.py).
+    # Scheduler bookkeeping (local 4-minute runner, scripts/kmiall_tick.py).
     # These exist so a tick that is repeated -- a manual run, a Task Scheduler
     # retry, a laptop waking from sleep -- is idempotent instead of duplicating
     # work or spamming the app card.
@@ -132,7 +132,7 @@ class SessionState:
     def card_is_new(self, text: str) -> bool:
         """Has the verdict on the app card actually changed?
 
-        A 5-minute scanner recomputes the same answer many times a session.
+        A 4-minute scanner recomputes the same answer many times a session.
         Republishing an identical card would be noise, so the signature of the
         last published card is kept and compared.
         """
@@ -148,7 +148,7 @@ class SessionState:
         self.last_card_signature = self.card_signature(text)
 
     def claimed_slot(self, slot: str) -> bool:
-        """Has this exact 5-minute slot already been scanned today?
+        """Has this exact scan slot already been scanned today?
 
         Used by the local tick runner to make one invocation per slot, even if
         the scheduler fires twice or the owner runs it by hand mid-slot.

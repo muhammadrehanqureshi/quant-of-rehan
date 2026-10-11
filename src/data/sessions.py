@@ -32,6 +32,30 @@ Phases (`MarketPhase`):
     BREAK       between two bands on the same day (Friday 12:00 to 14:32)
     POST_CLOSE  after the last band of the day
 
+Owner's market-state law (2026-10-11), alongside the bands:
+
+The owner asked for one function that answers "which market state is this",
+with four states and strict 2-minute gaps, and for the scanner to run ONLY
+in the market state. `market_state_at` below is that function; it never
+replaces the phases, which the relay, the app and the notification texts
+still read:
+
+    PRE_MARKET   a trading day, 09:00 to 09:15, both session shapes
+    MARKET       inside a band: Mon-Thu 09:32 to 15:30; Friday 09:17 to
+                 12:00 and 14:32 to 16:30
+    POST_MARKET  Mon-Thu 15:32 to 15:49; Friday 16:32 to 16:49
+    CLOSED       everything else, including the gaps at 15:30-15:32 and
+                 16:30-16:32, the Friday midday break and the 09:15-09:32
+                 morning gap
+
+Every window is half-open, [start, end), so 15:30:00 itself is no longer the
+market and 15:32:00 is already post-market: an instant that sits exactly on
+a boundary belongs to the window that starts there, never to the one that
+ends there. `is_scan_window` is the one answer to "may the scanner run now":
+true only in MARKET. Pre-market and post-market are watched, logged and
+reported, but the owner's standing order is that the quant never scans in
+them.
+
 This module is the only place that may build a market time (SO-8). It
 never invents a band: what the exchange publishes is what is encoded
 here, and the phone app is never the authority on whether the market is
@@ -62,6 +86,16 @@ FRIDAY_CLOSE = (16, 30)
 
 #: A band is ((open_hour, open_minute), (close_hour, close_minute)).
 Band = tuple[tuple[int, int], tuple[int, int]]
+
+# Owner's pre-market and post-market windows (2026-10-11). Both session
+# shapes share the pre-market window; post-market follows the day's last
+# close after the owner's strict 2-minute gap (15:32 and 16:32).
+PRE_MARKET_OPEN = (9, 0)
+PRE_MARKET_CLOSE = (9, 15)
+POST_MARKET_OPEN = (15, 32)
+POST_MARKET_CLOSE = (15, 49)
+FRIDAY_POST_MARKET_OPEN = (16, 32)
+FRIDAY_POST_MARKET_CLOSE = (16, 49)
 
 WEEKDAY_BANDS: tuple[Band, ...] = ((WEEKDAY_OPEN, WEEKDAY_CLOSE),)
 FRIDAY_BANDS: tuple[Band, ...] = (
@@ -107,6 +141,29 @@ class MarketPhase(str, Enum):
     def is_live(self) -> bool:
         """True only while the exchange is actually trading."""
         return self in (MarketPhase.OPEN, MarketPhase.WARMUP)
+
+
+class MarketState(str, Enum):
+    """The owner's four market states (order of 2026-10-11).
+
+    Windows are half-open, [start, end). PRE_MARKET is 09:00 to 09:15 on
+    any trading day, MARKET is every band, POST_MARKET is 15:32 to 15:49
+    Monday to Thursday and 16:32 to 16:49 on Friday. Every other instant,
+    including the strict 2-minute gaps after each close, is CLOSED.
+
+    Only MARKET may be scanned. Pre-market and post-market are reported,
+    never scanned (owner order of 2026-10-11).
+    """
+
+    PRE_MARKET = "PRE_MARKET"
+    MARKET = "MARKET"
+    POST_MARKET = "POST_MARKET"
+    CLOSED = "CLOSED"
+
+    @property
+    def is_scan_window(self) -> bool:
+        """True only in MARKET: the one state the scanner may run in."""
+        return self is MarketState.MARKET
 
 
 def now_karachi() -> datetime:
@@ -216,6 +273,84 @@ def is_market_open(moment: datetime | None = None) -> bool:
     or OFFLINE.
     """
     return market_phase(moment).is_live
+
+
+def pre_market_window(d: date) -> tuple[tuple[int, int], tuple[int, int]] | None:
+    """The pre-market window for a Karachi date, or None when closed."""
+    if not is_trading_day(d):
+        return None
+    return (PRE_MARKET_OPEN, PRE_MARKET_CLOSE)
+
+
+def post_market_window(d: date) -> tuple[tuple[int, int], tuple[int, int]] | None:
+    """The post-market window for a Karachi date, or None when closed.
+
+    Friday's window follows its own last close (16:32 to 16:49); every
+    other trading day's follows the 15:30 close (15:32 to 15:49).
+    """
+    if not is_trading_day(d):
+        return None
+    if d.weekday() == 4:
+        return (FRIDAY_POST_MARKET_OPEN, FRIDAY_POST_MARKET_CLOSE)
+    return (POST_MARKET_OPEN, POST_MARKET_CLOSE)
+
+
+def _hm_micros(hm: tuple[int, int]) -> int:
+    """A (hour, minute) window edge as microseconds after midnight."""
+    return (hm[0] * 60 + hm[1]) * 60 * 1_000_000
+
+
+def market_state_at(moment: datetime | None = None) -> MarketState:
+    """Which of the owner's four states this instant is in (2026-10-11).
+
+    ``moment`` must be a timezone-aware datetime. A naive datetime is
+    refused rather than assumed, because the wrong assumption silently
+    shifts the session; any aware zone is converted to Karachi first. A
+    value that is not a datetime raises TypeError.
+
+    Edges are strict, so an instant that sits exactly on a boundary belongs
+    to the window starting there and never to the one ending there: at
+    09:15:00 this is CLOSED (pre-market has ended, the market opens at
+    09:32), and at 15:30:00 on a Monday to Thursday it is CLOSED until
+    post-market starts at 15:32:00.
+    """
+    if moment is None:
+        moment = now_karachi()
+    if not isinstance(moment, datetime):
+        raise TypeError(
+            f"moment must be a datetime, got {type(moment).__name__}")
+    if moment.tzinfo is None or moment.tzinfo.utcoffset(moment) is None:
+        raise ValueError(
+            "moment must be timezone-aware; a naive datetime is ambiguous "
+            "and is refused rather than assumed to be Karachi time")
+    k = as_karachi(moment)
+    day = k.date()
+    if not is_trading_day(day):
+        return MarketState.CLOSED
+    now_micros = ((k.hour * 60 + k.minute) * 60 + k.second) * 1_000_000 \
+        + k.microsecond
+    window = pre_market_window(day)
+    if window is not None and _hm_micros(window[0]) <= now_micros \
+            < _hm_micros(window[1]):
+        return MarketState.PRE_MARKET
+    for band in session_bands(day):
+        if _hm_micros(band[0]) <= now_micros < _hm_micros(band[1]):
+            return MarketState.MARKET
+    window = post_market_window(day)
+    if window is not None and _hm_micros(window[0]) <= now_micros \
+            < _hm_micros(window[1]):
+        return MarketState.POST_MARKET
+    return MarketState.CLOSED
+
+
+def is_scan_window(moment: datetime | None = None) -> bool:
+    """May the scanner run at this instant? True only in MARKET.
+
+    The owner's standing order of 2026-10-11: the quant scans the whole
+    KMIALL universe only inside a live band; pre-market and post-market
+    are watched and reported but never scanned.
+    """
+    return market_state_at(moment).is_scan_window
 
 
 def market_state(moment: datetime | None = None) -> dict:
