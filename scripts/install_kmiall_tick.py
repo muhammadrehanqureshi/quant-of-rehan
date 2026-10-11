@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Register (or remove) the local 5-minute KMIALL scanner task on Windows.
+"""Register (or remove) the local 4-minute KMIALL scanner task on Windows.
 
 Creates a Task Scheduler task that runs scripts/kmiall_tick.py every
 TICK_INTERVAL_MINUTES, all day, for the current user. The task itself knows

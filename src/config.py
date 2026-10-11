@@ -131,14 +131,41 @@ TARGET_MULTIPLIER_BY_REGIME = {
 }
 
 # ---------------------------------------------------------------- scheduler
-# The local 5-minute tick (scripts/kmiall_tick.py). Task Scheduler fires every
+# The local tick (scripts/kmiall_tick.py). Task Scheduler fires every
 # TICK_INTERVAL_MINUTES all day; the tick itself pauses outside the session, so
 # a dumb scheduler fire costs nothing. TICK_WARMUP_MINUTES keeps the runner from
 # scanning before the strategy's own minimum bar and volume-bucket requirements
 # can be met (MIN_BARS_PER_SYMBOL is 20 and VOLUME_WINDOW is 5).
-TICK_INTERVAL_MINUTES = _number("TICK_INTERVAL_MINUTES", 5)
+#
+# Owner order 2026-10-11: scan the whole KMIALL universe every 4 minutes,
+# forever until further notice, and never in the pre-market (09:00-09:15) or
+# post-market (15:32-15:49, Friday 16:32-16:49) windows. The 4 is the default
+# here, so a rebuilt task or a fresh clone runs at 4 minutes without any
+# environment change; the tick itself refuses to scan outside MARKET
+# (src/data/sessions.py, is_scan_window).
+TICK_INTERVAL_MINUTES = _number("TICK_INTERVAL_MINUTES", 4)
 TICK_WARMUP_MINUTES = _number("TICK_WARMUP_MINUTES", 20)
 TICK_STALE_LOCK_MINUTES = _number("TICK_STALE_LOCK_MINUTES", 15)
+
+# ---------------------------------------------------------------- session gate
+# The sleep gate (src/data/session_gate.py) is the first question a scheduled
+# job asks. Outside the session it must cost seconds, so it runs before any
+# dependency install or heavy fetch and does no network work of its own.
+SESSION_GATE_ENABLED = _flag("SESSION_GATE_ENABLED", True)
+
+# ---------------------------------------------------------------- PSX probe
+# The live portal probe (src/data/market_probe.py) VERIFIES the session law and
+# never replaces it: the law decides, the probe may only subtract confidence.
+# One bounded request, a strict timeout, no retries. Any failure degrades to
+# UNKNOWN so a blocked portal can never silence a live session, and a positive
+# "closed" reading can never be scanned as if it were open. The timeout is a
+# config tunable rather than a literal so a scheduled job can tighten it
+# without a code change.
+PSX_PROBE_ENABLED = _flag("PSX_PROBE_ENABLED", True)
+PSX_PROBE_TIMEOUT_SECONDS = _number("PSX_PROBE_TIMEOUT_SECONDS", 10.0)
+PSX_PROBE_MAX_BYTES = int(_number("PSX_PROBE_MAX_BYTES", 400_000))
+PSX_PROBE_URL = (os.environ.get("PSX_PROBE_URL", "").strip()
+                 or "https://dps.psx.com.pk/")
 
 # ---------------------------------------------------------------- AI signal
 # The AI component (src/signals/ai_model.py) is a trained DAILY prior: the
@@ -236,6 +263,10 @@ def config_snapshot() -> dict:
         "bar_resolution": BAR_RESOLUTION,
         "paper_trading_enabled": PAPER_TRADING_ENABLED,
         "live_trading_enabled": live_trading_enabled(),
+        "session_gate_enabled": SESSION_GATE_ENABLED,
+        "psx_probe_enabled": PSX_PROBE_ENABLED,
+        "psx_probe_timeout_seconds": PSX_PROBE_TIMEOUT_SECONDS,
+        "tick_interval_minutes": TICK_INTERVAL_MINUTES,
         "kmiall_only": KMIALL_ONLY,
         "long_only": LONG_ONLY,
     }

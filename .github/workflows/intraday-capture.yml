@@ -19,8 +19,12 @@ name: KMIALL intraday momentum scan
 # before the close. tests/test_rebuild_schedule.py re-derives every one of
 # these conversions and fails the build if a cron ever drifts.
 #
-# Budget: 5 scans plus 1 finalize per weekday, 10 minutes each at most, is
-# about 1,300 minutes a month, inside the 2,000 minute monthly ceiling.
+# Budget: 25 scheduled fires a week. Only a fire inside a live PSX band does
+# real work, and the sleep gate below runs before setup-python, before the pip
+# install and before the twelve minute bar fetch, so a weekend, a holiday and
+# every non-session slot bill about one minute instead of eleven. A live scan is
+# still roughly fourteen minutes. See AUDIT_AND_CI_BUDGET_2026-10-10.md for the
+# measured per-run figures.
 
 on:
   schedule:
@@ -74,47 +78,61 @@ jobs:
         with:
           python-version: "3.13"
 
+      # Sleep gate: the cheapest question in the job, and the reason a fire
+      # outside the PSX session costs one minute instead of eleven. It runs
+      # after checkout and setup-python (so the interpreter is the known one),
+      # but BEFORE the pip install and before the twelve minute bar fetch. On a
+      # weekend or a PSX holiday it answers without opening a socket at all.
+      # SO-8: the session law in src/data/sessions.py decides, and the live
+      # dps.psx.com.pk probe only verifies it, so a blocked portal can never
+      # silence a session the law calls live.
+      - name: Session gate (sleep outside the PSX session)
+        id: gate
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            # A human asked for this run, so do not second-guess them.
+            if [ "${{ inputs.slot }}" = "finalize" ]; then
+              python -m src.data.session_gate --check --force --purpose finalize
+            else
+              python -m src.data.session_gate --check --force --purpose scan \
+                --slot "${{ inputs.slot }}"
+            fi
+          else
+            python -m src.data.session_gate --check \
+              --schedule "${{ github.event.schedule }}"
+          fi
+
       - name: Install dependencies
+        if: steps.gate.outputs.should_run == 'true'
         run: pip install pandas numpy requests
 
       - name: Fetch one complete KMIALL bar pass
+        if: steps.gate.outputs.should_run == 'true'
         run: |
           mkdir -p data/feed_capture data/forward
           python -m src.data.ohlc_poller --symbols-file src/data/universe_kmiall.json --once
 
       - name: Scan the whole KMIALL universe, or finalize the session
+        if: steps.gate.outputs.should_run == 'true'
         run: |
-          SLOT=""
-          FINALIZE=""
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            if [ "${{ inputs.slot }}" = "finalize" ]; then FINALIZE="1"; else SLOT="${{ inputs.slot }}"; fi
-          else
-            case "${{ github.event.schedule }}" in
-              "7 5 * * 1-5") SLOT="10:00" ;;
-              "37 6 * * 1-5") SLOT="11:30" ;;
-              # Mon-Thu only: 13:07 PKT falls inside the exchange's Friday
-              # midday break (12:00 to 14:32), and no scan may run then.
-              # Friday's afternoon coverage comes from the 14:37 slot.
-              "7 8 * * 1-4") SLOT="13:00" ;;
-              "37 9 * * 1-5") SLOT="14:30" ;;
-              "7 11 * * 5") SLOT="16:00" ;;
-              "47 10 * * 1-4") FINALIZE="1" ;;
-              "47 11 * * 5") FINALIZE="1" ;;
-              *) echo "unknown schedule"; exit 2 ;;
-            esac
-          fi
-          if [ -n "$FINALIZE" ]; then
+          # The gate already resolved which of the two this fire is, from the
+          # cron that fired (SCHEDULE_PLAN in src/data/session_gate.py), so
+          # this step keeps no schedule table of its own. Friday's 13:07 PKT
+          # slot is Mon-Thu only because it falls inside the exchange's midday
+          # break (12:00 to 14:32); Friday's afternoon coverage is 14:37.
+          if [ "${{ steps.gate.outputs.purpose }}" = "finalize" ]; then
             python scripts/intraday_pipeline.py --finalize
           else
-            python scripts/intraday_pipeline.py --scan --slot "$SLOT"
+            python scripts/intraday_pipeline.py --scan \
+              --slot "${{ steps.gate.outputs.slot }}"
           fi
 
       - name: Ops alert if the capture was degraded (deduped, one per day)
-        if: always()
+        if: always() && steps.gate.outputs.should_run == 'true'
         run: python scripts/ops_alert.py --capture-health
 
       - name: Summarize the scan
-        if: always()
+        if: always() && steps.gate.outputs.should_run == 'true'
         run: |
           python - <<'PY'
           import json
@@ -152,7 +170,7 @@ jobs:
           PY
 
       - name: Retain the session record, gate and captured bars
-        if: always()
+        if: always() && steps.gate.outputs.should_run == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: kmiall-session-${{ github.run_id }}
