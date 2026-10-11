@@ -69,16 +69,30 @@ runs at 4 minutes with no environment change.
 Enforcement is layered, so no single edit can quietly re-enable pre-market or
 post-market scanning:
 
+0. **The registered task itself does not fire there.** Owner order 2026-10-11
+   asked for execution to be *disabled* in the pre-market, post-market and
+   Friday break windows, not merely paused after the fact, so
+   `scripts/install_kmiall_tick.py` registers the Windows task from an XML
+   definition whose triggers are derived from this same law: one repeating
+   trigger per band (09:32 to 15:30 Mon-Thu; 09:17 to 12:00 and 14:32 to 16:30
+   Friday) at the configured cadence, plus one post-market fire per trading day
+   for the finalize (15:47 and 16:47 PKT). Nothing is registered for
+   09:00 to 09:15, for 12:00 to 14:32 on a Friday, for the evening, the night
+   or the weekend, and `tests/test_kmiall_tick.py::SessionTriggerTest` fails
+   the build if a trigger ever lands outside a band.
 1. `market_state_at` is the law; the windows live in `src/data/sessions.py`
    beside the bands (SO-8).
-2. `src/data/session_gate.py` refuses a scan in either window with an explicit
+2. `src/data/scan_schedule.py` is the one pause table both local runners read
+   (`decide()` returns scan, finalize or wait and names the state that
+   decided), so the tick and the supervised loop cannot drift apart on it.
+3. `src/data/session_gate.py` refuses a scan in either window with an explicit
    row in the decision table above, *separate* from the band check.
-3. `scripts/kmiall_tick.py` and `scripts/scan_loop.py` check the state before
+4. `scripts/kmiall_tick.py` and `scripts/scan_loop.py` check the state before
    they scan; the tick reports `PRE_MARKET` and pauses, and treats
    `POST_MARKET` as finalize-only.
-4. `scripts/intraday_pipeline.py::session_legal` asks `is_scan_window`, so a
+5. `scripts/intraday_pipeline.py::session_legal` asks `is_scan_window`, so a
    hand-run `--scan` outside `MARKET` is refused too.
-5. `tests/test_sessions_and_schedule.py::TestMarketStateLaw` pins every edge,
+6. `tests/test_sessions_and_schedule.py::TestMarketStateLaw` pins every edge,
    including 09:15:00, 15:30:00, 15:31:59, 15:32:00 and 15:48:59;
    `tests/test_kmiall_tick.py::ScanWindowTest` and
    `tests/test_session_gate.py::TestOwnerScanWindowOrder` pin the refusals.
@@ -132,6 +146,39 @@ value is as the prerequisite for any denser cadence: at a 1, 5 or 15 minute
 interval most fires land outside the session, and the gate is what makes those
 cost one minute instead of fourteen. See `AUDIT_AND_CI_BUDGET_2026-10-10.md` for
 why a 741 second fetch, not the quota, is the binding constraint.
+
+### 4.1 The capture budget, and the pass that does not fit the cadence
+
+The bar capture is one polite, sequential pass over the universe at the
+source's own pacing: **319 symbols × (1.3s pacing + about 1.0s per request) ≈
+734s, about 12 minutes**. That number is measured, not modelled: the CI job
+logged 741s for exactly this pass.
+
+Two consequences, both of which used to be silent:
+
+1. **The local tick gave the capture a flat 240 second timeout**, so on every
+trading day it logged `capture FAILED: capture timed out after 240s` and killed
+the pass mid-flight (`logs/kmiall_tick.log`, 2026-11-10 and 2026-12-11 entries).
+   The limit was smaller than the work. The capture now gets
+   `cadence − reserve` (195s at the owner's 4 minute cadence) and **stops itself
+   cleanly at that budget**, banking what it fetched, writing `pass_complete:
+   false` into the heartbeat, and exiting with its own status so the caller can
+   report a partial pass as a partial pass. The subprocess timeout is now only a
+   backstop above the budget.
+2. **A complete, fresh pass cannot fit a 4 minute cadence** on this source:
+   734s of fetching against a 240s cadence, and a symbol fetched at the start of
+   a pass is already past the 5 minute freshness floor by the end of it. This is
+   arithmetic, not a tuning problem. It is why a partial capture is reported
+   honestly rather than dressed up: with the source serving no bars at all
+   (coverage 0/319, measured again on 2026-10-11) the scan reports
+   `DATA_BLOCKED` either way. Resolving it needs either a faster fetch (bounded
+   concurrency at the source), a smaller universe, a longer cadence, or a
+   different intraday source, and each of those is the owner's call.
+
+In CI the pass is bounded at 420s for the same reason: the job's timeout is 10
+minutes and a 12 minute fetch meant every scheduled run was **cancelled before
+it reached the scan step**. The bounded pass finishes, the scan step runs, and
+the run bills about 8 minutes instead of 11 to 14.
 
 ## 5. Cloudflare
 

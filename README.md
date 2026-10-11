@@ -81,9 +81,9 @@ desktop restart.
 | | GitHub Actions | Local 4-minute tick |
 |---|---|---|
 | File | [.github/workflows/intraday-capture.yml](.github/workflows/intraday-capture.yml) | [scripts/kmiall_tick.py](scripts/kmiall_tick.py) |
-| Cadence | 5 scans a day (10:00, 11:30, 13:00, 14:30, and 16:00 on Friday) plus a post-close finalize | every 4 minutes all day, scanning only in MARKET and pausing itself in every other state |
+| Cadence | 5 scans a day (10:00, 11:30, 13:00, 14:30, and 16:00 on Friday) plus a post-close finalize | every 4 minutes inside the PSX session windows only |
 | Why it exists | runs without the owner's PC | sees the whole session, not four snapshots of it |
-| Cost | about 1,300 runner minutes a month, inside the 2,000 minute ceiling | nothing but a few seconds of CPU per tick |
+| Cost | about 8 billed minutes per working fire, inside the 2,000 minute ceiling | nothing but a few seconds of CPU per tick, and nothing at all outside the session |
 | State | its own forward state on the runner | `data/forward/` in this checkout |
 
 Why a tick script plus Windows Task Scheduler, and not an in-process loop: a
@@ -108,7 +108,31 @@ failures, and finalizes the day exactly once. Install it with:
 python scripts/install_kmiall_tick.py           # create or replace the task
 python scripts/install_kmiall_tick.py --show    # query it
 python scripts/install_kmiall_tick.py --remove  # delete it
+python scripts/install_kmiall_tick.py --print-xml  # show the definition
 ```
+
+The registered task does not fire outside the session either. Owner order
+2026-10-11 asked for the 4-minute scans to be disabled in the pre-market,
+post-market and Friday break windows rather than merely paused after the
+fact, so the task is registered from an XML definition whose triggers are
+derived from `src/data/sessions.py`:
+
+| Windows | Days | Fires |
+|---|---|---|
+| 09:32 to 15:30 | Mon to Thu | every 4 minutes |
+| 09:17 to 12:00 | Friday | every 4 minutes |
+| 14:32 to 16:30 | Friday | every 4 minutes |
+| 15:47 | Mon to Thu | once, the post-close finalize |
+| 16:47 | Friday | once, the post-close finalize |
+
+Nothing is registered for the pre-market window, the Friday midday break, the
+evening, the night or the weekend, so the machine no longer wakes 360 times a
+day to do nothing. `schtasks /sc MINUTE /mo 4`, the earlier form, cannot
+express per-weekday windows; if the XML import is ever refused, the installer
+falls back to it and says so, and the tick still refuses to scan outside
+MARKET, so the scanner keeps working either way. Verify what is actually
+registered with `schtasks /query /tn quant-of-rehan-kmiall-tick /xml` or
+`python scripts/verify_market_signals.py`.
 
 The task registers the WINDOWLESS interpreter (`pythonw.exe`). It used to
 register `python.exe`, a console program, in the owner's own session, so

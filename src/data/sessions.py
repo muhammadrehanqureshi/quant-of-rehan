@@ -430,16 +430,6 @@ def session_window_text(d: date) -> str:
     return ", ".join(f"{_hm(band[0])}-{_hm(band[1])}" for band in bands)
 
 
-def closing_edges(d: date) -> tuple[tuple[int, int], ...]:
-    """Every band end on a date: the instants the quant sleeps."""
-    return tuple(band[1] for band in session_bands(d))
-
-
-def opening_edges(d: date) -> tuple[tuple[int, int], ...]:
-    """Every band start on a date: the instants the quant wakes."""
-    return tuple(band[0] for band in session_bands(d))
-
-
 def ms_until(instant: datetime, now: datetime | None = None) -> int:
     """Whole milliseconds from now until instant (>= 0)."""
     n = now or now_karachi()

@@ -27,7 +27,7 @@ sys.path.insert(0, str(ROOT))
 from src.data.sessions import (  # noqa: E402
     MSG_MARKET_CLOSED,
     MSG_MARKET_OPEN,
-    KARACHI,
+    ms_until,
     next_event,
     now_karachi,
 )

@@ -45,14 +45,13 @@ from __future__ import annotations
 import argparse
 import json
 import logging
-import os
 import random
 import signal
 import sys
 import time
 import traceback
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 from types import FrameType
 
@@ -61,10 +60,21 @@ sys.path.insert(0, str(ROOT))
 
 from src import config  # noqa: E402
 from src.data.sessions import (  # noqa: E402
-    KARACHI, MarketPhase, MarketState, market_phase, market_state_at,
     next_open, now_karachi, session_window_text,
 )
-from src.signals import ai_model  # noqa: E402
+
+# The one pause table and slot clock, shared with scripts/kmiall_tick.py, so
+# the tick and this loop cannot disagree about when the exchange is tradeable.
+from src.data.scan_schedule import (  # noqa: E402
+    decide, phase_of, slot_of,
+)
+
+# The capture's own budget: the poller owns its pacing and its pass estimate,
+# so the loop asks for a budget instead of setting a timeout of its own.
+from src.data.ohlc_poller import (  # noqa: E402
+    EXIT_PASS_INCOMPLETE,
+    capture_budget_seconds as budget_for_cadence,
+)
 from src.signals.contracts import (  # noqa: E402
     ScanFault, ScanOutcome, Verdict, verdict_from_status,
 )
@@ -73,13 +83,8 @@ from src.signals.trade_state import SessionState  # noqa: E402
 LOG_FILE = ROOT / "logs" / "scan_loop.log"
 HEALTH_FILE = ROOT / "data" / "scan_loop_health.json"
 
-# Phase names as strings, mirroring src.data.sessions.MarketPhase (SO-8).
-PHASE_CLOSED = "CLOSED"
-PHASE_PRE_OPEN = "PRE_OPEN"
-PHASE_WARMUP = "WARMUP"
-PHASE_OPEN = "OPEN"
-PHASE_BREAK = "BREAK"
-PHASE_POST_CLOSE = "POST_CLOSE"
+# Phase names come from src/data/scan_schedule.py, the one schedule law
+# (SO-8); this loop no longer keeps its own copies of them.
 
 LOGGER = logging.getLogger("scan_loop")
 
@@ -102,7 +107,10 @@ class LoopConfig:
     max_cycles: int | None = None
     dry_run: bool = False
     capture: bool = True
-    capture_timeout_seconds: float = 240.0
+    #: Seconds the capture may spend. 0 means "derive it from interval_seconds
+    #: minus the reserve the scan needs" (see capture_budget_seconds in
+    #: src/data/ohlc_poller.py). A positive value is used as given.
+    capture_deadline_seconds: float = 0.0
 
     def __post_init__(self) -> None:
         if self.interval_seconds <= 0:
@@ -133,24 +141,10 @@ class LoopConfig:
 
 
 # ---------------------------------------------------------------- clock logic
-
-def phase_of(moment: datetime, warmup_minutes: float = 20.0) -> str:
-    """Which part of the trading day this instant is in.
-
-    One session law, in src/data/sessions.py (SO-8). This used to derive
-    the phase from a single open/close window, which made the Friday
-    midday break look like OPEN and put the loop to work on a shut market.
-    """
-    return market_phase(moment, warmup_minutes=warmup_minutes).value
-
-
-def slot_of(moment: datetime, interval_minutes: int | None = None) -> str:
-    """The slot label for this cycle, floored to the configured interval."""
-    step = max(1, int(interval_minutes
-                      if interval_minutes is not None
-                      else config.TICK_INTERVAL_MINUTES))
-    minute = (moment.minute // step) * step
-    return f"{moment.hour:02d}:{minute:02d}"
+# phase_of and slot_of are imported from src/data/scan_schedule.py, the one
+# schedule law this loop shares with the local tick (SO-8). This module used to
+# derive the phase itself from a single open/close window, which made the
+# Friday midday break look like OPEN and put the loop to work on a shut market.
 
 
 # -------------------------------------------------------------------- logging
@@ -272,33 +266,14 @@ class ScanLoop:
     def decide(self, moment: datetime) -> tuple[str, str]:
         """What this cycle should do, as (action, detail).
 
-        Actions: scan, finalize, or wait. Pure and clock-injected, so the
-        decision table is testable without sleeping.
+        Actions: scan, finalize, or wait. Delegates to
+        src/data/scan_schedule.py, which is the one pause table this loop and
+        the local 4-minute tick both read, so the owner's pre-market and
+        post-market never-scan rules and the Friday midday break are decided
+        in exactly one place. Pure and clock-injected, so the decision table
+        is testable without sleeping.
         """
-        phase = phase_of(moment, self.config.warmup_minutes)
-        state = market_state_at(moment)
-        if phase in (PHASE_CLOSED, PHASE_PRE_OPEN):
-            if state is MarketState.PRE_MARKET:
-                return "wait", (f"{state.value}: the pre-market window is "
-                                f"never scanned (owner order 2026-10-11)")
-            return "wait", (f"{phase}: {session_window_text(moment.date())}")
-        if phase == PHASE_WARMUP:
-            return "wait", (f"{phase}: first {self.config.warmup_minutes:g} "
-                            f"minutes after the open")
-        if phase == PHASE_BREAK:
-            return "wait", (f"{phase}: the exchange's midday break; "
-                            f"today {session_window_text(moment.date())}")
-        if phase == PHASE_OPEN:
-            if state is not MarketState.MARKET:
-                # Defensive: the band law and the state law are both in
-                # src/data/sessions.py, and only MARKET may be scanned.
-                return "wait", (f"{state.value}: outside the scan window "
-                                f"(owner order 2026-10-11)")
-            return "scan", f"{phase}: inside the session"
-        if state is MarketState.POST_MARKET:
-            return "finalize", (f"{state.value}: the session has closed; "
-                                 f"post-market is finalize-only")
-        return "finalize", f"{phase}: the session has closed"
+        return decide(moment, self.config.warmup_minutes)
 
     def next_delay(self, action: str) -> float:
         """Seconds to sleep after this cycle.
@@ -451,23 +426,37 @@ class ScanLoop:
         )
 
     def _capture(self) -> bool:
-        """Refresh the bar capture. A failure is a classified fault."""
+        """Refresh the bar capture. A failure is a classified fault.
+
+        The pass is given this loop's own budget, derived from its cadence
+        unless LoopConfig.capture_deadline_seconds names one, so it stops
+        cleanly and reports a partial pass instead of being killed at a
+        subprocess timeout the pass could never meet.
+        """
         import subprocess
 
+        budget = self.config.capture_deadline_seconds or budget_for_cadence(
+            self.config.interval_seconds)
+        kill_after = budget + config.CAPTURE_KILL_MARGIN_SECONDS
         command = [sys.executable, "-m", "src.data.ohlc_poller",
                    "--symbols-file", str((ROOT / "src" / "data" /
                                           "universe_kmiall.json")
-                                         .relative_to(ROOT)), "--once"]
+                                         .relative_to(ROOT)), "--once",
+                   "--deadline-seconds", f"{budget:.0f}"]
         try:
             result = subprocess.run(
                 command, cwd=str(ROOT), capture_output=True, text=True,
-                timeout=self.config.capture_timeout_seconds)
+                timeout=kill_after)
         except subprocess.TimeoutExpired as exc:
             raise ScanFault(
-                f"capture timed out after {self.config.capture_timeout_seconds:g}s"
-            ) from exc
+                f"capture ignored its {budget:.0f}s budget and was killed "
+                f"after {kill_after:.0f}s") from exc
         except OSError as exc:
             raise ScanFault(f"capture could not start: {type(exc).__name__}") from exc
+        if result.returncode == EXIT_PASS_INCOMPLETE:
+            raise ScanFault(
+                f"capture stopped at its {budget:.0f}s budget: a partial pass "
+                f"(the cadence cannot contain a full one)")
         if result.returncode != 0:
             tail = (result.stderr or result.stdout or "").strip().splitlines()
             raise ScanFault(
