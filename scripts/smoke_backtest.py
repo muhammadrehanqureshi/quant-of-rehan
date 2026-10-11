@@ -23,6 +23,7 @@ import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
+from src.ci.local_only import guard_local_only  # noqa: E402
 
 from src.backtest.engine import run_backtest  # noqa: E402
 from src.data.corpus import load_corpus  # noqa: E402
@@ -48,6 +49,7 @@ def placeholder_signals(df: pd.DataFrame) -> list[tuple]:
 
 
 def main(argv: list[str] | None = None) -> int:
+    guard_local_only("scripts/smoke_backtest.py")
     ap = argparse.ArgumentParser()
     ap.add_argument("--dataset", type=Path, default=None,
                     help="Long-frame dataset (data/eod_dataset.csv.gz)")

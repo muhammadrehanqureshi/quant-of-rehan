@@ -43,6 +43,7 @@ import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
+from src.ci.local_only import guard_local_only  # noqa: E402
 
 from src.backtest.engine import run_backtest, DEFAULT_COST_SIDE_BPS, DEFAULT_CGT_RATE  # noqa: E402
 
@@ -228,6 +229,7 @@ def render_report(cells: list[dict], meta: dict) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
+    guard_local_only("scripts/stop_tp_grid.py")
     ap = argparse.ArgumentParser(description="Stop/TP grid (audit section 7)")
     ap.add_argument("--dataset", type=Path, default=DATASET)
     ap.add_argument("--workers", type=int, default=1,

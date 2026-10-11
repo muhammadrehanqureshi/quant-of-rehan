@@ -12,6 +12,8 @@ Checks:
    banned from every committed file and commit message; quarantined
    legacy/ reference material is exempt because it is never modified.
 5. SO-8: session logic must pin Karachi time (UTC+5) explicitly.
+6. SO-4: every declared backtest entry point refuses to run in GitHub
+   Actions (src/ci/local_only.py) and no workflow invokes one.
 
 Exit code 0 = compliant. Non-zero = PR must not merge.
 """
@@ -23,6 +25,9 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+
+from src.ci.local_only import LOCAL_ONLY_SCRIPTS  # noqa: E402
 
 # Text extensions eligible for scanning
 TEXT_EXTS = {
@@ -76,6 +81,9 @@ REQUIRED_GOVERNANCE_SNIPPETS = [
     "Pull request first",
     "Never fabricate data",
     "Backtest locally only",
+    # Owner order 2026-10-11: the cloud budget belongs to the market-hours
+    # scans, so SO-4 must keep saying where a backtest may run.
+    "Actions minutes are reserved for the market-hours scans",
 ]
 
 
@@ -133,12 +141,60 @@ def check_governance_doc(errors: list) -> None:
         errors.append("[SO-2] GOVERNANCE.md missing: standing orders must exist")
         return
     text = gov.read_text(encoding="utf-8", errors="replace")
+    # Markdown is wrapped by hand, so a required phrase can straddle a line
+    # break. Compare on collapsed whitespace: the words and their order still
+    # have to be there, only the wrapping stops mattering.
+    flattened = " ".join(text.split()).lower()
     for snippet in REQUIRED_GOVERNANCE_SNIPPETS:
-        if snippet.lower() not in text.lower():
+        if " ".join(snippet.split()).lower() not in flattened:
             errors.append(
                 f"[SO-2] GOVERNANCE.md is missing required standing-order text: "
                 f"{snippet!r}"
             )
+
+
+def check_local_only(errors: list) -> None:
+    """SO-4: the declared backtests stay on the owner's PC.
+
+    Owner order 2026-10-11: backtesting happens only on the local PC, and the
+    GitHub Actions minutes are reserved for the market-hours scans. Until
+    now that lived in prose and in docstrings, so an edit could have put a
+    five-year sweep into a workflow and nothing would have objected. This
+    check is the objection: every declared entry point must carry the guard,
+    and no workflow may invoke one.
+    """
+    for rel, task in sorted(LOCAL_ONLY_SCRIPTS.items()):
+        p = ROOT / rel
+        if not p.is_file():
+            errors.append(
+                f"[SO-4] {rel} is declared local-only ({task}) but does not "
+                f"exist; fix src/ci/local_only.py or restore the script"
+            )
+            continue
+        try:
+            text = p.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        if f'guard_local_only("{rel}")' not in text:
+            errors.append(
+                f"[SO-4] {rel} ({task}) does not call "
+                f'guard_local_only("{rel}") in main(): it could then run in '
+                f"GitHub Actions and spend the market-hours scan budget"
+            )
+
+    workflows = ROOT / ".github" / "workflows"
+    for wf in sorted(workflows.glob("*.yml")) if workflows.is_dir() else []:
+        try:
+            text = wf.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        for rel in LOCAL_ONLY_SCRIPTS:
+            if rel in text or Path(rel).name in text:
+                errors.append(
+                    f"[SO-4] {wf.name} invokes {rel}, which is local-only "
+                    f"work: Actions minutes are reserved for the market-hours "
+                    f"scans"
+                )
 
 
 def check_em_dashes(errors: list) -> None:
@@ -235,6 +291,7 @@ def main() -> int:
     check_em_dashes(errors)
     check_commit_messages(errors)
     check_karachi_pin(errors)
+    check_local_only(errors)
 
     if errors:
         print("GOVERNANCE CHECK FAILED, PR must not merge:\n")
@@ -244,7 +301,7 @@ def main() -> int:
 
     print("GOVERNANCE CHECK PASSED: secrets clean, footprint honesty intact, "
           "standing orders present, SO-7 style and identity verified, "
-          "SO-8 Karachi pin verified.")
+          "SO-8 Karachi pin verified, SO-4 local-only backtests enforced.")
     return 0
 
 
