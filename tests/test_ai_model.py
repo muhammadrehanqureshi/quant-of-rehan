@@ -15,7 +15,6 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from src import config  # noqa: E402
 from src.data.sessions import KARACHI  # noqa: E402
 from src.signals import ai_model  # noqa: E402
 from src.signals import momentum_scanner as scanner  # noqa: E402
