@@ -277,16 +277,31 @@ class CadenceTest(unittest.TestCase):
         second or less on a closed day) had come and gone before he could
         read it. The registered action must name the windowless interpreter,
         so a re-install cannot bring the flash back.
+
+        Written for both platforms on purpose. pythonw.exe exists on Windows
+        only, and the test suite also runs on the Linux CI runner, where the
+        first version of this test demanded pythonw.exe and failed there: the
+        installer was right to fall back and the test was wrong. So the
+        contract is asserted platform-neutrally, and the Windows-specific
+        expectation is asserted only where a windowless interpreter exists.
         """
         import install_kmiall_tick
 
-        action = install_kmiall_tick.create_command()[
-            install_kmiall_tick.create_command().index("/tr") + 1]
+        command = install_kmiall_tick.create_command()
+        action = command[command.index("/tr") + 1]
         interpreter = install_kmiall_tick.windowless_interpreter()
-        self.assertEqual(interpreter.name, "pythonw.exe")
+
         self.assertIn(str(interpreter), action)
-        self.assertNotIn("python.exe", action.replace("pythonw.exe", ""))
         self.assertIn(str(install_kmiall_tick.TICK_SCRIPT), action)
+
+        windowless = Path(sys.executable).with_name("pythonw.exe")
+        if windowless.is_file():
+            # The interpreter field of the action is the first quoted token.
+            self.assertTrue(action.split('"')[1].endswith("pythonw.exe"),
+                            action)
+            self.assertEqual(interpreter, windowless)
+        else:
+            self.assertEqual(interpreter, Path(sys.executable))
 
     def test_a_build_without_pythonw_still_registers_something(self):
         import install_kmiall_tick
