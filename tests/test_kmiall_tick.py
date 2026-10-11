@@ -430,11 +430,41 @@ class SessionTriggerTest(unittest.TestCase):
         intervals = [node.text for node in root.iter(f"{namespace}Interval")]
         self.assertEqual(intervals, ["PT4M"] * 3)
         self.assertEqual(len(list(root.iter(f"{namespace}CalendarTrigger"))), 5)
+        # The definition must name the interpreter the installer chose, which
+        # is pythonw.exe wherever it exists and the running interpreter
+        # everywhere else (the CI job runs on Linux, where the first version of
+        # this test wrongly demanded an .exe). Asserting the installer's own
+        # answer keeps that one contract on every platform.
         command = next(root.iter(f"{namespace}Command")).text
-        self.assertTrue(command.endswith("python" + "w.exe")
-                        or command.endswith("python.exe"), command)
+        self.assertEqual(command, str(self.installer.windowless_interpreter()))
         arguments = next(root.iter(f"{namespace}Arguments")).text
         self.assertIn("kmiall_tick.py", arguments)
+
+    def test_the_definition_still_works_where_there_is_no_pythonw(self):
+        """The CI runner is Linux and has no pythonw.exe at all.
+
+        The first version of the test above asserted an .exe suffix and went
+        red in CI while passing on Windows, which is the same mistake this
+        repository already recorded once for the installer test. So the
+        no-pythonw case is asserted directly: the XML must still be a working
+        definition that names the interpreter the installer picked.
+        """
+        from unittest import mock
+        from xml.etree import ElementTree
+
+        namespace = "{http://schemas.microsoft.com/windows/2004/02/mit/task}"
+        with mock.patch("pathlib.Path.is_file", return_value=False):
+            xml = self.installer.task_xml()
+            expected = self.installer.windowless_interpreter()
+
+        root = ElementTree.fromstring(xml)
+        self.assertEqual(next(root.iter(f"{namespace}Command")).text,
+                         str(expected))
+        self.assertIn("kmiall_tick.py",
+                      next(root.iter(f"{namespace}Arguments")).text)
+        self.assertEqual(
+            [node.text for node in root.iter(f"{namespace}Interval")],
+            ["PT4M"] * 3)
 
     def test_the_written_task_file_is_utf16_for_schtasks(self):
         with tempfile.TemporaryDirectory() as temp_dir:
