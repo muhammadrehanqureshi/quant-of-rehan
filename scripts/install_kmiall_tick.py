@@ -12,6 +12,16 @@ absolute script path, and the tick computes the repository root from its own
 file location, so it does not depend on a working directory that Task Scheduler
 would otherwise have to be told about.
 
+Why the WINDOWLESS interpreter (owner report, 2026-10-11): the task used to
+register `python.exe`, which is a console program. Task Scheduler ran it in the
+owner's interactive session, so Windows opened a console window on every fire,
+several times an hour, around the clock. On a closed day the tick finishes in
+well under a second, so the owner saw a window appear and vanish before he could
+read it and had no way to tell what it was. `pythonw.exe` is the same
+interpreter built as a windowless program: no console is ever created, so
+there is nothing to see, and the tick's own log (logs/kmiall_tick.log), its
+health file and its journal keep the record that a console used to provide.
+
     python scripts/install_kmiall_tick.py            # create / replace
     python scripts/install_kmiall_tick.py --remove   # delete
     python scripts/install_kmiall_tick.py --show     # query current definition
@@ -33,10 +43,30 @@ TASK = "quant-of-rehan-kmiall-tick"
 TICK_SCRIPT = ROOT / "scripts" / "kmiall_tick.py"
 
 
+def windowless_interpreter() -> Path:
+    """The interpreter to register: pythonw.exe when it exists.
+
+    A scheduled task that runs python.exe opens a console window in the
+    owner's session on every fire. pythonw.exe is the same interpreter with
+    no console, so the scan runs exactly as before and nothing appears on
+    screen. Falls back to the running interpreter when a build has no
+    pythonw next to it, and says so, because a task that cannot be registered
+    at all would be worse than one that flashes.
+    """
+    running = Path(sys.executable)
+    windowless = running.with_name("pythonw.exe")
+    if windowless.is_file():
+        return windowless
+    print(f"note: {windowless.name} not found next to {running.name}; "
+          f"registering {running.name}, which will flash a console window "
+          f"on every fire", file=sys.stderr)
+    return running
+
+
 def create_command() -> list[str]:
     """The schtasks command, as an argv list (no shell quoting games)."""
     interval = int(config.TICK_INTERVAL_MINUTES)
-    action = f'"{sys.executable}" "{TICK_SCRIPT}"'
+    action = f'"{windowless_interpreter()}" "{TICK_SCRIPT}"'
     return [
         "schtasks", "/create", "/tn", TASK,
         "/tr", action,

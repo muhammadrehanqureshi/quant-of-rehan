@@ -1354,6 +1354,57 @@ Changed: `src/ci/local_only.py` (new), the twelve declared scripts,
 `scripts/check_governance.py`, `GOVERNANCE.md` (SO-4 clause), `README.md`,
 `tests/test_local_only.py` (new), this report.
 
+### 14.12 The window that flashed every few minutes (2026-10-11)
+
+The owner reported a window appearing for a split second, several times an hour,
+around the clock, without enough time on screen to identify it, and asked for it
+to be found and stopped. It was this project's own scan tick.
+
+The task `quant-of-rehan-kmiall-tick` registered `python.exe` as its action,
+which is a console program, and Task Scheduler ran it in the owner's own
+interactive session. Every fire therefore created a console, and on this machine
+the console host is Windows Terminal. Measured with a process watcher at 150 ms
+resolution, the fire at 10:51:01 produced:
+
+```
+10:51:01.682 START conhost          pid 19436  ppid 22828
+10:51:01.727 START python           pid 22828  ppid 2060      the scheduled task
+10:51:01.748 START WindowsTerminal  pid 21884  window 524572   a visible window
+10:51:01.965 END   python
+```
+
+It fired every four minutes and, on a closed day, the tick is finished in well
+under a second, so the window appeared and vanished faster than the owner could
+read the title. The task had no day or hour restriction, so it did this at every
+hour of every day, weekends included. None of this was a fault in the tick: the
+scan ran correctly the whole time, and the task's own history shows result 0 on
+every fire.
+
+Fixed in `scripts/install_kmiall_tick.py`: the action is now the windowless
+interpreter, `pythonw.exe`, chosen by `windowless_interpreter()`, which falls
+back to the running interpreter with a printed warning on a build that has no
+pythonw so that a task is never left unregistered. The live task on this PC was
+re-registered with the same trigger, cadence, run level and script path, and the
+previous definition was saved to `data/task-backup-kmiall-tick-before-hidden.xml`
+before the change.
+
+Evidence, before and after, through the same watcher:
+
+| Fire | Process | Window | Console host | Tick log | Task result |
+|---|---|---|---|---|---|
+| 10:51:01 | `python.exe` | `WindowsTerminal` pid 21884, window 524572 | `conhost` pid 19436 | tick start, paused (closed day) | 0 |
+| 10:55:01 | `pythonw.exe` | none observed, `window 0` | none observed | tick start, paused (closed day) | 0 |
+
+The scan is unchanged, which is the point: the tick still fires every four
+minutes, still refuses outside the session, and still writes the same log, health
+file and journal. Only the window is gone. A test holds it that way:
+`tests/test_kmiall_tick.py` asserts the registered action names the windowless
+interpreter and cannot name a console one, so re-installing the task cannot bring
+the flash back.
+
+Changed: `scripts/install_kmiall_tick.py`, `tests/test_kmiall_tick.py`,
+`README.md`, this report.
+
 Added: `src/data/tick_volume.py`, `tests/test_tick_volume.py`.
 
 Changed: `src/data/sessions.py` (bands and phases), `scripts/kmiall_tick.py`,
