@@ -83,8 +83,13 @@ class ClockPhaseTest(unittest.TestCase):
                          "OPEN")
 
     def test_slot_is_floored_to_the_interval(self):
-        self.assertEqual(scan_loop.slot_of(at(MONDAY, 10, 7)), "10:05")
-        self.assertEqual(scan_loop.slot_of(at(MONDAY, 10, 5)), "10:05")
+        # Owner order 2026-10-11: the cadence is 4 minutes, not 5.
+        self.assertEqual(scan_loop.slot_of(at(MONDAY, 10, 7)), "10:04")
+        self.assertEqual(scan_loop.slot_of(at(MONDAY, 10, 4)), "10:04")
+
+    def test_the_default_cadence_is_four_minutes(self):
+        self.assertEqual(scan_loop.config.TICK_INTERVAL_MINUTES, 4)
+        self.assertEqual(LoopConfig().interval_seconds, 240.0)
 
 
 class LoopConfigTest(unittest.TestCase):
@@ -155,6 +160,25 @@ class DecisionTest(unittest.TestCase):
     def test_post_close_finalizes(self):
         loop = self.loop(at(MONDAY, 15, 35))
         self.assertEqual(loop.decide(at(MONDAY, 15, 35))[0], "finalize")
+
+    def test_pre_market_never_scans(self):
+        # Owner order 2026-10-11: the pre-market window is never scanned.
+        loop = self.loop(at(MONDAY, 9, 5))
+        action, detail = loop.decide(at(MONDAY, 9, 5))
+        self.assertEqual(action, "wait")
+        self.assertIn("PRE_MARKET", detail)
+        self.assertIn("never scanned", detail)
+
+    def test_post_market_finalizes_and_never_scans(self):
+        loop = self.loop(at(MONDAY, 15, 40))
+        action, detail = loop.decide(at(MONDAY, 15, 40))
+        self.assertEqual(action, "finalize")
+        self.assertIn("POST_MARKET", detail)
+        self.assertIn("finalize-only", detail)
+
+    def test_friday_post_market_finalizes_and_never_scans(self):
+        loop = self.loop(at(FRIDAY, 16, 40))
+        self.assertEqual(loop.decide(at(FRIDAY, 16, 40))[0], "finalize")
 
     def test_dry_run_never_scans(self):
         loop = ScanLoop(LoopConfig(capture=False, dry_run=True),

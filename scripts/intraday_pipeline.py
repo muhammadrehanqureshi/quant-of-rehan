@@ -41,7 +41,7 @@ sys.path.insert(0, str(ROOT))
 
 from src import config  # noqa: E402
 from src.data.sessions import (  # noqa: E402
-    KARACHI, close_time, is_market_open, is_trading_day, now_karachi,
+    KARACHI, close_time, is_scan_window, is_trading_day, now_karachi,
 )
 from src.signals import ai_model  # noqa: E402
 from src.signals import momentum_scanner as scanner  # noqa: E402
@@ -136,7 +136,7 @@ def push_card(text: str, state: SessionState | None = None) -> bool:
 
     When a session state is supplied the push is IDEMPOTENT: a tick that
     reaches the same verdict as the previous tick does not republish it. That
-    is what makes a 5-minute local runner safe to fire all session without
+    is what makes a 4-minute local runner safe to fire all session without
     filling the card with identical lines.
     """
     if state is not None and not state.card_is_new(text):
@@ -185,13 +185,15 @@ def scheduled_as_of(slot: str, day=None) -> datetime:
 
 
 def session_legal(as_of: datetime) -> bool:
-    """The scanner may only run inside a live band (SO-8).
+    """The scanner may only run in the MARKET state (SO-8).
 
-    Band aware: the Friday midday break is not a session, so a scheduled
-    scan that lands in it is refused rather than run against a shut
-    market. The law itself lives in src/data/sessions.py.
+    Band and state aware: the Friday midday break is not a session, and the
+    owner's order of 2026-10-11 rules out the pre-market and post-market
+    windows entirely, so a scheduled scan that lands in any of them is
+    refused rather than run against a shut market. The law itself lives in
+    src/data/sessions.py.
     """
-    return is_market_open(as_of)
+    return is_scan_window(as_of)
 
 
 def capture_path(day) -> Path:

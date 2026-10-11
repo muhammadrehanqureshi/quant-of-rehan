@@ -2,7 +2,7 @@
 
 Rebuild 2026-10-10. The scanner's score is a momentum-and-volume reading. It
 already decays late moves multiplicatively, but it has no idea whether the
-session it is looking at is calm, violent or broken, and a 5-minute loop has to
+session it is looking at is calm, violent or broken, and a 4-minute loop has to
 survive all three. This module adds that reading, and nothing else:
 
   * a REGIME, from the session's own average true range as a share of price,

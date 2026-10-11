@@ -15,7 +15,7 @@ and how do I know?" It checks the parts that can silently rot:
                  any stale lock left behind by a crashed tick.
   6. AI PRIOR    whether the trained model is active, its holdout AUC, and the
                  session the daily panel it was fed actually reaches.
-  7. SCHEDULER   whether the Windows task that drives the 5-minute scanner is
+  7. SCHEDULER   whether the Windows task that drives the 4-minute scanner is
                  registered, its last result and its next run.
 
 Every check reports PASS, WARN, FAIL or SKIP. A SKIP always carries its reason:

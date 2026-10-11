@@ -1,4 +1,4 @@
-"""The local 5-minute tick: pause, guard, lock, capture failure, finalize.
+"""The local 4-minute tick: pause, guard, lock, capture failure, finalize.
 
 Nothing here touches the network, the real relay or the owner's real
 data/forward directory: the session state root is redirected to a temporary
@@ -70,9 +70,10 @@ class PhaseTest(unittest.TestCase):
                          kmiall_tick.PHASE_POST_CLOSE)
 
     def test_slot_is_floored_to_the_interval(self):
-        self.assertEqual(kmiall_tick.slot_of(at(MONDAY, 10, 7)), "10:05")
-        self.assertEqual(kmiall_tick.slot_of(at(MONDAY, 10, 5)), "10:05")
-        self.assertEqual(kmiall_tick.slot_of(at(MONDAY, 10, 59)), "10:55")
+        # Owner order 2026-10-11: the cadence is 4 minutes, not 5.
+        self.assertEqual(kmiall_tick.slot_of(at(MONDAY, 10, 7)), "10:04")
+        self.assertEqual(kmiall_tick.slot_of(at(MONDAY, 10, 4)), "10:04")
+        self.assertEqual(kmiall_tick.slot_of(at(MONDAY, 10, 59)), "10:56")
 
 
 class TickTestCase(unittest.TestCase):
@@ -118,7 +119,7 @@ class SlotGuardTest(TickTestCase):
     def test_the_same_slot_is_scanned_once(self):
         moment = at(MONDAY, 10, 7)
         state = self.saved_state(MONDAY)
-        state.note_tick("10:05")
+        state.note_tick("10:04")
         state.save()
         self.fake_clock(moment)
         with patch.object(pipeline, "run_scan") as scan:
@@ -128,13 +129,13 @@ class SlotGuardTest(TickTestCase):
     def test_force_rescans_the_slot(self):
         moment = at(MONDAY, 10, 7)
         state = self.saved_state(MONDAY)
-        state.note_tick("10:05")
+        state.note_tick("10:04")
         state.save()
         self.fake_clock(moment)
         with patch.object(kmiall_tick, "run_capture", return_value=(True, "ok")), \
                 patch.object(pipeline, "run_scan", return_value={"status": "NO_TRADE"}) as scan:
             self.assertEqual(kmiall_tick.main(["--force"]), 0)
-        scan.assert_called_once_with("10:05")
+        scan.assert_called_once_with("10:04")
 
 
 class LockTest(TickTestCase):
@@ -201,7 +202,72 @@ class CaptureTest(TickTestCase):
         with patch.object(kmiall_tick, "run_capture", return_value=(True, "ok")), \
                 patch.object(pipeline, "run_scan", return_value={"status": "NO_TRADE"}):
             self.assertEqual(kmiall_tick.main([]), 0)
-        self.assertEqual(self.saved_state(MONDAY).last_tick_slot, "10:05")
+        self.assertEqual(self.saved_state(MONDAY).last_tick_slot, "10:04")
+
+
+class ScanWindowTest(TickTestCase):
+    """Owner order 2026-10-11: scan only in MARKET, never pre or post market."""
+
+    def test_pre_market_never_scans(self):
+        self.fake_clock(at(MONDAY, 9, 5))
+        with patch.object(pipeline, "run_scan") as scan:
+            self.assertEqual(kmiall_tick.main([]), 0)
+        scan.assert_not_called()
+        log = self.logfile.read_text(encoding="utf-8")
+        self.assertIn("PRE_MARKET", log)
+        self.assertIn("never scanned", log)
+
+    def test_the_gap_between_pre_market_and_the_open_never_scans(self):
+        self.fake_clock(at(MONDAY, 9, 20))
+        with patch.object(pipeline, "run_scan") as scan:
+            self.assertEqual(kmiall_tick.main([]), 0)
+        scan.assert_not_called()
+
+    def test_post_market_finalizes_and_never_scans(self):
+        self.fake_clock(at(MONDAY, 15, 40))
+        with patch.object(kmiall_tick, "run_capture", return_value=(True, "ok")), \
+                patch.object(pipeline, "run_scan") as scan, \
+                patch.object(pipeline, "run_finalize", return_value={
+                    "outcome": {"outcomes_by_rule": {},
+                                "storage_status": "local"}}):
+            self.assertEqual(kmiall_tick.main([]), 0)
+        scan.assert_not_called()
+        self.assertTrue(self.saved_state(MONDAY).finalized)
+
+    def test_friday_post_market_never_scans(self):
+        self.fake_clock(at(FRIDAY, 16, 40))
+        with patch.object(kmiall_tick, "run_capture", return_value=(True, "ok")), \
+                patch.object(pipeline, "run_scan") as scan, \
+                patch.object(pipeline, "run_finalize", return_value={
+                    "outcome": {"outcomes_by_rule": {},
+                                "storage_status": "local"}}):
+            self.assertEqual(kmiall_tick.main([]), 0)
+        scan.assert_not_called()
+
+    def test_the_state_is_reported_in_the_log(self):
+        self.assertEqual(kmiall_tick.state_of(at(MONDAY, 11, 0)), "MARKET")
+        self.assertEqual(kmiall_tick.state_of(at(MONDAY, 9, 5)), "PRE_MARKET")
+        self.assertEqual(kmiall_tick.state_of(at(MONDAY, 15, 40)),
+                         "POST_MARKET")
+
+
+class CadenceTest(unittest.TestCase):
+    """Owner order 2026-10-11: every 4 minutes, forever until further notice."""
+
+    def test_config_default_is_four_minutes(self):
+        self.assertEqual(kmiall_tick.config.TICK_INTERVAL_MINUTES, 4)
+
+    def test_slot_math_is_four_minute_floored(self):
+        self.assertEqual(kmiall_tick.slot_of(at(MONDAY, 10, 3)), "10:00")
+        self.assertEqual(kmiall_tick.slot_of(at(MONDAY, 10, 4)), "10:04")
+        self.assertEqual(kmiall_tick.slot_of(at(MONDAY, 10, 59)), "10:56")
+
+    def test_the_installed_task_asks_for_four_minutes(self):
+        import install_kmiall_tick
+
+        command = install_kmiall_tick.create_command()
+        self.assertIn("/mo", command)
+        self.assertEqual(command[command.index("/mo") + 1], "4")
 
 
 class FinalizeTest(TickTestCase):
