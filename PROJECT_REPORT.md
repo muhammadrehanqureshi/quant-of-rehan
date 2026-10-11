@@ -1402,6 +1402,23 @@ file and journal. Only the window is gone. A test holds it that way:
 interpreter and cannot name a console one, so re-installing the task cannot bring
 the flash back.
 
+Two process failures are worth recording beside the fix, because both were mine
+and both were caught by the checks rather than by care.
+
+First, the check on that pull request failed and the merge went through anyway:
+the command sequence watched the checks, printed `fail`, and merged regardless,
+because nothing in the sequence gated on the result. Merging is now gated on the
+check exit status itself, not on a human read of the output.
+
+Second, and the cause of that failure: the new test demanded `pythonw.exe`
+unconditionally. pythonw exists on Windows only, and this suite also runs on the
+Linux CI runner, where the installer correctly fell back to the running
+interpreter, so the assertion failed there (`'python' != 'pythonw.exe'`). The
+installer was right and the test was wrong. The contract is now asserted
+platform-neutrally, and the Windows-specific expectation is asserted only where
+a windowless interpreter exists; the Linux path is checked by simulating its
+absence, and the test passes under both.
+
 Changed: `scripts/install_kmiall_tick.py`, `tests/test_kmiall_tick.py`,
 `README.md`, this report.
 
