@@ -12,6 +12,11 @@ turning it into a fake capture:
 
   * a bare acknowledgement (or an empty body) is a FAILED symbol, never an
     empty set of genuine bars;
+  * a mirror that answers with no bars never MASKS a mirror that is serving
+    bars: the search continues to the next mirror, and the serving host is
+    named so a fallback is visible instead of silent;
+  * a source that has gone quiet is asked once per symbol, not once per
+    mirror, so an outage cannot triple the load on a downed vendor;
   * rows for another symbol are never copied onto the requested symbol;
   * malformed rows are dropped while genuine rows survive;
   * coverage stays fail-closed below 80%, so no scan can run;
@@ -36,9 +41,11 @@ sys.path.insert(0, str(ROOT))
 
 import src.data.ohlc_poller as poller  # noqa: E402
 from src.data.ohlc_poller import (  # noqa: E402
+    BarsFetch,
     acknowledged_without_bars,
     capture_coverage_ok,
     fetch_bars,
+    fetch_bars_ex,
     fetch_body,
 )
 
@@ -181,6 +188,104 @@ class TestFetchBars(unittest.TestCase):
         self.assertIsNone(fetch_body(_opener(), AK))
 
 
+class TestMirrorFallThrough(unittest.TestCase):
+    """A mirror with no bars must never mask a mirror that has them.
+
+    The measured vendor behaviour is a bare `SYM;MKT;` acknowledgement, and
+    the redundancy layer used to return on the first mirror that answered AT
+    ALL: a primary that answered with nothing ended the search, so a healthy
+    mirror was never asked and the symbol was charged as a coverage failure.
+    A slot that loses symbols that way writes a coverage figure that is a lie
+    about the source, which is exactly the silent drop these tests forbid.
+    """
+
+    BARS = f"{AK};REG;10;11;9;10.5;09:31|".encode()
+
+    def test_an_empty_envelope_does_not_mask_a_serving_mirror(self):
+        opener = _opener(
+            vt__eclear__com__pk=f"{AK};REG;\r\n".encode(),
+            nxg1__eclear__com__pk=self.BARS,
+        )
+        fetch = fetch_bars_ex(opener, AK)
+
+        self.assertEqual(fetch.status, "ok")
+        self.assertEqual(fetch.host, "nxg1.eclear.com.pk")
+        self.assertEqual([b["t"] for b in fetch.bars], ["09:31"])
+        self.assertEqual(opener.requested,
+                         ["vt.eclear.com.pk", "nxg1.eclear.com.pk"])
+
+    def test_an_empty_body_does_not_mask_a_serving_mirror(self):
+        opener = _opener(vt__eclear__com__pk=b"", nxg1__eclear__com__pk=self.BARS)
+        fetch = fetch_bars_ex(opener, AK)
+
+        self.assertEqual(fetch.status, "ok")
+        self.assertEqual(fetch.host, "nxg1.eclear.com.pk")
+
+    def test_foreign_rows_do_not_mask_a_serving_mirror(self):
+        opener = _opener(
+            vt__eclear__com__pk=b"PRL;REG;10;11;9;10.5;09:31|",
+            nxg2__eclear__com__pk=self.BARS,
+        )
+        fetch = fetch_bars_ex(opener, AK)
+
+        self.assertEqual(fetch.status, "ok")
+        self.assertEqual(fetch.host, "nxg2.eclear.com.pk")
+
+    def test_malformed_only_rows_do_not_mask_a_serving_mirror(self):
+        opener = _opener(
+            vt__eclear__com__pk=f"{AK};REG;nan;11;9;10.5;09:31|".encode(),
+            nxg1__eclear__com__pk=self.BARS,
+        )
+        fetch = fetch_bars_ex(opener, AK)
+
+        self.assertEqual(fetch.status, "ok")
+        self.assertEqual(fetch.host, "nxg1.eclear.com.pk")
+
+    def test_the_serving_host_is_named_for_a_primary_capture(self):
+        fetch = fetch_bars_ex(_opener(vt__eclear__com__pk=self.BARS), AK)
+        self.assertEqual(fetch.host, "vt.eclear.com.pk")
+
+    def test_every_mirror_answering_empty_is_no_bars_not_unreachable(self):
+        """A mute source is not an unreachable one: the pass answers them differently."""
+        opener = _opener(
+            vt__eclear__com__pk=f"{AK};REG;\r\n".encode(),
+            nxg1__eclear__com__pk=b"",
+            nxg2__eclear__com__pk=f"{AK};REG;\r\n".encode(),
+        )
+        fetch = fetch_bars_ex(opener, AK)
+
+        self.assertEqual(fetch.status, "no_bars")
+        self.assertIsNone(fetch.bars)
+        self.assertIsNone(fetch.host)
+        self.assertEqual(len(opener.requested), len(poller.OHLC_HOSTS))
+
+    def test_no_mirror_answering_is_unreachable(self):
+        opener = _opener(
+            vt__eclear__com__pk=OSError("unexpected eof"),
+            nxg1__eclear__com__pk=OSError("unexpected eof"),
+            nxg2__eclear__com__pk=OSError("unexpected eof"),
+        )
+        fetch = fetch_bars_ex(opener, AK)
+
+        self.assertEqual(fetch.status, "unreachable")
+        self.assertIsNone(fetch.bars)
+
+    def test_fetch_bars_keeps_its_plain_contract(self):
+        opener = _opener(vt__eclear__com__pk=f"{AK};REG;\r\n".encode(),
+                         nxg1__eclear__com__pk=self.BARS)
+        self.assertEqual([b["t"] for b in fetch_bars(opener, AK)], ["09:31"])
+
+    def test_a_narrowed_host_list_is_honoured(self):
+        """The pass may pin the search to one mirror; unreachable ones are skipped."""
+        opener = _opener(  # only nxg1 is configured to answer
+            nxg1__eclear__com__pk=self.BARS,
+        )
+        fetch = fetch_bars_ex(opener, AK, hosts=["nxg1.eclear.com.pk"])
+
+        self.assertEqual(fetch.status, "ok")
+        self.assertEqual(opener.requested, ["nxg1.eclear.com.pk"])
+
+
 class TestCoverageGate(unittest.TestCase):
     def test_outage_coverage_is_rejected(self):
         self.assertFalse(capture_coverage_ok(0, 319))
@@ -252,9 +357,11 @@ class TestPassBudget(unittest.TestCase):
         patch.object(poller, "CAPTURE_DIR", Path(temp_dir.name)).start()
         patch.object(poller, "STATUS_PATH",
                      Path(temp_dir.name) / "ohlc_status.json").start()
-        patch.object(poller, "fetch_bars",
-                     return_value=([self.BAR] if bars is None else bars)
-                     ).start()
+        patch.object(
+            poller, "fetch_bars_ex",
+            return_value=BarsFetch([self.BAR] if bars is None else bars, "ok",
+                                   poller.OHLC_HOSTS[0]),
+        ).start()
         patch.object(poller.time, "sleep", lambda _seconds: None).start()
         return machine
 
@@ -284,7 +391,7 @@ class TestPassBudget(unittest.TestCase):
         self.assertFalse(machine.pass_complete)
         self.assertEqual(machine.counters["symbols_skipped"], 3)
         self.assertEqual(machine.counters["symbols_ok"], 0)
-        poller.fetch_bars.assert_not_called()
+        poller.fetch_bars_ex.assert_not_called()
 
     def test_a_pass_inside_its_budget_is_complete(self):
         machine = self._machine(["A", "B"], deadline=600)
@@ -293,6 +400,23 @@ class TestPassBudget(unittest.TestCase):
         self.assertTrue(machine.pass_complete)
         self.assertEqual(machine.counters["symbols_skipped"], 0)
         self.assertEqual(machine.counters["symbols_ok"], 2)
+
+    def test_a_symbol_served_by_a_later_mirror_is_counted_as_a_fallback(self):
+        machine = self._machine(["A", "B"], deadline=None)
+        with patch.object(
+                poller, "fetch_bars_ex",
+                return_value=BarsFetch([self.BAR], "ok", poller.OHLC_HOSTS[1])):
+            machine.run_pass()
+
+        self.assertEqual(machine.counters["symbols_ok"], 2)
+        self.assertEqual(machine.counters["fallback_symbols"], 2)
+
+    def test_a_primary_capture_is_never_counted_as_a_fallback(self):
+        machine = self._machine(["A", "B"], deadline=None)
+        machine.run_pass()
+
+        self.assertEqual(machine.counters["symbols_ok"], 2)
+        self.assertEqual(machine.counters["fallback_symbols"], 0)
 
     def test_the_status_file_carries_the_budget_and_completeness(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -307,6 +431,92 @@ class TestPassBudget(unittest.TestCase):
         self.assertEqual(saved["budget_seconds"], 0)
         self.assertFalse(saved["pass_complete"])
         self.assertEqual(saved["counters"]["symbols_skipped"], 1)
+
+
+class TestDegradedSourcePoliteness(unittest.TestCase):
+    """A source that has gone quiet is asked once per symbol, not once per mirror.
+
+    All three mirrors are the same servlet, so falling through on every empty
+    answer during a vendor outage would triple the request count on the host
+    that is already down: 319 symbols x 3 hosts is more than twice the whole
+    pass budget. After a short streak the pass pins itself to the first mirror
+    and asks once per symbol, which is the pacing law this file already keeps.
+    """
+
+    def _machine(self, symbols: list[str]):
+        temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+        machine = poller.OhlcPoller(symbols, once=True)
+        self.addCleanup(patch.stopall)
+        self.addCleanup(machine.close)
+        patch.object(poller, "CAPTURE_DIR", Path(temp_dir.name)).start()
+        patch.object(poller, "STATUS_PATH",
+                     Path(temp_dir.name) / "ohlc_status.json").start()
+        patch.object(poller.time, "sleep", lambda _seconds: None).start()
+        return machine
+
+    def _mute(self, hosts_seen: list[list[str]], status: str = "no_bars"):
+        def fetch(_opener, _symbol, interval=1, hosts=None):
+            hosts_seen.append(list(hosts or poller.OHLC_HOSTS))
+            return BarsFetch(None, status, None)
+        return fetch
+
+    def test_a_mute_source_is_probed_once_per_symbol_after_the_streak(self):
+        hosts_seen: list[list[str]] = []
+        machine = self._machine(["A", "B", "C", "D", "E", "F"])
+        with patch.object(poller, "fetch_bars_ex",
+                          side_effect=self._mute(hosts_seen)):
+            machine.run_pass()
+
+        self.assertEqual(len(hosts_seen), 6)
+        self.assertEqual(hosts_seen[0], list(poller.OHLC_HOSTS))
+        self.assertEqual(hosts_seen[1], list(poller.OHLC_HOSTS))
+        self.assertEqual(hosts_seen[2], list(poller.OHLC_HOSTS))
+        # From the third quiet symbol on, one mirror only.
+        self.assertEqual(hosts_seen[3], poller.OHLC_HOSTS[:1])
+        self.assertEqual(hosts_seen[-1], poller.OHLC_HOSTS[:1])
+        self.assertEqual(machine.counters["symbols_err"], 6)
+        self.assertEqual(machine.counters["symbols_ok"], 0)
+
+    def test_an_unreachable_source_narrows_the_same_way(self):
+        hosts_seen: list[list[str]] = []
+        machine = self._machine(["A", "B", "C", "D"])
+        with patch.object(poller, "fetch_bars_ex",
+                          side_effect=self._mute(hosts_seen, "unreachable")):
+            machine.run_pass()
+
+        self.assertEqual(hosts_seen[3], poller.OHLC_HOSTS[:1])
+
+    def test_a_recovered_symbol_widens_the_search_again(self):
+        """Widening matters: a brief outage must not pin the pass for good."""
+        calls: list[list[str]] = []
+        bars = {"t": "09:31", "o": 10.0, "h": 11.0, "l": 9.5, "c": 10.5}
+
+        def flaky(_opener, symbol, interval=1, hosts=None):
+            calls.append(list(hosts or poller.OHLC_HOSTS))
+            if symbol in ("A", "B", "C"):
+                return BarsFetch(None, "no_bars", None)
+            return BarsFetch([bars], "ok", poller.OHLC_HOSTS[0])
+
+        machine = self._machine(["A", "B", "C", "D", "E"])
+        with patch.object(poller, "fetch_bars_ex", side_effect=flaky):
+            machine.run_pass()
+
+        # D is served after the streak, so E must be asked of every mirror again.
+        self.assertEqual(calls[4], list(poller.OHLC_HOSTS))
+        self.assertEqual(machine.counters["symbols_ok"], 2)
+
+    def test_the_wide_search_is_restored_at_the_next_pass(self):
+        hosts_seen: list[list[str]] = []
+        machine = self._machine(["A", "B", "C", "D"])
+        with patch.object(poller, "fetch_bars_ex",
+                          side_effect=self._mute(hosts_seen)):
+            machine.run_pass()
+            machine.run_pass()
+
+        # The second pass starts wide again rather than staying pinned.
+        self.assertEqual(hosts_seen[4], list(poller.OHLC_HOSTS))
+        self.assertEqual(machine.counters["passes"], 2)
 
 
 if __name__ == "__main__":
