@@ -73,6 +73,26 @@ when labeled degraded. They are never presented as true order flow.
   probe saw. The tape is banked read-only and feeds the phone card's buy and
   sell split (src/data/tick_volume.py); it is still not used for OHLC strategy
   signals, and it is not an L2 book or a per-trade tape.
+  UPDATE 2026-10-12 (measured live, market open): the `GetOHLCData` tier that
+  Path A depends on is now serving nothing at all. Probed at 15:10 PKT, all
+  three mirrors (`vt`, `nxg1`, `nxg2`) answered HTTP 200 with the bare
+  envelope `SYM;REG;` and zero rows, for every symbol tried, while the
+  2026-09-25 recon had returned real bars for the same call. So the bar
+  capture banked 0 of 319 symbols and 41 consecutive ticks failed closed:
+  no scan and no outcome ran. A separate arithmetic limit stands in front of
+  that path anyway: one sequential pass needs about 734s for 319 symbols at
+  the source's pacing while a 4-minute cadence allows a 195s budget, so even
+  a working servlet could not cover the universe inside one slot.
+  The socket tape has no such limit (one subscription covers every symbol)
+  and, measured over its corrected window on the same day, 14:02:51 to
+  15:16:53 PKT, it held 17,914 decoded ticks for 300 of the 319 tracked
+  symbols (94.0%), of which 124 carried the 20 bars the strategy's warmup
+  needs. Bar open, high, low and close are the prints actually seen in that
+  minute (an honest bound on the minute's range, never the day's wire high
+  and low copied in) and volume is the difference of the venue's own
+  cumulative counter. Bars derived from the tape are NOT wired into the
+  strategy yet: `intraday_ohlcv` stays DEGRADED and the scan path still reads
+  the dead servlet until that change is made and verified.
 
 ### Path B: Longer-term intraday archive
 - A no-login `pypsx-toolkit` check returned 667 OGDC ticks and 1,192 rows for
