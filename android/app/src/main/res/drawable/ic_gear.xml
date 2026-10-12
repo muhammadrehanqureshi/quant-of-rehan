@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The settings control (owner order 2026-10-12: "make it better and look
+     advanced").
+
+     Why a vector instead of the U+2699 glyph the button used to carry: the
+     glyph depends on the device font. Of the three faces this app now bundles,
+     none contains U+2699 (checked against each font's own cmap), and neither
+     does the free LEMON MILK, so a glyph button can only ever be as good as
+     whatever the system font happens to draw. A vector has no such dependency:
+     it is the same shape at every density and it never falls back to a box.
+
+     The form is a machined gear rather than a pictogram: one hairline gold
+     ring, eight tapered teeth, and a solid collar with a real aperture in the
+     middle, drawn as even-odd rings so the holes are genuine cut-outs and not
+     overlays in the plate's colour. Two tones only (gold_deep teeth over a
+     gold ring, gold_bright collar) so it reads as one piece of hardware
+     against the plum plate behind it. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="22dp"
+    android:height="22dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+
+    <!-- eight teeth: one tapered bar, rotated into place. The base sits at
+         y=4.9 so it overlaps the ring instead of leaving a seam. -->
+    <group android:pivotX="12" android:pivotY="12">
+        <path
+            android:fillColor="@color/gold_deep"
+            android:pathData="M10.8,4.9 L13.2,4.9 L12.75,1.6 L11.25,1.6 Z"/>
+    </group>
+    <group android:pivotX="12" android:pivotY="12" android:rotation="45">
+        <path
+            android:fillColor="@color/gold_deep"
+            android:pathData="M10.8,4.9 L13.2,4.9 L12.75,1.6 L11.25,1.6 Z"/>
+    </group>
+    <group android:pivotX="12" android:pivotY="12" android:rotation="90">
+        <path
+            android:fillColor="@color/gold_deep"
+            android:pathData="M10.8,4.9 L13.2,4.9 L12.75,1.6 L11.25,1.6 Z"/>
+    </group>
+    <group android:pivotX="12" android:pivotY="12" android:rotation="135">
+        <path
+            android:fillColor="@color/gold_deep"
+            android:pathData="M10.8,4.9 L13.2,4.9 L12.75,1.6 L11.25,1.6 Z"/>
+    </group>
+    <group android:pivotX="12" android:pivotY="12" android:rotation="180">
+        <path
+            android:fillColor="@color/gold_deep"
+            android:pathData="M10.8,4.9 L13.2,4.9 L12.75,1.6 L11.25,1.6 Z"/>
+    </group>
+    <group android:pivotX="12" android:pivotY="12" android:rotation="225">
+        <path
+            android:fillColor="@color/gold_deep"
+            android:pathData="M10.8,4.9 L13.2,4.9 L12.75,1.6 L11.25,1.6 Z"/>
+    </group>
+    <group android:pivotX="12" android:pivotY="12" android:rotation="270">
+        <path
+            android:fillColor="@color/gold_deep"
+            android:pathData="M10.8,4.9 L13.2,4.9 L12.75,1.6 L11.25,1.6 Z"/>
+    </group>
+    <group android:pivotX="12" android:pivotY="12" android:rotation="315">
+        <path
+            android:fillColor="@color/gold_deep"
+            android:pathData="M10.8,4.9 L13.2,4.9 L12.75,1.6 L11.25,1.6 Z"/>
+    </group>
+
+    <!-- the body: outer and inner circles in one even-odd path, so the ring
+         is a real annulus rather than a stroke that could thin out -->
+    <path
+        android:fillColor="@color/gold"
+        android:fillType="evenOdd"
+        android:pathData="M12,4.6 a7.4,7.4 0 1,0 0,14.8 a7.4,7.4 0 1,0 0,-14.8 M12,6.1 a5.9,5.9 0 1,1 0,11.8 a5.9,5.9 0 1,1 0,-11.8"/>
+
+    <!-- the collar, with its own aperture cut the same way -->
+    <path
+        android:fillColor="@color/gold_bright"
+        android:fillType="evenOdd"
+        android:pathData="M12,8.8 a3.2,3.2 0 1,0 0,6.4 a3.2,3.2 0 1,0 0,-6.4 M12,10.4 a1.6,1.6 0 1,1 0,3.2 a1.6,1.6 0 1,1 0,-3.2"/>
+</vector>

@@ -26,25 +26,35 @@
                 android:layout_centerInParent="true"
                 android:orientation="vertical">
 
+                <!-- The brand face (owner order 2026-10-12): Bonskin, the
+                     owner's own script signature face, at 30sp.
+                     No letterSpacing and no textStyle="bold": tracking a
+                     script face breaks its joins, and Android would fake a
+                     bold from a face that already carries one weight.
+                     30sp is measured, not guessed: the string advances
+                     6.677 em, so 200dp on the narrowest phone this app
+                     supports, against about 320dp of content width. -->
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_gravity="center_horizontal"
+                    android:fontFamily="@font/bonskin"
                     android:gravity="center"
-                    android:letterSpacing="0.06"
+                    android:includeFontPadding="false"
+                    android:paddingBottom="2dp"
                     android:shadowColor="@color/crimson_logo"
                     android:shadowDy="2"
                     android:shadowRadius="6"
                     android:text="@string/app_name"
                     android:textColor="@color/gold_bright"
-                    android:textSize="24sp"
-                    android:textStyle="bold"/>
+                    android:textSize="30sp"/>
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_gravity="center_horizontal"
-                    android:layout_marginTop="3dp"
+                    android:layout_marginTop="4dp"
+                    android:fontFamily="@font/lemonmilk_light"
                     android:gravity="center"
                     android:letterSpacing="0.18"
                     android:text="@string/tagline"
@@ -53,49 +63,35 @@
             </LinearLayout>
 
             <!-- neutral plum in every state; gold ring only while the
-                 settings panel is open -->
-            <TextView
+                 settings panel is open.
+
+                 Owner order 2026-10-12: the U+2699 text glyph is gone. The
+                 control is the vector gear (drawable/ic_gear) on a masked
+                 ripple, so it is the same drawn shape at every density, gives
+                 press feedback, and cannot fall back to a missing-glyph box.
+                 MainActivity swaps only the plate (gear_bg <-> gear_bg_open). -->
+            <ImageView
                 android:id="@+id/btn_settings"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
+                android:layout_width="42dp"
+                android:layout_height="42dp"
                 android:layout_alignParentEnd="true"
                 android:layout_centerVertical="true"
                 android:background="@drawable/gear_bg"
-                android:contentDescription="@string/settings_hint"
-                android:gravity="center"
-                android:text="@string/gear_glyph"
-                android:textColor="@color/gold"
-                android:textSize="18sp"/>
+                android:contentDescription="@string/cd_settings"
+                android:padding="10dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_gear"/>
         </RelativeLayout>
 
-        <!-- brand rule: line, diamond, line (from the logo frame) -->
-        <LinearLayout
+        <!-- brand rule: line, diamond, line (from the logo frame). Defined
+             once in layout/qor_rule.xml and included at each of the three
+             places it closes: the header, the signal card and the market
+             card, so "the same as the two above" is true by construction. -->
+        <include
+            layout="@layout/qor_rule"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
-
-            <View
-                android:layout_width="0dp"
-                android:layout_height="1dp"
-                android:layout_weight="1"
-                android:background="@color/gold_deep"/>
-
-            <TextView
-                style="@style/QorDiamond"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:paddingLeft="8dp"
-                android:paddingRight="8dp"
-                android:text="@string/diamond"/>
-
-            <View
-                android:layout_width="0dp"
-                android:layout_height="1dp"
-                android:layout_weight="1"
-                android:background="@color/gold_deep"/>
-        </LinearLayout>
+            android:layout_marginTop="12dp"/>
 
         <!-- ══════════ system status card ══════════ -->
         <LinearLayout style="@style/QorPanel"
@@ -168,35 +164,13 @@
                 android:text="@string/no_signals"/>
         </LinearLayout>
 
-        <!-- brand rule after the latest signal: line, diamond, line,
-             closing the card section like the logo frame -->
-        <LinearLayout
+        <!-- brand rule after the latest signal: the same include, closing the
+             card section like the logo frame -->
+        <include
+            layout="@layout/qor_rule"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="18dp"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
-
-            <View
-                android:layout_width="0dp"
-                android:layout_height="1dp"
-                android:layout_weight="1"
-                android:background="@color/gold_deep"/>
-
-            <TextView
-                style="@style/QorDiamond"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:paddingLeft="8dp"
-                android:paddingRight="8dp"
-                android:text="@string/diamond"/>
-
-            <View
-                android:layout_width="0dp"
-                android:layout_height="1dp"
-                android:layout_weight="1"
-                android:background="@color/gold_deep"/>
-        </LinearLayout>
+            android:layout_marginTop="18dp"/>
 
         <!-- ══════════ settings (hidden until the gear is tapped) ══════════ -->
         <LinearLayout
@@ -285,30 +259,44 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="10dp"
+                android:fontFamily="@font/lemonmilk_bold"
                 android:gravity="center"
                 android:text="@string/market_waiting"
                 android:textColor="@color/text_bright"
                 android:textSize="17sp"
                 android:textStyle="bold"/>
 
+            <!-- The card's values carry LEMON MILK Light (QorValue): tickers,
+                 money and counts are capitals by nature, so the free face's
+                 uppercase-only mapping costs nothing here. The up and down
+                 arrows are the exception and are drawn with the system face
+                 by a span in MainActivity, because no bundled face has
+                 U+25B2/U+25BC. -->
             <TextView
                 android:id="@+id/market_leaders"
-                style="@style/QorBody"
+                style="@style/QorValue"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
                 android:gravity="center"
-                android:lineSpacingExtra="3dp"
                 android:text="@string/market_leaders_waiting"/>
 
             <TextView
                 android:id="@+id/market_foot"
+                style="@style/QorCaption"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
-                android:gravity="center"
-                android:textColor="@color/text_soft"
-                android:textSize="10sp"/>
+                android:gravity="center"/>
+
+            <!-- Owner order 2026-10-12 (third note): the diamond in the middle
+                 with a line either side, at the bottom of the third tile,
+                 identical to the two above because it IS the same layout. -->
+            <include
+                layout="@layout/qor_rule"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"/>
         </LinearLayout>
 
 

@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The brand rule: a hairline, the logo's diamond, a hairline.
+
+     Owner order 2026-10-12 (third note): the diamond rule also closes the
+     market card, "just like you have it on the two different places above".
+     It is defined once and included everywhere it appears, so "the same as
+     the two above" is true by construction rather than by three copies
+     drifting apart, and the diamond keeps the system face (QorDiamond sets no
+     fontFamily: named as U+25C6, it exists in no bundled face, so a custom
+     font there would render a box).
+
+     The caller supplies the margins, because the spacing differs: the rule
+     under the header sits closer to the brand than the ones that close a
+     card. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:gravity="center_vertical"
+    android:orientation="horizontal">
+
+    <View
+        android:layout_width="0dp"
+        android:layout_height="1dp"
+        android:layout_weight="1"
+        android:background="@color/gold_deep"/>
+
+    <TextView
+        style="@style/QorDiamond"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:paddingLeft="8dp"
+        android:paddingRight="8dp"
+        android:text="@string/diamond"/>
+
+    <View
+        android:layout_width="0dp"
+        android:layout_height="1dp"
+        android:layout_weight="1"
+        android:background="@color/gold_deep"/>
+</LinearLayout>

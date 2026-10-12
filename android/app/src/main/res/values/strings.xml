@@ -4,7 +4,12 @@
     <string name="tagline">PSX KMIALL · SIGNAL-ONLY · KARACHI TIME</string>
     <string name="checking">Checking system…</string>
     <string name="no_signals">No signal right now.</string>
-    <string name="gear_glyph">⚙</string>
+    <!-- Owner order 2026-10-12: the settings glyph is retired. The control is
+         now the vector drawable drawable/ic_gear (no bundled face has U+2699,
+         so a glyph could only ever render as whatever the system font chose),
+         and this is its short spoken label: the long settings_hint paragraph
+         below it is help text, not a button name. -->
+    <string name="cd_settings">Settings. Opens the relay token and the watchdog controls.</string>
     <string name="diamond">◆</string>
     <string name="label_system">SYSTEM STATUS</string>
     <string name="label_signal">LATEST SIGNAL</string>
