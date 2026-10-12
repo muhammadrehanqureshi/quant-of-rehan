@@ -221,6 +221,15 @@ class TypefaceTest(unittest.TestCase):
         brand = element(self.layout, 'android:text="@string/app_name"')
         self.assertIn('android:textSize="30sp"', brand)
 
+    def test_the_brand_is_never_measured_with_the_tight_font_box(self):
+        # Bonskin's ink for "Quant of Rehan" reaches 779/1000 em, above its own
+        # typographic ascender (730/1000), so includeFontPadding="false" would
+        # clip the top of the Q. The default box uses the wider hhea metrics
+        # (1006 / -288), which contain the ink. Measured, so not a style
+        # preference.
+        brand = element(self.layout, 'android:text="@string/app_name"')
+        self.assertNotIn("includeFontPadding", brand)
+
     def test_the_caps_faces_are_wired_to_the_caps_text(self):
         self.assertEqual(self.styles.count("@font/lemonmilk_bold"), 2)
         self.assertIn('android:fontFamily="@font/lemonmilk_light"',
