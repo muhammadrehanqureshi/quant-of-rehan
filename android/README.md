@@ -30,26 +30,44 @@ Cloudflare relay, never to Telegram, never to a broker.
   data spike empties the card instead of crashing the app.
 - A signals panel fed by the relay's `/signals` feed (admin token required,
   stored once in the app).
-- A MARKET NOW card (v1.5.0, extended in v1.6.0): the KSE100 index with its
-  points and percentage, then the three KMIALL stocks with the highest current
-  session volume, each with its day's percentage change (green up, red down)
-  and its volume. The relay builds it from the PSX Data Portal's own pages and
-  caches it for five minutes, so the card is at most five minutes old.
-- v1.6.0 volume rows read
-  `1. CNERGY   B=12,345  S=9,876  T=22,221   Rs 12.52   up 1.05%`, where B and
-  S are the session's buy and sell volumes and T is the exchange's own total.
-  The split comes from the broker tick capture (`src/data/tick_volume.py`),
-  which is the only genuine source of it; when no capture exists for the
-  session the row shows `T=` alone and the footnote says exactly why. A made
-  up buy/sell ratio would be a lie about the tape, so the app never shows one.
-- v1.6.0 footnote: "Index as of <portal time> PKT - current session volume,
-  top 3 of N KMIALLSHR members - <split basis>", replacing the old truncated
-  "volume: today, top of N KMIALLSHR members" line.
-- v1.6.1 states the cadence on the main screen: "Quant is scanning the market
-  every 4 minutes." under the system status pill. Owner order 2026-10-11,
-  verbatim. The 4 is the real interval (`config.TICK_INTERVAL_MINUTES`), and
-  the line states the cadence only: the pill above states whether the quant is
-  online, and the scanning itself happens inside the MARKET phase.
+- The market card, third box (v1.5.0, extended in v1.6.0, v1.6.2 and v1.6.3): the
+  KSE100 index with its points and percentage, then the three KMIALL stocks
+  with the highest current session volume, each with its day's percentage
+  change (green up, red down) and its volume. The relay builds it from the
+  PSX Data Portal's own pages and caches it for five minutes, so the card is
+  at most five minutes old.
+- v1.6.2, owner order 2026-10-12: the card carries no "MARKET NOW" label any
+  more, the old "Index as of ..." footnote is gone, and the pinned bottom
+  cadence with the footer rule under it are removed, so the interface ends at
+  the card. The card's own foot carries the cadence sentence (string resource
+  `scan_cadence`, re-worded in v1.6.3 below). The 4 is the real interval,
+  `config.TICK_INTERVAL_MINUTES`.
+- v1.6.3, owner order 2026-10-12: every volume leader is two lines. The first
+  line is the rank, the symbol and the volumes; the second is the money line,
+  "PKR 12.52" followed by the day's change, so the currency label and the
+  price can never wrap apart on a narrow screen. The up and down arrows keep a
+  single space before them on the index line and on every leader line. The
+  card's foot now reads, verbatim: "Quant will be scanning the market every
+  4 minutes when the market is open."
+- v1.6.3 volume rows read
+  `1. CNERGY   B=12,345  S=9,876  T=22,221` on the first line and
+  `PKR 12.52 up 1.05%` on the second, where B and S are the session's buy and
+  sell volumes and T is the exchange's own total.
+  B and S come from the broker's real-time tape (`src/data/tick_volume.py`,
+  split into the card's numbers by `src/data/volume_split.py`): the venue's
+  own running session total is divided into windows, and each window's shares
+  are attributed by where the prints traded (at the ask means a buyer, at the
+  bid means a seller) or by the tick rule. The mark on the number says which
+  answer it is: `B=` is measured when the tape covered the day, `B≈` is an
+  estimate, either the tape's own flow projected onto the day's total or, when
+  the tape has no usable coverage, the position of the day's range. The
+  exchange publishes no side, so the app never shows a bare number that looks
+  measured when it is not. When nothing can answer, the row shows `T=` alone
+  and the split has a stated reason.
+- v1.6.1 stated the cadence on the main screen, under the system status pill;
+  v1.6.2 moved that sentence into the market card's own foot (owner order
+  2026-10-12), so it is read with the volume ranking it describes and the
+  interface has no separate bottom block.
 - Phone notifications on status changes and new signals, refreshed every 5
   minutes by a watchdog that re-arms itself and survives phone restarts.
   v1.5.1 adds a one time battery optimisation exemption request: see
@@ -95,14 +113,14 @@ with zipfile.ZipFile(f"{B}/app.apk", "a", zipfile.ZIP_DEFLATED) as z:
 PY
 "$JDK/bin/java" -jar $TOOLS/uber-apk-signer.jar -a $B/app.apk --out $B/signed
 cp $B/signed/app-aligned-debugSigned.apk \
-  /c/Users/rehan/OneDrive/Desktop/QuantOfRehan-v1.6.1.apk
+  /c/Users/rehan/OneDrive/Desktop/QuantOfRehan-v1.6.3.apk
 ```
 
 The Desktop this machine actually shows is `C:/Users/rehan/OneDrive/Desktop`
 (`[Environment]::GetFolderPath('Desktop')`), which is NOT the same folder as
 `C:/Users/rehan/Desktop`. A build copied to the wrong one is invisible to the
 owner: the v1.6.0 APK went to `C:/Users/rehan/Desktop` and was reported missing.
-v1.6.1 was copied to both.
+v1.6.2 and v1.6.3 were built and copied to the OneDrive Desktop on 2026-10-12.
 
 ## Watchdog and battery
 

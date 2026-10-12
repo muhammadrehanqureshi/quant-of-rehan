@@ -146,11 +146,14 @@ class SplitSourceHierarchyTest(unittest.TestCase):
         return tick_volume.session_flow(path, [symbol])
 
     def test_a_reconciled_tape_beats_the_estimate(self):
+        """The tape ran from the open, so its own numbers are the split."""
         flows = self.flow("OGDC", [{"kind": "MKT-FEED", "ticks": [
-            {"scrip": "OGDC", "direction": "B", "last_volume": "600",
-             "volume": "1000", "tick_time": "10:01"},
-            {"scrip": "OGDC", "direction": "S", "last_volume": "400",
-             "volume": "1000", "tick_time": "10:02"},
+            {"scrip": "OGDC", "bid": "100.00", "ask": "100.50",
+             "last": "100.50", "volume": "0", "tick_time": "09:32"},
+            {"scrip": "OGDC", "bid": "100.40", "ask": "100.90",
+             "last": "100.90", "volume": "600", "tick_time": "09:33"},
+            {"scrip": "OGDC", "bid": "100.20", "ask": "100.80",
+             "last": "100.20", "volume": "1000", "tick_time": "09:34"},
         ]}])
         row = {"symbol": "OGDC", "volume": 1000, "price": 95.0}
         quote = {"high": 100.0, "low": 90.0, "volume": 1000}
@@ -161,11 +164,78 @@ class SplitSourceHierarchyTest(unittest.TestCase):
         self.assertEqual(split.method, volume_split.METHOD_MEASURED)
         self.assertIn("measured", volume_split.METHOD_LABELS[split.method])
 
-    def test_a_partial_tape_falls_back_to_the_labelled_estimate(self):
-        """Classified 100 of a stated 1000, so it is not the day's split."""
+    def test_a_partial_tape_is_projected_onto_the_days_total(self):
+        """3000 attributed shares, 2000 of them buys, applied to the day.
+
+        The sides the tape attributed are kept as the proportion and applied
+        to the total the card prints, so every share is on a side and the
+        label stays an estimate: two thirds buy of the day's 1000.
+        """
+        ticks = [{"scrip": "OGDC", "bid": "100.00", "ask": "100.50",
+                  "last": "100.00", "volume": "1000", "tick_time": "10:00"}]
+        side_prices = ([("100.40", "100.90", "100.90"),   # at the ask
+                        ("100.40", "100.90", "100.90"),
+                        ("100.10", "100.90", "100.10"),   # at the bid
+                        ("100.40", "100.90", "100.90"),
+                        ("100.10", "100.90", "100.10"),
+                        ("100.40", "100.90", "100.90")])
+        total = 1000
+        for index, (bid, ask, last) in enumerate(side_prices, start=1):
+            total += 500
+            ticks.append({"scrip": "OGDC", "bid": bid, "ask": ask,
+                          "last": last, "volume": str(total),
+                          "tick_time": f"10:{index:02d}"})
+        flows = self.flow("OGDC", [{"kind": "MKT-FEED", "ticks": ticks}])
+        row = {"symbol": "OGDC", "volume": 1000, "price": 100.0}
+        quote = {"high": 100.0, "low": 90.0, "volume": 1000}
+        split, reason = volume_split.split_for(row, quotes={"OGDC": quote},
+                                               flows=flows)
+        self.assertEqual(reason, "")
+        self.assertEqual(split.method, volume_split.METHOD_TAPE)
+        self.assertEqual((split.buy, split.sell), (667, 333))
+        self.assertEqual(split.buy + split.sell, split.volume)
+        label = volume_split.METHOD_LABELS[split.method]
+        self.assertIn("estimated", label)
+        self.assertIn("real-time prints", label)
+
+    def test_a_too_thin_tape_slice_is_refused_and_the_range_answers(self):
+        """A slice this small is one window's direction, not the day's flow.
+
+        Measured 2026-10-12: a mid-session capture covered 0.1 percent of
+        SLGL's day, and projecting that would have printed 100 percent
+        buying. Below the coverage floor the labelled range estimate answers
+        instead.
+        """
         flows = self.flow("OGDC", [{"kind": "MKT-FEED", "ticks": [
-            {"scrip": "OGDC", "direction": "B", "last_volume": "100",
-             "volume": "1000", "tick_time": "10:01"},
+            {"scrip": "OGDC", "bid": "100.00", "ask": "100.50",
+             "last": "100.00", "volume": "10000", "tick_time": "10:00"},
+            {"scrip": "OGDC", "bid": "100.40", "ask": "100.90",
+             "last": "100.90", "volume": "10050", "tick_time": "10:01"},
+        ]}])
+        row = {"symbol": "OGDC", "volume": 10000, "price": 100.0}
+        quote = {"high": 100.0, "low": 90.0, "volume": 10000}
+        split, reason = volume_split.split_for(row, quotes={"OGDC": quote},
+                                               flows=flows)
+        self.assertEqual(reason, "")
+        self.assertEqual(split.method, volume_split.METHOD_RANGE)
+
+    def test_a_thin_tape_slice_with_no_range_is_refused_outright(self):
+        flows = self.flow("OGDC", [{"kind": "MKT-FEED", "ticks": [
+            {"scrip": "OGDC", "bid": "100.00", "ask": "100.50",
+             "last": "100.00", "volume": "10000", "tick_time": "10:00"},
+            {"scrip": "OGDC", "bid": "100.40", "ask": "100.90",
+             "last": "100.90", "volume": "10050", "tick_time": "10:01"},
+        ]}])
+        row = {"symbol": "OGDC", "volume": 10000, "price": 100.0}
+        split, reason = volume_split.split_for(row, quotes={}, flows=flows)
+        self.assertIsNone(split)
+        self.assertIn("no published session range", reason)
+
+    def test_no_tape_flow_falls_back_to_the_range_estimate(self):
+        """No tape at all: the day's range answers, and says so."""
+        flows = self.flow("OGDC", [{"kind": "MKT-FEED", "ticks": [
+            {"scrip": "OGDC", "bid": "100.00", "ask": "100.50",
+             "last": "100.00", "volume": "1000", "tick_time": "10:00"},
         ]}])
         row = {"symbol": "OGDC", "volume": 1000, "price": 100.0}
         quote = {"high": 100.0, "low": 90.0, "volume": 1000}
@@ -198,11 +268,12 @@ class SplitSourceHierarchyTest(unittest.TestCase):
         self.assertIn("outside the published range", reason)
 
     def test_the_labels_never_claim_more_than_they_know(self):
-        estimated = volume_split.METHOD_LABELS[volume_split.METHOD_RANGE]
-        measured = volume_split.METHOD_LABELS[volume_split.METHOD_MEASURED]
-        self.assertIn("estimated", estimated)
-        self.assertIn("not order flow", estimated)
-        self.assertIn("measured", measured)
+        for label in (volume_split.METHOD_LABELS[volume_split.METHOD_RANGE],
+                      volume_split.METHOD_LABELS[volume_split.METHOD_TAPE]):
+            self.assertIn("estimated", label)
+            self.assertIn("not order flow", label)
+        self.assertIn("measured",
+                      volume_split.METHOD_LABELS[volume_split.METHOD_MEASURED])
         for label in volume_split.METHOD_LABELS.values():
             self.assertNotIn("broker", label)
             self.assertNotIn("KMIALLSHR", label)
@@ -223,10 +294,21 @@ class SplitFootnoteTest(unittest.TestCase):
         self.assertEqual(text, volume_split.METHOD_LABELS[
             volume_split.METHOD_RANGE])
 
-    def test_any_estimate_makes_the_whole_line_an_estimate(self):
+    def test_tape_flow_names_the_tape_not_the_range(self):
+        text = volume_split.summarise(self.rows([volume_split.METHOD_TAPE] * 2))
+        self.assertEqual(text, volume_split.METHOD_LABELS[
+            volume_split.METHOD_TAPE])
+
+    def test_a_mixed_line_names_the_weakest_method(self):
+        """One range row makes the whole line the range label: it is read
+        on the same card, so it may not sound stronger than its weakest
+        number."""
         text = volume_split.summarise(self.rows([volume_split.METHOD_MEASURED,
                                                  volume_split.METHOD_RANGE]))
-        self.assertIn("estimated", text)
+        self.assertIn("day's range", text)
+        mixed = volume_split.summarise(self.rows([volume_split.METHOD_MEASURED,
+                                                  volume_split.METHOD_TAPE]))
+        self.assertIn("real-time prints", mixed)
 
     def test_all_measured_says_measured(self):
         text = volume_split.summarise(
