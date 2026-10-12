@@ -48,6 +48,18 @@ class LeaderLineTest(unittest.TestCase):
     def setUp(self):
         self.main = MAIN.read_text(encoding="utf-8")
 
+    def test_one_space_separates_the_ticker_from_its_buy_volume(self):
+        """Owner order 2026-10-12 (third note): the double space is gone.
+
+        Three spaces sat between the ticker and its buy volume, which read as
+        a double space on the phone. One space replaces it, in both branches
+        (a split row and a volume only row). The two spaces that separate the
+        volume fields stay: they are what groups B, S and T apart.
+        """
+        self.assertIn('sb.append(" B")', self.main)
+        self.assertNotIn('"   B"', self.main)
+        self.assertNotIn('"   T=', self.main)
+
     def test_the_price_is_welded_to_its_currency_label(self):
         self.assertIn('"PKR %,.2f"', self.main)
         self.assertNotIn("Rs %,.2f", self.main)

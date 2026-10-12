@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The settings button's plate while the settings panel is open: the gold
+     ring the brand law reserves for that one state (owner order 2026-10-06:
+     neutral plum in every state, gold ring only while the panel is open). -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="@color/plum_panel_top"/>
+    <stroke android:width="1.5dp" android:color="@color/gold"/>
+    <corners android:radius="14dp"/>
+</shape>

@@ -1,5 +1,28 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- Type strategy (owner order 2026-10-12: "replace the rest of the fonts
+         with LEMONMILK-BOLD & LEMONMILK-LIGHT wherever you think is
+         necessary").
+
+         Measured against the fonts' own cmaps before they were wired in, so
+         the choice is a fact about the files rather than a guess:
+
+         * LEMON MILK (free tier) maps every lowercase codepoint onto its
+           uppercase glyph, so any text drawn in it renders as capitals. That
+           is exactly right for labels, buttons, badges and the card's numbers,
+           and wrong for a paragraph: the settings hint, the system detail line
+           and the signal list keep the system face so full sentences stay
+           readable as sentences.
+         * LEMON MILK HAS U+2248 (the "about" mark the card uses for an
+           estimated split), so the marked numbers need no special handling.
+         * LEMON MILK HAS no U+25B2/U+25BC (the up and down arrows). The arrow
+           ranges are therefore drawn with the system face by a span in
+           MainActivity, which is why QorBody's family is deliberately left
+           alone.
+         * No bundled face has U+25C6 (the brand diamond) or U+2699, so
+           QorDiamond keeps the system face and the settings control is a
+           vector drawable instead of a glyph. -->
+
     <!-- Cards: subtle vertical plum gradient, hairline plum edge. -->
     <style name="QorPanel">
         <item name="android:background">@drawable/panel_bg</item>
@@ -7,6 +30,7 @@
     </style>
     <style name="QorButton">
         <item name="android:background">@drawable/btn_bg</item>
+        <item name="android:fontFamily">@font/lemonmilk_bold</item>
         <item name="android:textSize">12sp</item>
         <item name="android:textAllCaps">true</item>
         <item name="android:letterSpacing">0.1</item>
@@ -14,16 +38,31 @@
         <item name="android:textColor">@color/text_bright</item>
     </style>
     <style name="QorLabel">
+        <item name="android:fontFamily">@font/lemonmilk_bold</item>
         <item name="android:textSize">11sp</item>
         <item name="android:textColor">@color/gold</item>
         <item name="android:textStyle">bold</item>
         <item name="android:letterSpacing">0.14</item>
     </style>
+    <!-- Sentences: system face, by the type strategy above. A mixed-case
+         paragraph drawn in the free LEMON MILK would be all capitals. -->
     <style name="QorBody">
         <item name="android:textSize">13sp</item>
         <item name="android:textColor">@color/text_soft</item>
         <item name="android:lineSpacingExtra">3dp</item>
     </style>
+    <!-- The market card's own values: numbers, tickers and money, which are
+         capitals by nature, so LEMON MILK Light fits and reads as one system
+         with the labels above them. -->
+    <style name="QorValue" parent="QorBody">
+        <item name="android:fontFamily">@font/lemonmilk_light</item>
+    </style>
+    <style name="QorCaption" parent="QorBody">
+        <item name="android:fontFamily">@font/lemonmilk_light</item>
+        <item name="android:textSize">10sp</item>
+    </style>
+    <!-- The brand diamond. No fontFamily on purpose: U+25C6 exists in none of
+         the bundled faces, so a custom family here would draw a box. -->
     <style name="QorDiamond">
         <item name="android:textSize">10sp</item>
         <item name="android:textColor">@color/gold</item>
