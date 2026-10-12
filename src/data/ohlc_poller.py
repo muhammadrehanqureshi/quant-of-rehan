@@ -503,7 +503,19 @@ def main(argv: list[str] | None = None) -> int:
         poller.close()
     print(f"banked {poller.counters['bars']} bars over "
           f"{poller.counters['passes']} pass(es)")
-    if args.once and not capture_coverage_ok(
+    if args.limit is not None:
+        # A --limit run is a diagnostic over a deliberately small slice, so its
+        # coverage is a statement about that slice and never about the market.
+        # It must therefore NOT leave the market-wide low-coverage flag behind.
+        # That flag is exactly what raises the owner's degraded-capture alert,
+        # and this module documents `--limit 5` as its own smoke test: without
+        # this guard a five symbol check could page the owner with "0/5
+        # symbols" while the tracked universe is 319, which is what happened on
+        # 2026-10-12. The slice is still reported here, honestly.
+        print(f"limited capture: {len(poller.symbols)} symbol(s) requested, so "
+              f"no market-wide coverage is claimed and the degraded-capture "
+              f"alert is left untouched")
+    elif args.once and not capture_coverage_ok(
             poller.counters["symbols_ok"], len(poller.symbols)):
         coverage = poller.counters["symbols_ok"] / max(len(poller.symbols), 1)
         print(f"capture rejected: coverage {coverage:.1%} is below "

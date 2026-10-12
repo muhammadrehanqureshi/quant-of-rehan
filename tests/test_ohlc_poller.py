@@ -519,5 +519,64 @@ class TestDegradedSourcePoliteness(unittest.TestCase):
         self.assertEqual(machine.counters["passes"], 2)
 
 
+class TestDiagnosticRunNeverPagesTheOwner(unittest.TestCase):
+    """A --limit smoke test must not raise the market-wide degraded alert.
+
+    Owner report 2026-10-12: a Telegram alert arrived reading "capture
+    degraded (coverage 0.0%, 0/5 symbols)". The universal half of that was
+    true, the source really was serving no bars, but "0/5" was not: it was the
+    five symbol slice of a diagnostic run (this module documents `--limit 5`
+    as its own smoke test), because the coverage gate compared the slice
+    against itself and then wrote the production flag. A slice is not a
+    market, and a smoke test must not be able to page the owner.
+    """
+
+    def _run(self, argv: list[str], universe: int = 8):
+        temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+        root = Path(temp_dir.name)
+        flag = root / "ohlc_low_coverage.flag"
+        patch.object(poller, "load_universe",
+                     lambda *_a, **_k: [f"S{i}" for i in range(universe)]).start()
+        patch.object(poller, "is_trading_day", lambda *_a, **_k: True).start()
+        patch.object(poller, "CAPTURE_DIR", root).start()
+        patch.object(poller, "STATUS_PATH", root / "ohlc_status.json").start()
+        patch.object(poller, "LOW_COVERAGE_FLAG", flag).start()
+        patch.object(poller, "fetch_bars_ex",
+                     return_value=BarsFetch(None, "no_bars", None)).start()
+        patch.object(poller.time, "sleep", lambda _seconds: None).start()
+        self.addCleanup(patch.stopall)
+        return poller.main(argv), flag
+
+    def test_a_limited_run_never_writes_the_market_wide_flag(self):
+        code, flag = self._run(["--once", "--limit", "5"])
+
+        self.assertFalse(flag.exists(),
+                         "a diagnostic slice must not raise the owner alert")
+        self.assertEqual(code, 0)
+
+    def test_the_slice_size_never_reaches_the_flag(self):
+        """The 5 in "0/5 symbols" can no longer be produced by a 319 universe."""
+        _code, flag = self._run(["--once", "--limit", "5"], universe=319)
+
+        self.assertFalse(flag.exists())
+
+    def test_a_full_run_with_no_bars_still_raises_the_flag(self):
+        code, flag = self._run(["--once"])
+
+        self.assertTrue(flag.exists(),
+                        "a real market-wide outage must still be reported")
+        payload = json.loads(flag.read_text(encoding="utf-8"))
+        self.assertEqual(payload["universe"], 8)
+        self.assertEqual(payload["symbols_ok"], 0)
+        self.assertEqual(code, 0)
+
+    def test_the_flag_reports_the_tracked_universe_not_a_slice(self):
+        _code, flag = self._run(["--once"], universe=319)
+
+        payload = json.loads(flag.read_text(encoding="utf-8"))
+        self.assertEqual(payload["universe"], 319)
+
+
 if __name__ == "__main__":
     unittest.main()
