@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from src.data.capture_health import status_view  # noqa: E402
-from src.data.feed_capture import CaptureSession  # noqa: E402
+from src.data.feed_capture import CaptureSession, parse_message  # noqa: E402
 from src.data.ohlc_poller import (  # noqa: E402
     OhlcPoller, capture_coverage_ok, make_opener,
 )
@@ -23,6 +23,62 @@ from scripts.ops_alert import capture_health_message, main as ops_main  # noqa: 
 
 
 KARACHI = timezone(timedelta(hours=5))
+
+
+class TestTickFrameParsing(unittest.TestCase):
+    """A tick frame carries several symbols, and all of them must be banked.
+
+    Measured on the 2026-10-12 capture: 902 rows arrived and the parser kept
+    64 of them, because it split the frame on '$' (a separator this wire does
+    not use) and read each frame as a single row. The other symbols in every
+    frame were banked as unnamed numeric slots: real exchange data, unusable,
+    and silently so. The wire separates rows with '||'.
+
+    The field map was corrected on the same wire on the same day: the bid and
+    ask live at [3] and [4], the last price at [10] and the market status at
+    [6]. The older map read [6] as the ask, so the quote rule in
+    src/data/tick_volume.py was reading "OPN" as a price and no row could
+    ever be classified. The assertions below pin the corrected positions.
+    """
+
+    ROW = ("{sym};REG;22;1568.00;1569.00;49;OPN;-;-15.32;10:24:02;1568.00; "
+           ";1569.21;1578.00;1555.56;799;39285;9;1583.32;1555.56")
+
+    def frame(self, symbols: list[str]) -> dict:
+        payload = "||".join(self.ROW.format(sym=s) for s in symbols)
+        return parse_message(f"MKT-FEED*{payload}")
+
+    def test_every_row_in_the_frame_becomes_a_named_tick(self):
+        record = self.frame(["SAZEW", "PSEL", "LUCK", "PICT"])
+        self.assertEqual([t["scrip"] for t in record["ticks"]],
+                         ["SAZEW", "PSEL", "LUCK", "PICT"])
+        for tick in record["ticks"]:
+            self.assertEqual(tick["market"], "REG")
+            self.assertEqual(tick["change_sign"], "-")
+            self.assertEqual(tick["bid"], "1568.00")
+            self.assertEqual(tick["ask"], "1569.00")
+            self.assertEqual(tick["last"], "1568.00")
+            self.assertEqual(tick["status"], "OPN")
+            self.assertEqual(tick["trades"], "799")
+            self.assertEqual(tick["volume"], "39285")
+            self.assertEqual(tick["last_volume"], "9")
+
+    def test_a_frame_of_one_row_still_parses(self):
+        record = self.frame(["OGDC"])
+        self.assertEqual(len(record["ticks"]), 1)
+        self.assertEqual(record["ticks"][0]["scrip"], "OGDC")
+
+    def test_the_older_dollar_separator_is_still_accepted(self):
+        """A capture written by an older recon of the wire still reads."""
+        payload = "$".join(self.ROW.format(sym=s) for s in ["OGDC", "PSO"])
+        record = parse_message(f"MKT-FEED*{payload}")
+        self.assertEqual([t["scrip"] for t in record["ticks"]], ["OGDC", "PSO"])
+
+    def test_a_non_tick_frame_is_never_split_into_ticks(self):
+        """A stats frame's semicolon list is a different layout (SO-3)."""
+        record = parse_message("MKT-STATS*REG;OPEN;150219.00;17799.00")
+        self.assertEqual(len(record["ticks"]), 1)
+        self.assertNotIn("scrip", record["ticks"][0])
 
 
 class TestCaptureHealth(unittest.TestCase):

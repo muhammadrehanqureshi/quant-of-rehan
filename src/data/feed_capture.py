@@ -14,15 +14,78 @@ THE OWNER'S READ-ONLY LAW (RECON_REPORT.md, binding):
 
 Wire protocol (RECON_REPORT.md, verified live 2026-09-25):
     server -> Welcome*%
-    client -> MKT-FEED|SYM1;SYM2;...;%       (subscribe, no auth needed)
+    client -> MKT-FEED|SYM1:REG;SYM2:REG;...;%   (subscribe, no auth needed)
+
+    The per-symbol MARKET SUFFIX in that frame is not cosmetic, and its
+    absence is why this capture banked no ticks for weeks. Measured live on
+    the KST feed, 2026-10-12, same socket, same second, eight symbols:
+
+        MKT-FEED|TREET;PRL;CNERGY;...;%          -> 0 MKT-FEED frames in 18s
+        MKT-FEED|TREET:REG;PRL:REG;...;%         -> 17 MKT-FEED frames in 18s
+
+    Bare symbols still get the index, movers and market-stats frames, so the
+    capture looked alive while the tape it exists to record stayed empty.
+    REG is the regular equity market, the one the strategy trades (the same
+    panel scope src/data/market_snapshot.py uses on the company pages).
+
     client -> HELLO|%                        (keepalive every 5s, both ways)
     Messages are separated by '%', the type is separated from the payload
-    by '*', MKT-FEED rows are separated by '$' and fields by ';'.
-    Tick field map (from the mobile app's FeedClient.java):
-        [0] scrip [1] market [2] last [3] bid [6] ask [7] direction
-        [8] change [9] last-trade time [11] flag [12] avg [13] high
-        [14] low [15] total trades [16] total volume [17] last-trade vol
-        [18] close [19] open
+    by '*', MKT-FEED rows are separated by '||' and fields by ';'.
+
+    Tick field map, VERIFIED against the live wire on 2026-10-12 and
+    corrected here. The older map read field [2] as the last price, field
+    [3] as the bid and field [6] as the ask, which is wrong on the wire this
+    machine receives: [6] carries the market status flag and [2] carries a
+    quantity, so the quote rule in src/data/tick_volume.py could never fire
+    (it read "OPN" as an ask price) and every row was left unclassified.
+    Nothing here guesses: each index below was checked against the exchange's
+    own numbers on 5064 live rows before it was named.
+
+        [0]  scrip            e.g. TREET
+        [1]  market           REG, the regular equity market
+        [2]  bid size         shares resting at the bid
+        [3]  bid              best bid price
+        [4]  ask              best ask price
+        [5]  ask size         shares resting at the ask
+        [6]  status           OPN (open) or SUS (suspended)
+        [7]  change sign      see below, NOT a trade side
+        [8]  change           points, and [10] - [18] equals it
+        [9]  tick time        time of the last print in [10]
+        [10] last             last traded price
+        [11] flag             a space on every live row seen so far
+        [12] avg              average traded price
+        [13] high             day high
+        [14] low              day low
+        [15] total trades     cumulative count
+        [16] total volume     cumulative shares, the venue's own running total
+        [17] last-trade vol   size of the print in [10]
+        [18] close            previous day's close
+        [19] open             today's open
+
+    Evidence for [3]/[4]/[10]: on 5064 live rows the last price sat exactly
+    at [4] on 2184 rows and exactly at [3] on 1122, and [10] - [18] equalled
+    field [8] within a paisa on 4882 of 4994 rows where all three arrived.
+    Both are statements about the venue's own numbers, not about a guess.
+
+    Field [7] is the sign of the day's change (field [8]), NOT the side of a
+    trade: '+' is a stock up on the day, '-' is down and '=' is flat. Across
+    all 902 MKT-FEED rows banked on 2026-10-12 it matched sign(field[8]) with
+    zero exceptions, so it carries no information about who bought. Nothing
+    in this 20-field layout does; src/data/tick_volume.py records that
+    finding and derives the split from where the prints in [10] actually
+    traded, at [3] or at [4].
+
+WHAT THIS STREAM ACTUALLY IS (measured 2026-10-12): a per-symbol snapshot
+cycle, several symbols per frame, not a trade by trade tape. A row carries
+the symbol's running session total (field [16]) plus the size of the last
+print seen (field [17]), so the sizes of consecutive last prints do not add
+up to the volume the total moved; the increments of [16] are what the venue
+says was traded between two snapshots, and src/data/tick_volume.py splits
+those increments, never the print sizes. It is banked because it is genuine
+exchange data and the most specific thing available, and because a
+per-symbol snapshot still answers "what is this stock doing right now";
+which side those shares were on is read from where each print traded, and
+where that is not observable the split says so instead of guessing.
 
 Banked data (gitignored under /data/):
     data/feed_capture/capture_YYYYMMDD.ndjson  one JSON object per message
@@ -69,9 +132,15 @@ CAPTURE_DIR = ROOT / "data" / "feed_capture"
 STATUS_PATH = CAPTURE_DIR / "status.json"
 
 # Named tick fields (index -> name) per the field map above.
+#: The market a subscription must name to receive per-trade ticks. A tick
+#: row echoes it in field [1] ("REG") and keeps its scrip bare in field [0],
+#: so the tape and the ranking table still speak the same symbol names.
+MARKET_CODE = "REG"
+
 TICK_FIELDS = {
-    0: "scrip", 1: "market", 2: "last", 3: "bid", 6: "ask", 7: "direction",
-    8: "change", 9: "tick_time", 11: "flag", 12: "avg", 13: "high",
+    0: "scrip", 1: "market", 2: "bid_size", 3: "bid", 4: "ask",
+    5: "ask_size", 6: "status", 7: "change_sign", 8: "change",
+    9: "tick_time", 10: "last", 11: "flag", 12: "avg", 13: "high",
     14: "low", 15: "trades", 16: "volume", 17: "last_volume",
     18: "close", 19: "open",
 }
@@ -109,19 +178,47 @@ def load_universe(path: Path = UNIVERSE_FILE) -> list[str]:
     return sorted(set(symbols))
 
 
-def build_subscribe_frame(symbols: list[str]) -> str:
-    """The one subscription frame: MKT-FEED|SYM1;SYM2;...;%"""
-    return guard("MKT-FEED|" + ";".join(symbols) + ";%")
+def market_symbol(symbol: str, market: str = MARKET_CODE) -> str:
+    """One symbol as the feed wants it: SYMBOL:MARKET (see the module header).
+
+    A symbol that already names a market is left alone, so a subscription
+    built from an already-qualified list cannot become SYM:REG:REG.
+    """
+    text = str(symbol).strip().upper()
+    if not market or ":" in text:
+        return text
+    return f"{text}:{market.strip().upper()}"
+
+
+def build_subscribe_frame(symbols: list[str],
+                         market: str = MARKET_CODE) -> str:
+    """The one subscription frame: MKT-FEED|SYM1:REG;SYM2:REG;...;%
+
+    The market qualifier is required for per-trade ticks; without it the feed
+    answers with index, movers and stats frames only (see the module header
+    for the live measurement).
+    """
+    qualified = [market_symbol(symbol, market) for symbol in symbols]
+    return guard("MKT-FEED|" + ";".join(qualified) + ";%")
 
 
 def parse_message(text: str) -> dict | None:
-    """Best-effort parse of one wire message into a bankable record."""
+    """Best-effort parse of one wire message into a bankable record.
+
+    Rows inside an MKT-FEED frame are separated by '||'. The capture used to
+    split them on '$', which never appears on this wire, so every frame was
+    read as one row: the first symbol's fields were mapped correctly and the
+    other nine symbols in the same frame were left in the unnamed numeric
+    slots, banked but unusable. Measured on the 2026-10-12 capture: 902 rows
+    arrived, 64 were parsed. Both separators are accepted now, so the old
+    fixtures and the live wire both read as whole frames.
+    """
     if "*" not in text:
         return None
     kind, payload = text.split("*", 1)
     record = {"kind": kind, "raw": text}
     is_tick_frame = kind.startswith("MKT-FEED")
-    rows = payload.split("$") if is_tick_frame else [payload]
+    rows = _split_rows(payload) if is_tick_frame else [payload]
     ticks = []
     for row in rows:
         if not row or ";" not in row:
@@ -144,12 +241,28 @@ def parse_message(text: str) -> dict | None:
     return record
 
 
+#: Row separators inside a tick frame. '||' is what the live wire uses
+#: (measured 2026-10-12); '$' is the separator the original recon report
+#: named, kept so an existing capture or fixture still parses.
+ROW_SEPARATORS = ("||", "$")
+
+
+def _split_rows(payload: str) -> list[str]:
+    """Split one tick frame's payload into its per-symbol rows."""
+    for separator in ROW_SEPARATORS:
+        if separator in payload:
+            return payload.split(separator)
+    return [payload]
+
+
 class CaptureSession:
     """One capture run: connect, subscribe, bank, reconnect as needed."""
 
-    def __init__(self, symbols: list[str], duration: float | None = None):
+    def __init__(self, symbols: list[str], duration: float | None = None,
+                 market: str = MARKET_CODE):
         self.symbols = symbols
-        self.subscribe_frame = build_subscribe_frame(symbols)
+        self.market = market
+        self.subscribe_frame = build_subscribe_frame(symbols, market)
         self.duration = duration
         self.deadline = None if duration is None else time.time() + duration
         self.counters = {"messages": 0, "ticks": 0, "reconnects": 0, "errors": 0}

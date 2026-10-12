@@ -9,7 +9,9 @@
     <string name="label_system">SYSTEM STATUS</string>
     <string name="label_signal">LATEST SIGNAL</string>
     <string name="label_settings">SETTINGS</string>
-    <string name="label_market">MARKET NOW</string>
+    <!-- Owner order 2026-10-12: the market card carries no label any more,
+         so "MARKET NOW" is gone. The index line and the ranking state what
+         the card is by themselves. -->
     <!-- ============ status pill ============
          Owner order 2026-10-11: the checkmark and the cross are retired. The
          state is carried by a vector indicator (drawable/ic_status_online,
@@ -26,13 +28,17 @@
     <string name="cd_status_offline">System status: offline. The market is closed or on its midday break, or the relay cannot be reached.</string>
 
     <!-- ============ scan cadence ============
-         Owner order 2026-10-11, exact text, and pinned to the bottom of the
-         interface by the layout. The 4 is the real interval, not decoration:
-         it is config.TICK_INTERVAL_MINUTES = 4, which drives the Windows tick,
-         the supervised scan loop and the slot guard. The scanning happens
-         only inside a live band (Mon-Thu 09:32-15:30, Friday 09:17-12:00 and
-         14:32-16:30), which is what "during market hours" states. -->
-    <string name="scan_cadence">Quant will be scanning the market every 4 minutes during market hours.</string>
+         Owner order 2026-10-12, exact text, and shown as the market card's
+         own footnote where the volume ranking can be read with it. It used to
+         be pinned to the bottom of the interface, below the card; that slot
+         and the footer rule under it were removed on the same order. The 4 is
+         the real interval, not decoration: it is
+         config.TICK_INTERVAL_MINUTES = 4, which drives the Windows tick, the
+         supervised scan loop and the slot guard. The scanning happens only
+         inside a live band (Mon-Thu 09:32-15:30, Friday 09:17-12:00 and
+         14:32-16:30), which is what the sentence states.
+         Owner wording confirmed 2026-10-12: "when the market is open". -->
+    <string name="scan_cadence">Quant will be scanning the market every 4 minutes when the market is open.</string>
 
     <!-- ============ session copy ============
          Owner order 2026-10-11, exact texts for the three market conditions.
