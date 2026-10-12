@@ -54,18 +54,24 @@ def run_url() -> str:
 
 def capture_health_message() -> str:
     coverage = ""
+    cause = ""
     try:
         detail = json.loads(FLAG.read_text(encoding="utf-8"))
         coverage = (f" (coverage {detail.get('coverage', 0):.1%}, "
                     f"{detail.get('symbols_ok', 0)}/{detail.get('universe', 0)} symbols)")
+        cause = str(detail.get("cause") or "").strip()
     except (OSError, ValueError):
         pass
     return (
         "Quant of Rehan capture degraded"
         + coverage + ".\n"
-        "The KMIALL intraday data source is not serving bars, so no scan or "
-        "outcome ran for this slot. Paper observations pause; production "
-        "remains disabled. This alert repeats at most once per day."
+        # The cause is the one the capture pass MEASURED, carried here in the
+        # flag. This message used to assert a single diagnosis (the source
+        # serving no bars) whether or not that was what the pass had found,
+        # so the owner could be told the wrong reason for a real outage.
+        + (f"Measured cause: {cause}\n" if cause else "")
+        + "No scan or outcome ran for this slot. Paper observations pause; "
+        "production remains disabled. This alert repeats at most once per day."
         + run_url()
     )
 

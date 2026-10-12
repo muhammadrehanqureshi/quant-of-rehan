@@ -184,6 +184,42 @@ class TestCaptureHealth(unittest.TestCase):
                     self.assertIsNone(saved["pid"])
 
 
+class TestTheCaptureAlertQuotesItsCause(unittest.TestCase):
+    """The owner's alert must carry the measured cause, not an assumption.
+
+    Live 2026-10-12: the deduped alert asserted "the KMIALL intraday data
+    source is not serving bars" while the flag held no cause at all, so the
+    one sentence the owner received was a guess dressed as a finding. The
+    capture pass now measures which way the source refused, the flag carries
+    that, and the alert quotes it.
+    """
+
+    def message(self, payload: dict) -> str:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            flag = Path(temp_dir) / "ohlc_low_coverage.flag"
+            flag.write_text(json.dumps(payload), encoding="utf-8")
+            with patch("scripts.ops_alert.FLAG", flag):
+                return capture_health_message()
+
+    def test_the_measured_cause_is_quoted_when_the_flag_carries_one(self):
+        text = self.message({
+            "coverage": 0.0, "symbols_ok": 0, "universe": 319,
+            "cause": "319 of 319 symbol(s) failed: 319 answered with no bars "
+                     "(the bare acknowledgement from every mirror)",
+        })
+
+        self.assertIn("Measured cause:", text)
+        self.assertIn("bare acknowledgement", text)
+        self.assertIn("0/319 symbols", text)
+
+    def test_a_flag_without_a_cause_does_not_invent_one(self):
+        text = self.message({"coverage": 0.0, "symbols_ok": 0,
+                             "universe": 319})
+
+        self.assertIn("capture degraded", text)
+        self.assertNotIn("Measured cause:", text)
+
+
 if __name__ == "__main__":
     unittest.main()
 
