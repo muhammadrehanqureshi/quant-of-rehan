@@ -519,6 +519,110 @@ class TestDegradedSourcePoliteness(unittest.TestCase):
         self.assertEqual(machine.counters["passes"], 2)
 
 
+class TestTheStatusNamesTheCause(unittest.TestCase):
+    """A failing pass must attribute the failure, not only count it.
+
+    Live evidence, 2026-10-12, market open on the owner's own machine: 41
+    consecutive ticks logged "capture FAILED ... coverage 0/319" while
+    data/feed_capture/ohlc_status.json said no more than "fetch failed:
+    COLG". That file is what an operator reads first, and it blamed one scrip
+    for a fault of the whole endpoint: probed live at 15:10 PKT that day,
+    every mirror answered `SYM;REG;` with zero rows, for every symbol. The
+    two refusals (a mirror answered and had nothing, or no mirror answered)
+    are now counted and read apart.
+    """
+
+    def _machine(self, symbols: list[str], status: str):
+        temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+        machine = poller.OhlcPoller(symbols, once=True)
+        self.addCleanup(patch.stopall)
+        self.addCleanup(machine.close)
+        self.status_path = Path(temp_dir.name) / "ohlc_status.json"
+        patch.object(poller, "CAPTURE_DIR", Path(temp_dir.name)).start()
+        patch.object(poller, "STATUS_PATH", self.status_path).start()
+        patch.object(poller.time, "sleep", lambda _seconds: None).start()
+        patch.object(poller, "fetch_bars_ex",
+                     return_value=BarsFetch(None, status, None)).start()
+        return machine
+
+    def saved(self) -> dict:
+        return json.loads(self.status_path.read_text(encoding="utf-8"))
+
+    def test_a_mute_source_is_reported_as_the_source_not_one_symbol(self):
+        machine = self._machine(["COLG", "OGDC"], "no_bars")
+        machine.run_pass()
+        saved = self.saved()
+
+        self.assertEqual(saved["counters"]["no_bars_symbols"], 2)
+        self.assertEqual(saved["counters"]["unreachable_symbols"], 0)
+        self.assertEqual(saved["last_pass"]["no_bars"], 2)
+        self.assertEqual(saved["last_pass"]["ok"], 0)
+        self.assertIn("no bars", saved["last_pass"]["note"])
+        self.assertIn("bare acknowledgement", saved["last_pass"]["note"])
+        # The error line names the cause beside the symbol, never the symbol
+        # alone: that single word is what sent the operator after one scrip.
+        self.assertIn("OGDC", saved["last_error"])
+        self.assertIn("served no bars", saved["last_error"])
+        self.assertNotEqual(saved["last_error"], "fetch failed: OGDC")
+
+    def test_an_unreachable_source_is_reported_apart_from_a_mute_one(self):
+        machine = self._machine(["COLG", "OGDC"], "unreachable")
+        machine.run_pass()
+        saved = self.saved()
+
+        self.assertEqual(saved["counters"]["unreachable_symbols"], 2)
+        self.assertEqual(saved["counters"]["no_bars_symbols"], 0)
+        self.assertIn("unreachable", saved["last_pass"]["note"])
+        self.assertNotIn("bare acknowledgement", saved["last_pass"]["note"])
+        self.assertIn("no mirror answered", saved["last_error"])
+
+    def test_a_clean_pass_carries_no_cause_at_all(self):
+        temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+        machine = poller.OhlcPoller(["OGDC"], once=True)
+        self.addCleanup(machine.close)
+        bar = {"t": "09:31", "o": 10.0, "h": 11.0, "l": 9.5, "c": 10.5}
+        status_path = Path(temp_dir.name) / "ohlc_status.json"
+        with patch.object(poller, "CAPTURE_DIR", Path(temp_dir.name)), \
+                patch.object(poller, "STATUS_PATH", status_path), \
+                patch.object(poller.time, "sleep", lambda _seconds: None), \
+                patch.object(poller, "fetch_bars_ex",
+                             return_value=BarsFetch([bar], "ok",
+                                                    poller.OHLC_HOSTS[0])):
+            machine.run_pass()
+        saved = json.loads(status_path.read_text(encoding="utf-8"))
+
+        self.assertIsNone(saved["last_pass"]["note"])
+        self.assertEqual(saved["last_pass"]["ok"], 1)
+        self.assertEqual(saved["counters"]["symbols_ok"], 1)
+
+    def test_the_low_coverage_flag_carries_the_measured_cause(self):
+        """The flag is the only thing the owner's alert step can read."""
+        temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+        root = Path(temp_dir.name)
+        flag = root / "ohlc_low_coverage.flag"
+        patch.object(poller, "load_universe",
+                     lambda *_a, **_k: ["A", "B", "C", "D"]).start()
+        patch.object(poller, "is_trading_day", lambda *_a, **_k: True).start()
+        patch.object(poller, "CAPTURE_DIR", root).start()
+        patch.object(poller, "STATUS_PATH", root / "ohlc_status.json").start()
+        patch.object(poller, "LOW_COVERAGE_FLAG", flag).start()
+        patch.object(poller, "fetch_bars_ex",
+                     return_value=BarsFetch(None, "no_bars", None)).start()
+        patch.object(poller.time, "sleep", lambda _seconds: None).start()
+        self.addCleanup(patch.stopall)
+
+        self.assertEqual(poller.main(["--once"]), 0)
+        saved = json.loads(flag.read_text(encoding="utf-8"))
+
+        self.assertEqual(saved["symbols_ok"], 0)
+        self.assertEqual(saved["no_bars_symbols"], 4)
+        self.assertEqual(saved["unreachable_symbols"], 0)
+        self.assertIn("no bars", saved["cause"])
+
+
 class TestDiagnosticRunNeverPagesTheOwner(unittest.TestCase):
     """A --limit smoke test must not raise the market-wide degraded alert.
 
