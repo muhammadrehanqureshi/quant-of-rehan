@@ -35,11 +35,22 @@ import java.util.Locale;
  *
  * Owner order 2026-10-11: the checkmark and the cross are retired. ONLINE and
  * OFFLINE are shown as a vector status light beside the word
- * (drawable/ic_status_online and ic_status_offline), the volume leaders carry
- * their labelled buy and sell volumes, the scan cadence is pinned to the
- * bottom of the interface, and the legacy lines about index membership and a
- * broker capture are gone. Every sentence still comes from a string resource,
- * so the copy, the accessibility description and the layout cannot drift.
+ * (drawable/ic_status_online and ic_status_offline), and the volume leaders
+ * carry their labelled buy and sell volumes.
+ *
+ * Owner order 2026-10-12: the "MARKET NOW" label is gone from the market
+ * card, the card's footnote carries the scan cadence sentence instead of the
+ * index and ranking wording, and the pinned bottom cadence with the footer
+ * rule under it are removed, so the interface ends at the card. Every
+ * sentence still comes from a string resource, so the copy, the
+ * accessibility description and the layout cannot drift.
+ *
+ * Owner order 2026-10-12 (second note): every volume leader is two lines,
+ * the second one carrying the money as "PKR <price>" so a narrow screen can
+ * never wrap the label away from the number, the up and down arrows keep a
+ * single space before them on the index line and on every leader line, and
+ * the card's foot reads "Quant will be scanning the market every 4 minutes
+ * when the market is open."
  */
 public class MainActivity extends Activity {
 
@@ -209,7 +220,7 @@ public class MainActivity extends Activity {
         if (market == null) {
             marketIndex.setText(getString(R.string.market_waiting));
             marketLeaders.setText(getString(R.string.market_leaders_waiting));
-            marketFoot.setText("");
+            marketFoot.setText(footText());
             return;
         }
 
@@ -217,7 +228,7 @@ public class MainActivity extends Activity {
             // hasIndex() guarantees all three are non-null, so the unboxing
             // below cannot throw. A half-reported index renders as waiting
             // instead of as a zero.
-            String line = String.format(Locale.US, "KSE100  %,.2f   %s %,.2f (%.2f%%)",
+            String line = String.format(Locale.US, "KSE100  %,.2f %s %,.2f (%.2f%%)",
                     market.indexValue,
                     market.indexChange >= 0 ? "\u25B2" : "\u25BC",
                     Math.abs(market.indexChange),
@@ -247,20 +258,31 @@ public class MainActivity extends Activity {
             marketLeaders.setText(leadersText(leaders));
         }
 
-        marketFoot.setText(footText(market, leaders.size()));
+        marketFoot.setText(footText());
     }
 
     /**
-     * "1. ABC   B=12,345  S=9,876  T=22,221   Rs 12.52   green 1.05%"
+     * Every leader is two lines (owner order 2026-10-12):
+     *   "1. ABC   B=12,345  S=9,876  T=22,221"
+     *   "PKR 12.52 \u25B2 1.05%"
+     *
+     * The price never shares a line with the volumes any more: the second
+     * line is the money line, with the currency label welded to the number so
+     * a narrow screen can never wrap between them. The arrow keeps a single
+     * space before it on this line and on the index line.
      *
      * The buy and sell volumes are the owner's request of 2026-10-10, now
      * always shown for the top three when the relay reports them: buying is
      * green, selling is red, the total stays neutral, so the two sides read
      * apart before the digits do.
      *
-     * What the numbers MEAN travels in the card's footnote, never in the row:
-     * the relay says whether they were measured from the session tape or
-     * estimated from the day's range (SO-3).
+     * What the numbers MEAN is marked on the number itself, with the "is
+     * approximately" sign: B= and S= are measured from the session's own
+     * trade tape, B≈ and S≈ are the relay's estimate from the day's
+     * range, which is not order flow (SO-3). The distinction used to live in
+     * the card's footnote; the owner replaced that footnote with the scan
+     * cadence sentence on 2026-10-12, so the mark moved to where the number
+     * is, which is also where it is read.
      *
      * Every field is a boxed Number, so a null means the relay did not report
      * it and the field is skipped rather than printed as a zero.
@@ -275,11 +297,13 @@ public class MainActivity extends Activity {
             }
             sb.append(String.format(Locale.US, "%d. %s", i + 1, row.symbol));
             if (row.hasSplit()) {
-                sb.append("   B=");
+                // "=" for a measured number, U+2248 for an estimated one.
+                String mark = row.estimatedSplit() ? "\u2248" : "=";
+                sb.append("   B").append(mark);
                 int buyFrom = sb.length();
                 sb.append(String.format(Locale.US, "%,d", row.buy));
                 spans.add(new int[]{buyFrom, sb.length(), R.color.green});
-                sb.append("  S=");
+                sb.append("  S").append(mark);
                 int sellFrom = sb.length();
                 sb.append(String.format(Locale.US, "%,d", row.sell));
                 spans.add(new int[]{sellFrom, sb.length(), R.color.red});
@@ -287,12 +311,21 @@ public class MainActivity extends Activity {
             } else if (row.hasVolume()) {
                 sb.append(String.format(Locale.US, "   T=%,d", row.volume));
             }
+            // The money line: opened whenever there is a price or a move to
+            // show, so even a price-less row puts its change on its own line
+            // instead of hanging it off the volumes.
+            if (row.price != null || row.changePct != null) {
+                sb.append('\n');
+            }
             if (row.price != null) {
-                sb.append(String.format(Locale.US, "   Rs %,.2f", row.price));
+                sb.append(String.format(Locale.US, "PKR %,.2f", row.price));
             }
             if (row.changePct != null) {
+                if (row.price != null) {
+                    sb.append(' ');
+                }
                 int from = sb.length();
-                sb.append(String.format(Locale.US, "   %s %.2f%%",
+                sb.append(String.format(Locale.US, "%s %.2f%%",
                         row.changePct >= 0 ? "\u25B2" : "\u25BC",
                         Math.abs(row.changePct)));
                 spans.add(new int[]{from, sb.length(), row.changePct >= 0
@@ -308,43 +341,17 @@ public class MainActivity extends Activity {
     }
 
     /**
-     * The card's footnote, built from what actually arrived.
+     * The card's footnote.
      *
-     * Owner order 2026-10-11: the legacy sentences are gone. Nothing names an
-     * index membership or a capture process any more. The ranking sentence
-     * states the basis, the relay's split sentence states how the buy and
-     * sell numbers were produced (measured or estimated), and a failure is
-     * still reported in the relay's own words.
-     *
-     * The session sentence is deliberately NOT repeated here: it belongs to
-     * the status card above, and saying it twice made this line read as
-     * noise. It lives in exactly one place, Watcher.phaseLine.
+     * Owner order 2026-10-12: the "Index as of ..." line, the ranking basis
+     * and the split wording are all gone, and this slot now carries the scan
+     * cadence sentence verbatim. The sentence is read with the volume ranking
+     * it describes instead of being pinned below the card, and it is the one
+     * place it appears, so the copy still lives in exactly one string
+     * resource.
      */
-    private String footText(Watcher.Market market, int shown) {
-        StringBuilder foot = new StringBuilder();
-        if (!market.indexAsOf.isEmpty()) {
-            foot.append("Index as of ").append(market.indexAsOf).append(" PKT");
-        }
-        String basis = market.basis == null ? "" : market.basis.trim();
-        if (basis.isEmpty() && shown > 0) {
-            // The relay normally sends its own basis sentence; this states the
-            // same fact from the same row count when it does not.
-            basis = String.format(Locale.US,
-                    "current session volume, top %d", shown);
-        }
-        appendPart(foot, basis);
-        appendPart(foot, market.splitBasis == null ? "" : market.splitBasis.trim());
-        if (market.note != null && !market.note.trim().isEmpty()) {
-            foot.append(foot.length() > 0 ? "\n" : "").append(market.note.trim());
-        }
-        return foot.toString();
-    }
-
-    private void appendPart(StringBuilder foot, String part) {
-        if (part == null || part.trim().isEmpty()) {
-            return;
-        }
-        foot.append(foot.length() > 0 ? " · " : "").append(part.trim());
+    private String footText() {
+        return getString(R.string.scan_cadence);
     }
 
     private void toast(String s) {

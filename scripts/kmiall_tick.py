@@ -34,7 +34,13 @@ What a tick does, in order:
     5. SCAN      hand the whole job to the one orchestrator
                  (scripts/intraday_pipeline.py --scan), which does its own
                  session, coverage and one-trade-per-day enforcement.
-    6. FINALIZE  after the close, value the day and write the session record
+    6. CARD      keep the phone's market card real (src/data/live_card.py of
+                 the owner's order of 2026-10-12): the broker trade tape is
+                 kept alive for the session, so the card's buy/sell split
+                 comes from the day's own trades, and the rebuilt card is
+                 pushed to the relay the phone reads. Best effort both ways:
+                 a card problem never turns a scan into a failure.
+    7. FINALIZE  after the close, value the day and write the session record
                  ONCE. A finalized day is never finalized twice.
 
 Exit codes (Task Scheduler "last result"):
@@ -87,6 +93,7 @@ from src.data.ohlc_poller import (  # noqa: E402
     capture_budget_seconds as budget_for_cadence,
     nominal_pass_seconds,
 )
+from src.data import live_card  # noqa: E402
 from src.signals.trade_state import SessionState  # noqa: E402
 
 LOG_FILE = ROOT / "logs" / "kmiall_tick.log"
@@ -104,6 +111,10 @@ PHASE_OPEN = scan_schedule.PHASE_OPEN
 PHASE_BREAK = scan_schedule.PHASE_BREAK
 PHASE_POST_CLOSE = scan_schedule.PHASE_POST_CLOSE
 
+#: Alert at the third consecutive capture failure, then once per Karachi day
+#: while the failure continues (owner order 2026-10-12, the zero-defect law):
+#: one message when the feed breaks, and one reminder a day so an outage that
+#: lasts a session, a weekend or a vendor holiday cannot go quiet.
 ALERT_AFTER_FAILURES = 3
 
 
@@ -247,13 +258,19 @@ def read_health() -> dict:
 
 
 def note_health(ok: bool, detail: str) -> dict:
-    """Record capture health and alert once when it starts failing repeatedly.
+    """Record capture health, alert at the threshold, then once per day.
 
-    The alert fires exactly at the threshold, not every failure after it, so a
-    broken feed produces one message rather than one per failed tick.
+    The first alert fires exactly at the threshold, so a broken feed produces
+    one message when it starts failing rather than one per failed tick. A feed
+    that STAYS broken must not go quiet for the rest of the outage (owner
+    order 2026-10-12, the zero-defect law): once the threshold is crossed, a
+    continuing failure re-alerts once per Karachi day, the same cadence the
+    CI-side flag-gated alert uses. A healthy pass clears the day stamp, so the
+    next outage starts its own count and earns its own reminder.
     """
     health = read_health()
     failures = 0 if ok else int(health.get("consecutive_failures") or 0) + 1
+    today = now_karachi().date().isoformat()
     health.update({
         "last_check": now_karachi().isoformat(timespec="seconds"),
         "last_ok": ok,
@@ -262,19 +279,26 @@ def note_health(ok: bool, detail: str) -> dict:
     })
     if ok:
         health["last_success"] = health["last_check"]
+        health.pop("last_failure_alert_day", None)
     HEALTH_FILE.parent.mkdir(parents=True, exist_ok=True)
     HEALTH_FILE.write_text(json.dumps(health, indent=2), encoding="utf-8")
-    if not ok and failures == ALERT_AFTER_FAILURES:
-        try:
-            from scripts import intraday_pipeline as pipeline
+    if not ok and failures >= ALERT_AFTER_FAILURES:
+        at_threshold = failures == ALERT_AFTER_FAILURES
+        day_unalerted = health.get("last_failure_alert_day") != today
+        if at_threshold or day_unalerted:
+            try:
+                from scripts import intraday_pipeline as pipeline
 
-            pipeline.deliver(
-                f"KMIALL local tick: bar capture has failed {failures} times "
-                f"in a row.\nLast error: {detail}\nThe scanner will report a "
-                f"data failure until the feed recovers.", "ops")
-            log(f"ops alert sent after {failures} capture failures")
-        except Exception as exc:  # noqa: BLE001 - an alert is best effort
-            log(f"ops alert failed: {type(exc).__name__}")
+                pipeline.deliver(
+                    f"KMIALL local tick: bar capture has failed {failures} times "
+                    f"in a row.\nLast error: {detail}\nThe scanner will report a "
+                    f"data failure until the feed recovers.", "ops")
+                health["last_failure_alert_day"] = today
+                HEALTH_FILE.write_text(json.dumps(health, indent=2),
+                                       encoding="utf-8")
+                log(f"ops alert sent after {failures} capture failures")
+            except Exception as exc:  # noqa: BLE001 - an alert is best effort
+                log(f"ops alert failed: {type(exc).__name__}")
     return health
 
 
@@ -296,6 +320,8 @@ def main(argv: list[str] | None = None) -> int:
                         help="describe the current phase and state, then stop")
     parser.add_argument("--skip-capture", action="store_true",
                         help="scan the capture already on disk")
+    parser.add_argument("--skip-card", action="store_true",
+                        help="do not touch the broker tape or publish the card")
     args = parser.parse_args(argv)
 
     moment = now_karachi()
@@ -336,6 +362,15 @@ def main(argv: list[str] | None = None) -> int:
         log(f"refusing to run: {detail}")
         return 4
     try:
+        # The tape first, before the slow bar capture: the split on the
+        # phone can only be measured from a capture that has been banking
+        # ticks since the open, so a dead one is restarted as early in the
+        # slot as possible (owner's order, 2026-10-12).
+        tape_note = "skipped by flag"
+        if not args.skip_card:
+            tape_ok, tape_note = live_card.ensure_tape(moment)
+            log(f"trade tape {'ok' if tape_ok else 'UNAVAILABLE'}: {tape_note}")
+
         capture_ok, capture_detail = (True, "capture skipped by flag")
         if not args.skip_capture:
             capture_ok, capture_detail = run_capture()
@@ -350,6 +385,14 @@ def main(argv: list[str] | None = None) -> int:
         state.save()
         log(f"scan done: status={payload.get('status')} "
             f"reason={str(payload.get('reason'))[:160]}")
+
+        # The card is published last, on the tape the step above just made
+        # sure is running, and its outcome is logged either way. The scan's
+        # own verdict is already decided, so a card failure cannot change it.
+        if not args.skip_card:
+            card = live_card.publish_card(moment)
+            log(f"market card {'ok' if card['ok'] else 'FAILED'}: "
+                f"{card['detail']} | {card['split']}")
         return 0 if capture_ok else 2
     except Exception as exc:  # noqa: BLE001 - reported, then non-zero exit
         log(f"scan FAILED: {type(exc).__name__}: {exc}")

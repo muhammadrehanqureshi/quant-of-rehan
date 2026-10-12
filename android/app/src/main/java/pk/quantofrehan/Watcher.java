@@ -83,17 +83,38 @@ public final class Watcher {
         Long buy;
         /** null: no buy/sell split arrived. */
         Long sell;
+        /**
+         * How the relay produced the split: "measured_tape" when the numbers
+         * came from the session's own trade tape, "range_position" when they
+         * are a labelled estimate from the day's range. Empty when no split
+         * arrived at all.
+         */
+        String splitMethod = "";
 
         /**
          * True when a labelled buy/sell split arrived for this stock.
          *
-         * Labeled, not proven: the relay says in its own footnote whether the
-         * numbers were measured from the session tape or estimated from the
-         * day's range (SO-3). The app renders the split either way and never
-         * presents the estimate as order flow of its own accord.
+         * Labeled, not proven: the relay says whether the numbers were
+         * measured from the session tape or estimated from the day's range
+         * (SO-3). The app renders the split either way and never presents the
+         * estimate as order flow of its own accord.
          */
         boolean hasSplit() {
             return buy != null && sell != null;
+        }
+
+        /**
+         * True when the split is the venue-range estimate rather than the
+         * measured tape, so the row marks it as one (SO-3).
+         *
+         * Owner order 2026-10-12 removed the card's footnote, which is where
+         * this distinction used to be spelled out, so the number itself now
+         * carries the mark: an estimate prints as B≈ / S≈. An unknown method
+         * counts as estimated, because the safe reading of an unlabelled
+         * number is the weaker claim.
+         */
+        boolean estimatedSplit() {
+            return hasSplit() && !"measured_tape".equals(splitMethod);
         }
 
         /** True when the exchange's own total volume arrived. */
@@ -274,6 +295,7 @@ public final class Watcher {
                     leader.changePct = numberOrNull(row, "change_pct");
                     leader.buy = integerOrNull(row, "buy_volume");
                     leader.sell = integerOrNull(row, "sell_volume");
+                    leader.splitMethod = row.optString("split_method", "");
                     market.leaders.add(leader);
                 }
             }
