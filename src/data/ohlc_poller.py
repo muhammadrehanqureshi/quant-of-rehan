@@ -80,6 +80,13 @@ MIN_CAPTURE_COVERAGE = 0.80
 #: vendor outage probing all of them on every symbol is three times the load
 #: on a source that is already down, which the pacing law here forbids.
 DEGRADED_STREAK_BEFORE_SOLE_HOST = 3
+#: How each of the source's two refusals is named in a log line. The cause
+#: belongs beside the symbol: measured live on 2026-10-12, every one of 41
+#: consecutive failing passes wrote "fetch failed: <symbol>", which reads
+#: like one bad scrip while the truth was that the whole endpoint answered
+#: `SYM;REG;` with no rows for every symbol, on every mirror, all session.
+FAILURE_READING = {"no_bars": "the source answered but served no bars",
+                   "unreachable": "no mirror answered"}
 #: Exit status for a pass that stopped at its own budget. Distinct on purpose:
 #: a caller can tell "the source served nothing" (coverage fail-closed, still
 #: exit 0) from "we ran out of the time the cadence allows" (a partial pass).
@@ -260,7 +267,8 @@ class OhlcPoller:
         self.seen: dict[str, set[str]] = {}
         self.counters = {"passes": 0, "symbols_ok": 0, "symbols_err": 0,
                          "symbols_skipped": 0, "bars": 0, "errors": 0,
-                         "fallback_symbols": 0}
+                         "fallback_symbols": 0, "no_bars_symbols": 0,
+                         "unreachable_symbols": 0}
         #: The mirrors this pass is willing to probe, narrowed to the first one
         #: once the whole source (not one symbol) proves silent. Reset per pass.
         self.hosts = list(OHLC_HOSTS)
@@ -268,6 +276,14 @@ class OhlcPoller:
         #: both failure modes. Drives the narrow-to-one-host politeness rule.
         self.degraded_streak = 0
         self.last_error: str | None = None
+        #: The last symbol the source refused, and in which of its two ways
+        #: ("no_bars" or "unreachable"), so a log line can name the cause and
+        #: not only the symbol.
+        self.last_failure_status: str | None = None
+        #: How the LAST pass split between those two ways, with one sentence
+        #: reading of it. Cumulative counters cannot explain an outage.
+        self.last_pass = {"attempted": 0, "ok": 0, "no_bars": 0,
+                          "unreachable": 0, "note": None}
         self.last_symbol_at: str | None = None
         self.running = False
         self.started_at = now().isoformat()
@@ -308,6 +324,7 @@ class OhlcPoller:
             "counters": self.counters,
             "last_symbol_at": self.last_symbol_at,
             "last_error": self.last_error,
+            "last_pass": self.last_pass,
             "budget_seconds": self.deadline_seconds,
             "pass_complete": self.pass_complete,
         }
@@ -344,6 +361,7 @@ class OhlcPoller:
 
         if fetch.status == "ok":
             self.degraded_streak = 0
+            self.last_failure_status = None
             if fetch.host is not None and fetch.host != hosts[0]:
                 # The first mirror did not serve this symbol and another one
                 # did: say so, because a quiet fallback is how a degraded
@@ -358,6 +376,7 @@ class OhlcPoller:
                   f"symbols running (last: {symbol}, {fetch.status}): asking "
                   f"{self.hosts[0]} only for the rest of this pass, once per "
                   f"symbol, rather than every mirror")
+        self.last_failure_status = fetch.status
         return None
 
     def run_pass(self) -> None:
@@ -366,6 +385,8 @@ class OhlcPoller:
         self.pass_complete = True
         self.hosts = list(OHLC_HOSTS)
         self.degraded_streak = 0
+        self.last_pass = {"attempted": 0, "ok": 0, "no_bars": 0,
+                          "unreachable": 0, "note": None}
         started = time.monotonic()
         last_status = time.monotonic()
         for index, symbol in enumerate(self.symbols):
@@ -384,18 +405,57 @@ class OhlcPoller:
                       f"{nominal_pass_seconds(len(self.symbols)):.0f}s)")
                 break
             bars = self.capture_symbol(symbol)
+            self.last_pass["attempted"] += 1
             if bars is None:
                 self.counters["symbols_err"] += 1
-                self.last_error = f"fetch failed: {symbol}"
+                status = self.last_failure_status or "unknown"
+                if status in ("no_bars", "unreachable"):
+                    self.counters[f"{status}_symbols"] += 1
+                    self.last_pass[status] += 1
+                self.last_error = (f"fetch failed: {symbol} "
+                                   f"({FAILURE_READING.get(status, status)})")
             else:
                 self.counters["symbols_ok"] += 1
+                self.last_pass["ok"] += 1
                 self.bank(symbol, bars)
                 self.last_symbol_at = f"{symbol} {len(bars)}b"
             time.sleep(PACING_SECONDS)
             if time.monotonic() - last_status >= 20:
                 self.write_status()
                 last_status = time.monotonic()
+        self.last_pass["note"] = self.read_pass()
+        if self.last_pass["note"] is not None and not self.last_pass["ok"]:
+            # Say the attribution out loud once per pass: the CI log and the
+            # tick's captured detail both quote this line.
+            print(f"{now():%H:%M:%S} {self.last_pass['note']}")
         self.write_status()
+
+    def read_pass(self) -> str | None:
+        """One sentence reading of the last pass, or None when it was clean.
+
+        The value here is attribution. A failing pass has to say whether the
+        SOURCE answered and had nothing (a vendor outage this machine cannot
+        fix) or never answered at all (a wire or TLS problem on this side),
+        because those two want different answers from whoever reads the log
+        or the owner's alert.
+        """
+        stats = self.last_pass
+        attempted, ok = stats["attempted"], stats["ok"]
+        if attempted == 0 or ok == attempted:
+            return None
+        parts = []
+        if stats["no_bars"]:
+            parts.append(f"{stats['no_bars']} answered with no bars (the bare "
+                         f"acknowledgement from every mirror)")
+        if stats["unreachable"]:
+            parts.append(f"{stats['unreachable']} were unreachable (no mirror "
+                         f"answered)")
+        detail = ", ".join(parts)
+        reading = f"{attempted - ok} of {attempted} symbol(s) failed: {detail}"
+        if not ok:
+            reading += (". The source served nothing this pass, so the "
+                        "coverage gate stays closed and no scan can run")
+        return reading
 
     def run(self) -> None:
         self.running = True
@@ -520,6 +580,11 @@ def main(argv: list[str] | None = None) -> int:
         coverage = poller.counters["symbols_ok"] / max(len(poller.symbols), 1)
         print(f"capture rejected: coverage {coverage:.1%} is below "
               f"{MIN_CAPTURE_COVERAGE:.0%}; no scan or outcome will run")
+        if poller.last_pass["note"] is not None:
+            # The cause, while the numbers are still on screen: whoever reads
+            # the CI log or the tick's captured detail must not have to guess
+            # which side of the wire failed.
+            print(poller.last_pass["note"])
         # Owner order 2026-10-08: a thin capture must NOT turn the scheduled
         # run red (GitHub failure emails per run are unwanted). The run
         # stays green; the flag file tells the alert step to send ONE
@@ -531,6 +596,11 @@ def main(argv: list[str] | None = None) -> int:
             "coverage": round(coverage, 4),
             "symbols_ok": poller.counters["symbols_ok"],
             "universe": len(poller.symbols),
+            # The measured cause travels with the coverage figure, so the
+            # owner's alert can say WHY instead of only how little arrived.
+            "cause": poller.last_pass["note"],
+            "no_bars_symbols": poller.counters["no_bars_symbols"],
+            "unreachable_symbols": poller.counters["unreachable_symbols"],
         }, indent=1), encoding="utf-8")
     if not poller.pass_complete:
         # A partial pass is a degraded capture, not a clean one: the caller
