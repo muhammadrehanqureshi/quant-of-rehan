@@ -48,6 +48,7 @@ import time
 import urllib.request
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
+from typing import NamedTuple
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
@@ -72,6 +73,13 @@ PACING_SECONDS = 1.3
 #: top of the 1.3s pacing sleep.
 REQUEST_ALLOWANCE_SECONDS = 1.0
 MIN_CAPTURE_COVERAGE = 0.80
+#: How many consecutive symbols a pass may come back empty-handed for before
+#: it stops treating the source as "this symbol" and starts treating it as
+#: "the source": after this many, the pass probes the first mirror only and
+#: asks once per symbol. All three mirrors are the same servlet, so during a
+#: vendor outage probing all of them on every symbol is three times the load
+#: on a source that is already down, which the pacing law here forbids.
+DEGRADED_STREAK_BEFORE_SOLE_HOST = 3
 #: Exit status for a pass that stopped at its own budget. Distinct on purpose:
 #: a caller can tell "the source served nothing" (coverage fail-closed, still
 #: exit 0) from "we ran out of the time the cadence allows" (a partial pass).
@@ -89,18 +97,27 @@ def make_opener() -> urllib.request.OpenerDirector:
     return urllib.request.build_opener(urllib.request.HTTPSHandler(context=ctx))
 
 
+def ask_host(opener: urllib.request.OpenerDirector, host: str, symbol: str,
+             interval: int = 1) -> bytes | None:
+    """One read-only request to one mirror: its body, or None if it did not answer."""
+    url = (f"https://{host}{OHLC_PATH}?scrip={symbol}"
+           f"&market=REG&check=symbol&interval={interval}")
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "okhttp/4.9.0"})
+        with opener.open(req, timeout=15) as resp:
+            return resp.read()
+    except OSError:
+        return None
+
+
 def fetch_body(opener: urllib.request.OpenerDirector, symbol: str,
-               interval: int = 1) -> tuple[str, bytes] | None:
+               interval: int = 1,
+               hosts: list[str] | None = None) -> tuple[str, bytes] | None:
     """Return (host, raw_body) from the first mirror that answers, or None."""
-    for host in OHLC_HOSTS:
-        url = (f"https://{host}{OHLC_PATH}?scrip={symbol}"
-               f"&market=REG&check=symbol&interval={interval}")
-        try:
-            req = urllib.request.Request(url, headers={"User-Agent": "okhttp/4.9.0"})
-            with opener.open(req, timeout=15) as resp:
-                return host, resp.read()
-        except OSError:
-            continue
+    for host in (OHLC_HOSTS if hosts is None else hosts):
+        body = ask_host(opener, host, symbol, interval)
+        if body is not None:
+            return host, body
     return None
 
 
@@ -120,16 +137,8 @@ def acknowledged_without_bars(text: str) -> bool:
     return len(rows) == 1 and rows[0].count(";") == 2 and rows[0].endswith(";")
 
 
-def fetch_bars(opener: urllib.request.OpenerDirector, symbol: str,
-               interval: int = 1) -> list[dict] | None:
-    """Return [{t,o,h,l,c}] for today, or None when the source serves no bars."""
-    fetched = fetch_body(opener, symbol, interval)
-    if fetched is None:
-        return None
-    text = fetched[1].decode("utf-8", "replace")
-    if acknowledged_without_bars(text):
-        return None
-
+def parse_bars(text: str, symbol: str) -> list[dict]:
+    """The rows in `text` that belong to exactly this symbol, malformed dropped."""
     bars = []
     for row in text.split("|"):
         parts = row.strip().split(";")
@@ -145,7 +154,63 @@ def fetch_bars(opener: urllib.request.OpenerDirector, symbol: str,
             continue
         bars.append({"t": parts[6], "o": values[0], "h": values[1],
                      "l": values[2], "c": values[3]})
-    return bars or None
+    return bars
+
+
+class BarsFetch(NamedTuple):
+    """One symbol's answer, and the two different ways it can be missing.
+
+    `status` is one of:
+      "ok"          - a mirror served genuine rows for this symbol;
+      "no_bars"     - a mirror ANSWERED but none served a usable row (the
+                      measured bare `SYM;MKT;` acknowledgement, an empty body,
+                      rows that belong to another symbol, or rows that are all
+                      malformed);
+      "unreachable" - no mirror answered at all (connection or TLS level).
+
+    Those two failures want different answers, so they are never collapsed
+    into one. "unreachable" is about the wire, "no_bars" is the source itself
+    saying it has nothing, and the coverage gate treats both as a failed
+    symbol, which is what keeps a source outage fail-closed.
+    """
+    bars: list[dict] | None
+    status: str
+    host: str | None
+
+
+def fetch_bars_ex(opener: urllib.request.OpenerDirector, symbol: str,
+                  interval: int = 1,
+                  hosts: list[str] | None = None) -> BarsFetch:
+    """Fetch one symbol, preferring any mirror that actually serves bars.
+
+    A mirror that answers with the bare acknowledgement (or with no usable row)
+    does NOT end the search: the next mirror is asked, so one degraded host can
+    never mask a host that is serving bars. That distinction matters because a
+    slot that silently loses a symbol still writes a coverage figure, and a
+    coverage figure produced by a masking mirror is a lie about the source.
+    The first mirror that yields bars wins, and `host` names it so a fallback
+    is visible rather than silent.
+    """
+    answered = False
+    for host in (OHLC_HOSTS if hosts is None else hosts):
+        body = ask_host(opener, host, symbol, interval)
+        if body is None:
+            continue
+        answered = True
+        text = body.decode("utf-8", "replace")
+        if acknowledged_without_bars(text):
+            continue
+        bars = parse_bars(text, symbol)
+        if bars:
+            return BarsFetch(bars, "ok", host)
+    return BarsFetch(None, "no_bars" if answered else "unreachable", None)
+
+
+def fetch_bars(opener: urllib.request.OpenerDirector, symbol: str,
+               interval: int = 1,
+               hosts: list[str] | None = None) -> list[dict] | None:
+    """Return [{t,o,h,l,c}] for today, or None when no mirror serves bars."""
+    return fetch_bars_ex(opener, symbol, interval, hosts).bars
 
 
 def capture_coverage_ok(symbols_with_data: int, universe_size: int) -> bool:
@@ -194,7 +259,14 @@ class OhlcPoller:
         self.opener = make_opener()
         self.seen: dict[str, set[str]] = {}
         self.counters = {"passes": 0, "symbols_ok": 0, "symbols_err": 0,
-                         "symbols_skipped": 0, "bars": 0, "errors": 0}
+                         "symbols_skipped": 0, "bars": 0, "errors": 0,
+                         "fallback_symbols": 0}
+        #: The mirrors this pass is willing to probe, narrowed to the first one
+        #: once the whole source (not one symbol) proves silent. Reset per pass.
+        self.hosts = list(OHLC_HOSTS)
+        #: Consecutive symbols this pass has come back empty-handed for, across
+        #: both failure modes. Drives the narrow-to-one-host politeness rule.
+        self.degraded_streak = 0
         self.last_error: str | None = None
         self.last_symbol_at: str | None = None
         self.running = False
@@ -255,10 +327,45 @@ class OhlcPoller:
         return (self.deadline_seconds is not None
                 and time.monotonic() - started >= self.deadline_seconds)
 
+    def capture_symbol(self, symbol: str) -> list[dict] | None:
+        """One symbol's bars, probing the mirrors politely when the source is down.
+
+        A symbol is never silently dropped while another mirror could have
+        served it: fetch_bars_ex already asks every mirror before giving up.
+        What this adds is restraint in the other direction - once the source
+        itself (not one symbol) has gone quiet for a few symbols running, the
+        rest of the pass asks the first mirror only, once per symbol. Losing a
+        symbol to a degraded mirror is a data fault; hammering a downed source
+        three times per symbol is a manners fault, and this file does neither.
+        """
+        degraded = self.degraded_streak >= DEGRADED_STREAK_BEFORE_SOLE_HOST
+        hosts = self.hosts[:1] if degraded else self.hosts
+        fetch = fetch_bars_ex(self.opener, symbol, hosts=hosts)
+
+        if fetch.status == "ok":
+            self.degraded_streak = 0
+            if fetch.host is not None and fetch.host != hosts[0]:
+                # The first mirror did not serve this symbol and another one
+                # did: say so, because a quiet fallback is how a degraded
+                # mirror hides from the operator.
+                self.counters["fallback_symbols"] += 1
+            return fetch.bars
+
+        self.degraded_streak += 1
+        if (self.degraded_streak == DEGRADED_STREAK_BEFORE_SOLE_HOST
+                and len(self.hosts) > 1):
+            print(f"{now():%H:%M:%S} source quiet for {self.degraded_streak} "
+                  f"symbols running (last: {symbol}, {fetch.status}): asking "
+                  f"{self.hosts[0]} only for the rest of this pass, once per "
+                  f"symbol, rather than every mirror")
+        return None
+
     def run_pass(self) -> None:
         self.counters["passes"] += 1
         self.counters["symbols_skipped"] = 0
         self.pass_complete = True
+        self.hosts = list(OHLC_HOSTS)
+        self.degraded_streak = 0
         started = time.monotonic()
         last_status = time.monotonic()
         for index, symbol in enumerate(self.symbols):
@@ -276,7 +383,7 @@ class OhlcPoller:
                       f"(nominal full pass "
                       f"{nominal_pass_seconds(len(self.symbols)):.0f}s)")
                 break
-            bars = fetch_bars(self.opener, symbol)
+            bars = self.capture_symbol(symbol)
             if bars is None:
                 self.counters["symbols_err"] += 1
                 self.last_error = f"fetch failed: {symbol}"
@@ -330,26 +437,27 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.probe:
         # Honest source check: report what the source really returned, and
-        # never let a bare acknowledgement count as a healthy capture.
+        # never let a bare acknowledgement count as a healthy capture. The
+        # probe follows the same mirror policy a pass does, so it cannot
+        # report a mute first mirror as the whole story while a later mirror
+        # is serving bars; the host it names is the host that actually served.
         probe = args.probe.strip().upper()
         opener = make_opener()
-        fetched = fetch_body(opener, probe)
-        if fetched is None:
+        fetch = fetch_bars_ex(opener, probe)
+        if fetch.status == "unreachable":
             print(f"probe {probe}: no mirror answered: NOT capturing")
             return 1
-        host, raw = fetched
-        text = raw.decode("utf-8", "replace")
-        if acknowledged_without_bars(text):
-            print(f"probe {probe}: {host} answered HTTP 200 with the bare "
-                  f"acknowledgement {text.strip()!r} and zero bar rows: "
-                  f"NOT capturing (the source is serving no OHLC)")
+        if fetch.status == "no_bars":
+            mirrored = fetch_body(opener, probe)
+            echo = (f"{mirrored[0]} answered with the bare acknowledgement "
+                    f"{mirrored[1].decode('utf-8', 'replace').strip()!r}"
+                    if mirrored is not None else "a mirror answered empty")
+            print(f"probe {probe}: {echo} and no mirror served a usable row "
+                  f"for this symbol: NOT capturing (the source is serving "
+                  f"no OHLC)")
             return 1
-        bars = fetch_bars(opener, probe)
-        if not bars:
-            print(f"probe {probe}: {host} answered {len(raw)}B with no usable row "
-                  f"for this symbol: NOT capturing")
-            return 1
-        print(f"probe {probe}: {host} served {len(bars)} bar row(s), "
+        bars = fetch.bars
+        print(f"probe {probe}: {fetch.host} served {len(bars)} bar row(s), "
               f"first={bars[0]['t']} last={bars[-1]['t']}")
         return 0
 
@@ -395,7 +503,19 @@ def main(argv: list[str] | None = None) -> int:
         poller.close()
     print(f"banked {poller.counters['bars']} bars over "
           f"{poller.counters['passes']} pass(es)")
-    if args.once and not capture_coverage_ok(
+    if args.limit is not None:
+        # A --limit run is a diagnostic over a deliberately small slice, so its
+        # coverage is a statement about that slice and never about the market.
+        # It must therefore NOT leave the market-wide low-coverage flag behind.
+        # That flag is exactly what raises the owner's degraded-capture alert,
+        # and this module documents `--limit 5` as its own smoke test: without
+        # this guard a five symbol check could page the owner with "0/5
+        # symbols" while the tracked universe is 319, which is what happened on
+        # 2026-10-12. The slice is still reported here, honestly.
+        print(f"limited capture: {len(poller.symbols)} symbol(s) requested, so "
+              f"no market-wide coverage is claimed and the degraded-capture "
+              f"alert is left untouched")
+    elif args.once and not capture_coverage_ok(
             poller.counters["symbols_ok"], len(poller.symbols)):
         coverage = poller.counters["symbols_ok"] / max(len(poller.symbols), 1)
         print(f"capture rejected: coverage {coverage:.1%} is below "
