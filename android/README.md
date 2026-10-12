@@ -50,6 +50,12 @@ Cloudflare relay, never to Telegram, never to a broker.
   verbatim. The 4 is the real interval (`config.TICK_INTERVAL_MINUTES`), and
   the line states the cadence only: the pill above states whether the quant is
   online, and the scanning itself happens inside the MARKET phase.
+- v1.6.2 versions the market card work that v1.6.1 shipped without a version
+  bump, so a rebuilt APK can be told apart from the old one again. The status
+  badge is a vector indicator beside the word (CHECKING, ONLINE, OFFLINE),
+  with the buy and sell volumes in the volume rows coloured apart (green buy,
+  red sell, neutral total) and the session copy carrying the owner's three
+  verbatim sentences. versionCode 16, versionName 1.6.2.
 - Phone notifications on status changes and new signals, refreshed every 5
   minutes by a watchdog that re-arms itself and survives phone restarts.
   v1.5.1 adds a one time battery optimisation exemption request: see
@@ -95,7 +101,7 @@ with zipfile.ZipFile(f"{B}/app.apk", "a", zipfile.ZIP_DEFLATED) as z:
 PY
 "$JDK/bin/java" -jar $TOOLS/uber-apk-signer.jar -a $B/app.apk --out $B/signed
 cp $B/signed/app-aligned-debugSigned.apk \
-  /c/Users/rehan/OneDrive/Desktop/QuantOfRehan-v1.6.1.apk
+  /c/Users/rehan/OneDrive/Desktop/QuantOfRehan-v1.6.2.apk
 ```
 
 The Desktop this machine actually shows is `C:/Users/rehan/OneDrive/Desktop`
