@@ -167,7 +167,7 @@ instruction from the owner.
 SO-1 signal-only · SO-2 PR first, agent merges · SO-3 never fabricate data ·
 SO-4 backtest locally only · SO-5 secrets stay out · SO-6 the agent merges ·
 SO-7 sole contributor, human-looking code, no em dashes · SO-8 Karachi time
-forever · SO-9 owner notifications via the Cloudflare relay · SO-10 resource law: cloud-first, local only for backtests.
+forever · SO-9 owner notifications via the Cloudflare relay · SO-10 resource law: cloud-first, local only for backtests · SO-11 zero-defect law: known drift is fixed immediately.
 
 ## SO-10 · Resource law: the owner's PC is for backtesting and local trials only (owner order, 2026-10-06)
 
@@ -190,3 +190,18 @@ forever · SO-9 owner notifications via the Cloudflare relay · SO-10 resource l
   locally under SO-4) before it is proposed.
 - Any change to this rule requires an explicit owner instruction and an
   amendment to this file.
+
+## SO-11 · Zero-defect law: known drift is fixed immediately (owner order, 2026-10-12)
+
+- The owner's order: Quant of Rehan must stay error free and working
+  smoothly. When any session, agent or model working here finds something
+  that pulls the system back (a defect, a silent failure, a stale artifact,
+  work left unlanded, a check that no longer covers its contract), it fixes
+  that thing in the same session, without waiting for a new instruction.
+  Reporting the fix is still owed; asking permission first is not.
+- The fix lands through the normal flow (SO-2, SO-6): a feature branch, a
+  pull request with the governance guard and the unit tests green, merged by
+  the agent. Speed never authorizes skipping a check or weakening one.
+- Scope guard: this order is about defects and drift, never about inventing
+  new scope, trading behaviour or data. Signals stay signal-only (SO-1),
+  data stays honest (SO-3), and secrets stay out (SO-5) exactly as before.
