@@ -51,13 +51,32 @@ import java.util.Locale;
  * single space before them on the index line and on every leader line, and
  * the card's foot reads "Quant will be scanning the market every 4 minutes
  * when the market is open."
+ *
+ * Owner order 2026-10-12 (third note): the settings control is a drawn vector
+ * gear rather than a text glyph, the market card closes with the same line,
+ * diamond, line rule as the two cards above it, the brand and the interface
+ * carry the owner's own faces (Bonskin for "Quant of Rehan", LEMON MILK Bold
+ * and Light around it), and the double space that sat between a ticker and
+ * its buy volume is a single space.
  */
 public class MainActivity extends Activity {
+
+    /**
+     * The face that owns the arrow glyphs.
+     *
+     * The bundled LEMON MILK faces contain no U+25B2 and no U+25BC (checked
+     * against the fonts' own cmaps before they were wired in), so the index
+     * line and every money line draw those two characters with the system
+     * face. The mark that says a split is an estimate, U+2248, IS present in
+     * LEMON MILK, so it needs no override and keeps the brand face.
+     */
+    private static final String ARROW_FACE = "sans-serif";
 
     private SharedPreferences prefs;
     private TextView statusPill, statusDetail, signalList;
     private TextView marketIndex, marketLeaders, marketFoot;
-    private TextView btnSettings;
+    /** Only the plate is ever swapped on it, so a View is enough. */
+    private View btnSettings;
     private View settingsPanel;
 
     @Override
@@ -239,6 +258,8 @@ public class MainActivity extends Activity {
             int from = line.indexOf(market.indexChange >= 0 ? "\u25B2" : "\u25BC");
             if (from >= 0) {
                 sp.setSpan(new ForegroundColorSpan(color), from, line.length(), 0);
+                // One character only: the arrow, never the number after it.
+                sp.setSpan(new TypefaceSpan(ARROW_FACE), from, from + 1, 0);
             }
             marketIndex.setText(sp);
         } else {
@@ -263,8 +284,13 @@ public class MainActivity extends Activity {
 
     /**
      * Every leader is two lines (owner order 2026-10-12):
-     *   "1. ABC   B=12,345  S=9,876  T=22,221"
+     *   "1. ABC B=12,345  S=9,876  T=22,221"
      *   "PKR 12.52 \u25B2 1.05%"
+     *
+     * The gap between the ticker and its buy volume is ONE space (owner order
+     * 2026-10-12, third note): it used to be three, which read as a double
+     * space on the phone. The two spaces that separate the volume fields stay,
+     * because they are what groups B, S and T apart from the ticker.
      *
      * The price never shares a line with the volumes any more: the second
      * line is the money line, with the currency label welded to the number so
@@ -290,6 +316,7 @@ public class MainActivity extends Activity {
     private SpannableString leadersText(List<Watcher.Leader> leaders) {
         StringBuilder sb = new StringBuilder();
         List<int[]> spans = new ArrayList<>();   // {from, to, colour resource}
+        List<int[]> glyphs = new ArrayList<>();  // {from, to} system-face ranges
         for (int i = 0; i < leaders.size(); i++) {
             Watcher.Leader row = leaders.get(i);
             if (i > 0) {
@@ -299,7 +326,7 @@ public class MainActivity extends Activity {
             if (row.hasSplit()) {
                 // "=" for a measured number, U+2248 for an estimated one.
                 String mark = row.estimatedSplit() ? "\u2248" : "=";
-                sb.append("   B").append(mark);
+                sb.append(" B").append(mark);
                 int buyFrom = sb.length();
                 sb.append(String.format(Locale.US, "%,d", row.buy));
                 spans.add(new int[]{buyFrom, sb.length(), R.color.green});
@@ -309,7 +336,7 @@ public class MainActivity extends Activity {
                 spans.add(new int[]{sellFrom, sb.length(), R.color.red});
                 sb.append(String.format(Locale.US, "  T=%,d", row.volume));
             } else if (row.hasVolume()) {
-                sb.append(String.format(Locale.US, "   T=%,d", row.volume));
+                sb.append(String.format(Locale.US, " T=%,d", row.volume));
             }
             // The money line: opened whenever there is a price or a move to
             // show, so even a price-less row puts its change on its own line
@@ -330,12 +357,18 @@ public class MainActivity extends Activity {
                         Math.abs(row.changePct)));
                 spans.add(new int[]{from, sb.length(), row.changePct >= 0
                         ? R.color.green : R.color.red});
+                glyphs.add(new int[]{from, from + 1});
             }
         }
         SpannableString sp = new SpannableString(sb.toString());
         for (int[] span : spans) {
             sp.setSpan(new ForegroundColorSpan(getColor(span[2])),
                     span[0], span[1], 0);
+        }
+        // The arrow ranges last, and only the arrow: the system face draws the
+        // two arrow characters, the brand face keeps everything around them.
+        for (int[] range : glyphs) {
+            sp.setSpan(new TypefaceSpan(ARROW_FACE), range[0], range[1], 0);
         }
         return sp;
     }

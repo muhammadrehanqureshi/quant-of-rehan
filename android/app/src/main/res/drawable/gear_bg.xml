@@ -1,6 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
-<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
-    <solid android:color="@color/plum_panel_top"/>
-    <stroke android:width="1dp" android:color="@color/bg_panel_edge"/>
-    <corners android:radius="14dp"/>
-</shape>
+<!-- Settings button, closed state: the plum plate wrapped in a ripple, so a
+     press is acknowledged before the panel opens. The mask item is what keeps
+     the ripple inside the plate's rounded corners instead of spilling a
+     rectangle across the header.
+
+     The resource name is unchanged (gear_bg) on purpose: MainActivity swaps
+     this drawable for gear_bg_open when the panel opens, so the brand law
+     still lives in exactly one place per state. -->
+<ripple xmlns:android="http://schemas.android.com/apk/res/android"
+    android:color="@color/gold_press">
+    <item android:id="@android:id/mask">
+        <shape android:shape="rectangle">
+            <solid android:color="#FFFFFFFF"/>
+            <corners android:radius="14dp"/>
+        </shape>
+    </item>
+    <item android:drawable="@drawable/gear_plate"/>
+</ripple>

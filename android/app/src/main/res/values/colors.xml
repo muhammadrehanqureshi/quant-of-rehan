@@ -9,6 +9,10 @@
     <color name="plum_panel_bottom">#FF170C1B</color>
     <color name="gold_deep">#FFB9822F</color>
     <color name="gold">#FFD9A441</color>
+    <!-- Settings press feedback: the brand gold at 20% alpha, used by the
+         masked ripple on the gear plates. Low enough that the press reads as
+         a touch, not as a state change (the gold RING is the state). -->
+    <color name="gold_press">#33D9A441</color>
     <color name="gold_bright">#FFF8CE66</color>
     <color name="orange_logo">#FFE58142</color>
     <color name="crimson_logo">#FF882F48</color>
