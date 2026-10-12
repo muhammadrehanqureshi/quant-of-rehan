@@ -14,9 +14,11 @@ the app answers, using the same modules the app's data comes from.
 
     2. WHAT IS THE MARKET DOING?  src/data/market_snapshot.py reads the PSX
        Data Portal's own pages for the KSE100 index and the volume leaders,
-       and src/data/volume_split.py answers the buy and sell volumes: measured
-       from a banked session tape when one exists, and otherwise an estimate
-       from the day's published range that is labelled as one (SO-3).
+       and src/data/volume_split.py answers the buy and sell volumes from
+       the broker tape when one is running (measured when it covered the
+       day, otherwise its real-time sides projected onto the day's total),
+       and otherwise from the day's published range. Either estimate is
+       labelled as one (SO-3).
 
 Every field is validated before it is rendered: a snapshot with a missing
 index, a negative volume, a percentage that is not a number, a split that is
@@ -100,7 +102,9 @@ class Card:
         return self.open_now
 
     def render(self) -> str:
-        lines = [f"MARKET NOW   {self.phase}   {self.window}"]
+        # Owner order 2026-10-12: the card carries no "MARKET NOW" label any
+        # more, so the example does not print one either.
+        lines = [f"{self.phase}   {self.window}"]
         if self.index_value is None:
             lines.append("KSE100  not available right now")
         else:

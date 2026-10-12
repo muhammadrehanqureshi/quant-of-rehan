@@ -265,21 +265,20 @@
                 android:text="@string/btn_arm"/>
         </LinearLayout>
 
-        <!-- ══════════ market now card (owner order 2026-10-09) ══════════
+        <!-- ══════════ market card ══════════
              Third box, same shape as the two above: KSE100 points and
              percentage plus the day's top three KMIALL stocks by volume,
-             rebuilt by the relay every five minutes. -->
+             rebuilt by the relay every five minutes.
+
+             Owner order 2026-10-12: the card carries no "MARKET NOW" label
+             any more. The index line and the ranking state what the card is
+             by themselves, and the label was the last piece of chrome the
+             owner asked to have removed. -->
         <LinearLayout style="@style/QorPanel"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="14dp"
             android:orientation="vertical">
-
-            <TextView style="@style/QorLabel"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:gravity="center"
-                android:text="@string/label_market"/>
 
             <TextView
                 android:id="@+id/market_index"
@@ -313,57 +312,9 @@
         </LinearLayout>
 
 
-        <!-- spacer: keeps the pinned block below at the bottom of the screen
-             now that the quote panel (which used to take the slack) is gone -->
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1"/>
-
-        <!-- ══════════ pinned cadence (owner order 2026-10-11) ══════════
-             Pinned to the bottom of the interface, below every card, so it is
-             read last and cannot be scrolled away on a short screen: the
-             spacer above takes the slack and this block follows it.
-             Static text, a real interval, never a live claim. -->
-        <TextView
-            android:id="@+id/scan_cadence"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="14dp"
-            android:alpha="0.9"
-            android:gravity="center"
-            android:text="@string/scan_cadence"
-            android:textColor="@color/teal_bright"
-            android:textSize="12sp"/>
-
-        <!-- footer rule: line, diamond, line, ending the frame like the
-             logo plate -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="18dp"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
-
-            <View
-                android:layout_width="0dp"
-                android:layout_height="1dp"
-                android:layout_weight="1"
-                android:background="@color/gold_deep"/>
-
-            <TextView
-                style="@style/QorDiamond"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:paddingLeft="8dp"
-                android:paddingRight="8dp"
-                android:text="@string/diamond"/>
-
-            <View
-                android:layout_width="0dp"
-                android:layout_height="1dp"
-                android:layout_weight="1"
-                android:background="@color/gold_deep"/>
-        </LinearLayout>
+        <!-- Owner order 2026-10-12: the pinned bottom cadence and the footer
+             rule are gone. The cadence sentence now sits in the market card
+             itself, where the volume ranking can be read with it, so the
+             interface ends at the card. -->
     </LinearLayout>
 </ScrollView>

@@ -197,6 +197,40 @@ class CaptureTest(TickTestCase):
             self.assertEqual(deliver.call_count, 1)
         self.assertIn("ops alert sent", self.logfile.read_text(encoding="utf-8"))
 
+    def test_a_continuing_outage_re_alerts_once_per_day(self):
+        # Owner order 2026-10-12 (zero-defect law): a feed that stays broken
+        # must not go quiet after the first alert. One reminder per Karachi
+        # day, never one per tick.
+        self.fake_clock(at(MONDAY, 10, 7))
+        with patch.object(pipeline, "deliver") as deliver:
+            for _ in range(kmiall_tick.ALERT_AFTER_FAILURES):
+                kmiall_tick.note_health(False, "feed down")
+            self.assertEqual(deliver.call_count, 1)   # the threshold alert
+            kmiall_tick.note_health(False, "feed down")      # same day, quiet
+            self.assertEqual(deliver.call_count, 1)
+            self.fake_clock(at(MONDAY + timedelta(days=1), 10, 7))  # day two
+            kmiall_tick.note_health(False, "feed down")
+            self.assertEqual(deliver.call_count, 2)   # the daily reminder
+            kmiall_tick.note_health(False, "feed down")      # still one a day
+            self.assertEqual(deliver.call_count, 2)
+
+    def test_a_healthy_pass_re_arms_the_daily_reminder(self):
+        self.fake_clock(at(MONDAY, 10, 7))
+        with patch.object(pipeline, "deliver") as deliver:
+            for _ in range(kmiall_tick.ALERT_AFTER_FAILURES):
+                kmiall_tick.note_health(False, "feed down")
+            self.assertEqual(deliver.call_count, 1)
+            kmiall_tick.note_health(True, "ok")              # the feed recovers
+            for _ in range(kmiall_tick.ALERT_AFTER_FAILURES):
+                kmiall_tick.note_health(False, "feed down")  # a new outage
+            self.assertEqual(deliver.call_count, 2)
+
+    def test_a_healthy_pass_clears_the_day_stamp(self):
+        kmiall_tick.note_health(False, "feed down")
+        kmiall_tick.note_health(True, "ok")
+        health = json.loads(self.health.read_text(encoding="utf-8"))
+        self.assertNotIn("last_failure_alert_day", health)
+
     def test_a_successful_tick_records_the_slot(self):
         moment = at(MONDAY, 10, 7)
         self.fake_clock(moment)
