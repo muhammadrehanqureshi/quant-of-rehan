@@ -33,14 +33,20 @@
                      bold from a face that already carries one weight.
                      30sp is measured, not guessed: the string advances
                      6.677 em, so 200dp on the narrowest phone this app
-                     supports, against about 320dp of content width. -->
+                     supports, against about 320dp of content width.
+
+                     includeFontPadding stays at its default (true) for the
+                     same measured reason: Bonskin's ink for this exact string
+                     reaches 779/1000 em while its TYPOGRAPHIC ascender is only
+                     730/1000, so the tighter box would shave the top of the
+                     capital Q. The default box uses the font's hhea metrics
+                     (1006 / -288), which contain the ink with room to spare. -->
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_gravity="center_horizontal"
                     android:fontFamily="@font/bonskin"
                     android:gravity="center"
-                    android:includeFontPadding="false"
                     android:paddingBottom="2dp"
                     android:shadowColor="@color/crimson_logo"
                     android:shadowDy="2"

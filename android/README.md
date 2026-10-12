@@ -130,6 +130,10 @@ control became a vector drawable.
 6.677 em in Bonskin, so 200dp on a 320dp content width. It carries no
 letterSpacing (tracking breaks a script face's joins) and no `textStyle`
 (Android would synthesise a bold from a face that already has one weight).
+- The brand also keeps `includeFontPadding` at its default. Bonskin's ink for
+that exact string reaches 779/1000 em while its typographic ascender is only
+730/1000, so the tighter box would shave the top of the capital Q; the default
+box uses the wider hhea metrics (1006 / -288), which contain the ink.
 
 `tests/test_android_app_ui.py` parses these tables itself and asserts all of
 the above, so a future font swap that drops a glyph fails the suite instead of
