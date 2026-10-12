@@ -60,7 +60,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import re
 import sys
 import urllib.request
@@ -87,8 +86,11 @@ PORTAL_INDEX = "https://dps.psx.com.pk/indices/"
 PORTAL_COMPANY = "https://dps.psx.com.pk/company/"
 INDEX_NAME = "KSE100"
 INDEX_MEMBERSHIP = "KMIALLSHR"
-RELAY_DEFAULT = "https://quant-of-rehan-relay.mrmrehanqureshi.workers.dev"
 TOP_N = 3
+# SO-9: the relay URL is never guessed here. push_snapshot resolves it the
+# way every other sender does (RELAY_URL, then data/relay_url.txt, written by
+# cloud/pair.py and scripts/signal_daily.py) and fails closed when neither is
+# configured, so a card cannot travel to a hardcoded address.
 
 #: The REG panel start and the sibling panel starts that end it. The company
 #: page renders one panel per market (REG, FUT, CSF, ODL) plus futures and
@@ -355,12 +357,37 @@ def build_snapshot() -> dict:
 
 
 def push_snapshot(snapshot: dict) -> dict:
+    """Store the snapshot on the relay so the phone card can render it.
+
+    Both credentials are resolved through the resolvers the rest of this
+    repository already uses -- ``RELAY_URL`` then ``data/relay_url.txt``, and
+    ``RELAY_ADMIN_TOKEN`` from the environment then the gitignored repo
+    ``.env`` -- rather than from the environment alone.
+
+    Owner bug report, 2026-10-12: the phone card showed a buy/sell split of
+    ``null`` with no capture reason, and this function was part of why. It
+    read ``os.environ`` only, and a Windows process started without a
+    wrapper has neither variable set, so every run of this command raised
+    "RELAY_ADMIN_TOKEN missing" while ``.env`` and ``data/relay_url.txt``
+    both held exactly what it wanted. Nothing ever reached the relay, so the
+    card could only ever show the exchange's total volume.
+    """
     import requests
 
-    token = os.environ.get("RELAY_ADMIN_TOKEN", "").strip()
-    if not token:
-        raise SystemExit("RELAY_ADMIN_TOKEN missing; run from the repo .env or CI")
-    url = os.environ.get("RELAY_URL", "").strip().rstrip("/") or RELAY_DEFAULT
+    from src.notify.schedule_runner import (  # SO-5, SO-9: one resolver
+        load_relay_admin_token,
+        load_relay_url,
+    )
+
+    try:
+        token = load_relay_admin_token()
+    except RuntimeError as exc:
+        raise SystemExit(f"{exc}; on this PC the token belongs in the "
+                         f"gitignored repo .env") from None
+    try:
+        url = load_relay_url()
+    except RuntimeError as exc:
+        raise SystemExit(str(exc)) from None
     response = requests.post(url + "/market", json=snapshot, timeout=30,
                              headers={"x-admin-token": token})
     body = response.json()

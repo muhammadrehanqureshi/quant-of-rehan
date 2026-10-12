@@ -30,18 +30,26 @@ What genuinely exists, checked against the venue's own pages on 2026-10-11
 
 So every row is answered in this order:
 
-  1. MEASURED. A banked tape covers the symbol and its classified buy and
-     sell volumes reconcile with the venue's own cumulative session total.
-     The measured numbers are used and labelled as measured.
-  2. ESTIMATED. Otherwise the split is the money flow multiplier position
-     of the close inside the day's published high low range, applied to the
-     session total the card prints as T. That matters: the estimate is a
-     decomposition of that published total, so B and S add up to the T on
-     the same row by construction. SO-3 allows an OHLCV derived proxy in
+  1. MEASURED. A banked tape covers the symbol from (near) the session start
+     and its classified buy and sell volumes reconcile with the venue's own
+     cumulative session total. The measured numbers are used and labelled as
+     measured.
+  2. TAPE FLOW. A tape covered part of the symbol's day. The sides it did
+     attribute (from where the venue's own prints traded) are used as the
+     proportion, and that proportion is applied to the session total the
+     card prints as T. Every share is then on a side and B + S is exactly
+     the T on the same row. This is the split the card shows whenever the
+     tape is running: it is derived from real-time prints of that exact
+     symbol, not from the shape of its price range, and it is labelled as
+     an estimate to T (the exchange publishes no side, so no honest label
+     may claim more).
+  3. RANGE ESTIMATE. No tape flow at all: the split is the money flow
+     multiplier position of the close inside the day's published high low
+     range, applied to the same total. SO-3 allows an OHLCV derived proxy in
      this system only when it is explicitly labelled as degraded, so the
      label travels with the number and the app prints it. It is never
      presented as observed order flow.
-  3. UNAVAILABLE. When the venue's own fields are missing or contradictory
+  4. UNAVAILABLE. When the venue's own fields are missing or contradictory
      the row carries no numbers at all and a short reason.
 
 Invariants, all covered by tests/test_volume_split.py:
@@ -52,6 +60,10 @@ Invariants, all covered by tests/test_volume_split.py:
   * the estimate is refused rather than guessed when high < low, when a
     field is missing, when the session volume is not positive, or when the
     last price sits outside the published high low range;
+  * the tape flow proportion is only used when the tape attributed volume
+    to at least one side, and it is projected onto the session total with
+    half-up rounding so this file and the relay's JavaScript agree to the
+    share;
   * a session whose entire range is a single price carries no directional
     information, so its split is stated as even and the range is reported
     rather than hidden.
@@ -86,6 +98,7 @@ from src.data import tick_volume  # noqa: E402
 
 #: Per-row method tags, so the app can label a number honestly.
 METHOD_MEASURED = "measured_tape"
+METHOD_TAPE = "tape_flow"
 METHOD_RANGE = "range_position"
 METHOD_NONE = "unavailable"
 
@@ -93,14 +106,35 @@ METHOD_NONE = "unavailable"
 #: wherever it is shown, in as few words as the law allows.
 METHOD_LABELS = {
     METHOD_MEASURED: "B/S measured from the session tape",
+    METHOD_TAPE: ("B/S estimated from the session tape's real-time prints, "
+                  "not order flow"),
     METHOD_RANGE: "B/S estimated from the day's range, not order flow",
 }
+
+#: Weakest first, for the one line footnote: the sentence must name the
+#: weakest method that produced a number on the card.
+METHOD_STRENGTH_ORDER = (METHOD_RANGE, METHOD_TAPE, METHOD_MEASURED)
 
 #: The venue's ranking table and its per-symbol panel are fetched seconds
 #: apart, so the panel's session volume may only be equal to or newer than
 #: the table's. A panel that reports LESS than the table was served stale,
 #: and a stale range must never be turned into a split.
 STALE_VOLUME_RATIO = 1.0
+
+#: How much of the day's volume the tape must have attributed before its
+#: proportions may be projected onto the day's total. Measured 2026-10-12, a
+#: capture that began mid-session: a 0.1 percent slice of SLGL's day would
+#: have printed as 100 percent buying, and a 5 percent slice of TREET's as
+#: 45 percent buying, both of them one or two windows' directions rather than
+#: the day's flow. Below a tenth of the day's shares the range estimate
+#: answers instead, labelled as it is. A tape kept alive from the open
+#: (src/data/live_card.py does this) covers most of a normal session, with
+#: only the shares traded before its first sight of a symbol, any tape
+#: outage, and windows with no print evidence left unclassified.
+MIN_TAPE_COVERAGE = 0.10
+
+#: And it must have more than a couple of windows behind that proportion.
+MIN_TAPE_WINDOWS = 5
 
 
 @dataclass(frozen=True)
@@ -223,6 +257,44 @@ def measured_split(flow: "tick_volume.SymbolFlow") -> Split | None:
                  volume=total, method=METHOD_MEASURED)
 
 
+def tape_flow_split(flow: "tick_volume.SymbolFlow",
+                    total: float | None) -> Split | None:
+    """A split from the tape's own attributed flow, projected onto T.
+
+    The capture did not cover the whole day for this symbol (measured_split
+    refused it), but it did attribute some volume to a side from where the
+    venue's prints traded. Those proportions are applied to the session
+    total the card prints as T, so B + S is exactly T on the same row:
+    every share is on a side, and the label tells the owner the sides are
+    the tape's reading, not a published field.
+
+    Returns None when there is no attributed flow or no positive total, and
+    the caller falls through to the range estimate.
+    """
+    if flow is None or not flow.split_available:
+        return None
+    if total is None or total < 1:
+        return None
+    if flow.coverage < MIN_TAPE_COVERAGE or flow.windows < MIN_TAPE_WINDOWS:
+        # Too thin to stand for the day. The reason travels with the flow's
+        # own notes; the row falls through to the range estimate and is
+        # labelled as that.
+        return None
+    session_total = int(round(total))
+    if session_total <= 0:
+        return None
+    classified = flow.classified_total
+    if classified <= 0:
+        return None
+    # Half up, the same rounding the relay's JavaScript uses.
+    buy = int(session_total * flow.buy_volume / classified + 0.5)
+    buy = min(max(buy, 0), session_total)
+    note = (f"the tape attributed {classified:,} of the venue's "
+            f"{flow.total_volume:,} shares")
+    return Split(buy=buy, sell=session_total - buy, volume=session_total,
+                 method=METHOD_TAPE, note=note)
+
+
 def split_for(row: Mapping, *, quotes: Mapping | None = None,
               flows: Mapping | None = None) -> tuple[Split | None, str]:
     """One leader row's split, plus the reason when there is none.
@@ -238,6 +310,13 @@ def split_for(row: Mapping, *, quotes: Mapping | None = None,
     measured = measured_split(flow)
     if measured is not None:
         return measured, ""
+    # The tape's own attribution, projected onto the T the card prints. It
+    # is the strongest evidence available after a whole-day reconciliation,
+    # and it does not need the company page: the split is real (the venue's
+    # own prints decided each side) even when a quote is missing.
+    projected = tape_flow_split(flow, table_volume)
+    if projected is not None:
+        return projected, ""
     quote = (quotes or {}).get(symbol)
     if quote is None:
         return None, "no published session range for this symbol"
@@ -301,21 +380,26 @@ def summarise(rows: Iterable[Mapping]) -> str:
     available = [row for row in rows if row.get("buy_volume") is not None]
     if not available:
         return "B/S unavailable for the leaders right now"
-    measured = sum(1 for row in available
-                   if row.get("split_method") == METHOD_MEASURED)
-    text = (METHOD_LABELS[METHOD_MEASURED] if measured == len(available)
-            else METHOD_LABELS[METHOD_RANGE])
+    present = {str(row.get("split_method") or METHOD_NONE)
+               for row in available}
+    chosen = METHOD_MEASURED
+    for method in METHOD_STRENGTH_ORDER:
+        if method in present:
+            chosen = method
+            break
+    text = METHOD_LABELS[chosen]
     if len(available) < len(rows):
         text += f" ({len(available)} of {len(rows)})"
     return text
 
 
 def flows_for(day: date, symbols: Iterable[str]) -> dict:
-    """Measured flows for these symbols from the day's banked tape, if any.
+    """Attributed flows for these symbols from the day's banked tape, if any.
 
-    Returns an empty mapping when no tape was banked, which is the normal
-    case: the capture is not a standing process (SO-10), so the estimate is
-    what the card normally shows.
+    Returns an empty mapping when no tape was banked. The capture is kept
+    alive for the session by src/data/live_card.py, so with the tape running
+    the card's sides come from it; only a session with no tape at all falls
+    back to the range estimate.
     """
     path = tick_volume.capture_path(day)
     if not path.is_file():
@@ -324,7 +408,7 @@ def flows_for(day: date, symbols: Iterable[str]) -> dict:
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Worked example, and a way to check one symbol by hand."""
+    """Worked example of the range estimate, and a hand check of one symbol."""
     ap = argparse.ArgumentParser(
         description="buy/sell split: measured tape first, labelled estimate "
                     "second")
