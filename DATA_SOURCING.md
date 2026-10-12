@@ -65,6 +65,14 @@ when labeled degraded. They are never presented as true order flow.
 - The separate MKT-FEED socket did not deliver per-symbol ticks in anonymous
   mode during the 2026-10-06 probe. It is not used for OHLC strategy signals.
   Credentialed read-only L1 collection is not configured.
+  UPDATE 2026-10-12 (measured live): the socket does deliver per-symbol
+  snapshots without any credentials, including the venue's own running
+  session total, the last print, the best bid and the best ask, once the
+  subscription names the market (`MKT-FEED|SYM:REG;...;%`). Bare symbols get
+  only the index, movers and market-stats frames, which is what the 2026-10-06
+  probe saw. The tape is banked read-only and feeds the phone card's buy and
+  sell split (src/data/tick_volume.py); it is still not used for OHLC strategy
+  signals, and it is not an L2 book or a per-trade tape.
 
 ### Path B: Longer-term intraday archive
 - A no-login `pypsx-toolkit` check returned 667 OGDC ticks and 1,192 rows for
