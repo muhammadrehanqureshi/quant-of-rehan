@@ -20,11 +20,14 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content">
 
-            <LinearLayout
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_centerInParent="true"
-                android:orientation="vertical">
+            <!-- The brand line and the settings control share this row, so the
+                 control is centred on "Quant of Rehan" itself rather than on
+                 the brand block with its tagline (owner order 2026-10-13). The
+                 tagline sits below the row and never influences the control. -->
+            <RelativeLayout
+                android:id="@+id/brand_row"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
 
                 <!-- The brand face (owner order 2026-10-12): Bonskin, the
                      owner's own script signature face, at 30sp.
@@ -42,9 +45,10 @@
                      capital Q. The default box uses the font's hhea metrics
                      (1006 / -288), which contain the ink with room to spare. -->
                 <TextView
+                    android:id="@+id/brand_title"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_gravity="center_horizontal"
+                    android:layout_centerHorizontal="true"
                     android:fontFamily="@font/bonskin"
                     android:gravity="center"
                     android:paddingBottom="2dp"
@@ -55,38 +59,44 @@
                     android:textColor="@color/gold_bright"
                     android:textSize="30sp"/>
 
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="center_horizontal"
-                    android:layout_marginTop="4dp"
-                    android:fontFamily="@font/lemonmilk_light"
-                    android:gravity="center"
-                    android:letterSpacing="0.18"
-                    android:text="@string/tagline"
-                    android:textColor="@color/teal"
-                    android:textSize="10sp"/>
-            </LinearLayout>
+                <!-- The settings control (owner order 2026-10-13): the owner's
+                     own settings.png silhouette (res/drawable-nodpi/
+                     settings.png, 512x512, a black gear on transparency,
+                     copied from his Desktop byte for byte), tinted into the
+                     app's palette and sitting on no plate at all. The old gear
+                     vector and its two plates are retired. This row centres
+                     the control on the brand line; the open state is the
+                     quarter turn and the brighter gold, both done in
+                     MainActivity.setSettingsOpen, and its only background is a
+                     masked circular ripple, so a press is acknowledged without
+                     a tile ever being drawn. -->
+                <ImageView
+                    android:id="@+id/btn_settings"
+                    android:layout_width="42dp"
+                    android:layout_height="42dp"
+                    android:layout_alignParentEnd="true"
+                    android:layout_centerVertical="true"
+                    android:background="@drawable/settings_ripple"
+                    android:contentDescription="@string/cd_settings"
+                    android:padding="6dp"
+                    android:scaleType="fitCenter"
+                    android:src="@drawable/settings"
+                    android:tint="@color/gold"/>
+            </RelativeLayout>
 
-            <!-- neutral plum in every state; gold ring only while the
-                 settings panel is open.
-
-                 Owner order 2026-10-12: the U+2699 text glyph is gone. The
-                 control is the vector gear (drawable/ic_gear) on a masked
-                 ripple, so it is the same drawn shape at every density, gives
-                 press feedback, and cannot fall back to a missing-glyph box.
-                 MainActivity swaps only the plate (gear_bg <-> gear_bg_open). -->
-            <ImageView
-                android:id="@+id/btn_settings"
-                android:layout_width="42dp"
-                android:layout_height="42dp"
-                android:layout_alignParentEnd="true"
-                android:layout_centerVertical="true"
-                android:background="@drawable/gear_bg"
-                android:contentDescription="@string/cd_settings"
-                android:padding="10dp"
-                android:scaleType="fitCenter"
-                android:src="@drawable/ic_gear"/>
+            <TextView
+                android:id="@+id/brand_tagline"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_below="@id/brand_row"
+                android:layout_centerHorizontal="true"
+                android:layout_marginTop="4dp"
+                android:fontFamily="@font/lemonmilk_light"
+                android:gravity="center"
+                android:letterSpacing="0.18"
+                android:text="@string/tagline"
+                android:textColor="@color/teal"
+                android:textSize="10sp"/>
         </RelativeLayout>
 
         <!-- brand rule: line, diamond, line (from the logo frame). Defined
@@ -133,13 +143,17 @@
                 android:paddingBottom="5dp"
                 android:accessibilityLiveRegion="polite"
                 android:contentDescription="@string/cd_status_checking"
+                android:fontFamily="@font/lemonmilk_bold"
                 android:text="@string/status_checking"
-                android:textSize="13sp"
-                android:textStyle="bold"/>
+                android:textSize="13sp"/>
 
+            <!-- Owner order 2026-10-13: every line in this tile is set in the
+                 owner's faces, so the detail keeps QorValue (LEMON MILK
+                 Light) instead of the system face. The clock span no longer
+                 forces monospace inside the tile either. -->
             <TextView
                 android:id="@+id/status_detail"
-                style="@style/QorBody"
+                style="@style/QorValue"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
@@ -160,9 +174,10 @@
                 android:gravity="center"
                 android:text="@string/label_signal"/>
 
+            <!-- The same order sets this tile's lines in the owner's face. -->
             <TextView
                 android:id="@+id/signal_list"
-                style="@style/QorBody"
+                style="@style/QorValue"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"

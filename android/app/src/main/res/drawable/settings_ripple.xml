@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The settings control's press feedback (owner order 2026-10-13: "remove its
+     background tile"). The plate and its gold ring are retired along with the
+     old gear vector, so nothing is drawn at rest and this ripple carries no
+     content item at all: the masked circle shows the press itself, which is
+     what keeps the header light while still answering a tap. -->
+<ripple xmlns:android="http://schemas.android.com/apk/res/android"
+    android:color="@color/gold_press">
+    <item android:id="@android:id/mask">
+        <shape android:shape="oval">
+            <solid android:color="#FFFFFFFF"/>
+        </shape>
+    </item>
+</ripple>
