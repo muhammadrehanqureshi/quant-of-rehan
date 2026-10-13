@@ -137,7 +137,6 @@ public final class Watcher {
         /** The relay's exact sentence for that condition, or empty. */
         String conditionText = "";
         boolean tradingDay = true;
-        String nextEvent = "";
         Double indexValue;
         Double indexChange;
         Double indexPct;
@@ -343,10 +342,6 @@ public final class Watcher {
         if (state.has("market_open")) {
             market.open = state.optBoolean("market_open", market.open);
         }
-        JSONObject next = state.optJSONObject("next_event");
-        if (next != null) {
-            market.nextEvent = next.optString("at_pk", "");
-        }
     }
 
     /**
@@ -389,22 +384,6 @@ public final class Watcher {
     }
 
     /**
-     * "Trading resumes 14:32 PKT.", or "" while the exchange is trading.
-     *
-     * Its own sentence under the condition, never inside it: the condition
-     * texts are the owner's exact words and nothing is edited into them. The
-     * time comes from the relay's next band edge, so a Friday afternoon
-     * resumes at 14:32 and a weekday morning at 09:32 without the app knowing
-     * either schedule (SO-8).
-     */
-    static String resumeLine(Context c, Market market) {
-        if (market == null || market.open || market.nextEvent.isEmpty()) {
-            return "";
-        }
-        return c.getString(R.string.market_resume_hint, market.nextEvent);
-    }
-
-    /**
      * One fetch round. ONLINE means a live session AND a relay that answers.
      * The owner's rule (2026-10-09): when the market is closed the app must
      * say OFFLINE with a red cross, never ONLINE.
@@ -437,10 +416,8 @@ public final class Watcher {
                     if (!line.isEmpty()) {
                         d.append('\n').append(line);
                     }
-                    String resume = resumeLine(c, healthMarket);
-                    if (!resume.isEmpty()) {
-                        d.append('\n').append(resume);
-                    }
+                    // Owner order 2026-10-13: the "Trading resumes" sentence
+                    // is retired, so the tile carries the condition alone.
                     detail = d.toString();
                 }
 
@@ -467,7 +444,6 @@ public final class Watcher {
                     // told us, so the pill and the footnote never disagree
                     market.phase = healthMarket.phase;
                     market.tradingDay = healthMarket.tradingDay;
-                    market.nextEvent = healthMarket.nextEvent;
                     market.open = healthMarket.open;
                 }
                 cb.done(online, reachable, detail, signals, market);

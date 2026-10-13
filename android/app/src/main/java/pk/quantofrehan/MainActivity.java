@@ -3,16 +3,17 @@ package pk.quantofrehan;
 import android.app.Activity;
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.graphics.Typeface;
+import android.content.res.ColorStateList;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Bundle;
 import android.text.SpannableString;
 import android.text.style.ForegroundColorSpan;
-import android.text.style.StyleSpan;
 import android.text.style.TypefaceSpan;
 import android.view.View;
+import android.view.animation.DecelerateInterpolator;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -58,6 +59,14 @@ import java.util.Locale;
  * carry the owner's own faces (Bonskin for "Quant of Rehan", LEMON MILK Bold
  * and Light around it), and the double space that sat between a ticker and
  * its buy volume is a single space.
+ *
+ * Owner order 2026-10-13: the settings control is the owner's own settings.png
+ * silhouette, tinted from the palette and on no plate at all, sharing a row
+ * with the brand line so it is centred on "Quant of Rehan"; the panel's state
+ * is a quarter turn left with a brighter gold, animated back on close. The
+ * status tile and the signal tile are drawn in the owner's faces end to end,
+ * the "Trading resumes" line is retired from the status tile, and a leader
+ * row brackets its volume group.
  */
 public class MainActivity extends Activity {
 
@@ -72,11 +81,18 @@ public class MainActivity extends Activity {
      */
     private static final String ARROW_FACE = "sans-serif";
 
+    /**
+     * The settings icon's quarter turn (owner order 2026-10-13). 220ms reads
+     * as one deliberate turn rather than a flicker, and the turn is short
+     * enough to finish while the panel is already sliding into place.
+     */
+    private static final long GEAR_TURN_MS = 220L;
+
     private SharedPreferences prefs;
     private TextView statusPill, statusDetail, signalList;
     private TextView marketIndex, marketLeaders, marketFoot;
-    /** Only the plate is ever swapped on it, so a View is enough. */
-    private View btnSettings;
+    /** Turned and tinted by setSettingsOpen, so it is the ImageView itself. */
+    private ImageView btnSettings;
     private View settingsPanel;
 
     @Override
@@ -97,20 +113,14 @@ public class MainActivity extends Activity {
         final EditText tokenBox = findViewById(R.id.token_box);
         tokenBox.setText(prefs.getString("admin_token", ""));
 
-        btnSettings.setOnClickListener(v -> {
-            boolean show = settingsPanel.getVisibility() == View.GONE;
-            settingsPanel.setVisibility(show ? View.VISIBLE : View.GONE);
-            // the ring follows the panel state, never anything else
-            btnSettings.setBackgroundResource(show
-                    ? R.drawable.gear_bg_open : R.drawable.gear_bg);
-        });
+        btnSettings.setOnClickListener(v ->
+                setSettingsOpen(settingsPanel.getVisibility() == View.GONE));
 
         findViewById(R.id.btn_save).setOnClickListener(v -> {
             String t = tokenBox.getText().toString().trim();
             prefs.edit().putString("admin_token", t).apply();
             toast(t.isEmpty() ? "Token cleared." : "Token saved.");
-            settingsPanel.setVisibility(View.GONE);
-            btnSettings.setBackgroundResource(R.drawable.gear_bg);
+            setSettingsOpen(false);
             Watcher.kick(this);
             refresh();
         });
@@ -130,6 +140,30 @@ public class MainActivity extends Activity {
         // v1.5.1: ask once, quietly, so Doze and OEM battery managers do not
         // defer the watchdog. The Arm button can always ask again on demand.
         maybeRequestBatteryExemption(false);
+    }
+
+    /**
+     * The one place the settings state changes (owner order 2026-10-13).
+     *
+     * Everything "open" means lives here so the three can never drift apart:
+     * the panel's visibility, the icon's quarter turn, and its tint. Opening
+     * turns the icon 90 degrees to the left (counterclockwise, so a negative
+     * rotation); closing animates that rotation back to zero, which is the
+     * 90 degree turn to the right the owner asked for. The tint carries the
+     * old brand law that the plate's gold ring used to carry, now that the
+     * plate itself is gone: gold at rest, brighter gold while the panel is
+     * open. A decelerating curve makes the last few degrees settle instead of
+     * stopping dead.
+     */
+    private void setSettingsOpen(boolean open) {
+        settingsPanel.setVisibility(open ? View.VISIBLE : View.GONE);
+        btnSettings.animate()
+                .rotation(open ? -90f : 0f)
+                .setDuration(GEAR_TURN_MS)
+                .setInterpolator(new DecelerateInterpolator())
+                .start();
+        btnSettings.setImageTintList(ColorStateList.valueOf(getColor(
+                open ? R.color.gold_bright : R.color.gold)));
     }
 
     /**
@@ -214,7 +248,15 @@ public class MainActivity extends Activity {
         renderMarket(market);
     }
 
-    /** "Karachi: <clock>" gets the brand teal, monospaced, terminal style. */
+    /**
+     * "Karachi: <clock>" keeps the brand teal.
+     *
+     * Owner order 2026-10-13: the tile is drawn in the owner's face end to
+     * end, so the monospace family and the synthesised bold that used to force
+     * the clock into a legacy face are retired. The colour emphasis stays,
+     * because it marks the one live value on the line without touching the
+     * type.
+     */
     private SpannableString clockSpans(String d) {
         SpannableString sp = new SpannableString(d);
         int k = d.indexOf("Karachi: ");
@@ -226,10 +268,8 @@ public class MainActivity extends Activity {
                 end++;
             }
             end = Math.min(end, d.length());
-            sp.setSpan(new StyleSpan(Typeface.BOLD), start, end, 0);
             sp.setSpan(new ForegroundColorSpan(getColor(R.color.teal_bright)),
                     start, end, 0);
-            sp.setSpan(new TypefaceSpan("monospace"), start, end, 0);
         }
         return sp;
     }
@@ -284,13 +324,19 @@ public class MainActivity extends Activity {
 
     /**
      * Every leader is two lines (owner order 2026-10-12):
-     *   "1. ABC B=12,345  S=9,876  T=22,221"
+     *   "1. ABC (B=12,345  S=9,876  T=22,221)"
      *   "PKR 12.52 \u25B2 1.05%"
      *
-     * The gap between the ticker and its buy volume is ONE space (owner order
-     * 2026-10-12, third note): it used to be three, which read as a double
-     * space on the phone. The two spaces that separate the volume fields stay,
-     * because they are what groups B, S and T apart from the ticker.
+     * The gap between the ticker and the volume group is ONE space (owner
+     * order 2026-10-12, third note): it used to be three, which read as a
+     * double space on the phone. The two spaces that separate the volume
+     * fields stay, because they are what groups B, S and T apart.
+     *
+     * Owner order 2026-10-13: the group is bracketed, "(" opening at the B
+     * indicator and ")" closing after the exchange's total, so the three
+     * fields read as one block instead of trailing off the ticker. A row with
+     * no split opens the bracket at the total it does have, so the shape of
+     * the line never changes between rows.
      *
      * The price never shares a line with the volumes any more: the second
      * line is the money line, with the currency label welded to the number so
@@ -326,7 +372,8 @@ public class MainActivity extends Activity {
             if (row.hasSplit()) {
                 // "=" for a measured number, U+2248 for an estimated one.
                 String mark = row.estimatedSplit() ? "\u2248" : "=";
-                sb.append(" B").append(mark);
+                // "(" opens at B and ")" closes after T: one bracketed group.
+                sb.append(" (B").append(mark);
                 int buyFrom = sb.length();
                 sb.append(String.format(Locale.US, "%,d", row.buy));
                 spans.add(new int[]{buyFrom, sb.length(), R.color.green});
@@ -334,9 +381,9 @@ public class MainActivity extends Activity {
                 int sellFrom = sb.length();
                 sb.append(String.format(Locale.US, "%,d", row.sell));
                 spans.add(new int[]{sellFrom, sb.length(), R.color.red});
-                sb.append(String.format(Locale.US, "  T=%,d", row.volume));
+                sb.append(String.format(Locale.US, "  T=%,d)", row.volume));
             } else if (row.hasVolume()) {
-                sb.append(String.format(Locale.US, " T=%,d", row.volume));
+                sb.append(String.format(Locale.US, " (T=%,d)", row.volume));
             }
             // The money line: opened whenever there is a price or a move to
             // show, so even a price-less row puts its change on its own line

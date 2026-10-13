@@ -4,11 +4,14 @@
     <string name="tagline">PSX KMIALL · SIGNAL-ONLY · KARACHI TIME</string>
     <string name="checking">Checking system…</string>
     <string name="no_signals">No signal right now.</string>
-    <!-- Owner order 2026-10-12: the settings glyph is retired. The control is
-         now the vector drawable drawable/ic_gear (no bundled face has U+2699,
-         so a glyph could only ever render as whatever the system font chose),
-         and this is its short spoken label: the long settings_hint paragraph
-         below it is help text, not a button name. -->
+    <!-- Owner order 2026-10-12: the settings glyph is retired, and the
+         control is a drawn shape rather than U+2699 (no bundled face has it,
+         so a glyph could only ever render as whatever the system font chose).
+         Owner order 2026-10-13: the drawn shape is now the owner's own
+         settings.png silhouette (res/drawable-nodpi/settings.png), tinted
+         from the palette and sitting on no plate at all. This string is its
+         short spoken label; the long settings_hint paragraph below it is help
+         text, not a button name. -->
     <string name="cd_settings">Settings. Opens the relay token and the watchdog controls.</string>
     <string name="diamond">◆</string>
     <string name="label_system">SYSTEM STATUS</string>
@@ -51,12 +54,11 @@
          and `condition_text` fields, or its `phase` as a fallback), and the
          app never derives a session from its own clock (SO-8). Both sentences
          are used verbatim: nothing is appended inside them, so the owner's
-         wording always appears exactly as written. -->
+         wording always appears exactly as written. Owner order 2026-10-13:
+         the resume sentence that used to follow them is retired, so the
+         status tile carries the condition alone. -->
     <string name="market_closed_now">Market is closed right now.</string>
     <string name="market_on_break">Market is on a break right now.</string>
-    <!-- A separate sentence, shown under the condition, never inside it.
-         %1$s is the next band edge reported by the relay, for example 14:32 -->
-    <string name="market_resume_hint">Trading resumes %1$s PKT.</string>
     <!-- Shown only when the relay reports no phase at all. The app refuses to
          guess a session, so it says so instead of claiming the market is shut. -->
     <string name="market_status_unreported">Market status not reported by the relay yet.</string>
