@@ -67,6 +67,90 @@ def _snapshot_dir(path: Path) -> dict:
     return {p.name: p.read_bytes() for p in sorted(path.glob("*")) if p.is_file()}
 
 
+#: The forward records that carry a session day of their own.
+DAY_KEYS = ("date", "day", "as_of", "updated_at")
+
+
+def _day_evidence(content: bytes) -> set[str]:
+    """Every ISO day a forward record carries, JSON files and JSONL alike."""
+    days: set[str] = set()
+
+    def collect(node) -> None:
+        if isinstance(node, dict):
+            for key, value in node.items():
+                if (key in DAY_KEYS and isinstance(value, str)
+                        and len(value) >= 10 and value[4] == "-" and value[7] == "-"):
+                    days.add(value[:10])
+                else:
+                    collect(value)
+        elif isinstance(node, list):
+            for item in node:
+                collect(item)
+
+    for line in content.decode("utf-8", "replace").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            collect(json.loads(line))
+        except json.JSONDecodeError:
+            continue
+    return days
+
+
+def _last_record_days(content: bytes) -> set[str]:
+    """The day evidence of the newest record only (the last line of a JSONL)."""
+    lines = [line for line in content.decode("utf-8", "replace").splitlines()
+             if line.strip()]
+    return _day_evidence(lines[-1].encode("utf-8")) if lines else set()
+
+
+def assert_forward_untouched(before: dict[str, bytes], after: dict[str, bytes],
+                             synthetic_day: str) -> None:
+    """Fail when the owner's real forward records carry the test's own session.
+
+    The live 4 minute tick legitimately owns those files during a session and
+    rewrites them on the real clock, while this test pins its clock to a past
+    Friday. Comparing snapshots alone therefore reads the scheduler's honest
+    write as pollution, which is a failure the owner can do nothing about.
+    The evidence is the record's own day:
+
+      * a day the synthetic session wrote, appearing where it was not before,
+        is a leak (a journal that already carried that Friday from a past real
+        session is not, which is why the check is 'newly present');
+      * a change with no session day in it at all is not the scheduler's doing
+        either, so it is refused;
+      * a live rewrite of today's file passes, because its day is already the
+        day it was before.
+
+    Known limit: a leak that appends the synthetic day to a journal which
+    already carried an identical row from history is indistinguishable here.
+    The overwrite paths (observation, session_state, daily_outcome) are the
+    ones this guard exists for, and they are caught.
+    """
+    changed = sorted({name for name in set(before) | set(after)
+                      if before.get(name) != after.get(name)})
+    if not changed:
+        return
+    evidence: set[str] = set()
+    for name in changed:
+        fresh = (_day_evidence(after.get(name, b""))
+                 - _day_evidence(before.get(name, b"")))
+        assert synthetic_day not in fresh, (
+            f"{name} now carries this test's synthetic session "
+            f"({synthetic_day}): the pipeline wrote into the owner's real "
+            "data/forward directory; a test run must never rewrite a session "
+            "record")
+        assert synthetic_day not in _last_record_days(after.get(name, b"")), (
+            f"{name} was appended to with this test's synthetic session "
+            f"({synthetic_day}): a test run must never rewrite a session record")
+        evidence |= _day_evidence(after.get(name, b""))
+    assert evidence, (
+        "the owner's real data/forward files changed with no session day in "
+        f"them at all: {changed}; a test run must never rewrite a session "
+        "record")
+
+
 class RelayRecorder:
     """Stand in for the relay: record every call, answer ok, never dial out."""
 
@@ -157,10 +241,9 @@ class PipelineCycleTest(unittest.TestCase):
             return run_scan(slot, self.capture)
 
     def assert_real_forward_untouched(self) -> None:
-        self.assertEqual(
-            _snapshot_dir(REAL_FORWARD), self.before,
-            "the pipeline wrote into the owner's real data/forward directory; "
-            "a test run must never rewrite a session record")
+        """See assert_forward_untouched: the live tick's own writes are fine."""
+        assert_forward_untouched(self.before, _snapshot_dir(REAL_FORWARD),
+                                 FRIDAY.isoformat())
 
     def test_full_paper_cycle(self):
         first = self.scan("10:00")
@@ -256,6 +339,76 @@ class PipelineCycleTest(unittest.TestCase):
         self.assertFalse(self.state_path.exists())
         self.assertEqual(self.relay.calls, [])
         self.assert_real_forward_untouched()
+
+
+class ForwardGuardTest(unittest.TestCase):
+    """The guard must read the live tick's honest write as honest.
+
+    Before this rule, a suite run that overlapped a scheduled tick failed on
+    the owner's own scheduler: the assert compared snapshots and the tick had
+    legitimately rewritten them. These cases pin both directions, with the
+    synthetic day (a past Friday) and the live day kept apart on purpose.
+    """
+
+    SYNTHETIC = "2026-10-09"
+    LIVE = "2026-10-13"
+
+    @staticmethod
+    def observation(day: str, slot: str) -> bytes:
+        return json.dumps({
+            "date": day, "slot": slot,
+            "as_of": f"{day}T{slot}:00+05:00",
+        }).encode("utf-8")
+
+    def test_a_live_rewrite_of_todays_record_is_not_a_leak(self):
+        before = {"observation.json": self.observation(self.LIVE, "10:36")}
+        after = {"observation.json": self.observation(self.LIVE, "10:40")}
+        assert_forward_untouched(before, after, self.SYNTHETIC)
+
+    def test_a_synthetic_record_appearing_is_a_leak(self):
+        before = {"observation.json": self.observation(self.LIVE, "10:36")}
+        after = {"observation.json": self.observation(self.SYNTHETIC, "10:00")}
+        with self.assertRaises(AssertionError):
+            assert_forward_untouched(before, after, self.SYNTHETIC)
+
+    def test_a_new_file_written_by_the_synthetic_session_is_a_leak(self):
+        after = {"session_state.json":
+                 json.dumps({"day": self.SYNTHETIC}).encode("utf-8")}
+        with self.assertRaises(AssertionError):
+            assert_forward_untouched({}, after, self.SYNTHETIC)
+
+    def test_a_removed_file_is_refused(self):
+        before = {"observation.json": self.observation(self.LIVE, "10:40")}
+        with self.assertRaises(AssertionError):
+            assert_forward_untouched(before, {}, self.SYNTHETIC)
+
+    def test_a_change_with_no_session_day_at_all_is_refused(self):
+        before = {"production_gate.json": b'{"status": "CLOSED"}'}
+        after = {"production_gate.json": b'{"status": "PAPER"}'}
+        with self.assertRaises(AssertionError):
+            assert_forward_untouched(before, after, self.SYNTHETIC)
+
+    def test_a_journal_that_already_held_history_passes_a_live_append(self):
+        old = json.dumps({"day": self.SYNTHETIC, "state": "DAILY_LOCKED"})
+        live = json.dumps({"day": self.LIVE, "state": "DAILY_LOCKED"})
+        before = {"session_journal.jsonl": old.encode("utf-8") + b"\n"}
+        after = {"session_journal.jsonl":
+                 old.encode("utf-8") + b"\n" + live.encode("utf-8") + b"\n"}
+        assert_forward_untouched(before, after, self.SYNTHETIC)
+
+    def test_a_synthetic_append_is_a_leak_even_with_live_history(self):
+        old = json.dumps({"day": self.LIVE, "state": "DAILY_LOCKED"})
+        synthetic = json.dumps({"day": self.SYNTHETIC,
+                                "state": "TARGET_MONITORING"})
+        before = {"session_journal.jsonl": old.encode("utf-8") + b"\n"}
+        after = {"session_journal.jsonl":
+                 old.encode("utf-8") + b"\n" + synthetic.encode("utf-8") + b"\n"}
+        with self.assertRaises(AssertionError):
+            assert_forward_untouched(before, after, self.SYNTHETIC)
+
+    def test_an_unchanged_directory_passes(self):
+        snapshot = {"observation.json": self.observation(self.LIVE, "10:40")}
+        assert_forward_untouched(snapshot, dict(snapshot), self.SYNTHETIC)
 
 
 if __name__ == "__main__":
