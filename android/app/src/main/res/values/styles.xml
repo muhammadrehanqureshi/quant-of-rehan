@@ -9,10 +9,12 @@
 
          * LEMON MILK (free tier) maps every lowercase codepoint onto its
            uppercase glyph, so any text drawn in it renders as capitals. That
-           is exactly right for labels, buttons, badges and the card's numbers,
-           and wrong for a paragraph: the settings hint, the system detail line
-           and the signal list keep the system face so full sentences stay
-           readable as sentences.
+           is exactly right for labels, buttons, badges and the card's numbers.
+           Owner order 2026-10-13 put the system status and the latest signal
+           tiles in it end to end as well (the pill, the detail line and the
+           signal list), which the owner ordered knowing it reads in capitals.
+           The settings hint and the token field keep the system face: the hint
+           is a paragraph, and a pasted token must render exactly as pasted.
          * LEMON MILK HAS U+2248 (the "about" mark the card uses for an
            estimated split), so the marked numbers need no special handling.
          * LEMON MILK HAS no U+25B2/U+25BC (the up and down arrows). The arrow
@@ -20,8 +22,8 @@
            MainActivity, which is why QorBody's family is deliberately left
            alone.
          * No bundled face has U+25C6 (the brand diamond) or U+2699, so
-           QorDiamond keeps the system face and the settings control is a
-           vector drawable instead of a glyph. -->
+           QorDiamond keeps the system face and the settings control is an
+           image (the owner's own settings.png) instead of a glyph. -->
 
     <!-- Cards: subtle vertical plum gradient, hairline plum edge. -->
     <style name="QorPanel">
@@ -44,14 +46,17 @@
         <item name="android:textStyle">bold</item>
         <item name="android:letterSpacing">0.14</item>
     </style>
-    <!-- Sentences: system face, by the type strategy above. A mixed-case
-         paragraph drawn in the free LEMON MILK would be all capitals. -->
+    <!-- The settings paragraph and the token field: system face, by the type
+         strategy above. The hint is a paragraph rather than a label, and a
+         pasted token must render exactly as pasted. -->
     <style name="QorBody">
         <item name="android:textSize">13sp</item>
         <item name="android:textColor">@color/text_soft</item>
         <item name="android:lineSpacingExtra">3dp</item>
     </style>
-    <!-- The market card's own values: numbers, tickers and money, which are
+    <!-- The owner's face for short-form text: the market card's values
+         (numbers, tickers, money) and, after the order of 2026-10-13, the
+         system status and latest signal tiles' own lines. All of it is
          capitals by nature, so LEMON MILK Light fits and reads as one system
          with the labels above them. -->
     <style name="QorValue" parent="QorBody">
