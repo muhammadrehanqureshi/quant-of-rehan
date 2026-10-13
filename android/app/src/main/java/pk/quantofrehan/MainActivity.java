@@ -1,9 +1,11 @@
 package pk.quantofrehan;
 
+import android.animation.ValueAnimator;
 import android.app.Activity;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.res.ColorStateList;
+import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Bundle;
@@ -11,6 +13,7 @@ import android.text.SpannableString;
 import android.text.style.ForegroundColorSpan;
 import android.text.style.TypefaceSpan;
 import android.view.View;
+import android.view.animation.AccelerateDecelerateInterpolator;
 import android.view.animation.DecelerateInterpolator;
 import android.widget.EditText;
 import android.widget.ImageView;
@@ -67,6 +70,13 @@ import java.util.Locale;
  * status tile and the signal tile are drawn in the owner's faces end to end,
  * the "Trading resumes" line is retired from the status tile, and a leader
  * row brackets its volume group.
+ *
+ * Owner order 2026-10-13 (second note): the settings control stands ON the
+ * "Quant of Rehan" baseline rather than centred on its row, a diamond rule
+ * divides the system status tile from the latest signal tile, the rule that
+ * closed the market card from inside it now stands immediately after that
+ * tile's own boundary, and the ONLINE indicator breathes, its opacity and its
+ * size, for as long as the relay reports the market OPEN.
  */
 public class MainActivity extends Activity {
 
@@ -88,12 +98,40 @@ public class MainActivity extends Activity {
      */
     private static final long GEAR_TURN_MS = 220L;
 
+    /**
+     * One breathing cycle of the ONLINE indicator (owner order 2026-10-13,
+     * second note). 2.2 seconds per breath: slow enough to read as alive
+     * rather than as a blink, and long enough that a glance never catches it
+     * mid flicker.
+     */
+    private static final long BREATH_MS = 2200L;
+
+    /**
+     * The dim end of the breath, as a fraction of full opacity. It never
+     * reaches zero: a status light that vanishes would read as a fault rather
+     * than as a pulse.
+     */
+    private static final float BREATH_MIN_ALPHA = 0.38f;
+
+    /**
+     * The small end of the breath, as a fraction of the dot's own 18dp. The
+     * dot shrinks and grows in place; its layout box never changes, so the
+     * word beside it never moves.
+     */
+    private static final float BREATH_MIN_SCALE = 0.88f;
+
     private SharedPreferences prefs;
     private TextView statusPill, statusDetail, signalList;
     private TextView marketIndex, marketLeaders, marketFoot;
     /** Turned and tinted by setSettingsOpen, so it is the ImageView itself. */
     private ImageView btnSettings;
+    /** The brand line whose baseline the settings control stands on. */
+    private TextView brandTitle;
     private View settingsPanel;
+    /** The running ONLINE breathing animation, or null while the dot is still. */
+    private ValueAnimator breathAnim;
+    /** The exact dot the running animator drives: a re-render installs a new one. */
+    private Drawable breathTarget;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -109,6 +147,15 @@ public class MainActivity extends Activity {
         marketFoot = findViewById(R.id.market_foot);
         settingsPanel = findViewById(R.id.settings_panel);
         btnSettings = findViewById(R.id.btn_settings);
+        brandTitle = findViewById(R.id.brand_title);
+        // Owner order 2026-10-13 (second note): the control stands on the
+        // brand line's baseline. That line's position comes from Bonskin's
+        // metrics and from the system font scale, so it cannot be a fixed
+        // margin: it is measured once the title has a layout, and measured
+        // again whenever that layout changes.
+        brandTitle.addOnLayoutChangeListener(
+                (v, left, top, right, bottom, oldLeft, oldTop, oldRight,
+                 oldBottom) -> alignSettingsToBrandBaseline());
 
         final EditText tokenBox = findViewById(R.id.token_box);
         tokenBox.setText(prefs.getString("admin_token", ""));
@@ -167,6 +214,97 @@ public class MainActivity extends Activity {
     }
 
     /**
+     * Puts the settings control on the brand line's baseline (owner order
+     * 2026-10-13, second note).
+     *
+     * "Aligned with the baseline" is exact here rather than approximate: the
+     * control's bottom edge is placed on the same line the title's glyphs sit
+     * on, the way an inline glyph would. The offset has to be measured rather
+     * than declared, because a 30sp Bonskin line puts its baseline wherever
+     * that font's metrics and the system font scale say. The two views are
+     * siblings in the header row, so their top and bottom coordinates share
+     * one space and the subtraction is direct.
+     */
+    private void alignSettingsToBrandBaseline() {
+        int baseline = brandTitle.getBaseline();     // -1 until the first layout
+        if (baseline < 0) {
+            return;
+        }
+        int line = brandTitle.getTop() + baseline;   // in the row's coordinates
+        btnSettings.setTranslationY(line - btnSettings.getBottom());
+    }
+
+    /**
+     * The ONLINE indicator's breathing animation (owner order 2026-10-13,
+     * second note).
+     *
+     * It runs only while the relay reports the market OPEN: that is the one
+     * state in which a lit beacon means the quant is working right now. A
+     * break, a closed day or an unreported phase leaves the dot still, because
+     * a breathing light over a shut market would claim activity there is none
+     * (SO-3).
+     *
+     * The animation is keyframed rather than eased between two ends: 0 to 1 to
+     * 0 over BREATH_MS, repeating for as long as the state holds, so every
+     * cycle starts and ends at rest and the breath has no seam. The animated
+     * value drives both the dot's opacity and its size, and the size is applied
+     * to the drawable's own bounds scaled about its centre, so the glow shrinks
+     * in place inside the pill instead of sliding.
+     */
+    private void setStatusBreath(boolean breathe) {
+        Drawable dot = statusPill.getCompoundDrawablesRelative()[0];
+        if (!breathe || dot == null) {
+            stopStatusBreath();
+            return;
+        }
+        if (breathAnim != null && breathAnim.isRunning() && dot == breathTarget) {
+            return;                     // this exact dot is already breathing
+        }
+        stopStatusBreath();             // a re-render hands over a new drawable
+        breathTarget = dot;
+        breathAnim = ValueAnimator.ofFloat(0f, 1f, 0f);
+        breathAnim.setDuration(BREATH_MS);
+        breathAnim.setRepeatCount(ValueAnimator.INFINITE);
+        breathAnim.setInterpolator(new AccelerateDecelerateInterpolator());
+        breathAnim.addUpdateListener(a -> {
+            float k = (float) a.getAnimatedValue();
+            dot.setAlpha(Math.round(255f
+                    * (BREATH_MIN_ALPHA + (1f - BREATH_MIN_ALPHA) * k)));
+            float scale = BREATH_MIN_SCALE + (1f - BREATH_MIN_SCALE) * k;
+            int halfW = Math.round(dot.getIntrinsicWidth() * scale / 2f);
+            int halfH = Math.round(dot.getIntrinsicHeight() * scale / 2f);
+            // The centre is read from the live bounds: a re-layout may have
+            // just rewritten them, and scaling about the centre never moves
+            // it, so the dot cannot drift inside the pill.
+            int cx = dot.getBounds().centerX();
+            int cy = dot.getBounds().centerY();
+            dot.setBounds(cx - halfW, cy - halfH, cx + halfW, cy + halfH);
+        });
+        breathAnim.start();
+    }
+
+    /**
+     * Returns the dot to rest: full opacity, its own 18dp size, no animator.
+     * Called by every render that is not a live open market, and by onPause.
+     */
+    private void stopStatusBreath() {
+        if (breathAnim != null) {
+            breathAnim.cancel();
+            breathAnim = null;
+        }
+        if (breathTarget != null) {
+            breathTarget.setAlpha(255);
+            int cx = breathTarget.getBounds().centerX();
+            int cy = breathTarget.getBounds().centerY();
+            int halfW = breathTarget.getIntrinsicWidth() / 2;
+            int halfH = breathTarget.getIntrinsicHeight() / 2;
+            breathTarget.setBounds(cx - halfW, cy - halfH,
+                    cx + halfW, cy + halfH);
+            breathTarget = null;
+        }
+    }
+
+    /**
      * A 5 minute watchdog on Android is best effort: setExactAndAllowWhileIdle
      * is capped inside Doze and some OEM battery managers stop the app
      * entirely. A battery optimisation exemption is the one thing an app can
@@ -198,6 +336,14 @@ public class MainActivity extends Activity {
         refresh();
     }
 
+    @Override
+    protected void onPause() {
+        super.onPause();
+        // A hidden console holds no animation: the breath stops with the view,
+        // and onResume's refresh starts it again.
+        stopStatusBreath();
+    }
+
     private void refresh() {
         String admin = prefs.getString("admin_token", "");
         Watcher.fetchStatus(this, admin, (online, reachable, detail, signals, market) ->
@@ -226,6 +372,12 @@ public class MainActivity extends Activity {
         // reads as "multiplication X" to a screen reader.
         statusPill.setContentDescription(getString(online
                 ? R.string.cd_status_online : R.string.cd_status_offline));
+
+        // The breathing light (owner order 2026-10-13, second note): a lit
+        // beacon that breathes means the quant is working right now, which is
+        // what an OPEN market plus a reachable relay means. A break, a closed
+        // day, or a phase the relay did not report leaves the dot still.
+        setStatusBreath(online && market != null && "OPEN".equals(market.phase));
 
         String d = detail == null ? "" : detail.trim();
         if (d.isEmpty()) {

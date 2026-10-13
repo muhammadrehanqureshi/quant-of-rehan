@@ -64,18 +64,25 @@
                      settings.png, 512x512, a black gear on transparency,
                      copied from his Desktop byte for byte), tinted into the
                      app's palette and sitting on no plate at all. The old gear
-                     vector and its two plates are retired. This row centres
-                     the control on the brand line; the open state is the
-                     quarter turn and the brighter gold, both done in
+                     vector and its two plates are retired. The open state is
+                     the quarter turn and the brighter gold, both done in
                      MainActivity.setSettingsOpen, and its only background is a
                      masked circular ripple, so a press is acknowledged without
-                     a tile ever being drawn. -->
+                     a tile ever being drawn.
+
+                     Owner order 2026-10-13 (second note): the control stands
+                     ON the brand line's baseline rather than centred on the
+                     row. It is anchored to the title here, and MainActivity
+                     puts its bottom edge on the title's own baseline once the
+                     layout exists, because that line's position comes from
+                     Bonskin's metrics and from the system font scale and
+                     cannot be expressed as a fixed margin. -->
                 <ImageView
                     android:id="@+id/btn_settings"
                     android:layout_width="42dp"
                     android:layout_height="42dp"
                     android:layout_alignParentEnd="true"
-                    android:layout_centerVertical="true"
+                    android:layout_alignTop="@id/brand_title"
                     android:background="@drawable/settings_ripple"
                     android:contentDescription="@string/cd_settings"
                     android:padding="6dp"
@@ -100,9 +107,10 @@
         </RelativeLayout>
 
         <!-- brand rule: line, diamond, line (from the logo frame). Defined
-             once in layout/qor_rule.xml and included at each of the three
-             places it closes: the header, the signal card and the market
-             card, so "the same as the two above" is true by construction. -->
+             once in layout/qor_rule.xml and included at each of the four
+             divisions: under the header, between the system status and the
+             latest signal tiles, after the signal tile, and after the market
+             tile, so "the same as the ones above" is true by construction. -->
         <include
             layout="@layout/qor_rule"
             android:layout_width="match_parent"
@@ -125,7 +133,12 @@
             <!-- Owner order 2026-10-11: the state is a status light plus the
                  word, in one badge. The indicator is a vector drawable and
                  MainActivity swaps it with the state, so ONLINE and OFFLINE
-                 are the same shape lit and unlit rather than two glyphs. -->
+                 are the same shape lit and unlit rather than two glyphs.
+                 Owner order 2026-10-13 (second note): that lit dot breathes
+                 while the relay reports the market OPEN, so the one state
+                 that means "working right now" reads as alive. The animation
+                 lives in MainActivity.setStatusBreath; the dot keeps its 18dp
+                 size and its layout position here. -->
             <TextView
                 android:id="@+id/status_pill"
                 android:layout_width="wrap_content"
@@ -161,11 +174,21 @@
 
         </LinearLayout>
 
+        <!-- Owner order 2026-10-13 (second note): a rule divides the system
+             status tile from the latest signal tile, so every change of
+             subject on the console is marked. The same include as the others,
+             so the diamond is the logo's and is defined once. -->
+        <include
+            layout="@layout/qor_rule"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"/>
+
         <!-- ══════════ latest signal card ══════════ -->
         <LinearLayout style="@style/QorPanel"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="14dp"
+            android:layout_marginTop="12dp"
             android:orientation="vertical">
 
             <TextView style="@style/QorLabel"
@@ -310,20 +333,21 @@
                 android:layout_marginTop="8dp"
                 android:gravity="center"/>
 
-            <!-- Owner order 2026-10-12 (third note): the diamond in the middle
-                 with a line either side, at the bottom of the third tile,
-                 identical to the two above because it IS the same layout. -->
-            <include
-                layout="@layout/qor_rule"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"/>
         </LinearLayout>
 
+        <!-- Owner order 2026-10-13 (second note): the diamond rule that used to
+             close the third tile from inside it now stands immediately after
+             that tile's own boundary, so the divider reads between the card
+             and the air below it rather than as part of the card. It is the
+             same include, with the same diamond, as the three above. -->
+        <include
+            layout="@layout/qor_rule"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"/>
 
         <!-- Owner order 2026-10-12: the pinned bottom cadence and the footer
              rule are gone. The cadence sentence now sits in the market card
-             itself, where the volume ranking can be read with it, so the
-             interface ends at the card. -->
+             itself, where the volume ranking can be read with it. -->
     </LinearLayout>
 </ScrollView>
