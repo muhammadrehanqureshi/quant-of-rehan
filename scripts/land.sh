@@ -2,6 +2,11 @@
 # land.sh: stage, commit, sync, validate, and land one local change on
 # master through a pull request, exactly as the standing orders require.
 #
+# SO-7a (owner order, 2026-10-13): the script also hardcodes the owner's
+# co-author line. Every commit it writes carries it as its last line, the
+# pull request body carries it, and the merge commit carries it, so a change
+# cannot reach master without the agent's co-authorship on it.
+#
 # Why a script and not a merge Action: SO-2 and SO-6 put every change behind
 # a pull request that the agent merges, and SO-4/SO-10 reserve the GitHub
 # Actions minutes for the market-hours scans (2000 minute ceiling). The
@@ -40,6 +45,11 @@ DELETE_BRANCH=0
 OWNER_NAME="Mr. Rehan"
 OWNER_EMAIL="muhammadrehanqureshi@users.noreply.github.com"
 OWNER_EMAIL_ALT="111383512+muhammadrehanqureshi@users.noreply.github.com"
+
+# SO-7a (owner order, 2026-10-13): the agent is the owner's co-author on every
+# commit, every PR body and every merge. Written once here, as the same string
+# scripts/check_governance.py requires, so the two can never drift apart.
+COAUTHOR="Co-Authored-By: Codebuff <noreply@codebuff.com>"
 
 now_pkt() { date -u -d "+5 hours" "+%Y-%m-%d %H:%M:%S PKT"; }
 step()    { printf "\n== %s ==\n" "$*"; }
@@ -105,7 +115,7 @@ if [[ "$got_name" != "$OWNER_NAME" ]] || { [[ "$got_email" != "$OWNER_EMAIL" ]] 
 fi
 note "author identity ok (SO-7)"
 
-[[ -n "$MESSAGE" ]] || die "a commit message is required: -m \"...\" (SO-7: no dashes, no bot trailers)"
+[[ -n "$MESSAGE" ]] || die "a commit message is required: -m \"...\" (SO-7: no dashes, no bot trailers; SO-7a adds the co-author line itself)"
 
 validate_message() {
     python - "$1" <<'PY' || die "commit message rejected by the SO-7 validator above"
@@ -123,14 +133,23 @@ for ch in msg:
     if ch in banned:
         print(f"SO-7: banned dash character U+{ord(ch):04X} in the message", file=sys.stderr)
         sys.exit(1)
-for trailer in ("co-authored-by:", "generated with", "generated-by:", "signed-off-by:"):
+if "co-authored-by:" in msg.lower():
+    print("SO-7a: the co-author line is appended by land.sh itself, exactly "
+          "as the owner ordered it; leave it out of -m", file=sys.stderr)
+    sys.exit(1)
+for trailer in ("generated with", "generated-by:", "signed-off-by:"):
     if trailer in msg.lower():
         print(f"SO-7: banned trailer pattern {trailer!r} in the message", file=sys.stderr)
         sys.exit(1)
-print("   message passes the SO-7 style rules")
+print("   message passes the SO-7 style rules; land.sh appends the SO-7a "
+      "co-author line")
 PY
 }
 validate_message "$MESSAGE"
+
+# SO-7a: the message the commit, the pull request and the merge all carry.
+# The caller's words first, then the owner's co-author line as the last line.
+FULL_MESSAGE=$(printf '%s\n\n%s\n' "$MESSAGE" "$COAUTHOR")
 
 [[ -f scripts/check_governance.py ]] || die "scripts/check_governance.py is missing; cannot validate locally"
 note "base commit: $(git rev-parse --short "origin/$BASE" 2>/dev/null || echo 'origin/'$BASE' not fetched yet')"
@@ -167,8 +186,9 @@ else
         read -r -p "   commit these changes as '$OWNER_NAME'? [y/N] " answer
         [[ "$answer" == [Yy] ]] || die "declined at the confirmation prompt"
     fi
-    git commit -m "$MESSAGE"
+    git commit -m "$FULL_MESSAGE"
     note "commit: $(git log --oneline -1)"
+    note "SO-7a co-author line: $COAUTHOR"
 fi
 if [[ "$UNTIL" == "commit" ]]; then
     printf "\nStopping after the commit phase (--until commit). Nothing was pushed.\n"
@@ -219,7 +239,7 @@ TITLE=$(printf "%s" "$MESSAGE" | head -n1)
 if pr=$(gh pr view --json number --jq .number 2>/dev/null); then
     note "reusing the open pull request #$pr"
 else
-    gh pr create --base "$BASE" --head "$BRANCH" --title "$TITLE" --body "$MESSAGE" >/dev/null
+    gh pr create --base "$BASE" --head "$BRANCH" --title "$TITLE" --body "$FULL_MESSAGE" >/dev/null
     pr=$(gh pr view --json number --jq .number)
     note "opened pull request #$pr"
 fi
@@ -246,8 +266,8 @@ done
 
 merge_args=(--merge)
 (( DELETE_BRANCH )) && merge_args+=(--delete-branch)
-gh pr merge "$pr" "${merge_args[@]}"
-note "merged PR #$pr into $BASE"
+gh pr merge "$pr" "${merge_args[@]}" --body "$COAUTHOR"
+note "merged PR #$pr into $BASE (merge commit carries the SO-7a co-author line)"
 
 merge_sha=$(gh pr view "$pr" --json mergeCommit --jq ".mergeCommit.oid" 2>/dev/null || true)
 [[ -n "$merge_sha" ]] && note "merge commit: ${merge_sha:0:10}"

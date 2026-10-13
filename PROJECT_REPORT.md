@@ -1275,7 +1275,10 @@ The 4 is the real cadence, not decoration: `config.TICK_INTERVAL_MINUTES = 4`
 drives the Windows tick, the supervised loop and the slot guard. The sentence
 states the cadence rather than a live state -- the pill above it is what says
 whether the quant is online, and the scanning itself runs only inside the
-MARKET phase.
+MARKET phase. That slot has moved twice since: to the market card's own foot
+in v1.6.2, and to the line below the last diamond rule in v1.6.7 (owner order
+2026-10-13, third note). `android/README.md` carries the console as it stands
+today.
 
 Verified in the packaged artifact, not only in the source: `aapt2 dump badging`
 reports `pk.quantofrehan` versionCode 15 versionName 1.6.1; the sentence is

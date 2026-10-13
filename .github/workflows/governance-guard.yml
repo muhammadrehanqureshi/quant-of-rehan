@@ -27,8 +27,9 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      # SO-7: verify every PR commit is authored by the owner, with no bot
-      # trailers and no banned dash characters in the message.
+      # SO-7 and SO-7a: verify every PR commit is authored by the owner,
+      # carries the agent's co-author line exactly once, and holds no other
+      # trailer and no banned dash character in the message.
       - name: Governance check (secrets, style, identity, standing orders)
         env:
           GOVERN_COMMIT_RANGE: origin/master..HEAD

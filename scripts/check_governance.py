@@ -8,9 +8,11 @@ Checks:
    through src/data/registry.py.
 3. SO-1/SO-2: GOVERNANCE.md exists and carries the signal-only and
    PR-first laws.
-4. SO-7: owner-only contributor identity and human style. The em dash is
+4. SO-7: owner-only author identity and human style. The em dash is
    banned from every committed file and commit message; quarantined
    legacy/ reference material is exempt because it is never modified.
+5. SO-7a: every PR commit carries the agent's co-author line, exactly once
+   and exactly as the owner ordered it on 2026-10-13.
 5. SO-8: session logic must pin Karachi time (UTC+5) explicitly.
 6. SO-4: every declared backtest entry point refuses to run in GitHub
    Actions (src/ci/local_only.py) and no workflow invokes one.
@@ -41,15 +43,22 @@ SKIP_DIRS = {".git", ".freebuff", "__pycache__", ".venv", "venv", "assets", "leg
 # committed text. Human style only: commas, colons, parentheses, periods.
 DASH_CHARS = "\u2014\u2013\u2012\u2015\u2E3A\u2E3B"
 
-# SO-7: the repository shows exactly one contributor, the owner. GitHub
-# uses two official noreply forms for one account: the plain one and the
+# SO-7: the repository shows exactly one author, the owner. GitHub uses two
+# official noreply forms for one account: the plain one and the
 # user-id-prefixed one (also what the merge button authors with). Both count
 # as the owner; anything else fails.
 OWNER_NAME = "Mr. Rehan"
 OWNER_EMAIL = "muhammadrehanqureshi@users.noreply.github.com"
 OWNER_EMAIL_ALT = "111383512+muhammadrehanqureshi@users.noreply.github.com"
+
+# SO-7a (owner order, 2026-10-13): the agent is the owner's co-author, so
+# every commit must carry this one line, exactly as written. The agent keeps
+# its own identity in the repository's own words: Codebuff, the agent that
+# works here. It is compared case-insensitively, like every trailer below.
+REQUIRED_COAUTHOR = "co-authored-by: Codebuff <noreply@codebuff.com>"
+
+# SO-7/SO-7a: every OTHER attribution stays banned on top of the one line.
 FORBIDDEN_TRAILERS = (
-    "co-authored-by:",
     "generated with",
     "generated-by:",
     "signed-off-by:",
@@ -229,8 +238,9 @@ def check_commit_messages(errors: list) -> None:
         # judged differently on a cp1252 Windows box and a UTF-8 CI runner:
         # the robot emoji (U+1F916) ends in byte 0x96, which cp1252 maps to
         # U+2013 EN DASH and falsely trips the banned-dash rule below.
+        # %h is the abbreviated hash, so a failure names the commit.
         out = subprocess.run(
-            ["git", "log", rng, "--format=%an%x09%ae%x09%B%x00"],
+            ["git", "log", rng, "--format=%h%x09%an%x09%ae%x09%B%x00"],
             capture_output=True, text=True, encoding="utf-8",
             errors="replace", timeout=30, check=True,
         ).stdout
@@ -239,24 +249,50 @@ def check_commit_messages(errors: list) -> None:
     for block in out.split("\x00"):
         if not block.strip():
             continue
-        parts = block.strip("\n").split("\t", 2)
-        if len(parts) < 3:
+        parts = block.strip("\n").split("\t", 3)
+        if len(parts) < 4:
             continue
-        name, email, message = parts[0], parts[1], parts[2]
+        sha, name, email, message = parts[0], parts[1], parts[2], parts[3]
         if name.strip() != OWNER_NAME or email.strip() not in (OWNER_EMAIL, OWNER_EMAIL_ALT):
             errors.append(
-                f"[SO-7] commit not authored as {OWNER_NAME} <{OWNER_EMAIL}>: "
-                f"got {name} <{email}>"
+                f"[SO-7] commit {sha} not authored as {OWNER_NAME} "
+                f"<{OWNER_EMAIL}>: got {name} <{email}>"
             )
         low = message.lower()
+        # SO-7a: the owner's co-author line, present exactly once and never
+        # replaced by another identity. The check is on the trailer lines
+        # themselves, so a name buried in the body prose cannot stand in for
+        # it and a second co-author cannot ride along beside it.
+        coauthor_lines = [line.strip() for line in low.splitlines()
+                          if line.strip().startswith("co-authored-by:")]
+        if not coauthor_lines:
+            errors.append(
+                f"[SO-7a] commit {sha} is missing the owner's co-author line "
+                f"{REQUIRED_COAUTHOR!r}: every commit, PR and merge carries "
+                f"the agent as co-author (owner order 2026-10-13)"
+            )
+        for line in coauthor_lines:
+            if line != REQUIRED_COAUTHOR.lower():
+                errors.append(
+                    f"[SO-7a] commit {sha} carries a co-author line that is "
+                    f"not the owner's own: {line!r}"
+                )
+        if len(coauthor_lines) > 1:
+            errors.append(
+                f"[SO-7a] commit {sha} carries the co-author line "
+                f"{len(coauthor_lines)} times; it belongs once, as the last "
+                f"line of the message"
+            )
         for trailer in FORBIDDEN_TRAILERS:
             if trailer in low:
                 errors.append(
-                    f"[SO-7] commit message contains banned trailer {trailer!r}"
+                    f"[SO-7] commit {sha} contains banned trailer {trailer!r}"
                 )
         for ch in DASH_CHARS:
             if ch in message:
-                errors.append("[SO-7] commit message contains a banned dash character")
+                errors.append(
+                    f"[SO-7] commit {sha} contains a banned dash character"
+                )
                 break
 
 
@@ -301,7 +337,8 @@ def main() -> int:
 
     print("GOVERNANCE CHECK PASSED: secrets clean, footprint honesty intact, "
           "standing orders present, SO-7 style and identity verified, "
-          "SO-8 Karachi pin verified, SO-4 local-only backtests enforced.")
+          "SO-7a co-author line verified, SO-8 Karachi pin verified, "
+          "SO-4 local-only backtests enforced.")
     return 0
 
 

@@ -15,7 +15,10 @@ Cloudflare relay, never to Telegram, never to a broker.
 - The pill follows the relay's `market_state` phase and carries a drawn
   status light beside the word (vector drawables, v1.6.0) with a spoken
   accessibility description, so a screen reader never reads a bare
-  "multiplication X" and the state never depends on a font.
+  "multiplication X" and the state never depends on a font. Since v1.6.7 that
+  light breathes in both states, in the palette green for ONLINE and the
+  palette red for OFFLINE, at a hard 25 frames per second (owner order
+  2026-10-13, third note).
 - Owner order 2026-10-10 retired "PSX session closed". The exchange's midday
   break now reads "Market is on a break right now" and every other shut state
   reads "Market is closed right now.", in each case the relay's own sentence
@@ -37,7 +40,9 @@ Cloudflare relay, never to Telegram, never to a broker.
   with the highest current session volume, each with its day's percentage
   change (green up, red down) and its volume. The relay builds it from the
   PSX Data Portal's own pages and caches it for five minutes, so the card is
-  at most five minutes old.
+  at most five minutes old. Since v1.6.7 the console closes with the cadence
+  sentence under the last diamond rule, separated from it by two line breaks,
+  instead of carrying it inside the card (owner order 2026-10-13, third note).
 - v1.6.2, owner order 2026-10-12: the card carries no "MARKET NOW" label any
   more, the old "Index as of ..." footnote is gone, and the pinned bottom
   cadence with the footer rule under it are removed, so the interface ends at
@@ -113,6 +118,27 @@ Cloudflare relay, never to Telegram, never to a broker.
   console leaves the dot still, because a breathing light over a shut market
   would claim activity there is none.
   Version 1.6.6, versionCode 20.
+- v1.6.7, owner order 2026-10-13 (third note): three refinements. The settings
+  control no longer overflows the header row: its 42dp box carries a 12dp top
+  margin, which is the room its baseline translation needs (the box overhangs
+  the row by about 9dp at 30sp Bonskin), and the brand row sets
+  `clipChildren="false"`, so the guarantee does not depend on one magic
+  number once the system font scale moves the line. The cadence sentence
+  (`string/scan_cadence`, view `@+id/scan_cadence`) leaves the market card and
+  stands immediately after the final diamond rule, separated from it by two
+  line breaks, which live as the two leading newlines of the string resource
+  so the copy and its spacing cannot drift apart. And the status light's pulse
+  is rebuilt: both states breathe, the ONLINE beacon in the palette green
+  (`@color/green_halo`, `@color/green_glow`, `@color/green_hi`) and the
+  OFFLINE one in the palette red (`@color/red_ring`, `@color/red_core`), which
+  means the drawables no longer carry raw hex and the colour of each light is
+  one fact in `values/colors.xml`. The pulse runs on a hard 25 frames per
+  second: the animator carries only the cycle's clock (linear, repeating) and
+  its listener quantises the elapsed time to a 40ms grid, draws nothing when
+  the step has not advanced, and shapes the breath with a raised cosine, so
+  the rate is the app's rather than the display's and the platform's frame
+  delay hint (documented as ignorable under vsync timing) is not relied on.
+  Version 1.6.7, versionCode 21.
 - v1.6.1 stated the cadence on the main screen, under the system status pill;
   v1.6.2 moved that sentence into the market card's own foot (owner order
   2026-10-12), so it is read with the volume ranking it describes and the
@@ -211,7 +237,7 @@ with zipfile.ZipFile(f"{B}/app.apk", "a", zipfile.ZIP_DEFLATED) as z:
 PY
 "$JDK/bin/java" -jar $TOOLS/uber-apk-signer.jar -a $B/app.apk --out $B/signed
 cp $B/signed/app-aligned-debugSigned.apk \
-  /c/Users/rehan/OneDrive/Desktop/QuantOfRehan-v1.6.6.apk
+  /c/Users/rehan/OneDrive/Desktop/QuantOfRehan-v1.6.7.apk
 ```
 
 The Desktop this machine actually shows is `C:/Users/rehan/OneDrive/Desktop`
@@ -219,7 +245,9 @@ The Desktop this machine actually shows is `C:/Users/rehan/OneDrive/Desktop`
 `C:/Users/rehan/Desktop`. A build copied to the wrong one is invisible to the
 owner: the v1.6.0 APK went to `C:/Users/rehan/Desktop` and was reported missing.
 v1.6.2, v1.6.3 and v1.6.4 were built and copied to the OneDrive Desktop on
-2026-10-12, v1.6.5 on 2026-10-13, and v1.6.6 the same day.
+2026-10-12, v1.6.5 on 2026-10-13, v1.6.6 the same day, and v1.6.7 the same
+day (built with the same aapt2, D8 and signer chain above, from this
+checkout).
 
 ## Watchdog and battery
 

@@ -1,9 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- ONLINE indicator: a lit beacon rather than a glyph, so the state reads
      at a glance and never depends on a font. Three layers, outermost first:
-     a wide halo ring, a soft inner disc, and a solid core. Tinted from the
-     official palette (green_hi core, green halo) so it matches the badge it
-     sits in. -->
+     a wide halo ring, a soft inner disc, and a solid core, all three of them
+     the brand green and all three named in values/colors.xml (owner order
+     2026-10-13, third note: the online light IS the palette green, so the
+     colour is a resource here rather than a hex that could drift). -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="18dp"
     android:height="18dp"
@@ -14,16 +15,16 @@
     <path
         android:fillColor="#00000000"
         android:pathData="M12,2.6 a9.4,9.4 0 1,0 0,18.8 a9.4,9.4 0 1,0 0,-18.8"
-        android:strokeColor="#662FAE6F"
+        android:strokeColor="@color/green_halo"
         android:strokeWidth="1.3"/>
 
     <!-- inner glow -->
     <path
-        android:fillColor="#3343C98A"
+        android:fillColor="@color/green_glow"
         android:pathData="M12,5.6 a6.4,6.4 0 1,0 0,12.8 a6.4,6.4 0 1,0 0,-12.8"/>
 
     <!-- solid core -->
     <path
-        android:fillColor="#FF43C98A"
+        android:fillColor="@color/green_hi"
         android:pathData="M12,8.3 a3.7,3.7 0 1,0 0,7.4 a3.7,3.7 0 1,0 0,-7.4"/>
 </vector>
