@@ -1,4 +1,4 @@
-"""Owner-ordered interface changes for the phone app, v1.6.5 (2026-10-13).
+"""Owner-ordered interface changes for the phone app, v1.6.6 (2026-10-13).
 
 Owner order 2026-10-13: the settings control is the owner's own settings.png
 silhouette, tinted from the app's palette, on no plate at all and centred on
@@ -6,6 +6,13 @@ the "Quant of Rehan" line, with a quarter turn as the settings panel opens and
 closes; every line inside the system status and the latest signal tiles is set
 in the owner's faces; the "Trading resumes" sentence is retired from the status
 tile; and a volume leader row brackets its grouped volumes.
+
+Owner order 2026-10-13 (second note): the settings control stands on the brand
+line's baseline rather than centred on its row; a diamond rule divides the
+system status tile from the latest signal tile; the rule that closed the market
+card from inside it stands immediately after that tile's own boundary; and the
+ONLINE indicator breathes, opacity and size, while the relay reports the market
+OPEN.
 
 The app has no Java test runner in this repository (it is built with aapt2 and
 D8, see android/README.md), so these assertions read the sources that ship the
@@ -88,6 +95,13 @@ def parent_of(root, node):
             if child is node:
                 return parent
     return None
+
+
+def siblings_after(root, node):
+    """The siblings that follow `node` in document order."""
+    parent = parent_of(root, node)
+    children = list(parent)
+    return children[children.index(node) + 1:]
 
 
 def png_header(path: Path) -> tuple[int, int, int, int]:
@@ -262,7 +276,7 @@ class SettingsControlTest(unittest.TestCase):
         self.assertIn("btnSettings.setImageTintList", self.main)
         self.assertIn("R.color.gold_bright", self.main)
 
-    def test_the_control_is_centred_on_the_brand_line(self):
+    def test_the_control_stands_on_the_brand_baseline(self):
         root = layout_root()
         button = find_view(root, "@+id/btn_settings")
         title = find_view(root, "@+id/brand_title")
@@ -273,9 +287,21 @@ class SettingsControlTest(unittest.TestCase):
         row = parent_of(root, button)
         self.assertTrue(row.tag.endswith("RelativeLayout"))
         self.assertIs(row, parent_of(root, title))
-        self.assertEqual(button.get(f"{ANDROID_NS}layout_centerVertical"), "true")
+        # Owner order 2026-10-13 (second note): centred on the row is retired.
+        # The control is anchored to the title, and MainActivity puts its
+        # bottom edge on the title's own baseline, because that line's
+        # position is a fact about Bonskin's metrics and the system font scale
+        # rather than a margin that can be declared once.
+        self.assertIsNone(button.get(f"{ANDROID_NS}layout_centerVertical"))
+        self.assertEqual(button.get(f"{ANDROID_NS}layout_alignTop"),
+                         "@id/brand_title")
+        self.assertIn("alignSettingsToBrandBaseline", self.main)
+        self.assertIn("brandTitle.getBaseline()", self.main)
+        self.assertIn("brandTitle.getTop() + baseline", self.main)
+        self.assertIn("line - btnSettings.getBottom()", self.main)
+        self.assertIn("addOnLayoutChangeListener", self.main)
         # The tagline stays outside the row, so it cannot pull the control
-        # down: the control is centred on the brand text itself.
+        # down: the control is aligned to the brand text itself.
         self.assertIsNot(row, parent_of(root, tagline))
 
     def test_the_quarter_turn_is_one_place_per_state(self):
@@ -321,23 +347,46 @@ class StatusTileCopyTest(unittest.TestCase):
 
 
 class BrandRuleTest(unittest.TestCase):
-    """Line, diamond, line: defined once, used by all three tiles."""
+    """Line, diamond, line: defined once, used at every division.
+
+    Owner order 2026-10-13 (second note): a rule now divides the system status
+    tile from the latest signal tile, and the rule that closed the market card
+    from inside it now stands immediately after that tile's own boundary. The
+    layout is read as a tree here rather than as text, so "between the tiles"
+    and "not inside one" are positions rather than prose.
+    """
 
     def setUp(self):
         self.layout = LAYOUT.read_text(encoding="utf-8")
         self.rule = RULE.read_text(encoding="utf-8")
 
-    def test_the_rule_is_defined_once_and_included_three_times(self):
+    def test_the_rule_is_defined_once_and_included_at_every_division(self):
         self.assertIn("QorDiamond", self.rule)
         self.assertIn('android:text="@string/diamond"', self.rule)
-        self.assertEqual(self.layout.count('layout="@layout/qor_rule"'), 3)
+        self.assertEqual(self.layout.count('layout="@layout/qor_rule"'), 4)
 
-    def test_the_third_rule_is_the_last_thing_in_the_market_card(self):
-        foot = self.layout.index('android:id="@+id/market_foot"')
-        third = self.layout.index('layout="@layout/qor_rule"', foot)
-        card_end = self.layout.index("</LinearLayout>", foot)
-        self.assertLess(foot, third)
-        self.assertLess(third, card_end)
+    def test_the_rules_stand_between_the_tiles_and_never_inside_them(self):
+        root = layout_root()
+
+        def rule_after(view_id: str):
+            view = find_view(root, view_id)
+            following = siblings_after(root, parent_of(root, view))
+            self.assertTrue(following, f"nothing follows the {view_id} tile")
+            first = following[0]
+            self.assertEqual(first.tag, "include", f"{view_id}: no rule after")
+            self.assertEqual(first.get("layout"), "@layout/qor_rule")
+
+        # Every tile is closed by the rule, and the third one from outside.
+        rule_after("@+id/status_pill")
+        rule_after("@+id/signal_list")
+        rule_after("@+id/market_foot")
+
+        # And no rule is drawn inside the market card any more: the divider
+        # stands after its boundary, not as part of it.
+        card = parent_of(root, find_view(root, "@+id/market_foot"))
+        for node in card.iter():
+            if node.tag == "include":
+                self.assertNotEqual(node.get("layout"), "@layout/qor_rule")
 
     def test_the_diamond_keeps_a_face_that_can_draw_it(self):
         block = STYLES.read_text(encoding="utf-8")
@@ -452,11 +501,45 @@ class TypefaceTest(unittest.TestCase):
         self.assertIn("settings.png", README.read_text(encoding="utf-8"))
 
 
+class StatusBreathTest(unittest.TestCase):
+    """Owner order 2026-10-13 (second note): the ONLINE dot breathes."""
+
+    def setUp(self):
+        self.main = MAIN.read_text(encoding="utf-8")
+
+    def test_the_breath_is_keyframed_and_repeats_while_the_state_holds(self):
+        # Keyframes rather than an ease between two ends: out, back, no seam.
+        self.assertIn("ValueAnimator.ofFloat(0f, 1f, 0f)", self.main)
+        self.assertIn("setRepeatCount(ValueAnimator.INFINITE)", self.main)
+        self.assertIn("new AccelerateDecelerateInterpolator()", self.main)
+        self.assertIn("BREATH_MS", self.main)
+
+    def test_it_pulses_the_dots_own_opacity_and_size(self):
+        self.assertIn("getCompoundDrawablesRelative()[0]", self.main)
+        self.assertIn("BREATH_MIN_ALPHA", self.main)
+        self.assertIn("BREATH_MIN_SCALE", self.main)
+        self.assertIn("getIntrinsicWidth()", self.main)
+        self.assertIn("getIntrinsicHeight()", self.main)
+        # The scale is applied about the dot's live centre, so it cannot
+        # drift, and the pill's word never moves because the dot's layout box
+        # is untouched.
+        self.assertIn("dot.getBounds().centerX()", self.main)
+
+    def test_it_runs_only_for_a_live_open_market(self):
+        self.assertIn('"OPEN".equals(market.phase)', self.main)
+        self.assertIn("setStatusBreath(online && market != null", self.main)
+
+    def test_a_state_that_is_not_open_and_a_hidden_console_leave_it_still(self):
+        self.assertIn("stopStatusBreath();", self.main)
+        pause = self.main.index("protected void onPause()")
+        self.assertIn("stopStatusBreath()", self.main[pause:pause + 240])
+
+
 class VersionTest(unittest.TestCase):
     def test_the_version_is_the_one_that_ships_these_changes(self):
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="1.6.5"', manifest)
-        self.assertIn('android:versionCode="19"', manifest)
+        self.assertIn('android:versionName="1.6.6"', manifest)
+        self.assertIn('android:versionCode="20"', manifest)
 
 
 if __name__ == "__main__":

@@ -96,6 +96,23 @@ Cloudflare relay, never to Telegram, never to a broker.
   alone, and a volume leader row brackets its volumes:
   `1. CNERGY (B=12,345  S=9,876  T=22,221)`.
   Version 1.6.5, versionCode 19.
+- v1.6.6, owner order 2026-10-13 (second note): four refinements of the same
+  console. The settings control now stands ON the "Quant of Rehan" baseline
+  rather than centred on its row: the XML anchors it to the title and
+  `MainActivity.alignSettingsToBrandBaseline` puts its bottom edge on that
+  title's own baseline, so the offset follows Bonskin's metrics and the system
+  font scale instead of a fixed margin. A diamond rule now divides the system
+  status tile from the latest signal tile, so every change of subject on the
+  console is marked. The rule that closed the market card from inside it now
+  stands immediately after that tile's own boundary, so the divider reads
+  between the card and the air below it instead of as part of the card. And the
+  ONLINE indicator breathes while the relay reports the market OPEN: a keyframed
+  `ValueAnimator` (out, back, repeating, no seam) drives the dot's own opacity
+  and size, with the scale applied about the dot's centre so the word beside it
+  never moves. A shut market, a midday break, an unreported phase or a hidden
+  console leaves the dot still, because a breathing light over a shut market
+  would claim activity there is none.
+  Version 1.6.6, versionCode 20.
 - v1.6.1 stated the cadence on the main screen, under the system status pill;
   v1.6.2 moved that sentence into the market card's own foot (owner order
   2026-10-12), so it is read with the volume ranking it describes and the
@@ -194,7 +211,7 @@ with zipfile.ZipFile(f"{B}/app.apk", "a", zipfile.ZIP_DEFLATED) as z:
 PY
 "$JDK/bin/java" -jar $TOOLS/uber-apk-signer.jar -a $B/app.apk --out $B/signed
 cp $B/signed/app-aligned-debugSigned.apk \
-  /c/Users/rehan/OneDrive/Desktop/QuantOfRehan-v1.6.5.apk
+  /c/Users/rehan/OneDrive/Desktop/QuantOfRehan-v1.6.6.apk
 ```
 
 The Desktop this machine actually shows is `C:/Users/rehan/OneDrive/Desktop`
@@ -202,7 +219,7 @@ The Desktop this machine actually shows is `C:/Users/rehan/OneDrive/Desktop`
 `C:/Users/rehan/Desktop`. A build copied to the wrong one is invisible to the
 owner: the v1.6.0 APK went to `C:/Users/rehan/Desktop` and was reported missing.
 v1.6.2, v1.6.3 and v1.6.4 were built and copied to the OneDrive Desktop on
-2026-10-12, and v1.6.5 on 2026-10-13.
+2026-10-12, v1.6.5 on 2026-10-13, and v1.6.6 the same day.
 
 ## Watchdog and battery
 
