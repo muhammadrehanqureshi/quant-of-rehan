@@ -73,6 +73,16 @@ when labeled degraded. They are never presented as true order flow.
   probe saw. The tape is banked read-only and feeds the phone card's buy and
   sell split (src/data/tick_volume.py); it is still not used for OHLC strategy
   signals, and it is not an L2 book or a per-trade tape.
+  UPDATE 2026-10-13 (measured live on the banked tape): the socket's own
+  capability matrix is now a tool, `scripts/tape_capability_report.py`, and
+  the design that consumes it is DASHBOARD_ARCHITECTURE.md. Headline numbers
+  from the 09:51 to 10:40 window (3035 frames, 314 of 319 symbols): snapshots
+  of one symbol land 30.1s apart at the median, the deduplicated visible print
+  sizes cover 0.43 of the venue's own volume delta (p25 0.25, p75 0.83, and
+  0.10 to 0.22 on the busiest names), and 21.9% of the traded volume cannot be
+  attributed to a side because prints landed off both quotes. The feed gives
+  true L1 quotes with sizes and true cumulative volume increments; it does not
+  give per-trade sizes, so any footprint view is a labelled reconstruction.
   UPDATE 2026-10-12 (measured live, market open): the `GetOHLCData` tier that
   Path A depends on is now serving nothing at all. Probed at 15:10 PKT, all
   three mirrors (`vt`, `nxg1`, `nxg2`) answered HTTP 200 with the bare
