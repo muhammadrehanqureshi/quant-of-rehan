@@ -207,6 +207,7 @@ scripts/install_kmiall_tick.py    registers the Windows scheduled task
 scripts/land.sh                   stage, validate and land one change through a PR
 scripts/train_signal_model.py     trains and validates the AI prior
 scripts/verify_market_signals.py  end to end verification: config, tests, relay, state, AI, scheduler
+scripts/tape_capability_report.py the measured capability matrix of a banked tape session
 scripts/check_governance.py       secret, style, identity and SO-8 enforcement
 scripts/dead_code_audit.py        evidence-based dead code report (modules, defs, imports)
 scripts/event_study.py            builds the frozen daily event study and its labels
@@ -271,6 +272,9 @@ python -m src.data.ohlc_poller --probe OGDC
 python scripts/train_signal_model.py
 python -c "from src.signals import ai_model; print(ai_model.status())"
 
+# what can the banked tape actually support? (measured, per session)
+python scripts/tape_capability_report.py         # coverage, print fidelity, side attribution
+
 # housekeeping
 python scripts/dead_code_audit.py                # unreferenced modules, defs, imports
 python -m src.data.universe_refresh              # KMIALL drift vs the live exchange table
@@ -284,6 +288,10 @@ python -m src.data.universe_refresh              # KMIALL drift vs the live exch
   candidates, promotion and demotion rules, source checks, data limitations.
 - [DATA_SOURCING.md](DATA_SOURCING.md): where every input comes from, what is
   measured versus inferred, and what happens when a source goes quiet.
+- [DASHBOARD_ARCHITECTURE.md](DASHBOARD_ARCHITECTURE.md): the private web
+  console design on the owner's own broker feed, with the measured capability
+  matrix (30.1s snapshot cadence, print fidelity 0.43 median, 21.9% of volume
+  unattributable by side) that decides what a footprint view may claim.
 - [MARKET_SCHEDULING.md](MARKET_SCHEDULING.md): the session law, the four
   states and the cadence decisions behind them.
 - [AUDIT_AND_CI_BUDGET_2026-10-10.md](AUDIT_AND_CI_BUDGET_2026-10-10.md) and
