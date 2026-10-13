@@ -26,6 +26,7 @@
                  tagline sits below the row and never influences the control. -->
             <RelativeLayout
                 android:id="@+id/brand_row"
+                android:clipChildren="false"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content">
 
@@ -76,13 +77,27 @@
                      puts its bottom edge on the title's own baseline once the
                      layout exists, because that line's position comes from
                      Bonskin's metrics and from the system font scale and
-                     cannot be expressed as a fixed margin. -->
+                     cannot be expressed as a fixed margin.
+
+                     Owner order 2026-10-13 (third note): the control was
+                     overflowing its row. Its box is 42dp tall while the
+                     brand line's baseline sits about 30dp down that line
+                     (Bonskin's hhea ascender is 1006/1000 em at 30sp), so the
+                     box overhangs the row's top edge by about 9dp, and a
+                     RelativeLayout clips its children by default: the top of
+                     the silhouette was being shaved off. The 12dp top margin
+                     below gives that overhang a home inside the row, and the
+                     row also turns clipChildren off, so the guarantee does
+                     not rest on one magic number once the system font scale
+                     moves the baseline. The control's own 6dp padding stays:
+                     it is what keeps the ink clear of the box edge. -->
                 <ImageView
                     android:id="@+id/btn_settings"
                     android:layout_width="42dp"
                     android:layout_height="42dp"
                     android:layout_alignParentEnd="true"
                     android:layout_alignTop="@id/brand_title"
+                    android:layout_marginTop="12dp"
                     android:background="@drawable/settings_ripple"
                     android:contentDescription="@string/cd_settings"
                     android:padding="6dp"
@@ -325,29 +340,35 @@
                 android:gravity="center"
                 android:text="@string/market_leaders_waiting"/>
 
-            <TextView
-                android:id="@+id/market_foot"
-                style="@style/QorCaption"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:gravity="center"/>
-
         </LinearLayout>
 
         <!-- Owner order 2026-10-13 (second note): the diamond rule that used to
              close the third tile from inside it now stands immediately after
              that tile's own boundary, so the divider reads between the card
              and the air below it rather than as part of the card. It is the
-             same include, with the same diamond, as the three above. -->
+             same include, with the same diamond, as the three above.
+
+             Owner order 2026-10-13 (third note): the cadence sentence leaves
+             the market card and stands immediately after this final diamond
+             rule, separated from it by two line breaks. The two breaks are
+             the leading newlines of the string resource itself, so the
+             sentence and its spacing cannot drift apart, and these words
+             still appear exactly once in the whole app. -->
         <include
             layout="@layout/qor_rule"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"/>
 
-        <!-- Owner order 2026-10-12: the pinned bottom cadence and the footer
-             rule are gone. The cadence sentence now sits in the market card
-             itself, where the volume ranking can be read with it. -->
+        <!-- The cadence line, below the last rule. It is a caption like the
+             card's other small print, and it is the last element of the
+             console: no footer rule follows it (owner order 2026-10-12). -->
+        <TextView
+            android:id="@+id/scan_cadence"
+            style="@style/QorCaption"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:text="@string/scan_cadence"/>
     </LinearLayout>
 </ScrollView>
