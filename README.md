@@ -52,8 +52,8 @@ target, then monitor and sleep.
   DATA BLOCKED with measured coverage and never a market verdict. See
   [DATA_SOURCING.md](DATA_SOURCING.md) and
   [INTRADAY_FORWARD_SYSTEM.md](INTRADAY_FORWARD_SYSTEM.md).
-- **The phone app**: `android/` v1.6.5 (built and signed,
-  `QuantOfRehan-v1.6.5.apk` on the OneDrive Desktop; versionCode 19). It shows
+- **The phone app**: `android/` v1.6.6 (built and signed,
+  `QuantOfRehan-v1.6.6.apk` on the OneDrive Desktop; versionCode 20). It shows
   the OFFLINE pill with the relay's own phase sentence, the latest signal, and
   the market card: KSE100 points and percentage, then the three KMIALL stocks
   with the highest session volume, each with its percentage change and its
@@ -309,7 +309,7 @@ python -m src.data.universe_refresh              # KMIALL drift vs the live exch
   Karachi pin, SO-4 local-only backtests), the whole unit suite, and the
   worker's JavaScript syntax. The agent then merges it with a merge commit;
   there are no direct pushes. `scripts/land.sh` does that flow locally and
-  through `gh`. PR #79 (app v1.6.5) was the last one.
+  through `gh`.
 - **Suite green, and it now stays inside itself.** 756 tests pass
   (`python -m unittest discover -s tests` reports `Ran 756 tests`, OK). The
   suite used to reach out of its sandbox in two ways: a capture-health test
