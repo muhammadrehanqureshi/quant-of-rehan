@@ -32,6 +32,31 @@ FRIDAY = date(2026, 10, 9)       # open 09:17, close 16:30
 SATURDAY = date(2026, 10, 10)
 
 
+def setUpModule() -> None:
+    """Keep the suite out of logs/scan_loop.log, which belongs to the live loop.
+
+    configure_logging() installs its file handler once per process and keeps
+    it for the rest of the run, so before this guard the first test that
+    called run() or main() opened the owner's own log and wrote a synthetic
+    TRADE verdict, and the RuntimeError("boom") traceback, into it.
+    """
+    global _LOG_DIR, _LOG_PATCH
+    _LOG_DIR = tempfile.TemporaryDirectory()
+    _LOG_PATCH = patch.object(scan_loop, "LOG_FILE",
+                              Path(_LOG_DIR.name) / "scan_loop.log")
+    _LOG_PATCH.start()
+
+
+def tearDownModule() -> None:
+    # Close the handlers before the directory goes: on Windows an open
+    # FileHandler locks its file and TemporaryDirectory.cleanup() fails.
+    for handler in list(scan_loop.LOGGER.handlers):
+        handler.close()
+        scan_loop.LOGGER.removeHandler(handler)
+    _LOG_PATCH.stop()
+    _LOG_DIR.cleanup()
+
+
 def at(day: date, hour: int, minute: int) -> datetime:
     return datetime(day.year, day.month, day.day, hour, minute, tzinfo=KARACHI)
 
