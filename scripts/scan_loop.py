@@ -149,13 +149,19 @@ class LoopConfig:
 
 # -------------------------------------------------------------------- logging
 
-def configure_logging(log_file: Path = LOG_FILE) -> None:
+def configure_logging(log_file: Path | None = None) -> None:
     """Structured, timestamped logging to stdout and a file.
 
     The scanner itself prints for humans; this loop logs for operators, which
     is why it uses the stdlib logging module rather than more prints. It is
     idempotent so a second call does not duplicate handlers.
+
+    The file resolves at call time rather than as a bound default, so a
+    caller that points LOG_FILE elsewhere is obeyed. Bound at import time it
+    could not be redirected, and the first test that called run() or main()
+    appended its synthetic verdicts to the live logs/scan_loop.log.
     """
+    log_file = LOG_FILE if log_file is None else log_file
     if LOGGER.handlers:
         return
     LOGGER.setLevel(logging.INFO)
