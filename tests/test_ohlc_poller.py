@@ -581,9 +581,13 @@ class TestTheStatusNamesTheCause(unittest.TestCase):
         temp_dir = tempfile.TemporaryDirectory()
         self.addCleanup(temp_dir.cleanup)
         machine = poller.OhlcPoller(["OGDC"], once=True)
-        self.addCleanup(machine.close)
         bar = {"t": "09:31", "o": 10.0, "h": 11.0, "l": 9.5, "c": 10.5}
         status_path = Path(temp_dir.name) / "ohlc_status.json"
+        # close() writes the heartbeat, so it runs INSIDE the patches. It used
+        # to be registered as a cleanup, which fires after the paths are
+        # restored, so this test rewrote the real
+        # data/feed_capture/ohlc_status.json with a synthetic one-symbol pass
+        # every time the suite ran.
         with patch.object(poller, "CAPTURE_DIR", Path(temp_dir.name)), \
                 patch.object(poller, "STATUS_PATH", status_path), \
                 patch.object(poller.time, "sleep", lambda _seconds: None), \
@@ -591,6 +595,7 @@ class TestTheStatusNamesTheCause(unittest.TestCase):
                              return_value=BarsFetch([bar], "ok",
                                                     poller.OHLC_HOSTS[0])):
             machine.run_pass()
+            machine.close()
         saved = json.loads(status_path.read_text(encoding="utf-8"))
 
         self.assertIsNone(saved["last_pass"]["note"])

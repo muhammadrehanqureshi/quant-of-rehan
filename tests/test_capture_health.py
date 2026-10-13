@@ -1,4 +1,16 @@
-"""Regression tests for collector status and heartbeat freshness."""
+"""Regression tests for collector status and heartbeat freshness.
+
+This module once messaged the owner for real. On 2026-10-12 and again on
+2026-10-13, the test that consumes the low-coverage flag posted its fixture
+("capture degraded (coverage 0.0%, 0/5 symbols)", the exact text the owner
+received on both days) to the live relay. It meant to block the send by
+clearing RELAY_ADMIN_TOKEN in the environment, but the resolver deliberately
+falls back to the gitignored repo .env (SO-5), found the real token and the
+POST went out. An absent environment variable is not a guard; the transport
+is. Every test here that exercises the alert path patches
+scripts.ops_alert.send, and one test holds that send stays the only function
+which posts.
+"""
 
 from __future__ import annotations
 
@@ -23,6 +35,17 @@ from scripts.ops_alert import capture_health_message, main as ops_main  # noqa: 
 
 
 KARACHI = timezone(timedelta(hours=5))
+
+
+def _no_live_alert():
+    """Cut the alert transport for one test, under either runner.
+
+    A helper rather than a module fixture on purpose: unittest calls
+    setUpModule(), pytest collects TestCase classes directly and never does,
+    and this suite is run both ways (see README). A patch inside the test
+    behaves the same under both.
+    """
+    return patch("scripts.ops_alert.send")
 
 
 class TestTickFrameParsing(unittest.TestCase):
@@ -146,18 +169,29 @@ class TestCaptureHealth(unittest.TestCase):
     def test_healthy_capture_writes_no_alert(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             flag = Path(temp_dir) / "ohlc_low_coverage.flag"
-            with patch("scripts.ops_alert.FLAG", flag):
+            with patch("scripts.ops_alert.FLAG", flag), \
+                    _no_live_alert() as send:
                 self.assertEqual(ops_main(["--capture-health"]), 0)
+                send.assert_not_called()
             self.assertFalse(flag.exists())
 
     def test_low_coverage_flag_is_consumed_by_the_alert_step(self):
+        # The fixture is the live message of 2026-10-12, kept exactly as it
+        # arrived so the alert the owner actually saw stays covered. The
+        # transport is patched, so the wiring is proven without the owner's
+        # phone being part of a unit test ever again.
         with tempfile.TemporaryDirectory() as temp_dir:
             flag = Path(temp_dir) / "ohlc_low_coverage.flag"
             flag.write_text(json.dumps({"coverage": 0.0, "symbols_ok": 0,
                                         "universe": 5}), encoding="utf-8")
             with patch("scripts.ops_alert.FLAG", flag), \
-                    patch.dict(os.environ, {"RELAY_ADMIN_TOKEN": ""}):
+                    _no_live_alert() as send:
                 self.assertEqual(ops_main(["--capture-health"]), 0)
+            text = send.call_args.args[0]
+            self.assertIn("capture degraded", text)
+            self.assertIn("0/5 symbols", text)
+            # this fixture carries no cause, and the alert must not invent one
+            self.assertNotIn("Measured cause:", text)
             # the flag is cleared either way so the next slot starts clean
             self.assertFalse(flag.exists())
 
@@ -218,6 +252,29 @@ class TestTheCaptureAlertQuotesItsCause(unittest.TestCase):
 
         self.assertIn("capture degraded", text)
         self.assertNotIn("Measured cause:", text)
+
+
+class TestTheRelayHasOneSendSeam(unittest.TestCase):
+    """Only send() posts, so one patch can always cut the wire.
+
+    The two incidents above ended with the alert tests patching
+    scripts.ops_alert.send. That fix only holds while send stays the single
+    place that talks to the relay, so the shape is asserted here instead of
+    being left to a future reader of the file.
+    """
+
+    def setUp(self):
+        self.source = (ROOT / "scripts" / "ops_alert.py").read_text(
+            encoding="utf-8")
+
+    def test_send_is_the_single_transport(self):
+        self.assertEqual(self.source.count("requests.post"), 1)
+        self.assertIn("def send(text: str) -> bool:", self.source)
+
+    def test_both_alert_paths_leave_through_send(self):
+        # The flag path and the --text path: there is no third way out.
+        self.assertIn("        send(capture_health_message())", self.source)
+        self.assertIn("    send(args.text)", self.source)
 
 
 if __name__ == "__main__":
