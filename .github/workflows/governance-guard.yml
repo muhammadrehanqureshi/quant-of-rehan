@@ -16,9 +16,16 @@ jobs:
     timeout-minutes: 2
     steps:
       # fetch-depth: 0 lets the SO-7 check read PR commit authors/messages.
+      # The ref is the PR's own head commit on purpose. The default checkout
+      # takes GitHub's synthetic test merge commit, which is authored as the
+      # head commit's author and carries no message of its own, so judging it
+      # would fail every pull request under SO-7a without saying anything
+      # about the work inside it. The commits the PR itself adds are the ones
+      # the standards apply to, and those are exactly what this checks out.
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - uses: actions/setup-python@v5
         with:
@@ -27,8 +34,9 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      # SO-7: verify every PR commit is authored by the owner, with no bot
-      # trailers and no banned dash characters in the message.
+      # SO-7 and SO-7a: verify every PR commit is authored by the owner,
+      # carries the agent's co-author line exactly once, and holds no other
+      # trailer and no banned dash character in the message.
       - name: Governance check (secrets, style, identity, standing orders)
         env:
           GOVERN_COMMIT_RANGE: origin/master..HEAD

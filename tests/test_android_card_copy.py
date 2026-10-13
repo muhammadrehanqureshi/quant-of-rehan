@@ -6,14 +6,19 @@ line, "PKR 12.52" followed by the day's change. The owner was seeing the
 currency label stranded at the end of the first line with the price wrapped
 below it, so the label and the number are now welded together and a narrow
 screen cannot split them again. The up and down arrows carry exactly one
-space before them on the index line and on every leader line, and the card's
-foot states the scan cadence in the owner's own words: "when the market is
+space before them on the index line and on every leader line, and the scan
+cadence is stated in the owner's own words: "when the market is
 open", not "during market open".
 
 Owner order 2026-10-13: the volumes are bracketed as one group. "(" opens at
 the B indicator (or at the exchange's total when the relay sent no split) and
 ")" closes after the T volume, and the ticker keeps exactly one space before
 the group.
+
+Owner order 2026-10-13 (third note): that sentence leaves the market card's
+foot and stands below the last diamond rule, behind two line breaks. The
+wording itself is untouched, which is what this file still guards character
+for character; tests/test_android_app_ui.py owns where it now stands.
 
 The app has no Java test runner in this repository (it is built with aapt2
 and D8, see android/README.md), so these assertions read the two source files
@@ -37,8 +42,8 @@ CADENCE = ("Quant will be scanning the market every 4 minutes "
            "when the market is open.")
 
 
-class FootSentenceTest(unittest.TestCase):
-    """The card's foot carries the owner's sentence, character for character."""
+class CadenceSentenceTest(unittest.TestCase):
+    """The owner's sentence, character for character, wherever it stands."""
 
     def test_the_foot_states_the_cadence_in_the_owner_wording(self):
         self.assertIn(CADENCE, STRINGS.read_text(encoding="utf-8"))

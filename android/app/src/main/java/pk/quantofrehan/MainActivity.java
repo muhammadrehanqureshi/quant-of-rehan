@@ -13,7 +13,7 @@ import android.text.SpannableString;
 import android.text.style.ForegroundColorSpan;
 import android.text.style.TypefaceSpan;
 import android.view.View;
-import android.view.animation.AccelerateDecelerateInterpolator;
+import android.view.animation.LinearInterpolator;
 import android.view.animation.DecelerateInterpolator;
 import android.widget.EditText;
 import android.widget.ImageView;
@@ -43,9 +43,9 @@ import java.util.Locale;
  * carry their labelled buy and sell volumes.
  *
  * Owner order 2026-10-12: the "MARKET NOW" label is gone from the market
- * card, the card's footnote carries the scan cadence sentence instead of the
+ * card, the card's footnote took the scan cadence sentence instead of the
  * index and ranking wording, and the pinned bottom cadence with the footer
- * rule under it are removed, so the interface ends at the card. Every
+ * rule under it were removed then, so the interface ended at the card. Every
  * sentence still comes from a string resource, so the copy, the
  * accessibility description and the layout cannot drift.
  *
@@ -77,6 +77,15 @@ import java.util.Locale;
  * closed the market card from inside it now stands immediately after that
  * tile's own boundary, and the ONLINE indicator breathes, its opacity and its
  * size, for as long as the relay reports the market OPEN.
+ *
+ * Owner order 2026-10-13 (third note): the settings control keeps its place
+ * on the brand baseline but no longer overflows the header row (it carries
+ * the vertical margin that gives its box a home, and the row holds no clip),
+ * the cadence sentence moves out of the market card to sit immediately after
+ * the final diamond rule behind two line breaks, and the status light's pulse
+ * is rebuilt: both states breathe, the ONLINE beacon in the palette green and
+ * the OFFLINE one in the palette red, at a hard 25 frames per second that is
+ * quantised in the animator's own clock.
  */
 public class MainActivity extends Activity {
 
@@ -99,10 +108,23 @@ public class MainActivity extends Activity {
     private static final long GEAR_TURN_MS = 220L;
 
     /**
-     * One breathing cycle of the ONLINE indicator (owner order 2026-10-13,
-     * second note). 2.2 seconds per breath: slow enough to read as alive
-     * rather than as a blink, and long enough that a glance never catches it
-     * mid flicker.
+     * The pulse's frame budget (owner order 2026-10-13, third note). The owner
+     * asked for a smooth 25 frames per second, so one drawn step every 40ms:
+     * 1000 / 25. Android has no CSS keyframes and no requestAnimationFrame to
+     * call; the equivalent is a property animator, whose update listener fires
+     * on the Choreographer's vsync clock. That clock is quantised to this grid
+     * in startStatusBreath, so the light changes exactly 25 times a second on
+     * every phone, and the platform's own frame delay hint is deliberately not
+     * used: its documentation says it may be ignored when the animation system
+     * rides vsync, which is exactly this case.
+     */
+    private static final long FRAME_MS = 40L;
+
+    /**
+     * One breathing cycle of the status light (owner order 2026-10-13, second
+     * note). 2.2 seconds per breath: slow enough to read as alive rather than
+     * as a blink, and long enough that a glance never catches it mid flicker.
+     * It holds 55 of the 40ms steps above.
      */
     private static final long BREATH_MS = 2200L;
 
@@ -122,16 +144,18 @@ public class MainActivity extends Activity {
 
     private SharedPreferences prefs;
     private TextView statusPill, statusDetail, signalList;
-    private TextView marketIndex, marketLeaders, marketFoot;
+    private TextView marketIndex, marketLeaders;
     /** Turned and tinted by setSettingsOpen, so it is the ImageView itself. */
     private ImageView btnSettings;
     /** The brand line whose baseline the settings control stands on. */
     private TextView brandTitle;
     private View settingsPanel;
-    /** The running ONLINE breathing animation, or null while the dot is still. */
+    /** The running status pulse, or null while the dot is still. */
     private ValueAnimator breathAnim;
     /** The exact dot the running animator drives: a re-render installs a new one. */
     private Drawable breathTarget;
+    /** The 40ms step the last drawn frame belonged to, so each step draws once. */
+    private long breathFrame = -1L;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -144,7 +168,6 @@ public class MainActivity extends Activity {
         signalList = findViewById(R.id.signal_list);
         marketIndex = findViewById(R.id.market_index);
         marketLeaders = findViewById(R.id.market_leaders);
-        marketFoot = findViewById(R.id.market_foot);
         settingsPanel = findViewById(R.id.settings_panel);
         btnSettings = findViewById(R.id.btn_settings);
         brandTitle = findViewById(R.id.brand_title);
@@ -235,25 +258,28 @@ public class MainActivity extends Activity {
     }
 
     /**
-     * The ONLINE indicator's breathing animation (owner order 2026-10-13,
-     * second note).
+     * The status light's pulse (owner order 2026-10-13, third note).
      *
-     * It runs only while the relay reports the market OPEN: that is the one
-     * state in which a lit beacon means the quant is working right now. A
-     * break, a closed day or an unreported phase leaves the dot still, because
-     * a breathing light over a shut market would claim activity there is none
-     * (SO-3).
+     * Both states breathe: the ONLINE beacon pulses green and the OFFLINE one
+     * pulses red, so the console reads as awake whether the session is live or
+     * shut. The state is never carried by the motion: the word and the colour
+     * say which state it is, so a pulse cannot claim the market is trading
+     * (SO-3). CHECKING is the one dot left still, because the app has not
+     * heard from the relay yet and a pulse there would imply a state the app
+     * does not know.
      *
-     * The animation is keyframed rather than eased between two ends: 0 to 1 to
-     * 0 over BREATH_MS, repeating for as long as the state holds, so every
-     * cycle starts and ends at rest and the breath has no seam. The animated
-     * value drives both the dot's opacity and its size, and the size is applied
-     * to the drawable's own bounds scaled about its centre, so the glow shrinks
-     * in place inside the pill instead of sliding.
+     * The animator carries the cycle's clock and nothing else: it runs
+     * linearly from 0 to 1 for BREATH_MS and repeats. The update listener
+     * fires on the vsync clock, quantises the elapsed cycle to the 40ms grid
+     * (25 frames per second), draws nothing when the step has not advanced,
+     * and shapes the breath with a raised cosine. One animator drives the
+     * dot's opacity and its size, and the size is applied to the drawable's
+     * own bounds about its centre, so the glow shrinks in place inside the
+     * pill instead of sliding and the word beside it never moves.
      */
-    private void setStatusBreath(boolean breathe) {
+    private void startStatusBreath() {
         Drawable dot = statusPill.getCompoundDrawablesRelative()[0];
-        if (!breathe || dot == null) {
+        if (dot == null) {
             stopStatusBreath();
             return;
         }
@@ -262,25 +288,49 @@ public class MainActivity extends Activity {
         }
         stopStatusBreath();             // a re-render hands over a new drawable
         breathTarget = dot;
-        breathAnim = ValueAnimator.ofFloat(0f, 1f, 0f);
+        breathAnim = ValueAnimator.ofFloat(0f, 1f);
         breathAnim.setDuration(BREATH_MS);
         breathAnim.setRepeatCount(ValueAnimator.INFINITE);
-        breathAnim.setInterpolator(new AccelerateDecelerateInterpolator());
+        // Linear on purpose: the animated fraction is then the cycle's own
+        // elapsed time, which is the value quantised below. The breath's
+        // curve is breathValue, applied to the quantised frame, so the shape
+        // is the app's rather than the interpolator's.
+        breathAnim.setInterpolator(new LinearInterpolator());
         breathAnim.addUpdateListener(a -> {
-            float k = (float) a.getAnimatedValue();
-            dot.setAlpha(Math.round(255f
-                    * (BREATH_MIN_ALPHA + (1f - BREATH_MIN_ALPHA) * k)));
-            float scale = BREATH_MIN_SCALE + (1f - BREATH_MIN_SCALE) * k;
-            int halfW = Math.round(dot.getIntrinsicWidth() * scale / 2f);
-            int halfH = Math.round(dot.getIntrinsicHeight() * scale / 2f);
-            // The centre is read from the live bounds: a re-layout may have
-            // just rewritten them, and scaling about the centre never moves
-            // it, so the dot cannot drift inside the pill.
-            int cx = dot.getBounds().centerX();
-            int cy = dot.getBounds().centerY();
-            dot.setBounds(cx - halfW, cy - halfH, cx + halfW, cy + halfH);
+            long frame = (long) (a.getAnimatedFraction() * BREATH_MS) / FRAME_MS;
+            if (frame == breathFrame) {
+                return;             // still inside the same 40ms step
+            }
+            breathFrame = frame;
+            drawBreathFrame(dot, breathValue(frame * (float) FRAME_MS / BREATH_MS));
         });
         breathAnim.start();
+    }
+
+    /**
+     * The breath's curve: a raised cosine over one cycle, 0 at the start of a
+     * cycle, 1 at its half and 0 again at its end. Value and slope both return
+     * to where they began, which is what makes the repeat seamless, and the
+     * middle of the cycle is spent near the top, so the light reads as
+     * breathing rather than as fading in and out.
+     */
+    private static float breathValue(float phase) {
+        return (float) (0.5 - 0.5 * Math.cos(2.0 * Math.PI * phase));
+    }
+
+    /** One drawn step: the dot's opacity and its size for a breath value k. */
+    private void drawBreathFrame(Drawable dot, float k) {
+        dot.setAlpha(Math.round(255f
+                * (BREATH_MIN_ALPHA + (1f - BREATH_MIN_ALPHA) * k)));
+        float scale = BREATH_MIN_SCALE + (1f - BREATH_MIN_SCALE) * k;
+        int halfW = Math.round(dot.getIntrinsicWidth() * scale / 2f);
+        int halfH = Math.round(dot.getIntrinsicHeight() * scale / 2f);
+        // The centre is read from the live bounds: a re-layout may have just
+        // rewritten them, and scaling about the centre never moves it, so the
+        // dot cannot drift inside the pill.
+        int cx = dot.getBounds().centerX();
+        int cy = dot.getBounds().centerY();
+        dot.setBounds(cx - halfW, cy - halfH, cx + halfW, cy + halfH);
     }
 
     /**
@@ -292,6 +342,7 @@ public class MainActivity extends Activity {
             breathAnim.cancel();
             breathAnim = null;
         }
+        breathFrame = -1L;
         if (breathTarget != null) {
             breathTarget.setAlpha(255);
             int cx = breathTarget.getBounds().centerX();
@@ -373,11 +424,13 @@ public class MainActivity extends Activity {
         statusPill.setContentDescription(getString(online
                 ? R.string.cd_status_online : R.string.cd_status_offline));
 
-        // The breathing light (owner order 2026-10-13, second note): a lit
-        // beacon that breathes means the quant is working right now, which is
-        // what an OPEN market plus a reachable relay means. A break, a closed
-        // day, or a phase the relay did not report leaves the dot still.
-        setStatusBreath(online && market != null && "OPEN".equals(market.phase));
+        // The status light's pulse (owner order 2026-10-13, third note): both
+        // states breathe, the ONLINE beacon in the palette green and the
+        // OFFLINE one in the palette red, and the word and the colour carry
+        // which state it is, so the motion never claims the market is trading.
+        // Only the CHECKING dot stays still: the app has not heard from the
+        // relay yet, and a pulse there would imply a state it does not know.
+        startStatusBreath();
 
         String d = detail == null ? "" : detail.trim();
         if (d.isEmpty()) {
@@ -431,7 +484,6 @@ public class MainActivity extends Activity {
         if (market == null) {
             marketIndex.setText(getString(R.string.market_waiting));
             marketLeaders.setText(getString(R.string.market_leaders_waiting));
-            marketFoot.setText(footText());
             return;
         }
 
@@ -470,8 +522,6 @@ public class MainActivity extends Activity {
         } else {
             marketLeaders.setText(leadersText(leaders));
         }
-
-        marketFoot.setText(footText());
     }
 
     /**
@@ -504,9 +554,9 @@ public class MainActivity extends Activity {
      * approximately" sign: B= and S= are measured from the session's own
      * trade tape, B≈ and S≈ are the relay's estimate from the day's
      * range, which is not order flow (SO-3). The distinction used to live in
-     * the card's footnote; the owner replaced that footnote with the scan
-     * cadence sentence on 2026-10-12, so the mark moved to where the number
-     * is, which is also where it is read.
+     * the card's footnote, which carried the scan cadence sentence from
+     * 2026-10-12 until that sentence moved below the final rule on 2026-10-13.
+     * The mark lives on the number instead, which is where it is read.
      *
      * Every field is a boxed Number, so a null means the relay did not report
      * it and the field is skipped rather than printed as a zero.
@@ -570,20 +620,6 @@ public class MainActivity extends Activity {
             sp.setSpan(new TypefaceSpan(ARROW_FACE), range[0], range[1], 0);
         }
         return sp;
-    }
-
-    /**
-     * The card's footnote.
-     *
-     * Owner order 2026-10-12: the "Index as of ..." line, the ranking basis
-     * and the split wording are all gone, and this slot now carries the scan
-     * cadence sentence verbatim. The sentence is read with the volume ranking
-     * it describes instead of being pinned below the card, and it is the one
-     * place it appears, so the copy still lives in exactly one string
-     * resource.
-     */
-    private String footText() {
-        return getString(R.string.scan_cadence);
     }
 
     private void toast(String s) {
