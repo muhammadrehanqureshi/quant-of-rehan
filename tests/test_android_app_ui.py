@@ -1,36 +1,40 @@
-"""Owner-ordered interface changes for the phone app, v1.6.4 (2026-10-12).
+"""Owner-ordered interface changes for the phone app, v1.6.5 (2026-10-13).
 
-Owner order 2026-10-12 (third note): the settings icon on the top right is to
-look better and more advanced, the bottom of the third tile carries the diamond
-with a line either side just like the two places above it, "Quant of Rehan" is
-drawn in the owner's Bonskin face, the rest of the interface uses LEMON MILK
-Bold and Light, and the double space between a ticker and its buy volume is
-gone.
+Owner order 2026-10-13: the settings control is the owner's own settings.png
+silhouette, tinted from the app's palette, on no plate at all and centred on
+the "Quant of Rehan" line, with a quarter turn as the settings panel opens and
+closes; every line inside the system status and the latest signal tiles is set
+in the owner's faces; the "Trading resumes" sentence is retired from the status
+tile; and a volume leader row brackets its grouped volumes.
 
 The app has no Java test runner in this repository (it is built with aapt2 and
 D8, see android/README.md), so these assertions read the sources that ship the
 contract, exactly as tests/test_android_card_copy.py does for the card's copy.
 
-The type assertions are stronger than "the layout mentions a font": they read
-the codepoint tables out of the bundled OTF files and check that every face is
-able to draw what it is asked to draw. That is not academic. Measured with the
-fonts' own cmaps before they were wired in:
+Three of the checks are measured rather than declared:
 
-  * the free LEMON MILK maps every lowercase codepoint onto its uppercase
-    glyph, which is why the long sentences keep the system face;
-  * no bundled face carries U+25B2 or U+25BC (the card's arrows), which is why
-    MainActivity draws those two characters with the system face by span;
-  * no bundled face carries U+25C6 (the brand diamond), which is why
-    QorDiamond deliberately sets no fontFamily.
+  * the bundled OTF files are read through their own cmap tables, because the
+    free LEMON MILK maps every lowercase codepoint onto its uppercase glyph
+    (which is why the settings paragraph keeps the system face), no bundled
+    face carries U+25B2/U+25BC (the card's arrows, drawn with the system face
+    by a span) and none carries U+25C6 (the brand diamond, so QorDiamond
+    deliberately sets no fontFamily);
+  * the bundled settings.png is decoded scanline by scanline, so the suite can
+    assert that the silhouette really sits on transparency with a real
+    aperture, instead of trusting the file name;
+  * the header's alignment is read from the layout tree, so "centred on the
+    brand line" means the control and the brand text share one row.
 
-A future font swap that breaks one of those three facts fails this file instead
-of shipping a row of empty boxes to the phone.
+A future font or icon swap that breaks one of those facts fails this file
+instead of shipping a row of empty boxes or a misaligned control to the phone.
 """
 
 from __future__ import annotations
 
 import struct
 import unittest
+import xml.etree.ElementTree as ET
+import zlib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -39,13 +43,19 @@ LAYOUT = RES / "layout" / "activity_main.xml"
 RULE = RES / "layout" / "qor_rule.xml"
 STYLES = RES / "values" / "styles.xml"
 STRINGS = RES / "values" / "strings.xml"
-GEAR = RES / "drawable" / "ic_gear.xml"
-GEAR_BG = RES / "drawable" / "gear_bg.xml"
+SETTINGS_PNG = RES / "drawable-nodpi" / "settings.png"
+SETTINGS_RIPPLE = RES / "drawable" / "settings_ripple.xml"
 FONT_DIR = RES / "font"
 LICENCES = ROOT / "android" / "LICENSES"
 MAIN = (ROOT / "android" / "app" / "src" / "main" / "java" / "pk"
         / "quantofrehan" / "MainActivity.java")
+WATCHER = (ROOT / "android" / "app" / "src" / "main" / "java" / "pk"
+           / "quantofrehan" / "Watcher.java")
 MANIFEST = ROOT / "android" / "app" / "src" / "main" / "AndroidManifest.xml"
+README = ROOT / "android" / "README.md"
+
+ANDROID_NS = "{http://schemas.android.com/apk/res/android}"
+PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
 
 DIAMOND = 0x25C6
 ARROW_UP = 0x25B2
@@ -59,6 +69,86 @@ def element(source: str, marker: str) -> str:
     start = source.rindex("<", 0, at)
     end = source.index("/>", at) + 2
     return source[start:end]
+
+
+def layout_root():
+    return ET.parse(LAYOUT).getroot()
+
+
+def find_view(root, view_id: str):
+    for node in root.iter():
+        if node.get(f"{ANDROID_NS}id") == view_id:
+            return node
+    return None
+
+
+def parent_of(root, node):
+    for parent in root.iter():
+        for child in parent:
+            if child is node:
+                return parent
+    return None
+
+
+def png_header(path: Path) -> tuple[int, int, int, int]:
+    """(width, height, bit depth, colour type) from the PNG's own IHDR."""
+    data = path.read_bytes()
+    assert data[:8] == PNG_MAGIC, f"{path.name} is not a PNG"
+    assert data[12:16] == b"IHDR", f"{path.name} does not open with IHDR"
+    return struct.unpack(">IIBB", data[16:26])
+
+
+def png_pixel(path: Path, x: int, y: int) -> tuple[int, int, int, int]:
+    """One pixel's (red, green, blue, alpha) from the PNG's own scanlines.
+
+    A deliberately small reader for the one image this app bundles: 8 bit
+    RGBA, no interlace, filters 0 to 4, which is what the owner's settings.png
+    is. It exists so the test can assert the silhouette's transparency, its
+    aperture and its ink colour from the pixels themselves.
+    """
+    width, height, depth, colour = png_header(path)
+    assert (depth, colour) == (8, 6), f"{path.name} is not 8 bit RGBA"
+    data = path.read_bytes()
+    idat = b""
+    at = 8
+    while at + 12 <= len(data):
+        length, kind = struct.unpack(">I4s", data[at:at + 8])
+        if kind == b"IDAT":
+            idat += data[at + 8:at + 8 + length]
+        at += 12 + length
+    raw = zlib.decompress(idat)
+    stride = width * 4
+    previous = bytearray(stride)
+    row = bytearray(stride)
+    at = 0
+    for row_index in range(height):
+        filter_type = raw[at]
+        at += 1
+        row[:] = raw[at:at + stride]
+        at += stride
+        for i in range(stride):
+            left = row[i - 4] if i >= 4 else 0
+            up = previous[i]
+            up_left = previous[i - 4] if i >= 4 else 0
+            if filter_type == 1:
+                row[i] = (row[i] + left) & 0xFF
+            elif filter_type == 2:
+                row[i] = (row[i] + up) & 0xFF
+            elif filter_type == 3:
+                row[i] = (row[i] + (left + up) // 2) & 0xFF
+            elif filter_type == 4:
+                p = left + up - up_left
+                pa, pb, pc = abs(p - left), abs(p - up), abs(p - up_left)
+                if pa <= pb and pa <= pc:
+                    row[i] = (row[i] + left) & 0xFF
+                elif pb <= pc:
+                    row[i] = (row[i] + up) & 0xFF
+                else:
+                    row[i] = (row[i] + up_left) & 0xFF
+        if row_index == y:
+            return tuple(row[x * 4:x * 4 + 4])
+        previous, row = row, previous
+    raise AssertionError(f"{path.name} has no row {y}")
 
 
 def has_codepoint(path: Path, codepoint: int) -> bool:
@@ -120,25 +210,83 @@ def _format4_has(data: bytes, sub: int, codepoint: int) -> bool:
 
 
 class SettingsControlTest(unittest.TestCase):
-    """The gear is a drawn vector on a masked ripple, not a text glyph."""
+    """The owner's own image, on no tile, centred on the brand line."""
 
     def setUp(self):
         self.layout = LAYOUT.read_text(encoding="utf-8")
         self.strings = STRINGS.read_text(encoding="utf-8")
-        self.gear = GEAR.read_text(encoding="utf-8")
-        self.plate = GEAR_BG.read_text(encoding="utf-8")
+        self.main = MAIN.read_text(encoding="utf-8")
+        self.ripple = SETTINGS_RIPPLE.read_text(encoding="utf-8")
 
-    def test_the_glyph_and_its_string_are_retired(self):
-        self.assertNotIn("gear_glyph", self.layout)
-        self.assertNotIn("gear_glyph", self.strings)
-        self.assertNotIn("\u2699", self.strings)
-
-    def test_the_button_is_a_vector_on_the_rippled_plate(self):
+    def test_the_control_is_the_owners_own_image(self):
         button = element(self.layout, 'android:id="@+id/btn_settings"')
         self.assertIn("<ImageView", button)
-        self.assertIn('android:src="@drawable/ic_gear"', button)
-        self.assertIn('android:background="@drawable/gear_bg"', button)
-        self.assertIn('android:contentDescription="@string/cd_settings"', button)
+        self.assertIn('android:src="@drawable/settings"', button)
+        # The U+2699 glyph and the drawn gear that replaced it are both gone.
+        self.assertNotIn("gear_glyph", self.layout)
+        self.assertNotIn("ic_gear", self.layout)
+        self.assertNotIn("\u2699", self.strings)
+        self.assertFalse((RES / "drawable" / "ic_gear.xml").exists())
+
+    def test_the_file_is_black_ink_on_transparency(self):
+        # The file as the owner saved it: 512 square, 8 bit RGBA, no background
+        # tile inside the file. Corners transparent, the ring's left edge opaque
+        # at the measured bounding box, and the middle a real aperture.
+        self.assertTrue(SETTINGS_PNG.is_file())
+        self.assertEqual(png_header(SETTINGS_PNG), (512, 512, 8, 6))
+        self.assertEqual(png_pixel(SETTINGS_PNG, 0, 0)[3], 0)
+        self.assertEqual(png_pixel(SETTINGS_PNG, 511, 511)[3], 0)
+        self.assertEqual(png_pixel(SETTINGS_PNG, 256, 256)[3], 0)
+        # The ring is opaque at the measured bounding box, and the ink is
+        # black: the layout's tint is the only colour the icon ever has.
+        self.assertEqual(png_pixel(SETTINGS_PNG, 16, 256), (0, 0, 0, 255))
+        self.assertEqual(png_pixel(SETTINGS_PNG, 128, 256), (0, 0, 0, 255))
+
+    def test_the_tile_and_its_plates_are_removed(self):
+        button = element(self.layout, 'android:id="@+id/btn_settings"')
+        self.assertIn('android:background="@drawable/settings_ripple"', button)
+        self.assertNotIn("gear_bg", self.layout)
+        for name in ("gear_bg.xml", "gear_bg_open.xml", "gear_plate.xml",
+                     "gear_plate_open.xml"):
+            with self.subTest(drawable=name):
+                self.assertFalse((RES / "drawable" / name).exists())
+        self.assertIn("<ripple", self.ripple)
+        self.assertIn("@android:id/mask", self.ripple)
+        # No content item: the ripple is the press and nothing else, so the
+        # control has no tile at rest.
+        self.assertNotIn("android:drawable=", self.ripple)
+
+    def test_the_icon_is_tinted_from_the_app_palette(self):
+        button = element(self.layout, 'android:id="@+id/btn_settings"')
+        self.assertIn('android:tint="@color/gold"', button)
+        self.assertIn("btnSettings.setImageTintList", self.main)
+        self.assertIn("R.color.gold_bright", self.main)
+
+    def test_the_control_is_centred_on_the_brand_line(self):
+        root = layout_root()
+        button = find_view(root, "@+id/btn_settings")
+        title = find_view(root, "@+id/brand_title")
+        tagline = find_view(root, "@+id/brand_tagline")
+        self.assertIsNotNone(button)
+        self.assertIsNotNone(title)
+        self.assertIsNotNone(tagline)
+        row = parent_of(root, button)
+        self.assertTrue(row.tag.endswith("RelativeLayout"))
+        self.assertIs(row, parent_of(root, title))
+        self.assertEqual(button.get(f"{ANDROID_NS}layout_centerVertical"), "true")
+        # The tagline stays outside the row, so it cannot pull the control
+        # down: the control is centred on the brand text itself.
+        self.assertIsNot(row, parent_of(root, tagline))
+
+    def test_the_quarter_turn_is_one_place_per_state(self):
+        self.assertIn(".rotation(open ? -90f : 0f)", self.main)
+        self.assertIn("GEAR_TURN_MS", self.main)
+        self.assertIn("new DecelerateInterpolator()", self.main)
+        # Every state change goes through the one helper, and the open no
+        # longer swaps a background anywhere.
+        self.assertEqual(self.main.count("setSettingsOpen("), 3)
+        self.assertNotIn("gear_bg", self.main)
+        self.assertNotIn("setBackgroundResource", self.main)
 
     def test_the_content_description_is_a_button_name_not_the_help_text(self):
         self.assertIn('name="cd_settings"', self.strings)
@@ -151,23 +299,25 @@ class SettingsControlTest(unittest.TestCase):
         self.assertNotEqual(hint_line, cd_line)
         self.assertLess(len(cd_line), len(hint_line))
 
-    def test_the_ripple_is_masked_to_the_plate_corners(self):
-        self.assertIn("<ripple", self.plate)
-        self.assertIn("@android:id/mask", self.plate)
-        self.assertIn("@drawable/gear_plate", self.plate)
 
-    def test_the_gear_is_eight_teeth_around_a_real_aperture(self):
-        self.assertIn("<vector", self.gear)
-        tooth = 'android:pathData="M10.8,4.9'
-        self.assertEqual(self.gear.count(tooth), 8)
-        # even-odd rings mean the ring and the collar have genuine holes rather
-        # than overlays painted in the plate colour.
-        self.assertEqual(self.gear.count('android:fillType="evenOdd"'), 2)
+class StatusTileCopyTest(unittest.TestCase):
+    """Owner order 2026-10-13: the resume sentence leaves the first tile."""
 
-    def test_the_brand_law_of_two_states_is_still_one_place_per_state(self):
-        main = MAIN.read_text(encoding="utf-8")
-        self.assertIn("R.drawable.gear_bg_open", main)
-        self.assertIn("R.drawable.gear_bg", main)
+    def setUp(self):
+        self.strings = STRINGS.read_text(encoding="utf-8")
+        self.watcher = WATCHER.read_text(encoding="utf-8")
+
+    def test_the_resume_sentence_is_retired(self):
+        self.assertNotIn("market_resume_hint", self.strings)
+        self.assertNotIn("Trading resumes", self.strings)
+        self.assertNotIn("resumeLine", self.watcher)
+        self.assertNotIn("nextEvent", self.watcher)
+        self.assertNotIn("next_event", self.watcher)
+
+    def test_the_tile_still_carries_the_condition_sentence(self):
+        # The relay's own phase sentence stays: only the resume line is gone.
+        self.assertIn("String line = phaseLine(c, healthMarket);", self.watcher)
+        self.assertIn("d.append('\\n').append(line);", self.watcher)
 
 
 class BrandRuleTest(unittest.TestCase):
@@ -230,6 +380,33 @@ class TypefaceTest(unittest.TestCase):
         brand = element(self.layout, 'android:text="@string/app_name"')
         self.assertNotIn("includeFontPadding", brand)
 
+    def test_the_status_and_signal_tiles_are_set_in_the_owners_faces(self):
+        # Owner order 2026-10-13: every line inside these two tiles.
+        pill = element(self.layout, 'android:id="@+id/status_pill"')
+        self.assertIn('android:fontFamily="@font/lemonmilk_bold"', pill)
+        # LEMON MILK Bold is already bold, so no synthesised weight on top.
+        self.assertNotIn("textStyle", pill)
+        for view_id in ("status_detail", "signal_list"):
+            with self.subTest(view=view_id):
+                view = element(self.layout, f'android:id="@+id/{view_id}"')
+                self.assertIn('style="@style/QorValue"', view)
+        value = self.styles[self.styles.index('name="QorValue"'):]
+        self.assertIn("@font/lemonmilk_light", value[:value.index("</style>")])
+
+    def test_no_line_inside_those_tiles_falls_back_to_a_legacy_face(self):
+        # The clock span used to force monospace and a synthesised bold; the
+        # tiles are one face end to end now.
+        self.assertNotIn('TypefaceSpan("monospace")', self.main)
+        self.assertNotIn("StyleSpan", self.main)
+
+    def test_the_settings_paragraph_keeps_the_system_face(self):
+        # Out of the owner's scope on purpose: the hint is a paragraph, so it
+        # stays readable as a sentence rather than as capitals.
+        hint = element(self.layout, 'android:text="@string/settings_hint"')
+        self.assertIn('style="@style/QorBody"', hint)
+        body = self.styles[self.styles.index('name="QorBody"'):]
+        self.assertNotIn("@font/", body[:body.index("</style>")])
+
     def test_the_caps_faces_are_wired_to_the_caps_text(self):
         self.assertEqual(self.styles.count("@font/lemonmilk_bold"), 2)
         self.assertIn('android:fontFamily="@font/lemonmilk_light"',
@@ -244,14 +421,6 @@ class TypefaceTest(unittest.TestCase):
                       element(self.layout, 'android:id="@+id/market_foot"'))
         self.assertIn('android:fontFamily="@font/lemonmilk_bold"',
                       element(self.layout, 'android:id="@+id/market_index"'))
-
-    def test_the_sentences_keep_the_system_face(self):
-        # By contract, not by accident: the free LEMON MILK draws lowercase
-        # with its uppercase glyphs, so paragraphs drawn in it would shout.
-        body = self.styles[self.styles.index('name="QorBody"'):]
-        self.assertNotIn("@font/", body[:body.index("</style>")])
-        self.assertIn('style="@style/QorBody"',
-                      element(self.layout, 'android:id="@+id/status_detail"'))
 
     def test_the_arrow_glyphs_are_drawn_by_a_face_that_has_them(self):
         light = FONT_DIR / "lemonmilk_light.otf"
@@ -277,15 +446,17 @@ class TypefaceTest(unittest.TestCase):
         for name in ("bonskin.otf", "lemonmilk_bold.otf", "lemonmilk_light.otf"):
             with self.subTest(font=name):
                 self.assertTrue((FONT_DIR / name).is_file())
-                self.assertIn(name, (ROOT / "android" / "README.md")
-                              .read_text(encoding="utf-8"))
+                self.assertIn(name, README.read_text(encoding="utf-8"))
+
+    def test_the_owners_icon_is_documented_where_the_faces_are(self):
+        self.assertIn("settings.png", README.read_text(encoding="utf-8"))
 
 
 class VersionTest(unittest.TestCase):
     def test_the_version_is_the_one_that_ships_these_changes(self):
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="1.6.4"', manifest)
-        self.assertIn('android:versionCode="18"', manifest)
+        self.assertIn('android:versionName="1.6.5"', manifest)
+        self.assertIn('android:versionCode="19"', manifest)
 
 
 if __name__ == "__main__":

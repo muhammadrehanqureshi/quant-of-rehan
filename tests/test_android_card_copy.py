@@ -10,6 +10,11 @@ space before them on the index line and on every leader line, and the card's
 foot states the scan cadence in the owner's own words: "when the market is
 open", not "during market open".
 
+Owner order 2026-10-13: the volumes are bracketed as one group. "(" opens at
+the B indicator (or at the exchange's total when the relay sent no split) and
+")" closes after the T volume, and the ticker keeps exactly one space before
+the group.
+
 The app has no Java test runner in this repository (it is built with aapt2
 and D8, see android/README.md), so these assertions read the two source files
 that ship the contract. That is deliberate: the order is about the exact
@@ -43,29 +48,27 @@ class FootSentenceTest(unittest.TestCase):
 
 
 class LeaderLineTest(unittest.TestCase):
-    """Two lines per leader, and one space before every arrow."""
+    """Two lines per leader, a bracketed volume group, one space per arrow."""
 
     def setUp(self):
         self.main = MAIN.read_text(encoding="utf-8")
-
-    def test_one_space_separates_the_ticker_from_its_buy_volume(self):
-        """Owner order 2026-10-12 (third note): the double space is gone.
-
-        Three spaces sat between the ticker and its buy volume, which read as
-        a double space on the phone. One space replaces it, in both branches
-        (a split row and a volume only row). The two spaces that separate the
-        volume fields stay: they are what groups B, S and T apart.
-        """
-        self.assertIn('sb.append(" B")', self.main)
-        self.assertNotIn('"   B"', self.main)
-        self.assertNotIn('"   T=', self.main)
 
     def test_the_price_is_welded_to_its_currency_label(self):
         self.assertIn('"PKR %,.2f"', self.main)
         self.assertNotIn("Rs %,.2f", self.main)
 
+    def test_the_volume_group_is_bracketed_and_keeps_one_space(self):
+        # "(" opens at B, ")" closes after T, and the ticker keeps exactly one
+        # space before the group: the three fields read as one block.
+        self.assertIn('sb.append(" (B")', self.main)
+        self.assertIn('"  T=%,d)"', self.main)
+        self.assertIn('" (T=%,d)"', self.main)
+        self.assertNotIn('"  (B', self.main)
+        # The bare form the group replaced is gone.
+        self.assertNotIn('sb.append(" B")', self.main)
+
     def test_the_money_line_opens_after_the_volumes(self):
-        volumes = self.main.index('"  T=%,d"')
+        volumes = self.main.index('"  T=%,d)"')
         money = self.main.index('"PKR %,.2f"')
         self.assertLess(volumes, money)
         self.assertIn("sb.append('\\n');", self.main[volumes:money])
