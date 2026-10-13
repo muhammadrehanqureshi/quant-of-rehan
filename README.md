@@ -52,12 +52,15 @@ target, then monitor and sleep.
   DATA BLOCKED with measured coverage and never a market verdict. See
   [DATA_SOURCING.md](DATA_SOURCING.md) and
   [INTRADAY_FORWARD_SYSTEM.md](INTRADAY_FORWARD_SYSTEM.md).
-- **The phone app**: `android/` v1.6.6 (built and signed,
-  `QuantOfRehan-v1.6.6.apk` on the OneDrive Desktop; versionCode 20). It shows
-  the OFFLINE pill with the relay's own phase sentence, the latest signal, and
+- **The phone app**: `android/` v1.6.7 (built and signed,
+  `QuantOfRehan-v1.6.7.apk` on the OneDrive Desktop; versionCode 21). It shows
+  the status pill with the relay's own phase sentence, the latest signal, and
   the market card: KSE100 points and percentage, then the three KMIALL stocks
   with the highest session volume, each with its percentage change and its
-  buy/sell/total volume when a genuine split exists. It polls `/health`,
+  buy/sell/total volume when a genuine split exists. The status light breathes
+  in both states (palette green for ONLINE, palette red for OFFLINE) at a hard
+  25 frames per second, and the cadence sentence stands under the last diamond
+  rule behind two line breaks. It polls `/health`,
   `/signals` and `/market` on the edge, survives reboot, and never derives a
   session from its own clock. See [android/README.md](android/README.md).
 
@@ -173,11 +176,16 @@ python scripts/train_signal_model.py --check-only # featurizer equivalence only
    post-close signal job on GitHub Actions fetches a bounded trailing EOD
    window and pushes the verdict; full-history crawls stay on the PC.
 5. **Secrets never enter the repo.** Desktop files and worker bindings only.
-6. **Sole contributor, human style (SO-7).** Every commit is authored by
-   Mr. Rehan. Em dashes are banned from commits and files. `legacy/` is
+6. **Sole human contributor, human style (SO-7).** Every commit is authored
+   by Mr. Rehan. Em dashes are banned from commits and files. `legacy/` is
    quarantined reference material from the deleted sentinel repos.
-7. **Karachi time forever (SO-8).** UTC+5, hardcoded, no other zone.
-8. **Owner notifications (SO-9).** "Quant is online now." at open;
+7. **The agent is the co-author (SO-7a, owner order 2026-10-13).** Every
+   commit, every pull request body and every merge carries one line:
+   `Co-Authored-By: Codebuff <noreply@codebuff.com>`. `scripts/land.sh`
+   appends it and `scripts/check_governance.py` requires it. Any other
+   identity or trailer still fails the check.
+8. **Karachi time forever (SO-8).** UTC+5, hardcoded, no other zone.
+9. **Owner notifications (SO-9).** "Quant is online now." at open;
    "Quant is sleeping now." at close, through the Cloudflare relay.
 
 ## Layout
