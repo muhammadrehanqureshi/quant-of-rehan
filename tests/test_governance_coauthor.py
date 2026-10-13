@@ -16,6 +16,7 @@ network.
 
 from __future__ import annotations
 
+import importlib.util
 import os
 import shutil
 import subprocess
@@ -33,9 +34,24 @@ TRAILER = "Co-Authored-By: Codebuff <noreply@codebuff.com>"
 GIT = shutil.which("git")
 
 
+_CHECKER = None
+
+
 def checker():
-    import check_governance as cg
-    return cg
+    """The shipped checker, loaded by path.
+
+    Importing it by name would work only when the suite is started with
+    discovery on tests/ (which is what CI and scripts/land.sh do). Loading the
+    file itself means this module also runs on its own.
+    """
+    global _CHECKER
+    if _CHECKER is None:
+        spec = importlib.util.spec_from_file_location(
+            "check_governance", ROOT / "scripts" / "check_governance.py")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        _CHECKER = module
+    return _CHECKER
 
 
 class CoAuthorLawTest(unittest.TestCase):
@@ -74,6 +90,17 @@ class CoAuthorLawTest(unittest.TestCase):
         self.assertIn("SO-7a", GOVERNANCE.read_text(encoding="utf-8"))
         self.assertIn("SO-7a", WORKFLOW.read_text(encoding="utf-8"))
         self.assertIn("SO-7a", READ_ME.read_text(encoding="utf-8"))
+
+    def test_the_guard_judges_the_prs_own_commits_and_not_githubs_merge(self):
+        # The default checkout takes GitHub's synthetic test merge commit. It
+        # is authored as the head commit's author and has no message of its
+        # own, so it can never carry the co-author line, and checking it would
+        # fail every pull request for a reason that says nothing about the
+        # work inside it. The guard therefore checks out the PR's head commit.
+        workflow = WORKFLOW.read_text(encoding="utf-8")
+        self.assertIn("ref: ${{ github.event.pull_request.head.sha }}",
+                      workflow)
+        self.assertIn("synthetic test merge commit", workflow)
 
 
 @unittest.skipUnless(GIT, "git is required to exercise the commit-message check")
