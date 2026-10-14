@@ -35,6 +35,9 @@ from src.data.sessions import (  # noqa: E402
 from scripts.intraday_pipeline import session_legal  # noqa: E402
 
 WORKFLOW = ROOT / ".github" / "workflows" / "intraday-capture.yml"
+# SO-13 (owner order 2026-10-14): the 30 second cadence runs in its own
+# workflow, one band per fire, so it is parsed here too.
+SESSION_WORKFLOW = ROOT / ".github" / "workflows" / "intraday-session.yml"
 WRANGLER = ROOT / "cloud" / "wrangler.toml"
 
 MONDAY = date(2026, 10, 5)
@@ -268,6 +271,50 @@ class TestOutsideSessionGuard(unittest.TestCase):
         self.assertFalse(session_legal(at(WEDNESDAY, 16, 0)))
         self.assertFalse(session_legal(at(FRIDAY, 16, 45)))
         self.assertFalse(session_legal(at(date(2026, 10, 10), 11, 0)))
+
+
+class TestTheThirtySecondSessionWorkflow(unittest.TestCase):
+    """SO-13: the band loop that scans every 30 seconds, checked at the PR.
+
+    The owner's order of 2026-10-14 made the repository public for free cloud
+    minutes and asked for a 30 second scan. These tests hold the workflow that
+    carries it: its crons inside real bands, its job inside GitHub's own
+    six-hour cap, and the interval actually passed to the loop.
+    """
+
+    def test_each_band_starts_a_loop_inside_a_real_band(self):
+        crons = crons_of(SESSION_WORKFLOW)
+        self.assertEqual(len(crons), 4, "one window per band, Mon-Thu and Fri")
+        for expression in crons:
+            minute, hour, mask = parse_cron(expression)
+            for weekday in weekdays_of(mask):
+                pkt = datetime(2026, 10, 5, hour, minute, tzinfo=KARACHI) \
+                    + timedelta(hours=5, days=weekday - 1)
+                day = pkt.date()
+                bands = session_bands(day)
+                inside = any(band[0] <= (pkt.hour, pkt.minute) < band[1]
+                             for band in bands)
+                with self.subTest(cron=expression, weekday=weekday,
+                                  pkt=pkt.strftime("%H:%M")):
+                    self.assertTrue(
+                        inside,
+                        f"{expression} starts the loop at {pkt:%H:%M} PKT on "
+                        f"{day.isoformat()}, outside every band ({bands})")
+
+    def test_the_loop_runs_at_thirty_seconds(self):
+        text = SESSION_WORKFLOW.read_text(encoding="utf-8")
+        self.assertIn("--interval 30", text)
+        self.assertIn("scripts/scan_loop.py", text)
+        self.assertIn("timeout --signal=TERM", text,
+                      "a band job must stop the loop itself, not be killed")
+
+    def test_the_job_stays_inside_git_hub_six_hour_cap(self):
+        """A job over six hours is cancelled by GitHub, so the cap is checked."""
+        text = SESSION_WORKFLOW.read_text(encoding="utf-8")
+        minutes = [int(m) for m in re.findall(r"timeout-minutes:\s*(\d+)", text)]
+        self.assertTrue(minutes, "the band job must declare its own cap")
+        self.assertLess(max(minutes), 360,
+                        "GitHub cancels a job that runs longer than six hours")
 
 
 class TestGitHubActionsSchedule(unittest.TestCase):

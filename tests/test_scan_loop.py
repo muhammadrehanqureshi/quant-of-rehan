@@ -57,8 +57,9 @@ def tearDownModule() -> None:
     _LOG_DIR.cleanup()
 
 
-def at(day: date, hour: int, minute: int) -> datetime:
-    return datetime(day.year, day.month, day.day, hour, minute, tzinfo=KARACHI)
+def at(day: date, hour: int, minute: int, second: int = 0) -> datetime:
+    return datetime(day.year, day.month, day.day, hour, minute, second,
+                    tzinfo=KARACHI)
 
 
 def blocked_payload(reason: str = "KMIALL coverage 40/319 (12.5%) is below the "
@@ -112,9 +113,119 @@ class ClockPhaseTest(unittest.TestCase):
         self.assertEqual(scan_loop.slot_of(at(MONDAY, 10, 7)), "10:04")
         self.assertEqual(scan_loop.slot_of(at(MONDAY, 10, 4)), "10:04")
 
-    def test_the_default_cadence_is_four_minutes(self):
+    def test_the_loop_defaults_to_the_thirty_second_cloud_cadence(self):
+        """Owner order 2026-10-14 (SO-13): scan every 30 seconds.
+
+        The local tick keeps its own 4 minute cadence, so the two runners are
+        asserted together: a change that quietly made the cloud loop 4
+        minutes, or the local tick 30 seconds, would fail here.
+        """
+        self.assertEqual(LoopConfig().interval_seconds,
+                         scan_loop.config.SCAN_INTERVAL_SECONDS)
+        self.assertEqual(scan_loop.config.SCAN_INTERVAL_SECONDS, 30)
         self.assertEqual(scan_loop.config.TICK_INTERVAL_MINUTES, 4)
-        self.assertEqual(LoopConfig().interval_seconds, 240.0)
+
+    def test_a_thirty_second_cadence_labels_its_own_slot(self):
+        """The once-per-slot guard must not eat 29 of 30 slots.
+
+        A minute-labelled slot for a 30 second runner would scan once a minute
+        while the health file claimed every 30 seconds.
+        """
+        self.assertEqual(scan_loop.slot_of(at(MONDAY, 10, 7, 29),
+                                           interval_seconds=30), "10:07:00")
+        self.assertEqual(scan_loop.slot_of(at(MONDAY, 10, 7, 31),
+                                           interval_seconds=30), "10:07:30")
+        self.assertEqual(scan_loop.slot_of(at(MONDAY, 10, 7, 59),
+                                           interval_seconds=30), "10:07:30")
+        # The local tick's minute labels are untouched by the new cadence.
+        self.assertEqual(scan_loop.slot_of(at(MONDAY, 10, 7), interval_seconds=240),
+                         "10:04")
+
+
+class TapeCaptureTest(unittest.TestCase):
+    """A cycle reads the session's tape; the servlet is only a fallback.
+
+    Owner order 2026-10-14 (SO-13): the 30 second cadence is affordable only
+    because a cycle measures bars that already exist instead of fetching them.
+    These tests hold the loop to that: with a tape on disk the read-only
+    recorder is kept alive and measured, and the eClear pass is never invoked;
+    a dead tape is a reported fault, never a market verdict.
+    """
+
+    def _loop(self) -> ScanLoop:
+        return ScanLoop(LoopConfig(dry_run=True))
+
+    def _tape_path(self, tmp: str) -> Path:
+        path = Path(tmp) / "capture_20261012.ndjson"
+        path.write_text("", encoding="utf-8")
+        return path
+
+    @staticmethod
+    def _tape(symbols: int = 300):
+        from types import SimpleNamespace
+        return SimpleNamespace(symbols_with_bars=symbols, priced_bars=1000,
+                               carried_bars=25, counter_rows=900)
+
+    def test_a_tape_on_disk_is_kept_alive_and_measured(self):
+        loop = self._loop()
+        with tempfile.TemporaryDirectory() as tmp:
+            tape_path = self._tape_path(tmp)
+            with patch.object(scan_loop.tape_bars, "capture_path",
+                              return_value=tape_path), \
+                    patch("src.data.live_card.ensure_tape",
+                          return_value=(True, "broker tape alive")) as ensure, \
+                    patch.object(scan_loop.tape_bars, "build",
+                                 return_value=self._tape()) as build, \
+                    patch.object(scan_loop.tape_bars, "write_low_coverage_flag",
+                                 return_value=None) as flag, \
+                    patch.object(loop, "_poller_capture") as poller:
+                self.assertTrue(loop._capture())
+        ensure.assert_called_once()
+        build.assert_called_once()
+        flag.assert_called_once()
+        poller.assert_not_called()
+
+    def test_a_thin_tape_raises_the_health_flag_it_will_be_reported_by(self):
+        loop = self._loop()
+        with tempfile.TemporaryDirectory() as tmp:
+            tape_path = self._tape_path(tmp)
+            with patch.object(scan_loop.tape_bars, "capture_path",
+                              return_value=tape_path), \
+                    patch("src.data.live_card.ensure_tape",
+                          return_value=(True, "broker tape alive")), \
+                    patch.object(scan_loop.tape_bars, "build",
+                                 return_value=self._tape(symbols=4)), \
+                    patch.object(scan_loop.tape_bars, "write_low_coverage_flag",
+                                 return_value=Path("ohlc_low_coverage.flag")) as flag:
+                self.assertTrue(loop._capture())
+        # The cause the alert quotes names the source that was thin.
+        self.assertIn("the tape held bars for 4 of", flag.call_args.kwargs["cause"])
+
+    def test_a_tape_with_no_bars_is_a_reported_fault(self):
+        loop = self._loop()
+        with tempfile.TemporaryDirectory() as tmp:
+            tape_path = self._tape_path(tmp)
+            with patch.object(scan_loop.tape_bars, "capture_path",
+                              return_value=tape_path), \
+                    patch("src.data.live_card.ensure_tape",
+                          return_value=(True, "alive but quiet")), \
+                    patch.object(scan_loop.tape_bars, "build",
+                                 return_value=self._tape(symbols=0)), \
+                    patch.object(scan_loop.tape_bars, "write_low_coverage_flag",
+                                 return_value=None):
+                with self.assertRaises(ScanFault):
+                    loop._capture()
+
+    def test_a_day_with_no_tape_still_uses_the_servlet_fallback(self):
+        loop = self._loop()
+        with tempfile.TemporaryDirectory() as tmp:
+            missing = Path(tmp) / "capture_20261012.ndjson"
+            with patch.object(scan_loop.tape_bars, "capture_path",
+                              return_value=missing), \
+                    patch.object(loop, "_poller_capture",
+                                 return_value=True) as poller:
+                self.assertTrue(loop._capture())
+        poller.assert_called_once()
 
 
 class LoopConfigTest(unittest.TestCase):

@@ -158,6 +158,16 @@ TARGET_MULTIPLIER_BY_REGIME = {
 # (src/data/sessions.py, is_scan_window).
 TICK_INTERVAL_MINUTES = _number("TICK_INTERVAL_MINUTES", 4)
 TICK_WARMUP_MINUTES = _number("TICK_WARMUP_MINUTES", 20)
+
+# SO-13 (owner order 2026-10-14): "make the repo public but then i want the
+# quant of rehan to be scanned every 30 seconds". One scan serves both the
+# phone's card and the intraday paper strategy, so this is the cadence of the
+# supervised session loop the cloud job runs, and the slot width its
+# once-per-slot guard is keyed on. The local 4-minute tick keeps its own
+# TICK_INTERVAL_MINUTES: the two are different runners, not two cadences for
+# one runner. Measured cost of one cycle on the real 2026-10-13 session tape
+# (44.6 MB, 314 symbols): 2.9s to build, load, gate and rank, inside a 30s slot.
+SCAN_INTERVAL_SECONDS = _number("SCAN_INTERVAL_SECONDS", 30)
 TICK_STALE_LOCK_MINUTES = _number("TICK_STALE_LOCK_MINUTES", 15)
 
 # The bar capture is ONE polite, sequential pass over the universe
@@ -307,6 +317,7 @@ def config_snapshot() -> dict:
         "psx_probe_enabled": PSX_PROBE_ENABLED,
         "psx_probe_timeout_seconds": PSX_PROBE_TIMEOUT_SECONDS,
         "tick_interval_minutes": TICK_INTERVAL_MINUTES,
+        "scan_interval_seconds": SCAN_INTERVAL_SECONDS,
         "kmiall_only": KMIALL_ONLY,
         "long_only": LONG_ONLY,
     }

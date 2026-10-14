@@ -74,18 +74,21 @@ and charged:
 
 | | GitHub Actions | Cloudflare relay |
 |---|---|---|
-| File | [.github/workflows/intraday-capture.yml](.github/workflows/intraday-capture.yml) | [cloud/worker.js](cloud/worker.js) |
-| Carries | the market-hours scans of the KMIALL universe, and the post-close finalize | the owner's open and close texts, and the `/health`, `/signals` and `/market` endpoints the phone reads |
-| Cadence | 5 scans a day (10:00, 11:30, 13:00, 14:30, and 16:00 on Friday) plus the finalize | on every band edge it is triggered for, and on every phone poll |
-| Cost | about 8 billed minutes per fire, inside the 2,000 minute ceiling | the free edge tier |
+| File | [.github/workflows/intraday-session.yml](.github/workflows/intraday-session.yml) (the 30-second session loop) and [.github/workflows/intraday-capture.yml](.github/workflows/intraday-capture.yml) (the band slots, the finalize and the backstop) | [cloud/worker.js](cloud/worker.js) |
+| Carries | the every-30-seconds scan of the KMIALL universe, the post-close finalize, and the observation both the phone's card and the intraday paper strategy read | the owner's open and close texts, and the `/health`, `/signals` and `/market` endpoints the phone reads |
+| Cadence | **every 30 seconds inside every PSX band** (`config.SCAN_INTERVAL_SECONDS = 30`, owner order 2026-10-14, SO-13); the per-slot fires at 10:00, 11:30, 13:00, 14:30 and Friday 16:00 remain as the backstop | on every band edge it is triggered for, and on every phone poll |
+| Cost | nothing: standard runner minutes are free on a public repository (this one is public since the owner's 2026-10-14 order), and one cycle costs about 2.9s of a 30s slot | the free edge tier |
 | State | its own forward state on the runner | `RELAY_KV` |
 | Works with the PC off | yes | yes |
 
-`config.TICK_INTERVAL_MINUTES = 4` is still the strategy's cadence: the slot
-guard, the 20-minute warm-up rule and the slot bookkeeping all count in
-4 minute slots, which is exactly what the phone's cadence sentence states.
-What the order of 2026-10-14 changed is where that work may happen, and the
-answer is the cloud minutes above.
+One scan serves both readers: the same run, observation and data-quality
+report feed the phone's card and the intraday paper strategy, so there is no
+second, cheaper scan for the app. The scan is only that dense because the
+session loop keeps the read-only broker recorder alive for the whole band, so
+a cycle measures a tape that already exists instead of fetching one:
+`config.TICK_INTERVAL_MINUTES = 4` and its 20-minute warm-up rule still govern
+the local 4-minute tick the owner can ask for as a local trial, and the two
+are different runners, never two cadences for one runner.
 
 The bars those scans read come from the broker tape, not from the eClear OHLC
 servlet (owner order 2026-10-14, after the servlet stopped serving bars).
