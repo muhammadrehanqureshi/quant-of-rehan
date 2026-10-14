@@ -19,10 +19,14 @@ running on github action minutes and on cloudflare. you can only use my pc
 when i tell you to backtest quant of rehan, apart from that you or quant of
 rehan will never hammer my pc."
 
-- The 4-minute scanner of the KMIALL universe runs on **GitHub Actions
-  minutes** (`.github/workflows/intraday-capture.yml`) and on the
+- The KMIALL scanner runs on **GitHub Actions minutes** and on the
   **Cloudflare relay** (`cloud/worker.js`). Both run with this PC switched
   off. That is the whole point: the PC is never a dependency of the schedule.
+  The cadence is the owner's order of 2026-10-14 (SO-13): **every 30 seconds**
+  for the length of each PSX band, run by
+  `.github/workflows/intraday-session.yml`, with
+  `.github/workflows/intraday-capture.yml` keeping the scheduled band slots,
+  the post-close finalize and the backstop if a band job dies mid-session.
 - We use this machine only when the owner says the words "backtest" (or asks
   for a local trial, or hands over a defect that has to be reproduced here).
   One run, started when he asks, finished when it finishes. Nothing that run

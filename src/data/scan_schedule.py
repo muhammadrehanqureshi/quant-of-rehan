@@ -64,13 +64,30 @@ STATE_PRE_MARKET = MarketState.PRE_MARKET.value
 STATE_POST_MARKET = MarketState.POST_MARKET.value
 
 
-def slot_of(moment: datetime, interval_minutes: float | None = None) -> str:
+def slot_of(moment: datetime, interval_minutes: float | None = None,
+            interval_seconds: float | None = None) -> str:
     """The scan slot a moment belongs to, floored to the cadence.
 
-    At the owner's standing 4 minute cadence: 10:07 -> 10:04, 10:59 -> 10:56.
     The slot label is what the once-per-slot guard is keyed on, so it must
     stay stable for every fire inside the same interval.
+
+    A whole-minute cadence keeps the minute label the local 4 minute tick has
+    always used (10:07 -> 10:04, 10:59 -> 10:56). A sub-minute cadence -- the
+    cloud session loop's 30 seconds (owner order 2026-10-14, SO-13) -- labels
+    the second as well (10:07:29 -> 10:07:00, 10:07:31 -> 10:07:30), because a
+    30 second runner that reported only the minute would guard away 29 of its
+    30 slots and scan once a minute while claiming every 30 seconds.
     """
+    if interval_seconds is not None:
+        step = max(1.0, float(interval_seconds))
+        if step >= 60 and step % 60 == 0:
+            return slot_of(moment, step / 60.0)
+        # Any other cadence is floored on its own grid, so the label is stable
+        # for every fire inside one slot whatever the interval is.
+        elapsed = moment.hour * 3600 + moment.minute * 60 + moment.second
+        floored = int(elapsed // step) * int(step)
+        return (f"{floored // 3600:02d}:{(floored % 3600) // 60:02d}:"
+                f"{floored % 60:02d}")
     step = max(1, int(interval_minutes
                       if interval_minutes is not None
                       else config.TICK_INTERVAL_MINUTES))
