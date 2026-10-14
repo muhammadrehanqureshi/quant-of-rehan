@@ -46,6 +46,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -62,6 +63,14 @@ TAPE_LOG = ROOT / "logs" / "feed_capture.log"
 #: dead. The daemon rewrites status.json every 20 seconds, so three missed
 #: beats means it is gone whether or not its pid is still around.
 TAPE_STALE_SECONDS = 70.0
+
+#: How long a freshly spawned recorder is watched before start_tape counts it
+#: as started. Long enough for the child to die on its first line (a missing
+#: universe file, a bad argument), short enough to cost one start and never a
+#: cycle. Measured 2026-10-14 on a GitHub Actions runner: the child returned
+#: in under a second while start_tape reported success, so five straight
+#: cycles blamed the tape for bars a dead recorder never wrote.
+START_PROBE_SECONDS = 2.0
 
 
 def _parse_stamp(text: str) -> datetime | None:
@@ -97,9 +106,44 @@ def tape_state(now: datetime | None = None) -> tuple[bool, str]:
         return False, (f"the broker tape stopped reporting {age:.0f}s ago, "
                        f"so it is not banking ticks")
     counters = saved.get("counters") or {}
-    return True, (f"broker tape alive, last frame "
-                  f"{saved.get('last_frame_at') or 'unknown'} "
-                  f"({counters.get('messages', 0)} messages banked)")
+    detail = (f"broker tape alive, last frame "
+              f"{saved.get('last_frame_at') or 'unknown'} "
+              f"({counters.get('messages', 0)} messages banked)")
+    error = str(saved.get("last_error") or "").strip()
+    if error:
+        # The heartbeat carries the recorder's own last error, so a tape that
+        # is running but cannot reach the venue says why in the caller's log
+        # instead of only inside a downloaded artifact.
+        detail += f"; last error: {error}"
+    return True, detail
+
+
+def _probe_child(child: subprocess.Popen, timeout: float) -> int | None:
+    """The child's exit code if it stopped inside the window, else None.
+
+    A recorder that survives the window has no reason to exit on its own:
+    it runs until killed, and its first act is writing status.json, which is
+    the next question tape_state answers.
+    """
+    deadline = time.monotonic() + timeout
+    while True:
+        code = child.poll()
+        if code is not None:
+            return code
+        if time.monotonic() >= deadline:
+            return None
+        time.sleep(0.05)
+
+
+def _tape_log_tail(lines: int = 3) -> str:
+    """The recorder's own last words, for a start that failed."""
+    try:
+        text = TAPE_LOG.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return ""
+    kept = [line.strip() for line in text.splitlines()[-lines:]
+            if line.strip()]
+    return " | ".join(kept)
 
 
 def start_tape() -> tuple[bool, str]:
@@ -110,6 +154,12 @@ def start_tape() -> tuple[bool, str]:
     ``logs/feed_capture.log`` because a child of a scheduled task has nowhere
     to print. The recorder itself enforces the owner's read-only law, so this
     can only ever begin a subscription and a heartbeat.
+
+    Started is not running: the child is watched for START_PROBE_SECONDS and
+    an exit inside that window is a failed start carrying the exit code and
+    the recorder's own last log line, because a crash at startup reported as
+    success sends every later cycle looking for bars a dead recorder never
+    wrote (measured 2026-10-14, five faulted cycles in the cloud).
     """
     command = [sys.executable, "-m", "src.data.feed_capture"]
     creationflags = 0
@@ -126,6 +176,15 @@ def start_tape() -> tuple[bool, str]:
                                      creationflags=creationflags)
     except OSError as exc:
         return False, f"the broker tape could not start: {type(exc).__name__}: {exc}"
+    # Started is not running: watch the child long enough to catch a crash at
+    # startup, and report that with the recorder's own last log line rather
+    # than claiming a tape that is not there.
+    stopped = _probe_child(child, START_PROBE_SECONDS)
+    if stopped is not None:
+        where = TAPE_LOG.relative_to(ROOT)
+        reason = _tape_log_tail() or f"see {where}"
+        return False, (f"the broker tape exited with code {stopped} at start: "
+                       f"{reason}")
     return True, (f"broker tape started (pid {child.pid}), log "
                   f"{TAPE_LOG.relative_to(ROOT)}")
 
