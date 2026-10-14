@@ -1503,3 +1503,57 @@ Changed: `src/config.py`, `src/data/sessions.py`, `src/data/tick_volume.py`,
 
 Added: `src/data/scan_schedule.py`, `tools/no_fire_watch.py`,
 `CLEANUP_AND_TIMING_2026-10-11.md`.
+
+## 2026-10-14 · SO-12: the 4-minute scanner is cloud-only, and the PC is clean
+
+Owner order of 2026-10-14, verbatim: "the 4 minute scanner should always be
+running on github action minutes and on cloudflare. you can only use my pc
+when i tell you to backtest quant of rehan, apart from that you or quant of
+rehan will never hammer my pc."
+
+**What was actually running on the PC.** One process: `pythonw.exe -m
+src.notify.schedule_runner` (pid 15948), the resident open and close runner,
+started by a Startup-folder script and by the archived logon task. Two
+registrations kept recurring work coming back: the Windows task
+`quant-of-rehan-kmiall-tick` (the 4-minute KMIALL tick, state Ready) and the
+Startup entry `quant-of-rehan-scheduler.bat`. All three are gone: the process
+was terminated, the task is Disabled, and the Startup script was moved to
+`data/local_autostart_disabled/` (outside git) so it can be inspected but
+never fires again.
+
+**Why the runner was never needed.** The Cloudflare relay's own cron handler
+in `cloud/worker.js` already sends the owner's exact open and close texts at
+every band edge, with the PC switched off. The resident local runner was a
+second path to the same two messages, paid for with an always-on process.
+
+**The law, hardcoded.** SO-12 was added to `GOVERNANCE.md` beside SO-10, and
+`src/ci/local_only.py` gained the mirror of its SO-4 list: `CLOUD_ONLY_DAEMONS`
+names the five entry points that would put recurring work back on this machine
+(the tick, the supervised loop, the resident runner, and the two installers
+that register them), and `guard_owner_requested` refuses a real local process
+with the order named and no traceback. Inside GitHub Actions the same call
+passes straight through, because the cloud is where this work belongs, and a
+local run opens only for the one the owner asks for by name in that shell
+(`QOR_OWNER_REQUESTED_LOCAL_RUN`), never by an agent's own initiative.
+Inspection and removal stay open: `--show`, `--print`, `--print-xml`,
+`--status` and `--remove` are not the offence.
+
+**New agent-facing file.** `AGENTS.md` states the machine rule first, for any
+session that opens this repository, and points at the code that enforces it.
+
+**Checked, not remembered.** `scripts/check_governance.py` gained
+`check_cloud_only`: it fails a pull request that drops one of the guards,
+deletes a listed entry point, or teaches a workflow to register a local task
+or a login entry, and it requires the words of the order to stay in
+GOVERNANCE.md. `tests/test_local_only.py` holds the guard itself, the per-run
+request, the guard placement in each entry point, and the checker's refusals.
+
+Changed: `GOVERNANCE.md`, `src/ci/local_only.py`,
+`scripts/check_governance.py`, `scripts/kmiall_tick.py`,
+`scripts/scan_loop.py`, `scripts/install_kmiall_tick.py`,
+`scripts/install_scheduler.py`, `src/notify/schedule_runner.py`,
+`tests/test_local_only.py`, `README.md`, `MARKET_SCHEDULING.md`,
+`cloud/README.md`, this report. Added: `AGENTS.md`.
+
+Machine state at the end of the session: zero project processes resident, the
+Windows task Disabled, the Startup folder holding only `desktop.ini`.

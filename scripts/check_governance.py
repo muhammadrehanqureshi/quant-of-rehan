@@ -16,6 +16,8 @@ Checks:
 5. SO-8: session logic must pin Karachi time (UTC+5) explicitly.
 6. SO-4: every declared backtest entry point refuses to run in GitHub
    Actions (src/ci/local_only.py) and no workflow invokes one.
+7. SO-12: every declared recurring entry point refuses to start on the
+   owner's PC, and no workflow registers a local task or a login entry.
 
 Exit code 0 = compliant. Non-zero = PR must not merge.
 """
@@ -29,7 +31,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from src.ci.local_only import LOCAL_ONLY_SCRIPTS  # noqa: E402
+from src.ci.local_only import (  # noqa: E402
+    CLOUD_ONLY_DAEMONS,
+    LOCAL_ONLY_SCRIPTS,
+)
 
 # Text extensions eligible for scanning
 TEXT_EXTS = {
@@ -93,7 +98,22 @@ REQUIRED_GOVERNANCE_SNIPPETS = [
     # Owner order 2026-10-11: the cloud budget belongs to the market-hours
     # scans, so SO-4 must keep saying where a backtest may run.
     "Actions minutes are reserved for the market-hours scans",
+    # Owner order 2026-10-14: SO-12 must keep naming the scanner's home, the
+    # PC's one job, and the fact that nothing recurring lives there.
+    "The 4-minute scanner is cloud-only",
+    "Nothing recurring is registered on the PC any more",
+    "the owner's PC is used for the backtests",
 ]
+
+# SO-12: a workflow that registers local autostart would put recurring work
+# back on the owner's PC from the cloud, which is the one direction the order
+# forbids outright. Each needle is a way to do it.
+LOCAL_AUTOSTART_PATTERNS = (
+    ("schtasks", "registers a Windows scheduled task"),
+    ("Start Menu", "writes a login entry"),
+    ("install_kmiall_tick", "installs the local KMIALL tick task"),
+    ("install_scheduler", "installs the local logon task"),
+)
 
 
 def iter_text_files():
@@ -203,6 +223,52 @@ def check_local_only(errors: list) -> None:
                     f"[SO-4] {wf.name} invokes {rel}, which is local-only "
                     f"work: Actions minutes are reserved for the market-hours "
                     f"scans"
+                )
+
+
+def check_cloud_only(errors: list) -> None:
+    """SO-12: recurring work stays in the cloud, off the owner's PC.
+
+    Owner order 2026-10-14: the 4-minute scanner always runs on GitHub Actions
+    minutes and on the Cloudflare relay, and the owner's PC is used only for a
+    backtest he asks for. SO-10 said as much, but nothing objected when a task
+    was registered or a resident runner was started, so the rule was only as
+    strong as the session that remembered it. This is the objection: every
+    declared recurring entry point must carry the guard, and no workflow may
+    put local autostart back in place.
+    """
+    for rel, task in sorted(CLOUD_ONLY_DAEMONS.items()):
+        p = ROOT / rel
+        if not p.is_file():
+            errors.append(
+                f"[SO-12] {rel} is declared cloud-only ({task}) but does not "
+                f"exist; fix src/ci/local_only.py or restore the entry point"
+            )
+            continue
+        try:
+            text = p.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        if f'guard_owner_requested("{rel}")' not in text:
+            errors.append(
+                f"[SO-12] {rel} ({task}) does not call "
+                f'guard_owner_requested("{rel}"): it could then start on the '
+                f"owner's PC and hammer it with recurring work the cloud "
+                f"already carries"
+            )
+
+    workflows = ROOT / ".github" / "workflows"
+    for wf in sorted(workflows.glob("*.yml")) if workflows.is_dir() else []:
+        try:
+            text = wf.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        for needle, why in LOCAL_AUTOSTART_PATTERNS:
+            if needle in text:
+                errors.append(
+                    f"[SO-12] {wf.name} {why}: recurring work belongs to "
+                    f"GitHub Actions minutes and the Cloudflare relay, never "
+                    f"to the owner's PC (owner order 2026-10-14)"
                 )
 
 
@@ -328,6 +394,7 @@ def main() -> int:
     check_commit_messages(errors)
     check_karachi_pin(errors)
     check_local_only(errors)
+    check_cloud_only(errors)
 
     if errors:
         print("GOVERNANCE CHECK FAILED, PR must not merge:\n")
@@ -338,7 +405,8 @@ def main() -> int:
     print("GOVERNANCE CHECK PASSED: secrets clean, footprint honesty intact, "
           "standing orders present, SO-7 style and identity verified, "
           "SO-7a co-author line verified, SO-8 Karachi pin verified, "
-          "SO-4 local-only backtests enforced.")
+          "SO-4 local-only backtests enforced, SO-12 cloud-only recurring "
+          "work enforced.")
     return 0
 
 
