@@ -458,17 +458,25 @@ class ScanLoop:
         The bounded eClear OHLC pass survives only for a day with no tape at
         all, which is the same fallback the local tick uses.
         """
-        moment = now_karachi()
-        if not tape_bars.capture_path(moment.date()).is_file():
-            return self._poller_capture(moment)
-        return self._tape_capture(moment)
-
-    def _tape_capture(self, moment: datetime) -> bool:
-        """The bar source: a live tape, measured rather than assumed."""
         from src.data import live_card
+
+        moment = now_karachi()
+        # Ask for the session's recorder FIRST, then decide the source. On a
+        # fresh runner the day's tape file does not exist yet, and deciding
+        # from an empty directory sent every cycle to the dead servlet, whose
+        # pass cannot fit a 30 second cadence: measured live 2026-10-14, five
+        # consecutive faults and a loop that gave up without recording a bar.
+        alive, note = live_card.ensure_tape(moment)
+        if alive or tape_bars.capture_path(moment.date()).is_file():
+            return self._tape_capture(moment, alive, note)
+        LOGGER.warning("no recorder and no tape for %s: trying the servlet "
+                       "fallback (%s)", moment.date().isoformat(), note)
+        return self._poller_capture(moment)
+
+    def _tape_capture(self, moment: datetime, alive: bool, note: str) -> bool:
+        """The bar source: a live tape, measured rather than assumed."""
         from scripts.intraday_pipeline import load_kmiall
 
-        alive, note = live_card.ensure_tape(moment)
         symbols = load_kmiall()
         tape = tape_bars.build(tape_bars.capture_path(moment.date()), symbols,
                                moment)
@@ -500,8 +508,13 @@ class ScanLoop:
         """
         import subprocess
 
+        # A sweep of the whole universe is what a servlet pass is, so it gets
+        # the cadence the pass actually needs rather than this runner's own 30
+        # seconds: handed 30 seconds it stops incomplete on every cycle, which
+        # is a fault the fallback cannot ever pass.
         budget = self.config.capture_deadline_seconds or budget_for_cadence(
-            self.config.interval_seconds)
+            max(self.config.interval_seconds,
+                config.TICK_INTERVAL_MINUTES * 60.0))
         kill_after = budget + config.CAPTURE_KILL_MARGIN_SECONDS
         command = [sys.executable, "-m", "src.data.ohlc_poller",
                    "--symbols-file", str((ROOT / "src" / "data" /
