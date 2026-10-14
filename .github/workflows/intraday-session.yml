@@ -1,0 +1,153 @@
+name: KMIALL session scan loop
+
+# SO-13 (owner order 2026-10-14): "make the repo public but then i want the
+# quant of rehan to be scanned every 30 seconds, also ... the 4 minute scan is
+# the same for the app and for my intraday as well, they are not separate".
+# This workflow is that cadence. It runs the supervised loop
+# (scripts/scan_loop.py) for one PSX band; the loop keeps the read-only broker
+# tape alive for the whole band and scans the entire KMIALL universe every 30
+# seconds against that tape, feeding the same observation the phone's card and
+# the intraday paper strategy read.
+#
+# Why four windows instead of one job: a GitHub job may not exceed six hours,
+# and Mon-Thu 09:32 to 15:30 is 5h58m before any setup is billed. Each window
+# here is under three hours, and the loop pauses in the warm-up, in the Friday
+# midday break and outside the session, so a window that starts at a band edge
+# and ends at the next one never scans a shut market. The scheduled per-slot
+# fires and the post-close finalize in intraday-capture.yml stay as they are:
+# they are the backstop if a session job dies mid-band.
+#
+#   04:32 UTC = 09:32 PKT  Mon-Thu band 1 (09:32 to 12:30)
+#   07:30 UTC = 12:30 PKT  Mon-Thu band 2 (12:30 to 15:30)
+#   04:17 UTC = 09:17 PKT  Friday band 1 (09:17 to 12:00, midday break after)
+#   09:32 UTC = 14:32 PKT  Friday band 2 (14:32 to 16:30)
+#
+# Minutes: GitHub Actions is free on a public repository, and this repository
+# is public as of the owner's 2026-10-14 order, so the 2,000-minute private
+# allowance that capped the cadence no longer binds. Measured on the real
+# 2026-10-13 session tape (44.6 MB, 314 symbols, 56,618 rows): a cycle builds
+# the bars in 1.4s, loads them in 1.5s and gates and ranks in under 0.1s, so
+# about 2.9s inside a 30s slot.
+
+on:
+  schedule:
+    - cron: "32 4 * * 1-4"     # 09:32 PKT, Mon-Thu morning band
+    - cron: "30 7 * * 1-4"     # 12:30 PKT, Mon-Thu afternoon band
+    - cron: "17 4 * * 5"       # 09:17 PKT, Friday session 1
+    - cron: "32 9 * * 5"       # 14:32 PKT, Friday session 2
+  workflow_dispatch:
+    inputs:
+      seconds:
+        description: "how long to run the loop, in seconds (default 3600)"
+        default: "3600"
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: intraday-session
+  cancel-in-progress: false
+
+jobs:
+  session:
+    runs-on: ubuntu-latest
+    timeout-minutes: 190
+    env:
+      RELAY_ADMIN_TOKEN: ${{ secrets.RELAY_ADMIN_TOKEN }}
+      KMIALL_DATA_RIGHTS_CONFIRMED: ${{ vars.KMIALL_DATA_RIGHTS_CONFIRMED }}
+      KMIALL_DATA_LATENCY_CONFIRMED: ${{ vars.KMIALL_DATA_LATENCY_CONFIRMED }}
+      KMIALL_UNIVERSE_CONFIRMED: ${{ vars.KMIALL_UNIVERSE_CONFIRMED }}
+      PAPER_TRADING_ENABLED: "true"
+      LIVE_TRADING_ENABLED: "false"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      # The same sleep gate the per-slot workflow uses: on a weekend, a PSX
+      # holiday or outside every band the job answers and stops without
+      # opening a socket, so a misfired schedule costs nothing.
+      - name: Session gate (sleep outside the PSX session)
+        id: gate
+        run: python -m src.data.session_gate --check --force --purpose scan
+
+      - name: Install dependencies
+        if: steps.gate.outputs.should_run == 'true'
+        run: pip install pandas numpy requests
+
+      - name: Resolve this band's length
+        id: window
+        if: steps.gate.outputs.should_run == 'true'
+        run: |
+          # A cron changes only when the runner wakes, never what the loop is
+          # allowed to see; the loop itself ends at the band's own close.
+          case "${{ github.event.schedule }}" in
+            "32 4 * * 1-4") seconds=10740 ;;   # 179 min, ends 12:31
+            "30 7 * * 1-4") seconds=10860 ;;   # 181 min, ends 15:31
+            "17 4 * * 5")   seconds=9900  ;;   # 165 min, midday break after
+            "32 9 * * 5")   seconds=7200  ;;   # 120 min, ends 16:32
+            *)              seconds="${{ inputs.seconds }}" ;;
+          esac
+          echo "seconds=${seconds}" >> "$GITHUB_OUTPUT"
+          echo "this window runs the loop for ${seconds}s of wall clock" \
+            >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Scan the KMIALL universe every 30 seconds for this band
+        if: steps.gate.outputs.should_run == 'true'
+        run: |
+          # set +e: the loop's exit code is reported below and turned into one
+          # deduped ops alert, exactly like the scheduled scans, so a band that
+          # dies does not become a GitHub failure email per fire.
+          set +e
+          timeout --signal=TERM \
+            "${{ steps.window.outputs.seconds }}" \
+            python scripts/scan_loop.py --loop --interval 30 \
+            > /tmp/kmi_session.log 2>&1
+          status=$?
+          set -e
+          tail -n 40 /tmp/kmi_session.log
+          {
+            echo "## KMIALL session loop (exit ${status})"
+            echo ""
+            echo '```'
+            tail -n 12 /tmp/kmi_session.log
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          python - <<'PY' >> "$GITHUB_STEP_SUMMARY" || true
+          import json
+          from pathlib import Path
+
+          path = Path("data/scan_loop_health.json")
+          if not path.is_file():
+              print("- the loop wrote no health file")
+          else:
+              health = json.loads(path.read_text(encoding="utf-8"))
+              print("- cycles: " + str(health.get("cycles")))
+              print("- scans: " + str(health.get("scans")))
+              print("- pauses: " + str(health.get("pauses")))
+              print("- failures: " + str(health.get("failures")))
+              print("- last verdict: " + str(health.get("last_verdict")))
+              print("- last latency ms: " + str(health.get("last_latency_ms")))
+          PY
+          if [ "$status" -ne 0 ] && [ "$status" -ne 124 ]; then
+            python scripts/ops_alert.py --text \
+              "Quant of Rehan: the KMIALL session loop stopped early (exit ${status}) after $(grep -c 'cycle ' /tmp/kmi_session.log || true) log lines. The next band retries it; nothing is fabricated and nothing is dropped." || true
+          fi
+
+      - name: Keep the band's record
+        if: always() && steps.gate.outputs.should_run == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: kmiall-session-loop-${{ github.run_id }}
+          path: |
+            data/scan_loop_health.json
+            data/forward/observation.json
+            data/forward/session_state.json
+            data/forward/session_journal.jsonl
+            logs/scan_loop.log
+            logs/feed_capture.log
+          if-no-files-found: warn
+          retention-days: 90
