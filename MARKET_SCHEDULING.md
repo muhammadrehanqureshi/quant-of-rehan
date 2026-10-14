@@ -159,6 +159,15 @@ source's own pacing: **319 symbols × (1.3s pacing + about 1.0s per request) ≈
 734s, about 12 minutes**. That number is measured, not modelled: the CI job
 logged 741s for exactly this pass.
 
+Owner order 2026-10-14 moved the bar source off that pass. The eClear OHLC
+servlet serves nothing now, so the bars a scan reads are built from the broker
+tape (`src/data/tape_bars.py`), which needs ONE subscription for the whole
+universe instead of a request per symbol: the arithmetic above is the
+fallback's cost, not the bar path's. What the tape changes about the schedule
+is that a bounded capture now has to be long enough to hold the history the
+strategy ranks on, which is a bar-depth question, not a pacing one, and the
+scanner reports it as DATA BLOCKED when the capture is too short.
+
 Two consequences, both of which used to be silent:
 
 1. **The local tick gave the capture a flat 240 second timeout**, so on every

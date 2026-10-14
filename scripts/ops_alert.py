@@ -55,23 +55,39 @@ def run_url() -> str:
 def capture_health_message() -> str:
     coverage = ""
     cause = ""
+    source = ""
     try:
         detail = json.loads(FLAG.read_text(encoding="utf-8"))
         coverage = (f" (coverage {detail.get('coverage', 0):.1%}, "
                     f"{detail.get('symbols_ok', 0)}/{detail.get('universe', 0)} symbols)")
         cause = str(detail.get("cause") or "").strip()
+        source = str(detail.get("source") or "").strip()
     except (OSError, ValueError):
         pass
+    # What the owner loses depends on WHICH source was thin. A servlet pass
+    # that came back empty left the slot with nothing to scan at all; a thin
+    # tape still hands the scan real bars, and the scan then reports its own
+    # coverage. Saying the wrong one of those was the same mistake as naming a
+    # cause the pass never measured, so it is read from the flag, not assumed.
+    if source:
+        consequence = ("The scan still ran on the bars the tape held and "
+                       "reported its own coverage; nothing was fabricated "
+                       "and nothing was padded. Production remains disabled. "
+                       "This alert repeats at most once per day.")
+    else:
+        consequence = ("No scan or outcome ran for this slot. Paper "
+                       "observations pause; production remains disabled. "
+                       "This alert repeats at most once per day.")
     return (
         "Quant of Rehan capture degraded"
         + coverage + ".\n"
+        + (f"Source: {source}\n" if source else "")
         # The cause is the one the capture pass MEASURED, carried here in the
         # flag. This message used to assert a single diagnosis (the source
         # serving no bars) whether or not that was what the pass had found,
         # so the owner could be told the wrong reason for a real outage.
         + (f"Measured cause: {cause}\n" if cause else "")
-        + "No scan or outcome ran for this slot. Paper observations pause; "
-        "production remains disabled. This alert repeats at most once per day."
+        + consequence
         + run_url()
     )
 

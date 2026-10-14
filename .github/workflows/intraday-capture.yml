@@ -112,39 +112,45 @@ jobs:
         if: steps.gate.outputs.should_run == 'true'
         run: pip install pandas numpy requests
 
-      - name: Fetch one KMIALL bar pass, inside a budget this job can afford
+      - name: Bank the session tape, inside a budget this job can afford
         if: steps.gate.outputs.should_run == 'true'
         run: |
-          # Owner order 2026-10-11 plus the audit of the same day: this job's
-          # timeout is 10 minutes, and one polite pass over the 319 symbol
-          # universe takes about 12 (741s measured, 319 x 2.32s). Every
-          # scheduled run was therefore killed mid-fetch and ended
-          # "cancelled" with the scan step skipped: the scan never happened.
-          # The pass now stops itself at 420s (7 minutes) and reports what it
-          # did not reach, which leaves about three minutes for the scan, the
-          # summary and the artifacts inside the timeout. A short pass is a
-          # degraded capture and is reported as one; it is never padded or
-          # invented.
+          # Owner order 2026-10-14: the eClear OHLC servlet serves no bars, so
+          # the bars a scan reads are built from the broker tape the system
+          # already subscribes to (src/data/tape_bars.py: prints for open,
+          # high, low and close, the venue's own running counter for volume).
+          # The recorder is read-only by construction
+          # (src/data/feed_capture.py refuses any frame that is not a
+          # subscription or a heartbeat) and gets the same 420s budget the
+          # servlet pass had, so the run's cost and its place in the session
+          # are unchanged: about seven minutes of the ten this job has, which
+          # leaves three for the scan, the summary and the artifacts.
+          #
+          # Owner order 2026-10-11, kept: a capture that stops at its budget is
+          # a degraded capture and is REPORTED as one, never padded.
           mkdir -p data/feed_capture data/forward
           set +e
-          python -m src.data.ohlc_poller \
-            --symbols-file src/data/universe_kmiall.json --once \
-            --deadline-seconds 420 > /tmp/kmi_capture.log 2>&1
+          timeout 480 python -m src.data.feed_capture \
+            --symbols-file src/data/universe_kmiall.json \
+            --duration 420 > /tmp/kmi_tape.log 2>&1
           status=$?
           set -e
-          cat /tmp/kmi_capture.log
+          cat /tmp/kmi_tape.log
+          python -m src.data.tape_bars --check-coverage \
+            --symbols-file src/data/universe_kmiall.json \
+            --write-bars "data/forward/tape_bars_$(date -u -d '+5 hours' +%Y%m%d).ndjson"
           if [ "$status" -ne 0 ]; then
             # Owner order 2026-10-08: a degraded capture must not turn the
-            # scheduled run red. Exit 3 means the pass stopped at its own
-            # budget; a coverage shortfall leaves the low-coverage flag behind.
-            # Both are reported ONCE per day by the capture-health alert below,
-            # and the scan step still sees the thin capture and reports it as
-            # DATA_BLOCKED rather than inventing a market verdict.
+            # scheduled run red. The tape's own coverage check above leaves the
+            # low-coverage flag behind when the capture is thin, and the health
+            # alert below turns that into ONE deduped message a day. The scan
+            # step still sees the thin capture and reports it as DATA_BLOCKED
+            # rather than inventing a market verdict.
             {
-              echo "## Capture degraded (exit ${status})"
+              echo "## Tape capture degraded (exit ${status})"
               echo ""
               echo '```'
-              tr -d '\r' < /tmp/kmi_capture.log | tail -n 6
+              tr -d '\r' < /tmp/kmi_tape.log | tail -n 6
               echo '```'
             } >> "$GITHUB_STEP_SUMMARY"
           fi
@@ -238,13 +244,16 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: kmiall-session-${{ github.run_id }}
+          # The bars the scan read, not the raw tape: one session of tape is
+          # tens of megabytes, and the built 1-minute bars are exactly what a
+          # later research pass needs to reconstruct the decision.
           path: |
             data/forward/observation.json
             data/forward/daily_outcome.json
             data/forward/production_gate.json
             data/forward/session_journal.jsonl
             data/forward/session_state.json
-            data/feed_capture/ohlc_*.ndjson
-            data/feed_capture/ohlc_status.json
+            data/forward/tape_bars_*.ndjson
+            data/feed_capture/status.json
           if-no-files-found: warn
           retention-days: 90
