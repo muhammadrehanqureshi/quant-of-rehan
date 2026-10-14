@@ -176,6 +176,23 @@ class StartTapeProbeTest(unittest.TestCase):
         self.assertTrue(ok)
         self.assertIn("broker tape started (pid 4242)", detail)
 
+    def test_the_recorder_runs_unbuffered_so_its_log_is_usable(self):
+        """Measured 2026-10-14: the cloud's feed_capture.log came back empty.
+
+        The child's stdout is a file, so Python block buffers it; without -u
+        the recorder's own lines never reach logs/feed_capture.log and a
+        venue failure cannot be read from the band's artifact.
+        """
+        child = _Child(code=None)
+        with mock.patch.object(live_card.subprocess, "Popen",
+                               return_value=child) as popen, \
+                mock.patch.object(live_card, "ROOT",
+                                  Path(self._dir.name)), \
+                mock.patch.object(live_card, "START_PROBE_SECONDS", 0.05):
+            live_card.start_tape()
+        command = popen.call_args.args[0]
+        self.assertEqual(command[1:4], ["-u", "-m", "src.data.feed_capture"])
+
     def test_probe_watches_until_the_child_exits(self):
         child = _Child(code=None)
         child.poll = mock.Mock(side_effect=[None, None, 1])
