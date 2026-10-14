@@ -68,6 +68,19 @@ STALENESS_MINUTES = _number("STALENESS_MINUTES", 5.0)
 MAX_MALFORMED_SHARE = _number("MAX_MALFORMED_SHARE", 0.01)
 BAR_RESOLUTION = "1-minute"
 
+# One minute, in seconds: the grid BAR_RESOLUTION names, and the bucket size
+# the tape bar builder writes (src/data/tape_bars.py). Kept as a number so the
+# builder never parses the label above.
+BAR_SECONDS = _number("BAR_SECONDS", 60.0)
+
+# How much of the universe must carry enough bars to be judged at all.
+# score_symbol already refuses a symbol with fewer than MIN_BARS_PER_SYMBOL
+# bars, so a capture thinner than this share would produce an empty ranking,
+# and an empty ranking that is really a short capture would be reported as a
+# market NO TRADE. This floor makes that case a DATA BLOCKED with the measured
+# bar count, which is what it is (SO-3).
+MIN_HISTORY_COVERAGE_PCT = _number("MIN_HISTORY_COVERAGE_PCT", 0.80)
+
 # ---------------------------------------------------------------- scanner
 # Window lengths in minutes, oldest first.
 MOMENTUM_WINDOWS = (5, 15, 30)
@@ -160,6 +173,16 @@ CAPTURE_BUDGET_RESERVE_SECONDS = _number("CAPTURE_BUDGET_RESERVE_SECONDS", 45)
 #: Backstop only: a capture that ignores its own budget is killed after the
 #: budget plus this margin, so a wedged pass can never hold the tick lock.
 CAPTURE_KILL_MARGIN_SECONDS = _number("CAPTURE_KILL_MARGIN_SECONDS", 90)
+
+# The tape bar builder (src/data/tape_bars.py) fills a minute the venue was
+# quiet in with the previous close, because that is a market fact: no trade
+# happened and the running counter did not move. The fill is bounded by this
+# gap: two consecutive observations further apart than this are an outage or a
+# stopped tape, not a quiet market, so the series is left with a hole instead
+# of a flat invented line. Measured on the 2026-10-13 KMIALL tape, the feed
+# observes a symbol about every 30 seconds (median gap 30.0s, p90 150s), so
+# five minutes is far above its normal cadence and far below an outage.
+TAPE_CARRY_MAX_GAP_SECONDS = _number("TAPE_CARRY_MAX_GAP_SECONDS", 300.0)
 
 # ---------------------------------------------------------------- session gate
 # The sleep gate (src/data/session_gate.py) is the first question a scheduled
@@ -275,6 +298,9 @@ def config_snapshot() -> dict:
         "volatility_aware_targets": VOLATILITY_AWARE_TARGETS,
         "volatility_veto_enabled": VOLATILITY_VETO_ENABLED,
         "bar_resolution": BAR_RESOLUTION,
+        "bar_seconds": BAR_SECONDS,
+        "min_history_coverage_pct": MIN_HISTORY_COVERAGE_PCT,
+        "tape_carry_max_gap_seconds": TAPE_CARRY_MAX_GAP_SECONDS,
         "paper_trading_enabled": PAPER_TRADING_ENABLED,
         "live_trading_enabled": live_trading_enabled(),
         "session_gate_enabled": SESSION_GATE_ENABLED,

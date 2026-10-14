@@ -26,7 +26,9 @@ Plus the integrity rules the rebuild must never lose:
     the gross return relabelled.
 
 The synthetic bars are a fixture, not a data claim: they exist only to
-exercise the plumbing offline. Real sessions come from the capture poller.
+exercise the plumbing offline. Real sessions come from the broker tape (owner
+order 2026-10-14), or from the servlet capture when no tape exists for the
+day, so both shapes are driven end to end below.
 """
 
 from __future__ import annotations
@@ -203,6 +205,43 @@ def build_capture(path: Path, symbols: list[str], minutes: int = 60) -> Path:
     return path
 
 
+def build_tape(path: Path, symbols: list[str], minutes: int = 60) -> Path:
+    """The same fixture session in the TAPE's own record shape.
+
+    Owner order 2026-10-14: the scan path reads bars built from the broker
+tape, so the end-to-end cycle is driven in that shape as well. Each symbol
+emits one MKT-FEED row per minute carrying a price and the venue's cumulative
+volume counter, which is exactly what the recorder banks: prints become open,
+high, low and close, and the counter's increments become volume.
+    """
+    with path.open("w", encoding="utf-8") as handle:
+        for symbol in symbols:
+            strong = symbol == WINNER
+            price = 100.0
+            total = 0
+            high = low = 100.0
+            for minute in range(minutes):
+                price *= 1.0 + _slope(minute, strong)
+                high, low = max(high, price), min(low, price)
+                volume = 25000 if (strong and minute >= 39) else 5000
+                total += volume
+                stamp = OPEN_AT + timedelta(minutes=minute)
+                handle.write(json.dumps({
+                    "kind": "MKT-FEED|SUB%",
+                    "ts": stamp.isoformat(),
+                    "ticks": [{
+                        "scrip": f"{symbol}:REG",
+                        "last": f"{price:.4f}",
+                        "volume": str(total),
+                        "tick_time": stamp.strftime("%H:%M:%S"),
+                        "high": f"{high:.4f}",
+                        "low": f"{low:.4f}",
+                        "trades": str(minute + 1),
+                    }],
+                }) + "\n")
+    return path
+
+
 class PipelineCycleTest(unittest.TestCase):
     def setUp(self) -> None:
         self._dir = tempfile.TemporaryDirectory()
@@ -339,6 +378,48 @@ class PipelineCycleTest(unittest.TestCase):
         self.assertFalse(self.state_path.exists())
         self.assertEqual(self.relay.calls, [])
         self.assert_real_forward_untouched()
+
+
+class TapeBarCycleTest(PipelineCycleTest):
+    """The whole scheduled cycle, driven by bars built from the tape.
+
+    Owner order 2026-10-14: the scanner must stop depending on the dead OHLC
+    servlet. This subclass runs the SAME pipeline assertions on a capture in
+    the tape's shape, so the wiring the scheduled job uses is proven in the
+    shape the scheduled job now produces, not only in the old one.
+    """
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.capture = build_tape(self.capture.parent / "tape.ndjson",
+                                  self.symbols())
+
+    def test_the_cycle_runs_on_tape_bars_and_says_so(self):
+        first = self.scan("10:00")
+        quality = first["data_quality"]
+
+        self.assertIn("MKT-FEED tape", quality["source"])
+        self.assertEqual(first["capture"]["format"], scanner.FORMAT_TAPE)
+        self.assertEqual(first["capture"]["source"], quality["source"])
+        self.assertEqual(quality["status"], "OK", quality["reason"])
+        self.assertEqual(quality["symbols_expected"], 319)
+        self.assertTrue(quality["volume_available"])
+        self.assertEqual(quality["symbols_with_history"],
+                         quality["symbols_with_bars"])
+
+        self.assertEqual(first["status"], scanner.TRADE)
+        self.assertEqual(first["candidate"]["symbol"], WINNER)
+        self.assertIn(first["trade_state"]["state"], State.IN_POSITION)
+
+    def test_a_thin_tape_blocks_instead_of_inventing_a_no_trade(self):
+        thin = build_tape(self.capture.parent / "thin.ndjson", self.symbols(),
+                          minutes=5)
+        with contextlib.redirect_stdout(io.StringIO()):
+            result = run_scan("10:00", thin)
+
+        self.assertEqual(result["status"], scanner.DATA_BLOCKED)
+        self.assertIn("bar history", result["reason"])
+        self.assertEqual(result["trade_state"]["trades_today"], 0)
 
 
 class ForwardGuardTest(unittest.TestCase):

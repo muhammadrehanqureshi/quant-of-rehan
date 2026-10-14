@@ -47,7 +47,11 @@ when labeled degraded. They are never presented as true order flow.
   Cloudflare KV. No order or broker session credentials are used.
 - `src/data/ohlc_poller.py` reads the eClear `GetOHLCData` public read tier.
   TLS certificate and hostname verification are enabled. The feed provides
-  OHLC only, without volume, bid/ask, or order flow.
+  OHLC only, without volume, bid/ask, or order flow. Since 2026-10-14 this is
+  the FALLBACK bar pass, used only when no tape capture exists for the day:
+  the tier serves nothing at all (see the measurement below), so the bars a
+  scan reads are built from the read-only broker tape
+  (`src/data/tape_bars.py`).
 - Capture is not proof of source latency or rights for cloud retention and
   signal redistribution. Both remain unconfirmed. The GitHub Actions
   variables `KMIALL_DATA_RIGHTS_CONFIRMED`,
@@ -97,12 +101,39 @@ when labeled degraded. They are never presented as true order flow.
   and, measured over its corrected window on the same day, 14:02:51 to
   15:16:53 PKT, it held 17,914 decoded ticks for 300 of the 319 tracked
   symbols (94.0%), of which 124 carried the 20 bars the strategy's warmup
-  needs. Bar open, high, low and close are the prints actually seen in that
+  needs.  Bar open, high, low and close are the prints actually seen in that
   minute (an honest bound on the minute's range, never the day's wire high
   and low copied in) and volume is the difference of the venue's own
-  cumulative counter. Bars derived from the tape are NOT wired into the
-  strategy yet: `intraday_ohlcv` stays DEGRADED and the scan path still reads
-  the dead servlet until that change is made and verified.
+  cumulative counter.
+
+  UPDATE 2026-10-14 (owner order: stop depending on the dead servlet): those
+  tape-derived bars ARE the scan path now. `src/data/tape_bars.py` builds one
+  minute of bars per symbol from the banked MKT-FEED capture, and
+  `scripts/intraday_pipeline.py` reads the tape first and the servlet capture
+  only when no tape exists for the day. The same coverage, freshness, volume
+  and structure gates in `src/signals/momentum_scanner.py` judge the bars
+  either way, and the source label travels into the quality report, the
+  observation and the phone message, so no reader has to guess which source
+  spoke. Two gates were added rather than relaxed: a bar history floor, so a
+  capture too short to rank anything is DATA BLOCKED instead of a market
+  NO TRADE, and a floor that keeps the volume counter a requirement.
+  MEASURED on the full 2026-10-13 tape (44.6 MB, 314 symbols, 56,618 tick
+  rows, 09:52 to 13:47, with the 10:32 to 13:27 outage left as a hole):
+  301 of 319 tracked symbols carry 1-minute bars (94.4% coverage, above the
+  80% floor), 27.5% of the bars are carried minutes for a quiet symbol,
+  volume comes from the venue counter on 25,412 rows with no reset, 0
+  symbols hold a bar above the venue's own day high or below its day low,
+  and 20 minutes into the open the freshness gate measured 78.7% against its
+  80% floor (251 of 319 symbols, which is 90.3% of the 278 the tape held any
+  bar for). That last number is a real, unresolved limit: the tape observes a
+  symbol about every 60 to 90 seconds, so a slice of the KMIALL universe is
+  genuinely quiet for more than five minutes, and the scan reports that as a
+  blocked scan rather than trading through it. `intraday_ohlcv` therefore
+  stays DEGRADED, and the owner's decision on the freshness floor, on the
+  denominator the fresh share divides by, or on a denser tape is what opens
+  the window, not a code change here.
+  The derived bars are NOT a substitute for a historical intraday archive:
+  this is forward capture only, and no historical claim is made.
 
 ### Path B: Longer-term intraday archive
 - A no-login `pypsx-toolkit` check returned 667 OGDC ticks and 1,192 rows for
