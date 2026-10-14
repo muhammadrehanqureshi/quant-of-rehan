@@ -1,4 +1,4 @@
-"""Owner-ordered interface changes for the phone app, v1.6.6 (2026-10-13).
+"""Owner-ordered interface changes for the phone app, v1.6.9 (2026-10-14).
 
 Owner order 2026-10-13: the settings control is the owner's own settings.png
 silhouette, tinted from the app's palette, on no plate at all and centred on
@@ -7,19 +7,44 @@ closes; every line inside the system status and the latest signal tiles is set
 in the owner's faces; the "Trading resumes" sentence is retired from the status
 tile; and a volume leader row brackets its grouped volumes.
 
-Owner order 2026-10-13 (second note): the settings control stands on the brand
-line's baseline rather than centred on its row; a diamond rule divides the
-system status tile from the latest signal tile; the rule that closed the market
-card from inside it stands immediately after that tile's own boundary; and the
-ONLINE indicator breathes, opacity and size, while the relay reports the market
-OPEN.
+Owner order 2026-10-13 (second note): a diamond rule divides the system status
+tile from the latest signal tile; the rule that closed the market card from
+inside it stands immediately after that tile's own boundary; and the ONLINE
+indicator breathes, opacity and size, while the relay reports the market OPEN.
 
 Owner order 2026-10-13 (third note): the settings control stops overflowing its
-row (a vertical margin for its box and a header row that holds no clip); the
+row (a header row that holds no clip, so a tall box cannot be shaved); the
 cadence sentence leaves the market card and stands immediately after the final
-diamond rule behind two line breaks; and the status light's pulse is rebuilt so
-both states breathe, the ONLINE beacon in the palette green and the OFFLINE one
-in the palette red, on a hard 25 frames per second.
+diamond rule; and the status light's pulse is rebuilt so both states breathe,
+the ONLINE beacon in the palette green and the OFFLINE one in the palette red,
+on a hard 25 frames per second.
+
+Owner order 2026-10-13 (fourth note): the settings control stands directly
+beside the "Quant of Rehan" title instead of pinned to the row's far edge,
+anchored to the title's own right edge, so the pair holds at any screen width
+and at any font scale.
+
+Owner order 2026-10-13 (fifth note): the cadence sentence's separation from
+the final rule is the layout's own 12dp, the gap the tiles have below their
+rules, so the two leading newlines leave the string resource; the sentence
+itself stays byte-identical and stays the only place it appears.
+
+Owner order 2026-10-14 (sixth note): the settings control is VERTICALLY
+CENTRED on the "Quant of Rehan" title. The baseline rule of the second note
+is retired with the layout listener that measured that baseline after every
+layout, so "centred on the brand line" is the layout's own centreVertical
+again: exact at any font scale, with no measured pixel at all.
+
+Owner order 2026-10-14 (seventh note): the status light is a view now, its
+own ImageView inside the badge, and the breath is a view property animation
+on that view's alpha and scale, which the platform interpolates on the render
+thread. The compound drawable of 2026-10-13 is retired with the 40ms grid
+its update listener drew on, and only a live market breathes: ONLINE pulses,
+and OFFLINE and CHECKING hold a light that is not moving.
+
+Owner order 2026-10-14 (eighth note): the status tile's spacing is one
+number, @dimen/status_gap, so SYSTEM STATUS to ONLINE and ONLINE to KARACHI
+are the same air rather than two margins that could drift apart.
 
 The app has no Java test runner in this repository (it is built with aapt2 and
 D8, see android/README.md), so these assertions read the sources that ship the
@@ -36,11 +61,11 @@ Three of the checks are measured rather than declared:
   * the bundled settings.png is decoded scanline by scanline, so the suite can
     assert that the silhouette really sits on transparency with a real
     aperture, instead of trusting the file name;
-  * the header's alignment is read from the layout tree, so "centred on the
-    brand line" means the control and the brand text share one row, and the
-    overflow margin is arithmetic on the declared box, the row's own metrics
-    and Bonskin's hhea ascender rather than a promise about what a phone will
-    draw;
+  * the header's alignment and the status tile's spacing are read from the
+    layout tree and from dimens.xml, so "centred on the brand line" means the
+    control and the brand text share one row AND one vertical centre, and
+    "SYSTEM STATUS to ONLINE is ONLINE to KARACHI" means the two margins name
+    the same resource rather than two numbers that happen to match today;
   * the two status beacons are read as resources, so "the online light is
     green and the offline light is red" is a comparison of values/colors.xml
     against the two drawables instead of a reading of the prose.
@@ -64,6 +89,7 @@ RULE = RES / "layout" / "qor_rule.xml"
 STYLES = RES / "values" / "styles.xml"
 STRINGS = RES / "values" / "strings.xml"
 COLORS = RES / "values" / "colors.xml"
+DIMENS = RES / "values" / "dimens.xml"
 ONLINE_DOT = RES / "drawable" / "ic_status_online.xml"
 OFFLINE_DOT = RES / "drawable" / "ic_status_offline.xml"
 SETTINGS_PNG = RES / "drawable-nodpi" / "settings.png"
@@ -292,7 +318,7 @@ class SettingsControlTest(unittest.TestCase):
         self.assertIn("btnSettings.setImageTintList", self.main)
         self.assertIn("R.color.gold_bright", self.main)
 
-    def test_the_control_stands_on_the_brand_baseline(self):
+    def test_the_control_is_centred_on_the_title(self):
         root = layout_root()
         button = find_view(root, "@+id/btn_settings")
         title = find_view(root, "@+id/brand_title")
@@ -303,49 +329,81 @@ class SettingsControlTest(unittest.TestCase):
         row = parent_of(root, button)
         self.assertTrue(row.tag.endswith("RelativeLayout"))
         self.assertIs(row, parent_of(root, title))
-        # Owner order 2026-10-13 (second note): centred on the row is retired.
-        # The control is anchored to the title, and MainActivity puts its
-        # bottom edge on the title's own baseline, because that line's
-        # position is a fact about Bonskin's metrics and the system font scale
-        # rather than a margin that can be declared once.
-        self.assertIsNone(button.get(f"{ANDROID_NS}layout_centerVertical"))
-        self.assertEqual(button.get(f"{ANDROID_NS}layout_alignTop"),
-                         "@id/brand_title")
-        self.assertIn("alignSettingsToBrandBaseline", self.main)
-        self.assertIn("brandTitle.getBaseline()", self.main)
-        self.assertIn("brandTitle.getTop() + baseline", self.main)
-        self.assertIn("line - btnSettings.getBottom()", self.main)
-        self.assertIn("addOnLayoutChangeListener", self.main)
+        # Owner order 2026-10-14 (sixth note): the control is centred
+        # VERTICALLY on the title, so the box's own middle stands on the
+        # line's middle at any font scale. The baseline rule of 2026-10-13
+        # (second note) is retired, and with it every measured pixel: the
+        # layout holds the centring, and MainActivity holds no listener that
+        # could move the control after a layout.
+        self.assertEqual(button.get(f"{ANDROID_NS}layout_centerVertical"),
+                         "true")
+        self.assertIsNone(button.get(f"{ANDROID_NS}layout_alignTop"))
+        self.assertNotIn("alignSettingsToBrandBaseline", self.main)
+        self.assertNotIn("btnSettings.setTranslationY", self.main)
+        self.assertNotIn("addOnLayoutChangeListener", self.main)
+        self.assertNotIn("brandTitle", self.main)
         # The tagline stays outside the row, so it cannot pull the control
-        # down: the control is aligned to the brand text itself.
+        # down: the control is centred on the brand text itself.
         self.assertIsNot(row, parent_of(root, tagline))
+        # And it is still the title the control stands beside, so the pair
+        # shares both axes rather than only the vertical one.
+        self.assertEqual(button.get(f"{ANDROID_NS}layout_toEndOf"),
+                         "@id/brand_title")
 
     def test_the_control_cannot_be_cropped_by_its_row(self):
         # Owner order 2026-10-13 (third note): the control's box is 42dp while
-        # the brand line's baseline sits about 30dp down that line (Bonskin's
-        # hhea ascender is 1006/1000 em at 30sp), so the translation that
-        # stands it ON the baseline lifts about 9dp of the box above the row's
-        # top edge, which a RelativeLayout clips by default. The margin is
-        # that room, and the row also holds no clip, so the guarantee does not
-        # rest on one number once the font scale moves the baseline.
+        # a 30sp Bonskin line stands only about 30dp of ink above its
+        # baseline, so the box overhangs that line by about 9dp and a
+        # RelativeLayout clips its children by default. The row therefore
+        # holds no clip, which keeps the box whole at any font scale, and the
+        # vertical margin that used to give the overhang a home is retired:
+        # the box is centred on the line now (sixth note), which spends half of
+        # that overhang above the line and half below it.
         root = layout_root()
         button = find_view(root, "@+id/btn_settings")
         row = find_view(root, "@+id/brand_row")
         self.assertIsNotNone(button)
         self.assertIsNotNone(row)
-        self.assertEqual(button.get(f"{ANDROID_NS}layout_marginTop"), "12dp")
         self.assertEqual(row.get(f"{ANDROID_NS}clipChildren"), "false")
         self.assertIs(row, parent_of(root, button))
-        # The arithmetic the margin has to cover: box minus the baseline
-        # offset, which is the overhang. 12dp covers the measured 9dp.
+        self.assertIsNone(button.get(f"{ANDROID_NS}layout_marginTop"),
+                          "the baseline overhang is retired with the rule")
+        # The promise the no-clip row still has to keep: a box taller than the
+        # line it is centred on.
         box = int(button.get(f"{ANDROID_NS}layout_height")[:-2])
-        margin = int(button.get(f"{ANDROID_NS}layout_marginTop")[:-2])
-        padding = int(button.get(f"{ANDROID_NS}padding")[:-2])
         ascent = 30 * 1006 / 1000          # Bonskin hhea ascender at 30sp
-        self.assertGreaterEqual(margin, round(box - ascent))
+        self.assertGreater(box, ascent)
         # The ink sits `padding` inside the box, so the silhouette keeps clear
         # of the box edge as well.
+        padding = int(button.get(f"{ANDROID_NS}padding")[:-2])
         self.assertLessEqual(padding, 8)
+
+    def test_the_control_sits_beside_the_title(self):
+        # Owner order 2026-10-13 (fourth note): adjacent to the brand name,
+        # anchored to the title's own right edge rather than pinned to the
+        # row's far corner: the pair holds at any width and any font scale,
+        # and the title can never grow into the control.
+        root = layout_root()
+        button = find_view(root, "@+id/btn_settings")
+        title = find_view(root, "@+id/brand_title")
+        self.assertIsNotNone(button)
+        self.assertIsNotNone(title)
+        self.assertEqual(button.get(f"{ANDROID_NS}layout_toEndOf"),
+                         "@id/brand_title")
+        self.assertIsNone(button.get(f"{ANDROID_NS}layout_alignParentEnd"),
+                          "the corner placement is retired")
+        # 6dp of margin plus the control's own 6dp padding: 12dp of air
+        # between the name and the ink, the grid's own unit.
+        margin = int(button.get(f"{ANDROID_NS}layout_marginLeft")[:-2])
+        padding = int(button.get(f"{ANDROID_NS}padding")[:-2])
+        self.assertEqual(margin + padding, 12)
+        # Clickability contract, unchanged: full-size box, masked ripple,
+        # a button's name for the screen reader.
+        self.assertEqual(button.get(f"{ANDROID_NS}layout_height"), "42dp")
+        self.assertIn("settings_ripple",
+                      button.get(f"{ANDROID_NS}background"))
+        self.assertEqual(button.get(f"{ANDROID_NS}contentDescription"),
+                         "@string/cd_settings")
 
     def test_the_quarter_turn_is_one_place_per_state(self):
         self.assertIn(".rotation(open ? -90f : 0f)", self.main)
@@ -476,11 +534,17 @@ class TypefaceTest(unittest.TestCase):
         self.assertNotIn("includeFontPadding", brand)
 
     def test_the_status_and_signal_tiles_are_set_in_the_owners_faces(self):
-        # Owner order 2026-10-13: every line inside these two tiles.
-        pill = element(self.layout, 'android:id="@+id/status_pill"')
-        self.assertIn('android:fontFamily="@font/lemonmilk_bold"', pill)
+        # Owner order 2026-10-13: every line inside these two tiles. The badge
+        # is a container since 2026-10-14 (beacon plus word), so the word is
+        # the element that carries the face, the size and the colour.
+        word = element(self.layout, 'android:id="@+id/status_word"')
+        self.assertIn('android:fontFamily="@font/lemonmilk_bold"', word)
+        self.assertIn('android:textSize="13sp"', word)
         # LEMON MILK Bold is already bold, so no synthesised weight on top.
-        self.assertNotIn("textStyle", pill)
+        self.assertNotIn("textStyle", word)
+        badge = element(self.layout, 'android:id="@+id/status_pill"')
+        self.assertIn("<LinearLayout", badge)
+        self.assertIn("@+id/status_dot", badge)
         for view_id in ("status_detail", "signal_list"):
             with self.subTest(view=view_id):
                 view = element(self.layout, f'android:id="@+id/{view_id}"')
@@ -551,10 +615,12 @@ class CadencePlacementTest(unittest.TestCase):
     """Owner order 2026-10-13 (third note): the sentence moves, verbatim.
 
     It leaves the market card and stands immediately after the final diamond
-    rule, separated from that rule by two line breaks. The layout is read as a
-    tree, so "after the last rule" and "not inside the card" are positions
-    rather than prose, and the breaks are counted in the string resource that
-    holds the owner's sentence.
+    rule. Fifth note: its separation from that rule is the layout's own 12dp,
+    the gap every tile has below its rule, so the console's last line sits on
+    the grid, and the two leading newlines are retired from the resource.
+    The layout is read as a tree, so "after the last rule" and "not inside
+    the card" are positions rather than prose, and the resource holds exactly
+    the owner's sentence with no air smuggled into it.
     """
 
     CADENCE = ("Quant will be scanning the market every 4 minutes "
@@ -593,14 +659,23 @@ class CadencePlacementTest(unittest.TestCase):
         self.assertNotIn("marketFoot", self.main)
         self.assertNotIn("footText", self.main)
 
-    def test_the_separation_is_two_line_breaks_in_that_order(self):
+    def test_the_separation_is_the_grids_own_gap(self):
+        # Fifth note: the air above the sentence is a layout fact now, the
+        # same 12dp the tiles have below their rules, so the sentence sits
+        # on the console's grid. The resource holds the words and nothing
+        # else: no leading break, no smuggled indent.
         value = self.resource_value("scan_cadence")
-        self.assertNotIn("\n", value, "the resource stays one source line")
-        self.assertEqual(value, "\\n\\n" + self.CADENCE)
-        # Exactly two, and no space smuggled in beside them: a third break or
-        # an indent would be air the owner did not order.
-        self.assertNotIn("\\n\\n\\n", value)
-        self.assertNotIn(" ", value[:4])
+        self.assertEqual(value, self.CADENCE)
+        self.assertNotIn("\\n", value)
+        view = find_view(self.root, "@+id/scan_cadence")
+        margin = view.get(f"{ANDROID_NS}layout_marginTop")
+        self.assertEqual(margin, "12dp")
+        # And it is THE grid's gap, not a number picked for the footer: the
+        # latest signal tile has exactly the same margin below its rule.
+        signal_card = parent_of(self.root,
+                                find_view(self.root, "@+id/signal_list"))
+        self.assertEqual(margin,
+                         signal_card.get(f"{ANDROID_NS}layout_marginTop"))
 
     def test_the_sentence_still_appears_in_exactly_one_resource(self):
         lines = [line for line in self.strings.splitlines()
@@ -609,62 +684,99 @@ class CadencePlacementTest(unittest.TestCase):
 
 
 class StatusPulseTest(unittest.TestCase):
-    """Owner order 2026-10-13 (third note): the pulse, rebuilt.
+    """Owner order 2026-10-14 (seventh note): the breath, rebuilt again.
 
-    Both states breathe now, so the word and the colour carry which state it
-    is and the motion carries only that the console is awake. The rate is 25
-    frames per second, hard: the animator carries the cycle's clock alone, its
-    listener quantises the elapsed time to a 40ms grid, and it draws nothing
-    when the step has not advanced, so the rate belongs to the app rather than
-    to whatever refresh rate the phone happens to have.
+    The beacon is its own view inside the badge, and the pulse is a view
+    property animation on its alpha and scale. That is this platform's
+    equivalent of a CSS keyframe rule on opacity and transform: the platform
+    keeps the two properties in the RenderNode and interpolates them on the
+    render thread, so no frame of the breath measures, lays out or draws on
+    the UI thread, and the pill's word cannot be disturbed by it. And only a
+    live market breathes: ONLINE pulses, while OFFLINE and CHECKING hold a
+    light that is not moving.
     """
 
     def setUp(self):
         self.main = MAIN.read_text(encoding="utf-8")
         self.layout = LAYOUT.read_text(encoding="utf-8")
 
-    def test_the_rate_is_twenty_five_frames_per_second(self):
-        self.assertIn("private static final long FRAME_MS = 40L;", self.main)
-        self.assertIn("1000 / 25", self.main)
-        self.assertIn("a.getAnimatedFraction() * BREATH_MS) / FRAME_MS",
-                      self.main)
-        self.assertIn("if (frame == breathFrame)", self.main)
-        # The platform's frame delay hint is documented as ignorable when the
-        # animation system rides vsync, which is exactly this case, so the
-        # rate is enforced in the animator's own clock instead.
+    def test_the_pulse_is_a_view_property_animation(self):
+        # Alpha and scale on the beacon's own view: the pair the render thread
+        # interpolates. The drawable rewrite of 2026-10-13 is retired with its
+        # frame budget, its ValueAnimator and its bounds arithmetic.
+        self.assertIn("statusDot.animate()", self.main)
+        self.assertIn(".alpha(alpha)", self.main)
+        self.assertIn(".scaleX(scale)", self.main)
+        self.assertIn(".scaleY(scale)", self.main)
+        self.assertIn("new AccelerateDecelerateInterpolator()", self.main)
+        self.assertNotIn("ValueAnimator", self.main)
+        self.assertNotIn("FRAME_MS", self.main)
         self.assertNotIn("setFrameDelay", self.main)
+        self.assertNotIn("getCompoundDrawablesRelative", self.main)
+        self.assertNotIn("dot.setBounds", self.main)
+        self.assertNotIn("drawBreathFrame", self.main)
 
-    def test_it_is_one_cycle_that_repeats_without_a_seam(self):
-        self.assertIn("ValueAnimator.ofFloat(0f, 1f)", self.main)
-        self.assertIn("setRepeatCount(ValueAnimator.INFINITE)", self.main)
-        self.assertIn("new LinearInterpolator()", self.main)
-        # A raised cosine: 0 at the start of a cycle, 1 at its half, 0 again
-        # at its end, with the slope returning too, so the repeat cannot show
-        # a seam.
-        self.assertIn("0.5 - 0.5 * Math.cos(2.0 * Math.PI * phase)", self.main)
-        self.assertIn("BREATH_MS", self.main)
+    def test_the_beacon_is_its_own_view(self):
+        # A compound drawable cannot be animated by the platform, which is why
+        # the badge became a container: the beacon is an ImageView, the word is
+        # a TextView, and the badge is the pill around them.
+        badge = element(self.layout, 'android:id="@+id/status_pill"')
+        self.assertIn("<LinearLayout", badge)
+        self.assertIn("@+id/status_dot", badge)
+        dot = element(self.layout, 'android:id="@+id/status_dot"')
+        self.assertIn('android:layout_width="18dp"', dot)
+        self.assertIn('android:src="@drawable/ic_status_checking"', dot)
+        # One spoken state on the badge, and the two children are decoration for
+        # the reader: the word alone would be read a second time against it.
+        self.assertIn('android:importantForAccessibility="yes"', badge)
+        self.assertIn('android:contentDescription="@string/cd_status_checking"',
+                      badge)
+        self.assertIn('android:importantForAccessibility="no"',
+                      element(self.layout, 'android:id="@+id/status_word"'))
+        # And MainActivity moves the two children with the state, exactly as it
+        # moved the compound drawable and the text before.
+        self.assertIn("statusDot.setImageResource(online", self.main)
+        self.assertIn("statusWord.setText(getString(online", self.main)
+        self.assertIn("statusWord.setTextColor(getColor(online", self.main)
+        self.assertIn("statusBadge.setContentDescription(getString(online",
+                      self.main)
 
-    def test_it_pulses_the_dots_own_opacity_and_size(self):
-        self.assertIn("getCompoundDrawablesRelative()[0]", self.main)
-        self.assertIn("BREATH_MIN_ALPHA", self.main)
-        self.assertIn("BREATH_MIN_SCALE", self.main)
-        # The scale is applied about the dot's live centre, so it cannot
-        # drift, and the pill's word never moves because the dot's layout box
-        # is untouched.
-        self.assertIn("dot.getBounds().centerX()", self.main)
-        self.assertIn("drawBreathFrame", self.main)
-
-    def test_both_states_breathe_and_the_colour_carries_the_state(self):
-        # The old law (only a live session pulses) is retired: the owner chose
-        # both states on 2026-10-13, so the market phase is no longer read
-        # here. The one dot left still is CHECKING, where the app has no state
-        # to show yet.
+    def test_only_a_live_market_breathes(self):
+        # Owner order 2026-10-14: a closed market, its midday break and an
+        # unreachable relay all hold a still light, and so does CHECKING, where
+        # the app has no state to show yet. The state is carried by the word and
+        # the colour, never by the motion, so a pulse cannot claim the market is
+        # trading (SO-3).
         self.assertNotIn('"OPEN".equals(market.phase)', self.main)
         self.assertNotIn("setStatusBreath", self.main)
         render = self.main.index("private void render(")
-        self.assertIn("startStatusBreath();", self.main[render:render + 2400])
-        self.assertIn('android:drawableStart="@drawable/ic_status_checking"',
-                      self.layout)
+        self.assertIn("breathIfOnline(online)", self.main[render:render + 3000])
+        gate = self.main.index("private void breathIfOnline(")
+        body = self.main[gate:gate + 400]
+        self.assertIn("if (online)", body)
+        self.assertIn("startStatusBreath();", body)
+        self.assertIn("stopStatusBreath();", body)
+
+    def test_the_breath_returns_to_rest_between_cycles(self):
+        # Half a cycle out and half back, the return started when the first
+        # direction lands, so the light never jumps and the breath repeats until
+        # the state changes. 2.2 seconds a cycle: slow enough to read as alive
+        # rather than as a blink.
+        self.assertIn("private static final long BREATH_MS = 2200L;", self.main)
+        self.assertIn(".setDuration(BREATH_MS / 2)", self.main)
+        self.assertIn("withEndAction", self.main)
+        self.assertIn("breatheBack", self.main)
+        self.assertIn("this::startStatusBreath", self.main)
+        self.assertIn("BREATH_MIN_ALPHA", self.main)
+        self.assertIn("BREATH_MIN_SCALE", self.main)
+        # Rest is full opacity at the beacon's own size, so a stopped breath
+        # cannot leave the dot dim or shrunk.
+        stop = self.main.index("private void stopStatusBreath(")
+        body = self.main[stop:stop + 400]
+        for line in ("statusDot.animate().cancel()", "statusDot.setAlpha(1f)",
+                     "statusDot.setScaleX(1f)", "statusDot.setScaleY(1f)"):
+            with self.subTest(line=line):
+                self.assertIn(line, body)
 
     def test_a_hidden_console_leaves_it_still(self):
         self.assertIn("stopStatusBreath();", self.main)
@@ -697,11 +809,61 @@ class StatusPulseTest(unittest.TestCase):
         self.assertIn('<color name="red_core">#CCC14A52</color>', colors)
 
 
+class StatusTileSpacingTest(unittest.TestCase):
+    """Owner order 2026-10-14 (eighth note): one number for the tile's air.
+
+    "SYSTEM STATUS to ONLINE matches ONLINE to KARACHI" is a fact about two
+    margins naming the same resource, not about two numbers that happen to be
+    equal today, so this reads the resource names rather than the lengths: an
+    edit that changes one margin by hand fails here instead of shipping a tile
+    with two different gaps.
+    """
+
+    def setUp(self):
+        self.layout = LAYOUT.read_text(encoding="utf-8")
+        self.dimens = DIMENS.read_text(encoding="utf-8")
+
+    def test_the_two_gaps_are_one_resource(self):
+        badge = element(self.layout, 'android:id="@+id/status_pill"')
+        detail = element(self.layout, 'android:id="@+id/status_detail"')
+        self.assertIn('android:layout_marginTop="@dimen/status_gap"', badge)
+        self.assertIn('android:layout_marginTop="@dimen/status_gap"', detail)
+        # Exactly two views name it, so a third gap cannot quietly join the
+        # tile and a hand-written number cannot replace either of these two.
+        self.assertEqual(
+            self.layout.count('android:layout_marginTop="@dimen/status_gap"'), 2)
+
+    def test_the_gap_is_declared_once(self):
+        self.assertEqual(self.dimens.count('name="status_gap"'), 1)
+        self.assertEqual(self.dimens.count('name="status_dot_gap"'), 1)
+        self.assertIn('<dimen name="status_gap">10dp</dimen>', self.dimens)
+        self.assertIn('<dimen name="status_dot_gap">8dp</dimen>', self.dimens)
+
+    def test_the_badge_keeps_the_air_it_had_between_beacon_and_word(self):
+        # The beacon to the word gap is the 8dp the pill used to carry as a
+        # compound drawable's padding, and it is the word's own left margin now.
+        self.assertNotIn("drawablePadding", self.layout)
+        word = element(self.layout, 'android:id="@+id/status_word"')
+        self.assertIn('android:layout_marginLeft="@dimen/status_dot_gap"',
+                      word)
+
+    def test_the_margins_are_both_top_margins_on_centred_content(self):
+        # The gap only reads as one rhythm because both views are centred in the
+        # same column: the badge centres itself, and the detail line is a
+        # full-width centred value.
+        root = layout_root()
+        badge = find_view(root, "@+id/status_pill")
+        detail = find_view(root, "@+id/status_detail")
+        self.assertEqual(badge.get(f"{ANDROID_NS}layout_gravity"),
+                         "center_horizontal")
+        self.assertEqual(detail.get(f"{ANDROID_NS}layout_width"), "match_parent")
+        self.assertEqual(badge.get(f"{ANDROID_NS}layout_marginTop"),
+                         detail.get(f"{ANDROID_NS}layout_marginTop"))
 class VersionTest(unittest.TestCase):
     def test_the_version_is_the_one_that_ships_these_changes(self):
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="1.6.7"', manifest)
-        self.assertIn('android:versionCode="21"', manifest)
+        self.assertIn('android:versionName="1.6.9"', manifest)
+        self.assertIn('android:versionCode="23"', manifest)
 
 
 if __name__ == "__main__":

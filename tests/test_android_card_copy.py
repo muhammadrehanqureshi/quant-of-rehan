@@ -16,7 +16,8 @@ the B indicator (or at the exchange's total when the relay sent no split) and
 the group.
 
 Owner order 2026-10-13 (third note): that sentence leaves the market card's
-foot and stands below the last diamond rule, behind two line breaks. The
+foot and stands below the last diamond rule; the fifth note sets the gap
+above it to the layout's 12dp, the grid's own unit. The
 wording itself is untouched, which is what this file still guards character
 for character; tests/test_android_app_ui.py owns where it now stands.
 
