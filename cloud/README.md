@@ -84,14 +84,13 @@ python cloud/pair.py health     # live status from the edge
 
 Pairing state lives in KV; re-running discover re-pairs safely.
 
-## Local scheduler (optional second delivery path)
+## Local scheduler (retired, owner order 2026-10-14)
 
-The edge crons deliver even with your PC off. To also send from the local
-runner (and journal deliveries), start it after pairing:
-
-```bash
-python -m src.notify.schedule_runner
-```
-
-Auto-start at login is handled by the scheduled task the QUANT registers
-(`quant-of-rehan-scheduler`, see scripts/install_scheduler.py).
+The edge crons deliver even with your PC off, which is why the local runner is
+no longer needed. It used to be started at every login and kept a process
+resident all day for two texts the relay already sends, so SO-12 parks it:
+`python -m src.notify.schedule_runner` now refuses to start on the owner's PC,
+the Startup entry that launched it is gone, and `scripts/install_scheduler.py`
+refuses to register a logon task again. The cloud crons above are the delivery
+path, and the runner's helpers (`load_relay_url`, `load_relay_admin_token`)
+stay in place as imports for the daily push and the ops alert.
