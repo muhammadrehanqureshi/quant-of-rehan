@@ -21,6 +21,9 @@ Checks:
 9. SO-13: the words of the 30-second cadence order stay in GOVERNANCE.md:
    one scan for the card and the intraday strategy, the measured cost of a
    cycle, and the fact that it is free on the public repository.
+10. SO-20: the scan path reaches for the read-only tape first: the
+   recorder subscribes to the tracked KMIALL universe, a start that dies is
+   watched and named, and the dead OHLC servlet is only the day with no tape.
 
 Exit code 0 = compliant. Non-zero = PR must not merge.
 """
@@ -280,6 +283,95 @@ def check_cloud_only(errors: list) -> None:
                 )
 
 
+def check_tape_before_scanner(errors: list) -> None:
+    """SO-20: the scan path reaches for the read-only broker tape, always.
+
+    Measured 2026-10-14 on a GitHub Actions runner: the loop chose its bar
+    source before asking for the recorder, so a fresh checkout with no tape
+    fell through to the dead eClear OHLC servlet, five straight 30 second
+    cycles faulted, and the loop gave up without banking a bar. This check
+    holds the two halves of the fix in place: the recorder subscribes to the
+    tracked KMIALL universe (the gitignored legacy copy does not exist on a
+    fresh checkout), a start that dies is watched and named rather than
+    reported as success, and the loop asks for the tape before it chooses a
+    bar source.
+    """
+    watched = {
+        "src/data/feed_capture.py": "the recorder's universe",
+        "src/data/live_card.py": "the tape's liveness",
+        "scripts/scan_loop.py": "the scan path's bar source",
+    }
+    for rel, what in watched.items():
+        p = ROOT / rel
+        if not p.is_file():
+            errors.append(
+                f"[SO-20] {rel} is missing; {what} cannot be verified"
+            )
+            continue
+        try:
+            body = p.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        if rel == "src/data/feed_capture.py":
+            if "universe_kmiall.json" not in body:
+                errors.append(
+                    "[SO-20] src/data/feed_capture.py does not name the "
+                    "tracked universe_kmiall.json; a gitignored universe file "
+                    "means no tape at all on a fresh checkout"
+                )
+            universe_line = next(
+                (line for line in body.splitlines()
+                 if line.strip().startswith("UNIVERSE_FILE")),
+                "",
+            )
+            if "legacy_sentinel" in universe_line:
+                errors.append(
+                    "[SO-20] src/data/feed_capture.py takes its universe from "
+                    "the gitignored legacy sentinel copy; the tracked "
+                    "src/data/universe_kmiall.json is what a fresh checkout "
+                    "has, and it is the list the scanner scans"
+                )
+            if "refusing to subscribe" not in body:
+                errors.append(
+                    "[SO-20] src/data/feed_capture.py no longer refuses a "
+                    "missing universe in words (refusing to subscribe, SO-3)"
+                )
+        if rel == "src/data/live_card.py":
+            for needle, why in (
+                ("START_PROBE_SECONDS",
+                 "a freshly spawned recorder is not watched, so a crash at "
+                 "startup would be reported as a running tape"),
+                ("_probe_child",
+                 "the start probe itself is missing from start_tape"),
+                ("exited with code",
+                 "a child that dies at start is not named with its exit code"),
+            ):
+                if needle not in body:
+                    errors.append(f"[SO-20] src/data/live_card.py: {why}")
+        if rel == "scripts/scan_loop.py":
+            if "_capture(self) -> bool" not in body:
+                errors.append(
+                    "[SO-20] scripts/scan_loop.py has no _capture method, so "
+                    "the loop's bar-source order cannot be read at all"
+                )
+            else:
+                marker = body.find("def _capture(self) -> bool:")
+                end = body.find(chr(10) + "    def ", marker + 10)
+                window = body[marker:end if end > marker else len(body)]
+                asks = window.find("ensure_tape")
+                falls = window.find("_poller_capture")
+                if asks < 0:
+                    errors.append(
+                        "[SO-20] scripts/scan_loop._capture does not ask for "
+                        "the recorder before choosing a bar source"
+                    )
+                elif falls >= 0 and falls < asks:
+                    errors.append(
+                        "[SO-20] scripts/scan_loop._capture falls through to "
+                        "the dead OHLC servlet before the recorder was asked "
+                        "for; the tape comes first"
+                    )
+
 def check_em_dashes(errors: list) -> None:
     for p in iter_text_files():
         try:
@@ -403,6 +495,7 @@ def main() -> int:
     check_karachi_pin(errors)
     check_local_only(errors)
     check_cloud_only(errors)
+    check_tape_before_scanner(errors)
 
     if errors:
         print("GOVERNANCE CHECK FAILED, PR must not merge:\n")
@@ -415,7 +508,7 @@ def main() -> int:
           "standing orders present, SO-7 style and identity verified, "
           "SO-7a co-author line verified, SO-8 Karachi pin verified, "
           "SO-4 local-only backtests enforced, SO-12 cloud-only recurring "
-          "work enforced.")
+          "work enforced, SO-20 tape before scanner.")
     return 0
 
 
