@@ -81,6 +81,16 @@ class TapeStateTest(unittest.TestCase):
         self.assertTrue(alive)
         self.assertIn("42 messages", detail)
 
+    def test_a_running_tape_names_the_recorders_last_error(self):
+        """A tape that cannot reach the venue says why, in the caller's log."""
+        self.write(running=True, updated_at=NOW.isoformat(),
+                   last_frame_at=None, counters={"messages": 0},
+                   last_error="ConnectionError: all feed hosts unreachable")
+        alive, detail = live_card.tape_state(NOW)
+        self.assertTrue(alive)
+        self.assertIn("last error: ConnectionError: all feed hosts "
+                      "unreachable", detail)
+
 
 class EnsureTapeTest(unittest.TestCase):
     def test_a_live_tape_is_never_started_twice(self):
@@ -110,6 +120,71 @@ class EnsureTapeTest(unittest.TestCase):
             ok, detail = live_card.ensure_tape(NOW)
         self.assertFalse(ok)
         self.assertIn("python is missing", detail)
+
+
+class _Child:
+    """A spawned recorder: a pid, and either dead at once or still running."""
+
+    def __init__(self, code: int | None = None) -> None:
+        self.pid = 4242
+        self._code = code
+
+    def poll(self) -> int | None:
+        return self._code
+
+
+class StartTapeProbeTest(unittest.TestCase):
+    """A started child is not a running tape until it survives the start.
+
+    Measured 2026-10-14 on a GitHub Actions runner: the recorder died in
+    under a second (its universe file was gitignored) while start_tape
+    reported success, so all five cycles of the 30 second loop blamed the
+    tape for bars a dead child never wrote.
+    """
+
+    def setUp(self) -> None:
+        self._dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self._dir.cleanup)
+        self.log = Path(self._dir.name) / "feed_capture.log"
+        self._real_log = live_card.TAPE_LOG
+        live_card.TAPE_LOG = self.log
+        self.addCleanup(self._restore)
+
+    def _restore(self) -> None:
+        live_card.TAPE_LOG = self._real_log
+
+    def _start(self, child) -> tuple[bool, str]:
+        with mock.patch.object(live_card.subprocess, "Popen",
+                               return_value=child), \
+                mock.patch.object(live_card, "ROOT",
+                                  Path(self._dir.name)), \
+                mock.patch.object(live_card, "START_PROBE_SECONDS", 0.05):
+            return live_card.start_tape()
+
+    def test_a_child_that_dies_at_start_is_a_failed_start(self):
+        self.log.write_text(
+            "FileNotFoundError: KMIALL universe file not found: "
+            "data/legacy_sentinel/data/kmiall_tickers.json\n",
+            encoding="utf-8")
+        ok, detail = self._start(_Child(code=1))
+        self.assertFalse(ok)
+        self.assertIn("exited with code 1", detail)
+        self.assertIn("FileNotFoundError", detail)
+
+    def test_a_child_that_survives_the_window_is_started(self):
+        ok, detail = self._start(_Child(code=None))
+        self.assertTrue(ok)
+        self.assertIn("broker tape started (pid 4242)", detail)
+
+    def test_probe_watches_until_the_child_exits(self):
+        child = _Child(code=None)
+        child.poll = mock.Mock(side_effect=[None, None, 1])
+        self.assertEqual(live_card._probe_child(child, 0.5), 1)
+        self.assertEqual(child.poll.call_count, 3)
+
+    def test_probe_gives_up_after_the_window(self):
+        """Still running at the deadline means started, not dead."""
+        self.assertIsNone(live_card._probe_child(_Child(code=None), 0.05))
 
 
 class SplitSummaryTest(unittest.TestCase):
