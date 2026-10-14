@@ -52,15 +52,16 @@ target, then monitor and sleep.
   DATA BLOCKED with measured coverage and never a market verdict. See
   [DATA_SOURCING.md](DATA_SOURCING.md) and
   [INTRADAY_FORWARD_SYSTEM.md](INTRADAY_FORWARD_SYSTEM.md).
-- **The phone app**: `android/` v1.6.7 (built and signed,
-  `QuantOfRehan-v1.6.7.apk` on the OneDrive Desktop; versionCode 21). It shows
+- **The phone app**: `android/` v1.6.8 (built and signed,
+  `QuantOfRehan-v1.6.8.apk` on the OneDrive Desktop; versionCode 22). It shows
   the status pill with the relay's own phase sentence, the latest signal, and
   the market card: KSE100 points and percentage, then the three KMIALL stocks
   with the highest session volume, each with its percentage change and its
   buy/sell/total volume when a genuine split exists. The status light breathes
   in both states (palette green for ONLINE, palette red for OFFLINE) at a hard
-  25 frames per second, and the cadence sentence stands under the last diamond
-  rule behind two line breaks. It polls `/health`,
+  25 frames per second, the settings gear sits beside the brand name, and the
+  cadence sentence stands 12dp under the last diamond rule, on the same grid
+  as the tiles. It polls `/health`,
   `/signals` and `/market` on the edge, survives reboot, and never derives a
   session from its own clock. See [android/README.md](android/README.md).
 
@@ -85,6 +86,17 @@ guard, the 20-minute warm-up rule and the slot bookkeeping all count in
 4 minute slots, which is exactly what the phone's cadence sentence states.
 What the order of 2026-10-14 changed is where that work may happen, and the
 answer is the cloud minutes above.
+
+The bars those scans read come from the broker tape, not from the eClear OHLC
+servlet (owner order 2026-10-14, after the servlet stopped serving bars).
+`src/data/tape_bars.py` builds one minute of open, high, low and close from
+the prices the tape carried, and takes volume from the venue's own running
+counter; `scripts/intraday_pipeline.py` reads the tape first and falls back to
+a servlet capture that is already on disk. The same coverage, freshness,
+volume and structure gates judge either source, a capture too short to rank
+anything is DATA BLOCKED rather than a NO TRADE, and the source label travels
+into the observation and the phone message. See [DATA_SOURCING.md](DATA_SOURCING.md)
+for the measured numbers.
 
 The local runners are retired and refused in code. `scripts/kmiall_tick.py`
 (the Windows tick), `scripts/scan_loop.py` (the supervised loop),
@@ -215,7 +227,8 @@ src/signals/trade_state.py        the ONE persisted daily state, trade lock and 
 src/signals/contracts.py          the typed boundary: validated models, fault taxonomy, ingestion guard
 src/signals/volatility.py         volatility regime and edge cases (measured, picks nothing, off by default)
 src/data/sessions.py              Karachi-pinned clock, session law, owner texts
-src/data/ohlc_poller.py           the intraday source poller (one complete bar pass)
+src/data/tape_bars.py             intraday bars from the tape (prints for OHLC, the venue counter for volume)
+src/data/ohlc_poller.py           the servlet bar pass, kept as the fallback source
 src/data/feed_capture.py          the broker tick tape (banked ticks, once a live session)
 src/data/tick_volume.py           buy/sell/total volume split from the tape
 src/data/live_card.py             the live card the relay serves to the app

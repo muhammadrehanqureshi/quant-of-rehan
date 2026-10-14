@@ -65,6 +65,7 @@ from pathlib import Path
 from statistics import median
 
 from src import config
+from src.data import tape_bars
 from src.data.sessions import KARACHI, is_trading_day, open_time
 from src.signals import ai_model
 
@@ -89,7 +90,14 @@ class MinuteBar:
 @dataclass
 class SessionData:
     """Every usable bar for one session, plus what the source did or did not
-    provide. `volume_available` is measured, never assumed."""
+    provide. `volume_available` is measured, never assumed.
+
+    `source` names the file the bars came from and travels into the quality
+    report and every message, because the system now reads two of them: the
+    poller capture and the broker tape (owner order 2026-10-14). A reader must
+    never have to guess which one spoke (SO-3). `notes` carries whatever that
+    source could not see, in its own measured words.
+    """
 
     day: date
     as_of: datetime
@@ -98,6 +106,8 @@ class SessionData:
     bars_seen: int
     bars_rejected: int
     duplicate_bars: int
+    source: str = SOURCE_NAME
+    notes: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -118,8 +128,15 @@ class QualityReport:
     impossible_ohlc: int
     zero_volume_bars: int
     volume_available: bool
+    #: Symbols holding at least MIN_BARS_PER_SYMBOL bars, and that share of the
+    #: symbols the capture had any bar for. A ranking cannot be built from a
+    #: shorter series, so this is measured before any market verdict is
+    #: allowed (SO-3: a thin capture is a data problem, not a NO TRADE).
+    symbols_with_history: int = 0
+    history_coverage: float = 0.0
     resolution: str = config.BAR_RESOLUTION
     source: str = SOURCE_NAME
+    notes: tuple[str, ...] = ()
 
     def as_dict(self) -> dict:
         out = {
@@ -142,8 +159,12 @@ class QualityReport:
             "impossible_ohlc": self.impossible_ohlc,
             "zero_volume_bars": self.zero_volume_bars,
             "volume_available": self.volume_available,
+            "symbols_with_history": self.symbols_with_history,
+            "history_coverage": round(self.history_coverage, 4),
+            "min_bars_per_symbol": config.MIN_BARS_PER_SYMBOL,
             "resolution": self.resolution,
             "source": self.source,
+            "notes": list(self.notes),
             "scanner_version": config.SCANNER_VERSION,
         }
         return out
@@ -263,6 +284,95 @@ def load_capture(path: Path, symbols: list[str], as_of: datetime) -> SessionData
     )
 
 
+#: Capture formats this scanner can load. "tape" is the broker MKT-FEED
+#: capture (src/data/tape_bars.py); "poller" is the eClear OHLC servlet
+#: capture (src/data/ohlc_poller.py), which served the system until the
+#: servlet stopped answering and is kept as the secondary source.
+FORMAT_TAPE = "tape"
+FORMAT_POLLER = "poller"
+
+
+def detect_capture_format(path: Path, lines: int = 200) -> str:
+    """Which loader fits this capture file.
+
+    The two captures share a directory and an ndjson habit but not a record
+    shape: the poller writes {symbol, bars}, the tape writes {kind, ticks}.
+    The answer is read from the file itself, so a renamed or copied capture
+    still loads under its own rules, and only when a file holds no readable
+    record at all does the file name decide (capture_* is the tape).
+    """
+    if path.is_file():
+        try:
+            with path.open("r", encoding="utf-8", errors="replace") as handle:
+                for index, line in enumerate(handle):
+                    if index >= lines:
+                        break
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        record = json.loads(line)
+                    except ValueError:
+                        continue
+                    if not isinstance(record, dict):
+                        continue
+                    if "bars" in record:
+                        return FORMAT_POLLER
+                    if "ticks" in record or "kind" in record:
+                        return FORMAT_TAPE
+        except OSError:
+            pass
+    return FORMAT_TAPE if path.name.startswith("capture_") else FORMAT_POLLER
+
+
+def load_tape_bars(path: Path, symbols: list[str],
+                   as_of: datetime) -> SessionData:
+    """Load one session of bars built from the broker tape.
+
+    Owner order 2026-10-14: the scanner must stop depending on the eClear
+    OHLC servlet, so the tape this system already subscribes to became the bar
+    source. src/data/tape_bars.py builds open, high, low and close from the
+    prices the tape carried and takes volume from the venue's own running
+    counter. Everything after this function is the SAME path as the poller
+    capture: the same SessionData shape, the same assess_quality gates and the
+    same scoring, with only the source label and the tape's own measured notes
+    differing, so a scan can never read one source and report the other.
+    """
+    tape = tape_bars.build(path, symbols, as_of)
+    bars = {
+        symbol: [
+            MinuteBar(bar.timestamp, bar.open, bar.high, bar.low, bar.close,
+                      bar.volume)
+            for bar in rows
+        ]
+        for symbol, rows in tape.bars.items() if rows
+    }
+    return SessionData(
+        day=tape.day,
+        as_of=as_of,
+        bars=bars,
+        volume_available=tape.volume_available,
+        bars_seen=tape.rows_seen,
+        bars_rejected=tape.rows_rejected,
+        duplicate_bars=tape.repeated_rows,
+        source=tape.source,
+        notes=tuple(tape.notes),
+    )
+
+
+def load_session(path: Path, symbols: list[str], as_of: datetime) -> SessionData:
+    """Load a capture file with the loader that fits it.
+
+    One door for both sources, so every caller (the scheduled scan, the
+    finalize and the local tick) reads whatever capture the machine actually
+    has, and the format decision is made in one tested place rather than
+    repeated per caller.
+    """
+    if detect_capture_format(path) == FORMAT_TAPE:
+        return load_tape_bars(path, symbols, as_of)
+    return load_capture(path, symbols, as_of)
+
+
 # ------------------------------------------------------------- quality gate
 
 def assess_quality(session: SessionData, symbols: list[str],
@@ -291,6 +401,14 @@ def assess_quality(session: SessionData, symbols: list[str],
     age = ((session.as_of - newest).total_seconds() / 60.0
            if newest is not None else None)
     missing = tuple(sorted(set(universe) - set(session.bars)))
+    # Bar history, measured before any verdict: score_symbol refuses a symbol
+    # with fewer bars than the strategy needs, so a capture that is thin in
+    # every symbol would rank nothing and be reported as a market NO TRADE.
+    # The bar path built from the tape made this a real case rather than a
+    # theoretical one (a short capture has fresh bars but no history).
+    ready = sum(1 for rows in session.bars.values()
+                if len(rows) >= config.MIN_BARS_PER_SYMBOL)
+    history_coverage = ready / max(with_bars, 1)
 
     def blocked(reason: str) -> QualityReport:
         return QualityReport(
@@ -302,6 +420,8 @@ def assess_quality(session: SessionData, symbols: list[str],
             duplicate_bars=session.duplicate_bars, malformed_bars=malformed,
             impossible_ohlc=impossible, zero_volume_bars=zero_volume,
             volume_available=session.volume_available,
+            symbols_with_history=ready, history_coverage=history_coverage,
+            source=session.source, notes=session.notes,
         )
 
     if expected == 0:
@@ -321,6 +441,13 @@ def assess_quality(session: SessionData, symbols: list[str],
         return blocked(
             f"KMIALL coverage {with_bars}/{expected} ({coverage:.1%}) is below "
             f"the {config.MIN_COVERAGE_PCT:.0%} floor. Data source incomplete.")
+    if history_coverage < config.MIN_HISTORY_COVERAGE_PCT:
+        return blocked(
+            f"bar history: only {ready}/{with_bars} captured symbols "
+            f"({history_coverage:.1%}) hold the {config.MIN_BARS_PER_SYMBOL} "
+            f"bars the strategy needs, below the "
+            f"{config.MIN_HISTORY_COVERAGE_PCT:.0%} floor, so a ranking built "
+            f"now would say nothing about the market")
     if fresh_coverage < config.MIN_FRESH_COVERAGE_PCT:
         return blocked(
             f"stale data: {len(stale)} symbols have no bar within "
@@ -337,13 +464,16 @@ def assess_quality(session: SessionData, symbols: list[str],
             "the scan is blocked instead of guessed")
 
     return QualityReport(
-        status="OK", reason="coverage, freshness, structure and volume present",
+        status="OK", reason="coverage, freshness, history, structure and volume "
+                           "present",
         coverage=coverage, fresh_coverage=fresh_coverage, symbols_expected=expected,
         symbols_with_bars=with_bars, symbols_missing=missing,
         symbols_stale=tuple(sorted(stale)), newest_bar=newest, oldest_bar=oldest,
         data_age_minutes=age, duplicate_bars=session.duplicate_bars,
         malformed_bars=malformed, impossible_ohlc=impossible,
         zero_volume_bars=zero_volume, volume_available=True,
+        symbols_with_history=ready, history_coverage=history_coverage,
+        source=session.source, notes=session.notes,
     )
 
 
@@ -704,22 +834,32 @@ def no_trade_message(quality: QualityReport, market: dict) -> str:
         f"KMIALL scanned: {quality.symbols_with_bars}/{quality.symbols_expected}\n"
         f"Market: {market.get('status', 'UNKNOWN')}\n"
         f"Reason: no sufficiently strong momentum + volume candidate.\n"
-        f"Detail: {market.get('reason', 'no context available')}"
+        f"Detail: {market.get('reason', 'no context available')}\n"
+        f"Source: {quality.source}"
     )
 
 
 def scan_blocked_message(quality: QualityReport) -> str:
     newest = quality.newest_bar.isoformat() if quality.newest_bar else "none"
-    return (
-        "SCAN BLOCKED\n\n"
+    lines = [
+        "SCAN BLOCKED",
+        "",
         f"KMIALL coverage: {quality.symbols_with_bars}/{quality.symbols_expected}"
-        f" ({quality.coverage:.1%})\n"
-        f"Reason: {quality.reason}\n"
-        f"Source: {quality.source}\n"
-        f"Resolution: {quality.resolution}\n"
-        f"Newest bar: {newest}\n"
-        "No trade issued. This is a DATA failure, not a market decision."
-    )
+        f" ({quality.coverage:.1%})",
+        f"Bar history: {quality.symbols_with_history} symbol(s) hold the "
+        f"{config.MIN_BARS_PER_SYMBOL} bars the strategy needs",
+        f"Fresh coverage: {quality.fresh_coverage:.1%}",
+        f"Reason: {quality.reason}",
+        f"Source: {quality.source}",
+        f"Resolution: {quality.resolution}",
+        f"Newest bar: {newest}",
+    ]
+    # What the source could not see travels with the block. Two lines are
+    # enough for a phone message; the full list is in the observation.
+    for note in quality.notes[:2]:
+        lines.append(f"Note: {note}")
+    lines.append("No trade issued. This is a DATA failure, not a market decision.")
+    return "\n".join(lines)
 
 
 def target_hit_message(symbol: str, entry: float, target: float,

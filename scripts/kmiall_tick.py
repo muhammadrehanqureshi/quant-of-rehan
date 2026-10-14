@@ -28,9 +28,13 @@ What a tick does, in order:
     3. LOCK      one tick at a time. A lock file holding a live pid makes a
                  concurrent tick exit 4 instead of fighting over the state file;
                  a lock older than the stale limit is reclaimed with a log line.
-    4. CAPTURE   refresh the bar capture from the source. A capture failure is
-                 recorded and the tick continues: the scanner then reports a
-                 data failure honestly rather than a market verdict.
+    4. CAPTURE   refresh the bars. The bar source is the broker tape (owner
+                 order 2026-10-14): the tick keeps that read-only recorder
+                 alive and measures the bars it holds, falling back to the
+                 eClear OHLC servlet only when no tape exists for the day. A
+                 capture failure is recorded and the tick continues: the
+                 scanner then reports a data failure honestly rather than a
+                 market verdict.
     5. SCAN      hand the whole job to the one orchestrator
                  (scripts/intraday_pipeline.py --scan), which does its own
                  session, coverage and one-trade-per-day enforcement.
@@ -95,6 +99,7 @@ from src.data.ohlc_poller import (  # noqa: E402
     nominal_pass_seconds,
 )
 from src.data import live_card  # noqa: E402
+from src.data import tape_bars  # noqa: E402
 from src.signals.trade_state import SessionState  # noqa: E402
 
 LOG_FILE = ROOT / "logs" / "kmiall_tick.log"
@@ -194,11 +199,37 @@ def release_lock() -> None:
 
 def universe_size() -> int:
     """How many symbols the tracked KMIALL universe holds (0 if unreadable)."""
+    return len(universe_symbols())
+
+
+def universe_symbols() -> list[str]:
+    """The tracked KMIALL symbols, in the same shape the scanner reads."""
     try:
         payload = json.loads(UNIVERSE.read_text(encoding="utf-8"))
     except (OSError, ValueError):
-        return 0
-    return len(payload) if isinstance(payload, list) else 0
+        return []
+    if not isinstance(payload, list):
+        return []
+    return sorted({
+        str(row["symbol"]).strip().upper() for row in payload
+        if isinstance(row, dict) and row.get("symbol")
+        and "KMIALLSHR" in (row.get("listedIn") or [])
+    })
+
+
+def tape_capture_present(moment: datetime | None = None) -> bool:
+    """Is there a tape capture for the session day with rows in it?
+
+    Named as its own question so a caller (and a test) can answer it without
+    touching the network or the disk layout, and so the tick's fallback to the
+    servlet capture is decided in one readable place.
+    """
+    day = (moment or now_karachi()).date()
+    path = tape_bars.capture_path(day)
+    try:
+        return path.is_file() and path.stat().st_size > 0
+    except OSError:
+        return False
 
 
 def capture_budget_seconds() -> float:
@@ -219,7 +250,43 @@ def capture_budget_seconds() -> float:
 
 
 def run_capture() -> tuple[bool, str]:
-    """Refresh the bar capture. Never raises: a failure is data, not a crash.
+    """Refresh the session's bars. Never raises: a failure is data, not a crash.
+
+    Owner order 2026-10-14: the bar source is the broker tape, so a tick keeps
+    that tape alive and measures what it holds. The eClear OHLC pass is still
+    asked when no tape exists for the day at all, because a capture on disk is
+    better than none, but it is the fallback now rather than the source.
+    """
+    if tape_capture_present():
+        return _tape_pass()
+    return _poller_pass()
+
+
+def _tape_pass() -> tuple[bool, str]:
+    """Keep the read-only tape alive and report the bars it holds.
+
+    The tape is the source the scanner reads (src/data/tape_bars.py), so the
+    honest question here is not "did a fetch finish" but "is the tape alive
+    and does it hold bars for the session". A dead tape is reported as a dead
+    tape, with no bars claimed for it.
+    """
+    moment = now_karachi()
+    alive, note = live_card.ensure_tape(moment)
+    tape = tape_bars.build(tape_bars.capture_path(moment.date()),
+                           universe_symbols(), moment)
+    bars = tape.priced_bars + tape.carried_bars
+    detail = (f"tape bars: {tape.symbols_with_bars} symbol(s), {bars} bar(s), "
+              f"volume counter on {tape.counter_rows} row(s), "
+              f"{tape.carried_bars} carried minute(s)| {note}")
+    if not alive:
+        return False, f"broker tape down: {note}; {detail}"
+    if tape.symbols_with_bars == 0:
+        return False, f"the tape is alive but holds no bars yet: {detail}"
+    return True, detail
+
+
+def _poller_pass() -> tuple[bool, str]:
+    """The fallback: one bounded pass over the eClear OHLC servlet.
 
     The pass is handed the tick's own budget, so it stops itself cleanly and
     says how much of the universe it did not reach. The subprocess timeout is

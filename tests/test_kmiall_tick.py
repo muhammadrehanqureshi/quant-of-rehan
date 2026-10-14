@@ -535,8 +535,13 @@ class CaptureBudgetTest(unittest.TestCase):
         self.assertGreater(kmiall_tick.universe_size(), 0)
 
     def test_the_capture_is_told_its_budget(self):
-        with patch.object(kmiall_tick.subprocess, "run",
-                          return_value=self._finished(0, "banked 12 bars")) as run:
+        # The servlet pass is the FALLBACK since owner order 2026-10-14: it is
+        # asked only when no tape exists for the day, so the tape question is
+        # answered False here to exercise the branch that still has a budget.
+        with patch.object(kmiall_tick, "tape_capture_present",
+                          return_value=False), \
+                patch.object(kmiall_tick.subprocess, "run",
+                             return_value=self._finished(0, "banked 12 bars")) as run:
             ok, detail = kmiall_tick.run_capture()
 
         self.assertTrue(ok, detail)
@@ -552,10 +557,12 @@ class CaptureBudgetTest(unittest.TestCase):
             + kmiall_tick.config.CAPTURE_KILL_MARGIN_SECONDS)
 
     def test_a_partial_pass_is_reported_with_the_arithmetic(self):
-        with patch.object(
-                kmiall_tick.subprocess, "run",
-                return_value=self._finished(
-                    3, "capture pass stopped at its 195s budget")):
+        with patch.object(kmiall_tick, "tape_capture_present",
+                          return_value=False), \
+                patch.object(
+                    kmiall_tick.subprocess, "run",
+                    return_value=self._finished(
+                        3, "capture pass stopped at its 195s budget")):
             ok, detail = kmiall_tick.run_capture()
 
         self.assertFalse(ok)
@@ -565,12 +572,85 @@ class CaptureBudgetTest(unittest.TestCase):
         self.assertIn("cadence cannot contain", detail)
 
     def test_a_capture_that_ignores_its_budget_is_reported_as_killed(self):
-        with patch.object(kmiall_tick.subprocess, "run",
-                          side_effect=subprocess.TimeoutExpired([], 1)):
+        with patch.object(kmiall_tick, "tape_capture_present",
+                          return_value=False), \
+                patch.object(kmiall_tick.subprocess, "run",
+                             side_effect=subprocess.TimeoutExpired([], 1)):
             ok, detail = kmiall_tick.run_capture()
 
         self.assertFalse(ok)
         self.assertIn("killed", detail)
+
+
+class TapeFirstCaptureTest(unittest.TestCase):
+    """The bar source is the broker tape; the servlet is the fallback.
+
+    Owner order 2026-10-14: the eClear OHLC servlet serves no bars, so a tick
+    keeps the read-only tape alive and reports the bars it holds. Ported on
+    2026-10-14, when the same order made the whole 4-minute runner cloud-only:
+    these tests were written for the local tick and now hold the code path the
+    owner runs himself when he asks for a local trial.
+    """
+
+    @staticmethod
+    def _tape(symbols: int = 2) -> "kmiall_tick.tape_bars.TapeBars":
+        minute = datetime(2026, 10, 12, 10, 5)
+        bars = {
+            f"SYM{i}": [kmiall_tick.tape_bars.TapeBar(minute, 10.0, 10.1, 9.9,
+                                                      10.0, 500.0, 1, False)]
+            for i in range(symbols)
+        }
+        return kmiall_tick.tape_bars.TapeBars(
+            day=minute.date(), bars=bars, priced_bars=symbols, counter_rows=99,
+        )
+
+    def test_the_tape_is_the_source_and_the_servlet_is_not_asked(self):
+        with patch.object(kmiall_tick, "tape_capture_present",
+                          return_value=True), \
+                patch.object(kmiall_tick.live_card, "ensure_tape",
+                             return_value=(True, "tape alive")) as ensure, \
+                patch.object(kmiall_tick.tape_bars, "build",
+                             return_value=self._tape()), \
+                patch.object(kmiall_tick.subprocess, "run") as run:
+            ok, detail = kmiall_tick.run_capture()
+
+        self.assertTrue(ok, detail)
+        self.assertIn("tape bars", detail)
+        self.assertIn("2 symbol(s)", detail)
+        ensure.assert_called_once()
+        run.assert_not_called()
+
+    def test_a_dead_tape_is_reported_as_a_dead_tape(self):
+        with patch.object(kmiall_tick, "tape_capture_present",
+                          return_value=True), \
+                patch.object(kmiall_tick.live_card, "ensure_tape",
+                             return_value=(False, "no recorder running")), \
+                patch.object(kmiall_tick.tape_bars, "build",
+                             return_value=self._tape()):
+            ok, detail = kmiall_tick.run_capture()
+
+        self.assertFalse(ok)
+        self.assertIn("broker tape down", detail)
+        self.assertIn("no recorder running", detail)
+
+    def test_a_live_tape_with_no_bars_is_not_a_success(self):
+        empty = kmiall_tick.tape_bars.TapeBars(day=date(2026, 10, 12), bars={})
+        with patch.object(kmiall_tick, "tape_capture_present",
+                          return_value=True), \
+                patch.object(kmiall_tick.live_card, "ensure_tape",
+                             return_value=(True, "tape alive")), \
+                patch.object(kmiall_tick.tape_bars, "build", return_value=empty):
+            ok, detail = kmiall_tick.run_capture()
+
+        self.assertFalse(ok)
+        self.assertIn("holds no bars yet", detail)
+
+    def test_the_universe_is_read_in_the_scanner_s_own_shape(self):
+        symbols = kmiall_tick.universe_symbols()
+
+        self.assertGreater(len(symbols), 0)
+        self.assertEqual(symbols, sorted(symbols))
+        self.assertTrue(all(symbol.isupper() for symbol in symbols))
 
 
 class FinalizeTest(TickTestCase):
