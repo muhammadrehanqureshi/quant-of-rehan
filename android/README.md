@@ -15,10 +15,14 @@ Cloudflare relay, never to Telegram, never to a broker.
 - The pill follows the relay's `market_state` phase and carries a drawn
   status light beside the word (vector drawables, v1.6.0) with a spoken
   accessibility description, so a screen reader never reads a bare
-  "multiplication X" and the state never depends on a font. Since v1.6.7 that
-  light breathes in both states, in the palette green for ONLINE and the
-  palette red for OFFLINE, at a hard 25 frames per second (owner order
-  2026-10-13, third note).
+  "multiplication X" and the state never depends on a font. Since v1.6.9 that
+  light breathes only while the market is live: ONLINE pulses, and OFFLINE
+  (a closed market, its midday break, an unreachable relay) and CHECKING hold
+  a still light, because a pulse over a shut market would claim activity
+  there is none (owner orders 2026-10-13 third note and 2026-10-14 seventh
+  note). The pulse itself is a view property animation on the beacon's own
+  alpha and scale, which the platform interpolates on the render thread, so
+  the console never redraws a badge to make it breathe.
 - Owner order 2026-10-10 retired "PSX session closed". The exchange's midday
   break now reads "Market is on a break right now" and every other shut state
   reads "Market is closed right now.", in each case the relay's own sentence
@@ -41,8 +45,9 @@ Cloudflare relay, never to Telegram, never to a broker.
   change (green up, red down) and its volume. The relay builds it from the
   PSX Data Portal's own pages and caches it for five minutes, so the card is
   at most five minutes old. Since v1.6.7 the console closes with the cadence
-  sentence under the last diamond rule, separated from it by two line breaks,
-  instead of carrying it inside the card (owner order 2026-10-13, third note).
+  sentence under the last diamond rule - 12dp below it since v1.6.8, the same
+  gap the tiles use (owner orders 2026-10-13, third and fifth notes) -
+  instead of carrying it inside the card.
 - v1.6.2, owner order 2026-10-12: the card carries no "MARKET NOW" label any
   more, the old "Index as of ..." footnote is gone, and the pinned bottom
   cadence with the footer rule under it are removed, so the interface ends at
@@ -139,6 +144,40 @@ Cloudflare relay, never to Telegram, never to a broker.
   the rate is the app's rather than the display's and the platform's frame
   delay hint (documented as ignorable under vsync timing) is not relied on.
   Version 1.6.7, versionCode 21.
+- v1.6.8, owner orders 2026-10-13 (fourth and fifth notes): two placements.
+  The settings control now stands directly beside the "Quant of Rehan" title
+  instead of pinned to the row's far edge: `layout_toEndOf` anchors it to the
+  title's own right edge, so the pair holds at any screen width and at any
+  font scale, with 6dp of margin plus its own 6dp of padding leaving 12dp of
+  air between the name and the ink; the vertical anchors (`alignTop` and the
+  baseline translation in `MainActivity`) are untouched, so it still stands
+  on the brand baseline. And the cadence sentence's separation from the
+  final rule is now the layout's own 12dp, the gap the latest signal tile
+  has below its rule, so the console's last line sits on the same grid as
+  everything above it; the two leading newlines are retired from
+  `string/scan_cadence`, whose words stay byte-identical and stay the only
+  place they appear. Version 1.6.8, versionCode 22.
+- v1.6.9, owner orders 2026-10-14 (sixth, seventh and eighth notes): three
+  refinements of the same console. The settings control is centred VERTICALLY
+  on the "Quant of Rehan" title now: `layout_centerVertical` replaces
+  `layout_alignTop`, and the baseline translation of v1.6.6 is retired with
+  its `addOnLayoutChangeListener` and its 12dp overflow margin, so the pair
+  reads level at any font scale with no measured pixel; the brand row keeps
+  `clipChildren="false"`, which is what still keeps the 42dp box whole.
+  The status tile is spaced by one number: the pill had a 10dp top margin
+  above a 4dp detail gap, and both are `@dimen/status_gap` (10dp) now, so
+  SYSTEM STATUS to ONLINE and ONLINE to KARACHI are the same air; the beacon
+  to the word gap moves to `@dimen/status_dot_gap`, the 8dp the pill used to
+  carry as a compound drawable's padding. And the status light is rebuilt:
+  the beacon is its own `ImageView` inside the badge, because a compound
+  drawable cannot be animated by the platform, and the breath is a view
+  property animation on that view's alpha and scale, which the platform
+  interpolates on the render thread, so no frame of the pulse measures, lays
+  out or draws on the UI thread. Only a live market breathes: OFFLINE and
+  CHECKING hold a light that is not moving, and the badge announces the state
+  through one spoken description while its two children are decoration for the
+  reader.
+  Version 1.6.9, versionCode 23.
 - v1.6.1 stated the cadence on the main screen, under the system status pill;
   v1.6.2 moved that sentence into the market card's own foot (owner order
   2026-10-12), so it is read with the volume ranking it describes and the
@@ -237,7 +276,7 @@ with zipfile.ZipFile(f"{B}/app.apk", "a", zipfile.ZIP_DEFLATED) as z:
 PY
 "$JDK/bin/java" -jar $TOOLS/uber-apk-signer.jar -a $B/app.apk --out $B/signed
 cp $B/signed/app-aligned-debugSigned.apk \
-  /c/Users/rehan/OneDrive/Desktop/QuantOfRehan-v1.6.7.apk
+  /c/Users/rehan/OneDrive/Desktop/QuantOfRehan-v1.6.9.apk
 ```
 
 The Desktop this machine actually shows is `C:/Users/rehan/OneDrive/Desktop`
@@ -245,9 +284,11 @@ The Desktop this machine actually shows is `C:/Users/rehan/OneDrive/Desktop`
 `C:/Users/rehan/Desktop`. A build copied to the wrong one is invisible to the
 owner: the v1.6.0 APK went to `C:/Users/rehan/Desktop` and was reported missing.
 v1.6.2, v1.6.3 and v1.6.4 were built and copied to the OneDrive Desktop on
-2026-10-12, v1.6.5 on 2026-10-13, v1.6.6 the same day, and v1.6.7 the same
-day (built with the same aapt2, D8 and signer chain above, from this
-checkout).
+2026-10-12, v1.6.5 on 2026-10-13, and v1.6.6 and v1.6.7 the same day, each
+with the same aapt2, D8 and signer chain above, from this checkout. v1.6.8
+was built on 2026-10-13 and v1.6.9 on 2026-10-14, and the current
+`QuantOfRehan-v1.6.9.apk` on that Desktop (versionCode 23) is this
+checkout's build of the 2026-10-14 orders.
 
 ## Watchdog and battery
 
