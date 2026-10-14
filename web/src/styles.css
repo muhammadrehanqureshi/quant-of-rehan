@@ -1,0 +1,229 @@
+/* The layout: a header, a control strip, the chart, and the honesty panel.
+   Dark by default because a chart lives on a screen all day; the palette
+   matches the canvas theme so there is no seam at the canvas edge. */
+
+:root {
+  color-scheme: dark;
+  --bg: #0e1116;
+  --panel: #141922;
+  --line: #1c2330;
+  --text: #e6ebf2;
+  --muted: #8b98ab;
+  --up: #2fbf71;
+  --down: #e05252;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.45 ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+}
+
+.app {
+  display: grid;
+  grid-template-rows: auto auto minmax(280px, 1fr) auto auto;
+  gap: 10px;
+  height: 100%;
+  padding: 12px 14px 8px;
+}
+
+.header__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.header__symbol {
+  margin: 0;
+  font-size: 20px;
+  letter-spacing: 0.02em;
+}
+
+.header__price {
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+}
+
+.header__row--facts {
+  gap: 14px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.header__error {
+  margin: 6px 0 0;
+  padding: 6px 8px;
+  border-left: 3px solid var(--down);
+  background: rgba(224, 82, 82, 0.08);
+  color: var(--text);
+  font-size: 12px;
+}
+
+.delta {
+  font-variant-numeric: tabular-nums;
+}
+
+.delta--up {
+  color: var(--up);
+}
+
+.delta--down {
+  color: var(--down);
+}
+
+.pill {
+  padding: 2px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.pill--live {
+  border-color: var(--up);
+  color: var(--up);
+}
+
+.pill--reconnecting {
+  border-color: #d9a13b;
+  color: #d9a13b;
+}
+
+.app__controls {
+  display: flex;
+  align-items: end;
+  gap: 10px;
+}
+
+.picker {
+  display: flex;
+  gap: 10px;
+}
+
+.picker__field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.picker input,
+.picker select {
+  min-width: 130px;
+  padding: 5px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+}
+
+.app__controls button {
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.app__controls button:hover {
+  border-color: var(--muted);
+}
+
+.chart {
+  position: relative;
+  min-height: 280px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  overflow: hidden;
+}
+
+.chart__canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+
+.chart__readout {
+  position: absolute;
+  right: 70px;
+  bottom: 26px;
+  padding: 2px 6px;
+  color: var(--text);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+.chart__hint {
+  position: absolute;
+  right: 74px;
+  top: 8px;
+  color: var(--muted);
+  font-size: 11px;
+  pointer-events: none;
+}
+
+.notes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+  max-height: 30vh;
+  overflow: auto;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.notes__block h2 {
+  margin: 0 0 4px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+.notes__block ul {
+  margin: 0;
+  padding-left: 16px;
+  font-size: 12px;
+}
+
+.notes__quiet {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.notes__failures {
+  color: var(--down);
+}
+
+.notes__meta p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.app__footer {
+  color: var(--muted);
+  font-size: 11px;
+}
