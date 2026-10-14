@@ -13,11 +13,14 @@ Checks:
    legacy/ reference material is exempt because it is never modified.
 5. SO-7a: every PR commit carries the agent's co-author line, exactly once
    and exactly as the owner ordered it on 2026-10-13.
-5. SO-8: session logic must pin Karachi time (UTC+5) explicitly.
-6. SO-4: every declared backtest entry point refuses to run in GitHub
+6. SO-8: session logic must pin Karachi time (UTC+5) explicitly.
+7. SO-4: every declared backtest entry point refuses to run in GitHub
    Actions (src/ci/local_only.py) and no workflow invokes one.
-7. SO-12: every declared recurring entry point refuses to start on the
+8. SO-12: every declared recurring entry point refuses to start on the
    owner's PC, and no workflow registers a local task or a login entry.
+9. SO-13: the words of the 30-second cadence order stay in GOVERNANCE.md:
+   one scan for the card and the intraday strategy, the measured cost of a
+   cycle, and the fact that it is free on the public repository.
 
 Exit code 0 = compliant. Non-zero = PR must not merge.
 """
@@ -103,6 +106,11 @@ REQUIRED_GOVERNANCE_SNIPPETS = [
     "The 4-minute scanner is cloud-only",
     "Nothing recurring is registered on the PC any more",
     "the owner's PC is used for the backtests",
+    # Owner order 2026-10-14 (SO-13): the cadence the owner asked for, the
+    # single scan both readers get, and the fact that it costs him nothing.
+    "The scan cadence is 30 seconds",
+    "The same scan, observation and data-quality",
+    "The owner pays nothing",
 ]
 
 # SO-12: a workflow that registers local autostart would put recurring work
@@ -402,7 +410,8 @@ def main() -> int:
             print(f"  - {e}")
         return 1
 
-    print("GOVERNANCE CHECK PASSED: secrets clean, footprint honesty intact, "
+    print("GOVERNANCE CHECK PASSED (SO-13 cadence and free-minute law included): "
+          "secrets clean, footprint honesty intact, "
           "standing orders present, SO-7 style and identity verified, "
           "SO-7a co-author line verified, SO-8 Karachi pin verified, "
           "SO-4 local-only backtests enforced, SO-12 cloud-only recurring "

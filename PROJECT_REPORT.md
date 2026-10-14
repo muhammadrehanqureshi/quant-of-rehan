@@ -1630,3 +1630,70 @@ Added: `src/data/tape_bars.py`, `tests/test_tape_bars.py`. Changed:
 `.github/workflows/intraday-capture.yml`, `tests/test_kmiall_tick.py`,
 `README.md`, `DATA_SOURCING.md`, `MARKET_SCHEDULING.md`,
 `INTRADAY_FORWARD_SYSTEM.md`, this report.
+
+## 2026-10-14 · SO-13: the repo is public and the scan runs every 30 seconds
+
+Owner order, verbatim: "then make the repo public but then i want the quant of
+rehan to be scanned every 30 seconds, also I will not pay a single dime. AT
+ALL!!!" and "the 4 minute scan is the same for the app and for my intraday as
+well, they are not separate, the scan will be the same for both."
+
+**Why the cadence could not simply be raised before.** A scan every four
+minutes needs the bars of the last twenty minutes to already exist when it
+looks. The eClear servlet used to hand back the whole day in one call, so any
+fire, however short, saw them. It serves nothing now, and the tape only holds
+what a recorder was watching. Measured on the real 2026-10-13 session tape
+(44.6 MB, 314 symbols, 56,618 rows), a 420 second recording scanned at its own
+end gave 269 symbols with bars but at most five bars each against the twenty
+the strategy needs, and scanned at the slot instant it gave zero symbols: DATA
+BLOCKED either way. Recording a whole session inside GitHub Actions costs the
+session's length in billed minutes, about 7,600 a month against the 2,000
+minute private allowance, which is why the cadence could not be paid for there.
+
+**What changed.** The owner made the repository public on 2026-10-14, and
+standard GitHub-hosted runner minutes are free on a public repository, so the
+private ceiling no longer bounds the market-hours work. That makes one job per
+band affordable, and one job is all a 30 second cadence needs: it keeps the
+read-only broker recorder alive for the whole band, so a cycle does not fetch
+anything, it measures a tape that already exists. Measured cost of a cycle on
+that same real tape: bars built in 1.4s, loaded in 1.5s, gated and ranked in
+under 0.1s, about 2.9s inside a 30s slot.
+
+**How it runs.** `.github/workflows/intraday-session.yml` starts
+`scripts/scan_loop.py --loop --interval 30` at the beginning of each PSX band:
+09:32 PKT and 12:30 PKT Mon-Thu, and 09:17 PKT and 14:32 PKT on Friday, each
+window under GitHub's six-hour job cap and each ending at its band's close.
+The loop itself pauses in the warm-up, in the Friday midday break and outside
+the session, so a window that starts at a band edge never scans a shut market.
+The scheduled per-slot fires and the post-close finalize in
+`intraday-capture.yml` stay exactly as they were: they are the backstop if a
+band job dies mid-session.
+
+**One scan, two readers.** The same run, observation and data-quality report
+feed the phone's card and the intraday paper strategy. There is no second,
+cheaper scan for the app, and every gate is unchanged: coverage, freshness,
+bar history, structure and the volume-counter requirement. A cycle that cannot
+see the market reports DATA BLOCKED with the measured reason.
+
+**The slot guard had to be fixed, not bypassed.** Slots were labelled in whole
+minutes, so a 30 second runner keyed on minute slots would have scanned once a
+minute while its health file claimed every 30 seconds.
+`src/data/scan_schedule.py` now floors a sub-minute cadence onto its own grid
+(10:07:29 -> 10:07:00, 10:07:31 -> 10:07:30) and keeps the minute labels for
+the local 4 minute tick, and the loop's per-cycle question is now "is the tape
+alive and does it hold bars" rather than "did a fetch finish".
+`tests/test_scan_loop.py` holds both, plus the tape capture path: a tape on
+disk is kept alive and measured and the dead servlet is never called, a thin
+tape raises the health flag the ops alert quotes, and a dead tape is a
+classified fault rather than a market verdict.
+
+**Still true:** signal-only (SO-1), the PC carries nothing recurring (SO-12),
+the bars are the tape's own prints and the venue's own counter (SO-3), and the
+owner pays nothing: no Cloudflare plan, no extra minutes, no always-on host.
+
+Added: `.github/workflows/intraday-session.yml`. Changed: `src/config.py`
+(`SCAN_INTERVAL_SECONDS = 30`), `src/data/scan_schedule.py`,
+`scripts/scan_loop.py`, `scripts/check_governance.py`, `AGENTS.md`,
+`GOVERNANCE.md` (SO-13, and the SO-10 budget amended for a public repository),
+`README.md`, `MARKET_SCHEDULING.md`, `tests/test_scan_loop.py`,
+`tests/test_rebuild_schedule.py`, this report.
