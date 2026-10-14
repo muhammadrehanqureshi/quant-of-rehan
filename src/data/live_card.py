@@ -161,7 +161,12 @@ def start_tape() -> tuple[bool, str]:
     success sends every later cycle looking for bars a dead recorder never
     wrote (measured 2026-10-14, five faulted cycles in the cloud).
     """
-    command = [sys.executable, "-m", "src.data.feed_capture"]
+    # Unbuffered (-u) on purpose: the child's stdout is a file, so Python block
+    # buffers it and the recorder's own lines never reach the log. Measured
+    # 2026-10-14 on a GitHub Actions runner, the band's feed_capture.log came
+    # back 0 bytes while the tape itself was working, which makes a failure at
+    # the venue impossible to read from the artifact.
+    command = [sys.executable, "-u", "-m", "src.data.feed_capture"]
     creationflags = 0
     if os.name == "nt":
         # New process group and no console: the tape must not die with the
