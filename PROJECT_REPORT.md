@@ -1557,3 +1557,69 @@ Changed: `GOVERNANCE.md`, `src/ci/local_only.py`,
 
 Machine state at the end of the session: zero project processes resident, the
 Windows task Disabled, the Startup folder holding only `desktop.ini`.
+
+## 2026-10-14 · The bars come from the tape, not from the dead servlet
+
+Owner order 2026-10-14: the scan path must stop depending on the eClear OHLC
+servlet. It serves nothing (measured 2026-10-12: all three mirrors answered
+HTTP 200 with the bare envelope and zero rows for every symbol), so every
+scheduled scan was reporting DATA BLOCKED at 0/319 coverage while the tape the
+system already subscribes to was carrying the whole market.
+
+**The new bar path.** `src/data/tape_bars.py` builds one minute of bars per
+symbol from the banked MKT-FEED capture: open, high, low and close from the
+prices the tape carried in that minute, and volume from the difference of the
+venue's own running counter. A minute the venue was quiet in carries the
+previous close, bounded to gaps of at most `TAPE_CARRY_MAX_GAP_SECONDS` (5
+minutes) so an outage stays a hole in the series instead of a flat invented
+line, and nothing is written after the last observation. Counted and reported
+rather than absorbed: rows with no usable price, a counter that goes backwards,
+repeated snapshots, the volume that traded before the tape arrived, symbols
+whose first bar is not the day's open, and a self-check that no bar exceeds the
+venue's own day high or undercuts its day low.
+
+**The same gates, one door.** `scanner.load_tape_bars` produces the same
+`SessionData` the servlet capture produced, and `scanner.load_session` picks
+the loader by reading the file (`detect_capture_format`), so every caller
+reads whatever capture the machine actually has. `scripts/intraday_pipeline.py`
+resolves the source (tape first, a servlet capture on disk second) and stamps
+the source label and the source's own notes into the observation, the session
+record and the phone message. The coverage, freshness, malformed-share,
+staleness and volume gates are unchanged. One gate was ADDED, because the tape
+made the case real: a bar history floor, so a capture too short to rank
+anything is DATA BLOCKED with the measured bar count instead of a market NO
+TRADE.
+
+**The cloud job banks the tape.** `intraday-capture.yml` no longer fetches from
+the servlet; it runs the read-only recorder for the same 420s budget the
+servlet pass had (the job timeout is unchanged), writes the built bars as the
+run artifact, and leaves the same capture-health flag the ops alert already
+turns into one deduped message a day. The local tick keeps the tape alive and
+measures it, falling back to the servlet pass only when no tape exists for the
+day.
+
+**Measured on the real 2026-10-13 tape** (44.6 MB, 314 symbols, 56,618 tick
+rows, 09:52 to 13:47, with the 10:32 to 13:27 outage left as a hole): 301 of
+319 tracked symbols carry 1-minute bars (94.4% coverage against the 80% floor),
+35,039 bars of which 27.5% are carried quiet minutes, volume from the venue
+counter on 25,412 rows with zero resets, 258 symbols had pre-tape volume
+reported separately, and 0 symbols disagreed with the venue's own day extremes.
+
+**Honest limit, unresolved.** The tape observes a symbol about every 60 to 90
+seconds, so at 10:20 on that day the freshness gate measured 78.7% fresh
+coverage against its 80% floor (251 of the 319 tracked symbols, or 90.3% of
+the 278 the tape had any bar for: the 41 symbols with no bars are counted
+against the universe in both gates), and the scan therefore reported DATA
+BLOCKED with the staleness reason rather than trading through it. The cause is
+that a slice of KMIALL is genuinely quiet for more than five minutes, which
+the poller's one-bar-per-minute fabrication used to hide. The window is the
+owner's decision (the `MIN_FRESH_COVERAGE_PCT` tunable, the denominator the
+fresh share divides by, or a denser subscription), and `intraday_ohlcv` stays
+DEGRADED either way because this is forward capture with no archive behind it.
+
+Added: `src/data/tape_bars.py`, `tests/test_tape_bars.py`. Changed:
+`src/config.py`, `src/data/registry.py`, `src/signals/momentum_scanner.py`,
+`scripts/intraday_pipeline.py`, `scripts/kmiall_tick.py`, `scripts/ops_alert.py`,
+`.github/workflows/intraday-capture.yml`, `tests/test_kmiall_tick.py`,
+`README.md`, `DATA_SOURCING.md`, `MARKET_SCHEDULING.md`,
+`INTRADAY_FORWARD_SYSTEM.md`, this report.

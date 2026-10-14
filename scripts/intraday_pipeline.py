@@ -40,6 +40,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from src import config  # noqa: E402
+from src.data import tape_bars  # noqa: E402
 from src.data.sessions import (  # noqa: E402
     KARACHI, close_time, is_scan_window, is_trading_day, now_karachi,
 )
@@ -197,7 +198,40 @@ def session_legal(as_of: datetime) -> bool:
 
 
 def capture_path(day) -> Path:
+    """The eClear OHLC servlet capture. The secondary source now.
+
+    Kept because a capture already on disk is still genuine data and the
+    loader for it is untouched; the servlet itself serves no bars, so the tape
+    below is what a live scan reads (owner order 2026-10-14).
+    """
     return DATA_DIR / f"ohlc_{day:%Y%m%d}.ndjson"
+
+
+def tape_capture_path(day) -> Path:
+    """The broker MKT-FEED tape capture: the bar source (SO-3, 2026-10-14)."""
+    return tape_bars.capture_path(day)
+
+
+def resolve_capture(day) -> Path:
+    """Which capture a scan should read, and why it is that one.
+
+    The tape comes first because it is the source that is genuinely alive: the
+    system subscribes to it every session, and it is what the phone's card and
+    the buy/sell split already read. The servlet capture is used when no tape
+    exists for the day at all, so a machine that has an older capture on disk
+    still scans off it instead of reporting an empty market. When neither
+    exists the tape path is returned, and the loader reports the missing file
+    as the DATA failure it is rather than inventing a capture.
+    """
+    tape = tape_capture_path(day)
+    if tape.is_file() and tape.stat().st_size > 0:
+        return tape
+    poller = capture_path(day)
+    if poller.is_file() and poller.stat().st_size > 0:
+        print(f"no tape capture for {day.isoformat()}; reading the servlet "
+              f"capture {poller.name} instead")
+        return poller
+    return tape
 
 
 def target_check(state: SessionState, session: scanner.SessionData):
@@ -217,6 +251,27 @@ def target_check(state: SessionState, session: scanner.SessionData):
 def last_price(session: scanner.SessionData, symbol: str | None) -> float | None:
     rows = session.bars.get(symbol or "")
     return rows[-1].close if rows else None
+
+
+def capture_label(path: Path, session: scanner.SessionData) -> dict:
+    """Which capture spoke, in what format, and what it could not see.
+
+    Every observation and session record carries this, so a reader of the
+    archive can tell a tape-based scan from a servlet-based one without
+    reading the file name, and can see the source's own notes about the holes
+    and the carried minutes (SO-3).
+    """
+    return {
+        "path": str(path),
+        "file": path.name,
+        "format": scanner.detect_capture_format(path),
+        "exists": path.is_file(),
+        "bars_seen": session.bars_seen,
+        "bars_rejected": session.bars_rejected,
+        "duplicate_rows": session.duplicate_bars,
+        "source": session.source,
+        "notes": list(session.notes),
+    }
 
 
 def write_observation(payload: dict) -> Path:
@@ -258,7 +313,7 @@ def run_scan(slot: str, capture: Path | None = None) -> dict:
     day = now_karachi().date()
     as_of = scheduled_as_of(slot, day)
     symbols = load_kmiall()
-    path = capture or capture_path(day)
+    path = capture or resolve_capture(day)
 
     if not session_legal(as_of):
         print(f"{as_of:%Y-%m-%d %H:%M} PKT is outside the Karachi session: "
@@ -269,7 +324,7 @@ def run_scan(slot: str, capture: Path | None = None) -> dict:
     state.begin_session()
     state.begin_scan()
 
-    session = scanner.load_capture(path, symbols, as_of)
+    session = scanner.load_session(path, symbols, as_of)
     quality = scanner.assess_quality(session, symbols)
 
     if quality.status == scanner.DATA_BLOCKED:
@@ -281,6 +336,7 @@ def run_scan(slot: str, capture: Path | None = None) -> dict:
         payload = {
             "date": day.isoformat(), "slot": slot, "as_of": as_of.isoformat(),
             "status": scanner.DATA_BLOCKED, "reason": quality.reason,
+            "capture": capture_label(path, session),
             "data_quality": quality.as_dict(), "trade_state": state.to_dict(),
             "ai": ai_model.status(),
             "universe_size": len(symbols),
@@ -365,6 +421,7 @@ def run_scan(slot: str, capture: Path | None = None) -> dict:
         "status": status,
         "reason": reason,
         "delivered": delivered,
+        "capture": capture_label(path, session),
         "data_quality": quality.as_dict(),
         "market": context,
         "candidate": entered,
@@ -399,10 +456,10 @@ def run_finalize(capture: Path | None = None) -> dict:
     as_of = datetime(day.year, day.month, day.day, close_h, close_m,
                      tzinfo=KARACHI) + timedelta(minutes=1)
     symbols = load_kmiall()
-    path = capture or capture_path(day)
+    path = capture or resolve_capture(day)
 
     state = SessionState.load(day)
-    session = scanner.load_capture(path, symbols, as_of)
+    session = scanner.load_session(path, symbols, as_of)
     quality = scanner.assess_quality(session, symbols)
     context = scanner.market_context(session) if session.bars else {}
 
@@ -449,6 +506,7 @@ def run_finalize(capture: Path | None = None) -> dict:
         "minutes_held": minutes_held,
         "outcome": outcome_label,
         "market": context,
+        "capture": capture_label(path, session),
         "data_quality": quality.as_dict(),
         "universe_size": len(symbols),
         "universe_sha256": universe_fingerprint(symbols),

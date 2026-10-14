@@ -55,7 +55,21 @@ REGISTRY: Dict[str, DataSource] = {
                "broker feed capture (src/data/feed_capture.py) and 1-minute "
                "OHLC poller (src/data/ohlc_poller.py) now bank genuine bars "
                "daily. Forward-only: no historical claims, DEGRADED until "
-               "weeks of banked sessions exist.",
+               "weeks of banked sessions exist. "
+               "UPDATE 2026-10-14: the eClear GetOHLCData servlet that Path A "
+               "read serves no bars at all, so the scan path now reads bars "
+               "built from the broker tape (src/data/tape_bars.py): open, "
+               "high, low and close are the prices the tape carried in that "
+               "minute, and volume is the difference of the venue's own "
+               "running counter. The servlet capture stays as the fallback "
+               "when no tape exists for the day. MEASURED on the 2026-10-13 "
+               "KMIALL tape (314 symbols, 56,618 tick rows, 09:52 to 13:47 "
+               "Asia/Karachi, the one fixed offset UTC+5 this system speaks, "
+               "with a 10:32 to 13:27 outage in it): 1-minute bars for 301 of 319 "
+               "tracked symbols, 27.5% of them carried minute bars for quiet "
+               "minutes, and zero symbols whose bars disagreed with the "
+               "venue's own day high and low. Bar history and freshness are "
+               "measured per scan, not assumed.",
     ),
     "footprint": DataSource(
         key="footprint",
