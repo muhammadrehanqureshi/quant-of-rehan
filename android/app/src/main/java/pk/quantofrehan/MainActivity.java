@@ -1,11 +1,9 @@
 package pk.quantofrehan;
 
-import android.animation.ValueAnimator;
 import android.app.Activity;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.res.ColorStateList;
-import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Bundle;
@@ -13,10 +11,11 @@ import android.text.SpannableString;
 import android.text.style.ForegroundColorSpan;
 import android.text.style.TypefaceSpan;
 import android.view.View;
-import android.view.animation.LinearInterpolator;
+import android.view.animation.AccelerateDecelerateInterpolator;
 import android.view.animation.DecelerateInterpolator;
 import android.widget.EditText;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -71,21 +70,38 @@ import java.util.Locale;
  * the "Trading resumes" line is retired from the status tile, and a leader
  * row brackets its volume group.
  *
- * Owner order 2026-10-13 (second note): the settings control stands ON the
- * "Quant of Rehan" baseline rather than centred on its row, a diamond rule
- * divides the system status tile from the latest signal tile, the rule that
- * closed the market card from inside it now stands immediately after that
- * tile's own boundary, and the ONLINE indicator breathes, its opacity and its
- * size, for as long as the relay reports the market OPEN.
+ * Owner order 2026-10-13 (second note): a diamond rule divides the system
+ * status tile from the latest signal tile, and the rule that closed the
+ * market card from inside it now stands immediately after that tile's own
+ * boundary.
  *
- * Owner order 2026-10-13 (third note): the settings control keeps its place
- * on the brand baseline but no longer overflows the header row (it carries
- * the vertical margin that gives its box a home, and the row holds no clip),
- * the cadence sentence moves out of the market card to sit immediately after
- * the final diamond rule behind two line breaks, and the status light's pulse
- * is rebuilt: both states breathe, the ONLINE beacon in the palette green and
- * the OFFLINE one in the palette red, at a hard 25 frames per second that is
- * quantised in the animator's own clock.
+ * Owner order 2026-10-13 (third note): the cadence sentence moves out of the
+ * market card to sit immediately after the final diamond rule.
+ *
+ * Owner order 2026-10-13 (fourth note): the control now stands directly
+ * beside the title instead of pinned to the row's far edge. The XML anchors
+ * it with layout_toEndOf the title, so the pair holds at any screen width and
+ * at any font scale.
+ *
+ * Owner order 2026-10-13 (fifth note): the cadence sentence sits 12dp below
+ * the final diamond rule, the same gap the tiles have below their rules, so
+ * the console's last line is on the grid; the two leading newlines are
+ * retired from the string resource, whose words are untouched.
+ *
+ * Owner order 2026-10-14 (sixth note): the settings control is VERTICALLY
+ * CENTRED on the "Quant of Rehan" title, so the two read as one line at any
+ * font scale. The baseline rule of the second note is retired, and with it
+ * the layout listener that measured that baseline after every layout.
+ *
+ * Owner order 2026-10-14 (seventh note): the breathing light is a view
+ * animation now, on the beacon's own alpha and scale, which the platform
+ * interpolates on the render thread; the drawable it used to rewrite on a
+ * 40ms grid is retired. And only a live market breathes: ONLINE pulses,
+ * OFFLINE and CHECKING hold a light that is not moving.
+ *
+ * Owner order 2026-10-14 (eighth note): the status tile's spacing is one
+ * number, @dimen/status_gap, so SYSTEM STATUS to ONLINE and ONLINE to
+ * KARACHI are the same air rather than two margins that could drift apart.
  */
 public class MainActivity extends Activity {
 
@@ -108,23 +124,19 @@ public class MainActivity extends Activity {
     private static final long GEAR_TURN_MS = 220L;
 
     /**
-     * The pulse's frame budget (owner order 2026-10-13, third note). The owner
-     * asked for a smooth 25 frames per second, so one drawn step every 40ms:
-     * 1000 / 25. Android has no CSS keyframes and no requestAnimationFrame to
-     * call; the equivalent is a property animator, whose update listener fires
-     * on the Choreographer's vsync clock. That clock is quantised to this grid
-     * in startStatusBreath, so the light changes exactly 25 times a second on
-     * every phone, and the platform's own frame delay hint is deliberately not
-     * used: its documentation says it may be ignored when the animation system
-     * rides vsync, which is exactly this case.
-     */
-    private static final long FRAME_MS = 40L;
-
-    /**
      * One breathing cycle of the status light (owner order 2026-10-13, second
-     * note). 2.2 seconds per breath: slow enough to read as alive rather than
-     * as a blink, and long enough that a glance never catches it mid flicker.
-     * It holds 55 of the 40ms steps above.
+     * note; rebuilt 2026-10-14, seventh note). 2.2 seconds per breath: slow
+     * enough to read as alive rather than as a blink, and long enough that a
+     * glance never catches it mid flicker. Half of it is one direction of the
+     * cycle below, because the animation reverses instead of restarting.
+     *
+     * Why it is a view animation and not a drawable rewrite: Android has no
+     * CSS keyframes, and its equivalent of an accelerated keyframe rule is a
+     * view property animation on alpha and scale. The platform keeps those two
+     * in the RenderNode and interpolates them on the render thread, so the
+     * frames cost this thread nothing. The retired version wrote the compound
+     * drawable's bounds and alpha from an update listener on a 40ms grid,
+     * which redrew the whole pill on the UI thread 25 times a second.
      */
     private static final long BREATH_MS = 2200L;
 
@@ -143,19 +155,19 @@ public class MainActivity extends Activity {
     private static final float BREATH_MIN_SCALE = 0.88f;
 
     private SharedPreferences prefs;
-    private TextView statusPill, statusDetail, signalList;
+    /** The state badge: the beacon and the word, one pill. */
+    private LinearLayout statusBadge;
+    /** The beacon itself, a view so its pulse is an accelerated property. */
+    private ImageView statusDot;
+    /** The word that, with the colour, carries the state. */
+    private TextView statusWord;
+    private TextView statusDetail, signalList;
     private TextView marketIndex, marketLeaders;
     /** Turned and tinted by setSettingsOpen, so it is the ImageView itself. */
     private ImageView btnSettings;
-    /** The brand line whose baseline the settings control stands on. */
-    private TextView brandTitle;
     private View settingsPanel;
-    /** The running status pulse, or null while the dot is still. */
-    private ValueAnimator breathAnim;
-    /** The exact dot the running animator drives: a re-render installs a new one. */
-    private Drawable breathTarget;
-    /** The 40ms step the last drawn frame belonged to, so each step draws once. */
-    private long breathFrame = -1L;
+    /** True while the beacon is breathing, so the cycle knows to continue. */
+    private boolean breathRunning;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -163,22 +175,15 @@ public class MainActivity extends Activity {
         prefs = getSharedPreferences("qor", MODE_PRIVATE);
         setContentView(R.layout.activity_main);
 
-        statusPill = findViewById(R.id.status_pill);
+        statusBadge = findViewById(R.id.status_pill);
+        statusDot = findViewById(R.id.status_dot);
+        statusWord = findViewById(R.id.status_word);
         statusDetail = findViewById(R.id.status_detail);
         signalList = findViewById(R.id.signal_list);
         marketIndex = findViewById(R.id.market_index);
         marketLeaders = findViewById(R.id.market_leaders);
         settingsPanel = findViewById(R.id.settings_panel);
         btnSettings = findViewById(R.id.btn_settings);
-        brandTitle = findViewById(R.id.brand_title);
-        // Owner order 2026-10-13 (second note): the control stands on the
-        // brand line's baseline. That line's position comes from Bonskin's
-        // metrics and from the system font scale, so it cannot be a fixed
-        // margin: it is measured once the title has a layout, and measured
-        // again whenever that layout changes.
-        brandTitle.addOnLayoutChangeListener(
-                (v, left, top, right, bottom, oldLeft, oldTop, oldRight,
-                 oldBottom) -> alignSettingsToBrandBaseline());
 
         final EditText tokenBox = findViewById(R.id.token_box);
         tokenBox.setText(prefs.getString("admin_token", ""));
@@ -237,121 +242,77 @@ public class MainActivity extends Activity {
     }
 
     /**
-     * Puts the settings control on the brand line's baseline (owner order
-     * 2026-10-13, second note).
+     * The status light's pulse (owner order 2026-10-14, seventh note).
      *
-     * "Aligned with the baseline" is exact here rather than approximate: the
-     * control's bottom edge is placed on the same line the title's glyphs sit
-     * on, the way an inline glyph would. The offset has to be measured rather
-     * than declared, because a 30sp Bonskin line puts its baseline wherever
-     * that font's metrics and the system font scale say. The two views are
-     * siblings in the header row, so their top and bottom coordinates share
-     * one space and the subtraction is direct.
-     */
-    private void alignSettingsToBrandBaseline() {
-        int baseline = brandTitle.getBaseline();     // -1 until the first layout
-        if (baseline < 0) {
-            return;
-        }
-        int line = brandTitle.getTop() + baseline;   // in the row's coordinates
-        btnSettings.setTranslationY(line - btnSettings.getBottom());
-    }
-
-    /**
-     * The status light's pulse (owner order 2026-10-13, third note).
+     * Only a live market breathes. The badge is ONLINE exactly when the relay
+     * is reachable and the session is trading, so the pulse belongs to that
+     * state alone: OFFLINE (a closed market, its break, or an unreachable
+     * relay) and CHECKING (the app has not heard from the relay yet) hold a
+     * light that is not moving. The state is still carried by the word and
+     * the colour, never by the motion, so a pulse cannot claim the market is
+     * trading (SO-3).
      *
-     * Both states breathe: the ONLINE beacon pulses green and the OFFLINE one
-     * pulses red, so the console reads as awake whether the session is live or
-     * shut. The state is never carried by the motion: the word and the colour
-     * say which state it is, so a pulse cannot claim the market is trading
-     * (SO-3). CHECKING is the one dot left still, because the app has not
-     * heard from the relay yet and a pulse there would imply a state the app
-     * does not know.
-     *
-     * The animator carries the cycle's clock and nothing else: it runs
-     * linearly from 0 to 1 for BREATH_MS and repeats. The update listener
-     * fires on the vsync clock, quantises the elapsed cycle to the 40ms grid
-     * (25 frames per second), draws nothing when the step has not advanced,
-     * and shapes the breath with a raised cosine. One animator drives the
-     * dot's opacity and its size, and the size is applied to the drawable's
-     * own bounds about its centre, so the glow shrinks in place inside the
-     * pill instead of sliding and the word beside it never moves.
+     * Two accelerated view properties carry it: alpha and scale on the
+     * beacon's own view. The platform keeps those in the RenderNode and
+     * interpolates them on the render thread, which is this platform's
+     * equivalent of a CSS keyframe animation on transform and opacity: the
+     * frames touch no layout, no measure and no draw on this thread. Each
+     * direction is half a cycle and the return is the same curve mirrored,
+     * so one breath is BREATH_MS and the light never jumps.
      */
     private void startStatusBreath() {
-        Drawable dot = statusPill.getCompoundDrawablesRelative()[0];
-        if (dot == null) {
-            stopStatusBreath();
-            return;
+        if (statusDot == null || breathRunning) {
+            return;                     // nothing to pulse, or already live
         }
-        if (breathAnim != null && breathAnim.isRunning() && dot == breathTarget) {
-            return;                     // this exact dot is already breathing
-        }
-        stopStatusBreath();             // a re-render hands over a new drawable
-        breathTarget = dot;
-        breathAnim = ValueAnimator.ofFloat(0f, 1f);
-        breathAnim.setDuration(BREATH_MS);
-        breathAnim.setRepeatCount(ValueAnimator.INFINITE);
-        // Linear on purpose: the animated fraction is then the cycle's own
-        // elapsed time, which is the value quantised below. The breath's
-        // curve is breathValue, applied to the quantised frame, so the shape
-        // is the app's rather than the interpolator's.
-        breathAnim.setInterpolator(new LinearInterpolator());
-        breathAnim.addUpdateListener(a -> {
-            long frame = (long) (a.getAnimatedFraction() * BREATH_MS) / FRAME_MS;
-            if (frame == breathFrame) {
-                return;             // still inside the same 40ms step
-            }
-            breathFrame = frame;
-            drawBreathFrame(dot, breathValue(frame * (float) FRAME_MS / BREATH_MS));
-        });
-        breathAnim.start();
+        stopStatusBreath();             // a re-render starts from rest
+        breathRunning = true;
+        breatheTo(BREATH_MIN_ALPHA, BREATH_MIN_SCALE, this::breatheBack);
     }
 
     /**
-     * The breath's curve: a raised cosine over one cycle, 0 at the start of a
-     * cycle, 1 at its half and 0 again at its end. Value and slope both return
-     * to where they began, which is what makes the repeat seamless, and the
-     * middle of the cycle is spent near the top, so the light reads as
-     * breathing rather than as fading in and out.
+     * Starts the pulse only for a live market (owner order 2026-10-14).
+     * Every other state, and every hidden console, is still.
      */
-    private static float breathValue(float phase) {
-        return (float) (0.5 - 0.5 * Math.cos(2.0 * Math.PI * phase));
+    private void breathIfOnline(boolean online) {
+        if (online) {
+            startStatusBreath();
+        } else {
+            stopStatusBreath();
+        }
     }
 
-    /** One drawn step: the dot's opacity and its size for a breath value k. */
-    private void drawBreathFrame(Drawable dot, float k) {
-        dot.setAlpha(Math.round(255f
-                * (BREATH_MIN_ALPHA + (1f - BREATH_MIN_ALPHA) * k)));
-        float scale = BREATH_MIN_SCALE + (1f - BREATH_MIN_SCALE) * k;
-        int halfW = Math.round(dot.getIntrinsicWidth() * scale / 2f);
-        int halfH = Math.round(dot.getIntrinsicHeight() * scale / 2f);
-        // The centre is read from the live bounds: a re-layout may have just
-        // rewritten them, and scaling about the centre never moves it, so the
-        // dot cannot drift inside the pill.
-        int cx = dot.getBounds().centerX();
-        int cy = dot.getBounds().centerY();
-        dot.setBounds(cx - halfW, cy - halfH, cx + halfW, cy + halfH);
+    /** One direction of the breath, and the next step when it lands. */
+    private void breatheTo(float alpha, float scale, Runnable next) {
+        statusDot.animate()
+                .alpha(alpha)
+                .scaleX(scale)
+                .scaleY(scale)
+                .setDuration(BREATH_MS / 2)
+                .setInterpolator(new AccelerateDecelerateInterpolator())
+                .withEndAction(next)
+                .start();
+    }
+
+    /** The return: full opacity and the beacon's own 18dp again. */
+    private void breatheBack() {
+        if (!breathRunning) {
+            return;                     // stopped while this half was queued
+        }
+        breatheTo(1f, 1f, this::startStatusBreath);
     }
 
     /**
-     * Returns the dot to rest: full opacity, its own 18dp size, no animator.
-     * Called by every render that is not a live open market, and by onPause.
+     * Returns the beacon to rest: full opacity, its own 18dp size, no
+     * animation. Called for every state that is not a live market, and by
+     * onPause.
      */
     private void stopStatusBreath() {
-        if (breathAnim != null) {
-            breathAnim.cancel();
-            breathAnim = null;
-        }
-        breathFrame = -1L;
-        if (breathTarget != null) {
-            breathTarget.setAlpha(255);
-            int cx = breathTarget.getBounds().centerX();
-            int cy = breathTarget.getBounds().centerY();
-            int halfW = breathTarget.getIntrinsicWidth() / 2;
-            int halfH = breathTarget.getIntrinsicHeight() / 2;
-            breathTarget.setBounds(cx - halfW, cy - halfH,
-                    cx + halfW, cy + halfH);
-            breathTarget = null;
+        breathRunning = false;
+        if (statusDot != null) {
+            statusDot.animate().cancel();
+            statusDot.setAlpha(1f);
+            statusDot.setScaleX(1f);
+            statusDot.setScaleY(1f);
         }
     }
 
@@ -407,30 +368,32 @@ public class MainActivity extends Activity {
         bg.setCornerRadius(dp(18));
         bg.setColor(getColor(online ? R.color.green_soft : R.color.red_soft));
         bg.setStroke(dp(1), getColor(online ? R.color.green : R.color.red));
-        statusPill.setBackground(bg);
+        statusBadge.setBackground(bg);
         // The owner's marker law, 2026-10-11: one status light beside the
         // word, lit for ONLINE and hollow for OFFLINE, so the badge reads as
         // an indicator rather than as an emoji. A shut session is OFFLINE.
-        statusPill.setCompoundDrawablesRelativeWithIntrinsicBounds(online
-                ? R.drawable.ic_status_online : R.drawable.ic_status_offline,
-                0, 0, 0);
-        statusPill.setText(getString(online
+        // The beacon is its own view since 2026-10-14, which is what lets the
+        // pulse below be a view property animation.
+        statusDot.setImageResource(online
+                ? R.drawable.ic_status_online : R.drawable.ic_status_offline);
+        statusWord.setText(getString(online
                 ? R.string.status_online : R.string.status_offline));
-        statusPill.setTextColor(getColor(online
+        statusWord.setTextColor(getColor(online
                 ? R.color.green : R.color.red));
-        // Material accessibility: the pill is a live state indicator, so it
-        // announces itself and carries a spoken description. A glyph alone
-        // reads as "multiplication X" to a screen reader.
-        statusPill.setContentDescription(getString(online
+        // Material accessibility: the badge is a live state indicator, so it
+        // announces itself and carries a spoken description, and its two
+        // children are decoration for the reader: the word alone would be
+        // read a second time against that description. A glyph alone reads
+        // as "multiplication X" to a screen reader.
+        statusBadge.setContentDescription(getString(online
                 ? R.string.cd_status_online : R.string.cd_status_offline));
 
-        // The status light's pulse (owner order 2026-10-13, third note): both
-        // states breathe, the ONLINE beacon in the palette green and the
-        // OFFLINE one in the palette red, and the word and the colour carry
-        // which state it is, so the motion never claims the market is trading.
-        // Only the CHECKING dot stays still: the app has not heard from the
-        // relay yet, and a pulse there would imply a state it does not know.
-        startStatusBreath();
+        // The status light's pulse (owner order 2026-10-14, seventh note):
+        // only a live market breathes, so the beacon is still while the market
+        // is closed, while it is on its midday break, and while the relay is
+        // unreachable. The word and the colour carry the state; the motion
+        // never does, so a pulse cannot claim the market is trading (SO-3).
+        breathIfOnline(online);
 
         String d = detail == null ? "" : detail.trim();
         if (d.isEmpty()) {

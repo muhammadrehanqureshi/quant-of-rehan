@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The status tile's spacing, one number (owner order 2026-10-14,
+         eighth note). SYSTEM STATUS to ONLINE and ONLINE to KARACHI are the
+         same air, so the tile's rhythm is declared here rather than in two
+         margins that could drift apart. -->
+    <dimen name="status_gap">10dp</dimen>
+
+    <!-- The beacon to the word inside the badge: the 8dp the compound
+         drawable used to carry as android:drawablePadding. -->
+    <dimen name="status_dot_gap">8dp</dimen>
+</resources>

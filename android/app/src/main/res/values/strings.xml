@@ -38,18 +38,20 @@
     <!-- ============ scan cadence ============
          Owner order 2026-10-12, exact text. Owner order 2026-10-13 (third
          note): the sentence leaves the market card and stands immediately
-         after the final diamond rule on the console, separated from that rule
-         by two line breaks, so it is the last thing the console says. The two
-         breaks are the two leading newlines here rather than a margin in the
-         layout, because the sentence and the air above it are one fact about
-         the copy and cannot drift apart this way. The 4 is
+         after the final diamond rule on the console. Owner order 2026-10-13
+         (fifth note): the air above it is no longer part of this resource.
+         The two leading newlines are retired and the separation lives in
+         the layout as a 12dp margin, the same gap every tile has below its
+         rule, because the sentence must sit on the console's own grid; the
+         words stay exactly as ordered and stay the only place they appear.
+         The 4 is
          the real interval, not decoration: it is
          config.TICK_INTERVAL_MINUTES = 4, which drives the Windows tick, the
          supervised scan loop and the slot guard. The scanning happens only
          inside a live band (Mon-Thu 09:32-15:30, Friday 09:17-12:00 and
          14:32-16:30), which is what the sentence states.
          Owner wording confirmed 2026-10-12: "when the market is open". -->
-    <string name="scan_cadence">\n\nQuant will be scanning the market every 4 minutes when the market is open.</string>
+    <string name="scan_cadence">Quant will be scanning the market every 4 minutes when the market is open.</string>
 
     <!-- ============ session copy ============
          Owner order 2026-10-11, exact texts for the three market conditions.
