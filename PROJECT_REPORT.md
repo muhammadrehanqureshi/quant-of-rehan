@@ -1599,11 +1599,15 @@ measures it, falling back to the servlet pass only when no tape exists for the
 day.
 
 **Measured on the real 2026-10-13 tape** (44.6 MB, 314 symbols, 56,618 tick
-rows, 09:52 to 13:47, with the 10:32 to 13:27 outage left as a hole): 301 of
+rows, 09:52 to 13:47, with the 10:32 to 13:27 outage left as a hole, read to
+15:30 PKT so the whole frozen session is in the measurement): 301 of
 319 tracked symbols carry 1-minute bars (94.4% coverage against the 80% floor),
-35,039 bars of which 27.5% are carried quiet minutes, volume from the venue
-counter on 25,412 rows with zero resets, 258 symbols had pre-tape volume
+69,303 bars of which 13,141 (19.0%) are carried quiet minutes, volume from the
+venue counter on 56,209 rows with zero resets, 258 symbols had pre-tape volume
 reported separately, and 0 symbols disagreed with the venue's own day extremes.
+(The first version of this paragraph quoted 27.5% carried, 35,039 bars and
+25,412 counter rows, which the shipped builder does not produce: re-measured
+from the frozen file on 2026-10-14 and corrected here.)
 
 **Honest limit, unresolved.** The tape observes a symbol about every 60 to 90
 seconds, so at 10:20 on that day the freshness gate measured 78.7% fresh
@@ -1611,11 +1615,14 @@ coverage against its 80% floor (251 of the 319 tracked symbols, or 90.3% of
 the 278 the tape had any bar for: the 41 symbols with no bars are counted
 against the universe in both gates), and the scan therefore reported DATA
 BLOCKED with the staleness reason rather than trading through it. The cause is
-that a slice of KMIALL is genuinely quiet for more than five minutes, which
-the poller's one-bar-per-minute fabrication used to hide. The window is the
-owner's decision (the `MIN_FRESH_COVERAGE_PCT` tunable, the denominator the
-fresh share divides by, or a denser subscription), and `intraday_ohlcv` stays
-DEGRADED either way because this is forward capture with no archive behind it.
+that a slice of KMIALL genuinely trades less than once per five minutes, so its
+last print, and therefore its last bar, is older than the freshness floor. The
+servlet pass never exposed that: it served no bars at all, so every scan was
+blocked on coverage (0 of 319) before freshness could be measured. The window
+is the owner's decision (the `MIN_FRESH_COVERAGE_PCT` tunable, the denominator
+the fresh share divides by, or a denser subscription), and `intraday_ohlcv`
+stays DEGRADED either way because this is forward capture with no archive
+behind it.
 
 Added: `src/data/tape_bars.py`, `tests/test_tape_bars.py`. Changed:
 `src/config.py`, `src/data/registry.py`, `src/signals/momentum_scanner.py`,

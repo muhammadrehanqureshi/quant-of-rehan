@@ -118,14 +118,18 @@ when labeled degraded. They are never presented as true order flow.
   capture too short to rank anything is DATA BLOCKED instead of a market
   NO TRADE, and a floor that keeps the volume counter a requirement.
   MEASURED on the full 2026-10-13 tape (44.6 MB, 314 symbols, 56,618 tick
-  rows, 09:52 to 13:47, with the 10:32 to 13:27 outage left as a hole):
-  301 of 319 tracked symbols carry 1-minute bars (94.4% coverage, above the
-  80% floor), 27.5% of the bars are carried minutes for a quiet symbol,
-  volume comes from the venue counter on 25,412 rows with no reset, 0
-  symbols hold a bar above the venue's own day high or below its day low,
-  and 20 minutes into the open the freshness gate measured 78.7% against its
-  80% floor (251 of 319 symbols, which is 90.3% of the 278 the tape held any
-  bar for). That last number is a real, unresolved limit: the tape observes a
+  rows, 09:52 to 13:47, with the 10:32 to 13:27 outage left as a hole, read
+  to 15:30 PKT so the whole frozen session is in the measurement): 301 of 319
+  tracked symbols carry 1-minute bars (94.4% coverage, above the 80% floor),
+  13,141 of the 69,303 bars (19.0%) are carried minutes for a quiet symbol,
+  volume comes from the venue counter on 56,209 rows with no reset, 0 symbols
+  hold a bar above the venue's own day high or below its day low, and 20
+  minutes into the open the freshness gate measured 78.7% against its 80%
+  floor (251 of 319 symbols, which is 90.3% of the 278 the tape held any bar
+  for). An earlier draft of this paragraph quoted 27.5% carried, 35,039 bars
+  and 25,412 counter rows; re-measured from the frozen file on 2026-10-14
+  against the shipped builder, which produces the figures above.
+  That last number is a real, unresolved limit: the tape observes a
   symbol about every 60 to 90 seconds, so a slice of the KMIALL universe is
   genuinely quiet for more than five minutes, and the scan reports that as a
   blocked scan rather than trading through it. `intraday_ohlcv` therefore
