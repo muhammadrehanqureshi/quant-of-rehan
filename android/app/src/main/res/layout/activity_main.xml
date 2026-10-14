@@ -15,15 +15,17 @@
         android:paddingTop="18dp"
         android:paddingBottom="24dp">
 
-        <!-- ══════════ header: brand centered, gear floats right ══════════ -->
+        <!-- ══════════ header: brand centered, gear beside the brand ══════════ -->
         <RelativeLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content">
 
             <!-- The brand line and the settings control share this row, so the
                  control is centred on "Quant of Rehan" itself rather than on
-                 the brand block with its tagline (owner order 2026-10-13). The
-                 tagline sits below the row and never influences the control. -->
+                 the brand block with its tagline (owner order 2026-10-13), and
+                 it is centred on that line vertically as well, owner order
+                 2026-10-14 below. The tagline sits below the row and never
+                 influences the control. -->
             <RelativeLayout
                 android:id="@+id/brand_row"
                 android:clipChildren="false"
@@ -79,25 +81,43 @@
                      Bonskin's metrics and from the system font scale and
                      cannot be expressed as a fixed margin.
 
-                     Owner order 2026-10-13 (third note): the control was
-                     overflowing its row. Its box is 42dp tall while the
-                     brand line's baseline sits about 30dp down that line
-                     (Bonskin's hhea ascender is 1006/1000 em at 30sp), so the
-                     box overhangs the row's top edge by about 9dp, and a
-                     RelativeLayout clips its children by default: the top of
-                     the silhouette was being shaved off. The 12dp top margin
-                     below gives that overhang a home inside the row, and the
-                     row also turns clipChildren off, so the guarantee does
-                     not rest on one magic number once the system font scale
-                     moves the baseline. The control's own 6dp padding stays:
-                     it is what keeps the ink clear of the box edge. -->
+                     Owner order 2026-10-13 (third note): the control used to
+                     overflow its row, because its box is 42dp tall while a
+                     30sp Bonskin line stands only about 30dp of ink above its
+                     baseline. The row therefore turns clipChildren off, so
+                     the guarantee does not rest on one magic number once the
+                     system font scale moves that line.
+
+                     Owner order 2026-10-13 (fourth note): the control stands
+                     directly BESIDE the title instead of pinned to the row's
+                     far edge, so it is always next to "Quant of Rehan" and
+                     never floating alone in the corner. It is anchored with
+                     layout_toEndOf the title, which keeps the pair together
+                     at any screen width and at any font scale: the icon
+                     measures from the title's own right edge, so the title can
+                     never grow into it. The 6dp left margin plus the
+                     control's own 6dp padding leave 12dp of air between the
+                     name and the ink, the grid's own unit and the same 12dp
+                     the rules use.
+
+                     Owner order 2026-10-14 (sixth note): the control is
+                     VERTICALLY CENTRED on the title. The baseline rule of the
+                     second note is retired: standing the box on the brand
+                     baseline needed a measurement after every layout, because
+                     Bonskin puts its baseline wherever its metrics and the
+                     system font scale say, and a 42dp box hung on that line
+                     sat low against the name. centreVertical in the row the
+                     title and the control share puts the box's own middle on
+                     the title's middle, so the pair reads level at any font
+                     scale with no measured pixel and no layout listener at
+                     all. -->
                 <ImageView
                     android:id="@+id/btn_settings"
                     android:layout_width="42dp"
                     android:layout_height="42dp"
-                    android:layout_alignParentEnd="true"
-                    android:layout_alignTop="@id/brand_title"
-                    android:layout_marginTop="12dp"
+                    android:layout_centerVertical="true"
+                    android:layout_toEndOf="@id/brand_title"
+                    android:layout_marginLeft="6dp"
                     android:background="@drawable/settings_ripple"
                     android:contentDescription="@string/cd_settings"
                     android:padding="6dp"
@@ -149,42 +169,72 @@
                  word, in one badge. The indicator is a vector drawable and
                  MainActivity swaps it with the state, so ONLINE and OFFLINE
                  are the same shape lit and unlit rather than two glyphs.
-                 Owner order 2026-10-13 (second note): that lit dot breathes
-                 while the relay reports the market OPEN, so the one state
-                 that means "working right now" reads as alive. The animation
-                 lives in MainActivity.setStatusBreath; the dot keeps its 18dp
-                 size and its layout position here. -->
-            <TextView
+
+                 Owner order 2026-10-14 (seventh note): the beacon is its own
+                 view now, not a compound drawable of the word. A compound
+                 drawable can only be animated by rewriting its bounds and
+                 alpha from the UI thread, which is the lag the owner
+                 reported; as a view, the pulse is an alpha and scale
+                 animation the platform interpolates on the render thread.
+                 The badge stays one pill: the beacon and the word are its
+                 two children, and the word keeps the face, the size and the
+                 colour that carry the state. The beacon keeps its 18dp.
+
+                 Owner order 2026-10-14 (eighth note): the air above this
+                 badge is @dimen/status_gap, exactly the gap the detail line
+                 below it uses, so the tile reads SYSTEM STATUS, ONLINE,
+                 KARACHI at one spacing rather than at two. -->
+            <LinearLayout
                 android:id="@+id/status_pill"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="center_horizontal"
-                android:layout_marginTop="10dp"
-                android:drawableStart="@drawable/ic_status_checking"
-                android:drawablePadding="8dp"
+                android:layout_marginTop="@dimen/status_gap"
+                android:accessibilityLiveRegion="polite"
+                android:contentDescription="@string/cd_status_checking"
                 android:gravity="center_vertical"
-                android:letterSpacing="0.08"
+                android:importantForAccessibility="yes"
                 android:minHeight="34dp"
+                android:orientation="horizontal"
                 android:paddingLeft="16dp"
                 android:paddingRight="16dp"
                 android:paddingTop="5dp"
-                android:paddingBottom="5dp"
-                android:accessibilityLiveRegion="polite"
-                android:contentDescription="@string/cd_status_checking"
-                android:fontFamily="@font/lemonmilk_bold"
-                android:text="@string/status_checking"
-                android:textSize="13sp"/>
+                android:paddingBottom="5dp">
+
+                <ImageView
+                    android:id="@+id/status_dot"
+                    android:layout_width="18dp"
+                    android:layout_height="18dp"
+                    android:importantForAccessibility="no"
+                    android:src="@drawable/ic_status_checking"/>
+
+                <TextView
+                    android:id="@+id/status_word"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginLeft="@dimen/status_dot_gap"
+                    android:fontFamily="@font/lemonmilk_bold"
+                    android:importantForAccessibility="no"
+                    android:letterSpacing="0.08"
+                    android:text="@string/status_checking"
+                    android:textSize="13sp"/>
+            </LinearLayout>
 
             <!-- Owner order 2026-10-13: every line in this tile is set in the
                  owner's faces, so the detail keeps QorValue (LEMON MILK
                  Light) instead of the system face. The clock span no longer
-                 forces monospace inside the tile either. -->
+                 forces monospace inside the tile either.
+
+                 Owner order 2026-10-14 (eighth note): the air above this
+                 line is the same @dimen/status_gap the badge uses, so the
+                 tile's spacing is one number: SYSTEM STATUS to ONLINE is
+                 ONLINE to KARACHI, exactly. -->
             <TextView
                 android:id="@+id/status_detail"
                 style="@style/QorValue"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
+                android:layout_marginTop="@dimen/status_gap"
                 android:gravity="center"/>
 
         </LinearLayout>
@@ -350,24 +400,31 @@
 
              Owner order 2026-10-13 (third note): the cadence sentence leaves
              the market card and stands immediately after this final diamond
-             rule, separated from it by two line breaks. The two breaks are
-             the leading newlines of the string resource itself, so the
-             sentence and its spacing cannot drift apart, and these words
-             still appear exactly once in the whole app. -->
+             rule. Owner order 2026-10-13 (fifth note): the sentence is
+             separated from the rule by the layout's own 12dp, the same gap
+             a tile has below its rule, so the console's last line sits on
+             the same grid as everything above it. The two leading newlines
+             the third note used are retired: the air above the sentence is
+             now a margin the grid can measure, while the sentence itself
+             stays exactly as ordered and still appears exactly once in the
+             whole app. -->
         <include
             layout="@layout/qor_rule"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"/>
 
-        <!-- The cadence line, below the last rule. It is a caption like the
-             card's other small print, and it is the last element of the
-             console: no footer rule follows it (owner order 2026-10-12). -->
+        <!-- The cadence line, 12dp below the last rule: the same gap the
+             signal tile has below its own rule, so the footer's spacing is
+             the grid's spacing. It is a caption like the card's other small
+             print, and it is the last element of the console: no footer rule
+             follows it (owner order 2026-10-12). -->
         <TextView
             android:id="@+id/scan_cadence"
             style="@style/QorCaption"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
             android:gravity="center"
             android:text="@string/scan_cadence"/>
     </LinearLayout>

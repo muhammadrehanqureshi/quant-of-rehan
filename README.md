@@ -52,18 +52,18 @@ target, then monitor and sleep.
   DATA BLOCKED with measured coverage and never a market verdict. See
   [DATA_SOURCING.md](DATA_SOURCING.md) and
   [INTRADAY_FORWARD_SYSTEM.md](INTRADAY_FORWARD_SYSTEM.md).
-- **The phone app**: `android/` v1.6.8 (built and signed,
-  `QuantOfRehan-v1.6.8.apk` on the OneDrive Desktop; versionCode 22). It shows
-  the status pill with the relay's own phase sentence, the latest signal, and
-  the market card: KSE100 points and percentage, then the three KMIALL stocks
-  with the highest session volume, each with its percentage change and its
-  buy/sell/total volume when a genuine split exists. The status light breathes
-  in both states (palette green for ONLINE, palette red for OFFLINE) at a hard
-  25 frames per second, the settings gear sits beside the brand name, and the
-  cadence sentence stands 12dp under the last diamond rule, on the same grid
-  as the tiles. It polls `/health`,
-  `/signals` and `/market` on the edge, survives reboot, and never derives a
-  session from its own clock. See [android/README.md](android/README.md).
+- **The phone app**: `android/` v1.6.9 in this tree (versionCode 23; the last
+  APK built and signed is `QuantOfRehan-v1.6.8.apk` on the OneDrive Desktop).
+  It shows the status pill with the relay's own phase sentence, the latest
+  signal, and the market card: KSE100 points and percentage, then the three
+  KMIALL stocks with the highest session volume, each with its percentage
+  change and its buy/sell/total volume when a genuine split exists. The status
+  beacon breathes only while the market is live, as a view property animation
+  on alpha and scale that the platform interpolates on the render thread, the
+  settings gear is centred on the brand name, and the cadence sentence stands
+  12dp under the last diamond rule, on the same grid as the tiles. It polls
+  `/health`, `/signals` and `/market` on the edge, survives reboot, and never
+  derives a session from its own clock. See [android/README.md](android/README.md).
 
 ## How it runs
 
