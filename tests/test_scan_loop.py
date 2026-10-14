@@ -46,6 +46,18 @@ def setUpModule() -> None:
                               Path(_LOG_DIR.name) / "scan_loop.log")
     _LOG_PATCH.start()
 
+    # SO-12 machine law: a unit test must never start a broker recorder on the
+    # owner's PC. The loop's capture step now asks for one on every cycle, so
+    # one forgotten patch is enough to launch a real feed_capture child; that
+    # happened on 2026-10-14 (pid 5888) and had to be taken down by hand. With
+    # start_tape refusing outright, a test that forgets fails loudly and
+    # inside itself instead of touching the machine.
+    guard = patch("src.data.live_card.start_tape",
+                  side_effect=AssertionError(
+                      "a unit test must never start a broker recorder"))
+    guard.start()
+    unittest.addModuleCleanup(guard.stop)
+
 
 def tearDownModule() -> None:
     # Close the handlers before the directory goes: on Windows an open
@@ -185,6 +197,42 @@ class TapeCaptureTest(unittest.TestCase):
         flag.assert_called_once()
         poller.assert_not_called()
 
+    def test_a_fresh_runner_starts_the_recorder_before_choosing_a_source(self):
+        """The measured defect of 2026-10-14, held shut.
+
+        The first cloud run of the session loop decided its source from an
+        empty data/feed_capture directory, took the servlet fallback, could
+        not fit a whole-universe pass into a 30 second cadence and faulted
+        five times in a row without ever recording a bar. The recorder must be
+        asked for first, tape file or not.
+        """
+        loop = self._loop()
+        with tempfile.TemporaryDirectory() as tmp:
+            missing = Path(tmp) / "capture_20261012.ndjson"
+            with patch.object(scan_loop.tape_bars, "capture_path",
+                              return_value=missing), \
+                    patch("src.data.live_card.ensure_tape",
+                          return_value=(True, "broker tape started (pid 1)")) \
+                    as ensure, \
+                    patch.object(scan_loop.tape_bars, "build",
+                                 return_value=self._tape()), \
+                    patch.object(scan_loop.tape_bars, "write_low_coverage_flag",
+                                 return_value=None), \
+                    patch.object(loop, "_poller_capture") as poller:
+                self.assertTrue(loop._capture())
+        ensure.assert_called_once()
+        poller.assert_not_called()
+
+    def test_the_servlet_fallback_is_given_a_whole_pass_budget(self):
+        """A 30 second cadence cannot contain a universe pass, so never ask."""
+        loop = self._loop()
+        with patch("subprocess.run") as run:
+            run.return_value.returncode = 0
+            loop._poller_capture(at(MONDAY, 11, 0))
+        command = run.call_args.args[0]
+        budget = float(command[command.index("--deadline-seconds") + 1])
+        self.assertGreaterEqual(budget, 120.0)
+
     def test_a_thin_tape_raises_the_health_flag_it_will_be_reported_by(self):
         loop = self._loop()
         with tempfile.TemporaryDirectory() as tmp:
@@ -216,12 +264,14 @@ class TapeCaptureTest(unittest.TestCase):
                 with self.assertRaises(ScanFault):
                     loop._capture()
 
-    def test_a_day_with_no_tape_still_uses_the_servlet_fallback(self):
+    def test_a_day_with_no_tape_falls_back_only_when_no_recorder_can_start(self):
         loop = self._loop()
         with tempfile.TemporaryDirectory() as tmp:
             missing = Path(tmp) / "capture_20261012.ndjson"
             with patch.object(scan_loop.tape_bars, "capture_path",
                               return_value=missing), \
+                    patch("src.data.live_card.ensure_tape",
+                          return_value=(False, "the recorder could not start")), \
                     patch.object(loop, "_poller_capture",
                                  return_value=True) as poller:
                 self.assertTrue(loop._capture())
