@@ -48,6 +48,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from src import config  # noqa: E402
+from src.ci.local_only import guard_owner_requested  # noqa: E402
 from src.data import sessions  # noqa: E402
 
 TASK = "quant-of-rehan-kmiall-tick"
@@ -314,7 +315,15 @@ def run(argv: list[str]) -> int:
 
 
 def install() -> int:
-    """Register the session-windowed task, falling back to the simple form."""
+    """Register the session-windowed task, falling back to the simple form.
+
+    SO-12 (owner order 2026-10-14): registration is exactly the act that would
+    put a recurring workload back on the owner's PC, so it is refused unless
+    the owner asked for this run. The read-only modes (--show, --remove,
+    --print, --print-xml) are untouched, because --remove is a repair and
+    printing a definition changes nothing.
+    """
+    guard_owner_requested("scripts/install_kmiall_tick.py")
     xml_path = write_xml()
     print(f"task definition written: {xml_path}")
     for trigger in session_triggers():

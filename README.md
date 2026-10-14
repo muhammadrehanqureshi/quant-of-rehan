@@ -66,29 +66,38 @@ target, then monitor and sleep.
 
 ## How it runs
 
-Two runners drive the same orchestrator. They keep their own local state and
-both archive to the relay, so one can fail without silencing the other. A
-third, portable loop is available for hosts where Task Scheduler does not
-exist.
+The schedule lives in the cloud and never on the owner's PC (SO-12, owner
+order 2026-10-14). Two paths carry it, both of which run with this machine
+switched off, so a market session is never waiting on a laptop being awake
+and charged:
 
-| | GitHub Actions | Local 4-minute tick | Supervised loop |
-|---|---|---|---|
-| File | [.github/workflows/intraday-capture.yml](.github/workflows/intraday-capture.yml) | [scripts/kmiall_tick.py](scripts/kmiall_tick.py) | [scripts/scan_loop.py](scripts/scan_loop.py) |
-| Cadence | 5 scans a day (10:00, 11:30, 13:00, 14:30, and 16:00 on Friday) plus a post-close finalize | every 4 minutes inside the PSX session windows only | whatever it is started with |
-| Why it exists | runs without the owner's PC | sees the whole session, not four snapshots of it | portability (Linux VM, container, foreground laptop) |
-| Cost | about 8 billed minutes per fire, inside the 2,000 minute ceiling | a few seconds of CPU per tick, and nothing at all outside the session | none |
-| State | its own forward state on the runner | `data/forward/` in this checkout | its own health file |
+| | GitHub Actions | Cloudflare relay |
+|---|---|---|
+| File | [.github/workflows/intraday-capture.yml](.github/workflows/intraday-capture.yml) | [cloud/worker.js](cloud/worker.js) |
+| Carries | the market-hours scans of the KMIALL universe, and the post-close finalize | the owner's open and close texts, and the `/health`, `/signals` and `/market` endpoints the phone reads |
+| Cadence | 5 scans a day (10:00, 11:30, 13:00, 14:30, and 16:00 on Friday) plus the finalize | on every band edge it is triggered for, and on every phone poll |
+| Cost | about 8 billed minutes per fire, inside the 2,000 minute ceiling | the free edge tier |
+| State | its own forward state on the runner | `RELAY_KV` |
+| Works with the PC off | yes | yes |
 
-Why a tick script plus Windows Task Scheduler, and not an in-process loop: a
-loop dies with the shell that started it. This project has already lost a
-running loop to a desktop restart, and a session that silently stops being
-scanned is the exact failure the design exists to prevent. Task Scheduler
-survives logoff, sleep and reboot, needs no terminal open, and keeps its own
-run history. Everything that needs judgement, meaning whether the market is
-open, whether this slot was already scanned, whether the capture worked and
-whether it is time to finalize, lives in the tick script where it is tested.
+`config.TICK_INTERVAL_MINUTES = 4` is still the strategy's cadence: the slot
+guard, the 20-minute warm-up rule and the slot bookkeeping all count in
+4 minute slots, which is exactly what the phone's cadence sentence states.
+What the order of 2026-10-14 changed is where that work may happen, and the
+answer is the cloud minutes above.
 
-The registered task does not fire outside the session. Its triggers are
+The local runners are retired and refused in code. `scripts/kmiall_tick.py`
+(the Windows tick), `scripts/scan_loop.py` (the supervised loop),
+`src/notify/schedule_runner.py` (the resident open and close runner) and the
+two installers that registered them all call `guard_owner_requested` from
+`src/ci/local_only.py`: a real process starting on this PC is refused with
+SO-12's reason, the same call passes straight through inside GitHub Actions,
+and the Windows task `quant-of-rehan-kmiall-tick` is disabled while the
+Startup entry is gone. `scripts/check_governance.py` fails a pull request that
+puts either of them back, and `tests/test_local_only.py` holds the guards.
+
+What the tick does when the owner does run it, and what the retired task used
+to fire inside the PSX session windows only, is unchanged. Its triggers were
 derived from `src/data/sessions.py`:
 
 | Windows | Days | Fires |
@@ -104,15 +113,23 @@ the first 20 minutes after the open (the strategy needs 20 bars and three
 volume buckets before it can score anything), scans each 4-minute slot at most
 once, holds a lock so two ticks cannot fight over the state file, reclaims a
 stale lock left by a crashed tick, alerts after three consecutive capture
-failures, and finalizes the day exactly once. It registers the windowless
-`pythonw.exe` interpreter, so a fire shows nothing on screen; the record lives
-in `logs/kmiall_tick.log`, `data/tick_health.json` and the task's own run
-history.
+failures, and finalizes the day exactly once. Its record lives in
+`logs/kmiall_tick.log` and `data/tick_health.json`.
+
+The one local run the standing orders allow is the one the owner asks for, and
+it is named in the shell that runs it, so nothing sets it by accident:
 
 ```bash
-python scripts/install_kmiall_tick.py            # create or replace the task
-python scripts/install_kmiall_tick.py --show     # query it
-python scripts/install_kmiall_tick.py --remove   # delete it
+QOR_OWNER_REQUESTED_LOCAL_RUN=scripts/kmiall_tick.py python scripts/kmiall_tick.py --status
+```
+
+Inspecting and removing stay open always, because taking work off the machine
+is never the offence. Backtesting stays local for the mirror-image reason
+(SO-4): its entry points refuse to run in CI instead.
+
+```bash
+python scripts/install_kmiall_tick.py --show       # query the retired task
+python scripts/install_kmiall_tick.py --remove     # delete it for good
 python scripts/install_kmiall_tick.py --print-xml  # show the definition
 ```
 

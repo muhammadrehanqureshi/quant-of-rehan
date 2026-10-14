@@ -69,17 +69,20 @@ runs at 4 minutes with no environment change.
 Enforcement is layered, so no single edit can quietly re-enable pre-market or
 post-market scanning:
 
-0. **The registered task itself does not fire there.** Owner order 2026-10-11
-   asked for execution to be *disabled* in the pre-market, post-market and
-   Friday break windows, not merely paused after the fact, so
-   `scripts/install_kmiall_tick.py` registers the Windows task from an XML
-   definition whose triggers are derived from this same law: one repeating
-   trigger per band (09:32 to 15:30 Mon-Thu; 09:17 to 12:00 and 14:32 to 16:30
-   Friday) at the configured cadence, plus one post-market fire per trading day
-   for the finalize (15:47 and 16:47 PKT). Nothing is registered for
-   09:00 to 09:15, for 12:00 to 14:32 on a Friday, for the evening, the night
-   or the weekend, and `tests/test_kmiall_tick.py::SessionTriggerTest` fails
-   the build if a trigger ever lands outside a band.
+0. **The job's own triggers exclude those windows, and they now live in the
+   cloud.** Owner order 2026-10-11 asked for execution to be *disabled* in the
+   pre-market, post-market and Friday break windows, not merely paused after
+   the fact, so `scripts/install_kmiall_tick.py` derives its triggers from this
+   same law: one repeating trigger per band (09:32 to 15:30 Mon-Thu; 09:17 to
+   12:00 and 14:32 to 16:30 Friday) at the configured cadence, plus one
+   post-market fire per trading day for the finalize (15:47 and 16:47 PKT),
+   and nothing at all for 09:00 to 09:15, for 12:00 to 14:32 on a Friday, for
+   the evening, the night or the weekend.
+   `tests/test_kmiall_tick.py::SessionTriggerTest` still fails the build if a
+   trigger ever lands outside a band. Owner order 2026-10-14 (SO-12) moved
+   where those triggers run: the Windows task is disabled, the installer
+   refuses to register it again, and the definition is kept as the written
+   shape of the session law that the GitHub Actions crons mirror.
 1. `market_state_at` is the law; the windows live in `src/data/sessions.py`
    beside the bands (SO-8).
 2. `src/data/scan_schedule.py` is the one pause table both local runners read
@@ -89,7 +92,9 @@ post-market scanning:
    row in the decision table above, *separate* from the band check.
 4. `scripts/kmiall_tick.py` and `scripts/scan_loop.py` check the state before
    they scan; the tick reports `PRE_MARKET` and pauses, and treats
-   `POST_MARKET` as finalize-only.
+   `POST_MARKET` as finalize-only. Both are cloud-only since SO-12 (owner
+   order 2026-10-14): a real process starting on the owner's PC is refused,
+   and the GitHub Actions job carries the scanning.
 5. `scripts/intraday_pipeline.py::session_legal` asks `is_scan_window`, so a
    hand-run `--scan` outside `MARKET` is refused too.
 6. `tests/test_sessions_and_schedule.py::TestMarketStateLaw` pins every edge,

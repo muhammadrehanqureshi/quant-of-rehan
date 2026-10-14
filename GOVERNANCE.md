@@ -197,7 +197,9 @@ SO-7 sole human contributor, human-looking code, no em dashes · SO-7a the
 agent is the owner's co-author on every commit, PR body and merge ·
 SO-8 Karachi time forever · SO-9 owner notifications via the Cloudflare
 relay · SO-10 resource law: cloud-first, local only for backtests · SO-11
-zero-defect law: known drift is fixed immediately.
+zero-defect law: known drift is fixed immediately · SO-12 the 4-minute
+scanner is cloud-only: nothing recurring runs on the owner's PC, and the PC
+is used only for a backtest he asks for.
 
 ## SO-10 · Resource law: the owner's PC is for backtesting and local trials only (owner order, 2026-10-06)
 
@@ -218,8 +220,47 @@ zero-defect law: known drift is fixed immediately.
 - The 2000-minute Actions budget is a hard ceiling: a job estimated to
   threaten it is redesigned (sampled, folded into fewer runs, or run
   locally under SO-4) before it is proposed.
+- Tightened by SO-12 (owner order 2026-10-14), which names the cloud home of
+  the recurring work and closes the local door in code.
 - Any change to this rule requires an explicit owner instruction and an
   amendment to this file.
+
+## SO-12 · The 4-minute scanner is cloud-only (owner order, 2026-10-14)
+
+Owner order, verbatim: "the 4 minute scanner should always be running on
+github action minutes and on cloudflare. you can only use my pc when i tell
+you to backtest, apart from that you or quant of rehan will never hammer my
+pc." This is SO-10 said again as a law with a name, a home and an
+enforcement path, because SO-10 was still being read as advice.
+
+- **The scanner's home.** The 4-minute scan of the KMIALL universe runs on
+  GitHub Actions minutes (`intraday-capture.yml`) and the Cloudflare relay,
+  both of which run with the owner's PC switched off. Nothing recurring is
+  registered on the PC any more: no Windows task, no login entry, no
+  supervised loop, no resident process of any kind.
+- **The PC's one job.** The owner's PC is used for the backtests, research
+  runs and local trials he explicitly asks for, and for nothing else. A run
+  the owner asked for is one run: it starts when he asks and it ends when it
+  ends. It never becomes a schedule, a daemon, or a watcher.
+- **Enforced in code, not only here.** `src/ci/local_only.py` now carries the
+  mirror of the SO-4 list: `CLOUD_ONLY_DAEMONS` names every entry point that
+  would put recurring work back on the PC (the KMIALL tick and its Windows
+  task installer, the supervised scan loop, the resident notification runner
+  and its logon installer). Each of them calls `guard_owner_requested`, which
+  refuses to start a local process with the reason printed and no traceback,
+  passes straight through inside GitHub Actions, and opens only for the one
+  run the owner asked for by name (the `QOR_OWNER_REQUESTED_LOCAL_RUN`
+  variable in that shell, never committed, never set by an agent on its own).
+- **Checked at the pull request.** `scripts/check_governance.py` fails a PR
+  that removes one of those guards, deletes a listed entry point, or teaches
+  a workflow to register a local task or a login entry. It also requires the
+  words of this order to stay in this file.
+- **A session ends clean.** An agent session leaves zero resident processes
+  behind on the owner's machine, and takes down any it finds that belong to
+  this project before it reports its work. SO-10 already owed this; SO-12
+  makes it the last thing a session checks.
+- **Withdrawal.** Only a new written owner instruction, recorded here, can
+  put recurring work back on the PC.
 
 ## SO-11 · Zero-defect law: known drift is fixed immediately (owner order, 2026-10-12)
 
