@@ -127,7 +127,16 @@ ALLOWED_OUTGOING_PREFIXES = ("MKT-FEED|", "EXS-FEED|", "HELLO|")
 HEARTBEAT = "HELLO|%"
 HEARTBEAT_SECONDS = 5.0
 
-UNIVERSE_FILE = ROOT / "data" / "legacy_sentinel" / "data" / "kmiall_tickers.json"
+#: The KMIALL universe for the subscription, tracked in the repository. The
+#: legacy sentinel copy (data/legacy_sentinel/data/kmiall_tickers.json) is
+#: gitignored, so a fresh checkout has no universe file and the recorder died
+#: at start with FileNotFoundError while the caller kept reporting success:
+#: measured 2026-10-14 on a GitHub Actions runner, five consecutive 30 second
+#: cycles faulted without a single bar. Both files carry the same 319 KMIALLSHR
+#: members (verified equal symbol for symbol), so this is the same subscription
+#: on every machine, and it is the exact list src/scripts/intraday_pipeline
+#: loads, so the tape banks bars for what the scanner scans (SO-3).
+UNIVERSE_FILE = ROOT / "src" / "data" / "universe_kmiall.json"
 CAPTURE_DIR = ROOT / "data" / "feed_capture"
 STATUS_PATH = CAPTURE_DIR / "status.json"
 
@@ -410,7 +419,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--status", action="store_true",
                         help="print status.json and exit")
     parser.add_argument("--symbols-file", type=Path, default=UNIVERSE_FILE,
-                        help="KMIALL universe json (default: stored file)")
+                        help="KMIALL universe json "
+                             "(default: the tracked src/data/universe_kmiall.json)")
     args = parser.parse_args(argv)
 
     if args.status:
