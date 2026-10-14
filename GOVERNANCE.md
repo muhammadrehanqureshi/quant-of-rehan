@@ -83,8 +83,13 @@ The rest of SO-1 stands unchanged for everything outside this exception.
   job runs on GitHub Actions within the budget below. It may fetch only a
   small trailing EOD window (bounded by the CI guard in
   scripts/build_eod_history.py), never a full-history crawl.
-- Monthly Actions budget: 2,000 minutes. Nothing in this repo may put that at
-  risk.
+- Monthly Actions budget: 2,000 minutes while the repository is private.
+  Nothing in this repo may put that at risk.
+- Owner order 2026-10-14 (SO-13): the repository is public, and GitHub Actions
+  minutes are free on a public repository, so the 2,000-minute ceiling no
+  longer bounds the market-hours work. What does not change is where those
+  minutes go: the market-hours scans, the finalize and the session loop, and
+  nothing else.
 - Owner order 2026-10-11: the GitHub Actions minutes are reserved for the
   market-hours scans, the 4-minute KMIALL work. Backtesting, walk-forward
   validation, Monte Carlo runs and the history research scripts run on the
@@ -199,7 +204,9 @@ SO-8 Karachi time forever · SO-9 owner notifications via the Cloudflare
 relay · SO-10 resource law: cloud-first, local only for backtests · SO-11
 zero-defect law: known drift is fixed immediately · SO-12 the 4-minute
 scanner is cloud-only: nothing recurring runs on the owner's PC, and the PC
-is used only for a backtest he asks for.
+is used only for a backtest he asks for · SO-13 The scan cadence is 30
+seconds, on the public repository's free cloud minutes (owner order
+2026-10-14).
 
 ## SO-10 · Resource law: the owner's PC is for backtesting and local trials only (owner order, 2026-10-06)
 
@@ -217,9 +224,11 @@ is used only for a backtest he asks for.
   owner-approved run or moved to cloud minutes. Agents do not leave
   background processes on the owner's machine; a session ends with zero
   resident agent processes (verified).
-- The 2000-minute Actions budget is a hard ceiling: a job estimated to
-  threaten it is redesigned (sampled, folded into fewer runs, or run
-  locally under SO-4) before it is proposed.
+- The 2000-minute Actions budget is a hard ceiling while the repository is
+  private: a job estimated to threaten it is redesigned (sampled, folded into
+  fewer runs, or run locally under SO-4) before it is proposed. Amended by
+  SO-13: on a public repository the standard-runner minutes are free and this
+  ceiling does not bind.
 - Tightened by SO-12 (owner order 2026-10-14), which names the cloud home of
   the recurring work and closes the local door in code.
 - Any change to this rule requires an explicit owner instruction and an
@@ -261,6 +270,40 @@ enforcement path, because SO-10 was still being read as advice.
   makes it the last thing a session checks.
 - **Withdrawal.** Only a new written owner instruction, recorded here, can
   put recurring work back on the PC.
+
+## SO-13 · The scan cadence is 30 seconds on the public repository's free minutes (owner order, 2026-10-14)
+
+Owner order, verbatim: "then make the repo public but then i want the quant of
+rehan to be scanned every 30 seconds, also I will not pay a single dime. AT
+ALL!!!" and "the 4 minute scan is the same for the app and for my intraday as
+well, they are not separate, the scan will be the same for both."
+
+- **The cadence.** The KMIALL universe is scanned every 30 seconds for the
+  length of every PSX band, by one supervised session loop
+  (`scripts/scan_loop.py`, interval `config.SCAN_INTERVAL_SECONDS = 30`) that
+  GitHub Actions runs for the band (`intraday-session.yml`). The local
+  4-minute tick keeps its own cadence where the owner asks for a local trial;
+  the two are different runners, never two cadences for one runner.
+- **One scan, two readers.** The same scan, observation and data-quality
+  report feed the phone's card and the intraday paper strategy. There is no
+  second, cheaper scan for the app.
+- **Why it can be that dense.** The loop keeps the read-only broker recorder
+  alive for the whole band, so a cycle does not fetch anything: it measures
+  the tape that already exists. Measured on the real 2026-10-13 session tape
+  (44.6 MB, 314 symbols, 56,618 rows): bars built in 1.4s, loaded in 1.5s,
+  gated and ranked in under 0.1s, about 2.9s inside a 30s slot.
+- **Why the minutes are free.** The owner made the repository public on
+  2026-10-14; standard GitHub-hosted runner minutes are free for public
+  repositories, so this cadence costs nothing, and the 2,000-minute private
+  ceiling in SO-10 is amended rather than exceeded. The owner pays nothing:
+  no Cloudflare plan, no extra minutes, no always-on host.
+- **The bars stay honest.** The bars are still the tape's own prints and the
+  venue's own running volume counter (`src/data/tape_bars.py`), and every
+  gate is unchanged: coverage, freshness, bar history, structure and the
+  volume-counter requirement. A cycle that cannot see the market reports
+  DATA BLOCKED with the measured reason, never a market verdict.
+- **Withdrawal.** Only a new written owner instruction, recorded here, can
+  change this cadence.
 
 ## SO-11 · Zero-defect law: known drift is fixed immediately (owner order, 2026-10-12)
 

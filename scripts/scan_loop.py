@@ -4,8 +4,16 @@
 Rebuild 2026-10-10. This is the second supported way to drive the ONE
 orchestrator, next to the Windows 4-minute tick:
 
-    tick       scripts/kmiall_tick.py + Task Scheduler   (survives reboots)
+    tick       scripts/kmiall_tick.py + Task Scheduler   (a local trial)
     loop       scripts/scan_loop.py --loop               (supervises itself)
+
+Since the owner's order of 2026-10-14 (SO-13) the loop is also the cloud's
+runner: `.github/workflows/intraday-session.yml` starts it for the length of
+each PSX band at a 30 second interval, and one scan serves both the phone's
+card and the intraday paper strategy. That cadence is only possible because
+the loop keeps the read-only broker tape alive instead of fetching per cycle:
+a cycle measures a bar series that already exists (2.9s measured on the real
+2026-10-13 session tape: 44.6 MB, 314 symbols, 56,618 rows).
 
 Same scanner, same state machine, same one-trade-per-day lock. The loop exists
 for hosts where Task Scheduler does not exist (a Linux VM, a container, a
@@ -35,7 +43,8 @@ What the loop is responsible for:
 Usage:
     python scripts/scan_loop.py --once                 # one cycle, then exit
     python scripts/scan_loop.py --loop                 # run until stopped
-    python scripts/scan_loop.py --loop --interval 240  # 4 minutes (owner order)
+    python scripts/scan_loop.py --loop --interval 30   # the cloud cadence (SO-13)
+    python scripts/scan_loop.py --loop --interval 240  # 4 minutes (local trial)
     python scripts/scan_loop.py --dry-run --loop       # decide, never scan
     python scripts/scan_loop.py --status               # print loop health
 """
@@ -60,6 +69,7 @@ sys.path.insert(0, str(ROOT))
 
 from src import config  # noqa: E402
 from src.ci.local_only import guard_owner_requested  # noqa: E402
+from src.data import tape_bars  # noqa: E402
 from src.data.sessions import (  # noqa: E402
     next_open, now_karachi, session_window_text,
 )
@@ -96,10 +106,11 @@ LOGGER = logging.getLogger("scan_loop")
 class LoopConfig:
     """Everything the loop's behaviour depends on, in one typed place."""
 
-    # Owner order 2026-10-11: scan the whole KMIALL universe every 4
-    # minutes, forever until further notice. config.TICK_INTERVAL_MINUTES is
-    # the same 4, so the tick and this loop share one cadence.
-    interval_seconds: float = 240.0
+    # Owner order 2026-10-14 (SO-13): scan the whole KMIALL universe every 30
+    # seconds for the session, and the same scan serves the phone's card and
+    # the intraday paper strategy. The local 4 minute tick keeps its own
+    # TICK_INTERVAL_MINUTES; this loop is the cloud session runner.
+    interval_seconds: float = config.SCAN_INTERVAL_SECONDS
     warmup_minutes: float = 20.0
     max_consecutive_failures: int = 5
     backoff_base_seconds: float = 30.0
@@ -302,7 +313,7 @@ class ScanLoop:
         """Run exactly one cycle. Returns (action, typed outcome or None)."""
         moment = self.clock()
         action, detail = self.decide(moment)
-        slot = slot_of(moment)
+        slot = slot_of(moment, interval_seconds=self.config.interval_seconds)
         started = time.perf_counter()
         self.health.cycles += 1
         self.health.last_cycle_at = moment.isoformat(timespec="seconds")
@@ -433,12 +444,59 @@ class ScanLoop:
         )
 
     def _capture(self) -> bool:
-        """Refresh the bar capture. A failure is a classified fault.
+        """Keep the session's bar source alive. A failure is a classified fault.
 
-        The pass is given this loop's own budget, derived from its cadence
-        unless LoopConfig.capture_deadline_seconds names one, so it stops
-        cleanly and reports a partial pass instead of being killed at a
-        subprocess timeout the pass could never meet.
+        Owner order 2026-10-14: the bar source is the broker tape, so the
+        question a cycle asks is not "did a fetch finish" but "is the tape
+        alive, and does it hold bars for this session". The read-only recorder
+        is kept alive for the whole session (src/data/live_card.py), which is
+        what makes a 30 second cadence possible at all: the bars already
+        exist, and one cycle costs about three seconds on the largest real
+        session tape (44.6 MB, 314 symbols). A thin tape is reported through
+        the same capture-health flag the ops alert reads, never padded.
+
+        The bounded eClear OHLC pass survives only for a day with no tape at
+        all, which is the same fallback the local tick uses.
+        """
+        moment = now_karachi()
+        if not tape_bars.capture_path(moment.date()).is_file():
+            return self._poller_capture(moment)
+        return self._tape_capture(moment)
+
+    def _tape_capture(self, moment: datetime) -> bool:
+        """The bar source: a live tape, measured rather than assumed."""
+        from src.data import live_card
+        from scripts.intraday_pipeline import load_kmiall
+
+        alive, note = live_card.ensure_tape(moment)
+        symbols = load_kmiall()
+        tape = tape_bars.build(tape_bars.capture_path(moment.date()), symbols,
+                               moment)
+        if not alive:
+            raise ScanFault(f"broker tape down: {note}")
+        if tape.symbols_with_bars == 0:
+            raise ScanFault(f"the tape is alive but holds no bars yet: {note}")
+        flag = tape_bars.write_low_coverage_flag(
+            tape, len(symbols),
+            cause=(f"the tape held bars for {tape.symbols_with_bars} of "
+                   f"{len(symbols)} KMIALL symbols at "
+                   f"{moment:%Y-%m-%d %H:%M} PKT"))
+        LOGGER.info(
+            "tape: %d symbol(s), %d bar(s) (%d carried), counter on %d row(s), "
+            "health flag %s | %s",
+            tape.symbols_with_bars, tape.priced_bars + tape.carried_bars,
+            tape.carried_bars, tape.counter_rows,
+            flag.name if flag else "not raised", note)
+        return True
+
+    def _poller_capture(self, moment: datetime) -> bool:
+        """The fallback: one bounded pass over the eClear OHLC servlet.
+
+        Used only when the day has no tape at all. The pass is given this
+        loop's own budget, derived from its cadence unless
+        LoopConfig.capture_deadline_seconds names one, so it stops cleanly and
+        reports a partial pass instead of being killed at a subprocess timeout
+        the pass could never meet.
         """
         import subprocess
 
@@ -541,8 +599,8 @@ def main(argv: list[str] | None = None) -> int:
                         help="keep running (default is a single cycle)")
     parser.add_argument("--once", action="store_true", help="one cycle (default)")
     parser.add_argument("--interval", type=float,
-                        default=config.TICK_INTERVAL_MINUTES * 60,
-                        help="seconds between cycles")
+                        default=config.SCAN_INTERVAL_SECONDS,
+                        help="seconds between cycles (owner order: 30)")
     parser.add_argument("--warmup", type=float, default=config.TICK_WARMUP_MINUTES,
                         help="minutes after the open before the first scan")
     parser.add_argument("--max-cycles", type=int, default=None)
