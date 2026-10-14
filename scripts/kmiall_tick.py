@@ -70,6 +70,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from src import config  # noqa: E402
+from src.ci.local_only import guard_owner_requested  # noqa: E402
 from src.data.sessions import now_karachi  # noqa: E402
 from src.data import scan_schedule  # noqa: E402
 
@@ -435,4 +436,11 @@ def _finalize(moment: datetime, skip_capture: bool) -> int:
 
 
 if __name__ == "__main__":
+    # SO-12 (owner order 2026-10-14): the 4-minute scanner belongs to GitHub
+    # Actions minutes and to the Cloudflare relay. This script is the tick the
+    # Windows task used to fire on the owner's PC, so a real process starting
+    # here is refused unless the owner asked for this exact run. Inside
+    # Actions the guard passes straight through, and main() stays callable
+    # from the test suite exactly as before.
+    guard_owner_requested("scripts/kmiall_tick.py")
     raise SystemExit(main())

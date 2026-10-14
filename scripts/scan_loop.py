@@ -59,6 +59,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from src import config  # noqa: E402
+from src.ci.local_only import guard_owner_requested  # noqa: E402
 from src.data.sessions import (  # noqa: E402
     next_open, now_karachi, session_window_text,
 )
@@ -588,4 +589,9 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
+    # SO-12 (owner order 2026-10-14): a supervised loop that sleeps between
+    # scans is the definition of the resident workload the owner forbade on
+    # his PC. Cloud minutes carry it now; a local process is refused unless
+    # the owner asked for this exact run.
+    guard_owner_requested("scripts/scan_loop.py")
     raise SystemExit(main())

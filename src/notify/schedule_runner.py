@@ -24,6 +24,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
+from src.ci.local_only import guard_owner_requested  # noqa: E402
 from src.data.sessions import (  # noqa: E402
     MSG_MARKET_CLOSED,
     MSG_MARKET_OPEN,
@@ -179,6 +180,12 @@ def run_forever(poll_interval_s: float = 30.0) -> None:
 
 
 if __name__ == "__main__":
+    # SO-12 (owner order 2026-10-14): the Cloudflare relay's own cron already
+    # fires the owner's open and close texts, so this resident runner is a
+    # second path, not a needed one. It no longer starts on the owner's PC
+    # unless he asks for it by name; the imported helpers above stay callable
+    # for the daily push and the ops alert.
+    guard_owner_requested("src/notify/schedule_runner.py")
     try:
         run_forever()
     except KeyboardInterrupt:
