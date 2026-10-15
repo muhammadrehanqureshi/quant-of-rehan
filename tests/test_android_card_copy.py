@@ -86,6 +86,24 @@ class LeaderLineTest(unittest.TestCase):
         self.assertIn("if (row.price != null || row.changePct != null) {",
                       self.main)
 
+    def test_the_quantity_fields_print_the_feeds_own_numbers(self):
+        """Owner order 2026-10-15: exact, raw quantities, never a rescaling.
+
+        The buy and sell counts reach the line as the whole numbers the feed
+        produced, each formatted straight from its own field. What used to
+        reach this line was the tape's flow projected onto the venue's
+        session total, which is a rounded estimate rather than the feed's
+        number, so nothing here may scale, round or re-derive them.
+        """
+        self.assertIn('String.format(Locale.US, "%,d", row.buy)', self.main)
+        self.assertIn('String.format(Locale.US, "%,d", row.sell)', self.main)
+        self.assertNotIn("Math.round(row.buy", self.main)
+        self.assertNotIn("Math.round(row.sell", self.main)
+        # A row that carries a split but no total keeps its two sides: the
+        # quantities are the point of the group, and the totals are optional.
+        self.assertIn("if (row.hasVolume()) {", self.main)
+        self.assertIn("sb.append(')');", self.main)
+
     def test_every_arrow_keeps_a_single_space(self):
         self.assertIn('"KSE100  %,.2f %s %,.2f (%.2f%%)"', self.main)
         self.assertNotIn('"KSE100  %,.2f   %s', self.main)

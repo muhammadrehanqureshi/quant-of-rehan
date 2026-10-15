@@ -19,7 +19,8 @@ are public, need no key, and are live during the session:
      universe is the exchange's list and never a hardcoded one.
   3. Buy and sell volume. The venue publishes total volume only, so the
      split comes from src/data/volume_split.py: measured from a banked tape
-     when one exists, and otherwise an explicitly labelled estimate from the
+     when one covers the day, the tape's own counted window when one covers
+     part of it, and otherwise an explicitly labelled estimate from the
      per-symbol session range below. The card prints the label, never a
      bare number that looks measured.
   4. The per-symbol session range. ``https://dps.psx.com.pk/company/{symbol}``
@@ -333,7 +334,8 @@ def build_snapshot() -> dict:
             if leaders:
                 symbols = [str(row["symbol"]).strip().upper()
                            for row in leaders]
-                # Measured from a banked tape when one exists, otherwise the
+                # Measured from a banked tape when one covers the day, the
+                # tape's own counts when it covers part of it, otherwise the
                 # labelled estimate, otherwise explicit nulls with a reason
                 # (SO-3: an OHLCV derived proxy is never order flow).
                 snapshot["volume_split_basis"] = volume_split.attach_splits(
