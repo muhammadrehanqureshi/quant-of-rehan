@@ -316,6 +316,18 @@ were run against this tree on 2026-10-15 (aapt2 compile and link, javac, D8),
 so the Java and the resources are known to build, and the signed APK is built
 by the same chain when the owner wants it on the phone.
 
+**Built and delivered 2026-10-15 (owner order):** the signed v1.7.0 APK was
+built from this checkout by the chain above, and copied to
+`C:/Users/rehan/OneDrive/Desktop/QuantOfRehan-v1.7.0.apk` while master was at
+`7e22080` (PR #98 merged). 535,632 bytes,
+SHA-256 `72393aab4ced2099309d2ab40177b3903536f4eb54e2e3131f36eb731972d856`,
+zipalign verified, signature verified v2 + v3 (debug key, CN=Android Debug,
+expires 2044), and `aapt2 dump badging` reads back
+`pk.quantofrehan` `versionCode="24"` `versionName="1.7.0"` with the launchable
+`MainActivity`. The Android source tests were green before the build
+(50 passed in tests/test_android_app_ui.py and tests/test_android_card_copy.py),
+so the source that shipped is the source the tests pin.
+
 ## Watchdog and battery
 
 The 5 minute refresh is a best effort schedule, and the app cannot make it
