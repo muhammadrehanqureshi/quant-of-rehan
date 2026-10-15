@@ -392,12 +392,16 @@ class MeasuredSplitTest(unittest.TestCase):
         write_capture(tick_volume.capture_path(DAY),
                       [{"kind": "MKT-FEED", "ticks": ticks}])
         rows, basis = self.attach()
+        # Owner order 2026-10-15: the feed's own counts, verbatim. The tape
+        # attributed 3000 shares here (2000 buys, 1000 sells); none of them
+        # is scaled onto the venue's total for the same row.
         self.assertEqual((rows[0]["buy_volume"], rows[0]["sell_volume"]),
-                         (667, 333))
+                         (2000, 1000))
         self.assertEqual(rows[0]["buy_volume"] + rows[0]["sell_volume"],
-                         rows[0]["volume"])
-        self.assertEqual(rows[0]["split_method"], volume_split.METHOD_TAPE)
-        self.assertIn("real-time prints", basis)
+                         rows[0]["split_volume"])
+        self.assertEqual(rows[0]["split_method"],
+                         volume_split.METHOD_TAPE_COUNTS)
+        self.assertIn("part of the session", basis)
 
     def test_a_capture_without_tape_rows_cannot_split_a_row(self):
         """A stats frame is not a trade: the row stays without numbers."""

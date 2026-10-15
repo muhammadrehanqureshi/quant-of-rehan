@@ -110,7 +110,15 @@
                      title and the control share puts the box's own middle on
                      the title's middle, so the pair reads level at any font
                      scale with no measured pixel and no layout listener at
-                     all. -->
+                     all.
+
+                     Owner order 2026-10-15 (second note): the control moves
+                     20% of its own box to the right of where that anchor puts
+                     it, and 5% of that box higher, both as translations from
+                     @dimen/settings_shift_x and @dimen/settings_shift_y. A
+                     translation leaves the measurements above intact, so the
+                     title still owns the space it always did and the shift is
+                     the control's own; see dimens.xml for the numbers. -->
                 <ImageView
                     android:id="@+id/btn_settings"
                     android:layout_width="42dp"
@@ -123,7 +131,9 @@
                     android:padding="6dp"
                     android:scaleType="fitCenter"
                     android:src="@drawable/settings"
-                    android:tint="@color/gold"/>
+                    android:tint="@color/gold"
+                    android:translationX="@dimen/settings_shift_x"
+                    android:translationY="@dimen/settings_shift_y"/>
             </RelativeLayout>
 
             <TextView

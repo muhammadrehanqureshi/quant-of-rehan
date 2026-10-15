@@ -106,13 +106,21 @@ import java.util.Locale;
 public class MainActivity extends Activity {
 
     /**
-     * The face that owns the arrow glyphs.
+     * The face that owns the arrow glyphs and the approximation sign.
      *
      * The bundled LEMON MILK faces contain no U+25B2 and no U+25BC (checked
      * against the fonts' own cmaps before they were wired in), so the index
      * line and every money line draw those two characters with the system
-     * face. The mark that says a split is an estimate, U+2248, IS present in
-     * LEMON MILK, so it needs no override and keeps the brand face.
+     * face.
+     *
+     * U+2248 (the mark that says a split is an estimate) IS mapped in LEMON
+     * MILK, but the face draws it unusably small at card size: its two bars
+     * sit 131 of the font's own 2048 em units apart, so at 13sp they merge
+     * into one squiggle and the owner read the result as a tilde (measured
+     * 2026-10-15, owner order: resolve it). The sign is therefore drawn by
+     * the system face as well, exactly like the arrows, which renders it as
+     * the approximation sign it is. The equals sign of a measured count is
+     * untouched: LEMON MILK's U+003D is two clean bars 363 units apart.
      */
     private static final String ARROW_FACE = "sans-serif";
 
@@ -514,15 +522,25 @@ public class MainActivity extends Activity {
      * apart before the digits do.
      *
      * What the numbers MEAN is marked on the number itself, with the "is
-     * approximately" sign: B= and S= are measured from the session's own
-     * trade tape, B≈ and S≈ are the relay's estimate from the day's
-     * range, which is not order flow (SO-3). The distinction used to live in
+     * approximately" sign: B= and S= are the session's own trade tape's
+     * counts, B≈ and S≈ are the relay's estimate from the day's range,
+     * which is not order flow (SO-3). The distinction used to live in
      * the card's footnote, which carried the scan cadence sentence from
      * 2026-10-12 until that sentence moved below the final rule on 2026-10-13.
      * The mark lives on the number instead, which is where it is read.
      *
+     * Owner order 2026-10-15: the buy and sell quantities are the exact, raw
+     * numbers the feed produced, and they carry the "=" a measured count
+     * deserves whether the tape covered the whole day or the part of it it
+     * saw. The approximation sign is drawn by the system face (see
+     * ARROW_FACE): LEMON MILK's own U+2248 collapses into a tilde at this
+     * size, which is what the quantity fields were showing. The operator is
+     * the same character in both marks; only the face changes.
+     *
      * Every field is a boxed Number, so a null means the relay did not report
-     * it and the field is skipped rather than printed as a zero.
+     * it and the field is skipped rather than printed as a zero. A row that
+     * has a split but no total keeps its bracket and its two sides: the
+     * quantities are the point of the group.
      */
     private SpannableString leadersText(List<Watcher.Leader> leaders) {
         StringBuilder sb = new StringBuilder();
@@ -535,18 +553,32 @@ public class MainActivity extends Activity {
             }
             sb.append(String.format(Locale.US, "%d. %s", i + 1, row.symbol));
             if (row.hasSplit()) {
-                // "=" for a measured number, U+2248 for an estimated one.
-                String mark = row.estimatedSplit() ? "\u2248" : "=";
+                // "=" for the tape's own counted feeds, U+2248 for the
+                // day's-range estimate (drawn by ARROW_FACE, never by the
+                // brand face: see the class comment on that constant).
+                boolean estimated = row.estimatedSplit();
+                String mark = estimated ? "\u2248" : "=";
                 // "(" opens at B and ")" closes after T: one bracketed group.
                 sb.append(" (B").append(mark);
                 int buyFrom = sb.length();
                 sb.append(String.format(Locale.US, "%,d", row.buy));
                 spans.add(new int[]{buyFrom, sb.length(), R.color.green});
+                if (estimated) {
+                    glyphs.add(new int[]{buyFrom - 1, buyFrom});
+                }
                 sb.append("  S").append(mark);
                 int sellFrom = sb.length();
                 sb.append(String.format(Locale.US, "%,d", row.sell));
                 spans.add(new int[]{sellFrom, sb.length(), R.color.red});
-                sb.append(String.format(Locale.US, "  T=%,d)", row.volume));
+                if (estimated) {
+                    glyphs.add(new int[]{sellFrom - 1, sellFrom});
+                }
+                if (row.hasVolume()) {
+                    sb.append(String.format(Locale.US, "  T=%,d)", row.volume));
+                } else {
+                    // The quantities stand without the exchange's total.
+                    sb.append(')');
+                }
             } else if (row.hasVolume()) {
                 sb.append(String.format(Locale.US, " (T=%,d)", row.volume));
             }
@@ -577,8 +609,9 @@ public class MainActivity extends Activity {
             sp.setSpan(new ForegroundColorSpan(getColor(span[2])),
                     span[0], span[1], 0);
         }
-        // The arrow ranges last, and only the arrow: the system face draws the
-        // two arrow characters, the brand face keeps everything around them.
+        // The glyph ranges last, and only the glyphs: the system face draws
+        // the two arrow characters and, on an estimated row, the two
+        // approximation signs; the brand face keeps everything around them.
         for (int[] range : glyphs) {
             sp.setSpan(new TypefaceSpan(ARROW_FACE), range[0], range[1], 0);
         }
