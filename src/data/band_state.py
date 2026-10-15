@@ -60,27 +60,37 @@ _API_BASE = "https://api.cloudflare.com/client/v4"
 
 
 def _credential() -> tuple[str, str] | None:
-    """CF_API_TOKEN + CF_ACCOUNT_ID, from the environment or the repo .env.
+    """CF_API_TOKEN + CF_ACCOUNT_ID, three sources, first match wins.
 
-    Minted 2026-10-15 (qor-relay-deployer) and stored in the app's own
-    C:\\Users\\rehan\\.freebuff\\cloudflare.env, which the repo .env fills
-    when both are absent. Never logged, never committed (SO-5).
+    1. the process environment (what GitHub Actions passes from the repo
+       secrets CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID),
+    2. the gitignored repo .env, and finally
+    3. the app's own C:\\Users\\rehan\\.freebuff\\cloudflare.env, which holds
+       the one qor-relay-deployer token this project runs on.
+    Never logged, never committed (SO-5). The third source is read-only:
+    this module only ever READS the credential file, it never copies one
+    secret into another file.
     """
     token = os.environ.get("CF_API_TOKEN", "").strip()
     account = os.environ.get("CF_ACCOUNT_ID", "").strip()
     if token and account:
         return token, account
-    env_path = ROOT / ".env"
-    if env_path.is_file():
-        try:
-            text = env_path.read_text(encoding="utf-8", errors="replace")
-        except OSError:
-            return None
-        if not (token and account):
-            m_tok = re.search(r"^CF_API_TOKEN=(.*)$", text, re.M)
-            m_acct = re.search(r"^CF_ACCOUNT_ID=(.*)$", text, re.M)
-            token = token or (m_tok.group(1).strip() if m_tok else "")
-            account = account or (m_acct.group(1).strip() if m_acct else "")
+    candidates = [ROOT / ".env",
+                  Path("C:/Users/rehan/.freebuff/cloudflare.env")]
+    for env_path in candidates:
+        if not (token and account) and env_path.is_file():
+            try:
+                text = env_path.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                text = ""
+            if not token:
+                m_tok = re.search(r"^CF_API_TOKEN=(.*)$", text, re.M)
+                token = m_tok.group(1).strip() if m_tok else ""
+            if not account:
+                m_acct = re.search(r"^CF_ACCOUNT_ID=(.*)$", text, re.M)
+                account = m_acct.group(1).strip() if m_acct else ""
+            if token and account:
+                break
     if token and account:
         return token, account
     return None
@@ -199,10 +209,18 @@ def _push_key(day: date, key: str, local: Path, creds: tuple[str, str]) -> dict:
 
 
 def push(day: date = None) -> dict:
-    """Push the day's whole state. Best effort; returns a summary dict."""
+    """Push the day's whole state. Best effort; returns a summary dict.
+
+    The bucket is ensured BEFORE anything is uploaded, so the first push of
+    a new account creates quant-of-rehan-tape itself and a failure to do so
+    (R2 not enabled, bad token) is a named reason, not a silent half push.
+    """
     creds = _credential()
     if creds is None:
         return {"ok": False, "reason": "no CF_API_TOKEN/CF_ACCOUNT_ID credential"}
+    ensured = ensure_bucket()
+    if not ensured.get("ok"):
+        return {"ok": False, "reason": f"bucket not ensured: {ensured.get('reason')}"}
     day = day or _today()
     parts = []
     for key, local in state_paths(day):

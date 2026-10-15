@@ -72,6 +72,11 @@ jobs:
     timeout-minutes: 10
     env:
       RELAY_ADMIN_TOKEN: ${{ secrets.RELAY_ADMIN_TOKEN }}
+      # Band-state persistence (src/data/band_state.py): a captured tape and
+      # the day's state survive the runner in R2 under the same two repo
+      # secrets the relay deploy already uses.
+      CF_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CF_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       KMIALL_DATA_RIGHTS_CONFIRMED: ${{ vars.KMIALL_DATA_RIGHTS_CONFIRMED }}
       KMIALL_DATA_LATENCY_CONFIRMED: ${{ vars.KMIALL_DATA_LATENCY_CONFIRMED }}
       KMIALL_UNIVERSE_CONFIRMED: ${{ vars.KMIALL_UNIVERSE_CONFIRMED }}
