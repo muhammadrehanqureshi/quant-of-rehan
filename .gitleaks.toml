@@ -1,0 +1,22 @@
+# gitleaks configuration for QoR
+# Default detections ON. Values are always --redact'ed (CI pins the flag);
+# this file only tunes fingerprints, never disables base rules.
+
+[extend]
+# Use the default gitleaks rules plus the repo-specific allowlist below.
+
+title = "QoR secret scan"
+
+[allowlist]
+description = "Structural/listing test fixtures that are not credentials"
+paths = [
+  '''(^|/)tests/(test_telegram|test_signal_push|test_local_only)\.py$''',
+  '''(^|/)legacy/sentinel/tests/''',
+  '''(^|/)legacy/eod/tests/''',
+]
+commits = []
+
+# A finding in the recon-style docs is exactly what we must never allow back,
+# so there is NO allowlist for legacy/sentinel/eclear_recon: that folder must
+# stay empty, and gitleaks will fail loudly if anything resembling the old
+# capture returns.

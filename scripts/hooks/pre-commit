@@ -1,0 +1,82 @@
+#!/usr/bin/env bash
+# QoR pre-commit secret scan (SO-5). Fail closed; never print values.
+# The staged diff is examined ONLY for shapes; output is kind + file + line,
+# with every literal masked. To set up: git config core.hooksPath scripts/hooks
+
+set -u
+cd_to_root() {
+  root=$(git rev-parse --show-toplevel 2>/dev/null) && cd "$root" || exit 1
+}
+cd_to_root
+
+# Collect staged content (added AND modified), then scan the blob text.
+# Reading a blob is fine; printing is what is banned, so every literal >=8
+# chars in OUTPUT is replaced before it reaches the terminal.
+diff_output=$(git diff --cached --no-ext-diff --unified=0 --diff-filter=ACMR -- 2>/dev/null | sed -e '/^diff --git/!d;/^@@ /d')
+
+echo "pre-commit: scanning staged content for credential shapes..." >&2
+
+python - > /tmp/qor_leak_report.txt <<'PY' 2>&1
+import re
+import subprocess
+from pathlib import Path
+
+STAGED = subprocess.run(
+    ["git", "diff", "--cached", "--name-only", "--diff-filter=ACMR"],
+    capture_output=True, text=True).stdout.split()
+
+SHAPES = {
+    "github_token": re.compile(r"(?:gh[psou]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{30,})"),
+    "telegram_bot": re.compile(r"\b\d{8,10}:AA[A-Za-z0-9_-]{30,}"),
+    "jwt": re.compile(r"eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{5,}"),
+    "cloudflare_account_hex32": re.compile(r"\b[a-f0-9]{32}\b"),
+    "url_embedded_creds": re.compile(r"[a-z][a-z0-9+.-]*://[^\s/:@]{1,60}:[^\s:@]{4,}@[^\s]+"),
+    "pem_private_key": re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH |PGP )?PRIVATE KEY-----"),
+    "cnic": re.compile(r"\b\d{5}-\d{7}-\d\b"),
+    "iban_pk": re.compile(r"\bPK\d{2}[A-Z]{4}\d{16}\b"),
+    "phone_pk": re.compile(r"(?:\+92[-\s]?\d{10}|03\d{2}[-\s]?\d{7})"),
+    "broker_login_ish": re.compile(r"(?i)^\s*(?:userid|password|pass|pin|secret|token)\s*=\s*\S+\s*$"),
+    "session_cookie": re.compile(r"(?i)(?:" + "set" + "-cookie|jsessionid|sessionid\\s*[:=])"),
+}
+
+total = 0
+for rel in STAGED:
+    # The scanner never scans its own rule text; CI gitleaks still does.
+    if rel.replace("\\", "/") == "scripts/hooks/pre-commit":
+        continue
+    p = Path(rel)
+    if not p.is_file():
+        continue
+    try:
+        text = p.read_text(encoding="utf-8", errors="replace")
+    except Exception:
+        continue
+    for name, rx in SHAPES.items():
+        for m in rx.finditer(text):
+            line_no = 1 + text[:m.start()].count("\n")
+            v = m.group(0)
+            masked = ("...len=%d" % len(v)) if len(v) >= 8 else ""
+            print(f"STAGED-LEAK kind={name} file={rel} line={line_no} {masked}")
+            total += 1
+
+print(f"pre-commit: scan finished, findings={total}")
+PY
+
+grep -q findings= /tmp/qor_leak_report.txt
+rc=$?
+if [ "$rc" -ne 0 ]; then
+  echo "pre-commit: scanner failed to run - refusing the commit (fail closed)." >&2
+  exit 1
+fi
+
+findings=$(grep -oE 'findings=[0-9]+' /tmp/qor_leak_report.txt | head -1 | cut -d= -f2)
+if echo "$findings" | grep -qE '^0$'; then
+  grep -E 'scan finished' /tmp/qor_leak_report.txt >&2
+  rm -f /tmp/qor_leak_report.txt
+  exit 0
+fi
+
+cat /tmp/qor_leak_report.txt >&2
+rm -f /tmp/qor_leak_report.txt
+echo "pre-commit: REFUSED. Fix or stash the flagged content; values were masked, not shown." >&2
+exit 1
