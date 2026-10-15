@@ -1,6 +1,8 @@
-# GOVERNANCE GUARD: runs ONLY on pull requests, finishes in seconds.
+# GOVERNANCE GUARD: runs ONLY on pull requests.
 # SO-4: no scheduled jobs, no backtests, no data pipelines in Actions.
-# Monthly budget protection: this workflow consumes well under 1 minute per PR.
+# Monthly budget protection: actual usage is a few minutes per PR (the unit
+# suite takes ~4 minutes on a hosted runner); the cap is only a runaway
+# guard, never a test-speed contract, so it sits well above the real cost.
 name: governance-guard
 
 on:
@@ -13,7 +15,7 @@ permissions:
 jobs:
   governance:
     runs-on: ubuntu-latest
-    timeout-minutes: 2
+    timeout-minutes: 10
     steps:
       # fetch-depth: 0 lets the SO-7 check read PR commit authors/messages.
       # The ref is the PR's own head commit on purpose. The default checkout
