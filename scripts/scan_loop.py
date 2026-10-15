@@ -447,6 +447,18 @@ class ScanLoop:
         if self.config.capture and not self._capture():
             raise ScanFault("bar capture failed before the scan")
 
+        # Owner order 2026-10-15 (fifth note): the market card goes out from
+        # every cycle inside the band, not only from the PC tick that no
+        # longer runs. The phone's B and S numbers are the tape's own counts
+        # (src/data/volume_split.py: tape_counts, then measured), so the
+        # card carries the exchange's real split and the app prints B= and
+        # S= instead of the range estimate's ~. Without this push the relay
+        # serves only its own portal build, whose close-at-the-low estimate
+        # is exactly the MACFL card the owner reported: buy 0, sell the
+        # whole total, marked as an estimate. A card failure is logged and
+        # never becomes a scan fault: the verdict is decided after this.
+        self._publish_market_card(moment)
+
         from scripts import intraday_pipeline as pipeline
 
         started = time.perf_counter()
@@ -524,6 +536,23 @@ class ScanLoop:
             latency_ms=(time.perf_counter() - started) * 1000,
             delivered=payload.get("delivered"),
         )
+
+    def _publish_market_card(self, moment: datetime) -> None:
+        """Push the tape-measured market card, best effort, never fatal.
+
+        src/data/live_card.publish_card builds the snapshot from THIS
+        session's own tape (flows_for reads the capture of today) and posts
+        it through the same resolver the rest of the system uses
+        (RELAY_ADMIN_TOKEN from the environment, which the band workflow
+        already carries). It never raises, so a card that cannot be built
+        or cannot reach the relay is a log line, not a lost scan.
+        """
+        from src.data import live_card
+
+        card = live_card.publish_card(moment)
+        LOGGER.info("market card %s: %s | %s",
+                    "ok" if card["ok"] else "FAILED", card["detail"],
+                    card["split"])
 
     def _capture(self) -> bool:
         """Keep the session's bar source alive. A failure is a classified fault.

@@ -118,7 +118,14 @@
                      @dimen/settings_shift_x and @dimen/settings_shift_y. A
                      translation leaves the measurements above intact, so the
                      title still owns the space it always did and the shift is
-                     the control's own; see dimens.xml for the numbers. -->
+                     the control's own; see dimens.xml for the numbers.
+
+                     Owner order 2026-10-15 (third note, today): the control
+                     moves a further 70% of its own box right and a further
+                     15% of it up from where the shift stood, still the same
+                     two translation dimens, so the totals stack to 90% right
+                     and 20% up of the 42dp box and this comment need no
+                     further edit to stay true. -->
                 <ImageView
                     android:id="@+id/btn_settings"
                     android:layout_width="42dp"
