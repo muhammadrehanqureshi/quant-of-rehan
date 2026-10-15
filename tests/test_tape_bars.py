@@ -333,6 +333,23 @@ class TestScannerReadsTheTape(TapeCaptureFixture):
         self.assertIn("SCAN BLOCKED", text)
         self.assertIn("MKT-FEED tape", text)
         self.assertIn("Bar history:", text)
+        # Five minutes of tape against twenty bars of need is a countdown, not
+        # a failure, and the message says which (redesign 2026-10-15).
+        self.assertTrue(quality.warming_up, quality.reason)
+        self.assertIn("Warming up:", text)
+        self.assertIn("still filling, not broken", text)
+        self.assertNotIn("DATA failure", text)
+
+    def test_a_tape_that_stops_is_named_as_a_data_failure(self):
+        """The other direction: a capture whose bars stop is a data failure."""
+        path, as_of = self._tape_file(40, ["OGDC"])
+        later = as_of + timedelta(minutes=40)
+        session = scanner.load_tape_bars(path, ["OGDC"], later)
+        quality = scanner.assess_quality(session, ["OGDC"])
+        text = scanner.scan_blocked_message(quality)
+
+        self.assertFalse(quality.warming_up, quality.reason)
+        self.assertIn("stale", quality.reason)
         self.assertIn("DATA failure", text)
 
     def test_the_format_is_read_from_the_file(self):

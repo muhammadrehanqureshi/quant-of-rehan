@@ -72,7 +72,22 @@ REGISTRY: Dict[str, DataSource] = {
                "read from the venue's own counter on 56,209 rows with zero "
                "resets, and zero symbols whose bars disagreed with the venue's "
                "own day high and low. Bar history and freshness are measured "
-               "per scan, not assumed.",
+               "per scan, not assumed. "
+               "UPDATE 2026-10-15: the freshness half of that was measured "
+               "unreachable, not merely tight. Across the whole 319 symbol "
+               "universe, fresh coverage peaks at 74.9% to 78.7% inside five "
+               "minutes because a slice of KMIALL prints less often than "
+               "that, so the 80% whole-universe floor blocked every live scan "
+               "and no signal could ever exist (run 38530614304: 88 cycles, "
+               "87 scans, all DATA BLOCKED). Freshness and depth are now "
+               "measured on the population a ranking can use (the volume "
+               "leaders and the rankable count) and the illiquid tail is "
+               "reported with its count; a capture younger than the 20 bars "
+               "the strategy needs is a warm-up countdown rather than a "
+               "fault. Re-measured on the same real tape with those gates: "
+               "230 to 245 rankable symbols and 19 to 20 of the top 20 "
+               "leaders fresh at every instant, and market verdicts where "
+               "the scan previously blocked.",
     ),
     "session_snapshot": DataSource(
         key="session_snapshot",

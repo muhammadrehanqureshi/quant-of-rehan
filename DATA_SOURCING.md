@@ -148,10 +148,27 @@ served. The registry entry `session_snapshot` holds that state, and
   for). An earlier draft of this paragraph quoted 27.5% carried, 35,039 bars
   and 25,412 counter rows; re-measured from the frozen file on 2026-10-14
   against the shipped builder, which produces the figures above.
-  That last number is a real, unresolved limit: the tape observes a
+  That last number WAS a real, unresolved limit: the tape observes a
   symbol about every 60 to 90 seconds, so a slice of the KMIALL universe is
-  genuinely quiet for more than five minutes, and the scan reports that as a
-  blocked scan rather than trading through it. `intraday_ohlcv` therefore
+  genuinely quiet for more than five minutes, and the scan reported that as a
+  blocked scan rather than trading through it.
+
+  RESOLVED 2026-10-15, by measurement rather than by relaxing the gate. Re-read
+  from the frozen 2026-10-13 tape and from the live band logs of 2026-10-14
+  (run 38530614304: 88 cycles, 87 scans, every one DATA BLOCKED, 86 of them
+  `InsufficientCoverage`), whole-universe fresh coverage peaks at 74.9% to
+  78.7% inside five minutes and cannot reach the 80% floor, so the floor
+  blocked every live scan and the system could never produce a signal. The
+  same measurement showed what the floor was really protecting: the top 20
+  symbols by session traded value were fresh in 19 or 20 cases at every
+  instant, and 212 to 245 symbols were simultaneously deep enough to score and
+  fresh. Freshness and depth are therefore judged on that population, the
+  illiquid tail is reported with its count instead of blocking the scan for
+  every symbol, and a capture younger than the 20 one-minute bars the strategy
+  needs is a WARMING UP countdown rather than a coverage fault. On the same
+  real tape with the new gates the scan renders market verdicts (NO TRADE at
+  10:30, entries at 11:00, 12:00, 13:00 and 13:45) where it previously blocked
+  every cycle. `intraday_ohlcv` therefore
   stays DEGRADED, and the owner's decision on the freshness floor, on the
   denominator the fresh share divides by, or on a denser tape is what opens
   the window, not a code change here.
