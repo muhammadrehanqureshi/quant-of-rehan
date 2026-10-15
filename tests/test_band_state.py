@@ -20,6 +20,10 @@ sys.path.insert(0, str(ROOT))
 
 from src.data import band_state  # noqa: E402
 
+# The real implementation, captured before any test's setUp replaces the
+# module attribute, for the tests that exercise the ensure path itself.
+REAL_ENSURE = band_state.ensure_bucket
+
 TODAY = date(2026, 10, 15)
 
 
@@ -68,6 +72,8 @@ class BandStateTest(unittest.TestCase):
         self.call_r2 = _CallR2()
         self._patches = [
             patch("src.data.band_state._credential", return_value=("tok", "acct")),
+            patch("src.data.band_state.ensure_bucket",
+                  return_value={"ok": True, "reason": "bucket exists"}),
             patch("src.data.band_state.bucket_url",
                   return_value="https://fake/api(acct)/buckets/b/objects"),
             patch("src.data.band_state._call", self.call_r2.call),
@@ -136,6 +142,20 @@ class BandStateTest(unittest.TestCase):
                 {"ok": False, "reason": "no CF_API_TOKEN/CF_ACCOUNT_ID credential"})
         self.assertFalse(self.capture.is_file())
 
+    def test_a_push_never_uploads_when_the_bucket_could_not_be_ensured(self):
+        # The owner's actual failure to catch: R2 enabled but the bucket not
+        # yet created. A push with no bucket is a silent half push; the
+        # ensure must speak first, with the reason, and upload nothing.
+        self.capture.write_bytes(b"must not leak to a nonexistent bucket")
+        with patch("src.data.band_state.ensure_bucket",
+                   return_value={"ok": False,
+                                 "reason": "bucket create HTTP 403: bad token"}):
+            result = band_state.push(TODAY)
+        self.assertFalse(result["ok"])
+        self.assertIn("bucket not ensured", result["reason"])
+        self.assertIn("bucket create HTTP 403", result["reason"])
+        self.assertEqual(list(self.call_r2.objects), [])
+
     def test_r2_not_enabled_is_a_named_reason_not_a_crash(self):
         class R:
             status_code = 403
@@ -146,6 +166,7 @@ class BandStateTest(unittest.TestCase):
                         "message": "Please enable R2 through the Cloudflare Dashboard."}]}
 
         with patch("requests.get", return_value=R()), \
+                patch("src.data.band_state.ensure_bucket", REAL_ENSURE), \
                 patch("src.data.band_state.BUCKET_NAME", "quant-of-rehan-tape"):
             result = band_state.ensure_bucket()
         self.assertFalse(result["ok"])
@@ -201,6 +222,8 @@ class PushRestoreEndToEnd(unittest.TestCase):
         self.paths = [(f"day={TODAY.isoformat()}/capture.ndjson.gz", self.capture)]
         self.call_r2 = _CallR2()
         for p in [patch("src.data.band_state._credential", return_value=("t", "a")),
+                  patch("src.data.band_state.ensure_bucket",
+                        return_value={"ok": True, "reason": "bucket exists"}),
                   patch("src.data.band_state.bucket_url",
                         return_value="https://fake/objects"),
                   patch("src.data.band_state._call", self.call_r2.call),
