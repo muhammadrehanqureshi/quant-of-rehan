@@ -88,7 +88,16 @@ BAR_SECONDS = _number("BAR_SECONDS", 60.0)
 # It is measured only where a ranking is possible: a capture younger than
 # MIN_BARS_PER_SYMBOL minutes cannot hold that many bars in ANY symbol, so it
 # is a warm-up (see WARMUP_GRACE_MINUTES below) rather than a data failure.
-MIN_HISTORY_COVERAGE_PCT = _number("MIN_HISTORY_COVERAGE_PCT", 0.80)
+MIN_HISTORY_COVERAGE_PCT = _number("MIN_HISTORY_COVERAGE_PCT", 0.30)
+# Owner order 2026-10-15 raised on the previous 0.80 default: measured live, a
+# working 301-symbol tape held the 20 bars the strategy needs on 213 symbols
+# (70.8%), and the floor blocked the scan anyway. A ranking already refuses
+# any symbol with fewer than MIN_BARS_PER_SYMBOL bars, and the rankable
+# population gates (MIN_RANKABLE_SYMBOLS / MIN_RANKABLE_SHARE) decide where a
+# ranking would say nothing useful about the market, so the whole-universe
+# history share is now a degeneracy tripwire (a tape so thin that under 30%
+# of captured symbols grew 20 bars) and a measured REPORT on every scan, not
+# a whole-scan block. The rest of the universe is ranked, not refused.
 
 # -------------------------------------------------------------------------
 # The rankable population (redesign 2026-10-15).
@@ -171,6 +180,24 @@ WEAKNESS_PENALTY_POINTS = _number("WEAKNESS_PENALTY_POINTS", 10.0)
 # ---------------------------------------------------------------- market gate
 MIN_BREADTH = _number("MIN_BREADTH", 0.35)
 MAX_MARKET_DROP = _number("MAX_MARKET_DROP", -0.01)
+
+# ---------------------------------------------------------------- universe
+# ETFs are excluded from EVERY scan: they are basket instruments tracking an
+# index or a commodity and are not made for intraday trading (owner order
+# 2026-10-15). The KMIALL snapshot carries two of them (MIIETF, MZNPETF) as
+# Shariah constituents, so they are filtered at load, by name and by the
+# exchange's own naming convention, never by guessing from prices.
+EXCLUDE_ETFS = _flag("EXCLUDE_ETFS", True)
+ETF_SYMBOL_SUFFIX = "ETF"
+EXCLUDED_ETF_SYMBOLS = frozenset({"MIIETF", "MZNPETF"})
+
+
+def is_etf_symbol(symbol: str) -> bool:
+    """True when *symbol* is an exchange-traded fund naming convention or on
+    the known ETF list. The filter is name-based, so a stray ETF admitted to
+    KMIALLSHR in the future is still excluded."""
+    s = str(symbol).strip().upper()
+    return s in EXCLUDED_ETF_SYMBOLS or s.endswith(ETF_SYMBOL_SUFFIX)
 
 SCANNER_VERSION = "momentum_volume_acceleration_v1"
 
