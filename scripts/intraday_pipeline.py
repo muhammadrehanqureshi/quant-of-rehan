@@ -77,6 +77,15 @@ def load_kmiall(path: Path = UNIVERSE_FILE) -> list[str]:
         and "KMIALLSHR" in row.get("listedIn", [])
         and row.get("symbol")
     })
+    # ETFs are NEVER scanned (owner order 2026-10-15): basket instruments are
+    # not made for intraday trading, and they would otherwise ride the index
+    # instead of its own momentum. The exclusion is name-based and logged, so
+    # a universe file that still lists them is not silently mis-shaped.
+    excluded = [s for s in symbols if config.is_etf_symbol(s)]
+    if config.EXCLUDE_ETFS and excluded:
+        print(f"ETF exclusion (owner order 2026-10-15): not scanning "
+              f"{', '.join(sorted(set(excluded)))}")
+        symbols = [s for s in symbols if not config.is_etf_symbol(s)]
     if not symbols:
         raise RuntimeError("KMIALL/Shariah universe resolved to zero symbols")
     return symbols
@@ -345,7 +354,10 @@ def run_scan(slot: str, capture: Path | None = None) -> dict:
             "config": config.config_snapshot(),
         }
         write_observation(payload)
-        deliver(text, "ops")
+        # Owner order 2026-10-15: the scan cadence is background. A blocked
+        # scan is a data state, not a market event, so it updates the card and
+        # the archived observations WITHOUT a Telegram op text every 30
+        # seconds. Only ever a signal travels.
         push_card(card_text(day, slot, text, alert=False), state)
         archive("/research/observation",
                 {"date": day.isoformat(), "slot": slot, "snapshot": payload})
@@ -410,7 +422,8 @@ def run_scan(slot: str, capture: Path | None = None) -> dict:
                            expected=quality.symbols_expected)
             state.save()
             no_trade_text = scanner.no_trade_message(quality, context)
-            deliver(no_trade_text, "ops")
+            # Owner order 2026-10-15: a market NO TRADE is not a signal. The
+            # verdict is written, archived and carded, never messaged.
             push_card(card_text(day, slot, no_trade_text, alert=False), state)
             delivered = "NO_TRADE"
 
