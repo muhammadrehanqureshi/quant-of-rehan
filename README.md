@@ -350,6 +350,47 @@ python -m src.data.universe_refresh              # KMIALL drift vs the live exch
   78.1% of entries (80.3% baseline) touch -1% intraday. Stop placement is the
   binding constraint on this universe.
 
+## Charts of Rehan (the chart app)
+
+`charts/` is a standard-library Python service and `web/` is its React and
+TypeScript front end: candles, volume, the measured minutes that are missing,
+and the exchange's own session clock, drawn only from bars this project can
+name. It is a foreground tool and nothing else. It registers no schedule,
+daemon, watcher or autostart entry, it refuses to start inside GitHub Actions
+because the runner minutes belong to the market-hours scans, and it binds
+loopback unless the operator says otherwise.
+
+| Piece | File |
+|---|---|
+| The wire contract, validated in both directions | [charts/contract.py](charts/contract.py) |
+| One adapter per source, behind one small protocol | [charts/adapters](charts/adapters) |
+| Pacing, bounded retries, circuit breaker | [charts/ratelimit.py](charts/ratelimit.py) |
+| Series store, revisions, measured gaps | [charts/store.py](charts/store.py) |
+| The one payload builder every door uses | [charts/service.py](charts/service.py) |
+| REST, Server-Sent Events and the built UI | [charts/http.py](charts/http.py) |
+| The UI: strict TypeScript, canvas renderer | [web/src](web/src) |
+
+Sources: the broker tape for minute bars, the PSX Data Portal company page for
+one session snapshot (about five minutes delayed, one bar per day), and a
+labelled synthetic replay source that exists for tests and the offline demo.
+The portal's old EOD endpoint answers an HTML shell and `/timeseries/int` is a
+404 (both measured 2026-10-14), so no daily or intraday series is claimed from
+there; `src/data/registry.py` declares that as `session_snapshot` and
+[DATA_SOURCING.md](DATA_SOURCING.md) records the measurement.
+
+```bash
+python examples/charts_demo.py                    # the whole pipeline, offline
+python -m charts --source tape --port 8788        # real bars, loopback only
+python -m charts --source replay --once           # one poll, then exit
+cd web && npm install && npm run dev              # the UI with hot reload
+```
+
+104 Python tests cover the contract, the store, the rate limiter, the three
+sources and the HTTP surface over a real socket (including the event stream);
+64 front-end tests cover the validators, the retry and timeout paths, the
+stream reconnection and the series maths. Full detail in
+[charts/README.md](charts/README.md) and [web/README.md](web/README.md).
+
 ## Status, 2026-10-13
 
 - **Every change lands as a pull request.** One PR per change, based on

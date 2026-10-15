@@ -74,6 +74,20 @@ REGISTRY: Dict[str, DataSource] = {
                "own day high and low. Bar history and freshness are measured "
                "per scan, not assumed.",
     ),
+    "session_snapshot": DataSource(
+        key="session_snapshot",
+        description="One session snapshot per symbol (open, high, low, "
+                    "volume, last price) from the PSX Data Portal",
+        availability=Availability.DEGRADED,
+        detail="The portal's old EOD endpoint answers HTML (and 404) and "
+               "/timeseries/int is a 404, both measured 2026-10-14, so there "
+               "is no public intraday series to read. Its company page still "
+               "carries the REG panel and its own publication stamp. "
+               "DEGRADED by delay: the portal states about five minutes, and "
+               "the snapshot is one bar per day, never a minute series. The "
+               "chart service (charts/adapters/portal.py) serves it as a "
+               "single session bar with that delay disclosed in the payload.",
+    ),
     "footprint": DataSource(
         key="footprint",
         description="Footprint candles / true bid-ask order flow",

@@ -38,6 +38,25 @@ FOOTPRINT DATA UNAVAILABLE / DEGRADED: footprint engine disabled
 OHLCV-derived proxies (e.g. candle-body imbalance) may inform research only
 when labeled degraded. They are never presented as true order flow.
 
+## 3a. Measured again on 2026-10-14: what the Data Portal still serves
+
+Before the chart service (charts/, the Charts of Rehan app) chose its
+sources, each candidate was fetched once and read, so nothing below is a
+claim from memory:
+
+| Endpoint | Answer measured 2026-10-14 |
+|---|---|
+| `/timeseries/eod/{symbol}` | an HTML shell (and 404 with JSON headers): the old JSON daily series is gone |
+| `/timeseries/int/{symbol}` | 404: there is no public intraday series |
+| `/company/{symbol}` | the REG panel with Open, High, Low, Volume and Total Trades, the last price in `quote__close`, and the portal's own stamp in `quote__date` ("As of Wed, Oct 14, 2026 3:21 PM") |
+
+The consequence for the chart service: minute bars come from this project's
+own read-only broker tape, and the portal is used only as a session snapshot
+(one bar per day) with its own delay disclosed in the payload. No daily
+history and no intraday series is claimed from the portal, because neither is
+served. The registry entry `session_snapshot` holds that state, and
+`charts/adapters/portal.py` is the only reader of it.
+
 ## 4. The real paths to genuine order flow
 
 ### Path A: Forward capture from the read-only broker feed: approved for capture
