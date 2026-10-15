@@ -1697,3 +1697,88 @@ Added: `.github/workflows/intraday-session.yml`. Changed: `src/config.py`
 `GOVERNANCE.md` (SO-13, and the SO-10 budget amended for a public repository),
 `README.md`, `MARKET_SCHEDULING.md`, `tests/test_scan_loop.py`,
 `tests/test_rebuild_schedule.py`, this report.
+
+## 2026-10-15 · the 4-minute grid, and why no signal ever existed
+
+Owner brief: refactor the engine so a market scan happens every four minutes
+across the core application and the intraday strategy, audit the ingestion and
+signal path for why no signal is triggered, keep strict typing and error
+handling around network timeouts and data gaps, separate fetching, analysis and
+execution, and prove the interval and the signal on simulated market data.
+
+**The audit found a gate that could not be met, not a strategy that could not
+fire.** The scan path was working: the runner built bars from the tape, the
+gates judged them, the observation was written and the card was pushed. What it
+never did was reach a verdict. From the live band log of 2026-10-14 (run
+38530614304, 45 minutes of a real session): 88 cycles, 87 scans, 88 failures,
+86 of them `InsufficientCoverage`, every cycle DATA BLOCKED. The final reason
+was "bar history: only 213/301 captured symbols (70.8%) hold the 20 bars the
+strategy needs, below the 80% floor", and a dispatch that started mid-band had
+"only 0/301 ... (0.0%)" because its tape was ten minutes old.
+
+Measured again from the frozen 2026-10-13 session tape (44.6 MB, 314 symbols,
+09:47 to 13:47 PKT) across six instants of that session, before any change:
+
+| as_of | coverage | fresh | history | verdict |
+|---|---|---|---|---|
+| 10:00 | 81.5% | 79.0% | 0.0% | DATA BLOCKED (history) |
+| 11:00 | 90.0% | 78.7% | 93.4% | DATA BLOCKED (freshness) |
+| 12:00 | 92.2% | 67.4% | 95.2% | DATA BLOCKED (freshness) |
+| 13:00 | 93.4% | 74.9% | 94.6% | DATA BLOCKED (freshness) |
+
+Whole-universe fresh coverage peaks at 78.7% inside five minutes, so the 80%
+floor was **unreachable on real data**: a slice of the KMIALL universe prints
+less often than once per five minutes, and one illiquid tail symbol blocked the
+scan for all of them. The system was structurally silent, and no amount of
+strategy work could have changed it.
+
+**What the floor was actually protecting, and what replaced it.** At the same
+instants, the population a candidate can come from was healthy: 19 or 20 of the
+top 20 symbols by session traded value had printed inside the staleness window,
+and 212 to 245 symbols were both deep enough to score and fresh. So freshness
+and depth are now measured on that population (`MIN_RANKABLE_SYMBOLS`,
+`MIN_RANKABLE_SHARE`, `LEADER_SLICE`, `MIN_LEADER_FRESH_SHARE`), the illiquid
+tail is counted and reported in the quality report and the message instead of
+blocking the scan for every symbol, and `MIN_COVERAGE_PCT` still measures the
+whole universe because "did the market trade today" is a whole-universe
+question. The retired number (`MIN_FRESH_COVERAGE_PCT`) is still reported, so a
+reader can see the tail it used to block on.
+
+**A young tape is a countdown, not a failure.** A capture cannot hold 20
+one-minute bars before 20 minutes of tape exist, and a runner starting mid-band
+has exactly that. That state was being counted as a coverage fault (86 of them
+in one band), which made a working tape read as a dead feed and put it into a
+retry-with-backoff policy. It is now `warming_up` on the quality report, carried
+through the typed contract, and counted by the loop as `warmups` rather than
+`failures`, with the minutes still needed in the reason and on the card.
+
+**The 4-minute grid is now one implementation.** `src/data/scan_scheduler.py`
+owns it (`next_slot` returns the next boundary on the same grid
+`scan_schedule.slot_of` labels, for a 4 minute cadence and for the cloud's 30
+second one), the loop sleeps to that boundary instead of to "the last fire plus
+the interval", and the loop can be driven by the scheduler's own absolute wake
+targets with `--scheduled`, where the scheduler owns the timing and the retry
+policy while the loop owns the cycle body, the pause table and the fault
+taxonomy. Both modes share `run_decided`, and a failed cycle is re-raised to
+the scheduler so a dead feed still ends the band with exit code 3.
+
+**Verified end to end on real data and on simulated data.** With the new gates,
+the same frozen tape (no other change) renders at 10:30 NO TRADE, and at 11:00,
+12:00, 13:00 and 13:45 an entry (EFERT 65.6, PAEL 57.7, FCCL 69.2, GATI 100.0),
+where every one of those instants previously reported DATA BLOCKED.
+`tests/test_scheduled_scan.py` drives the real scheduler on a virtual clock with
+the real pipeline reading a synthetic tape that grows a minute at a time: it
+asserts the fires land on the 4 minute boundaries, that the first fires warm up
+instead of faulting, that a real TRADE follows with the winner symbol and the
+one-trade-a-day lock holding, and that five consecutive failures end the run
+with exit code 3. `tests/test_momentum_scanner.py` holds the tail, the leaders,
+the rankable floor and both warm-up directions; `tests/test_contracts.py` holds
+that a warm-up is not a typed fault; `tests/test_scan_loop.py` holds the pause
+count, the failure re-raise and the cadence handed to the scheduler.
+
+Added: `tests/test_scheduled_scan.py`. Changed: `src/config.py`,
+`src/signals/momentum_scanner.py`, `src/signals/contracts.py`,
+`src/data/scan_scheduler.py`, `src/data/registry.py`, `scripts/scan_loop.py`,
+`tests/test_tape_bars.py`, `tests/test_momentum_scanner.py`,
+`tests/test_contracts.py`, `tests/test_scan_loop.py`, `README.md`,
+`MARKET_SCHEDULING.md`, `DATA_SOURCING.md`, this report.

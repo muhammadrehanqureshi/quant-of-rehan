@@ -40,11 +40,33 @@ What the loop is responsible for:
   * SHUTDOWN     SIGINT and SIGTERM stop the loop cleanly between cycles, never
                  mid-scan, and always release the lock.
 
+Two ways to be driven, one way to decide. `--loop` sleeps to the next slot
+boundary and owns its own retry policy; `--scheduled` hands the clock to
+src/data/scan_scheduler.run_scanner_schedule, which wakes on absolute grid
+instants, re-checks the instant after every wake so a slow cycle cannot drift
+the cadence, honours a stop request inside every wait, and applies its own
+jittered exponential backoff with a five-strike give-up. Both run the same
+cycle body (`run_decided`), so the two modes cannot disagree about when to
+scan, when to pause (in the band's warm-up, in the Friday break, outside the
+session) or what a verdict means.
+
+A cycle that only finds a bar source younger than the bars it needs is a
+WARMING UP countdown, counted in `warmups`, never a fault: measured 2026-10-14,
+that state accounted for 86 of a band's 88 failures and made a working tape
+read as a dead feed.
+
 Usage:
     python scripts/scan_loop.py --once                 # one cycle, then exit
     python scripts/scan_loop.py --loop                 # run until stopped
     python scripts/scan_loop.py --loop --interval 30   # the cloud cadence (SO-13)
     python scripts/scan_loop.py --loop --interval 240  # 4 minutes (local trial)
+    python scripts/scan_loop.py --scheduled --interval 240
+                                                       # the same cycles on the
+                                                       # async scheduler's grid
+    python scripts/scan_loop.py --scheduled --scan-timeout 60
+                                                       # bound one scan, so a hung
+                                                       # API backs off instead of
+                                                       # holding the band
     python scripts/scan_loop.py --dry-run --loop       # decide, never scan
     python scripts/scan_loop.py --status               # print loop health
 """
@@ -72,6 +94,15 @@ from src.ci.local_only import guard_owner_requested  # noqa: E402
 from src.data import tape_bars  # noqa: E402
 from src.data.sessions import (  # noqa: E402
     next_open, now_karachi, session_window_text,
+)
+
+# The grid the loop sleeps to, owned by the async scheduler: one answer to
+# "when does the next fire belong" for both cadences (SO-8).
+from src.data.scan_scheduler import (  # noqa: E402
+    SchedulerConfig,
+    install_signal_handlers,
+    next_slot,
+    run_scanner_schedule,
 )
 
 # The one pause table and slot clock, shared with scripts/kmiall_tick.py, so
@@ -123,6 +154,12 @@ class LoopConfig:
     #: minus the reserve the scan needs" (see capture_budget_seconds in
     #: src/data/ohlc_poller.py). A positive value is used as given.
     capture_deadline_seconds: float = 0.0
+    #: Bound on one scanner call in the scheduled (async) mode. 0 disables the
+    #: wrapper, which is what the synchronous loop does: it holds no timeout of
+    #: its own because the capture already carries one. A positive value turns
+    #: an API that accepts and never answers into a counted failure with a
+    #: backoff delay instead of a cycle that hangs for the whole band.
+    scan_timeout_seconds: float = 0.0
 
     def __post_init__(self) -> None:
         if self.interval_seconds <= 0:
@@ -135,6 +172,8 @@ class LoopConfig:
             raise ValueError("backoff_jitter must be within [0, 1)")
         if self.max_consecutive_failures < 1:
             raise ValueError("max_consecutive_failures must be at least 1")
+        if self.scan_timeout_seconds < 0:
+            raise ValueError("scan_timeout_seconds cannot be negative")
 
     def backoff_for(self, failures: int, rng: random.Random | None = None) -> float:
         """Delay after N consecutive failures, with jitter, capped."""
@@ -208,6 +247,10 @@ class LoopHealth:
     cycles: int = 0
     scans: int = 0
     pauses: int = 0
+    #: Cycles that found a bar source still filling in, which is not a scan and
+    #: not a failure (redesign 2026-10-15). Reported so a band that spent its
+    #: first minutes warming up can never read as a band of faults.
+    warmups: int = 0
     failures: int = 0
     consecutive_failures: int = 0
     fault_counts: dict[str, int] = field(default_factory=dict)
@@ -294,19 +337,28 @@ class ScanLoop:
         return decide(moment, self.config.warmup_minutes)
 
     def next_delay(self, action: str) -> float:
-        """Seconds to sleep after this cycle.
+        """Seconds to sleep after this cycle, measured to the grid.
+
+        The delay is the distance to the NEXT SLOT BOUNDARY, not the interval
+        counted from now. That is what keeps the cadence strict: a cycle that
+        spends 2.9s of a 30 second slot, or 9s of a 4 minute one, would push
+        every later fire late and drift the grid (and the slot label would then
+        name a slot the fire did not work in). The grid itself belongs to
+        src/data/scan_scheduler.next_slot, the same function the async
+        scheduler sleeps to, so both cadences sit on one grid.
 
         A completed finalize ends the day: sleep until the next session rather
         than spinning on a closed market.
         """
+        moment = self.clock()
         if action == "finalize":
-            moment = self.clock()
             # Sleep to the next band start, which may be tomorrow or after a
             # weekend or a holiday (sessions.next_open is band aware).
             nxt = next_open(moment)
             return max(self.config.interval_seconds,
                        (nxt - moment).total_seconds())
-        return self.config.interval_seconds
+        nxt = next_slot(moment, interval_seconds=self.config.interval_seconds)
+        return max(0.0, (nxt - moment).total_seconds())
 
     # ---- one cycle -----------------------------------------------------
     def run_cycle(self) -> tuple[str, ScanOutcome | None]:
@@ -314,6 +366,18 @@ class ScanLoop:
         moment = self.clock()
         action, detail = self.decide(moment)
         slot = slot_of(moment, interval_seconds=self.config.interval_seconds)
+        return self.run_decided(action, slot, moment, detail)
+
+    def run_decided(self, action: str, slot: str, moment: datetime,
+                    detail: str = "") -> tuple[str, ScanOutcome | None]:
+        """Run one cycle whose action is already decided.
+
+        Split out so the schedule can be driven from outside this loop: the
+        async scheduler (src/data/scan_scheduler.py) decides wait, scan or
+        finalize on its own absolute grid and calls back here, and the cycle
+        body is then the same code the synchronous loop runs. One decision
+        table, one cycle body, two ways to be driven.
+        """
         started = time.perf_counter()
         self.health.cycles += 1
         self.health.last_cycle_at = moment.isoformat(timespec="seconds")
@@ -357,6 +421,14 @@ class ScanLoop:
             fault = outcome.fault()
             if fault is not None:
                 self.health.note_fault(fault)
+            if outcome.quality is not None and outcome.quality.warming_up:
+                # The bar source is younger than the bars it is asked to hold.
+                # Counted apart from both a scan and a fault, because it is
+                # neither: the next cycles fill it in and the scan resumes.
+                self.health.warmups += 1
+                LOGGER.info(
+                    "cycle %d: warming up (%s)", self.health.cycles,
+                    outcome.reason)
             LOGGER.info("cycle %d: %s latency=%.0fms focus=%s",
                         self.health.cycles, outcome.summary(),
                         outcome.latency_ms or 0.0,
@@ -422,6 +494,16 @@ class ScanLoop:
             data_age_minutes=quality_payload.get("data_age_minutes"),
             resolution=str(quality_payload.get("resolution", "1-minute")),
             source=str(quality_payload.get("source", "")),
+            # A block that is a countdown rather than a failure: the typed
+            # contract carries it, so the loop neither faults nor gives up on a
+            # bar source that is still filling (measured 2026-10-14, 86
+            # coverage faults in one band for exactly this state).
+            rankable_symbols=int(quality_payload.get("rankable_symbols", 0) or 0),
+            leader_symbols=int(quality_payload.get("leader_symbols", 0) or 0),
+            leaders_fresh=int(quality_payload.get("leaders_fresh", 0) or 0),
+            warming_up=bool(quality_payload.get("warming_up", False)),
+            warmup_minutes_remaining=float(
+                quality_payload.get("warmup_minutes_remaining", 0.0) or 0.0),
         )
         # The orchestrator reports a scanner verdict, or a trade-state name
         # once the day is locked (TARGET_MONITORING and friends). Reading the
@@ -592,6 +674,81 @@ class ScanLoop:
                 return
             time.sleep(min(remaining, 1.0))
 
+    # ---- the non-blocking schedule -------------------------------------
+    def scheduled_scanner(self):
+        """The async callback the scheduler calls back: one cycle, typed.
+
+        A cycle that failed already recorded its typed fault and its context
+        in the health file; raising hands the RETRY decision to the scheduler
+        instead of letting it believe a dead feed was healthy. A cycle that
+        only warmed up raises nothing, because it did not fail.
+        """
+        async def scanner(action: str, slot: str, moment: datetime) -> None:
+            before = self.health.consecutive_failures
+            self.run_decided(action, slot, moment)
+            if self.health.consecutive_failures > before:
+                raise ScanFault(self.health.last_reason or "scan cycle failed")
+        return scanner
+
+    def run_scheduled(self, max_cycles: int | None = None) -> int:
+        """Run the same cycles on the async scheduler's absolute grid.
+
+        This is the non-blocking form of the loop: src/data/scan_scheduler.py
+        owns the clock, sleeps to each slot boundary instead of counting an
+        interval from now, re-checks the instant after every wake so a slow
+        cycle can never drift the grid, honours a stop request inside every
+        wait, and applies its own backoff and give-up policy when a cycle
+        fails. This loop only supplies the work.
+
+        The two policies stay in their own places: the scheduler decides WHEN
+        and retries, this loop decides WHAT a cycle does (via
+        src/data/scan_schedule.py) and how a failure is classified (via
+        src/signals/contracts.py). A cycle that dead-feeds five times in a row
+        ends with exit code 3, exactly like the synchronous loop.
+        """
+        import asyncio
+
+        scanner = self.scheduled_scanner()
+        scheduler_config = SchedulerConfig(
+            interval_minutes=self.config.interval_seconds / 60.0,
+            warmup_minutes=self.config.warmup_minutes,
+            scan_timeout_seconds=self.config.scan_timeout_seconds,
+            backoff_base_seconds=self.config.backoff_base_seconds,
+            backoff_max_seconds=self.config.backoff_max_seconds,
+            backoff_jitter=self.config.backoff_jitter,
+            max_consecutive_failures=self.config.max_consecutive_failures,
+            max_cycles=(max_cycles if max_cycles is not None
+                        else self.config.max_cycles),
+        )
+        async def run_band():
+            # The stop event and its handlers are created inside the loop the
+            # scheduler will run on: install_signal_handlers needs a running
+            # loop, and asyncio.run creates exactly one.
+            stop = asyncio.Event()
+            install_signal_handlers(stop)
+            return await run_scanner_schedule(
+                scanner, scheduler_config=scheduler_config, stop=stop,
+                clock=self.clock, logger=LOGGER)
+
+        configure_logging()
+        self.health.started_at = self.clock().isoformat(timespec="seconds")
+        LOGGER.info(
+            "scheduled loop starting: interval=%gs warmup=%gmin window=%s "
+            "dry_run=%s scan_timeout=%gs", self.config.interval_seconds,
+            self.config.warmup_minutes, _window_text(self.clock()),
+            self.config.dry_run, self.config.scan_timeout_seconds)
+        report = None
+        try:
+            report = asyncio.run(run_band())
+        finally:
+            self.health.stopped_at = self.clock().isoformat(timespec="seconds")
+            self.health.save(self.health_path)
+        LOGGER.info(
+            "scheduled loop stopped: cycles=%d scans=%d pauses=%d failures=%d "
+            "last=%s (%s)", report.cycles, report.scans, report.pauses,
+            report.failures, report.last_action, report.last_reason)
+        return report.exit_code
+
 
 def _candidate(row: dict):
     from src.signals.contracts import candidate_from_row
@@ -620,6 +777,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--max-failures", type=int, default=5)
     parser.add_argument("--dry-run", action="store_true",
                         help="decide and log, but never capture or scan")
+    parser.add_argument("--scheduled", action="store_true",
+                        help="run on the async scheduler's absolute grid "
+                             "(non-blocking; retries and gives up on a dead "
+                             "feed, exit code 3)")
+    parser.add_argument("--scan-timeout", type=float, default=0.0,
+                        help="bound one scan in seconds in --scheduled mode "
+                             "(0 disables the wrapper)")
     parser.add_argument("--skip-capture", action="store_true")
     parser.add_argument("--status", action="store_true",
                         help="print the health file and the current decision")
@@ -630,6 +794,7 @@ def main(argv: list[str] | None = None) -> int:
         max_cycles=args.max_cycles,
         max_consecutive_failures=args.max_failures,
         dry_run=args.dry_run, capture=not args.skip_capture,
+        scan_timeout_seconds=args.scan_timeout,
     )
     configure_logging()
     loop = ScanLoop(loop_config)
@@ -647,6 +812,12 @@ def main(argv: list[str] | None = None) -> int:
             "health": health.as_dict(),
         }, indent=2))
         return 0
+
+    if args.scheduled:
+        # The same cycles, driven by the async scheduler rather than by this
+        # process's own interval sleep. --max-cycles bounds a scheduled run
+        # exactly as it bounds the synchronous one.
+        return loop.run_scheduled(max_cycles=args.max_cycles)
 
     if args.loop:
         return loop.run()
