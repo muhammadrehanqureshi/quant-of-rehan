@@ -35,6 +35,13 @@ turns into a retry policy by accident. Every blocked scan maps to a typed
     source error     ->  SourceUnavailable
     outside session  ->  MarketClosed
     killed mid-scan  ->  ScanAborted
+    warming up       ->  no fault at all
+
+    A warming-up capture is deliberately NOT in that list: a bar source younger
+    than the bars the strategy needs is a countdown, not a failure, and mapping
+    it to a fault would put it into a retry-with-backoff policy and a fault
+    count. Measured 2026-10-14, that mistake turned 86 warm-up cycles of one
+    band into coverage faults and made a healthy tape read as a dead feed.
 
 Usage:
 
@@ -209,8 +216,16 @@ def as_quality(value: Any) -> Quality:
 
 
 def fault_from_quality(quality: "DataQuality") -> ScanFault | None:
-    """Map a blocked quality report onto its typed fault, or None when clean."""
+    """Map a blocked quality report onto its typed fault, or None when clean.
+
+    A warming-up capture is neither: nothing is broken, the bar source has not
+    been alive long enough to hold the bars the strategy needs. Counting it as
+    a fault is what made a healthy tape look like a dead feed on 2026-10-14
+    (run 38530614304: 86 coverage faults in one band, every cycle warming up).
+    """
     if quality.status is Quality.OK:
+        return None
+    if quality.warming_up:
         return None
     reason = (quality.reason or "").lower()
     context = {
@@ -309,6 +324,16 @@ class DataQuality:
     volume_available: bool = False
     resolution: str = "1-minute"
     source: str = ""
+    #: Symbols the ranking could actually use (enough bars AND a fresh bar),
+    #: the leader slice and how fresh it was, and whether the bar source is
+    #: simply younger than the bars it is asked to hold. A warming-up block is
+    #: NOT a fault: it is a countdown, and the runner must not retry it into a
+    #: dead feed (redesign 2026-10-15).
+    rankable_symbols: int = 0
+    leader_symbols: int = 0
+    leaders_fresh: int = 0
+    warming_up: bool = False
+    warmup_minutes_remaining: float = 0.0
 
     def __post_init__(self) -> None:
         if self.symbols_expected < 0 or self.symbols_with_bars < 0:
@@ -341,6 +366,11 @@ class DataQuality:
             "duplicate_bars": self.duplicate_bars,
             "impossible_ohlc": self.impossible_ohlc,
             "resolution": self.resolution, "source": self.source,
+            "rankable_symbols": self.rankable_symbols,
+            "leader_symbols": self.leader_symbols,
+            "leaders_fresh": self.leaders_fresh,
+            "warming_up": self.warming_up,
+            "warmup_minutes_remaining": self.warmup_minutes_remaining,
         }
 
 
@@ -425,9 +455,16 @@ class ScanOutcome:
         return self.verdict in (Verdict.TRADE, Verdict.NO_TRADE)
 
     def fault(self) -> ScanFault | None:
-        """The typed fault behind a blocked outcome, or None."""
+        """The typed fault behind a blocked outcome, or None.
+
+        A warming-up capture falls through to None on purpose: the block is a
+        countdown, and a fault would put it into a retry-with-backoff policy
+        and a fault count, which is what it must not be.
+        """
         if self.verdict is Verdict.DATA_BLOCKED:
             if self.quality is not None:
+                if self.quality.warming_up:
+                    return None
                 mapped = fault_from_quality(self.quality)
                 if mapped is not None:
                     return mapped
@@ -483,6 +520,12 @@ class ScanOutcome:
                 volume_available=bool(getattr(report, "volume_available", False)),
                 resolution=str(getattr(report, "resolution", "1-minute")),
                 source=str(getattr(report, "source", "")),
+                rankable_symbols=int(getattr(report, "rankable_symbols", 0)),
+                leader_symbols=int(getattr(report, "leader_symbols", 0)),
+                leaders_fresh=int(getattr(report, "leaders_fresh", 0)),
+                warming_up=bool(getattr(report, "warming_up", False)),
+                warmup_minutes_remaining=float(
+                    getattr(report, "warmup_minutes_remaining", 0.0) or 0.0),
             )
 
         candidate = None

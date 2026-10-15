@@ -116,6 +116,120 @@ class TestQualityGate(unittest.TestCase):
         self.assertEqual(quality.status, scanner.DATA_BLOCKED)
         self.assertTrue("stale" in quality.reason or "old" in quality.reason)
 
+    # ---- the rankable population (redesign 2026-10-15) ------------------
+    #
+    # Measured on the real session tapes: freshness across the whole 319
+    # symbol KMIALL universe peaks at 74.9% to 78.7% inside five minutes,
+    # because a slice of KMIALL genuinely prints less often than that. A
+    # whole-universe freshness floor therefore blocked every live scan, which
+    # is why no signal could ever exist. These cases pin the replacement: the
+    # tail is REPORTED, the leaders and the rankable count are what block.
+
+    def test_an_illiquid_tail_is_reported_not_blocking(self):
+        """A market is scannable when its leaders and depth are.
+
+        The tail here has real bar history (25 bars each, so the history gate
+        is satisfied) but stopped printing 15 minutes before the scan, which
+        is what a slice of KMIALL genuinely does. The scan must proceed and
+        report the tail rather than block on it.
+        """
+        bars = {f"LIQ{index:03d}": minute_rows(40, step=0.01, accel=0.02)
+                for index in range(config.MIN_RANKABLE_SYMBOLS + 5)}
+        for index in range(20):
+            bars[f"QUIET{index:02d}"] = minute_rows(25)
+        symbols = list(bars)
+        session = session_of(bars, 39)
+        quality = scanner.assess_quality(session, symbols)
+
+        self.assertEqual(quality.status, "OK", quality.reason)
+        self.assertEqual(quality.symbols_with_bars, len(symbols))
+        self.assertEqual(quality.symbols_with_history, len(symbols))
+        self.assertEqual(quality.rankable_symbols,
+                         config.MIN_RANKABLE_SYMBOLS + 5)
+        self.assertEqual(quality.leader_symbols, config.LEADER_SLICE)
+        self.assertEqual(quality.leaders_fresh, config.LEADER_SLICE)
+        self.assertEqual(len(quality.symbols_stale), 20)
+        self.assertLess(quality.fresh_coverage, config.MIN_FRESH_COVERAGE_PCT,
+                        "the fixture must reproduce the tail that used to "
+                        "block every scan")
+        self.assertIn("idle longer than", quality.reason)
+        self.assertFalse(quality.warming_up)
+
+    def test_stale_volume_leaders_block_and_are_named(self):
+        """A candidate must never be chosen from prices that stopped moving."""
+        fresh = {f"LIQ{index:03d}": minute_rows(40, step=0.01, volume=1_000.0)
+                 for index in range(30)}
+        # Five symbols that carried the day's value and then went quiet: they
+        # are the leaders a candidate would be chosen from.
+        late = {f"LATE{index:02d}": minute_rows(20, step=0.01,
+                                                volume=500_000.0)
+                for index in range(5)}
+        bars = {**fresh, **late}
+        session = session_of(bars, 39)
+        quality = scanner.assess_quality(session, list(bars))
+
+        self.assertEqual(quality.status, scanner.DATA_BLOCKED)
+        self.assertIn("stale leaders", quality.reason)
+        self.assertIn("LATE00", quality.reason)
+        self.assertEqual(quality.leaders_fresh,
+                         config.LEADER_SLICE - len(late))
+        self.assertAlmostEqual(quality.leaders_fresh_share, 0.75, places=4)
+
+    def test_too_thin_a_population_blocks_even_with_fresh_leaders(self):
+        """Depth somewhere is not depth: 20 usable symbols is not a market.
+
+        The leaders are fresh here on purpose, so the block comes from the
+        rankable count alone rather than from the leader slice.
+        """
+        bars = {f"LIVE{index:03d}": minute_rows(40, step=0.01,
+                                                volume=100_000.0)
+                for index in range(20)}
+        for index in range(300):
+            bars[f"OLD{index:03d}"] = minute_rows(25, volume=5_000.0)
+        session = session_of(bars, 39)
+        quality = scanner.assess_quality(session, list(bars))
+
+        self.assertEqual(quality.status, scanner.DATA_BLOCKED)
+        self.assertIn("too few rankable symbols", quality.reason)
+        self.assertEqual(quality.leaders_fresh, config.LEADER_SLICE)
+        self.assertEqual(quality.rankable_symbols, 20)
+        self.assertLess(quality.rankable_symbols, config.MIN_RANKABLE_SYMBOLS)
+        self.assertIn("idle longer than", quality.reason)
+
+    def test_a_young_capture_warms_up_and_is_not_a_fault(self):
+        """Measured 2026-10-14: this state was counted as 86 faults a band."""
+        bars = {f"LIQ{index:03d}": minute_rows(8, step=0.01)
+                for index in range(30)}
+        session = session_of(bars, 8)
+        quality = scanner.assess_quality(session, list(bars))
+
+        self.assertEqual(quality.status, scanner.DATA_BLOCKED)
+        self.assertTrue(quality.warming_up, quality.reason)
+        self.assertIn("WARMING UP", quality.reason)
+        self.assertGreater(quality.warmup_minutes_remaining, 0.0)
+        self.assertIn("bar history", quality.reason)
+
+    def test_a_capture_with_no_bars_at_all_is_not_a_warmup(self):
+        """Nothing at all is a dead source, and the runner faults on it."""
+        session = session_of({}, 8)
+        quality = scanner.assess_quality(session, ["OGDC", "PRL"])
+
+        self.assertEqual(quality.status, scanner.DATA_BLOCKED)
+        self.assertFalse(quality.warming_up)
+        self.assertEqual(quality.warmup_minutes_remaining, 0.0)
+
+    def test_an_old_thin_capture_is_not_a_warmup_either(self):
+        """Past the grace the same low history is a genuine data failure."""
+        bars = {"OGDC": minute_rows(8, step=0.01)}
+        session = session_of(bars, 8)
+        session.as_of = session.as_of + timedelta(
+            minutes=config.WARMUP_GRACE_MINUTES + 1)
+        quality = scanner.assess_quality(session, ["OGDC"])
+
+        self.assertEqual(quality.status, scanner.DATA_BLOCKED)
+        self.assertFalse(quality.warming_up)
+        self.assertIn("say nothing about the market", quality.reason)
+
     def test_missing_volume_blocks_instead_of_guessing(self):
         """TEST 8b: the strategy needs volume; no proxy is substituted."""
         bars = {"OGDC": minute_rows(40, step=0.01)}

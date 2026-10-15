@@ -63,6 +63,11 @@ LONG_ONLY = True
 # Coverage floor for a real scan. Below it the scan is DATA_BLOCKED, never a
 # market verdict (owner spec section 8 and 29).
 MIN_COVERAGE_PCT = _number("MIN_COVERAGE_PCT", 0.80)
+# Retired as a blocking floor on 2026-10-15: measured 74.9% to 78.7% on the
+# real tapes, so a whole-universe freshness floor blocked every live scan (see
+# MIN_RANKABLE_SHARE). The number is still reported in every quality report and
+# still recorded in the snapshot, and freshness is still blocking, but on the
+# leaders and the rankable population rather than on the illiquid tail.
 MIN_FRESH_COVERAGE_PCT = _number("MIN_FRESH_COVERAGE_PCT", 0.80)
 STALENESS_MINUTES = _number("STALENESS_MINUTES", 5.0)
 MAX_MALFORMED_SHARE = _number("MAX_MALFORMED_SHARE", 0.01)
@@ -73,13 +78,61 @@ BAR_RESOLUTION = "1-minute"
 # builder never parses the label above.
 BAR_SECONDS = _number("BAR_SECONDS", 60.0)
 
-# How much of the universe must carry enough bars to be judged at all.
-# score_symbol already refuses a symbol with fewer than MIN_BARS_PER_SYMBOL
-# bars, so a capture thinner than this share would produce an empty ranking,
-# and an empty ranking that is really a short capture would be reported as a
-# market NO TRADE. This floor makes that case a DATA BLOCKED with the measured
-# bar count, which is what it is (SO-3).
+# How much of the captured universe must carry enough bars to be judged at
+# all. score_symbol already refuses a symbol with fewer than
+# MIN_BARS_PER_SYMBOL bars, so a capture thinner than this share would produce
+# an empty ranking, and an empty ranking that is really a short capture would
+# be reported as a market NO TRADE. This floor makes that case a DATA BLOCKED
+# with the measured bar count, which is what it is (SO-3).
+#
+# It is measured only where a ranking is possible: a capture younger than
+# MIN_BARS_PER_SYMBOL minutes cannot hold that many bars in ANY symbol, so it
+# is a warm-up (see WARMUP_GRACE_MINUTES below) rather than a data failure.
 MIN_HISTORY_COVERAGE_PCT = _number("MIN_HISTORY_COVERAGE_PCT", 0.80)
+
+# -------------------------------------------------------------------------
+# The rankable population (redesign 2026-10-15).
+#
+# Measured before this change, on the real session tapes the cloud recorded
+# (data/feed_capture/capture_20261013.ndjson, 314 symbols, 4h of tape) and on
+# the live band logs of 2026-10-14 (run 38530614304: 88 cycles, 87 scans, all
+# DATA_BLOCKED):
+#
+#   * freshness across the WHOLE 319 symbol KMIALL universe peaks at 74.9% to
+#     78.7% inside five minutes, because roughly a fifth of KMIALL prints less
+#     often than once every five minutes. The 80% whole-universe freshness
+#     floor was therefore unreachable on real data, so every live scan of the
+#     session was DATA_BLOCKED and no signal could ever exist.
+#   * the population the strategy actually ranks and enters from (the volume
+#     leaders) was fresh in 19 or 20 of every 20 leaders at every instant
+#     measured, and 212 to 245 symbols were both fresh and deep enough to be
+#     scored.
+#
+# So freshness and depth are judged on the symbols a ranking can use, and the
+# illiquid tail is REPORTED with its count instead of blocking the scan for
+# every symbol (SO-3: named, never hidden). MIN_COVERAGE_PCT still measures
+# the whole universe, because "did the market trade today" is a whole-universe
+# question.
+MIN_RANKABLE_SYMBOLS = int(_number("MIN_RANKABLE_SYMBOLS", 60))
+# And the share of what the capture actually saw. A market is unrankable when
+# the rankable population is BOTH small in absolute terms and a thin slice of
+# the captured universe; either test alone would block a small, healthy
+# capture (a two symbol test universe ranks perfectly well). Measured on the
+# real tape: rankable is 66% to 77% of the universe and 72% to 85% of the
+# captured symbols, so 50% keeps a wide margin.
+MIN_RANKABLE_SHARE = _number("MIN_RANKABLE_SHARE", 0.50)
+
+# The leader slice: the top N symbols by session traded value, which is where
+# a candidate can actually come from. These must be fresh, or the ranking is
+# reading prices that stopped moving.
+LEADER_SLICE = int(_number("LEADER_SLICE", 20))
+MIN_LEADER_FRESH_SHARE = _number("MIN_LEADER_FRESH_SHARE", 0.80)
+
+# A capture younger than this is warming up, not broken: no symbol can hold
+# MIN_BARS_PER_SYMBOL one-minute bars before MIN_BARS_PER_SYMBOL minutes of
+# tape exist. Reported as a data block with the minutes still needed, and the
+# runner pauses on it instead of counting a fault.
+WARMUP_GRACE_MINUTES = int(_number("WARMUP_GRACE_MINUTES", 20))
 
 # ---------------------------------------------------------------- scanner
 # Window lengths in minutes, oldest first.
@@ -310,6 +363,11 @@ def config_snapshot() -> dict:
         "bar_resolution": BAR_RESOLUTION,
         "bar_seconds": BAR_SECONDS,
         "min_history_coverage_pct": MIN_HISTORY_COVERAGE_PCT,
+        "min_rankable_symbols": MIN_RANKABLE_SYMBOLS,
+        "min_rankable_share": MIN_RANKABLE_SHARE,
+        "leader_slice": LEADER_SLICE,
+        "min_leader_fresh_share": MIN_LEADER_FRESH_SHARE,
+        "warmup_grace_minutes": WARMUP_GRACE_MINUTES,
         "tape_carry_max_gap_seconds": TAPE_CARRY_MAX_GAP_SECONDS,
         "paper_trading_enabled": PAPER_TRADING_ENABLED,
         "live_trading_enabled": live_trading_enabled(),
