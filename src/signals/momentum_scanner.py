@@ -134,6 +134,23 @@ class QualityReport:
     #: allowed (SO-3: a thin capture is a data problem, not a NO TRADE).
     symbols_with_history: int = 0
     history_coverage: float = 0.0
+    #: The population a ranking can actually use: a symbol needs BOTH enough
+    #: bars to be scored AND a bar inside the staleness window, or the trace it
+    #: contributes is dead. Reported next to the whole-universe coverage, which
+    #: keeps its own floor (redesign 2026-10-15, see src/config.py).
+    rankable_symbols: int = 0
+    #: The volume leaders, which are the symbols a candidate can come from.
+    #: A ranking off stale leaders is what the freshness floor guarded against,
+    #: so it is the leaders that must be fresh (measured: 19 to 20 of 20 at
+    #: every instant of the real 2026-10-13 session tape).
+    leader_symbols: int = 0
+    leaders_fresh: int = 0
+    leaders_fresh_share: float = 0.0
+    #: True when the capture is simply younger than the strategy needs: the
+    #: bar source has not been alive for MIN_BARS_PER_SYMBOL minutes yet, so no
+    #: ranking can exist. A runner pauses on this; it is not a fault.
+    warming_up: bool = False
+    warmup_minutes_remaining: float = 0.0
     resolution: str = config.BAR_RESOLUTION
     source: str = SOURCE_NAME
     notes: tuple[str, ...] = ()
@@ -161,6 +178,12 @@ class QualityReport:
             "volume_available": self.volume_available,
             "symbols_with_history": self.symbols_with_history,
             "history_coverage": round(self.history_coverage, 4),
+            "rankable_symbols": self.rankable_symbols,
+            "leader_symbols": self.leader_symbols,
+            "leaders_fresh": self.leaders_fresh,
+            "leaders_fresh_share": round(self.leaders_fresh_share, 4),
+            "warming_up": self.warming_up,
+            "warmup_minutes_remaining": round(self.warmup_minutes_remaining, 2),
             "min_bars_per_symbol": config.MIN_BARS_PER_SYMBOL,
             "resolution": self.resolution,
             "source": self.source,
@@ -410,6 +433,52 @@ def assess_quality(session: SessionData, symbols: list[str],
                 if len(rows) >= config.MIN_BARS_PER_SYMBOL)
     history_coverage = ready / max(with_bars, 1)
 
+    # The population a ranking can use: scored symbols that also printed inside
+    # the staleness window. A symbol with 40 bars whose last print was half an
+    # hour ago is still not a candidate, and a symbol with a fresh print but 3
+    # bars cannot be scored, so neither half alone is the measure.
+    rankable = sum(
+        1 for rows in session.bars.values()
+        if len(rows) >= config.MIN_BARS_PER_SYMBOL
+        and session.as_of - rows[-1].timestamp
+        <= timedelta(minutes=config.STALENESS_MINUTES)
+    )
+
+    # The leader slice: the symbols with the most session traded value, which
+    # is where a candidate comes from. Freshness on these is the honest guard
+    # against ranking and entering off prices that stopped moving. A symbol
+    # that traded nothing has no value to rank on and is not a leader.
+    traded = sorted(
+        ((sym, sum(bar.volume or 0.0 for bar in rows))
+         for sym, rows in session.bars.items()
+         if len(rows) >= config.MIN_BARS_PER_SYMBOL),
+        key=lambda item: (-item[1], item[0]),
+    )
+    leaders = traded[:config.LEADER_SLICE]
+    leaders_fresh = sum(
+        1 for sym, _value in leaders
+        if session.as_of - session.bars[sym][-1].timestamp
+        <= timedelta(minutes=config.STALENESS_MINUTES)
+    )
+    leader_share = leaders_fresh / max(len(leaders), 1)
+
+    # A capture younger than the bars it is asked to hold: no symbol can carry
+    # MIN_BARS_PER_SYMBOL one-minute bars before that many minutes of tape
+    # exist, so this is a warm-up with a countdown rather than a data failure.
+    # Measured 2026-10-14 (run 38530614304): a runner starting mid-band was
+    # below the history floor for its first cycles and each one was counted as
+    # a coverage fault, which is what made a working tape look like a dead one.
+    span_minutes = ((session.as_of - oldest).total_seconds() / 60.0
+                    if oldest is not None else 0.0)
+    # `with_bars > 0` matters: a capture that produced nothing at all is a dead
+    # source, not a countdown, and the runner already reports it as the
+    # source fault it is (scripts/scan_loop.py raises on a tape with no bars).
+    warming_up = (with_bars > 0
+                  and ready == 0
+                  and history_coverage < config.MIN_HISTORY_COVERAGE_PCT
+                  and span_minutes < config.WARMUP_GRACE_MINUTES)
+    warmup_left = max(0.0, config.WARMUP_GRACE_MINUTES - span_minutes)
+
     def blocked(reason: str) -> QualityReport:
         return QualityReport(
             status=DATA_BLOCKED, reason=reason, coverage=coverage,
@@ -421,6 +490,10 @@ def assess_quality(session: SessionData, symbols: list[str],
             impossible_ohlc=impossible, zero_volume_bars=zero_volume,
             volume_available=session.volume_available,
             symbols_with_history=ready, history_coverage=history_coverage,
+            rankable_symbols=rankable, leader_symbols=len(leaders),
+            leaders_fresh=leaders_fresh, leaders_fresh_share=leader_share,
+            warming_up=warming_up,
+            warmup_minutes_remaining=(warmup_left if warming_up else 0.0),
             source=session.source, notes=session.notes,
         )
 
@@ -442,17 +515,50 @@ def assess_quality(session: SessionData, symbols: list[str],
             f"KMIALL coverage {with_bars}/{expected} ({coverage:.1%}) is below "
             f"the {config.MIN_COVERAGE_PCT:.0%} floor. Data source incomplete.")
     if history_coverage < config.MIN_HISTORY_COVERAGE_PCT:
+        # Below the floor because the capture is young: a countdown, not a
+        # failure. The wording still names the bar history and the bar count,
+        # because that is what a reader has to act on either way.
+        if warming_up:
+            return blocked(
+                f"bar history: only {ready}/{with_bars} captured symbols "
+                f"({history_coverage:.1%}) hold the "
+                f"{config.MIN_BARS_PER_SYMBOL} bars the strategy needs, below "
+                f"the {config.MIN_HISTORY_COVERAGE_PCT:.0%} floor; the bar "
+                f"source has been alive {span_minutes:.0f} of the "
+                f"{config.WARMUP_GRACE_MINUTES} minutes this needs, so the scan "
+                f"is WARMING UP and resumes on its own in about "
+                f"{warmup_left:.0f} minute(s)")
         return blocked(
             f"bar history: only {ready}/{with_bars} captured symbols "
             f"({history_coverage:.1%}) hold the {config.MIN_BARS_PER_SYMBOL} "
             f"bars the strategy needs, below the "
             f"{config.MIN_HISTORY_COVERAGE_PCT:.0%} floor, so a ranking built "
             f"now would say nothing about the market")
-    if fresh_coverage < config.MIN_FRESH_COVERAGE_PCT:
+    # Freshness is judged where it decides something: the leader slice a
+    # candidate can come from, and the count of symbols a ranking can use at
+    # all. The illiquid tail (symbols that print less often than the staleness
+    # window) is counted and reported rather than allowed to block a market
+    # that has hundreds of rankable symbols (SO-3, redesign 2026-10-15).
+    if len(leaders) and leader_share < config.MIN_LEADER_FRESH_SHARE:
+        stale_leaders = [sym for sym, _value in leaders
+                         if session.as_of - session.bars[sym][-1].timestamp
+                         > timedelta(minutes=config.STALENESS_MINUTES)]
         return blocked(
-            f"stale data: {len(stale)} symbols have no bar within "
+            f"stale leaders: {len(leaders) - leaders_fresh} of the top "
+            f"{len(leaders)} traded symbols have no bar within "
             f"{config.STALENESS_MINUTES:g} minutes of the scan time "
-            f"(fresh coverage {fresh_coverage:.1%})")
+            f"({', '.join(stale_leaders[:8])}); a candidate would be chosen "
+            f"from prices that stopped moving")
+    rankable_share = rankable / max(with_bars, 1)
+    if (rankable < config.MIN_RANKABLE_SYMBOLS
+            and rankable_share < config.MIN_RANKABLE_SHARE):
+        return blocked(
+            f"too few rankable symbols: {rankable} of {with_bars} captured "
+            f"symbols hold the {config.MIN_BARS_PER_SYMBOL} bars and a bar "
+            f"within {config.STALENESS_MINUTES:g} minutes "
+            f"({rankable_share:.0%}), so a ranking could not describe a "
+            f"market; {len(stale)} captured symbols are idle longer than that "
+            f"(whole-universe fresh coverage {fresh_coverage:.1%})")
     if age is not None and age > config.STALENESS_MINUTES:
         return blocked(
             f"newest bar is {age:.1f} minutes old, above the "
@@ -464,8 +570,12 @@ def assess_quality(session: SessionData, symbols: list[str],
             "the scan is blocked instead of guessed")
 
     return QualityReport(
-        status="OK", reason="coverage, freshness, history, structure and volume "
-                           "present",
+        status="OK",
+        reason=(f"coverage, freshness, history, structure and volume present; "
+                f"{rankable} of {with_bars} captured symbols rankable, "
+                f"{leaders_fresh}/{len(leaders)} of the volume leaders fresh, "
+                f"{len(stale)} symbol(s) idle longer than "
+                f"{config.STALENESS_MINUTES:g} minutes"),
         coverage=coverage, fresh_coverage=fresh_coverage, symbols_expected=expected,
         symbols_with_bars=with_bars, symbols_missing=missing,
         symbols_stale=tuple(sorted(stale)), newest_bar=newest, oldest_bar=oldest,
@@ -473,6 +583,8 @@ def assess_quality(session: SessionData, symbols: list[str],
         malformed_bars=malformed, impossible_ohlc=impossible,
         zero_volume_bars=zero_volume, volume_available=True,
         symbols_with_history=ready, history_coverage=history_coverage,
+        rankable_symbols=rankable, leader_symbols=len(leaders),
+        leaders_fresh=leaders_fresh, leaders_fresh_share=leader_share,
         source=session.source, notes=session.notes,
     )
 
@@ -848,6 +960,9 @@ def scan_blocked_message(quality: QualityReport) -> str:
         f" ({quality.coverage:.1%})",
         f"Bar history: {quality.symbols_with_history} symbol(s) hold the "
         f"{config.MIN_BARS_PER_SYMBOL} bars the strategy needs",
+        f"Rankable now: {quality.rankable_symbols} symbol(s) (scored and "
+        f"fresh), of which {quality.leaders_fresh}/{quality.leader_symbols} "
+        f"are volume leaders",
         f"Fresh coverage: {quality.fresh_coverage:.1%}",
         f"Reason: {quality.reason}",
         f"Source: {quality.source}",
@@ -858,6 +973,15 @@ def scan_blocked_message(quality: QualityReport) -> str:
     # enough for a phone message; the full list is in the observation.
     for note in quality.notes[:2]:
         lines.append(f"Note: {note}")
+    if quality.warming_up:
+        # A young bar source is not a failure and must not read like one: the
+        # scan resumes by itself once the bars exist (redesign 2026-10-15).
+        lines.append(
+            f"Warming up: about {quality.warmup_minutes_remaining:.0f} more "
+            f"minute(s) of bars and the scan resumes on its own.")
+        lines.append("No trade issued. The bar source is still filling, not "
+                     "broken.")
+        return "\n".join(lines)
     lines.append("No trade issued. This is a DATA failure, not a market decision.")
     return "\n".join(lines)
 

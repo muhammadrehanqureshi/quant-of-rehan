@@ -76,6 +76,25 @@ clone still runs a local trial at 4 minutes with no environment change. The
 slot guard is keyed on the runner's own cadence, because a 30-second runner
 reported in minute slots would scan once a minute while claiming otherwise.
 
+Whatever the cadence, the fire belongs to a **slot boundary**, not to "the
+last fire plus the interval": `src/data/scan_scheduler.next_slot` owns that
+grid, and `scripts/scan_loop.py` sleeps to it in both of its modes. A cycle
+that spends 2.9s of a 30 second slot, or 9s of a 4 minute one, therefore does
+not push every later fire late, and the slot label an observation carries is
+the slot that fire actually worked in.
+
+`scripts/scan_loop.py` has two ways to be driven and one way to decide:
+
+| Mode | Who owns the clock | Who retries |
+|---|---|---|
+| `--loop` (the cloud's, SO-13) | the loop, sleeping to `next_slot` between cycles | the loop's own backoff and five-strike give-up |
+| `--scheduled` (the non-blocking form) | `src/data/scan_scheduler.run_scanner_schedule`, on absolute wake targets | the scheduler, with jittered exponential backoff and exit code 3 |
+
+Both modes run the same cycle body and the same pause table, so a scheduled
+run and a synchronous run cannot disagree about when to scan, when to pause,
+or what a verdict means. `tests/test_scheduled_scan.py` pins the grid and the
+signal end to end on simulated market data.
+
 Enforcement is layered, so no single edit can quietly re-enable pre-market or
 post-market scanning:
 

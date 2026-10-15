@@ -6,6 +6,7 @@ test sleeps, dials out or touches the owner's forward-state files.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import random
 import sys
@@ -454,6 +455,31 @@ class CycleOutcomeTest(unittest.TestCase):
         self.assertIsNone(outcome)
         self.assertEqual(loop.health.scans, 0)
 
+    def test_a_warming_up_cycle_is_a_pause_and_not_a_fault(self):
+        """Measured 2026-10-14: this state was counted as 86 coverage faults in
+        one band, which made a healthy tape read as a dead feed."""
+        payload = blocked_payload(
+            "bar history: only 0/301 captured symbols (0.0%) hold the 20 bars "
+            "the strategy needs, below the 80% floor; the bar source has been "
+            "alive 8 of the 20 minutes this needs, so the scan is WARMING UP "
+            "and resumes on its own in about 12 minute(s)")
+        payload["data_quality"]["warming_up"] = True
+        payload["data_quality"]["warmup_minutes_remaining"] = 12.0
+        payload["data_quality"]["symbols_with_bars"] = 301
+
+        loop = self.loop(at(MONDAY, 10, 5))
+        with patch.object(pipeline, "run_scan", return_value=payload):
+            _, outcome = loop.run_cycle()
+
+        self.assertEqual(outcome.verdict, Verdict.DATA_BLOCKED)
+        self.assertIsNone(outcome.fault(),
+                          "a young bar source must not be a typed fault")
+        self.assertTrue(outcome.quality.warming_up)
+        self.assertEqual(loop.health.warmups, 1)
+        self.assertEqual(loop.health.failures, 0)
+        self.assertEqual(loop.health.fault_counts, {})
+        self.assertEqual(loop.health.consecutive_failures, 0)
+
     def test_once_on_the_command_line_prints_the_verdict(self):
         loop = self.loop(at(MONDAY, 10, 5))
         printed: list[str] = []
@@ -467,6 +493,88 @@ class CycleOutcomeTest(unittest.TestCase):
                          if text.strip().startswith("TRADE")]
         self.assertTrue(verdict_lines, printed)
         self.assertIn("OGDC", verdict_lines[0])
+
+
+class ScheduledModeTest(unittest.TestCase):
+    """The loop driven by the async scheduler instead of its own sleep.
+
+    The scheduler owns the clock and the retry policy; the loop owns the
+    cycle. These cases hold the seam: a cycle that fails must reach the
+    scheduler as a failure (or the scheduler would believe a dead feed was
+    healthy), a cycle that warms up must NOT (or five warm-up cycles would
+    stop a working band), and the cadence handed over must be the loop's own.
+    """
+
+    def setUp(self) -> None:
+        self._dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self._dir.cleanup)
+        self.health = Path(self._dir.name) / "health.json"
+
+    def test_the_interval_handed_to_the_scheduler_is_the_loops_own(self):
+        """A 4 minute loop hands the scheduler 4 minutes, not its own sleep."""
+        seen: list[float] = []
+
+        def fake(*_args, **kwargs):
+            seen.append(kwargs["scheduler_config"].interval_minutes)
+            return _Report()
+
+        loop = ScanLoop(LoopConfig(interval_seconds=240.0, capture=False),
+                        health_path=self.health)
+        with patch.object(scan_loop, "run_scanner_schedule", side_effect=fake):
+            code = loop.run_scheduled()
+
+        self.assertEqual(code, 0)
+        self.assertEqual(seen, [4.0])
+        self.assertTrue(self.health.is_file())
+        saved = LoopHealth.load(self.health)
+        self.assertTrue(saved.started_at)
+        self.assertTrue(saved.stopped_at)
+        self.assertTrue(loop.health.stopped_at)
+
+    def loop(self) -> ScanLoop:
+        return ScanLoop(LoopConfig(capture=False), health_path=self.health,
+                        clock=lambda: at(MONDAY, 10, 5))
+
+    def test_a_failed_cycle_is_raised_to_the_scheduler(self):
+        loop = self.loop()
+        payload = blocked_payload()          # a real data failure, not a warmup
+
+        with patch.object(pipeline, "run_scan", return_value=payload):
+            with self.assertRaises(ScanFault):
+                asyncio.run(loop.scheduled_scanner()(
+                    "scan", "10:04", at(MONDAY, 10, 5)))
+        self.assertGreater(loop.health.consecutive_failures, 0)
+        self.assertIn("InsufficientCoverage", loop.health.fault_counts)
+
+    def test_a_warming_up_cycle_is_not_raised_to_the_scheduler(self):
+        loop = self.loop()
+        payload = blocked_payload("bar history: only 0/301 captured symbols "
+                                 "(0.0%) hold the 20 bars the strategy needs, "
+                                 "below the 80% floor; the scan is WARMING UP")
+        payload["data_quality"]["warming_up"] = True
+
+        with patch.object(pipeline, "run_scan", return_value=payload):
+            asyncio.run(loop.scheduled_scanner()(
+                "scan", "10:04", at(MONDAY, 10, 5)))     # must not raise
+        self.assertEqual(loop.health.warmups, 1)
+        self.assertEqual(loop.health.consecutive_failures, 0)
+        self.assertEqual(loop.health.fault_counts, {})
+
+
+class _Report:
+    """What run_scanner_schedule hands back, for the wiring tests."""
+
+    cycles = 1
+    scans = 1
+    pauses = 0
+    failures = 0
+    last_action = "scan"
+    last_reason = "test"
+
+    def as_dict(self) -> dict:
+        return dict(self.__dict__)
+
+    exit_code = 0
 
 
 class _OpenDay:

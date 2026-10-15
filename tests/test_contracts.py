@@ -159,6 +159,45 @@ class FaultMappingTest(unittest.TestCase):
                              "impossible or contradictory; refusing to scan them")
         self.assertIsInstance(fault, C.SourceUnavailable)
 
+    def test_a_warming_up_capture_is_not_a_fault_at_all(self):
+        """A countdown must not enter a retry policy or a fault count."""
+        report = quality(
+            status=C.Quality.DATA_BLOCKED,
+            reason=("bar history: only 0/301 captured symbols (0.0%) hold the "
+                    "20 bars the strategy needs, below the 80% floor; the bar "
+                    "source has been alive 8 of the 20 minutes this needs, so "
+                    "the scan is WARMING UP and resumes on its own in about "
+                    "12 minute(s)"),
+            warming_up=True, warmup_minutes_remaining=12.0,
+            rankable_symbols=0, leader_symbols=20, leaders_fresh=0,
+            coverage=0.94, fresh_coverage=0.94)
+
+        self.assertIsNone(C.fault_from_quality(report))
+        outcome = C.ScanOutcome(as_of=AT, slot="10:04",
+                                verdict=C.Verdict.DATA_BLOCKED,
+                                reason=report.reason, quality=report)
+        self.assertIsNone(outcome.fault(),
+                          "a warming-up block was reported as a typed fault")
+        self.assertFalse(outcome.is_market_decision)
+        self.assertEqual(outcome.quality.warmup_minutes_remaining, 12.0)
+        self.assertTrue(outcome.quality.as_dict()["warming_up"])
+
+    def test_the_same_reason_without_a_young_capture_is_a_fault(self):
+        """The block still matters when the source is not simply filling."""
+        fault = self.mapping("bar history: only 12/301 captured symbols "
+                             "(4.0%) hold the 20 bars the strategy needs, "
+                             "below the 80% floor, so a ranking built now "
+                             "would say nothing about the market")
+        self.assertIsInstance(fault, C.InsufficientCoverage)
+
+    def test_the_rankable_population_is_carried_by_the_contract(self):
+        report = quality(rankable_symbols=245, leader_symbols=20,
+                         leaders_fresh=19)
+        payload = report.as_dict()
+        self.assertEqual(payload["rankable_symbols"], 245)
+        self.assertEqual(payload["leaders_fresh"], 19)
+        self.assertFalse(payload["warming_up"])
+
     def test_fault_carries_context_and_serialises(self):
         fault = self.mapping("KMIALL coverage 0/319 (0.0%). The intraday source "
                              "returned no usable current-session bars.")

@@ -100,10 +100,26 @@ servlet (owner order 2026-10-14, after the servlet stopped serving bars).
 the prices the tape carried, and takes volume from the venue's own running
 counter; `scripts/intraday_pipeline.py` reads the tape first and falls back to
 a servlet capture that is already on disk. The same coverage, freshness,
-volume and structure gates judge either source, a capture too short to rank
-anything is DATA BLOCKED rather than a NO TRADE, and the source label travels
+volume and structure gates judge either source, and the source label travels
 into the observation and the phone message. See [DATA_SOURCING.md](DATA_SOURCING.md)
 for the measured numbers.
+
+Those gates were measured against a real session on 2026-10-15 and the
+freshness half of them was unreachable: across the whole 319 symbol KMIALL
+universe, fresh coverage peaks at 74.9% to 78.7% inside five minutes, because
+a slice of KMIALL genuinely prints less often than that, so the 80% 
+whole-universe floor blocked every live scan and no signal could ever exist
+(run 38530614304: 88 cycles, 87 scans, every one DATA BLOCKED). Freshness and
+depth are now judged where they decide something, on the volume leaders a
+candidate comes from and on the count of symbols a ranking can use, and the
+illiquid tail is reported with its count instead of blocking the scan for
+every symbol. A capture younger than the 20 bars the strategy needs is a
+WARMING UP countdown rather than a coverage fault, so a runner that starts
+mid-band is no longer counted as a dead feed. Measured on the same real tape
+with the new gates: 230 to 245 rankable symbols and 19 to 20 of the top 20
+leaders fresh at every instant, and the scan renders market verdicts
+(NO TRADE at 10:30, entries at 11:00, 12:00, 13:00 and 13:45) where it
+previously blocked.
 
 The local runners are retired and refused in code. `scripts/kmiall_tick.py`
 (the Windows tick), `scripts/scan_loop.py` (the supervised loop),
@@ -297,6 +313,8 @@ python scripts/kmiall_tick.py --force            # ignore the slot and finalize 
 # the supervised loop (same orchestrator, owns its own cadence)
 python scripts/scan_loop.py --once --skip-capture  # one cycle, no capture
 python scripts/scan_loop.py --loop --interval 240  # run until stopped (4 minutes)
+python scripts/scan_loop.py --scheduled --interval 240  # the same cycles, on
+                             # the async scheduler's absolute 4-minute grid
 python scripts/scan_loop.py --status               # phase, window and loop health
 
 # one scan by hand, with every layer printed (offline, synthetic if no capture)
