@@ -164,12 +164,14 @@ class SplitSourceHierarchyTest(unittest.TestCase):
         self.assertEqual(split.method, volume_split.METHOD_MEASURED)
         self.assertIn("measured", volume_split.METHOD_LABELS[split.method])
 
-    def test_a_partial_tape_is_projected_onto_the_days_total(self):
-        """3000 attributed shares, 2000 of them buys, applied to the day.
+    def test_a_partial_tape_carries_the_feeds_own_counts_verbatim(self):
+        """3000 attributed shares, 2000 of them buys, printed as they are.
 
-        The sides the tape attributed are kept as the proportion and applied
-        to the total the card prints, so every share is on a side and the
-        label stays an estimate: two thirds buy of the day's 1000.
+        Owner order 2026-10-15: the quantity fields show the exact numbers
+        the broker feed produced, so the tape's own integers ride through
+        unchanged. Nothing is scaled onto the venue's session total (1000
+        here), which is why B + S is 3000 and not that total, and the note
+        carries what the counts cover.
         """
         ticks = [{"scrip": "OGDC", "bid": "100.00", "ask": "100.50",
                   "last": "100.00", "volume": "1000", "tick_time": "10:00"}]
@@ -191,19 +193,24 @@ class SplitSourceHierarchyTest(unittest.TestCase):
         split, reason = volume_split.split_for(row, quotes={"OGDC": quote},
                                                flows=flows)
         self.assertEqual(reason, "")
-        self.assertEqual(split.method, volume_split.METHOD_TAPE)
-        self.assertEqual((split.buy, split.sell), (667, 333))
+        self.assertEqual(split.method, volume_split.METHOD_TAPE_COUNTS)
+        self.assertEqual((split.buy, split.sell), (2000, 1000))
         self.assertEqual(split.buy + split.sell, split.volume)
+        # The venue's own total for the same symbol is NOT the tape's window,
+        # and the card prints both: T= stays the exchange's figure.
+        self.assertNotEqual(split.volume, 1000)
+        self.assertIn("3,000", split.note)
+        self.assertIn("4,000", split.note)
         label = volume_split.METHOD_LABELS[split.method]
-        self.assertIn("estimated", label)
-        self.assertIn("real-time prints", label)
+        self.assertIn("session's own trade tape", label)
+        self.assertIn("part of the session", label)
 
     def test_a_too_thin_tape_slice_is_refused_and_the_range_answers(self):
         """A slice this small is one window's direction, not the day's flow.
 
         Measured 2026-10-12: a mid-session capture covered 0.1 percent of
-        SLGL's day, and projecting that would have printed 100 percent
-        buying. Below the coverage floor the labelled range estimate answers
+        SLGL's day, and one window's direction would have printed as 100
+        percent buying. Below the floor the labelled range estimate answers
         instead.
         """
         flows = self.flow("OGDC", [{"kind": "MKT-FEED", "ticks": [
@@ -231,7 +238,7 @@ class SplitSourceHierarchyTest(unittest.TestCase):
         self.assertIsNone(split)
         self.assertIn("no published session range", reason)
 
-    def test_no_tape_flow_falls_back_to_the_range_estimate(self):
+    def test_no_tape_counts_falls_back_to_the_range_estimate(self):
         """No tape at all: the day's range answers, and says so."""
         flows = self.flow("OGDC", [{"kind": "MKT-FEED", "ticks": [
             {"scrip": "OGDC", "bid": "100.00", "ask": "100.50",
@@ -268,10 +275,16 @@ class SplitSourceHierarchyTest(unittest.TestCase):
         self.assertIn("outside the published range", reason)
 
     def test_the_labels_never_claim_more_than_they_know(self):
-        for label in (volume_split.METHOD_LABELS[volume_split.METHOD_RANGE],
-                      volume_split.METHOD_LABELS[volume_split.METHOD_TAPE]):
+        for label in (volume_split.METHOD_LABELS[volume_split.METHOD_RANGE],):
             self.assertIn("estimated", label)
             self.assertIn("not order flow", label)
+        # The tape's counts are the feed's own numbers, so the label claims
+        # the feed and the window it covered: it may not say "estimated"
+        # (they are not an estimate) and it may not imply the whole session.
+        counted = volume_split.METHOD_LABELS[volume_split.METHOD_TAPE_COUNTS]
+        self.assertIn("session's own trade tape", counted)
+        self.assertIn("part of the session", counted)
+        self.assertNotIn("estimated", counted)
         self.assertIn("measured",
                       volume_split.METHOD_LABELS[volume_split.METHOD_MEASURED])
         for label in volume_split.METHOD_LABELS.values():
@@ -294,10 +307,11 @@ class SplitFootnoteTest(unittest.TestCase):
         self.assertEqual(text, volume_split.METHOD_LABELS[
             volume_split.METHOD_RANGE])
 
-    def test_tape_flow_names_the_tape_not_the_range(self):
-        text = volume_split.summarise(self.rows([volume_split.METHOD_TAPE] * 2))
+    def test_tape_counts_name_the_tape_not_the_range(self):
+        text = volume_split.summarise(
+            self.rows([volume_split.METHOD_TAPE_COUNTS] * 2))
         self.assertEqual(text, volume_split.METHOD_LABELS[
-            volume_split.METHOD_TAPE])
+            volume_split.METHOD_TAPE_COUNTS])
 
     def test_a_mixed_line_names_the_weakest_method(self):
         """One range row makes the whole line the range label: it is read
@@ -307,8 +321,8 @@ class SplitFootnoteTest(unittest.TestCase):
                                                  volume_split.METHOD_RANGE]))
         self.assertIn("day's range", text)
         mixed = volume_split.summarise(self.rows([volume_split.METHOD_MEASURED,
-                                                  volume_split.METHOD_TAPE]))
-        self.assertIn("real-time prints", mixed)
+                                                  volume_split.METHOD_TAPE_COUNTS]))
+        self.assertIn("trade tape", mixed)
 
     def test_all_measured_says_measured(self):
         text = volume_split.summarise(

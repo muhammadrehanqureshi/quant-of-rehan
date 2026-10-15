@@ -105,16 +105,25 @@ public final class Watcher {
 
         /**
          * True when the split is the venue-range estimate rather than the
-         * measured tape, so the row marks it as one (SO-3).
+         * session tape, so the row marks it as one (SO-3).
          *
          * Owner order 2026-10-12 removed the card's footnote, which is where
          * this distinction used to be spelled out, so the number itself now
          * carries the mark: an estimate prints as B≈ / S≈. An unknown method
          * counts as estimated, because the safe reading of an unlabelled
          * number is the weaker claim.
+         *
+         * Owner order 2026-10-15: the numbers the session tape counted are
+         * the feed's own, exact values, so they print with a plain "=",
+         * whether the tape covered the whole day (``measured_tape``) or the
+         * part of it it saw (``tape_counts``). The window those counts cover
+         * travels in the row's own label, not in a weaker mark, because the
+         * digits are not an estimate of anything.
          */
         boolean estimatedSplit() {
-            return hasSplit() && !"measured_tape".equals(splitMethod);
+            if (!hasSplit()) return false;
+            return !("measured_tape".equals(splitMethod)
+                    || "tape_counts".equals(splitMethod));
         }
 
         /** True when the exchange's own total volume arrived. */

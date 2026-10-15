@@ -209,28 +209,27 @@ def split_summary(snapshot: dict) -> str:
     """One honest sentence about the split the snapshot actually carries.
 
     Three sources are possible per row: measured (the tape covered the
-    day), tape flow (the tape's attributed sides, projected onto the day's
-    total), and the range estimate (no tape flow at all). The sentence
-    names the weakest one used, so the tick log never calls a projection a
-    measurement.
+    whole day), the tape's own counted window (the feed's numbers, covering
+    part of the session), and the range estimate (no tape at all). The
+    sentence names the weakest one used, so the tick log never calls an
+    estimate a measurement.
     """
     rows = snapshot.get("top_volume") or []
     measured = sum(1 for row in rows
                    if row.get("split_method") == "measured_tape")
-    from_tape = sum(1 for row in rows
-                    if row.get("split_method") == "tape_flow")
+    counted = sum(1 for row in rows
+                  if row.get("split_method") == "tape_counts")
     estimated = sum(1 for row in rows
                     if row.get("split_method") == "range_position")
     if not rows:
         return "no volume ranking to split"
     if measured == len(rows):
         return f"B/S measured from the session tape for all {measured} leaders"
-    if from_tape and not estimated:
-        return (f"B/S read from the tape's real-time prints for all "
-                f"{from_tape} leaders, projected onto the day's total and "
-                f"marked as an estimate on the card")
-    if measured or from_tape or estimated:
-        return (f"{measured + from_tape} of {len(rows)} leaders split from "
+    if counted and not estimated and not measured:
+        return (f"B/S as counted by the session's own tape for all "
+                f"{counted} leaders, covering part of the session")
+    if measured or counted or estimated:
+        return (f"{measured + counted} of {len(rows)} leaders split from "
                 f"the session tape, {estimated} estimated from the day's "
                 f"range and marked as an estimate on the card")
     return f"no split for any of the {len(rows)} leaders yet"

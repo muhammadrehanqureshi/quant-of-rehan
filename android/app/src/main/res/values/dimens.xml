@@ -9,4 +9,15 @@
     <!-- The beacon to the word inside the badge: the 8dp the compound
          drawable used to carry as android:drawablePadding. -->
     <dimen name="status_dot_gap">8dp</dimen>
+
+    <!-- The settings control's nudge from where the brand row anchors it
+         (owner order 2026-10-15): 20% of the control's own 42dp box to the
+         right, and 5% of that box higher. Both are fractions of the control
+         rather than screen pixels, so the shift is the same shape on any
+         screen and at any font scale: 42dp x 0.20 = 8.4dp, 42dp x 0.05 =
+         2.1dp up (a negative translation is up in Android's coordinates).
+         The anchors themselves stay: the pair still holds beside the title,
+         and this is the offset from there. -->
+    <dimen name="settings_shift_x">8.4dp</dimen>
+    <dimen name="settings_shift_y">-2.1dp</dimen>
 </resources>

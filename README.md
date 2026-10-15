@@ -52,12 +52,16 @@ target, then monitor and sleep.
   DATA BLOCKED with measured coverage and never a market verdict. See
   [DATA_SOURCING.md](DATA_SOURCING.md) and
   [INTRADAY_FORWARD_SYSTEM.md](INTRADAY_FORWARD_SYSTEM.md).
-- **The phone app**: `android/` v1.6.9 in this tree (versionCode 23; the last
+- **The phone app**: `android/` v1.7.0 in this tree (versionCode 24; the last
   APK built and signed is `QuantOfRehan-v1.6.8.apk` on the OneDrive Desktop).
   It shows the status pill with the relay's own phase sentence, the latest
   signal, and the market card: KSE100 points and percentage, then the three
   KMIALL stocks with the highest session volume, each with its percentage
-  change and its buy/sell/total volume when a genuine split exists. The status
+  change and its buy/sell/total volume when a genuine split exists: since
+  v1.7.0 the B and S are the numbers the broker feed itself counted, exact
+  and unrounded, with `=` on a measured row and an approximation sign (drawn
+  by the system face, which the brand face cannot render legibly) on an
+  estimated one. The status
   beacon breathes only while the market is live, as a view property animation
   on alpha and scale that the platform interpolates on the render thread, the
   settings gear is centred on the brand name, and the cadence sentence stands
