@@ -31,7 +31,7 @@ import hashlib
 import json
 import os
 import sys
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import requests
@@ -318,8 +318,14 @@ def ai_component() -> tuple[dict, dict[str, float] | None]:
     return status, prior
 
 
-def run_scan(slot: str, capture: Path | None = None) -> dict:
-    day = now_karachi().date()
+def run_scan(slot: str, capture: Path | None = None,
+             day: date | None = None) -> dict:
+    """One scheduled scan against a session capture.
+
+    `day` is the replayed session's day (scripts/replay_audit.py passes one);
+    a live caller never sets it, and the clock stays the one law (SO-8).
+    """
+    day = day or now_karachi().date()
     as_of = scheduled_as_of(slot, day)
     symbols = load_kmiall()
     path = capture or resolve_capture(day)
