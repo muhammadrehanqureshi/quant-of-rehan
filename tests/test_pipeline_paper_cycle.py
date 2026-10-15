@@ -290,7 +290,10 @@ class PipelineCycleTest(unittest.TestCase):
 
         self.assertEqual(quality["status"], "OK")
         self.assertEqual(quality["symbols_with_bars"], quality["symbols_expected"])
-        self.assertEqual(quality["symbols_expected"], 319)
+        # Owner order 2026-10-15: the two exchange ETFs are excluded from every
+        # scan (basket instruments are not intraday material).
+        self.assertEqual(quality["symbols_expected"], 317)
+        self.assertNotIn("MIIETF", (quality.get("symbols_missing") or ()))
         self.assertTrue(quality["volume_available"])
         self.assertEqual(quality["resolution"], "1-minute")
 
@@ -358,7 +361,12 @@ class PipelineCycleTest(unittest.TestCase):
         self.assertEqual(result["status"], scanner.DATA_BLOCKED)
         self.assertEqual(result["trade_state"]["trades_today"], 0)
         self.assertIsNone(result["trade_state"]["entry_price"])
-        self.assertIn("coverage 0/319", result["reason"])
+        self.assertIn("coverage 0/317", result["reason"])
+
+        # Owner order 2026-10-15: a blocked scan NEVER textes. The card, the
+        # archived observation and the printed payload carry the state; the
+        # Telegram op channel stays silent for a background cadence.
+        self.assertNotIn("/notify", self.relay.routes())
 
         # a blocked verdict is still shown on the card, dated, but not as an ALERT
         card = self.relay.payload_for("/signals")
@@ -402,7 +410,7 @@ class TapeBarCycleTest(PipelineCycleTest):
         self.assertEqual(first["capture"]["format"], scanner.FORMAT_TAPE)
         self.assertEqual(first["capture"]["source"], quality["source"])
         self.assertEqual(quality["status"], "OK", quality["reason"])
-        self.assertEqual(quality["symbols_expected"], 319)
+        self.assertEqual(quality["symbols_expected"], 317)
         self.assertTrue(quality["volume_available"])
         self.assertEqual(quality["symbols_with_history"],
                          quality["symbols_with_bars"])
