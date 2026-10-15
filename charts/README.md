@@ -137,7 +137,7 @@ timestamp is refused by the contract rather than assumed.
 |---|---|---|
 | `tape` (`broker_tape`) | `1m` bars from this project's read-only MKT-FEED recording, built by `src/data/tape_bars.py` | only what the recorder banked; a symbol that started late says so; volume comes from the venue's own counter |
 | `portal` (`psx_portal`) | `session`: one bar per trading day from the company page's REG panel | about five minutes delayed, and it is not an intraday series; a cleared panel is a named failure, not a zero bar |
-| `replay` | `1m` synthetic bars | labelled synthetic, refused unless named on the command line; it exists to test the pipeline and demo it offline |
+| `replay` | `1m` synthetic bars | labelled synthetic, refused unless named on the command line; it exists to test the pipeline and demo it offline. It replays today once its session has begun and otherwise the most recent earlier trading day, so an offline demo at 03:00 draws a real session instead of an empty frame |
 
 The portal's `/timeseries/eod/{symbol}` endpoint answered an HTML shell and
 `/timeseries/int/{symbol}` answered 404 when measured on 2026-10-14, so no
@@ -175,6 +175,15 @@ capability is declared.
   morning as one enormous gap.
 * **A revised bar.** Replacing a timestamp counts a revision, and the payload
   discloses the count.
+* **Bars from another session.** A series can belong to a different day than
+  the market context: at 09:00 the tape still holds yesterday, and the replay
+  source serves the last session on purpose. The payload says which session
+  the bars are from, so the newest candle is never read as today's price.
+* **A stated moment.** `build_payload(..., moment=...)` and the server's
+  optional `clock` make the context and the expected minutes describe the
+  session the bars are from. The default is the Karachi now, which is what a
+  live service reads; the tests and the offline demo state a fixed moment so
+  they pass at any hour.
 * **A slow reader.** Subscriber queues are bounded and drop the oldest event,
   so a stale browser tab cannot slow the poller or grow the process.
 
@@ -197,12 +206,16 @@ capability is declared.
 ```bash
 python -m pytest tests/test_charts_contract.py tests/test_charts_store.py \
   tests/test_charts_ratelimit.py tests/test_charts_sources.py \
-  tests/test_charts_service.py tests/test_charts_http.py -q     # 104 tests
+  tests/test_charts_service.py tests/test_charts_sessions.py \
+  tests/test_charts_http.py -q                                 # 119 tests
 cd web && npm test                                             # 64 tests
 ```
 
 The Python tests include a real HTTP server on an ephemeral port exercised
-over a real socket, including the event stream. The front-end tests prove the
+over a real socket, including the event stream. Every clock in them is
+stated rather than read (the replay source's day, the server's session
+moment, the builder's `moment`), so the suite passes at 03:00 and at noon
+alike; a wall-clock dependency here once hid a band that was never read. The front-end tests prove the
 validators, the retry and timeout paths, the stream reconnection and the
 series maths with fake transports and a fake clock, so none of them waits a
 real second or touches an exchange. The portal tests use a saved panel

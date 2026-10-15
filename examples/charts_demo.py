@@ -18,12 +18,19 @@ Two behaviours that matter in production are made visible on purpose:
 
 The last block shows a source that cannot answer being classified as a named
 failure rather than quietly becoming an empty chart.
+
+The session moment is pinned to one mid-session trading day, and passed to
+both the source and the payload builder, so the example prints the same
+numbers at 03:00 and at noon instead of an empty chart before the open. The
+demo is a demonstration of the pipeline; a live service reads the real clock
+instead (the source and the builder both default to it).
 """
 
 from __future__ import annotations
 
 import json
 import sys
+from datetime import datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -36,6 +43,13 @@ from charts.ingest import Ingestor  # noqa: E402
 from charts.ratelimit import UpstreamError  # noqa: E402
 from charts.service import build_payload  # noqa: E402
 from charts.store import BarStore  # noqa: E402
+
+#: One Monday, well inside the session: the day this demo always describes.
+DEMO_MOMENT = datetime.fromisoformat("2026-10-12T11:00:00+05:00")
+
+
+def demo_clock() -> datetime:
+    return DEMO_MOMENT
 
 
 class RevisingReplay(ReplaySource):
@@ -63,17 +77,20 @@ class RevisingReplay(ReplaySource):
 
 def main() -> int:
     store = BarStore()
-    source = RevisingReplay(symbols=["REPLAY1"], gaps=(4, 5))
+    source = RevisingReplay(symbols=["REPLAY1"], gaps=(4, 5),
+                            clock=demo_clock)
     ingestor = Ingestor(store, source, resolution=RESOLUTION_MINUTE)
     ingestor.watch("REPLAY1")
 
     stored = ingestor.step()
-    first = build_payload(store, source, "REPLAY1", RESOLUTION_MINUTE)
+    first = build_payload(store, source, "REPLAY1", RESOLUTION_MINUTE,
+                          moment=DEMO_MOMENT)
     print(f"poll 1 stored {stored} bar(s); the series now holds "
           f"{len(first.bars)} bar(s)")
 
     ingestor.step()
-    payload = build_payload(store, source, "REPLAY1", RESOLUTION_MINUTE)
+    payload = build_payload(store, source, "REPLAY1", RESOLUTION_MINUTE,
+                            moment=DEMO_MOMENT)
     series = store.series("REPLAY1", RESOLUTION_MINUTE)
     print(f"poll 2 stored no new minute but rewrote the forming one: "
           f"{len(payload.bars)} bar(s), "

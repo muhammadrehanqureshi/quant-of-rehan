@@ -31,9 +31,11 @@ import logging
 import mimetypes
 import posixpath
 import queue
+from datetime import datetime
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from typing import Callable
 from urllib.parse import parse_qs, urlparse
 
 from charts import sessions
@@ -164,7 +166,8 @@ class ChartHandler(BaseHTTPRequestHandler):
     def _payload(self, symbol: str, resolution: str, limit: int) -> dict:
         """The chart payload for one symbol, via the shared builder."""
         body = build_payload(self.state.store, self.state.source, symbol,
-                             resolution, limit=limit).as_dict()
+                             resolution, limit=limit,
+                             moment=self.state.moment()).as_dict()
         body["ok"] = True
         body["ingest"] = self.state.ingestor.health()
         return body
@@ -285,7 +288,8 @@ class ChartServer(ThreadingHTTPServer):
                  allow_origins: tuple[str, ...] = ("http://localhost:5173",
                                                    "http://127.0.0.1:5173"),
                  default_resolution: str = RESOLUTION_MINUTE,
-                 stream_idle_seconds: float = 240.0):
+                 stream_idle_seconds: float = 240.0,
+                 clock: Callable[[], datetime] | None = None):
         super().__init__(address, ChartHandler)
         self.store = store
         self.ingestor = ingestor
@@ -294,19 +298,30 @@ class ChartServer(ThreadingHTTPServer):
         self.allow_origins = set(allow_origins)
         self.default_resolution = default_resolution
         self.stream_idle_seconds = stream_idle_seconds
+        # The one clock this server reads. None is the live Karachi now, which
+        # is what a running service wants; a caller that holds a series
+        # ingested on a fixed clock (tests, the offline demo) hands the same
+        # clock here so the market context describes the session the bars are
+        # actually from, not an unrelated day.
+        self.clock = clock
         self.started_at = sessions.law.as_karachi().isoformat(timespec="seconds")
+
+    def moment(self) -> datetime | None:
+        """The session moment this server describes, or None for the now."""
+        return self.clock() if self.clock is not None else None
 
     def health(self) -> dict:
         tape = (self.source.session_effect()
                 if hasattr(self.source, "session_effect") else None)
+        moment = self.moment()
         return {
             "ok": True,
             "service": "charts-of-rehan",
             "schema_version": SCHEMA_VERSION,
             "started_at": self.started_at,
-            "karachi_now": sessions.law.now_karachi().isoformat(
+            "karachi_now": (moment or sessions.law.now_karachi()).isoformat(
                 timespec="seconds"),
-            "market": sessions.market_context().as_dict(),
+            "market": sessions.market_context(moment).as_dict(),
             "source": self.source.capabilities().source.as_dict(),
             "resolutions": list(self.source.capabilities().resolutions),
             "tape": tape,

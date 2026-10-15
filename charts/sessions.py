@@ -15,7 +15,7 @@ disagree about whether the exchange is trading.
 from __future__ import annotations
 
 import sys
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -28,11 +28,17 @@ from charts.contract import MarketContext  # noqa: E402
 
 
 def _band_of(moment: datetime) -> dict | None:
+    """The live band as clock strings, or None between bands.
+
+    A band is the law's own ``((hour, minute), (hour, minute))`` pair, so it
+    is unpacked rather than attribute read: there is no Band object to ask.
+    """
     band = law.current_band(moment)
     if band is None:
         return None
-    return {"open": f"{band.open[0]:02d}:{band.open[1]:02d}",
-            "close": f"{band.close[0]:02d}:{band.close[1]:02d}"}
+    opened, closed = band
+    return {"open": f"{opened[0]:02d}:{opened[1]:02d}",
+            "close": f"{closed[0]:02d}:{closed[1]:02d}"}
 
 
 def _next_event(moment: datetime) -> dict | None:
@@ -85,6 +91,24 @@ def session_window(moment: datetime | None = None) -> tuple[datetime, datetime] 
     return law.session_bounds(now.date())
 
 
+def session_minutes(day: date) -> list[datetime]:
+    """Every minute of that day's bands, first to last, breaks excluded.
+
+    The whole session of the day, with no reference to a clock: this is what
+    a caller wants when it renders a session that is already over (the
+    offline demo, a replay of the last trading day) rather than the minutes
+    that have happened so far today.
+    """
+    minutes: list[datetime] = []
+    for band in law.session_bands(day):
+        opened, closed = law.band_bounds(day, band)
+        cursor = opened
+        while cursor <= closed:
+            minutes.append(cursor)
+            cursor += law.timedelta(minutes=1)
+    return minutes
+
+
 def expected_minutes(moment: datetime | None = None,
                      *, now_only: bool = True) -> list[datetime]:
     """Every minute the exchange is expected to print, up to `moment`.
@@ -94,14 +118,13 @@ def expected_minutes(moment: datetime | None = None,
     Friday midday break is therefore never reported as missing data, which is
     the whole point of asking the session law instead of assuming a
     continuous day.
+
+    ``now_only=False`` returns the whole day regardless of the clock, which
+    is how a caller describes a session that has already finished.
     """
     now = law.as_karachi(moment)
-    minutes: list[datetime] = []
-    for band in law.session_bands(now.date()):
-        opened, closed = law.band_bounds(now.date(), band)
-        cursor = opened
-        while cursor <= closed:
-            if not now_only or cursor <= now:
-                minutes.append(cursor)
-            cursor += law.timedelta(minutes=1)
+    minutes = session_minutes(now.date())
+    if now_only:
+        minutes = [moment_minute for moment_minute in minutes
+                   if moment_minute <= now]
     return minutes

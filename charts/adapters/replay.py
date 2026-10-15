@@ -7,6 +7,14 @@ here, and none of that needs a live exchange. It is deterministic: the same
 symbol and the same day always produce the same series, so a test can assert
 exact numbers and a screenshot can be reproduced.
 
+One rule decides the day it draws: the session of ``as_of`` once that
+session has begun, and otherwise the most recent earlier trading day. A demo
+or a test therefore renders a real session at 03:00 as well as at noon
+instead of an empty frame, and a holiday falls back to the last day the
+exchange actually traded. The clock is injectable for exactly this reason:
+with a fixed clock the same symbol and the same day produce the same series
+at every hour, which is what lets a test assert exact numbers.
+
 It is honest about itself in the one place that matters. Its source id is
 ``replay``, its label says synthetic, and the service refuses to start with
 it unless the operator asked for it explicitly (``--source replay``). No
@@ -17,7 +25,7 @@ rule the project's TEST canary follows.
 from __future__ import annotations
 
 import random
-from datetime import datetime
+from datetime import date, datetime
 
 from charts import sessions
 from charts.adapters.base import Capabilities
@@ -34,7 +42,12 @@ SOURCE = SourceInfo(
 
 
 class ReplaySource:
-    """A deterministic walk across the session's own minutes."""
+    """A deterministic walk across the session's own minutes.
+
+    ``clock`` decides which session it walks (see the module docstring): the
+    default is the Karachi now, so a live demo follows today, and a test
+    hands it a fixed moment so the numbers never move under the assertions.
+    """
 
     name = SOURCE_REPLAY
 
@@ -55,10 +68,33 @@ class ReplaySource:
         return [{"symbol": symbol, "source": SOURCE_REPLAY, "listed": True}
                 for symbol in self._symbols]
 
+    def _session_day(self, as_of: datetime) -> date:
+        """The trading day this series describes, given the clock.
+
+        Today once its session has begun; before that, and on any day the
+        exchange does not trade, the most recent earlier trading day. The
+        walk is bounded: a two week holiday would be a data problem of its
+        own, and this source must never spin looking for a session.
+        """
+        today = as_of.date()
+        if sessions.law.is_trading_day(today):
+            first = sessions.session_minutes(today)[0]
+            if first <= as_of:
+                return today
+        for step in range(1, 15):
+            earlier = today - sessions.law.timedelta(days=step)
+            if sessions.law.is_trading_day(earlier):
+                return earlier
+        return today
+
     def _series(self, symbol: str, as_of: datetime) -> list[Bar]:
-        minute = [moment for moment in sessions.expected_minutes(as_of)
-                  if moment.date() == as_of.date()]
-        seed = f"{symbol.upper()}|{as_of.date().isoformat()}"
+        day = self._session_day(as_of)
+        minute = sessions.session_minutes(day)
+        if day == as_of.date():
+            # Today's series grows with the clock: the part of the session
+            # that has not happened yet is not a bar and not a gap either.
+            minute = [moment for moment in minute if moment <= as_of]
+        seed = f"{symbol.upper()}|{day.isoformat()}"
         rng = random.Random(seed)
         price = self._start
         bars: list[Bar] = []
@@ -71,9 +107,10 @@ class ReplaySource:
             high = max(opened, closed) * (1.0 + rng.uniform(0.0, 0.003))
             low = min(opened, closed) * (1.0 - rng.uniform(0.0, 0.003))
             volume = float(rng.randint(500, 25000))
-            # The last bar is the minute still forming right now: it is the
-            # row the store revises on the next poll, which is exactly the
-            # behaviour the revision counter exists to show.
+            # The last bar is the newest minute in the series. On a live
+            # clock that is the minute still forming right now, the row the
+            # store republishes and revises on the next poll, which is
+            # exactly the behaviour the revision counter exists to show.
             bars.append(Bar.build(t=moment, o=round(opened, 2),
                                   h=round(high, 2), l=round(low, 2),
                                   c=round(closed, 2), v=volume))

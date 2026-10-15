@@ -19,6 +19,7 @@ The rules this function implements, in order:
 
 from __future__ import annotations
 
+from datetime import datetime
 from itertools import islice
 
 from charts import sessions
@@ -55,20 +56,28 @@ def series_notes(series: Series | None, *, expected_minutes: int,
 
 
 def build_payload(store: BarStore, source: BarSource, symbol: str,
-                  resolution: str, *, limit: int = 1500) -> ChartPayload:
+                  resolution: str, *, limit: int = 1500,
+                  moment: datetime | None = None) -> ChartPayload:
     """One symbol's chart payload, ready for the wire.
 
     ``limit`` keeps a long session from shipping thousands of bars to a
     screen that can show a few hundred candles: the tail is the part a live
     chart reads, and the full series stays in the store for history.
+
+    ``moment`` is the session moment the payload describes, for the market
+    context and the expected minutes the gaps are measured against. The
+    default is the Karachi now, which is what a live service wants; a caller
+    rendering a series that was ingested for another moment (a fixed replay
+    clock, the offline demo) passes its own clock so the bars and the
+    context describe the same session instead of two different days.
     """
     symbol = symbol.strip().upper()
-    context = sessions.market_context()
+    context = sessions.market_context(moment)
     series = store.series(symbol, resolution)
     bars = list(series.bars) if series else []
     if limit > 0 and len(bars) > limit:
         bars = bars[-limit:]
-    expected = sessions.expected_minutes()
+    expected = sessions.expected_minutes(moment)
     # A series that begins mid-session is not a series with a morning long
     # gap: it is a series that begins mid-session. Gaps are only counted from
     # the first bar onward, and the late start gets its own sentence instead,
@@ -101,6 +110,17 @@ def build_payload(store: BarStore, source: BarSource, symbol: str,
                 f"this series starts at {bars[0].t[11:16]} Karachi, "
                 f"{late_start} session minute(s) after the session opened; "
                 f"the earlier minutes are not in it")
+        # A series can belong to another day than the market context: at
+        # 09:00 the tape is still yesterday's, and the offline replay
+        # deliberately serves the last session rather than an empty frame.
+        # Without this sentence a reader would take that day's close for
+        # today's price, which is precisely the mistake the notes exist to
+        # prevent.
+        if bars and bars[-1].t[:10] != context.as_of[:10]:
+            notes.append(
+                f"these bars are the {bars[-1].t[:10]} session, and today "
+                f"has no bar in this series yet: the newest candle is that "
+                f"day's last price, not today's")
         delayed = source.capabilities().source.delay_seconds
         if delayed:
             notes.append(
@@ -115,8 +135,9 @@ def build_payload(store: BarStore, source: BarSource, symbol: str,
 
 
 def build_many(store: BarStore, source: BarSource, symbols: list[str],
-               resolution: str, *, limit: int = 1500) -> dict[str, dict]:
+               resolution: str, *, limit: int = 1500,
+               moment: datetime | None = None) -> dict[str, dict]:
     """Payloads for several symbols, keyed by symbol."""
     return {symbol: build_payload(store, source, symbol, resolution,
-                                  limit=limit).as_dict()
+                                  limit=limit, moment=moment).as_dict()
             for symbol in islice(symbols, 0, 200)}

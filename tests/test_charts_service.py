@@ -165,6 +165,61 @@ class ProvenanceTest(unittest.TestCase):
         self.assertEqual(payload.source.id, "broker_tape")
 
 
+class MomentTest(unittest.TestCase):
+    """The builder describes the session it is told about.
+
+    The wall clock is the live default, but a caller holding a series that
+    was ingested for another moment (a fixed replay clock, the offline demo)
+    passes that moment in, so the market context and the gaps describe the
+    same session the bars are from instead of two different days. Nothing
+    here mocks the session law: the day is real, the moment is stated.
+    """
+
+    def test_the_payload_describes_the_moment_it_is_given(self):
+        store = BarStore()
+        opened = datetime(2026, 10, 12, 9, 32, tzinfo=KARACHI)
+        rows = [bar(opened + timedelta(minutes=step)) for step in range(29)
+                if step not in (5, 6)]  # 09:37 and 09:38 never printed
+        store.upsert("OGDC", "1m", rows, SOURCE, updated_at="now")
+        moment = datetime(2026, 10, 12, 10, 0, tzinfo=KARACHI)
+        payload = service.build_payload(store, StubSource(), "OGDC", "1m",
+                                        moment=moment)
+        self.assertEqual(payload.market.as_of, "2026-10-12T10:00:00+05:00")
+        self.assertEqual(payload.market.phase, "OPEN")
+        self.assertEqual(payload.market.band,
+                         {"open": "09:32", "close": "15:30"})
+        self.assertTrue(payload.market.trading_day)
+        # The two silent minutes are one measured gap against that session.
+        self.assertEqual([(gap.start, gap.minutes) for gap in payload.gaps],
+                         [("2026-10-12T09:37:00+05:00", 2)])
+        self.assertFalse(any("not today's" in note for note in payload.notes))
+
+    def test_a_series_from_another_session_says_which_one(self):
+        """The bars and the context can be different days; say so.
+
+        At 09:00 the tape still holds yesterday and the replay source serves
+        the last session on purpose. Without this sentence the newest candle
+        reads as today's price.
+        """
+        store = BarStore()
+        store.upsert("OGDC", "1m", [bar(FIRST)], SOURCE, updated_at="now")
+        payload = service.build_payload(
+            store, StubSource(), "OGDC", "1m",
+            moment=datetime(2026, 10, 15, 9, 0, tzinfo=KARACHI))
+        self.assertTrue(any("these bars are the 2026-10-12 session" in note
+                            and "not today's" in note
+                            for note in payload.notes))
+
+    def test_the_late_start_is_counted_from_the_moments_open(self):
+        store = BarStore()
+        store.upsert("OGDC", "1m", [bar(FIRST)], SOURCE, updated_at="now")
+        payload = service.build_payload(
+            store, StubSource(), "OGDC", "1m",
+            moment=datetime(2026, 10, 12, 10, 0, tzinfo=KARACHI))
+        self.assertTrue(any("starts at 09:35" in note and "3 session minute"
+                            in note for note in payload.notes))
+
+
 class LimitTest(unittest.TestCase):
 
     def test_limit_keeps_the_newest_bars(self):
