@@ -140,6 +140,45 @@ class ReplayTest(unittest.TestCase):
                              since="2026-10-12T10:58:00+05:00")
         self.assertEqual(len(tail), 3)
 
+    def test_before_the_open_it_replays_the_last_trading_day(self):
+        """A pre-open clock must not render an empty frame.
+
+        09:00 on the Monday is before its first minute, so the fallback
+        walks back to the Friday: the same series the offline demo and this
+        suite need at 03:00 as at noon.
+        """
+        clock = lambda: datetime(2026, 10, 12, 9, 0,    # noqa: E731
+                                 tzinfo=KARACHI)
+        bars = ReplaySource(symbols=["REPLAY1"], clock=clock).history(
+            "REPLAY1", "1m", limit=0)
+        self.assertEqual({bar.t[:10] for bar in bars}, {"2026-10-09"})
+        self.assertEqual(bars[0].t, "2026-10-09T09:17:00+05:00")
+        self.assertEqual(bars[-1].t, "2026-10-09T16:30:00+05:00")
+        self.assertEqual(len(bars), 283)  # the Friday, break excluded
+
+    def test_on_a_non_trading_day_it_replays_the_last_trading_day(self):
+        clock = lambda: datetime(2026, 10, 11, 12, 0,   # noqa: E731
+                                 tzinfo=KARACHI)
+        bars = ReplaySource(symbols=["REPLAY1"], clock=clock).history(
+            "REPLAY1", "1m", limit=0)
+        self.assertEqual({bar.t[:10] for bar in bars}, {"2026-10-09"})
+
+    def test_today_grows_with_the_clock_once_its_session_has_begun(self):
+        def at(hour: int, minute: int):
+            return lambda: datetime(2026, 10, 12, hour, minute,
+                                    tzinfo=KARACHI)
+
+        early = ReplaySource(symbols=["REPLAY1"], clock=at(10, 0)).history(
+            "REPLAY1", "1m", limit=0)
+        later = ReplaySource(symbols=["REPLAY1"], clock=at(11, 0)).history(
+            "REPLAY1", "1m", limit=0)
+        self.assertEqual(early[-1].t, "2026-10-12T10:00:00+05:00")
+        self.assertEqual(later[-1].t, "2026-10-12T11:00:00+05:00")
+        self.assertGreater(len(later), len(early))
+        # The later clock extends the same series; it does not reseed it.
+        self.assertEqual([bar.as_dict() for bar in later[:len(early)]],
+                         [bar.as_dict() for bar in early])
+
     def test_the_source_says_it_is_synthetic(self):
         source = ReplaySource()
         capabilities = source.capabilities()

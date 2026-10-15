@@ -12,7 +12,10 @@ tests cover the parts a consumer depends on:
   * Server-Sent Events: a snapshot first, then the live bars event.
 
 The source is the deterministic replay source, so the numbers are fixed and
-no test touches an exchange.
+no test touches an exchange. Its clock is pinned to one mid-session trading
+moment and the server reads the same moment, so a run at 03:00 pre-open and a
+run at noon see the same chart: the day, the session minutes and the market
+context all agree instead of following the wall clock.
 """
 
 from __future__ import annotations
@@ -25,6 +28,7 @@ import time
 import unittest
 import urllib.error
 import urllib.request
+from datetime import datetime
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -37,13 +41,22 @@ from charts.ingest import Ingestor  # noqa: E402
 from charts.ratelimit import UpstreamError  # noqa: E402
 from charts.store import BarStore  # noqa: E402
 
+#: A Monday well inside the PSX session. Every clock in this module points
+#: at it, so the whole suite is indifferent to the hour it runs at.
+SESSION_MOMENT = datetime.fromisoformat("2026-10-12T11:00:00+05:00")
+
+
+def session_clock() -> datetime:
+    return SESSION_MOMENT
+
 
 class ServerCase(unittest.TestCase):
     """A running server per test, on a free port, cleaned up after."""
 
     def make_server(self, *, source=None, symbols=("REPLAY1",),
-                    static_dir: Path | None = None) -> ChartServer:
-        source = source or ReplaySource(symbols=list(symbols))
+                    static_dir: Path | None = None,
+                    clock=session_clock) -> ChartServer:
+        source = source or ReplaySource(symbols=list(symbols), clock=clock)
         store = BarStore()
         ingestor = Ingestor(store, source, resolution="1m",
                             interval_seconds=2.0)
@@ -51,7 +64,8 @@ class ServerCase(unittest.TestCase):
             store.register_symbol(symbol, source=source.name)
             ingestor.watch(symbol)
         server = ChartServer(("127.0.0.1", 0), store=store, ingestor=ingestor,
-                             source=source, static_dir=static_dir)
+                             source=source, static_dir=static_dir,
+                             clock=clock)
         thread = threading.Thread(target=server.serve_forever,
                                   kwargs={"poll_interval": 0.02}, daemon=True)
         thread.start()
@@ -95,6 +109,12 @@ class RouteTest(ServerCase):
         self.assertEqual(body["market"]["timezone"], "Asia/Karachi")
         self.assertEqual(body["source"]["id"], "replay")
         self.assertIn("karachi_now", body)
+        # The server reads the clock it was given, so the session it reports
+        # is the one the bars in this suite are from.
+        self.assertEqual(body["market"]["phase"], "OPEN")
+        self.assertEqual(body["market"]["band"],
+                         {"open": "09:32", "close": "15:30"})
+        self.assertTrue(body["karachi_now"].startswith("2026-10-12T11:00:00"))
 
     def test_symbols_lists_the_catalogue(self):
         server = self.make_server()
