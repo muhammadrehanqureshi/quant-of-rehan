@@ -178,6 +178,30 @@ Cloudflare relay, never to Telegram, never to a broker.
   through one spoken description while its two children are decoration for the
   reader.
   Version 1.6.9, versionCode 23.
+- v1.7.0, owner order 2026-10-15: the market card's quantity fields, the
+  estimate mark and the settings control. The B and S columns are back with
+  the exact, raw numbers the broker feed produced: `src/data/volume_split.py`
+  carries the tape's own counted sides verbatim (`tape_counts`) instead of
+  projecting them onto the exchange's session total, so a row reads
+  `1. CNERGY (B=12,345  S=9,876  T=22,221)` where B and S are what the tape
+  counted and T stays the exchange's own figure. Nothing is scaled or
+  rounded on the way in or out, B + S is the tape's counted window rather
+  than T, and the row's own label says the counts cover part of the session.
+  A row whose split is the day's-range estimate keeps the honest sign, and
+  that sign is now drawn by the system face: LEMON MILK does map U+2248, but
+  its two bars sit 131 of the font's own 2048 em units apart, so at 13sp
+  they merge into a single squiggle and the owner read it as a tilde
+  (measured 2026-10-15). The measurement is the fix's reason, not a guess:
+  `tests/test_android_app_ui.py` pins the override, and the equals sign of a
+  measured count is untouched, since LEMON MILK's U+003D is two clean bars
+  363 units apart. A row that has a split but no total keeps both sides and
+  closes its bracket, so the quantities are never dropped for want of a T.
+  The settings control moves 20% of its own 42dp box to the right and 5% of
+  that box higher than the 2026-10-14 centring put it (8.4dp and 2.1dp up,
+  declared as `@dimen/settings_shift_x` and `@dimen/settings_shift_y`), as a
+  translation, so the anchors beside the title still hold and the shift
+  scales with the control rather than with the screen.
+  Version 1.7.0, versionCode 24.
 - v1.6.1 stated the cadence on the main screen, under the system status pill;
   v1.6.2 moved that sentence into the market card's own foot (owner order
   2026-10-12), so it is read with the volume ranking it describes and the
@@ -276,7 +300,7 @@ with zipfile.ZipFile(f"{B}/app.apk", "a", zipfile.ZIP_DEFLATED) as z:
 PY
 "$JDK/bin/java" -jar $TOOLS/uber-apk-signer.jar -a $B/app.apk --out $B/signed
 cp $B/signed/app-aligned-debugSigned.apk \
-  /c/Users/rehan/OneDrive/Desktop/QuantOfRehan-v1.6.9.apk
+  /c/Users/rehan/OneDrive/Desktop/QuantOfRehan-v1.7.0.apk
 ```
 
 The Desktop this machine actually shows is `C:/Users/rehan/OneDrive/Desktop`
@@ -286,9 +310,11 @@ owner: the v1.6.0 APK went to `C:/Users/rehan/Desktop` and was reported missing.
 v1.6.2, v1.6.3 and v1.6.4 were built and copied to the OneDrive Desktop on
 2026-10-12, v1.6.5 on 2026-10-13, and v1.6.6 and v1.6.7 the same day, each
 with the same aapt2, D8 and signer chain above, from this checkout. v1.6.8
-was built on 2026-10-13 and v1.6.9 on 2026-10-14, and the current
-`QuantOfRehan-v1.6.9.apk` on that Desktop (versionCode 23) is this
-checkout's build of the 2026-10-14 orders.
+was built on 2026-10-13 and v1.6.9 on 2026-10-14. v1.7.0 (versionCode 24)
+is this checkout's source for the 2026-10-15 orders; its toolchain steps above
+were run against this tree on 2026-10-15 (aapt2 compile and link, javac, D8),
+so the Java and the resources are known to build, and the signed APK is built
+by the same chain when the owner wants it on the phone.
 
 ## Watchdog and battery
 

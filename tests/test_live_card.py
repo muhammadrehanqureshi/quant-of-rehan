@@ -214,17 +214,23 @@ class SplitSummaryTest(unittest.TestCase):
             ["measured_tape"] * 3)})
         self.assertEqual(text, "B/S measured from the session tape for all 3 leaders")
 
-    def test_all_tape_flow_says_projected_and_labelled(self):
+    def test_all_tape_counts_name_the_window_they_cover(self):
+        """The feed's own counts are not an estimate; say what they cover."""
         text = live_card.split_summary({"top_volume": self.rows(
-            ["tape_flow"] * 3)})
-        self.assertIn("tape's real-time prints", text)
-        self.assertIn("estimate", text)
+            ["tape_counts"] * 3)})
+        self.assertIn("session's own tape", text)
+        self.assertIn("covering part of the session", text)
+        self.assertNotIn("estimated", text)
 
     def test_a_mixed_card_names_both_methods(self):
         text = live_card.split_summary({"top_volume": self.rows(
             ["measured_tape", "range_position", "range_position"])})
         self.assertIn("1 of 3 leaders split from the session tape", text)
         self.assertIn("estimated from the day's range", text)
+        counted = live_card.split_summary({"top_volume": self.rows(
+            ["tape_counts", "tape_counts", "range_position"])})
+        self.assertIn("2 of 3 leaders split from the session tape", counted)
+        self.assertIn("estimated from the day's range", counted)
 
     def test_nothing_available_is_stated_not_hidden(self):
         text = live_card.split_summary({"top_volume": self.rows(

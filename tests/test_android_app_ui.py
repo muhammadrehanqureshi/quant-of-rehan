@@ -1,4 +1,11 @@
-"""Owner-ordered interface changes for the phone app, v1.6.9 (2026-10-14).
+"""Owner-ordered interface changes for the phone app, v1.7.0 (2026-10-15).
+
+Owner order 2026-10-15: the market card's quantity fields are restored to
+B and S with the exact, raw numbers the feed produced (no projection onto
+the exchange's total, no rounding), the approximation sign that marks an
+estimated split is drawn by a face that shows it as one instead of LEMON
+MILK's near-tilde, and the settings control moves 20% of its own box to the
+right and 5% of that box higher than the 2026-10-14 centring put it.
 
 Owner order 2026-10-13: the settings control is the owner's own settings.png
 silhouette, tinted from the app's palette, on no plate at all and centred on
@@ -378,6 +385,35 @@ class SettingsControlTest(unittest.TestCase):
         padding = int(button.get(f"{ANDROID_NS}padding")[:-2])
         self.assertLessEqual(padding, 8)
 
+    def test_the_control_is_nudged_right_and_up_by_the_owners_fractions(self):
+        """Owner order 2026-10-15 (second note): 20% right, 5% up.
+
+        Both fractions are of the control's own 42dp box, not of the screen,
+        so the shift keeps the same shape on any device: 42 x 0.20 = 8.4dp
+        right and 42 x 0.05 = 2.1dp up. The numbers live once, in
+        dimens.xml, and the layout reads them; the anchors of the earlier
+        orders still hold, so this is an offset from them rather than a new
+        placement.
+        """
+        root = layout_root()
+        button = find_view(root, "@+id/btn_settings")
+        self.assertEqual(button.get(f"{ANDROID_NS}translationX"),
+                         "@dimen/settings_shift_x")
+        self.assertEqual(button.get(f"{ANDROID_NS}translationY"),
+                         "@dimen/settings_shift_y")
+        self.assertEqual(button.get(f"{ANDROID_NS}layout_toEndOf"),
+                         "@id/brand_title")
+        self.assertEqual(button.get(f"{ANDROID_NS}layout_centerVertical"),
+                         "true")
+        dimens = (RES / "values" / "dimens.xml").read_text(encoding="utf-8")
+        box = int(button.get(f"{ANDROID_NS}layout_width")[:-2])
+        self.assertIn(
+            f'<dimen name="settings_shift_x">{box * 0.20:.1f}dp</dimen>',
+            dimens)
+        self.assertIn(
+            f'<dimen name="settings_shift_y">-{box * 0.05:.1f}dp</dimen>',
+            dimens)
+
     def test_the_control_sits_beside_the_title(self):
         # Owner order 2026-10-13 (fourth note): adjacent to the brand name,
         # anchored to the title's own right edge rather than pinned to the
@@ -590,10 +626,30 @@ class TypefaceTest(unittest.TestCase):
                       self.main)
         self.assertIn("new TypefaceSpan(ARROW_FACE), from, from + 1", self.main)
 
-    def test_the_about_mark_needs_no_override_because_the_face_has_it(self):
-        # The estimated split mark rides inside the brand face on purpose.
+    def test_the_estimate_mark_is_drawn_by_a_face_that_shows_it(self):
+        """Owner order 2026-10-15: the sign must read as an approximation.
+
+        LEMON MILK maps U+2248, but measured in the shipped face its two bars
+        sit 131 of the font's own 2048 em units apart, so at card size they
+        merge into one squiggle and the owner read the quantity fields as if
+        the "=" had turned into a tilde. The two signs are drawn by the
+        system face now, the same override the arrows already needed; the
+        brand face keeps every character around them. Only an estimated row
+        gets the override: a measured row's "=" is LEMON MILK's own.
+        """
         self.assertTrue(has_codepoint(FONT_DIR / "lemonmilk_light.otf", ABOUT))
-        self.assertNotIn("TypefaceSpan(ARROW_FACE), sellFrom", self.main)
+        self.assertIn('private static final String ARROW_FACE = "sans-serif"',
+                      self.main)
+        self.assertIn("if (estimated) {\n"
+                      "                    glyphs.add(new int[]{buyFrom - 1, "
+                      "buyFrom});\n                }", self.main)
+        self.assertIn("if (estimated) {\n"
+                      "                    glyphs.add(new int[]{sellFrom - 1, "
+                      "sellFrom});\n                }", self.main)
+        # And the mark itself: "=" for the tape's counted numbers, U+2248 for
+        # the day's-range estimate.
+        self.assertIn('String mark = estimated ? "\\u2248" : "=";',
+                      self.main)
 
     def test_the_bundled_faces_carry_their_licences(self):
         for name in ("Bonskin-PersonalUse.txt", "LEMONMILK-ReadMe.txt"):
@@ -862,8 +918,8 @@ class StatusTileSpacingTest(unittest.TestCase):
 class VersionTest(unittest.TestCase):
     def test_the_version_is_the_one_that_ships_these_changes(self):
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="1.6.9"', manifest)
-        self.assertIn('android:versionCode="23"', manifest)
+        self.assertIn('android:versionName="1.7.0"', manifest)
+        self.assertIn('android:versionCode="24"', manifest)
 
 
 if __name__ == "__main__":
