@@ -344,6 +344,56 @@ class DecisionTest(unittest.TestCase):
         self.assertEqual(loop.health.last_verdict, "TRADE")
         self.assertEqual(loop.health.consecutive_failures, 0)
 
+    def test_a_band_cycle_publishes_the_market_card_from_the_tape(self):
+        # Owner order 2026-10-15: the phone's B and S numbers are the tape's
+        # own counts, so the loop that owns the tape publishes the card every
+        # cycle inside the band. Without this, the relay serves only its own
+        # portal estimate and MACFL closed at the low prints as B=0 S=all.
+        loop = self.loop(at(MONDAY, 10, 5))
+        with patch.object(pipeline, "run_scan", return_value=trade_payload()), \
+                patch("src.data.live_card.publish_card",
+                      return_value={"ok": True, "detail": "card published to "
+                                                   "the relay", "split":
+                                                   "B/S counted from the tape"}) \
+                as card:
+            action, _ = loop.run_cycle()
+        self.assertEqual(action, "scan")
+        card.assert_called_once()
+
+    def test_a_wait_outside_the_band_does_not_publish_the_card(self):
+        loop = self.loop(at(SATURDAY, 11, 0))
+        with patch("src.data.live_card.publish_card") as card:
+            loop.run_cycle()
+        card.assert_not_called()
+
+    def test_a_failed_card_does_not_fault_the_scan(self):
+        # The card is a best effort push beside the scan: the tape's verdict
+        # stands even when the relay refuses the snapshot.
+        loop = self.loop(at(MONDAY, 10, 5))
+        with patch.object(pipeline, "run_scan", return_value=trade_payload()), \
+                patch("src.data.live_card.publish_card",
+                      return_value={"ok": False, "detail": "card push failed: "
+                                                   "ConnectError", "split":
+                                                   "unknown"}):
+            loop.run_cycle()
+        self.assertEqual(loop.health.last_verdict, "TRADE")
+        self.assertEqual(loop.health.consecutive_failures, 0)
+
+    def test_a_card_publish_inside_a_finalize_cycle_also_runs(self):
+        # The day's last card carries the day's last split, on the same tape
+        # the finalize read.
+        loop = self.loop(at(MONDAY, 15, 35))
+        with patch.object(pipeline, "run_finalize",
+                          return_value={"outcome": {}, "gate": {}}), \
+                patch("src.data.live_card.publish_card",
+                      return_value={"ok": True, "detail": "card published to "
+                                                   "the relay", "split":
+                                                   "B/S counted from the tape"}) \
+                as card:
+            action, _ = loop.run_cycle()
+        self.assertEqual(action, "finalize")
+        card.assert_called_once()
+
     def test_post_close_finalizes(self):
         loop = self.loop(at(MONDAY, 15, 35))
         self.assertEqual(loop.decide(at(MONDAY, 15, 35))[0], "finalize")

@@ -386,14 +386,14 @@ class SettingsControlTest(unittest.TestCase):
         self.assertLessEqual(padding, 8)
 
     def test_the_control_is_nudged_right_and_up_by_the_owners_fractions(self):
-        """Owner order 2026-10-15 (second note): 20% right, 5% up.
+        """Owner orders 2026-10-15, stacked: 20% right, 5% up, then a
+        further 70% right and a further 15% up.
 
-        Both fractions are of the control's own 42dp box, not of the screen,
-        so the shift keeps the same shape on any device: 42 x 0.20 = 8.4dp
-        right and 42 x 0.05 = 2.1dp up. The numbers live once, in
-        dimens.xml, and the layout reads them; the anchors of the earlier
-        orders still hold, so this is an offset from them rather than a new
-        placement.
+        Both orders are of the control's own 42dp box, so the fractions sum:
+        42 x 0.90 = 37.8dp right and 42 x 0.20 = 8.4dp up, which is the one
+        shift the layout reads from dimens.xml. The anchors of the earlier
+        orders still hold, so a stacked translation keeps the same shape on
+        any screen and at any font scale.
         """
         root = layout_root()
         button = find_view(root, "@+id/btn_settings")
@@ -408,10 +408,10 @@ class SettingsControlTest(unittest.TestCase):
         dimens = (RES / "values" / "dimens.xml").read_text(encoding="utf-8")
         box = int(button.get(f"{ANDROID_NS}layout_width")[:-2])
         self.assertIn(
-            f'<dimen name="settings_shift_x">{box * 0.20:.1f}dp</dimen>',
+            f'<dimen name="settings_shift_x">{box * 0.90:.1f}dp</dimen>',
             dimens)
         self.assertIn(
-            f'<dimen name="settings_shift_y">-{box * 0.05:.1f}dp</dimen>',
+            f'<dimen name="settings_shift_y">-{box * 0.20:.1f}dp</dimen>',
             dimens)
 
     def test_the_control_sits_beside_the_title(self):

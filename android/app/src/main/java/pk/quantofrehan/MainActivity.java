@@ -174,7 +174,12 @@ public class MainActivity extends Activity {
     /** Turned and tinted by setSettingsOpen, so it is the ImageView itself. */
     private ImageView btnSettings;
     private View settingsPanel;
-    /** True while the beacon is breathing, so the cycle knows to continue. */
+    /**
+     * True while the beacon is breathing, owned by the chain's own halves.
+     * Only the state gate reads it, to skip a restart on an already-live
+     * chain (owner order 2026-10-15, fourth note): before that the guard sat
+     * in startStatusBreath and the chain ended itself after one cycle.
+     */
     private boolean breathRunning;
 
     @Override
@@ -267,23 +272,40 @@ public class MainActivity extends Activity {
      * frames touch no layout, no measure and no draw on this thread. Each
      * direction is half a cycle and the return is the same curve mirrored,
      * so one breath is BREATH_MS and the light never jumps.
+     *
+     * Owner order 2026-10-15 (fourth note): the breath NEVER stalls while
+     * the console is on an ONLINE console. Measured live on 2026-10-15, the
+     * first build breathed exactly once and then froze: the return half
+     * ended by calling startStatusBreath again, and that method's own
+     * "already breathing" guard saw breathRunning still true and silently
+     * ended the chain. The guard has therefore moved to the state gate
+     * (breathIfOnline), which is the only caller that must not restart a
+     * live chain, and startStatusBreath is now the pure "begin the next
+     * full cycle" step the chain calls back into: the loop owns its own
+     * continuation, so one breath follows the next without a gap and
+     * without a restart for as long as the market is ON.
      */
     private void startStatusBreath() {
-        if (statusDot == null || breathRunning) {
-            return;                     // nothing to pulse, or already live
+        if (statusDot == null) {
+            return;                     // nothing to pulse
         }
-        stopStatusBreath();             // a re-render starts from rest
         breathRunning = true;
         breatheTo(BREATH_MIN_ALPHA, BREATH_MIN_SCALE, this::breatheBack);
     }
 
     /**
      * Starts the pulse only for a live market (owner order 2026-10-14).
-     * Every other state, and every hidden console, is still.
+     * Every other state, and every hidden console, is still. The gate also
+     * owns the "already breathing" check (owner order 2026-10-15, fourth
+     * note): a re-render on an ONLINE console must not restart a chain that
+     * is already alive, but it must never be the thing that ends one
+     * either, which was the freeze the owner measured.
      */
     private void breathIfOnline(boolean online) {
         if (online) {
-            startStatusBreath();
+            if (!breathRunning) {
+                startStatusBreath();
+            }
         } else {
             stopStatusBreath();
         }
@@ -301,7 +323,13 @@ public class MainActivity extends Activity {
                 .start();
     }
 
-    /** The return: full opacity and the beacon's own 18dp again. */
+    /**
+     * The return: full opacity and the beacon's own 18dp again. Its end
+     * action calls startStatusBreath, which is the NEXT full cycle: with the
+     * already-alive guard moved to breathIfOnline (owner order 2026-10-15,
+     * fourth note), the two halves now chain forever until the state flips,
+     * instead of the first return silently ending everything.
+     */
     private void breatheBack() {
         if (!breathRunning) {
             return;                     // stopped while this half was queued
