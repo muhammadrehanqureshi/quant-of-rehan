@@ -112,6 +112,8 @@ from pathlib import Path
 
 from src.data.capture_health import status_view
 
+from src import config  # noqa: E402
+
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
@@ -171,7 +173,12 @@ def guard(frame: str) -> str:
 
 
 def load_universe(path: Path = UNIVERSE_FILE) -> list[str]:
-    """KMIALL symbols for the subscription. Refuses to guess (SO-3)."""
+    """KMIALL symbols for the subscription. Refuses to guess (SO-3).
+
+    ETFs are never subscribed (owner order 2026-10-15): the scan universe
+    excludes them by name, and the capture must match what the scanner
+    ranks or the exclusions would differ between collection and use.
+    """
     if not path.exists():
         raise FileNotFoundError(
             f"KMIALL universe file not found: {path}; refusing to subscribe "
@@ -182,6 +189,7 @@ def load_universe(path: Path = UNIVERSE_FILE) -> list[str]:
         r["symbol"] for r in records
         if r.get("symbol") and "KMIALLSHR" in (r.get("listedIn") or [])
     ]
+    symbols = [s for s in symbols if not config.is_etf_symbol(s)]
     if not symbols:
         raise ValueError(f"No KMIALLSHR members in {path}")
     return sorted(set(symbols))
