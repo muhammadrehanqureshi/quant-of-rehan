@@ -41,5 +41,9 @@ desktop.ini
 # --- Android build outputs ---
 android/app/build/
 
+# --- Web app: dependencies and build output are never tracked ---
+web/node_modules/
+web/dist/
+
 # --- Local tool output (worker_check.py harness) ---
 /tmp/
