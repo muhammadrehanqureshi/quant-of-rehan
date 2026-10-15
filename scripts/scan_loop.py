@@ -663,6 +663,16 @@ class ScanLoop:
         LOGGER.info("loop starting: interval=%gs warmup=%gmin window=%s dry_run=%s",
                     self.config.interval_seconds, self.config.warmup_minutes,
                     _window_text(self.clock()), self.config.dry_run)
+        from src.data import band_state
+
+        # Owner fix, 2026-10-15: a GitHub runner owns no state at all, so the
+        # first cycle of a band restores the day's tape and session state
+        # from Cloudflare R2 (see src/data/band_state.py: nothing survives a
+        # runner otherwise; and the finalize would only see band 2's prints).
+        # Skips cleanly on a PC without credentials (SO-4: no scanner work
+        # there either way).
+        band_state.restore_best_effort(self.clock().date())
+        self._persisted_cycles = 0
         try:
             while not self._stopping:
                 if limit is not None and self.health.cycles >= limit:
@@ -688,7 +698,15 @@ class ScanLoop:
                 LOGGER.info("sleeping %.0fs (failures=%d, action=%s)",
                             delay, self.health.consecutive_failures, action)
                 self._sleep(delay)
+                # A band's own persistence: the day's state goes back to R2
+                # every PUSH_EVERY_CYCLES cycles so the worst a crash loses
+                # is ten minutes of broker tape, never the whole morning.
+                self._persisted_cycles += 1
+                if self._persisted_cycles >= band_state.PUSH_EVERY_CYCLES:
+                    self._persisted_cycles = 0
+                    band_state.push_best_effort(self.clock().date())
         finally:
+            band_state.push_best_effort(self.clock().date())
             self.health.stopped_at = self.clock().isoformat(timespec="seconds")
             self.health.save(self.health_path)
             LOGGER.info("loop stopped after %d cycles", self.health.cycles)
@@ -766,10 +784,13 @@ class ScanLoop:
             "dry_run=%s scan_timeout=%gs", self.config.interval_seconds,
             self.config.warmup_minutes, _window_text(self.clock()),
             self.config.dry_run, self.config.scan_timeout_seconds)
+        from src.data import band_state
+        band_state.restore_best_effort(self.clock().date())
         report = None
         try:
             report = asyncio.run(run_band())
         finally:
+            band_state.push_best_effort(self.clock().date())
             self.health.stopped_at = self.clock().isoformat(timespec="seconds")
             self.health.save(self.health_path)
         LOGGER.info(
