@@ -113,6 +113,7 @@ from pathlib import Path
 from src.data.capture_health import status_view
 
 from src import config  # noqa: E402
+from src.data import eligibility  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
@@ -177,7 +178,10 @@ def load_universe(path: Path = UNIVERSE_FILE) -> list[str]:
 
     ETFs are never subscribed (owner order 2026-10-15): the scan universe
     excludes them by name, and the capture must match what the scanner
-    ranks or the exclusions would differ between collection and use.
+    ranks or the exclusions would differ between collection and use. Since
+    2026-10-16 that exclusion is asked of src/data/eligibility.py, the same
+    service the scan and the historical dataset use, so the recorder cannot
+    subscribe to a symbol the scanner would refuse (or the reverse).
     """
     if not path.exists():
         raise FileNotFoundError(
@@ -189,10 +193,10 @@ def load_universe(path: Path = UNIVERSE_FILE) -> list[str]:
         r["symbol"] for r in records
         if r.get("symbol") and "KMIALLSHR" in (r.get("listedIn") or [])
     ]
-    symbols = [s for s in symbols if not config.is_etf_symbol(s)]
-    if not symbols:
-        raise ValueError(f"No KMIALLSHR members in {path}")
-    return sorted(set(symbols))
+    screened = eligibility.screen(symbols, universe=symbols)
+    if not screened.eligible:
+        raise ValueError(f"No eligible KMIALLSHR members in {path}")
+    return sorted(set(screened.eligible))
 
 
 def market_symbol(symbol: str, market: str = MARKET_CODE) -> str:

@@ -108,11 +108,18 @@ class IngestionReport:
 
 
 def load_universe(path: str | Path = DEFAULT_UNIVERSE) -> set[str]:
-    """KMIALL member symbols.
+    """KMIALL member symbols that are eligible to be traded.
 
     The file is a list of objects with a ``symbol`` key (the shape the universe
     refresh writes). A bare list of strings is also accepted.
+
+    Owner order 2026-10-15/16: ETFs are excluded from historical research and
+    backtesting as well as from the live scan, so membership is not enough to
+    enter this universe. The exclusion is asked of src/data/eligibility.py, the
+    same service the recorder and the live scan use, so a replay cannot rank a
+    symbol the live scanner would refuse.
     """
+    from src.data import eligibility  # local: keeps this module import-light
     resolved = Path(path)
     if not resolved.is_file():
         raise FileNotFoundError(f"universe file not found: {resolved}")
@@ -131,7 +138,13 @@ def load_universe(path: str | Path = DEFAULT_UNIVERSE) -> set[str]:
     symbols.discard("")
     if not symbols:
         raise ValueError(f"universe file {resolved} contained no symbols")
-    return symbols
+    screened = eligibility.screen(sorted(symbols), universe=symbols)
+    if screened.unknown:
+        print(f"eligibility: refusing {len(screened.unknown)} historical "
+              f"symbol(s) whose classification could not be settled")
+    if not screened.eligible:
+        raise ValueError(f"no eligible symbols in universe file {resolved}")
+    return set(screened.eligible)
 
 
 def load_eod_history(
