@@ -250,6 +250,22 @@ TICK_WARMUP_MINUTES = _number("TICK_WARMUP_MINUTES", 20)
 SCAN_INTERVAL_SECONDS = _number("SCAN_INTERVAL_SECONDS", 30)
 TICK_STALE_LOCK_MINUTES = _number("TICK_STALE_LOCK_MINUTES", 15)
 
+# How long the broker venue may push NO market data at all before the recorder
+# treats the session as stalled and reconnects.
+#
+# Measured 2026-10-16, inside the live Friday band: two separate fresh
+# connections were each answered with exactly ONE full sweep of the universe
+# (32 MKT-FEED frames carrying 315 rows) and then nothing. One stall ran for
+# five consecutive minutes (10:06 to 10:10) before the sweeps returned at 64
+# frames a minute; re-sending the subscription frame on the same socket did
+# NOT restore the stream (probe: 32 frames after the first subscribe, 0 frames
+# in the 60 seconds after re-subscribing), but a NEW connection is answered
+# with a fresh sweep every time. The 2026-10-13 session tape never went a
+# single minute below 31 frames, so a twenty second silence is not a quiet
+# market, it is a stalled push: the recorder now stops waiting rather than
+# letting the tape age out and block every later scan as stale.
+TICK_STALL_SECONDS = _number("TICK_STALL_SECONDS", 20.0)
+
 # The bar capture is ONE polite, sequential pass over the universe
 # (src/data/ohlc_poller.py). The 319 symbol KMIALL universe needs about seven
 # minutes at the source's own 1.3s pacing, and no timeout can make that faster.
@@ -438,6 +454,7 @@ def config_snapshot() -> dict:
         "psx_probe_timeout_seconds": PSX_PROBE_TIMEOUT_SECONDS,
         "tick_interval_minutes": TICK_INTERVAL_MINUTES,
         "scan_interval_seconds": SCAN_INTERVAL_SECONDS,
+        "tick_stall_seconds": TICK_STALL_SECONDS,
         "kmiall_only": KMIALL_ONLY,
         "long_only": LONG_ONLY,
         "data_confirmations": data_confirmations(),
