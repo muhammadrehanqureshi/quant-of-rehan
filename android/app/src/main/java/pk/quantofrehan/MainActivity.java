@@ -55,6 +55,12 @@ import java.util.Locale;
  * the card's foot reads "Quant will be scanning the market every 4 minutes
  * when the market is open."
  *
+ * Owner order 2026-10-16 (v1.7.1): that sentence's interval tracks the real
+ * one, which is now the 30 second cloud cadence (config.SCAN_INTERVAL_SECONDS,
+ * SO-13) rather than the retired 4 minute local tick: "every 30 seconds when
+ * the market is open". The console also repaints at that cadence for as long
+ * as it is on screen instead of once per open.
+ *
  * Owner order 2026-10-12 (third note): the settings control is a drawn vector
  * gear rather than a text glyph, the market card closes with the same line,
  * diamond, line rule as the two cards above it, the brand and the interface
@@ -382,15 +388,35 @@ public class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
         refresh();
+        // Owner order 2026-10-16: the console keeps up with the 30 second scan
+        // instead of repainting once per open. The loop runs only while the
+        // activity is resumed (onPause removes it) and only on the main
+        // thread's own queue, so a hidden app neither polls nor holds a
+        // wake lock, and the watchdog in Watcher is untouched by it.
+        cadence.removeCallbacks(tick);
+        cadence.postDelayed(tick, Watcher.REFRESH_MS);
     }
 
     @Override
     protected void onPause() {
         super.onPause();
-        // A hidden console holds no animation: the breath stops with the view,
-        // and onResume's refresh starts it again.
+        // A hidden console holds no animation and no poll: the breath stops
+        // with the view and the cadence loop is removed, and onResume starts
+        // both again.
+        cadence.removeCallbacks(tick);
         stopStatusBreath();
     }
+
+    /** The foreground refresh loop, at the cloud's own scan cadence. */
+    private final android.os.Handler cadence =
+            new android.os.Handler(android.os.Looper.getMainLooper());
+    private final Runnable tick = new Runnable() {
+        @Override
+        public void run() {
+            refresh();
+            cadence.postDelayed(this, Watcher.REFRESH_MS);
+        }
+    };
 
     private void refresh() {
         String admin = prefs.getString("admin_token", "");

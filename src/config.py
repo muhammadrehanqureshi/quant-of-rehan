@@ -360,6 +360,41 @@ def live_trading_enabled() -> bool:
     return bool(LIVE_TRADING_ENABLED and not PAPER_TRADING_ENABLED)
 
 
+# The three owner confirmations a session must carry before its evidence may
+# count toward production. The band workflows already pass them
+# (intraday-session.yml, intraday-capture.yml) but nothing in the code read
+# them, so the gate's production_data_ready check had no input at all and
+# could only ever be false (found 2026-10-16). Read here, once, so the session
+# record and the gate answer the same question from the same source.
+DATA_RIGHTS_CONFIRMED_ENV = "KMIALL_DATA_RIGHTS_CONFIRMED"
+DATA_LATENCY_CONFIRMED_ENV = "KMIALL_DATA_LATENCY_CONFIRMED"
+UNIVERSE_CONFIRMED_ENV = "KMIALL_UNIVERSE_CONFIRMED"
+
+
+def data_confirmations() -> dict:
+    """The owner's own data confirmations for this run, as booleans.
+
+    Each one is an explicit statement by the owner that the underlying claim
+    holds (rights to the feed, measured latency, universe currentness). They
+    are read, never assumed: an unset variable is False, and a False value is
+    carried into the session record so the production gate can refuse to
+    count that session rather than guess that it was verified.
+    """
+    return {
+        "data_rights_confirmed": _flag(DATA_RIGHTS_CONFIRMED_ENV, False),
+        "data_latency_confirmed": _flag(DATA_LATENCY_CONFIRMED_ENV, False),
+        "universe_confirmed": _flag(UNIVERSE_CONFIRMED_ENV, False),
+    }
+
+
+def production_data_ready(confirmations: dict | None = None) -> bool:
+    """All three confirmations present. The frozen gate's own definition."""
+    state = data_confirmations() if confirmations is None else confirmations
+    return all(bool(state.get(key)) for key in (
+        "data_rights_confirmed", "data_latency_confirmed",
+        "universe_confirmed"))
+
+
 def config_snapshot() -> dict:
     """Honest, loggable view of the configuration in force."""
     return {
@@ -405,4 +440,5 @@ def config_snapshot() -> dict:
         "scan_interval_seconds": SCAN_INTERVAL_SECONDS,
         "kmiall_only": KMIALL_ONLY,
         "long_only": LONG_ONLY,
+        "data_confirmations": data_confirmations(),
     }

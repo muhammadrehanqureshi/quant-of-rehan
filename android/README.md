@@ -60,7 +60,9 @@ Cloudflare relay, never to Telegram, never to a broker.
   price can never wrap apart on a narrow screen. The up and down arrows keep a
   single space before them on the index line and on every leader line. The
   card's foot now reads, verbatim: "Quant will be scanning the market every
-  4 minutes when the market is open."
+  30 seconds when the market is open." (v1.7.1; it read "every 4 minutes"
+  until the scan moved to the cloud's 30 second cadence, see the v1.7.1 note
+  below.)
 - v1.6.3 volume rows read
   `1. CNERGY (B=12,345  S=9,876  T=22,221)` on the first line and
   `PKR 12.52 up 1.05%` on the second, where B and S are the session's buy and
@@ -352,6 +354,18 @@ The Always Classy face (res/font/always_classy.ttf, licence in
 android/LICENSES/) was bundled for the motivational panel. That panel is
 gone as of v1.5.0, so the font is no longer referenced by any layout; it is
 kept in the tree with its licence rather than deleted.
+
+- v1.7.1, owner order 2026-10-16: the console keeps up with the live cadence.
+  The scan moved to GitHub Actions minutes and the Cloudflare relay at 30
+  seconds (SO-13, `config.SCAN_INTERVAL_SECONDS`), so the card's cadence
+  sentence now reads "every 30 seconds when the market is open" instead of the
+  retired local tick's 4 minutes, and the console repaints at that cadence for
+  as long as it is on screen (`MainActivity`'s `tick` loop, removed in
+  onPause) rather than once per open. The background watchdog is unchanged at
+  five minutes and `Watcher.WATCHDOG_MS` says why: an AlarmManager wake is not
+  a poll, and `setExactAndAllowWhileIdle` is capped inside Doze, so a 30
+  second alarm would advertise a cadence Android will not honour. Version
+  1.7.1, versionCode 25.
 
 The APK is signed with the local debug key (v2+v3), which is enough for
 direct installation on the owner's phone. Install: copy the APK to the
