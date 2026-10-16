@@ -340,15 +340,26 @@ class SettingsControlTest(unittest.TestCase):
         # VERTICALLY on the title, so the box's own middle stands on the
         # line's middle at any font scale. The baseline rule of 2026-10-13
         # (second note) is retired, and with it every measured pixel: the
-        # layout holds the centring, and MainActivity holds no listener that
-        # could move the control after a layout.
+        # layout holds the centring, and MainActivity holds no layout listener
+        # that could move the control after a layout.
         self.assertEqual(button.get(f"{ANDROID_NS}layout_centerVertical"),
                          "true")
         self.assertIsNone(button.get(f"{ANDROID_NS}layout_alignTop"))
         self.assertNotIn("alignSettingsToBrandBaseline", self.main)
-        self.assertNotIn("btnSettings.setTranslationY", self.main)
         self.assertNotIn("addOnLayoutChangeListener", self.main)
         self.assertNotIn("brandTitle", self.main)
+        # Owner order 2026-10-16 (fourth note): the one thing MainActivity now
+        # writes on the control is the ORDERED offset, clamped to the room the
+        # screen has. It reads that offset from the same two resources the
+        # layout declares and never re-derives a position from the title, so
+        # the centring is still the layout's fact and this cannot become the
+        # old baseline measure by another name.
+        shift = self.main[self.main.index("private void applySettingsShift()"):]
+        shift = shift[:shift.index("private void setSettingsOpen")]
+        self.assertIn("R.dimen.settings_shift_x", shift)
+        self.assertIn("R.dimen.settings_shift_y", shift)
+        self.assertNotIn("brand_title", shift)
+        self.assertNotIn("getBaseline", shift)
         # The tagline stays outside the row, so it cannot pull the control
         # down: the control is centred on the brand text itself.
         self.assertIsNot(row, parent_of(root, tagline))
@@ -365,13 +376,18 @@ class SettingsControlTest(unittest.TestCase):
         # holds no clip, which keeps the box whole at any font scale, and the
         # vertical margin that used to give the overhang a home is retired:
         # the box is centred on the line now (sixth note), which spends half of
-        # that overhang above the line and half below it.
+        # that overhang above the line and half below it. Owner order
+        # 2026-10-16 (fourth note): every ancestor, not only the row, holds no
+        # clip, because the ordered translation moves the DRAWN box past three
+        # of them as well.
         root = layout_root()
         button = find_view(root, "@+id/btn_settings")
         row = find_view(root, "@+id/brand_row")
+        header = parent_of(root, row)
         self.assertIsNotNone(button)
         self.assertIsNotNone(row)
         self.assertEqual(row.get(f"{ANDROID_NS}clipChildren"), "false")
+        self.assertEqual(header.get(f"{ANDROID_NS}clipChildren"), "false")
         self.assertIs(row, parent_of(root, button))
         self.assertIsNone(button.get(f"{ANDROID_NS}layout_marginTop"),
                           "the baseline overhang is retired with the rule")
@@ -384,6 +400,52 @@ class SettingsControlTest(unittest.TestCase):
         # of the box edge as well.
         padding = int(button.get(f"{ANDROID_NS}padding")[:-2])
         self.assertLessEqual(padding, 8)
+
+    def test_the_ordered_offset_is_clamped_to_the_room_the_screen_has(self):
+        """Owner order 2026-10-16 (fourth note): the press gradient was cut.
+
+        The control hangs off the centred brand title and is translated by
+        @dimen/settings_shift_x, which is what the owner ordered. On a narrow
+        content area that translation can carry the control's box past the
+        window's right edge, and the pixels outside the window are not clipped
+        by a parent, they simply do not exist, which the owner saw as a sliced
+        gradient. Two halves fix it, and this test pins both:
+
+          * every ancestor of the control stops clipping (scroll view, content
+            column, header, brand row), so a drawn box may overhang its own
+            row;
+          * MainActivity clamps the ordered offset to the pixels actually
+            available between the control's right edge and the window's, read
+            from real geometry after the first layout (posted, so a layout
+            exists), and never to a guessed width.
+        """
+        root = layout_root()
+        button = find_view(root, "@+id/btn_settings")
+        clip_free = []
+        node = button
+        while node is not None:
+            clip_free.append(node.tag)
+            node = parent_of(root, node)
+        # scroll view, content column, header, brand row: the chain above the
+        # control, most of which used to clip.
+        self.assertIn("ScrollView", clip_free)
+        self.assertIn("LinearLayout", clip_free)
+        self.assertIn("RelativeLayout", clip_free)
+        layout = LAYOUT.read_text(encoding="utf-8")
+        self.assertIn('android:clipToPadding="false"', layout)
+        self.assertGreaterEqual(layout.count('android:clipChildren="false"'), 4)
+        # The clamp itself: posted after the first layout, ordered magnitudes
+        # from the layout's own dimens, bounded by measured room.
+        self.assertIn("btnSettings.post(", self.main)
+        self.assertIn("window.getLocationOnScreen(windowAt)", self.main)
+        self.assertIn("room = windowAt[0] + window.getWidth() - naturalRight",
+                      self.main)
+        self.assertIn("Math.min(orderedX, Math.max(0f, room))", self.main)
+        self.assertIn("btnSettings.setTranslationX(", self.main)
+        # It never invents an offset of its own: the ordered one is the
+        # ceiling, so a wide screen gets exactly what the owner asked for.
+        self.assertIn("R.dimen.settings_shift_x", self.main)
+        self.assertIn("R.dimen.settings_shift_y", self.main)
 
     def test_the_control_is_nudged_right_and_up_by_the_owners_fractions(self):
         """Owner orders, stacked: 20% right and 5% up, then a further 70%
@@ -913,6 +975,89 @@ class StatusPulseTest(unittest.TestCase):
         self.assertNotIn("LocalTime", self.main)
         self.assertNotIn("System.currentTimeMillis()", self.main)
 
+    def test_the_interval_is_re_decided_when_the_answer_lands(self):
+        """Owner order 2026-10-16 (fourth note): the reported defect.
+
+        The console was reported as never refreshing every second. The cause
+        was an ordering bug, not a missing feature: onResume scheduled the
+        next round BEFORE any answer had arrived, and the interval is chosen
+        from the relay's own `market_open`, which is false on a fresh process.
+        So an open market was polled at the 30 second idle interval until a
+        whole idle round had completed, which is what the owner saw as "it
+        never refreshes every second".
+
+        The fix keeps the single scheduling point and calls it from render as
+        well, the moment the answer lands: the interval now changes with the
+        market rather than one idle interval later. scheduleNext removes the
+        one runnable before re-posting it, so the extra call cannot stack a
+        second loop.
+        """
+        render = self.main[self.main.index("private void render(boolean online"):]
+        render = render[:render.index("private String liveLine()")]
+        # The state is taken from the answer before the cadence is re-decided:
+        # the order of these two lines is the fix.
+        self.assertLess(render.index("marketOpenSeen = online;"),
+                        render.index("scheduleNext();"))
+        self.assertIn("cadence.removeCallbacks(tick);", self.main)
+        self.assertEqual(self.main.count("scheduleNext();"), 3,
+                         "onResume, the tick and the answer: one method")
+
+    def test_the_status_tile_shows_the_apps_own_last_contact_second(self):
+        """The relay's clock has minute resolution (owner order 2026-10-16).
+
+        cloud/worker.js formats `karachi_now` as `<date> HH:MM PKT` (hhmm),
+        so a perfect one second poll repaints an identical screen for up to
+        sixty seconds and reads as no poll at all. The tile therefore also
+        carries the app's own contact line, to the second, which is the
+        phone's record of its own last answer: it is shown only while the
+        relay reports a live session, it never replaces the relay's own
+        Karachi line, and it states no market fact (SO-3, SO-8).
+        """
+        strings = STRINGS.read_text(encoding="utf-8")
+        self.assertIn('name="app_live"', strings)
+        live = strings[strings.index('name="app_live">') + len('name="app_live">'):]
+        live = live[:live.index("</string>")]
+        # Both numbers come from the code, never from a typed literal.
+        self.assertIn("%1$s", live)
+        self.assertIn("%2$d", live)
+        self.assertIn("polling", live)
+        # The relay's minute-resolution stamp still stands in the tile.
+        self.assertIn("Karachi: ", WATCHER.read_text(encoding="utf-8"))
+        worker = (ROOT / "cloud" / "worker.js").read_text(encoding="utf-8")
+        self.assertIn("function hhmm(d) {", worker)
+        self.assertNotIn("getUTCSeconds", worker.split("function hhmm(d) {")[1]
+                         [:120])
+        # And the app's line is built to the second, in Karachi time, from the
+        # loop's own interval constant.
+        line = self.main[self.main.index("private String liveLine()"):]
+        line = line[:line.index("private SpannableString clockSpans")]
+        self.assertIn("\"HH:mm:ss\"", line)
+        self.assertIn("Asia/Karachi", line)
+        self.assertIn("Watcher.FAST_POLL_MS / 1000", line)
+        self.assertIn("R.string.app_live", line)
+        # The line is appended to the relay's detail, never shown alone, and
+        # only while the relay says the session is live.
+        render = self.main[self.main.index("private void render(boolean online"):]
+        render = render[:render.index("private String liveLine()")]
+        self.assertIn('d + "\\n" + liveLine() : d', render)
+        self.assertIn("clockSpans(online", render)
+
+    def test_the_settings_hint_separates_the_two_cadences(self):
+        """Owner order 2026-10-16 (fourth note): the panel told the owner two
+        different stories. The scan sentence (string/scan_cadence) is the
+        CLOUD scanner's own cadence and stays byte-identical; the hint is
+        help text, so it now spells out both cadences: the poll every second
+        while the market is open, and the 30 second one when it is shut and
+        for the exchange-backed card."""
+        strings = STRINGS.read_text(encoding="utf-8")
+        hint = strings[strings.index('name="settings_hint">')
+                       + len('name="settings_hint">'):]
+        hint = hint[:hint.index("</string>")]
+        self.assertIn("every second", hint)
+        self.assertIn("every 30 seconds", hint)
+        self.assertNotIn("5 minutes", hint)
+        self.assertNotIn("every 5", hint)
+
     def test_one_round_at_a_time_so_the_poll_cannot_pile_up(self):
         """A one second poll must not queue a second round behind the first.
 
@@ -942,8 +1087,19 @@ class StatusPulseTest(unittest.TestCase):
         pause = self.main.index("protected void onPause()")
         self.assertIn("resumed = false;", self.main[pause:pause + 500])
         # Both rounds guard the paint, and both still release the flag first.
-        self.assertEqual(self.main.count(
-            "liveInFlight = false;\n                    if (resumed) {"), 2)
+        # Since 2026-10-16 (fourth note) each callback also drops its
+        # reference to a finished console before it looks at `resumed`, which
+        # is the same rule one step further out: a round that outlived its
+        # activity paints nothing and holds nothing.
+        self.assertEqual(self.main.count("liveInFlight = false;"), 2)
+        self.assertEqual(self.main.count("isFinishing() || isDestroyed()"), 2)
+        self.assertEqual(self.main.count("if (resumed) {"), 2)
+        for marker in ("private void refresh()", "private void refreshLive()"):
+            body = self.main[self.main.index(marker):][:800]
+            self.assertLess(body.index("liveInFlight = false;"),
+                            body.index("isFinishing() || isDestroyed()"))
+            self.assertLess(body.index("isFinishing() || isDestroyed()"),
+                            body.index("if (resumed) {"))
 
     def test_the_market_card_is_not_asked_for_every_second(self):
         """The one second round is the pair that moves.
@@ -1009,6 +1165,72 @@ class StatusPulseTest(unittest.TestCase):
         self.assertIn("setSettingsOpen(!settingsOpen)",
                       self.main[listener:listener + 220])
         self.assertNotIn("getVisibility() == View.GONE", self.main)
+
+    def test_the_offline_light_is_the_online_light_in_red_and_it_is_still(self):
+        """Owner order 2026-10-16 (fourth note), verbatim: "when the market is
+        OFFLINE ... I want that icon exactly like the ONLINE icon just in red
+        color but also not breathing ... there should be a round ball type
+        structure should also be inside that thick line just like ONLINE icon
+        has it".
+
+        So the two beacons are compared layer by layer, by their own geometry
+        rather than by their prose: same number of layers, same path data in
+        the same order, same stroke widths. Anything that makes them differ by
+        more than colour fails here. The stillness is the second half of the
+        order and lives in MainActivity's gate, which starts the breath only
+        for a live market.
+        """
+        def attr(dot, name):
+            root = ET.parse(dot).getroot()
+            return [p.get(f"{ANDROID_NS}{name}") for p in root.iter("path")]
+
+        geometry = ("pathData", "strokeWidth")
+        for name in geometry:
+            with self.subTest(attribute=name):
+                self.assertEqual(attr(OFFLINE_DOT, name), attr(ONLINE_DOT, name))
+        # Three layers, and their fills are the SAME three slots: the halo
+        # stays transparent (it is a stroked ring), the middle is the body,
+        # the centre is the ball. Only the palette differs.
+        self.assertEqual(attr(ONLINE_DOT, "fillColor"),
+                         ["#00000000", "@color/green_glow", "@color/green_hi"])
+        self.assertEqual(attr(OFFLINE_DOT, "fillColor"),
+                         ["#00000000", "@color/red_core", "@color/red_hi"])
+        self.assertEqual(attr(ONLINE_DOT, "strokeColor"),
+                         ["@color/green_halo", None, None])
+        self.assertEqual(attr(OFFLINE_DOT, "strokeColor"),
+                         ["@color/red_ring", None, None])
+        # The centre the owner asked for: a filled ball inside a filled disc,
+        # never a hollow ring.
+        offline_text = OFFLINE_DOT.read_text(encoding="utf-8")
+        self.assertIn("@color/red_core", offline_text)
+        self.assertIn("@color/red_hi", offline_text)
+        self.assertIn("@color/red_ring", offline_text)
+        # And the palette holds that third weight, next to the green one.
+        colors = COLORS.read_text(encoding="utf-8")
+        self.assertIn('<color name="red_hi">', colors)
+        # The stillness: one gate, called with the relay's own answer, so the
+        # offline light is never animated (SO-3: a pulse over a shut market
+        # would claim trading there is none).
+        self.assertIn("private void breathIfOnline(boolean online)", self.main)
+        self.assertIn("breathIfOnline(online);", self.main)
+        # Two animations touch the beacon and only two: the pulse's own chain
+        # (started by the gate above) and the cancel in stopStatusBreath,
+        # which is what a non-live state and onPause call. So an offline light
+        # is never animated, it is only ever returned to rest.
+        self.assertEqual(self.main.count("statusDot.animate()"), 2)
+        gate = self.main[self.main.index("private void breathIfOnline"):]
+        gate = gate[:gate.index("private void breatheTo")]
+        self.assertIn("if (online) {", gate)
+        self.assertIn("startStatusBreath();", gate)
+        self.assertIn("stopStatusBreath();", gate)
+        # The still branch is the else one: a state that is not live never
+        # starts a breath, it only ever returns the light to rest.
+        self.assertIn("} else {\n            stopStatusBreath();", gate)
+        # And the gate is called from the one place the relay's answer is
+        # painted, with that answer rather than with a view's state.
+        render = self.main[self.main.index("private void render(boolean online"):]
+        render = render[:render.index("private String liveLine()")]
+        self.assertIn("breathIfOnline(online);", render)
 
     def test_the_online_light_is_green_and_the_offline_light_is_red(self):
         colors = COLORS.read_text(encoding="utf-8")
@@ -1086,18 +1308,65 @@ class StatusTileSpacingTest(unittest.TestCase):
         self.assertEqual(detail.get(f"{ANDROID_NS}layout_width"), "match_parent")
         self.assertEqual(badge.get(f"{ANDROID_NS}layout_marginTop"),
                          detail.get(f"{ANDROID_NS}layout_marginTop"))
+class HeaderCopyTest(unittest.TestCase):
+    """Owner order 2026-10-16 (fourth note): two changes to the brand line.
+
+    The label "PSX KMIALL" becomes "PSX's KMIALL INDEX", and "KARACHI TIME"
+    leaves the header entirely. The Karachi clock itself is not retired: it
+    stands in the system status tile, which is where a reader looks for it,
+    and SO-8 keeps every time in this app on Asia/Karachi.
+    """
+
+    def setUp(self):
+        self.strings = STRINGS.read_text(encoding="utf-8")
+        self.layout = LAYOUT.read_text(encoding="utf-8")
+
+    def resource_value(self, name: str) -> str:
+        marker = f'name="{name}">'
+        start = self.strings.index(marker) + len(marker)
+        return self.strings[start:self.strings.index("</string>", start)]
+
+    def test_the_header_names_the_index_it_follows(self):
+        # The apostrophe is escaped in the resource (a bare one is read as
+        # punctuation to be stripped), so the escaped and the rendered forms
+        # are both checked here.
+        self.assertEqual(self.resource_value("tagline"),
+                         "PSX\\'s KMIALL INDEX \u00b7 SIGNAL-ONLY")
+        self.assertIn("PSX's KMIALL INDEX",
+                      self.resource_value("tagline").replace("\\", ""))
+
+    def test_the_timezone_note_is_gone_from_the_header(self):
+        self.assertNotIn("KARACHI TIME", self.resource_value("tagline"))
+        # No resource VALUE carries it either. Comments are not checked here:
+        # the order that removed the note is quoted in the resource file's own
+        # comment, and a test that forbade the words would forbid the record of
+        # why they left.
+        for value in ET.parse(STRINGS).getroot().iter("string"):
+            with self.subTest(resource=value.get("name")):
+                self.assertNotIn("KARACHI TIME", value.text or "")
+        # The header line is the only view that carries it, and the tagline is
+        # still the caps face the v1.6.x orders put it in.
+        self.assertIn('android:text="@string/tagline"', self.layout)
+        brand = element(self.layout, 'android:id="@+id/brand_tagline"')
+        self.assertIn("@font/lemonmilk_light", brand)
+        # The clock itself stays, in the tile the reader looks at.
+        self.assertIn("Karachi: ", WATCHER.read_text(encoding="utf-8"))
+        self.assertIn("SO-8", self.strings)
+
+
 class VersionTest(unittest.TestCase):
     def test_the_version_is_the_one_that_ships_these_changes(self):
-        # v1.7.2 (owner order 2026-10-16, second note): the icon offset, the
-        # exclusive settings menu and the one second live poll ship in this
-        # build, so the code and the name move together.
+        # v1.7.3 (owner order 2026-10-16, fourth note): the live poll really
+        # runs once a second, the settings gradient is no longer sliced, the
+        # offline light is the online light in red, and the header names the
+        # index, so the code and the name move together.
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="1.7.2"', manifest)
-        self.assertIn('android:versionCode="26"', manifest)
+        self.assertIn('android:versionName="1.7.3"', manifest)
+        self.assertIn('android:versionCode="27"', manifest)
         # And the project's own record of the order says what shipped.
         readme = (ROOT / "android" / "README.md").read_text(encoding="utf-8")
-        self.assertIn("v1.7.2, owner order 2026-10-16", readme)
-        self.assertIn("Version 1.7.2,", readme)
+        self.assertIn("v1.7.3, owner order 2026-10-16", readme)
+        self.assertIn("Version 1.7.3,", readme)
 
 
 if __name__ == "__main__":
