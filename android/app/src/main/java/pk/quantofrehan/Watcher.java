@@ -44,6 +44,43 @@ public final class Watcher {
     // strategy actually decided on instead of a stale copy of it.
     static final long REFRESH_MS = 30 * 1000;
 
+    // Owner order 2026-10-16: while the market is open the console polls the
+    // relay once a second, so a signal that the cloud has just accepted shows
+    // up on the phone within about a second instead of at the next 30 second
+    // repaint. FAST_POLL_MS is the live interval; REFRESH_MS stays the idle
+    // interval (closed market, its midday break, or an unreachable relay),
+    // because nothing on the screen can change until the session does.
+    //
+    // The cost is bounded by what a live round asks for. fetchLive reads
+    // /health and /signals only: both are the relay's own small answers, and
+    // neither rebuilds anything upstream. The market card is NOT part of the
+    // one second round, because the relay can only rebuild it from the
+    // exchange page about every five minutes; MainActivity asks for the card
+    // once every CARD_EVERY_SECONDS live rounds instead. One request a second
+    // to the edge, with the phone's own in-flight guard so a slow answer
+    // skips a tick rather than queueing one.
+    static final long FAST_POLL_MS = 1000;
+
+    /**
+     * One relay answer, before the market card is asked for.
+     *
+     * The two fetch rounds share this: the full round adds the card, the live
+     * round stops here. Keeping one reader means the ONLINE rule, the phase
+     * fallback and the signal note cannot drift between the two cadences.
+     */
+    private static final class Head {
+        boolean reachable;
+        boolean marketOpen;
+        String detail = "";
+        String signals = "";
+        /** The relay's own phase, from /health alone (no card involved). */
+        Market phase = new Market();
+
+        boolean online() {
+            return reachable && marketOpen;
+        }
+    }
+
     // The background re-arm stays at five minutes, and that is a platform
     // fact rather than a preference: an AlarmManager wake is not a poll.
     // setExactAndAllowWhileIdle is capped to roughly one wake per nine minutes
@@ -410,65 +447,102 @@ public final class Watcher {
      * The owner's rule (2026-10-09): when the market is closed the app must
      * say OFFLINE with a red cross, never ONLINE.
      */
+    /**
+     * One answer from /health plus one from /signals (owner order 2026-10-16).
+     *
+     * This is the pair a live round reads: the relay's OWN state, which is
+     * what changes between two scans. /health also carries the session phase,
+     * so a fast round still keeps the pill, the sentence and the market state
+     * true without touching the exchange-backed card.
+     */
+    private static Head fetchHead(Context c, String base, String admin) throws Exception {
+        Head head = new Head();
+        JSONObject health = healthWithRetry(base);
+        head.reachable = health.optBoolean("ok", false);
+        head.marketOpen = health.optBoolean("market_open", false);
+        String karachi = health.optString("karachi_now", "");
+
+        // The relay's own phase decides the sentence, so a break reads as a
+        // break and a weekend reads as a weekend (v1.6.0).
+        head.phase.open = head.marketOpen;
+        readPhase(health.optJSONObject("market_state"), head.phase);
+
+        // owner order 2026-10-07: the app shows only the Karachi clock; the
+        // next-event line is gone
+        if (!head.reachable) {
+            head.detail = "The relay answered but reported a fault.";
+        } else {
+            StringBuilder d = new StringBuilder("Karachi: ").append(karachi);
+            String line = phaseLine(c, head.phase);
+            if (!line.isEmpty()) {
+                d.append('\n').append(line);
+            }
+            // Owner order 2026-10-13: the "Trading resumes" sentence is
+            // retired, so the tile carries the condition alone.
+            head.detail = d.toString();
+        }
+
+        String signalNote = "";
+        if (!admin.isEmpty()) {
+            try {
+                JSONObject sig = get(base + "/signals", admin);
+                if (sig.optBoolean("ok")) {
+                    head.signals = sig.optString("signals", "");
+                } else {
+                    signalNote = "The relay rejected the token. Paste the current admin token (gear icon).";
+                }
+            } catch (Exception se) {
+                signalNote = "Signals could not load just now.";
+            }
+        }
+        if (!signalNote.isEmpty() && head.signals.trim().isEmpty()) {
+            head.signals = signalNote;
+        }
+        return head;
+    }
+
+    /**
+     * The light round: /health and /signals, and no market card at all.
+     *
+     * Called once a second while the market is open. It reports the card as
+     * null, which MainActivity reads as "leave the card that is already on
+     * screen exactly as it is", so the one second poll never blinks the third
+     * tile and never spends a request on a payload the relay cannot have
+     * rebuilt in the meantime.
+     */
+    static void fetchLive(final Context c, final String admin, final Callback cb) {
+        POOL.execute(() -> {
+            String base = relayUrl(c);
+            try {
+                Head head = fetchHead(c, base, admin);
+                cb.done(head.online(), head.reachable, head.detail,
+                        head.signals, null);
+            } catch (Exception e) {
+                String why = e.getClass().getSimpleName();
+                String hint = why.contains("UnknownHost") || why.contains("Connect")
+                        ? "No route to the relay from this phone. Check internet or VPN."
+                        : "The relay did not answer in time. Will retry.";
+                cb.done(false, false, hint + " (" + why + ")", "", null);
+            }
+        });
+    }
+
+    /** The full round: the head above, plus the exchange-backed market card. */
     static void fetchStatus(final Context c, final String admin, final Callback cb) {
         POOL.execute(() -> {
             String base = relayUrl(c);
             try {
-                JSONObject health = healthWithRetry(base);
-                boolean reachable = health.optBoolean("ok", false);
-                boolean marketOpen = health.optBoolean("market_open", false);
-                String karachi = health.optString("karachi_now", "");
-                boolean online = reachable && marketOpen;
-
-                // The relay's own phase decides the sentence, so a break reads
-                // as a break and a weekend reads as a weekend (v1.6.0).
-                Market healthMarket = new Market();
-                healthMarket.open = marketOpen;
-                readPhase(health.optJSONObject("market_state"), healthMarket);
-
-                // owner order 2026-10-07: the app shows only the Karachi
-                // clock; the next-event line is gone
-                String detail;
-                if (!reachable) {
-                    detail = "The relay answered but reported a fault.";
-                } else {
-                    StringBuilder d = new StringBuilder("Karachi: ")
-                            .append(karachi);
-                    String line = phaseLine(c, healthMarket);
-                    if (!line.isEmpty()) {
-                        d.append('\n').append(line);
-                    }
-                    // Owner order 2026-10-13: the "Trading resumes" sentence
-                    // is retired, so the tile carries the condition alone.
-                    detail = d.toString();
-                }
-
-                String signals = "";
-                String signalNote = "";
-                if (!admin.isEmpty()) {
-                    try {
-                        JSONObject sig = get(base + "/signals", admin);
-                        if (sig.optBoolean("ok")) {
-                            signals = sig.optString("signals", "");
-                        } else {
-                            signalNote = "The relay rejected the token. Paste the current admin token (gear icon).";
-                        }
-                    } catch (Exception se) {
-                        signalNote = "Signals could not load just now.";
-                    }
-                }
-                if (!signalNote.isEmpty() && signals.trim().isEmpty()) {
-                    signals = signalNote;
-                }
+                Head head = fetchHead(c, base, admin);
                 Market market = fetchMarket(c, base);
                 if (!market.phaseKnown()) {
                     // the card failed to load: keep the phase the relay already
                     // told us, so the pill and the footnote never disagree
-                    market.phase = healthMarket.phase;
-                    market.tradingDay = healthMarket.tradingDay;
-                    market.open = healthMarket.open;
+                    market.phase = head.phase.phase;
+                    market.tradingDay = head.phase.tradingDay;
+                    market.open = head.phase.open;
                 }
-                cb.done(online, reachable, detail, signals, market);
+                cb.done(head.online(), head.reachable, head.detail,
+                        head.signals, market);
             } catch (Exception e) {
                 String why = e.getClass().getSimpleName();
                 String hint = why.contains("UnknownHost") || why.contains("Connect")

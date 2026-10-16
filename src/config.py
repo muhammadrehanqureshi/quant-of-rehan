@@ -55,6 +55,18 @@ def _number(name: str, default: float) -> float:
 PAPER_TRADING_ENABLED = _flag("PAPER_TRADING_ENABLED", True)
 LIVE_TRADING_ENABLED = _flag("LIVE_TRADING_ENABLED", False)
 MAX_TRADES_PER_DAY = 1
+
+# The one signal a Karachi day is allowed, enforced where it can actually be
+# enforced. A local state file (src/signals/trade_state.py) is a per-machine
+# lock; the cloud runs a band loop plus scheduled backstop slots, each starting
+# from a restored copy of the day's state, so two runs can both decide to enter
+# and emit two accepted BUY candidates for the same day. The relay's
+# /research/claim is the one shared answer to "is today's signal already
+# spoken for", and scripts/intraday_pipeline.run_scan asks it before entering.
+# Kept as a switch for one reason: with the relay unreachable the claim fails
+# closed (no entry, reported), and an owner who wants paper observation to
+# continue without the relay can turn the requirement off deliberately.
+SIGNAL_CLAIM_REQUIRED = _flag("SIGNAL_CLAIM_REQUIRED", True)
 TARGET_PCT = _number("TARGET_PCT", 2.0) / 100.0
 KMIALL_ONLY = True
 LONG_ONLY = True
@@ -193,11 +205,18 @@ EXCLUDED_ETF_SYMBOLS = frozenset({"MIIETF", "MZNPETF"})
 
 
 def is_etf_symbol(symbol: str) -> bool:
-    """True when *symbol* is an exchange-traded fund naming convention or on
-    the known ETF list. The filter is name-based, so a stray ETF admitted to
-    KMIALLSHR in the future is still excluded."""
-    s = str(symbol).strip().upper()
-    return s in EXCLUDED_ETF_SYMBOLS or s.endswith(ETF_SYMBOL_SUFFIX)
+    """True when *symbol* is an exchange-traded fund.
+
+    Kept as the short answer for callers that only need this one question, and
+    answered by src/data/eligibility.py so there is exactly one ETF rule in the
+    project: the reviewed registry first, then the exchange's naming
+    convention. The two names below are mirrored in the registry with their
+    source and review date, and the suffix test is the same rule the service
+    applies, so this function and that service can never disagree.
+    """
+    from src.data import eligibility  # local: eligibility reads config lazily
+
+    return eligibility.is_etf(symbol)
 
 SCANNER_VERSION = "momentum_volume_acceleration_v1"
 
@@ -249,6 +268,22 @@ TICK_WARMUP_MINUTES = _number("TICK_WARMUP_MINUTES", 20)
 # (44.6 MB, 314 symbols): 2.9s to build, load, gate and rank, inside a 30s slot.
 SCAN_INTERVAL_SECONDS = _number("SCAN_INTERVAL_SECONDS", 30)
 TICK_STALE_LOCK_MINUTES = _number("TICK_STALE_LOCK_MINUTES", 15)
+
+# How long the broker venue may push NO market data at all before the recorder
+# treats the session as stalled and reconnects.
+#
+# Measured 2026-10-16, inside the live Friday band: two separate fresh
+# connections were each answered with exactly ONE full sweep of the universe
+# (32 MKT-FEED frames carrying 315 rows) and then nothing. One stall ran for
+# five consecutive minutes (10:06 to 10:10) before the sweeps returned at 64
+# frames a minute; re-sending the subscription frame on the same socket did
+# NOT restore the stream (probe: 32 frames after the first subscribe, 0 frames
+# in the 60 seconds after re-subscribing), but a NEW connection is answered
+# with a fresh sweep every time. The 2026-10-13 session tape never went a
+# single minute below 31 frames, so a twenty second silence is not a quiet
+# market, it is a stalled push: the recorder now stops waiting rather than
+# letting the tape age out and block every later scan as stale.
+TICK_STALL_SECONDS = _number("TICK_STALL_SECONDS", 20.0)
 
 # The bar capture is ONE polite, sequential pass over the universe
 # (src/data/ohlc_poller.py). The 319 symbol KMIALL universe needs about seven
@@ -438,6 +473,8 @@ def config_snapshot() -> dict:
         "psx_probe_timeout_seconds": PSX_PROBE_TIMEOUT_SECONDS,
         "tick_interval_minutes": TICK_INTERVAL_MINUTES,
         "scan_interval_seconds": SCAN_INTERVAL_SECONDS,
+        "tick_stall_seconds": TICK_STALL_SECONDS,
+        "signal_claim_required": SIGNAL_CLAIM_REQUIRED,
         "kmiall_only": KMIALL_ONLY,
         "long_only": LONG_ONLY,
         "data_confirmations": data_confirmations(),

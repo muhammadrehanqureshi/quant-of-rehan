@@ -168,6 +168,19 @@ public class MainActivity extends Activity {
      */
     private static final float BREATH_MIN_SCALE = 0.88f;
 
+    /**
+     * How many live rounds pass before the market card is asked for again
+     * (owner order 2026-10-16).
+     *
+     * Thirty live rounds is thirty seconds at the live cadence, which is the
+     * relay's own card cadence (Watcher.REFRESH_MS) and roughly ten times
+     * fresher than the five minutes the card itself is rebuilt on. Asking for
+     * the card on every one second tick would spend a request a second on a
+     * payload that cannot have changed, so the one second poll carries the
+     * pair that does move (status and signals) and the card rides along here.
+     */
+    private static final int CARD_EVERY_SECONDS = 30;
+
     private SharedPreferences prefs;
     /** The state badge: the beacon and the word, one pill. */
     private LinearLayout statusBadge;
@@ -180,6 +193,57 @@ public class MainActivity extends Activity {
     /** Turned and tinted by setSettingsOpen, so it is the ImageView itself. */
     private ImageView btnSettings;
     private View settingsPanel;
+    /**
+     * The console's own views, hidden together while the settings menu is
+     * open: the three tiles, the three rules between them and the cadence
+     * sentence. Built once in onCreate, so the toggle is one loop over an
+     * array and never a re-inflation of the layout.
+     */
+    private View[] consoleViews;
+    /**
+     * The settings state. The views are drawn from this boolean; no code ever
+     * reads a view's visibility back to decide what the state is, which is
+     * what makes the toggle idempotent and loop free.
+     */
+    private boolean settingsOpen;
+    /**
+     * True while a relay round is in flight (owner order 2026-10-16).
+     *
+     * A one second poll on a slow connection could otherwise start a round
+     * before the last one answered, which queues requests, keeps old answers
+     * arriving out of order and burns battery re-rendering the same data.
+     * One round at a time is the whole guard.
+     */
+    private boolean liveInFlight;
+    /**
+     * True while the console is on screen.
+     *
+     * A round started just before the console is hidden can answer just after
+     * it, and rendering it then would restart the status breath that onPause
+     * deliberately stopped, leaving an animation running for a view nobody can
+     * see. The callback therefore always releases the in-flight flag and only
+     * paints when the console is resumed, which keeps the older promise that a
+     * hidden console holds no animation and no poll.
+     */
+    private boolean resumed;
+    /**
+     * The relay's own market state, which sets the poll interval (SO-8).
+     *
+     * The phone never decides from its own clock whether the market is open:
+     * the last answer from the relay carries `market_open`, and that value
+     * alone chooses between the one second live poll and the slow idle poll.
+     */
+    private boolean marketOpenSeen;
+    /**
+     * Live rounds since the market card was last asked for.
+     *
+     * The card is rebuilt by the relay from the exchange page about every
+     * five minutes, so asking for it once a second would spend a request per
+     * second on a payload that cannot have changed. Live rounds are health
+     * and signals (small reads of the relay's own store); the card rides
+     * along every CARD_EVERY_SECONDS of them.
+     */
+    private int ticksSinceCard;
     /**
      * True while the beacon is breathing, owned by the chain's own halves.
      * Only the state gate reads it, to skip a restart on an already-live
@@ -204,11 +268,26 @@ public class MainActivity extends Activity {
         settingsPanel = findViewById(R.id.settings_panel);
         btnSettings = findViewById(R.id.btn_settings);
 
+        // Owner order 2026-10-16: the console's tiles, the rules between them
+        // and the cadence sentence, gathered ONCE so the exclusive-settings
+        // toggle is one loop over seven references rather than seven calls.
+        // findViewById is a tree walk, so doing this here is what keeps the
+        // toggle off the layout pass entirely.
+        consoleViews = new View[]{
+                findViewById(R.id.tile_status),
+                findViewById(R.id.rule_status_signal),
+                findViewById(R.id.tile_signal),
+                findViewById(R.id.rule_after_signal),
+                findViewById(R.id.tile_market),
+                findViewById(R.id.rule_after_market),
+                findViewById(R.id.scan_cadence)};
+
         final EditText tokenBox = findViewById(R.id.token_box);
         tokenBox.setText(prefs.getString("admin_token", ""));
 
-        btnSettings.setOnClickListener(v ->
-                setSettingsOpen(settingsPanel.getVisibility() == View.GONE));
+        // The tap reads the STATE, never a view's visibility: one source of
+        // truth, so a re-entrant tap cannot land on a stale reading.
+        btnSettings.setOnClickListener(v -> setSettingsOpen(!settingsOpen));
 
         findViewById(R.id.btn_save).setOnClickListener(v -> {
             String t = tokenBox.getText().toString().trim();
@@ -237,19 +316,47 @@ public class MainActivity extends Activity {
     }
 
     /**
-     * The one place the settings state changes (owner order 2026-10-13).
+     * The one place the settings state changes (owner orders 2026-10-13 and
+     * 2026-10-16), and the one place the view toggle is decided.
      *
-     * Everything "open" means lives here so the three can never drift apart:
-     * the panel's visibility, the icon's quarter turn, and its tint. Opening
-     * turns the icon 90 degrees to the left (counterclockwise, so a negative
-     * rotation); closing animates that rotation back to zero, which is the
-     * 90 degree turn to the right the owner asked for. The tint carries the
-     * old brand law that the plate's gold ring used to carry, now that the
-     * plate itself is gone: gold at rest, brighter gold while the panel is
-     * open. A decelerating curve makes the last few degrees settle instead of
-     * stopping dead.
+     * Everything "open" means lives here so nothing can drift apart:
+     * the console's visibility, the panel's visibility, the icon's quarter
+     * turn, and its tint. The state is the field `settingsOpen`; the views are
+     * DRAWN from it, never asked. That direction is what keeps the toggle free
+     * of re-render loops: a listener reads one boolean, sets it once, and the
+     * method returns early when the value has not changed, so a repeated tap,
+     * a restored activity or a stray second call cannot re-run the animations
+     * or thrash the view tree.
+     *
+     * Owner order 2026-10-16: while the panel is open the view shows the
+     * settings menu EXCLUSIVELY. The console's three tiles (system status,
+     * latest signal, the market card), the three rules between and after them
+     * and the cadence sentence are all set to GONE together, from the array
+     * built once in onCreate. GONE rather than INVISIBLE on purpose: the menu
+     * then takes the space the console gave up instead of leaving a hole the
+     * owner would have to scroll past, and a hidden view is out of the
+     * accessibility tree, so a screen reader announces the menu alone.
+     *
+     * Opening turns the icon 90 degrees to the left (counterclockwise, so a
+     * negative rotation); closing animates that rotation back to zero, which
+     * is the 90 degree turn to the right the owner asked for. The tint
+     * carries the old brand law that the plate's gold ring used to carry, now
+     * that the plate itself is gone: gold at rest, brighter gold while the
+     * panel is open. A decelerating curve makes the last few degrees settle
+     * instead of stopping dead.
      */
     private void setSettingsOpen(boolean open) {
+        if (open == settingsOpen) {
+            return;                     // already there: no animation, no reflow
+        }
+        settingsOpen = open;
+        if (consoleViews != null) {
+            // One pass, one state: the console leaves and the menu arrives
+            // in the same frame, so no intermediate layout is ever drawn.
+            for (View view : consoleViews) {
+                view.setVisibility(open ? View.GONE : View.VISIBLE);
+            }
+        }
         settingsPanel.setVisibility(open ? View.VISIBLE : View.GONE);
         btnSettings.animate()
                 .rotation(open ? -90f : 0f)
@@ -387,14 +494,16 @@ public class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        resumed = true;
         refresh();
-        // Owner order 2026-10-16: the console keeps up with the 30 second scan
-        // instead of repainting once per open. The loop runs only while the
-        // activity is resumed (onPause removes it) and only on the main
-        // thread's own queue, so a hidden app neither polls nor holds a
+        // Owner order 2026-10-16: the console polls the relay by itself, so
+        // nothing on it has to be refreshed by hand. A full round paints the
+        // screen on resume (card included), then scheduleNext picks the
+        // interval from what the relay last reported. The loop runs only
+        // while the activity is resumed (onPause removes it) and only on the
+        // main thread's own queue, so a hidden app neither polls nor holds a
         // wake lock, and the watchdog in Watcher is untouched by it.
-        cadence.removeCallbacks(tick);
-        cadence.postDelayed(tick, Watcher.REFRESH_MS);
+        scheduleNext();
     }
 
     @Override
@@ -402,26 +511,104 @@ public class MainActivity extends Activity {
         super.onPause();
         // A hidden console holds no animation and no poll: the breath stops
         // with the view and the cadence loop is removed, and onResume starts
-        // both again.
+        // both again. The resumed flag also silences a round already in
+        // flight when this ran, so its answer cannot restart the breath.
+        resumed = false;
         cadence.removeCallbacks(tick);
         stopStatusBreath();
     }
 
-    /** The foreground refresh loop, at the cloud's own scan cadence. */
+    /** The foreground refresh loop. */
     private final android.os.Handler cadence =
             new android.os.Handler(android.os.Looper.getMainLooper());
     private final Runnable tick = new Runnable() {
         @Override
         public void run() {
-            refresh();
-            cadence.postDelayed(this, Watcher.REFRESH_MS);
+            pollOnce();
+            scheduleNext();
         }
     };
 
+    /**
+     * The one scheduling point of the whole loop (owner order 2026-10-16).
+     *
+     * The interval is a function of the relay's own answer, so it changes the
+     * moment the market does: a live session is polled every
+     * Watcher.FAST_POLL_MS (one second), which is as fast as a new signal can
+     * appear, and a closed market, its midday break or an unreachable relay
+     * falls back to Watcher.REFRESH_MS (thirty seconds), because nothing on
+     * the screen can change until the session does and a shut market must not
+     * cost a request a second on the owner's battery. Every path schedules
+     * through here, so the cadence is decided in exactly one place and a
+     * removeCallbacks on the same runnable makes a re-schedule idempotent
+     * instead of stacking a second loop.
+     */
+    private void scheduleNext() {
+        cadence.removeCallbacks(tick);
+        cadence.postDelayed(tick, marketOpenSeen
+                ? Watcher.FAST_POLL_MS : Watcher.REFRESH_MS);
+    }
+
+    /**
+     * One poll round, never two at once (owner order 2026-10-16).
+     *
+     * Live rounds (health and signals) are asked for on every tick; the market
+     * card rides along once every CARD_EVERY_SECONDS ticks, because the relay
+     * rebuilds it from the exchange page about that often. The in-flight flag
+     * is set by the round and cleared in its callback, which every path of a
+     * round calls, so a failed round releases the loop rather than freezing
+     * it, and a slow round simply skips a tick instead of queuing one.
+     */
+    private void pollOnce() {
+        if (liveInFlight) {
+            return;                     // the last round has not answered yet
+        }
+        ticksSinceCard++;
+        if (ticksSinceCard >= CARD_EVERY_SECONDS) {
+            ticksSinceCard = 0;
+            refresh();                  // full round: status, signals and card
+        } else {
+            refreshLive();              // light round: status and signals only
+        }
+    }
+
+    /**
+     * The full round: everything the relay can answer, card included.
+     *
+     * Used on resume, after the token is saved, and once every
+     * CARD_EVERY_SECONDS live rounds.
+     */
     private void refresh() {
+        liveInFlight = true;
         String admin = prefs.getString("admin_token", "");
         Watcher.fetchStatus(this, admin, (online, reachable, detail, signals, market) ->
-                runOnUiThread(() -> render(online, detail, signals, market)));
+                runOnUiThread(() -> {
+                    liveInFlight = false;
+                    if (resumed) {
+                        render(online, detail, signals, market);
+                    }
+                }));
+    }
+
+    /**
+     * The light round: health and signals, no market card.
+     *
+     * This is what the one second poll asks for. It is the pair that actually
+     * moves between scans, and it is cheap on both ends: two small reads of
+     * the relay's own store, against a card the relay can only rebuild every
+     * few minutes. The card already on screen is left exactly as it is (see
+     * render), so a fast poll never blanks it.
+     */
+    private void refreshLive() {
+        liveInFlight = true;
+        String admin = prefs.getString("admin_token", "");
+        Watcher.fetchLive(this, admin, (online, reachable, detail, signals, market) ->
+                runOnUiThread(() -> {
+                    liveInFlight = false;
+                    if (resumed) {
+                        render(online, detail, signals, market);
+                    }
+                }));
     }
 
     private void render(boolean online, String detail, String signals,
@@ -475,7 +662,15 @@ public class MainActivity extends Activity {
             signalList.setAlpha(1.0f);
         }
 
-        renderMarket(market);
+        // The relay's own answer is what sets the poll interval (SO-8): the
+        // phone never reads its own clock to decide whether the market is
+        // open, it repeats what the relay said.
+        marketOpenSeen = online;
+        if (market != null) {
+            // A light round carries no card, so the card on screen stays as
+            // it was rather than being redrawn (or blanked) every second.
+            renderMarket(market);
+        }
     }
 
     /**

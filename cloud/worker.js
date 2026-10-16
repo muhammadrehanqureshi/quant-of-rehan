@@ -565,6 +565,72 @@ function adminOk(request, env) {
   return env.RELAY_ADMIN_TOKEN && got === env.RELAY_ADMIN_TOKEN;
 }
 
+//: The last send's outcome, kept in KV so /status can report it.
+//
+// The owner asked for four different facts to stay four different facts: a
+// candidate was generated, a notification was attempted, the relay accepted
+// it, and Telegram delivered it. Only the relay can see the last of those, so
+// it records it here instead of letting a fast sender guess.
+async function sendAndRecord(env, chatId, text, kind, dedupeKey) {
+  const sent = await tgCall(env, "sendMessage", { chat_id: chatId, text },
+                            TELEGRAM_SEND_TIMEOUT_MS);
+  const record = {
+    at: new Date().toISOString(),
+    kind: String(kind || "signals"),
+    ok: Boolean(sent.ok),
+    description: String(sent.description || (sent.ok ? "ok" : "unknown"))
+        .slice(0, 200),
+  };
+  try {
+    await env.RELAY_KV.put("DELIVERY:LAST", JSON.stringify(record),
+                            { expirationTtl: 604800 });
+    // The ops dedupe key is written ONLY after Telegram accepted the message.
+    // It used to be written before the send, so a failed alert was suppressed
+    // by its own attempt and never retried (measured 2026-10-16: a labelled
+    // test alert was deduped away while Telegram answered nothing).
+    if (sent.ok && dedupeKey) {
+      await env.RELAY_KV.put(dedupeKey, "1", { expirationTtl: 172800 });
+    }
+  } catch (_) {
+    // The record is best effort: the send itself has already happened, and a
+    // missing record must never turn a delivered message into a claimed one.
+  }
+  return record;
+}
+
+async function healthPayload(env) {
+  const now = new Date();
+  const k = karachiView(now.getTime());
+  const next = nextEvent(now);
+  let lastDelivery = null;
+  try {
+    const raw = await env.RELAY_KV.get("DELIVERY:LAST");
+    lastDelivery = raw ? JSON.parse(raw) : null;
+  } catch (_) {
+    lastDelivery = null;
+  }
+  return {
+    ok: true,
+    service: "quant-of-rehan-relay",
+    karachi_now: `${dayStamp(k)} ${hhmm(k)} PKT`,
+    // The app shows ONLINE only while a session is live, so the state is
+    // answered by the same session law the notifications use (SO-8).
+    // `market_state.phase` is the authoritative word (OPEN, BREAK, CLOSED,
+    // PRE_OPEN, POST_CLOSE); `market_open` is kept for older clients and is
+    // exactly `phase === "OPEN"`.
+    market_open: marketOpenNow(now),
+    market_state: marketState(now),
+    paired: Boolean((await env.RELAY_KV.get("PAIRED_CHAT_ID")) || env.PAIRED_CHAT_ID),
+    // What the last Telegram send actually did, as the relay saw it. Null
+    // means no send has been recorded yet, which is not the same as a
+    // successful one.
+    last_delivery: lastDelivery,
+    next_event: next.event
+      ? { event: next.event, at_pk: `${dayStamp(karachiView(next.at.getTime()))} ${hhmm(karachiView(next.at.getTime()))}` }
+      : null,
+  };
+}
+
 async function latestChat(env) {
   const updates = await tgCall(env, "getUpdates", { limit: 50 });
   if (!updates.ok) return { error: updates.description || "getUpdates refused" };
@@ -590,14 +656,26 @@ async function latestChat(env) {
 // instead of becoming a phantom undelivered signal.
 const TELEGRAM_TIMEOUT_MS = 10000;
 
-async function tgCall(env, method, params) {
+//: The deadline for a send nobody is waiting on, in milliseconds.
+//
+// A signal is not allowed to be decided by this deadline the way it was: the
+// 10 second synchronous budget above is shorter than Telegram's own measured
+// answer time (42.2 seconds on 2026-10-16), so /notify recorded every signal
+// as a delivery failure while Telegram would have delivered it late. Measured
+// again on 2026-10-16 11:47 PKT from the relay: /notify and /updates both
+// answered "telegram did not answer within 10s (TimeoutError)". A send whose
+// answer nobody is waiting for may wait, so it gets Telegram's real latency
+// plus room, and its outcome is written to KV for /status to report.
+const TELEGRAM_SEND_TIMEOUT_MS = 45000;
+
+async function tgCall(env, method, params, timeoutMs) {
   let r;
   try {
     r = await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/${method}`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(params),
-      signal: AbortSignal.timeout(TELEGRAM_TIMEOUT_MS),
+      signal: AbortSignal.timeout(timeoutMs || TELEGRAM_TIMEOUT_MS),
     });
   } catch (e) {
     // Reported, never swallowed: the caller turns this into a 502 with the
@@ -617,30 +695,18 @@ function json(obj, status = 200) {
 }
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
     const path = url.pathname;
 
-    if (request.method === "GET" && path === "/health") {
-      const now = new Date();
-      const k = karachiView(now.getTime());
-      const next = nextEvent(now);
-      return json({
-        ok: true,
-        service: "quant-of-rehan-relay",
-        karachi_now: `${dayStamp(k)} ${hhmm(k)} PKT`,
-        // The app shows ONLINE only while a session is live, so the state is
-        // answered by the same session law the notifications use (SO-8).
-        // `market_state.phase` is the authoritative word (OPEN, BREAK,
-        // CLOSED, PRE_OPEN, POST_CLOSE); `market_open` is kept for older
-        // clients and is exactly `phase === "OPEN"`.
-        market_open: marketOpenNow(now),
-        market_state: marketState(now),
-        paired: Boolean((await env.RELAY_KV.get("PAIRED_CHAT_ID")) || env.PAIRED_CHAT_ID),
-        next_event: next.event
-          ? { event: next.event, at_pk: `${dayStamp(karachiView(next.at.getTime()))} ${hhmm(karachiView(next.at.getTime()))}` }
-          : null,
-      });
+    // /health and /status are the same answer under two names. The owner's
+    // interface list for the phone app names /status, /market and /signals;
+    // /status did not exist (a GET answered {"error":"not found"}), so a
+    // client built to that list had nothing to read. Served from one function
+    // so the two names cannot drift apart.
+    if (request.method === "GET" &&
+        (path === "/health" || path === "/status")) {
+      return json(await healthPayload(env));
     }
 
     if (request.method === "POST" && path === "/pair/start") {
@@ -704,6 +770,12 @@ export default {
       // push retry pending) must cost at most ONE Telegram message per day
       // per distinct text. kind "ops" dedupes on (UTC date, text); signal
       // traffic (kind "signals") is deduped upstream by the push journal.
+      // The send runs in the background, and the answer separates two facts:
+      // this relay ACCEPTED the message (ok: true), and Telegram's own answer
+      // is recorded in DELIVERY:LAST for /status to report. Waiting for
+      // Telegram inside the request is what broke delivery: a sender with a
+      // 30 second budget cannot hold a call Telegram answers in 42, and a
+      // scan cycle must not be held hostage to it either.
       if (kind === "ops") {
         const day = new Date().toISOString().slice(0, 10);
         let digest = "";
@@ -717,15 +789,12 @@ export default {
         }
         const alertKey = `ALERT:${day}:${digest}`;
         const seen = await env.RELAY_KV.get(alertKey);
-        if (seen) return json({ ok: true, deduped: true });
-        await env.RELAY_KV.put(alertKey, "1", { expirationTtl: 172800 });
-        const sent = await tgCall(env, "sendMessage", { chat_id: paired, text });
-        if (sent.ok) return json({ ok: true, deduped: false });
-        return json({ ok: false, error: sent.description || "telegram refused" }, 502);
+        if (seen) return json({ ok: true, deduped: true, delivery: "deduped" });
+        ctx.waitUntil(sendAndRecord(env, paired, text, "ops", alertKey));
+        return json({ ok: true, accepted: true, delivery: "pending" });
       }
-      const sent = await tgCall(env, "sendMessage", { chat_id: paired, text });
-      if (sent.ok) return json({ ok: true });
-      return json({ ok: false, error: sent.description || "telegram refused" }, 502);
+      ctx.waitUntil(sendAndRecord(env, paired, text, "signals", null));
+      return json({ ok: true, accepted: true, delivery: "pending" });
     }
 
     if (request.method === "GET" && path === "/market") {
@@ -787,8 +856,14 @@ export default {
 
     if (request.method === "POST" && path === "/research/observation") {
       const body = await request.json().catch(() => null);
+      // The slot is a clock label, and the cadence changed under this route:
+      // SO-13's 30 second loop labels its slots HH:MM:SS (11:34:00) while the
+      // local 4 minute tick labels them HH:MM (11:34). The route used to
+      // accept only HH:MM, so from 2026-10-14 every observation the loop sent
+      // was answered 400 "invalid observation" and silently never archived.
+      // Both forms are the same clock now, so both are accepted.
       if (!body || !/^\d{4}-\d{2}-\d{2}$/.test(String(body.date || "")) ||
-          !/^\d{2}:\d{2}$/.test(String(body.slot || "")) ||
+          !/^\d{2}:\d{2}(:\d{2})?$/.test(String(body.slot || "")) ||
           !body.snapshot || typeof body.snapshot !== "object") {
         return json({ ok: false, error: "invalid observation" }, 400);
       }
@@ -848,7 +923,7 @@ export default {
     if (request.method === "POST" && path === "/research/claim") {
       const body = await request.json().catch(() => null);
       if (!body || !/^\d{4}-\d{2}-\d{2}$/.test(String(body.date || "")) ||
-          !/^\d{2}:\d{2}$/.test(String(body.slot || ""))) {
+          !/^\d{2}:\d{2}(:\d{2})?$/.test(String(body.slot || ""))) {
         return json({ ok: false, error: "invalid signal claim" }, 400);
       }
       const key = `RESEARCH:SENT:${body.date}`;

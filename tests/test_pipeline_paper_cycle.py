@@ -163,14 +163,21 @@ class RelayRecorder:
     answers an error (a RuntimeError carrying the relay's own reason).
     """
 
-    def __init__(self, refuse: tuple[str, ...] = ()) -> None:
+    def __init__(self, refuse: tuple[str, ...] = (), claims: bool = True) -> None:
         self.calls: list[tuple] = []
         self.refuse = refuse
+        #: Whether the day's one signal is still unclaimed. The real relay
+        #: answers /research/claim with {"claimed": bool}, and the pipeline
+        #: reads that answer as the shared once-per-day lock, so the stand-in
+        #: has to answer it as the route does rather than with a bare ok.
+        self.claims = claims
 
     def __call__(self, method: str, route: str, payload: dict | None = None) -> dict:
         self.calls.append((method, route, payload))
         if route in self.refuse:
             raise RuntimeError(f"the relay refused {route} (test stand-in)")
+        if route == "/research/claim":
+            return {"ok": True, "claimed": self.claims}
         return {"ok": True}
 
     def routes(self) -> list[str]:
@@ -399,6 +406,83 @@ class PipelineCycleTest(unittest.TestCase):
             self.relay.payload_for("/research/outcome")["date"], FRIDAY.isoformat())
 
         self.assert_real_forward_untouched()
+
+    def test_the_days_one_signal_is_claimed_before_any_entry(self):
+        """Owner order 2026-10-16: one accepted BUY per Karachi day.
+
+        The local session file cannot see another runner, and the cloud runs a
+        band loop plus backstop slots from a restored copy of the day's state,
+        so two runs can both believe the day is theirs. The relay's
+        /research/claim is the one shared answer, and the entry must wait for
+        it: the claim is taken before the trade is recorded, its answer is part
+        of the observation, and the archive slot it sends is the minute
+        precision the relay's research routes validate (the 30 second slot
+        label is refused with 400 "invalid observation").
+        """
+        first = self.scan("10:00")
+        self.assertEqual(first["status"], scanner.TRADE)
+        self.assertEqual(first["claim"]["ok"], True)
+        self.assertEqual(first["claim"]["detail"], "claimed")
+
+        routes = self.relay.routes()
+        self.assertIn("/research/claim", routes)
+        self.assertLess(routes.index("/research/claim"), routes.index("/notify"),
+                        "the shared lock was asked AFTER the notification")
+        slot = self.relay.payload_for("/research/claim")["slot"]
+        self.assertRegex(slot, r"^\d{2}:\d{2}$")
+        self.assertRegex(
+            self.relay.payload_for("/research/observation")["slot"],
+            r"^\d{2}:\d{2}$",
+            "the archive route only accepts HH:MM, so a seconds slot is lost")
+
+    def test_a_refused_claim_cannot_enter_a_second_trade(self):
+        """A second runner arriving on the same day is refused, and says so."""
+        self.relay.claims = False
+        with contextlib.redirect_stdout(io.StringIO()):
+            result = run_scan("10:00", self.capture)
+
+        self.assertEqual(result["status"], State.DAILY_LOCKED)
+        self.assertEqual(result["delivered"], "LOCKED")
+        self.assertIsNone(result["candidate"])
+        self.assertEqual(result["trade_state"]["trades_today"], 0)
+        self.assertFalse(result["claim"]["ok"])
+        self.assertIn("already claimed", result["reason"])
+        self.assertIn(WINNER, result["reason"])
+        self.assertNotIn("/notify", self.relay.routes(),
+                         "a refused claim still reached the notification path")
+
+    def test_a_relay_that_cannot_answer_the_claim_fails_closed(self):
+        """No answer, no entry: an unverifiable lock cannot promise one trade."""
+        self.relay.refuse = ("/research/claim",)
+        with contextlib.redirect_stdout(io.StringIO()):
+            result = run_scan("10:00", self.capture)
+
+        self.assertEqual(result["status"], State.DAILY_LOCKED)
+        self.assertEqual(result["trade_state"]["trades_today"], 0)
+        self.assertIn("could not be taken", result["reason"])
+
+    def test_a_seconds_slot_is_normalised_for_the_relay(self):
+        """The 30 second cadence labels slots HH:MM:SS; the relay wants HH:MM.
+
+        Measured 2026-10-16: the loop's slots are seconds precision, the
+        relay's /research/observation and /research/claim validate HH:MM, and
+        every observation since the cadence change was answered 400 and
+        dropped. The guard keeps its seconds; the relay gets the minute.
+        """
+        self.assertEqual(pipeline.relay_slot("11:34:00"), "11:34")
+        self.assertEqual(pipeline.relay_slot("11:34:30"), "11:34")
+        self.assertEqual(pipeline.relay_slot("11:34"), "11:34")
+        self.assertEqual(pipeline.relay_slot("9:05"), "09:05")
+        for bad in ("", "abc", "11", "1:2:3:4"):
+            with self.subTest(slot=bad):
+                with self.assertRaises(ValueError):
+                    pipeline.relay_slot(bad)
+
+        with contextlib.redirect_stdout(io.StringIO()):
+            result = run_scan("10:00:30", self.capture)
+        self.assertEqual(result["slot"], "10:00:30")
+        self.assertEqual(self.relay.payload_for("/research/observation")["slot"],
+                         "10:00", "a seconds slot was sent to the archive route")
 
     def test_a_refused_notification_is_never_reported_as_a_delivered_trade(self):
         """Owner defect 2026-10-16: delivered said TRADE even when nothing was.

@@ -172,11 +172,17 @@ class ScheduledScanTest(unittest.IsolatedAsyncioTestCase):
                        for p in sorted((ROOT / "data" / "forward").glob("*"))
                        if p.is_file()}
 
-        # No network: every relay call is answered locally and recorded.
+        # No network: every relay call is answered locally and recorded, with
+        # the one route whose answer the pipeline reads as a decision: the
+        # day's signal claim is the shared once-per-day lock, so the stand-in
+        # answers it the way the relay does ({"claimed": bool}) instead of a
+        # bare ok, which the pipeline would read as a refusal.
         self.calls: list[tuple] = []
 
         def relay(method, route, payload=None):
             self.calls.append((method, route, payload))
+            if route == "/research/claim":
+                return {"ok": True, "claimed": True}
             return {"ok": True}
 
         relay_patcher = patch.object(pipeline, "relay_request", relay)

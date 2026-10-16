@@ -11,17 +11,21 @@
     <dimen name="status_dot_gap">8dp</dimen>
 
     <!-- The settings control's nudge from where the brand row anchors it
-         (owner orders 2026-10-15, stacked): the second order moved the
-         control 20% of its own 42dp box right and 5% up; today's order moves
-         it a further 70% of that same box right and a further 15% up FROM
-         where the shift already stood. Translation on a leaf view does not
-         change layout, so the orders stack in place: 20 + 70 = 90% of the
-         42dp box right (37.8dp), 5 + 15 = 20% of it up (8.4dp, a negative
-         translation in Android's coordinates). Both are fractions of the
-         control rather than screen pixels, so the shift is the same shape
-         on any screen and at any font scale. The anchors themselves stay:
-         the pair still holds beside the title, and this is the offset from
-         there. -->
-    <dimen name="settings_shift_x">37.8dp</dimen>
-    <dimen name="settings_shift_y">-8.4dp</dimen>
+         (owner orders, stacked). Every order is a fraction of the control's
+         OWN 42dp box, and a translation on a leaf view does not change
+         layout, so the orders simply sum:
+
+           2026-10-15 (first)   20% right,  5% up
+           2026-10-15 (second)  70% right, 15% up
+           2026-10-16 (today)   15% right,  5% DOWN from where it stood
+           net today            105% right, 15% up
+
+         42 x 1.05 = 44.1dp right, 42 x 0.15 = 6.3dp up (a negative
+         translation in Android's coordinates). Fractions of the control
+         rather than screen pixels, so the offset is the same shape on any
+         screen and at any font scale. The anchors themselves are untouched:
+         the control still holds beside the title, and this is only the
+         offset from there. -->
+    <dimen name="settings_shift_x">44.1dp</dimen>
+    <dimen name="settings_shift_y">-6.3dp</dimen>
 </resources>
