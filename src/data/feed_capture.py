@@ -113,6 +113,7 @@ from pathlib import Path
 from src.data.capture_health import status_view
 
 from src import config  # noqa: E402
+from src.data import eligibility  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
@@ -177,7 +178,10 @@ def load_universe(path: Path = UNIVERSE_FILE) -> list[str]:
 
     ETFs are never subscribed (owner order 2026-10-15): the scan universe
     excludes them by name, and the capture must match what the scanner
-    ranks or the exclusions would differ between collection and use.
+    ranks or the exclusions would differ between collection and use. Since
+    2026-10-16 that exclusion is asked of src/data/eligibility.py, the same
+    service the scan and the historical dataset use, so the recorder cannot
+    subscribe to a symbol the scanner would refuse (or the reverse).
     """
     if not path.exists():
         raise FileNotFoundError(
@@ -189,10 +193,10 @@ def load_universe(path: Path = UNIVERSE_FILE) -> list[str]:
         r["symbol"] for r in records
         if r.get("symbol") and "KMIALLSHR" in (r.get("listedIn") or [])
     ]
-    symbols = [s for s in symbols if not config.is_etf_symbol(s)]
-    if not symbols:
-        raise ValueError(f"No KMIALLSHR members in {path}")
-    return sorted(set(symbols))
+    screened = eligibility.screen(symbols, universe=symbols)
+    if not screened.eligible:
+        raise ValueError(f"No eligible KMIALLSHR members in {path}")
+    return sorted(set(screened.eligible))
 
 
 def market_symbol(symbol: str, market: str = MARKET_CODE) -> str:
@@ -375,6 +379,7 @@ class CaptureSession:
                 backoff = 2.0
                 last_beat = time.time()
                 last_status = 0.0
+                last_tick = time.time()
                 while self.deadline is None or time.time() < self.deadline:
                     try:
                         chunk = sock.recv(65536)
@@ -391,6 +396,25 @@ class CaptureSession:
                         text = raw.decode("utf-8", "replace").strip()
                         if text:
                             self.bank(text)
+                            if text.startswith("MKT-FEED"):
+                                last_tick = time.time()
+                    # A push that stops is not a closed socket, so the
+                    # heartbeat keeps the session looking alive while the tape
+                    # ages out and every later scan blocks on stale leaders.
+                    # Reconnecting is the one lever that works (measured
+                    # 2026-10-16: a fresh connection is answered with a full
+                    # sweep every time, re-subscribing is not). This is
+                    # checked OUTSIDE the frame loop on purpose: a venue that
+                    # sends nothing at all would never enter that loop.
+                    # Raised as a connection fault so the existing backoff owns
+                    # the retry rate and a venue that is truly down is not
+                    # hammered.
+                    if time.time() - last_tick > config.TICK_STALL_SECONDS:
+                        raise ConnectionError(
+                            f"the venue pushed no market data for "
+                            f"{time.time() - last_tick:.0f}s "
+                            f"(limit {config.TICK_STALL_SECONDS:.0f}s); "
+                            f"reconnecting for a fresh sweep")
                     if self.counters["messages"] % 50 == 0:
                         self.flush()
                     if time.time() - last_status >= 20:

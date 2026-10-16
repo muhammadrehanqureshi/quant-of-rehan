@@ -52,8 +52,9 @@ target, then monitor and sleep.
   DATA BLOCKED with measured coverage and never a market verdict. See
   [DATA_SOURCING.md](DATA_SOURCING.md) and
   [INTRADAY_FORWARD_SYSTEM.md](INTRADAY_FORWARD_SYSTEM.md).
-- **The phone app**: `android/` v1.7.0 in this tree (versionCode 24; the last
-  APK built and signed is `QuantOfRehan-v1.6.8.apk` on the OneDrive Desktop).
+- **The phone app**: `android/` v1.7.2 in this tree (versionCode 26; the last
+  APK built and signed is `QuantOfRehan-v1.7.2.apk` on the OneDrive Desktop,
+  one file under one name).
   It shows the status pill with the relay's own phase sentence, the latest
   signal, and the market card: KSE100 points and percentage, then the three
   KMIALL stocks with the highest session volume, each with its percentage
@@ -64,9 +65,13 @@ target, then monitor and sleep.
   estimated one. The status
   beacon breathes only while the market is live, as a view property animation
   on alpha and scale that the platform interpolates on the render thread, the
-  settings gear is centred on the brand name, and the cadence sentence stands
+  settings gear stands just off the brand name on the owner's own offset and
+  opens a console that shows the settings menu alone while it is open, and the
+  cadence sentence stands
   12dp under the last diamond rule, on the same grid as the tiles. It polls
-  `/health`, `/signals` and `/market` on the edge, survives reboot, and never
+  `/health` and `/signals` on the edge every second while the relay reports the
+  market open (30 s when it does not, and the exchange backed card every 30
+  live rounds), survives reboot, and never
   derives a session from its own clock. See [android/README.md](android/README.md).
 
 ## How it runs

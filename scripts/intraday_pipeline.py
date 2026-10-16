@@ -40,6 +40,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from src import config  # noqa: E402
+from src.data import eligibility  # noqa: E402
 from src.data import tape_bars  # noqa: E402
 from src.data.sessions import (  # noqa: E402
     KARACHI, close_time, is_scan_window, is_trading_day, now_karachi,
@@ -80,13 +81,20 @@ def load_kmiall(path: Path = UNIVERSE_FILE) -> list[str]:
     })
     # ETFs are NEVER scanned (owner order 2026-10-15): basket instruments are
     # not made for intraday trading, and they would otherwise ride the index
-    # instead of its own momentum. The exclusion is name-based and logged, so
-    # a universe file that still lists them is not silently mis-shaped.
-    excluded = [s for s in symbols if config.is_etf_symbol(s)]
-    if config.EXCLUDE_ETFS and excluded:
+    # instead of its own momentum. Since 2026-10-16 the exclusion comes from
+    # the one eligibility service rather than a name test written here, and it
+    # is logged with its size, so a universe file that still lists an ETF is
+    # not silently mis-shaped and a symbol the service cannot classify is
+    # refused rather than admitted (fail closed).
+    screened = eligibility.screen(symbols, universe=symbols)
+    if config.EXCLUDE_ETFS and screened.excluded:
         print(f"ETF exclusion (owner order 2026-10-15): not scanning "
-              f"{', '.join(sorted(set(excluded)))}")
-        symbols = [s for s in symbols if not config.is_etf_symbol(s)]
+              f"{', '.join(sorted(row.symbol for row in screened.excluded))}")
+    if screened.unknown:
+        print(f"eligibility: refusing {len(screened.unknown)} symbol(s) whose "
+              f"classification could not be settled: "
+              f"{', '.join(sorted(row.symbol for row in screened.unknown))}")
+    symbols = screened.eligible
     if not symbols:
         raise RuntimeError("KMIALL/Shariah universe resolved to zero symbols")
     return symbols
@@ -146,11 +154,17 @@ def relay_request(method: str, route: str, payload: dict | None = None):
 
 
 def deliver(text: str, kind: str) -> bool:
-    """Deliver one message. True ONLY when the relay accepted it.
+    """Hand one message to the relay. True ONLY when it accepted it.
 
-    A delivery failure still never changes a data verdict, but from
-    2026-10-16 it may no longer be reported as a delivery: the caller used to
-    discard this return value and record ``delivered: TRADE`` either way.
+    Acceptance is not delivery, and the two are kept apart on purpose. The
+    relay answers as soon as it has taken the message and sends it to Telegram
+    in the background (measured 2026-10-16: Telegram took 42.2 seconds to
+    answer, far past any sender's budget), so Telegram's own outcome is
+    recorded at the relay and reported by /status as ``last_delivery`` rather
+    than guessed here. What this function still refuses to do is call a
+    refusal a delivery: the caller used to discard this return value and
+    record ``delivered: TRADE`` either way.
+
     The reason is named in the log so the cause is readable without a
     dashboard; no credential is ever part of it (SO-5).
     """
@@ -189,20 +203,81 @@ def push_card(text: str, state: SessionState | None = None) -> bool:
     return True
 
 
+def relay_slot(slot: str) -> str:
+    """The slot label the relay's research routes accept: HH:MM.
+
+    src/data/scan_schedule.py labels a 30 second cadence with seconds
+    (11:34:00, 11:34:30) so the once-per-slot guard sees both fires, but the
+    relay's /research/observation and /research/claim validate the slot as
+    HH:MM. That mismatch was silent and expensive: from the 2026-10-14 cadence
+    change (SO-13) every observation POST answered 400 "invalid observation",
+    so the two year research archive held nothing while the local observation
+    file kept being written. Measured 2026-10-16: GET /research/observations
+    returned 0 rows for 2026-10-13, 2026-10-15 and 2026-10-16 and 1 row for
+    2026-10-14, the last day whose slots were minute precision.
+
+    Normalising here, at the one boundary that speaks to the relay, keeps one
+    rule: the guard keeps its seconds, the archive gets the minute it belongs
+    to. Both 30 second slots inside a minute therefore name the same archive
+    key, and the route's own immutability keeps the first of them, which is
+    the honest record either way.
+    """
+    parts = str(slot).split(":")
+    if len(parts) < 2 or len(parts) > 3:
+        raise ValueError(f"unusable scan slot: {slot!r}")
+    return f"{int(parts[0]):02d}:{int(parts[1]):02d}"
+
+
 def archive(route: str, payload: dict) -> bool:
     """Best-effort write to the relay's durable research archive.
 
     Observations, daily outcomes and the production gate are stored in KV for
     two years (SO: research retention), so the record survives even though the
     GitHub Actions artifacts expire after 90 days. A failure is reported, never
-    hidden: the caller records the honest storage status either way.
+    hidden: the caller records the honest storage status either way, and the
+    relay's own words for the refusal are printed (SO-5: the relay's error
+    strings carry no credential).
     """
+    body = payload
+    if "slot" in body:
+        body = {**body, "slot": relay_slot(body["slot"])}
     try:
-        relay_request("POST", route, payload)
+        relay_request("POST", route, body)
         return True
     except (requests.RequestException, RuntimeError, ValueError) as exc:
-        print(f"research archive {route} failed: {type(exc).__name__}")
+        print(f"research archive {route} failed: {type(exc).__name__}: {exc}")
         return False
+
+
+def claim_signal(day, slot: str) -> tuple[bool, str]:
+    """Take the day's one signal claim from the relay. The authoritative lock.
+
+    The local session file (src/signals/trade_state.py) is a per-machine lock:
+    it cannot see another runner, and the cloud runs a band loop plus scheduled
+    backstop slots, each starting from a restored copy of the day's state. Two
+    runs that restore the same pre-trade state can both decide to enter, which
+    is exactly how the same Karachi day would emit two accepted BUY candidates.
+    The relay's /research/claim is the one shared place that can answer "has
+    today's signal already been claimed" across machines, and until now nothing
+    called it.
+
+    Returns (claimed, detail). Fails CLOSED: a relay that cannot answer means
+    no entry, because an unverifiable lock cannot promise the one-trade rule
+    (SO-3: the honest outcome is a refusal that says why).
+    """
+    if not config.SIGNAL_CLAIM_REQUIRED:
+        return True, "claim not required by config"
+    try:
+        answer = relay_request("POST", "/research/claim",
+                              {"date": day.isoformat(),
+                               "slot": relay_slot(slot)})
+    except (requests.RequestException, RuntimeError, ValueError) as exc:
+        return False, (f"the day's signal claim could not be taken "
+                       f"({type(exc).__name__}): no entry without it")
+    if answer.get("claimed"):
+        return True, "claimed"
+    return False, ("today's one signal was already claimed by another "
+                   "runner; no further entry is possible")
 
 
 def card_text(day, slot: str, body: str, alert: bool) -> str:
@@ -369,6 +444,9 @@ def run_scan(slot: str, capture: Path | None = None,
     # no message was owed on this scan; a dict means one was attempted, and
     # ``ok`` is the relay's own answer, never assumed.
     delivery: dict | None = None
+    # And the day's signal claim, when one was asked for: the shared lock's
+    # answer belongs in the record beside the delivery, not only in the log.
+    claim_record: dict | None = None
 
     session = scanner.load_session(path, symbols, as_of)
     quality = scanner.assess_quality(session, symbols)
@@ -413,8 +491,11 @@ def run_scan(slot: str, capture: Path | None = None,
             text = scanner.target_hit_message(state.symbol or "", state.entry_price or 0.0,
                                               state.target_price or 0.0, hit.close,
                                               hit.timestamp)
+            accepted = deliver(text, "signals")
             delivery = {"channel": "relay:/notify", "kind": "signals",
-                        "ok": deliver(text, "signals")}
+                        "ok": accepted,
+                        "state": ("relay_accepted" if accepted
+                                  else "refused_by_relay")}
             push_card(card_text(day, slot, text, alert=True), state)
             print(text)
         else:
@@ -425,27 +506,45 @@ def run_scan(slot: str, capture: Path | None = None,
     entered = None
     observed = result.candidate
     if result.status == scanner.TRADE and state.can_enter():
-        entry = result.candidate["price"]["last"]
-        state.note_candidate(result.candidate["symbol"], result.candidate["score"])
-        state.enter(result.candidate["symbol"], entry, as_of, result.candidate["score"])
-        state.save()
-        text = scanner.signal_message(result.candidate, context, entry, as_of)
-        sent = deliver(text, "signals")
-        push_card(card_text(day, slot, text, alert=True), state)
-        delivery = {"channel": "relay:/notify", "kind": "signals", "ok": sent}
-        # A candidate that the relay refused is NEVER reported as a delivered
-        # trade. The trade itself still stands in the session state (the paper
-        # position is real and is valued at the close either way); what is
-        # corrected here is the claim that the owner was told about it.
-        delivered = "TRADE" if sent else "TRADE_UNDELIVERED"
-        entered = result.candidate
-        status = result.status
-        reason = result.reason
-        if not sent:
-            reason = (f"{reason}; the signal was entered and the relay did NOT "
-                      f"accept the notification")
+        # The shared, cross-runner lock first: the local state file cannot see
+        # another runner, and the cloud runs a band loop plus backstop slots.
+        claimed, claim_note = claim_signal(day, slot)
+        claim_record = {"channel": "relay:/research/claim", "ok": claimed,
+                        "detail": claim_note}
+        if not claimed:
+            status = State.DAILY_LOCKED
+            reason = (f"{claim_note}; the observed candidate "
+                      f"{result.candidate['symbol']} was refused")
             state.last_reason = reason
             state.save()
+            delivered = "LOCKED"
+            push_card(card_text(day, slot, reason, alert=False), state)
+            print(reason)
+        else:
+            entry = result.candidate["price"]["last"]
+            state.note_candidate(result.candidate["symbol"], result.candidate["score"])
+            state.enter(result.candidate["symbol"], entry, as_of, result.candidate["score"])
+            state.save()
+            text = scanner.signal_message(result.candidate, context, entry, as_of)
+            sent = deliver(text, "signals")
+            push_card(card_text(day, slot, text, alert=True), state)
+            delivery = {"channel": "relay:/notify", "kind": "signals",
+                        "ok": sent,
+                        "state": ("relay_accepted" if sent
+                                  else "refused_by_relay")}
+            # A candidate that the relay refused is NEVER reported as a delivered
+            # trade. The trade itself still stands in the session state (the paper
+            # position is real and is valued at the close either way); what is
+            # corrected here is the claim that the owner was told about it.
+            delivered = "TRADE" if sent else "TRADE_UNDELIVERED"
+            entered = result.candidate
+            status = result.status
+            reason = result.reason
+            if not sent:
+                reason = (f"{reason}; the signal was entered and the relay did NOT "
+                          f"accept the notification")
+                state.last_reason = reason
+                state.save()
     elif state.trade_taken:
         # The day already has its one trade. A taken trade is NEVER reported as
         # NO TRADE, and a second candidate is never presented as actionable.
@@ -483,6 +582,7 @@ def run_scan(slot: str, capture: Path | None = None,
         "reason": reason,
         "delivered": delivered,
         "delivery": delivery,
+        "claim": claim_record,
         "capture": capture_label(path, session),
         "data_quality": quality.as_dict(),
         "market": context,
