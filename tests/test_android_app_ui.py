@@ -679,7 +679,7 @@ class CadencePlacementTest(unittest.TestCase):
     the owner's sentence with no air smuggled into it.
     """
 
-    CADENCE = ("Quant will be scanning the market every 4 minutes "
+    CADENCE = ("Quant will be scanning the market every 30 seconds "
                "when the market is open.")
 
     def setUp(self):
@@ -735,7 +735,7 @@ class CadencePlacementTest(unittest.TestCase):
 
     def test_the_sentence_still_appears_in_exactly_one_resource(self):
         lines = [line for line in self.strings.splitlines()
-                 if "scanning the market every 4 minutes" in line]
+                 if "scanning the market every 30 seconds" in line]
         self.assertEqual(len(lines), 1, lines)
 
 
@@ -835,9 +835,41 @@ class StatusPulseTest(unittest.TestCase):
                 self.assertIn(line, body)
 
     def test_a_hidden_console_leaves_it_still(self):
+        # v1.7.1: a hidden console releases BOTH things onResume started. The
+        # breath stops, and the 30 second cadence loop is removed from the
+        # main queue so a backgrounded app holds no poll; onResume re-arms
+        # both. The window is 400 characters because the two reasons are
+        # stated where they are done.
         self.assertIn("stopStatusBreath();", self.main)
         pause = self.main.index("protected void onPause()")
-        self.assertIn("stopStatusBreath()", self.main[pause:pause + 240])
+        body = self.main[pause:pause + 400]
+        self.assertIn("stopStatusBreath()", body)
+        self.assertIn("cadence.removeCallbacks(tick)", body)
+
+    def test_the_console_repaints_at_the_live_scan_cadence(self):
+        """Owner order 2026-10-16: the app follows the 30 second scan.
+
+        The console used to repaint once per open, so a 30 second scan fed a
+        card that could be a whole session behind. The loop lives on the main
+        queue, is started in onResume and removed in onPause (above), and its
+        interval is Watcher.REFRESH_MS, which is the cloud's own interval.
+        """
+        self.assertIn("cadence.postDelayed(tick, Watcher.REFRESH_MS)", self.main)
+        self.assertIn("cadence.postDelayed(this, Watcher.REFRESH_MS)", self.main)
+        resume = self.main.index("protected void onResume()")
+        self.assertIn("cadence.postDelayed(tick, Watcher.REFRESH_MS)",
+                      self.main[resume:resume + 600])
+        watcher = (ROOT / "android" / "app" / "src" / "main" / "java"
+                   / "pk" / "quantofrehan" / "Watcher.java").read_text(
+            encoding="utf-8")
+        self.assertIn("static final long REFRESH_MS = 30 * 1000;", watcher)
+        # The background arm is a watchdog, not a poll, and says so.
+        self.assertIn("static final long WATCHDOG_MS = 5 * 60 * 1000;", watcher)
+        self.assertIn("System.currentTimeMillis() + WATCHDOG_MS", watcher)
+        # And the app's interval is the scanner's own, not a second opinion.
+        config_text = (ROOT / "src" / "config.py").read_text(encoding="utf-8")
+        self.assertIn('SCAN_INTERVAL_SECONDS = _number("SCAN_INTERVAL_SECONDS", 30)',
+                      config_text)
 
     def test_the_online_light_is_green_and_the_offline_light_is_red(self):
         colors = COLORS.read_text(encoding="utf-8")
@@ -918,8 +950,8 @@ class StatusTileSpacingTest(unittest.TestCase):
 class VersionTest(unittest.TestCase):
     def test_the_version_is_the_one_that_ships_these_changes(self):
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="1.7.0"', manifest)
-        self.assertIn('android:versionCode="24"', manifest)
+        self.assertIn('android:versionName="1.7.1"', manifest)
+        self.assertIn('android:versionCode="25"', manifest)
 
 
 if __name__ == "__main__":

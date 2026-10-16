@@ -39,7 +39,7 @@ MAIN = (ROOT / "android" / "app" / "src" / "main" / "java" / "pk"
 STRINGS = (ROOT / "android" / "app" / "src" / "main" / "res" / "values"
            / "strings.xml")
 
-CADENCE = ("Quant will be scanning the market every 4 minutes "
+CADENCE = ("Quant will be scanning the market every 30 seconds "
            "when the market is open.")
 
 

@@ -48,6 +48,7 @@ from src.signals import ai_model  # noqa: E402
 from src.signals import momentum_scanner as scanner  # noqa: E402
 from src.signals import trade_state  # noqa: E402
 from src.signals.trade_state import SessionState, State  # noqa: E402
+from src.research import session_history  # noqa: E402
 from src.research.forward_validation import evaluate_gate  # noqa: E402
 
 UNIVERSE_FILE = ROOT / "src" / "data" / "universe_kmiall.json"
@@ -97,20 +98,38 @@ def universe_fingerprint(symbols: list[str]) -> str:
 
 
 def relay_url() -> str:
-    configured = os.environ.get("RELAY_URL", "").strip()
-    if configured:
-        return configured.rstrip("/")
-    path = ROOT / "data" / "relay_url.txt"
-    if path.is_file():
-        return path.read_text(encoding="utf-8").strip().rstrip("/")
-    return RELAY_DEFAULT
+    """The relay's URL, through the one resolver the notification path uses.
+
+    RELAY_URL, then ``data/relay_url.txt`` (both via
+    src/notify/schedule_runner.load_relay_url), then the known default. Every
+    workflow passes the variable and a fresh runner has no file, so the
+    default stays as the last resort; what changed on 2026-10-16 is that the
+    file is now consulted at all, which is what the PC needs.
+    """
+    from src.notify.schedule_runner import load_relay_url
+
+    try:
+        return load_relay_url()
+    except RuntimeError:
+        return RELAY_DEFAULT
 
 
 def admin_token() -> str:
-    token = os.environ.get("RELAY_ADMIN_TOKEN", "").strip()
-    if not token:
-        raise RuntimeError("RELAY_ADMIN_TOKEN missing")
-    return token
+    """RELAY_ADMIN_TOKEN from the environment, then the gitignored repo .env.
+
+    Owner defect found 2026-10-16. This read ``os.environ`` only. A scan
+    started by the local tick has no wrapper to export it, so on this PC a
+    genuine candidate was entered into the session state (FCCL, 2026-10-13
+    11:30) and then dropped at the delivery step, with only "delivery failed
+    (signals): RuntimeError" in the log, while ``.env`` held exactly the token
+    every other module resolves (market_snapshot, signal_push and
+    schedule_runner all read it). One resolver for the whole path.
+
+    The token is never printed, logged or embedded in an exception (SO-5).
+    """
+    from src.notify.schedule_runner import load_relay_admin_token
+
+    return load_relay_admin_token()
 
 
 def relay_request(method: str, route: str, payload: dict | None = None):
@@ -127,12 +146,19 @@ def relay_request(method: str, route: str, payload: dict | None = None):
 
 
 def deliver(text: str, kind: str) -> bool:
-    """Best-effort delivery. A delivery failure never changes a data verdict."""
+    """Deliver one message. True ONLY when the relay accepted it.
+
+    A delivery failure still never changes a data verdict, but from
+    2026-10-16 it may no longer be reported as a delivery: the caller used to
+    discard this return value and record ``delivered: TRADE`` either way.
+    The reason is named in the log so the cause is readable without a
+    dashboard; no credential is ever part of it (SO-5).
+    """
     try:
         relay_request("POST", "/notify", {"text": text, "kind": kind})
         return True
     except (requests.RequestException, RuntimeError, ValueError) as exc:
-        print(f"delivery failed ({kind}): {type(exc).__name__}")
+        print(f"delivery failed ({kind}): {type(exc).__name__}: {exc}")
         return False
 
 
@@ -339,6 +365,11 @@ def run_scan(slot: str, capture: Path | None = None,
     state.begin_session()
     state.begin_scan()
 
+    # Whether a notification was actually accepted, and by what. None means
+    # no message was owed on this scan; a dict means one was attempted, and
+    # ``ok`` is the relay's own answer, never assumed.
+    delivery: dict | None = None
+
     session = scanner.load_session(path, symbols, as_of)
     quality = scanner.assess_quality(session, symbols)
 
@@ -382,7 +413,8 @@ def run_scan(slot: str, capture: Path | None = None,
             text = scanner.target_hit_message(state.symbol or "", state.entry_price or 0.0,
                                               state.target_price or 0.0, hit.close,
                                               hit.timestamp)
-            deliver(text, "signals")
+            delivery = {"channel": "relay:/notify", "kind": "signals",
+                        "ok": deliver(text, "signals")}
             push_card(card_text(day, slot, text, alert=True), state)
             print(text)
         else:
@@ -398,12 +430,22 @@ def run_scan(slot: str, capture: Path | None = None,
         state.enter(result.candidate["symbol"], entry, as_of, result.candidate["score"])
         state.save()
         text = scanner.signal_message(result.candidate, context, entry, as_of)
-        deliver(text, "signals")
+        sent = deliver(text, "signals")
         push_card(card_text(day, slot, text, alert=True), state)
-        delivered = "TRADE"
+        delivery = {"channel": "relay:/notify", "kind": "signals", "ok": sent}
+        # A candidate that the relay refused is NEVER reported as a delivered
+        # trade. The trade itself still stands in the session state (the paper
+        # position is real and is valued at the close either way); what is
+        # corrected here is the claim that the owner was told about it.
+        delivered = "TRADE" if sent else "TRADE_UNDELIVERED"
         entered = result.candidate
         status = result.status
         reason = result.reason
+        if not sent:
+            reason = (f"{reason}; the signal was entered and the relay did NOT "
+                      f"accept the notification")
+            state.last_reason = reason
+            state.save()
     elif state.trade_taken:
         # The day already has its one trade. A taken trade is NEVER reported as
         # NO TRADE, and a second candidate is never presented as actionable.
@@ -440,6 +482,7 @@ def run_scan(slot: str, capture: Path | None = None,
         "status": status,
         "reason": reason,
         "delivered": delivered,
+        "delivery": delivery,
         "capture": capture_label(path, session),
         "data_quality": quality.as_dict(),
         "market": context,
@@ -527,6 +570,10 @@ def run_finalize(capture: Path | None = None) -> dict:
         "market": context,
         "capture": capture_label(path, session),
         "data_quality": quality.as_dict(),
+        # The owner's own three confirmations for THIS run. The band workflows
+        # already pass them; until 2026-10-16 nothing read them, so the gate's
+        # production_data_ready check had no input and could only be false.
+        "data_confirmations": config.data_confirmations(),
         "universe_size": len(symbols),
         "universe_sha256": universe_fingerprint(symbols),
         "scanner_version": config.SCANNER_VERSION,
@@ -540,8 +587,20 @@ def run_finalize(capture: Path | None = None) -> dict:
         "outcomes_by_rule": {config.SCANNER_VERSION: record},
         "data_quality": quality.as_dict(),
     }
-    gate = evaluate_gate([])
-    gate = {**gate, "scanner_version": config.SCANNER_VERSION}
+    # Owner defect found 2026-10-16: this was evaluate_gate([]). The gate was
+    # asked to score an empty list on every finalize, so sessions_collected
+    # stayed 0 for ever and live_signal_enabled could never become true no
+    # matter how many sessions the system observed. It is now handed the
+    # evidence the pipeline has been collecting all along: today's record, the
+    # local forward state, and the relay's two-year research archive. Blocked
+    # or unreadable sessions are labelled unverified by the loader and the
+    # gate's own _valid_rows refuses to spend a research session on them, so
+    # feeding it more rows cannot buy progress a session did not earn.
+    evidence: dict = {}
+    gate = evaluate_gate(session_history.session_rows(extra=[record],
+                                                      report=evidence))
+    gate = {**gate, "scanner_version": config.SCANNER_VERSION,
+            "evidence": evidence}
 
     # Durable archive first (two year KV retention on the relay), then the
     # honest storage status is written into the local record. The GitHub

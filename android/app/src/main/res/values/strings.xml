@@ -44,14 +44,23 @@
          the layout as a 12dp margin, the same gap every tile has below its
          rule, because the sentence must sit on the console's own grid; the
          words stay exactly as ordered and stay the only place they appear.
-         The 4 is
-         the real interval, not decoration: it is
-         config.TICK_INTERVAL_MINUTES = 4, which drives the Windows tick, the
-         supervised scan loop and the slot guard. The scanning happens only
-         inside a live band (Mon-Thu 09:32-15:30, Friday 09:17-12:00 and
-         14:32-16:30), which is what the sentence states.
-         Owner wording confirmed 2026-10-12: "when the market is open". -->
-    <string name="scan_cadence">Quant will be scanning the market every 4 minutes when the market is open.</string>
+         v1.7.1 changed ONE word in it: 4 minutes became 30 seconds, because
+         the scan moved from the retired local tick to the 30 second cloud
+         loop. Every other character, including the final full stop and the
+         owner's own "when the market is open", is unchanged.
+         Owner order 2026-10-16: the interval in this sentence is now the
+         CLOUD interval. The scans run on GitHub Actions minutes and the
+         Cloudflare relay with the owner's PC switched off (SO-13), at
+         config.SCAN_INTERVAL_SECONDS = 30, and one scan feeds both this card
+         and the intraday strategy. It used to say 4 minutes, which was the
+         old local Windows tick's cadence, and that tick is retired: leaving
+         the sentence alone would tell the owner the market is checked eight
+         times less often than it is. The 30 is read from the same constant
+         the scanner runs on, so the sentence and the cadence cannot drift.
+         The scanning happens only inside a live band (Mon-Thu 09:32-15:30,
+         Friday 09:17-12:00 and 14:32-16:30), which the sentence states.
+         Owner wording 2026-10-12 kept: "when the market is open". -->
+    <string name="scan_cadence">Quant will be scanning the market every 30 seconds when the market is open.</string>
 
     <!-- ============ session copy ============
          Owner order 2026-10-11, exact texts for the three market conditions.

@@ -48,6 +48,7 @@ sys.path.insert(0, str(ROOT))
 
 from src import config  # noqa: E402
 from src.data.sessions import KARACHI, open_time  # noqa: E402
+from src.research import session_history  # noqa: E402
 from src.signals import momentum_scanner as scanner  # noqa: E402
 from src.signals import trade_state  # noqa: E402
 from src.signals.trade_state import State  # noqa: E402
@@ -154,13 +155,22 @@ def assert_forward_untouched(before: dict[str, bytes], after: dict[str, bytes],
 
 
 class RelayRecorder:
-    """Stand in for the relay: record every call, answer ok, never dial out."""
+    """Stand in for the relay: record every call, answer ok, never dial out.
 
-    def __init__(self) -> None:
+    ``refuse`` names the routes this stand-in rejects, so the failure half of
+    a route can be exercised without a network: a refused route raises exactly
+    what ``scripts.intraday_pipeline.relay_request`` raises when the relay
+    answers an error (a RuntimeError carrying the relay's own reason).
+    """
+
+    def __init__(self, refuse: tuple[str, ...] = ()) -> None:
         self.calls: list[tuple] = []
+        self.refuse = refuse
 
     def __call__(self, method: str, route: str, payload: dict | None = None) -> dict:
         self.calls.append((method, route, payload))
+        if route in self.refuse:
+            raise RuntimeError(f"the relay refused {route} (test stand-in)")
         return {"ok": True}
 
     def routes(self) -> list[str]:
@@ -263,6 +273,19 @@ class PipelineCycleTest(unittest.TestCase):
         relay_patcher.start()
         self.addCleanup(relay_patcher.stop)
 
+        # The finalize asks the gate for the accumulated session evidence, and
+        # that loader reads the relay's two-year archive. A unit test must
+        # never dial out, and must never pull the owner's real archived
+        # sessions into a synthetic gate, so the remote half is stubbed here
+        # while the LOCAL half still runs for real against the temporary
+        # forward directory this class already redirects.
+        history_patcher = patch.object(
+            session_history, "_relay_records",
+            lambda timeout_s=20.0: ([], "stubbed: a unit test never dials "
+                                        "the relay archive"))
+        history_patcher.start()
+        self.addCleanup(history_patcher.stop)
+
         clock_patcher = patch.object(pipeline, "now_karachi", lambda: FIXED_NOW)
         clock_patcher.start()
         self.addCleanup(clock_patcher.stop)
@@ -342,6 +365,31 @@ class PipelineCycleTest(unittest.TestCase):
         self.assertFalse(final["gate"]["eligible"])
         self.assertFalse(final["gate"]["live_signal_enabled"])
 
+        # Owner defect 2026-10-16: the gate used to be asked to score an EMPTY
+        # list, so sessions_collected was pinned at 0 for ever. The evidence
+        # block now names what it actually read, and today's own session is
+        # among it, filed under the live rule.
+        evidence = final["gate"]["evidence"]
+        self.assertEqual(evidence["sessions_loaded"], 1)
+        self.assertIn("caller(1)", evidence["sources"])
+        self.assertTrue(any(src.startswith("relay(")
+                            for src in evidence["sources"]))
+        self.assertEqual(final["gate"]["sessions_required"], 120)
+        self.assertTrue(any(src.startswith("local(") for src in evidence["sources"]),
+                        "the local forward state was not reported as a source")
+        # Read twice (the finalize's own record and the journal line it just
+        # appended), counted once: one day is one research session.
+        self.assertGreaterEqual(evidence["records_read"], 2)
+
+        # This synthetic capture stops an hour into a session that closes six
+        # hours later, so the FINALIZE's own data-quality law calls it stale
+        # and the loader refuses to verify it. That refusal is the point: a
+        # session the system could not value at the close does not spend one
+        # of the 120 research sessions, and the gate says so rather than
+        # counting it.
+        self.assertEqual(evidence["sessions_verified"], 0)
+        self.assertEqual(final["gate"]["sessions_collected"], 0)
+
         # the outcome and the gate are archived, and the local record says so
         routes = self.relay.routes()
         self.assertIn("/research/outcome", routes)
@@ -349,6 +397,30 @@ class PipelineCycleTest(unittest.TestCase):
         self.assertEqual(final["outcome"]["storage_status"], "relay+local")
         self.assertEqual(
             self.relay.payload_for("/research/outcome")["date"], FRIDAY.isoformat())
+
+        self.assert_real_forward_untouched()
+
+    def test_a_refused_notification_is_never_reported_as_a_delivered_trade(self):
+        """Owner defect 2026-10-16: delivered said TRADE even when nothing was.
+
+        The candidate is genuine and the paper position is real either way.
+        What must not survive is the claim that the owner was told about a
+        trade the relay never accepted: the verdict reads TRADE_UNDELIVERED,
+        the delivery block carries the relay's own refusal, and the reason
+        says so.
+        """
+        self.relay.refuse = ("/notify",)
+        with contextlib.redirect_stdout(io.StringIO()):
+            result = run_scan("10:00", self.capture)
+
+        self.assertEqual(result["status"], scanner.TRADE)
+        self.assertEqual(result["trade_state"]["trades_today"], 1)
+        self.assertEqual(result["trade_state"]["symbol"], WINNER)
+        self.assertEqual(result["delivered"], "TRADE_UNDELIVERED")
+        self.assertIsNotNone(result["delivery"])
+        self.assertFalse(result["delivery"]["ok"])
+        self.assertEqual(result["delivery"]["kind"], "signals")
+        self.assertIn("did NOT accept the notification", result["reason"])
 
         self.assert_real_forward_untouched()
 

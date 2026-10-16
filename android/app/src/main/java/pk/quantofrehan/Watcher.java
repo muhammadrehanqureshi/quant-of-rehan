@@ -36,9 +36,22 @@ public final class Watcher {
     private static final String CHANNEL_STATUS = "system_status";
     private static final String CHANNEL_SIGNALS = "signals";
 
-    // owner order 2026-10-09: the app refreshes the index and the volume
-    // leaders every 5 minutes (was 15)
-    static final long REFRESH_MS = 5 * 60 * 1000;
+    // Owner order 2026-10-14 (SO-13) and the owner's order of 2026-10-16: the
+    // market is scanned every 30 seconds in the cloud
+    // (config.SCAN_INTERVAL_SECONDS = 30), and ONE scan feeds both the phone's
+    // card and the intraday strategy. The console therefore asks for the card
+    // at that cadence while it is on screen, so the phone shows the number the
+    // strategy actually decided on instead of a stale copy of it.
+    static final long REFRESH_MS = 30 * 1000;
+
+    // The background re-arm stays at five minutes, and that is a platform
+    // fact rather than a preference: an AlarmManager wake is not a poll.
+    // setExactAndAllowWhileIdle is capped to roughly one wake per nine minutes
+    // inside Doze and is stopped outright by some OEM battery managers, so a
+    // 30 second alarm would advertise a cadence Android will not honour. This
+    // arm is only the watchdog that wakes a CLOSED app; a signal that lands
+    // between two arms is delivered by the relay's own notification.
+    static final long WATCHDOG_MS = 5 * 60 * 1000;
 
     /**
      * Hard cap on an accepted relay body.
@@ -524,7 +537,7 @@ public final class Watcher {
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         if (am != null) {
             am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP,
-                    System.currentTimeMillis() + REFRESH_MS, pi);
+                    System.currentTimeMillis() + WATCHDOG_MS, pi);
         }
     }
 
