@@ -17,10 +17,12 @@ offline: no socket is opened and no recorder is started.
 
 from __future__ import annotations
 
+import socket
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -43,6 +45,116 @@ class DefaultUniverseTest(unittest.TestCase):
 
     def test_the_default_universe_is_not_empty(self):
         self.assertGreaterEqual(len(feed_capture.load_universe()), 20)
+
+
+class _FakeSocket:
+    """A socket that hands back queued frames and then goes silent.
+
+    Silence is `socket.timeout`, which is what the real read loop sees when a
+    venue stops pushing without closing the connection: heartbeats keep being
+    sent, nothing comes back.
+    """
+
+    def __init__(self, frames: list[bytes]) -> None:
+        self.frames = list(frames)
+        self.sent: list[bytes] = []
+        self.closed = False
+
+    def settimeout(self, _seconds):  # noqa: D401 - socket API
+        return None
+
+    def recv(self, _size):
+        if self.frames:
+            return self.frames.pop(0)
+        raise socket.timeout()
+
+    def sendall(self, data: bytes) -> None:
+        self.sent.append(data)
+
+    def close(self) -> None:
+        self.closed = True
+
+
+class StallWatchdogTest(unittest.TestCase):
+    """A venue that stops pushing must not become a tape that ages out.
+
+    Measured 2026-10-16 inside the live Friday band: two fresh connections
+    were each answered with ONE full universe sweep (32 MKT-FEED frames, 315
+    rows) and then nothing; one stall ran five consecutive minutes before the
+    sweeps came back. Re-sending the subscription did not restore the stream,
+    but a new connection is answered with a fresh sweep every time. Before
+    this watchdog the recorder sat on the dead push while its heartbeat kept
+    status.json looking healthy, and every later scan read stale leaders.
+    """
+
+    BANNER = b"Welcome*%"
+    SWEEP = (b"MKT-FEED*SAZEW;REG;310;1533.20;1534.95;36;OPN;-;-8.18;"
+             b"10:05:39;1533.20; ;1538.68;1549.00;1;22400;1;1535.00;%")
+
+    def setUp(self) -> None:
+        self._dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self._dir.cleanup)
+        capture_dir = Path(self._dir.name)
+        for name in ("CAPTURE_DIR", "STATUS_PATH"):
+            original = getattr(feed_capture, name)
+            replacement = (capture_dir if name == "CAPTURE_DIR"
+                           else capture_dir / "status.json")
+            patcher = mock.patch.object(feed_capture, name, replacement)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        # No real backoff sleep: the escalation itself is already covered by
+        # the loop's own tests, and a 2s sleep per reconnect would make this
+        # test slow enough to be skipped by hand.
+        sleeper = mock.patch.object(feed_capture.time, "sleep", lambda *_: None)
+        sleeper.start()
+        self.addCleanup(sleeper.stop)
+
+    def run_session(self, frames: list[bytes], duration: float = 0.4,
+                    limit: float = 0.05):
+        # The stall limit is the config's, so the test drives the same value
+        # production reads rather than a private copy of it.
+        stall = mock.patch.object(feed_capture.config, "TICK_STALL_SECONDS",
+                                 limit)
+        stall.start()
+        made: list[_FakeSocket] = []
+
+        def connect():
+            sock = _FakeSocket(frames)
+            made.append(sock)
+            return sock
+
+        patcher = mock.patch.object(feed_capture.CaptureSession, "_connect",
+                                    staticmethod(connect))
+        patcher.start()
+        try:
+            session = feed_capture.CaptureSession(["SAZEW"], duration=duration)
+            session.run()
+        finally:
+            patcher.stop()
+            stall.stop()
+        return session, made
+
+    def test_a_silent_venue_reconnects_and_names_the_stall(self):
+        session, made = self.run_session([self.BANNER, self.SWEEP])
+        self.assertGreaterEqual(session.counters["ticks"], 1,
+                                "the sweep that did arrive was not banked")
+        self.assertGreaterEqual(session.counters["errors"], 1)
+        self.assertIn("pushed no market data", session.last_error or "")
+        self.assertGreaterEqual(session.counters["reconnects"], 1)
+        self.assertGreater(len(made), 1, "the socket was never re-opened")
+        self.assertTrue(all(sock.closed for sock in made),
+                        "a stalled socket was left open")
+
+    def test_a_venue_that_keeps_pushing_is_never_reconnected(self):
+        # A limit far longer than this run: the point is that a venue which
+        # keeps pushing is never treated as stalled, however fast the frames
+        # are drained.
+        frames = ([self.BANNER] + [self.SWEEP] * 4000)
+        session, made = self.run_session(frames, duration=0.3, limit=30.0)
+        self.assertEqual(session.counters["errors"], 0)
+        self.assertEqual(session.counters["reconnects"], 0)
+        self.assertEqual(len(made), 1)
+        self.assertGreater(session.counters["ticks"], 0)
 
 
 class MissingUniverseTest(unittest.TestCase):

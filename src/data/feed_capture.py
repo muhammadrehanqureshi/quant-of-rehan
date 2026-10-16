@@ -375,6 +375,7 @@ class CaptureSession:
                 backoff = 2.0
                 last_beat = time.time()
                 last_status = 0.0
+                last_tick = time.time()
                 while self.deadline is None or time.time() < self.deadline:
                     try:
                         chunk = sock.recv(65536)
@@ -391,6 +392,25 @@ class CaptureSession:
                         text = raw.decode("utf-8", "replace").strip()
                         if text:
                             self.bank(text)
+                            if text.startswith("MKT-FEED"):
+                                last_tick = time.time()
+                    # A push that stops is not a closed socket, so the
+                    # heartbeat keeps the session looking alive while the tape
+                    # ages out and every later scan blocks on stale leaders.
+                    # Reconnecting is the one lever that works (measured
+                    # 2026-10-16: a fresh connection is answered with a full
+                    # sweep every time, re-subscribing is not). This is
+                    # checked OUTSIDE the frame loop on purpose: a venue that
+                    # sends nothing at all would never enter that loop.
+                    # Raised as a connection fault so the existing backoff owns
+                    # the retry rate and a venue that is truly down is not
+                    # hammered.
+                    if time.time() - last_tick > config.TICK_STALL_SECONDS:
+                        raise ConnectionError(
+                            f"the venue pushed no market data for "
+                            f"{time.time() - last_tick:.0f}s "
+                            f"(limit {config.TICK_STALL_SECONDS:.0f}s); "
+                            f"reconnecting for a fresh sweep")
                     if self.counters["messages"] % 50 == 0:
                         self.flush()
                     if time.time() - last_status >= 20:
