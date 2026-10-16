@@ -135,12 +135,19 @@ What the tick does when the owner does run it, and what the retired task used
 to fire inside the PSX session windows only, is unchanged. Its triggers were
 derived from `src/data/sessions.py`:
 
-| Windows | Days | Fires |
-|---|---|---|
-| 09:32 to 15:30 | Mon to Thu | every 4 minutes |
-| 09:17 to 12:00 | Friday | every 4 minutes |
-| 14:32 to 16:30 | Friday | every 4 minutes |
-| 15:47 (16:47 Friday) | session days | once, the post-close finalize |
+| Windows | Days | Cloud (the live cadence) | Local tick, if the owner runs one |
+|---|---|---|---|
+| 09:32 to 15:30 | Mon to Thu | every 30 seconds | every 4 minutes |
+| 09:17 to 12:00 | Friday | every 30 seconds | every 4 minutes |
+| 14:32 to 16:30 | Friday | every 30 seconds | every 4 minutes |
+| 15:47 (16:47 Friday) | session days | once, the post-close finalize | once |
+
+The cloud is the cadence that runs: `intraday-session.yml` starts
+`scripts/scan_loop.py --loop --interval 30` for the length of each PSX band on
+GitHub Actions minutes, with the Cloudflare relay serving the card, so the 30
+second scan happens with the owner's PC switched off (SO-13, owner order
+2026-10-14). The right-hand column is the retired Windows tick's own interval,
+kept only because the owner may still ask for a local trial.
 
 Nothing is registered for the pre-market window, the Friday midday break, the
 evening or the weekend. The tick refuses to scan outside MARKET, pauses for

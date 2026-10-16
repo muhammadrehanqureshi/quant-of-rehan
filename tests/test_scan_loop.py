@@ -40,8 +40,16 @@ def setUpModule() -> None:
     it for the rest of the run, so before this guard the first test that
     called run() or main() opened the owner's own log and wrote a synthetic
     TRADE verdict, and the RuntimeError("boom") traceback, into it.
+
+    Both guards are removed in tearDownModule. The recorder guard used to be
+    handed to ``unittest.addModuleCleanup``, which pytest does not flush for a
+    plain module fixture, so ``src.data.live_card.start_tape`` stayed replaced
+    for the REST OF THE PROCESS: whichever module ran after this one then saw
+    a start_tape that raised, and tests/test_live_card.py's own probe cases
+    failed purely because of the order the files were listed in. Found
+    2026-10-16 by running the two files in the other order.
     """
-    global _LOG_DIR, _LOG_PATCH
+    global _LOG_DIR, _LOG_PATCH, _TAPE_GUARD
     _LOG_DIR = tempfile.TemporaryDirectory()
     _LOG_PATCH = patch.object(scan_loop, "LOG_FILE",
                               Path(_LOG_DIR.name) / "scan_loop.log")
@@ -53,11 +61,10 @@ def setUpModule() -> None:
     # happened on 2026-10-14 (pid 5888) and had to be taken down by hand. With
     # start_tape refusing outright, a test that forgets fails loudly and
     # inside itself instead of touching the machine.
-    guard = patch("src.data.live_card.start_tape",
-                  side_effect=AssertionError(
-                      "a unit test must never start a broker recorder"))
-    guard.start()
-    unittest.addModuleCleanup(guard.stop)
+    _TAPE_GUARD = patch("src.data.live_card.start_tape",
+                        side_effect=AssertionError(
+                            "a unit test must never start a broker recorder"))
+    _TAPE_GUARD.start()
 
 
 def tearDownModule() -> None:
@@ -66,6 +73,7 @@ def tearDownModule() -> None:
     for handler in list(scan_loop.LOGGER.handlers):
         handler.close()
         scan_loop.LOGGER.removeHandler(handler)
+    _TAPE_GUARD.stop()
     _LOG_PATCH.stop()
     _LOG_DIR.cleanup()
 

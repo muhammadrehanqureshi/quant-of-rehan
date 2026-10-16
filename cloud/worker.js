@@ -578,12 +578,34 @@ async function latestChat(env) {
   return { chat: best.chat, date: best.date || 0 };
 }
 
+//: Telegram's own deadline, in milliseconds.
+//
+// Measured live 2026-10-16: an unbounded sendMessage took 42.2 seconds to
+// answer, while every client of this relay (scripts/intraday_pipeline.py,
+// scripts/ops_alert.py, src/signals/signal_push.py) gives up at 30. A sender
+// that times out cannot tell a refusal from a slow yes, so the message would
+// arrive on the phone and the sender would still record a failure. Ten
+// seconds is far above Telegram's normal latency and comfortably inside the
+// client's budget, so a deadline here is reported as the failure it is
+// instead of becoming a phantom undelivered signal.
+const TELEGRAM_TIMEOUT_MS = 10000;
+
 async function tgCall(env, method, params) {
-  const r = await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/${method}`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(params),
-  });
+  let r;
+  try {
+    r = await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/${method}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(params),
+      signal: AbortSignal.timeout(TELEGRAM_TIMEOUT_MS),
+    });
+  } catch (e) {
+    // Reported, never swallowed: the caller turns this into a 502 with the
+    // reason in it, so a delivery failure is visible and not guessed at.
+    const why = e && e.name ? e.name : "error";
+    return { ok: false,
+             description: `telegram did not answer within ${TELEGRAM_TIMEOUT_MS / 1000}s (${why})` };
+  }
   return r.json().catch(() => ({}));
 }
 
