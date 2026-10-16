@@ -339,7 +339,12 @@ stronger than Android allows. What it already does:
   broadcast receiver that re-arms itself on every tick, plus a re-arm on
   `BOOT_COMPLETED`, so a phone restart does not silence it;
 - the app refreshes on open and on resume, so the cards are never stale
-  while the owner is actually looking at them.
+  while the owner is actually looking at them;
+- while the console is on screen it polls the relay by itself, every second
+  when the relay reports a live session and every 30 seconds otherwise (the
+  placeholders of v1.7.1 to v1.7.3 below). This is a foreground loop on the
+  main thread's own queue, removed in `onPause`; the watchdog above is
+  untouched by it and still beats every five minutes when the app is not open.
 
 What can still delay a background tick: Doze, and OEM battery managers that
 kill background work outright (roughly a 9 minute cap, or a stopped alarm, on
@@ -407,6 +412,101 @@ kept in the tree with its licence rather than deleted.
   which `render` reads as "leave the card on screen exactly as it is". One
   request a second, on the pair that actually moves. Version 1.7.2,
   versionCode 26.
+- v1.7.3, owner order 2026-10-16 (fourth note of the day): the reported
+defect was "the app currently fails to auto-refresh every second, despite the
+footer indicating a 30-second scan cycle". There were three causes, and all
+three are fixed.
+
+  **The cadence was decided before the first answer arrived.** `onResume`
+  scheduled the next round through `scheduleNext`, whose interval is a
+  function of the relay's own `market_open` as carried by `marketOpenSeen`,
+  and that field is `false` on a fresh process. So an OPEN market was polled
+  at the 30 second idle interval until a whole idle round had completed, which
+  is exactly what "it never refreshes every second" looks like from the
+  phone. `render` now re-decides the cadence the moment the answer lands, by
+  calling the same single scheduling point: `scheduleNext` removes the one
+  runnable before re-posting it, so the extra call cannot stack a second loop.
+  The owner's own instruction is unchanged and still honoured: the session
+  comes from the relay, never from the phone's clock (SO-8).
+
+  **A one second repaint was invisible.** The relay's `karachi_now` is
+  formatted by `cloud/worker.js`'s `hhmm`, which prints `HH:MM` and no
+  seconds, so a perfect one second poll redrew a byte-identical screen for up
+to sixty seconds. The status tile therefore also carries the app's own
+  contact line, to the second: `Live: updated HH:MM:SS PKT, polling every 1 s`
+  (`string/app_live`), built in Asia/Karachi and taking the interval from
+  `Watcher.FAST_POLL_MS` rather than from a literal, so the sentence and the
+  loop cannot disagree. It is the phone's record of its own last answer, shown
+  beside the relay's Karachi line and never instead of it, only while the
+  relay reports a live session, and it states no market fact (SO-3).
+
+  **The panel described a different cadence.** The hint under the settings
+  looked like a promise that the console repaints every 30 seconds. The
+  sentence the owner was reading on the console itself
+  (`string/scan_cadence`) is the SCANNER's cadence, which really is 30 seconds
+  in the cloud (SO-13) and stays byte-identical; the hint, which is help text,
+  now states the two cadences apart: every second while the market is open,
+  every 30 seconds when it is shut and for the exchange-backed card.
+
+  **The settings press gradient was sliced.** The control is translated
+  44.1dp right of where the brand row anchors it, and a translation moves the
+  DRAWN box without moving any measured bound: Android clips a child to its
+  parent's bounds unless the parent says otherwise, so the gold flash was cut
+  along the header's right and top edges. Every ancestor of the control now
+  carries `clipChildren="false"` (scroll view, content column, header, brand
+  row; the scroll view is the root of the layout and fills the window, so its
+  own no-clip changes nothing else), and `MainActivity.applySettingsShift`
+  clamps the ORDERED offset to the pixels the screen actually has, measured
+  after the first layout between the control's own right edge and the window's
+  (`Math.min(orderedX, Math.max(0f, room))`). A wide phone gets the owner's
+  offset in full; a narrow one loses only the pixels it does not have.
+
+  **The offline light is the online light in red, and it is still.** The
+  owner's order was exact: the OFFLINE icon should be "exactly like the ONLINE
+  icon just in red color but also not breathing ... there should be a round
+  ball type structure should also be inside that thick line just like ONLINE
+  icon has it". It used to be a thin ring around a hollow thick ring, which
+  read as a different symbol rather than as the same light unlit. It is now
+  layer for layer the online beacon: the same `pathData`, the same 1.3 halo
+  stroke, the same 6.4 disc and 3.7 ball, in the palette red
+  (`@color/red_ring`, `@color/red_core`, and the new `@color/red_hi` for the
+  ball). The stillness needs no code of its own: the breath gate
+  (`breathIfOnline`) starts the pulse only for a live market, so the red light
+  is only ever returned to rest (SO-3: a pulse over a shut market would claim
+  trading there is none).
+
+  **The header names the index and drops the timezone note.** `string/tagline`
+  is now `PSX's KMIALL INDEX · SIGNAL-ONLY`: the label "PSX KMIALL" became
+  "PSX's KMIALL INDEX" and "KARACHI TIME" left the header. The clock itself is
+  not retired; it stands in the system status tile, where a reader looks for
+  it, and every time in the app stays Asia/Karachi (SO-8). Version 1.7.3,
+  versionCode 27.
+
+**Built and delivered 2026-10-16 (fourth-note order):** the signed v1.7.3 APK
+was built from this checkout by the chain above and copied to
+`C:/Users/rehan/OneDrive/Desktop/QuantOfRehan-v1.7.3.apk`, **one build, one
+file, one name** (owner order 2026-10-16, third note), with nothing put in the
+non synced `C:/Users/rehan/Desktop`. It is the only project APK on that
+Desktop. 535,632 bytes, SHA-256
+`6a8c13c6d2d3a08b44ff7196e8661305787718659336f30bbe9105fb5b0e9ab7`, zipalign
+verified, signature verified v2 + v3 (debug key, CN=Android Debug, expires
+2044), and `aapt2 dump badging` reads back `pk.quantofrehan`
+`versionCode="27"` `versionName="1.7.3"` with the launchable `MainActivity`.
+The repo's own signed output,
+`android/app/build/signed/app-aligned-debugSigned.apk`, is byte-identical to
+the delivered file (same SHA-256, `cmp` clean). The Android source tests were
+green before the build (64 passed, 66 subtests in tests/test_android_app_ui.py
+and tests/test_android_card_copy.py), and the built resource table was read
+back to prove what shipped: `string/tagline` is
+`PSX's KMIALL INDEX · SIGNAL-ONLY`, `string/app_live` is
+`Live: updated %1$s PKT, polling every %2$d s`, `string/settings_hint` states
+both cadences, `color/red_hi` compiles to `#ffd65f66`, and
+`dimen/settings_shift_x` / `settings_shift_y` still compile to 44.1dp and
+-6.3dp (aapt2 prints a negative dimension as its 512 bias, 505.700012dp). The
+compiled drawables were read back with `aapt2 dump xmltree` as well: both
+beacons carry the same three paths in the same order (`M12,2.6`, `M12,5.6`,
+`M12,8.3`, halo stroke 1.3) and differ only in the palette they point at
+(green_halo/green_glow/green_hi against red_ring/red_core/red_hi).
 
 **Built and delivered 2026-10-16 (owner order):** the signed v1.7.2 APK was
 built from this checkout by the chain above and copied to

@@ -19,16 +19,24 @@
     <color name="green">#FF2FAE6F</color>
     <color name="green_hi">#FF43C98A</color>
     <color name="red">#FFC14A52</color>
-    <!-- The status light's own palette (owner order 2026-10-13, third note):
-         the ONLINE beacon is the brand green in three weights (halo ring,
-         inner glow, solid core) and the OFFLINE one is the brand red in two
-         (halo ring, hollow core). Named here rather than left as raw hex
-         inside the two drawables, so "the online light is green and the
-         offline light is red" is one fact with one home. -->
+    <!-- The status light's own palette (owner order 2026-10-13, third note;
+         owner order 2026-10-16, fourth note): the ONLINE beacon is the brand
+         green in three weights, and since the 2026-10-16 note the OFFLINE one
+         is the SAME three weights in red, because the owner asked for the
+         offline light to be the online light in red rather than a hollow
+         ring: outside, a thin halo; inside it, a filled disc; inside that, a
+         solid ball. Named here rather than left as raw hex inside the two
+         drawables, so "the online light is green and the offline light is red"
+         is one fact with one home, and the two beacons differ by colour alone
+         (plus the breath, which only the live one is allowed to have). -->
     <color name="green_halo">#662FAE6F</color>
     <color name="green_glow">#3343C98A</color>
     <color name="red_ring">#59C14A52</color>
     <color name="red_core">#CCC14A52</color>
+    <!-- The red ball inside the red disc: the same relationship the green
+         core has to its glow, one step brighter than the brand red so it
+         reads as a lit centre rather than as a flat dot. -->
+    <color name="red_hi">#FFD65F66</color>
     <color name="teal">#FF4A9C95</color>
     <color name="teal_bright">#FF63B7AE</color>
     <color name="text_soft">#FFB9A6C2</color>

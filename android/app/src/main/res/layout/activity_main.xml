@@ -3,12 +3,34 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/bg_deep"
+    android:clipChildren="false"
+    android:clipToPadding="false"
     android:fillViewport="true"
     android:scrollbars="none">
 
+    <!-- clipChildren/clipToPadding are off down this chain (owner order
+         2026-10-16, fourth note: the settings icon's press gradient was being
+         cut off). The control is translated 44.1dp right and 6.3dp up from
+         where the brand row anchors it (dimens/settings_shift_x and _y), and a
+         translation moves the DRAWN box without moving any measured bound.
+         Android clips a child to its parent's own bounds unless the parent
+         says otherwise, so every ancestor of that control has to stop
+         clipping: the brand row already did, and the header, this content
+         column and the scroll view now do too. Without that, the gold press
+         flash was sliced along the header's right edge and its top edge, which
+         is exactly the cut the owner reported. MainActivity.applySettingsShift
+         supplies the second half of the fix: the ordered offset is reduced
+         only by the pixels the screen does not have, so the flash cannot be
+         sliced by the window edge either.
+
+         The scroll view is the root of this layout and fills the window, so
+         its own no-clip changes nothing else: there is no sibling for an
+         overhanging pixel to reach, and nothing outside its frame to cover. -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:clipChildren="false"
+        android:clipToPadding="false"
         android:orientation="vertical"
         android:paddingLeft="20dp"
         android:paddingRight="20dp"
@@ -18,7 +40,8 @@
         <!-- ══════════ header: brand centered, gear beside the brand ══════════ -->
         <RelativeLayout
             android:layout_width="match_parent"
-            android:layout_height="wrap_content">
+            android:layout_height="wrap_content"
+            android:clipChildren="false">
 
             <!-- The brand line and the settings control share this row, so the
                  control is centred on "Quant of Rehan" itself rather than on
