@@ -1,7 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Quant of Rehan</string>
-    <string name="tagline">PSX KMIALL · SIGNAL-ONLY · KARACHI TIME</string>
+    <!-- Owner order 2026-10-16 (fourth note), exact wording: the header line
+         now names the index it follows and drops the timezone note. Two
+         changes in one string: "PSX KMIALL" became "PSX's KMIALL INDEX", and
+         "KARACHI TIME" is removed from the header entirely. The Karachi clock
+         itself is NOT gone: it still stands in the system status tile, which
+         is where a reader looks for it, and SO-8 keeps every time in the app
+         on Asia/Karachi. The apostrophe is escaped because an Android string
+         resource reads a bare one as punctuation to be stripped. -->
+    <string name="tagline">PSX\'s KMIALL INDEX · SIGNAL-ONLY</string>
     <string name="checking">Checking system…</string>
     <string name="no_signals">No signal right now.</string>
     <!-- Owner order 2026-10-12: the settings glyph is retired, and the
@@ -89,5 +97,20 @@
     <string name="btn_save">Save token</string>
     <string name="btn_relay">Relay status</string>
     <string name="btn_arm">Arm 5-minute watchdog</string>
-    <string name="settings_hint">Paste the relay admin token once to receive signals. The app refreshes the system status, the KSE100 index and the day\'s top three volume leaders every 5 minutes; on some phones also allow autostart and remove battery limits.</string>
+    <!-- Owner order 2026-10-16 (fourth note): the hint no longer advertises a
+         five minute repaint. The console polls the relay every second while
+         the market is open (Watcher.FAST_POLL_MS) and every 30 seconds when
+         it is shut (Watcher.REFRESH_MS), and the index card rides along every
+         CARD_EVERY_SECONDS live rounds because that is how often the relay can
+         rebuild it. The sentence now says that, so the panel and the poll
+         cannot tell the owner two different stories. -->
+    <string name="settings_hint">Paste the relay admin token once to receive signals. While the market is open the app polls the relay every second, and the KSE100 index with the day\'s top three volume leaders every 30 seconds; when the market is shut it polls every 30 seconds. On some phones also allow autostart and remove battery limits.</string>
+
+    <!-- The app's own contact line, shown with the system status while the
+         relay reports a live session: it is the phone's record of its own
+         last answer, never a market fact, so a reader can see the poll is
+         running without reading the clock as a session claim (SO-3, SO-8).
+         %1$s is an Asia/Karachi wall clock time and %2$d the live interval in
+         seconds, both taken from the poll's own constants. -->
+    <string name="app_live">Live: updated %1$s PKT, polling every %2$d s</string>
 </resources>

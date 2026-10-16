@@ -19,9 +19,12 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 import java.util.Locale;
+import java.util.TimeZone;
 
 /**
  * Quant of Rehan owner console. One glance: is the system online, is there a
@@ -108,6 +111,33 @@ import java.util.Locale;
  * Owner order 2026-10-14 (eighth note): the status tile's spacing is one
  * number, @dimen/status_gap, so SYSTEM STATUS to ONLINE and ONLINE to
  * KARACHI are the same air rather than two margins that could drift apart.
+ *
+ * Owner order 2026-10-16 (fourth note of the day): the console was reported as
+ * never refreshing every second. Three causes, all in this file's neighbours,
+ * and all three are fixed here:
+ *
+ *   1. the interval was chosen BEFORE the first answer arrived. onResume
+ *      scheduled the next round from marketOpenSeen, which is false on a
+ *      fresh process, so an open market was polled at the 30 second idle
+ *      interval until a whole idle round had completed. render now re-decides
+ *      the cadence the moment the relay's answer lands (see scheduleNext);
+ *   2. the relay's own clock ("Karachi: <date> HH:MM PKT", cloud/worker.js
+ *      hhmm) has MINUTE resolution, so a perfect one second poll redrew an
+ *      identical screen for up to 60 seconds and looked like no poll at all.
+ *      The status tile therefore also carries the app's own contact line, to
+ *      the second (see liveLine), which is the phone's record of its own last
+ *      answer and is labelled as such rather than as a market fact (SO-3);
+ *   3. the header and the settings hint both described a 30 second repaint.
+ *      The sentence the owner was reading is the SCAN cadence (the cloud
+ *      scanner really does run every 30 seconds, SO-13) and stays
+ *      byte-identical, but the hint now states the two cadences apart, so the
+ *      panel can no longer read as a promise that the screen updates every 30
+ *      seconds.
+ *
+ * The same order's other two notes: the settings control's ordered offset is
+ * clamped to the room the screen actually has (see applySettingsShift), which
+ * is what stopped its press gradient being sliced, and the OFFLINE light is
+ * the ONLINE light in red and still (drawable/ic_status_offline).
  */
 public class MainActivity extends Activity {
 
@@ -309,10 +339,58 @@ public class MainActivity extends Activity {
             toast("Watchdog armed. Refreshing every 5 minutes.");
         });
 
+        // The ordered icon offset, applied as far as the screen can show it
+        // (owner order 2026-10-16, fourth note: the press gradient was being
+        // cut off). Posted so it runs after the first layout pass, which is
+        // the first moment the control and the window have real geometry.
+        applySettingsShift();
+
         Watcher.kick(this);
         // v1.5.1: ask once, quietly, so Doze and OEM battery managers do not
         // defer the watchdog. The Arm button can always ask again on demand.
         maybeRequestBatteryExemption(false);
+    }
+
+    /**
+     * The settings control's offset, bounded by the screen it is drawn on.
+     *
+     * The owner's orders stack to a translation of @dimen/settings_shift_x to
+     * the right and @dimen/settings_shift_y upward, and that is exactly what
+     * this applies whenever the screen has the room. On a narrow phone it may
+     * not: the control hangs off the brand title, the title is centred, and a
+     * 30sp Bonskin line is about 200dp wide, so on a 320dp or 360dp content
+     * area the ordered 44.1dp pushes the control's box past the window's right
+     * edge. Its pixels there are not clipped by a parent, they simply do not
+     * exist, which is what the owner saw as a cut off gradient.
+     *
+     * So the translation is clamped to the number of pixels actually available
+     * between the control's own right edge and the window's, and never to a
+     * guessed width: a wide phone gets the ordered offset in full, a narrow
+     * one loses only the pixels it does not have, and the press flash is whole
+     * either way. The vertical offset needs no clamp: every ancestor of the
+     * header now draws outside its own bounds (see activity_main.xml), and the
+     * 6.3dp a 42dp box overhangs its row is inside the screen.
+     */
+    private void applySettingsShift() {
+        btnSettings.post(() -> {
+            View window = findViewById(android.R.id.content);
+            if (window == null || window.getWidth() == 0) {
+                return;                     // no geometry yet: the XML offset stands
+            }
+            float orderedX = getResources().getDimension(R.dimen.settings_shift_x);
+            float orderedY = getResources().getDimension(R.dimen.settings_shift_y);
+            int[] windowAt = new int[2];
+            int[] gearAt = new int[2];
+            window.getLocationOnScreen(windowAt);
+            btnSettings.getLocationOnScreen(gearAt);
+            // Where the box's right edge sits with the shift REMOVED, so the
+            // room is a measurement rather than a re-derivation of the anchor.
+            int naturalRight = (int) (gearAt[0] - btnSettings.getTranslationX())
+                    + btnSettings.getWidth();
+            int room = windowAt[0] + window.getWidth() - naturalRight;
+            btnSettings.setTranslationX(Math.min(orderedX, Math.max(0f, room)));
+            btnSettings.setTranslationY(orderedY);
+        });
     }
 
     /**
@@ -584,6 +662,12 @@ public class MainActivity extends Activity {
         Watcher.fetchStatus(this, admin, (online, reachable, detail, signals, market) ->
                 runOnUiThread(() -> {
                     liveInFlight = false;
+                    // A round that outlived its activity paints nothing and
+                    // releases its reference at once: without this the lambda
+                    // would hold a finished console for one more frame.
+                    if (isFinishing() || isDestroyed()) {
+                        return;
+                    }
                     if (resumed) {
                         render(online, detail, signals, market);
                     }
@@ -605,6 +689,9 @@ public class MainActivity extends Activity {
         Watcher.fetchLive(this, admin, (online, reachable, detail, signals, market) ->
                 runOnUiThread(() -> {
                     liveInFlight = false;
+                    if (isFinishing() || isDestroyed()) {
+                        return;
+                    }
                     if (resumed) {
                         render(online, detail, signals, market);
                     }
@@ -648,7 +735,15 @@ public class MainActivity extends Activity {
         if (d.isEmpty()) {
             statusDetail.setText(getString(R.string.checking));
         } else {
-            statusDetail.setText(clockSpans(d));
+            // Owner order 2026-10-16 (fourth note): while the relay reports a
+            // live session the tile also carries the app's own contact line,
+            // because a one second poll that changes nothing on screen is
+            // indistinguishable from a poll that is not running. It is the
+            // phone's record of its own last answer, shown beside Karachi's
+            // clock and never instead of it: the session still comes from the
+            // relay alone (SO-8), and the line disappears with the market.
+            statusDetail.setText(clockSpans(online
+                    ? d + "\n" + liveLine() : d));
         }
 
         String s = signals == null ? "" : signals.trim();
@@ -671,6 +766,31 @@ public class MainActivity extends Activity {
             // it was rather than being redrawn (or blanked) every second.
             renderMarket(market);
         }
+        // Owner order 2026-10-16 (fourth note): the cadence is re-decided as
+        // soon as the relay's answer lands, not at the end of the tick that
+        // carried it. Until this line existed the interval was chosen BEFORE
+        // the first answer arrived (onResume scheduled the next round from the
+        // old `marketOpenSeen`, which is false on a fresh process), so an open
+        // market was polled at 30 seconds until that first round completed a
+        // whole idle interval later: the app looked like it never refreshed
+        // every second at all. scheduleNext removes and re-posts the one
+        // runnable, so calling it from here cannot stack a second loop.
+        scheduleNext();
+    }
+
+    /**
+     * The app's own last-contact line, in Karachi time.
+     *
+     * The seconds come from the poll's own interval constant rather than a
+     * literal, so the sentence and the loop can never disagree, and the clock
+     * is formatted in Asia/Karachi (SO-8) instead of the phone's zone: a
+     * reader in another timezone sees the same wall clock the relay does.
+     */
+    private String liveLine() {
+        SimpleDateFormat f = new SimpleDateFormat("HH:mm:ss", Locale.US);
+        f.setTimeZone(TimeZone.getTimeZone("Asia/Karachi"));
+        return getString(R.string.app_live,
+                f.format(new Date()), Watcher.FAST_POLL_MS / 1000);
     }
 
     /**

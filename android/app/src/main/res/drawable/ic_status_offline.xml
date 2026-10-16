@@ -1,28 +1,49 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- OFFLINE indicator: the same beacon as ONLINE, unlit and hollow, so the
-     two states are one shape apart rather than two different symbols, and it
-     is the brand red rather than the brand green (owner order 2026-10-13,
-     third note: the offline light IS the palette red, named as resources in
-     values/colors.xml rather than as hex that could drift). The retired
-     glyphs (a check and a cross) read as edits and, to a screen reader, as
-     arithmetic. -->
+<!-- OFFLINE indicator: the ONLINE beacon in red (owner order 2026-10-16,
+     fourth note: "when the market is OFFLINE ... I want that icon exactly like
+     the ONLINE icon just in red color but also not breathing ... there should
+     be a round ball type structure should also be inside that thick line just
+     like ONLINE icon has it").
+
+     So the geometry is now IDENTICAL to drawable/ic_status_online.xml, layer
+     for layer: a thin halo ring, a filled disc inside it, and a solid ball
+     inside that. Before this order the offline light was a thin ring around a
+     hollow thick ring, which read as a different symbol rather than the same
+     light unlit, and the owner saw it as missing its centre.
+
+     Only two things differ from the online beacon, and both are deliberate:
+
+       1. the colour, which is the palette red in its three weights
+          (@color/red_ring, @color/red_core, @color/red_hi) instead of the
+          palette green;
+       2. the breath. The pulse is driven by MainActivity.breathIfOnline and
+          only runs while the relay reports a live session (SO-3: a pulse over
+          a shut market would claim trading there is none), so this light is
+          drawn still and stays still. A red light that breathed would read as
+          an alarm rather than as a closed market.
+
+     The retired glyphs (a check and a cross) are still retired: they read as
+     edits and, to a screen reader, as arithmetic. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="18dp"
     android:height="18dp"
     android:viewportWidth="24"
     android:viewportHeight="24">
 
-    <!-- halo ring, muted -->
+    <!-- halo ring: the same 9.4 radius and 1.3 stroke as the online beacon -->
     <path
         android:fillColor="#00000000"
         android:pathData="M12,2.6 a9.4,9.4 0 1,0 0,18.8 a9.4,9.4 0 1,0 0,-18.8"
         android:strokeColor="@color/red_ring"
         android:strokeWidth="1.3"/>
 
-    <!-- hollow core: present, not lit -->
+    <!-- inner disc: filled, not hollow, so the light has a body -->
     <path
-        android:fillColor="#00000000"
-        android:pathData="M12,6.4 a5.6,5.6 0 1,0 0,11.2 a5.6,5.6 0 1,0 0,-11.2"
-        android:strokeColor="@color/red_core"
-        android:strokeWidth="1.7"/>
+        android:fillColor="@color/red_core"
+        android:pathData="M12,5.6 a6.4,6.4 0 1,0 0,12.8 a6.4,6.4 0 1,0 0,-12.8"/>
+
+    <!-- solid ball: the centre the owner asked for, in the brighter red -->
+    <path
+        android:fillColor="@color/red_hi"
+        android:pathData="M12,8.3 a3.7,3.7 0 1,0 0,7.4 a3.7,3.7 0 1,0 0,-7.4"/>
 </vector>
