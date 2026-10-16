@@ -74,6 +74,62 @@ class TestRelayUrlResolution(unittest.TestCase):
         self.assertIn("RELAY_URL", str(caught.exception))
 
 
+class TestPipelineCredentialResolution(unittest.TestCase):
+    """The scan path's own credentials, which are not the same code path.
+
+    Owner defect 2026-10-16: scripts/intraday_pipeline.py read os.environ only
+    for BOTH the relay URL and the admin token. A scan started by the local
+    tick has no wrapper to export either, so a genuine candidate was entered
+    into the session state (FCCL, 2026-10-13 11:30) and then dropped at the
+    delivery step, with only "delivery failed (signals): RuntimeError" in the
+    log, while .env and data/relay_url.txt held exactly what it wanted. These
+    tests hold the scan path to the same resolvers the rest of the
+    notification path already used.
+    """
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+
+    def test_the_scan_path_finds_the_token_in_the_repo_env(self):
+        from src.notify import schedule_runner as sr
+        from scripts import intraday_pipeline as pipeline
+        env_file = Path(self._tmp.name) / ".env"
+        env_file.write_text("TELEGRAM_BOT_TOKEN=irrelevant\n"
+                            "RELAY_ADMIN_TOKEN=token-from-the-env-file\n",
+                            encoding="utf-8")
+        with mock.patch.object(sr, "ENV_FILE", env_file), \
+             mock.patch.dict(os.environ, {}, clear=True):
+            self.assertEqual(pipeline.admin_token(), "token-from-the-env-file")
+
+    def test_the_scan_path_still_refuses_with_nothing_configured(self):
+        from src.notify import schedule_runner as sr
+        from scripts import intraday_pipeline as pipeline
+        with mock.patch.object(sr, "ENV_FILE",
+                               Path(self._tmp.name) / "absent.env"), \
+             mock.patch.dict(os.environ, {}, clear=True):
+            with self.assertRaises(RuntimeError):
+                pipeline.admin_token()
+
+    def test_the_scan_path_uses_the_relay_url_file(self):
+        from src.notify import schedule_runner as sr
+        from scripts import intraday_pipeline as pipeline
+        url_file = Path(self._tmp.name) / "relay_url.txt"
+        url_file.write_text("https://relay-file.example/\n", encoding="utf-8")
+        with mock.patch.object(sr, "RELAY_URL_FILE", url_file), \
+             _no_relay_env():
+            self.assertEqual(pipeline.relay_url(), "https://relay-file.example")
+
+    def test_the_scan_path_falls_back_to_the_known_default(self):
+        """A fresh runner has no file and no variable; the default stands."""
+        from src.notify import schedule_runner as sr
+        from scripts import intraday_pipeline as pipeline
+        with mock.patch.object(sr, "RELAY_URL_FILE",
+                               Path(self._tmp.name) / "absent.txt"), \
+             _no_relay_env():
+            self.assertEqual(pipeline.relay_url(), pipeline.RELAY_DEFAULT)
+
+
 class TestDailyPushPreflight(unittest.TestCase):
     """The CI path of scripts/signal_daily.py."""
 

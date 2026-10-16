@@ -33,6 +33,25 @@ MAX_OOS_DEGRADATION = 0.50
 MAX_MONITOR_DRAWDOWN = 0.10
 MAX_MONITOR_LOSING_STREAK = 8
 
+#: The rule the running scanner actually produces evidence for.
+#:
+#: Defect found 2026-10-16: the gate scored only the frozen opening-range
+#: cohort (CANDIDATE_RULES above), while the live scanner has been running
+#: ``config.SCANNER_VERSION`` (momentum_volume_acceleration_v1) since the
+#: 2026-10-09 rebuild. Even handed a full history of live sessions, the gate
+#: would have scored rules the system never runs and reported no candidate for
+#: each of them. The live rule is therefore REGISTERED beside the frozen ones,
+#: and a row is always scored under the scanner version that produced it
+#: (see ``_own_rule``), so no outcome is ever relabelled.
+#:
+#: Registering a rule changes no threshold. Every rule still needs its own 60
+#: discovery, 60 validation and 60 locked out-of-sample sessions with the same
+#: trade counts, positive expectancy and multiplicity-adjusted confidence
+#: interval. Adding it makes the family-wise correction STRICTER (the alpha
+#: is divided across the registered rules), never weaker.
+LIVE_RULE = config.SCANNER_VERSION
+REGISTERED_RULES = tuple(dict.fromkeys((*CANDIDATE_RULES, LIVE_RULE)))
+
 
 def _stamp(value: str) -> datetime:
     return datetime.fromisoformat(value)
@@ -186,12 +205,18 @@ def _valid_rows(daily_rows: list[dict]) -> list[dict]:
     return unique
 
 
+def _own_rule(row: dict) -> str:
+    """The rule that produced a row: its own scanner version, else the frozen
+    default for the pre-rebuild archives that carry none."""
+    return str(row.get("scanner_version") or RULE_VERSION)
+
+
 def _rule_rows(rows: list[dict], rule: str) -> list[dict]:
     result = []
     for row in rows:
         outcomes = row.get("outcomes_by_rule") or {}
         outcome = outcomes.get(rule)
-        if outcome is None and rule == RULE_VERSION and "net_return" in row:
+        if outcome is None and rule == _own_rule(row) and "net_return" in row:
             outcome = row
         if outcome is None:
             outcome = {"candidate": None, "label": "NO_CANDIDATE",
@@ -208,10 +233,10 @@ def _cycle_alpha(cycle_number: int, hypotheses: int = 1) -> float:
 
 def _select_validation_winner(discovery: list[dict], validation: list[dict],
                               cycle_number: int) -> tuple[str | None, dict]:
-    correction_level = 1.0 - _cycle_alpha(cycle_number, len(CANDIDATE_RULES))
+    correction_level = 1.0 - _cycle_alpha(cycle_number, len(REGISTERED_RULES))
     reports = {}
     eligible = []
-    for rule in CANDIDATE_RULES:
+    for rule in REGISTERED_RULES:
         d_metrics = _metrics(_rule_rows(discovery, rule))
         v_metrics = _metrics(_rule_rows(validation, rule), ci_level=correction_level)
         reports[rule] = {"discovery": d_metrics, "validation": v_metrics}
