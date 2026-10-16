@@ -386,14 +386,16 @@ class SettingsControlTest(unittest.TestCase):
         self.assertLessEqual(padding, 8)
 
     def test_the_control_is_nudged_right_and_up_by_the_owners_fractions(self):
-        """Owner orders 2026-10-15, stacked: 20% right, 5% up, then a
-        further 70% right and a further 15% up.
+        """Owner orders, stacked: 20% right and 5% up, then a further 70%
+        right and 15% up, then (2026-10-16) 15% right and 5% DOWN.
 
-        Both orders are of the control's own 42dp box, so the fractions sum:
-        42 x 0.90 = 37.8dp right and 42 x 0.20 = 8.4dp up, which is the one
-        shift the layout reads from dimens.xml. The anchors of the earlier
-        orders still hold, so a stacked translation keeps the same shape on
-        any screen and at any font scale.
+        Every order is a fraction of the control's own 42dp box and the shift
+        is a translation, so the fractions simply sum: 20 + 70 + 15 = 105%
+        right and 5 + 15 - 5 = 15% up, which is 42 x 1.05 = 44.1dp right and
+        42 x 0.15 = 6.3dp up (a negative translation in Android's
+        coordinates). The anchors of the earlier orders still hold, so a
+        stacked translation keeps the same shape on any screen and at any
+        font scale.
         """
         root = layout_root()
         button = find_view(root, "@+id/btn_settings")
@@ -408,11 +410,17 @@ class SettingsControlTest(unittest.TestCase):
         dimens = (RES / "values" / "dimens.xml").read_text(encoding="utf-8")
         box = int(button.get(f"{ANDROID_NS}layout_width")[:-2])
         self.assertIn(
-            f'<dimen name="settings_shift_x">{box * 0.90:.1f}dp</dimen>',
+            f'<dimen name="settings_shift_x">{box * 1.05:.1f}dp</dimen>',
             dimens)
         self.assertIn(
-            f'<dimen name="settings_shift_y">-{box * 0.20:.1f}dp</dimen>',
+            f'<dimen name="settings_shift_y">-{box * 0.15:.1f}dp</dimen>',
             dimens)
+        # Today's order is +15% right and +5% down FROM where the control
+        # already stood, so the vertical shift must be SMALLER than the old
+        # 20% up rather than larger: a sign error here would move the icon up
+        # again and still satisfy a magnitude only check.
+        self.assertLess(42 * 0.15, 42 * 0.20)
+        self.assertLess(37.8, box * 1.05)
 
     def test_the_control_sits_beside_the_title(self):
         # Owner order 2026-10-13 (fourth note): adjacent to the brand name,
@@ -479,8 +487,17 @@ class StatusTileCopyTest(unittest.TestCase):
 
     def test_the_tile_still_carries_the_condition_sentence(self):
         # The relay's own phase sentence stays: only the resume line is gone.
-        self.assertIn("String line = phaseLine(c, healthMarket);", self.watcher)
+        # v1.7.2 (owner order 2026-10-16) moved this reader into fetchHead, the
+        # one place both fetch rounds read /health, so the phase holder is the
+        # round's own `head.phase` rather than a local named healthMarket. The
+        # behaviour is unchanged and is still pinned as behaviour: the sentence
+        # is produced from the relay's phase and appended to the detail line.
+        self.assertIn("String line = phaseLine(c, head.phase);", self.watcher)
         self.assertIn("d.append('\\n').append(line);", self.watcher)
+        # And there is exactly ONE such reader, so the two cadences cannot
+        # drift into two different sentences about the same session.
+        self.assertEqual(self.watcher.count("phaseLine(c, head.phase)"), 1)
+        self.assertIn("private static Head fetchHead(", self.watcher)
 
 
 class BrandRuleTest(unittest.TestCase):
@@ -836,29 +853,28 @@ class StatusPulseTest(unittest.TestCase):
 
     def test_a_hidden_console_leaves_it_still(self):
         # v1.7.1: a hidden console releases BOTH things onResume started. The
-        # breath stops, and the 30 second cadence loop is removed from the
-        # main queue so a backgrounded app holds no poll; onResume re-arms
-        # both. The window is 400 characters because the two reasons are
-        # stated where they are done.
+        # breath stops, and the cadence loop is removed from the main queue so
+        # a backgrounded app holds no poll; onResume re-arms both. v1.7.2 adds
+        # a third release to the same block (the resumed flag, so a round in
+        # flight cannot paint or re-breath after the pause). The window is 700
+        # characters because every reason is stated where it is done.
         self.assertIn("stopStatusBreath();", self.main)
         pause = self.main.index("protected void onPause()")
-        body = self.main[pause:pause + 400]
-        self.assertIn("stopStatusBreath()", body)
+        body = self.main[pause:pause + 700]
+        self.assertIn("resumed = false;", body)
         self.assertIn("cadence.removeCallbacks(tick)", body)
+        self.assertIn("stopStatusBreath()", body)
 
     def test_the_console_repaints_at_the_live_scan_cadence(self):
-        """Owner order 2026-10-16: the app follows the 30 second scan.
+        """Owner orders 2026-10-16: the console polls by itself.
 
-        The console used to repaint once per open, so a 30 second scan fed a
-        card that could be a whole session behind. The loop lives on the main
-        queue, is started in onResume and removed in onPause (above), and its
-        interval is Watcher.REFRESH_MS, which is the cloud's own interval.
+        Both halves are pinned together here: the loop schedules itself (no
+        manual refresh, no repaint only on open), and the idle interval is
+        still the cloud's 30 second scan, which the relay's card cadence and
+        the scanner's own config agree on.
         """
-        self.assertIn("cadence.postDelayed(tick, Watcher.REFRESH_MS)", self.main)
-        self.assertIn("cadence.postDelayed(this, Watcher.REFRESH_MS)", self.main)
         resume = self.main.index("protected void onResume()")
-        self.assertIn("cadence.postDelayed(tick, Watcher.REFRESH_MS)",
-                      self.main[resume:resume + 600])
+        self.assertIn("scheduleNext();", self.main[resume:resume + 900])
         watcher = (ROOT / "android" / "app" / "src" / "main" / "java"
                    / "pk" / "quantofrehan" / "Watcher.java").read_text(
             encoding="utf-8")
@@ -870,6 +886,129 @@ class StatusPulseTest(unittest.TestCase):
         config_text = (ROOT / "src" / "config.py").read_text(encoding="utf-8")
         self.assertIn('SCAN_INTERVAL_SECONDS = _number("SCAN_INTERVAL_SECONDS", 30)',
                       config_text)
+
+    def test_a_live_market_is_polled_once_a_second(self):
+        """Owner order 2026-10-16: one second while the market is open.
+
+        The interval is chosen from the RELAY's own answer (`market_open`,
+        carried into marketOpenSeen by render), never from the phone's clock
+        (SO-8), and both the resume path and the tick itself schedule through
+        the one method, so there is a single place where the cadence is
+        decided.
+        """
+        watcher = (ROOT / "android" / "app" / "src" / "main" / "java"
+                   / "pk" / "quantofrehan" / "Watcher.java").read_text(
+            encoding="utf-8")
+        self.assertIn("static final long FAST_POLL_MS = 1000;", watcher)
+        self.assertIn("private void scheduleNext()", self.main)
+        self.assertIn("marketOpenSeen = online;", self.main)
+        self.assertIn("cadence.postDelayed(tick, marketOpenSeen", self.main)
+        self.assertIn("? Watcher.FAST_POLL_MS : Watcher.REFRESH_MS);", self.main)
+        # The tick itself goes through the same scheduling point, so a fast
+        # round is followed by another fast round without a second loop.
+        tick = self.main.index("private final Runnable tick")
+        self.assertIn("scheduleNext();", self.main[tick:tick + 400])
+        # The phone never derives the session from its own clock.
+        self.assertNotIn("Calendar", self.main)
+        self.assertNotIn("LocalTime", self.main)
+        self.assertNotIn("System.currentTimeMillis()", self.main)
+
+    def test_one_round_at_a_time_so_the_poll_cannot_pile_up(self):
+        """A one second poll must not queue a second round behind the first.
+
+        The guard is one boolean: set by the round, cleared in its callback,
+        and checked before a round starts. Every path of a round calls the
+        callback (including the error path), so a failed request releases the
+        loop instead of freezing the console.
+        """
+        poll = self.main.index("private void pollOnce()")
+        self.assertIn("if (liveInFlight) {", self.main[poll:poll + 600])
+        self.assertEqual(self.main.count("liveInFlight = true;"), 2)
+        self.assertEqual(self.main.count("liveInFlight = false;"), 2)
+        self.assertIn("Watcher.fetchLive(this, admin", self.main)
+        self.assertIn("Watcher.fetchStatus(this, admin", self.main)
+
+    def test_a_round_that_lands_after_a_pause_paints_nothing(self):
+        """A hidden console holds no animation and no poll.
+
+        A fetch started just before onPause can answer just after it, and
+        rendering that answer would restart the status breath onPause had just
+        stopped. The callback therefore always releases the in-flight flag and
+        paints only while the console is resumed.
+        """
+        self.assertIn("private boolean resumed;", self.main)
+        resume = self.main.index("protected void onResume()")
+        self.assertIn("resumed = true;", self.main[resume:resume + 300])
+        pause = self.main.index("protected void onPause()")
+        self.assertIn("resumed = false;", self.main[pause:pause + 500])
+        # Both rounds guard the paint, and both still release the flag first.
+        self.assertEqual(self.main.count(
+            "liveInFlight = false;\n                    if (resumed) {"), 2)
+
+    def test_the_market_card_is_not_asked_for_every_second(self):
+        """The one second round is the pair that moves.
+
+        The card is rebuilt by the relay from the exchange page about every
+        five minutes, so asking for it once a second would spend a request a
+        second on a payload that cannot have changed. Live rounds are health
+        and signals; the card rides along once every CARD_EVERY_SECONDS.
+        """
+        watcher = (ROOT / "android" / "app" / "src" / "main" / "java"
+                   / "pk" / "quantofrehan" / "Watcher.java").read_text(
+            encoding="utf-8")
+        self.assertIn("private static final int CARD_EVERY_SECONDS = 30;",
+                      self.main)
+        poll = self.main.index("private void pollOnce()")
+        self.assertIn("ticksSinceCard >= CARD_EVERY_SECONDS",
+                      self.main[poll:poll + 600])
+        live = watcher.index("static void fetchLive(")
+        live_body = watcher[live:live + 900]
+        self.assertIn("head.signals, null);", live_body)
+        self.assertNotIn("fetchMarket", live_body)
+        full = watcher.index("static void fetchStatus(")
+        self.assertIn("fetchMarket(c, base)", watcher[full:full + 900])
+
+    def test_the_settings_menu_stands_alone_while_it_is_open(self):
+        """Owner order 2026-10-16: the menu is exclusive.
+
+        Tapping the gear leaves the settings menu as the only thing on the
+        screen: the system status tile, the latest signal tile, the market
+        card, the three rules between and after them and the cadence sentence
+        all leave together. They leave as GONE rather than INVISIBLE, so the
+        menu takes the space the console gave up (no hole to scroll past) and
+        a screen reader announces the menu alone.
+        """
+        for name in ("tile_status", "rule_status_signal", "tile_signal",
+                     "rule_after_signal", "tile_market", "rule_after_market",
+                     "scan_cadence"):
+            with self.subTest(view=name):
+                self.assertIsNotNone(find_view(layout_root(), f"@+id/{name}"))
+                self.assertIn(f"findViewById(R.id.{name})", self.main)
+        self.assertIn("view.setVisibility(open ? View.GONE : View.VISIBLE);",
+                      self.main)
+        self.assertNotIn("View.INVISIBLE", self.main)
+        # The three tiles the owner named are the three the array holds: the
+        # market card is hidden with the other two rather than left behind.
+        self.assertIn("findViewById(R.id.tile_market)", self.main)
+
+    def test_the_settings_toggle_is_idempotent_and_reads_no_view(self):
+        """Clean state, no re-render loop (owner order 2026-10-16).
+
+        The state is one boolean and the views are drawn FROM it. The toggle
+        returns early when the value has not changed, so a repeated tap, a
+        restored activity or a stray second call cannot re-run the animations
+        or thrash the view tree; and no listener reads a view's visibility
+        back to decide what the state is.
+        """
+        self.assertIn("private boolean settingsOpen;", self.main)
+        open_call = self.main.index("private void setSettingsOpen(boolean open)")
+        body = self.main[open_call:open_call + 700]
+        self.assertIn("if (open == settingsOpen) {", body)
+        self.assertIn("settingsOpen = open;", body)
+        listener = self.main.index("btnSettings.setOnClickListener")
+        self.assertIn("setSettingsOpen(!settingsOpen)",
+                      self.main[listener:listener + 220])
+        self.assertNotIn("getVisibility() == View.GONE", self.main)
 
     def test_the_online_light_is_green_and_the_offline_light_is_red(self):
         colors = COLORS.read_text(encoding="utf-8")
@@ -949,9 +1088,16 @@ class StatusTileSpacingTest(unittest.TestCase):
                          detail.get(f"{ANDROID_NS}layout_marginTop"))
 class VersionTest(unittest.TestCase):
     def test_the_version_is_the_one_that_ships_these_changes(self):
+        # v1.7.2 (owner order 2026-10-16, second note): the icon offset, the
+        # exclusive settings menu and the one second live poll ship in this
+        # build, so the code and the name move together.
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="1.7.1"', manifest)
-        self.assertIn('android:versionCode="25"', manifest)
+        self.assertIn('android:versionName="1.7.2"', manifest)
+        self.assertIn('android:versionCode="26"', manifest)
+        # And the project's own record of the order says what shipped.
+        readme = (ROOT / "android" / "README.md").read_text(encoding="utf-8")
+        self.assertIn("v1.7.2, owner order 2026-10-16", readme)
+        self.assertIn("Version 1.7.2,", readme)
 
 
 if __name__ == "__main__":

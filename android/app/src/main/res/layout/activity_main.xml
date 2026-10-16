@@ -169,8 +169,16 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"/>
 
-        <!-- ══════════ system status card ══════════ -->
-        <LinearLayout style="@style/QorPanel"
+        <!-- ══════════ system status card ══════════
+             Owner order 2026-10-16: the console's three tiles carry ids so
+             one state can hide them together. The settings menu must be the
+             ONLY thing on screen while it is open, so this tile, the latest
+             signal tile, the market card, the three rules between them and
+             the cadence sentence all leave the layout at once, and the ids
+             are what let MainActivity.setSettingsOpen do that in one loop. -->
+        <LinearLayout
+            android:id="@+id/tile_status"
+            style="@style/QorPanel"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
@@ -259,15 +267,22 @@
         <!-- Owner order 2026-10-13 (second note): a rule divides the system
              status tile from the latest signal tile, so every change of
              subject on the console is marked. The same include as the others,
-             so the diamond is the logo's and is defined once. -->
+             so the diamond is the logo's and is defined once.
+
+             Owner order 2026-10-16: this rule belongs to the console, so it
+             is hidden with the tiles it divides and never stands alone as an
+             orphan diamond over the settings menu. -->
         <include
+            android:id="@+id/rule_status_signal"
             layout="@layout/qor_rule"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"/>
 
         <!-- ══════════ latest signal card ══════════ -->
-        <LinearLayout style="@style/QorPanel"
+        <LinearLayout
+            android:id="@+id/tile_signal"
+            style="@style/QorPanel"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
@@ -291,8 +306,12 @@
         </LinearLayout>
 
         <!-- brand rule after the latest signal: the same include, closing the
-             card section like the logo frame -->
+             card section like the logo frame. Hidden with the console
+             (owner order 2026-10-16): it closes a section the settings menu
+             replaces, so leaving it would read as a divider with nothing on
+             its left. -->
         <include
+            android:id="@+id/rule_after_signal"
             layout="@layout/qor_rule"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -374,7 +393,9 @@
              any more. The index line and the ranking state what the card is
              by themselves, and the label was the last piece of chrome the
              owner asked to have removed. -->
-        <LinearLayout style="@style/QorPanel"
+        <LinearLayout
+            android:id="@+id/tile_market"
+            style="@style/QorPanel"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="14dp"
@@ -424,8 +445,13 @@
              the third note used are retired: the air above the sentence is
              now a margin the grid can measure, while the sentence itself
              stays exactly as ordered and still appears exactly once in the
-             whole app. -->
+             whole app.
+
+             Owner order 2026-10-16: this rule and the sentence under it are
+             the console's footer, so both are hidden while the settings menu
+             is open and the menu ends the screen instead. -->
         <include
+            android:id="@+id/rule_after_market"
             layout="@layout/qor_rule"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

@@ -1,0 +1,24 @@
+{
+  "as_of": "2026-10-15",
+  "reviewed_by": "owner order 2026-10-15 (ETFs are never scanned)",
+  "registry_source": "The KMIALL snapshot this repo tracks (src/data/universe_kmiall.json, members with listedIn containing KMIALLSHR), read against the exchange's own instrument names. Two basket instruments are listed there as Shariah constituents.",
+  "coverage_note": "The registry is the reviewed half of the exclusion; the other half is the exchange's ETF naming convention (every PSX exchange traded fund's tape symbol ends in ETF), applied by src/data/eligibility.py. A symbol whose classification neither half settles is UNKNOWN and is refused, never admitted.",
+  "symbols": {
+    "MIIETF": {
+      "issuer": "Meezan Investment Management",
+      "kind": "ETF",
+      "source": "src/data/universe_kmiall.json 2026-10-15, listedIn KMIALLSHR; PSX symbol ends in ETF",
+      "effective_date": "2026-10-15",
+      "review_status": "reviewed",
+      "note": "An index tracking fund. It rides the index rather than showing its own momentum, so it is not intraday material."
+    },
+    "MZNPETF": {
+      "issuer": "Meezan Investment Management",
+      "kind": "ETF",
+      "source": "src/data/universe_kmiall.json 2026-10-15, listedIn KMIALLSHR; PSX symbol ends in ETF",
+      "effective_date": "2026-10-15",
+      "review_status": "reviewed",
+      "note": "The Meezan Pakistan ETF, the same basket problem as MIIETF."
+    }
+  }
+}

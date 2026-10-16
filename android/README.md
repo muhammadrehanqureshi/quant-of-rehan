@@ -366,6 +366,71 @@ kept in the tree with its licence rather than deleted.
   a poll, and `setExactAndAllowWhileIdle` is capped inside Doze, so a 30
   second alarm would advertise a cadence Android will not honour. Version
   1.7.1, versionCode 25.
+- v1.7.2, owner order 2026-10-16 (second note of the day): three changes to
+  the console, all of them about latency and legibility.
+
+  **The settings control moves again.** The order is +15% of the control's own
+  42dp box to the right and +5% of it DOWN from where it already stood, and
+  the orders stack because a translation on a leaf view never changes layout:
+  20 + 70 + 15 = 105% right (44.1dp) and 5 + 15 - 5 = 15% up (6.3dp, a
+  negative translation). `dimens.xml` states the sum and the three orders that
+  produced it, and the UI test pins the arithmetic rather than a pair of
+  magic numbers.
+
+  **The settings menu is now exclusive.** Tapping the gear used to open the
+  panel under a console that stayed on screen. Now the three tiles (system
+  status, latest signal, the market card), the three diamond rules between and
+  after them and the cadence sentence all leave together, so the menu is the
+  only thing on the view, as ordered. They leave as `GONE` rather than
+  `INVISIBLE`: the menu takes the space instead of leaving a hole, and a
+  hidden view is out of the accessibility tree, so a screen reader reads the
+  menu alone. The state is one boolean field (`MainActivity.settingsOpen`) and
+  the views are drawn FROM it, never asked: the toggle returns early when the
+  value has not changed, so a repeated tap cannot re-run the animations or
+  thrash the view tree, and the seven views are looked up once in onCreate and
+  toggled in one loop rather than by seven independent calls.
+
+  **The console polls by itself, once a second while the market is open.**
+  This replaces the 30 second repaint of v1.7.1 and any manual refresh with an
+  automatic live poll. The interval comes from the RELAY's own answer
+  (`market_open`, carried into `marketOpenSeen` by `render`), never from the
+  phone's clock, so a closed market, a midday break or a weekend falls back to
+  the 30 second idle poll and the app still obeys SO-8. One method
+  (`MainActivity.scheduleNext`) schedules every tick, so the cadence is
+  decided in exactly one place. Two guards keep it honest: a single in-flight
+  flag means a slow round skips a tick instead of queueing one (and every path
+  of a round clears it, including the error path), and the ONE SECOND round is
+  `Watcher.fetchLive`, which reads `/health` and `/signals` only. The market
+  card is deliberately not in that round: the relay rebuilds it from the
+  exchange page about every five minutes, so it rides along once every
+  `CARD_EVERY_SECONDS` (30) live rounds, and a light round reports a null card
+  which `render` reads as "leave the card on screen exactly as it is". One
+  request a second, on the pair that actually moves. Version 1.7.2,
+  versionCode 26.
+
+**Built and delivered 2026-10-16 (owner order):** the signed v1.7.2 APK was
+built from this checkout by the chain above and copied to
+`C:/Users/rehan/OneDrive/Desktop/QuantOfRehan-v1.7.2.apk`, one file under one
+name. The first delivery of this build also carried a second name,
+`QuantOfRehan-v1.7.2-live-1s-poll.apk`, and a copy in the non synced
+`C:/Users/rehan/Desktop`; all three were the same 535,632 bytes, so the owner
+saw two identical installers side by side and asked which one to use (owner
+order 2026-10-16, third note: **one build, one file, one name**). The alias
+and the extra copy are removed and the signed build output in the repo,
+`android/app/build/signed/app-aligned-debugSigned.apk`, is the off Desktop
+backup. 535,632 bytes, SHA-256
+`74d2afe88d15c43e1d4198cd405c7389facef7c887902c92bce524c5991f7ec3`,
+zipalign verified, signature verified v2 + v3 (debug key, CN=Android Debug,
+expires 2044), and `aapt2 dump badging` reads back `pk.quantofrehan`
+`versionCode="26"` `versionName="1.7.2"` with the launchable `MainActivity`.
+The Android source tests were green before the build (57 passed, 32 subtests in
+tests/test_android_app_ui.py and tests/test_android_card_copy.py), and the
+built resource table was read back to prove what shipped: the six new view ids
+are present, `dimen/settings_shift_x` compiles to 44.1dp and
+`dimen/settings_shift_y` to -6.3dp (aapt2 renders a negative dimension as its
+512 bias, so it prints as 505.700012dp: measured against a probe resource of
+-8.4dp, which prints as 503.600006dp), and `string/scan_cadence` still reads
+"Quant will be scanning the market every 30 seconds when the market is open."
 
 The APK is signed with the local debug key (v2+v3), which is enough for
 direct installation on the owner's phone. Install: copy the APK to the
