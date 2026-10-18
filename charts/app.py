@@ -34,9 +34,10 @@ from pathlib import Path
 from charts import __version__, sessions
 from charts.adapters import SOURCES
 from charts.adapters.replay import ReplaySource
-from charts.adapters.tape import TapeSource, read_universe
+from charts.adapters.tape import TapeSource
 from charts.http import ChartServer
 from charts.ingest import Ingestor
+from charts.persistent import PersistentBarStore
 from charts.store import BarStore
 
 LOGGER = logging.getLogger("charts.app")
@@ -45,10 +46,13 @@ LOGGER = logging.getLogger("charts.app")
 #: collide with a development server or another tool on this machine.
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8788
-DEFAULT_INTERVAL = 15.0
+# The broker feed's measured per-symbol snapshot median is about 30 seconds.
+# A faster local poll cannot produce a new broker observation.
+DEFAULT_INTERVAL = 30.0
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_STATIC = ROOT / "web" / "dist"
+DEFAULT_HISTORY_DATABASE = ROOT / "data" / "charts" / "history.sqlite3"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -65,7 +69,7 @@ def build_parser() -> argparse.ArgumentParser:
                         help="force one resolution (default: the source's "
                              "finest)")
     parser.add_argument("--interval", type=float, default=DEFAULT_INTERVAL,
-                        help="seconds between polls per watched symbol "
+                        help="seconds between checks per watched symbol "
                              f"(default: {DEFAULT_INTERVAL:g})")
     parser.add_argument("--host", default=DEFAULT_HOST,
                         help=f"bind address (default: {DEFAULT_HOST})")
@@ -73,6 +77,8 @@ def build_parser() -> argparse.ArgumentParser:
                         help=f"port (default: {DEFAULT_PORT})")
     parser.add_argument("--static", default=str(DEFAULT_STATIC),
                         help="directory of the built web app to serve")
+    parser.add_argument("--database", default="",
+                        help="local SQLite history path; replay is memory-only unless explicitly set")
     parser.add_argument("--cors", default="",
                         help="comma separated extra origins allowed to call "
                              "the API (the Vite dev server is always allowed)")
@@ -107,12 +113,10 @@ def _source_for(args, clock=sessions.law.now_karachi):
 
 
 def _warm_symbols(args) -> list[str]:
-    wanted = _symbols(args.symbols)
-    if not wanted and args.source == "tape":
-        # The universe is only read when the tape is the source: the other
-        # sources carry their own catalogue and must not silently inherit it.
-        wanted = read_universe()
-    return wanted
+    # Only keep explicitly requested symbols warm. A chart adds its selected
+    # symbol when it loads, so polling the entire 319-name universe would
+    # needlessly rebuild the capture while the owner watches one chart.
+    return _symbols(args.symbols)
 
 
 def check_environment(args) -> str | None:
@@ -134,6 +138,16 @@ def check_environment(args) -> str | None:
     return None
 
 
+def _store_for(args) -> BarStore:
+    """Choose durable history for real feeds and memory for synthetic replay."""
+    database = str(args.database).strip()
+    if database:
+        return PersistentBarStore(database)
+    if args.source in ("tape", "portal"):
+        return PersistentBarStore(DEFAULT_HISTORY_DATABASE)
+    return BarStore()
+
+
 def build(args) -> tuple[BarStore, Ingestor, ChartServer]:
     """Assemble the service. Pure wiring, so a test can call it directly."""
     source = _source_for(args)
@@ -143,9 +157,9 @@ def build(args) -> tuple[BarStore, Ingestor, ChartServer]:
         raise SystemExit(
             f"source {source.name} does not serve {resolution}; it serves "
             f"{', '.join(capabilities.resolutions)}")
-    store = BarStore()
+    store = _store_for(args)
     ingestor = Ingestor(store, source, resolution=resolution,
-                        interval_seconds=max(2.0, args.interval))
+                        interval_seconds=args.interval)
     static = Path(args.static) if args.static else None
     when = sessions.market_context()
     cors = tuple(_symbols(args.cors)) + ("http://localhost:5173",
@@ -181,24 +195,26 @@ def main(argv: list[str] | None = None) -> int:
         print(f"charts: {refusal}", file=sys.stderr)
         return 2
     store, ingestor, server = build(args)
-    if args.once:
-        ingestor.step()
-        print(json.dumps(summary(server, store), indent=2, sort_keys=True))
-        ingestor.stop()
-        server.server_close()
-        return 0
-    ingestor.start()
-    host, port = server.server_address[:2]
-    LOGGER.info("serving on http://%s:%s (API at /api, UI at /)", host, port)
-    LOGGER.info("this process is the whole runtime; stop it with Ctrl+C")
     try:
-        server.serve_forever(poll_interval=0.5)
-    except KeyboardInterrupt:
-        LOGGER.info("stopping on request")
+        if args.once:
+            ingestor.step()
+            print(json.dumps(summary(server, store), indent=2, sort_keys=True))
+            return 0
+        ingestor.start()
+        host, port = server.server_address[:2]
+        LOGGER.info("serving on http://%s:%s (API at /api, UI at /)", host, port)
+        LOGGER.info("this process is the whole runtime; stop it with Ctrl+C")
+        try:
+            server.serve_forever(poll_interval=0.5)
+        except KeyboardInterrupt:
+            LOGGER.info("stopping on request")
+        return 0
     finally:
         server.shutdown_sources()
         server.server_close()
-    return 0
+        close_store = getattr(store, "close", None)
+        if callable(close_store):
+            close_store()
 
 
 if __name__ == "__main__":
