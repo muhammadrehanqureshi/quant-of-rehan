@@ -103,9 +103,11 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import socket
 import sys
+import threading
 import time
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
@@ -276,6 +278,227 @@ def _split_rows(payload: str) -> list[str]:
     return [payload]
 
 
+def _finite_number(value) -> float | None:
+    try:
+        number = float(str(value).strip().replace(",", ""))
+    except (TypeError, ValueError):
+        return None
+    return number if math.isfinite(number) else None
+
+
+def relay_quote_updates(record: dict) -> dict:
+    """Extract only observations present in one captured broker frame."""
+    from src.data import broker_market
+
+    raw = str(record.get("raw", ""))
+    observed_at = str(record.get("ts", ""))
+    kind = str(record.get("kind", ""))
+    update: dict = {"quotes": [], "index": None, "market_feed": None}
+    if kind.startswith("MKT-FEED"):
+        ticks = record.get("ticks") or parse_message(raw) or {}
+        if isinstance(ticks, dict):
+            ticks = ticks.get("ticks") or []
+        for tick in ticks:
+            if not isinstance(tick, dict) or str(tick.get("market", "")).strip().upper() != "REG":
+                continue
+            symbol = str(tick.get("scrip", "")).strip().upper().split(":", 1)[0]
+            if not symbol or not symbol.isalnum():
+                continue
+            price = _finite_number(tick.get("last"))
+            if price is None or price <= 0:
+                continue
+            close = _finite_number(tick.get("close"))
+            change = _finite_number(tick.get("change"))
+            change_pct = (change / close * 100.0
+                          if change is not None and close is not None and close > 0
+                          else None)
+            volume = _finite_number(tick.get("volume"))
+            quote = {
+                "symbol": symbol,
+                "price": price,
+                "bid": _finite_number(tick.get("bid")),
+                "ask": _finite_number(tick.get("ask")),
+                "change": change,
+                "change_pct": change_pct,
+                "volume": int(volume) if volume is not None and volume >= 0 else None,
+                "high": _finite_number(tick.get("high")),
+                "low": _finite_number(tick.get("low")),
+                "status": ("OPEN" if str(tick.get("status", "")).strip().upper()
+                           in {"OPN", "OPEN", "TRADING", "LIVE"} else
+                           "SUSPENDED" if str(tick.get("status", "")).strip().upper()
+                           in {"SUS", "SUSPENDED", "HALT", "HALTED"} else "UNKNOWN"),
+                "source_tick_time": str(tick.get("tick_time", "")).strip(),
+                "observed_at": observed_at,
+                "source": "eClear MKT-FEED REG",
+            }
+            update["quotes"].append(quote)
+    elif kind.startswith("EXS-FEED"):
+        update["index"] = broker_market.parse_index_frame(raw)
+    elif kind.startswith("MKT-STATS"):
+        status = broker_market.parse_market_status_frame(raw)
+        if status is not None:
+            update["market_feed"] = {
+                "status": status[0],
+                "raw_status": status[1],
+                "as_of": observed_at,
+                "source": "eClear REG market feed",
+            }
+    update["captured_at"] = observed_at
+    return update
+
+
+class RelayQuotePublisher:
+    """Coalesce broker frames and push snapshots from cloud runners only."""
+
+    MIN_PUBLISH_SECONDS = 1.0
+    MAX_RETRY_SECONDS = 30.0
+
+    def __init__(self) -> None:
+        self._token = ""
+        self._url = ""
+        self._pending_quotes: dict[str, dict] = {}
+        self._pending_index: dict | None = None
+        self._pending_market_feed: dict | None = None
+        self._latest_captured_at: str | None = None
+        self._sent_captured_at: str | None = None
+        self._lock = threading.Lock()
+        self._wake = threading.Event()
+        self._stopping = False
+        self._last_attempt = 0.0
+        self._retry_seconds = 1.0
+        self._thread: threading.Thread | None = None
+
+        # The owner's PC is never a publisher. Only a cloud session runner
+        # with its existing secret can start the bounded upload thread.
+        if os.environ.get("GITHUB_ACTIONS", "").lower() != "true":
+            return
+        self._token = os.environ.get("RELAY_ADMIN_TOKEN", "").strip()
+        if not self._token:
+            return
+        self._url = os.environ.get(
+            "RELAY_URL", "https://quant-of-rehan-relay.mrmrehanqureshi.workers.dev"
+        ).strip().rstrip("/")
+        self._thread = threading.Thread(
+            target=self._run, name="cloud-relay-quote-publisher", daemon=True)
+        self._thread.start()
+
+    def observe(self, record: dict) -> None:
+        if self._thread is None:
+            return
+        update = relay_quote_updates(record)
+        with self._lock:
+            if (self._latest_captured_at is None or
+                    update["captured_at"] > self._latest_captured_at):
+                self._latest_captured_at = update["captured_at"]
+            for quote in update["quotes"]:
+                self._pending_quotes[quote["symbol"]] = quote
+            if update.get("index") is not None:
+                self._pending_index = update["index"]
+            if update.get("market_feed") is not None:
+                self._pending_market_feed = update["market_feed"]
+        if update["quotes"] or update.get("index") or update.get("market_feed"):
+            self._wake.set()
+
+    def _take_pending(self) -> dict | None:
+        with self._lock:
+            if not (self._pending_quotes or self._pending_index
+                    or self._pending_market_feed or
+                    self._latest_captured_at != self._sent_captured_at):
+                return None
+            captured_at = self._latest_captured_at
+            return {
+                "quotes": list(self._pending_quotes.values()),
+                "index": self._pending_index,
+                "market_feed": self._pending_market_feed,
+                "captured_at": captured_at,
+            }
+
+    def _acknowledge(self, sent: dict) -> bool:
+        with self._lock:
+            for row in sent["quotes"]:
+                symbol = row["symbol"]
+                current = self._pending_quotes.get(symbol)
+                if current and current["observed_at"] == row["observed_at"]:
+                    self._pending_quotes.pop(symbol, None)
+            if (sent["index"] is not None and self._pending_index == sent["index"]):
+                self._pending_index = None
+            if (sent["market_feed"] is not None
+                    and self._pending_market_feed == sent["market_feed"]):
+                self._pending_market_feed = None
+            if self._latest_captured_at == sent["captured_at"]:
+                self._sent_captured_at = sent["captured_at"]
+            return bool(self._pending_quotes or self._pending_index
+                        or self._pending_market_feed or
+                        self._latest_captured_at != self._sent_captured_at)
+
+    def _run(self) -> None:
+        import requests
+
+        while True:
+            self._wake.wait()
+            self._wake.clear()
+            if self._stopping and self._take_pending() is None:
+                return
+            delay = self.MIN_PUBLISH_SECONDS - (time.monotonic() - self._last_attempt)
+            if delay > 0 and not self._stopping:
+                if self._wake.wait(delay):
+                    self._wake.clear()
+            update = self._take_pending()
+            if update is None:
+                if self._stopping:
+                    return
+                continue
+            self._last_attempt = time.monotonic()
+            try:
+                response = requests.post(
+                    self._url + "/quotes", json=update,
+                    headers={"x-admin-token": self._token}, timeout=(1.0, 2.0))
+                response.raise_for_status()
+                body = response.json()
+                if not body.get("ok"):
+                    raise ValueError("relay refused quote update")
+                pending = self._acknowledge(update)
+                self._retry_seconds = 1.0
+                if pending:
+                    self._wake.set()
+            except (requests.RequestException, ValueError) as exc:
+                # Keep the latest failed values for a bounded retry. A newer
+                # observation already queued for a symbol always wins.
+                with self._lock:
+                    for row in update["quotes"]:
+                        current = self._pending_quotes.get(row["symbol"])
+                        if (current is None or
+                                current["observed_at"] < row["observed_at"]):
+                            self._pending_quotes[row["symbol"]] = row
+                    if self._pending_index is None:
+                        self._pending_index = update["index"]
+                    if self._pending_market_feed is None:
+                        self._pending_market_feed = update["market_feed"]
+                    if (self._latest_captured_at is None or
+                            update["captured_at"] > self._latest_captured_at):
+                        self._latest_captured_at = update["captured_at"]
+                # Never log the request headers or response body, which may
+                # contain sensitive configuration supplied by the runner.
+                print(f"relay quote push failed: {type(exc).__name__}")
+                if self._stopping:
+                    return
+                self._retry_seconds = min(self.MAX_RETRY_SECONDS,
+                                          self._retry_seconds * 2.0)
+                if self._wake.wait(self._retry_seconds):
+                    self._wake.clear()
+                self._wake.set()
+            if self._stopping:
+                return
+
+    def close(self) -> None:
+        if self._thread is None:
+            return
+        self._stopping = True
+        self._wake.set()
+        self._thread.join(timeout=3.5)
+        self._thread = None
+
+
 class CaptureSession:
     """One capture run: connect, subscribe, bank, reconnect as needed."""
 
@@ -293,6 +516,7 @@ class CaptureSession:
         self.started_at = now_karachi().isoformat()
         self._fh = None
         self._fh_day = None
+        self._relay_quotes = RelayQuotePublisher()
 
     def _open_file(self) -> None:
         day = now_karachi().strftime("%Y%m%d")
@@ -320,6 +544,7 @@ class CaptureSession:
         self.last_frame_at = record["ts"]
         self._open_file()
         self._fh.write(json.dumps(record, ensure_ascii=False) + "\n")
+        self._relay_quotes.observe(record)
 
     def flush(self) -> None:
         if self._fh is not None:
@@ -346,6 +571,7 @@ class CaptureSession:
 
     def close(self) -> None:
         self.running = False
+        self._relay_quotes.close()
         if self._fh is not None:
             self._fh.close()
             self._fh = None
