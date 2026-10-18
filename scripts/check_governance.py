@@ -48,7 +48,11 @@ TEXT_EXTS = {
     ".txt", ".sh", ".ps1", ".bat", ".csv", ".sql", ".html", ".js", ".ts",
 }
 
-SKIP_DIRS = {".git", ".freebuff", "__pycache__", ".venv", "venv", "assets", "legacy"}
+SKIP_DIRS = {
+    ".git", ".freebuff", "__pycache__", ".venv", "venv", "assets",
+    "legacy", "node_modules", "dist", ".pytest_cache", ".mypy_cache",
+    ".ruff_cache",
+}
 
 # SO-7: the owner banned the em dash (and its thin/narrow cousins) from all
 # committed text. Human style only: commas, colons, parentheses, periods.
@@ -131,7 +135,8 @@ def iter_text_files():
     for p in ROOT.rglob("*"):
         if not p.is_file():
             continue
-        if any(part in SKIP_DIRS for part in p.parts):
+        relative_parts = p.relative_to(ROOT).parts
+        if any(part in SKIP_DIRS for part in relative_parts):
             continue
         if p.suffix.lower() in TEXT_EXTS:
             yield p
