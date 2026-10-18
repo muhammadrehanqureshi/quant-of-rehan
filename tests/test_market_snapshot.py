@@ -7,9 +7,14 @@ feeding the app a wrong number.
 
 from __future__ import annotations
 
+import json
+import tempfile
 import unittest
 from datetime import datetime
+from pathlib import Path
+from unittest import mock
 
+from src.data import broker_market, market_snapshot
 from src.data.market_snapshot import (
     INDEX_MEMBERSHIP,
     build_snapshot,
@@ -168,6 +173,144 @@ class SnapshotHonesty(unittest.TestCase):
             # Unavailable must be stated as unavailable, never faked.
             self.assertTrue(snapshot["top_volume_basis"])
             self.assertNotIn("average", snapshot["top_volume_basis"].lower())
+
+    def write_records(self, directory: str, records: list[dict]) -> Path:
+        capture = Path(directory) / "capture.ndjson"
+        capture.write_text("".join(json.dumps(row) + "\n" for row in records),
+                           encoding="utf-8")
+        return capture
+
+    @staticmethod
+    def feed_row(symbol: str, volume: int, status: str = "OPN",
+                 market: str = "REG") -> str:
+        return ";".join([
+            symbol, market, "10", "99.00", "101.00", "20", status,
+            "+", "1.00", "10:05:40", "100.00", " ", "100.00",
+            "102.00", "98.00", "20", str(volume), "5", "99.00", "99.00",
+        ])
+
+    def test_live_broker_values_rank_by_feed_volume_and_separate_stock_suspension(self):
+        now = datetime.fromisoformat("2026-10-16T10:05:42+05:00")
+        records = [
+            {"kind": "EXS-FEED", "ts": "2026-10-16T10:05:41+05:00",
+             "raw": "EXS-FEED*10/16/2026 10:05:34 AM^KSE100;166231.18;45.02;"
+                    "166599.29;413.125;165956.51;|^$10/16/2026 10:05:34 AM"
+                    "^ALLSHR;100904.71;81.44;101151.88;328.60;100778.43;"},
+            {"kind": "MKT-STATS", "ts": "2026-10-16T10:05:41+05:00",
+             "raw": "MKT-STATS*FUT;HALTED;0|REG;OPEN;1"},
+            {"kind": "MKT-FEED", "ts": "2026-10-16T10:05:41+05:00",
+             "raw": "MKT-FEED*" + "||".join([
+                 self.feed_row("SAZEW", 1000, "SUS"),
+                 self.feed_row("LUCK", 2000),
+                 self.feed_row("PICT", 1500),
+                 self.feed_row("FOREIGN", 999999),
+                 self.feed_row("FUT9", 888888, market="FUT"),
+             ])},
+        ]
+        with tempfile.TemporaryDirectory() as tmp:
+            capture = self.write_records(tmp, records)
+            snapshot = broker_market.read_market_snapshot(
+                now, capture_path=capture, symbols=["SAZEW", "LUCK", "PICT"])
+        self.assertEqual(snapshot["index"]["source"], "eClear EXS-FEED")
+        self.assertEqual(snapshot["index"]["value"], 166231.18)
+        self.assertAlmostEqual(snapshot["index"]["change_pct"],
+                               45.02 / (166231.18 - 45.02) * 100)
+        self.assertEqual(snapshot["market_feed"]["status"], "OPEN")
+        self.assertTrue(snapshot["market_feed"]["fresh"])
+        self.assertEqual([row["symbol"] for row in snapshot["top_volume"]],
+                         ["LUCK", "PICT", "SAZEW"])
+        self.assertEqual([row["volume"] for row in snapshot["top_volume"]],
+                         [2000, 1500, 1000])
+        self.assertEqual(snapshot["top_volume"][-1]["market_status"], "SUSPENDED")
+        # One suspended symbol and a different halted segment cannot report a
+        # halt for the market-wide REG segment.
+        self.assertNotEqual(snapshot["market_feed"]["status"], "HALTED")
+
+    def test_snapshot_uses_portal_only_as_labeled_fallback(self):
+        now = datetime.fromisoformat("2026-10-16T10:05:42+05:00")
+        live = {"index": None, "top_volume": None,
+                "market_feed": {"status": "UNKNOWN", "fresh": False,
+                                "as_of": None}}
+        rows = [{"symbol": "OGDC", "current": 100.0, "change_pct": 1.0,
+                 "volume": 1000}]
+        with mock.patch.object(market_snapshot, "now_karachi", return_value=now), \
+                mock.patch.object(broker_market, "read_market_snapshot",
+                                  return_value=live), \
+                mock.patch.object(market_snapshot, "fetch_index", return_value=None), \
+                mock.patch.object(market_snapshot, "fetch_constituents",
+                                  return_value=rows), \
+                mock.patch.object(market_snapshot, "fetch_quotes",
+                                  return_value={}), \
+                mock.patch.object(market_snapshot.volume_split, "flows_for",
+                                  return_value={}):
+            snapshot = market_snapshot.build_snapshot()
+        self.assertEqual(snapshot["top_volume"][0]["symbol"], "OGDC")
+        self.assertIn("portal fallback", snapshot["top_volume_basis"])
+        self.assertEqual(snapshot["market_feed"]["status"], "UNKNOWN")
+        self.assertIsNone(snapshot["top_volume"][0]["buy_volume"])
+        self.assertEqual(snapshot["top_volume"][0]["split_method"],
+                         market_snapshot.volume_split.METHOD_NONE)
+
+    def test_snapshot_prefers_live_data_and_keeps_the_stock_flag_off_market_state(self):
+        now = datetime.fromisoformat("2026-10-16T10:05:42+05:00")
+        live = {
+            "index": {"symbol": "KSE100", "value": 166231.18,
+                      "change": 45.02, "change_pct": 0.027,
+                      "as_of": "2026-10-16T10:05:34+05:00",
+                      "source": "eClear EXS-FEED"},
+            "top_volume": [{"symbol": "SAZEW", "volume": 1000,
+                            "price": 100.0, "change_pct": 1.0,
+                            "market_status": "SUSPENDED"}],
+            "market_feed": {"status": "OPEN", "raw_status": "OPEN",
+                            "as_of": "2026-10-16T10:05:41+05:00",
+                            "fresh": True},
+        }
+        with mock.patch.object(market_snapshot, "now_karachi", return_value=now), \
+                mock.patch.object(broker_market, "read_market_snapshot",
+                                  return_value=live), \
+                mock.patch.object(market_snapshot, "fetch_index") as fetch_index, \
+                mock.patch.object(market_snapshot, "fetch_constituents") as fetch_rows, \
+                mock.patch.object(market_snapshot.volume_split, "flows_for",
+                                  return_value={}):
+            snapshot = market_snapshot.build_snapshot()
+        fetch_index.assert_not_called()
+        fetch_rows.assert_not_called()
+        self.assertEqual(snapshot["index"]["source"], "eClear EXS-FEED")
+        self.assertEqual(snapshot["top_volume"][0]["volume"], 1000)
+        self.assertNotIn("market_status", snapshot["top_volume"][0])
+        self.assertEqual(snapshot["market_feed"]["status"], "OPEN")
+
+    def test_market_status_parser_requires_the_market_wide_reg_segment(self):
+        self.assertEqual(
+            broker_market.parse_market_status_frame(
+                "MKT-STATS*FUT;HALTED;0|REG;OPEN;1"),
+            ("OPEN", "OPEN"))
+        self.assertEqual(
+            broker_market.parse_market_status_frame("MKT-STATS*REG;HALTED;0"),
+            ("HALTED", "HALTED"))
+        self.assertEqual(
+            broker_market.parse_market_status_frame("MKT-STATS*REG;MYSTERY;0"),
+            ("UNKNOWN", "MYSTERY"))
+        self.assertIsNone(
+            broker_market.parse_market_status_frame("MKT-STATS*FUT;HALTED;0"))
+
+    def test_stale_feed_values_are_unknown_not_current(self):
+        import json
+        import tempfile
+        from pathlib import Path
+
+        now = datetime.fromisoformat("2026-10-16T10:10:00+05:00")
+        with tempfile.TemporaryDirectory() as tmp:
+            capture = Path(tmp) / "capture.ndjson"
+            capture = self.write_records(tmp, [{
+                "kind": "MKT-STATS", "ts": "2026-10-16T10:05:42+05:00",
+                "raw": "MKT-STATS*REG;OPEN;1"}])
+            got = broker_market.read_market_snapshot(
+                now, capture_path=capture, symbols=[])
+        self.assertEqual(got["market_feed"]["status"], "UNKNOWN")
+        self.assertFalse(got["market_feed"]["fresh"])
+        self.assertIsNone(got["index"])
+        self.assertIsNone(got["top_volume"])
 
     def test_membership_name_is_still_available_for_parser_tests(self):
         # A fresh card should not say KMIALLSHR on the screen, but the
