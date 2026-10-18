@@ -180,6 +180,8 @@ class TapeBars:
 
     day: date
     bars: dict[str, list[TapeBar]] = field(default_factory=dict)
+    #: Last genuine arrival time seen per symbol, including quiet-book snapshots.
+    observed_at: dict[str, datetime] = field(default_factory=dict)
     path: Path | None = None
     rows_seen: int = 0
     rows_rejected: int = 0
@@ -296,6 +298,9 @@ def build(path: Path, symbols: Iterable[str], as_of: datetime,
             continue
         if moment.date() != session_day or moment >= as_of:
             continue
+        observed = tape.observed_at.get(symbol)
+        if observed is None or moment > observed:
+            tape.observed_at[symbol] = moment
         prior = previous.get(symbol)
         if _repeats(row, prior):
             # The feed re-sends a whole snapshot when only the book moved. It
