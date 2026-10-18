@@ -69,7 +69,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from src.data import registry, volume_split  # noqa: E402  (SO-3: truth source)
+from src.data import broker_market, registry, volume_split  # noqa: E402  (SO-3: truth source)
 # SO-3 (footprint honesty law): the snapshot builder's buy/sell source is
 # src/data/registry.py, and it is the one module that owns what this system
 # genuinely has. Whenever a footprint/order-flow claim appears here it must be
@@ -314,40 +314,78 @@ def build_snapshot() -> dict:
         "top_volume_basis": None,
         "volume_split_basis": None,
         "notes": [],
+        "market_feed": {
+            "status": "UNKNOWN", "raw_status": None, "as_of": None,
+            "age_seconds": None, "source": "eClear REG market feed",
+            "fresh": False,
+        },
     }
+    # The scheduled scanner and the card share the read-only broker capture.
+    # Fresh EXS-FEED and REG MKT-FEED values win; the portal path below is an
+    # explicit, labelled fallback when no fresh broker frame is available.
     try:
-        snapshot["index"] = fetch_index()
+        live = broker_market.read_market_snapshot(now)
+    except Exception as exc:  # noqa: BLE001 - fallback remains available
+        live = {"index": None, "top_volume": None,
+                "market_feed": {
+                    "status": "UNKNOWN", "raw_status": None, "as_of": None,
+                    "age_seconds": None, "source": "eClear REG market feed",
+                    "fresh": False,
+                }}
+        snapshot["notes"].append(
+            f"broker market feed unavailable: {type(exc).__name__}")
+    snapshot["market_feed"] = live["market_feed"]
+    snapshot["index"] = live["index"]
+    if snapshot["index"] is None:
+        try:
+            snapshot["index"] = fetch_index()
+            if snapshot["index"] is not None:
+                snapshot["index"]["source"] = "dps.psx.com.pk index panel (fallback)"
+        except Exception as exc:  # noqa: BLE001 - reported, never invented
+            snapshot["notes"].append(f"index fetch failed: {type(exc).__name__}")
         if snapshot["index"] is None:
-            snapshot["notes"].append("index panel not found on the portal home page")
-    except Exception as exc:  # noqa: BLE001 - reported, never invented
-        snapshot["notes"].append(f"index fetch failed: {type(exc).__name__}")
+            snapshot["notes"].append(
+                "no fresh broker index frame; portal index unavailable")
 
     try:
-        rows = fetch_constituents()
-        snapshot["kmiall_members"] = len(rows)
-        if not rows:
-            snapshot["notes"].append("the index constituent table was empty")
-            snapshot["volume_split_basis"] = (
-                "no leaders, so there is no split to report")
+        live_leaders = live.get("top_volume")
+        if live_leaders:
+            snapshot["kmiall_members"] = len(broker_market._universe_symbols())
+            snapshot["top_volume"] = live_leaders
+            snapshot["top_volume_basis"] = (
+                f"current session volume, top {len(live_leaders)} from fresh REG feed")
+            for row in live_leaders:
+                row.pop("market_status", None)
+            leaders = live_leaders
+            symbols = [str(row["symbol"]).strip().upper() for row in leaders]
+            snapshot["volume_split_basis"] = volume_split.attach_splits(
+                leaders,
+                quotes={},
+                flows=volume_split.flows_for(now.date(), symbols))
         else:
-            leaders = volume_leaders(rows)
-            if leaders:
-                symbols = [str(row["symbol"]).strip().upper()
-                           for row in leaders]
-                # Measured from a banked tape when one covers the day, the
-                # tape's own counts when it covers part of it, otherwise the
-                # labelled estimate, otherwise explicit nulls with a reason
-                # (SO-3: an OHLCV derived proxy is never order flow).
-                snapshot["volume_split_basis"] = volume_split.attach_splits(
-                    leaders,
-                    quotes=fetch_quotes(symbols),
-                    flows=volume_split.flows_for(now.date(), symbols))
-                snapshot["top_volume"] = leaders
-                snapshot["top_volume_basis"] = (
-                    f"current session volume, top {len(leaders)}")
+            rows = fetch_constituents()
+            snapshot["kmiall_members"] = len(rows)
+            if not rows:
+                snapshot["notes"].append("the index constituent table was empty")
+                snapshot["volume_split_basis"] = (
+                    "no leaders, so there is no split to report")
+                snapshot["top_volume_basis"] = "no volume ranking available"
             else:
-                snapshot["top_volume_basis"] = (
-                    "no stock has traded yet this session")
+                leaders = volume_leaders(rows)
+                if leaders:
+                    symbols = [str(row["symbol"]).strip().upper()
+                               for row in leaders]
+                    # The portal is an explicit fallback; B/S stays labelled.
+                    snapshot["volume_split_basis"] = volume_split.attach_splits(
+                        leaders,
+                        quotes=fetch_quotes(symbols),
+                        flows=volume_split.flows_for(now.date(), symbols))
+                    snapshot["top_volume"] = leaders
+                    snapshot["top_volume_basis"] = (
+                        f"current session volume, top {len(leaders)} (portal fallback)")
+                else:
+                    snapshot["top_volume_basis"] = (
+                        "no stock has traded yet this session")
     except Exception as exc:  # noqa: BLE001
         snapshot["notes"].append(f"constituents fetch failed: {type(exc).__name__}")
         snapshot["top_volume_basis"] = (

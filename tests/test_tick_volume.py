@@ -489,6 +489,13 @@ class MarketCardTest(unittest.TestCase):
         """API downtime: the snapshot says what is missing and invents none."""
         original_index = market_snapshot.fetch_index
         original_rows = market_snapshot.fetch_constituents
+        original_live = market_snapshot.broker_market.read_market_snapshot
+        market_snapshot.broker_market.read_market_snapshot = lambda now: {
+            "index": None, "top_volume": None,
+            "market_feed": {"status": "UNKNOWN", "raw_status": None,
+                            "as_of": None, "age_seconds": None,
+                            "source": "eClear REG market feed", "fresh": False},
+        }
 
         def boom():
             raise OSError("portal unreachable")
@@ -500,12 +507,19 @@ class MarketCardTest(unittest.TestCase):
         finally:
             market_snapshot.fetch_index = original_index
             market_snapshot.fetch_constituents = original_rows
+            market_snapshot.broker_market.read_market_snapshot = original_live
 
         self.assertIsNone(snapshot["index"])
         self.assertIsNone(snapshot["top_volume"])
         self.assertIn("session volume ranking is unavailable",
                       snapshot["top_volume_basis"])
-        self.assertEqual(len(snapshot["notes"]), 2)
+        self.assertEqual(len(snapshot["notes"]), 3)
+        self.assertTrue(any("index fetch failed" in note
+                            for note in snapshot["notes"]))
+        self.assertTrue(any("portal index unavailable" in note
+                            for note in snapshot["notes"]))
+        self.assertTrue(any("constituents fetch failed" in note
+                            for note in snapshot["notes"]))
         self.assertFalse(snapshot["market_state"]["market_open"]
                          and snapshot["index"] is None
                          and snapshot["top_volume"] is not None)
