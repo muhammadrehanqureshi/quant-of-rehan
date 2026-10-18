@@ -180,6 +180,7 @@ class ChartPayload:
     bars: list[Bar] = field(default_factory=list)
     gaps: list[Gap] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
+    observed_at: str = ""
     schema_version: int = SCHEMA_VERSION
 
     def __post_init__(self) -> None:
@@ -203,6 +204,7 @@ class ChartPayload:
             "bar_count": len(self.bars),
             "gaps": [gap.as_dict() for gap in self.gaps],
             "notes": list(self.notes),
+            "observed_at": self.observed_at or self.as_of,
         }
 
     @classmethod
@@ -244,6 +246,7 @@ class ChartPayload:
                 bars=bars,
                 gaps=gaps,
                 notes=[str(note) for note in raw.get("notes", [])],
+                observed_at=str(raw.get("observed_at", raw.get("as_of", ""))),
                 schema_version=int(raw.get("schema_version", SCHEMA_VERSION)),
             )
         except KeyError as exc:
