@@ -350,7 +350,8 @@ class SnapshotIntegrationTest(unittest.TestCase):
         originals = (market_snapshot.fetch_index,
                      market_snapshot.fetch_constituents,
                      market_snapshot.fetch_quotes,
-                     volume_split.flows_for)
+                     volume_split.flows_for,
+                     market_snapshot.broker_market.read_market_snapshot)
         market_snapshot.fetch_index = lambda: {"symbol": "KSE100",
                                                "value": 1.0, "change": 0.0,
                                                "change_pct": 0.0,
@@ -358,12 +359,19 @@ class SnapshotIntegrationTest(unittest.TestCase):
         market_snapshot.fetch_constituents = lambda: list(self.ROWS)
         market_snapshot.fetch_quotes = lambda symbols: dict(quotes)
         volume_split.flows_for = lambda day, symbols: {}
+        market_snapshot.broker_market.read_market_snapshot = lambda now: {
+            "index": None, "top_volume": None,
+            "market_feed": {"status": "UNKNOWN", "raw_status": None,
+                            "as_of": None, "age_seconds": None,
+                            "source": "eClear REG market feed", "fresh": False},
+        }
 
         def restore():
             (market_snapshot.fetch_index,
              market_snapshot.fetch_constituents,
              market_snapshot.fetch_quotes,
-             volume_split.flows_for) = originals
+             volume_split.flows_for,
+             market_snapshot.broker_market.read_market_snapshot) = originals
 
         self.addCleanup(restore)
         return market_snapshot.build_snapshot()
@@ -385,7 +393,7 @@ class SnapshotIntegrationTest(unittest.TestCase):
                          volume_split.METHOD_LABELS[
                              volume_split.METHOD_RANGE])
         self.assertEqual(snapshot["top_volume_basis"],
-                         "current session volume, top 3")
+                         "current session volume, top 3 (portal fallback)")
 
     def test_the_card_carries_no_legacy_wording(self):
         quotes = {f"S{index}": {"high": 12.0, "low": 9.0, "volume": 1_000_000}
