@@ -281,7 +281,9 @@ def prune(creds: tuple[str, str] | None = None, days: int = RETENTION_DAYS) -> d
     objects = (body.get("result") or [])
     keys = [o.get("key", "") for o
             in ((objects.get("objects") if isinstance(objects, dict) else objects) or [])]
-    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).date().isoformat()
+    from src.data.sessions import now_karachi
+
+    cutoff = (now_karachi().date() - timedelta(days=days)).isoformat()
     deleted = []
     for key in keys:
         m = re.match(r"day=(\d{4}-\d{2}-\d{2})/", key)

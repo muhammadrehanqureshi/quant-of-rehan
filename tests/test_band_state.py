@@ -10,7 +10,7 @@ import gzip
 import sys
 import tempfile
 import unittest
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 from urllib.parse import unquote
 from unittest.mock import patch
@@ -19,12 +19,13 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from src.data import band_state  # noqa: E402
+from src.data.sessions import KARACHI  # noqa: E402
 
 # The real implementation, captured before any test's setUp replaces the
 # module attribute, for the tests that exercise the ensure path itself.
 REAL_ENSURE = band_state.ensure_bucket
 
-TODAY = date(2026, 10, 15)
+TODAY = date(2026, 10, 18)
 
 
 def _resp(status: int = 200, json_body=None, content: bytes = b""):
@@ -200,7 +201,8 @@ class BandStateTest(unittest.TestCase):
 
             return R()
 
-        with patch("requests.get", fake_get), patch("requests.delete", fake_delete):
+        with patch("src.data.sessions.now_karachi", return_value=datetime(2026, 10, 18, tzinfo=KARACHI)), \
+                patch("requests.get", fake_get), patch("requests.delete", fake_delete):
             band_state.prune(days=1, creds=("t", "a"))
         self.assertEqual(deletes, ["day=2026-09-01/capture.ndjson.gz"],
                          "today's object must survive; the past must not")
