@@ -21,18 +21,29 @@ session table, never re-derives a holiday list, and never invents a bar.
 
 ## Quick start
 
-The service is standard library Python, so there is nothing to install:
+The service is standard library Python, so there is nothing to install. Real
+sources keep bars and chart metadata in a local SQLite history at
+`data/charts/history.sqlite3` by default. It creates the directory on first
+start and restores history on restart. Use `--database PATH` to choose another
+local path. Replay defaults to an in-memory store so demo candles cannot be
+mistaken for real history; pass `--database PATH` only if you explicitly want
+to retain replay output. Database files are runtime data and excluded from the
+repository; public source code does not publish captured history.
 
 ```bash
 # The whole pipeline with no network and no exchange: deterministic replay
 # bars, one deliberate gap, one revised bar, and the wire JSON printed.
 python examples/charts_demo.py
 
+# Real sources persist by default; explicitly use memory for a replay server.
+python -m charts --source replay --database :memory: --port 8788
+
 # One real poll, then the health report as JSON and exit.
 python -m charts --source tape --symbols OGDC --once
 
 # Serve the API and the built front end on loopback.
-python -m charts --source tape --port 8788 --static web/dist
+python -m charts --source tape --port 8788 --static web/dist \
+  --database data/charts/history.sqlite3
 ```
 
 The front end needs Node only for its development server and its build:
@@ -127,6 +138,10 @@ timestamp is refused by the contract rather than assumed.
 * **`charts/store.py`** replaces the minute still forming instead of
   duplicating it, counts those revisions, and measures gaps against the
   session law's own expected minutes.
+* **`charts/persistent.py`** optionally persists bars, source timestamps,
+  revisions, notes, and symbol metadata in local SQLite so offline research
+  remains available after the process stops. The database is private runtime
+  data, never a tracked release asset.
 * **`charts/service.py`** is the single path from the store to the wire, so
   the API, the SSE snapshot, the example and the tests cannot disagree.
 * **`charts/http.py`** serves the API, the event stream and the built UI.

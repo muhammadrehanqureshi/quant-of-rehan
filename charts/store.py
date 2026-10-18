@@ -40,6 +40,8 @@ class Series:
     revisions: int = 0
     #: The Karachi stamp of the last successful upsert.
     updated_at: str = ""
+    #: The upstream source observation time, not when this server was polled.
+    observed_at: str = ""
     #: Free-form measured notes, carried into the payload.
     notes: list[str] = field(default_factory=list)
 
@@ -77,7 +79,8 @@ class BarStore:
 
     # -------------------------------------------------------------- bars
     def upsert(self, symbol: str, resolution: str, bars: Iterable[Bar],
-               source: SourceInfo, *, updated_at: str) -> int:
+               source: SourceInfo, *, updated_at: str,
+               observed_at: str = "") -> int:
         """Merge bars into a series, returning how many rows were new.
 
         A bar whose timestamp already exists replaces it and counts as a
@@ -104,6 +107,7 @@ class BarStore:
             series.bars = sorted(known.values(), key=lambda b: b.t)
             series.source = source
             series.updated_at = updated_at
+            series.observed_at = observed_at or updated_at
         return appended
 
     def series(self, symbol: str, resolution: str) -> Series | None:
@@ -116,6 +120,7 @@ class BarStore:
                           source=found.source, bars=list(found.bars),
                           revisions=found.revisions,
                           updated_at=found.updated_at,
+                          observed_at=found.observed_at,
                           notes=list(found.notes))
 
     def snapshot(self, symbol: str, resolution: str,

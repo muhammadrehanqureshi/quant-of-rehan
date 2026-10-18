@@ -2,8 +2,10 @@
 
 One thread polls one source for the symbols a chart is actually watching,
 upserts what it finds into the store, and publishes a small event per symbol
-to every subscriber. The HTTP layer never talks to a source directly, which
-is what keeps a slow upstream from becoming a slow page.
+to every subscriber. The broker source publishes per-symbol snapshots at
+roughly 30-second median intervals, so this loop never polls that source faster
+than useful. The HTTP layer never talks to a source directly, which keeps a
+slow upstream from becoming a slow page.
 
 Two details are worth more than they look:
 
@@ -59,13 +61,16 @@ class Ingestor:
     """Polling loop with subscribers, health, and a testable single step."""
 
     def __init__(self, store: BarStore, source: BarSource, *,
-                 resolution: str, interval_seconds: float = 15.0,
+                 resolution: str, interval_seconds: float = 30.0,
                  clock=sessions.law.as_karachi,
                  sleep=time.sleep):
         self.store = store
         self.source = source
         self.resolution = resolution
-        self.interval_seconds = max(2.0, float(interval_seconds))
+        # Do not poll a broker tape faster than its measured per-symbol
+        # cadence. Deterministic local sources may use shorter intervals.
+        minimum = 30.0 if source.name == "broker_tape" else 0.1
+        self.interval_seconds = max(minimum, float(interval_seconds))
         self._clock = clock
         self._sleep = sleep
         self._lock = threading.RLock()
@@ -161,9 +166,12 @@ class Ingestor:
                     "the source answered with no bars for this symbol"))
                 continue
             stamp = self._clock().isoformat(timespec="seconds")
+            observed_at = getattr(self.source, "observation_at", None)
+            observed = observed_at(symbol) if callable(observed_at) else stamp
             stored += self.store.upsert(symbol, self.resolution, bars,
                                         self.source.capabilities().source,
-                                        updated_at=stamp)
+                                        updated_at=stamp,
+                                        observed_at=observed or stamp)
             self._clear_error(symbol)
             self._fan_out(symbol, bars)
         with self._lock:

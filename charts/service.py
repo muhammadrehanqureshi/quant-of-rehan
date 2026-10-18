@@ -127,11 +127,20 @@ def build_payload(store: BarStore, source: BarSource, symbol: str,
                 f"this source publishes with a delay of about "
                 f"{delayed // 60} minute(s), so the newest bar is not the "
                 f"newest trade")
+    observed_at = ""
+    if series is not None:
+        observed_at = series.observed_at
+        observation_reader = getattr(source, "observation_at", None)
+        if callable(observation_reader):
+            observed_at = observation_reader(symbol) or observed_at
+        if observed_at:
+            notes.append(f"last broker observation {observed_at}")
     return ChartPayload(symbol=symbol, resolution=resolution,
                         source=(series.source if series else
                                 source.capabilities().source),
                         market=context, as_of=context.as_of, bars=bars,
-                        gaps=gaps, notes=notes)
+                        gaps=gaps, notes=notes,
+                        observed_at=observed_at or context.as_of)
 
 
 def build_many(store: BarStore, source: BarSource, symbols: list[str],

@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import json
 import sys
+import threading
 from datetime import date, datetime
 from pathlib import Path
 
@@ -40,10 +41,10 @@ UNIVERSE = ROOT / "src" / "data" / "universe_kmiall.json"
 
 SOURCE = SourceInfo(
     id=SOURCE_TAPE,
-    label="broker MKT-FEED tape (prints for open, high, low, close; the "
-          "venue's own running volume counter)",
+    label="broker MKT-FEED snapshots (~30s median per symbol)",
     delay_seconds=0,
-    note="read-only subscription; the venue's own counter for volume",
+    note=("read-only feed; measured 30.1s median between observations of one "
+          "symbol; chart bars are 1-minute, not tick-by-tick"),
 )
 
 
@@ -74,6 +75,7 @@ class TapeSource:
         self._clock = clock
         self._universe_path = universe_path
         self._cache: dict[str, tuple[tuple, "tape_bars.TapeBars"]] = {}
+        self._lock = threading.RLock()
 
     # -------------------------------------------------------- capabilities
     def capabilities(self) -> Capabilities:
@@ -110,20 +112,21 @@ class TapeSource:
             raise UpstreamError(UpstreamError.CONNECTION,
                                 f"cannot stat {path.name}: {exc}") from exc
         key = (day.isoformat(), stat.st_size, stat.st_mtime_ns)
-        cached = self._cache.get("day")
-        if cached is not None and cached[0] == key:
-            return cached[1]
-        universe = read_universe(self._universe_path)
-        if not universe:
-            raise UpstreamError(
-                UpstreamError.EMPTY_ACK,
-                f"the KMIALL universe at {self._universe_path.name} is "
-                f"missing or empty, so there is no symbol list to read the "
-                f"tape against and no honest way to guess one (SO-3; the "
-                f"recorder itself refuses to subscribe in this state)")
-        tape = tape_bars.build(path, universe, self._clock(), day=day)
-        self._cache["day"] = (key, tape)
-        return tape
+        with self._lock:
+            cached = self._cache.get("day")
+            if cached is not None and cached[0] == key:
+                return cached[1]
+            universe = read_universe(self._universe_path)
+            if not universe:
+                raise UpstreamError(
+                    UpstreamError.EMPTY_ACK,
+                    f"the KMIALL universe at {self._universe_path.name} is "
+                    f"missing or empty, so there is no symbol list to read the "
+                    f"tape against and no honest way to guess one (SO-3; the "
+                    f"recorder itself refuses to subscribe in this state)")
+            tape = tape_bars.build(path, universe, self._clock(), day=day)
+            self._cache["day"] = (key, tape)
+            return tape
 
     @staticmethod
     def _bars_for(tape: "tape_bars.TapeBars", symbol: str) -> list[Bar]:
@@ -167,6 +170,15 @@ class TapeSource:
         if since:
             bars = [bar for bar in bars if bar.t >= since]
         return bars
+
+    def observation_at(self, symbol: str) -> str | None:
+        """Exact time this symbol's newest broker snapshot reached capture."""
+        try:
+            tape = self._day(self._clock().date())
+        except UpstreamError:
+            return None
+        moment = tape.observed_at.get(symbol.strip().upper())
+        return moment.isoformat(timespec="seconds") if moment else None
 
     def notes(self, symbol: str) -> list[str]:
         try:
