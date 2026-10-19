@@ -37,14 +37,18 @@ Cloudflare relay, never to Telegram, never to a broker.
   read site to handle it. A NaN or an infinity from the feed becomes unknown
   instead of reaching the card. The relay body is read with a 512 KB cap so a
   data spike empties the card instead of crashing the app.
-- A signals panel fed by the relay's `/signals` feed (admin token required,
-  stored once in the app).
+- A signals panel fed by the relay's `/signals` feed. Since v1.7.6 that read
+  is public and the phone holds no credential; the write route stays admin
+  gated.
 - The market card, third box (v1.5.0, extended in v1.6.0, v1.6.2 and v1.6.3): the
   KSE100 index with its points and percentage, then the three KMIALL stocks
   with the highest current session volume, each with its day's percentage
   change (green up, red down) and its volume. The relay builds it from the
-  PSX Data Portal's own pages and caches it for five minutes, so the card is
-  at most five minutes old. Since v1.6.7 the console closes with the cadence
+  PSX Data Portal's own pages and caches it for five minutes. Since v1.7.6
+  the leader prices and the KSE100 line are overlaid from the live broker
+  snapshot the relay's Durable Object holds (`/quotes`), so those numbers move
+  with the feed while the card's ranking still comes from the cached build;
+  only a fresh broker row may replace a value. Since v1.6.7 the console closes with the cadence
   sentence under the last diamond rule - 12dp below it since v1.6.8, the same
   gap the tiles use (owner orders 2026-10-13, third and fifth notes) -
   instead of carrying it inside the card.
@@ -241,9 +245,9 @@ in, because the app cannot fall back gracefully once a face is applied:
 - LEMON MILK (the free tier) maps every lowercase codepoint onto its uppercase
 glyph. That is why the labels, buttons, badge, card values and (since v1.6.5)
 every line of the system status and latest signal tiles are set in it, which
-the owner ordered knowing it reads in capitals. The settings hint and the
-relay token field keep the system face: the hint is a paragraph, and a pasted
-token must render exactly as pasted.
+the owner ordered knowing it reads in capitals. The settings hint keeps the
+system face because it is a paragraph; the token field it used to share that
+rule with is retired (v1.7.6).
 - LEMON MILK has U+2248, the "about" mark the card uses for an estimated
 split, so the marked numbers keep the brand face.
 - LEMON MILK has no U+25B2 and no U+25BC, the up and down arrows. The arrow
@@ -503,6 +507,38 @@ to sixty seconds. The status tile therefore also carries the app's own
   `tests/test_android_render_gate.py`, not only read as source. Nothing about
   the data changes: the relay's timestamp is still the only freshness claim.
   Version 1.7.5, versionCode 29.
+- v1.7.6, owner order 2026-10-19 (second note of the day): the dashboard is
+  cleaned and the numbers are live. The OFFLINE tile is a dark red gradient
+  (`red_deep` to `red_deep_edge`, white ink at about 10:1 on the lighter end)
+  instead of a pale tint; the latest signal tile shows only Entry Price, Exit
+  Price and Stop Loss, and collapses a no-trade day to the words NO TRADE, so
+  the `QoR signals <date>` header, the timestamps and the rule paragraphs that
+  came with the text card never reach the screen; the settings tile loses the
+  admin token field, its save button and the paste instructions, keeping the
+  relay link and the watchdog arm. The phone holds no credential: the relay's
+  GET /signals is a public read (its POST stays admin gated). The KSE100 line
+  and every leader price are overlaid from the relay's live broker snapshot
+  on each round, and the "feed status unconfirmed" sentence is retired in
+  favour of the broker's own HH:MM:SS stamp on the index line, so a number
+  always says when it was taken. Display cadence stays one second on a live
+  market with the render gate absorbing identical answers; the STRATEGY scan
+  stays at SO-13's 30 seconds, because GitHub Actions cannot be asked for a
+  one-second schedule and a faster scan of unchanged bars decides nothing new.
+  Version 1.7.6, versionCode 30.
+
+**Built and delivered 2026-10-19 (v1.7.6):** the signed v1.7.6 APK was built
+from this checkout with the toolchain above and copied to
+`C:/Users/rehan/OneDrive/Desktop/QuantOfRehan-v1.7.6.apk`, one file under one
+name. 539,728 bytes, SHA-256
+`e1db260dd816422c24f7c310b739f6fd9505f86c728c76d59715668542932923`,
+zipalign verified, signature verified v2 + v3, and `aapt2 dump badging` reads
+back `pk.quantofrehan` `versionCode="30"` `versionName="1.7.6"` with the
+launchable `MainActivity`. The built resource table was read back to prove
+what shipped: zero resources mention `market_feed_status` or
+`market_feed_unknown`, `color/red_deep`, `red_deep_edge`, `red_deep_line` and
+`on_red` are present, `string/signal_none` is present, and no `token_box` is
+declared anywhere. `applyLiveQuotes` and `RenderGate` are both in the shipped
+`classes.dex`. The Android tests were green before the build.
 
 **Built and delivered 2026-10-19:** the signed v1.7.5 APK was built from this
 checkout with the toolchain above and copied to
@@ -582,5 +618,6 @@ are present, `dimen/settings_shift_x` compiles to 44.1dp and
 The APK is signed with the local debug key (v2+v3), which is enough for
 direct installation on the owner's phone. Install: copy the APK to the
 phone (or open the OneDrive app), allow install-from-unknown-apps for the
-source, install, open, paste the relay admin token from .env, arm the
-watchdog, and allow notifications.
+source, install, open, arm the watchdog, and allow notifications. Since
+v1.7.6 there is no token to paste: the console reads the relay's public
+signal card by itself.

@@ -107,6 +107,8 @@ MAIN = (ROOT / "android" / "app" / "src" / "main" / "java" / "pk"
         / "quantofrehan" / "MainActivity.java")
 WATCHER = (ROOT / "android" / "app" / "src" / "main" / "java" / "pk"
            / "quantofrehan" / "Watcher.java")
+STATUS_SERVICE = (ROOT / "android" / "app" / "src" / "main" / "java" / "pk"
+                  / "quantofrehan" / "StatusService.java")
 MANIFEST = ROOT / "android" / "app" / "src" / "main" / "AndroidManifest.xml"
 README = ROOT / "android" / "README.md"
 
@@ -516,10 +518,28 @@ class SettingsControlTest(unittest.TestCase):
         self.assertIn("GEAR_TURN_MS", self.main)
         self.assertIn("new DecelerateInterpolator()", self.main)
         # Every state change goes through the one helper, and the open no
-        # longer swaps a background anywhere.
-        self.assertEqual(self.main.count("setSettingsOpen("), 3)
+        # longer swaps a background anywhere. Two call sites since owner order
+        # 2026-10-19: the declaration and the gear tap. The token save handler
+        # that used to close the panel is retired with the token field.
+        self.assertEqual(self.main.count("setSettingsOpen("), 2)
         self.assertNotIn("gear_bg", self.main)
         self.assertNotIn("setBackgroundResource", self.main)
+
+    def test_the_settings_tile_carries_no_token_and_no_technical_clutter(self):
+        """Owner order 2026-10-19: the phone holds no credential.
+
+        The token field, its save button and the paste instructions are gone
+        from the layout, and no Java reads an admin token any more. That is
+        only safe because the relay serves the latest signal as a public read;
+        tests/test_relay_worker_contracts.py pins that split (public GET,
+        admin-gated POST).
+        """
+        layout = LAYOUT.read_text(encoding="utf-8")
+        for gone in ("token_box", "btn_save", "field_bg"):
+            with self.subTest(view=gone):
+                self.assertNotIn(f'android:id="@+id/{gone}"', layout)
+        for source in MAIN, WATCHER, STATUS_SERVICE:
+            self.assertNotIn("admin_token", source.read_text(encoding="utf-8"))
 
     def test_the_content_description_is_a_button_name_not_the_help_text(self):
         self.assertIn('name="cd_settings"', self.strings)
@@ -1028,10 +1048,13 @@ class StatusPulseTest(unittest.TestCase):
         hint = strings[strings.index('name="settings_hint">')
                        + len('name="settings_hint">'):]
         hint = hint[:hint.index("</string>")]
-        self.assertIn("latest available broker-feed data", hint)
+        # Owner order 2026-10-19: the hint no longer mentions a token or a
+        # feed at all, and it must still never promise a poll cadence.
+        self.assertIn("reads the relay by itself", hint)
         self.assertNotIn("every second", hint)
         self.assertNotIn("every 30 seconds", hint)
         self.assertNotIn("polling", hint.lower())
+        self.assertNotIn("token", hint.lower())
 
     def test_one_round_at_a_time_so_the_poll_cannot_pile_up(self):
         """A one second poll must not queue a second round behind the first.
@@ -1045,8 +1068,11 @@ class StatusPulseTest(unittest.TestCase):
         self.assertIn("if (!liveInFlight) {", self.main[poll:poll + 600])
         self.assertEqual(self.main.count("liveInFlight = true;"), 2)
         self.assertEqual(self.main.count("liveInFlight = false;"), 2)
-        self.assertIn("Watcher.fetchLive(this, admin", self.main)
-        self.assertIn("Watcher.fetchStatus(this, admin", self.main)
+        # Owner order 2026-10-19: neither round carries a credential, because
+        # the phone holds none.
+        self.assertIn("Watcher.fetchLive(this, (online", self.main)
+        self.assertIn("Watcher.fetchStatus(this, (online", self.main)
+        self.assertNotIn("admin_token", self.main)
 
     def test_a_round_that_lands_after_a_pause_paints_nothing(self):
         """A hidden console holds no animation and no poll.
@@ -1075,6 +1101,26 @@ class StatusPulseTest(unittest.TestCase):
                             body.index("isFinishing() || isDestroyed()"))
             self.assertLess(body.index("isFinishing() || isDestroyed()"),
                             body.index("if (resumed) {"))
+
+    def test_the_card_reads_the_live_broker_snapshot_each_round(self):
+        """Owner order 2026-10-19: the numbers move like the broker terminal.
+
+        /market is the slow layer (KV, rebuilt by the cloud capture), so the
+        KSE100 line could sit still for minutes. /quotes is the Durable
+        Object's newest broker frame set. The overlay is pinned here: it runs
+        in both rounds, it takes the index only when the snapshot marks it
+        fresh, and a stale quote never overwrites a card value.
+        """
+        watcher = WATCHER.read_text(encoding="utf-8")
+        self.assertIn("private static void applyLiveQuotes(Market market, String base)",
+                      watcher)
+        self.assertIn('get(base + "/quotes", null)', watcher)
+        self.assertIn("if (index != null && index.optBoolean(\"fresh\", false))", watcher)
+        self.assertIn("!quote.optBoolean(\"fresh\", false)", watcher)
+        for round_name in ("static void fetchLive(", "static void fetchStatus("):
+            with self.subTest(round=round_name):
+                body = watcher[watcher.index(round_name):][:900]
+                self.assertIn("applyLiveQuotes(market, base);", body)
 
     def test_the_market_card_is_read_on_each_live_display_refresh(self):
         """The app polls the current relay card each second while open.
@@ -1330,27 +1376,29 @@ class HeaderCopyTest(unittest.TestCase):
 
 class VersionTest(unittest.TestCase):
     def test_the_version_is_the_one_that_ships_these_changes(self):
-        # v1.7.4 adds the live card refresh, exact market notices, the
-        # one-second footer and the centered settings heading.
+        # v1.7.6 cleans the tiles and puts the live broker snapshot on the card;
+        # the notes below are the contract that ships with that version.
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="1.7.5"', manifest)
-        self.assertIn('android:versionCode="29"', manifest)
+        self.assertIn('android:versionName="1.7.6"', manifest)
+        self.assertIn('android:versionCode="30"', manifest)
         # The changelog entry ties these user-visible changes to the build.
         readme = (ROOT / "android" / "README.md").read_text(encoding="utf-8")
-        self.assertIn("v1.7.5, owner order 2026-10-19", readme)
-        self.assertIn("Version 1.7.5,", readme)
+        self.assertIn("v1.7.6, owner order 2026-10-19", readme)
+        self.assertIn("Version 1.7.6,", readme)
         layout = LAYOUT.read_text(encoding="utf-8")
         strings = STRINGS.read_text(encoding="utf-8")
         main = MAIN.read_text(encoding="utf-8")
         watcher = WATCHER.read_text(encoding="utf-8")
-        self.assertIn('android:id="@+id/market_feed_status"', layout)
-        self.assertIn('name="market_feed_unknown"', strings)
-        self.assertIn('name="market_feed_halted"', strings)
-        self.assertIn("market.feedStatusFresh", main)
-        self.assertIn("renderMarketFeedStatus(market);", main)
+        self.assertNotIn('android:id="@+id/market_feed_status"', layout)
+        self.assertNotIn('name="market_feed_unknown"', strings)
+        self.assertNotIn('name="market_feed_halted"', strings)
+        # v1.7.6: the feed-status line is gone and the card shows the broker
+        # stamp instead; the signal tile keeps three numbers and no metadata.
+        self.assertNotIn("renderMarketFeedStatus", main)
+        self.assertIn("brokerClock(market.indexAsOf)", main)
         self.assertIn("latestSignalBackground = s;", main)
         self.assertIn("signalList.setText(latestSignalDisplay(actualSignals));", main)
-        self.assertIn("Entry Time: ", main)
+        self.assertNotIn("Entry Time: ", main)
         self.assertIn("Entry Price: ", main)
         self.assertIn("Exit Price: ", main)
         self.assertIn("Stop Loss: ", main)
@@ -1362,12 +1410,13 @@ class VersionTest(unittest.TestCase):
         self.assertIn('if (numericTarget != null) {', main)
         self.assertNotIn("app_live", strings)
         self.assertNotIn("polling every", strings.lower())
-        self.assertIn("fresh REG MKT-STATS frame", layout)
-        status_view = element(layout, 'android:id="@+id/market_feed_status"')
-        self.assertIn('android:text="@string/market_feed_unknown"', status_view)
+        self.assertNotIn("market_feed_status", layout)
+        self.assertNotIn("market_feed_unknown", strings)
+        self.assertNotIn("session clock remains the market-hours authority", strings)
+        # The REG status is still parsed for the halt sentence; it just no
+        # longer has a line of its own on the card.
         self.assertIn("feedStatus.optBoolean(\"fresh\", false)", watcher)
-        self.assertIn("REG feed HALTED", strings)
-        self.assertIn("session clock remains the market-hours authority", strings)
+        self.assertIn("market_halted_now", strings)
 
 
 if __name__ == "__main__":

@@ -96,21 +96,20 @@
     <string name="market_leaders_waiting">Top three by volume load with the next broker-feed update.</string>
     <string name="market_none_yet">No stock has traded yet this session.</string>
     <string name="market_unavailable">Volume leaders unavailable right now.</string>
-    <string name="market_feed_unknown">Feed status unconfirmed; the session clock remains the market-hours authority.</string>
-    <string name="market_feed_open">REG feed LIVE · updated %1$s PKT</string>
-    <string name="market_feed_halted">REG feed HALTED · %1$s · updated %2$s PKT</string>
-    <string name="market_feed_closed">REG feed CLOSED · updated %1$s PKT</string>
+    <!-- Owner order 2026-10-19: the REG feed status sentences are retired.
+         The index line now carries the broker's own timestamp, so the card
+         states when its numbers were taken instead of narrating feed state. -->
     <!-- %1$s is a short failure name, never a token or a URL -->
     <string name="market_card_failed">Market card could not load (%1$s).</string>
     <string name="market_relay_unreachable">Relay unreachable, so the market card is empty.</string>
     <string name="market_payload_too_large">The relay sent more data than this app accepts, so the card was skipped.</string>
-    <string name="token_hint">relay admin token</string>
-    <string name="btn_save">Save token</string>
     <string name="btn_relay">Relay status</string>
     <string name="btn_arm">Arm 5-minute watchdog</string>
-    <!-- One-second app polls read the live relay card. Upstream refreshes are
-         event-driven, so the display never promises a quote cadence faster
-         than the broker actually publishes. -->
-    <string name="settings_hint">Paste the relay admin token once to receive signal updates. The top three volume leaders refresh from the latest available broker-feed data. On some phones also allow autostart and remove battery limits.</string>
+    <!-- Owner order 2026-10-19: no token, no relay plumbing, no feed jargon.
+         Two controls and one plain sentence are the whole settings tile. -->
+    <string name="settings_hint">The console reads the relay by itself. On some phones also allow autostart and remove battery limits so the watchdog is never frozen.</string>
+    <!-- The signal tile's two non-trade states, one word each. -->
+    <string name="signal_none">NO TRADE</string>
+    <string name="signal_unavailable">Signal unavailable</string>
 
 </resources>

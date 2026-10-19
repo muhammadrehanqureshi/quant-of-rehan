@@ -1468,11 +1468,10 @@ export default {
     }
 
     if (request.method === "GET" && path === "/signals") {
-      // Companion app poll (admin gated). Serves the latest signals the
-      // local runner pushed to KV plus the Karachi schedule for the card.
-      if (!adminOk(request, env)) {
-        return json({ ok: false, error: "admin token required" }, 403);
-      }
+      // Companion app poll. Owner order 2026-10-19 retired the token field
+      // from the phone, so this read is public: it returns what the owner's
+      // own runner already sent his phone, and the write route below stays
+      // admin gated. Nothing here can change state.
       const now = new Date();
       const k = karachiView(now.getTime());
       const next = nextEvent(now);

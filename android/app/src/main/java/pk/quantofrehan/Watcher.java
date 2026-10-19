@@ -21,7 +21,9 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -482,7 +484,7 @@ public final class Watcher {
      * so a fast round still keeps the pill, the sentence and the market state
      * true without touching the exchange-backed card.
      */
-    private static Head fetchHead(Context c, String base, String admin) throws Exception {
+    private static Head fetchHead(Context c, String base) throws Exception {
         Head head = new Head();
         JSONObject health = healthWithRetry(base);
         head.reachable = health.optBoolean("ok", false);
@@ -509,18 +511,20 @@ public final class Watcher {
             head.detail = d.toString();
         }
 
+        // Owner order 2026-10-19: the phone carries no admin token, so the
+        // relay serves the latest signal as a public read (its write route
+        // stays admin gated). A failure here is reported in the tile and never
+        // invented as a signal.
         String signalNote = "";
-        if (!admin.isEmpty()) {
-            try {
-                JSONObject sig = get(base + "/signals", admin);
-                if (sig.optBoolean("ok")) {
-                    head.signals = sig.optString("signals", "");
-                } else {
-                    signalNote = "The relay rejected the token. Paste the current admin token (gear icon).";
-                }
-            } catch (Exception se) {
-                signalNote = "Signals could not load just now.";
+        try {
+            JSONObject sig = get(base + "/signals", null);
+            if (sig.optBoolean("ok")) {
+                head.signals = sig.optString("signals", "");
+            } else {
+                signalNote = "Signals are unavailable from the relay.";
             }
+        } catch (Exception se) {
+            signalNote = "Signals could not load just now.";
         }
         if (!signalNote.isEmpty() && head.signals.trim().isEmpty()) {
             head.signals = signalNote;
@@ -535,12 +539,13 @@ public final class Watcher {
      * This pulls the /market endpoint whose session cache can otherwise be
      * five minutes old; the frequent poll does not create upstream feed data.
      */
-    static void fetchLive(final Context c, final String admin, final Callback cb) {
+    static void fetchLive(final Context c, final Callback cb) {
         POOL.execute(() -> {
             String base = relayUrl(c);
             try {
-                Head head = fetchHead(c, base, admin);
+                Head head = fetchHead(c, base);
                 Market market = fetchMarket(c, base);
+                applyLiveQuotes(market, base);
                 cb.done(head.online(), head.reachable, head.detail,
                         head.signals, market);
             } catch (Exception e) {
@@ -554,12 +559,13 @@ public final class Watcher {
     }
 
     /** The full round: the head above, plus the exchange-backed market card. */
-    static void fetchStatus(final Context c, final String admin, final Callback cb) {
+    static void fetchStatus(final Context c, final Callback cb) {
         POOL.execute(() -> {
             String base = relayUrl(c);
             try {
-                Head head = fetchHead(c, base, admin);
+                Head head = fetchHead(c, base);
                 Market market = fetchMarket(c, base);
+                applyLiveQuotes(market, base);
                 if (!market.phaseKnown()) {
                     // the card failed to load: keep the phase the relay already
                     // told us, so the pill and the footnote never disagree
@@ -581,10 +587,70 @@ public final class Watcher {
         });
     }
 
+    /**
+     * Overlay the live broker snapshot on the market card (owner order
+     * 2026-10-19: the numbers must move as they do in the broker terminal).
+     *
+     * Two layers feed this card and they move at different speeds. /market is
+     * the slow one: the relay rebuilds it from the cloud capture and stores it
+     * in KV, so its KSE100 line can sit unchanged for minutes. /quotes is the
+     * fast one: the Durable Object holds the newest frame set the capture
+     * pushed, one row per symbol plus the index, each stamped by the broker.
+     *
+     * So a FRESH index from the snapshot wins, and each leader's price and
+     * movement come from its own live quote. A stale row never overwrites a
+     * card value: ageing a number forward is the one thing this app must not
+     * do (SO-3). If the snapshot is missing or unparseable the card stands on
+     * its own, unchanged.
+     */
+    private static void applyLiveQuotes(Market market, String base) {
+        JSONObject snapshot;
+        try {
+            snapshot = get(base + "/quotes", null);
+        } catch (Exception unreachable) {
+            return;
+        }
+        if (!snapshot.optBoolean("ok", false)) return;
+
+        JSONObject index = snapshot.optJSONObject("index");
+        if (index != null && index.optBoolean("fresh", false)) {
+            Double value = numberOrNull(index, "value");
+            Double change = numberOrNull(index, "change");
+            Double pct = numberOrNull(index, "change_pct");
+            if (value != null && change != null && pct != null && value > 0) {
+                market.indexValue = value;
+                market.indexChange = change;
+                market.indexPct = pct;
+                market.indexAsOf = index.optString("as_of", market.indexAsOf);
+                market.indexSource = "broker feed";
+            }
+        }
+
+        JSONArray quotes = snapshot.optJSONArray("quotes");
+        if (quotes == null || market.leaders.isEmpty()) return;
+        Map<String, JSONObject> live = new HashMap<>();
+        for (int i = 0; i < quotes.length(); i++) {
+            JSONObject quote = quotes.optJSONObject(i);
+            if (quote != null) {
+                live.put(quote.optString("symbol", ""), quote);
+            }
+        }
+        for (Leader leader : market.leaders) {
+            JSONObject quote = live.get(leader.symbol);
+            if (quote == null || !quote.optBoolean("fresh", false)) continue;
+            Double price = numberOrNull(quote, "price");
+            if (price == null || price <= 0) continue;
+            leader.price = price;
+            Double pct = numberOrNull(quote, "change_pct");
+            if (pct != null) {
+                leader.changePct = pct;
+            }
+        }
+    }
+
     /** Watchdog beat: fetch, compare, notify on change or on signals. */
     static void beat(final Context c) {
-        final String admin = prefs(c).getString("admin_token", "");
-        fetchStatus(c, admin, (online, reachable, detail, signals, market) -> {
+        fetchStatus(c, (online, reachable, detail, signals, market) -> {
             SharedPreferences p = prefs(c);
 
             // The relay's reachability is its own event; a closed market is
