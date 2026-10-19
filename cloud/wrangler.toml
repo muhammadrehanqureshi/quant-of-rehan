@@ -37,3 +37,11 @@ crons = [
 [[kv_namespaces]]
 binding = "RELAY_KV"
 id = "PASTE_KV_NAMESPACE_ID_AFTER_CREATION"
+
+[[durable_objects.bindings]]
+name = "QUOTE_HUB"
+class_name = "QuoteHub"
+
+[exports.QuoteHub]
+type = "durable-object"
+storage = "sqlite"
