@@ -382,13 +382,62 @@ class TestScoring(unittest.TestCase):
         self.assertIn("market not supportive", result.reason)
         self.assertIn(result.market["status"], ("SELLOFF", "WEAK"))
 
+    def test_secondary_confirmation_rejects_unconfirmed_high_score_candidate(self):
+        # A high-score signal whose close remains below a recent range high
+        # must be refused, even if the existing momentum/volume gates pass.
+        bars = {"FAST": minute_rows(45, start_price=100.0, step=0.0103, accel=0.25,
+                                    bucket_multiplier=4.0)}
+        rows = bars["FAST"]
+        for index in range(len(rows) - 6, len(rows) - 1):
+            bar = rows[index]
+            rows[index] = scanner.MinuteBar(bar.timestamp, bar.open,
+                                             bar.high + 1.0, bar.low, bar.close + 1.0,
+                                             bar.volume)
+        session = session_of(bars, 45)
+        confirmation = scanner.secondary_confirmation(rows)
+        self.assertFalse(confirmation["breakout_passed"])
+        row = scanner.score_symbol("FAST", rows, session)
+        self.assertIsNone(row)
+        self.assertIsNone(scanner.select_one(
+            session, scanner.assess_quality(session, list(bars))).candidate)
+
+    def test_secondary_confirmation_passes_breakout_with_momentum_rsi(self):
+        # Rising closes, a new high on the most recent bar, and an expanding
+        # final volume bucket satisfy both measured confirmation components.
+        rows = minute_rows(50, start_price=100.0, step=0.02, accel=0.04,
+                           bucket_multiplier=5.0)
+        confirmation = scanner.secondary_confirmation(rows)
+        self.assertTrue(confirmation["breakout_passed"])
+        self.assertTrue(confirmation["rsi_passed"])
+        self.assertTrue(confirmation["passed"])
+
+    def test_hcar_shape_fails_the_new_breakout_confirmation(self):
+        # Captured signal-time measurements: final close 203.00 sat below the
+        # preceding 5-bar high 203.35 despite RSI(14)=66.33.
+        rows = [scanner.MinuteBar(SESSION_OPEN + timedelta(minutes=i),
+                                 203.0, 203.35, 202.5, 203.0, 1000.0)
+                for i in range(67)]
+        confirmation = scanner.secondary_confirmation(rows)
+        self.assertFalse(confirmation["breakout_passed"])
+        self.assertTrue(confirmation["rsi_passed"])
+        self.assertFalse(confirmation["passed"])
+
     def test_score_components_are_reported_for_reproduction(self):
         bars = {"FAST": minute_rows(45, start_price=100.0, step=0.0103, accel=0.25,
                                     bucket_multiplier=4.0)}
         session = session_of(bars, 45)
         row = scanner.score_symbol("FAST", bars["FAST"], session)
 
-        self.assertIsNotNone(row)
+        rows = bars["FAST"]
+        for index in range(len(rows) - config.BREAKOUT_CONFIRMATION_BARS - 1,
+                           len(rows) - 1):
+            bar = rows[index]
+            rows[index] = scanner.MinuteBar(bar.timestamp, bar.open,
+                                             bar.high, bar.low,
+                                             bar.close - 1.0, bar.volume)
+        confirmed = scanner.score_symbol("FAST", rows, session)
+        self.assertIsNotNone(confirmed)
+        row = confirmed
         self.assertEqual(set(row["components"]), set(config.SCORE_WEIGHTS))
         for name in config.SCORE_WEIGHTS:
             self.assertGreaterEqual(row["components"][name], 0.0)

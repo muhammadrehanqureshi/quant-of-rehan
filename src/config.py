@@ -180,6 +180,10 @@ SCORE_WEIGHTS = {
 }
 
 MIN_SIGNAL_SCORE = _number("MIN_SIGNAL_SCORE", 55.0)
+#: Secondary confirmation: a fresh close at/above the prior 5-bar high and
+#: Wilder RSI(14) >= 50. It is a live hard gate, not a score boost.
+BREAKOUT_CONFIRMATION_BARS = int(_number("BREAKOUT_CONFIRMATION_BARS", 5))
+MIN_CONFIRMATION_RSI = _number("MIN_CONFIRMATION_RSI", 50.0)
 MIN_RELATIVE_VOLUME = _number("MIN_RELATIVE_VOLUME", 1.5)
 MIN_VOLUME_ACCEL_RATIO = _number("MIN_VOLUME_ACCEL_RATIO", 1.0)
 MIN_SESSION_TRADED_VALUE = _number("MIN_SESSION_TRADED_VALUE", 5_000_000.0)
@@ -218,7 +222,7 @@ def is_etf_symbol(symbol: str) -> bool:
 
     return eligibility.is_etf(symbol)
 
-SCANNER_VERSION = "momentum_volume_acceleration_v1"
+SCANNER_VERSION = "momentum_volume_breakout_confirmation_v2"
 
 # ---------------------------------------------------------------- volatility
 # Session volatility regime, measured from the captured bars
@@ -442,6 +446,11 @@ def config_snapshot() -> dict:
         "max_trades_per_day": MAX_TRADES_PER_DAY,
         "min_coverage_pct": MIN_COVERAGE_PCT,
         "min_signal_score": MIN_SIGNAL_SCORE,
+        "secondary_confirmation": {
+            "rule": "close_above_previous_range_high_and_rsi14_min",
+            "breakout_bars": BREAKOUT_CONFIRMATION_BARS,
+            "minimum_rsi14": MIN_CONFIRMATION_RSI,
+        },
         "min_relative_volume": MIN_RELATIVE_VOLUME,
         "min_session_traded_value": MIN_SESSION_TRADED_VALUE,
         "score_weights": dict(SCORE_WEIGHTS),
