@@ -257,6 +257,20 @@ public class MainActivity extends Activity {
      * in startStatusBreath and the chain ended itself after one cycle.
      */
     private boolean breathRunning;
+    /**
+     * Skips a repaint when the relay's answer has not changed (v1.7.5).
+     *
+     * The console polls once a second on a live market, while the relay's own
+     * clock has minute resolution and its card moves only when the cloud
+     * capture publishes. Most answers are therefore identical, and painting
+     * one costs a measure, a layout and a draw of three tiles to show the same
+     * pixels. The gate is plain Java so its decision is exercised on the JVM
+     * (tests/test_android_render_gate.py) rather than only read.
+     */
+    private final RenderGate renderGate = new RenderGate();
+    /** The two badge backgrounds, built once instead of once per answer. */
+    private GradientDrawable badgeOnline;
+    private GradientDrawable badgeOffline;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -550,6 +564,10 @@ public class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
         resumed = true;
+        // onPause stopped the breath, so the first answer after a resume must
+        // paint even when it equals the one the console last showed: that
+        // paint is what starts the breath again on a live market.
+        renderGate.reset();
         refresh();
         // Owner order 2026-10-16: the console polls the relay by itself, so
         // nothing on it has to be refreshed by hand. A full round paints the
@@ -663,11 +681,33 @@ public class MainActivity extends Activity {
 
     private void render(boolean online, String detail, String signals,
                         Watcher.Market market) {
-        GradientDrawable bg = new GradientDrawable();
-        bg.setCornerRadius(dp(18));
-        bg.setColor(getColor(online ? R.color.green_soft : R.color.red_soft));
-        bg.setStroke(dp(1), getColor(online ? R.color.green : R.color.red));
-        statusBadge.setBackground(bg);
+        String d = detail == null ? "" : detail.trim();
+        String s = signals == null ? "" : signals.trim();
+        latestSignalBackground = s;
+        // One decision per answer (v1.7.5): an answer that matches the one
+        // already on screen is not painted again. The gate compares the ANSWER,
+        // never a view, so a skipped paint cannot leave the screen and the
+        // state disagreeing. See RenderGate.
+        if (renderGate.changed(online, d, s, marketFingerprint(market))) {
+            paint(online, d, s, market);
+        }
+        // Owner order 2026-10-16 (fourth note): the cadence is re-decided as
+        // soon as the relay's answer lands, not at the end of the tick that
+        // carried it, and it is re-decided on EVERY answer, painted or not:
+        // skipping a repaint must never skip the scheduling point. scheduleNext
+        // removes and re-posts the one runnable, so this call cannot stack a
+        // second loop.
+        marketOpenSeen = online;
+        scheduleNext();
+    }
+
+    /**
+     * Draw one relay answer. Only the gate's caller can reach this, so it is
+     * always news: the badge, the beacon, the two sentences and the card.
+     */
+    private void paint(boolean online, String actualDetail, String actualSignals,
+                       Watcher.Market market) {
+        statusBadge.setBackground(badge(online));
         // The owner's marker law, 2026-10-11: one status light beside the
         // word, lit for ONLINE and hollow for OFFLINE, so the badge reads as
         // an indicator rather than as an emoji. A shut session is OFFLINE.
@@ -694,46 +734,103 @@ public class MainActivity extends Activity {
         // never does, so a pulse cannot claim the market is trading (SO-3).
         breathIfOnline(online);
 
-        String d = detail == null ? "" : detail.trim();
-        if (d.isEmpty()) {
+        if (actualDetail.isEmpty()) {
             statusDetail.setText(getString(R.string.checking));
         } else {
             // Keep the relay's own session detail only; a local UI refresh
             // timestamp is not evidence of broker-data freshness.
-            statusDetail.setText(clockSpans(d));
+            statusDetail.setText(clockSpans(actualDetail));
         }
 
-        String s = signals == null ? "" : signals.trim();
-        latestSignalBackground = s;
-        if (s.isEmpty()) {
+        if (actualSignals.isEmpty()) {
             signalList.setText(getString(R.string.no_signals));
             signalList.setTextColor(getColor(R.color.text_soft));
             signalList.setAlpha(0.65f);
         } else {
-            signalList.setText(latestSignalDisplay(s));
+            signalList.setText(latestSignalDisplay(actualSignals));
             signalList.setTextColor(getColor(R.color.text_bright));
             signalList.setAlpha(1.0f);
         }
 
-        // The relay's own answer is what sets the poll interval (SO-8): the
-        // phone never reads its own clock to decide whether the market is
-        // open, it repeats what the relay said.
-        marketOpenSeen = online;
         if (market != null) {
             // Every live display round carries the current relay snapshot;
             // its source timestamp keeps unchanged feed data honest.
             renderMarket(market);
         }
-        // Owner order 2026-10-16 (fourth note): the cadence is re-decided as
-        // soon as the relay's answer lands, not at the end of the tick that
-        // carried it. Until this line existed the interval was chosen BEFORE
-        // the first answer arrived (onResume scheduled the next round from the
-        // old `marketOpenSeen`, which is false on a fresh process), so an open
-        // market was polled at 30 seconds until that first round completed a
-        // whole idle interval later: the app looked like it never refreshed
-        // every second at all. scheduleNext removes and re-posts the one
-        // runnable, so calling it from here cannot stack a second loop.
-        scheduleNext();
+    }
+
+    /**
+     * The badge background for a state, built once and reused.
+     *
+     * It used to be a fresh GradientDrawable on every answer, so a one second
+     * poll allocated a drawable a second and re-ran the stroke resolution for
+     * it. Two states exist, so two drawables exist.
+     */
+    private GradientDrawable badge(boolean online) {
+        GradientDrawable cached = online ? badgeOnline : badgeOffline;
+        if (cached != null) {
+            return cached;
+        }
+        GradientDrawable bg = new GradientDrawable();
+        bg.setCornerRadius(dp(18));
+        bg.setColor(getColor(online ? R.color.green_soft : R.color.red_soft));
+        bg.setStroke(dp(1), getColor(online ? R.color.green : R.color.red));
+        if (online) {
+            badgeOnline = bg;
+        } else {
+            badgeOffline = bg;
+        }
+        return bg;
+    }
+
+    /**
+     * A cheap summary of everything the market card draws.
+     *
+     * The gate needs one number per answer, and it must move exactly when the
+     * card would: the session status and its stamp, the index and its two
+     * movements, the basis lines, the note, and every leader's symbol, price,
+     * movement and volumes. A field the card shows and this does not fold in
+     * would be a change the screen never receives, so the fold lists them one
+     * by one rather than hashing an object's identity.
+     */
+    private static int marketFingerprint(Watcher.Market market) {
+        if (market == null) {
+            return 0;
+        }
+        int h = market.answered ? 1 : 0;
+        h = 31 * h + (market.feedStatusFresh ? 1 : 0);
+        h = 31 * h + (market.feedHalted ? 1 : 0);
+        h = 31 * h + text(market.feedStatus);
+        h = 31 * h + text(market.feedStatusRaw);
+        h = 31 * h + text(market.feedStatusAsOf);
+        h = 31 * h + text(market.basis);
+        h = 31 * h + text(market.note);
+        h = 31 * h + number(market.indexValue);
+        h = 31 * h + number(market.indexChange);
+        h = 31 * h + number(market.indexPct);
+        h = 31 * h + text(market.indexAsOf);
+        for (Watcher.Leader leader : market.leaders) {
+            h = 31 * h + text(leader.symbol);
+            h = 31 * h + number(leader.price);
+            h = 31 * h + number(leader.changePct);
+            h = 31 * h + count(leader.volume);
+            h = 31 * h + count(leader.buy);
+            h = 31 * h + count(leader.sell);
+            h = 31 * h + text(leader.splitMethod);
+        }
+        return h;
+    }
+
+    private static int text(String value) {
+        return value == null ? 0 : value.hashCode();
+    }
+
+    private static int number(Double value) {
+        return value == null ? 0 : Double.valueOf(value).hashCode();
+    }
+
+    private static int count(Long value) {
+        return value == null ? 0 : Long.valueOf(value).hashCode();
     }
 
     /**
