@@ -79,6 +79,7 @@ export interface ChartPayload {
   readonly ok: true;
   readonly schema_version: number;
   readonly as_of: string;
+  readonly observed_at: string;
   readonly symbol: string;
   readonly resolution: Resolution;
   readonly source: SourceInfo;
@@ -88,6 +89,24 @@ export interface ChartPayload {
   readonly gaps: readonly Gap[];
   readonly notes: readonly string[];
   readonly ingest: IngestHealth;
+}
+
+export interface LiveQuote {
+  readonly symbol: string;
+  readonly price: number;
+  readonly bid: number | null;
+  readonly ask: number | null;
+  readonly change: number | null;
+  readonly change_pct: number | null;
+  readonly volume: number | null;
+  readonly high: number | null;
+  readonly low: number | null;
+  readonly status: string;
+  readonly source_tick_time: string;
+  readonly observed_at: string;
+  readonly age_seconds: number;
+  readonly fresh: boolean;
+  readonly source: string;
 }
 
 export interface BarEvent {
@@ -303,6 +322,7 @@ export function parsePayload(raw: unknown): ChartPayload {
     ok: true,
     schema_version: num(value["schema_version"], "payload.schema_version"),
     as_of: stamp(value["as_of"], "payload.as_of"),
+    observed_at: stamp(value["observed_at"], "payload.observed_at"),
     symbol: str(value["symbol"], "payload.symbol"),
     resolution: resolution(value["resolution"], "payload.resolution"),
     source: parseSource(value["source"], "payload.source"),
@@ -341,6 +361,35 @@ export function parseBarEvent(raw: unknown): BarEvent {
 }
 
 /** The health answer's parts that the UI actually shows. */
+export function parseLiveQuote(raw: unknown, expectedSymbol?: string): LiveQuote {
+  const value = record(raw, "quote");
+  const symbol = str(value["symbol"], "quote.symbol");
+  if (expectedSymbol !== undefined && symbol !== expectedSymbol) {
+    throw new ContractViolation("quote.symbol", `expected ${expectedSymbol}, received ${symbol}`);
+  }
+  const nullableNum = (key: string): number | null => {
+    const item = value[key];
+    return item === null || item === undefined ? null : num(item, `quote.${key}`);
+  };
+  return {
+    symbol,
+    price: num(value["price"], "quote.price"),
+    bid: nullableNum("bid"),
+    ask: nullableNum("ask"),
+    change: nullableNum("change"),
+    change_pct: nullableNum("change_pct"),
+    volume: nullableNum("volume"),
+    high: nullableNum("high"),
+    low: nullableNum("low"),
+    status: str(value["status"], "quote.status"),
+    source_tick_time: str(value["source_tick_time"], "quote.source_tick_time"),
+    observed_at: stamp(value["observed_at"], "quote.observed_at"),
+    age_seconds: num(value["age_seconds"], "quote.age_seconds"),
+    fresh: bool(value["fresh"], "quote.fresh"),
+    source: str(value["source"], "quote.source"),
+  };
+}
+
 export interface HealthReport {
   readonly service: string;
   readonly schema_version: number;
