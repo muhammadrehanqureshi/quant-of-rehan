@@ -9,7 +9,8 @@ orchestrator, next to the Windows 4-minute tick:
 
 Since the owner's order of 2026-10-14 (SO-13) the loop is also the cloud's
 runner: `.github/workflows/intraday-session.yml` starts it for the length of
-each PSX band at a 30 second interval, and one scan serves both the phone's
+each PSX band at the one second cadence the owner ordered on 2026-10-19, and
+one scan serves both the phone's
 card and the intraday paper strategy. That cadence is only possible because
 the loop keeps the read-only broker tape alive instead of fetching per cycle:
 a cycle measures a bar series that already exists (2.9s measured on the real
@@ -58,7 +59,7 @@ read as a dead feed.
 Usage:
     python scripts/scan_loop.py --once                 # one cycle, then exit
     python scripts/scan_loop.py --loop                 # run until stopped
-    python scripts/scan_loop.py --loop --interval 30   # the cloud cadence (SO-13)
+    python scripts/scan_loop.py --loop --interval 1    # the cloud cadence (2026-10-19)
     python scripts/scan_loop.py --loop --interval 240  # 4 minutes (local trial)
     python scripts/scan_loop.py --scheduled --interval 240
                                                        # the same cycles on the
@@ -137,10 +138,12 @@ LOGGER = logging.getLogger("scan_loop")
 class LoopConfig:
     """Everything the loop's behaviour depends on, in one typed place."""
 
-    # Owner order 2026-10-14 (SO-13): scan the whole KMIALL universe every 30
-    # seconds for the session, and the same scan serves the phone's card and
-    # the intraday paper strategy. The local 4 minute tick keeps its own
-    # TICK_INTERVAL_MINUTES; this loop is the cloud session runner.
+    # Owner order 2026-10-19: request a slot every second for the session, and
+    # the same scan serves the phone's card and the intraday paper strategy.
+    # One cycle costs about 2.9s on a real session tape, so the loop starts the
+    # next scan the moment this one ends: the interval is the request, the
+    # cycle's own latency is the achieved cadence. The local 4 minute tick
+    # keeps its own TICK_INTERVAL_MINUTES; this loop is the cloud session runner.
     interval_seconds: float = config.SCAN_INTERVAL_SECONDS
     warmup_minutes: float = 20.0
     max_consecutive_failures: int = 5
@@ -341,9 +344,12 @@ class ScanLoop:
 
         The delay is the distance to the NEXT SLOT BOUNDARY, not the interval
         counted from now. That is what keeps the cadence strict: a cycle that
-        spends 2.9s of a 30 second slot, or 9s of a 4 minute one, would push
-        every later fire late and drift the grid (and the slot label would then
-        name a slot the fire did not work in). The grid itself belongs to
+        spends 2.9s of a 4 minute slot would push every later fire late and
+        drift the grid (and the slot label would then name a slot the fire did
+        not work in). At the owner's 2026-10-19 one second cadence a cycle is
+        longer than a slot, so the distance is already negative and the loop
+        starts the next cycle at once: it reports 0, never a backlog. The grid
+        belongs to
         src/data/scan_scheduler.next_slot, the same function the async
         scheduler sleeps to, so both cadences sit on one grid.
 
@@ -695,9 +701,13 @@ class ScanLoop:
                     self.health.consecutive_failures, self.rng)
                     if self.health.consecutive_failures
                     else self.next_delay(action))
-                LOGGER.info("sleeping %.0fs (failures=%d, action=%s)",
-                            delay, self.health.consecutive_failures, action)
-                self._sleep(delay)
+                # At a one second request the previous cycle has usually
+                # overrun the slot, so delay is 0 and there is nothing to log
+                # or sleep: a "sleeping 0s" line per cycle would bury the log.
+                if delay > 0:
+                    LOGGER.info("sleeping %.1fs (failures=%d, action=%s)",
+                                delay, self.health.consecutive_failures, action)
+                    self._sleep(delay)
                 # A band's own persistence: the day's state goes back to R2
                 # every PUSH_EVERY_CYCLES cycles so the worst a crash loses
                 # is ten minutes of broker tape, never the whole morning.
