@@ -207,9 +207,18 @@ class LandingWorkflowTest(unittest.TestCase):
     def test_failing_tests_abort_before_publish(self):
         self.write("tests/test_ok.py", FAILING_TEST_STUB)
         result = self.land("-y", "-m", "Sandbox: failing validation must abort",
-                           "--until", "validate", expect=1)
+                           "--until", "validate", "--local-checks", expect=1)
         self.assertNotIn("merged PR", result.stdout)
         self.assertNotIn("sandbox-land", self.remote_branches())
+
+    def test_the_default_spends_no_local_cpu_on_checks(self):
+        """SO-21: validation belongs to the pull request's CI, not this PC."""
+        self.write("tests/test_ok.py", FAILING_TEST_STUB)
+        result = self.land("-y", "-m", "Sandbox: validation is skipped by default",
+                           "--until", "validate", expect=0)
+        self.assertIn("skipped, SO-21", result.stdout)
+        self.assertNotIn("tests: passed", result.stdout)
+        self.assertNotIn("merged PR", result.stdout)
 
     def test_a_rebase_conflict_aborts_and_leaves_the_branch_alone(self):
         other = self.root / "other"

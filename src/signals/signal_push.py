@@ -1,7 +1,7 @@
 """Push the daily fail-closed signal status to the relay (app + Telegram).
 
-LOCAL ONLY (SO-4). Reads nothing but the local 5-year dataset and the
-relay URL/admin token (repo .env, SO-5). Delivery path (SO-9):
+GITHUB ACTIONS (SO-21). Reads the 5-year dataset and the relay URL/admin
+token, which arrive as workflow secrets (SO-5). Delivery path (SO-9):
 
     POST {relay}/signals  {signals: text}   -> phone app card (x-admin-token)
     POST {relay}/notify   {text, kind}      -> Telegram via the worker
