@@ -275,12 +275,18 @@ if ! gh pr checks "$pr" --watch --fail-fast; then
 fi
 note "all checks passed"
 
-for _ in $(seq 1 6); do
+# GitHub computes mergeability asynchronously and often still answers
+# UNKNOWN just after the checks turn green. That is not a failure, so this
+# waits it out for up to three minutes rather than abandoning a pull
+# request whose checks already passed.
+mergeable=""
+for attempt in $(seq 1 36); do
     mergeable=$(gh pr view "$pr" --json mergeable --jq .mergeable)
     [[ "$mergeable" != "UNKNOWN" ]] && break
+    note "GitHub still reports UNKNOWN for PR #$pr (attempt $attempt of 36); waiting"
     sleep 5
 done
-[[ "${mergeable:-}" == "MERGEABLE" ]] || die "PR #$pr is not mergeable right now (state: ${mergeable:-unknown}). If $BASE moved, rerun land.sh to resync."
+[[ "${mergeable:-}" == "MERGEABLE" ]] || die "PR #$pr is not mergeable after three minutes (state: ${mergeable:-unknown}). A conflict means $BASE moved: rerun land.sh to resync."
 
 merge_args=(--merge)
 (( DELETE_BRANCH )) && merge_args+=(--delete-branch)
