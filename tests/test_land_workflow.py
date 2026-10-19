@@ -109,6 +109,9 @@ class LandingWorkflowTest(unittest.TestCase):
         (self.work / "cloud" / "worker.js").write_text(
             WORKER_STUB, encoding="utf-8", newline="\n")
         (self.work / "scripts" / "land.sh").write_bytes(LAND.read_bytes())
+        # land.sh asks this helper which repository origin names.
+        (self.work / "scripts" / "repo_identity.py").write_bytes(
+            (ROOT / "scripts" / "repo_identity.py").read_bytes())
         self.git("-C", str(self.work), "add", "-A")
         self.git("-C", str(self.work), "commit", "-qm",
                  "Sandbox: bootstrap the landing workflow")
