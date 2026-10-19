@@ -47,6 +47,13 @@ starts. The approver is a callable, so three cases stay separate:
     caller asked for ``on_denied="raise"`` because a fifty times slower run
     would be worse than none.
 
+Blocking and asyncio
+The waiting comes in two forms that share one budget: ``checkpoint``,
+``governed`` and ``chunked`` block the thread, while ``acheckpoint``,
+``agoverned``, ``arun`` and ``achunked`` pay the same debt with
+``asyncio.sleep``. A scanner that already owns an event loop should use the
+second, or its sockets would sit unread for the whole wait.
+
 What this module does not do
 ----------------------------
 It starts no thread, no timer and no watcher. A resident monitor would itself
@@ -63,12 +70,15 @@ the only process this module can throttle is its own.
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
+import inspect
 import os
 import sys
 import time
 from dataclasses import dataclass, field
-from typing import Callable, Iterable, Iterator, TypeVar
+from typing import (AsyncIterator, Awaitable, Callable, Iterable, Iterator,
+                    TypeVar)
 
 __all__ = [
     "MAX_CPU_PERCENT",
@@ -310,6 +320,13 @@ class ResourceGovernor:
         """CPU seconds spent beyond the allowance. Positive means overspent."""
         return self.cpu_seconds() - self.allowance_seconds()
 
+    def _delay_seconds(self) -> float:
+        """How long to wait for the debt to be earned back, or zero."""
+        debt = self.debt_seconds()
+        if debt <= 0:
+            return 0.0
+        return debt / self._fraction(self._cap) + self.policy.sleep_slack_seconds
+
     def checkpoint(self) -> float:
         """Sleep until the process is back inside its cap; return slept seconds.
 
@@ -318,12 +335,25 @@ class ResourceGovernor:
         next checkpoint rather than by a guess.
         """
         self.stats.checkpoints += 1
-        debt = self.debt_seconds()
-        if debt <= 0:
+        delay = self._delay_seconds()
+        if delay <= 0:
             return 0.0
-        fraction = self._fraction(self._cap)
-        delay = debt / fraction + self.policy.sleep_slack_seconds
         self._sleep(delay)
+        self.stats.slept_seconds += delay
+        return delay
+
+    async def acheckpoint(self) -> float:
+        """The checkpoint for asyncio callers: yield, do not block the loop.
+
+        The arithmetic is identical; only the wait differs. A scanner that
+        already owns an event loop can pay its CPU debt without freezing the
+        socket reads it is supposed to be watching.
+        """
+        self.stats.checkpoints += 1
+        delay = self._delay_seconds()
+        if delay <= 0:
+            return 0.0
+        await asyncio.sleep(delay)
         self.stats.slept_seconds += delay
         return delay
 
@@ -383,17 +413,9 @@ class ResourceGovernor:
 
     # ------------------------------------------------------------- execution
 
-    @contextlib.contextmanager
-    def governed(self, label: str, *,
-                 estimated_cpu_seconds: float | None = None,
-                 requested_percent: float | None = None,
-                 reason: str = "") -> Iterator["ResourceGovernor"]:
-        """Run a block under the cap, or under an approved intensity.
-
-        Refusal behaviour follows ``policy.on_denied``:
-        ``"throttle"`` runs the block at the cap, ``"raise"`` stops before any
-        work is done.
-        """
+    def _begin(self, label: str, estimated_cpu_seconds: float | None,
+               requested_percent: float | None, reason: str) -> float:
+        """Settle the approval question and enter the block; return the cap."""
         previous = self._cap
         if self._depth == 0 and self._needs_approval(estimated_cpu_seconds,
                                                      requested_percent):
@@ -416,12 +438,44 @@ class ResourceGovernor:
                       f"{self.policy.max_cpu_percent:g} percent instead",
                       file=self._stream)
         self._depth += 1
+        return previous
+
+    def _release(self, previous: float) -> None:
+        self._depth -= 1
+        self._cap = previous
+
+    @contextlib.contextmanager
+    def governed(self, label: str, *,
+                 estimated_cpu_seconds: float | None = None,
+                 requested_percent: float | None = None,
+                 reason: str = "") -> Iterator["ResourceGovernor"]:
+        """Run a block under the cap, or under an approved intensity.
+
+        Refusal behaviour follows ``policy.on_denied``:
+        ``"throttle"`` runs the block at the cap, ``"raise"`` stops before any
+        work is done.
+        """
+        previous = self._begin(label, estimated_cpu_seconds,
+                               requested_percent, reason)
         try:
             yield self
         finally:
-            self._depth -= 1
             self.checkpoint()
-            self._cap = previous
+            self._release(previous)
+
+    @contextlib.asynccontextmanager
+    async def agoverned(self, label: str, *,
+                        estimated_cpu_seconds: float | None = None,
+                        requested_percent: float | None = None,
+                        reason: str = "") -> AsyncIterator["ResourceGovernor"]:
+        """``governed`` for asyncio: the debt is paid with ``asyncio.sleep``."""
+        previous = self._begin(label, estimated_cpu_seconds,
+                               requested_percent, reason)
+        try:
+            yield self
+        finally:
+            await self.acheckpoint()
+            self._release(previous)
 
     def run(self, task: Callable[[], R], *, label: str,
             estimated_cpu_seconds: float | None = None,
@@ -451,6 +505,41 @@ class ResourceGovernor:
                 results.append(task(item))
                 self.stats.chunks += 1
                 self.checkpoint()
+        return results
+
+    async def arun(self, task: Callable[[], R] | Callable[[], Awaitable[R]], *,
+                   label: str, estimated_cpu_seconds: float | None = None,
+                   requested_percent: float | None = None,
+                   reason: str = "") -> R:
+        """``run`` for asyncio; a coroutine function is awaited, a plain one is called."""
+        async with self.agoverned(label,
+                                  estimated_cpu_seconds=estimated_cpu_seconds,
+                                  requested_percent=requested_percent,
+                                  reason=reason):
+            outcome = task()
+            if inspect.isawaitable(outcome):
+                outcome = await outcome
+        return outcome  # type: ignore[return-value]
+
+    async def achunked(
+            self, items: Iterable[T],
+            task: Callable[[T], R] | Callable[[T], Awaitable[R]], *,
+            label: str, estimated_cpu_seconds: float | None = None,
+            requested_percent: float | None = None,
+            reason: str = "") -> list[R]:
+        """``chunked`` for asyncio, so the wait does not freeze the event loop."""
+        results: list[R] = []
+        async with self.agoverned(label,
+                                  estimated_cpu_seconds=estimated_cpu_seconds,
+                                  requested_percent=requested_percent,
+                                  reason=reason):
+            for item in items:
+                outcome = task(item)
+                if inspect.isawaitable(outcome):
+                    outcome = await outcome
+                results.append(outcome)  # type: ignore[arg-type]
+                self.stats.chunks += 1
+                await self.acheckpoint()
         return results
 
 

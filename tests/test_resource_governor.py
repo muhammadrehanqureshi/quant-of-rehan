@@ -207,6 +207,50 @@ class ChunkedTest(unittest.TestCase):
         self.assertGreater(gov.stats.slept_seconds, 20.0)
 
 
+class AsyncTest(unittest.IsolatedAsyncioTestCase):
+    """The asyncio form must pay the same debt, without blocking the loop."""
+
+    async def test_async_chunks_yield_the_wait_to_the_loop(self):
+        machine = FakeMachine()
+        gov = governor(machine)
+        events: list[str] = []
+
+        async def fake_sleep(seconds: float) -> None:
+            events.append(f"yield {seconds:.2f}")
+            machine.sleep(seconds)
+
+        async def work(item: int) -> int:
+            machine.burn(0.01)
+            events.append(f"work {item}")
+            return item * 3
+
+        with patch("asyncio.sleep", side_effect=fake_sleep):
+            results = await gov.achunked(range(3), work, label="async bars")
+
+        self.assertEqual(results, [0, 3, 6])
+        self.assertEqual(gov.stats.chunks, 3)
+        self.assertGreater(gov.stats.slept_seconds, 0.0,
+                           "the async form must still pay for its CPU")
+        self.assertLessEqual(gov.debt_seconds(), 0.0)
+        self.assertTrue(any(event.startswith("yield") for event in events),
+                        "the loop was never given control back")
+
+    async def test_async_refusal_stops_before_the_work(self):
+        machine = FakeMachine()
+        gov = governor(machine, on_denied="raise")
+        ran: list[int] = []
+
+        async def work(item: int) -> int:
+            ran.append(item)
+            return item
+
+        with self.assertRaises(ResourcePermissionDenied):
+            await gov.achunked([1], work, label="async sweep",
+                               estimated_cpu_seconds=60.0,
+                               requested_percent=90.0)
+        self.assertEqual(ran, [])
+
+
 class ApprovalSurfaceTest(unittest.TestCase):
     class _PipedStdin(io.StringIO):
         def isatty(self) -> bool:
