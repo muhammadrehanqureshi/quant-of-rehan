@@ -31,15 +31,23 @@ Telegram; you read the messages on your phone over your VPN as usual.
   stores new signal lines from the local runner
 - `GET /updates` (admin token): raw getUpdates proxy for local debugging
 - Cron triggers fire the daily texts from the edge even if your PC is off.
-  Friday is TWO sessions with the exchange's midday break between them, so it
-  has four edges and six crons in all:
+  Friday is TWO sessions with the exchange's midday break between them, so
+  there are six edges, and Workers Free allows five triggers per account, so
+  the two Friday midday edges share one expression:
 
-| Event | Mon-Thu | Friday | Cron (UTC) |
+| Event | Mon-Thu | Friday | Trigger (UTC) |
 |---|---|---|---|
-| Open | 09:32 PKT | 09:17 PKT (session 1) | `32 4 * * 1-4` and `17 4 * * 5` |
-| Close | 15:30 PKT | 12:00 PKT (session 1) | `30 10 * * 1-4` and `0 7 * * 5` |
-| Open | - | 14:32 PKT (session 2) | `32 9 * * 5` |
+| Open | 09:32 PKT | 09:17 PKT (session 1) | `32 4 * * 1-4` / `17 4 * * 5` |
+| Close | 15:30 PKT | 12:00 PKT (session 1) | `30 10 * * 1-4` / shared below |
+| Open | - | 14:32 PKT (session 2) | `0,32 7,9 * * 5` (shared) |
 | Close | - | 16:30 PKT (session 2) | `30 11 * * 5` |
+
+The shared expression also fires at 07:32 and 09:00 UTC. Those are not band
+edges, and the worker's scheduled handler returns without sending unless the
+Karachi minute is within two minutes of a real edge, so each edge is delivered
+exactly once. Six separate expressions are rejected by Cloudflare with error
+10072, and that rejection used to abort the deploy after the code upload,
+leaving the schedules stale while the new worker was already live.
 
 Weekends, the 2026 PSX holiday list and the midday break are all closed,
 mirroring `src/data/sessions.py` (the worker's band table is a copy of the
@@ -48,10 +56,57 @@ hardcoded UTC+5 forever (SO-8).
 
 ## Deploying a change
 
-`cloud/pair.py deploy` uploads `worker.js` and sets the six crons in the same
-run. The relay currently running in production predates the band table and
-`market_state`, so a deploy is needed for the app to show the phase sentence
-and to stop reporting ONLINE between 12:00 and 14:32 on a Friday.
+Two deploy paths exist and they must agree:
+
+- `.github/workflows/deploy-relay.yml` runs `wrangler deploy` from this folder
+  on any push to `master` that touches `cloud/`, then verifies the live edge
+  answers `/health`;
+- `cloud/pair.py deploy` uploads the same file through the Cloudflare API and
+  sets the crons in the same run, for use from this PC.
+
+`tests/test_relay_worker_contracts.py` pins both paths to the same Durable
+Object declaration, because a deploy that ships the binding without the class
+leaves `/quotes` answering 500.
+
+## Configuration checked against Cloudflare's documentation (2026-10-19)
+
+`wrangler.toml` declares the quote hub with the `exports` table:
+
+```toml
+[[durable_objects.bindings]]
+name = "QUOTE_HUB"
+class_name = "QuoteHub"
+
+[exports.QuoteHub]
+type = "durable-object"
+storage = "sqlite"
+```
+
+That is the current documented shape (Durable Object class exports), and it is
+what makes the class SQLite backed, which `ctx.storage.sql` requires. Two
+consequences worth writing down, because both are easy to get wrong:
+
+- a Worker uses `exports` **or** the legacy `[[migrations]]` array, never both,
+  so the absence of a `new_sqlite_classes` migration here is correct and
+  adding one would be rejected;
+- a class that appears only in the code is not provisioned. The `exports`
+  entry is what creates the namespace, and `pair.py` sends the same entry in
+  the `metadata` part of its upload for that reason.
+
+### The upload's multipart metadata
+
+`cloud/pair.py` builds the upload body itself, so it is pinned by tests rather
+than by hope. The API reads two parts: `metadata` as `application/json`, and
+one part per module named exactly as `main_module` (here `worker.js`), sent as
+`application/javascript+module`. The parts are CRLF delimited, the module's
+UTF-8 bytes are sent unchanged, and the boundary is regenerated until it does
+not occur inside the module. `tests/test_relay_worker_contracts.py` parses the
+built body with Python's own MIME parser and round-trips the module, so a
+newline or boundary regression fails before it reaches a deploy.
+
+Nothing in this project accepts `multipart/form-data` from a client: the
+worker's own routes are JSON only, and the app reads JSON. The only multipart
+in the system is this outbound script upload.
 
 ## Where a runner finds the relay URL
 
