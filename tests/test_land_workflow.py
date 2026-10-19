@@ -58,7 +58,21 @@ case "$1 $2" in
       echo 1
       exit 0
     fi
-    if [[ "$*" == *"--json mergeable"* ]]; then echo MERGEABLE; exit 0; fi
+    if [[ "$*" == *"--json mergeable"* ]]; then
+      # A test can ask for a few UNKNOWN answers first, which is what GitHub
+      # really does while it works out whether a pull request can merge.
+      if [[ -f "$state/mergeable_unknown" ]]; then
+        left=$(cat "$state/mergeable_unknown")
+        if [[ "${left:-0}" -gt 0 ]]; then
+          echo "$((left - 1))" > "$state/mergeable_unknown"
+          echo UNKNOWN
+          exit 0
+        fi
+        rm -f "$state/mergeable_unknown"
+      fi
+      echo MERGEABLE
+      exit 0
+    fi
     if [[ "$*" == *"--json mergeCommit"* ]]; then
       echo 0123456789abcdef0123456789abcdef01234567
       exit 0
@@ -159,6 +173,19 @@ class LandingWorkflowTest(unittest.TestCase):
         head = self.git("-C", str(self.work), "rev-parse",
                         "--abbrev-ref", "HEAD").strip()
         self.assertEqual(head, "master", "the checkout ends on the base branch")
+
+    def test_it_waits_out_an_unknown_mergeable_state(self):
+        # GitHub answers UNKNOWN while it computes mergeability, and the
+        # first attempt at this aborted a pull request whose checks were
+        # already green. Three UNKNOWN replies must be waited out, not
+        # mistaken for a conflict.
+        (self.state / "mergeable_unknown").write_text("3", encoding="utf-8")
+        self.write("README.md", "readme\n")
+        result = self.land("-y", "-m",
+                           "Sandbox: an unknown mergeable state is waited out")
+        self.assertIn("still reports UNKNOWN", result.stdout)
+        self.assertIn("merged PR #1", result.stdout)
+        self.assertTrue((self.state / "merged").is_file())
 
     def test_a_dry_run_changes_nothing(self):
         before = self.git("-C", str(self.remote), "rev-parse", "master").strip()
