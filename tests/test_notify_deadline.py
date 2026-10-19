@@ -78,7 +78,7 @@ class TelegramCallDeadlineTest(unittest.TestCase):
     def test_the_telegram_answer_is_recorded_and_not_swallowed(self):
         """A timeout or a refusal becomes a recorded outcome, not a silence."""
         self.assertIn("telegram did not answer within", self.worker)
-        self.assertIn('env.RELAY_KV.put("DELIVERY:LAST"', self.worker)
+        self.assertIn('kvPut(env, "DELIVERY:LAST"', self.worker)
         self.assertIn("ok: Boolean(sent.ok)", self.worker)
         self.assertIn("last_delivery: lastDelivery", self.worker,
                       "the recorded outcome never reaches the app")
