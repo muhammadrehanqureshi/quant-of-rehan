@@ -55,10 +55,31 @@ class RelayWorkerContractTest(unittest.TestCase):
 
     def test_health_reports_the_last_telegram_outcome(self):
         """Acceptance and delivery are different facts, and both are reported."""
-        self.assertIn('env.RELAY_KV.get("DELIVERY:LAST")', self.source,
+        self.assertIn('await kvGet(env, "DELIVERY:LAST")', self.source,
                       "the relay does not record what Telegram answered")
         self.assertIn("last_delivery: lastDelivery", self.source,
                       "the recorded outcome never reaches a client")
+
+    def test_the_once_a_second_polls_do_not_spend_the_kv_quota(self):
+        """Owner report 2026-10-19: the KV daily limit email.
+
+        The free plan allows about 100,000 reads and 1,000 writes a day, and
+        the phone polls /health and /signals once a second while a session is
+        live. Every hot key therefore goes through the isolate memo; a direct
+        read on one of them is the defect this test exists to catch.
+        """
+        self.assertIn("const KV_MEMO_TTL_MS = 10000;", self.source)
+        self.assertIn("async function kvGet(env, key, ttlMs = KV_MEMO_TTL_MS)",
+                      self.source)
+        for hot in ('"MARKET"', '"SIGNALS"', '"DELIVERY:LAST"', '"PAIRED_CHAT_ID"'):
+            with self.subTest(key=hot):
+                self.assertNotIn(f'env.RELAY_KV.get({hot})', self.source,
+                                 f"{hot} is read directly once a second")
+                self.assertNotIn(f'env.RELAY_KV.put({hot}', self.source,
+                                 f"{hot} is written without refreshing the memo")
+        # The retry path stays uncached on purpose: a stale pending frame could
+        # otherwise be re-delivered after it was consumed.
+        self.assertIn("env.RELAY_KV.get(MARKET_PENDING_KEY)", self.source)
 
     def test_health_names_the_commit_the_edge_is_running(self):
         """`ok: true` proved only that SOMETHING answered.
@@ -349,12 +370,12 @@ class RelayWorkerContractTest(unittest.TestCase):
         read = self.source[self.source.index('if (request.method === "GET" && path === "/signals")'):]
         read = read[:read.index('if (request.method === "POST" && path === "/signals")')]
         self.assertNotIn("adminOk", read)
-        self.assertIn('await env.RELAY_KV.get("SIGNALS")', read)
+        self.assertIn('await kvGet(env, "SIGNALS")', read)
 
         write = self.source[self.source.index('if (request.method === "POST" && path === "/signals")'):]
         write = write[:write.index("return json({ ok: false, error: \"not found\" }")]
         self.assertIn("if (!adminOk(request, env)) {", write)
-        self.assertIn('env.RELAY_KV.put("SIGNALS"', write)
+        self.assertIn('kvPut(env, "SIGNALS", text)', write)
 
     def test_the_admin_gate_and_the_card_routes_survive(self):
         """A refactor of /notify must not open the write routes."""

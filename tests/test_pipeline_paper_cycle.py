@@ -314,6 +314,40 @@ class PipelineCycleTest(unittest.TestCase):
         assert_forward_untouched(self.before, _snapshot_dir(REAL_FORWARD),
                                  FRIDAY.isoformat())
 
+    def test_an_unchanged_verdict_does_not_rewrite_the_card(self):
+        """Owner report 2026-10-19: the relay's KV write quota.
+
+        The card header carries the slot, so a one second loop used to
+        republish the card every second even when the verdict had not moved.
+        The relay's free plan allows about 1,000 KV writes a day, which such a
+        loop exhausts in minutes, and the phone was left holding a card from
+        three days earlier once the writes were refused. What must be
+        republished is a CHANGED VERDICT, and what makes the app fresh every
+        second is /health plus the broker feed, not a rewritten card.
+        """
+        state = trade_state.SessionState.load(FRIDAY, path=self.state_path)
+        body = "One trade already taken today: HCAR entered at 203.0, target 207.06."
+
+        first = pipeline.push_card(pipeline.card_text(FRIDAY, "10:00", body, False),
+                                   state, signature=f"{FRIDAY}|{body}")
+        self.assertTrue(first, "the first verdict must reach the card")
+        self.assertEqual(
+            len([c for c in self.relay.calls if c[1] == "/signals"]), 1)
+
+        second = pipeline.push_card(pipeline.card_text(FRIDAY, "10:01", body, False),
+                                    state, signature=f"{FRIDAY}|{body}")
+        self.assertFalse(second, "an unchanged verdict must not republish")
+        self.assertEqual(
+            len([c for c in self.relay.calls if c[1] == "/signals"]), 1,
+            "a new slot with the same verdict spent a KV write")
+
+        changed = body + " A fresh candidate was observed and refused."
+        third = pipeline.push_card(pipeline.card_text(FRIDAY, "10:02", changed, False),
+                                   state, signature=f"{FRIDAY}|{changed}")
+        self.assertTrue(third, "a changed verdict must reach the card")
+        self.assertEqual(
+            len([c for c in self.relay.calls if c[1] == "/signals"]), 2)
+
     def test_full_paper_cycle(self):
         first = self.scan("10:00")
         quality = first["data_quality"]

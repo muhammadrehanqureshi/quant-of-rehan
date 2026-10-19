@@ -39,6 +39,38 @@
 
 const KARACHI_OFFSET_MIN = 5 * 60; // SO-8: UTC+5, fixed forever
 
+// ---------------------------------------------------------- the KV budget
+//
+// Owner report, 2026-10-19: "KV daily limit reached 50% today". Measured
+// against that email: the free plan allows about 100,000 KV reads and 1,000
+// writes a day, the phone polls once a second while a session is live, and a
+// single /health poll read three separate keys. Five or six reads a second is
+// roughly 50,000 by early afternoon, which is the percentage he was told.
+//
+// So the hot keys are memoised for a few seconds inside the isolate. At one
+// request a second the isolate stays warm, and a key that changes on a market
+// edge does not need re-reading on every single poll to be correct. Writes go
+// through the same map so a change is never hidden behind a stale entry; only
+// truly cold keys (pairing codes, dispatch notes, research rows, alert
+// dedupe) still touch KV on every call.
+const KV_MEMO_TTL_MS = 10000;
+const kvMemo = new Map();
+
+async function kvGet(env, key, ttlMs = KV_MEMO_TTL_MS) {
+  const now = Date.now();
+  const hit = kvMemo.get(key);
+  if (hit && now - hit.at <= ttlMs) return hit.value;
+  const value = await env.RELAY_KV.get(key);
+  kvMemo.set(key, { at: now, value });
+  return value;
+}
+
+async function kvPut(env, key, value, options) {
+  const answer = await env.RELAY_KV.put(key, value, options);
+  kvMemo.set(key, { at: Date.now(), value });
+  return answer;
+}
+
 const QUOTE_HUB_SOCKET_TAG = "live-quotes";
 function quoteHubBinding(env) {
   return env.QUOTE_HUB || env.RELAY_KV;
@@ -784,10 +816,10 @@ async function deliverMarketTransition(env, chatId, state, identity, evidence, n
   } catch (_) {
     return;
   }
-  await env.RELAY_KV.put(MARKET_STATE_KEY, JSON.stringify({
+  await kvPut(env, MARKET_STATE_KEY, JSON.stringify({
     state, identity, confirmed_at_ms: Date.now(), evidence,
   }), { expirationTtl: 604800 });
-  await env.RELAY_KV.put(MARKET_DELIVERY_KEY, JSON.stringify({
+  await kvPut(env, MARKET_DELIVERY_KEY, JSON.stringify({
     state, text, at: new Date().toISOString(), evidence,
   }), { expirationTtl: 604800 });
   await env.RELAY_KV.delete(MARKET_PENDING_KEY);
@@ -867,7 +899,7 @@ async function marketResponseSnapshot(env, now) {
   try {
     snapshot = await marketSnapshot(env, now);
   } catch (e) {
-    const fallback = await env.RELAY_KV.get("MARKET");
+    const fallback = await kvGet(env, "MARKET");
     if (!fallback) throw e;
     snapshot = normalizeMarket(JSON.parse(fallback));
     snapshot.stale = true;
@@ -924,7 +956,7 @@ async function trackMarketTransitions(env, snapshot, now, ctx) {
   let previous = null;
   let pending = null;
   const [raw, waiting] = await Promise.all([
-    env.RELAY_KV.get(MARKET_STATE_KEY),
+    kvGet(env, MARKET_STATE_KEY),
     env.RELAY_KV.get(MARKET_PENDING_KEY),
   ]);
   try {
@@ -966,13 +998,13 @@ async function trackMarketTransitions(env, snapshot, now, ctx) {
     // Seed a baseline when first observing OPEN after the opening grace. This
     // prevents a later app launch from replaying a greeting hours late.
     if (state === "OPEN") {
-      await env.RELAY_KV.put(MARKET_STATE_KEY, JSON.stringify({
+      await kvPut(env, MARKET_STATE_KEY, JSON.stringify({
         state, identity, confirmed_at_ms: now.getTime(), evidence,
       }), { expirationTtl: 604800 });
     }
     return { state, evidence, delivered: false, baseline: true };
   }
-  const paired = (await env.RELAY_KV.get("PAIRED_CHAT_ID")) || env.PAIRED_CHAT_ID;
+  const paired = (await kvGet(env, "PAIRED_CHAT_ID")) || env.PAIRED_CHAT_ID;
   if (!paired) return { state, evidence, delivered: false, reason: "not paired" };
 
   // Reserve the identity before scheduling I/O: overlapping one-second app
@@ -1003,7 +1035,7 @@ function snapshotShapeError(body) {
 // Cached copy, refreshed at most once per five minutes. `force` is used by the
 // runner's own push path, never by an app poll.
 async function marketSnapshot(env, now) {
-  const cachedRaw = await env.RELAY_KV.get("MARKET");
+  const cachedRaw = await kvGet(env, "MARKET");
   if (cachedRaw) {
     try {
       const cached = JSON.parse(cachedRaw);
@@ -1023,7 +1055,7 @@ async function marketSnapshot(env, now) {
   const fresh = normalizeMarket(await buildMarketSnapshot(now));
   fresh.built_at = now.toISOString();
   fresh.cache_age_seconds = 0;
-  await env.RELAY_KV.put("MARKET", JSON.stringify(fresh), { expirationTtl: 3600 });
+  await kvPut(env, "MARKET", JSON.stringify(fresh), { expirationTtl: 3600 });
   return fresh;
 }
 
@@ -1068,7 +1100,7 @@ async function sendAndRecord(env, chatId, text, kind, dedupeKey) {
         .slice(0, 200),
   };
   try {
-    await env.RELAY_KV.put("DELIVERY:LAST", JSON.stringify(record),
+    await kvPut(env, "DELIVERY:LAST", JSON.stringify(record),
                             { expirationTtl: 604800 });
     // The ops dedupe key is written ONLY after Telegram accepted the message.
     // It used to be written before the send, so a failed alert was suppressed
@@ -1091,7 +1123,7 @@ async function healthPayload(env) {
   let lastDelivery = null;
   let marketFeed = null;
   try {
-    const cachedMarket = await env.RELAY_KV.get("MARKET");
+    const cachedMarket = await kvGet(env, "MARKET");
     if (cachedMarket) {
       const parsed = JSON.parse(cachedMarket);
       marketFeed = parsed.market_feed || null;
@@ -1100,7 +1132,7 @@ async function healthPayload(env) {
     marketFeed = null;
   }
   try {
-    const raw = await env.RELAY_KV.get("DELIVERY:LAST");
+    const raw = await kvGet(env, "DELIVERY:LAST");
     lastDelivery = raw ? JSON.parse(raw) : null;
   } catch (_) {
     lastDelivery = null;
@@ -1124,7 +1156,7 @@ async function healthPayload(env) {
     // Separately sourced from a fresh REG market-wide MKT-STATS frame in the
     // latest card push; null/unknown never means the session clock is halted.
     market_feed: refreshMarketFeed({ market_feed: marketFeed }, now).market_feed,
-    paired: Boolean((await env.RELAY_KV.get("PAIRED_CHAT_ID")) || env.PAIRED_CHAT_ID),
+    paired: Boolean((await kvGet(env, "PAIRED_CHAT_ID")) || env.PAIRED_CHAT_ID),
     // What the last Telegram send actually did, as the relay saw it. Null
     // means no send has been recorded yet, which is not the same as a
     // successful one.
@@ -1253,7 +1285,7 @@ export default {
       if (code !== pending) {
         return json({ ok: false, error: "wrong code" }, 403);
       }
-      await env.RELAY_KV.put("PAIRED_CHAT_ID", chat);
+      await kvPut(env, "PAIRED_CHAT_ID", chat);
       await env.RELAY_KV.delete("PENDING_CODE");
       await env.RELAY_KV.delete("PENDING_CHAT");
       await tgCall(env, "sendMessage", {
@@ -1267,7 +1299,7 @@ export default {
       if (!adminOk(request, env)) {
         return json({ ok: false, error: "admin token required" }, 403);
       }
-      const paired = (await env.RELAY_KV.get("PAIRED_CHAT_ID")) || env.PAIRED_CHAT_ID;
+      const paired = (await kvGet(env, "PAIRED_CHAT_ID")) || env.PAIRED_CHAT_ID;
       if (!paired) {
         return json({ ok: false, error: "not paired; run cloud/pair.py start then confirm" }, 409);
       }
@@ -1414,7 +1446,7 @@ export default {
       const k = karachiView(now.getTime());
       return json({ ...health,
         karachi_now: `${dayStamp(k)} ${hhmm(k)} PKT`,
-        signals: (await env.RELAY_KV.get("SIGNALS")) || "",
+        signals: (await kvGet(env, "SIGNALS")) || "",
         market: snapshot });
     }
 
@@ -1464,7 +1496,7 @@ export default {
       body.source = body.source || "local runner";
       const now = new Date();
       body.built_at = now.toISOString();
-      await env.RELAY_KV.put("MARKET", JSON.stringify(body), { expirationTtl: 3600 });
+      await kvPut(env, "MARKET", JSON.stringify(body), { expirationTtl: 3600 });
       const transitions = await trackMarketTransitions(env, body, now, ctx);
       return json({ ok: true, stored: true, market_transition: transitions });
     }
@@ -1582,7 +1614,7 @@ export default {
       const now = new Date();
       const k = karachiView(now.getTime());
       const next = nextEvent(now);
-      const signals = (await env.RELAY_KV.get("SIGNALS")) || "";
+      const signals = (await kvGet(env, "SIGNALS")) || "";
       return json({
         ok: true,
         signals,
@@ -1600,7 +1632,7 @@ export default {
       }
       const body = await request.json().catch(() => ({}));
       const text = String(body.signals || "").slice(0, 4000);
-      await env.RELAY_KV.put("SIGNALS", text);
+      await kvPut(env, "SIGNALS", text);
       return json({ ok: true, stored: text.length });
     }
 
@@ -1628,7 +1660,7 @@ export default {
     // still derived from the shared Karachi session law if the feed has ended.
     let snapshot = null;
     try {
-      const raw = await env.RELAY_KV.get("MARKET");
+      const raw = await kvGet(env, "MARKET");
       snapshot = raw ? JSON.parse(raw) : null;
     } catch (_) {
       snapshot = null;
