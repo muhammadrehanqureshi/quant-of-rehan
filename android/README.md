@@ -63,10 +63,9 @@ Cloudflare relay, never to Telegram, never to a broker.
   "PKR 12.52" followed by the day's change, so the currency label and the
   price can never wrap apart on a narrow screen. The up and down arrows keep a
   single space before them on the index line and on every leader line. The
-  card's foot now reads, verbatim: "Quant will be scanning the market every
-  30 seconds when the market is open." (v1.7.1; it read "every 4 minutes"
-  until the scan moved to the cloud's 30 second cadence, see the v1.7.1 note
-  below.)
+  card's foot now reads "Quant will be scanning the market every 4 minutes
+  when the market is open." (The sentence later moved below the final rule
+  and its interval has tracked the scan since; v1.7.7 reads "every second".)
 - v1.6.3 volume rows read
   `1. CNERGY (B=12,345  S=9,876  T=22,221)` on the first line and
   `PKR 12.52 up 1.05%` on the second, where B and S are the session's buy and
@@ -521,10 +520,42 @@ to sixty seconds. The status tile therefore also carries the app's own
   on each round, and the "feed status unconfirmed" sentence is retired in
   favour of the broker's own HH:MM:SS stamp on the index line, so a number
   always says when it was taken. Display cadence stays one second on a live
-  market with the render gate absorbing identical answers; the STRATEGY scan
-  stays at SO-13's 30 seconds, because GitHub Actions cannot be asked for a
-  one-second schedule and a faster scan of unchanged bars decides nothing new.
+  market with the render gate absorbing identical answers. (That entry left
+  the STRATEGY scan at 30 seconds; the owner's order later the same day moved
+  it to one second, see v1.7.7.)
   Version 1.7.6, versionCode 30.
+- v1.7.7, owner order 2026-10-19 (third note of the day): real-time, end to
+  end. The strategy scan moves from 30 seconds to a one second request
+  (`config.SCAN_INTERVAL_SECONDS = 1`, `intraday-session.yml --interval 1`),
+  and the cadence sentence on the console now reads "every second". Measured
+  cost of one cycle on the real 2026-10-13 session tape is 2.9s, so one second
+  is the request rather than the achieved rate: the loop starts the next scan
+  as soon as that cycle ends (about every three seconds), never queues a
+  backlog, and its log no longer prints a "sleeping 0s" line per cycle. The
+  phone's part is genuinely one second: it repaints every second, takes the
+  newest `/quotes` snapshot the relay holds, and the broker's own HH:MM:SS
+  stamp on the KSE100 line advances when the capture does. The signal tile's
+  reader is now `SignalText` (plain Java, no Android imports), so the ticker
+  and the three prices are parsed and tested on the JVM instead of only read:
+  the sentence form the daily-locked path writes ("HCAR entered at 203.0,
+  target 207.06") now yields a signal instead of "Signal unavailable".
+  Version 1.7.7, versionCode 31.
+
+**Built and delivered 2026-10-19 (v1.7.7):** the signed v1.7.7 APK was built
+from this checkout with the toolchain above and copied to
+`C:/Users/rehan/OneDrive/Desktop/QuantOfRehan-v1.7.7.apk`, one file under one
+name. 539,728 bytes, SHA-256
+`7d6f63b516d7485035b19944b1383e5330e3c3a1672a7729c50e7ac2600bbc78`,
+zipalign verified, signature verified v2 + v3, and `aapt2 dump badging` reads
+back `pk.quantofrehan` `versionCode="31"` `versionName="1.7.7"` with the
+launchable `MainActivity`. The built resource table was read back to prove
+what shipped: `string/scan_cadence` reads "Quant will be scanning the market
+every second when the market is open.", `string/signal_none` and
+`string/signal_unavailable` are present, and no `token_box` or
+`market_feed_status` is declared anywhere. `SignalText` (and not the retired
+`valueAfterLabel` helper), `RenderGate`, `applyLiveQuotes` and `brokerClock`
+are all in the shipped `classes.dex`. The Android tests and the SignalText
+JVM probe were green before the build.
 
 **Built and delivered 2026-10-19 (v1.7.6):** the signed v1.7.6 APK was built
 from this checkout with the toolchain above and copied to

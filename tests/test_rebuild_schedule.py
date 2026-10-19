@@ -269,9 +269,13 @@ class TestFridayMiddayBreak(unittest.TestCase):
             with self.subTest(minute=minute):
                 self.assertIn(minute, worker)
                 self.assertIn(f'"{expected}"', body)
-        # No feed or session event may invoke the protected scan at 1s.
-        self.assertNotIn("SCAN_INTERVAL_SECONDS = 1", worker)
-        self.assertIn('SCAN_INTERVAL_SECONDS = _number("SCAN_INTERVAL_SECONDS", 30)',
+        # The cadence is the owner's, and since 2026-10-19 it is one second.
+        # The relay's own feed events still never invoke the scan themselves:
+        # only the band workflow starts the loop, so a broker frame cannot ask
+        # for a scan by arriving.
+        self.assertNotIn("scan_loop", worker)
+        self.assertNotIn("scan_loop.py", worker)
+        self.assertIn('SCAN_INTERVAL_SECONDS = _number("SCAN_INTERVAL_SECONDS", 1)',
                       (ROOT / "src" / "config.py").read_text(encoding="utf-8"))
 
     def test_the_next_edges_on_a_friday_are_the_four_band_edges(self):
@@ -296,13 +300,14 @@ class TestOutsideSessionGuard(unittest.TestCase):
         self.assertFalse(session_legal(at(date(2026, 10, 10), 11, 0)))
 
 
-class TestTheThirtySecondSessionWorkflow(unittest.TestCase):
-    """SO-13: the band loop that scans every 30 seconds, checked at the PR.
+class TestTheOneSecondSessionWorkflow(unittest.TestCase):
+    """The band loop that asks for a scan every second, checked at the PR.
 
-    The owner's order of 2026-10-14 made the repository public for free cloud
-    minutes and asked for a 30 second scan. These tests hold the workflow that
-    carries it: its crons inside real bands, its job inside GitHub's own
-    six-hour cap, and the interval actually passed to the loop.
+    The owner's order of 2026-10-19 moved the scan from 30 seconds to one
+    second (the 2026-10-14 public-repository order is otherwise unchanged).
+    These tests hold the workflow that carries it: its crons inside real bands,
+    its job inside GitHub's own six-hour cap, and the interval passed to the
+    loop.
     """
 
     def test_each_band_starts_a_loop_inside_a_real_band(self):
@@ -324,9 +329,10 @@ class TestTheThirtySecondSessionWorkflow(unittest.TestCase):
                         f"{expression} starts the loop at {pkt:%H:%M} PKT on "
                         f"{day.isoformat()}, outside every band ({bands})")
 
-    def test_the_loop_runs_at_thirty_seconds(self):
+    def test_the_loop_runs_at_one_second(self):
         text = SESSION_WORKFLOW.read_text(encoding="utf-8")
-        self.assertIn("--interval 30", text)
+        self.assertIn("--interval 1 ", text)
+        self.assertNotIn("--interval 30", text)
         self.assertIn("scripts/scan_loop.py", text)
         self.assertIn("timeout --signal=TERM", text,
                       "a band job must stop the loop itself, not be killed")

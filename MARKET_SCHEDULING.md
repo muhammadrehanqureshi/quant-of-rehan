@@ -5,9 +5,9 @@ what keeps the 2,000 minute Actions ceiling and the Cloudflare edge quiet while
 the exchange is shut.
 
 Owner orders implemented 2026-10-10 (the sleep gate) and 2026-10-11 (the four
-market states, the never-scan rule and the scan cadence: 30 seconds in the
-cloud since the owner's order of 2026-10-14, SO-13; 4 minutes on the local
-tick he can still ask for). Sources:
+market states, the never-scan rule and the scan cadence: one second in the
+cloud since the owner's order of 2026-10-19 (amending SO-13's 30 seconds);
+4 minutes on the local tick he can still ask for). Sources:
 `src/data/session_gate.py`, `src/data/market_probe.py`, `src/data/sessions.py`,
 `src/config.py`, `scripts/kmiall_tick.py`, `.github/workflows/intraday-capture.yml`.
 
@@ -58,30 +58,35 @@ there.
 | state | Mon-Thu | Friday | scanned |
 |---|---|---|---|
 | `PRE_MARKET` | 09:00 to 09:15 | 09:00 to 09:15 | **never** |
-| `MARKET` | 09:32 to 15:30 | 09:17 to 12:00 and 14:32 to 16:30 | **yes, every 30 seconds in the cloud (owner order 2026-10-14, SO-13); every 4 minutes on the local tick** |
+| `MARKET` | 09:32 to 15:30 | 09:17 to 12:00 and 14:32 to 16:30 | **yes, every second in the cloud (owner order 2026-10-19, amending SO-13); every 4 minutes on the local tick** |
 | `POST_MARKET` | 15:32 to 15:49 | 16:32 to 16:49 | **never** (finalize only) |
 | `CLOSED` | everything else, including 15:30 to 15:32 | everything else, including 16:30 to 16:32 | no |
 
 The 2-minute gaps after each close are `CLOSED` on purpose: 15:30:00 itself is
 no longer the market, and post-market does not begin until 15:32:00.
 
-The cloud's scan cadence is `config.SCAN_INTERVAL_SECONDS = 30` (owner order
-2026-10-14, SO-13): `intraday-session.yml` runs `scripts/scan_loop.py` for the
-length of each band, and the loop keeps the read-only broker tape alive so a
-30-second cycle measures bars that already exist (2.9s measured on the real
-2026-10-13 session tape). The local 4-minute tick keeps
+The cloud's scan cadence is `config.SCAN_INTERVAL_SECONDS = 1` (owner order
+2026-10-19, amending SO-13): `intraday-session.yml` runs
+`scripts/scan_loop.py` for the length of each band, and the loop keeps the
+read-only broker tape alive so a cycle measures bars that already exist (2.9s
+measured on the real 2026-10-13 session tape). Because a cycle is longer than
+one second, the interval is the request rather than the achieved rate: the loop
+starts the next scan when this one ends, which is about every three seconds on
+a full session tape, with no queued backlog. The local 4-minute tick keeps
 `config.TICK_INTERVAL_MINUTES = 4`: the same 4 drives the Windows tick trigger,
 the tick's slot guard and its 20-minute warm-up rule, so a rebuild or a fresh
 clone still runs a local trial at 4 minutes with no environment change. The
-slot guard is keyed on the runner's own cadence, because a 30-second runner
+slot guard is keyed on the runner's own cadence, because a sub-minute runner
 reported in minute slots would scan once a minute while claiming otherwise.
 
 Whatever the cadence, the fire belongs to a **slot boundary**, not to "the
 last fire plus the interval": `src/data/scan_scheduler.next_slot` owns that
 grid, and `scripts/scan_loop.py` sleeps to it in both of its modes. A cycle
-that spends 2.9s of a 30 second slot, or 9s of a 4 minute one, therefore does
-not push every later fire late, and the slot label an observation carries is
-the slot that fire actually worked in.
+that spends 2.9s of a 4 minute slot therefore does not push every later fire
+late, and the slot label an observation carries is the slot that fire actually
+worked in. At the one second cadence the cycle overruns the slot, so the next
+boundary is a fraction of a second away and the loop starts the next scan at
+once rather than sleeping to catch up.
 
 `scripts/scan_loop.py` has two ways to be driven and one way to decide:
 

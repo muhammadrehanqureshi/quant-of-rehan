@@ -271,19 +271,33 @@ enforcement path, because SO-10 was still being read as advice.
 - **Withdrawal.** Only a new written owner instruction, recorded here, can
   put recurring work back on the PC.
 
-## SO-13 · The scan cadence is 30 seconds on the public repository's free minutes (owner order, 2026-10-14)
+## SO-13 · The scan cadence is one second on the public repository's free minutes (owner order, 2026-10-19; amended from 30 seconds)
 
-Owner order, verbatim: "then make the repo public but then i want the quant of
-rehan to be scanned every 30 seconds, also I will not pay a single dime. AT
-ALL!!!" and "the 4 minute scan is the same for the app and for my intraday as
-well, they are not separate, the scan will be the same for both."
+Owner order, verbatim (2026-10-14, still in force except for the interval):
+"then make the repo public but then i want the quant of rehan to be scanned
+every 30 seconds, also I will not pay a single dime. AT ALL!!!" and "the 4
+minute scan is the same for the app and for my intraday as well, they are not
+separate, the scan will be the same for both."
 
-- **The cadence.** The KMIALL universe is scanned every 30 seconds for the
-  length of every PSX band, by one supervised session loop
-  (`scripts/scan_loop.py`, interval `config.SCAN_INTERVAL_SECONDS = 30`) that
+Amendment, owner order 2026-10-19, verbatim: "Update the scanning frequency for
+the quant engine from 30 seconds to real-time (1-second intervals)" and "I want
+to see the real numbers moving in real time as the numbers do in the broker's
+terminal."
+
+- **The cadence.** The KMIALL universe is scanned at a one second request for
+  the length of every PSX band, by one supervised session loop
+  (`scripts/scan_loop.py`, interval `config.SCAN_INTERVAL_SECONDS = 1`) that
   GitHub Actions runs for the band (`intraday-session.yml`). The local
   4-minute tick keeps its own cadence where the owner asks for a local trial;
   the two are different runners, never two cadences for one runner.
+- **What one second means in practice.** A cycle reads the tape that already
+  exists and costs about 2.9s on the largest real session tape, so the loop
+  cannot rank the universe twice inside one second. It asks for the next slot
+  the instant a cycle ends and never queues a backlog: the achieved cadence is
+  the pipeline's own latency, about 3s, and the phone (which repaints every
+  second) shows the newest snapshot the relay holds. A true one second end to
+  end needs the capture to publish the card on its own one second clock; the
+  relay's `/quotes` stream is already built for it.
 - **One scan, two readers.** The same scan, observation and data-quality
   report feed the phone's card and the intraday paper strategy. There is no
   second, cheaper scan for the app.
