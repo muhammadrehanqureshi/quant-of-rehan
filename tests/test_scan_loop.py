@@ -22,7 +22,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from src.data.sessions import KARACHI  # noqa: E402
 from src.signals.contracts import (  # noqa: E402
-    InsufficientCoverage, ScanFault, Verdict,
+    InsufficientCoverage, ScanFault, ScanOutcome, Verdict,
 )
 from scripts import intraday_pipeline as pipeline  # noqa: E402
 import scan_loop  # noqa: E402
@@ -743,6 +743,26 @@ class DriverTest(unittest.TestCase):
         loop.request_stop()
         self.assertEqual(loop.run(), 0)
         self.assertEqual(loop.health.cycles, 0)
+
+    def test_a_finalized_day_ends_the_loop_instead_of_sleeping(self):
+        """Owner audit 2026-10-19: a late fire must not idle for hours.
+
+        The loop used to sleep to the next open after a finalize (measured:
+        224,435 seconds on a late Friday fire), so the shell timeout killed a
+        job with nothing left to do and the band's minutes were billed for an
+        empty wait. The process is asked for THIS band, so a finalized day is
+        the end of its work.
+        """
+        outcome = ScanOutcome(as_of=at(MONDAY, 15, 31), slot="15:28",
+                              verdict=Verdict.FINALIZED, reason="closed")
+        loop = ScanLoop(LoopConfig(capture=False, interval_seconds=0.01),
+                        health_path=self.health,
+                        clock=lambda: at(MONDAY, 15, 31))
+        with patch.object(loop, "run_cycle", return_value=("finalize", outcome)), \
+                patch.object(loop, "_sleep") as sleep:
+            self.assertEqual(loop.run(), 0)
+        sleep.assert_not_called()
+        self.assertEqual(loop.health.cycles, 0)  # the patched cycle does no work
 
     def test_the_loop_gives_up_after_the_failure_limit(self):
         loop = ScanLoop(LoopConfig(capture=False, interval_seconds=0.01,

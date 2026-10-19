@@ -684,8 +684,19 @@ class ScanLoop:
                 if limit is not None and self.health.cycles >= limit:
                     LOGGER.info("cycle cap %d reached; stopping", limit)
                     break
-                action, _ = self.run_cycle()
+                action, outcome = self.run_cycle()
                 if self._stopping:
+                    break
+                # Owner audit 2026-10-19: a finalized day is the end of this
+                # process's work. The old path slept to the next open (224,435
+                # seconds, measured on a late Friday fire) and let the shell
+                # timeout kill a job that had nothing left to do, burning the
+                # band job's remaining minutes. The caller asked for this band,
+                # not for tomorrow.
+                if (action == "finalize" and outcome is not None
+                        and outcome.verdict == Verdict.FINALIZED):
+                    LOGGER.info("day finalized; ending the loop instead of "
+                                "sleeping to the next open")
                     break
                 if not self.config.should_keep_going(
                         self.health.consecutive_failures):
