@@ -251,6 +251,29 @@ class TestFridayMiddayBreak(unittest.TestCase):
             "the pushed snapshot would override the relay's own phase")
         self.assertIn("market_open: edgeState.market_open", handler)
 
+    def test_market_transition_function_uses_exact_karachi_edges_and_live_feed(self):
+        worker = (ROOT / "cloud" / "worker.js").read_text(encoding="utf-8")
+        start = worker.index("async function trackMarketTransitions(")
+        end = worker.index("// A pushed snapshot", start)
+        body = worker[start:end]
+        self.assertIn('edge.condition === "BREAK"', body)
+        self.assertIn('edge.phase === "POST_CLOSE"', body)
+        self.assertIn('edge.phase === "PRE_OPEN"', body)
+        self.assertIn('edge.date}T${lastBand.close}:00+05:00', body)
+        self.assertIn("sessionJustClosed", body)
+        self.assertIn("now.getTime() - closeAt <= MARKET_OPEN_GRACE_MS", body)
+        self.assertIn("MARKET_OPEN_GRACE_MS", body)
+        self.assertIn('feed.status !== "OPEN" && feed.status !== "HALTED"', body)
+        # Friday edges resolve from the shared bands, not hard-coded scans.
+        for minute, expected in (("12:00", "BREAK"), ("14:32", "OPEN")):
+            with self.subTest(minute=minute):
+                self.assertIn(minute, worker)
+                self.assertIn(f'"{expected}"', body)
+        # No feed or session event may invoke the protected scan at 1s.
+        self.assertNotIn("SCAN_INTERVAL_SECONDS = 1", worker)
+        self.assertIn('SCAN_INTERVAL_SECONDS = _number("SCAN_INTERVAL_SECONDS", 30)',
+                      (ROOT / "src" / "config.py").read_text(encoding="utf-8"))
+
     def test_the_next_edges_on_a_friday_are_the_four_band_edges(self):
         seen = []
         moment = at(FRIDAY, 9, 0)

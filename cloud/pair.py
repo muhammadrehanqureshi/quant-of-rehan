@@ -112,10 +112,18 @@ def check(resp: requests.Response, label: str):
 
 def cf_upload(cf_token: str, acct: str, bindings: list[dict]) -> None:
     js = (ROOT / "cloud" / "worker.js").read_text(encoding="utf-8")
+    bindings = [*bindings, {
+        "type": "durable_object_namespace",
+        "name": "QUOTE_HUB",
+        "class_name": "QuoteHub",
+    }]
     meta = {
         "main_module": "worker.js",
         "compatibility_date": "2026-10-01",
         "bindings": bindings,
+        "exports": {
+            "QuoteHub": {"type": "durable-object", "storage": "sqlite"},
+        },
     }
     b = uuid.uuid4().hex
     body = (

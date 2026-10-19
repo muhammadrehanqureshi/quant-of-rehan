@@ -115,6 +115,98 @@ class RelayWorkerContractTest(unittest.TestCase):
         self.assertIn("if (sent.ok && dedupeKey)", tail,
                       "the dedupe key must depend on Telegram's own answer")
 
+    # --------------------------------------------------------- market alerts
+
+    def test_market_messages_are_exact_and_separate_states(self):
+        for state, message in (
+            ("OPEN", "Market is open. Quant is online now."),
+            ("CLOSED", "Market is closed. Quant is sleeping now."),
+            ("BREAK", "Market is on a break. Quant is sleeping until the market reopens."),
+            ("HALTED", "Market is halted now. Quant is sleeping until the market reopens."),
+        ):
+            with self.subTest(state=state):
+                self.assertIn(f'if (state === "{state}") return {"MSG_MARKET_" + state};',
+                              self.source)
+                self.assertIn(f'const MSG_MARKET_{state} = "{message}";', self.source)
+
+    def test_market_transition_requires_fresh_market_wide_reg_evidence(self):
+        self.assertIn("const MARKET_STATUS_MAX_AGE_MS = 90 * 1000;", self.source)
+        self.assertIn('evidence = "fresh_broker_market_status";', self.source)
+        self.assertIn('"no_fresh_market_wide_feed"', self.source)
+        self.assertIn('feed.status !== "OPEN" && feed.status !== "HALTED"', self.source)
+        self.assertIn('snapshot && snapshot.market_feed', self.source)
+        # A symbol-level suspension must not be elevated to a global halt.
+        self.assertIn("// never become a market-wide transition.", self.source)
+
+    def test_live_quote_hub_has_bounded_validation_and_a_public_read_contract(self):
+        self.assertIn('const QUOTE_MAX_SYMBOLS = 600;', self.source)
+        self.assertIn('const QUOTE_MAX_BODY_BYTES = 256 * 1024;', self.source)
+        self.assertIn('path === "/quotes/stream"', self.source)
+        self.assertIn('path === "/quotes"', self.source)
+        self.assertIn('name = "QUOTE_HUB"',
+                      (ROOT / "cloud" / "wrangler.toml").read_text(encoding="utf-8"))
+        self.assertIn('export class QuoteHub', self.source)
+        self.assertIn('ctx.storage.sql.exec', self.source)
+        self.assertIn('access-control-allow-origin": "*"', self.source)
+        self.assertIn('cache-control": "no-store"', self.source)
+        self.assertIn('typeof body.captured_at !== "string"', self.source)
+        self.assertIn('const stamps = [];', self.source)
+
+    def test_broker_feed_push_evaluates_market_transitions_without_phone_polling(self):
+        route = self.source[self.source.index('if (request.method === "POST" && path === "/quotes")'):]
+        route = route[:route.index('if (request.method === "GET" && path === "/dashboard")')]
+        self.assertIn("await trackMarketTransitions(env,", route)
+        self.assertIn("{ market_feed: result.market_feed }, new Date(), ctx)", route)
+        self.assertIn('return json({ ...result, market_transition: transition }', route)
+        hub = self.source[self.source.index('export class QuoteHub'):]
+        self.assertIn('market_feed: current.market_feed', hub)
+
+    def test_market_transition_dedupes_and_retries_failed_delivery(self):
+        self.assertIn('const MARKET_PENDING_KEY = "MARKET:NOTIFICATION_PENDING";',
+                      self.source)
+        self.assertIn('const MARKET_STATE_KEY = "MARKET:LAST_CONFIRMED_STATE";',
+                      self.source)
+        self.assertIn("retry_after_ms = Date.now() + MARKET_TRANSITION_RETRY_MS", self.source)
+        self.assertIn("current.identity !== identity", self.source)
+        self.assertIn("retryPending ||", self.source)
+        self.assertIn("ctx.waitUntil(deliverMarketTransition", self.source)
+
+    def test_friday_break_and_reopen_follow_the_session_boundaries(self):
+        self.assertIn('edge.condition === "BREAK"', self.source)
+        self.assertIn('edge.phase === "POST_CLOSE"', self.source)
+        self.assertIn('edge.phase === "PRE_OPEN"', self.source)
+        self.assertIn("const sessionJustClosed = Number.isFinite(closeAt)", self.source)
+        self.assertIn("now.getTime() - closeAt <= MARKET_OPEN_GRACE_MS", self.source)
+        self.assertIn('state = "CLOSED";', self.source)
+        self.assertIn("const MARKET_OPEN_GRACE_MS = 5 * 60 * 1000;", self.source)
+        self.assertIn("now.getTime() - openAt <= MARKET_OPEN_GRACE_MS", self.source)
+        self.assertIn("async scheduled(controller, env, ctx)", self.source)
+        self.assertIn("await trackMarketTransitions(env, snapshot, now, ctx);", self.source)
+        # Scheduled notifications have no direct hard-coded Telegram call.
+        scheduled = self.source[self.source.index("async scheduled(controller, env, ctx)"):]
+        self.assertNotIn('tgCall(env, "sendMessage"', scheduled)
+
+    def test_session_edges_and_broker_halt_are_not_scanner_schedule_changes(self):
+        for text in ("09:32", "15:30", "09:17", "12:00", "14:32", "16:30"):
+            with self.subTest(edge=text):
+                self.assertIn(text, self.source)
+        workflow = (ROOT / ".github" / "workflows" / "intraday-session.yml").read_text(
+            encoding="utf-8")
+        self.assertIn("30 seconds", workflow)
+        self.assertIn('SCAN_INTERVAL_SECONDS = _number("SCAN_INTERVAL_SECONDS", 30)',
+                      (ROOT / "src" / "config.py").read_text(encoding="utf-8"))
+
+    def test_durable_object_deploy_paths_declare_the_same_class(self):
+        config = (ROOT / "cloud" / "wrangler.toml").read_text(encoding="utf-8")
+        upload = (ROOT / "cloud" / "pair.py").read_text(encoding="utf-8")
+        self.assertIn('name = "QUOTE_HUB"', config)
+        self.assertIn('class_name = "QuoteHub"', config)
+        self.assertIn('[exports.QuoteHub]', config)
+        self.assertIn('"name": "QUOTE_HUB"', upload)
+        self.assertIn('"class_name": "QuoteHub"', upload)
+        self.assertIn('"QuoteHub": {"type": "durable-object", "storage": "sqlite"}',
+                      upload)
+
     # --------------------------------------------------- unchanged contracts
 
     def test_the_admin_gate_and_the_card_routes_survive(self):
