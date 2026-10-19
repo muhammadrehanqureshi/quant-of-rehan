@@ -38,6 +38,7 @@ SEED = (
     "charts",
     "tests/test_charts_contract.py",
     "tests/test_charts_store.py",
+    "tests/test_charts_persistent.py",
     "tests/test_charts_ratelimit.py",
     "tests/test_charts_sources.py",
     "tests/test_charts_service.py",
@@ -47,8 +48,9 @@ SEED = (
     "web",
 )
 
-#: Never copied: build output and installed dependencies.
-EXCLUDE_DIRS = {"node_modules", "dist", "__pycache__", ".pytest_cache", ".vite"}
+#: Never copied: build output, local/private datasets, secrets, or installed dependencies.
+EXCLUDE_DIRS = {"node_modules", "dist", "__pycache__", ".pytest_cache", ".vite",
+                ".git", "data", "recordings", "history", "private"}
 
 #: The prefixes this project owns. Anything else is the standard library or a
 #: third party package and is not copied.
