@@ -197,9 +197,12 @@ fi
 
 # --------------------------------------------------------------- 2/4 sync
 step "2/4 sync with origin/$BASE"
+if [[ -n "$(git status --porcelain --untracked-files=all)" ]]; then
+    die "the working tree is not clean after the commit phase. Keep unrelated work out of this landing and use a clean worktree"
+fi
 git fetch origin --prune
 note "rebasing $BRANCH onto origin/$BASE"
-if ! git pull --rebase origin "$BASE"; then
+if ! git rebase "origin/$BASE"; then
     git rebase --abort 2>/dev/null || true
     die "rebase conflict against origin/$BASE. Resolve it by hand (fix the files, git add them, git rebase --continue), then rerun land.sh: the work is already committed, so it skips the commit phase and continues. The rebase was aborted; your branch is unchanged."
 fi
