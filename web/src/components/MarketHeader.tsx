@@ -6,6 +6,7 @@
 
 import type { FeedMeta, FeedState } from "../hooks/useChartFeed";
 import { formatPrice, formatStamp } from "../chart/format";
+import { type LiveQuote } from "../api/types";
 
 export interface MarketHeaderProps {
   readonly meta: FeedMeta;
@@ -13,6 +14,7 @@ export interface MarketHeaderProps {
   readonly error: FeedState["error"];
   readonly revisions: number;
   readonly bars: number;
+  readonly onRefreshQuote?: () => void;
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -24,21 +26,27 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 export function MarketHeader(props: MarketHeaderProps) {
-  const { meta, status, error, revisions, bars } = props;
+  const { meta, status, error, revisions, bars, onRefreshQuote } = props;
+  const observedAt = meta.payload?.observed_at ?? null;
   const market = meta.market;
+  const liveQuote: LiveQuote | null = meta.liveQuote;
+  const liveFresh = liveQuote?.fresh === true;
   const last = meta.payload?.bars.at(-1);
   const first = meta.payload?.bars.at(0);
-  const change =
-    last !== undefined && first !== undefined && first.o > 0
+  const price = liveFresh ? liveQuote.price : last?.c;
+  const change = liveFresh && liveQuote.change_pct !== null
+    ? liveQuote.change_pct
+    : last !== undefined && first !== undefined && first.o > 0
       ? ((last.c - first.o) / first.o) * 100
       : null;
+  const quoteStamp = liveQuote?.observed_at ?? observedAt;
 
   return (
     <header className="header">
       <div className="header__row">
         <h1 className="header__symbol">{meta.symbol || "no symbol"}</h1>
         <span className="header__price">
-          {last !== undefined ? formatPrice(last.c) : "-"}
+          {price !== undefined && price !== null ? formatPrice(price) : "-"}
         </span>
         {change !== null ? (
           <span className={change >= 0 ? "delta delta--up" : "delta delta--down"}>
@@ -47,6 +55,9 @@ export function MarketHeader(props: MarketHeaderProps) {
           </span>
         ) : null}
         <span className={`pill pill--${status}`}>{STATUS_LABEL[status] ?? status}</span>
+        {liveQuote?.fresh === true && liveQuote.status !== "OPEN" ? (
+          <span className="pill pill--reconnecting">{liveQuote.status.toLowerCase()}</span>
+        ) : null}
       </div>
 
       <div className="header__row header__row--facts">
@@ -75,12 +86,29 @@ export function MarketHeader(props: MarketHeaderProps) {
         ) : null}
         <span>{bars} bars</span>
         <span>{revisions} revised</span>
+        {liveQuote !== null && quoteStamp !== null ? (
+          <span>last broker quote {formatStamp(quoteStamp)} PKT
+            {!liveQuote.fresh ? " (stale)" : ""}
+          </span>
+        ) : observedAt !== null ? (
+          <span>last broker observation {formatStamp(observedAt)} PKT</span>
+        ) : null}
+        {liveQuote?.age_seconds !== undefined ? (
+          <span>quote age {liveQuote.age_seconds}s
+            {meta.quoteStatus === "reconnecting" ? " · reconnecting" : ""}
+          </span>
+        ) : meta.quoteError !== null ? (
+          <span role="status">quote unavailable: {meta.quoteError}</span>
+        ) : null}
+        {onRefreshQuote !== undefined ? (
+          <button type="button" onClick={onRefreshQuote}>refresh quote</button>
+        ) : null}
         {meta.source !== null ? (
           <span title={meta.source.note}>
             source {meta.source.label}
             {meta.source.delay_seconds > 0
               ? ` (delayed about ${Math.round(meta.source.delay_seconds / 60)} min)`
-              : " (no delay reported)"}
+              : ""}
           </span>
         ) : null}
       </div>

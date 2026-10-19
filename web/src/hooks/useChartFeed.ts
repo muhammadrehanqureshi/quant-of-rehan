@@ -15,8 +15,9 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { ApiError, type ChartClient, type StreamState } from "../api/client";
-import type { ChartPayload, ErrorCategory, Gap, SourceInfo } from "../api/types";
+import { ApiError, type ChartClient, type StreamHandle, type StreamState } from "../api/client";
+import type { ChartPayload, ErrorCategory, Gap, LiveQuote, SourceInfo } from "../api/types";
+import { formatStamp } from "../chart/format";
 import { ColumnSeries } from "../chart/series";
 
 export interface FeedMeta {
@@ -27,6 +28,9 @@ export interface FeedMeta {
   readonly notes: readonly string[];
   readonly gaps: readonly Gap[];
   readonly payload: ChartPayload | null;
+  readonly liveQuote: LiveQuote | null;
+  readonly quoteStatus: StreamState | "loading";
+  readonly quoteError: string | null;
 }
 
 export interface FeedState {
@@ -36,6 +40,7 @@ export interface FeedState {
   readonly error: { category: ErrorCategory; detail: string } | null;
   readonly version: number;
   readonly refresh: () => void;
+  readonly refreshQuote: () => void;
 }
 
 const EMPTY_META: FeedMeta = {
@@ -46,6 +51,9 @@ const EMPTY_META: FeedMeta = {
   notes: [],
   gaps: [],
   payload: null,
+  liveQuote: null,
+  quoteStatus: "loading",
+  quoteError: null,
 };
 
 export function useChartFeed(
@@ -60,6 +68,10 @@ export function useChartFeed(
   const [error, setError] = useState<FeedState["error"]>(null);
   const [version, setVersion] = useState(0);
   const [manual, setManual] = useState(0);
+  const [quoteRefresh, setQuoteRefresh] = useState(0);
+  const [liveQuote, setLiveQuote] = useState<LiveQuote | null>(null);
+  const [quoteStatus, setQuoteStatus] = useState<StreamState | "loading">("loading");
+  const [quoteError, setQuoteError] = useState<string | null>(null);
 
   const bump = useCallback(() => setVersion((value) => value + 1), []);
 
@@ -86,6 +98,9 @@ export function useChartFeed(
         notes: payload.notes,
         gaps: payload.gaps,
         payload,
+        liveQuote: null,
+        quoteStatus: "loading",
+        quoteError: null,
       });
       bump();
     };
@@ -139,9 +154,70 @@ export function useChartFeed(
     };
   }, [client, symbol, resolution, limit, series, bump, manual]);
 
-  const refresh = useCallback(() => setManual((value) => value + 1), []);
+  useEffect(() => {
+    setLiveQuote(null);
+    setQuoteStatus("loading");
+    setQuoteError(null);
+    if (symbol.length === 0) return;
+    let cancelled = false;
+    let stream: StreamHandle | null = null;
+    const controller = new AbortController();
+    const adopt = (quote: LiveQuote) => {
+      if (cancelled) return;
+      setLiveQuote((current) => current === null ||
+        Date.parse(quote.observed_at) >= Date.parse(current.observed_at)
+        ? quote : current);
+    };
+    client.liveQuote(symbol, controller.signal)
+      .then(adopt)
+      .catch((failure: unknown) => {
+        if (!cancelled) setQuoteError(categoryOf(failure).detail);
+      });
+    stream = client.streamLiveQuote(symbol, {
+      onQuote: adopt,
+      onState: (state, detail) => {
+        if (cancelled) return;
+        setQuoteStatus(state);
+        if (state === "reconnecting" && detail !== undefined) {
+          setQuoteError(detail);
+        } else if (state === "live") {
+          setQuoteError(null);
+        }
+      },
+    });
+    return () => {
+      cancelled = true;
+      controller.abort();
+      stream?.close();
+    };
+  }, [client, symbol, quoteRefresh]);
 
-  return { series, meta, status, error, version, refresh };
+  const refresh = useCallback(() => setManual((value) => value + 1), []);
+  const refreshQuote = useCallback(() => setQuoteRefresh((value) => value + 1), []);
+  const currentQuote = liveQuote?.symbol === symbol ? liveQuote : null;
+  const currentMeta = meta.symbol === symbol && meta.resolution === resolution
+    ? meta : EMPTY_META;
+  const liveNotes = currentQuote === null ? currentMeta.notes : [
+    ...currentMeta.notes,
+    `last broker quote ${formatStamp(currentQuote.observed_at)} PKT` +
+      (currentQuote.fresh ? "" : ` is stale (${currentQuote.age_seconds}s old)`),
+  ];
+
+  return {
+    series,
+    meta: {
+      ...currentMeta,
+      liveQuote: currentQuote,
+      quoteStatus,
+      quoteError,
+      notes: liveNotes,
+    },
+    status,
+    error,
+    version,
+    refresh,
+    refreshQuote,
+  };
 }
 
 function categoryOf(error: unknown): { category: ErrorCategory; detail: string } {
