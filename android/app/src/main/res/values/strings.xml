@@ -22,9 +22,13 @@
          text, not a button name. -->
     <string name="cd_settings">Settings. Opens the relay token and the watchdog controls.</string>
     <string name="diamond">◆</string>
-    <string name="label_system">SYSTEM STATUS</string>
+    <string name="label_system">QUANT STATUS</string>
     <string name="label_signal">LATEST SIGNAL</string>
     <string name="label_settings">SETTINGS</string>
+    <string name="market_open_notification">Market is open. Quant is online now.</string>
+    <string name="market_closed_notification">Market is closed. Quant is sleeping now.</string>
+    <string name="market_break_notification">Market is on a break. Quant is sleeping until the market reopens.</string>
+    <string name="market_halted_notification">Market is halted now. Quant is sleeping until the market reopens.</string>
     <!-- Owner order 2026-10-12: the market card carries no label any more,
          so "MARKET NOW" is gone. The index line and the ranking state what
          the card is by themselves. -->
@@ -54,8 +58,8 @@
          words stay exactly as ordered and stay the only place they appear.
          v1.7.1 changed ONE word in it: 4 minutes became 30 seconds, because
          the scan moved from the retired local tick to the 30 second cloud
-         loop. Every other character, including the final full stop and the
-         owner's own "when the market is open", is unchanged.
+         loop. The one-second phone refresh is a separate display read and
+         does not change SO-13's protected strategy-scan cadence.
          Owner order 2026-10-16: the interval in this sentence is now the
          CLOUD interval. The scans run on GitHub Actions minutes and the
          Cloudflare relay with the owner's PC switched off (SO-13), at
@@ -63,8 +67,10 @@
          and the intraday strategy. It used to say 4 minutes, which was the
          old local Windows tick's cadence, and that tick is retired: leaving
          the sentence alone would tell the owner the market is checked eight
-         times less often than it is. The 30 is read from the same constant
-         the scanner runs on, so the sentence and the cadence cannot drift.
+         times less often than it is.
+         The sentence states SO-13's strategy-scan cadence, not the foreground
+         app refresh, so the scanner and the phone display are not conflated.
+
          The scanning happens only inside a live band (Mon-Thu 09:32-15:30,
          Friday 09:17-12:00 and 14:32-16:30), which the sentence states.
          Owner wording 2026-10-12 kept: "when the market is open". -->
@@ -81,14 +87,19 @@
          status tile carries the condition alone. -->
     <string name="market_closed_now">Market is closed right now.</string>
     <string name="market_on_break">Market is on a break right now.</string>
+    <string name="market_halted_now">Market is halted now. Quant is sleeping until the market reopens.</string>
     <!-- Shown only when the relay reports no phase at all. The app refuses to
          guess a session, so it says so instead of claiming the market is shut. -->
     <string name="market_status_unreported">Market status not reported by the relay yet.</string>
 
     <string name="market_waiting">KSE100  ·  loading</string>
-    <string name="market_leaders_waiting">Top three by volume load with the next refresh.</string>
+    <string name="market_leaders_waiting">Top three by volume load with the next broker-feed update.</string>
     <string name="market_none_yet">No stock has traded yet this session.</string>
     <string name="market_unavailable">Volume leaders unavailable right now.</string>
+    <string name="market_feed_unknown">Feed status unconfirmed; the session clock remains the market-hours authority.</string>
+    <string name="market_feed_open">REG feed LIVE · updated %1$s PKT</string>
+    <string name="market_feed_halted">REG feed HALTED · %1$s · updated %2$s PKT</string>
+    <string name="market_feed_closed">REG feed CLOSED · updated %1$s PKT</string>
     <!-- %1$s is a short failure name, never a token or a URL -->
     <string name="market_card_failed">Market card could not load (%1$s).</string>
     <string name="market_relay_unreachable">Relay unreachable, so the market card is empty.</string>
@@ -97,20 +108,9 @@
     <string name="btn_save">Save token</string>
     <string name="btn_relay">Relay status</string>
     <string name="btn_arm">Arm 5-minute watchdog</string>
-    <!-- Owner order 2026-10-16 (fourth note): the hint no longer advertises a
-         five minute repaint. The console polls the relay every second while
-         the market is open (Watcher.FAST_POLL_MS) and every 30 seconds when
-         it is shut (Watcher.REFRESH_MS), and the index card rides along every
-         CARD_EVERY_SECONDS live rounds because that is how often the relay can
-         rebuild it. The sentence now says that, so the panel and the poll
-         cannot tell the owner two different stories. -->
-    <string name="settings_hint">Paste the relay admin token once to receive signals. While the market is open the app polls the relay every second, and the KSE100 index with the day\'s top three volume leaders every 30 seconds; when the market is shut it polls every 30 seconds. On some phones also allow autostart and remove battery limits.</string>
+    <!-- One-second app polls read the live relay card. Upstream refreshes are
+         event-driven, so the display never promises a quote cadence faster
+         than the broker actually publishes. -->
+    <string name="settings_hint">Paste the relay admin token once to receive signal updates. The top three volume leaders refresh from the latest available broker-feed data. On some phones also allow autostart and remove battery limits.</string>
 
-    <!-- The app's own contact line, shown with the system status while the
-         relay reports a live session: it is the phone's record of its own
-         last answer, never a market fact, so a reader can see the poll is
-         running without reading the clock as a session claim (SO-3, SO-8).
-         %1$s is an Asia/Karachi wall clock time and %2$d the live interval in
-         seconds, both taken from the poll's own constants. -->
-    <string name="app_live">Live: updated %1$s PKT, polling every %2$d s</string>
 </resources>
