@@ -1108,6 +1108,11 @@ async function healthPayload(env) {
   return {
     ok: true,
     service: "quant-of-rehan-relay",
+    // The commit this script was built from. The deploy workflow sets it from
+    // GITHUB_SHA and then asks /health for it, so a deploy that uploaded
+    // nothing (or uploaded to another account) cannot pass as a success.
+    // Empty when the worker was uploaded outside CI (cloud/pair.py).
+    version: env.WORKER_VERSION || null,
     karachi_now: `${dayStamp(k)} ${hhmm(k)} PKT`,
     // The app shows ONLINE only while a session is live, so the state is
     // answered by the same session law the notifications use (SO-8).
