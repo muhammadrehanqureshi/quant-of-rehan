@@ -636,6 +636,45 @@ def market_context(session: SessionData) -> dict:
 
 # -------------------------------------------------------------------- scoring
 
+def secondary_confirmation(rows: list[MinuteBar]) -> dict:
+    """Return causal breakout/RSI confirmation diagnostics for completed bars."""
+    count = config.BREAKOUT_CONFIRMATION_BARS
+    prior = rows[-count - 1:-1]
+    prior_close_high = max((bar.close for bar in prior), default=None)
+    rsi14 = _wilder_rsi([bar.close for bar in rows])
+    breakout = prior_close_high is not None and rows[-1].close > prior_close_high
+    rsi_pass = rsi14 is not None and rsi14 >= config.MIN_CONFIRMATION_RSI
+    return {
+        "breakout_bars": count,
+        "prior_close_high": prior_close_high,
+        "breakout_passed": breakout,
+        "rsi14": rsi14,
+        "rsi_passed": rsi_pass,
+        "passed": breakout and rsi_pass,
+    }
+
+
+def _wilder_rsi(closes: list[float], period: int = 14) -> float | None:
+    """Wilder's RSI using only completed closes; None when data is insufficient."""
+    if period < 1 or len(closes) < period + 1:
+        return None
+    if any(not math.isfinite(value) or value <= 0 for value in closes):
+        return None
+    changes = [closes[index] - closes[index - 1]
+               for index in range(1, len(closes))]
+    gains = [max(change, 0.0) for change in changes]
+    losses = [max(-change, 0.0) for change in changes]
+    avg_gain = sum(gains[:period]) / period
+    avg_loss = sum(losses[:period]) / period
+    for gain, loss in zip(gains[period:], losses[period:]):
+        avg_gain = (avg_gain * (period - 1) + gain) / period
+        avg_loss = (avg_loss * (period - 1) + loss) / period
+    if avg_loss == 0:
+        return 100.0 if avg_gain > 0 else 50.0
+    relative_strength = avg_gain / avg_loss
+    return 100.0 - 100.0 / (1.0 + relative_strength)
+
+
 def _sat(value: float, half_credit: float) -> float:
     positive = max(float(value), 0.0)
     if positive <= 0.0:
@@ -721,6 +760,16 @@ def score_symbol(symbol: str, rows: list[MinuteBar], session: SessionData) -> di
     volume_accel_ratio = recent_volume / prior[-1] if prior[-1] > 0 else float("inf")
     traded_value = float(sum(bar.close * (bar.volume or 0.0) for bar in rows))
 
+    # Secondary continuation confirmation: require both a close through the
+    # recent range and a non-weak RSI(14). The window is anchored on completed
+    # bars, like momentum, and the result is always included in the audit row.
+    confirm_count = config.BREAKOUT_CONFIRMATION_BARS
+    confirmation = secondary_confirmation(rows)
+    prior_range_high = confirmation["prior_close_high"]
+    rsi14 = confirmation["rsi14"]
+    breakout_confirmed = confirmation["breakout_passed"]
+    rsi_confirmed = confirmation["rsi_passed"]
+
     session_return = last.close / first.open - 1.0
     session_high = max(bar.high for bar in rows)
     distance_from_high = session_high / last.close - 1.0 if last.close > 0 else 1.0
@@ -738,6 +787,8 @@ def score_symbol(symbol: str, rows: list[MinuteBar], session: SessionData) -> di
         "session_return_positive": session_return > 0,
         "relative_volume": relative_volume >= config.MIN_RELATIVE_VOLUME,
         "volume_accelerating": volume_accel_ratio >= config.MIN_VOLUME_ACCEL_RATIO,
+        "breakout_confirmation": breakout_confirmed,
+        "rsi14_confirmation": rsi_confirmed,
         "liquidity": traded_value >= config.MIN_SESSION_TRADED_VALUE,
     }
     failed = sorted(name for name, ok in gates.items() if not ok)
@@ -798,6 +849,16 @@ def score_symbol(symbol: str, rows: list[MinuteBar], session: SessionData) -> di
                                     if math.isfinite(volume_accel_ratio) else None),
                    "traded_value_estimate": round(traded_value, 2),
                    "volume_source": "captured bar volume"},
+        "confirmation": {
+            "rule": "close_above_previous_range_and_rsi14",
+            "breakout_bars": confirm_count,
+            "prior_close_high": prior_range_high,
+            "breakout_passed": breakout_confirmed,
+            "rsi14_wilder": None if rsi14 is None else round(rsi14, 2),
+            "minimum_rsi14": config.MIN_CONFIRMATION_RSI,
+            "rsi_passed": rsi_confirmed,
+            "passed": breakout_confirmed and rsi_confirmed,
+        },
         "price": {"last": last.close, "session_open": first.open,
                   "session_high": session_high,
                   "distance_from_high": round(distance_from_high, 6)},
