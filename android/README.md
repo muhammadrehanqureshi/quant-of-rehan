@@ -490,6 +490,31 @@ to sixty seconds. The status tile therefore also carries the app's own
   settings hint describes available broker data without claiming an upstream
   refresh interval, and its SETTINGS heading is centered in the tile.
   Version 1.7.4, versionCode 28.
+- v1.7.5, owner order 2026-10-19: the console no longer repaints an answer
+  that has not changed. It polls once a second on a live market, while the
+  relay's own clock has minute resolution and its card moves only when the
+  cloud capture publishes, so most answers were identical, and every one of
+  them still re-measured and re-laid out three tiles and allocated a fresh
+  status badge drawable. `RenderGate` (plain Java, no Android imports) now
+  compares the answer with the one on screen and `paint()` runs only on a
+  change; the two badge backgrounds are built once; `onResume` resets the gate
+  so the first answer after a pause always repaints, which is what restarts
+  the status breath. The gate is exercised on the JVM by
+  `tests/test_android_render_gate.py`, not only read as source. Nothing about
+  the data changes: the relay's timestamp is still the only freshness claim.
+  Version 1.7.5, versionCode 29.
+
+**Built and delivered 2026-10-19:** the signed v1.7.5 APK was built from this
+checkout with the toolchain above and copied to
+`C:/Users/rehan/OneDrive/Desktop/QuantOfRehan-v1.7.5.apk`, one file under one
+name. 539,728 bytes, SHA-256
+`3969d426d45e25a69b75854f3798880a8c04968631002e35dedf45a9717b30b0`,
+zipalign verified, signature verified v2 + v3, and `aapt2 dump badging` reads
+back `pk.quantofrehan` `versionCode="29"` `versionName="1.7.5"` with the
+launchable `MainActivity`. `RenderGate` is present in the shipped
+`classes.dex`, so the gate in the APK is the gate the JVM probe exercised. The
+Android tests were green before the build (69 source tests plus the JVM probe),
+so the source that shipped is the source the tests pin.
 
 **Built and delivered 2026-10-18:** the signed v1.7.4 APK was built from this
 checkout with the toolchain above and copied to

@@ -1077,9 +1077,16 @@ async function tgCall(env, method, params, timeoutMs) {
   } catch (e) {
     // Reported, never swallowed: the caller turns this into a 502 with the
     // reason in it, so a delivery failure is visible and not guessed at.
+    //
+    // The budget quoted is the one this call actually used. It used to print
+    // TELEGRAM_TIMEOUT_MS (10s) even when the caller had passed the 45 second
+    // send budget, so a timed out signal reported a deadline sixteen times
+    // shorter than the one that expired. A diagnostic that misstates its own
+    // deadline sends the reader looking for the wrong fault.
     const why = e && e.name ? e.name : "error";
+    const budget = timeoutMs || TELEGRAM_TIMEOUT_MS;
     return { ok: false,
-             description: `telegram did not answer within ${TELEGRAM_TIMEOUT_MS / 1000}s (${why})` };
+             description: `telegram did not answer within ${budget / 1000}s (${why})` };
   }
   return r.json().catch(() => ({}));
 }

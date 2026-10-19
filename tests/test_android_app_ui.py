@@ -885,7 +885,12 @@ class StatusPulseTest(unittest.TestCase):
         self.assertNotIn('"OPEN".equals(market.phase)', self.main)
         self.assertNotIn("setStatusBreath", self.main)
         render = self.main.index("private void render(")
-        self.assertIn("breathIfOnline(online)", self.main[render:render + 3000])
+        # The answer is painted through the gate since v1.7.5, so the breath is
+        # reached in paint(): the slice runs to the fingerprint that follows it
+        # rather than to a fixed width, which is what a comment edit breaks.
+        self.assertIn("breathIfOnline(online)",
+                      self.main[render:self.main.index("private static int marketFingerprint(",
+                                                       render)])
         gate = self.main.index("private void breathIfOnline(")
         body = self.main[gate:gate + 400]
         self.assertIn("if (online)", body)
@@ -1011,7 +1016,7 @@ class StatusPulseTest(unittest.TestCase):
         self.assertNotIn("live polling", strings.lower())
         render = self.main[self.main.index("private void render(boolean online"):]
         render = render[:render.index("private String latestSignalDisplay(")]
-        self.assertIn("statusDetail.setText(clockSpans(d));", render)
+        self.assertIn("statusDetail.setText(clockSpans(actualDetail));", render)
         self.assertNotIn("liveLine()", render)
         self.assertNotIn("Watcher.FAST_POLL_MS", render)
         # The status sentence remains the relay's session-clock response.
@@ -1328,12 +1333,12 @@ class VersionTest(unittest.TestCase):
         # v1.7.4 adds the live card refresh, exact market notices, the
         # one-second footer and the centered settings heading.
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="1.7.4"', manifest)
-        self.assertIn('android:versionCode="28"', manifest)
+        self.assertIn('android:versionName="1.7.5"', manifest)
+        self.assertIn('android:versionCode="29"', manifest)
         # The changelog entry ties these user-visible changes to the build.
         readme = (ROOT / "android" / "README.md").read_text(encoding="utf-8")
-        self.assertIn("v1.7.4, owner order 2026-10-18", readme)
-        self.assertIn("Version 1.7.4,", readme)
+        self.assertIn("v1.7.5, owner order 2026-10-19", readme)
+        self.assertIn("Version 1.7.5,", readme)
         layout = LAYOUT.read_text(encoding="utf-8")
         strings = STRINGS.read_text(encoding="utf-8")
         main = MAIN.read_text(encoding="utf-8")
@@ -1344,7 +1349,7 @@ class VersionTest(unittest.TestCase):
         self.assertIn("market.feedStatusFresh", main)
         self.assertIn("renderMarketFeedStatus(market);", main)
         self.assertIn("latestSignalBackground = s;", main)
-        self.assertIn("signalList.setText(latestSignalDisplay(s));", main)
+        self.assertIn("signalList.setText(latestSignalDisplay(actualSignals));", main)
         self.assertIn("Entry Time: ", main)
         self.assertIn("Entry Price: ", main)
         self.assertIn("Exit Price: ", main)
