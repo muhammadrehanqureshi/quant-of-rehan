@@ -993,7 +993,7 @@ class StatusPulseTest(unittest.TestCase):
         second loop.
         """
         render = self.main[self.main.index("private void render(boolean online"):]
-        render = render[:render.index("private String liveLine()")]
+        render = render[:render.index("private String latestSignalDisplay(")]
         # The state is taken from the answer before the cadence is re-decided:
         # the order of these two lines is the fix.
         self.assertLess(render.index("marketOpenSeen = online;"),
@@ -1002,61 +1002,31 @@ class StatusPulseTest(unittest.TestCase):
         self.assertEqual(self.main.count("scheduleNext();"), 3,
                          "onResume, the tick and the answer: one method")
 
-    def test_the_status_tile_shows_the_apps_own_last_contact_second(self):
-        """The relay's clock has minute resolution (owner order 2026-10-16).
-
-        cloud/worker.js formats `karachi_now` as `<date> HH:MM PKT` (hhmm),
-        so a perfect one second poll repaints an identical screen for up to
-        sixty seconds and reads as no poll at all. The tile therefore also
-        carries the app's own contact line, to the second, which is the
-        phone's record of its own last answer: it is shown only while the
-        relay reports a live session, it never replaces the relay's own
-        Karachi line, and it states no market fact (SO-3, SO-8).
-        """
+    def test_system_tile_has_quant_title_without_polling_status_copy(self):
+        """The status tile reports relay data, not local polling cadence."""
         strings = STRINGS.read_text(encoding="utf-8")
-        self.assertIn('name="app_live"', strings)
-        live = strings[strings.index('name="app_live">') + len('name="app_live">'):]
-        live = live[:live.index("</string>")]
-        # Both numbers come from the code, never from a typed literal.
-        self.assertIn("%1$s", live)
-        self.assertIn("%2$d", live)
-        self.assertIn("polling", live)
-        # The relay's minute-resolution stamp still stands in the tile.
-        self.assertIn("Karachi: ", WATCHER.read_text(encoding="utf-8"))
-        worker = (ROOT / "cloud" / "worker.js").read_text(encoding="utf-8")
-        self.assertIn("function hhmm(d) {", worker)
-        self.assertNotIn("getUTCSeconds", worker.split("function hhmm(d) {")[1]
-                         [:120])
-        # And the app's line is built to the second, in Karachi time, from the
-        # loop's own interval constant.
-        line = self.main[self.main.index("private String liveLine()"):]
-        line = line[:line.index("private SpannableString clockSpans")]
-        self.assertIn("\"HH:mm:ss\"", line)
-        self.assertIn("Asia/Karachi", line)
-        self.assertIn("Watcher.FAST_POLL_MS / 1000", line)
-        self.assertIn("R.string.app_live", line)
-        # The line is appended to the relay's detail, never shown alone, and
-        # only while the relay says the session is live.
+        self.assertIn('name="label_system">QUANT STATUS</string>', strings)
+        self.assertNotIn('name="app_live"', strings)
+        self.assertNotIn("polling every", strings.lower())
+        self.assertNotIn("live polling", strings.lower())
         render = self.main[self.main.index("private void render(boolean online"):]
-        render = render[:render.index("private String liveLine()")]
-        self.assertIn('d + "\\n" + liveLine() : d', render)
-        self.assertIn("clockSpans(online", render)
+        render = render[:render.index("private String latestSignalDisplay(")]
+        self.assertIn("statusDetail.setText(clockSpans(d));", render)
+        self.assertNotIn("liveLine()", render)
+        self.assertNotIn("Watcher.FAST_POLL_MS", render)
+        # The status sentence remains the relay's session-clock response.
+        self.assertIn("Karachi: ", WATCHER.read_text(encoding="utf-8"))
 
     def test_the_settings_hint_separates_the_two_cadences(self):
-        """Owner order 2026-10-16 (fourth note): the panel told the owner two
-        different stories. The scan sentence (string/scan_cadence) is the
-        CLOUD scanner's own cadence and stays byte-identical; the hint is
-        help text, so it now spells out both cadences: the poll every second
-        while the market is open, and the 30 second one when it is shut and
-        for the exchange-backed card."""
+        """Settings help must not masquerade as a live-poll status label."""
         strings = STRINGS.read_text(encoding="utf-8")
         hint = strings[strings.index('name="settings_hint">')
                        + len('name="settings_hint">'):]
         hint = hint[:hint.index("</string>")]
-        self.assertIn("every second", hint)
-        self.assertIn("every 30 seconds", hint)
-        self.assertNotIn("5 minutes", hint)
-        self.assertNotIn("every 5", hint)
+        self.assertIn("latest available broker-feed data", hint)
+        self.assertNotIn("every second", hint)
+        self.assertNotIn("every 30 seconds", hint)
+        self.assertNotIn("polling", hint.lower())
 
     def test_one_round_at_a_time_so_the_poll_cannot_pile_up(self):
         """A one second poll must not queue a second round behind the first.
@@ -1067,7 +1037,7 @@ class StatusPulseTest(unittest.TestCase):
         loop instead of freezing the console.
         """
         poll = self.main.index("private void pollOnce()")
-        self.assertIn("if (liveInFlight) {", self.main[poll:poll + 600])
+        self.assertIn("if (!liveInFlight) {", self.main[poll:poll + 600])
         self.assertEqual(self.main.count("liveInFlight = true;"), 2)
         self.assertEqual(self.main.count("liveInFlight = false;"), 2)
         self.assertIn("Watcher.fetchLive(this, admin", self.main)
@@ -1101,28 +1071,27 @@ class StatusPulseTest(unittest.TestCase):
             self.assertLess(body.index("isFinishing() || isDestroyed()"),
                             body.index("if (resumed) {"))
 
-    def test_the_market_card_is_not_asked_for_every_second(self):
-        """The one second round is the pair that moves.
+    def test_the_market_card_is_read_on_each_live_display_refresh(self):
+        """The app polls the current relay card each second while open.
 
-        The card is rebuilt by the relay from the exchange page about every
-        five minutes, so asking for it once a second would spend a request a
-        second on a payload that cannot have changed. Live rounds are health
-        and signals; the card rides along once every CARD_EVERY_SECONDS.
+        This is a display read, not a new scan or an upstream-feed promise:
+        the relay snapshot carries the broker timestamp and is published by
+        the cloud session runner at its protected SO-13 cadence.
         """
         watcher = (ROOT / "android" / "app" / "src" / "main" / "java"
                    / "pk" / "quantofrehan" / "Watcher.java").read_text(
             encoding="utf-8")
-        self.assertIn("private static final int CARD_EVERY_SECONDS = 30;",
-                      self.main)
-        poll = self.main.index("private void pollOnce()")
-        self.assertIn("ticksSinceCard >= CARD_EVERY_SECONDS",
-                      self.main[poll:poll + 600])
+        self.assertNotIn("CARD_EVERY_SECONDS", self.main)
+        self.assertIn("static final long DISPLAY_REFRESH_MS = FAST_POLL_MS;",
+                      watcher)
         live = watcher.index("static void fetchLive(")
-        live_body = watcher[live:live + 900]
-        self.assertIn("head.signals, null);", live_body)
-        self.assertNotIn("fetchMarket", live_body)
-        full = watcher.index("static void fetchStatus(")
-        self.assertIn("fetchMarket(c, base)", watcher[full:full + 900])
+        live_body = watcher[live:live + 1100]
+        self.assertIn("Market market = fetchMarket(c, base);", live_body)
+        self.assertIn("head.signals, market);", live_body)
+        poll = self.main.index("private void pollOnce()")
+        self.assertIn("refreshLive();", self.main[poll:poll + 240])
+        self.assertIn("The card route is read from the relay's latest pushed broker snapshot",
+                      self.main)
 
     def test_the_settings_menu_stands_alone_while_it_is_open(self):
         """Owner order 2026-10-16: the menu is exclusive.
@@ -1229,7 +1198,7 @@ class StatusPulseTest(unittest.TestCase):
         # And the gate is called from the one place the relay's answer is
         # painted, with that answer rather than with a view's state.
         render = self.main[self.main.index("private void render(boolean online"):]
-        render = render[:render.index("private String liveLine()")]
+        render = render[:render.index("private String latestSignalDisplay(")]
         self.assertIn("breathIfOnline(online);", render)
 
     def test_the_online_light_is_green_and_the_offline_light_is_red(self):
@@ -1356,17 +1325,44 @@ class HeaderCopyTest(unittest.TestCase):
 
 class VersionTest(unittest.TestCase):
     def test_the_version_is_the_one_that_ships_these_changes(self):
-        # v1.7.3 (owner order 2026-10-16, fourth note): the live poll really
-        # runs once a second, the settings gradient is no longer sliced, the
-        # offline light is the online light in red, and the header names the
-        # index, so the code and the name move together.
+        # v1.7.4 adds the live card refresh, exact market notices, the
+        # one-second footer and the centered settings heading.
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="1.7.3"', manifest)
-        self.assertIn('android:versionCode="27"', manifest)
-        # And the project's own record of the order says what shipped.
+        self.assertIn('android:versionName="1.7.4"', manifest)
+        self.assertIn('android:versionCode="28"', manifest)
+        # The changelog entry ties these user-visible changes to the build.
         readme = (ROOT / "android" / "README.md").read_text(encoding="utf-8")
-        self.assertIn("v1.7.3, owner order 2026-10-16", readme)
-        self.assertIn("Version 1.7.3,", readme)
+        self.assertIn("v1.7.4, owner order 2026-10-18", readme)
+        self.assertIn("Version 1.7.4,", readme)
+        layout = LAYOUT.read_text(encoding="utf-8")
+        strings = STRINGS.read_text(encoding="utf-8")
+        main = MAIN.read_text(encoding="utf-8")
+        watcher = WATCHER.read_text(encoding="utf-8")
+        self.assertIn('android:id="@+id/market_feed_status"', layout)
+        self.assertIn('name="market_feed_unknown"', strings)
+        self.assertIn('name="market_feed_halted"', strings)
+        self.assertIn("market.feedStatusFresh", main)
+        self.assertIn("renderMarketFeedStatus(market);", main)
+        self.assertIn("latestSignalBackground = s;", main)
+        self.assertIn("signalList.setText(latestSignalDisplay(s));", main)
+        self.assertIn("Entry Time: ", main)
+        self.assertIn("Entry Price: ", main)
+        self.assertIn("Exit Price: ", main)
+        self.assertIn("Stop Loss: ", main)
+        self.assertIn('return known == null ? "Not reported" : known;', main)
+        self.assertIn('valueAfterLabel(line, "Target:")', main)
+        self.assertIn('private static String leadingPriceOrNull(String value)', main)
+        self.assertIn('String numericTarget = leadingPriceOrNull(value);', main)
+        self.assertIn('price > 0.0 && !Double.isNaN(price)', main)
+        self.assertIn('if (numericTarget != null) {', main)
+        self.assertNotIn("app_live", strings)
+        self.assertNotIn("polling every", strings.lower())
+        self.assertIn("fresh REG MKT-STATS frame", layout)
+        status_view = element(layout, 'android:id="@+id/market_feed_status"')
+        self.assertIn('android:text="@string/market_feed_unknown"', status_view)
+        self.assertIn("feedStatus.optBoolean(\"fresh\", false)", watcher)
+        self.assertIn("REG feed HALTED", strings)
+        self.assertIn("session clock remains the market-hours authority", strings)
 
 
 if __name__ == "__main__":

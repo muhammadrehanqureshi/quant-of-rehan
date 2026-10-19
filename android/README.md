@@ -481,32 +481,54 @@ to sixty seconds. The status tile therefore also carries the app's own
   not retired; it stands in the system status tile, where a reader looks for
   it, and every time in the app stays Asia/Karachi (SO-8). Version 1.7.3,
   versionCode 27.
+- v1.7.4, owner order 2026-10-18: the live relay card, including KMIALL
+  volume leaders, is read on each one-second foreground refresh while the
+  market is open. This fetches the latest broker snapshot; the source timestamp
+  remains authoritative, so a one-second UI poll does not claim a new broker
+  tick. The session remains the relay's authority. The footer deliberately
+  keeps SO-13's 30-second scanner wording, not the phone display cadence. The
+  settings hint describes available broker data without claiming an upstream
+  refresh interval, and its SETTINGS heading is centered in the tile.
+  Version 1.7.4, versionCode 28.
 
-**Built and delivered 2026-10-16 (fourth-note order):** the signed v1.7.3 APK
-was built from this checkout by the chain above and copied to
-`C:/Users/rehan/OneDrive/Desktop/QuantOfRehan-v1.7.3.apk`, **one build, one
-file, one name** (owner order 2026-10-16, third note), with nothing put in the
-non synced `C:/Users/rehan/Desktop`. It is the only project APK on that
-Desktop. 535,632 bytes, SHA-256
-`6a8c13c6d2d3a08b44ff7196e8661305787718659336f30bbe9105fb5b0e9ab7`, zipalign
-verified, signature verified v2 + v3 (debug key, CN=Android Debug, expires
-2044), and `aapt2 dump badging` reads back `pk.quantofrehan`
-`versionCode="27"` `versionName="1.7.3"` with the launchable `MainActivity`.
-The repo's own signed output,
-`android/app/build/signed/app-aligned-debugSigned.apk`, is byte-identical to
-the delivered file (same SHA-256, `cmp` clean). The Android source tests were
-green before the build (64 passed, 66 subtests in tests/test_android_app_ui.py
-and tests/test_android_card_copy.py), and the built resource table was read
-back to prove what shipped: `string/tagline` is
-`PSX's KMIALL INDEX · SIGNAL-ONLY`, `string/app_live` is
-`Live: updated %1$s PKT, polling every %2$d s`, `string/settings_hint` states
-both cadences, `color/red_hi` compiles to `#ffd65f66`, and
-`dimen/settings_shift_x` / `settings_shift_y` still compile to 44.1dp and
--6.3dp (aapt2 prints a negative dimension as its 512 bias, 505.700012dp). The
-compiled drawables were read back with `aapt2 dump xmltree` as well: both
-beacons carry the same three paths in the same order (`M12,2.6`, `M12,5.6`,
-`M12,8.3`, halo stroke 1.3) and differ only in the palette they point at
-(green_halo/green_glow/green_hi against red_ring/red_core/red_hi).
+**Built and delivered 2026-10-18:** the signed v1.7.4 APK was built from this
+checkout with the toolchain above and copied to
+`C:/Users/rehan/OneDrive/Desktop/QuantOfRehan-v1.7.4.apk`. Its package version,
+zip alignment, and signature verification were checked after the build.
+
+**Previous v1.7.3 build (2026-10-16):** the signed APK was copied to
+`C:/Users/rehan/OneDrive/Desktop/QuantOfRehan-v1.7.3.apk`, 535,632 bytes,
+SHA-256 `6a8c13c6d2d3a08b44ff7196e8661305787718659336f30bbe9105fb5b0e9ab7`,
+with zip alignment and v2/v3 debug signature verified. Its manifest declared
+`pk.quantofrehan`, versionCode 27, versionName 1.7.3.
+
+The Android source tests are in `tests/test_android_app_ui.py` and
+`tests/test_android_card_copy.py`; the current verification results are
+reported with this release rather than copied from the older build record.
+
+**Built and delivered 2026-10-16 (owner order):** the signed v1.7.2 APK was
+built from this checkout by the chain above and copied to
+`C:/Users/rehan/OneDrive/Desktop/QuantOfRehan-v1.7.2.apk`, one file under one
+name. The first delivery of this build also carried a second name,
+`QuantOfRehan-v1.7.2-live-1s-poll.apk`, and a copy in the non synced
+`C:/Users/rehan/Desktop`; all three were the same 535,632 bytes, so the owner
+saw two identical installers side by side and asked which one to use (owner
+order 2026-10-16, third note: **one build, one file, one name**). The alias
+and the extra copy are removed and the signed build output in the repo,
+`android/app/build/signed/app-aligned-debugSigned.apk`, is the off Desktop
+backup. 535,632 bytes, SHA-256
+`74d2afe88d15c43e1d4198cd405c7389facef7c887902c92bce524c5991f7ec3`,
+zipalign verified, signature verified v2 + v3 (debug key, CN=Android Debug,
+expires 2044), and `aapt2 dump badging` reads back `pk.quantofrehan`
+`versionCode="26"` `versionName="1.7.2"` with the launchable `MainActivity`.
+The Android source tests were green before the build (57 passed, 32 subtests in
+tests/test_android_app_ui.py and tests/test_android_card_copy.py), and the
+built resource table was read back to prove what shipped: the six new view ids
+are present, `dimen/settings_shift_x` compiles to 44.1dp and
+`dimen/settings_shift_y` to -6.3dp (aapt2 renders a negative dimension as its
+512 bias, so it prints as 505.700012dp: measured against a probe resource of
+-8.4dp, which prints as 503.600006dp), and `string/scan_cadence` still reads
+"Quant will be scanning the market every 30 seconds when the market is open."
 
 **Built and delivered 2026-10-16 (owner order):** the signed v1.7.2 APK was
 built from this checkout by the chain above and copied to
