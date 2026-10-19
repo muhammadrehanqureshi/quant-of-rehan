@@ -176,7 +176,8 @@ def deliver(text: str, kind: str) -> bool:
         return False
 
 
-def push_card(text: str, state: SessionState | None = None) -> bool:
+def push_card(text: str, state: SessionState | None = None,
+              signature: str | None = None) -> bool:
     """Write the current verdict to the app's signal card (POST /signals).
 
     The card must show what the scan decided TODAY. Without this the app kept
@@ -184,12 +185,18 @@ def push_card(text: str, state: SessionState | None = None) -> bool:
     Telegram through /notify. Best-effort: a card failure never changes a
     verdict, and the local observation file remains the record of truth.
 
-    When a session state is supplied the push is IDEMPOTENT: a tick that
-    reaches the same verdict as the previous tick does not republish it. That
-    is what makes a 4-minute local runner safe to fire all session without
-    filling the card with identical lines.
+    When a session state is supplied the push is IDEMPOTENT, and what counts
+    as a change is the VERDICT, not the clock: ``signature`` is the body that
+    was decided, while the dated header carries the slot the decision was
+    taken in. Owner report 2026-10-19: a one second loop republished a card
+    whose only difference was the header time, which spent the relay's free KV
+    write quota (1,000 a day) and left the phone showing a three-day-old card
+    once writes started being refused. Deduping on the verdict is what makes
+    the one second cadence free; the app's once-a-second freshness comes from
+    /health and the broker feed, not from a rewritten card.
     """
-    if state is not None and not state.card_is_new(text):
+    key = signature if signature is not None else text
+    if state is not None and not state.card_is_new(key):
         print("card verdict unchanged; not republished")
         return False
     try:
@@ -198,7 +205,7 @@ def push_card(text: str, state: SessionState | None = None) -> bool:
         print(f"card push failed: {type(exc).__name__}")
         return False
     if state is not None:
-        state.note_card(text)
+        state.note_card(key)
         state.save()
     return True
 
@@ -473,7 +480,7 @@ def run_scan(slot: str, capture: Path | None = None,
         # scan is a data state, not a market event, so it updates the card and
         # the archived observations WITHOUT a Telegram op text every 30
         # seconds. Only ever a signal travels.
-        push_card(card_text(day, slot, text, alert=False), state)
+        push_card(card_text(day, slot, text, alert=False), state, signature=f"{day}|{text}")
         archive("/research/observation",
                 {"date": day.isoformat(), "slot": slot, "snapshot": payload})
         print(json.dumps(payload, indent=2, allow_nan=False))
@@ -496,7 +503,7 @@ def run_scan(slot: str, capture: Path | None = None,
                         "ok": accepted,
                         "state": ("relay_accepted" if accepted
                                   else "refused_by_relay")}
-            push_card(card_text(day, slot, text, alert=True), state)
+            push_card(card_text(day, slot, text, alert=True), state, signature=f"{day}|{text}")
             print(text)
         else:
             state.last_reason = "position open, monitoring the target"
@@ -518,7 +525,7 @@ def run_scan(slot: str, capture: Path | None = None,
             state.last_reason = reason
             state.save()
             delivered = "LOCKED"
-            push_card(card_text(day, slot, reason, alert=False), state)
+            push_card(card_text(day, slot, reason, alert=False), state, signature=f"{day}|{reason}")
             print(reason)
         else:
             entry = result.candidate["price"]["last"]
@@ -527,7 +534,7 @@ def run_scan(slot: str, capture: Path | None = None,
             state.save()
             text = scanner.signal_message(result.candidate, context, entry, as_of)
             sent = deliver(text, "signals")
-            push_card(card_text(day, slot, text, alert=True), state)
+            push_card(card_text(day, slot, text, alert=True), state, signature=f"{day}|{text}")
             delivery = {"channel": "relay:/notify", "kind": "signals",
                         "ok": sent,
                         "state": ("relay_accepted" if sent
@@ -559,7 +566,7 @@ def run_scan(slot: str, capture: Path | None = None,
         card_body = (f"One trade already taken today: {state.symbol} entered at "
                      f"{state.entry_price}, target {state.target_price}. "
                      f"{state.last_reason or 'position being monitored'}.")
-        push_card(card_text(day, slot, card_body, alert=state.target_hit), state)
+        push_card(card_text(day, slot, card_body, alert=state.target_hit), state, signature=f"{day}|{card_body}")
     else:
         status = result.status
         reason = result.reason
@@ -571,7 +578,7 @@ def run_scan(slot: str, capture: Path | None = None,
             no_trade_text = scanner.no_trade_message(quality, context)
             # Owner order 2026-10-15: a market NO TRADE is not a signal. The
             # verdict is written, archived and carded, never messaged.
-            push_card(card_text(day, slot, no_trade_text, alert=False), state)
+            push_card(card_text(day, slot, no_trade_text, alert=False), state, signature=f"{day}|{no_trade_text}")
             delivered = "NO_TRADE"
 
     payload = {
