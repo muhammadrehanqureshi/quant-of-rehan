@@ -374,9 +374,19 @@ class GridTest(unittest.TestCase):
                                 interval_minutes=4)
         self.assertEqual(at_boundary.strftime("%H:%M:%S"), "10:12:00")
 
+        # The configured cadence since 2026-10-19 is one second, so the next
+        # boundary is the next second, not the next half minute.
+        cadence = next_slot(datetime(2026, 10, 12, 10, 7, 31, tzinfo=KARACHI),
+                            interval_seconds=config.SCAN_INTERVAL_SECONDS)
+        self.assertEqual(cadence.strftime("%H:%M:%S"), "10:07:32")
+        self.assertEqual(config.SCAN_INTERVAL_SECONDS, 1)
+        # The sub-minute grid itself still rounds up to its own boundary.
         half = next_slot(datetime(2026, 10, 12, 10, 7, 31, tzinfo=KARACHI),
-                         interval_seconds=config.SCAN_INTERVAL_SECONDS)
+                         interval_seconds=30)
         self.assertEqual(half.strftime("%H:%M:%S"), "10:08:00")
+        at_half = next_slot(datetime(2026, 10, 12, 10, 7, 30, tzinfo=KARACHI),
+                            interval_seconds=30)
+        self.assertEqual(at_half.strftime("%H:%M:%S"), "10:08:00")
 
     def test_a_naive_or_utc_instant_is_read_as_karachi(self):
         naive = next_slot(datetime(2026, 10, 12, 10, 0), interval_minutes=4)

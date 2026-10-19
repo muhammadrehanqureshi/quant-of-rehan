@@ -41,19 +41,23 @@ STRINGS = (ROOT / "android" / "app" / "src" / "main" / "res" / "values"
 LAYOUT = (ROOT / "android" / "app" / "src" / "main" / "res" / "layout"
           / "activity_main.xml")
 
-CADENCE = ("Quant will be scanning the market every 30 seconds "
+CADENCE = ("Quant will be scanning the market every second "
            "when the market is open.")
 DISPLAY_CADENCE = 1000
 
 
 class FooterContractTest(unittest.TestCase):
-    def test_strategy_footer_reflects_so13_not_the_phone_poll(self):
+    def test_strategy_footer_states_the_one_second_cadence(self):
+        """Owner order 2026-10-19: 30 seconds became one second.
+
+        The sentence is the scanner's own cadence again, so it and
+        config.SCAN_INTERVAL_SECONDS cannot drift apart: both are one second.
+        """
         source = (ROOT / "src" / "config.py").read_text(encoding="utf-8")
-        self.assertIn('SCAN_INTERVAL_SECONDS = _number("SCAN_INTERVAL_SECONDS", 30)',
+        self.assertIn('SCAN_INTERVAL_SECONDS = _number("SCAN_INTERVAL_SECONDS", 1)',
                       source)
         self.assertIn(CADENCE, STRINGS.read_text(encoding="utf-8"))
-        self.assertNotIn("scanning the market every second", STRINGS.read_text(
-            encoding="utf-8"))
+        self.assertNotIn("every 30 seconds", STRINGS.read_text(encoding="utf-8"))
 
     def test_market_card_poll_is_one_second_and_separate_from_strategy_scan(self):
         watcher = (ROOT / "android" / "app" / "src" / "main" / "java"

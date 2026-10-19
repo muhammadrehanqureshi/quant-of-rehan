@@ -39,8 +39,9 @@ public final class Watcher {
     private static final String CHANNEL_STATUS = "system_status";
     private static final String CHANNEL_SIGNALS = "signals";
 
-    // SO-13 protects the strategy scanner at 30 seconds and MARKET-only.
-    // This is a separate foreground display poll, not a scanner invocation.
+    // Owner order 2026-10-19 moved the strategy scanner to a one second
+    // cadence, so the foreground display poll and the scan now share one
+    // number. This class still only reads the relay: it never scans.
     static final long REFRESH_MS = 30 * 1000;
     static final long FAST_POLL_MS = 1000;
     // A fast health/signals/card refresh is still a display read, not a scan.

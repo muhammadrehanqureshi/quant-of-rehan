@@ -22,8 +22,9 @@ rehan will never hammer my pc."
 - The KMIALL scanner runs on **GitHub Actions minutes** and on the
   **Cloudflare relay** (`cloud/worker.js`). Both run with this PC switched
   off. That is the whole point: the PC is never a dependency of the schedule.
-  The cadence is the owner's order of 2026-10-14 (SO-13): **every 30 seconds**
-  for the length of each PSX band, run by
+  The cadence is the owner's order of 2026-10-19: **every second** for the
+  length of each PSX band (it was 30 seconds under the order of 2026-10-14,
+  SO-13, which the newer order supersedes), run by
   `.github/workflows/intraday-session.yml`, with
   `.github/workflows/intraday-capture.yml` keeping the scheduled band slots,
   the post-close finalize and the backstop if a band job dies mid-session.

@@ -12,7 +12,7 @@ import random
 import sys
 import tempfile
 import unittest
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from unittest.mock import patch
 
@@ -134,24 +134,48 @@ class ClockPhaseTest(unittest.TestCase):
         self.assertEqual(scan_loop.slot_of(at(MONDAY, 10, 7)), "10:04")
         self.assertEqual(scan_loop.slot_of(at(MONDAY, 10, 4)), "10:04")
 
-    def test_the_loop_defaults_to_the_thirty_second_cloud_cadence(self):
-        """Owner order 2026-10-14 (SO-13): scan every 30 seconds.
+    def test_the_loop_defaults_to_the_one_second_cloud_cadence(self):
+        """Owner order 2026-10-19: the cloud loop asks for a slot every second.
 
         The local tick keeps its own 4 minute cadence, so the two runners are
         asserted together: a change that quietly made the cloud loop 4
-        minutes, or the local tick 30 seconds, would fail here.
+        minutes, or the local tick one second, would fail here.
         """
         self.assertEqual(LoopConfig().interval_seconds,
                          scan_loop.config.SCAN_INTERVAL_SECONDS)
-        self.assertEqual(scan_loop.config.SCAN_INTERVAL_SECONDS, 30)
+        self.assertEqual(scan_loop.config.SCAN_INTERVAL_SECONDS, 1)
         self.assertEqual(scan_loop.config.TICK_INTERVAL_MINUTES, 4)
 
-    def test_a_thirty_second_cadence_labels_its_own_slot(self):
-        """The once-per-slot guard must not eat 29 of 30 slots.
+    def test_an_overrun_slot_does_not_build_a_backlog(self):
+        """A 2.9s cycle cannot fit a 1s slot, so the wait is only the remainder.
 
-        A minute-labelled slot for a 30 second runner would scan once a minute
-        while the health file claimed every 30 seconds.
+        next_delay measures to the NEXT boundary, so a cycle that ends four
+        tenths of a second into a slot waits 0.6s, never two slots and never a
+        negative sleep. A cycle that ends exactly on a boundary waits the full
+        interval. Either way there is no catch-up burst.
         """
+        loop = ScanLoop(LoopConfig(dry_run=True, interval_seconds=1))
+        for milliseconds, expected in ((400, 0.6), (999, 0.001), (0, 1.0)):
+            moment = at(MONDAY, 10, 7, 30) + timedelta(milliseconds=milliseconds)
+            loop.clock = lambda m=moment: m
+            with self.subTest(at_ms=milliseconds):
+                delay = loop.next_delay("scan")
+                self.assertAlmostEqual(delay, expected, places=3)
+                self.assertGreaterEqual(delay, 0.0)
+                self.assertLessEqual(delay, 1.0)
+
+    def test_a_sub_minute_cadence_labels_its_own_slot(self):
+        """The once-per-slot guard must not eat the slots inside a minute.
+
+        A minute-labelled slot for a sub-minute runner would scan once a
+        minute while its health file claimed a faster cadence. Since the
+        owner order of 2026-10-19 the cloud loop is the one second case, and
+        the label floors to its own second.
+        """
+        self.assertEqual(scan_loop.slot_of(at(MONDAY, 10, 7, 29),
+                                           interval_seconds=1), "10:07:29")
+        self.assertEqual(scan_loop.slot_of(at(MONDAY, 10, 7, 31),
+                                           interval_seconds=1), "10:07:31")
         self.assertEqual(scan_loop.slot_of(at(MONDAY, 10, 7, 29),
                                            interval_seconds=30), "10:07:00")
         self.assertEqual(scan_loop.slot_of(at(MONDAY, 10, 7, 31),

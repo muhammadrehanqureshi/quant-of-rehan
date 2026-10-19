@@ -10,9 +10,10 @@ repository leaves a resident process on his machine. Where SO-4 keeps cloud
 work off the PC, SO-12 keeps the PC out of cloud work: the two guards below
 are mirror images, and a script belongs to exactly one of them.
 
-SO-13 (owner order 2026-10-14, later the same day): the cloud cadence is now
-every 30 seconds for each PSX band, run by .github/workflows/intraday-session.yml
-through scripts/scan_loop.py, on the free minutes of the public repository.
+SO-13 (owner order 2026-10-14, later amended 2026-10-19): the cloud cadence
+is every second for each PSX band (30 seconds was the 2026-10-14 figure), run
+by .github/workflows/intraday-session.yml through scripts/scan_loop.py, on the
+free minutes of the public repository.
 The 4-minute cadence still names the local tick's own triggers, and that tick
 is cloud-only recurring work like everything else in this table.
 
@@ -120,8 +121,8 @@ OWNER_REQUEST_ENV = "QOR_OWNER_REQUESTED_LOCAL_RUN"
 
 REFUSAL_CLOUD_ONLY = (
     "REFUSED (SO-12): {task} is cloud-only work. The KMIALL scanner runs on "
-    "GitHub Actions minutes and on the Cloudflare relay, every 30 seconds per "
-    "PSX band (SO-13, owner order 2026-10-14), and the owner's PC is used only "
+    "GitHub Actions minutes and on the Cloudflare relay, every second per "
+    "PSX band (SO-13, owner order 2026-10-19), and the owner's PC is used only "
     "for a backtest he asks for, so nothing recurring runs here. If the owner "
     "has asked for this exact local run, say so in the shell: "
     "{env}={script}"

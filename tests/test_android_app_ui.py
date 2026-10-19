@@ -107,6 +107,10 @@ MAIN = (ROOT / "android" / "app" / "src" / "main" / "java" / "pk"
         / "quantofrehan" / "MainActivity.java")
 WATCHER = (ROOT / "android" / "app" / "src" / "main" / "java" / "pk"
            / "quantofrehan" / "Watcher.java")
+# v1.7.7: the signal tile's reader is its own plain-Java class so the JVM
+# probe in tests/test_android_signal_text.py can run it rather than read it.
+SIGNAL_TEXT = (ROOT / "android" / "app" / "src" / "main" / "java" / "pk"
+               / "quantofrehan" / "SignalText.java")
 STATUS_SERVICE = (ROOT / "android" / "app" / "src" / "main" / "java" / "pk"
                   / "quantofrehan" / "StatusService.java")
 MANIFEST = ROOT / "android" / "app" / "src" / "main" / "AndroidManifest.xml"
@@ -778,7 +782,7 @@ class CadencePlacementTest(unittest.TestCase):
     the owner's sentence with no air smuggled into it.
     """
 
-    CADENCE = ("Quant will be scanning the market every 30 seconds "
+    CADENCE = ("Quant will be scanning the market every second "
                "when the market is open.")
 
     def setUp(self):
@@ -834,7 +838,7 @@ class CadencePlacementTest(unittest.TestCase):
 
     def test_the_sentence_still_appears_in_exactly_one_resource(self):
         lines = [line for line in self.strings.splitlines()
-                 if "scanning the market every 30 seconds" in line]
+                 if "scanning the market every second" in line]
         self.assertEqual(len(lines), 1, lines)
 
 
@@ -971,7 +975,7 @@ class StatusPulseTest(unittest.TestCase):
         self.assertIn("System.currentTimeMillis() + WATCHDOG_MS", watcher)
         # And the app's interval is the scanner's own, not a second opinion.
         config_text = (ROOT / "src" / "config.py").read_text(encoding="utf-8")
-        self.assertIn('SCAN_INTERVAL_SECONDS = _number("SCAN_INTERVAL_SECONDS", 30)',
+        self.assertIn('SCAN_INTERVAL_SECONDS = _number("SCAN_INTERVAL_SECONDS", 1)',
                       config_text)
 
     def test_a_live_market_is_polled_once_a_second(self):
@@ -1376,15 +1380,15 @@ class HeaderCopyTest(unittest.TestCase):
 
 class VersionTest(unittest.TestCase):
     def test_the_version_is_the_one_that_ships_these_changes(self):
-        # v1.7.6 cleans the tiles and puts the live broker snapshot on the card;
-        # the notes below are the contract that ships with that version.
+        # v1.7.7 finishes the 2026-10-19 dashboard pass: the signal reader, the
+        # one second scan cadence and the version that ships them.
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="1.7.6"', manifest)
-        self.assertIn('android:versionCode="30"', manifest)
+        self.assertIn('android:versionName="1.7.7"', manifest)
+        self.assertIn('android:versionCode="31"', manifest)
         # The changelog entry ties these user-visible changes to the build.
         readme = (ROOT / "android" / "README.md").read_text(encoding="utf-8")
-        self.assertIn("v1.7.6, owner order 2026-10-19", readme)
-        self.assertIn("Version 1.7.6,", readme)
+        self.assertIn("v1.7.7, owner order 2026-10-19", readme)
+        self.assertIn("Version 1.7.7, versionCode 31", readme)
         layout = LAYOUT.read_text(encoding="utf-8")
         strings = STRINGS.read_text(encoding="utf-8")
         main = MAIN.read_text(encoding="utf-8")
@@ -1398,16 +1402,24 @@ class VersionTest(unittest.TestCase):
         self.assertIn("brokerClock(market.indexAsOf)", main)
         self.assertIn("latestSignalBackground = s;", main)
         self.assertIn("signalList.setText(latestSignalDisplay(actualSignals));", main)
-        self.assertNotIn("Entry Time: ", main)
-        self.assertIn("Entry Price: ", main)
-        self.assertIn("Exit Price: ", main)
-        self.assertIn("Stop Loss: ", main)
-        self.assertIn('return known == null ? "Not reported" : known;', main)
-        self.assertIn('valueAfterLabel(line, "Target:")', main)
-        self.assertIn('private static String leadingPriceOrNull(String value)', main)
-        self.assertIn('String numericTarget = leadingPriceOrNull(value);', main)
-        self.assertIn('price > 0.0 && !Double.isNaN(price)', main)
-        self.assertIn('if (numericTarget != null) {', main)
+        # v1.7.7: the three numbers and the ticker live in SignalText, and the
+        # console only maps its two word states onto resources.
+        signal_text = SIGNAL_TEXT.read_text(encoding="utf-8")
+        self.assertIn("String text = SignalText.compact(raw);", main)
+        self.assertIn("SignalText.NO_TRADE.equals(text)", main)
+        self.assertIn("SignalText.UNAVAILABLE.equals(text)", main)
+        self.assertNotIn("Entry Time: ", main + signal_text)
+        self.assertIn("Entry Price: ", signal_text)
+        self.assertIn("Exit Price: ", signal_text)
+        self.assertIn("Stop Loss: ", signal_text)
+        self.assertIn('return value == null ? NOT_REPORTED : value;', signal_text)
+        self.assertIn('afterLabel(line, "Target:")', signal_text)
+        self.assertIn("private static String leadingPrice(String value)", signal_text)
+        self.assertIn("String numeric = leadingPrice(value);", signal_text)
+        self.assertIn('price > 0.0 && !Double.isNaN(price)', signal_text)
+        self.assertIn("if (numeric != null) {", signal_text)
+        # The tile is the numbers alone: no header, no date, no rule prose.
+        self.assertNotIn("QoR intraday", signal_text.split("*/", 1)[1])
         self.assertNotIn("app_live", strings)
         self.assertNotIn("polling every", strings.lower())
         self.assertNotIn("market_feed_status", layout)
