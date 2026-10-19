@@ -24,17 +24,17 @@ jobs:
       # would fail every pull request under SO-7a without saying anything
       # about the work inside it. The commits the PR itself adds are the ones
       # the standards apply to, and those are exactly what this checks out.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha }}
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: pip install -r requirements.txt --retries 5 --timeout 60
 
       # SO-7 and SO-7a: verify every PR commit is authored by the owner,
       # carries the agent's co-author line exactly once, and holds no other
