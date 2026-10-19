@@ -1,9 +1,11 @@
 """An in-process CPU governor for anything this repository runs by hand.
 
-The owner's rule for this machine (AGENTS.md) is that it exists for a backtest
-he asked for and for nothing else. That rule is about *what* runs. This module
-is about *how much* a run he did ask for is allowed to take from the machine
-underneath him.
+SO-21 (owner order 2026-10-19) is that this machine is not used at all, and
+nothing in this repository runs a backtest, a suite or a validation here.
+`guard_cloud_backtest` enforces that. This module is the second belt: if the
+owner ever orders one local run, the cap below is the most it may take from
+the machine underneath him, and the approval gate makes that run a decision he
+makes rather than one a script makes for him.
 
 The model
 ---------

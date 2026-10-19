@@ -1,7 +1,26 @@
-"""SO-4 and SO-12 enforcement: one law per machine.
+"""SO-21, SO-4 and SO-12 enforcement: one law per machine.
 
-SO-4 (owner order 2026-10-11): backtests and history research are local work
-only, and the GitHub Actions minutes are strictly for the market-hours scans.
+SO-21 (owner order 2026-10-19, superseding SO-4): the owner's PC is not used
+at all. Backtests, walk-forward runs and research now execute on GitHub
+Actions minutes, which are free because the repository is public. The order
+was given while the machine idled above 80 C with nothing but this editor
+open, so the ceiling is not "a little": even two percent is too much.
+
+Owner order 2026-10-19, verbatim: "Don't use my PC at all, keep the usage at
+the very minimum, even 2% is too much. Since github action minutes are
+unlimited now because my repo is public so now you will do backtesting also
+on github action minutes, don't hammer my PC, my temps are literally at more
+than 80 degree celcius and only freebuff is open right now and nothing else,
+DON'T HAMMER OR USE MY PC AT ALL!!!"
+
+The guard below is that sentence in code. It refuses every declared backtest
+entry point anywhere that is not a GitHub Actions job, so a session cannot
+decide on its own that a quick local run would be fine.
+
+SO-4 (owner order 2026-10-11, superseded 2026-10-19): backtests and history
+research were local work only, with the Actions minutes reserved for the
+market-hours scans. That is history now: the public repository makes the
+minutes free, and the owner's heat budget makes local compute unacceptable.
 
 SO-12 (owner order 2026-10-14): recurring work is cloud work. The scanner
 always runs on GitHub Actions minutes and on the Cloudflare relay, the owner's
@@ -26,12 +45,11 @@ Owner order 2026-10-11: "you will only do the backtesting on my local PC,
 github actions minutes are strictly for market hours for the usual market
 scans every 4 minutes."
 
-SO-4 has always said that backtesting, walk-forward validation and Monte
-Carlo runs never execute in CI, but that rule lived only in prose and in
-docstrings, so nothing refused a run. This module makes it enforceable:
-every declared entry point calls guard_local_only as the first statement of
-its main(), and scripts/check_governance.py fails a pull request in which one
-of them forgets to, or in which a workflow learns to invoke one.
+Before SO-21 the rule ran the other way and lived only in prose, so nothing
+refused a run. This module makes it enforceable in the direction the owner
+chose: every declared entry point calls guard_cloud_backtest as the first
+statement of its main(), and scripts/check_governance.py fails a pull request
+in which one of them forgets to, or in which a scheduled workflow invokes one.
 
 Why the guard sits in the command line entry points rather than inside
 src/backtest/*: the test suite runs in GitHub Actions and exercises the
@@ -44,10 +62,12 @@ from __future__ import annotations
 
 import os
 
-# Scripts that may run on the owner's PC only, relative to the repo root.
-# check_governance.py verifies that each one calls guard_local_only and that
-# no workflow file invokes one.
-LOCAL_ONLY_SCRIPTS = {
+# Backtest entry points, relative to the repo root. check_governance.py
+# verifies that each one calls guard_cloud_backtest and that any workflow
+# invoking one is manual dispatch, never a schedule. History: this table was
+# named LOCAL_ONLY_SCRIPTS before SO-21, when the direction of the rule was
+# the opposite.
+BACKTEST_SCRIPTS = {
     "scripts/smoke_backtest.py": "the end-to-end backtest smoke run",
     "scripts/backtest_optimize.py": "the staged parameter search",
     "scripts/walk_forward_check.py": "the walk-forward validation",
@@ -61,12 +81,15 @@ LOCAL_ONLY_SCRIPTS = {
     "scripts/research_phase1.py": "phase 1 research",
     "scripts/research_phase2a.py": "phase 2a research",
     "scripts/research_phase2b.py": "phase 2b research",
+    "scripts/build_eod_history.py": "the 5-year EOD history crawl",
 }
 
 REFUSAL = (
-    "REFUSED (SO-4): {task} is local-only work. GitHub Actions minutes are "
-    "reserved for the market-hours scans, so it never runs here. Run it on "
-    "the owner's PC instead: python {script}"
+    "REFUSED (SO-21): {task} is backtest work and it runs on GitHub Actions "
+    "minutes, never on the owner's PC. The public repository makes those "
+    "minutes free, and the owner's order of 2026-10-19 is that his machine "
+    "is not used at all. Run it there: gh workflow run backtest.yml -f "
+    "script={script}"
 )
 
 
@@ -82,16 +105,17 @@ def running_in_github_actions() -> bool:
     return value not in ("", "0", "false", "no")
 
 
-def guard_local_only(script: str) -> None:
-    """Stop a local-only script that is running in CI.
+def guard_cloud_backtest(script: str) -> None:
+    """Stop a backtest that is starting anywhere but a GitHub Actions job.
 
-    Call as the first statement of main(). SystemExit prints the reason and
-    no traceback, because this line travels into the owner's Telegram alert
-    as the reason for a failed job.
+    Call as the first statement of main(). On the PC this exits before the
+    script imports pandas, opens a dataset or spins a single core, which is
+    the whole point of SO-21. SystemExit prints the reason and no traceback,
+    like the cloud-only guards below.
     """
-    if not running_in_github_actions():
+    if running_in_github_actions():
         return
-    task = LOCAL_ONLY_SCRIPTS.get(script, "this backtest")
+    task = BACKTEST_SCRIPTS.get(script, "this backtest")
     raise SystemExit(REFUSAL.format(task=task, script=script))
 
 
@@ -100,8 +124,8 @@ def guard_local_only(script: str) -> None:
 #: Recurring or resident work belongs to the cloud, never to the owner's PC.
 #: Each entry is a real entry point that a scheduler would otherwise run on
 #: this machine, with the words the refusal prints. The mirror of
-#: LOCAL_ONLY_SCRIPTS above: those scripts are refused in CI, these are refused
-#: on the PC.
+#: BACKTEST_SCRIPTS above: those scripts are refused on the PC, and so are
+#: these, unless the owner's own instruction opens one.
 CLOUD_ONLY_DAEMONS = {
     "scripts/install_kmiall_tick.py":
         "the Windows task that fires the 4-minute KMIALL tick",
@@ -156,7 +180,7 @@ def guard_owner_requested(script: str) -> None:
     point. GitHub Actions passes through untouched, because the cloud is
     exactly where this work is supposed to happen; a local run passes only on
     the owner's own instruction. SystemExit prints the reason and no
-    traceback, like guard_local_only above.
+    traceback, like guard_cloud_backtest above.
     """
     if running_in_github_actions():
         return

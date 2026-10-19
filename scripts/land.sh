@@ -18,7 +18,8 @@
 # Phases: commit, sync, validate, publish (the default runs all four)
 #   commit   stage and commit everything (or only the paths after --)
 #   sync     fetch origin, rebase the branch onto the latest base branch
-#   validate run scripts/check_governance.py and the unittest suite locally
+#   validate skipped by default (SO-21: validation runs in the PR's CI);
+#            --local-checks runs scripts/check_governance.py and the suite here
 #   publish  push, open or reuse the PR, wait for CI, merge, resync master
 #
 # Usage examples:
@@ -39,6 +40,7 @@ MESSAGE=""
 PATHS=()
 ASSUME_YES=0
 DRY_RUN=0
+LOCAL_CHECKS=0
 UNTIL="publish"
 DELETE_BRANCH=0
 
@@ -75,6 +77,7 @@ while (( $# )); do
         -b|--base)       BASE="${2:-}"; shift 2 ;;
         -y|--yes)        ASSUME_YES=1; shift ;;
         -n|--dry-run)    DRY_RUN=1; shift ;;
+        --local-checks)  LOCAL_CHECKS=1; shift ;;
         --until)         UNTIL="${2:-}"; shift 2 ;;
         --delete-branch) DELETE_BRANCH=1; shift ;;
         -h|--help)       usage; exit 0 ;;
@@ -229,16 +232,26 @@ if [[ "$UNTIL" == "sync" ]]; then
 fi
 
 # ----------------------------------------------------------- 3/4 validate
-step "3/4 validate (same commands the governance-guard workflow runs)"
-GOVERN_COMMIT_RANGE="origin/$BASE..HEAD" python scripts/check_governance.py
-note "governance: passed"
-python -m unittest discover -s tests
-note "tests: passed"
-if command -v node >/dev/null 2>&1; then
-    node --input-type=module --check < cloud/worker.js
-    note "worker syntax: passed"
+# SO-21: the owner's machine is not used for validation. The pull request's
+# governance-guard job runs exactly these commands in Actions, where the
+# minutes are free on a public repository, so the default here is to spend
+# none of his CPU on work the cloud is about to repeat.
+if (( LOCAL_CHECKS )); then
+    step "3/4 validate locally (--local-checks)"
+    GOVERN_COMMIT_RANGE="origin/$BASE..HEAD" python scripts/check_governance.py
+    note "governance: passed"
+    python -m unittest discover -s tests
+    note "tests: passed"
+    if command -v node >/dev/null 2>&1; then
+        node --input-type=module --check < cloud/worker.js
+        note "worker syntax: passed"
+    else
+        warn "node is not installed here; the worker syntax check runs in CI only"
+    fi
 else
-    warn "node is not installed here; the worker syntax check runs in CI only"
+    step "3/4 validate (skipped, SO-21)"
+    note "governance, the unit suite and the worker check run in the PR's CI"
+    note "add --local-checks only when the owner asks for a local run"
 fi
 if [[ "$UNTIL" == "validate" ]]; then
     printf "\nStopping after the validate phase (--until validate). Nothing was pushed.\n"

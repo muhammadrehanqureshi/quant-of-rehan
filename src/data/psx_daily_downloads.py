@@ -22,8 +22,9 @@ This gives full OHLCV **with high/low**: strictly better than the old
 endpoint, which had no high/low at all. Non-session dates (weekends,
 holidays, pre-archive dates) return 404.
 
-Usage is LOCAL ONLY (GOVERNANCE.md SO-4): private research on the owner's
-machine; the dataset is never committed (`.gitignore` roots `/data/`).
+Usage is GITHUB ACTIONS (GOVERNANCE.md SO-21): the crawl runs in CI, never
+on the owner's machine; the dataset is never committed (`.gitignore` roots
+`/data/`).
 
 Politeness: REQUEST_PAUSE seconds between requests, RETRIES on transport
 errors, 404 is a normal "no session" answer, never an error.

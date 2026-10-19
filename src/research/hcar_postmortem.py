@@ -23,7 +23,7 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from src.ci.local_only import guard_local_only  # noqa: E402
+from src.ci.local_only import guard_cloud_backtest  # noqa: E402
 from src import config  # noqa: E402
 from src.data.sessions import KARACHI, close_time, open_time  # noqa: E402
 from src.data.tick_volume import iter_ticks  # noqa: E402
@@ -659,7 +659,7 @@ def run(day: str, capture: Path, daily_data: Path, out: Path,
 
 
 def main(argv: list[str] | None = None) -> int:
-    guard_local_only("scripts/hcar_postmortem.py")
+    guard_cloud_backtest("scripts/hcar_postmortem.py")
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--date", default=DEFAULT_DAY)
     parser.add_argument("--capture", type=Path, default=DEFAULT_CAPTURE)

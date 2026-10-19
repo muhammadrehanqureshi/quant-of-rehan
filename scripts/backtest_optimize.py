@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""LOCAL-ONLY staged parameter search over the 5-year PSX dataset (SO-4).
+"""GITHUB ACTIONS staged parameter search over the 5-year PSX dataset (SO-21).
 
 Runs on the owner's PC and nowhere else: no cloud calls, no GitHub Actions, no
 external APIs. It reads one local file and writes one local JSON report.
@@ -42,7 +42,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from src.ci.local_only import guard_local_only  # noqa: E402
+from src.ci.local_only import guard_cloud_backtest  # noqa: E402
 
 from src import config  # noqa: E402
 from src.backtest.daily_strategy import ScannerParams  # noqa: E402
@@ -93,7 +93,7 @@ def _progress(label: str) -> ProgressFn:
 
 
 def main(argv: list[str] | None = None) -> int:
-    guard_local_only("scripts/backtest_optimize.py")
+    guard_cloud_backtest("scripts/backtest_optimize.py")
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--dataset", type=Path, default=ROOT / DEFAULT_DATASET)
     parser.add_argument("--universe", type=Path, default=ROOT / DEFAULT_UNIVERSE)
