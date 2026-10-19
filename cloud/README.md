@@ -49,6 +49,35 @@ exactly once. Six separate expressions are rejected by Cloudflare with error
 10072, and that rejection used to abort the deploy after the code upload,
 leaving the schedules stale while the new worker was already live.
 
+### Punctual scan dispatch (owner audit, 2026-10-19)
+
+GitHub's cron queue delivers `schedule` events hours late in busy periods: on
+2026-10-16 the 04:17 UTC band job was created at 09:01 UTC and the 09:32 job
+at 14:10 UTC, so every band that day was missed. Cloudflare's crons already
+wake at the exact edges, so the same wake now also calls GitHub's
+`workflow_dispatch` for `intraday-session.yml`, which starts the band job in
+seconds. It is opt-in and fail-open:
+
+- no `GH_DISPATCH_TOKEN`, no dispatch, and the GitHub schedules remain the
+  only path (exactly the old behaviour);
+- one dispatch per band per day is recorded in KV (`SCAN:DISPATCH:<day>:<open>`,
+  two day TTL), so a retried cron cannot start a second loop;
+- only a 204 from GitHub claims the band; a failure leaves the key free and is
+  recorded in `SCAN:DISPATCH:LAST` for inspection;
+- the call has a ten second timeout and never blocks the open/close text.
+
+To turn it on, mint a fine grained personal access token limited to this one
+repository with **Actions: write**, then set it as a Worker secret. Never put
+it in this repository (SO-5):
+
+```bash
+cd cloud && npx wrangler secret put GH_DISPATCH_TOKEN
+```
+
+`GH_REPO` is optional and defaults to `muhammadrehanqureshi/quant-of-rehan`.
+The dispatched run uses the workflow's `seconds` input, computed from the
+band's own close, so a job nudged at 09:32 PKT still stops at 15:30 PKT.
+
 Weekends, the 2026 PSX holiday list and the midday break are all closed,
 mirroring `src/data/sessions.py` (the worker's band table is a copy of the
 Python one, and a test fails if the two drift). The Karachi offset is

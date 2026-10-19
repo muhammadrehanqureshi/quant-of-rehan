@@ -147,9 +147,13 @@ function say(ok, what, extra) {{
 }}
 const result = {{}};
 
-// 1. Whole-file syntax check in a real engine (export default -> return).
+// 1. Whole-file syntax check in a real engine. The default export becomes a
+// return, and the Durable Object's `export class` loses its keyword: a
+// module's export syntax is not valid inside a Function body, and the class
+// itself must still be parsed.
 try {{
-  const body = WORKER_SRC.replace("export default {{", "return {{");
+  const body = WORKER_SRC.replace("export default {{", "return {{")
+    .replace(/^export class /gm, "class ");
   const handler = new Function(body);
   const obj = handler();
   say(typeof obj.fetch === "function" && typeof obj.scheduled === "function",
@@ -234,7 +238,8 @@ async function endpoints() {{
     RELAY_ADMIN_TOKEN: "test-token",
     TELEGRAM_BOT_TOKEN: "",
   }};
-  const handler = new Function(WORKER_SRC.replace("export default {{", "return {{"))();
+  const handler = new Function(WORKER_SRC.replace("export default {{", "return {{")
+    .replace(/^export class /gm, "class "))();
 
   const res = await handler.fetch(new Request("https://relay.test/market"), env);
   const body = await res.json();

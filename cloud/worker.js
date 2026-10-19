@@ -126,6 +126,108 @@ function bandsText(k) {
   return bands.map((b) => `${hmText(b[0])}-${hmText(b[1])}`).join(", ");
 }
 
+// ------------------------------------------------------------------
+// Punctual band dispatch (owner audit, 2026-10-19).
+//
+// GitHub's cron queue delivers schedule events hours late in busy periods:
+// measured on this repository on 2026-10-16, the 04:17 UTC band job was
+// created at 09:01 UTC and the Friday afternoon job at 14:10 UTC, so every
+// band that day was missed and the jobs woke to a shut market. Cloudflare's
+// cron triggers already wake at the exact band edges for the open and close
+// texts, so the same wake now nudges the GitHub workflow: a workflow_dispatch
+// starts in seconds instead of hours, and the scheduled triggers stay as the
+// fallback if this token is not configured or GitHub answers with an error.
+//
+// It is strictly opt-in. With no GH_DISPATCH_TOKEN binding this function does
+// nothing and the relay behaves exactly as before. The token is a fine grained
+// GitHub PAT with Actions: write on this one repository, set as a Worker
+// secret (never in the repo, SO-5). One dispatch per band per day is recorded
+// in KV, so a retried cron can never start a second loop for the same edge.
+const SCAN_WORKFLOW_FILE = "intraday-session.yml";
+const SCAN_REPO_DEFAULT = "muhammadrehanqureshi/quant-of-rehan";
+const SCAN_DISPATCH_GRACE_MINUTES = 3;
+const SCAN_DISPATCH_TIMEOUT_MS = 10000;
+
+/** The band whose open edge this wake is standing on, or null. */
+function bandOpenAt(k) {
+  const mins = minutesOf(k);
+  for (const band of bandsFor(k)) {
+    const open = band[0][0] * 60 + band[0][1];
+    if (mins >= open && mins - open <= SCAN_DISPATCH_GRACE_MINUTES) {
+      return band;
+    }
+  }
+  return null;
+}
+
+async function recordDispatch(env, note) {
+  try {
+    await env.RELAY_KV.put("SCAN:DISPATCH:LAST", JSON.stringify(note),
+      { expirationTtl: 7 * 86400 });
+  } catch (_) {
+    // KV is best effort here: the state of a dispatch must never fail a cron.
+  }
+}
+
+async function dispatchBandScan(env, now) {
+  const k = karachiView(now.getTime());
+  const band = bandOpenAt(k);
+  if (!band) return { dispatched: false, reason: "not a band open" };
+
+  const token = String(env.GH_DISPATCH_TOKEN || "").trim();
+  if (!token) {
+    // Opt-in: without the secret the scheduled trigger is the only path.
+    return { dispatched: false, reason: "GH_DISPATCH_TOKEN is not set" };
+  }
+
+  const key = `SCAN:DISPATCH:${dayStamp(k)}:${hmText(band[0])}`;
+  const seen = await env.RELAY_KV.get(key);
+  if (seen) return { dispatched: false, reason: "already dispatched" };
+
+  const close = band[1][0] * 60 + band[1][1];
+  const seconds = Math.max(60, (close - minutesOf(k)) * 60);
+  const repo = String(env.GH_REPO || SCAN_REPO_DEFAULT).trim();
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), SCAN_DISPATCH_TIMEOUT_MS);
+  const note = { at: new Date().toISOString(), band: hmText(band[0]),
+    repo, seconds, ok: false, status: 0, detail: "" };
+  try {
+    const response = await fetch(
+      `https://api.github.com/repos/${repo}/actions/workflows/`
+        + `${SCAN_WORKFLOW_FILE}/dispatches`,
+      {
+        method: "POST",
+        signal: controller.signal,
+        headers: {
+          authorization: `Bearer ${token}`,
+          accept: "application/vnd.github+json",
+          "x-github-api-version": "2022-11-28",
+          "user-agent": "quant-of-rehan-relay",
+        },
+        body: JSON.stringify({ ref: "master", inputs: { seconds: String(seconds) } }),
+      },
+    );
+    note.status = response.status;
+    note.ok = response.status === 204;
+    if (!note.ok) {
+      note.detail = (await response.text().catch(() => "")).slice(0, 300);
+    }
+  } catch (error) {
+    note.detail = String((error && error.name) || error).slice(0, 120);
+  } finally {
+    clearTimeout(timer);
+  }
+
+  if (note.ok) {
+    // Only a confirmed dispatch claims the band, so a failed attempt leaves
+    // the key free for the fallback paths and for an operator retry.
+    await env.RELAY_KV.put(key, note.at, { expirationTtl: 2 * 86400 });
+  }
+  await recordDispatch(env, note);
+  return { dispatched: note.ok, reason: note.ok ? "dispatched" : note.detail,
+    status: note.status };
+}
+
 // Which part of the trading day this instant is in. The names are the
 // Python MarketPhase names, because the app renders them verbatim.
 function marketPhase(nowUtc) {
@@ -1508,6 +1610,13 @@ export default {
     const now = new Date();
     const k = karachiView(now.getTime());
     if (!bandsFor(k).length) return;
+
+    // The punctual path for the scanner (owner audit 2026-10-19): this same
+    // wake that sends the open text also dispatches the band workflow, so a
+    // late GitHub cron is no longer the only thing standing between the owner
+    // and a scanned band. No token, no dispatch: the scheduled triggers stay
+    // the fallback.
+    ctx.waitUntil(dispatchBandScan(env, now));
 
     // Cron is an edge wake-up, not a substitute for a feed observation.
     // Reuse the latest broker snapshot when fresh; break/close transitions are
