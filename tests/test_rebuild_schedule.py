@@ -337,6 +337,30 @@ class TestTheOneSecondSessionWorkflow(unittest.TestCase):
         self.assertIn("timeout --signal=TERM", text,
                       "a band job must stop the loop itself, not be killed")
 
+    def test_a_scheduled_fire_is_gated_by_the_session_law_not_forced(self):
+        """Owner audit 2026-10-19: no --force on a scheduled fire.
+
+        The gate step used to pass --force on every fire, so it always
+        answered RUN. A scheduled event GitHub delivered hours late then
+        started the loop outside the session, finalized the day at 19:11 PKT
+        and slept 224,435 seconds until the job timeout killed it. The gate
+        is now schedule aware: the cron names itself, and --force belongs to
+        the human dispatch branch alone.
+        """
+        text = SESSION_WORKFLOW.read_text(encoding="utf-8")
+        gate = text[text.index("Session gate (sleep outside the PSX session)"):]
+        gate = gate[:gate.index("Say when this fire arrived")]
+        dispatch, scheduled = gate.split("else", 1)
+        self.assertIn('github.event_name', dispatch)
+        self.assertIn("--force", dispatch)
+        self.assertNotIn("--force", scheduled)
+        self.assertIn('--schedule "${{ github.event.schedule }}"', scheduled)
+
+    def test_the_band_loop_is_gated_on_the_session_law(self):
+        text = SESSION_WORKFLOW.read_text(encoding="utf-8")
+        loop_step = text[text.index("Scan the KMIALL universe at one second"):]
+        self.assertIn("if: steps.gate.outputs.should_run == 'true'", loop_step)
+
     def test_the_job_stays_inside_git_hub_six_hour_cap(self):
         """A job over six hours is cancelled by GitHub, so the cap is checked."""
         text = SESSION_WORKFLOW.read_text(encoding="utf-8")

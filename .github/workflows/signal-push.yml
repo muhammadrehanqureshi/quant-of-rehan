@@ -48,14 +48,14 @@ jobs:
       # could only learn the URL from the gitignored data/relay_url.txt.
       RELAY_URL: ${{ vars.RELAY_URL }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
 
       - name: Install dependencies
-        run: pip install requests pandas numpy
+        run: pip install -r requirements.txt --retries 5 --timeout 60
 
       - name: Fetch window and push NO TRADE status
         run: |
@@ -97,7 +97,7 @@ jobs:
 
       - name: Upload the push journal and this run's output
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: signal-push-journal-${{ github.run_id }}
           path: |

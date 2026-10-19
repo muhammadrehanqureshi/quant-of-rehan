@@ -201,6 +201,36 @@ class RelayWorkerContractTest(unittest.TestCase):
         scheduled = self.source[self.source.index("async scheduled(controller, env, ctx)"):]
         self.assertNotIn('tgCall(env, "sendMessage"', scheduled)
 
+    def test_a_band_open_dispatches_the_scan_workflow_punctually(self):
+        """Owner audit 2026-10-19: GitHub cron arrives hours late, so the
+        relay's own punctual cron wake nudges the band workflow.
+
+        The platform delivered the 04:17 UTC fire at 09:01 UTC and the 09:32
+        fire at 14:10, so every Friday band was missed. Cloudflare crons wake
+        at the exact edges already; the same wake now calls workflow_dispatch.
+        It is opt-in (no token, no dispatch), deduped per band per day, and
+        never blocks the open/close notification path.
+        """
+        self.assertIn("ctx.waitUntil(dispatchBandScan(env, now));", self.source)
+        self.assertIn("const SCAN_WORKFLOW_FILE = \"intraday-session.yml\";",
+                      self.source)
+        self.assertIn("const SCAN_DISPATCH_GRACE_MINUTES = 3;", self.source)
+        self.assertIn("async function dispatchBandScan(env, now)", self.source)
+        self.assertIn('const token = String(env.GH_DISPATCH_TOKEN || "").trim();',
+                      self.source)
+        self.assertIn('if (!token) {', self.source)
+        self.assertIn("new AbortController()", self.source)
+        self.assertIn("/actions/workflows/", self.source)
+        self.assertIn("/dispatches", self.source)
+        self.assertIn('inputs: { seconds: String(seconds) }', self.source)
+        self.assertIn("const key = `SCAN:DISPATCH:", self.source)
+        # A failed dispatch must not claim the band: only a 204 records the key.
+        self.assertIn("note.ok = response.status === 204;", self.source)
+        self.assertIn("if (note.ok) {", self.source)
+        # The token is a Worker secret, never a value in this file (SO-5).
+        self.assertNotIn("ghp_", self.source)
+        self.assertNotIn("github_pat_", self.source)
+
     def test_session_edges_and_broker_halt_are_not_scanner_schedule_changes(self):
         for text in ("09:32", "15:30", "09:17", "12:00", "14:32", "16:30"):
             with self.subTest(edge=text):

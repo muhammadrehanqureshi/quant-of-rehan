@@ -74,22 +74,53 @@ jobs:
       PAPER_TRADING_ENABLED: "true"
       LIVE_TRADING_ENABLED: "false"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
 
       # The same sleep gate the per-slot workflow uses: on a weekend, a PSX
       # holiday or outside every band the job answers and stops without
       # opening a socket, so a misfired schedule costs nothing.
+      #
+      # The gate is SCHEDULE AWARE, and --force belongs to a human dispatch
+      # only (owner audit 2026-10-19). It used to be passed on every fire,
+      # which made the gate always answer RUN: a GitHub schedule that arrived
+      # hours late started the loop outside the session, finalized the day at
+      # 19:11 PKT, then slept 224,435 seconds until the job timeout killed it.
+      # That is how a late fire burned 190 runner minutes, skipped every band,
+      # and still reported success. A scheduled fire now names its own cron so
+      # the gate can decide with the session law, exactly as intraday-capture
+      # already does; a manual dispatch keeps the deliberate override.
       - name: Session gate (sleep outside the PSX session)
         id: gate
-        run: python -m src.data.session_gate --check --force --purpose scan
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            python -m src.data.session_gate --check --force --purpose scan
+          else
+            python -m src.data.session_gate --check \
+              --schedule "${{ github.event.schedule }}"
+          fi
+
+      # A scheduled fire that GitHub delivered late is a platform fact, not a
+      # scanner decision, so say it in the run summary where the owner can see
+      # it. The gate above still decides what the fire may do.
+      - name: Say when this fire arrived outside the session
+        if: steps.gate.outputs.should_run != 'true'
+        run: |
+          echo "## Session gate: SLEEP" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "This fire did no work: ${{ steps.gate.outputs.reason }}" \
+            >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "A scheduled event GitHub delivered late is expected to land " \
+            "here; the band itself is covered by the next punctual edge." \
+            >> "$GITHUB_STEP_SUMMARY"
 
       - name: Install dependencies
         if: steps.gate.outputs.should_run == 'true'
-        run: pip install pandas numpy requests
+        run: pip install -r requirements.txt --retries 5 --timeout 60
 
       - name: Resolve this band's length
         id: window
@@ -152,7 +183,7 @@ jobs:
 
       - name: Keep the band's record
         if: always() && steps.gate.outputs.should_run == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: kmiall-session-loop-${{ github.run_id }}
           path: |

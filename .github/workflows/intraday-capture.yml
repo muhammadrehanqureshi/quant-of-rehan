@@ -83,9 +83,9 @@ jobs:
       PAPER_TRADING_ENABLED: "true"
       LIVE_TRADING_ENABLED: "false"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
 
@@ -115,7 +115,7 @@ jobs:
 
       - name: Install dependencies
         if: steps.gate.outputs.should_run == 'true'
-        run: pip install pandas numpy requests
+        run: pip install -r requirements.txt --retries 5 --timeout 60
 
       - name: Bank the session tape, inside a budget this job can afford
         if: steps.gate.outputs.should_run == 'true'
@@ -246,7 +246,7 @@ jobs:
 
       - name: Retain the session record, gate and captured bars
         if: always() && steps.gate.outputs.should_run == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: kmiall-session-${{ github.run_id }}
           # The bars the scan read, not the raw tape: one session of tape is
