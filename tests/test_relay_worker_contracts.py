@@ -288,6 +288,25 @@ class RelayWorkerContractTest(unittest.TestCase):
         # a delimiter and nowhere else, whatever the module happens to contain.
         self.assertEqual(body.count(f"--{boundary}".encode()), 3)
 
+    def test_the_signal_read_is_public_and_the_write_is_gated(self):
+        """Owner order 2026-10-19: the phone carries no admin token.
+
+        Removing the token field from the app is only safe if the read it
+        needs no longer requires the token. GET /signals returns the card the
+        owner's own runner already sent him; POST /signals stores new fingers
+        on that card and stays admin gated, so nothing a phone can reach can
+        change state.
+        """
+        read = self.source[self.source.index('if (request.method === "GET" && path === "/signals")'):]
+        read = read[:read.index('if (request.method === "POST" && path === "/signals")')]
+        self.assertNotIn("adminOk", read)
+        self.assertIn('await env.RELAY_KV.get("SIGNALS")', read)
+
+        write = self.source[self.source.index('if (request.method === "POST" && path === "/signals")'):]
+        write = write[:write.index("return json({ ok: false, error: \"not found\" }")]
+        self.assertIn("if (!adminOk(request, env)) {", write)
+        self.assertIn('env.RELAY_KV.put("SIGNALS"', write)
+
     def test_the_admin_gate_and_the_card_routes_survive(self):
         """A refactor of /notify must not open the write routes."""
         for route in ('path === "/research/observation"', 'path === "/research/claim"',

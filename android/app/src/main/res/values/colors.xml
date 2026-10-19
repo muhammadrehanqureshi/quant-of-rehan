@@ -44,4 +44,14 @@
     <color name="field_bg">#FF120A16</color>
     <color name="green_soft">#FF1E3F30</color>
     <color name="red_soft">#FF3F2226</color>
+    <!-- The OFFLINE tile's gradient (owner order 2026-10-19: a darker, more
+         prominent red). Two ends, top to bottom, plus the hairline that closes
+         it. White ink on the lighter end is about 10:1, so the word keeps
+         passing body-text contrast at the top of the gradient as well as the
+         bottom; the beacon and the word still carry the state, never the
+         colour alone. -->
+    <color name="red_deep">#FF8E1F1F</color>
+    <color name="red_deep_edge">#FF561010</color>
+    <color name="red_deep_line">#FFC04545</color>
+    <color name="on_red">#FFFDF3F3</color>
 </resources>

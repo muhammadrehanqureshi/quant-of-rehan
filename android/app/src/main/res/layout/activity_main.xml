@@ -364,19 +364,10 @@
                 android:layout_marginTop="6dp"
                 android:text="@string/settings_hint"/>
 
-            <EditText
-                android:id="@+id/token_box"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
-                android:background="@drawable/field_bg"
-                android:hint="@string/token_hint"
-                android:inputType="textVisiblePassword"
-                android:padding="12dp"
-                android:textColor="@color/text_bright"
-                android:textColorHint="#FF6E5A78"
-                android:textSize="12sp"/>
-
+            <!-- Owner order 2026-10-19: the relay token field and its save
+                 button are gone. The phone holds no credential: the relay
+                 serves the latest signal as a public read and keeps every
+                 write route admin gated, so there is nothing here to paste. -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -384,20 +375,11 @@
                 android:orientation="horizontal">
 
                 <Button
-                    android:id="@+id/btn_save"
-                    style="@style/QorButton"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="@string/btn_save"/>
-
-                <Button
                     android:id="@+id/btn_open"
                     style="@style/QorButton"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:layout_marginLeft="8dp"
-                    android:layout_weight="1"
+                        android:layout_weight="1"
                     android:text="@string/btn_relay"/>
             </LinearLayout>
 
@@ -439,19 +421,10 @@
                 android:textSize="17sp"
                 android:textStyle="bold"/>
 
-            <!-- Exchange-wide state, distinct from an individual stock's
-                 OPN/SUS flag. It comes only from a fresh REG MKT-STATS frame,
-                 whose timestamp is the updated time in the status copy. The
-                 UI never mistakes one suspended ticker for a market halt. -->
-            <TextView
-                android:id="@+id/market_feed_status"
-                style="@style/QorCaption"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
-                android:gravity="center"
-                android:text="@string/market_feed_unknown"/>
-
+            <!-- Owner order 2026-10-19: the "feed status unconfirmed" line
+                 is gone. The index line carries the broker's own timestamp
+                 instead, which says when the number was taken without
+                 editorialising about it. -->
             <!-- The card's values carry LEMON MILK Light (QorValue): tickers,
                  money and counts are capitals by nature, so the free face's
                  uppercase-only mapping costs nothing here. The up and down

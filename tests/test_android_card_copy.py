@@ -68,12 +68,14 @@ class FooterContractTest(unittest.TestCase):
         self.assertIn("this is a display read, not a strategy scan", watcher.lower())
         self.assertIn("five minutes old", watcher.lower())
 
-    def test_settings_hint_describes_feed_data_without_false_poll_cadence(self):
+    def test_settings_hint_is_plain_and_promises_no_poll_cadence(self):
+        """Owner order 2026-10-19: no token, no feed jargon, no cadence claim."""
         text = STRINGS.read_text(encoding="utf-8")
         hint = text.split('name="settings_hint">', 1)[1].split("</string>", 1)[0]
-        self.assertIn("latest available broker-feed data", hint)
+        self.assertIn("reads the relay by itself", hint)
         self.assertNotIn("every 30 seconds", hint)
         self.assertNotIn("every second", hint)
+        self.assertNotIn("token", hint.lower())
 
     def test_settings_heading_is_centered_in_its_tile(self):
         layout = LAYOUT.read_text(encoding="utf-8")
@@ -149,19 +151,31 @@ class LeaderLineTest(unittest.TestCase):
         self.assertIn("if (row.hasVolume()) {", self.main)
         self.assertIn("sb.append(')');", self.main)
 
-    def test_the_exchange_feed_status_copy_is_distinct_from_session_hours(self):
+    def test_the_feed_status_line_is_retired_for_the_broker_stamp(self):
+        """Owner order 2026-10-19: no "feed unconfirmed" narration on the card.
+
+        The line is gone, not reworded. What replaces it is the broker's own
+        timestamp drawn on the KSE100 line, which says when the number was
+        taken without editorialising about the feed. Removing the sentence
+        must not remove the evidence: brokerClock() is the only source of that
+        stamp and an absent stamp prints nothing (SO-3).
+        """
         strings = STRINGS.read_text(encoding="utf-8")
+        layout = LAYOUT.read_text(encoding="utf-8")
         for name in ("market_feed_unknown", "market_feed_open",
                      "market_feed_halted", "market_feed_closed"):
             with self.subTest(resource=name):
-                self.assertIn(f'name="{name}"', strings)
-        self.assertIn("session clock remains the market-hours authority", strings)
-        self.assertIn("REG feed HALTED", strings)
-        self.assertIn('android:id="@+id/market_feed_status"',
-                      LAYOUT.read_text(encoding="utf-8"))
+                self.assertNotIn(f'name="{name}"', strings)
+        self.assertNotIn("unconfirmed", strings.lower())
+        self.assertNotIn('android:id="@+id/market_feed_status"', layout)
+        self.assertNotIn("renderMarketFeedStatus", self.main)
+        self.assertIn("private static String brokerClock(String asOf)", self.main)
+        self.assertIn("brokerClock(market.indexAsOf)", self.main)
 
     def test_every_arrow_keeps_a_single_space(self):
-        self.assertIn('"KSE100  %,.2f %s %,.2f (%.2f%%)"', self.main)
+        # The broker stamp is a suffix (owner order 2026-10-19), so the format
+        # gains one %s at the end and keeps exactly one space before the arrow.
+        self.assertIn('"KSE100  %,.2f %s %,.2f (%.2f%%)%s"', self.main)
         self.assertNotIn('"KSE100  %,.2f   %s', self.main)
         self.assertIn('"%s %.2f%%"', self.main)
         self.assertNotIn('"   %s %.2f%%"', self.main)
