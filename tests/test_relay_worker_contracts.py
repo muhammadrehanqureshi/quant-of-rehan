@@ -207,8 +207,9 @@ class RelayWorkerContractTest(unittest.TestCase):
                 self.assertIn(text, self.source)
         workflow = (ROOT / ".github" / "workflows" / "intraday-session.yml").read_text(
             encoding="utf-8")
-        self.assertIn("30 seconds", workflow)
-        self.assertIn('SCAN_INTERVAL_SECONDS = _number("SCAN_INTERVAL_SECONDS", 30)',
+        # Owner order 2026-10-19: the band loop scans at one second intervals.
+        self.assertIn("--interval 1", workflow)
+        self.assertIn('SCAN_INTERVAL_SECONDS = _number("SCAN_INTERVAL_SECONDS", 1)',
                       (ROOT / "src" / "config.py").read_text(encoding="utf-8"))
 
     def test_durable_object_deploy_paths_declare_the_same_class(self):

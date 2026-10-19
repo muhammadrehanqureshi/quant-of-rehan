@@ -54,9 +54,9 @@ The schedule lives in the cloud and never on the owner's PC (SO-12, owner order
 | | GitHub Actions | Cloudflare relay |
 |---|---|---|
 | Files | [intraday-session.yml](.github/workflows/intraday-session.yml) (the session loop) and [intraday-capture.yml](.github/workflows/intraday-capture.yml) (band slots, finalize, backstop) | [cloud/worker.js](cloud/worker.js) |
-| Carries | the KMIALL scan, the post-close finalize, the observation both the phone card and the paper strategy read | the open and close texts, and the `/health`, `/signals` and `/market` endpoints the phone reads |
-| Cadence | **every 30 seconds inside every PSX band** (`config.SCAN_INTERVAL_SECONDS = 30`, SO-13); per-slot fires at 10:00, 11:30, 13:00, 14:30 and Friday 16:00 stay as the backstop | on every band edge it is triggered for, and on every phone poll |
-| Cost | nothing: free runner minutes on a public repository, about 2.9s of a 30s slot | the free edge tier |
+| Carries | the KMIALL scan, the post-close finalize, the observation both the phone card and the paper strategy read | the open and close texts, and the `/health`, `/signals`, `/market` and `/quotes` endpoints the phone reads |
+| Cadence | **every second inside every PSX band** (`config.SCAN_INTERVAL_SECONDS = 1`, owner order 2026-10-19 amending SO-13); one cycle costs about 2.9s, so the loop runs back-to-back and the achieved rate is its own latency | on every band edge it is triggered for, and on every phone poll |
+| Cost | nothing: free runner minutes on a public repository, and the loop runs for the band's length either way | the free edge tier |
 | State | its own forward state on the runner | `RELAY_KV` |
 | PC off | yes | yes |
 
@@ -111,7 +111,8 @@ pill with the relay's own phase sentence, the latest signal, and the market
 card (KSE100 points and percentage, then the three volume leaders with their
 counted buy/sell/total volumes). It polls `/health` and `/signals` on the edge
 every second while the relay reports the market open, every 30 seconds when it
-does not, and the exchange-backed card every 30 live rounds; the status beacon
+does not, and the broker-backed card on every live round (it takes the newest
+`/quotes` snapshot the relay holds); the status beacon
 breathes only while a session is live, and the app never derives a session from
 its own clock. See [android/README.md](android/README.md).
 
@@ -173,8 +174,8 @@ legacy/                           quarantined code from the deleted sentinel rep
    appends it and `scripts/check_governance.py` requires it.
 8. **SO-8 Karachi time forever.** UTC+5, hardcoded, no other zone.
 9. **SO-9 Owner notifications** at open and close, through the relay.
-10. **SO-12 / SO-13 Cloud cadence.** The 30-second scan runs on Actions
-    minutes and the Cloudflare relay, with the owner's PC switched off.
+10. **SO-12 / SO-13 Cloud cadence.** The one-second scan request runs on
+    Actions minutes and the Cloudflare relay, with the owner's PC switched off.
 
 ## Checks and commands
 

@@ -55,10 +55,10 @@ import java.util.Locale;
  * when the market is open."
  *
  * Owner order 2026-10-16 (v1.7.1): that sentence's interval tracks the real
- * one, which is now the 30 second cloud cadence (config.SCAN_INTERVAL_SECONDS,
- * SO-13) rather than the retired 4 minute local tick: "every 30 seconds when
- * the market is open". The console also repaints at that cadence for as long
- * as it is on screen instead of once per open.
+ * one, which was the cloud cadence of that order (config.SCAN_INTERVAL_SECONDS)
+ * rather than the retired 4 minute local tick. The console also repaints at
+ * that cadence for as long as it is on screen instead of once per open. The
+ * interval became one second on 2026-10-19 (see the v1.7.7 note below).
  *
  * Owner order 2026-10-12 (third note): the settings control is a drawn vector
  * gear rather than a text glyph, the market card closes with the same line,
@@ -125,15 +125,24 @@ import java.util.Locale;
  *      answer and is labelled as such rather than as a market fact (SO-3);
  *   3. the header and the settings hint both described a 30 second repaint.
  *      The sentence the owner was reading is the SCAN cadence (the cloud
- *      scanner really does run every 30 seconds, SO-13) and stays
+ *      scanner ran every 30 seconds under SO-13 at that time) and stayed
  *      byte-identical, but the hint now states the two cadences apart, so the
- *      panel can no longer read as a promise that the screen updates every 30
- *      seconds.
+ *      panel could not read as a promise that the screen updates every 30
+ *      seconds. On 2026-10-19 the scan itself moved to one second, so the two
+ *      cadences now agree.
  *
  * The same order's other two notes: the settings control's ordered offset is
  * clamped to the room the screen actually has (see applySettingsShift), which
  * is what stopped its press gradient being sliced, and the OFFLINE light is
  * the ONLINE light in red and still (drawable/ic_status_offline).
+ *
+ * Owner order 2026-10-19 (v1.7.7), the dashboard pass: the OFFLINE tile is a
+ * dark red gradient instead of a pale tint; the latest signal tile shows the
+ * ticker and the three execution prices and nothing else, through SignalText;
+ * the settings tile carries no token field and no relay jargon; the KSE100
+ * line has no "feed unconfirmed" sentence, only the broker's own clock; and
+ * the strategy scan moved from 30 seconds to the one second cadence, which
+ * this console already polls at while the relay reports a live session.
  */
 public class MainActivity extends Activity {
 
@@ -834,90 +843,28 @@ public class MainActivity extends Activity {
     }
 
     /**
-     * The tile's three execution numbers, and nothing else (owner order
+     * The tile's primary signal data, and nothing else (owner order
      * 2026-10-19).
      *
-     * The relay carries a full text card: a "QoR signals <date>" header, the
+     * The relay carries a full text card: a "QoR intraday <date>" header, the
      * session's rule paragraphs, and on a no-trade day a note explaining why
      * nothing was taken. Those are the workings, not the signal, so the tile
-     * renders only Entry Price, Exit Price and Stop Loss, and collapses every
-     * other state to one word. Nothing is inferred: a missing field reads
-     * "Not reported" and a missing stop stays unreported.
+     * renders the ticker and three execution numbers and nothing else, and
+     * collapses every other state to one word. The parsing lives in
+     * SignalText (plain Java, no Android imports) so tests/test_android_signal_text.py
+     * runs it on the JVM against the shapes the relay actually serves.
      */
     private String latestSignalDisplay(String raw) {
-        String entryPrice = null;
-        String exitPrice = null;
-        String stopLoss = null;
-        for (String line : raw.split("\\r?\\n")) {
-            String value;
-            if ((value = valueAfterLabel(line, "Entry price:")) != null) {
-                entryPrice = value;
-            } else if ((value = valueAfterLabel(line, "Entry:")) != null) {
-                entryPrice = value;
-            } else if ((value = valueAfterLabel(line, "Exit price:")) != null) {
-                exitPrice = value;
-            } else if ((value = valueAfterLabel(line, "Exit reference:")) != null) {
-                exitPrice = value;
-            } else if ((value = valueAfterLabel(line, "Target:")) != null) {
-                // Keep only numeric targets: the signal's trailing summary
-                // also starts with Target but contains no executable price.
-                String numericTarget = leadingPriceOrNull(value);
-                if (numericTarget != null) {
-                    exitPrice = numericTarget;
-                }
-            } else if ((value = valueAfterLabel(line, "Exit:")) != null) {
-                exitPrice = value;
-            } else if ((value = valueAfterLabel(line, "Stop Loss:")) != null) {
-                stopLoss = value;
-            } else if ((value = valueAfterLabel(line, "SL:")) != null) {
-                stopLoss = value;
-            }
+        String text = SignalText.compact(raw);
+        // The two states are words, not numbers, so they come from resources:
+        // one place for the copy and one place for the accessible sentence.
+        if (SignalText.NO_TRADE.equals(text)) {
+            return getString(R.string.signal_none);
         }
-
-        if (entryPrice == null && exitPrice == null && stopLoss == null) {
-            // One word for a state with no trade: the header, the date and the
-            // rule paragraph that came with it are the workings, not a signal.
-            return raw.toUpperCase(Locale.US).contains("NO TRADE")
-                    ? getString(R.string.signal_none)
-                    : getString(R.string.signal_unavailable);
+        if (SignalText.UNAVAILABLE.equals(text)) {
+            return getString(R.string.signal_unavailable);
         }
-        return "Entry Price: " + knownOrReported(entryPrice)
-                + "\nExit Price: " + knownOrReported(exitPrice)
-                + "\nStop Loss: " + knownOrReported(stopLoss);
-    }
-
-    /** Return an unchanged positive numeric price, or null for summary text. */
-    private static String leadingPriceOrNull(String value) {
-        if (value == null) return null;
-        String[] parts = value.trim().split("\\s+", 2);
-        if (parts.length == 0) return null;
-        try {
-            double price = Double.parseDouble(parts[0]);
-            return price > 0.0 && !Double.isNaN(price) && !Double.isInfinite(price)
-                    ? parts[0] : null;
-        } catch (NumberFormatException invalidPrice) {
-            return null;
-        }
-    }
-
-    /** Read a field only when its explicit label is present at line start. */
-    private static String valueAfterLabel(String line, String label) {
-        if (line == null || !line.regionMatches(true, 0, label, 0, label.length())) {
-            return null;
-        }
-        return knownOrNull(line.substring(label.length()));
-    }
-
-    private static String knownOrNull(String value) {
-        if (value == null) return null;
-        String trimmed = value.trim();
-        return trimmed.isEmpty() || "null".equalsIgnoreCase(trimmed)
-                || "undefined".equalsIgnoreCase(trimmed) ? null : trimmed;
-    }
-
-    private static String knownOrReported(String value) {
-        String known = knownOrNull(value);
-        return known == null ? "Not reported" : known;
+        return text;
     }
 
     /**

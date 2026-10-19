@@ -262,15 +262,26 @@ TARGET_MULTIPLIER_BY_REGIME = {
 TICK_INTERVAL_MINUTES = _number("TICK_INTERVAL_MINUTES", 4)
 TICK_WARMUP_MINUTES = _number("TICK_WARMUP_MINUTES", 20)
 
-# SO-13 (owner order 2026-10-14): "make the repo public but then i want the
-# quant of rehan to be scanned every 30 seconds". One scan serves both the
-# phone's card and the intraday paper strategy, so this is the cadence of the
-# supervised session loop the cloud job runs, and the slot width its
-# once-per-slot guard is keyed on. The local 4-minute tick keeps its own
-# TICK_INTERVAL_MINUTES: the two are different runners, not two cadences for
-# one runner. Measured cost of one cycle on the real 2026-10-13 session tape
-# (44.6 MB, 314 symbols): 2.9s to build, load, gate and rank, inside a 30s slot.
-SCAN_INTERVAL_SECONDS = _number("SCAN_INTERVAL_SECONDS", 30)
+# Owner order 2026-10-19, in the owner's words: "Update the scanning frequency
+# for the quant engine from 30 seconds to real-time (1-second intervals)" and
+# "I want to see the real numbers moving in real time". This supersedes the
+# 2026-10-14 30 second order (SO-13), and the whole cadence below follows from
+# it: the session loop asks for a slot every second, and the once-per-slot
+# guard floors its label to the second (src/data/scan_schedule.slot_of).
+#
+# What 1 means in practice, measured rather than assumed: one cycle on the real
+# 2026-10-13 session tape (44.6 MB, 314 symbols) costs about 2.9s to build the
+# bars, load them, gate and rank them. So the loop cannot start a new scan every
+# second; it starts the next one the instant the previous finishes, and the
+# cadence it achieves is its own latency (about 3s), never a queued backlog.
+# The phone is the 1 second part: it repaints every second and takes the newest
+# snapshot the relay holds. A true 1 second end to end needs the capture to
+# publish the card on its own 1 second clock instead of once per scan; that is
+# the producer-side change the relay's /quotes stream is ready for.
+#
+# The local 4-minute tick keeps its own TICK_INTERVAL_MINUTES: the two are
+# different runners, not two cadences for one runner.
+SCAN_INTERVAL_SECONDS = _number("SCAN_INTERVAL_SECONDS", 1)
 TICK_STALE_LOCK_MINUTES = _number("TICK_STALE_LOCK_MINUTES", 15)
 
 # How long the broker venue may push NO market data at all before the recorder

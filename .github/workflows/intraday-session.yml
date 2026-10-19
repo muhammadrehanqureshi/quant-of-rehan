@@ -1,13 +1,21 @@
 name: KMIALL session scan loop
 
-# SO-13 (owner order 2026-10-14): "make the repo public but then i want the
-# quant of rehan to be scanned every 30 seconds, also ... the 4 minute scan is
-# the same for the app and for my intraday as well, they are not separate".
-# This workflow is that cadence. It runs the supervised loop
-# (scripts/scan_loop.py) for one PSX band; the loop keeps the read-only broker
-# tape alive for the whole band and scans the entire KMIALL universe every 30
-# seconds against that tape, feeding the same observation the phone's card and
-# the intraday paper strategy read.
+# Owner order 2026-10-19, verbatim: "Update the scanning frequency for the quant
+# engine from 30 seconds to real-time (1-second intervals)". This supersedes the
+# 30 second order of 2026-10-14 (SO-13). The workflow is unchanged otherwise: it
+# runs the supervised loop (scripts/scan_loop.py) for one PSX band, the loop
+# keeps the read-only broker tape alive for the whole band, and it scans the
+# entire KMIALL universe as often as one cycle allows, feeding the same
+# observation the phone's card and the intraday paper strategy read.
+#
+# What "1 second" can and cannot mean here, measured on the real 2026-10-13
+# session tape (44.6 MB, 314 symbols, 56,618 rows): one cycle builds the bars in
+# 1.4s, loads them in 1.5s and gates and ranks in under 0.1s, so a cycle costs
+# about 2.9s. The requester of a slot is therefore 1 second, but the loop can
+# only start the next cycle when this one ends: the achieved cadence is the
+# pipeline's own latency, about 3 seconds, with no queued backlog and no busy
+# wait. The phone's one second repaint is independent of this and reads the
+# newest snapshot the relay holds.
 #
 # Why four windows instead of one job: a GitHub job may not exceed six hours,
 # and Mon-Thu 09:32 to 15:30 is 5h58m before any setup is billed. Each window
@@ -24,10 +32,10 @@ name: KMIALL session scan loop
 #
 # Minutes: GitHub Actions is free on a public repository, and this repository
 # is public as of the owner's 2026-10-14 order, so the 2,000-minute private
-# allowance that capped the cadence no longer binds. Measured on the real
-# 2026-10-13 session tape (44.6 MB, 314 symbols, 56,618 rows): a cycle builds
-# the bars in 1.4s, loads them in 1.5s and gates and ranks in under 0.1s, so
-# about 2.9s inside a 30s slot.
+# allowance that capped the cadence no longer binds. The cost figures above
+# are also the reason a 1 second request does not multiply the job's minutes:
+# the job already runs for the band's own length, and the loop scans inside
+# that window either way.
 
 on:
   schedule:
@@ -100,7 +108,7 @@ jobs:
           echo "this window runs the loop for ${seconds}s of wall clock" \
             >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Scan the KMIALL universe every 30 seconds for this band
+      - name: Scan the KMIALL universe at one second intervals for this band
         if: steps.gate.outputs.should_run == 'true'
         run: |
           # set +e: the loop's exit code is reported below and turned into one
@@ -109,7 +117,7 @@ jobs:
           set +e
           timeout --signal=TERM \
             "${{ steps.window.outputs.seconds }}" \
-            python scripts/scan_loop.py --loop --interval 30 \
+            python scripts/scan_loop.py --loop --interval 1 \
             > /tmp/kmi_session.log 2>&1
           status=$?
           set -e
