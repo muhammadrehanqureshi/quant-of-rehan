@@ -101,6 +101,23 @@ fi
 BRANCH=$(git symbolic-ref --short -q HEAD) || die "detached HEAD: check out a feature branch first"
 [[ "$BRANCH" != "$BASE" ]] || die "refusing to land on $BASE itself (SO-2: every change is a pull request)"
 git remote get-url origin >/dev/null 2>&1 || die "remote 'origin' is not configured"
+# The landing flow publishes to exactly one repository, and this checkout
+# declares which one. Origin must agree: running a copy of this flow from
+# the other project tree is precisely how work lands in the wrong public
+# repository.
+IDENTITY_FILE="$ROOT/.repo-identity"
+[[ -f "$IDENTITY_FILE" ]] || die "no .repo-identity in this checkout: the landing flow refuses to guess which repository it is publishing to"
+EXPECTED_REPO=$(tr -d "[:space:]" < "$IDENTITY_FILE")
+[[ -n "$EXPECTED_REPO" ]] || die ".repo-identity is empty"
+# A remote may be an https URL or a local path, and on Windows git can
+# print that path with backslashes, so both separators are normalised
+# before the last segment is taken.
+origin_url=$(git remote get-url origin | tr "\\" "/")
+actual_repo=${origin_url%/}
+actual_repo=${actual_repo##*/}
+actual_repo=${actual_repo%.git}
+[[ "$actual_repo" == "$EXPECTED_REPO" ]] || die "origin points at repository '$actual_repo' but this checkout declares '$EXPECTED_REPO'; refusing to land into the wrong repository"
+note "repository identity: $EXPECTED_REPO (origin agrees)"
 note "branch: $BRANCH  ->  base: $BASE"
 
 command -v python >/dev/null 2>&1 || die "python is required for the governance and test checks"

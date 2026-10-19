@@ -101,6 +101,7 @@ class LandingWorkflowTest(unittest.TestCase):
         (self.work / "scripts").mkdir()
         (self.work / "tests").mkdir()
         (self.work / "cloud").mkdir()
+        (self.work / ".repo-identity").write_text("remote", encoding="utf-8")
         (self.work / "scripts" / "check_governance.py").write_text(
             GOVERNANCE_STUB, encoding="utf-8", newline="\n")
         (self.work / "tests" / "test_ok.py").write_text(
@@ -210,6 +211,28 @@ class LandingWorkflowTest(unittest.TestCase):
         result = self.land("-y", "-m", "Sandbox: resume after a conflict",
                            "--until", "validate")
         self.assertIn("nothing new to commit", result.stdout)
+
+    def test_it_refuses_a_checkout_that_declares_another_repository(self):
+        # The failure this guards: a copy of this flow run from the other
+        # project tree would publish that work into this public repository.
+        (self.work / ".repo-identity").write_text(
+            "charts-of-rehan", encoding="utf-8")
+        self.write("README.md", "readme\n")
+        result = self.land("-y", "-m", "Sandbox: the wrong repository must abort",
+                           expect=1)
+        self.assertIn("refusing to land into the wrong repository", result.stderr)
+        # Nothing was committed: the new file is still untracked.
+        self.assertIn("?? README.md",
+                      self.git("-C", str(self.work), "status", "--porcelain"))
+        self.assertNotIn("sandbox-land", self.remote_branches())
+
+    def test_it_refuses_a_checkout_that_declares_no_identity(self):
+        (self.work / ".repo-identity").unlink()
+        self.write("README.md", "readme\n")
+        result = self.land("-y", "-m", "Sandbox: a missing identity must abort",
+                           expect=1)
+        self.assertIn(".repo-identity", result.stderr)
+        self.assertNotIn("sandbox-land", self.remote_branches())
 
     def test_it_refuses_to_land_on_the_base_branch_itself(self):
         self.git("-C", str(self.work), "checkout", "-q", "master")
