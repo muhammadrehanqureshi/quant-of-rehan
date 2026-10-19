@@ -140,7 +140,7 @@ const EXPECT = {json.dumps({"top_symbols": fx["top_symbols"],
                             "python_leaders": fx["python_leaders"]})};
 // exactly what android/.../Watcher.fetchMarket reads
 const EXCEPT_KEYS = ["ok", "market_open", "cache_age_seconds", "kmiall_members",
-                     "top_volume_basis", "index", "top_volume", "notes"];
+                     "top_volume_basis", "index", "top_volume", "notes", "market_feed"];
 const lines = [];
 function say(ok, what, extra) {{
   lines.push((ok ? "PASS " : "FAIL ") + what + (extra ? " :: " + extra : ""));

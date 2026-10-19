@@ -39,6 +39,10 @@
 
 const KARACHI_OFFSET_MIN = 5 * 60; // SO-8: UTC+5, fixed forever
 
+const QUOTE_HUB_SOCKET_TAG = "live-quotes";
+function quoteHubBinding(env) {
+  return env.QUOTE_HUB || env.RELAY_KV;
+}
 // Owner order 2026-10-08: name the market event first, then the quant
 // state (SO-9).
 const MSG_OPEN = "Market is open. Quant is online now.";
@@ -49,6 +53,19 @@ const MSG_CLOSED = "Market is closed. Quant is sleeping now.";
 // midday break and nothing else.
 const CONDITION_BREAK = "Market is on a break right now.";
 const CONDITION_CLOSED = "Market is closed right now.";
+const MSG_MARKET_OPEN = "Market is open. Quant is online now.";
+const MSG_MARKET_CLOSED = "Market is closed. Quant is sleeping now.";
+const MSG_MARKET_BREAK = "Market is on a break. Quant is sleeping until the market reopens.";
+const MSG_MARKET_HALTED = "Market is halted now. Quant is sleeping until the market reopens.";
+const MARKET_STATUS_MAX_AGE_MS = 90 * 1000;
+const MARKET_OPEN_GRACE_MS = 5 * 60 * 1000;
+const MARKET_TRANSITION_RETRY_MS = 5 * 60 * 1000;
+const MARKET_STATE_KEY = "MARKET:LAST_CONFIRMED_STATE";
+const MARKET_PENDING_KEY = "MARKET:NOTIFICATION_PENDING";
+const MARKET_DELIVERY_KEY = "MARKET:LAST_NOTIFICATION";
+const QUOTE_MAX_AGE_MS = 90 * 1000;
+const QUOTE_MAX_SYMBOLS = 600;
+const QUOTE_MAX_BODY_BYTES = 256 * 1024;
 
 // PSX trading holidays 2026; mirrors src/data/sessions.py. Refresh yearly.
 const PSX_HOLIDAYS_2026 = new Set([
@@ -446,6 +463,8 @@ async function buildMarketSnapshot(now) {
     top_volume_basis: null,
     volume_split_basis: null,
     notes: [],
+    market_feed: { status: "UNKNOWN", raw_status: null, as_of: null,
+      age_seconds: null, source: "eClear REG market feed", fresh: false },
   };
   try {
     snapshot.index = parseIndexPanel(await portalText(PORTAL_HOME), INDEX_NAME);
@@ -490,13 +509,378 @@ function normalizeMarket(raw) {
     : null;
   const members = Number.isFinite(Number(s.kmiall_members))
     ? Number(s.kmiall_members) : (rows ? rows.length : 0);
+  const marketFeed = (s.market_feed && typeof s.market_feed === "object")
+    ? s.market_feed
+    : { status: "UNKNOWN", raw_status: null, as_of: null,
+        age_seconds: null, source: "eClear REG market feed", fresh: false };
   return { ...s,
     index,
     kmiall_members: members,
     top_volume: rows,
+    market_feed: marketFeed,
     top_volume_basis:
       typeof s.top_volume_basis === "string" ? s.top_volume_basis : null,
     notes: Array.isArray(s.notes) ? s.notes : [] };
+}
+
+// Market-wide feed status has its own 90 second freshness window, separate
+// from the session law and the five-minute card cache. An old OPEN frame must
+// not stay visually live after capture has stopped.
+function refreshMarketFeed(snapshot, now) {
+  const feed = snapshot && snapshot.market_feed;
+  if (!snapshot || typeof snapshot !== "object") return snapshot;
+  if (!feed || typeof feed !== "object" || !feed.as_of) {
+    snapshot.market_feed = { status: "UNKNOWN", raw_status: null,
+      as_of: null, age_seconds: null, source: "eClear REG market feed",
+      fresh: false };
+    return snapshot;
+  }
+  const stamp = Date.parse(feed.as_of);
+  const ageMs = Number.isFinite(stamp) ? now.getTime() - stamp : NaN;
+  const age = ageMs / 1000;
+  feed.age_seconds = Number.isFinite(age) ? Math.max(0, Math.round(age)) : null;
+  feed.fresh = Number.isFinite(ageMs) && ageMs >= -5000 &&
+    ageMs <= MARKET_STATUS_MAX_AGE_MS;
+  if (!feed.fresh) feed.status = "UNKNOWN";
+  return snapshot;
+}
+
+function quoteSnapshotShapeError(body) {
+  if (!Array.isArray(body.quotes) || body.quotes.length > QUOTE_MAX_SYMBOLS) {
+    return `quotes must be an array with at most ${QUOTE_MAX_SYMBOLS} rows`;
+  }
+  if (body.index !== null && body.index !== undefined &&
+      (!body.index || typeof body.index !== "object" || Array.isArray(body.index))) {
+    return "index must be an object or null";
+  }
+  if (body.market_feed !== null && body.market_feed !== undefined &&
+      (!body.market_feed || typeof body.market_feed !== "object" ||
+       Array.isArray(body.market_feed))) {
+    return "market_feed must be an object or null";
+  }
+  const stamps = [];
+  for (const [i, row] of body.quotes.entries()) {
+    if (!row || typeof row !== "object" || Array.isArray(row) ||
+        !/^[A-Z0-9]{1,12}$/.test(String(row.symbol || "")) ||
+        !Number.isFinite(row.price) || row.price <= 0 ||
+        typeof row.observed_at !== "string" ||
+        !Number.isFinite(Date.parse(row.observed_at))) {
+      return `quotes[${i}] requires a valid symbol, positive price and timestamp`;
+    }
+    if (row.source !== "eClear MKT-FEED REG") {
+      return `quotes[${i}] has an unsupported source or timestamp`;
+    }
+    for (const key of ["bid", "ask", "change", "change_pct", "volume", "high", "low"]) {
+      if (row[key] !== null && row[key] !== undefined && !Number.isFinite(row[key])) {
+        return `quotes[${i}].${key} must be finite or null`;
+      }
+    }
+    if (typeof row.status !== "string") return `quotes[${i}].status must be text`;
+    stamps.push(Date.parse(row.observed_at));
+  }
+  if (body.index !== null && body.index !== undefined &&
+      (!body.index || typeof body.index !== "object" || Array.isArray(body.index) ||
+       body.index.symbol !== "KSE100" || !Number.isFinite(body.index.value) ||
+       !Number.isFinite(body.index.change) || !Number.isFinite(body.index.change_pct) ||
+       !Number.isFinite(Date.parse(String(body.index.as_of || ""))))) {
+    return "index must contain the broker KSE100 values and source timestamp";
+  }
+  if (body.market_feed !== null && body.market_feed !== undefined &&
+      (!body.market_feed || typeof body.market_feed !== "object" ||
+       Array.isArray(body.market_feed) ||
+       !(["OPEN", "HALTED", "CLOSED", "UNKNOWN"].includes(body.market_feed.status)) ||
+       !Number.isFinite(Date.parse(String(body.market_feed.as_of || ""))))) {
+    return "market_feed must contain a recognized status and source timestamp";
+  }
+  if (typeof body.captured_at !== "string" ||
+      !Number.isFinite(Date.parse(body.captured_at))) {
+    return "captured_at must be a valid timestamp";
+  }
+  return null;
+}
+
+function normalizeQuoteSnapshot(raw) {
+  const quotes = (Array.isArray(raw.quotes) ? raw.quotes : [])
+    .filter((row) => row && typeof row === "object")
+    .map((row) => ({ ...row }));
+  const snapshot = {
+    quotes,
+    index: raw.index && typeof raw.index === "object" ? { ...raw.index } : null,
+    market_feed: raw.market_feed && typeof raw.market_feed === "object"
+      ? { ...raw.market_feed } : null,
+    updated_at: raw.updated_at || raw.captured_at || null,
+  };
+  const now = Date.now();
+  snapshot.quotes = snapshot.quotes.map((row) => {
+    const age = now - Date.parse(row.observed_at || "");
+    return { ...row,
+      age_seconds: Number.isFinite(age) ? Math.max(0, Math.round(age / 1000)) : null,
+      fresh: Number.isFinite(age) && age >= -5000 && age <= QUOTE_MAX_AGE_MS,
+    };
+  });
+  snapshot.index = snapshot.index ? {
+    ...snapshot.index,
+    fresh: Number.isFinite(Date.parse(snapshot.index.as_of || "")) &&
+      now - Date.parse(snapshot.index.as_of) >= -5000 &&
+      now - Date.parse(snapshot.index.as_of) <= QUOTE_MAX_AGE_MS,
+  } : null;
+  snapshot.market_feed = snapshot.market_feed ? {
+    ...snapshot.market_feed,
+    fresh: Number.isFinite(Date.parse(snapshot.market_feed.as_of || "")) &&
+      now - Date.parse(snapshot.market_feed.as_of) >= -5000 &&
+      now - Date.parse(snapshot.market_feed.as_of) <= QUOTE_MAX_AGE_MS,
+  } : null;
+  const lastAt = Date.parse(snapshot.updated_at || "");
+  const snapshotAge = now - lastAt;
+  snapshot.stale = !Number.isFinite(lastAt) || snapshotAge < -5000 ||
+    snapshotAge > QUOTE_MAX_AGE_MS;
+  return snapshot;
+}
+
+function marketNotificationText(state) {
+  if (state === "OPEN") return MSG_MARKET_OPEN;
+  if (state === "BREAK") return MSG_MARKET_BREAK;
+  if (state === "CLOSED") return MSG_MARKET_CLOSED;
+  if (state === "HALTED") return MSG_MARKET_HALTED;
+  return null;
+}
+
+async function deliverMarketTransition(env, chatId, state, identity, evidence, now) {
+  const text = marketNotificationText(state);
+  const currentRaw = await env.RELAY_KV.get(MARKET_PENDING_KEY);
+  let current = null;
+
+  try {
+    current = currentRaw ? JSON.parse(currentRaw) : null;
+  } catch (_) {
+    current = null;
+  }
+  // A superseding feed observation may have replaced this pending transition.
+  if (!text || !current || current.identity !== identity) return;
+
+  const record = await sendAndRecord(env, chatId, text, "market", null);
+  if (!record.ok) {
+    const latestRaw = await env.RELAY_KV.get(MARKET_PENDING_KEY);
+    try {
+      const latest = latestRaw ? JSON.parse(latestRaw) : null;
+      if (latest && latest.identity === identity) {
+        latest.retry_after_ms = Date.now() + MARKET_TRANSITION_RETRY_MS;
+        latest.error = record.description;
+        await env.RELAY_KV.put(MARKET_PENDING_KEY, JSON.stringify(latest),
+                               { expirationTtl: 3600 });
+      }
+    } catch (_) {
+      // A malformed retry marker cannot turn a failed send into a success.
+    }
+    return;
+  }
+
+  const latestRaw = await env.RELAY_KV.get(MARKET_PENDING_KEY);
+  try {
+    const latest = latestRaw ? JSON.parse(latestRaw) : null;
+    if (!latest || latest.identity !== identity) return;
+  } catch (_) {
+    return;
+  }
+  await env.RELAY_KV.put(MARKET_STATE_KEY, JSON.stringify({
+    state, identity, confirmed_at_ms: Date.now(), evidence,
+  }), { expirationTtl: 604800 });
+  await env.RELAY_KV.put(MARKET_DELIVERY_KEY, JSON.stringify({
+    state, text, at: new Date().toISOString(), evidence,
+  }), { expirationTtl: 604800 });
+  await env.RELAY_KV.delete(MARKET_PENDING_KEY);
+}
+
+async function readQuoteSnapshot(env) {
+  try {
+    const namespace = quoteHubBinding(env);
+    const id = namespace.idFromName("psx-live-quotes");
+    const stub = namespace.get(id);
+    const response = await stub.fetch("https://quote-hub/snapshot");
+    if (!response.ok) return null;
+    const body = await response.json();
+    return body && body.ok ? normalizeQuoteSnapshot(body) : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function applyLiveQuotes(snapshot, quotes, now) {
+  if (!quotes) return refreshMarketFeed(snapshot, now);
+  const freshQuotes = quotes.quotes.filter((row) => row.fresh &&
+    Number.isFinite(row.price) && row.price > 0);
+  if (freshQuotes.length) {
+    const previous = new Map((snapshot.top_volume || []).map((row) => [row.symbol, row]));
+    const liveBySymbol = new Map(freshQuotes.map((row) => [row.symbol, row]));
+    const merged = (snapshot.top_volume || []).map((row) => {
+      const quote = liveBySymbol.get(row.symbol);
+      if (!quote) return { ...row, quote_fresh: false };
+      liveBySymbol.delete(row.symbol);
+      return {
+        ...row,
+        price: quote.price,
+        volume: quote.volume ?? row.volume,
+        change_pct: quote.change_pct ?? row.change_pct,
+        feed_as_of: quote.observed_at,
+        feed_age_seconds: quote.age_seconds,
+        quote_fresh: true,
+        quote_source: quote.source,
+      };
+    });
+    for (const row of liveBySymbol.values()) {
+      if (Number.isFinite(row.volume) && row.volume > 0) {
+        merged.push({
+          ...row,
+          basis: "current session volume (fresh eClear REG quote)",
+          quote_fresh: true,
+          quote_source: row.source,
+        });
+      }
+    }
+    snapshot.top_volume = merged
+      .filter((row) => Number.isFinite(row.volume) && row.volume > 0)
+      .sort((a, b) => (b.volume - a.volume) || a.symbol.localeCompare(b.symbol))
+      .slice(0, MARKET_TOP_N);
+    snapshot.top_volume_basis = snapshot.top_volume.length
+      ? `current session volume, top ${snapshot.top_volume.length} from fresh REG feed`
+      : snapshot.top_volume_basis;
+  } else if (snapshot.top_volume) {
+    snapshot.top_volume = snapshot.top_volume.map((row) => ({
+      ...row, quote_fresh: false,
+    }));
+  }
+  if (quotes.index && quotes.index.fresh) {
+    snapshot.index = quotes.index;
+  }
+  if (quotes.market_feed && quotes.market_feed.fresh) {
+    snapshot.market_feed = quotes.market_feed;
+  }
+  snapshot.quote_snapshot_updated_at = quotes.updated_at;
+  snapshot.quote_snapshot_stale = quotes.stale;
+  return refreshMarketFeed(snapshot, now);
+}
+
+async function marketResponseSnapshot(env, now) {
+  let snapshot;
+  try {
+    snapshot = await marketSnapshot(env, now);
+  } catch (e) {
+    const fallback = await env.RELAY_KV.get("MARKET");
+    if (!fallback) throw e;
+    snapshot = normalizeMarket(JSON.parse(fallback));
+    snapshot.stale = true;
+    snapshot.market_open = marketOpenNow(now);
+    snapshot.market_state = marketState(now);
+  }
+  return applyLiveQuotes(snapshot, await readQuoteSnapshot(env), now);
+}
+
+async function trackMarketTransitions(env, snapshot, now, ctx) {
+  const edge = marketState(now);
+  if (!edge.trading_day) {
+    return { state: null, evidence: "outside_trading_day", delivered: false };
+  }
+
+  // The scheduled session law decides Friday's break and the final close.
+  // Within an open band, only a fresh REG market-wide broker status can
+  // confirm OPEN or HALTED; missing/stale frames and per-symbol SUS flags
+  // never become a market-wide transition.
+  let state = null;
+  let evidence = "session_schedule";
+  if (edge.condition === "BREAK") {
+    state = "BREAK";
+  } else if (edge.phase === "POST_CLOSE") {
+    state = "CLOSED";
+  } else if (edge.market_open) {
+    const feed = refreshMarketFeed({ market_feed: snapshot && snapshot.market_feed }, now)
+      .market_feed;
+    if (!feed.fresh || (feed.status !== "OPEN" && feed.status !== "HALTED")) {
+      return { state: null, evidence: "no_fresh_market_wide_feed", delivered: false };
+    }
+    state = feed.status;
+    evidence = "fresh_broker_market_status";
+  } else if (edge.phase === "PRE_OPEN") {
+    // The scheduled close wake can arrive just after the edge. Emit CLOSED
+    // only when a session close occurred within the grace interval; this avoids
+    // morning greetings and duplicate Friday break notices.
+    const todaysBands = edge.bands || [];
+    const lastBand = todaysBands[todaysBands.length - 1];
+    const closeAt = lastBand
+      ? Date.parse(`${edge.date}T${lastBand.close}:00+05:00`) : NaN;
+    const sessionJustClosed = Number.isFinite(closeAt) &&
+      now.getTime() >= closeAt && now.getTime() - closeAt <= MARKET_OPEN_GRACE_MS;
+    if (!sessionJustClosed) {
+      return { state: null, evidence: "no_session_transition", delivered: false };
+    }
+    state = "CLOSED";
+  } else {
+    return { state: null, evidence: "no_session_transition", delivered: false };
+  }
+
+  const day = edge.date;
+  const identity = `${day}:${state}`;
+  let previous = null;
+  let pending = null;
+  const [raw, waiting] = await Promise.all([
+    env.RELAY_KV.get(MARKET_STATE_KEY),
+    env.RELAY_KV.get(MARKET_PENDING_KEY),
+  ]);
+  try {
+    previous = raw ? JSON.parse(raw) : null;
+  } catch (_) {
+    previous = null;
+  }
+  try {
+    pending = waiting ? JSON.parse(waiting) : null;
+  } catch (_) {
+    pending = null;
+  }
+  if (previous && previous.identity === identity) {
+    return { state, evidence, delivered: false, duplicate: true };
+  }
+  if (pending && pending.identity === identity &&
+      now.getTime() < Number(pending.retry_after_ms || 0)) {
+    return { state, evidence, delivered: false, pending: true };
+  }
+
+  const oldState = previous && previous.state;
+  const oldDay = previous && typeof previous.identity === "string"
+    ? previous.identity.slice(0, 10) : "";
+  const bandOpen = edge.live_band && edge.live_band.open;
+  const openAt = bandOpen ? Date.parse(`${day}T${bandOpen}:00+05:00`) : NaN;
+  const withinOpeningGrace = Number.isFinite(openAt) &&
+    now.getTime() >= openAt && now.getTime() - openAt <= MARKET_OPEN_GRACE_MS;
+  const retryPending = pending && pending.identity === identity &&
+    now.getTime() >= Number(pending.retry_after_ms || 0);
+  const shouldNotify = retryPending || (state === "BREAK" || state === "CLOSED"
+    ? oldState !== state || (!previous && evidence === "session_schedule" &&
+      (state === "BREAK" ||
+       (Number.isFinite(openAt) && now.getTime() - openAt <= MARKET_OPEN_GRACE_MS)))
+    : state === "HALTED"
+      ? oldState !== "HALTED"
+      : oldState === "HALTED" || oldState === "BREAK" || oldState === "CLOSED" ||
+        (oldDay !== "" && oldDay !== day) || (!previous && withinOpeningGrace));
+  if (!shouldNotify) {
+    // Seed a baseline when first observing OPEN after the opening grace. This
+    // prevents a later app launch from replaying a greeting hours late.
+    if (state === "OPEN") {
+      await env.RELAY_KV.put(MARKET_STATE_KEY, JSON.stringify({
+        state, identity, confirmed_at_ms: now.getTime(), evidence,
+      }), { expirationTtl: 604800 });
+    }
+    return { state, evidence, delivered: false, baseline: true };
+  }
+  const paired = (await env.RELAY_KV.get("PAIRED_CHAT_ID")) || env.PAIRED_CHAT_ID;
+  if (!paired) return { state, evidence, delivered: false, reason: "not paired" };
+
+  // Reserve the identity before scheduling I/O: overlapping one-second app
+  // reads and 30-second feed pushes cannot queue duplicate Telegram messages.
+  await env.RELAY_KV.put(MARKET_PENDING_KEY, JSON.stringify({
+    state, identity, evidence, at: now.toISOString(),
+    retry_after_ms: now.getTime() + 60000,
+  }), { expirationTtl: 3600 });
+  ctx.waitUntil(deliverMarketTransition(env, paired, state, identity, evidence, now));
+  return { state, evidence, delivered: false, delivery: "pending" };
 }
 
 // A pushed snapshot must carry the two fields the card renders, so an agent
@@ -603,6 +987,16 @@ async function healthPayload(env) {
   const k = karachiView(now.getTime());
   const next = nextEvent(now);
   let lastDelivery = null;
+  let marketFeed = null;
+  try {
+    const cachedMarket = await env.RELAY_KV.get("MARKET");
+    if (cachedMarket) {
+      const parsed = JSON.parse(cachedMarket);
+      marketFeed = parsed.market_feed || null;
+    }
+  } catch (_) {
+    marketFeed = null;
+  }
   try {
     const raw = await env.RELAY_KV.get("DELIVERY:LAST");
     lastDelivery = raw ? JSON.parse(raw) : null;
@@ -620,6 +1014,9 @@ async function healthPayload(env) {
     // exactly `phase === "OPEN"`.
     market_open: marketOpenNow(now),
     market_state: marketState(now),
+    // Separately sourced from a fresh REG market-wide MKT-STATS frame in the
+    // latest card push; null/unknown never means the session clock is halted.
+    market_feed: refreshMarketFeed({ market_feed: marketFeed }, now).market_feed,
     paired: Boolean((await env.RELAY_KV.get("PAIRED_CHAT_ID")) || env.PAIRED_CHAT_ID),
     // What the last Telegram send actually did, as the relay saw it. Null
     // means no send has been recorded yet, which is not the same as a
@@ -687,10 +1084,10 @@ async function tgCall(env, method, params, timeoutMs) {
   return r.json().catch(() => ({}));
 }
 
-function json(obj, status = 200) {
+function json(obj, status = 200, extraHeaders = {}) {
   return new Response(JSON.stringify(obj, null, 2), {
     status,
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", ...extraHeaders },
   });
 }
 
@@ -797,28 +1194,134 @@ export default {
       return json({ ok: true, accepted: true, delivery: "pending" });
     }
 
-    if (request.method === "GET" && path === "/market") {
-      // Companion app card (public: exchange data, no secrets). Served from
-      // the five minute cache; the portal is contacted only when it expires.
+    if (request.method === "OPTIONS" &&
+        (path === "/quotes" || path === "/quotes/stream")) {
+      return new Response(null, { status: 204, headers: {
+        "access-control-allow-origin": "*",
+        "access-control-allow-methods": "GET, OPTIONS",
+        "access-control-allow-headers": "content-type",
+        "access-control-max-age": "86400",
+      } });
+    }
+
+    if (request.method === "GET" && path === "/quotes/stream") {
+      if (url.searchParams.has("symbol")) {
+        const requested = String(url.searchParams.get("symbol") || "").toUpperCase();
+        if (!/^[A-Z0-9]{1,12}$/.test(requested)) {
+          return json({ ok: false, error: "invalid symbol" }, 400);
+        }
+      }
+      const namespace = quoteHubBinding(env);
+      const hub = namespace.get(namespace.idFromName("psx-live-quotes"));
+      const response = await hub.fetch(new Request("https://quote-hub/stream", request));
+      if (response.status === 101) return response;
+      return new Response(response.body, {
+        status: response.status,
+        headers: {
+          ...Object.fromEntries(response.headers),
+          "access-control-allow-origin": "*",
+          "cache-control": "no-store",
+        },
+      });
+    }
+
+    if (request.method === "GET" && path === "/quotes") {
+
+      const snapshot = await readQuoteSnapshot(env);
+      const symbol = String(url.searchParams.get("symbol") || "").trim().toUpperCase();
+      if (snapshot && symbol) {
+        snapshot.quotes = snapshot.quotes.filter((row) => row.symbol === symbol);
+      }
+      return json({ ok: true,
+        ...(snapshot || { quotes: [], index: null, market_feed: null,
+          updated_at: null, stale: true }),
+        source: "eClear broker feed" }, 200, {
+        "access-control-allow-origin": "*",
+        "cache-control": "no-store",
+      });
+    }
+
+    if (request.method === "POST" && path === "/quotes") {
+
+      if (!adminOk(request, env)) {
+        return json({ ok: false, error: "admin token required" }, 403);
+      }
+      const rawBody = await request.text();
+      if (new TextEncoder().encode(rawBody).byteLength > QUOTE_MAX_BODY_BYTES) {
+        return json({ ok: false, error: "quote update exceeds size limit" }, 413);
+      }
+      let body = null;
+      try { body = JSON.parse(rawBody); } catch (_) { body = null; }
+      if (!body || typeof body !== "object" || Array.isArray(body)) {
+        return json({ ok: false, error: "invalid quote update" }, 400);
+      }
+      const shapeError = quoteSnapshotShapeError(body);
+      if (shapeError) return json({ ok: false, error: shapeError }, 400);
+      const namespace = quoteHubBinding(env);
+      const hubId = namespace.idFromName("psx-live-quotes");
+      const hub = namespace.get(hubId);
+      const response = await hub.fetch("https://quote-hub/update", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result.ok) {
+        return json(result, response.status, {
+          "access-control-allow-origin": "*",
+          "cache-control": "no-store",
+        });
+      }
+      // The cloud capture is the always-on observer, unlike a phone poll that
+      // may stop when the app is backgrounded. Let each accepted broker push
+      // evaluate the transition from the fresh market-wide status it stored.
+      const transition = await trackMarketTransitions(env,
+        { market_feed: result.market_feed }, new Date(), ctx);
+      return json({ ...result, market_transition: transition }, response.status, {
+        "access-control-allow-origin": "*",
+        "cache-control": "no-store",
+      });
+    }
+
+    if (request.method === "GET" && path === "/dashboard") {
+      if (!adminOk(request, env)) {
+        return json({ ok: false, error: "admin token required" }, 403);
+      }
       const now = new Date();
       let snapshot;
       try {
-        snapshot = await marketSnapshot(env, now);
-      } catch (e) {
-        const fallback = await env.RELAY_KV.get("MARKET");
-        if (!fallback) {
-          return json({ ok: false, error: "market data unavailable",
-            market_open: marketOpenNow(now), market_state: marketState(now) }, 503);
-        }
-        snapshot = normalizeMarket(JSON.parse(fallback));
-        snapshot.stale = true;
-        snapshot.market_open = marketOpenNow(now);
-        snapshot.market_state = marketState(now);
+        snapshot = await marketResponseSnapshot(env, now);
+      } catch (_) {
+        snapshot = { index: null, top_volume: null, market_feed: null,
+          notes: ["market data unavailable"], market_open: marketOpenNow(now),
+          market_state: marketState(now) };
+      }
+      const health = await healthPayload(env);
+      const k = karachiView(now.getTime());
+      return json({ ...health,
+        karachi_now: `${dayStamp(k)} ${hhmm(k)} PKT`,
+        signals: (await env.RELAY_KV.get("SIGNALS")) || "",
+        market: snapshot });
+    }
+
+    if (request.method === "GET" && path === "/market") {
+      // Companion app card (public: exchange data, no secrets). The portal
+      // snapshot remains cached, while the one-second broker snapshot is read
+      // from the durable quote hub and freshness-checked at response time.
+      const now = new Date();
+      let snapshot;
+      try {
+        snapshot = await marketResponseSnapshot(env, now);
+      } catch (_) {
+        return json({ ok: false, error: "market data unavailable",
+          market_open: marketOpenNow(now), market_state: marketState(now) }, 503);
       }
       const k = karachiView(now.getTime());
       const edgeState = marketState(now);
+      const transitions = await trackMarketTransitions(env, snapshot, now, ctx);
       return json({ ok: true, karachi_now: `${dayStamp(k)} ${hhmm(k)} PKT`,
         ...snapshot,
+        market_transition: transitions,
         // The relay is the authority on the SESSION, so its own phase is
         // applied last and wins over a snapshot pushed by the owner's PC.
         // The pushed snapshot owns the market DATA (index, leaders, split);
@@ -845,9 +1348,11 @@ export default {
         return json({ ok: false, error: shapeError }, 400);
       }
       body.source = body.source || "local runner";
-      body.built_at = new Date().toISOString();
+      const now = new Date();
+      body.built_at = now.toISOString();
       await env.RELAY_KV.put("MARKET", JSON.stringify(body), { expirationTtl: 3600 });
-      return json({ ok: true, stored: true });
+      const transitions = await trackMarketTransitions(env, body, now, ctx);
+      return json({ ok: true, stored: true, market_transition: transitions });
     }
 
     if (path.startsWith("/research/") && !adminOk(request, env)) {
@@ -996,21 +1501,149 @@ export default {
   async scheduled(controller, env, ctx) {
     const now = new Date();
     const k = karachiView(now.getTime());
-    const bands = bandsFor(k);
-    if (!bands.length) return;
-    const paired = (await env.RELAY_KV.get("PAIRED_CHAT_ID")) || env.PAIRED_CHAT_ID;
-    if (!paired) return;
+    if (!bandsFor(k).length) return;
 
-    const mins = minutesOf(k);
-    const near = (hm) => Math.abs(mins - (hm[0] * 60 + hm[1])) <= 2;
-
-    let text = null;
-    for (const band of bands) {
-      if (near(band[0])) { text = MSG_OPEN; break; }
-      if (near(band[1])) { text = MSG_CLOSED; break; }
+    // Cron is an edge wake-up, not a substitute for a feed observation.
+    // Reuse the latest broker snapshot when fresh; break/close transitions are
+    // still derived from the shared Karachi session law if the feed has ended.
+    let snapshot = null;
+    try {
+      const raw = await env.RELAY_KV.get("MARKET");
+      snapshot = raw ? JSON.parse(raw) : null;
+    } catch (_) {
+      snapshot = null;
     }
-    if (!text) return;
-
-    ctx.waitUntil(tgCall(env, "sendMessage", { chat_id: paired, text }));
+    await trackMarketTransitions(env, snapshot, now, ctx);
   },
 };
+
+// One SQLite-backed object holds the latest broker frame set. Producer
+// requests are coalesced to at most once per second by the cloud capture;
+// connected browsers receive server-pushed changes without one DO request per
+// client poll. Values are source-timestamped and stale rows remain explicitly
+// stale rather than being advanced by the relay clock.
+export class QuoteHub {
+  constructor(ctx, env) {
+    this.ctx = ctx;
+    this.env = env;
+    this.ready = ctx.blockConcurrencyWhile(async () => {
+      ctx.storage.sql.exec(
+        "CREATE TABLE IF NOT EXISTS quote_snapshot (id INTEGER PRIMARY KEY CHECK (id = 1), payload TEXT NOT NULL)",
+      );
+    });
+  }
+
+  async snapshot() {
+    await this.ready;
+    const row = this.ctx.storage.sql.exec(
+      "SELECT payload FROM quote_snapshot WHERE id = 1",
+    ).toArray()[0];
+    if (!row) {
+      return { ok: true, quotes: [], index: null, market_feed: null,
+        updated_at: null, stale: true };
+    }
+    const snapshot = normalizeQuoteSnapshot(JSON.parse(row.payload));
+    return { ok: true, ...snapshot };
+  }
+
+  async fetch(request) {
+    const url = new URL(request.url);
+    if (request.method === "GET" && url.pathname === "/snapshot") {
+      return json(await this.snapshot());
+    }
+    if (request.method === "GET" && url.pathname === "/stream") {
+      if (request.headers.get("Upgrade")?.toLowerCase() !== "websocket") {
+        return json({ ok: false, error: "websocket upgrade required" }, 426);
+      }
+      const selectedSymbol = String(url.searchParams.get("symbol") || "").toUpperCase();
+      if (selectedSymbol && !/^[A-Z0-9]{1,12}$/.test(selectedSymbol)) {
+        return json({ ok: false, error: "invalid symbol" }, 400);
+      }
+      const pair = new WebSocketPair();
+      const client = pair[0];
+      const server = pair[1];
+      const tags = [QUOTE_HUB_SOCKET_TAG];
+      if (selectedSymbol) tags.push(`symbol:${selectedSymbol}`);
+      this.ctx.acceptWebSocket(server, tags);
+      const snapshot = await this.snapshot();
+      server.send(JSON.stringify({ event: "snapshot", ...snapshot,
+        quotes: selectedSymbol
+          ? snapshot.quotes.filter((quote) => quote.symbol === selectedSymbol)
+          : snapshot.quotes }));
+      return new Response(null, { status: 101, webSocket: client });
+    }
+    if (request.method === "POST" && url.pathname === "/update") {
+      await this.ready;
+      const body = await request.json().catch(() => null);
+      if (!body || typeof body !== "object" || !Array.isArray(body.quotes)) {
+        return json({ ok: false, error: "invalid quote update" }, 400);
+      }
+      let previous = null;
+      const row = this.ctx.storage.sql.exec(
+        "SELECT payload FROM quote_snapshot WHERE id = 1",
+      ).toArray()[0];
+      if (row) {
+        try { previous = JSON.parse(row.payload); } catch (_) { previous = null; }
+      }
+      const quotes = new Map((previous && Array.isArray(previous.quotes)
+        ? previous.quotes : []).map((quote) => [quote.symbol, quote]));
+      for (const quote of body.quotes) {
+        const old = quotes.get(quote.symbol);
+        if (!old || Date.parse(quote.observed_at) >= Date.parse(old.observed_at)) {
+          quotes.set(quote.symbol, quote);
+        }
+      }
+      const newer = (current, incoming, stamp) => {
+        if (!incoming) return current || null;
+        return !current || Date.parse(incoming[stamp]) >= Date.parse(current[stamp])
+          ? incoming : current;
+      };
+      const snapshot = {
+        quotes: Array.from(quotes.values()).sort((a, b) =>
+          Date.parse(a.observed_at) - Date.parse(b.observed_at)).slice(-QUOTE_MAX_SYMBOLS),
+        index: newer(previous && previous.index, body.index, "as_of"),
+        market_feed: newer(previous && previous.market_feed,
+                           body.market_feed, "as_of"),
+        updated_at: (() => {
+          const previousAt = Date.parse(previous && previous.updated_at || "");
+          const incomingAt = Date.parse(body.captured_at);
+          const latestAt = Math.max(
+            Number.isFinite(previousAt) ? previousAt : 0,
+            Number.isFinite(incomingAt) ? incomingAt : 0,
+          );
+          return latestAt ? new Date(latestAt).toISOString() : null;
+        })(),
+      };
+      const serialized = JSON.stringify(snapshot);
+      this.ctx.storage.sql.exec(
+        "INSERT INTO quote_snapshot (id, payload) VALUES (1, ?) " +
+        "ON CONFLICT(id) DO UPDATE SET payload = excluded.payload",
+        serialized,
+      );
+      const current = await this.snapshot();
+      const answer = { ok: true, stored: true, quotes: body.quotes.length,
+        updated_at: snapshot.updated_at, market_feed: current.market_feed };
+      for (const socket of this.ctx.getWebSockets(QUOTE_HUB_SOCKET_TAG)) {
+        const tags = this.ctx.getTags(socket);
+        const selected = tags.find((tag) => tag.startsWith("symbol:"));
+        const filtered = selected
+          ? current.quotes.filter((quote) =>
+            quote.symbol === selected.slice("symbol:".length))
+          : current.quotes;
+        const event = JSON.stringify({ event: "quotes", ...current,
+          quotes: filtered });
+        try { socket.send(event); } catch (_) { /* closed socket */ }
+      }
+      return json(answer);
+    }
+    return json({ ok: false, error: "not found" }, 404);
+  }
+
+  webSocketMessage(_socket, _message) {
+    // The feed is a one-way server-pushed view; clients do not send commands.
+  }
+
+  webSocketClose(_socket, _code, _reason, _wasClean) {}
+
+  webSocketError(_socket, _error) {}
+}
