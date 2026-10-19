@@ -94,6 +94,7 @@ export function App() {
         })}
         revisions={feed.series.revisionCount}
         bars={bars}
+        onRefreshQuote={feed.refreshQuote}
       />
       <div className="app__controls">
         <SymbolPicker
