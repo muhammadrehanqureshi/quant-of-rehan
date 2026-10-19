@@ -38,7 +38,8 @@ public class StatusService extends Service {
                   String signals, Watcher.Market market);
     }
 
-    static void fetchStatus(Context c, String admin, Callback cb) {
-        Watcher.fetchStatus(c, admin, cb::done);
+    static void fetchStatus(Context c, Callback cb) {
+        // The phone holds no admin token since owner order 2026-10-19.
+        Watcher.fetchStatus(c, cb::done);
     }
 }

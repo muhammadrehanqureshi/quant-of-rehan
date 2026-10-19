@@ -13,7 +13,6 @@ import android.text.style.TypefaceSpan;
 import android.view.View;
 import android.view.animation.AccelerateDecelerateInterpolator;
 import android.view.animation.DecelerateInterpolator;
-import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -203,7 +202,7 @@ public class MainActivity extends Activity {
     /** The word that, with the colour, carries the state. */
     private TextView statusWord;
     private TextView statusDetail, signalList;
-    private TextView marketIndex, marketFeedStatus, marketLeaders;
+    private TextView marketIndex, marketLeaders;
     /** Full relay text retained off-screen; the card renders only execution fields. */
     private String latestSignalBackground = "";
     /** Turned and tinted by setSettingsOpen, so it is the ImageView itself. */
@@ -284,7 +283,6 @@ public class MainActivity extends Activity {
         statusDetail = findViewById(R.id.status_detail);
         signalList = findViewById(R.id.signal_list);
         marketIndex = findViewById(R.id.market_index);
-        marketFeedStatus = findViewById(R.id.market_feed_status);
         marketLeaders = findViewById(R.id.market_leaders);
         settingsPanel = findViewById(R.id.settings_panel);
         btnSettings = findViewById(R.id.btn_settings);
@@ -303,21 +301,14 @@ public class MainActivity extends Activity {
                 findViewById(R.id.rule_after_market),
                 findViewById(R.id.scan_cadence)};
 
-        final EditText tokenBox = findViewById(R.id.token_box);
-        tokenBox.setText(prefs.getString("admin_token", ""));
-
+        // Owner order 2026-10-19: the settings tile carries no technical
+        // clutter, so there is no token field and no save button. The relay
+        // serves the latest signal as a public read and its write routes stay
+        // admin gated, which is why the phone needs no credential at all.
+        //
         // The tap reads the STATE, never a view's visibility: one source of
         // truth, so a re-entrant tap cannot land on a stale reading.
         btnSettings.setOnClickListener(v -> setSettingsOpen(!settingsOpen));
-
-        findViewById(R.id.btn_save).setOnClickListener(v -> {
-            String t = tokenBox.getText().toString().trim();
-            prefs.edit().putString("admin_token", t).apply();
-            toast(t.isEmpty() ? "Token cleared." : "Token saved.");
-            setSettingsOpen(false);
-            Watcher.kick(this);
-            refresh();
-        });
 
         findViewById(R.id.btn_open).setOnClickListener(v -> {
             String url = prefs.getString("relay_url", Watcher.DEFAULT_RELAY);
@@ -641,8 +632,7 @@ public class MainActivity extends Activity {
      */
     private void refresh() {
         liveInFlight = true;
-        String admin = prefs.getString("admin_token", "");
-        Watcher.fetchStatus(this, admin, (online, reachable, detail, signals, market) ->
+        Watcher.fetchStatus(this, (online, reachable, detail, signals, market) ->
                 runOnUiThread(() -> {
                     liveInFlight = false;
                     // A round that outlived its activity paints nothing and
@@ -666,8 +656,7 @@ public class MainActivity extends Activity {
      */
     private void refreshLive() {
         liveInFlight = true;
-        String admin = prefs.getString("admin_token", "");
-        Watcher.fetchLive(this, admin, (online, reachable, detail, signals, market) ->
+        Watcher.fetchLive(this, (online, reachable, detail, signals, market) ->
                 runOnUiThread(() -> {
                     liveInFlight = false;
                     if (isFinishing() || isDestroyed()) {
@@ -717,8 +706,12 @@ public class MainActivity extends Activity {
                 ? R.drawable.ic_status_online : R.drawable.ic_status_offline);
         statusWord.setText(getString(online
                 ? R.string.status_online : R.string.status_offline));
+        // Owner order 2026-10-19: the OFFLINE tile is a dark red gradient, so
+        // the word switches to the on-dark ink. White on #6B1616 is about
+        // 10:1, far past the 4.5:1 that body text needs, and the word and the
+        // beacon still carry the state without relying on colour alone.
         statusWord.setTextColor(getColor(online
-                ? R.color.green : R.color.red));
+                ? R.color.green : R.color.on_red));
         // Material accessibility: the badge is a live state indicator, so it
         // announces itself and carries a spoken description, and its two
         // children are decoration for the reader: the word alone would be
@@ -773,11 +766,18 @@ public class MainActivity extends Activity {
         }
         GradientDrawable bg = new GradientDrawable();
         bg.setCornerRadius(dp(18));
-        bg.setColor(getColor(online ? R.color.green_soft : R.color.red_soft));
-        bg.setStroke(dp(1), getColor(online ? R.color.green : R.color.red));
         if (online) {
+            bg.setColor(getColor(R.color.green_soft));
+            bg.setStroke(dp(1), getColor(R.color.green));
             badgeOnline = bg;
         } else {
+            // Owner order 2026-10-19: OFFLINE reads as a dark, prominent red
+            // rather than a pale tint. The gradient runs top to bottom, dark
+            // enough at both ends to carry white text.
+            bg.setOrientation(GradientDrawable.Orientation.TOP_BOTTOM);
+            bg.setColors(new int[]{getColor(R.color.red_deep),
+                    getColor(R.color.red_deep_edge)});
+            bg.setStroke(dp(1), getColor(R.color.red_deep_line));
             badgeOffline = bg;
         }
         return bg;
@@ -834,22 +834,23 @@ public class MainActivity extends Activity {
     }
 
     /**
-     * Parse a relay signal into the four requested visible execution fields.
-     * Scoring and momentum remain in latestSignalBackground for diagnostics,
-     * but are deliberately not rendered in this compact card. A signal's
-     * explicit Target value is shown as the planned Exit Price; a missing stop
-     * remains unreported rather than being inferred.
+     * The tile's three execution numbers, and nothing else (owner order
+     * 2026-10-19).
+     *
+     * The relay carries a full text card: a "QoR signals <date>" header, the
+     * session's rule paragraphs, and on a no-trade day a note explaining why
+     * nothing was taken. Those are the workings, not the signal, so the tile
+     * renders only Entry Price, Exit Price and Stop Loss, and collapses every
+     * other state to one word. Nothing is inferred: a missing field reads
+     * "Not reported" and a missing stop stays unreported.
      */
     private String latestSignalDisplay(String raw) {
-        String entryTime = null;
         String entryPrice = null;
         String exitPrice = null;
         String stopLoss = null;
         for (String line : raw.split("\\r?\\n")) {
             String value;
-            if ((value = valueAfterLabel(line, "Entry time:")) != null) {
-                entryTime = value;
-            } else if ((value = valueAfterLabel(line, "Entry price:")) != null) {
+            if ((value = valueAfterLabel(line, "Entry price:")) != null) {
                 entryPrice = value;
             } else if ((value = valueAfterLabel(line, "Entry:")) != null) {
                 entryPrice = value;
@@ -873,15 +874,14 @@ public class MainActivity extends Activity {
             }
         }
 
-        if (entryTime == null && entryPrice == null
-                && exitPrice == null && stopLoss == null) {
-            // Preserve non-signal states such as NO TRADE and SCAN BLOCKED.
-            return raw;
+        if (entryPrice == null && exitPrice == null && stopLoss == null) {
+            // One word for a state with no trade: the header, the date and the
+            // rule paragraph that came with it are the workings, not a signal.
+            return raw.toUpperCase(Locale.US).contains("NO TRADE")
+                    ? getString(R.string.signal_none)
+                    : getString(R.string.signal_unavailable);
         }
-        // Keep the receiver's raw fields for diagnostics; only normalize the
-        // visible labels and unknown-value placeholders here.
-        return "Entry Time: " + knownOrReported(entryTime)
-                + "\nEntry Price: " + knownOrReported(entryPrice)
+        return "Entry Price: " + knownOrReported(entryPrice)
                 + "\nExit Price: " + knownOrReported(exitPrice)
                 + "\nStop Loss: " + knownOrReported(stopLoss);
     }
@@ -950,7 +950,6 @@ public class MainActivity extends Activity {
     private void renderMarket(Watcher.Market market) {
         if (market == null) {
             marketIndex.setText(getString(R.string.market_waiting));
-            marketFeedStatus.setText(getString(R.string.market_feed_unknown));
             marketLeaders.setText(getString(R.string.market_leaders_waiting));
             return;
         }
@@ -959,11 +958,18 @@ public class MainActivity extends Activity {
             // hasIndex() guarantees all three are non-null, so the unboxing
             // below cannot throw. A half-reported index renders as waiting
             // instead of as a zero.
-            String line = String.format(Locale.US, "KSE100  %,.2f %s %,.2f (%.2f%%)",
+            // Owner order 2026-10-19: the KSE100 line is the live broker
+            // read, and the broker's own timestamp sits on it. The timestamp
+            // is what makes a moving number checkable, and it replaces the
+            // old "feed status unconfirmed" sentence rather than hiding it:
+            // a quote always says when it was taken.
+            String stamp = brokerClock(market.indexAsOf);
+            String line = String.format(Locale.US, "KSE100  %,.2f %s %,.2f (%.2f%%)%s",
                     market.indexValue,
                     market.indexChange >= 0 ? "\u25B2" : "\u25BC",
                     Math.abs(market.indexChange),
-                    Math.abs(market.indexPct));
+                    Math.abs(market.indexPct),
+                    stamp.isEmpty() ? "" : "  \u00B7 " + stamp);
             SpannableString sp = new SpannableString(line);
             int color = getColor(market.indexChange >= 0
                     ? R.color.green : R.color.red);
@@ -977,8 +983,6 @@ public class MainActivity extends Activity {
         } else {
             marketIndex.setText(getString(R.string.market_waiting));
         }
-
-        renderMarketFeedStatus(market);
 
         List<Watcher.Leader> leaders = market.leaders;
         if (leaders.isEmpty()) {
@@ -994,30 +998,24 @@ public class MainActivity extends Activity {
         }
     }
 
-    /** Draw only a fresh market-wide REG status; a symbol's SUS flag cannot trigger this. */
-    private void renderMarketFeedStatus(Watcher.Market market) {
-        if (!market.feedStatusFresh || market.feedStatusAsOf.isEmpty()) {
-            marketFeedStatus.setText(getString(R.string.market_feed_unknown));
-            return;
+    /**
+     * The broker's own timestamp as HH:MM:SS, or "" when it did not send one.
+     *
+     * The relay stamps the index with the broker's ISO time in Karachi offset
+     * (2026-10-19T12:09:31+05:00). Only the clock is shown on the line: the
+     * date is the session's, and a date on every refresh is noise. A missing
+     * stamp prints nothing rather than a guess (SO-3).
+     */
+    private static String brokerClock(String asOf) {
+        if (asOf == null || asOf.isEmpty()) {
+            return "";
         }
-        String stamp = market.feedStatusAsOf;
-        int separator = stamp.indexOf('T');
-        if (separator >= 0) {
-            stamp = stamp.substring(separator + 1);
+        int separator = asOf.indexOf('T');
+        String clock = separator >= 0 ? asOf.substring(separator + 1) : asOf;
+        if (clock.endsWith("+05:00")) {
+            clock = clock.substring(0, clock.length() - 6);
         }
-        if (stamp.endsWith("+05:00")) {
-            stamp = stamp.substring(0, stamp.length() - 6);
-        }
-        if ("OPEN".equals(market.feedStatus)) {
-            marketFeedStatus.setText(getString(R.string.market_feed_open, stamp));
-        } else if ("HALTED".equals(market.feedStatus)) {
-            String word = market.feedStatusRaw.isEmpty() ? "halted" : market.feedStatusRaw;
-            marketFeedStatus.setText(getString(R.string.market_feed_halted, word, stamp));
-        } else if ("CLOSED".equals(market.feedStatus)) {
-            marketFeedStatus.setText(getString(R.string.market_feed_closed, stamp));
-        } else {
-            marketFeedStatus.setText(getString(R.string.market_feed_unknown));
-        }
+        return clock.length() >= 8 ? clock.substring(0, 8) : clock;
     }
 
     /**
