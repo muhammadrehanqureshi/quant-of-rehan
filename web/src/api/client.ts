@@ -24,10 +24,12 @@ import {
   type BarEvent,
   type ChartPayload,
   type ErrorCategory,
+  type LiveQuote,
   type Resolution,
   ContractViolation,
   parseBarEvent,
   parseErrorBody,
+  parseLiveQuote,
   parsePayload,
   parseSymbols,
 } from "./types";
@@ -74,6 +76,8 @@ export interface EventSourceLike {
 export interface ClientOptions {
   /** Base URL of the service; empty means same origin, which is the norm. */
   readonly baseUrl?: string;
+  readonly quoteBaseUrl?: string;
+  readonly webSocketFactory?: WebSocketFactory;
   readonly timeoutMs?: number;
   readonly attempts?: number;
   readonly baseDelayMs?: number;
@@ -83,6 +87,18 @@ export interface ClientOptions {
   readonly sleep?: (milliseconds: number) => Promise<void>;
   readonly random?: () => number;
 }
+
+export interface LiveQuoteHandlers {
+  onQuote: (quote: LiveQuote) => void;
+  onState: (state: StreamState, detail?: string) => void;
+}
+
+export interface WebSocketLike {
+  addEventListener(type: "open" | "error" | "message", listener: (event: Event | MessageEvent) => void): void;
+  close(): void;
+}
+
+export type WebSocketFactory = (url: string) => WebSocketLike;
 
 export interface StreamHandlers {
   onSnapshot: (payload: ChartPayload) => void;
@@ -121,6 +137,8 @@ function retryAfterSeconds(headers: Headers): number | null {
 
 export class ChartClient {
   private readonly baseUrl: string;
+  private readonly quoteBaseUrl: string;
+  private readonly webSocketFactory: WebSocketFactory;
   private readonly timeoutMs: number;
   private readonly attempts: number;
   private readonly baseDelayMs: number;
@@ -132,6 +150,9 @@ export class ChartClient {
 
   constructor(options: ClientOptions = {}) {
     this.baseUrl = options.baseUrl ?? "";
+    this.quoteBaseUrl = options.quoteBaseUrl ??
+      "https://quant-of-rehan-relay.mrmrehanqureshi.workers.dev";
+    this.webSocketFactory = options.webSocketFactory ?? ((url) => new WebSocket(url));
     this.timeoutMs = options.timeoutMs ?? DEFAULTS.timeoutMs;
     this.attempts = options.attempts ?? DEFAULTS.attempts;
     this.baseDelayMs = options.baseDelayMs ?? DEFAULTS.baseDelayMs;
@@ -166,6 +187,88 @@ export class ChartClient {
 
   async health(): Promise<unknown> {
     return this.request(`${this.baseUrl}/api/health`);
+  }
+
+  async liveQuote(symbol: string, signal?: AbortSignal): Promise<LiveQuote> {
+    const query = new URLSearchParams({ symbol: symbol.trim().toUpperCase() });
+    const raw = await this.request(`${this.quoteBaseUrl}/quotes?${query.toString()}`, signal);
+    try {
+      const body = raw as Record<string, unknown>;
+      if (body["ok"] !== true) {
+        throw new ContractViolation("quote", "quote response was not successful");
+      }
+      const quotes = body["quotes"];
+      if (!Array.isArray(quotes)) {
+        throw new ContractViolation("quote.quotes", "expected a quote array");
+      }
+      const symbolName = symbol.trim().toUpperCase();
+      const quote = quotes.find((item) => {
+        if (!item || typeof item !== "object") return false;
+        return (item as Record<string, unknown>)["symbol"] === symbolName;
+      });
+      if (quote === undefined) {
+        throw new ContractViolation("quote", `no quote for ${symbolName}`);
+      }
+      return parseLiveQuote(quote, symbolName);
+    } catch (error) {
+      if (error instanceof ContractViolation) {
+        throw new ApiError("CONTRACT", error.message);
+      }
+      throw error;
+    }
+  }
+
+  streamLiveQuote(symbol: string, handlers: LiveQuoteHandlers): StreamHandle {
+    const query = new URLSearchParams({ symbol: symbol.trim().toUpperCase() });
+    const httpUrl = `${this.quoteBaseUrl}/quotes/stream?${query.toString()}`;
+    const url = httpUrl.replace(/^http:/, "ws:").replace(/^https:/, "wss:");
+    let closed = false;
+    let source: WebSocketLike | null = null;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let attempt = 0;
+    const open = () => {
+      if (closed) return;
+      handlers.onState(attempt === 0 ? "connecting" : "reconnecting");
+      source = this.webSocketFactory(url);
+      source.addEventListener("open", () => {
+        attempt = 0;
+        handlers.onState("live");
+      });
+      source.addEventListener("message", (event) => {
+        try {
+          const raw = JSON.parse(String((event as MessageEvent).data)) as Record<string, unknown>;
+          if (!Array.isArray(raw["quotes"])) {
+            throw new ContractViolation("quote", "stream update is malformed");
+          }
+          const symbolName = symbol.trim().toUpperCase();
+          const quote = raw["quotes"].find((item) =>
+            Boolean(item) && typeof item === "object" &&
+            (item as Record<string, unknown>)["symbol"] === symbolName);
+          if (quote !== undefined) handlers.onQuote(parseLiveQuote(quote, symbolName));
+        } catch (error) {
+          handlers.onState("reconnecting", describe(error));
+        }
+      });
+      source.addEventListener("error", () => {
+        if (closed) return;
+        source?.close();
+        source = null;
+        attempt += 1;
+        const delay = Math.min(this.maxDelayMs, this.baseDelayMs * 2 ** (attempt - 1));
+        handlers.onState("reconnecting", `quote stream interrupted; retrying in ${delay}ms`);
+        timer = setTimeout(open, delay);
+      });
+    };
+    open();
+    return {
+      close: () => {
+        closed = true;
+        if (timer !== null) clearTimeout(timer);
+        source?.close();
+        source = null;
+        handlers.onState("closed");
+      },
+    };
   }
 
   /** The symbols this service can serve, for the picker. */

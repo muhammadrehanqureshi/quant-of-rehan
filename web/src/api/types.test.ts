@@ -18,6 +18,7 @@ function payload(): Record<string, unknown> {
     ok: true,
     schema_version: 1,
     as_of: "2026-10-12T11:00:00+05:00",
+    observed_at: "2026-10-12T10:59:30+05:00",
     symbol: "OGDC",
     resolution: "1m",
     source: {
