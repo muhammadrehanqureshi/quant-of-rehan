@@ -23,13 +23,17 @@ style preference:
 
 from __future__ import annotations
 
+import json
 import re
 import sys
 import unittest
+from email import policy
+from email.parser import BytesParser
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "cloud"))
 
 WORKER = ROOT / "cloud" / "worker.js"
 
@@ -83,6 +87,17 @@ class RelayWorkerContractTest(unittest.TestCase):
         self.assertIn('json({ ok: true, accepted: true, delivery: "pending" })',
                       self.source,
                       "an accepted message must not claim a completed delivery")
+
+    def test_a_timed_out_send_reports_the_budget_it_actually_used(self):
+        """The failure text must name the deadline that expired (measured
+        2026-10-19). tgCall fell back to TELEGRAM_TIMEOUT_MS in its message
+        even when a caller passed TELEGRAM_SEND_TIMEOUT_MS, so a 45 second
+        send reported "did not answer within 10s"."""
+        body = self.source[self.source.index("async function tgCall"):]
+        body = body[:body.index("return r.json()")]
+        self.assertIn("const budget = timeoutMs || TELEGRAM_TIMEOUT_MS;", body)
+        self.assertIn("telegram did not answer within ${budget / 1000}s", body)
+        self.assertNotIn("${TELEGRAM_TIMEOUT_MS / 1000}s", body)
 
     def test_the_background_send_outlasts_telegram(self):
         """The background budget is the one that has to hold a slow answer."""
@@ -208,6 +223,70 @@ class RelayWorkerContractTest(unittest.TestCase):
                       upload)
 
     # --------------------------------------------------- unchanged contracts
+
+    def test_the_upload_body_is_a_well_formed_multipart_form(self):
+        """The deploy path builds its own multipart body, so it is pinned here.
+
+        Cloudflare's script upload API reads the metadata as one part and each
+        module as a part named after main_module. A body joined with bare
+        newlines, or a boundary that appears inside the module, produces an
+        upload the API rejects without saying which part was wrong, which is
+        why this test parses the payload the way the API does instead of
+        grepping for a string.
+        """
+        import pair  # cloud/pair.py, imported for its builder only
+
+        module = "export default { fetch() { return new Response('ok'); } };\r\n"
+        meta = pair.upload_metadata([
+            {"type": "secret_text", "name": "TELEGRAM_BOT_TOKEN", "text": "t"},
+        ])
+        body, boundary = pair.build_upload_body(meta, meta["main_module"], module)
+
+        with self.subTest("the delimiter lands on its own CRLF line"):
+            self.assertTrue(body.startswith(f"--{boundary}\r\n".encode()))
+            self.assertTrue(body.endswith(f"--{boundary}--\r\n".encode()))
+            # Every delimiter after the first is reached through a CRLF, never
+            # through a bare LF: a body joined with \n is malformed to the API.
+            self.assertEqual(body.count(b"\r\n--" + boundary.encode()), 2)
+            self.assertEqual(body.count(b"\n--" + boundary.encode()), 2)
+
+        parsed = BytesParser(policy=policy.default).parsebytes(
+            b"Content-Type: multipart/form-data; boundary="
+            + boundary.encode() + b"\r\n\r\n" + body)
+        parts = list(parsed.iter_parts())
+        self.assertEqual(len(parts), 2, "metadata plus one module is the whole body")
+        self.assertEqual(parts[0].get_param("name", header="content-disposition"),
+                         "metadata")
+        self.assertEqual(parts[0].get_content_type(), "application/json")
+        self.assertEqual(parts[1].get_param("name", header="content-disposition"),
+                         meta["main_module"])
+        self.assertEqual(parts[1].get_content_type(),
+                         "application/javascript+module")
+        self.assertEqual(parts[1].get_payload(decode=True), module.encode("utf-8"))
+
+        metadata = json.loads(parts[0].get_payload(decode=True))
+        with self.subTest("the binding and the export ship together"):
+            self.assertEqual(metadata["main_module"], "worker.js")
+            self.assertEqual(metadata["exports"], {
+                "QuoteHub": {"type": "durable-object", "storage": "sqlite"},
+            })
+            names = [b["name"] for b in metadata["bindings"]]
+            self.assertEqual(names.count("QUOTE_HUB"), 1,
+                             "QUOTE_HUB is bound once, not once per caller")
+            hub = next(b for b in metadata["bindings"] if b["name"] == "QUOTE_HUB")
+            self.assertEqual(hub["class_name"], "QuoteHub")
+
+    def test_the_boundary_cannot_split_the_module(self):
+        """A boundary that occurs in the payload would truncate the module."""
+        import pair
+
+        meta = pair.upload_metadata([])
+        body, boundary = pair.build_upload_body(meta, "worker.js",
+                                                "const x = 1; // ----qor\n")
+        self.assertEqual(body.split(b"\r\n")[0][2:].decode(), boundary)
+        # Two opening delimiters and one closing one: the delimiter appears as
+        # a delimiter and nowhere else, whatever the module happens to contain.
+        self.assertEqual(body.count(f"--{boundary}".encode()), 3)
 
     def test_the_admin_gate_and_the_card_routes_survive(self):
         """A refactor of /notify must not open the write routes."""

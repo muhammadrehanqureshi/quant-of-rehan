@@ -110,33 +110,81 @@ def check(resp: requests.Response, label: str):
     return d
 
 
-def cf_upload(cf_token: str, acct: str, bindings: list[dict]) -> None:
-    js = (ROOT / "cloud" / "worker.js").read_text(encoding="utf-8")
-    bindings = [*bindings, {
-        "type": "durable_object_namespace",
-        "name": "QUOTE_HUB",
-        "class_name": "QuoteHub",
-    }]
-    meta = {
+def upload_metadata(bindings: list[dict]) -> dict:
+    """The `metadata` part of a Workers script upload.
+
+    Two fields decide whether the Durable Object is provisioned:
+    `bindings` carries the namespace binding the Worker reads as env.QUOTE_HUB,
+    and `exports` carries the class lifecycle entry. They are written from the
+    same source here so a deploy cannot ship one without the other, which is
+    what used to leave a binding pointing at a class Cloudflare had never
+    provisioned.
+    """
+    return {
         "main_module": "worker.js",
         "compatibility_date": "2026-10-01",
-        "bindings": bindings,
+        "bindings": [*bindings, {
+            "type": "durable_object_namespace",
+            "name": "QUOTE_HUB",
+            "class_name": "QuoteHub",
+        }],
         "exports": {
             "QuoteHub": {"type": "durable-object", "storage": "sqlite"},
         },
     }
-    b = uuid.uuid4().hex
-    body = (
-        f'--{b}\r\nContent-Disposition: form-data; name="metadata"; filename="m.json"\r\n'
-        f"Content-Type: application/json\r\n\r\n{json.dumps(meta)}\r\n"
-        f'--{b}\r\nContent-Disposition: form-data; name="worker.js"; filename="worker.js"\r\n'
-        f"Content-Type: application/javascript+module\r\n\r\n{js}\r\n"
-        f"--{b}--\r\n"
-    ).encode()
+
+
+def build_upload_body(meta: dict, module_name: str, source: str) -> tuple[bytes, str]:
+    """One multipart/form-data body for PUT /workers/scripts/<name>.
+
+    The API reads exactly two parts: `metadata` as application/json, and one
+    part per module whose name matches the `main_module` in that metadata.
+    Three details are not cosmetic:
+
+      * the parts are separated by CRLF, and each part's body is followed by a
+        CRLF before the next delimiter. A body joined with a bare \\n is a
+        malformed upload, not a smaller one;
+      * the boundary is checked against the module source, because a boundary
+        that appears inside a part splits that part in two. A random hex
+        boundary makes this vanishingly unlikely and the loop makes it
+        impossible;
+      * the encoding is explicit UTF-8. The worker carries the owner's
+        punctuation and the metadata carries JSON, and a locale dependent
+        encode would corrupt one of them.
+
+    Returns (body, boundary) so the caller's Content-Type names the boundary
+    that was actually used.
+    """
+    boundary = "----qor" + uuid.uuid4().hex
+    while boundary in source:
+        boundary = "----qor" + uuid.uuid4().hex
+
+    def part(headers: list[tuple[str, str]], payload: bytes) -> bytes:
+        head = "".join(f"{k}: {v}\r\n" for k, v in headers)
+        return f"--{boundary}\r\n{head}\r\n".encode("utf-8") + payload + b"\r\n"
+
+    fields = json.dumps(meta, ensure_ascii=False).encode("utf-8")
+    body = b"".join([
+        part([("Content-Disposition",
+              'form-data; name="metadata"; filename="metadata.json"'),
+              ("Content-Type", "application/json")], fields),
+        part([("Content-Disposition",
+              f'form-data; name="{module_name}"; filename="{module_name}"'),
+              ("Content-Type", "application/javascript+module")],
+             source.encode("utf-8")),
+        f"--{boundary}--\r\n".encode("utf-8"),
+    ])
+    return body, boundary
+
+
+def cf_upload(cf_token: str, acct: str, bindings: list[dict]) -> None:
+    js = (ROOT / "cloud" / "worker.js").read_text(encoding="utf-8")
+    meta = upload_metadata(bindings)
+    body, boundary = build_upload_body(meta, meta["main_module"], js)
     r = requests.put(
         f"{API}/accounts/{acct}/workers/scripts/{WORKER}",
         headers={"Authorization": f"Bearer {cf_token}",
-                 "Content-Type": f"multipart/form-data; boundary={b}"},
+                 "Content-Type": f"multipart/form-data; boundary={boundary}"},
         data=body, timeout=60,
     )
     check(r, "worker upload")
