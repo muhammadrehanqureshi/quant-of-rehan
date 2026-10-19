@@ -11,13 +11,37 @@ about the owner's own computer, because that is the part an eager agent breaks.
 
 ## The one machine rule
 
-**The owner's PC is for a backtest he asks for, and for nothing else.**
+**The owner's PC is not used at all. Zero percent, not two.**
 
-Owner order 2026-10-14, verbatim: "don't hammer my pc whenever the 4 minute
-scanner of quant of rehan is running. the 4 minute scanner should always be
-running on github action minutes and on cloudflare. you can only use my pc
-when i tell you to backtest quant of rehan, apart from that you or quant of
-rehan will never hammer my pc."
+Owner order 2026-10-19, later than every instruction before it, verbatim:
+"Don't use my PC at all, keep the usage at the very minimum, even 2% is too
+much. Since github action minutes are unlimited now because my repo is public
+so now you will do backtesting also on github action minutes, don't hammer my
+PC, my temps are literally at more than 80 degree celcius and only freebuff is
+open right now and nothing else, DON'T HAMMER OR USE MY PC AT ALL!!!"
+
+That order supersedes the 2026-10-14 carve-out that allowed a backtest on this
+machine (and supersedes SO-4, which reserved the Actions minutes for the
+scanner). The repository is public, so Actions minutes cost nothing, and every
+computational job belongs there:
+
+- **No local execution.** No backtest, no walk-forward, no research run, no
+grid search, no full test suite, and no local validation of a pull request.
+  `.github/workflows/backtest.yml` is the manual entry point for backtest work,
+  and the pull request workflow runs the suite in Actions. `scripts/land.sh`
+  therefore skips local checks by default; `--local-checks` exists for a
+  deliberate exception and must not be the habit.
+- **No local guard bypass.** `guard_cloud_backtest` refuses every declared
+  backtest entry point outside a GitHub Actions job, with no environment
+  variable that opens it. There is no "quick local run" this session may
+  grant itself.
+- **Edits are cheap, tests are cloud.** Reading and writing files costs
+  seconds; running the suite, a build or a benchmark costs minutes of CPU the
+  owner can feel. Verify in the pull request's CI, not here.
+- Owner order 2026-10-14, still true and now redundant: "don't hammer my pc
+  whenever the 4 minute scanner of quant of rehan is running... you can only
+  use my pc when i tell you to backtest quant of rehan." The 2026-10-19 order
+  withdraws even that permission.
 
 - The KMIALL scanner runs on **GitHub Actions minutes** and on the
   **Cloudflare relay** (`cloud/worker.js`). Both run with this PC switched
@@ -28,10 +52,9 @@ rehan will never hammer my pc."
   `.github/workflows/intraday-session.yml`, with
   `.github/workflows/intraday-capture.yml` keeping the scheduled band slots,
   the post-close finalize and the backstop if a band job dies mid-session.
-- We use this machine only when the owner says the words "backtest" (or asks
-  for a local trial, or hands over a defect that has to be reproduced here).
-  One run, started when he asks, finished when it finishes. Nothing that run
-  does becomes a schedule, a daemon, a watcher or a task.
+- A defect that has to be reproduced is reproduced in Actions, on a fixture,
+  or not at all. If a bug genuinely cannot be seen without this machine, ask
+  the owner first and quote this line; do not decide it alone.
 - Never install, register, restore or "temporarily" start anything recurring
   on this PC: no Windows scheduled task (`schtasks`), no login or Startup
   entry, no resident `python -m ...` process, no supervised loop left running
@@ -48,7 +71,7 @@ rehan will never hammer my pc."
 | Recurring entry points refuse to start locally | `src/ci/local_only.py` (`CLOUD_ONLY_DAEMONS`, `guard_owner_requested`) | `scripts/check_governance.py` (`check_cloud_only`) |
 | The guard opens only for the owner's own instruction | `OWNER_REQUEST_ENV = QOR_OWNER_REQUESTED_LOCAL_RUN` | `tests/test_local_only.py` |
 | No workflow registers local autostart | `LOCAL_AUTOSTART_PATTERNS` | `scripts/check_governance.py` |
-| Backtests stay on this PC and never in CI | `LOCAL_ONLY_SCRIPTS`, `guard_local_only` | `scripts/check_governance.py` (`check_local_only`) |
+| Backtests run in GitHub Actions, never on this PC | `BACKTEST_SCRIPTS`, `guard_cloud_backtest` | `scripts/check_governance.py` (`check_backtests_in_cloud`) |
 
 The declared cloud-only entry points are `scripts/install_kmiall_tick.py`,
 `scripts/install_scheduler.py`, `scripts/kmiall_tick.py`,
@@ -64,8 +87,10 @@ and taking work *off* the machine is never the offence.
 
 ## If the owner asks for a local run anyway
 
-He is allowed to. He is the owner. A run he asked for is enabled per process,
-in the shell that runs it, and never committed:
+He is allowed to. He is the owner. This escape hatch is for the cloud-only
+daemons below, never for a backtest (`guard_cloud_backtest` has no such key)
+and never for test validation. It is enabled per process, in the shell that
+runs it, and never committed:
 
 ```bash
 QOR_OWNER_REQUESTED_LOCAL_RUN=scripts/kmiall_tick.py python scripts/kmiall_tick.py --status

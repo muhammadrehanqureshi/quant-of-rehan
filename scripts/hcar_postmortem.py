@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""LOCAL-ONLY HCAR signal post-mortem and rejected-candidate target audit.
+"""GITHUB ACTIONS HCAR signal post-mortem and rejected-candidate target audit.
 
 Usage on the owner's PC:
     python scripts/hcar_postmortem.py
@@ -20,12 +20,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from src.ci.local_only import guard_local_only  # noqa: E402
+from src.ci.local_only import guard_cloud_backtest  # noqa: E402
 from src.research.hcar_postmortem import main as audit_main  # noqa: E402
 
 
 def main(argv: list[str] | None = None) -> int:
-    guard_local_only("scripts/hcar_postmortem.py")
+    guard_cloud_backtest("scripts/hcar_postmortem.py")
     return audit_main(argv)
 
 

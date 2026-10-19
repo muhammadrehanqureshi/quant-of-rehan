@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Phase 1 analysis: A-G path analysis, survivorship sensitivity, filters.
 
-LOCAL ONLY (SO-4). Deterministic: fixed seeds, no shuffling, no randomness
+GITHUB ACTIONS (SO-21). Deterministic: fixed seeds, no shuffling, no randomness
 outside bootstraps (which are seeded). Inputs are causal (the trade matrix
 is causality-tested). This script invents no data, ranks nothing by profit,
 and labels every honest limitation (SO-3).
@@ -33,7 +33,7 @@ import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from src.ci.local_only import guard_local_only  # noqa: E402
+from src.ci.local_only import guard_cloud_backtest  # noqa: E402
 
 from src.data.registry import availability  # noqa: E402
 
@@ -473,7 +473,7 @@ def render_md(res: dict) -> str:
     L: list[str] = []
     L.append("# RESEARCH PHASE 1: trade matrix, path analysis, survivorship, filters")
     L.append("")
-    L.append(f"Generated: {res['meta']['generated_at']} (Karachi, SO-8). LOCAL ONLY (SO-4).")
+    L.append(f"Generated: {res['meta']['generated_at']} (Karachi, SO-8). GITHUB ACTIONS (SO-21).")
     L.append("Population: placeholder-baseline entries (close > MA20 and volume > 20d median at T). "
              "This is an entry-quality audit, NOT a strategy and NOT an edge claim.")
     L.append("Costs quoted where relevant: 22.4 bps/side + 15% CGT (owner schedule). "
@@ -640,7 +640,7 @@ def render_md(res: dict) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
-    guard_local_only("scripts/research_phase1.py")
+    guard_cloud_backtest("scripts/research_phase1.py")
     ap = argparse.ArgumentParser(description="Phase 1 analysis (audit sections 3-8)")
     ap.add_argument("--matrix", type=Path, default=MATRIX_PATH)
     args = ap.parse_args(argv)

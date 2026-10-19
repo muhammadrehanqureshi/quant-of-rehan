@@ -72,19 +72,22 @@ The rest of SO-1 stands unchanged for everything outside this exception.
   module claiming footprint/order-flow capability must read from the registry
   and refuse to run when the registry says UNAVAILABLE.
 
-## SO-4 · Backtest locally only
+## SO-4 · Backtest locally only (superseded 2026-10-19 by SO-21)
 
+- **Superseded.** The direction of this order was reversed by the owner's
+  instruction of 2026-10-19 below. It is kept because the history explains
+  why the repository looks the way it does; nothing here is in force.
 - All backtesting, walk-forward validation, and Monte Carlo runs execute on
-  the owner's local PC.
+  the owner's local PC. (No longer true: they run in Actions, SO-21.)
 - Backtesting, walk-forward validation, and Monte Carlo runs never execute
-  in CI, and full dataset crawls stay on the owner's PC (a CI crawl of the
-  5-year history is refused in code).
+  in CI, and full dataset crawls stay on the owner's PC. (Reversed: the
+  crawl and every backtest run in CI; the guard now refuses them locally.)
 - Exception carved by SO-10 (owner approval, 2026-10-07): the daily signal
   job runs on GitHub Actions within the budget below. It may fetch only a
-  small trailing EOD window (bounded by the CI guard in
-  scripts/build_eod_history.py), never a full-history crawl.
+  small trailing EOD window, never a full-history crawl. (The 120-day ceiling
+  is withdrawn: the repository is public and the crawl is free.)
 - Monthly Actions budget: 2,000 minutes while the repository is private.
-  Nothing in this repo may put that at risk.
+  Nothing in this repo may put that at risk. (Void: the repository is public.)
 - Owner order 2026-10-14 (SO-13): the repository is public, and GitHub Actions
   minutes are free on a public repository, so the 2,000-minute ceiling no
   longer bounds the market-hours work. What does not change is where those
@@ -94,12 +97,11 @@ The rest of SO-1 stands unchanged for everything outside this exception.
   market-hours scans, the 4-minute KMIALL work. Backtesting, walk-forward
   validation, Monte Carlo runs and the history research scripts run on the
   owner's PC and nowhere else.
-- This is enforced in code, not only here. `src/ci/local_only.py` lists every
-  local-only entry point, each of those scripts calls `guard_local_only` as the
-  first statement of its `main()`, and that call stops a job running in
-  GitHub Actions with the reason named and no traceback.
-  `scripts/check_governance.py` fails a pull request that removes a guard,
-  deletes a listed script, or teaches a workflow to invoke one.
+- Enforcement moved with the order. `src/ci/local_only.py` lists every
+  backtest entry point, each one calls `guard_cloud_backtest` as the first
+  statement of its `main()`, and that call stops a run anywhere except a
+  GitHub Actions job. `scripts/check_governance.py` fails a pull request that
+  removes a guard, deletes a listed script, or puts one on a schedule.
 
 ## SO-5 · Secrets stay out
 
@@ -197,16 +199,19 @@ nothing else about SO-7 moves.
 ## Standing orders index
 
 SO-1 signal-only · SO-2 PR first, agent merges · SO-3 never fabricate data ·
-SO-4 backtest locally only · SO-5 secrets stay out · SO-6 the agent merges ·
+SO-4 backtest locally only (superseded by SO-21) · SO-5 secrets stay out ·
+SO-6 the agent merges ·
 SO-7 sole human contributor, human-looking code, no em dashes · SO-7a the
 agent is the owner's co-author on every commit, PR body and merge ·
 SO-8 Karachi time forever · SO-9 owner notifications via the Cloudflare
 relay · SO-10 resource law: cloud-first, local only for backtests · SO-11
 zero-defect law: known drift is fixed immediately · SO-12 the 4-minute
-scanner is cloud-only: nothing recurring runs on the owner's PC, and the PC
-is used only for a backtest he asks for · SO-13 The scan cadence is 30
-seconds, on the public repository's free cloud minutes (owner order
-2026-10-14).
+scanner is cloud-only: nothing recurring runs on the owner's PC · SO-13 the
+scan cadence is 30 seconds, on the public repository's free cloud minutes
+(owner order 2026-10-14; the 2026-10-19 order raised it to one second) ·
+SO-21 the owner's PC is not used at all: backtests and their data crawls run
+on the free Actions minutes of the public repository (owner order
+2026-10-19, supersedes SO-4).
 
 ## SO-10 · Resource law: the owner's PC is for backtesting and local trials only (owner order, 2026-10-06)
 
@@ -333,3 +338,31 @@ terminal."
 - Scope guard: this order is about defects and drift, never about inventing
   new scope, trading behaviour or data. Signals stay signal-only (SO-1),
   data stays honest (SO-3), and secrets stay out (SO-5) exactly as before.
+
+## SO-21 · The owner's PC is not used at all (owner order, 2026-10-19)
+
+- The owner's instruction, verbatim: "Don't use my PC at all, keep the usage
+  at the very minimum, even 2% is too much. Since github action minutes are
+  unlimited now because my repo is public so now you will do backtesting also
+  on github action minutes, don't hammer my PC, my temps are literally at more
+  than 80 degree celcius and only freebuff is open right now and nothing else,
+  DON'T HAMMER OR USE MY PC AT ALL!!!" The order was given with the machine
+  idle above 80 C and nothing but the editor open.
+- Scope: no backtest, research run, parameter sweep, grid, full test suite,
+  build, benchmark or pull-request validation on this machine. "Keep it small"
+  is not the standard; zero is. Reading and writing files is fine, because that
+  is seconds of work, not minutes of heat.
+- Backtests and history crawls run in `.github/workflows/backtest.yml`, which
+  is manual dispatch only. The public repository makes those minutes free, so
+  cost is not the reason to avoid them and heat is the reason to use them.
+- This supersedes SO-4 (backtest locally only) and withdraws the 2026-10-14
+  carve-out that allowed a backtest on the PC when the owner asked for one.
+  SO-12 (nothing recurring on the PC) is unchanged and still enforced.
+- Enforcement: `src/ci/local_only.py` holds `BACKTEST_SCRIPTS` and
+  `guard_cloud_backtest`, which refuses every declared entry point outside a
+  GitHub Actions job and has no environment variable that opens it.
+  `scripts/check_governance.py` (`check_backtests_in_cloud`) requires that
+  guard and refuses a scheduled workflow that invokes one of those scripts.
+  `scripts/land.sh` skips local checks by default and validates in the pull
+  request's CI; `--local-checks` is an explicit exception, not the habit.
+- Withdrawal: only a later written owner instruction, recorded here.

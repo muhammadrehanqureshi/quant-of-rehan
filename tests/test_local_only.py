@@ -1,12 +1,12 @@
-"""Tests for the SO-4 local-only guard, the SO-12 cloud-only guard, and the
-governance checks behind both.
+"""Tests for the SO-21 cloud-backtest guard, the SO-12 cloud-only guard, and
+the governance checks behind both.
 
-Owner order 2026-10-11: backtesting runs only on the owner's PC, and the
-GitHub Actions minutes are reserved for the market-hours scans. Owner order
-2026-10-14: the 4-minute scanner always runs on GitHub Actions minutes and on
-the Cloudflare relay, and the owner's PC is used only for a backtest he asks
-for. These tests hold both guards, hold every declared entry point to calling
-its own, and prove the governance checker catches one that stops.
+Owner order 2026-10-19: the PC is not used at all, even two percent, and the
+backtests that used to run on it now run on the free Actions minutes of the
+public repository. Owner order 2026-10-14: the scanner always runs on GitHub
+Actions minutes and on the Cloudflare relay. These tests hold both guards,
+hold every declared entry point to calling its own, and prove the governance
+checker catches one that stops.
 """
 
 from __future__ import annotations
@@ -24,10 +24,10 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from src.ci.local_only import (  # noqa: E402
+    BACKTEST_SCRIPTS,
     CLOUD_ONLY_DAEMONS,
-    LOCAL_ONLY_SCRIPTS,
     OWNER_REQUEST_ENV,
-    guard_local_only,
+    guard_cloud_backtest,
     guard_owner_requested,
     owner_requested_local_run,
     running_in_github_actions,
@@ -63,46 +63,54 @@ class TestCiDetection(unittest.TestCase):
 
 
 class TestGuard(unittest.TestCase):
-    def test_local_run_passes_through(self):
+    def test_a_local_run_is_refused_before_anything_loads(self):
         env = {k: v for k, v in os.environ.items() if k != "GITHUB_ACTIONS"}
         with mock.patch.dict(os.environ, env, clear=True):
-            guard_local_only("scripts/smoke_backtest.py")   # must not raise
-
-    def test_a_ci_run_is_refused(self):
-        with mock.patch.dict(os.environ, {"GITHUB_ACTIONS": "true"}):
             with self.assertRaises(SystemExit) as caught:
-                guard_local_only("scripts/smoke_backtest.py")
+                guard_cloud_backtest("scripts/smoke_backtest.py")
         reason = str(caught.exception)
-        self.assertIn("SO-4", reason)
+        self.assertIn("SO-21", reason)
         self.assertIn("the end-to-end backtest smoke run", reason)
-        self.assertIn("python scripts/smoke_backtest.py", reason)
-        self.assertIn("never runs here", reason)
+        self.assertIn("never on the owner's PC", reason)
+        self.assertIn("gh workflow run backtest.yml", reason)
+
+    def test_actions_passes_through(self):
+        with mock.patch.dict(os.environ, {"GITHUB_ACTIONS": "true"}):
+            guard_cloud_backtest("scripts/smoke_backtest.py")  # must not raise
+
+    def test_there_is_no_local_key_for_a_backtest(self):
+        """SO-21: not even the owner's env var re-opens a backtest locally."""
+        env = {k: v for k, v in os.environ.items() if k != "GITHUB_ACTIONS"}
+        env[OWNER_REQUEST_ENV] = "1"
+        with mock.patch.dict(os.environ, env, clear=True):
+            with self.assertRaises(SystemExit):
+                guard_cloud_backtest("scripts/smoke_backtest.py")
 
     def test_an_undeclared_script_still_refuses(self):
-        with mock.patch.dict(os.environ, {"GITHUB_ACTIONS": "true"}):
+        with mock.patch.dict(os.environ, {}, clear=True):
             with self.assertRaises(SystemExit) as caught:
-                guard_local_only("scripts/not_declared.py")
-        self.assertIn("local-only", str(caught.exception))
+                guard_cloud_backtest("scripts/not_declared.py")
+        self.assertIn("SO-21", str(caught.exception))
 
 
 class TestDeclaredEntryPoints(unittest.TestCase):
     def test_every_declared_script_exists_and_carries_the_guard(self):
-        for rel, task in sorted(LOCAL_ONLY_SCRIPTS.items()):
+        for rel, task in sorted(BACKTEST_SCRIPTS.items()):
             with self.subTest(script=rel):
                 p = ROOT / rel
                 self.assertTrue(p.is_file(), f"{rel} ({task}) is missing")
                 text = p.read_text(encoding="utf-8", errors="replace")
-                self.assertIn(f'guard_local_only("{rel}")', text)
+                self.assertIn(f'guard_cloud_backtest("{rel}")', text)
 
     def test_every_declared_script_parses(self):
-        for rel in sorted(LOCAL_ONLY_SCRIPTS):
+        for rel in sorted(BACKTEST_SCRIPTS):
             with self.subTest(script=rel):
                 ast.parse((ROOT / rel).read_text(encoding="utf-8",
                                                   errors="replace"))
 
     def test_the_guard_is_the_first_statement_of_main(self):
         """A guard anywhere else could be reached after the expensive work."""
-        for rel in sorted(LOCAL_ONLY_SCRIPTS):
+        for rel in sorted(BACKTEST_SCRIPTS):
             with self.subTest(script=rel):
                 text = (ROOT / rel).read_text(encoding="utf-8",
                                               errors="replace")
@@ -117,16 +125,18 @@ class TestDeclaredEntryPoints(unittest.TestCase):
                 call = body[0]
                 self.assertIsInstance(call, ast.Expr)
                 self.assertIsInstance(call.value, ast.Call)
-                self.assertEqual(call.value.func.id, "guard_local_only")
+                self.assertEqual(call.value.func.id, "guard_cloud_backtest")
                 self.assertEqual(call.value.args[0].value, rel)
 
-    def test_no_workflow_runs_a_local_only_script(self):
+    def test_no_workflow_schedules_a_backtest(self):
+        """Manual dispatch only: a backtest must never become a cadence."""
         workflows = ROOT / ".github" / "workflows"
         for wf in sorted(workflows.glob("*.yml")):
             text = wf.read_text(encoding="utf-8", errors="replace")
-            for rel in LOCAL_ONLY_SCRIPTS:
-                with self.subTest(workflow=wf.name, script=rel):
-                    self.assertNotIn(Path(rel).name, text)
+            for rel in BACKTEST_SCRIPTS:
+                if Path(rel).name in text:
+                    with self.subTest(workflow=wf.name, script=rel):
+                        self.assertNotIn("schedule:", text)
 
 
 class TestCloudOnlyGuard(unittest.TestCase):
@@ -307,42 +317,67 @@ class TestGovernanceCatchesARemovedGuard(unittest.TestCase):
             script.write_text("def main():\n    return 0\n", encoding="utf-8")
             errors: list = []
             with mock.patch.object(cg, "ROOT", script.parent), \
-                 mock.patch.object(cg, "LOCAL_ONLY_SCRIPTS",
+                 mock.patch.object(cg, "BACKTEST_SCRIPTS",
                                    {script.name: "an unguarded backtest"}):
-                cg.check_local_only(errors)
+                cg.check_backtests_in_cloud(errors)
         self.assertEqual(len(errors), 1, errors)
-        self.assertIn("[SO-4]", errors[0])
-        self.assertIn("guard_local_only", errors[0])
-        self.assertIn("market-hours scan budget", errors[0])
+        self.assertIn("[SO-21]", errors[0])
+        self.assertIn("guard_cloud_backtest", errors[0])
+        self.assertIn("owner's PC", errors[0])
 
     def test_a_declared_but_missing_script_is_reported(self):
         import check_governance as cg
         errors: list = []
-        with mock.patch.object(cg, "LOCAL_ONLY_SCRIPTS",
+        with mock.patch.object(cg, "BACKTEST_SCRIPTS",
                                {"scripts/gone_backtest.py": "a deleted backtest"}):
-            cg.check_local_only(errors)
+            cg.check_backtests_in_cloud(errors)
         self.assertTrue(any("does not exist" in e for e in errors), errors)
 
-    def test_a_workflow_invoking_a_backtest_is_reported(self):
+    def test_a_scheduled_workflow_invoking_a_backtest_is_reported(self):
         import check_governance as cg
         with tempfile.TemporaryDirectory() as tmp:
             wf = Path(tmp) / ".github" / "workflows"
             wf.mkdir(parents=True)
             (wf / "nightly.yml").write_text(
-                "jobs:\n  b:\n    steps:\n      - run: python scripts/smoke_backtest.py\n",
+                "on:\n  schedule:\n    - cron: '0 3 * * *'\n"
+                "jobs:\n  b:\n    steps:\n"
+                "      - run: python scripts/smoke_backtest.py\n",
                 encoding="utf-8")
             errors: list = []
             with mock.patch.object(cg, "ROOT", Path(tmp)), \
-                 mock.patch.object(cg, "LOCAL_ONLY_SCRIPTS",
+                 mock.patch.object(cg, "BACKTEST_SCRIPTS",
                                    {"scripts/smoke_backtest.py": "the smoke run"}):
-                cg.check_local_only(errors)
-        self.assertTrue(any("nightly.yml" in e and "[SO-4]" in e for e in errors),
+                cg.check_backtests_in_cloud(errors)
+        self.assertTrue(any("nightly.yml" in e and "[SO-21]" in e for e in errors),
                         errors)
+
+    def test_a_manual_workflow_invoking_a_backtest_is_allowed(self):
+        import check_governance as cg
+        with tempfile.TemporaryDirectory() as tmp:
+            wf = Path(tmp) / ".github" / "workflows"
+            wf.mkdir(parents=True)
+            script = Path(tmp) / "scripts" / "smoke_backtest.py"
+            script.parent.mkdir(parents=True)
+            script.write_text(
+                "def main():\n"
+                "    guard_cloud_backtest(\"scripts/smoke_backtest.py\")\n",
+                encoding="utf-8")
+            (wf / "backtest.yml").write_text(
+                "on:\n  workflow_dispatch:\n"
+                "jobs:\n  b:\n    steps:\n"
+                "      - run: python scripts/smoke_backtest.py\n",
+                encoding="utf-8")
+            errors: list = []
+            with mock.patch.object(cg, "ROOT", Path(tmp)), \
+                 mock.patch.object(cg, "BACKTEST_SCRIPTS",
+                                   {"scripts/smoke_backtest.py": "the smoke run"}):
+                cg.check_backtests_in_cloud(errors)
+        self.assertEqual(errors, [])
 
     def test_the_shipped_repository_passes(self):
         import check_governance as cg
         errors: list = []
-        cg.check_local_only(errors)
+        cg.check_backtests_in_cloud(errors)
         self.assertEqual(errors, [])
 
 

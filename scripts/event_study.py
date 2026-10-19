@@ -29,7 +29,7 @@ import pandas as pd
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 DATA = os.path.join(ROOT, "data")
-from src.ci.local_only import guard_local_only  # noqa: E402
+from src.ci.local_only import guard_cloud_backtest  # noqa: E402
 OUT = os.path.join(DATA, "event_study")
 os.makedirs(OUT, exist_ok=True)
 
@@ -187,7 +187,7 @@ def summarize(ev: pd.DataFrame) -> dict:
 
 
 def main() -> int:
-    guard_local_only("scripts/event_study.py")
+    guard_cloud_backtest("scripts/event_study.py")
     df = load_panel()
     print("panel rows", len(df), "symbols", df["symbol"].nunique())
     df = add_daily_features(df)

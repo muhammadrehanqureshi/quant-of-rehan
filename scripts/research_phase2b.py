@@ -13,7 +13,7 @@ What this phase is and is not:
     The exploratory alternative-transfer surface already run for the owner
     (data/stop_tp_grid/, 2026-10-06) is quoted, never re-run or extended.
   - NOT machine learning: interpretable rules only.
-  - LOCAL ONLY (SO-4), one-shot, zero resident processes afterwards (SO-10).
+  - GITHUB ACTIONS (SO-21), one-shot, zero resident processes afterwards (SO-10).
   - NO live-trading behavior changes: engine and registry stay untouched;
     the production gate is a RECOMMENDATION, not a promotion.
 
@@ -61,7 +61,7 @@ import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from src.ci.local_only import guard_local_only  # noqa: E402
+from src.ci.local_only import guard_cloud_backtest  # noqa: E402
 
 from src.data.registry import availability  # noqa: E402
 from src.backtest.engine import DEFAULT_COST_SIDE_BPS, DEFAULT_CGT_RATE  # noqa: E402
@@ -309,7 +309,7 @@ def net_of(x: pd.DataFrame, slip_bps: float = 0.0) -> tuple[float, float, int]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    guard_local_only("scripts/research_phase2b.py")
+    guard_cloud_backtest("scripts/research_phase2b.py")
     if not MATRIX_PATH.is_file():
         print("trade matrix missing; run scripts/build_trade_matrix.py first")
         return 1
@@ -642,7 +642,7 @@ def render_md(rep: dict) -> str:
     A = L.append
     A("# RESEARCH PHASE 2B: does rs20 < -5% improve the TP/SL objective?")
     A("")
-    A(f"Generated: {rep['generated_at_karachi']} (Karachi, SO-8). LOCAL ONLY (SO-4).")
+    A(f"Generated: {rep['generated_at_karachi']} (Karachi, SO-8). GITHUB ACTIONS (SO-21).")
     A("")
     A("Constraints honored: NO live-trading changes, NO TP/SL optimization, NO")
     A("machine learning, NO future information, NO fabricated data (footprint")
