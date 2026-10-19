@@ -60,6 +60,24 @@ class RelayWorkerContractTest(unittest.TestCase):
         self.assertIn("last_delivery: lastDelivery", self.source,
                       "the recorded outcome never reaches a client")
 
+    def test_health_names_the_commit_the_edge_is_running(self):
+        """`ok: true` proved only that SOMETHING answered.
+
+        Run 39225627067 uploaded nothing and a green /health would still have
+        been read as a successful deploy, so the workflow now sets the commit
+        as WORKER_VERSION and asks /health for it back.
+        """
+        self.assertIn("version: env.WORKER_VERSION || null,", self.source)
+        workflow = (ROOT / ".github" / "workflows" / "deploy-relay.yml").read_text(
+            encoding="utf-8")
+        self.assertIn("--var WORKER_VERSION:${{ github.sha }}", workflow)
+        self.assertIn('json.load(sys.stdin).get("version")', workflow,
+                      "the verify step does not read the version it asked for")
+        self.assertIn("the deploy did not land", workflow)
+        # A refused deploy is annotated with what the owner must check, because
+        # 10041 is never caused by the code in this repository.
+        self.assertIn("Workers KV Storage: Read", workflow)
+
     # ------------------------------------------------------- research routes
 
     def test_the_research_slot_accepts_seconds(self):

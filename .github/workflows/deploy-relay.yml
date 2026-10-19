@@ -55,23 +55,58 @@ jobs:
           sed -i "s/PASTE_KV_NAMESPACE_ID_AFTER_CREATION/${{ vars.RELAY_KV_ID }}/" wrangler.toml
           grep -q "${{ vars.RELAY_KV_ID }}" wrangler.toml
 
+      # Three attempts, because the Cloudflare management API has returned a
+      # transient failure at this exact step before (run 39225627067: the same
+      # token, account and KV id deployed green at 07:32 and answered
+      # 10041 "namespace not found" at 08:55). The retry costs twenty seconds
+      # inside a ten minute budget; the alternative is a red X on a push that
+      # never reached the edge.
       - name: Deploy
         working-directory: cloud
-        run: npx wrangler deploy
-
-      - name: Verify the live edge answers
         run: |
-          for _ in 1 2 3 4 5; do
-            if curl -fsS --max-time 30 \
-              https://quant-of-rehan-relay.mrmrehanqureshi.workers.dev/health \
-              | grep -q '"ok": true'; then
-              echo "live /health answers ok: true"
+          for attempt in 1 2 3; do
+            if npx wrangler deploy --var WORKER_VERSION:${{ github.sha }}; then
               exit 0
             fi
+            echo "::warning::wrangler deploy failed (attempt ${attempt} of 3)"
+            if [ "$attempt" -lt 3 ]; then sleep $((attempt * 10)); fi
+          done
+          echo "::error::wrangler deploy failed three times; the edge still runs the previous build"
+          exit 1
+
+      # A deploy is not done when the upload returns, it is done when the edge
+      # answers with the commit just built. /health carries that commit as
+      # `version`; a worker uploaded outside CI reports null and passes with a
+      # warning, so cloud/pair.py uploads stay valid.
+      - name: Verify the live edge runs this commit
+        run: |
+          want="${GITHUB_SHA}"
+          for _ in 1 2 3 4 5 6; do
+            body=$(curl -fsS --max-time 30 \
+              https://quant-of-rehan-relay.mrmrehanqureshi.workers.dev/health || true)
+            if ! printf '%s' "$body" | grep -q '"ok": true'; then
+              sleep 10
+              continue
+            fi
+            got=$(printf '%s' "$body" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("version") or "")')
+            if [ "$got" = "$want" ]; then
+              echo "live /health reports version $want"
+              exit 0
+            fi
+            if [ -z "$got" ]; then
+              echo "::warning::live /health carries no version; the edge answered but this run cannot prove it was replaced"
+              exit 0
+            fi
+            echo "edge still reports ${got:0:12}, waiting for $want"
             sleep 10
           done
-          echo "::error::the deployed worker did not answer /health"
+          echo "::error::the edge did not switch to this commit; the deploy did not land"
           exit 1
+
+      - name: Say what to check when the deploy is refused
+        if: failure()
+        run: |
+          echo "::error::A Cloudflare deploy refusal is a credential or namespace problem, not a code problem. Check, in order: (1) KV namespace ${{ vars.RELAY_KV_ID }} still exists, (2) CLOUDFLARE_API_TOKEN has Workers Scripts: Edit and Workers KV Storage: Read on the account in CLOUDFLARE_ACCOUNT_ID, (3) RELAY_KV_ID was not left pointing at a namespace that was deleted and recreated."
 
       - name: Restore the placeholder so nothing invalid lands in the repo
         if: always()
