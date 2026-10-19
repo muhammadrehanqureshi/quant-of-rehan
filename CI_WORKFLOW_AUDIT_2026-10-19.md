@@ -110,6 +110,45 @@ were branch-state problems that a clearer, failure-tolerant workflow prevents.
   `tests/test_relay_worker_contracts.py` (dispatch contract, opt-in, dedupe,
   timeout).
 
+### deploy-relay: a refused upload that could read as a green edge
+
+Measured on 2026-10-19, not inferred. Run 39216586610 (07:32 UTC, commit
+`2c59748`) deployed the relay green. Run 39225627067 (08:55 UTC, commit
+`d7ac13a`) failed at `npx wrangler deploy` with:
+
+```
+KV namespace '<RELAY_KV_ID>' not found. Verify the namespace
+exists in your account and that the namespace_id in your configuration is
+correct. [code: 10041]
+```
+
+The inputs were identical: same wrangler (4.151.1), same `RELAY_KV_ID`, same
+account and token. The live worker still reads that namespace (`/health`
+returns `paired: true` and `last_delivery` from it, one minute before the
+failing rerun), so the namespace exists and the data plane is healthy. What is
+refusing is the management API, and a `workflow_dispatch` rerun failed the
+same way, so it is not a one-off.
+
+Two defects are in the repository even though the trigger is external:
+
+1. The workflow reported a red X with no instruction. 10041 is never caused by
+   the code under `cloud/`; it is the token, the account or the namespace id.
+   The failure now says so and names all three.
+2. `"ok": true` was read as proof of a deploy. It proves only that *something*
+   answers. The worker now reports `version: env.WORKER_VERSION` and the
+   workflow deploys with `--var WORKER_VERSION:$GITHUB_SHA`, then polls
+   `/health` until the edge names the commit it just built. A deploy that
+   uploads nothing fails, and a worker uploaded outside CI (`cloud/pair.py`)
+   reports `null` and passes with a warning.
+
+- `.github/workflows/deploy-relay.yml`
+  - three deploy attempts with backoff, because the management API answered
+    404 for a namespace it had accepted ninety minutes earlier;
+  - the run is verified against the deployed commit, not against `ok: true`;
+  - a `failure()` step lists the three credential and namespace checks.
+- `cloud/worker.js`
+  - `/health` (and `/status`) carries the commit the edge is running.
+
 ### charts-of-rehan
 
 - `.github/workflows/ci.yml`
@@ -154,6 +193,10 @@ CI, after the change lands:
    summary, and that no run logs `sleeping 224435s` again.
 4. Watch `charts-of-rehan` CI on the next two pushes: exactly one run per ref,
    backend and frontend green, no setup-node cache error.
+5. After the next `deploy-relay` run, confirm it logs
+   `live /health reports version <sha>` for the merge commit. Until that line
+   appears, the edge is still running the previous build, whatever the run's
+   colour says.
 
 ## Residual risks
 
@@ -167,3 +210,13 @@ CI, after the change lands:
   retries; nothing else is affected.
 - Action v7 majors are verified by a real run after landing; a breaking change
   would surface in the same PR's CI, not in a scheduled band.
+- The relay deploy is currently refused by Cloudflare's management API with
+  error 10041 although the same namespace, token and account deployed green at
+  07:32 UTC and the live worker still reads it. Until that is resolved in the
+  Cloudflare dashboard (namespace present, token carrying Workers Scripts:
+  Edit and Workers KV Storage: Read), the dispatch code merged today is not on
+  the edge. The GitHub-side fixes are unaffected: the bands are gated and
+  dispatched without this deploy.
+- `--var WORKER_VERSION` is honoured by wrangler 4.151.1, the version this run
+  installs. The verify step treats a missing version as a warning, so an older
+  worker or a `cloud/pair.py` upload cannot be locked out.
