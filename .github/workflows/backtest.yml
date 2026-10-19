@@ -1,0 +1,79 @@
+# SO-21 (owner order 2026-10-19): backtests run here, never on the owner's PC.
+#
+# Manual dispatch only. A schedule would turn a backtest into a cadence nobody
+# asked for, and check_backtests_in_cloud fails the pull request that adds one.
+# The repository is public, so these minutes cost nothing; the constraint the
+# owner set is his machine's heat, which this job does not touch.
+#
+# The dataset is never committed (`/data/` is gitignored), so the crawl that
+# builds it lives here too. A run that needs the dataset and does not build it
+# stops with a clear message instead of inventing data (SO-3).
+name: backtest
+
+on:
+  workflow_dispatch:
+    inputs:
+      task:
+        description: "what to run"
+        type: choice
+        options: [both, smoke, build-dataset]
+        default: both
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backtest-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  backtest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt --retries 5 --timeout 60
+
+      # KMIALL EOD over the five years the engine walks. One polite pass over
+      # the 319 symbol universe, written to the gitignored data/ directory.
+      - name: Build the dataset
+        if: inputs.task != 'smoke'
+        run: |
+          mkdir -p data
+          python -m src.data.psx_eod \
+            --universe src/data/universe_kmiall.json \
+            --out data/eod_dataset.csv.gz \
+            --cache-dir data/raw_eod
+
+      - name: Refuse to run without a dataset
+        if: inputs.task == 'smoke'
+        run: |
+          if [ ! -f data/eod_dataset.csv.gz ]; then
+            echo "::error::data/eod_dataset.csv.gz is missing. Dispatch with task=both (or build-dataset) first; the dataset is gitignored and this job does not invent one."
+            exit 1
+          fi
+
+      - name: Smoke the engine end to end
+        if: inputs.task != 'build-dataset'
+        run: |
+          python scripts/smoke_backtest.py \
+            --dataset data/eod_dataset.csv.gz \
+            --out data/backtest_smoke.json
+          cat data/backtest_smoke.json
+
+      - name: Keep the result
+        if: inputs.task != 'build-dataset'
+        uses: actions/upload-artifact@v7
+        with:
+          name: backtest-${{ github.run_id }}
+          path: data/backtest_smoke.json
+          if-no-files-found: error
+          retention-days: 30

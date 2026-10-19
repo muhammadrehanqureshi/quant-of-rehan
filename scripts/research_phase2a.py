@@ -37,7 +37,7 @@ Disclosure: Phase 1 already glanced at full-sample SC lifts. Mitigation:
 selection here uses the discovery split ONLY; validation and OOS are
 untouched by any choice made in this script.
 
-LOCAL ONLY (SO-4). One-shot run, no daemons (SO-10). Timestamps Karachi.
+GITHUB ACTIONS (SO-21). One-shot run, no daemons (SO-10). Timestamps Karachi.
 
 Outputs:
     data/research_phase2a_report.json   (machine-readable, all tables)
@@ -59,7 +59,7 @@ import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from src.ci.local_only import guard_local_only  # noqa: E402
+from src.ci.local_only import guard_cloud_backtest  # noqa: E402
 
 from src.data.registry import availability  # noqa: E402
 
@@ -706,7 +706,7 @@ def render_md(res: dict) -> str:
     A = L.append
     A("# RESEARCH PHASE 2A: can Group G be identified prospectively?")
     A("")
-    A(f"Generated: {res['meta']['generated_at']} (Karachi, SO-8). LOCAL ONLY (SO-4).")
+    A(f"Generated: {res['meta']['generated_at']} (Karachi, SO-8). GITHUB ACTIONS (SO-21).")
     A("")
     A("Scope and constraints honored: NO live trading, NO production threshold "
       "changes, NO TP/SL optimization, NO machine learning, NO future information. "
@@ -998,7 +998,7 @@ def render_md(res: dict) -> str:
 
 # ------------------------------------------------------------------ main
 def main(argv: list[str] | None = None) -> int:
-    guard_local_only("scripts/research_phase2a.py")
+    guard_cloud_backtest("scripts/research_phase2a.py")
     ap = argparse.ArgumentParser(description="Phase 2A: Group G identifiability")
     ap.add_argument("--matrix", type=Path, default=MATRIX_PATH)
     args = ap.parse_args(argv)

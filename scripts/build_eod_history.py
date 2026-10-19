@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""LOCAL-ONLY 5-year EOD history builder from PSX Daily Downloads (SO-4).
+"""GITHUB ACTIONS 5-year EOD history builder from PSX Daily Downloads (SO-21).
 
 Walks weekdays in [start, end], fetches each session's mkt_summary file
 (see src/data/psx_daily_downloads.py: full OHLCV WITH high/low), and
@@ -9,14 +9,14 @@ last few sessions: just re-run to resume.
 
     python scripts/build_eod_history.py --start 2021-10-04 --end 2026-10-02
 
-~1,240 sessions x ~20KB. Never run in CI; never commit the dataset.
+~1,240 sessions x ~20KB. Runs in Actions under SO-21, never on the
+owner's PC; never commit the dataset.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -26,6 +26,7 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+from src.ci.local_only import guard_cloud_backtest  # noqa: E402
 from src.data.psx_daily_downloads import (  # noqa: E402
     REQUEST_PAUSE,
     fetch_mkt_summary,
@@ -34,6 +35,7 @@ from src.data.psx_daily_downloads import (  # noqa: E402
 
 
 def main(argv: list[str] | None = None) -> int:
+    guard_cloud_backtest("scripts/build_eod_history.py")
     ap = argparse.ArgumentParser()
     ap.add_argument("--start", required=True, help="YYYY-MM-DD (inclusive)")
     ap.add_argument("--end", required=True, help="YYYY-MM-DD (inclusive)")
@@ -43,17 +45,9 @@ def main(argv: list[str] | None = None) -> int:
                     help="checkpoint rows to the partial file every N sessions")
     args = ap.parse_args(argv)
 
-    # SO-4 with the SO-10 carve-out (owner approval, 2026-10-07): CI never
-    # crawls the 5-year history, but the cloud signal job may fetch a small
-    # trailing window for the day's bars.
-    if os.environ.get("GITHUB_ACTIONS"):
-        d0 = datetime.strptime(str(args.start), "%Y-%m-%d")
-        d1 = datetime.strptime(str(args.end), "%Y-%m-%d")
-        if (d1 - d0).days > 120:
-            print("REFUSING on CI: full-history crawls stay LOCAL ONLY (SO-4); "
-                  "the cloud signal job may fetch only a small trailing "
-                  "window (SO-10).")
-            return 1
+    # SO-21 removed the old 120 day ceiling: the crawl now belongs to
+    # Actions, whose minutes are free for this public repository, and the
+    # owner's machine is never the place it runs.
 
     # Append-mode checkpoint file: a killed crawl loses at most the last
     # --flush-every sessions, not the whole run (lesson from the first
@@ -61,7 +55,7 @@ def main(argv: list[str] | None = None) -> int:
     partial = args.out.with_suffix(".partial.csv")
 
     want = iter_weekdays(args.start, args.end)
-    print(f"LOCAL-ONLY PSX EOD crawl: {len(want)} weekdays "
+    print(f"PSX EOD crawl in Actions: {len(want)} weekdays "
           f"{args.start} .. {args.end} (holidays just 404)\n"
           f"pause={args.pause}s  out={args.out}  flush_every={args.flush_every}")
 

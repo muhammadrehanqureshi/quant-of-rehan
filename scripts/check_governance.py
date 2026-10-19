@@ -39,7 +39,7 @@ sys.path.insert(0, str(ROOT))
 
 from src.ci.local_only import (  # noqa: E402
     CLOUD_ONLY_DAEMONS,
-    LOCAL_ONLY_SCRIPTS,
+    BACKTEST_SCRIPTS,
 )
 
 # Text extensions eligible for scanning
@@ -198,33 +198,33 @@ def check_governance_doc(errors: list) -> None:
             )
 
 
-def check_local_only(errors: list) -> None:
-    """SO-4: the declared backtests stay on the owner's PC.
+def check_backtests_in_cloud(errors: list) -> None:
+    """SO-21: declared backtests run in Actions and never on the owner's PC.
 
-    Owner order 2026-10-11: backtesting happens only on the local PC, and the
-    GitHub Actions minutes are reserved for the market-hours scans. Until
-    now that lived in prose and in docstrings, so an edit could have put a
-    five-year sweep into a workflow and nothing would have objected. This
-    check is the objection: every declared entry point must carry the guard,
-    and no workflow may invoke one.
+    Owner order 2026-10-19: the machine is not used at all, even two percent
+    of it, and the now-public repository makes Actions minutes free for the
+    backtests that used to run here. This check is that order in CI: every
+    declared entry point must carry the guard, and a workflow that invokes
+    one must be manual dispatch, because a scheduled sweep would silently
+    become a cadence nobody asked for.
     """
-    for rel, task in sorted(LOCAL_ONLY_SCRIPTS.items()):
+    for rel, task in sorted(BACKTEST_SCRIPTS.items()):
         p = ROOT / rel
         if not p.is_file():
             errors.append(
-                f"[SO-4] {rel} is declared local-only ({task}) but does not "
-                f"exist; fix src/ci/local_only.py or restore the script"
+                f"[SO-21] {rel} is declared backtest work ({task}) but does "
+                f"not exist; fix src/ci/local_only.py or restore the script"
             )
             continue
         try:
             text = p.read_text(encoding="utf-8", errors="replace")
         except OSError:
             continue
-        if f'guard_local_only("{rel}")' not in text:
+        if f'guard_cloud_backtest("{rel}")' not in text:
             errors.append(
-                f"[SO-4] {rel} ({task}) does not call "
-                f'guard_local_only("{rel}") in main(): it could then run in '
-                f"GitHub Actions and spend the market-hours scan budget"
+                f"[SO-21] {rel} ({task}) does not call "
+                f'guard_cloud_backtest("{rel}") in main(): it could then run '
+                f"on the owner's PC, where no backtest may run"
             )
 
     workflows = ROOT / ".github" / "workflows"
@@ -233,13 +233,14 @@ def check_local_only(errors: list) -> None:
             text = wf.read_text(encoding="utf-8", errors="replace")
         except OSError:
             continue
-        for rel in LOCAL_ONLY_SCRIPTS:
+        for rel in BACKTEST_SCRIPTS:
             if rel in text or Path(rel).name in text:
-                errors.append(
-                    f"[SO-4] {wf.name} invokes {rel}, which is local-only "
-                    f"work: Actions minutes are reserved for the market-hours "
-                    f"scans"
-                )
+                if "schedule:" in text or "cron:" in text:
+                    errors.append(
+                        f"[SO-21] {wf.name} runs {rel} on a schedule: a "
+                        f"backtest is manual dispatch only, so it never "
+                        f"becomes an unattended cadence"
+                    )
 
 
 def check_cloud_only(errors: list) -> None:
@@ -498,7 +499,7 @@ def main() -> int:
     check_em_dashes(errors)
     check_commit_messages(errors)
     check_karachi_pin(errors)
-    check_local_only(errors)
+    check_backtests_in_cloud(errors)
     check_cloud_only(errors)
     check_tape_before_scanner(errors)
 
@@ -512,7 +513,7 @@ def main() -> int:
           "secrets clean, footprint honesty intact, "
           "standing orders present, SO-7 style and identity verified, "
           "SO-7a co-author line verified, SO-8 Karachi pin verified, "
-          "SO-4 local-only backtests enforced, SO-12 cloud-only recurring "
+          "SO-21 backtests cloud-only enforced, SO-12 cloud-only recurring "
           "work enforced, SO-20 tape before scanner.")
     return 0
 

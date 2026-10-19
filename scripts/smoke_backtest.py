@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""LOCAL-ONLY smoke backtest (SO-4: never run in GitHub Actions).
+"""GITHUB ACTIONS smoke backtest (SO-4: never run in GitHub Actions).
 
 Validates the engine end-to-end on the real 5-year KMIALL dataset using a
 PLACEHOLDER BASELINE entry rule: explicitly NOT the strategy. Purpose:
@@ -23,7 +23,7 @@ import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from src.ci.local_only import guard_local_only  # noqa: E402
+from src.ci.local_only import guard_cloud_backtest  # noqa: E402
 
 from src.backtest.engine import run_backtest  # noqa: E402
 from src.data.corpus import load_corpus  # noqa: E402
@@ -49,7 +49,7 @@ def placeholder_signals(df: pd.DataFrame) -> list[tuple]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    guard_local_only("scripts/smoke_backtest.py")
+    guard_cloud_backtest("scripts/smoke_backtest.py")
     ap = argparse.ArgumentParser()
     ap.add_argument("--dataset", type=Path, default=None,
                     help="Long-frame dataset (data/eod_dataset.csv.gz)")

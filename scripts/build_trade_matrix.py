@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build the trade-level matrix (RESEARCH_AUDIT.md section 3, pre-registered).
 
-LOCAL ONLY (SO-4). Deterministic, causal, reproducible: fixed inputs, fixed
+GITHUB ACTIONS (SO-21). Deterministic, causal, reproducible: fixed inputs, fixed
 population, no randomness, no future information in any feature column.
 
 Population: the placeholder-baseline signals of scripts/smoke_backtest.py
@@ -37,7 +37,7 @@ import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from src.ci.local_only import guard_local_only  # noqa: E402
+from src.ci.local_only import guard_cloud_backtest  # noqa: E402
 
 from src.backtest.engine import DEFAULT_COST_SIDE_BPS, DEFAULT_CGT_RATE, DEFAULT_INVALID_BAND  # noqa: E402
 from src.signals.engine import (  # noqa: E402
@@ -343,7 +343,7 @@ def build_trade_rows(df: pd.DataFrame, signals: list[tuple]) -> pd.DataFrame:
 
 
 def main(argv: list[str] | None = None) -> int:
-    guard_local_only("scripts/build_trade_matrix.py")
+    guard_cloud_backtest("scripts/build_trade_matrix.py")
     ap = argparse.ArgumentParser(description="Build the trade matrix (audit section 3)")
     ap.add_argument("--dataset", type=Path, default=ROOT / "data" / "eod_history_kmi.csv.gz")
     ap.add_argument("--out", type=Path, default=OUT_PATH)
