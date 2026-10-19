@@ -16,6 +16,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.math.BigDecimal;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
@@ -36,30 +37,12 @@ public final class Watcher {
     private static final String CHANNEL_STATUS = "system_status";
     private static final String CHANNEL_SIGNALS = "signals";
 
-    // Owner order 2026-10-14 (SO-13) and the owner's order of 2026-10-16: the
-    // market is scanned every 30 seconds in the cloud
-    // (config.SCAN_INTERVAL_SECONDS = 30), and ONE scan feeds both the phone's
-    // card and the intraday strategy. The console therefore asks for the card
-    // at that cadence while it is on screen, so the phone shows the number the
-    // strategy actually decided on instead of a stale copy of it.
+    // SO-13 protects the strategy scanner at 30 seconds and MARKET-only.
+    // This is a separate foreground display poll, not a scanner invocation.
     static final long REFRESH_MS = 30 * 1000;
-
-    // Owner order 2026-10-16: while the market is open the console polls the
-    // relay once a second, so a signal that the cloud has just accepted shows
-    // up on the phone within about a second instead of at the next 30 second
-    // repaint. FAST_POLL_MS is the live interval; REFRESH_MS stays the idle
-    // interval (closed market, its midday break, or an unreachable relay),
-    // because nothing on the screen can change until the session does.
-    //
-    // The cost is bounded by what a live round asks for. fetchLive reads
-    // /health and /signals only: both are the relay's own small answers, and
-    // neither rebuilds anything upstream. The market card is NOT part of the
-    // one second round, because the relay can only rebuild it from the
-    // exchange page about every five minutes; MainActivity asks for the card
-    // once every CARD_EVERY_SECONDS live rounds instead. One request a second
-    // to the edge, with the phone's own in-flight guard so a slow answer
-    // skips a tick rather than queueing one.
     static final long FAST_POLL_MS = 1000;
+    // A fast health/signals/card refresh is still a display read, not a scan.
+    static final long DISPLAY_REFRESH_MS = FAST_POLL_MS;
 
     /**
      * One relay answer, before the market card is asked for.
@@ -200,6 +183,15 @@ public final class Watcher {
         Double indexChange;
         Double indexPct;
         String indexAsOf = "";
+        String indexSource = "";
+        String feedStatus = "UNKNOWN";
+        String feedStatusRaw = "";
+        String feedStatusAsOf = "";
+        boolean feedStatusFresh;
+        boolean feedHalted;
+        String transitionState = "";
+        String transitionEvidence = "";
+        boolean transitionDelivered;
         final List<Leader> leaders = new ArrayList<>();
         String basis = "";
         String splitBasis = "";
@@ -251,10 +243,25 @@ public final class Watcher {
         return (Double.isNaN(value) || Double.isInfinite(value)) ? null : value;
     }
 
-    /** A whole number of shares or rupees, or null when it is not reported. */
+    /**
+     * A non-negative, exact whole share count, or null when absent or invalid.
+     * Never rounds a broker value: fractional, non-finite and overflowing
+     * counts are rejected rather than displayed as a different quantity.
+     */
     private static Long integerOrNull(JSONObject row, String key) {
-        Double value = numberOrNull(row, key);
-        return value == null ? null : Math.round(value);
+        if (row == null || row.isNull(key)) {
+            return null;
+        }
+        Object raw = row.opt(key);
+        if (!(raw instanceof Number)) {
+            return null;
+        }
+        try {
+            long value = new BigDecimal(raw.toString()).longValueExact();
+            return value < 0 ? null : value;
+        } catch (NumberFormatException | ArithmeticException invalidCount) {
+            return null;
+        }
     }
 
     /** Read at most MAX_BODY_CHARS characters, so a spike cannot exhaust the heap. */
@@ -318,9 +325,9 @@ public final class Watcher {
     }
 
     /**
-     * The relay's market card: KSE100 and the day's volume leaders, rebuilt
-     * at most once every five minutes by the relay itself. A failure here
-     * never changes the status badge, it only empties the card.
+     * The relay's market card: fresh broker-feed KSE100, REG market status
+     * and KMIALL volume leaders, with a labelled PSX portal fallback. A card
+     * failure never changes the session status badge.
      */
     static Market fetchMarket(Context c, String base) {
         Market market = new Market();
@@ -328,10 +335,25 @@ public final class Watcher {
             JSONObject body = get(base + "/market", null);
             market.answered = body.optBoolean("ok", false);
             market.open = body.optBoolean("market_open", false);
+            JSONObject transition = body.optJSONObject("market_transition");
+            if (transition != null) {
+                market.transitionState = transition.optString("state", "");
+                market.transitionEvidence = transition.optString("evidence", "");
+                market.transitionDelivered = transition.optBoolean("delivered", false);
+            }
             market.cacheAgeSeconds = body.optInt("cache_age_seconds", -1);
             market.basis = body.optString("top_volume_basis", "");
             market.splitBasis = body.optString("volume_split_basis", "");
             readPhase(body.optJSONObject("market_state"), market);
+            JSONObject feedStatus = body.optJSONObject("market_feed");
+            if (feedStatus != null) {
+                market.feedStatus = feedStatus.optString("status", "UNKNOWN");
+                market.feedHalted = "HALTED".equals(market.feedStatus)
+                        && feedStatus.optBoolean("fresh", false);
+                market.feedStatusRaw = feedStatus.optString("raw_status", "");
+                market.feedStatusAsOf = feedStatus.optString("as_of", "");
+                market.feedStatusFresh = feedStatus.optBoolean("fresh", false);
+            }
 
             JSONObject index = body.optJSONObject("index");
             if (index != null) {
@@ -339,6 +361,7 @@ public final class Watcher {
                 market.indexChange = numberOrNull(index, "change");
                 market.indexPct = numberOrNull(index, "change_pct");
                 market.indexAsOf = index.optString("as_of", "");
+                market.indexSource = index.optString("source", "");
             }
 
             JSONArray tops = body.optJSONArray("top_volume");
@@ -407,14 +430,18 @@ public final class Watcher {
      * The owner-facing sentence for the market's condition, or "" while the
      * exchange is trading. Never guesses a session.
      *
-     * Owner order 2026-10-11: the relay reports its three valued condition and
-     * its sentence, and both are the owner's exact words, so they win whenever
-     * they arrive. A relay too old to carry them falls back to the phase, and
+     * A fresh broker-wide halt has priority over the session schedule. Otherwise
+     * the relay reports its three valued condition and its sentence, and both
+     * are the owner's exact words, so they win whenever they arrive. A relay
+     * too old to carry them falls back to the phase, and
      * CLOSED, PRE_OPEN and POST_CLOSE all read as one closed sentence, which
      * is true in each. An unreported phase still says so rather than claiming
      * a session the relay never confirmed.
      */
     static String phaseLine(Context c, Market market) {
+        if (market != null && market.feedHalted && market.feedStatusFresh) {
+            return c.getString(R.string.market_halted_now);
+        }
         if (market == null || !market.phaseKnown()) {
             return c.getString(R.string.market_status_unreported);
         }
@@ -502,21 +529,20 @@ public final class Watcher {
     }
 
     /**
-     * The light round: /health and /signals, and no market card at all.
-     *
-     * Called once a second while the market is open. It reports the card as
-     * null, which MainActivity reads as "leave the card that is already on
-     * screen exactly as it is", so the one second poll never blinks the third
-     * tile and never spends a request on a payload the relay cannot have
-     * rebuilt in the meantime.
+     * The foreground refresh: current session status, signals and the relay's
+     * latest broker snapshot. This is a display read, not a strategy scan; the
+     * upstream feed publication cadence is reported by its source timestamps.
+     * This pulls the /market endpoint whose session cache can otherwise be
+     * five minutes old; the frequent poll does not create upstream feed data.
      */
     static void fetchLive(final Context c, final String admin, final Callback cb) {
         POOL.execute(() -> {
             String base = relayUrl(c);
             try {
                 Head head = fetchHead(c, base, admin);
+                Market market = fetchMarket(c, base);
                 cb.done(head.online(), head.reachable, head.detail,
-                        head.signals, null);
+                        head.signals, market);
             } catch (Exception e) {
                 String why = e.getClass().getSimpleName();
                 String hint = why.contains("UnknownHost") || why.contains("Connect")

@@ -350,9 +350,12 @@
             android:orientation="vertical"
             android:visibility="gone">
 
-            <TextView style="@style/QorLabel"
+            <TextView
+                android:id="@+id/settings_heading"
+                style="@style/QorLabel"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:gravity="center"
                 android:text="@string/label_settings"/>
 
             <TextView style="@style/QorBody"
@@ -410,7 +413,7 @@
         <!-- ══════════ market card ══════════
              Third box, same shape as the two above: KSE100 points and
              percentage plus the day's top three KMIALL stocks by volume,
-             rebuilt by the relay every five minutes.
+             refreshed from the latest available broker-feed publication.
 
              Owner order 2026-10-12: the card carries no "MARKET NOW" label
              any more. The index line and the ranking state what the card is
@@ -435,6 +438,19 @@
                 android:textColor="@color/text_bright"
                 android:textSize="17sp"
                 android:textStyle="bold"/>
+
+            <!-- Exchange-wide state, distinct from an individual stock's
+                 OPN/SUS flag. It comes only from a fresh REG MKT-STATS frame,
+                 whose timestamp is the updated time in the status copy. The
+                 UI never mistakes one suspended ticker for a market halt. -->
+            <TextView
+                android:id="@+id/market_feed_status"
+                style="@style/QorCaption"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:gravity="center"
+                android:text="@string/market_feed_unknown"/>
 
             <!-- The card's values carry LEMON MILK Light (QorValue): tickers,
                  money and counts are capitals by nature, so the free face's

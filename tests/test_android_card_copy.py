@@ -38,9 +38,49 @@ MAIN = (ROOT / "android" / "app" / "src" / "main" / "java" / "pk"
         / "quantofrehan" / "MainActivity.java")
 STRINGS = (ROOT / "android" / "app" / "src" / "main" / "res" / "values"
            / "strings.xml")
+LAYOUT = (ROOT / "android" / "app" / "src" / "main" / "res" / "layout"
+          / "activity_main.xml")
 
 CADENCE = ("Quant will be scanning the market every 30 seconds "
            "when the market is open.")
+DISPLAY_CADENCE = 1000
+
+
+class FooterContractTest(unittest.TestCase):
+    def test_strategy_footer_reflects_so13_not_the_phone_poll(self):
+        source = (ROOT / "src" / "config.py").read_text(encoding="utf-8")
+        self.assertIn('SCAN_INTERVAL_SECONDS = _number("SCAN_INTERVAL_SECONDS", 30)',
+                      source)
+        self.assertIn(CADENCE, STRINGS.read_text(encoding="utf-8"))
+        self.assertNotIn("scanning the market every second", STRINGS.read_text(
+            encoding="utf-8"))
+
+    def test_market_card_poll_is_one_second_and_separate_from_strategy_scan(self):
+        watcher = (ROOT / "android" / "app" / "src" / "main" / "java"
+                   / "pk" / "quantofrehan" / "Watcher.java").read_text(
+            encoding="utf-8")
+        main = MAIN.read_text(encoding="utf-8")
+        self.assertIn("static final long DISPLAY_REFRESH_MS = FAST_POLL_MS;",
+                      watcher)
+        self.assertIn("Market market = fetchMarket(c, base);", watcher[
+            watcher.index("static void fetchLive("):])
+        self.assertIn("? Watcher.FAST_POLL_MS : Watcher.REFRESH_MS", main)
+        self.assertIn("this is a display read, not a strategy scan", watcher.lower())
+        self.assertIn("five minutes old", watcher.lower())
+
+    def test_settings_hint_describes_feed_data_without_false_poll_cadence(self):
+        text = STRINGS.read_text(encoding="utf-8")
+        hint = text.split('name="settings_hint">', 1)[1].split("</string>", 1)[0]
+        self.assertIn("latest available broker-feed data", hint)
+        self.assertNotIn("every 30 seconds", hint)
+        self.assertNotIn("every second", hint)
+
+    def test_settings_heading_is_centered_in_its_tile(self):
+        layout = LAYOUT.read_text(encoding="utf-8")
+        heading = layout.split('android:id="@+id/settings_heading"', 1)[1].split(
+            'android:text="@string/label_settings"', 1)[0]
+        self.assertIn('android:gravity="center"', heading)
+        self.assertIn('android:layout_width="match_parent"', heading)
 
 
 class CadenceSentenceTest(unittest.TestCase):
@@ -87,22 +127,38 @@ class LeaderLineTest(unittest.TestCase):
                       self.main)
 
     def test_the_quantity_fields_print_the_feeds_own_numbers(self):
-        """Owner order 2026-10-15: exact, raw quantities, never a rescaling.
-
-        The buy and sell counts reach the line as the whole numbers the feed
-        produced, each formatted straight from its own field. What used to
-        reach this line was the tape's flow projected onto the venue's
-        session total, which is a rounded estimate rather than the feed's
-        number, so nothing here may scale, round or re-derive them.
-        """
+        """Render only exact non-negative broker share counts; never round."""
         self.assertIn('String.format(Locale.US, "%,d", row.buy)', self.main)
         self.assertIn('String.format(Locale.US, "%,d", row.sell)', self.main)
         self.assertNotIn("Math.round(row.buy", self.main)
         self.assertNotIn("Math.round(row.sell", self.main)
-        # A row that carries a split but no total keeps its two sides: the
-        # quantities are the point of the group, and the totals are optional.
+        watcher = (ROOT / "android" / "app" / "src" / "main" / "java"
+                   / "pk" / "quantofrehan" / "Watcher.java").read_text(
+            encoding="utf-8")
+        parser = watcher[watcher.index("private static Long integerOrNull("):]
+        parser = parser[:parser.index("private static String readBounded")]
+        self.assertIn("longValueExact()", parser)
+        self.assertIn("return value < 0 ? null : value;", parser)
+        self.assertNotIn("Math.round(value)", parser)
+        # Estimates are still explicitly marked, not mislabeled as raw broker
+        # counts. U+2248 rendered in a font with close bars caused the visual
+        # double-tilde; the estimated source is not a placeholder.
+        self.assertIn('String mark = estimated ? "\\u2248" : "=";', self.main)
+        self.assertIn("estimatedSplit()", self.main)
+        # A row that carries a split but no total keeps both sides.
         self.assertIn("if (row.hasVolume()) {", self.main)
         self.assertIn("sb.append(')');", self.main)
+
+    def test_the_exchange_feed_status_copy_is_distinct_from_session_hours(self):
+        strings = STRINGS.read_text(encoding="utf-8")
+        for name in ("market_feed_unknown", "market_feed_open",
+                     "market_feed_halted", "market_feed_closed"):
+            with self.subTest(resource=name):
+                self.assertIn(f'name="{name}"', strings)
+        self.assertIn("session clock remains the market-hours authority", strings)
+        self.assertIn("REG feed HALTED", strings)
+        self.assertIn('android:id="@+id/market_feed_status"',
+                      LAYOUT.read_text(encoding="utf-8"))
 
     def test_every_arrow_keeps_a_single_space(self):
         self.assertIn('"KSE100  %,.2f %s %,.2f (%.2f%%)"', self.main)

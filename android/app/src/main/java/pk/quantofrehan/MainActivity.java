@@ -19,12 +19,9 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
 import java.util.Locale;
-import java.util.TimeZone;
 
 /**
  * Quant of Rehan owner console. One glance: is the system online, is there a
@@ -198,19 +195,6 @@ public class MainActivity extends Activity {
      */
     private static final float BREATH_MIN_SCALE = 0.88f;
 
-    /**
-     * How many live rounds pass before the market card is asked for again
-     * (owner order 2026-10-16).
-     *
-     * Thirty live rounds is thirty seconds at the live cadence, which is the
-     * relay's own card cadence (Watcher.REFRESH_MS) and roughly ten times
-     * fresher than the five minutes the card itself is rebuilt on. Asking for
-     * the card on every one second tick would spend a request a second on a
-     * payload that cannot have changed, so the one second poll carries the
-     * pair that does move (status and signals) and the card rides along here.
-     */
-    private static final int CARD_EVERY_SECONDS = 30;
-
     private SharedPreferences prefs;
     /** The state badge: the beacon and the word, one pill. */
     private LinearLayout statusBadge;
@@ -219,7 +203,9 @@ public class MainActivity extends Activity {
     /** The word that, with the colour, carries the state. */
     private TextView statusWord;
     private TextView statusDetail, signalList;
-    private TextView marketIndex, marketLeaders;
+    private TextView marketIndex, marketFeedStatus, marketLeaders;
+    /** Full relay text retained off-screen; the card renders only execution fields. */
+    private String latestSignalBackground = "";
     /** Turned and tinted by setSettingsOpen, so it is the ImageView itself. */
     private ImageView btnSettings;
     private View settingsPanel;
@@ -265,16 +251,6 @@ public class MainActivity extends Activity {
      */
     private boolean marketOpenSeen;
     /**
-     * Live rounds since the market card was last asked for.
-     *
-     * The card is rebuilt by the relay from the exchange page about every
-     * five minutes, so asking for it once a second would spend a request per
-     * second on a payload that cannot have changed. Live rounds are health
-     * and signals (small reads of the relay's own store); the card rides
-     * along every CARD_EVERY_SECONDS of them.
-     */
-    private int ticksSinceCard;
-    /**
      * True while the beacon is breathing, owned by the chain's own halves.
      * Only the state gate reads it, to skip a restart on an already-live
      * chain (owner order 2026-10-15, fourth note): before that the guard sat
@@ -294,6 +270,7 @@ public class MainActivity extends Activity {
         statusDetail = findViewById(R.id.status_detail);
         signalList = findViewById(R.id.signal_list);
         marketIndex = findViewById(R.id.market_index);
+        marketFeedStatus = findViewById(R.id.market_feed_status);
         marketLeaders = findViewById(R.id.market_leaders);
         settingsPanel = findViewById(R.id.settings_panel);
         btnSettings = findViewById(R.id.btn_settings);
@@ -628,33 +605,21 @@ public class MainActivity extends Activity {
     }
 
     /**
-     * One poll round, never two at once (owner order 2026-10-16).
+     * Refresh the relay's latest market card once per foreground tick.
      *
-     * Live rounds (health and signals) are asked for on every tick; the market
-     * card rides along once every CARD_EVERY_SECONDS ticks, because the relay
-     * rebuilds it from the exchange page about that often. The in-flight flag
-     * is set by the round and cleared in its callback, which every path of a
-     * round calls, so a failed round releases the loop rather than freezing
-     * it, and a slow round simply skips a tick instead of queuing one.
+     * The relay reads its latest published broker snapshot; this request
+     * cadence does not make the upstream broker publish faster. A single
+     * in-flight guard skips rather than queues work when the network is slow.
      */
     private void pollOnce() {
-        if (liveInFlight) {
-            return;                     // the last round has not answered yet
-        }
-        ticksSinceCard++;
-        if (ticksSinceCard >= CARD_EVERY_SECONDS) {
-            ticksSinceCard = 0;
-            refresh();                  // full round: status, signals and card
-        } else {
-            refreshLive();              // light round: status and signals only
+        if (!liveInFlight) {
+            refreshLive();
         }
     }
 
     /**
-     * The full round: everything the relay can answer, card included.
-     *
-     * Used on resume, after the token is saved, and once every
-     * CARD_EVERY_SECONDS live rounds.
+     * A full display refresh, including the market card.
+     * Used on resume and after the token is saved.
      */
     private void refresh() {
         liveInFlight = true;
@@ -675,13 +640,11 @@ public class MainActivity extends Activity {
     }
 
     /**
-     * The light round: health and signals, no market card.
+     * The one-second foreground round: health, signals and latest card.
      *
-     * This is what the one second poll asks for. It is the pair that actually
-     * moves between scans, and it is cheap on both ends: two small reads of
-     * the relay's own store, against a card the relay can only rebuild every
-     * few minutes. The card already on screen is left exactly as it is (see
-     * render), so a fast poll never blanks it.
+     * The card route is read from the relay's latest pushed broker snapshot.
+     * It may be unchanged between upstream publications, which the UI labels
+     * with the source timestamp rather than presenting the poll as a new tick.
      */
     private void refreshLive() {
         liveInFlight = true;
@@ -735,24 +698,19 @@ public class MainActivity extends Activity {
         if (d.isEmpty()) {
             statusDetail.setText(getString(R.string.checking));
         } else {
-            // Owner order 2026-10-16 (fourth note): while the relay reports a
-            // live session the tile also carries the app's own contact line,
-            // because a one second poll that changes nothing on screen is
-            // indistinguishable from a poll that is not running. It is the
-            // phone's record of its own last answer, shown beside Karachi's
-            // clock and never instead of it: the session still comes from the
-            // relay alone (SO-8), and the line disappears with the market.
-            statusDetail.setText(clockSpans(online
-                    ? d + "\n" + liveLine() : d));
+            // Keep the relay's own session detail only; a local UI refresh
+            // timestamp is not evidence of broker-data freshness.
+            statusDetail.setText(clockSpans(d));
         }
 
         String s = signals == null ? "" : signals.trim();
+        latestSignalBackground = s;
         if (s.isEmpty()) {
             signalList.setText(getString(R.string.no_signals));
             signalList.setTextColor(getColor(R.color.text_soft));
             signalList.setAlpha(0.65f);
         } else {
-            signalList.setText(s);
+            signalList.setText(latestSignalDisplay(s));
             signalList.setTextColor(getColor(R.color.text_bright));
             signalList.setAlpha(1.0f);
         }
@@ -762,8 +720,8 @@ public class MainActivity extends Activity {
         // open, it repeats what the relay said.
         marketOpenSeen = online;
         if (market != null) {
-            // A light round carries no card, so the card on screen stays as
-            // it was rather than being redrawn (or blanked) every second.
+            // Every live display round carries the current relay snapshot;
+            // its source timestamp keeps unchanged feed data honest.
             renderMarket(market);
         }
         // Owner order 2026-10-16 (fourth note): the cadence is re-decided as
@@ -779,18 +737,90 @@ public class MainActivity extends Activity {
     }
 
     /**
-     * The app's own last-contact line, in Karachi time.
-     *
-     * The seconds come from the poll's own interval constant rather than a
-     * literal, so the sentence and the loop can never disagree, and the clock
-     * is formatted in Asia/Karachi (SO-8) instead of the phone's zone: a
-     * reader in another timezone sees the same wall clock the relay does.
+     * Parse a relay signal into the four requested visible execution fields.
+     * Scoring and momentum remain in latestSignalBackground for diagnostics,
+     * but are deliberately not rendered in this compact card. A signal's
+     * explicit Target value is shown as the planned Exit Price; a missing stop
+     * remains unreported rather than being inferred.
      */
-    private String liveLine() {
-        SimpleDateFormat f = new SimpleDateFormat("HH:mm:ss", Locale.US);
-        f.setTimeZone(TimeZone.getTimeZone("Asia/Karachi"));
-        return getString(R.string.app_live,
-                f.format(new Date()), Watcher.FAST_POLL_MS / 1000);
+    private String latestSignalDisplay(String raw) {
+        String entryTime = null;
+        String entryPrice = null;
+        String exitPrice = null;
+        String stopLoss = null;
+        for (String line : raw.split("\\r?\\n")) {
+            String value;
+            if ((value = valueAfterLabel(line, "Entry time:")) != null) {
+                entryTime = value;
+            } else if ((value = valueAfterLabel(line, "Entry price:")) != null) {
+                entryPrice = value;
+            } else if ((value = valueAfterLabel(line, "Entry:")) != null) {
+                entryPrice = value;
+            } else if ((value = valueAfterLabel(line, "Exit price:")) != null) {
+                exitPrice = value;
+            } else if ((value = valueAfterLabel(line, "Exit reference:")) != null) {
+                exitPrice = value;
+            } else if ((value = valueAfterLabel(line, "Target:")) != null) {
+                // Keep only numeric targets: the signal's trailing summary
+                // also starts with Target but contains no executable price.
+                String numericTarget = leadingPriceOrNull(value);
+                if (numericTarget != null) {
+                    exitPrice = numericTarget;
+                }
+            } else if ((value = valueAfterLabel(line, "Exit:")) != null) {
+                exitPrice = value;
+            } else if ((value = valueAfterLabel(line, "Stop Loss:")) != null) {
+                stopLoss = value;
+            } else if ((value = valueAfterLabel(line, "SL:")) != null) {
+                stopLoss = value;
+            }
+        }
+
+        if (entryTime == null && entryPrice == null
+                && exitPrice == null && stopLoss == null) {
+            // Preserve non-signal states such as NO TRADE and SCAN BLOCKED.
+            return raw;
+        }
+        // Keep the receiver's raw fields for diagnostics; only normalize the
+        // visible labels and unknown-value placeholders here.
+        return "Entry Time: " + knownOrReported(entryTime)
+                + "\nEntry Price: " + knownOrReported(entryPrice)
+                + "\nExit Price: " + knownOrReported(exitPrice)
+                + "\nStop Loss: " + knownOrReported(stopLoss);
+    }
+
+    /** Return an unchanged positive numeric price, or null for summary text. */
+    private static String leadingPriceOrNull(String value) {
+        if (value == null) return null;
+        String[] parts = value.trim().split("\\s+", 2);
+        if (parts.length == 0) return null;
+        try {
+            double price = Double.parseDouble(parts[0]);
+            return price > 0.0 && !Double.isNaN(price) && !Double.isInfinite(price)
+                    ? parts[0] : null;
+        } catch (NumberFormatException invalidPrice) {
+            return null;
+        }
+    }
+
+    /** Read a field only when its explicit label is present at line start. */
+    private static String valueAfterLabel(String line, String label) {
+        if (line == null || !line.regionMatches(true, 0, label, 0, label.length())) {
+            return null;
+        }
+        return knownOrNull(line.substring(label.length()));
+    }
+
+    private static String knownOrNull(String value) {
+        if (value == null) return null;
+        String trimmed = value.trim();
+        return trimmed.isEmpty() || "null".equalsIgnoreCase(trimmed)
+                || "undefined".equalsIgnoreCase(trimmed) ? null : trimmed;
+    }
+
+    private static String knownOrReported(String value) {
+        String known = knownOrNull(value);
+        return known == null ? "Not reported" : known;
     }
 
     /**
@@ -823,6 +853,7 @@ public class MainActivity extends Activity {
     private void renderMarket(Watcher.Market market) {
         if (market == null) {
             marketIndex.setText(getString(R.string.market_waiting));
+            marketFeedStatus.setText(getString(R.string.market_feed_unknown));
             marketLeaders.setText(getString(R.string.market_leaders_waiting));
             return;
         }
@@ -850,6 +881,8 @@ public class MainActivity extends Activity {
             marketIndex.setText(getString(R.string.market_waiting));
         }
 
+        renderMarketFeedStatus(market);
+
         List<Watcher.Leader> leaders = market.leaders;
         if (leaders.isEmpty()) {
             if (!market.answered) {
@@ -861,6 +894,32 @@ public class MainActivity extends Activity {
             }
         } else {
             marketLeaders.setText(leadersText(leaders));
+        }
+    }
+
+    /** Draw only a fresh market-wide REG status; a symbol's SUS flag cannot trigger this. */
+    private void renderMarketFeedStatus(Watcher.Market market) {
+        if (!market.feedStatusFresh || market.feedStatusAsOf.isEmpty()) {
+            marketFeedStatus.setText(getString(R.string.market_feed_unknown));
+            return;
+        }
+        String stamp = market.feedStatusAsOf;
+        int separator = stamp.indexOf('T');
+        if (separator >= 0) {
+            stamp = stamp.substring(separator + 1);
+        }
+        if (stamp.endsWith("+05:00")) {
+            stamp = stamp.substring(0, stamp.length() - 6);
+        }
+        if ("OPEN".equals(market.feedStatus)) {
+            marketFeedStatus.setText(getString(R.string.market_feed_open, stamp));
+        } else if ("HALTED".equals(market.feedStatus)) {
+            String word = market.feedStatusRaw.isEmpty() ? "halted" : market.feedStatusRaw;
+            marketFeedStatus.setText(getString(R.string.market_feed_halted, word, stamp));
+        } else if ("CLOSED".equals(market.feedStatus)) {
+            marketFeedStatus.setText(getString(R.string.market_feed_closed, stamp));
+        } else {
+            marketFeedStatus.setText(getString(R.string.market_feed_unknown));
         }
     }
 
