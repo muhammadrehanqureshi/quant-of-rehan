@@ -116,9 +116,13 @@
          back to whatever signal the relay last carried, so a Tuesday
          screen still showed Friday's HCAR row. A card stamped with
          another session is not today's call and is shown as none. -->
-    <string name="signal_no_call">NO CALL RIGHT NOW</string>
-    <!-- The signal tile's two non-trade states, one word each. -->
-    <string name="signal_none">NO TRADE</string>
+    <!-- Owner order 2026-10-20 (third note): the placeholder, a card from
+         another session and a NO TRADE verdict are the same sentence. The
+         tile used to read "NO TRADE" straight off the scanner's own wording,
+         which is jargon on a phone screen; one sentence now says what the
+         reader actually has. -->
+    <string name="signal_no_call">NO SIGNAL AVAILABLE RIGHT NOW</string>
+    <string name="signal_none">NO SIGNAL AVAILABLE RIGHT NOW</string>
     <string name="signal_unavailable">Signal unavailable</string>
 
 </resources>

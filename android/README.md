@@ -582,6 +582,21 @@ to sixty seconds. The status tile therefore also carries the app's own
   OFFLINE tile's gradient in green, and the background watchdog arms at one
   second instead of five minutes.
   Version 1.7.8, versionCode 32.
+- v1.7.9, owner order 2026-10-20 (third note): the console becomes a clock, not
+  a refresh. The signal tile's empty state is one sentence, "NO SIGNAL
+  AVAILABLE RIGHT NOW", on both the not-yet-read and the no-trade path, so
+  "NO TRADE" can no longer reach the screen. The KSE100 line keeps the index
+  and its move and drops the clock after the percentage; the top three carry
+  "B=" and "S=" with no EST tag, on the card and in the search answer alike.
+  The search control moves a further 15% of its own 42dp box to the right
+  (net 50.4dp) and its glass is a stroked vector instead of the tinted
+  search.png disc, so the glass is see-through and only the ring and the
+  handle are gold. The one-second round now makes two relay reads instead of
+  three (the relay already merges the live quote hub into /market), so the
+  paint actually lands every second, and the search rows' prices are read once
+  per tick instead of once per five. Notifications are limited to four events:
+  market online, market offline, market break and a real signal.
+  Version 1.7.9, versionCode 33.
 
 **Built and delivered 2026-10-19 (v1.7.7):** the signed v1.7.7 APK was built
 from this checkout with the toolchain above and copied to

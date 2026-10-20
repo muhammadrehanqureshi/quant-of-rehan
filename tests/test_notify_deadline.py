@@ -71,8 +71,10 @@ class TelegramCallDeadlineTest(unittest.TestCase):
                       "the route still claims a completed delivery")
         self.assertIn("ctx.waitUntil(sendAndRecord(env, paired, text, \"signals\", null))",
                       self.worker)
-        self.assertIn("ctx.waitUntil(sendAndRecord(env, paired, text, \"ops\", alertKey))",
-                      self.worker)
+        # Owner order 2026-10-20 (third note): the ops kind sends nothing, so
+        # only the signal send is deferred now.
+        self.assertNotIn("ctx.waitUntil(sendAndRecord(env, paired, text, \"ops\", alertKey))",
+                         self.worker)
         self.assertIn("async fetch(request, env, ctx)", self.worker)
 
     def test_the_telegram_answer_is_recorded_and_not_swallowed(self):

@@ -229,6 +229,9 @@ public class MainActivity extends Activity {
     /** True while the search menu replaces the console, the same law the
      *  settings menu follows: one menu at a time, never two. */
     private boolean searchOpen;
+    /** One price refresh is in flight at a time, on every foreground tick
+     *  while the search is open (owner order 2026-10-20, third note). */
+    private boolean pricesInFlight;
     /**
      * The session date the relay last reported, in Karachi (SO-8).
      *
@@ -670,9 +673,34 @@ public class MainActivity extends Activity {
      * in-flight guard skips rather than queues work when the network is slow.
      */
     private void pollOnce() {
+        // The search list's prices travel on their own read, once per
+        // foreground tick while the panel is open (owner order 2026-10-20,
+        // third note: the rows must move every second, like a clock, not
+        // once every five). Filtering a keystroke still costs no request;
+        // the one in-flight guard skips a tick rather than queueing work.
+        if (searchOpen) {
+            refreshPrices();
+        }
         if (!liveInFlight) {
             refreshLive();
         }
+    }
+
+    /** Refresh the compact symbol price map the search rows colour from. */
+    private void refreshPrices() {
+        if (pricesInFlight) {
+            return;
+        }
+        pricesInFlight = true;
+        Watcher.fetchPrices(this, () -> runOnUiThread(() -> {
+            pricesInFlight = false;
+            if (isFinishing() || isDestroyed()) {
+                return;
+            }
+            if (searchOpen && searchInput != null) {
+                renderSearchResults(searchInput.getText().toString());
+            }
+        }));
     }
 
     /**
@@ -929,6 +957,7 @@ public class MainActivity extends Activity {
         btnSearch.setImageTintList(ColorStateList.valueOf(getColor(
                 open ? R.color.gold_bright : R.color.gold)));
         if (open) {
+            refreshPrices();
             searchInput.setText("");
             searchInput.requestFocus();
             renderSearchResults("");
@@ -959,7 +988,28 @@ public class MainActivity extends Activity {
                 continue;
             }
             TextView row = new TextView(this);
-            row.setText(symbol);
+            // Owner order 2026-10-20 (second note): every result carries the
+            // stock's own price and percentage, both in the colour of its move,
+            // so the list answers "which one" before a tap does. A symbol with
+            // no fresh quote is listed bare rather than with a guessed number.
+            Watcher.Quote quote = Watcher.quote(symbol);
+            if (quote != null) {
+                // A move the relay did not report prints no percentage and
+                // takes no colour: only a real sign may turn a row green or
+                // red (SO-3). A price without a move is neutral ink.
+                String tail = quote.changePct == null
+                        ? String.format(Locale.US, "   PKR %,.2f", quote.price)
+                        : String.format(Locale.US, "   PKR %,.2f  %+.2f%%",
+                                quote.price, quote.changePct);
+                SpannableString styled = new SpannableString(symbol + tail);
+                styled.setSpan(new ForegroundColorSpan(getColor(quote.changePct == null
+                                ? R.color.text_soft
+                                : quote.changePct >= 0 ? R.color.green_hi : R.color.red)),
+                        symbol.length(), styled.length(), 0);
+                row.setText(styled);
+            } else {
+                row.setText(symbol);
+            }
             row.setTextSize(15f);
             row.setTextColor(getColor(R.color.text_bright));
             row.setLetterSpacing(0.12f);
@@ -1045,18 +1095,15 @@ public class MainActivity extends Activity {
             // hasIndex() guarantees all three are non-null, so the unboxing
             // below cannot throw. A half-reported index renders as waiting
             // instead of as a zero.
-            // Owner order 2026-10-19: the KSE100 line is the live broker
-            // read, and the broker's own timestamp sits on it. The timestamp
-            // is what makes a moving number checkable, and it replaces the
-            // old "feed status unconfirmed" sentence rather than hiding it:
-            // a quote always says when it was taken.
-            String stamp = brokerClock(market.indexAsOf);
-            String line = String.format(Locale.US, "KSE100  %,.2f %s %,.2f (%.2f%%)%s",
+            // Owner order 2026-10-20 (second note): the clock that used to sit
+            // after the percentage is gone. The line is the index and its
+            // move; when a reader needs the stamp, the relay's own health and
+            // the status line still carry it.
+            String line = String.format(Locale.US, "KSE100  %,.2f %s %,.2f (%.2f%%)",
                     market.indexValue,
                     market.indexChange >= 0 ? "\u25B2" : "\u25BC",
                     Math.abs(market.indexChange),
-                    Math.abs(market.indexPct),
-                    stamp.isEmpty() ? "" : "  \u00B7 " + stamp);
+                    Math.abs(market.indexPct));
             SpannableString sp = new SpannableString(line);
             int color = getColor(market.indexChange >= 0
                     ? R.color.green : R.color.red);
@@ -1086,32 +1133,6 @@ public class MainActivity extends Activity {
     }
 
     /**
-     * The broker's own timestamp as HH:MM:SS, or "" when it did not send one.
-     *
-     * The relay stamps the index with the broker's ISO time in Karachi offset
-     * (2026-10-19T12:09:31+05:00). Only the clock is shown on the line: the
-     * date is the session's, and a date on every refresh is noise. A missing
-     * stamp prints nothing rather than a guess (SO-3).
-     */
-    private static String brokerClock(String asOf) {
-        if (asOf == null || asOf.isEmpty()) {
-            return "";
-        }
-        // Owner order 2026-10-20: a stamp with no time on it is a DATE, and
-        // slicing eight characters out of one printed "2026-10-" on the
-        // KSE100 tile. A date is not a clock, so the line carries nothing.
-        int separator = asOf.indexOf('T');
-        if (separator < 0) {
-            return "";
-        }
-        String clock = asOf.substring(separator + 1);
-        if (clock.endsWith("+05:00")) {
-            clock = clock.substring(0, clock.length() - 6);
-        }
-        return clock.length() >= 8 ? clock.substring(0, 8) : "";
-    }
-
-    /**
      * Every leader is two lines (owner order 2026-10-12):
      *   "1. ABC (B=12,345  S=9,876  T=22,221)"
      *   "PKR 12.52 \u25B2 1.05%"
@@ -1137,21 +1158,13 @@ public class MainActivity extends Activity {
      * green, selling is red, the total stays neutral, so the two sides read
      * apart before the digits do.
      *
-     * What the numbers MEAN is marked on the number itself, with the "is
-     * approximately" sign: B= and S= are the session's own trade tape's
-     * counts, B≈ and S≈ are the relay's estimate from the day's range,
-     * which is not order flow (SO-3). The distinction used to live in
-     * the card's footnote, which carried the scan cadence sentence from
-     * 2026-10-12 until that sentence moved below the final rule on 2026-10-13.
-     * The mark lives on the number instead, which is where it is read.
-     *
-     * Owner order 2026-10-15: the buy and sell quantities are the exact, raw
-     * numbers the feed produced, and they carry the "=" a measured count
-     * deserves whether the tape covered the whole day or the part of it it
-     * saw. The approximation sign is drawn by the system face (see
-     * ARROW_FACE): LEMON MILK's own U+2248 collapses into a tilde at this
-     * size, which is what the quantity fields were showing. The operator is
-     * the same character in both marks; only the face changes.
+     * Owner order 2026-10-20 (third note): the quantities carry the plain
+     * "=" and nothing follows the closing bracket. The EST tag and the
+     * approximation mark that preceded it are both retired from the phone,
+     * because the owner read them as part of the quantity. The relay still
+     * labels how each pair was produced in its own split_source, so the
+     * weaker number is never passed off as order flow where the data lives
+     * (SO-3); the card shows the digits the feed produced.
      *
      * Every field is a boxed Number, so a null means the relay did not report
      * it and the field is skipped rather than printed as a zero. A row that
@@ -1169,19 +1182,12 @@ public class MainActivity extends Activity {
             }
             sb.append(String.format(Locale.US, "%d. %s", i + 1, row.symbol));
             if (row.hasSplit()) {
-                // "=" for the tape's own counted feeds, U+2248 for the
-                // day's-range estimate (drawn by ARROW_FACE, never by the
-                // brand face: see the class comment on that constant).
-                boolean estimated = row.estimatedSplit();
-                // Owner order 2026-10-20: the two approximation signs are
-                // gone from the numbers. In the shipped face U+2248 collapses
-                // into a tilde pair, which read as "~~" in front of B and S.
-                // The numbers keep the plain "=" and one EST tag closes the
-                // group when the split came from the day's range rather than
-                // from order flow, so the honesty stays and the clutter does
-                // not (SO-3).
+                // Owner order 2026-10-20 (second note): both sides carry the
+                // plain "=", and the EST tag after the total is gone. The
+                // numbers are the numbers; the split's method is stated in
+                // the relay's own source line, not as a suffix on the tile.
                 // "(" opens at B and ")" closes after T: one bracketed group.
-                sb.append(" (B");
+                sb.append(" (B=");
                 int buyFrom = sb.length();
                 sb.append(String.format(Locale.US, "%,d", row.buy));
                 spans.add(new int[]{buyFrom, sb.length(), R.color.green});
@@ -1194,9 +1200,6 @@ public class MainActivity extends Activity {
                 } else {
                     // The quantities stand without the exchange's total.
                     sb.append(')');
-                }
-                if (estimated) {
-                    sb.append("  EST");
                 }
             } else if (row.hasVolume()) {
                 sb.append(String.format(Locale.US, " (T=%,d)", row.volume));
@@ -1230,8 +1233,8 @@ public class MainActivity extends Activity {
         }
         // The glyph ranges last, and only the glyphs: the system face draws
         // the two arrow characters, and the brand face keeps everything
-        // around them. Since 2026-10-20 no quantity carries a sign of its
-        // own: one EST tag marks an estimated group instead.
+        // around them. Since 2026-10-20 the quantities carry no mark of their
+        // own, and no tag follows the group.
         for (int[] range : glyphs) {
             sp.setSpan(new TypefaceSpan(ARROW_FACE), range[0], range[1], 0);
         }
