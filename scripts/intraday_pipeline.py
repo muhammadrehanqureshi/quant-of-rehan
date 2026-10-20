@@ -293,7 +293,12 @@ def card_text(day, slot: str, body: str, alert: bool) -> str:
     before it overwrites an intraday card (src/signals/signal_push.py)."""
     header = (f"INTRADAY ALERT {day.isoformat()}" if alert
               else f"QoR intraday {day.isoformat()}")
-    return f"{header} \u00b7 {slot} PKT\n{body}"
+    # ASCII only (owner report 2026-10-20). The separator used to be U+00B7 and
+    # reached the relay as the two characters "Â·": UTF-8 that had already been
+    # decoded as latin-1 somewhere between this f-string and the card store.
+    # The header is not worth a charset argument, so it carries no non-ASCII at
+    # all and the transport's decoding can no longer change what a reader sees.
+    return f"{header} | {slot} PKT\n{body}"
 
 
 def scheduled_as_of(slot: str, day=None) -> datetime:
