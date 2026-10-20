@@ -491,6 +491,61 @@ def check_karachi_pin(errors: list) -> None:
                 )
 
 
+def check_no_kv_quota(errors: list) -> None:
+    """Owner order 2026-10-20: no product that mails a quota warning.
+
+    The free KV allowance emailed the owner twice ("daily limit reached 50%"
+    on 2026-10-19, then "daily limit reached" on 2026-10-20), and once that
+    namespace was deleted the binding to it failed every relay deploy, so the
+    edge served a stale build for a day. The relay keeps the card, the market
+    snapshot, the session state, the pairing codes and the research log in the
+    QuoteHub Durable Object instead. A KV namespace coming back through a
+    config, a deploy path or a call site is the defect this check catches.
+    """
+    for config in ROOT.glob("**/wrangler.toml"):
+        rel = config.relative_to(ROOT).as_posix()
+        if "legacy" in config.parts or "node_modules" in config.parts:
+            continue
+        text = config.read_text(encoding="utf-8", errors="replace")
+        if "[[kv_namespaces]]" in text or "kv_namespace" in text:
+            errors.append(
+                f"[KV quota] {rel}: declares a KV namespace. The free KV "
+                f"allowance is what emailed the owner, and a binding to a "
+                f"deleted namespace fails the whole deploy. Use the QuoteHub "
+                f"Durable Object in cloud/worker.js."
+            )
+
+    worker = ROOT / "cloud" / "worker.js"
+    if worker.is_file():
+        text = worker.read_text(encoding="utf-8", errors="replace")
+        for call in (".get(", ".put(", ".delete(", ".list("):
+            needle = "env.RELAY_KV" + call
+            if needle in text:
+                errors.append(
+                    f"[KV quota] cloud/worker.js: reaches into KV with "
+                    f"`{needle}`. Relay state belongs in the QuoteHub object, "
+                    f"through relayRead/relayWrite/relayDelete/relayList."
+                )
+
+    pair = ROOT / "cloud" / "pair.py"
+    if pair.is_file():
+        text = pair.read_text(encoding="utf-8", errors="replace")
+        if '"kv_namespace"' in text:
+            errors.append(
+                "[KV quota] cloud/pair.py: uploads a KV binding; a manual "
+                "deploy must ship the same bindings as cloud/wrangler.toml."
+            )
+
+    deploy = ROOT / ".github" / "workflows" / "deploy-relay.yml"
+    if deploy.is_file():
+        text = deploy.read_text(encoding="utf-8", errors="replace")
+        if "RELAY_KV_ID" in text:
+            errors.append(
+                "[KV quota] deploy-relay.yml: still requires RELAY_KV_ID. The "
+                "deploy must not depend on a namespace that no longer exists."
+            )
+
+
 def main() -> int:
     errors: list = []
     check_secrets(errors)
@@ -502,6 +557,7 @@ def main() -> int:
     check_backtests_in_cloud(errors)
     check_cloud_only(errors)
     check_tape_before_scanner(errors)
+    check_no_kv_quota(errors)
 
     if errors:
         print("GOVERNANCE CHECK FAILED, PR must not merge:\n")
@@ -514,7 +570,7 @@ def main() -> int:
           "standing orders present, SO-7 style and identity verified, "
           "SO-7a co-author line verified, SO-8 Karachi pin verified, "
           "SO-21 backtests cloud-only enforced, SO-12 cloud-only recurring "
-          "work enforced, SO-20 tape before scanner.")
+          "work enforced, SO-20 tape before scanner, KV quota removed.")
     return 0
 
 
