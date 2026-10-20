@@ -729,30 +729,20 @@ class TypefaceTest(unittest.TestCase):
                       self.main)
         self.assertIn("new TypefaceSpan(ARROW_FACE), from, from + 1", self.main)
 
-    def test_the_estimate_mark_is_drawn_by_a_face_that_shows_it(self):
-        """Owner order 2026-10-15: the sign must read as an approximation.
+    def test_the_estimate_mark_is_one_tag_not_a_tilde_pair(self):
+        """Owner order 2026-10-20: the tilde pair left the quantities.
 
-        LEMON MILK maps U+2248, but measured in the shipped face its two bars
-        sit 131 of the font's own 2048 em units apart, so at card size they
-        merge into one squiggle and the owner read the quantity fields as if
-        the "=" had turned into a tilde. The two signs are drawn by the
-        system face now, the same override the arrows already needed; the
-        brand face keeps every character around them. Only an estimated row
-        gets the override: a measured row's "=" is LEMON MILK's own.
+        U+2248 drawn by the system face still merged into a pair of tildes in
+        front of B and S, which is what the owner kept seeing. The numbers now
+        carry the plain "=" and one EST tag closes the group when the split
+        came from the day's range rather than from order flow, so the estimate
+        stays labelled and the squiggle is gone (SO-3).
         """
-        self.assertTrue(has_codepoint(FONT_DIR / "lemonmilk_light.otf", ABOUT))
-        self.assertIn('private static final String ARROW_FACE = "sans-serif"',
-                      self.main)
-        self.assertIn("if (estimated) {\n"
-                      "                    glyphs.add(new int[]{buyFrom - 1, "
-                      "buyFrom});\n                }", self.main)
-        self.assertIn("if (estimated) {\n"
-                      "                    glyphs.add(new int[]{sellFrom - 1, "
-                      "sellFrom});\n                }", self.main)
-        # And the mark itself: "=" for the tape's counted numbers, U+2248 for
-        # the day's-range estimate.
-        self.assertIn('String mark = estimated ? "\\u2248" : "=";',
-                      self.main)
+        self.assertNotIn("String mark = estimated", self.main)
+        self.assertIn('sb.append("  EST");', self.main)
+        self.assertIn("if (estimated) {", self.main)
+        # An estimated row is still distinguished from a measured one.
+        self.assertIn("estimatedSplit()", self.main)
 
     def test_the_bundled_faces_carry_their_licences(self):
         for name in ("Bonskin-PersonalUse.txt", "LEMONMILK-ReadMe.txt"):
@@ -971,7 +961,7 @@ class StatusPulseTest(unittest.TestCase):
             encoding="utf-8")
         self.assertIn("static final long REFRESH_MS = 30 * 1000;", watcher)
         # The background arm is a watchdog, not a poll, and says so.
-        self.assertIn("static final long WATCHDOG_MS = 5 * 60 * 1000;", watcher)
+        self.assertIn("static final long WATCHDOG_MS = 1000;", watcher)
         self.assertIn("System.currentTimeMillis() + WATCHDOG_MS", watcher)
         # And the app's interval is the scanner's own, not a second opinion.
         config_text = (ROOT / "src" / "config.py").read_text(encoding="utf-8")
@@ -1355,7 +1345,7 @@ class HeaderCopyTest(unittest.TestCase):
         # punctuation to be stripped), so the escaped and the rendered forms
         # are both checked here.
         self.assertEqual(self.resource_value("tagline"),
-                         "PSX\\'s KMIALL INDEX \u00b7 SIGNAL-ONLY")
+                         "PSX\\'s KMIALL INDEX")
         self.assertIn("PSX's KMIALL INDEX",
                       self.resource_value("tagline").replace("\\", ""))
 

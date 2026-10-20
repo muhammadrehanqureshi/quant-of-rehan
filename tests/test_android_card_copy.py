@@ -149,7 +149,7 @@ class LeaderLineTest(unittest.TestCase):
         # Estimates are still explicitly marked, not mislabeled as raw broker
         # counts. U+2248 rendered in a font with close bars caused the visual
         # double-tilde; the estimated source is not a placeholder.
-        self.assertIn('String mark = estimated ? "\\u2248" : "=";', self.main)
+        self.assertIn('sb.append("  EST");', self.main)
         self.assertIn("estimatedSplit()", self.main)
         # A row that carries a split but no total keeps both sides.
         self.assertIn("if (row.hasVolume()) {", self.main)

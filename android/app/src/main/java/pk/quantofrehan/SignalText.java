@@ -35,6 +35,9 @@ final class SignalText {
     private static final Pattern ENTERED =
             Pattern.compile("([A-Z0-9]{2,12})\\s+entered\\s+at\\s+(-?[0-9]+(?:\\.[0-9]+)?)",
                     Pattern.CASE_INSENSITIVE);
+    /** The session date the card header carries (owner order 2026-10-20). */
+    private static final Pattern CARD_DATE =
+            Pattern.compile("QoR intraday (\\d{4}-\\d{2}-\\d{2})");
     private static final Pattern TARGET =
             Pattern.compile("\\btarget\\s+(-?[0-9]+(?:\\.[0-9]+)?)",
                     Pattern.CASE_INSENSITIVE);
@@ -43,6 +46,19 @@ final class SignalText {
                     + "(-?[0-9]+(?:\\.[0-9]+)?)", Pattern.CASE_INSENSITIVE);
 
     private SignalText() {
+    }
+
+    /**
+     * The session the card was written for, "yyyy-MM-dd", or "" when the text
+     * carries no header. A tile that cannot name today must never pass another
+     * day's call off as today's (owner order 2026-10-20).
+     */
+    static String cardDate(String raw) {
+        if (raw == null) {
+            return "";
+        }
+        Matcher m = CARD_DATE.matcher(raw);
+        return m.find() ? m.group(1) : "";
     }
 
     /** The three prices when a trade exists, else one state word. */

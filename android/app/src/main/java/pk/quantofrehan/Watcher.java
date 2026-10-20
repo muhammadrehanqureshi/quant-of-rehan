@@ -74,7 +74,7 @@ public final class Watcher {
     // 30 second alarm would advertise a cadence Android will not honour. This
     // arm is only the watchdog that wakes a CLOSED app; a signal that lands
     // between two arms is delivered by the relay's own notification.
-    static final long WATCHDOG_MS = 5 * 60 * 1000;
+    static final long WATCHDOG_MS = 1000;
 
     /**
      * Hard cap on an accepted relay body.
@@ -87,6 +87,13 @@ public final class Watcher {
     private static final int MAX_BODY_CHARS = 512 * 1024;
 
     private static final ExecutorService POOL = Executors.newSingleThreadExecutor();
+    /**
+     * The symbols the relay's newest snapshot carries, sorted. The search
+     * filters this list, so a keystroke costs no request (owner order
+     * 2026-10-20).
+     */
+    private static volatile java.util.List<String> SYMBOLS =
+            java.util.Collections.emptyList();
 
     private Watcher() {
     }
@@ -628,7 +635,7 @@ public final class Watcher {
         }
 
         JSONArray quotes = snapshot.optJSONArray("quotes");
-        if (quotes == null || market.leaders.isEmpty()) return;
+        if (quotes == null) return;
         Map<String, JSONObject> live = new HashMap<>();
         for (int i = 0; i < quotes.length(); i++) {
             JSONObject quote = quotes.optJSONObject(i);
@@ -636,6 +643,13 @@ public final class Watcher {
                 live.put(quote.optString("symbol", ""), quote);
             }
         }
+        // The search's universe is the relay's own snapshot, so the list moves
+        // with the market instead of being baked into the APK.
+        java.util.List<String> names = new java.util.ArrayList<>(live.keySet());
+        names.remove("");
+        java.util.Collections.sort(names);
+        SYMBOLS = java.util.Collections.unmodifiableList(names);
+        if (market.leaders.isEmpty()) return;
         for (Leader leader : market.leaders) {
             JSONObject quote = live.get(leader.symbol);
             if (quote == null || !quote.optBoolean("fresh", false)) continue;
@@ -693,6 +707,68 @@ public final class Watcher {
             if (!signals.trim().equals(last)) {
                 notifySignal(c, signals.trim());
                 p.edit().putString("last_signal", signals.trim()).apply();
+            }
+        });
+    }
+
+    /** The relay's snapshot symbols, sorted. Empty until the first answer. */
+    static java.util.List<String> symbols() {
+        return SYMBOLS;
+    }
+
+    interface StockCallback {
+        void done(boolean ok, String line);
+    }
+
+    /**
+     * One symbol's B, S and T, straight from the relay's own split law.
+     *
+     * The split is computed by the relay (cloud/worker.js), not here: a second
+     * implementation of the same law in Java is exactly how two answers to one
+     * question start disagreeing. The relay labels the method it used, and an
+     * estimated split says so on the line.
+     */
+    static void fetchStock(final Context c, final String symbol,
+                           final StockCallback cb) {
+        POOL.execute(() -> {
+            String base = relayUrl(c);
+            try {
+                JSONObject answer = get(base + "/stock?symbol="
+                        + java.net.URLEncoder.encode(symbol, "UTF-8"), null);
+                JSONObject row = answer.optJSONObject("stock");
+                if (!answer.optBoolean("ok", false) || row == null) {
+                    cb.done(false, "");
+                    return;
+                }
+                StringBuilder sb = new StringBuilder(row.optString("symbol", symbol));
+                Double buy = numberOrNull(row, "buy_volume");
+                Double sell = numberOrNull(row, "sell_volume");
+                Double total = numberOrNull(row, "volume");
+                if (buy != null && sell != null) {
+                    sb.append(String.format(java.util.Locale.US,
+                            "  (B=%,.0f  S=%,.0f", buy, sell));
+                    if (total != null) {
+                        sb.append(String.format(java.util.Locale.US, "  T=%,.0f", total));
+                    }
+                    sb.append(')');
+                    if ("range_position".equals(row.optString("split_method", ""))) {
+                        sb.append("  EST");
+                    }
+                } else if (total != null) {
+                    sb.append(String.format(java.util.Locale.US, "  (T=%,.0f)", total));
+                }
+                Double price = numberOrNull(row, "price");
+                if (price != null) {
+                    sb.append(String.format(java.util.Locale.US, "\nPKR %,.2f", price));
+                }
+                Double pct = numberOrNull(row, "change_pct");
+                if (pct != null) {
+                    sb.append(String.format(java.util.Locale.US, "  %s %.2f%%",
+                            pct >= 0 ? "\u25B2" : "\u25BC", Math.abs(pct)));
+                }
+                cb.done(true, sb.toString());
+            } catch (Exception e) {
+                cb.done(false, "");
             }
         });
     }

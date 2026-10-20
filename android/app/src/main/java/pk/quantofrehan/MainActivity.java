@@ -7,12 +7,15 @@ import android.content.res.ColorStateList;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Bundle;
+import android.text.Editable;
 import android.text.SpannableString;
+import android.text.TextWatcher;
 import android.text.style.ForegroundColorSpan;
 import android.text.style.TypefaceSpan;
 import android.view.View;
 import android.view.animation.AccelerateDecelerateInterpolator;
 import android.view.animation.DecelerateInterpolator;
+import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -217,6 +220,15 @@ public class MainActivity extends Activity {
     /** Turned and tinted by setSettingsOpen, so it is the ImageView itself. */
     private ImageView btnSettings;
     private View settingsPanel;
+    /** The search control beside the gear (owner order 2026-10-20). */
+    private ImageView btnSearch;
+    private View searchPanel;
+    private EditText searchInput;
+    private LinearLayout searchResults;
+    private TextView searchStatus;
+    /** True while the search menu replaces the console, the same law the
+     *  settings menu follows: one menu at a time, never two. */
+    private boolean searchOpen;
     /**
      * The console's own views, hidden together while the settings menu is
      * open: the three tiles, the three rules between them and the cadence
@@ -295,6 +307,22 @@ public class MainActivity extends Activity {
         marketLeaders = findViewById(R.id.market_leaders);
         settingsPanel = findViewById(R.id.settings_panel);
         btnSettings = findViewById(R.id.btn_settings);
+        btnSearch = findViewById(R.id.btn_search);
+        searchPanel = findViewById(R.id.search_panel);
+        searchInput = findViewById(R.id.search_input);
+        searchResults = findViewById(R.id.search_results);
+        searchStatus = findViewById(R.id.search_status);
+        btnSearch.setOnClickListener(v -> setSearchOpen(!searchOpen));
+        // Instant search (owner order 2026-10-20): every keystroke filters
+        // the symbol list the relay's own snapshot carries, so the list is
+        // local and a letter costs no request.
+        searchInput.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence t, int a, int b, int c) { }
+            @Override public void onTextChanged(CharSequence t, int a, int b, int c) { }
+            @Override public void afterTextChanged(Editable e) {
+                renderSearchResults(e == null ? "" : e.toString());
+            }
+        });
 
         // Owner order 2026-10-16: the console's tiles, the rules between them
         // and the cadence sentence, gathered ONCE so the exclusive-settings
@@ -415,6 +443,9 @@ public class MainActivity extends Activity {
      * instead of stopping dead.
      */
     private void setSettingsOpen(boolean open) {
+        if (open && searchOpen) {
+            setSearchOpen(false);   // one menu at a time
+        }
         if (open == settingsOpen) {
             return;                     // already there: no animation, no reflow
         }
@@ -720,7 +751,7 @@ public class MainActivity extends Activity {
         // 10:1, far past the 4.5:1 that body text needs, and the word and the
         // beacon still carry the state without relying on colour alone.
         statusWord.setTextColor(getColor(online
-                ? R.color.green : R.color.on_red));
+                ? R.color.on_green : R.color.on_red));
         // Material accessibility: the badge is a live state indicator, so it
         // announces itself and carries a spoken description, and its two
         // children are decoration for the reader: the word alone would be
@@ -745,7 +776,7 @@ public class MainActivity extends Activity {
         }
 
         if (actualSignals.isEmpty()) {
-            signalList.setText(getString(R.string.no_signals));
+            signalList.setText(getString(R.string.signal_no_call));
             signalList.setTextColor(getColor(R.color.text_soft));
             signalList.setAlpha(0.65f);
         } else {
@@ -776,8 +807,13 @@ public class MainActivity extends Activity {
         GradientDrawable bg = new GradientDrawable();
         bg.setCornerRadius(dp(18));
         if (online) {
-            bg.setColor(getColor(R.color.green_soft));
-            bg.setStroke(dp(1), getColor(R.color.green));
+            // Owner order 2026-10-20: ONLINE is the OFFLINE tile's own
+            // gradient in the brand green, top to bottom, closed by a
+            // hairline, so the two states differ by hue and nothing else.
+            bg.setOrientation(GradientDrawable.Orientation.TOP_BOTTOM);
+            bg.setColors(new int[]{getColor(R.color.green_deep),
+                    getColor(R.color.green_deep_edge)});
+            bg.setStroke(dp(1), getColor(R.color.green_deep_line));
             badgeOnline = bg;
         } else {
             // Owner order 2026-10-19: OFFLINE reads as a dark, prominent red
@@ -854,7 +890,97 @@ public class MainActivity extends Activity {
      * SignalText (plain Java, no Android imports) so tests/test_android_signal_text.py
      * runs it on the JVM against the shapes the relay actually serves.
      */
+    /**
+     * The search menu (owner order 2026-10-20): the console leaves, the field
+     * arrives, and the list under it filters on every keystroke, Google style.
+     * A prefix query only, because a KMIALL script is what the owner types:
+     * "F" lists every symbol that starts with F, "FF" narrows to FFC and FFL.
+     */
+    private void setSearchOpen(boolean open) {
+        if (open == searchOpen) {
+            return;
+        }
+        searchOpen = open;
+        if (open && settingsOpen) {
+            setSettingsOpen(false);
+        }
+        if (consoleViews != null) {
+            for (View view : consoleViews) {
+                view.setVisibility(open ? View.GONE : View.VISIBLE);
+            }
+        }
+        settingsPanel.setVisibility(open ? View.GONE : settingsPanel.getVisibility());
+        searchPanel.setVisibility(open ? View.VISIBLE : View.GONE);
+        btnSearch.setImageTintList(ColorStateList.valueOf(getColor(
+                open ? R.color.gold_bright : R.color.gold)));
+        btnSettings.setRotation(0f);
+        if (open) {
+            searchInput.setText("");
+            searchInput.requestFocus();
+            renderSearchResults("");
+        } else {
+            searchInput.clearFocus();
+        }
+    }
+
+    /** Filter the relay's symbol list by prefix and draw up to eight rows. */
+    private void renderSearchResults(String query) {
+        if (searchResults == null || searchStatus == null) {
+            return;
+        }
+        searchResults.removeAllViews();
+        List<String> symbols = Watcher.symbols();
+        String q = query == null ? "" : query.trim().toUpperCase(Locale.US);
+        if (symbols.isEmpty()) {
+            searchStatus.setText(getString(R.string.search_waiting));
+            return;
+        }
+        if (q.isEmpty()) {
+            searchStatus.setText(getString(R.string.search_hint));
+            return;
+        }
+        int shown = 0;
+        for (String symbol : symbols) {
+            if (!symbol.startsWith(q)) {
+                continue;
+            }
+            TextView row = new TextView(this);
+            row.setText(symbol);
+            row.setTextSize(15f);
+            row.setTextColor(getColor(R.color.text_bright));
+            row.setLetterSpacing(0.12f);
+            row.setPadding(dp(10), dp(9), dp(10), dp(9));
+            row.setOnClickListener(v -> selectSymbol(symbol));
+            searchResults.addView(row);
+            if (++shown >= 8) {
+                break;
+            }
+        }
+        searchStatus.setText(shown == 0
+                ? getString(R.string.search_empty)
+                : getString(R.string.search_hint));
+    }
+
+    /** One symbol's B, S and T, asked of the relay's own split law. */
+    private void selectSymbol(String symbol) {
+        searchStatus.setText(getString(R.string.search_loading));
+        Watcher.fetchStock(this, symbol, (ok, line) -> runOnUiThread(() -> {
+            if (isFinishing() || isDestroyed()) {
+                return;
+            }
+            searchStatus.setText(ok ? line : getString(R.string.search_unavailable));
+        }));
+    }
+
     private String latestSignalDisplay(String raw) {
+        // Owner order 2026-10-20: a card stamped with another session is
+        // not today's call. Before this, a Tuesday screen still showed
+        // Friday's HCAR row because the tile rendered whatever the relay
+        // last carried and never asked what day it was.
+        String stamp = SignalText.cardDate(raw);
+        if (!stamp.isEmpty() && !stamp.equals(karachiToday())) {
+            return getString(R.string.signal_no_call);
+        }
         String text = SignalText.compact(raw);
         // The two states are words, not numbers, so they come from resources:
         // one place for the copy and one place for the accessible sentence.
@@ -957,12 +1083,28 @@ public class MainActivity extends Activity {
         if (asOf == null || asOf.isEmpty()) {
             return "";
         }
+        // Owner order 2026-10-20: a stamp with no time on it is a DATE, and
+        // slicing eight characters out of one printed "2026-10-" on the
+        // KSE100 tile. A date is not a clock, so the line carries nothing.
         int separator = asOf.indexOf('T');
-        String clock = separator >= 0 ? asOf.substring(separator + 1) : asOf;
+        if (separator < 0) {
+            return "";
+        }
+        String clock = asOf.substring(separator + 1);
         if (clock.endsWith("+05:00")) {
             clock = clock.substring(0, clock.length() - 6);
         }
-        return clock.length() >= 8 ? clock.substring(0, 8) : clock;
+        return clock.length() >= 8 ? clock.substring(0, 8) : "";
+    }
+
+    /** Today in Karachi (SO-8): the phone's own zone never decides. */
+    private static String karachiToday() {
+        java.util.Calendar c = java.util.Calendar.getInstance(
+                java.util.TimeZone.getTimeZone("Asia/Karachi"));
+        return String.format(Locale.US, "%04d-%02d-%02d",
+                c.get(java.util.Calendar.YEAR),
+                c.get(java.util.Calendar.MONTH) + 1,
+                c.get(java.util.Calendar.DAY_OF_MONTH));
     }
 
     /**
@@ -1027,27 +1169,30 @@ public class MainActivity extends Activity {
                 // day's-range estimate (drawn by ARROW_FACE, never by the
                 // brand face: see the class comment on that constant).
                 boolean estimated = row.estimatedSplit();
-                String mark = estimated ? "\u2248" : "=";
+                // Owner order 2026-10-20: the two approximation signs are
+                // gone from the numbers. In the shipped face U+2248 collapses
+                // into a tilde pair, which read as "~~" in front of B and S.
+                // The numbers keep the plain "=" and one EST tag closes the
+                // group when the split came from the day's range rather than
+                // from order flow, so the honesty stays and the clutter does
+                // not (SO-3).
                 // "(" opens at B and ")" closes after T: one bracketed group.
-                sb.append(" (B").append(mark);
+                sb.append(" (B=");
                 int buyFrom = sb.length();
                 sb.append(String.format(Locale.US, "%,d", row.buy));
                 spans.add(new int[]{buyFrom, sb.length(), R.color.green});
-                if (estimated) {
-                    glyphs.add(new int[]{buyFrom - 1, buyFrom});
-                }
-                sb.append("  S").append(mark);
+                sb.append("  S=");
                 int sellFrom = sb.length();
                 sb.append(String.format(Locale.US, "%,d", row.sell));
                 spans.add(new int[]{sellFrom, sb.length(), R.color.red});
-                if (estimated) {
-                    glyphs.add(new int[]{sellFrom - 1, sellFrom});
-                }
                 if (row.hasVolume()) {
                     sb.append(String.format(Locale.US, "  T=%,d)", row.volume));
                 } else {
                     // The quantities stand without the exchange's total.
                     sb.append(')');
+                }
+                if (estimated) {
+                    sb.append("  EST");
                 }
             } else if (row.hasVolume()) {
                 sb.append(String.format(Locale.US, " (T=%,d)", row.volume));
@@ -1080,8 +1225,9 @@ public class MainActivity extends Activity {
                     span[0], span[1], 0);
         }
         // The glyph ranges last, and only the glyphs: the system face draws
-        // the two arrow characters and, on an estimated row, the two
-        // approximation signs; the brand face keeps everything around them.
+        // the two arrow characters, and the brand face keeps everything
+        // around them. Since 2026-10-20 no quantity carries a sign of its
+        // own: one EST tag marks an estimated group instead.
         for (int[] range : glyphs) {
             sp.setSpan(new TypefaceSpan(ARROW_FACE), range[0], range[1], 0);
         }
