@@ -1,0 +1,97 @@
+name: ICT SMC archived validation
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [master]
+    paths:
+      - 'src/config.py'
+      - 'src/research/session_history.py'
+      - 'src/signals/smc.py'
+      - 'src/signals/momentum_scanner.py'
+      - 'src/signals/trade_state.py'
+      - 'scripts/backtest_smc.py'
+      - 'scripts/intraday_pipeline.py'
+      - '.github/workflows/smc-validation.yml'
+permissions:
+  contents: read
+  actions: read
+  pull-requests: write
+jobs:
+  replay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt --retries 5 --timeout 60
+      - name: Exercise signal contracts and the full paper pipeline
+        run: |
+          mkdir -p data
+          python -m unittest discover -s tests -v > data/smc-unit.log 2>&1
+      - name: Retrieve retained real minute bars, no credentials in artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p data/smc-archive
+          gh api --paginate "repos/$GITHUB_REPOSITORY/actions/artifacts?per_page=100" \
+            --jq '.artifacts[] | select(.expired == false and (.name | startswith("kmiall-session-"))) | [.id,.name] | @tsv' \
+            > /tmp/smc-artifacts.tsv
+          head -n 30 /tmp/smc-artifacts.tsv > /tmp/smc-selected.tsv
+          while IFS=$'\t' read -r id name; do
+            [ -n "$id" ] || continue
+            gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$id/zip" > /tmp/smc-artifact.zip
+            python - "$name" <<'PY'
+          import sys, zipfile
+          from pathlib import Path
+          root = Path('data/smc-archive') / sys.argv[1]
+          root.mkdir(exist_ok=True)
+          with zipfile.ZipFile('/tmp/smc-artifact.zip') as archive:
+              for item in archive.infolist():
+                  name = Path(item.filename).name
+                  if name.startswith('tape_bars_') and name.endswith('.ndjson'):
+                      (root / name).write_bytes(archive.read(item))
+          PY
+          done < /tmp/smc-selected.tsv
+      - name: Replay fixed rules on causal prefixes and chronological holdout
+        run: python scripts/backtest_smc.py --input data/smc-archive --out data/smc-validation.json
+      - name: Publish bounded validation evidence on the pull request
+        if: always() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          python - <<'PY'
+          import json, os, subprocess
+          from pathlib import Path
+          log = Path('data/smc-unit.log')
+          result = Path('data/smc-validation.json')
+          body = ['ICT/SMC validation for ' + os.environ['HEAD_SHA'],
+                  'Run: https://github.com/' + os.environ['GITHUB_REPOSITORY'] + '/actions/runs/' + os.environ['GITHUB_RUN_ID']]
+          if log.exists():
+              text = log.read_text(errors='replace')
+              body += ['Unit suite output (bounded):', '```text', text[-14000:], '```']
+          if result.exists():
+              report = json.loads(result.read_text())
+              summary = {k: report[k] for k in ('strategy', 'all', 'holdout', 'timing_seconds', 'scan_count', 'profitable_strategy_established')}
+              body += ['Real archive replay:', '```json', json.dumps(summary, indent=2), '```']
+          else:
+              body += ['Replay report unavailable; inspect this run before merging.']
+          body += ['Co-Authored-By: Codebuff <noreply@codebuff.com>']
+          subprocess.run(['gh', 'api', '--method', 'POST',
+              'repos/' + os.environ['GITHUB_REPOSITORY'] + '/issues/' + os.environ['PR_NUMBER'] + '/comments',
+              '-f', 'body=' + '\n\n'.join(body)], check=True, stdout=subprocess.DEVNULL)
+          PY
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: smc-validation-${{ github.run_id }}
+          path: |
+            data/smc-validation.json
+            data/smc-unit.log
+          if-no-files-found: error
