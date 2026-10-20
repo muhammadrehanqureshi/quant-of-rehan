@@ -39,41 +39,134 @@
 
 const KARACHI_OFFSET_MIN = 5 * 60; // SO-8: UTC+5, fixed forever
 
-// ---------------------------------------------------------- the KV budget
+// ------------------------------------------------------ the relay's state
 //
 // Owner report, 2026-10-19: "KV daily limit reached 50% today". Measured
 // against that email: the free plan allows about 100,000 KV reads and 1,000
 // writes a day, the phone polls once a second while a session is live, and a
-// single /health poll read three separate keys. Five or six reads a second is
-// roughly 50,000 by early afternoon, which is the percentage he was told.
+// single /health poll read three separate keys, so five or six reads a second
+// is roughly half the allowance by early afternoon.
 //
-// So the hot keys are memoised for a few seconds inside the isolate. At one
-// request a second the isolate stays warm, and a key that changes on a market
-// edge does not need re-reading on every single poll to be correct. Writes go
-// through the same map so a change is never hidden behind a stale entry; only
-// truly cold keys (pairing codes, dispatch notes, research rows, alert
-// dedupe) still touch KV on every call.
+// Owner decision, 2026-10-20: no product that mails a quota warning is
+// acceptable, so the relay does not use KV at all any more. Every stored value
+// (the card, the market snapshot, the session state, pairing codes, the
+// research log) lives in the Durable Object the relay already needed for live
+// quotes, whose storage is not metered per write the way KV is. KV was also the
+// reason the deploy refused to run from 2026-10-19 onwards: its namespace had
+// gone, and a binding to a missing namespace fails the whole upload.
+//
+// The isolate memo stays, because a value that changes on a market edge does
+// not need re-reading on every one-second poll. Writes go through the same map,
+// so a change is never hidden behind a stale entry.
 const KV_MEMO_TTL_MS = 10000;
 const kvMemo = new Map();
+const STATE_HUB_NAME = "psx-live-quotes";
+
+function stateHub(env) {
+  const namespace = env.QUOTE_HUB;
+  if (!namespace || typeof namespace.idFromName !== "function") return null;
+  return namespace.get(namespace.idFromName(STATE_HUB_NAME));
+}
+
+// A KV binding, when one happens to be present, is only a fallback: the local
+// worker harness in tools/worker_check.py has no Durable Object, and a deploy
+// that still binds KV must keep answering.
+function stateFallback(env) {
+  const kv = env.RELAY_KV;
+  return kv && typeof kv.get === "function" ? kv : null;
+}
+
+async function stateCall(env, path, init) {
+  const hub = stateHub(env);
+  if (!hub) return null;
+  const response = await hub.fetch("https://quote-hub" + path, init);
+  if (!response.ok) throw new Error("state store answered " + response.status);
+  return response.json();
+}
+
+async function relayRead(env, key) {
+  try {
+    const answer = await stateCall(env, "/state?key=" + encodeURIComponent(key));
+    if (answer) return answer.ok ? answer.value : null;
+  } catch (error) {
+    if (!stateFallback(env)) throw error;
+  }
+  const kv = stateFallback(env);
+  return kv ? kv.get(key) : null;
+}
+
+async function relayWrite(env, key, value, options) {
+  const ttl = options && Number(options.expirationTtl);
+  try {
+    const answer = await stateCall(env, "/state", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        key, value, expirationTtl: Number.isFinite(ttl) ? ttl : null,
+      }),
+    });
+    if (answer) return;
+  } catch (error) {
+    if (!stateFallback(env)) throw error;
+  }
+  const kv = stateFallback(env);
+  if (kv) await kv.put(key, value, options);
+}
+
+async function relayDelete(env, key) {
+  try {
+    const answer = await stateCall(env, "/state?key=" + encodeURIComponent(key),
+      { method: "DELETE" });
+    if (answer) return;
+  } catch (error) {
+    if (!stateFallback(env)) throw error;
+  }
+  const kv = stateFallback(env);
+  if (kv) await kv.delete(key);
+}
+
+async function relayList(env, prefix, limit) {
+  try {
+    const answer = await stateCall(env, "/state/list?prefix="
+      + encodeURIComponent(prefix) + "&limit=" + limit);
+    if (answer) {
+      return { keys: answer.keys || [], list_complete: Boolean(answer.list_complete) };
+    }
+  } catch (error) {
+    if (!stateFallback(env)) throw error;
+  }
+  const kv = stateFallback(env);
+  if (!kv) return { keys: [], list_complete: true };
+  const listed = await kv.list({ prefix, limit });
+  const keys = [];
+  for (const item of listed.keys) {
+    keys.push({ name: item.name, value: await kv.get(item.name) });
+  }
+  return { keys, list_complete: Boolean(listed.list_complete) };
+}
 
 async function kvGet(env, key, ttlMs = KV_MEMO_TTL_MS) {
   const now = Date.now();
   const hit = kvMemo.get(key);
   if (hit && now - hit.at <= ttlMs) return hit.value;
-  const value = await env.RELAY_KV.get(key);
+  const value = await relayRead(env, key);
   kvMemo.set(key, { at: now, value });
   return value;
 }
 
 async function kvPut(env, key, value, options) {
-  const answer = await env.RELAY_KV.put(key, value, options);
+  await relayWrite(env, key, value, options);
   kvMemo.set(key, { at: Date.now(), value });
-  return answer;
+}
+
+async function kvDelete(env, key) {
+  await relayDelete(env, key);
+  kvMemo.delete(key);
 }
 
 const QUOTE_HUB_SOCKET_TAG = "live-quotes";
 function quoteHubBinding(env) {
-  return env.QUOTE_HUB || env.RELAY_KV;
+  return env.QUOTE_HUB || null;
 }
 // Owner order 2026-10-08: name the market event first, then the quant
 // state (SO-9).
@@ -194,7 +287,7 @@ function bandOpenAt(k) {
 
 async function recordDispatch(env, note) {
   try {
-    await env.RELAY_KV.put("SCAN:DISPATCH:LAST", JSON.stringify(note),
+    await kvPut(env, "SCAN:DISPATCH:LAST", JSON.stringify(note),
       { expirationTtl: 7 * 86400 });
   } catch (_) {
     // KV is best effort here: the state of a dispatch must never fail a cron.
@@ -213,7 +306,7 @@ async function dispatchBandScan(env, now) {
   }
 
   const key = `SCAN:DISPATCH:${dayStamp(k)}:${hmText(band[0])}`;
-  const seen = await env.RELAY_KV.get(key);
+  const seen = await relayRead(env, key);
   if (seen) return { dispatched: false, reason: "already dispatched" };
 
   const close = band[1][0] * 60 + band[1][1];
@@ -253,7 +346,7 @@ async function dispatchBandScan(env, now) {
   if (note.ok) {
     // Only a confirmed dispatch claims the band, so a failed attempt leaves
     // the key free for the fallback paths and for an operator retry.
-    await env.RELAY_KV.put(key, note.at, { expirationTtl: 2 * 86400 });
+    await kvPut(env, key, note.at, { expirationTtl: 2 * 86400 });
   }
   await recordDispatch(env, note);
   return { dispatched: note.ok, reason: note.ok ? "dispatched" : note.detail,
@@ -781,7 +874,7 @@ function marketNotificationText(state) {
 
 async function deliverMarketTransition(env, chatId, state, identity, evidence, now) {
   const text = marketNotificationText(state);
-  const currentRaw = await env.RELAY_KV.get(MARKET_PENDING_KEY);
+  const currentRaw = await relayRead(env, MARKET_PENDING_KEY);
   let current = null;
 
   try {
@@ -794,13 +887,13 @@ async function deliverMarketTransition(env, chatId, state, identity, evidence, n
 
   const record = await sendAndRecord(env, chatId, text, "market", null);
   if (!record.ok) {
-    const latestRaw = await env.RELAY_KV.get(MARKET_PENDING_KEY);
+    const latestRaw = await relayRead(env, MARKET_PENDING_KEY);
     try {
       const latest = latestRaw ? JSON.parse(latestRaw) : null;
       if (latest && latest.identity === identity) {
         latest.retry_after_ms = Date.now() + MARKET_TRANSITION_RETRY_MS;
         latest.error = record.description;
-        await env.RELAY_KV.put(MARKET_PENDING_KEY, JSON.stringify(latest),
+        await kvPut(env, MARKET_PENDING_KEY, JSON.stringify(latest),
                                { expirationTtl: 3600 });
       }
     } catch (_) {
@@ -809,7 +902,7 @@ async function deliverMarketTransition(env, chatId, state, identity, evidence, n
     return;
   }
 
-  const latestRaw = await env.RELAY_KV.get(MARKET_PENDING_KEY);
+  const latestRaw = await relayRead(env, MARKET_PENDING_KEY);
   try {
     const latest = latestRaw ? JSON.parse(latestRaw) : null;
     if (!latest || latest.identity !== identity) return;
@@ -822,7 +915,7 @@ async function deliverMarketTransition(env, chatId, state, identity, evidence, n
   await kvPut(env, MARKET_DELIVERY_KEY, JSON.stringify({
     state, text, at: new Date().toISOString(), evidence,
   }), { expirationTtl: 604800 });
-  await env.RELAY_KV.delete(MARKET_PENDING_KEY);
+  await kvDelete(env, MARKET_PENDING_KEY);
 }
 
 async function readQuoteSnapshot(env) {
@@ -957,7 +1050,7 @@ async function trackMarketTransitions(env, snapshot, now, ctx) {
   let pending = null;
   const [raw, waiting] = await Promise.all([
     kvGet(env, MARKET_STATE_KEY),
-    env.RELAY_KV.get(MARKET_PENDING_KEY),
+    relayRead(env, MARKET_PENDING_KEY),
   ]);
   try {
     previous = raw ? JSON.parse(raw) : null;
@@ -1009,7 +1102,7 @@ async function trackMarketTransitions(env, snapshot, now, ctx) {
 
   // Reserve the identity before scheduling I/O: overlapping one-second app
   // reads and 30-second feed pushes cannot queue duplicate Telegram messages.
-  await env.RELAY_KV.put(MARKET_PENDING_KEY, JSON.stringify({
+  await kvPut(env, MARKET_PENDING_KEY, JSON.stringify({
     state, identity, evidence, at: now.toISOString(),
     retry_after_ms: now.getTime() + 60000,
   }), { expirationTtl: 3600 });
@@ -1107,7 +1200,7 @@ async function sendAndRecord(env, chatId, text, kind, dedupeKey) {
     // by its own attempt and never retried (measured 2026-10-16: a labelled
     // test alert was deduped away while Telegram answered nothing).
     if (sent.ok && dedupeKey) {
-      await env.RELAY_KV.put(dedupeKey, "1", { expirationTtl: 172800 });
+      await kvPut(env, dedupeKey, "1", { expirationTtl: 172800 });
     }
   } catch (_) {
     // The record is best effort: the send itself has already happened, and a
@@ -1261,8 +1354,8 @@ export default {
         return json({ ok: false, error: found.error }, 404);
       }
       const code = String(Math.floor(1000 + Math.random() * 9000));
-      await env.RELAY_KV.put("PENDING_CODE", code, { expirationTtl: 3600 });
-      await env.RELAY_KV.put("PENDING_CHAT", String(found.chat.id), { expirationTtl: 3600 });
+      await kvPut(env, "PENDING_CODE", code, { expirationTtl: 3600 });
+      await kvPut(env, "PENDING_CHAT", String(found.chat.id), { expirationTtl: 3600 });
       const name = found.chat.title || found.chat.username || found.chat.first_name || "";
       await tgCall(env, "sendMessage", {
         chat_id: found.chat.id,
@@ -1277,8 +1370,8 @@ export default {
       }
       const body = await request.json().catch(() => ({}));
       const code = String(body.code || "").trim();
-      const pending = (await env.RELAY_KV.get("PENDING_CODE")) || "";
-      const chat = (await env.RELAY_KV.get("PENDING_CHAT")) || "";
+      const pending = (await relayRead(env, "PENDING_CODE")) || "";
+      const chat = (await relayRead(env, "PENDING_CHAT")) || "";
       if (!pending || !chat) {
         return json({ ok: false, error: "no pending pairing; run pair/start" }, 409);
       }
@@ -1286,8 +1379,8 @@ export default {
         return json({ ok: false, error: "wrong code" }, 403);
       }
       await kvPut(env, "PAIRED_CHAT_ID", chat);
-      await env.RELAY_KV.delete("PENDING_CODE");
-      await env.RELAY_KV.delete("PENDING_CHAT");
+      await kvDelete(env, "PENDING_CODE");
+      await kvDelete(env, "PENDING_CHAT");
       await tgCall(env, "sendMessage", {
         chat_id: chat,
         text: "quant-of-rehan relay paired with this chat. Daily open and close notifications and trading signals will arrive here.",
@@ -1331,7 +1424,7 @@ export default {
           digest = String(text.length);
         }
         const alertKey = `ALERT:${day}:${digest}`;
-        const seen = await env.RELAY_KV.get(alertKey);
+        const seen = await relayRead(env, alertKey);
         if (seen) return json({ ok: true, deduped: true, delivery: "deduped" });
         ctx.waitUntil(sendAndRecord(env, paired, text, "ops", alertKey));
         return json({ ok: true, accepted: true, delivery: "pending" });
@@ -1519,9 +1612,9 @@ export default {
         return json({ ok: false, error: "invalid observation" }, 400);
       }
       const key = `RESEARCH:OBS:${body.date}:${body.slot.replace(":", "")}`;
-      const existing = await env.RELAY_KV.get(key);
+      const existing = await relayRead(env, key);
       if (existing) return json({ ok: true, key, stored: false, immutable: true });
-      await env.RELAY_KV.put(key, JSON.stringify(body), { expirationTtl: 63072000 });
+      await kvPut(env, key, JSON.stringify(body), { expirationTtl: 63072000 });
       return json({ ok: true, key, stored: true });
     }
 
@@ -1530,11 +1623,10 @@ export default {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
         return json({ ok: false, error: "date required" }, 400);
       }
-      const listed = await env.RELAY_KV.list({ prefix: `RESEARCH:OBS:${date}:`, limit: 100 });
+      const listed = await relayList(env, `RESEARCH:OBS:${date}:`, 100);
       const observations = [];
       for (const item of listed.keys) {
-        const value = await env.RELAY_KV.get(item.name);
-        if (value) observations.push(JSON.parse(value));
+        if (item.value) observations.push(JSON.parse(item.value));
       }
       observations.sort((a, b) => a.slot.localeCompare(b.slot));
       return json({ ok: true, observations });
@@ -1547,18 +1639,18 @@ export default {
         return json({ ok: false, error: "invalid daily outcome" }, 400);
       }
       const key = `RESEARCH:OUTCOME:${body.date}`;
-      const existing = await env.RELAY_KV.get(key);
+      const existing = await relayRead(env, key);
       if (existing) return json({ ok: true, stored: false, immutable: true });
-      await env.RELAY_KV.put(key, JSON.stringify(body),
+      await kvPut(env, key, JSON.stringify(body),
         { expirationTtl: 63072000 });
       return json({ ok: true, stored: true });
     }
 
     if (request.method === "GET" && path === "/research/history") {
-      const listed = await env.RELAY_KV.list({ prefix: "RESEARCH:OUTCOME:", limit: 1000 });
+      const listed = await relayList(env, "RESEARCH:OUTCOME:", 1000);
       const sessions = [];
       for (const item of listed.keys) {
-        const value = await env.RELAY_KV.get(item.name);
+        const value = item.value;
         if (!value) continue;
         try {
           const row = JSON.parse(value);
@@ -1578,13 +1670,13 @@ export default {
         return json({ ok: false, error: "invalid signal claim" }, 400);
       }
       const key = `RESEARCH:SENT:${body.date}`;
-      if (await env.RELAY_KV.get(key)) return json({ ok: true, claimed: false });
-      await env.RELAY_KV.put(key, String(body.slot), { expirationTtl: 86400 });
+      if (await relayRead(env, key)) return json({ ok: true, claimed: false });
+      await kvPut(env, key, String(body.slot), { expirationTtl: 86400 });
       return json({ ok: true, claimed: true });
     }
 
     if (request.method === "GET" && path === "/research/gate") {
-      const value = await env.RELAY_KV.get("RESEARCH:PRODUCTION_GATE");
+      const value = await relayRead(env, "RESEARCH:PRODUCTION_GATE");
       return json({ ok: true, gate: value ? JSON.parse(value) : null });
     }
 
@@ -1594,7 +1686,7 @@ export default {
           typeof body.status !== "string" || !body.rule_version) {
         return json({ ok: false, error: "invalid gate record" }, 400);
       }
-      await env.RELAY_KV.put("RESEARCH:PRODUCTION_GATE", JSON.stringify(body));
+      await kvPut(env, "RESEARCH:PRODUCTION_GATE", JSON.stringify(body));
       return json({ ok: true });
     }
 
@@ -1682,6 +1774,11 @@ export class QuoteHub {
       ctx.storage.sql.exec(
         "CREATE TABLE IF NOT EXISTS quote_snapshot (id INTEGER PRIMARY KEY CHECK (id = 1), payload TEXT NOT NULL)",
       );
+      // The relay's own key space. It replaced KV on 2026-10-20 so the
+      // relay needs no quota-limited product to hold a card.
+      ctx.storage.sql.exec(
+        "CREATE TABLE IF NOT EXISTS relay_state (key TEXT PRIMARY KEY, value TEXT NOT NULL, expires_at INTEGER NOT NULL DEFAULT 0)",
+      );
     });
   }
 
@@ -1698,8 +1795,81 @@ export class QuoteHub {
     return { ok: true, ...snapshot };
   }
 
+  async stateGet(key) {
+    await this.ready;
+    const row = this.ctx.storage.sql.exec(
+      "SELECT value, expires_at FROM relay_state WHERE key = ?", key,
+    ).toArray()[0];
+    if (!row) return null;
+    if (Number(row.expires_at) > 0 && Number(row.expires_at) <= Date.now()) {
+      this.stateDelete(key);
+      return null;
+    }
+    return row.value;
+  }
+
+  async statePut(key, value, expiresAt) {
+    await this.ready;
+    this.ctx.storage.sql.exec(
+      "INSERT INTO relay_state (key, value, expires_at) VALUES (?, ?, ?) "
+      + "ON CONFLICT(key) DO UPDATE SET value = excluded.value, "
+      + "expires_at = excluded.expires_at",
+      key, value, expiresAt || 0,
+    );
+  }
+
+  async stateDelete(key) {
+    await this.ready;
+    this.ctx.storage.sql.exec("DELETE FROM relay_state WHERE key = ?", key);
+  }
+
+  async stateList(prefix, limit) {
+    await this.ready;
+    const rows = this.ctx.storage.sql.exec(
+      "SELECT key, value FROM relay_state WHERE substr(key, 1, ?) = ? "
+      + "AND (expires_at = 0 OR expires_at > ?) ORDER BY key LIMIT ?",
+      prefix.length, prefix, Date.now(), limit,
+    ).toArray();
+    return { ok: true,
+      keys: rows.map((row) => ({ name: row.key, value: row.value })),
+      list_complete: rows.length < limit };
+  }
+
   async fetch(request) {
     const url = new URL(request.url);
+    // The relay's key value store, served by this object instead of KV.
+    if (url.pathname === "/state") {
+      if (request.method === "GET") {
+        const key = String(url.searchParams.get("key") || "");
+        if (!key) return json({ ok: false, error: "key required" }, 400);
+        return json({ ok: true, value: await this.stateGet(key) });
+      }
+      if (request.method === "PUT") {
+        const body = await request.json().catch(() => null);
+        if (!body || typeof body.key !== "string" || !body.key ||
+            typeof body.value !== "string") {
+          return json({ ok: false, error: "key and value required" }, 400);
+        }
+        const ttl = Number(body.expirationTtl);
+        await this.statePut(body.key, body.value,
+          Number.isFinite(ttl) && ttl > 0 ? Date.now() + ttl * 1000 : 0);
+        return json({ ok: true });
+      }
+      if (request.method === "DELETE") {
+        const key = String(url.searchParams.get("key") || "");
+        if (!key) return json({ ok: false, error: "key required" }, 400);
+        await this.stateDelete(key);
+        return json({ ok: true });
+      }
+      return json({ ok: false, error: "method not allowed" }, 405);
+    }
+    if (url.pathname === "/state/list" && request.method === "GET") {
+      const prefix = String(url.searchParams.get("prefix") || "");
+      const asked = Number(url.searchParams.get("limit"));
+      const limit = Math.max(1, Math.min(1000, Number.isFinite(asked) ? asked : 100));
+      return json(await this.stateList(prefix, limit));
+    }
+
     if (request.method === "GET" && url.pathname === "/snapshot") {
       return json(await this.snapshot());
     }

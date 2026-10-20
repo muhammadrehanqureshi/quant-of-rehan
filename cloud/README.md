@@ -22,7 +22,8 @@ Telegram; you read the messages on your phone over your VPN as usual.
   volume column), so the split fields are null there and the local runner
   fills them from the broker tick capture (`src/data/tick_volume.py`).
 - `POST /pair/start` (admin token): finds the chat that last messaged the
-  bot, stores a 4-digit code in KV, and sends that code to the chat
+  bot, stores a 4-digit code in the Durable Object, and sends that code to
+  the chat
 - `POST /pair/confirm` (admin token): `{code}` binds the chat; the bot
   confirms in the chat
 - `POST /notify` (admin token): `{text, kind}` forwarded to your chat; this
@@ -60,7 +61,8 @@ seconds. It is opt-in and fail-open:
 
 - no `GH_DISPATCH_TOKEN`, no dispatch, and the GitHub schedules remain the
   only path (exactly the old behaviour);
-- one dispatch per band per day is recorded in KV (`SCAN:DISPATCH:<day>:<open>`,
+- one dispatch per band per day is recorded in the Durable Object
+  (`SCAN:DISPATCH:<day>:<open>`,
   two day TTL), so a retried cron cannot start a second loop;
 - only a 204 from GitHub claims the band; a failure leaves the key free and is
   recorded in `SCAN:DISPATCH:LAST` for inspection;
@@ -152,9 +154,13 @@ so a runner with no configuration at all still checks a real URL.
 ## Secrets (SO-5)
 
 Worker bindings, set only by cloud/pair.py from the owner's PC:
-`TELEGRAM_BOT_TOKEN` and `RELAY_ADMIN_TOKEN`. The paired chat id and the
-pending pairing code live in the RELAY_KV namespace. Nothing secret is
-stored in this repo.
+`TELEGRAM_BOT_TOKEN` and `RELAY_ADMIN_TOKEN`. Every value the relay keeps
+(the card, the market snapshot, the session state, the paired chat id,
+the pending pairing code, the research log) lives in the `QuoteHub`
+Durable Object. There is no KV namespace: owner order 2026-10-20 removed
+the last quota-limited product from the path, and a binding to a
+namespace that had been deleted was failing every deploy. Nothing secret
+is stored in this repo.
 
 ## Setup (owner's PC, already completed on 2026-10-05)
 
@@ -166,7 +172,8 @@ python cloud/pair.py test       # full-path test message
 python cloud/pair.py health     # live status from the edge
 ```
 
-Pairing state lives in KV; re-running discover re-pairs safely.
+Pairing state lives in the Durable Object; re-running discover re-pairs
+safely.
 
 ## Local scheduler (retired, owner order 2026-10-14)
 

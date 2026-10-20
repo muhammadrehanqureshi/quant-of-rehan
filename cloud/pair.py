@@ -195,13 +195,6 @@ def cf_headers() -> tuple[str, str, dict]:
     return cf_token, acct, {"Authorization": f"Bearer {cf_token}"}
 
 
-def kv_id() -> str:
-    p = ROOT / "data" / "relay_kv_id.txt"
-    if not p.is_file():
-        raise SystemExit("data/relay_kv_id.txt missing; create the KV namespace first")
-    return p.read_text(encoding="utf-8").strip()
-
-
 def deploy() -> None:
     cf_token, acct, tg_token = read_creds()
     admin = env_get("RELAY_ADMIN_TOKEN") or secrets.token_urlsafe(24)
@@ -209,7 +202,6 @@ def deploy() -> None:
     bindings = [
         {"type": "secret_text", "name": "TELEGRAM_BOT_TOKEN", "text": tg_token},
         {"type": "secret_text", "name": "RELAY_ADMIN_TOKEN", "text": admin},
-        {"type": "kv_namespace", "name": "RELAY_KV", "namespace_id": kv_id()},
     ]
     cf_upload(cf_token, acct, bindings)
     H = {"Authorization": f"Bearer {cf_token}"}
