@@ -932,22 +932,55 @@ async function readQuoteSnapshot(env) {
   }
 }
 
+// The B/S pair belongs to the frame it was computed from (owner order
+// 2026-10-20).
+//
+// A pushed card carries a split from the moment it was built. Merging a newer
+// total onto that old pair printed a frozen buy and sell beside a moving total,
+// which is exactly the "the quantities are not moving" the owner reported on
+// 2026-10-20: the venv saw CNERGY's B stuck at 1,208,688 while its T climbed
+// past 15,000,000. So every merged row recomputes its split from THIS frame,
+// and a frame whose range is incomplete says so instead of inheriting the last
+// split forever.
+function splitFields(split, quote) {
+  if (!split) {
+    return {
+      buy_volume: null,
+      sell_volume: null,
+      split_volume: null,
+      split_method: "unavailable",
+      split_source: quote
+        ? "the frame's range is incomplete"
+        : "no fresh frame for this symbol",
+    };
+  }
+  return {
+    buy_volume: split.buy_volume,
+    sell_volume: split.sell_volume,
+    split_volume: split.split_volume,
+    split_method: "range_position",
+    split_source: "B/S estimated from the day's range, not order flow",
+  };
+}
+
 function applyLiveQuotes(snapshot, quotes, now) {
   if (!quotes) return refreshMarketFeed(snapshot, now);
   const freshQuotes = quotes.quotes.filter((row) => row.fresh &&
     Number.isFinite(row.price) && row.price > 0);
   if (freshQuotes.length) {
-    const previous = new Map((snapshot.top_volume || []).map((row) => [row.symbol, row]));
     const liveBySymbol = new Map(freshQuotes.map((row) => [row.symbol, row]));
     const merged = (snapshot.top_volume || []).map((row) => {
       const quote = liveBySymbol.get(row.symbol);
       if (!quote) return { ...row, quote_fresh: false };
       liveBySymbol.delete(row.symbol);
+      const volume = quote.volume ?? row.volume;
+      const split = rangePositionSplit(quote.high, quote.low, quote.price, volume);
       return {
         ...row,
         price: quote.price,
-        volume: quote.volume ?? row.volume,
+        volume,
         change_pct: quote.change_pct ?? row.change_pct,
+        ...splitFields(split, quote),
         feed_as_of: quote.observed_at,
         feed_age_seconds: quote.age_seconds,
         quote_fresh: true,
@@ -958,12 +991,25 @@ function applyLiveQuotes(snapshot, quotes, now) {
       if (Number.isFinite(row.volume) && row.volume > 0) {
         merged.push({
           ...row,
+          ...splitFields(rangePositionSplit(row.high, row.low, row.price,
+            row.volume), row),
           basis: "current session volume (fresh eClear REG quote)",
           quote_fresh: true,
           quote_source: row.source,
         });
       }
     }
+    // The card's as_of is the clock a reader sees, so it is the newest frame
+    // in this answer, never the build time of the pushed body: a body built
+    // five minutes ago sitting behind a two second old quote stamped the
+    // screen 10:20:00 while its numbers were current (owner order 2026-10-20).
+    const newest = freshQuotes.map((row) => row.observed_at)
+      .filter((at) => typeof at === "string" && at)
+      .sort()
+      .pop();
+    const stamp = (quotes.index && quotes.index.fresh && quotes.index.as_of)
+      || newest || quotes.updated_at;
+    if (stamp) snapshot.as_of = stamp;
     snapshot.top_volume = merged
       .filter((row) => Number.isFinite(row.volume) && row.volume > 0)
       .sort((a, b) => (b.volume - a.volume) || a.symbol.localeCompare(b.symbol))
@@ -1541,6 +1587,49 @@ export default {
         karachi_now: `${dayStamp(k)} ${hhmm(k)} PKT`,
         signals: (await kvGet(env, "SIGNALS")) || "",
         market: snapshot });
+    }
+
+    if (request.method === "GET" && path === "/stock") {
+      // Owner order 2026-10-20: the phone's search asks for ONE symbol's
+      // B, S and T. The split is computed HERE, by the same law the card
+      // uses, so two readers of one question cannot disagree, and the method
+      // that produced it travels with the numbers (SO-3). No portal fetch: the
+      // live frame already carries the published high and low, and a stale
+      // frame is refused rather than aged forward.
+      const symbol = String(url.searchParams.get("symbol") || "").toUpperCase();
+      if (!/^[A-Z0-9]{1,12}$/.test(symbol)) {
+        return json({ ok: false, error: "invalid symbol" }, 400);
+      }
+      const snapshot = await readQuoteSnapshot(env);
+      const quotes = snapshot && Array.isArray(snapshot.quotes) ? snapshot.quotes : [];
+      const quote = quotes.find((q) => q && q.symbol === symbol) || null;
+      if (!quote) {
+        return json({ ok: false, error: "symbol not in the live snapshot" }, 404);
+      }
+      const stock = {
+        symbol,
+        volume: Number.isFinite(quote.volume) ? Math.round(quote.volume) : null,
+        price: Number.isFinite(quote.price) ? quote.price : null,
+        change_pct: Number.isFinite(quote.change_pct) ? quote.change_pct : null,
+        quote_as_of: quote.observed_at || null,
+        quote_fresh: Boolean(quote.fresh),
+        buy_volume: null,
+        sell_volume: null,
+        split_method: "unavailable",
+        split_source: "no fresh frame for this symbol",
+      };
+      if (quote.fresh) {
+        const split = rangePositionSplit(quote.high, quote.low,
+                                         quote.price, quote.volume);
+        if (split) {
+          Object.assign(stock, split);
+          stock.split_method = "range_position";
+          stock.split_source = "B/S estimated from the day's range, not order flow";
+        } else {
+          stock.split_source = "the frame's range is incomplete";
+        }
+      }
+      return json({ ok: true, stock });
     }
 
     if (request.method === "GET" && path === "/market") {

@@ -540,6 +540,24 @@ to sixty seconds. The status tile therefore also carries the app's own
   the sentence form the daily-locked path writes ("HCAR entered at 203.0,
   target 207.06") now yields a signal instead of "Signal unavailable".
   Version 1.7.7, versionCode 31.
+- v1.7.8, owner order 2026-10-20: the console stops showing yesterday as if it
+  were today. The signal tile compares the card's own session date against the
+  relay's Karachi date and prints "NO CALL RIGHT NOW" when they differ, so
+  Friday's HCAR row can no longer sit on a Tuesday screen; an empty card says
+  the same words instead of going blank, and the old "no signals" line is
+  retired. B and S lose the two approximation signs that the shipped face drew
+  as tildes, and the split is now recomputed in the relay from every fresh
+  frame instead of being carried forward from the pushed card, so a moving
+  total can no longer sit beside frozen buy and sell quantities; the closing
+  EST tag says when the pair is the day's-range estimate. The KSE100 line
+  prints nothing rather than an eight character slice of a date when the relay
+  sends a date with no clock on it. A search control stands to the left of the
+  gear on the same line, and its panel filters the relay's own symbol list on
+  every keystroke (F lists every F symbol, FF narrows to FFC and FFL), then
+  asks the relay for that one symbol's B, S and T. The ONLINE badge takes the
+  OFFLINE tile's gradient in green, and the background watchdog arms at one
+  second instead of five minutes.
+  Version 1.7.8, versionCode 32.
 
 **Built and delivered 2026-10-19 (v1.7.7):** the signed v1.7.7 APK was built
 from this checkout with the toolchain above and copied to

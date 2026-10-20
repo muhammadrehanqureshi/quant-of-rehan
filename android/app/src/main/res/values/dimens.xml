@@ -28,4 +28,10 @@
          offset from there. -->
     <dimen name="settings_shift_x">44.1dp</dimen>
     <dimen name="settings_shift_y">-6.3dp</dimen>
+
+    <!-- The air between the search control and the gear (owner order
+         2026-10-20): 15% of the control's own 42dp box, so the pair reads
+         as one cluster. The search control carries the gear's own
+         translations, so the gap is the same at any font scale. -->
+    <dimen name="search_gap">6.3dp</dimen>
 </resources>
