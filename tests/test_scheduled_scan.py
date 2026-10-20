@@ -78,17 +78,7 @@ def _universe() -> list[str]:
     return [row["symbol"].strip().upper() for row in universe]
 
 
-def _slope(minute: int, strong: bool) -> float:
-    """The same shape the pipeline's own fixture uses: a real move at 39+."""
-    if not strong:
-        return 0.00005
-    if minute < 25:
-        return 0.0004
-    if minute < 38:
-        return 0.0010
-    if minute < 44:
-        return 0.0025
-    return 0.0040
+from smc_fixture import setup_values
 
 
 class GrowingTape:
@@ -103,9 +93,7 @@ class GrowingTape:
     def __init__(self, path: Path, symbols: list[str]) -> None:
         self.path = path
         self.symbols = symbols
-        self._prices = {sym: 100.0 for sym in symbols}
         self._totals = {sym: 0.0 for sym in symbols}
-        self._extremes = {sym: (100.0, 100.0) for sym in symbols}
         self._minutes = 0
 
     def advance_to(self, moment: datetime) -> None:
@@ -115,29 +103,17 @@ class GrowingTape:
             return
         with self.path.open("a", encoding="utf-8") as handle:
             for minute in range(self._minutes, max(0, minutes)):
-                stamp = OPEN_AT + timedelta(minutes=minute)
                 for symbol in self.symbols:
-                    strong = symbol == WINNER
-                    price = self._prices[symbol] * (1.0 + _slope(minute, strong))
-                    self._prices[symbol] = price
-                    high, low = self._extremes[symbol]
-                    high, low = max(high, price), min(low, price)
-                    self._extremes[symbol] = (high, low)
-                    delta = 25000.0 if (strong and minute >= 39) else 5000.0
-                    self._totals[symbol] += delta
-                    handle.write(json.dumps({
-                        "kind": "MKT-FEED|SUB%",
-                        "ts": stamp.isoformat(),
-                        "ticks": [{
-                            "scrip": f"{symbol}:REG",
-                            "last": f"{price:.4f}",
-                            "volume": str(int(self._totals[symbol])),
-                            "tick_time": stamp.strftime("%H:%M:%S"),
-                            "high": f"{high:.4f}",
-                            "low": f"{low:.4f}",
-                            "trades": str(minute + 1),
-                        }],
-                    }) + "\n")
+                    op, hi, lo, close, volume = (setup_values(minute - 1) if symbol == WINNER
+                                               else (100, 100.01, 99.99, 100, 5000))
+                    for second, price in zip((0, 10, 20, 50), (op, hi, lo, close)):
+                        self._totals[symbol] += volume // 4
+                        stamp = OPEN_AT + timedelta(minutes=minute, seconds=second)
+                        handle.write(json.dumps({"kind": "MKT-FEED|SUB%", "ts": stamp.isoformat(),
+                            "ticks": [{"scrip": f"{symbol}:REG", "last": str(price),
+                                       "volume": str(int(self._totals[symbol])),
+                                       "tick_time": stamp.strftime("%H:%M:%S"),
+                                       "trades": str(minute * 4 + second + 1)}]}) + "\n")
         self._minutes = minutes
 
 
