@@ -313,141 +313,6 @@ class TestCaptureLoad(unittest.TestCase):
         self.assertEqual(session.bars, {})
 
 
-class TestScoring(unittest.TestCase):
-    def test_ranking_covers_every_eligible_symbol_and_returns_one_winner(self):
-        """TEST 5 and TEST 6."""
-        bars = {
-            "FAST": minute_rows(45, start_price=100.0, step=0.0103, accel=0.25,
-                                bucket_multiplier=4.0),
-            "STEADY": minute_rows(45, start_price=100.0, step=0.006, accel=0.10,
-                                  bucket_multiplier=2.0),
-            "FLAT": minute_rows(45, start_price=100.0, step=0.0),
-        }
-        session = session_of(bars, 45)
-        quality = scanner.assess_quality(session, list(bars))
-        result = scanner.select_one(session, quality)
-
-        self.assertEqual(quality.status, "OK")
-        self.assertGreaterEqual(len(result.ranked), 1)
-        self.assertEqual(result.status, scanner.TRADE)
-        self.assertEqual(result.candidate["symbol"], "FAST")
-        self.assertEqual(result.candidate, result.ranked[0])
-        self.assertEqual(len(result.ranked), len({row["symbol"] for row in result.ranked}))
-
-    def test_weak_candidate_is_no_trade(self):
-        """TEST 7: a candidate that is not strong enough is not traded."""
-        bars = {"MEH": minute_rows(45, start_price=100.0, step=0.0002, accel=0.02,
-                                   bucket_multiplier=1.02)}
-        session = session_of(bars, 45)
-        quality = scanner.assess_quality(session, list(bars))
-        result = scanner.select_one(session, quality)
-
-        self.assertEqual(result.status, scanner.NO_TRADE)
-        self.assertIsNone(result.candidate)
-        self.assertTrue("minimum" in result.reason or "no symbol passed" in result.reason
-                        or "market not supportive" in result.reason)
-
-    def test_extension_is_penalised_not_chased(self):
-        """A stock that already ran hard loses points for being late."""
-        hot = minute_rows(45, start_price=100.0, step=0.1, accel=0.2,
-                          bucket_multiplier=4.0)
-        calm = minute_rows(45, start_price=100.0, step=0.006, accel=0.25,
-                           bucket_multiplier=4.0)
-        hot_session = session_of({"HOT": hot}, 45)
-        calm_session = session_of({"CALM": calm}, 45)
-        hot_row = scanner.score_symbol("HOT", hot, hot_session)
-        calm_row = scanner.score_symbol("CALM", calm, calm_session)
-
-        self.assertIsNotNone(hot_row)
-        self.assertGreater(hot_row["penalties"]["extension_points_lost"], 0.0)
-        self.assertLess(hot_row["penalties"]["extension_factor"], 1.0)
-        self.assertLess(hot_row["score"], hot_row["weighted_score"])
-        self.assertGreater(calm_row["score"], hot_row["score"])
-        self.assertGreater(calm_row["returns"]["session"], 0.0)
-        self.assertLess(hot_row["score"], config.MIN_SIGNAL_SCORE)
-
-    def test_market_selloff_blocks_the_long(self):
-        bars = {
-            f"SYM{i}": minute_rows(45, start_price=100.0, step=-0.01, accel=0.1,
-                                   bucket_multiplier=4.0)
-            for i in range(6)
-        }
-        bars["HERO"] = minute_rows(45, start_price=100.0, step=0.0103, accel=0.25,
-                                   bucket_multiplier=4.0)
-        session = session_of(bars, 45)
-        quality = scanner.assess_quality(session, list(bars))
-        result = scanner.select_one(session, quality)
-
-        self.assertEqual(result.status, scanner.NO_TRADE)
-        self.assertIn("market not supportive", result.reason)
-        self.assertIn(result.market["status"], ("SELLOFF", "WEAK"))
-
-    def test_secondary_confirmation_rejects_unconfirmed_high_score_candidate(self):
-        # A high-score signal whose close remains below a recent range high
-        # must be refused, even if the existing momentum/volume gates pass.
-        bars = {"FAST": minute_rows(45, start_price=100.0, step=0.0103, accel=0.25,
-                                    bucket_multiplier=4.0)}
-        rows = bars["FAST"]
-        for index in range(len(rows) - 6, len(rows) - 1):
-            bar = rows[index]
-            rows[index] = scanner.MinuteBar(bar.timestamp, bar.open,
-                                             bar.high + 1.0, bar.low, bar.close + 1.0,
-                                             bar.volume)
-        session = session_of(bars, 45)
-        confirmation = scanner.secondary_confirmation(rows)
-        self.assertFalse(confirmation["breakout_passed"])
-        row = scanner.score_symbol("FAST", rows, session)
-        self.assertIsNone(row)
-        self.assertIsNone(scanner.select_one(
-            session, scanner.assess_quality(session, list(bars))).candidate)
-
-    def test_secondary_confirmation_passes_breakout_with_momentum_rsi(self):
-        # Rising closes, a new high on the most recent bar, and an expanding
-        # final volume bucket satisfy both measured confirmation components.
-        rows = minute_rows(50, start_price=100.0, step=0.02, accel=0.04,
-                           bucket_multiplier=5.0)
-        confirmation = scanner.secondary_confirmation(rows)
-        self.assertTrue(confirmation["breakout_passed"])
-        self.assertTrue(confirmation["rsi_passed"])
-        self.assertTrue(confirmation["passed"])
-
-    def test_hcar_shape_fails_the_new_breakout_confirmation(self):
-        # Captured signal-time measurements: final close 203.00 sat below the
-        # preceding 5-bar high 203.35 despite RSI(14)=66.33.
-        rows = [scanner.MinuteBar(SESSION_OPEN + timedelta(minutes=i),
-                                 203.0, 203.35, 202.5, 203.0, 1000.0)
-                for i in range(67)]
-        confirmation = scanner.secondary_confirmation(rows)
-        self.assertFalse(confirmation["breakout_passed"])
-        self.assertTrue(confirmation["rsi_passed"])
-        self.assertFalse(confirmation["passed"])
-
-    def test_score_components_are_reported_for_reproduction(self):
-        bars = {"FAST": minute_rows(45, start_price=100.0, step=0.0103, accel=0.25,
-                                    bucket_multiplier=4.0)}
-        session = session_of(bars, 45)
-        row = scanner.score_symbol("FAST", bars["FAST"], session)
-
-        rows = bars["FAST"]
-        for index in range(len(rows) - config.BREAKOUT_CONFIRMATION_BARS - 1,
-                           len(rows) - 1):
-            bar = rows[index]
-            rows[index] = scanner.MinuteBar(bar.timestamp, bar.open,
-                                             bar.high, bar.low,
-                                             bar.close - 1.0, bar.volume)
-        confirmed = scanner.score_symbol("FAST", rows, session)
-        self.assertIsNotNone(confirmed)
-        row = confirmed
-        self.assertEqual(set(row["components"]), set(config.SCORE_WEIGHTS))
-        for name in config.SCORE_WEIGHTS:
-            self.assertGreaterEqual(row["components"][name], 0.0)
-            self.assertLessEqual(row["components"][name], 1.0)
-        self.assertGreater(row["score"], 0.0)
-        self.assertLessEqual(row["score"], 100.0)
-        self.assertIn("returns", row)
-        self.assertIn("volume", row)
-
-
 class TestMessages(unittest.TestCase):
     def test_target_is_always_two_percent_of_actual_entry(self):
         """TEST 8: the target derives from the recorded entry price."""
@@ -460,13 +325,13 @@ class TestMessages(unittest.TestCase):
 
     def test_signal_message_carries_the_required_fields(self):
         candidate = {
-            "symbol": "OGDC", "score": 71.5, "momentum": "STRONG",
+            "symbol": "OGDC", "score": 71.5, "stop_loss": 122.5, "momentum": "STRONG",
             "acceleration_label": "STRONG", "volume_label": "STRONG",
             "volume": {"relative": 3.25},
         }
         text = scanner.signal_message(candidate, {"status": "SUPPORTIVE"},
                                       123.45, SESSION_OPEN)
-        for needle in ("QUANT LONG SIGNAL", "Symbol: OGDC", "Entry: 123.4500",
+        for needle in ("QUANT LONG SIGNAL", "Symbol: OGDC", "Entry price: 123.4500",
                        "Target: 125.9190", "ONE TRADE ONLY", "+2.0%"):
             self.assertIn(needle, text)
 

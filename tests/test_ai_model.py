@@ -186,17 +186,14 @@ class RoutingTest(unittest.TestCase):
         self.assertIn("outside", note)
 
     def test_prior_never_invents_a_candidate(self):
-        """Ranking is rule-scored; the prior only annotates."""
+        """ICT/SMC ignores the old momentum prior, including annotations."""
         session = one_session(
             datetime(2026, 10, 8, 10, 0, tzinfo=KARACHI),
             [100 + index * 0.05 for index in range(40)])
         plain = scanner.rank_candidates(session)
         annotated = scanner.rank_candidates(session, {"AAA": 0.9})
-        self.assertEqual([row["score"] for row in plain],
-                         [row["score"] for row in annotated])
-        if annotated:
-            self.assertEqual(annotated[0]["ai_probability"], 0.9)
-            self.assertTrue(annotated[0]["ai_active"] in (True, False))
+        self.assertEqual(plain, annotated)
+        self.assertEqual(annotated, [])
 
     def test_attach_marks_unscored_symbols_as_unavailable(self):
         rows = [{"symbol": "AAA"}, {"symbol": "BBB"}]
