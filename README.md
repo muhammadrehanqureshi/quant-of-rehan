@@ -57,7 +57,7 @@ The schedule lives in the cloud and never on the owner's PC (SO-12, owner order
 | Carries | the KMIALL scan, the post-close finalize, the observation both the phone card and the paper strategy read | the open and close texts, and the `/health`, `/signals`, `/market` and `/quotes` endpoints the phone reads |
 | Cadence | **every second inside every PSX band** (`config.SCAN_INTERVAL_SECONDS = 1`, owner order 2026-10-19 amending SO-13); one cycle costs about 2.9s, so the loop runs back-to-back and the achieved rate is its own latency | on every band edge it is triggered for, and on every phone poll |
 | Cost | nothing: free runner minutes on a public repository, and the loop runs for the band's length either way | the free edge tier |
-| State | its own forward state on the runner | `RELAY_KV` |
+| State | its own forward state on the runner | the `QuoteHub` Durable Object |
 | PC off | yes | yes |
 
 One scan serves both readers: the same run, observation and data-quality report
