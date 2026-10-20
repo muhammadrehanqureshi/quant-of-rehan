@@ -68,6 +68,7 @@ import os
 # named LOCAL_ONLY_SCRIPTS before SO-21, when the direction of the rule was
 # the opposite.
 BACKTEST_SCRIPTS = {
+    "scripts/backtest_smc.py": "the causal ICT/SMC minute-bar replay",
     "scripts/smoke_backtest.py": "the end-to-end backtest smoke run",
     "scripts/backtest_optimize.py": "the staged parameter search",
     "scripts/walk_forward_check.py": "the walk-forward validation",
