@@ -60,26 +60,45 @@ class RelayWorkerContractTest(unittest.TestCase):
         self.assertIn("last_delivery: lastDelivery", self.source,
                       "the recorded outcome never reaches a client")
 
-    def test_the_once_a_second_polls_do_not_spend_the_kv_quota(self):
-        """Owner report 2026-10-19: the KV daily limit email.
+    def test_the_relay_lives_without_a_kv_namespace(self):
+        """Owner order 2026-10-20: no product that mails a quota warning.
 
-        The free plan allows about 100,000 reads and 1,000 writes a day, and
-        the phone polls /health and /signals once a second while a session is
-        live. Every hot key therefore goes through the isolate memo; a direct
-        read on one of them is the defect this test exists to catch.
+        The 2026-10-19 email ("KV daily limit reached 50% today") came from the
+        free plan allowance of about 100,000 reads and 1,000 writes a day, and
+        the deploy then began refusing outright because the namespace it bound
+        no longer existed (run 39241261663: "KV namespace ... not found"), so
+        the edge kept running a build from before the memo fix. The relay now
+        keeps the card, the snapshot, the session state, the pairing codes and
+        the research log in the QuoteHub Durable Object it already needed, and
+        binds no namespace at all.
         """
         self.assertIn("const KV_MEMO_TTL_MS = 10000;", self.source)
         self.assertIn("async function kvGet(env, key, ttlMs = KV_MEMO_TTL_MS)",
                       self.source)
-        for hot in ('"MARKET"', '"SIGNALS"', '"DELIVERY:LAST"', '"PAIRED_CHAT_ID"'):
-            with self.subTest(key=hot):
-                self.assertNotIn(f'env.RELAY_KV.get({hot})', self.source,
-                                 f"{hot} is read directly once a second")
-                self.assertNotIn(f'env.RELAY_KV.put({hot}', self.source,
-                                 f"{hot} is written without refreshing the memo")
+        self.assertIn('const STATE_HUB_NAME = "psx-live-quotes";', self.source)
+        for helper in ("async function relayRead(", "async function relayWrite(",
+                       "async function relayDelete(", "async function relayList("):
+            with self.subTest(helper=helper):
+                self.assertIn(helper, self.source)
+        # No call site may reach past the helpers into KV directly.
+        self.assertNotIn("env.RELAY_KV.get(", self.source)
+        self.assertNotIn("env.RELAY_KV.put(", self.source)
+        self.assertNotIn("env.RELAY_KV.delete(", self.source)
+        self.assertNotIn("env.RELAY_KV.list(", self.source)
+        self.assertIn("CREATE TABLE IF NOT EXISTS relay_state", self.source)
+        config = (ROOT / "cloud" / "wrangler.toml").read_text(encoding="utf-8")
+        self.assertNotIn("[[kv_namespaces]]", config,
+                         "the Worker still declares a KV namespace")
+        workflow = (ROOT / ".github" / "workflows" / "deploy-relay.yml").read_text(
+            encoding="utf-8")
+        self.assertNotIn("RELAY_KV_ID", workflow,
+                         "the deploy still waits for a namespace id")
+        pair = (ROOT / "cloud" / "pair.py").read_text(encoding="utf-8")
+        self.assertNotIn('"kv_namespace"', pair,
+                         "a manual deploy still uploads a KV binding")
         # The retry path stays uncached on purpose: a stale pending frame could
         # otherwise be re-delivered after it was consumed.
-        self.assertIn("env.RELAY_KV.get(MARKET_PENDING_KEY)", self.source)
+        self.assertIn("relayRead(env, MARKET_PENDING_KEY)", self.source)
 
     def test_health_names_the_commit_the_edge_is_running(self):
         """`ok: true` proved only that SOMETHING answered.
@@ -159,10 +178,10 @@ class RelayWorkerContractTest(unittest.TestCase):
         """The ops key is written after a successful send, never before."""
         route = self.source.index('if (kind === "ops")')
         body = self.source[route:route + 1400]
-        self.assertIn("const seen = await env.RELAY_KV.get(alertKey);", body)
+        self.assertIn("const seen = await relayRead(env, alertKey);", body)
         self.assertIn("if (seen) return json({ ok: true, deduped: true",
                       body)
-        self.assertNotIn('await env.RELAY_KV.put(alertKey, "1"', body,
+        self.assertNotIn('await kvPut(env, alertKey, "1"', body,
                          "the route still suppresses an alert it never sent")
         sender = self.source.index("async function sendAndRecord(")
         tail = self.source[sender:sender + 1600]

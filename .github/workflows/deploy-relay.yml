@@ -1,11 +1,10 @@
 name: Deploy the Telegram relay worker
 
-# The relay is one Worker plus one KV binding, deployed from cloud/ with
-# wrangler. Nothing in a GitHub runner is secret beyond the deploy token, so
-# the token and the account id ride as repository secrets; the KV namespace
-# id is a repository VARIABLE (an identifier, not a credential). wrangler.toml
-# keeps its placeholder in git on purpose (SO-5: the repo carries no live
-# identifiers), and this workflow substitutes it at deploy time.
+# The relay is one Worker plus one Durable Object, deployed from cloud/ with
+# wrangler. Nothing in a runner is secret beyond the deploy token, so the
+# token and the account id ride as repository secrets. There is no KV binding
+# any more (owner order 2026-10-20: no product that mails a quota warning), so
+# this workflow needs no namespace variable and substitutes nothing.
 #
 # Minutes law (SO-13): deploys are seconds, run only when cloud/ changes or
 # by hand, and never overlap the scanner band windows. On success this
@@ -43,22 +42,15 @@ jobs:
         run: |
           [ -n "$CLOUDFLARE_API_TOKEN" ] || { echo "::error::CLOUDFLARE_API_TOKEN secret missing"; exit 1; }
           [ -n "$CLOUDFLARE_ACCOUNT_ID" ] || { echo "::error::CLOUDFLARE_ACCOUNT_ID secret missing"; exit 1; }
-          [ -n "${{ vars.RELAY_KV_ID }}" ] || { echo "::error::RELAY_KV_ID variable missing"; exit 1; }
 
       - name: Install wrangler
         run: npm install --no-save wrangler@latest
 
-      - name: Substitute the KV namespace id from the repo variable
-        working-directory: cloud
-        run: |
-          cp wrangler.toml wrangler.toml.bak
-          sed -i "s/PASTE_KV_NAMESPACE_ID_AFTER_CREATION/${{ vars.RELAY_KV_ID }}/" wrangler.toml
-          grep -q "${{ vars.RELAY_KV_ID }}" wrangler.toml
-
       # Three attempts, because the Cloudflare management API has returned a
       # transient failure at this exact step before (run 39225627067: the same
-      # token, account and KV id deployed green at 07:32 and answered
-      # 10041 "namespace not found" at 08:55). The retry costs twenty seconds
+      # token and account deployed green at 07:31 and then answered "namespace
+      # not found" at 08:55, because the KV namespace had been deleted). The
+      # retry costs twenty seconds
       # inside a ten minute budget; the alternative is a red X on a push that
       # never reached the edge.
       - name: Deploy
@@ -106,11 +98,5 @@ jobs:
       - name: Say what to check when the deploy is refused
         if: failure()
         run: |
-          echo "::error::A Cloudflare deploy refusal is a credential or namespace problem, not a code problem. Check, in order: (1) KV namespace ${{ vars.RELAY_KV_ID }} still exists, (2) CLOUDFLARE_API_TOKEN has Workers Scripts: Edit and Workers KV Storage: Read on the account in CLOUDFLARE_ACCOUNT_ID, (3) RELAY_KV_ID was not left pointing at a namespace that was deleted and recreated."
+          echo "::error::A Cloudflare deploy refusal is a credential problem, not a code problem. Check, in order: (1) CLOUDFLARE_API_TOKEN has Workers Scripts: Edit on the account in CLOUDFLARE_ACCOUNT_ID, (2) the Workers plan still allows the QuoteHub Durable Object the config declares, (3) the relay does not declare a binding to a namespace or resource that was deleted."
 
-      - name: Restore the placeholder so nothing invalid lands in the repo
-        if: always()
-        working-directory: cloud
-        run: |
-          mv -f wrangler.toml.bak wrangler.toml 2>/dev/null || true
-          git checkout -- ../cloud/wrangler.toml 2>/dev/null || true
