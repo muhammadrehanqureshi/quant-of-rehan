@@ -11,7 +11,6 @@
          resource reads a bare one as punctuation to be stripped. -->
     <string name="tagline">PSX\'s KMIALL INDEX</string>
     <string name="checking">Checking system…</string>
-    <string name="no_signals">No signal right now.</string>
     <!-- Owner order 2026-10-12: the settings glyph is retired, and the
          control is a drawn shape rather than U+2699 (no bundled face has it,
          so a glyph could only ever render as whatever the system font chose).

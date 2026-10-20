@@ -394,7 +394,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
                 android:gravity="center"
-                android:text="@string/no_signals"/>
+                android:text="@string/signal_no_call"/>
         </LinearLayout>
 
         <!-- brand rule after the latest signal: the same include, closing the
