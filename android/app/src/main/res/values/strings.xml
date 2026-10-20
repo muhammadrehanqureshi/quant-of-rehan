@@ -9,7 +9,7 @@
          is where a reader looks for it, and SO-8 keeps every time in the app
          on Asia/Karachi. The apostrophe is escaped because an Android string
          resource reads a bare one as punctuation to be stripped. -->
-    <string name="tagline">PSX\'s KMIALL INDEX · SIGNAL-ONLY</string>
+    <string name="tagline">PSX\'s KMIALL INDEX</string>
     <string name="checking">Checking system…</string>
     <string name="no_signals">No signal right now.</string>
     <!-- Owner order 2026-10-12: the settings glyph is retired, and the
@@ -21,6 +21,13 @@
          short spoken label; the long settings_hint paragraph below it is help
          text, not a button name. -->
     <string name="cd_settings">Settings. Opens the relay token and the watchdog controls.</string>
+    <string name="cd_search">Search. Finds a KMIALL symbol and shows its buy, sell and total volume.</string>
+    <string name="search_hint">Search a KMIALL symbol</string>
+    <string name="search_empty">No KMIALL symbol starts with that yet.</string>
+    <string name="search_waiting">Symbols load with the next relay answer.</string>
+    <string name="search_volume_label">VOLUME NOW</string>
+    <string name="search_loading">Reading the symbol\u2026</string>
+    <string name="search_unavailable">That symbol has no live quote from the relay yet.</string>
     <string name="diamond">◆</string>
     <string name="label_system">QUANT STATUS</string>
     <string name="label_signal">LATEST SIGNAL</string>
@@ -102,10 +109,15 @@
     <string name="market_relay_unreachable">Relay unreachable, so the market card is empty.</string>
     <string name="market_payload_too_large">The relay sent more data than this app accepts, so the card was skipped.</string>
     <string name="btn_relay">Relay status</string>
-    <string name="btn_arm">Arm 5-minute watchdog</string>
+    <string name="btn_arm">Arm 1-second watchdog</string>
     <!-- Owner order 2026-10-19: no token, no relay plumbing, no feed jargon.
          Two controls and one plain sentence are the whole settings tile. -->
     <string name="settings_hint">The console reads the relay by itself. On some phones also allow autostart and remove battery limits so the watchdog is never frozen.</string>
+    <!-- Owner order 2026-10-20: no call for TODAY. The tile used to fall
+         back to whatever signal the relay last carried, so a Tuesday
+         screen still showed Friday's HCAR row. A card stamped with
+         another session is not today's call and is shown as none. -->
+    <string name="signal_no_call">NO CALL RIGHT NOW</string>
     <!-- The signal tile's two non-trade states, one word each. -->
     <string name="signal_none">NO TRADE</string>
     <string name="signal_unavailable">Signal unavailable</string>

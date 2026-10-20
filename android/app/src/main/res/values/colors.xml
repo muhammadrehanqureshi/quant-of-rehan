@@ -54,4 +54,11 @@
     <color name="red_deep_edge">#FF561010</color>
     <color name="red_deep_line">#FFC04545</color>
     <color name="on_red">#FFFDF3F3</color>
+    <!-- The ONLINE gradient (owner order 2026-10-20): the OFFLINE tile's
+         shape in the brand green. Two ends plus the closing hairline, and
+         white ink on the lighter end stays well past body-text contrast. -->
+    <color name="green_deep">#FF1B6B45</color>
+    <color name="green_deep_edge">#FF0E3D27</color>
+    <color name="green_deep_line">#FF4FC08D</color>
+    <color name="on_green">#FFF2FBF6</color>
 </resources>

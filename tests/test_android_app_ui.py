@@ -522,10 +522,10 @@ class SettingsControlTest(unittest.TestCase):
         self.assertIn("GEAR_TURN_MS", self.main)
         self.assertIn("new DecelerateInterpolator()", self.main)
         # Every state change goes through the one helper, and the open no
-        # longer swaps a background anywhere. Two call sites since owner order
-        # 2026-10-19: the declaration and the gear tap. The token save handler
-        # that used to close the panel is retired with the token field.
-        self.assertEqual(self.main.count("setSettingsOpen("), 2)
+        # longer swaps a background anywhere. Three call sites since owner
+        # order 2026-10-20: the declaration, the gear tap, and the search menu
+        # closing the panel so two menus can never be open at once.
+        self.assertEqual(self.main.count("setSettingsOpen("), 3)
         self.assertNotIn("gear_bg", self.main)
         self.assertNotIn("setBackgroundResource", self.main)
 
@@ -729,30 +729,20 @@ class TypefaceTest(unittest.TestCase):
                       self.main)
         self.assertIn("new TypefaceSpan(ARROW_FACE), from, from + 1", self.main)
 
-    def test_the_estimate_mark_is_drawn_by_a_face_that_shows_it(self):
-        """Owner order 2026-10-15: the sign must read as an approximation.
+    def test_the_estimate_mark_is_one_tag_not_a_tilde_pair(self):
+        """Owner order 2026-10-20: the tilde pair left the quantities.
 
-        LEMON MILK maps U+2248, but measured in the shipped face its two bars
-        sit 131 of the font's own 2048 em units apart, so at card size they
-        merge into one squiggle and the owner read the quantity fields as if
-        the "=" had turned into a tilde. The two signs are drawn by the
-        system face now, the same override the arrows already needed; the
-        brand face keeps every character around them. Only an estimated row
-        gets the override: a measured row's "=" is LEMON MILK's own.
+        U+2248 drawn by the system face still merged into a pair of tildes in
+        front of B and S, which is what the owner kept seeing. The numbers now
+        carry the plain "=" and one EST tag closes the group when the split
+        came from the day's range rather than from order flow, so the estimate
+        stays labelled and the squiggle is gone (SO-3).
         """
-        self.assertTrue(has_codepoint(FONT_DIR / "lemonmilk_light.otf", ABOUT))
-        self.assertIn('private static final String ARROW_FACE = "sans-serif"',
-                      self.main)
-        self.assertIn("if (estimated) {\n"
-                      "                    glyphs.add(new int[]{buyFrom - 1, "
-                      "buyFrom});\n                }", self.main)
-        self.assertIn("if (estimated) {\n"
-                      "                    glyphs.add(new int[]{sellFrom - 1, "
-                      "sellFrom});\n                }", self.main)
-        # And the mark itself: "=" for the tape's counted numbers, U+2248 for
-        # the day's-range estimate.
-        self.assertIn('String mark = estimated ? "\\u2248" : "=";',
-                      self.main)
+        self.assertNotIn("String mark = estimated", self.main)
+        self.assertIn('sb.append("  EST");', self.main)
+        self.assertIn("if (estimated) {", self.main)
+        # An estimated row is still distinguished from a measured one.
+        self.assertIn("estimatedSplit()", self.main)
 
     def test_the_bundled_faces_carry_their_licences(self):
         for name in ("Bonskin-PersonalUse.txt", "LEMONMILK-ReadMe.txt"):
@@ -971,7 +961,7 @@ class StatusPulseTest(unittest.TestCase):
             encoding="utf-8")
         self.assertIn("static final long REFRESH_MS = 30 * 1000;", watcher)
         # The background arm is a watchdog, not a poll, and says so.
-        self.assertIn("static final long WATCHDOG_MS = 5 * 60 * 1000;", watcher)
+        self.assertIn("static final long WATCHDOG_MS = 1000;", watcher)
         self.assertIn("System.currentTimeMillis() + WATCHDOG_MS", watcher)
         # And the app's interval is the scanner's own, not a second opinion.
         config_text = (ROOT / "src" / "config.py").read_text(encoding="utf-8")
@@ -1097,7 +1087,9 @@ class StatusPulseTest(unittest.TestCase):
         # is the same rule one step further out: a round that outlived its
         # activity paints nothing and holds nothing.
         self.assertEqual(self.main.count("liveInFlight = false;"), 2)
-        self.assertEqual(self.main.count("isFinishing() || isDestroyed()"), 2)
+        # A third callback joins in v1.7.8: the search's one-symbol read, which
+        # guards its paint the same way the two refresh rounds do.
+        self.assertEqual(self.main.count("isFinishing() || isDestroyed()"), 3)
         self.assertEqual(self.main.count("if (resumed) {"), 2)
         for marker in ("private void refresh()", "private void refreshLive()"):
             body = self.main[self.main.index(marker):][:800]
@@ -1355,7 +1347,7 @@ class HeaderCopyTest(unittest.TestCase):
         # punctuation to be stripped), so the escaped and the rendered forms
         # are both checked here.
         self.assertEqual(self.resource_value("tagline"),
-                         "PSX\\'s KMIALL INDEX \u00b7 SIGNAL-ONLY")
+                         "PSX\\'s KMIALL INDEX")
         self.assertIn("PSX's KMIALL INDEX",
                       self.resource_value("tagline").replace("\\", ""))
 
@@ -1380,15 +1372,15 @@ class HeaderCopyTest(unittest.TestCase):
 
 class VersionTest(unittest.TestCase):
     def test_the_version_is_the_one_that_ships_these_changes(self):
-        # v1.7.7 finishes the 2026-10-19 dashboard pass: the signal reader, the
-        # one second scan cadence and the version that ships them.
+        # v1.7.8 is the 2026-10-20 console pass: today's call only, a split
+        # that moves with the frame, the symbol search and the green badge.
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="1.7.7"', manifest)
-        self.assertIn('android:versionCode="31"', manifest)
+        self.assertIn('android:versionName="1.7.8"', manifest)
+        self.assertIn('android:versionCode="32"', manifest)
         # The changelog entry ties these user-visible changes to the build.
         readme = (ROOT / "android" / "README.md").read_text(encoding="utf-8")
-        self.assertIn("v1.7.7, owner order 2026-10-19", readme)
-        self.assertIn("Version 1.7.7, versionCode 31", readme)
+        self.assertIn("v1.7.8, owner order 2026-10-20", readme)
+        self.assertIn("Version 1.7.8, versionCode 32", readme)
         layout = LAYOUT.read_text(encoding="utf-8")
         strings = STRINGS.read_text(encoding="utf-8")
         main = MAIN.read_text(encoding="utf-8")
