@@ -112,12 +112,16 @@ class LeaderLineTest(unittest.TestCase):
     def test_the_volume_group_is_bracketed_and_keeps_one_space(self):
         # "(" opens at B, ")" closes after T, and the ticker keeps exactly one
         # space before the group: the three fields read as one block.
-        self.assertIn('sb.append(" (B")', self.main)
+        self.assertIn('sb.append(" (B=");', self.main)
+        self.assertIn('sb.append("  S=");', self.main)
         self.assertIn('"  T=%,d)"', self.main)
         self.assertIn('" (T=%,d)"', self.main)
         self.assertNotIn('"  (B', self.main)
-        # The bare form the group replaced is gone.
+        # The bare form the group replaced is gone, and so is the side without
+        # its "=" (owner order 2026-10-20, third note).
         self.assertNotIn('sb.append(" B")', self.main)
+        self.assertNotIn('sb.append(" (B")', self.main)
+        self.assertNotIn('sb.append("  S")', self.main)
 
     def test_the_money_line_opens_after_the_volumes(self):
         volumes = self.main.index('"  T=%,d)"')
