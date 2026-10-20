@@ -1,0 +1,90 @@
+name: Bind the relay's dispatch token
+
+# Owner order 2026-10-20: the relay's punctual band dispatch is opt-in on
+# `env.GH_DISPATCH_TOKEN`, and the token must arrive in Cloudflare without
+# passing through the repository, a log line or a shell history.
+#
+# This machine holds no Cloudflare credential on purpose: the deploy workflow
+# carries `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` as repository
+# secrets. So the binding runs here, where those credentials already live, and
+# the value travels from the `GH_DISPATCH_TOKEN` GitHub secret into wrangler's
+# stdin. GitHub masks secret values in logs, and the value is never written to
+# a file, an argument or an echo.
+#
+# Run it once to bind, and again whenever the token is rotated. The last step
+# proves the token can actually reach the dispatch endpoint the worker posts to,
+# instead of trusting that a successful upload means a working token.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bind:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      GH_DISPATCH_TOKEN: ${{ secrets.GH_DISPATCH_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Refuse to bind an empty value
+        run: |
+          set -euo pipefail
+          test -n "${GH_DISPATCH_TOKEN:-}" || {
+            echo "::error::GH_DISPATCH_TOKEN repository secret is empty; add the PAT (Actions: write on this repo) first"
+            exit 1
+          }
+          test -n "${CLOUDFLARE_API_TOKEN:-}" || {
+            echo "::error::CLOUDFLARE_API_TOKEN repository secret is empty"
+            exit 1
+          }
+
+      - name: Install wrangler
+        run: npm install --no-save wrangler@latest
+
+      - name: Put the secret on the worker
+        run: |
+          set -euo pipefail
+          printf '%s' "$GH_DISPATCH_TOKEN" \
+            | npx wrangler secret put GH_DISPATCH_TOKEN --config cloud/wrangler.toml
+          # Names only: wrangler never returns a value, and neither do we.
+          npx wrangler secret list --config cloud/wrangler.toml \
+            | tee "$RUNNER_TEMP/secret-names.txt"
+          grep -q "GH_DISPATCH_TOKEN" "$RUNNER_TEMP/secret-names.txt" || {
+            echo "::error::GH_DISPATCH_TOKEN is not listed on the worker after the upload"
+            exit 1
+          }
+
+      - name: Prove the token can reach the dispatch endpoint
+        run: |
+          set -euo pipefail
+          API="https://api.github.com/repos/$GITHUB_REPOSITORY/actions/workflows"
+          AUTH="Authorization: Bearer $GH_DISPATCH_TOKEN"
+          # The workflow the relay dispatches must be visible to this token.
+          read_code=$(curl -sS -o /dev/null -w '%{http_code}' \
+            -H "$AUTH" -H "Accept: application/vnd.github+json" \
+            "$API/intraday-session.yml")
+          echo "GET intraday-session.yml -> $read_code"
+          test "$read_code" = "200" || {
+            echo "::error::the token cannot read the workflow the relay dispatches (HTTP $read_code)"
+            exit 1
+          }
+          # A dispatch POST is the exact call the worker makes. The APK workflow
+          # is the harmless target for it: it only rebuilds the artifact.
+          post_code=$(curl -sS -o /dev/null -w '%{http_code}' \
+            -X POST -H "$AUTH" -H "Accept: application/vnd.github+json" \
+            -H "Content-Type: application/json" \
+            -d '{"ref":"master"}' "$API/android-apk.yml/dispatches")
+          echo "POST android-apk.yml/dispatches -> $post_code"
+          test "$post_code" = "204" || {
+            echo "::error::the token cannot dispatch workflows (HTTP $post_code); give the PAT Actions: write on this repository"
+            exit 1
+          }
