@@ -33,7 +33,8 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          # wrangler@latest requires Node 22; #50's first run died on 20.
+          node-version: "22"
 
       - name: Refuse to bind an empty value
         run: |
