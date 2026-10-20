@@ -116,7 +116,7 @@ class RelayWorkerContractTest(unittest.TestCase):
         self.assertIn("the deploy did not land", workflow)
         # A refused deploy is annotated with what the owner must check, because
         # 10041 is never caused by the code in this repository.
-        self.assertIn("Workers KV Storage: Read", workflow)
+        self.assertIn("Workers Scripts: Edit", workflow)
 
     # ------------------------------------------------------- research routes
 
