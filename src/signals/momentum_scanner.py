@@ -1,58 +1,10 @@
-"""The ONE authoritative scanner: fast momentum + volume expansion (2026-10-09).
+"""Authoritative ICT/SMC intraday scanner (historical import path retained).
 
-This module replaces the old competing intraday signal engines. It is the only
-place in the repository that decides whether a KMIALL stock is a buy
-candidate. Its contract is deliberately narrow and explainable:
-
-    SCAN ALL KMIALL
-      -> per symbol: fast momentum, momentum acceleration, relative volume,
-         volume acceleration, liquidity, extension and weakness penalties
-      -> market context gate (breadth and median direction)
-      -> rank every eligible symbol
-      -> exactly ONE winner, or NO TRADE, or DATA BLOCKED
-
-Honesty rules that are enforced here, not merely documented:
-
-  * a data problem is NEVER reported as a market decision. Broken, stale,
-    thin or volume-less data returns status DATA_BLOCKED with the measured
-    numbers (owner spec section 8 and 29);
-  * volume is REQUIRED. The strategy is momentum plus volume expansion, so a
-    source that carries no volume cannot be traded on. The scanner refuses
-    instead of substituting a price-only proxy or inventing volume;
-  * every bar used must be strictly before as_of (no look-ahead), must have
-    finite positive prices, must satisfy high >= max(open, close) and
-    low <= min(open, close), and must not repeat a timestamp with a
-    different value;
-  * nothing is ever fabricated, interpolated or forward-filled.
-
-Exact score (weights come from src/config.py):
-
-    components, each normalized to 0..1 with a saturating half-credit scale
-    sat(x, k) = max(x, 0) / (max(x, 0) + k):
-
-      momentum            sat(ret_5m,               HALF_CREDIT_MOMENTUM_FAST)
-      acceleration        sat(ret_5m - ret_prev5m,  HALF_CREDIT_ACCELERATION)
-      relative_volume     sat(rel_vol - 1,         HALF_CREDIT_REL_VOLUME)
-      volume_acceleration sat(bucket_ratio - 1,    HALF_CREDIT_VOLUME_ACCEL)
-      liquidity           sat(traded_value,        HALF_CREDIT_TRADED_VALUE)
-
-    score = 100 * sum(weight_i * component_i)
-            * extension factor   (1.0 up to MAX_SESSION_EXTENSION of session
-                                  return, then 1/(1+excess/cap), so a late
-                                  runaway move cannot win on raw momentum)
-            * weakness factor    (same shape for the distance below the
-                                  session high, MAX_DISTANCE_FROM_HIGH)
-
-    A symbol is only eligible when it passes every hard gate: enough bars,
-    positive fast momentum, positive acceleration, a positive session return,
-    relative volume above the floor, volume still accelerating, turnover
-    above the liquidity floor, a fresh last bar, and a price above MIN_PRICE.
-
-The winner is the highest score at or above MIN_SIGNAL_SCORE. Otherwise the
-day is NO TRADE.
-
-The target is ALWAYS the actual recorded entry price plus TARGET_PCT:
-target_price = actual_entry_price * (1 + TARGET_PCT).
+The momentum strategy is removed from the decision path. Capture validation
+and the public SessionData/ScanResult contracts stay stable for all runners.
+Only causal sweep -> structure shift -> FVG -> retest candidates can enter.
+The old RSI diagnostic remains solely for reproducing the HCAR postmortem.
+Asia/Karachi, UTC+5. Signal-only, no broker orders and no assured returns.
 """
 
 from __future__ import annotations
@@ -67,7 +19,7 @@ from statistics import median
 from src import config
 from src.data import tape_bars
 from src.data.sessions import KARACHI, is_trading_day, open_time
-from src.signals import ai_model
+from src.signals import smc
 
 DATA_BLOCKED = "DATA_BLOCKED"
 NO_TRADE = "NO_TRADE"
@@ -256,7 +208,7 @@ def load_capture(path: Path, symbols: list[str], as_of: datetime) -> SessionData
                 except (KeyError, TypeError, ValueError):
                     malformed += 1
                     continue
-                if stamp >= as_of:
+                if stamp + timedelta(minutes=1) > as_of:
                     continue
                 if not all(math.isfinite(v) and v > 0 for v in values):
                     malformed += 1
@@ -367,9 +319,11 @@ def load_tape_bars(path: Path, symbols: list[str],
             MinuteBar(bar.timestamp, bar.open, bar.high, bar.low, bar.close,
                       bar.volume)
             for bar in rows
+            if bar.timestamp + timedelta(minutes=1) <= as_of
         ]
-        for symbol, rows in tape.bars.items() if rows
+        for symbol, rows in tape.bars.items()
     }
+    bars = {symbol: rows for symbol, rows in bars.items() if rows}
     return SessionData(
         day=tape.day,
         as_of=as_of,
@@ -566,7 +520,7 @@ def assess_quality(session: SessionData, symbols: list[str],
     if not session.volume_available:
         return blocked(
             "the source carries no volume, and this strategy requires volume "
-            "expansion; a price-only proxy would be a different strategy, so "
+            "confirmation; a price-only proxy would be a different strategy, so "
             "the scan is blocked instead of guessed")
 
     return QualityReport(
@@ -597,10 +551,11 @@ def market_context(session: SessionData) -> dict:
     session_open = datetime.combine(session.day, time(*open_time(session.day)),
                                     tzinfo=session.as_of.tzinfo)
     for sym, rows in session.bars.items():
-        first = next((bar for bar in rows if bar.timestamp >= session_open), None)
-        if first is None or first.open <= 0:
+        completed = [bar for bar in rows if session_open <= bar.timestamp
+                     and bar.timestamp + timedelta(minutes=1) <= session.as_of]
+        if not completed or completed[0].open <= 0:
             continue
-        returns[sym] = rows[-1].close / first.open - 1.0
+        returns[sym] = completed[-1].close / completed[0].open - 1.0
     if not returns:
         return {"status": "UNKNOWN", "advancers": 0, "decliners": 0,
                 "breadth": 0.0, "median_return": None, "participation": 0,
@@ -621,7 +576,7 @@ def market_context(session: SessionData) -> dict:
     else:
         status = "WEAK"
         reason = (f"breadth {breadth:.1%} is below the "
-                  f"{config.MIN_BREADTH:.0%} momentum floor")
+                  f"{config.MIN_BREADTH:.0%} breadth reference (context only)")
     return {
         "status": status,
         "advancers": advancers,
@@ -675,302 +630,40 @@ def _wilder_rsi(closes: list[float], period: int = 14) -> float | None:
     return 100.0 - 100.0 / (1.0 + relative_strength)
 
 
-def _sat(value: float, half_credit: float) -> float:
-    positive = max(float(value), 0.0)
-    if positive <= 0.0:
-        return 0.0
-    return positive / (positive + half_credit)
-
-
-def _close_at(rows: list[MinuteBar], target: datetime) -> float | None:
-    best: MinuteBar | None = None
-    for bar in rows:
-        if bar.timestamp <= target:
-            best = bar
-        else:
-            break
-    return best.close if best is not None else None
-
-
-def _volume_buckets(rows: list[MinuteBar], session_open: datetime,
-                    as_of: datetime) -> list[float]:
-    """Complete VOLUME_WINDOW-minute volume buckets, oldest first."""
-    buckets: dict[int, list[MinuteBar]] = {}
-    for bar in rows:
-        if bar.timestamp < session_open or bar.timestamp >= as_of:
-            continue
-        offset = int((bar.timestamp - session_open).total_seconds() // 60)
-        buckets.setdefault(offset // config.VOLUME_WINDOW, []).append(bar)
-    out = []
-    for index in sorted(buckets):
-        window = buckets[index]
-        end = session_open + timedelta(minutes=(index + 1) * config.VOLUME_WINDOW)
-        if end > as_of or len(window) != config.VOLUME_WINDOW:
-            continue
-        if any(bar.volume is None for bar in window):
-            return []
-        out.append(float(sum(bar.volume for bar in window)))
-    return out
-
-
 def score_symbol(symbol: str, rows: list[MinuteBar], session: SessionData) -> dict | None:
-    """Score one symbol, or return None when it fails a hard gate."""
-    if len(rows) < config.MIN_BARS_PER_SYMBOL:
-        return None
-    as_of = session.as_of
-    last = rows[-1]
-    if last.close < config.MIN_PRICE:
-        return None
-    if as_of - last.timestamp > timedelta(minutes=config.STALENESS_MINUTES):
-        return None
-
-    session_open = datetime.combine(session.day, time(*open_time(session.day)),
-                                    tzinfo=as_of.tzinfo)
-    first = next((bar for bar in rows if bar.timestamp >= session_open), None)
-    if first is None or first.open <= 0:
-        return None
-
-    # Windows are anchored on the last COMPLETED bar, not on the scan clock, so
-    # the fast leg and the previous leg always span the same number of minutes
-    # and the acceleration comparison is like for like.
-    fast_window, mid_window, slow_window = config.MOMENTUM_WINDOWS
-    anchor = last.timestamp
-    close_fast = _close_at(rows, anchor - timedelta(minutes=fast_window))
-    close_mid = _close_at(rows, anchor - timedelta(minutes=mid_window))
-    close_slow = _close_at(rows, anchor - timedelta(minutes=slow_window))
-    close_prev = _close_at(rows, anchor - timedelta(minutes=fast_window * 2))
-    if None in (close_fast, close_mid, close_slow, close_prev):
-        return None
-
-    ret_fast = last.close / close_fast - 1.0
-    ret_mid = last.close / close_mid - 1.0
-    ret_slow = last.close / close_slow - 1.0
-    ret_previous_leg = close_fast / close_prev - 1.0
-    acceleration = ret_fast - ret_previous_leg
-
-    buckets = _volume_buckets(rows, session_open, as_of)
-    if len(buckets) < 3:
-        return None
-    recent_volume = buckets[-1]
-    prior = buckets[:-1]
-    prior_median = float(median(prior))
-    if prior_median <= 0 or recent_volume <= 0:
-        return None
-    relative_volume = recent_volume / prior_median
-    volume_accel_ratio = recent_volume / prior[-1] if prior[-1] > 0 else float("inf")
-    traded_value = float(sum(bar.close * (bar.volume or 0.0) for bar in rows))
-
-    # Secondary continuation confirmation: require both a close through the
-    # recent range and a non-weak RSI(14). The window is anchored on completed
-    # bars, like momentum, and the result is always included in the audit row.
-    confirm_count = config.BREAKOUT_CONFIRMATION_BARS
-    confirmation = secondary_confirmation(rows)
-    prior_range_high = confirmation["prior_close_high"]
-    rsi14 = confirmation["rsi14"]
-    breakout_confirmed = confirmation["breakout_passed"]
-    rsi_confirmed = confirmation["rsi_passed"]
-
-    session_return = last.close / first.open - 1.0
-    session_high = max(bar.high for bar in rows)
-    distance_from_high = session_high / last.close - 1.0 if last.close > 0 else 1.0
-
-    # Hard gates: a symbol that fails any of these is not a candidate at all.
-    # Extension and weakness are NOT hard gates: they are graduated penalties
-    # below, so a stock that has run hard can still be scored but loses points
-    # for being late (owner spec section 5: do not chase extreme moves).
-    gates = {
-        "bars": True,
-        "price_floor": True,
-        "fresh": True,
-        "fast_momentum_positive": ret_fast > 0,
-        "accelerating": acceleration > 0,
-        "session_return_positive": session_return > 0,
-        "relative_volume": relative_volume >= config.MIN_RELATIVE_VOLUME,
-        "volume_accelerating": volume_accel_ratio >= config.MIN_VOLUME_ACCEL_RATIO,
-        "breakout_confirmation": breakout_confirmed,
-        "rsi14_confirmation": rsi_confirmed,
-        "liquidity": traded_value >= config.MIN_SESSION_TRADED_VALUE,
-    }
-    failed = sorted(name for name, ok in gates.items() if not ok)
-    if failed:
-        return None
-
-    components = {
-        "momentum": _sat(ret_fast, config.HALF_CREDIT_MOMENTUM_FAST),
-        "acceleration": _sat(acceleration, config.HALF_CREDIT_ACCELERATION),
-        "relative_volume": _sat(relative_volume - 1.0,
-                                config.HALF_CREDIT_REL_VOLUME),
-        "volume_acceleration": _sat(volume_accel_ratio - 1.0,
-                                    config.HALF_CREDIT_VOLUME_ACCEL),
-        "liquidity": _sat(traded_value, config.HALF_CREDIT_TRADED_VALUE),
-    }
-    base = 100.0 * sum(config.SCORE_WEIGHTS[name] * value
-                       for name, value in components.items())
-
-    # Late and weakening moves decay the score multiplicatively rather than
-    # losing a capped number of points. A capped subtraction cannot stop a
-    # runaway mover from winning on saturated momentum, which is exactly the
-    # "do not chase the biggest gainer" failure the owner called out. At the
-    # cap the factor is 1.0; at twice the cap the score halves.
-    extension_excess = max(0.0, session_return - config.MAX_SESSION_EXTENSION)
-    extension_factor = 1.0 / (1.0 + extension_excess / config.MAX_SESSION_EXTENSION)
-    weakness_excess = max(0.0, distance_from_high - config.MAX_DISTANCE_FROM_HIGH)
-    weakness_factor = 1.0 / (1.0 + weakness_excess / config.MAX_DISTANCE_FROM_HIGH)
-    score = max(0.0, min(100.0, base * extension_factor * weakness_factor))
-    extension_penalty = round(base - base * extension_factor, 2)
-    weakness_penalty = round(base - base * weakness_factor, 2)
-
-    momentum_strength = ("STRONG" if ret_fast >= 0.004 else
-                         "MODERATE" if ret_fast > 0 else "WEAK")
-    acceleration_strength = ("STRONG" if acceleration >= 0.002 else
-                             "MODERATE" if acceleration > 0 else "WEAK")
-    volume_strength = ("STRONG" if volume_accel_ratio >= 1.5 else
-                       "MODERATE" if volume_accel_ratio >= 1.0 else "WEAK")
-    return {
-        "symbol": symbol,
-        "score": round(score, 2),
-        "weighted_score": round(base, 2),
-        "penalties": {"extension_points_lost": round(extension_penalty, 2),
-                      "weakness_points_lost": round(weakness_penalty, 2),
-                      "extension_factor": round(extension_factor, 4),
-                      "weakness_factor": round(weakness_factor, 4),
-                      "definition": "multiplicative decay on session extension and "
-                                    "distance below the session high"},
-        "components": {name: round(value, 4) for name, value in components.items()},
-        "returns": {"fast_5m": round(ret_fast, 6), "mid_15m": round(ret_mid, 6),
-                    "slow_30m": round(ret_slow, 6),
-                    "previous_leg_5m": round(ret_previous_leg, 6),
-                    "acceleration": round(acceleration, 6),
-                    "session": round(session_return, 6)},
-        "volume": {"recent_bucket": recent_volume,
-                   "prior_bucket_median": prior_median,
-                   "relative": round(relative_volume, 3),
-                   "bucket_ratio": (round(volume_accel_ratio, 3)
-                                    if math.isfinite(volume_accel_ratio) else None),
-                   "traded_value_estimate": round(traded_value, 2),
-                   "volume_source": "captured bar volume"},
-        "confirmation": {
-            "rule": "close_above_previous_range_and_rsi14",
-            "breakout_bars": confirm_count,
-            "prior_close_high": prior_range_high,
-            "breakout_passed": breakout_confirmed,
-            "rsi14_wilder": None if rsi14 is None else round(rsi14, 2),
-            "minimum_rsi14": config.MIN_CONFIRMATION_RSI,
-            "rsi_passed": rsi_confirmed,
-            "passed": breakout_confirmed and rsi_confirmed,
-        },
-        "price": {"last": last.close, "session_open": first.open,
-                  "session_high": session_high,
-                  "distance_from_high": round(distance_from_high, 6)},
-        "momentum": momentum_strength,
-        "acceleration_label": acceleration_strength,
-        "volume_label": volume_strength,
-        "last_bar": last.timestamp.isoformat(),
-        "bars": len(rows),
-    }
+    """Historical API name, now evaluates only the ICT/SMC sequence."""
+    return smc.candidate(symbol, rows, session)
 
 
 def rank_candidates(session: SessionData,
                     ai_prior: dict[str, float] | None = None) -> list[dict]:
-    """Score and rank every eligible symbol in the captured universe.
+    """Rank confirmed setups; the old daily-model prior has no entry authority."""
+    ranked = [row for symbol in sorted(session.bars)
+              if (row := score_symbol(symbol, session.bars[symbol], session)) is not None]
+    return sorted(ranked, key=lambda row: (-row["score"], row["symbol"]))
 
-    ``ai_prior`` is the optional trained daily probability per symbol
-    (src/signals/ai_model.py). It is ATTACHED to every row for the record and
-    never changes a rule score: the ordering here is pure rule score. The
-    prior's only lever is the bounded tie-break applied in select_one.
-    """
-    scored = []
-    for symbol in sorted(session.bars):
-        row = score_symbol(symbol, session.bars[symbol], session)
-        if row is not None:
-            scored.append(row)
-    if ai_prior:
-        ai_model.attach(ai_prior, scored)
-    scored.sort(key=lambda row: (-row["score"], row["symbol"]))
-    return scored
-
-
-# --------------------------------------------------------------- selection
 
 def select_one(session: SessionData, quality: QualityReport,
                ai_prior: dict[str, float] | None = None,
                ai_status: dict | None = None) -> ScanResult:
-    """The whole decision: DATA BLOCKED, market NO TRADE, or ONE candidate.
-
-    The AI prior, when active, may reorder a near-tie and (only if the owner
-    turned the veto on) refuse the weakest sliver of its own ranking. It can
-    never create a candidate, raise a score, or override a clear rule gap.
-    """
-    coverage_text = (f"{quality.symbols_with_bars}/{quality.symbols_expected} "
-                     f"({quality.coverage:.1%})")
+    """At most one fully confirmed long, never a momentum/RSI fallback."""
+    coverage = f"{quality.symbols_with_bars}/{quality.symbols_expected} ({quality.coverage:.1%})"
     if quality.status == DATA_BLOCKED:
-        return ScanResult(status=DATA_BLOCKED,
-                          reason=quality.reason, quality=quality,
-                          market={}, coverage_text=coverage_text)
-
+        return ScanResult(DATA_BLOCKED, quality.reason, quality, {}, coverage_text=coverage)
     context = market_context(session)
-    if ai_status:
-        context["ai"] = ai_status
-    ranked = rank_candidates(session, ai_prior)
-
-    # The market gate is reported first: when the whole universe is falling it
-    # is the dominant, honest explanation, and a momentum strategy must not
-    # fight it (owner spec section 6).
-    if context.get("status") != "SUPPORTIVE":
-        return ScanResult(
-            status=NO_TRADE,
-            reason=f"market not supportive: {context.get('reason')}",
-            quality=quality, market=context, ranked=ranked[:10],
-            coverage_text=coverage_text)
-
+    context["ai"] = {"active": False, "reason": "ICT/SMC rules do not use the daily momentum prior"}
+    ranked = rank_candidates(session)
+    # Broad panic is a risk veto; ordinary weak breadth is not a momentum
+    # entry filter on this reversal strategy.
+    if context.get("median_return") is None or context["median_return"] < config.MAX_MARKET_DROP:
+        return ScanResult(NO_TRADE, "market not supportive: broad selloff or unknown context",
+                          quality, context, ranked=ranked, coverage_text=coverage)
     if not ranked:
-        return ScanResult(
-            status=NO_TRADE,
-            reason=("KMIALL captured but no symbol passed the momentum plus "
-                    "volume gates"),
-            quality=quality, market=context, ranked=[], coverage_text=coverage_text)
-
-    # Bounded AI routing, in one place and in this order:
-    #   1. a near-tie between the top two rule scores may be reordered by the
-    #      trained prior (never a clear rule win);
-    #   2. if the owner enabled the veto, a winner sitting in the weakest sliver
-    #      of the model's own ranking is refused, and the refusal is reported as
-    #      the decision rather than silently turned into a lower-ranked entry.
-    ai_note = ""
-    if ai_prior and ai_status and ai_status.get("active"):
-        index, ai_note = ai_model.tie_break_winner(ranked)
-        if index == 1:
-            ranked[0], ranked[1] = ranked[1], ranked[0]
-
-    winner = ranked[0]
-    if winner["score"] < config.MIN_SIGNAL_SCORE:
-        return ScanResult(
-            status=NO_TRADE,
-            reason=(f"top score {winner['score']:.2f} on {winner['symbol']} is "
-                    f"below the {config.MIN_SIGNAL_SCORE:g} minimum"),
-            quality=quality, market=context, ranked=ranked[:10],
-            coverage_text=coverage_text)
-
-    passed, veto_reason = ai_model.gate(winner.get("ai_probability"),
-                                        winner.get("ai_percentile"))
-    if not passed:
-        return ScanResult(
-            status=NO_TRADE,
-            reason=(f"AI veto refused {winner['symbol']} (rule score "
-                    f"{winner['score']:.2f}): {veto_reason}"),
-            quality=quality, market=context, ranked=ranked[:10],
-            coverage_text=coverage_text)
-
-    reason = "strongest current momentum plus volume"
-    if ai_note and ai_note.startswith("AI prior promoted"):
-        reason = f"strongest current momentum plus volume; {ai_note}"
-    elif winner.get("ai_probability") is not None:
-        reason = (f"strongest current momentum plus volume; AI prior "
-                  f"{winner['ai_probability']:.3f} "
-                  f"({winner['ai_percentile']:.0%} percentile)")
-    return ScanResult(status=TRADE, reason=reason,
-                      quality=quality, market=context, candidate=winner,
-                      ranked=ranked[:10], coverage_text=coverage_text)
+        return ScanResult(NO_TRADE, "no symbol passed the ICT/SMC sweep, MSS, FVG and retest gates",
+                          quality, context, ranked=[], coverage_text=coverage)
+    return ScanResult(TRADE, "confirmed sell-side sweep, bullish MSS, FVG retest in discount",
+                      quality, context, candidate=ranked[0], ranked=ranked,
+                      coverage_text=coverage)
 
 
 # ------------------------------------------------------------------- messages
@@ -982,34 +675,28 @@ def target_price(entry: float) -> float:
 
 def signal_message(candidate: dict, market: dict, entry: float,
                    entry_time: datetime) -> str:
-    target = target_price(entry)
+    stop = candidate["stop_loss"]
     return (
-        "QUANT LONG SIGNAL\n\n"
+        "QUANT LONG SIGNAL - PAPER REFERENCE\n\n"
         f"Symbol: {candidate['symbol']}\n"
-        f"Entry: {entry:.4f}\n"
-        f"Target: {target:.4f} (+{config.TARGET_PCT * 100:.1f}%)\n"
-        f"Momentum: {candidate['momentum']}\n"
-        f"Momentum acceleration: {candidate['acceleration_label']}\n"
-        f"Volume acceleration: {candidate['volume_label']}\n"
-        f"Relative volume: {candidate['volume']['relative']:.2f}\n"
-        f"Market: {market.get('status', 'UNKNOWN')}\n"
-        f"Reason: strongest current KMIALL momentum + volume acceleration\n"
-        f"Entry time: {entry_time:%H:%M} PKT\n"
-        f"Score: {candidate['score']:.2f}/100\n\n"
-        "ONE TRADE ONLY.\n"
-        f"Target: +{config.TARGET_PCT * 100:.1f}%."
+        f"Entry price: {entry:.4f}\n"
+        f"Target: {target_price(entry):.4f} (+{config.TARGET_PCT * 100:.1f}% gross)\n"
+        f"Stop Loss: {stop:.4f}\n"
+        "Reason: sell-side sweep, bullish structure shift, FVG first retest in discount\n"
+        f"Strategy: {config.SCANNER_VERSION}\n"
+        f"Entry time: {entry_time:%H:%M:%S} PKT\n"
+        "Entry is the completed retest close, not a confirmed executable fill.\n"
+        "ONE TRADE ONLY. Target is not a guaranteed return."
     )
 
 
 def no_trade_message(quality: QualityReport, market: dict) -> str:
-    return (
-        "NO TRADE\n\n"
-        f"KMIALL scanned: {quality.symbols_with_bars}/{quality.symbols_expected}\n"
-        f"Market: {market.get('status', 'UNKNOWN')}\n"
-        f"Reason: no sufficiently strong momentum + volume candidate.\n"
-        f"Detail: {market.get('reason', 'no context available')}\n"
-        f"Source: {quality.source}"
-    )
+    return ("NO TRADE\n\n"
+            f"KMIALL scanned: {quality.symbols_with_bars}/{quality.symbols_expected}\n"
+            f"Market: {market.get('status', 'UNKNOWN')}\n"
+            f"Market context: {market.get('reason', 'unavailable')}\n"
+            "Reason: no actionable ICT/SMC setup with structural risk and 2% target room.\n"
+            f"Source: {quality.source}")
 
 
 def scan_blocked_message(quality: QualityReport) -> str:
