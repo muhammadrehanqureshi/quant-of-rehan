@@ -34,9 +34,12 @@ crons = [
   "30 11 * * 5",
 ]
 
-[[kv_namespaces]]
-binding = "RELAY_KV"
-id = "PASTE_KV_NAMESPACE_ID_AFTER_CREATION"
+# No KV namespace, on purpose. Owner order 2026-10-20: no product that
+# mails a quota warning stays in the path, and KV was the one mailing it
+# ("daily limit reached 50%"). Everything the relay stores lives in the
+# QuoteHub Durable Object below, whose storage is not metered per write.
+# A binding to a namespace that no longer exists also failed every deploy,
+# which is why the edge ran a stale build from 2026-10-19.
 
 [[durable_objects.bindings]]
 name = "QUOTE_HUB"
