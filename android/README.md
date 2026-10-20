@@ -597,6 +597,15 @@ to sixty seconds. The status tile therefore also carries the app's own
   per tick instead of once per five. Notifications are limited to four events:
   market online, market offline, market break and a real signal.
   Version 1.7.9, versionCode 33.
+- v1.8.0, owner report 2026-10-20 (14:07 PKT scan): the searched stock no
+  longer vanishes the second after the tap. The search rows now keep their
+  views across the one-second price ticks and re-style in place, so a tick
+  cannot tear the list down and drop the stock the owner just opened. The
+  pinned selection keeps its B/S answer under it and a live tail restamped
+  every tick: the stock's own price and percentage, green for a positive move
+  and red for a negative one, true nulls carried in neutral ink. The search
+  control moves a further 15% of its own 42dp box to the right (net 57.96dp).
+  Version 1.8.0, versionCode 34.
 
 **Built and delivered 2026-10-19 (v1.7.7):** the signed v1.7.7 APK was built
 from this checkout with the toolchain above and copied to

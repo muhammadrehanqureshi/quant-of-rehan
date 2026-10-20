@@ -20,18 +20,22 @@ compatibility_date = "2026-10-01"
 # src/data/sessions.py computes, and the parity test fails if they drift.
 #
 # 04:32 UTC = 09:32 PKT (Mon-Thu open)
-# 10:30 UTC = 15:30 PKT (Mon-Thu close)
-# 04:17 UTC = 09:17 PKT (Friday session 1 open)
+# 07:30 UTC = 12:30 PKT (Mon-Thu AFTERNOON dispatch edge: the session loop
+#   started at the 09:32 open ends at 12:30, so without this wake the
+#   afternoon had no publisher and the phone's numbers froze, measured
+#   2026-10-20. Not a notification edge; the dispatch's own dedupe key
+#   separates it from the morning loop).
 # 07:00 UTC = 12:00 PKT (Friday session 1 close, midday break begins)
 # 09:32 UTC = 14:32 PKT (Friday session 2 open, trading resumes)
+# 10:30 UTC = 15:30 PKT (Mon-Thu close)
 # 11:30 UTC = 16:30 PKT (Friday session 2 close)
 [triggers]
 crons = [
   "32 4 * * 1-4",
-  "30 10 * * 1-4",
+  "30 7 * * 1-4",
   "17 4 * * 5",
-  "0,32 7,9 * * 5",
-  "30 11 * * 5",
+  "32 9 * * 5",
+  "0,30 7,10,11 * * 1-5",
 ]
 
 # No KV namespace, on purpose. Owner order 2026-10-20: no product that
