@@ -1,10 +1,54 @@
-"""The session evidence the production gate reads.
+"""Load every genuine session record, so the gate scores evidence it has.
 
-The live scanner's stored sessions are normalised without relabelling their
-scanner version. Historical opening-range and momentum cohorts keep their own
-results; new ICT/SMC results never inherit them. Local state and relay archive
-are merged by date, with the caller's current record first.
+Owner defect report, 2026-10-16. ``scripts/intraday_pipeline.py`` called
+``evaluate_gate([])`` -- an empty list -- on every finalize. The gate was
+never wrong; it was never given anything. The observable consequence is in
+``data/forward/production_gate.json``: ``sessions_collected: 0`` and
+``live_signal_enabled: false`` for ever, no matter how many sessions the
+system actually observed. The "collect 60 discovery and 60 validation
+sessions" promise could not advance by construction.
+
+This module is that missing input. It reads, in order:
+
+  1. the records the caller hands it (the session being finalized right now),
+  2. the local forward state: ``data/forward/daily_outcome.json`` and the
+     ``data/forward/session_journal.jsonl`` ledger,
+  3. the relay's two-year research archive (``GET /research/history``), which
+     is what a fresh GitHub Actions runner has instead of a local file.
+
+and normalises each record into the row shape ``evaluate_gate`` reads:
+
+    {date, storage_status, scanner_version, outcomes_by_rule: {...},
+     data_quality: {quality, production_data_ready, ...},
+     candidate, label, gross_return, net_return, minutes_held}
+
+Honesty rules (SO-3), all of them enforced here rather than trusted downstream:
+
+  * a date is emitted once, from the newest record seen for that date;
+  * ``quality`` is ``"verified"`` ONLY when that session's own scan passed its
+    data-quality law. The live scanner reports that as ``status == "OK"``
+    (coverage, freshness, history, structure and volume all present). A
+    blocked, missing or unreadable session is emitted as ``"unverified"``, and
+    the gate's own ``_valid_rows`` then refuses to spend a research session on
+    it, which is exactly what the frozen gate intends;
+  * ``production_data_ready`` comes from the session's own recorded
+    confirmations (rights, latency, universe currentness). It is never
+    inferred from a green scan;
+  * the gate's ``label`` vocabulary is mapped from the live scanner's own
+    outcome, one to one, with no row invented:
+        TARGET_HIT             -> TP_FIRST  (the +2% target was touched after
+                                              the recorded entry, from the
+                                              session's own bars)
+        CLOSED_AT_SESSION_END  -> TIMEOUT
+        UNVERIFIABLE           -> UNVERIFIED (and net_return is None, so the
+                                              row contributes no trade)
+        NO_CANDIDATE           -> no candidate, so no trade
+  * a record that cannot be read is dropped and reported. Nothing is guessed.
+
+The rolling ``candidate`` field is what ``_metrics`` reads for symbol
+concentration; it is built from the session's own recorded symbol.
 """
+
 from __future__ import annotations
 
 import json
@@ -17,6 +61,7 @@ FORWARD_DIR = ROOT / "data" / "forward"
 OUTCOME_FILE = "daily_outcome.json"
 JOURNAL_FILE = "session_journal.jsonl"
 
+#: The live scanner's outcome -> the frozen gate's label vocabulary.
 LABEL_BY_OUTCOME = {
     "TARGET_HIT": "TP_FIRST",
     "STOP_HIT": "SL_FIRST",
@@ -24,17 +69,33 @@ LABEL_BY_OUTCOME = {
     "CLOSED_AT_SESSION_END": "TIMEOUT",
     "UNVERIFIABLE": "UNVERIFIED",
 }
+
+#: The scanner's own data-quality status -> the gate's quality vocabulary.
 QUALITY_BY_STATUS = {"OK": "verified", "DATA_BLOCKED": "unverified"}
 
 
 def _forward_dir() -> Path:
-    """Resolve the shared forward-state root at call time for test isolation."""
+    """The ONE forward-state directory, resolved at CALL time.
+
+    Derived from ``trade_state.ROOT`` exactly as ``intraday_pipeline`` does, so
+    a test that redirects the forward-state surface redirects this loader with
+    it, and an offline test can never read or depend on the owner's real
+    session records by accident.
+    """
     from src.signals import trade_state
+
     return trade_state.ROOT / "data" / "forward"
 
 
 def _quality_of(record: dict) -> dict:
-    """Map the scanner status without upgrading any source confirmation."""
+    """The session's quality block, in the gate's vocabulary.
+
+    Two shapes reach this loader and both are real. The live scanner writes
+    ``QualityReport.as_dict()``, whose verdict lives under ``status``. The
+    older opening-range archives stored a block already carrying ``quality``.
+    A block that already speaks the gate's vocabulary is passed through
+    untouched; nothing is upgraded to "verified".
+    """
     quality = dict(record.get("data_quality") or {})
     if "quality" not in quality:
         status = str(quality.get("status") or "").upper()
@@ -49,7 +110,12 @@ def _quality_of(record: dict) -> dict:
 
 
 def _normalise(record: dict) -> dict | None:
-    """One stored record becomes one gate row, preserving its rule name."""
+    """One stored record -> one gate row, or None when it carries no date.
+
+    The rule name is preserved, never relabelled: a session is scored under the
+    scanner version that produced it (``_own_rule`` in forward_validation), so
+    a momentum outcome can never be counted as an opening-range one.
+    """
     day = str(record.get("date") or "").strip()
     if not day:
         return None
@@ -77,6 +143,9 @@ def _normalise(record: dict) -> dict | None:
     }
     outcomes = record.get("outcomes_by_rule")
     if outcomes:
+        # A stored session may already carry its per-rule outcomes. They are
+        # kept, because forwarding them untouched is the only honest way to
+        # let the frozen opening-range cohorts keep their own history.
         row["outcomes_by_rule"] = outcomes
     return row
 
@@ -92,7 +161,13 @@ def _local_records() -> list[dict]:
         except (OSError, ValueError):
             payload = None
         if isinstance(payload, dict):
-            # Emit the contained session, not an empty wrapper that shadows it.
+            # daily_outcome.json is a container: the session itself lives
+            # under outcomes_by_rule. Emitting the container as well would
+            # publish a second, empty row for the same day (no symbol, no
+            # return), and because the first source for a date wins that
+            # empty row would shadow the real one. It is only used as a
+            # record itself when it carries no per-rule outcomes at all,
+            # which is the shape a hand-written or older file has.
             outcomes = payload.get("outcomes_by_rule") or {}
             for rule_outcome in outcomes.values():
                 if isinstance(rule_outcome, dict):
@@ -150,7 +225,13 @@ def _relay_records(timeout_s: float = 20.0) -> tuple[list[dict], str]:
 
 def session_rows(extra: list[dict] | None = None, include_relay: bool = True,
                  report: dict | None = None) -> list[dict]:
-    """Collect genuine session rows and report every evidence source."""
+    """Every genuine session record, normalised for ``evaluate_gate``.
+
+    ``extra`` is the session being finalized right now, which is not on disk
+    yet when the gate is asked. ``report``, when given, is filled in with what
+    was read and what was dropped, so the observation can say where the
+    evidence came from instead of implying it appeared from nowhere.
+    """
     records: list[dict] = []
     sources: list[str] = []
     dropped: list[str] = []
@@ -173,7 +254,12 @@ def session_rows(extra: list[dict] | None = None, include_relay: bool = True,
         if row is None:
             dropped.append("record with no date")
             continue
-        # Caller, local state, relay archive: the first authoritative row wins.
+        # The FIRST source for a date wins, and the sources are ordered by how
+        # authoritative they are: the session being finalized right now, then
+        # this machine's own forward state, then the relay's archive. So a
+        # finalize that is still in flight outranks the copy of the same day
+        # already stored, and one day is never counted twice (which the gate's
+        # _valid_rows would otherwise be the only thing standing between).
         by_date.setdefault(row["date"], row)
 
     rows = [by_date[day] for day in sorted(by_date)]

@@ -635,7 +635,7 @@ class ForwardGuardTest(unittest.TestCase):
 
     def test_a_new_file_written_by_the_synthetic_session_is_a_leak(self):
         after = {"session_state.json":
-                 json.dumps({"day": self.SYNTHETIC, "state": "DAILY_LOCKED"}).encode("utf-8")}
+                 json.dumps({"day": self.SYNTHETIC}).encode("utf-8")}
         with self.assertRaises(AssertionError):
             assert_forward_untouched({}, after, self.SYNTHETIC)
 

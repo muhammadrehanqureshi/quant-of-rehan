@@ -293,8 +293,9 @@ def card_text(day, slot: str, body: str, alert: bool) -> str:
     header = (f"INTRADAY ALERT {day.isoformat()}" if alert
               else f"QoR intraday {day.isoformat()}")
     # ASCII only (owner report 2026-10-20). The separator used to be U+00B7 and
-    # reached the relay as the two characters "Ã‚Â·": UTF-8 that had already been
-    # decoded as latin-1 somewhere between this f-string and the card store.
+    # reached the relay as the two code points U+00C2 followed by U+00B7: UTF-8
+    # that had already been decoded as latin-1 somewhere between this f-string
+    # and the card store.
     # The header is not worth a charset argument, so it carries no non-ASCII at
     # all and the transport's decoding can no longer change what a reader sees.
     return f"{header} | {slot} PKT\n{body}"
