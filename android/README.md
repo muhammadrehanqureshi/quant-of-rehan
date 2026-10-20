@@ -275,6 +275,30 @@ Android 8.0 (API 26). The manifest floor stays at 24; on 24 and 25 the brand
 and the labels fall back to the system face, which is cosmetic, and nothing
 else in the app depends on it.
 
+## Build in the cloud (the default)
+
+`.github/workflows/android-apk.yml` builds the APK on GitHub Actions. It runs
+on manual dispatch and on every merge that touches `android/app/src`, so the
+artifact attached to a run is always the commit that shipped. There is no
+Gradle project here: the workflow runs the same aapt2, javac, D8, zipalign and
+apksigner chain described under the hand build below, installing platform 30
+and build-tools 33.0.2 on the runner.
+
+Download the APK from the run's **Artifacts** section (`QuantOfRehan-v<version>`).
+
+Signing is the one thing a runner cannot invent. The phone accepts an update
+only when it is signed by the key that installed the running build, so the
+workflow reads `ANDROID_KEYSTORE_BASE64` (the keystore, base64 encoded) plus
+`ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` and `ANDROID_KEY_PASSWORD`
+from repository secrets. With no keystore secret it still builds and signs
+with a freshly generated debug key, which installs only after the old app is
+uninstalled; the app stores no account or token, so nothing is lost but the
+home screen shortcut. Each run prints the signing certificate, so which key
+built an artifact is never a guess.
+
+Owner order 2026-10-19 puts the owner's PC out of this: the hand build below is
+documentation of the chain, not the routine way to ship an APK.
+
 ## Build (no Gradle, no Android Studio)
 
 Toolchain lives in C:/Users/rehan/android-tools: aapt2 (maven jar), the
