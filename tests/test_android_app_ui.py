@@ -1093,7 +1093,10 @@ class StatusPulseTest(unittest.TestCase):
         self.assertEqual(self.main.count("liveInFlight = false;"), 2)
         # A third callback joins in v1.7.8: the search's one-symbol read, which
         # guards its paint the same way the two refresh rounds do.
-        self.assertEqual(self.main.count("isFinishing() || isDestroyed()"), 3)
+        # v1.7.9 adds the fourth: the per-tick price read that paints the
+        # search rows, guarded exactly like the two rounds and the one-symbol
+        # answer.
+        self.assertEqual(self.main.count("isFinishing() || isDestroyed()"), 4)
         self.assertEqual(self.main.count("if (resumed) {"), 2)
         for marker in ("private void refresh()", "private void refreshLive()"):
             body = self.main[self.main.index(marker):][:800]
