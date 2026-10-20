@@ -232,6 +232,22 @@ public class MainActivity extends Activity {
     /** One price refresh is in flight at a time, on every foreground tick
      *  while the search is open (owner order 2026-10-20, third note). */
     private boolean pricesInFlight;
+    /** The symbol the owner tapped in the search list, until he clears it.
+     *  Owner report 2026-10-20: the tapped stock vanished when the next
+     *  second's price refresh redrew the list, so the selection now survives
+     *  the tick that follows it. */
+    private String selectedSymbol;
+    /** The rows currently on screen, keyed by symbol, so the per-second
+     *  refresh restyles them in place instead of rebuilding the list and
+     *  making it visibly blink out on every tick. */
+    private final java.util.Map<String, TextView> searchRows =
+            new java.util.LinkedHashMap<>();
+    /** The query the visible rows were built for, so a tick that changes no
+     *  number does not change the rows. */
+    private String renderedQuery = "";
+    /** The pinned symbol's latest B/S answer, so the selection line survives
+     *  every price tick. Cleared when the selection is. */
+    private String selectedBase = "";
     /**
      * The session date the relay last reported, in Karachi (SO-8).
      *
@@ -962,7 +978,13 @@ public class MainActivity extends Activity {
             searchInput.requestFocus();
             renderSearchResults("");
         } else {
+            // Closed search owns its state: the pinned symbol and its rows go
+            // with the panel, so a reopened search starts clean.
             searchInput.clearFocus();
+            selectedSymbol = null;
+            selectedBase = "";
+            searchRows.clear();
+            renderedQuery = "";
         }
     }
 
@@ -971,69 +993,146 @@ public class MainActivity extends Activity {
         if (searchResults == null || searchStatus == null) {
             return;
         }
-        searchResults.removeAllViews();
         List<String> symbols = Watcher.symbols();
         String q = query == null ? "" : query.trim().toUpperCase(Locale.US);
+        // The rows carry a state (a tapped symbol stays pinned), so they are
+        // only rebuilt when the query or the visible set actually changes; a
+        // price tick restyles the SAME views in place. Owner report 2026-10-20:
+        // the tapped stock used to vanish the second after the tap, because
+        // every tick tore the whole list down and drew it again.
         if (symbols.isEmpty()) {
+            searchRows.clear();
+            renderedQuery = q;
+            selectSymbol(null);
             searchStatus.setText(getString(R.string.search_waiting));
             return;
         }
-        if (q.isEmpty()) {
-            searchStatus.setText(getString(R.string.search_hint));
-            return;
-        }
-        int shown = 0;
+        List<String> filtered = new java.util.ArrayList<>();
         for (String symbol : symbols) {
-            if (!symbol.startsWith(q)) {
-                continue;
+            if (symbol.startsWith(q)) {
+                filtered.add(symbol);
             }
-            TextView row = new TextView(this);
+        }
+        if (q.isEmpty()) {
+            filtered.clear();
+        }
+        List<String> visible = filtered.subList(0, Math.min(filtered.size(), 8));
+        boolean rebuild = !q.equals(renderedQuery)
+                || !visible.equals(new java.util.ArrayList<>(searchRows.keySet()));
+        if (rebuild) {
+            searchResults.removeAllViews();
+            searchRows.clear();
             // Owner order 2026-10-20 (second note): every result carries the
             // stock's own price and percentage, both in the colour of its move,
             // so the list answers "which one" before a tap does. A symbol with
             // no fresh quote is listed bare rather than with a guessed number.
-            Watcher.Quote quote = Watcher.quote(symbol);
-            if (quote != null) {
-                // A move the relay did not report prints no percentage and
-                // takes no colour: only a real sign may turn a row green or
-                // red (SO-3). A price without a move is neutral ink.
-                String tail = quote.changePct == null
-                        ? String.format(Locale.US, "   PKR %,.2f", quote.price)
-                        : String.format(Locale.US, "   PKR %,.2f  %+.2f%%",
-                                quote.price, quote.changePct);
-                SpannableString styled = new SpannableString(symbol + tail);
-                styled.setSpan(new ForegroundColorSpan(getColor(quote.changePct == null
-                                ? R.color.text_soft
-                                : quote.changePct >= 0 ? R.color.green_hi : R.color.red)),
-                        symbol.length(), styled.length(), 0);
-                row.setText(styled);
-            } else {
-                row.setText(symbol);
+            for (String symbol : visible) {
+                TextView row = new TextView(this);
+                styleSearchRow(row, symbol);
+                row.setOnClickListener(v -> selectSymbol(symbol));
+                searchResults.addView(row);
+                searchRows.put(symbol, row);
             }
-            row.setTextSize(15f);
-            row.setTextColor(getColor(R.color.text_bright));
-            row.setLetterSpacing(0.12f);
-            row.setPadding(dp(10), dp(9), dp(10), dp(9));
-            row.setOnClickListener(v -> selectSymbol(symbol));
-            searchResults.addView(row);
-            if (++shown >= 8) {
-                break;
+            renderedQuery = q;
+        } else {
+            for (java.util.Map.Entry<String, TextView> entry : searchRows.entrySet()) {
+                if (visible.contains(entry.getKey())) {
+                    styleSearchRow(entry.getValue(), entry.getKey());
+                }
             }
         }
-        searchStatus.setText(shown == 0
-                ? getString(R.string.search_empty)
-                : getString(R.string.search_hint));
+        if (selectedSymbol != null && !visible.contains(selectedSymbol)) {
+            selectSymbol(null);
+        }
+        if (selectedSymbol != null) {
+            paintSelectedLine();
+        } else {
+            searchStatus.setText(filtered.isEmpty()
+                    ? getString(R.string.search_empty)
+                    : getString(R.string.search_hint));
+        }
+    }
+
+    /** Colour one search row from its own live quote, or list a symbol bare. */
+    private void styleSearchRow(TextView row, String symbol) {
+        Watcher.Quote quote = Watcher.quote(symbol);
+        if (quote != null) {
+            // A move the relay did not report prints no percentage and
+            // takes no colour: only a real sign may turn a row green or
+            // red (SO-3). A price without a move is neutral ink.
+            String tail = quote.changePct == null
+                    ? String.format(Locale.US, "   PKR %,.2f", quote.price)
+                    : String.format(Locale.US, "   PKR %,.2f  %+.2f%%",
+                            quote.price, quote.changePct);
+            SpannableString styled = new SpannableString(symbol + tail);
+            styled.setSpan(new ForegroundColorSpan(getColor(quote.changePct == null
+                            ? R.color.text_soft
+                            : quote.changePct >= 0 ? R.color.green_hi : R.color.red)),
+                    symbol.length(), styled.length(), 0);
+            row.setText(styled);
+        } else {
+            row.setText(symbol);
+        }
+        row.setTextSize(15f);
+        row.setTextColor(getColor(R.color.text_bright));
+        row.setLetterSpacing(0.12f);
+        row.setPadding(dp(10), dp(9), dp(10), dp(9));
     }
 
     /** One symbol's B, S and T, asked of the relay's own split law. */
     private void selectSymbol(String symbol) {
+        selectedSymbol = symbol;
+        if (symbol == null) {
+            // Clearing always discards the pinned symbol's stale detail line
+            // with it, so a restored view can never print B/S of another
+            // stock.
+            selectedBase = "";
+            return;
+        }
         searchStatus.setText(getString(R.string.search_loading));
         Watcher.fetchStock(this, symbol, (ok, line) -> runOnUiThread(() -> {
             if (isFinishing() || isDestroyed()) {
                 return;
             }
-            searchStatus.setText(ok ? line : getString(R.string.search_unavailable));
+            if (!symbol.equals(selectedSymbol)) {
+                return;
+            }
+            // The relay's own B/S detail for the pinned symbol, kept so a
+            // refresh can never swap the line back to the empty hint. The
+            // tail under it is restamped from the live quote every tick
+            // (owner report 2026-10-20).
+            selectedBase = ok
+                    ? line : getString(R.string.search_unavailable);
+            paintSelectedLine();
         }));
+    }
+
+    /** The pinned symbol's own line, restamped from its own live quote. */
+    private void paintSelectedLine() {
+        if (selectedSymbol == null || searchStatus == null) {
+            return;
+        }
+        Watcher.Quote quote = Watcher.quote(selectedSymbol);
+        if (quote == null) {
+            // No fresh quote yet: the fetched detail stands alone, never a
+            // guessed price (SO-3).
+            if (selectedBase != null && !selectedBase.isEmpty()) {
+                searchStatus.setText(selectedBase);
+            }
+            return;
+        }
+        String base = selectedBase == null ? "" : selectedBase;
+        String tail = quote.changePct == null
+                ? String.format(Locale.US, "   PKR %,.2f", quote.price)
+                : String.format(Locale.US, "   PKR %,.2f  %+.2f%%",
+                        quote.price, quote.changePct);
+        SpannableString styled = new SpannableString(base + tail);
+        int from = Math.max(0, styled.length() - tail.length());
+        styled.setSpan(new ForegroundColorSpan(getColor(quote.changePct == null
+                        ? R.color.text_soft
+                        : quote.changePct >= 0 ? R.color.green_hi : R.color.red)),
+                from, styled.length(), 0);
+        searchStatus.setText(styled);
     }
 
     private String latestSignalDisplay(String raw) {

@@ -50,17 +50,18 @@ SUBDOMAIN = "mrmrehanqureshi"  # workers.dev subdomain of this account
 # abort the deploy AFTER the script upload, leaving the schedules stale while
 # the code was already live. That partial deploy is the trap this fixes.
 #
-# `0,32 7,9 * * 5` packs both Friday midday edges into one trigger. It also
-# fires at 07:32 and 09:00 UTC, which is safe by construction: the worker's
-# scheduled() handler sends only when the Karachi minute is within two minutes
-# of a real band edge, so a non-edge fire returns without a message. Each edge
-# is still covered by exactly one trigger, so nothing is sent twice.
+# The harmless extra wakes in the list below are safe by construction: the
+# worker's scheduled() handler sends only when the Karachi minute is within
+# two minutes of a real band edge, and dispatchBandScan dispatches only
+# within three of a runnable window's open, so a non-edge fire returns
+# without a message. Each edge is still covered by exactly one trigger, so
+# nothing is sent twice.
 CRONS = [
     "32 4 * * 1-4",      # Mon-Thu open 09:32 PKT
-    "30 10 * * 1-4",     # Mon-Thu close 15:30 PKT
+    "30 7 * * 1-4",      # Mon-Thu 12:30 PKT afternoon scan dispatch
     "17 4 * * 5",        # Friday session 1 open 09:17 PKT
-    "0,32 7,9 * * 5",    # Friday 12:00 PKT close and 14:32 PKT reopen
-    "30 11 * * 5",       # Friday session 2 close 16:30 PKT
+    "32 9 * * 5",        # Friday session 2 open 14:32 PKT
+    "0,30 7,10,11 * * 1-5",  # 12:00/12:30/15:00-16:30 PKT closes and edges
 ]
 
 

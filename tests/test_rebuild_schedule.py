@@ -516,10 +516,54 @@ class TestCloudflareSchedule(unittest.TestCase):
         """The deployed list and the declared list must be one schedule."""
         pair_crons = crons_deployed_by_pair(ROOT / "cloud" / "pair.py")
         self.assertTrue(pair_crons, "cloud/pair.py must declare a CRONS list")
-        self.assertEqual(sorted(pair_crons), sorted(crons_of(WRANGLER)),
-                         "cloud/pair.py and cloud/wrangler.toml disagree about "
-                         "the cron schedule, so the deploy would set something "
-                         "other than the schedule this suite just proved")
+        self.assertEqual(
+            sorted(pair_crons), sorted(crons_of(WRANGLER)),
+            "cloud/pair.py and cloud/wrangler.toml disagree about "
+            "the cron schedule, so the deploy would set something "
+            "other than the schedule this suite just proved")
+
+    def test_every_scan_window_has_a_dispatch_wake(self):
+        """Every runnable window the session loop offers has a dispatcher wake.
+
+        Measured 2026-10-20: the morning loop stops at 12:30 PKT, so the
+        afternoon had no publisher at all and the phone's numbers froze
+        while the exchange traded. The rule that would have caught it: the
+        worker's dispatch windows and the session workflow's own crons must
+        name the SAME window list, and the worker's wake must reach each of
+        them punctually.
+        """
+        # The workflow file's own crons ARE its window list: one entry per
+        # runnable window, keyed by the window's open edge.
+        windows = []
+        for expression in crons_of(SESSION_WORKFLOW):
+            for hour, minute, weekdays in cron_fires(expression):
+                windows.append(((hour + 5) % 24, minute, frozenset(weekdays)))
+        self.assertEqual(
+            sorted(windows),
+            [(9, 17, frozenset({5})),
+             (9, 32, frozenset({1, 2, 3, 4})),
+             (12, 30, frozenset({1, 2, 3, 4})),
+             (14, 32, frozenset({5}))],
+            "the session loop must offer exactly the four runnable windows")
+
+        # The worker's dispatcher table must carry the same window list, and
+        # every one of them needs a cron wake inside its 3-minute grace.
+        source = (ROOT / "cloud" / "worker.js").read_text(encoding="utf-8")
+        self.assertIn("const WEEKDAY_WINDOWS = [[[9, 32], [12, 30]],", source)
+        worker_wakes: dict[int, dict[int, set[int]]] = {}
+        for expression in crons_of(WRANGLER):
+            for hour, minute, weekdays in cron_fires(expression):
+                table = worker_wakes.setdefault(((hour + 5) % 24), {})
+                table.setdefault(minute, set()).update(weekdays)
+        for hour, minute, weekdays in windows:
+            wake: set[int] = set()
+            for gap in range(4):
+                table = worker_wakes.get(hour, {})
+                wake |= table.get((minute + gap) % 60, set())
+            self.assertLessEqual(
+                weekdays - wake, {1},
+                f"the {hour:02d}:{minute:02d} PKT window has no worker "
+                "dispatch wake on every weekday it runs")
 
 
 class TestScheduleRobustness(unittest.TestCase):

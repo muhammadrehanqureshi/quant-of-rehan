@@ -187,7 +187,10 @@ const MARKET_TRANSITION_RETRY_MS = 5 * 60 * 1000;
 const MARKET_STATE_KEY = "MARKET:LAST_CONFIRMED_STATE";
 const MARKET_PENDING_KEY = "MARKET:NOTIFICATION_PENDING";
 const MARKET_DELIVERY_KEY = "MARKET:LAST_NOTIFICATION";
-const QUOTE_MAX_AGE_MS = 90 * 1000;
+// Owner report 2026-10-20 (14:07 PKT): quotes older than half a minute
+// read as "numbers frozen" on the phone, so a per-second publisher makes a
+// 30 second window honest and a stale row a real degradation signal.
+const QUOTE_MAX_AGE_MS = 30 * 1000;
 const QUOTE_MAX_SYMBOLS = 600;
 const QUOTE_MAX_BODY_BYTES = 256 * 1024;
 
@@ -236,6 +239,22 @@ function bandsFor(k) {
   return k.getUTCDay() === 5 ? FRIDAY_BANDS : WEEKDAY_BANDS;
 }
 
+// The RUNNABLE windows, not the band law. The session loop
+// (intraday-session.yml) is one job per window, and its window close is
+// 12:30 PKT
+// on Mon-Thu, so a loop started at the 09:32 open stops at 12:30 and the
+// afternoon had no publisher at all (measured 2026-10-20: /quotes froze
+// from 12:30 PKT while the exchange traded). The dispatcher therefore
+// needs its own window open edges, one per job the workflow could run.
+// marketPhase, /health and the phone texts keep reading bandsFor, whose
+// parity with src/data/sessions.py is tested.
+const WEEKDAY_WINDOWS = [[[9, 32], [12, 30]], [[12, 30], [15, 30]]];
+
+function dispatchWindowsFor(k) {
+  if (!isTradingDay(k)) return [];
+  return k.getUTCDay() === 5 ? FRIDAY_BANDS : WEEKDAY_WINDOWS;
+}
+
 function minutesOf(k) {
   return k.getUTCHours() * 60 + k.getUTCMinutes();
 }
@@ -265,17 +284,18 @@ function bandsText(k) {
 // It is strictly opt-in. With no GH_DISPATCH_TOKEN binding this function does
 // nothing and the relay behaves exactly as before. The token is a fine grained
 // GitHub PAT with Actions: write on this one repository, set as a Worker
-// secret (never in the repo, SO-5). One dispatch per band per day is recorded
-// in KV, so a retried cron can never start a second loop for the same edge.
+// secret (never in the repo, SO-5). One dispatch per window per day is
+// recorded in KV, so a retried cron can never start a second loop for the
+// same edge.
 const SCAN_WORKFLOW_FILE = "intraday-session.yml";
 const SCAN_REPO_DEFAULT = "muhammadrehanqureshi/quant-of-rehan";
 const SCAN_DISPATCH_GRACE_MINUTES = 3;
 const SCAN_DISPATCH_TIMEOUT_MS = 10000;
 
-/** The band whose open edge this wake is standing on, or null. */
+/** The runnable window whose open edge this wake is standing on, or null. */
 function bandOpenAt(k) {
   const mins = minutesOf(k);
-  for (const band of bandsFor(k)) {
+  for (const band of dispatchWindowsFor(k)) {
     const open = band[0][0] * 60 + band[0][1];
     if (mins >= open && mins - open <= SCAN_DISPATCH_GRACE_MINUTES) {
       return band;

@@ -299,6 +299,18 @@ class RelayWorkerContractTest(unittest.TestCase):
         # The token is a Worker secret, never a value in this file (SO-5).
         self.assertNotIn("ghp_", self.source)
         self.assertNotIn("github_pat_", self.source)
+        # Owner report 2026-10-20: the morning loop stops at 12:30 PKT, so the
+        # dispatcher must know the runnable windows too, not only the band law.
+        # The exchange keeps seeing Mon-Thu as one band; the RUNNABLE windows
+        # are what a loop can actually run inside. bandOpenAt consults the
+        # window table, never bandsFor, or the 12:30 edge can never dispatch.
+        self.assertIn("const WEEKDAY_WINDOWS = [[[9, 32], [12, 30]],",
+                      self.source)
+        self.assertIn("function dispatchWindowsFor(k) {", self.source)
+        self.assertIn("for (const band of dispatchWindowsFor(k))", self.source)
+        # The consumer that would have silently frozen the afternoon must be
+        # named here, so a future edit cannot quietly swap windows for bands.
+        self.assertNotIn("for (const band of bandsFor(k))\n", self.source)
 
     def test_session_edges_and_broker_halt_are_not_scanner_schedule_changes(self):
         for text in ("09:32", "15:30", "09:17", "12:00", "14:32", "16:30"):
