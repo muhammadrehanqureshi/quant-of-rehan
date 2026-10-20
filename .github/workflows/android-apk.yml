@@ -31,7 +31,13 @@ jobs:
           distribution: temurin
           java-version: "17"
 
+      # The action's default package list still asks for the retired "tools"
+      # package, which sdkmanager now refuses (#47's first run died there).
+      # platform-tools is all this build needs from it; the platform and the
+      # build tools are installed explicitly below.
       - uses: android-actions/setup-android@v3
+        with:
+          packages: "platform-tools"
 
       - name: Install the platform the manifest targets
         run: |
