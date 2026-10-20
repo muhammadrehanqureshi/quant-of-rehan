@@ -1,0 +1,139 @@
+name: Build the Android APK
+
+# Owner order 2026-10-20: the phone is where these changes are seen, and the
+# owner's PC must not be used to build them (order 2026-10-19). This workflow is
+# the whole build: aapt2, javac, D8, zipalign and apksigner, the same chain
+# android/README.md documents for a hand build, run on a runner instead.
+#
+# Manual dispatch is the primary entry point. A merge that touches the app also
+# builds, so the artifact on master is always the one that ships that commit.
+on:
+  workflow_dispatch:
+  push:
+    branches: [master]
+    paths:
+      - "android/app/src/**"
+      - "android/app/src/main/AndroidManifest.xml"
+      - ".github/workflows/android-apk.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install the platform the manifest targets
+        run: |
+          set -euo pipefail
+          sdkmanager --install "platforms;android-30" "build-tools;33.0.2"
+          echo "ANDROID_JAR=$ANDROID_SDK_ROOT/platforms/android-30/android.jar" >> "$GITHUB_ENV"
+          echo "BUILD_TOOLS=$ANDROID_SDK_ROOT/build-tools/33.0.2" >> "$GITHUB_ENV"
+
+      - name: Compile resources, Java and dex
+        run: |
+          set -euo pipefail
+          B=android/app/build
+          rm -rf "$B"
+          mkdir -p "$B/dex"
+          "$BUILD_TOOLS/aapt2" compile --dir android/app/src/main/res -o "$B/res.zip"
+          "$BUILD_TOOLS/aapt2" link -o "$B/app.unaligned.apk" -I "$ANDROID_JAR" \
+            --manifest android/app/src/main/AndroidManifest.xml --java "$B/gen" \
+            --auto-add-overlay "$B/res.zip"
+          find android/app/src/main/java "$B/gen" -name "*.java" > "$B/sources.txt"
+          # The README's own flags: the sources are Java 8, compiled against the
+          # platform jar rather than the JDK's own classes.
+          javac -encoding UTF-8 -source 8 -target 8 -classpath "$ANDROID_JAR" \
+            -d "$B/classes" @"$B/sources.txt"
+          "$BUILD_TOOLS/d8" --release --min-api 24 --lib "$ANDROID_JAR" \
+            --output "$B/dex" $(find "$B/classes" -name "*.class")
+          python3 - <<'PY'
+          import shutil, zipfile
+          B = "android/app/build"
+          shutil.copy(f"{B}/app.unaligned.apk", f"{B}/app.apk")
+          with zipfile.ZipFile(f"{B}/app.apk", "a", zipfile.ZIP_DEFLATED) as z:
+              z.write(f"{B}/dex/classes.dex", "classes.dex")
+          PY
+          "$BUILD_TOOLS/zipalign" -f -p 4 "$B/app.apk" "$B/app-aligned.apk"
+
+      # Signing: the phone only accepts an update signed by the key that
+      # installed the running build, so a repository secret carries that key
+      # rather than a new one being invented here.
+      #
+      #   ANDROID_KEYSTORE_BASE64  the keystore, base64 encoded
+      #   ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD
+      #
+      # With no keystore secret the build still runs and is signed by a fresh
+      # debug key, which is installable only after the old app is uninstalled
+      # (the manifest carries no accounts, so nothing is lost). The step says
+      # which key it used, and apksigner prints the certificate below.
+      - name: Sign
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          STORE_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          B=android/app/build
+          if [ -n "${KEYSTORE_B64:-}" ]; then
+            printf '%s' "$KEYSTORE_B64" | base64 -d > "$B/release.jks"
+            KS="$B/release.jks"
+            ALIAS="${KEY_ALIAS:?set ANDROID_KEY_ALIAS with ANDROID_KEYSTORE_BASE64}"
+            STORE="${STORE_PASS:?set ANDROID_KEYSTORE_PASSWORD}"
+            KEY="${KEY_PASS:-$STORE}"
+            echo "signing with the repository keystore, alias $ALIAS"
+          else
+            KS="$B/debug.jks"
+            ALIAS=androiddebugkey
+            STORE=android
+            KEY=android
+            keytool -genkeypair -keystore "$KS" -storepass "$STORE" -keypass "$KEY" \
+              -alias "$ALIAS" -keyalg RSA -keysize 2048 -validity 10000 \
+              -storetype PKCS12 -dname "CN=Android Debug,O=Android,C=US" >/dev/null
+            echo "no ANDROID_KEYSTORE_BASE64 secret: signed with a generated debug key"
+          fi
+          "$BUILD_TOOLS/apksigner" sign --ks "$KS" --ks-key-alias "$ALIAS" \
+            --ks-pass "pass:$STORE" --key-pass "pass:$KEY" \
+            --out "$B/QuantOfRehan.apk" "$B/app-aligned.apk"
+          "$BUILD_TOOLS/apksigner" verify --print-certs "$B/QuantOfRehan.apk" \
+            | tee "$B/certificate.txt"
+
+      - name: Read the version back and name the file
+        run: |
+          set -euo pipefail
+          B=android/app/build
+          VERSION=$(grep -oE 'android:versionName="[^"]+"' \
+            android/app/src/main/AndroidManifest.xml | head -1 | cut -d'"' -f2)
+          CODE=$(grep -oE 'android:versionCode="[^"]+"' \
+            android/app/src/main/AndroidManifest.xml | head -1 | cut -d'"' -f2)
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "CODE=$CODE" >> "$GITHUB_ENV"
+          "$BUILD_TOOLS/aapt2" dump badging "$B/QuantOfRehan.apk" \
+            | grep -E "^package|^launchable-activity|^sdkVersion|^targetSdkVersion" \
+            | tee "$B/badging.txt"
+          # The artifact must be the version the sources declare, not whatever
+          # the link step happened to bake in.
+          grep -q "versionName='$VERSION'" "$B/badging.txt"
+          grep -q "versionCode='$CODE'" "$B/badging.txt"
+          mv "$B/QuantOfRehan.apk" "$B/QuantOfRehan-v$VERSION.apk"
+          ls -l "$B/QuantOfRehan-v$VERSION.apk"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: QuantOfRehan-v${{ env.VERSION }}
+          path: |
+            android/app/build/QuantOfRehan-v*.apk
+            android/app/build/badging.txt
+            android/app/build/certificate.txt
+          if-no-files-found: error
