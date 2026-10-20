@@ -1423,5 +1423,26 @@ class VersionTest(unittest.TestCase):
         self.assertIn("market_halted_now", strings)
 
 
+class EmptySignalCopyTest(unittest.TestCase):
+    """One spelling of the empty signal tile (owner order 2026-10-20).
+
+    The tile's static placeholder and the two code paths that blank it are the
+    same sentence, so a phone that has not had an answer yet reads exactly what
+    a phone holding another session's card reads. Two spellings would let the
+    old "No signal right now." outlive the order that retired it.
+    """
+
+    def test_the_tile_has_one_empty_state(self):
+        layout = LAYOUT.read_text(encoding="utf-8")
+        strings = STRINGS.read_text(encoding="utf-8")
+        main = MAIN.read_text(encoding="utf-8")
+        self.assertIn('android:text="@string/signal_no_call"', layout)
+        self.assertNotIn("no_signals", layout)
+        self.assertNotIn('name="no_signals"', strings)
+        self.assertIn('name="signal_no_call"', strings)
+        # Both the empty answer and another session's card land on that string.
+        self.assertEqual(main.count("getString(R.string.signal_no_call)"), 2)
+
+
 if __name__ == "__main__":
     unittest.main()
