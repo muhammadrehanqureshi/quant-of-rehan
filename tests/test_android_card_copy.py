@@ -112,12 +112,16 @@ class LeaderLineTest(unittest.TestCase):
     def test_the_volume_group_is_bracketed_and_keeps_one_space(self):
         # "(" opens at B, ")" closes after T, and the ticker keeps exactly one
         # space before the group: the three fields read as one block.
-        self.assertIn('sb.append(" (B")', self.main)
+        self.assertIn('sb.append(" (B=");', self.main)
+        self.assertIn('sb.append("  S=");', self.main)
         self.assertIn('"  T=%,d)"', self.main)
         self.assertIn('" (T=%,d)"', self.main)
         self.assertNotIn('"  (B', self.main)
-        # The bare form the group replaced is gone.
+        # The bare form the group replaced is gone, and so is the side without
+        # its "=" (owner order 2026-10-20, third note).
         self.assertNotIn('sb.append(" B")', self.main)
+        self.assertNotIn('sb.append(" (B")', self.main)
+        self.assertNotIn('sb.append("  S")', self.main)
 
     def test_the_money_line_opens_after_the_volumes(self):
         volumes = self.main.index('"  T=%,d)"')
@@ -146,23 +150,23 @@ class LeaderLineTest(unittest.TestCase):
         self.assertIn("longValueExact()", parser)
         self.assertIn("return value < 0 ? null : value;", parser)
         self.assertNotIn("Math.round(value)", parser)
-        # Estimates are still explicitly marked, not mislabeled as raw broker
-        # counts. U+2248 rendered in a font with close bars caused the visual
-        # double-tilde; the estimated source is not a placeholder.
-        self.assertIn('sb.append("  EST");', self.main)
-        self.assertIn("estimatedSplit()", self.main)
+        # Owner order 2026-10-20 (third note): no estimate tag and no tilde
+        # mark survives on the phone. The quantities are the numbers, and the
+        # relay's own split_source still names the method in its JSON (SO-3).
+        self.assertNotIn('sb.append("  EST");', self.main)
+        self.assertNotIn("estimatedSplit", self.main)
         # A row that carries a split but no total keeps both sides.
         self.assertIn("if (row.hasVolume()) {", self.main)
         self.assertIn("sb.append(')');", self.main)
 
-    def test_the_feed_status_line_is_retired_for_the_broker_stamp(self):
-        """Owner order 2026-10-19: no "feed unconfirmed" narration on the card.
+    def test_the_feed_status_line_is_retired_and_the_index_has_no_clock(self):
+        """Owner orders 2026-10-19 and 2026-10-20 (third note).
 
-        The line is gone, not reworded. What replaces it is the broker's own
-        timestamp drawn on the KSE100 line, which says when the number was
-        taken without editorialising about the feed. Removing the sentence
-        must not remove the evidence: brokerClock() is the only source of that
-        stamp and an absent stamp prints nothing (SO-3).
+        The "feed unconfirmed" narration is gone, and so is the broker stamp
+        that replaced it: the owner read the clock after the percentage as part
+        of the index and asked for it to leave the tile. The line is the index
+        and its move, nothing after the closing bracket, and no reader for a
+        stamp survives in the console.
         """
         strings = STRINGS.read_text(encoding="utf-8")
         layout = LAYOUT.read_text(encoding="utf-8")
@@ -173,14 +177,15 @@ class LeaderLineTest(unittest.TestCase):
         self.assertNotIn("unconfirmed", strings.lower())
         self.assertNotIn('android:id="@+id/market_feed_status"', layout)
         self.assertNotIn("renderMarketFeedStatus", self.main)
-        self.assertIn("private static String brokerClock(String asOf)", self.main)
-        self.assertIn("brokerClock(market.indexAsOf)", self.main)
+        self.assertNotIn("brokerClock", self.main)
+        self.assertNotIn("brokerClock", strings)
 
     def test_every_arrow_keeps_a_single_space(self):
-        # The broker stamp is a suffix (owner order 2026-10-19), so the format
-        # gains one %s at the end and keeps exactly one space before the arrow.
-        self.assertIn('"KSE100  %,.2f %s %,.2f (%.2f%%)%s"', self.main)
+        # The index line ends at the closing bracket (owner order 2026-10-20,
+        # third note) and keeps exactly one space before the arrow.
+        self.assertIn('"KSE100  %,.2f %s %,.2f (%.2f%%)"', self.main)
         self.assertNotIn('"KSE100  %,.2f   %s', self.main)
+        self.assertNotIn('"KSE100  %,.2f %s %,.2f (%.2f%%)%s"', self.main)
         self.assertIn('"%s %.2f%%"', self.main)
         self.assertNotIn('"   %s %.2f%%"', self.main)
         money = self.main.index('"PKR %,.2f"')

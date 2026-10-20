@@ -34,4 +34,12 @@
          as one cluster. The search control carries the gear's own
          translations, so the gap is the same at any font scale. -->
     <dimen name="search_gap">6.3dp</dimen>
+
+    <!-- Owner order 2026-10-20 (second note): the search control moves 15%
+         of its own 42dp box (6.3dp) to the right of where the first note put
+         it. The control stands to the LEFT of the gear and travels with it,
+         so the gear's own 44.1dp offset (105% of 42dp) is the base and the
+         owner's 15% (6.3dp) is added to it: 50.4dp. The 6.3dp margin keeps
+         the two boxes from overlapping while the translation is applied. -->
+    <dimen name="search_shift_x">50.4dp</dimen>
 </resources>

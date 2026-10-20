@@ -153,7 +153,13 @@
                      the LEFT of the gear, on the same Y, separated by 15%
                      of its own 42dp box (@dimen/search_gap). It carries
                      the gear's own translations, so the pair keeps its
-                     6.3dp air wherever the gear is nudged to. -->
+                     6.3dp air wherever the gear is nudged to, plus the
+                     further 15% of its own box the owner asked for on the
+                     same day (@dimen/search_shift_x, net 50.4dp).
+
+                     Its glass is a vector stroke, not the old search.png
+                     disc: a tinted bitmap turned the whole magnifier gold,
+                     and the owner asked for a see-through glass. -->
                 <ImageView
                     android:id="@+id/btn_search"
                     android:layout_width="42dp"
@@ -165,9 +171,9 @@
                     android:contentDescription="@string/cd_search"
                     android:padding="8dp"
                     android:scaleType="fitCenter"
-                    android:src="@drawable/search"
+                    android:src="@drawable/ic_search"
                     android:tint="@color/gold"
-                    android:translationX="@dimen/settings_shift_x"
+                    android:translationX="@dimen/search_shift_x"
                     android:translationY="@dimen/settings_shift_y"/>
 
                 <ImageView

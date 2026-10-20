@@ -146,29 +146,6 @@ public final class Watcher {
             return buy != null && sell != null;
         }
 
-        /**
-         * True when the split is the venue-range estimate rather than the
-         * session tape, so the row marks it as one (SO-3).
-         *
-         * Owner order 2026-10-12 removed the card's footnote, which is where
-         * this distinction used to be spelled out, so the number itself now
-         * carries the mark: an estimate prints as B≈ / S≈. An unknown method
-         * counts as estimated, because the safe reading of an unlabelled
-         * number is the weaker claim.
-         *
-         * Owner order 2026-10-15: the numbers the session tape counted are
-         * the feed's own, exact values, so they print with a plain "=",
-         * whether the tape covered the whole day (``measured_tape``) or the
-         * part of it it saw (``tape_counts``). The window those counts cover
-         * travels in the row's own label, not in a weaker mark, because the
-         * digits are not an estimate of anything.
-         */
-        boolean estimatedSplit() {
-            if (!hasSplit()) return false;
-            return !("measured_tape".equals(splitMethod)
-                    || "tape_counts".equals(splitMethod));
-        }
-
         /** True when the exchange's own total volume arrived. */
         boolean hasVolume() {
             return volume != null;
@@ -558,7 +535,14 @@ public final class Watcher {
             try {
                 Head head = fetchHead(c, base);
                 Market market = fetchMarket(c, base);
-                applyLiveQuotes(market, base);
+                // The relay already merges the live quote hub into /market
+                // (applyLiveQuotes in cloud/worker.js), so one answer carries
+                // the card, its prices and the index. The extra /quotes read
+                // that used to run here cost a third round trip on every
+                // one-second tick, which on a phone connection made the
+                // console paint every two or three seconds and is exactly the
+                // "not moving like a clock" the owner reported on 2026-10-20.
+                // The full round and the search read still use it.
                 cb.done(head.online(), head.reachable, head.detail,
                         head.signals, market);
             } catch (Exception e) {
@@ -605,16 +589,17 @@ public final class Watcher {
      * 2026-10-19: the numbers must move as they do in the broker terminal).
      *
      * Two layers feed this card and they move at different speeds. /market is
-     * the slow one: the relay rebuilds it from the cloud capture and stores it
-     * in KV, so its KSE100 line can sit unchanged for minutes. /quotes is the
-     * fast one: the Durable Object holds the newest frame set the capture
-     * pushed, one row per symbol plus the index, each stamped by the broker.
+     * the slower one: the relay rebuilds it from the cloud capture, though
+     * since 2026-10-20 it also merges the live hub into every read, so the
+     * card that arrives is current. /quotes is the hub itself: one row per
+     * symbol plus the index, each stamped by the broker.
      *
-     * So a FRESH index from the snapshot wins, and each leader's price and
-     * movement come from its own live quote. A stale row never overwrites a
-     * card value: ageing a number forward is the one thing this app must not
-     * do (SO-3). If the snapshot is missing or unparseable the card stands on
-     * its own, unchanged.
+     * This overlay is the fallback the full round keeps (the one-second round
+     * no longer pays for the third read). A FRESH index from the snapshot
+     * wins, and each leader's price and movement come from its own live quote.
+     * A stale row never overwrites a card value: ageing a number forward is
+     * the one thing this app must not do (SO-3). If the snapshot is missing or
+     * unparseable the card stands on its own, unchanged.
      */
     private static void applyLiveQuotes(Market market, String base) {
         JSONObject snapshot;
@@ -673,45 +658,41 @@ public final class Watcher {
         fetchStatus(c, (online, reachable, detail, signals, market) -> {
             SharedPreferences p = prefs(c);
 
-            // The relay's reachability is its own event; a closed market is
-            // not an outage and must never be reported as one.
-            boolean wasReachable = p.getBoolean("last_reachable", true);
-            if (reachable != wasReachable) {
-                notifyStatus(c, reachable);
-                p.edit().putBoolean("last_reachable", reachable).apply();
-            } else if (reachable) {
-                // quiet heartbeat: refresh the "still working" timestamp only
-                p.edit().putLong("last_seen_ms", System.currentTimeMillis()).apply();
-            }
+            // Owner order 2026-10-20 (second note): the phone rings for four
+            // things only, market online, market offline, market break, and a
+            // real signal. Relay reachability is therefore recorded silently
+            // rather than announced: a flapping connection used to produce a
+            // notification each time it came back.
+            p.edit().putBoolean("last_reachable", reachable).apply();
             p.edit().putBoolean("last_online", online).apply();
             p.edit().putLong("market_fetched_ms", System.currentTimeMillis()).apply();
 
-            // owner order 2026-10-08: the app must send EVERY notification,
-            // including market open and close, not only relay up/down.
-            int mkt = market.open ? 1 : 0;
-            int prev = p.getInt("last_market_open", -1);
-            if (prev == -1) {
-                // first reading after install: record silently
-                p.edit().putInt("last_market_open", mkt).apply();
-            } else if (mkt != prev) {
-                notifyMarket(c, mkt == 1, detail);
-                p.edit().putInt("last_market_open", mkt).apply();
+            // The market event is the PHASE, not just open/closed, so the
+            // midday break gets its own sentence instead of a close followed
+            // by an open ten minutes later.
+            String event = marketEvent(market);
+            if (event != null) {
+                String prevEvent = p.getString("last_market_event", "");
+                if (prevEvent.isEmpty()) {
+                    p.edit().putString("last_market_event", event).apply();
+                } else if (!event.equals(prevEvent)) {
+                    notifyMarket(c, event, detail);
+                    p.edit().putString("last_market_event", event).apply();
+                }
             }
 
-            if (signals.trim().isEmpty()
-                    || signals.trim().startsWith("The relay ")
-                    || signals.trim().startsWith("Signals ")) {
-                return; // informational note, never a signal alert
-            }
-            // owner order 2026-10-08: the daily "No signal today" notice is
-            // not a signal and must not ring the phone.
-            if (signals.contains("No signal today")) {
+            // A card is rewritten every scan with a new slot in its header, so
+            // comparing the whole text rang the phone every few seconds even
+            // when the verdict never moved. The comparison is the BODY now,
+            // and only a body that names a trade is allowed to ring at all.
+            String body = signalBody(signals);
+            if (!isTradeSignal(body)) {
                 return;
             }
             String last = p.getString("last_signal", "");
-            if (!signals.trim().equals(last)) {
-                notifySignal(c, signals.trim());
-                p.edit().putString("last_signal", signals.trim()).apply();
+            if (!body.equals(last)) {
+                notifySignal(c, body);
+                p.edit().putString("last_signal", body).apply();
             }
         });
     }
@@ -719,6 +700,79 @@ public final class Watcher {
     /** The relay's snapshot symbols, sorted. Empty until the first answer. */
     static java.util.List<String> symbols() {
         return SYMBOLS;
+    }
+
+    /** One symbol's last price and percentage move, for the search rows. */
+    static final class Quote {
+        final double price;
+        /** null: the relay has a price but no day's movement for this symbol.
+         *  Boxed so the row can print the price in neutral ink instead of
+         *  colouring an unknown move as a flat green (SO-3). */
+        final Double changePct;
+
+        Quote(double price, Double changePct) {
+            this.price = price;
+            this.changePct = changePct;
+        }
+    }
+
+    /**
+     * The compact price map, refreshed only while the search panel is open.
+     * Empty until the first answer, and a failed refresh keeps the last one.
+     */
+    private static volatile java.util.Map<String, Quote> PRICES =
+            java.util.Collections.emptyMap();
+
+    static Quote quote(String symbol) {
+        return PRICES.get(symbol);
+    }
+
+    interface PricesCallback {
+        void done();
+    }
+
+    /**
+     * Read every fresh symbol's price and move in one compact answer.
+     *
+     * The search filters the symbol list locally, so a keystroke costs no
+     * request; this map is what lets a row show "PKR 537.00 +0.15%" without
+     * asking the relay once per letter. It is read once per foreground tick
+     * while the panel is open (owner order 2026-10-20, third note), and the
+     * answer is a few kilobytes rather than the whole card.
+     */
+    static void fetchPrices(final Context c, final PricesCallback cb) {
+        POOL.execute(() -> {
+            try {
+                JSONObject body = get(relayUrl(c) + "/prices", null);
+                JSONArray rows = body.optJSONArray("prices");
+                Map<String, Quote> map = new HashMap<>();
+                if (rows != null) {
+                    for (int i = 0; i < rows.length(); i++) {
+                        JSONArray row = rows.optJSONArray(i);
+                        if (row == null || row.length() < 3) continue;
+                        String symbol = row.optString(0, "");
+                        double price = row.optDouble(1, Double.NaN);
+                        double pct = row.optDouble(2, Double.NaN);
+                        if (!symbol.isEmpty() && !Double.isNaN(price) && price > 0) {
+                            map.put(symbol, new Quote(price,
+                                    Double.isNaN(pct) ? null : pct));
+                        }
+                    }
+                }
+                PRICES = java.util.Collections.unmodifiableMap(map);
+                // The search's universe comes from the same answer, so the
+                // list exists even before the first full round.
+                if (!map.isEmpty()) {
+                    java.util.List<String> names = new java.util.ArrayList<>(map.keySet());
+                    java.util.Collections.sort(names);
+                    SYMBOLS = java.util.Collections.unmodifiableList(names);
+                }
+            } catch (Exception ignored) {
+                // Keep the last map: a stale price with its own stamp is
+                // better than a row that loses its colour on one timeout.
+            }
+            cb.done();
+        });
     }
 
     interface StockCallback {
@@ -750,15 +804,17 @@ public final class Watcher {
                 Double sell = numberOrNull(row, "sell_volume");
                 Double total = numberOrNull(row, "volume");
                 if (buy != null && sell != null) {
+                    // Owner order 2026-10-20 (third note): the EST tag after
+                    // the total is gone from the search answer exactly as it
+                    // is from the card. The numbers are the numbers, and the
+                    // relay still labels the method in split_source for
+                    // anyone reading the JSON (SO-3).
                     sb.append(String.format(java.util.Locale.US,
                             "  (B=%,.0f  S=%,.0f", buy, sell));
                     if (total != null) {
                         sb.append(String.format(java.util.Locale.US, "  T=%,.0f", total));
                     }
                     sb.append(')');
-                    if ("range_position".equals(row.optString("split_method", ""))) {
-                        sb.append("  EST");
-                    }
                 } else if (total != null) {
                     sb.append(String.format(java.util.Locale.US, "  (T=%,.0f)", total));
                 }
@@ -794,24 +850,68 @@ public final class Watcher {
         armAlarms(c);
     }
 
-    private static void notifyStatus(Context c, boolean reachable) {
-        String title = reachable ? "Quant of Rehan: quant is online now."
-                : "Quant of Rehan: quant unreachable";
-        String text = reachable ? "The relay answered again."
-                : "The relay did not answer. Check the PC and the VPN.";
-        post(c, CHANNEL_STATUS, "system", 2, title, text);
-    }
-
     private static void notifySignal(Context c, String text) {
         post(c, CHANNEL_SIGNALS, "signals", 5, "Quant of Rehan signal", text);
     }
 
-    /** Market open/close in the owner's own wording (2026-10-08). */
-    private static void notifyMarket(Context c, boolean open, String detail) {
-        String title = open ? "Market is open. Quant is online now."
-                : "Market is closed. Quant is sleeping now.";
-        post(c, CHANNEL_STATUS, "market", 3, title,
+    /**
+     * The market event a phase stands for, or null for a phase the owner did
+     * not ask to hear about (pre-open, halted, unknown).
+     */
+    private static String marketEvent(Market market) {
+        if (market == null || market.phase == null) {
+            return null;
+        }
+        switch (market.phase) {
+            case "OPEN":
+                return "online";
+            case "BREAK":
+                return "break";
+            case "CLOSED":
+            case "POST_CLOSE":
+                return "offline";
+            default:
+                return null;
+        }
+    }
+
+    /** Market online, offline and break in the owner's own wording. */
+    private static void notifyMarket(Context c, String event, String detail) {
+        int title;
+        if ("online".equals(event)) {
+            title = R.string.market_open_notification;
+        } else if ("break".equals(event)) {
+            title = R.string.market_break_notification;
+        } else {
+            title = R.string.market_closed_notification;
+        }
+        post(c, CHANNEL_STATUS, "market", 3, c.getString(title),
                 detail == null ? "" : detail.trim());
+    }
+
+    /** The card without its dated header, which changes every scan. */
+    private static String signalBody(String text) {
+        if (text == null) {
+            return "";
+        }
+        int newline = text.indexOf('\n');
+        return (newline >= 0 ? text.substring(newline + 1) : text).trim();
+    }
+
+    /**
+     * Is this body a trade, rather than a no-trade state or an informational
+     * note? Only a trade may ring the phone (owner order 2026-10-20).
+     */
+    private static boolean isTradeSignal(String body) {
+        if (body == null || body.isEmpty()) {
+            return false;
+        }
+        String upper = body.toUpperCase(java.util.Locale.US);
+        if (upper.startsWith("NO TRADE") || upper.startsWith("NO SIGNAL")
+                || upper.startsWith("NO CALL") || upper.contains("NO SIGNAL AVAILABLE")) {
+            return false;
+        }
+        return upper.contains("SYMBOL:") || upper.contains("ENTERED AT");
     }
 
     private static void post(Context c, String channelId, String tag, int id,
