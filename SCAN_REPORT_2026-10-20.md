@@ -160,8 +160,9 @@ field on the phone. If a stop is wanted, it belongs in `config.py` beside
 
 ### F5, low, fixed: the card header shipped mojibake
 
-`/signals` read `QoR intraday 2026-10-20 Â· 11:07:04 PKT`: U+00B7 arrived
-double decoded. The header is ASCII now (`|` separator), with a test that
+`/signals` carried U+00C2 immediately before U+00B7 where the separator should
+have been (the reader saw a stray A-circumflex before the dot), so the
+separator had arrived double decoded. The header is ASCII now (`|` separator), with a test that
 encodes it as ASCII, so the transport's charset cannot corrupt it again. The
 running band job picked its code up at 09:43, so the clean header appears when
 the next band job starts.
