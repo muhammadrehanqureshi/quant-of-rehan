@@ -929,7 +929,7 @@ public class MainActivity extends Activity {
         btnSearch.setImageTintList(ColorStateList.valueOf(getColor(
                 open ? R.color.gold_bright : R.color.gold)));
         if (open) {
-            searchInput.setText("")
+            searchInput.setText("");
             searchInput.requestFocus();
             renderSearchResults("");
         } else {
