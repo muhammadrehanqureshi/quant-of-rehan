@@ -435,7 +435,7 @@ def live_trading_enabled() -> bool:
 # count toward production. The band workflows already pass them
 # (intraday-session.yml, intraday-capture.yml) but nothing in the code read
 # them, so the gate's production_data_ready check had no input at all and
-# could only be false (found 2026-10-16). Read here, once, so the session
+# could only ever be false (found 2026-10-16). Read here, once, so the session
 # record and the gate answer the same question from the same source.
 DATA_RIGHTS_CONFIRMED_ENV = "KMIALL_DATA_RIGHTS_CONFIRMED"
 DATA_LATENCY_CONFIRMED_ENV = "KMIALL_DATA_LATENCY_CONFIRMED"
