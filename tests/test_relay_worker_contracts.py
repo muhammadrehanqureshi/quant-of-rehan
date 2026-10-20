@@ -135,11 +135,16 @@ class RelayWorkerContractTest(unittest.TestCase):
     # ------------------------------------------------------------ /notify
 
     def test_notify_does_not_wait_for_telegram(self):
-        """A send nobody waits for runs in the background and is recorded."""
-        self.assertIn("ctx.waitUntil(sendAndRecord(env, paired, text, \"ops\", alertKey))",
-                      self.source)
+        """A send nobody waits for runs in the background and is recorded.
+
+        Since the 2026-10-20 third note only the signal branch sends at all, so
+        the deferred send that remains is the signal one and the ops send is
+        gone from the route rather than deduped.
+        """
         self.assertIn("ctx.waitUntil(sendAndRecord(env, paired, text, \"signals\", null))",
                       self.source)
+        self.assertNotIn("sendAndRecord(env, paired, text, \"ops\", alertKey)",
+                         self.source)
         self.assertIn("async fetch(request, env, ctx)", self.source,
                       "the handler cannot defer work without ctx")
         self.assertIn('json({ ok: true, accepted: true, delivery: "pending" })',
@@ -174,33 +179,39 @@ class RelayWorkerContractTest(unittest.TestCase):
                       self.source,
                       "the per-call budget is not wired into the fetch")
 
-    def test_a_failed_alert_is_not_deduped_away(self):
-        """The ops key is written after a successful send, never before."""
+    def test_operational_alerts_are_retired(self):
+        """Owner order 2026-10-20: only market state and signals may ring.
+
+        The ops route used to send capture-degraded and retry notices, and it
+        spent a dedupe key on them. The route now answers without sending, and
+        says so instead of pretending the message travelled.
+        """
         route = self.source.index('if (kind === "ops")')
-        body = self.source[route:route + 1400]
-        self.assertIn("const seen = await relayRead(env, alertKey);", body)
-        self.assertIn("if (seen) return json({ ok: true, deduped: true",
-                      body)
-        self.assertNotIn('await kvPut(env, alertKey, "1"', body,
-                         "the route still suppresses an alert it never sent")
-        sender = self.source.index("async function sendAndRecord(")
-        tail = self.source[sender:sender + 1600]
-        self.assertIn("if (sent.ok && dedupeKey)", tail,
-                      "the dedupe key must depend on Telegram's own answer")
+        body = self.source[route:route + 700]
+        self.assertIn('accepted: false, retired: "ops"', body)
+        self.assertNotIn("sendAndRecord(env, paired, text, \"ops\"", body,
+                         "an ops alert still reaches the sender")
+        self.assertNotIn("alertKey", body,
+                         "a retired alert must not spend a dedupe key")
 
     # --------------------------------------------------------- market alerts
 
     def test_market_messages_are_exact_and_separate_states(self):
+        # Owner order 2026-10-20 (second note): online, offline and break are
+        # the three market sentences. HALTED is still detected and drawn on the
+        # card, but it is not one of the four notification events, so it is
+        # silent rather than borrowing the closed sentence.
         for state, message in (
             ("OPEN", "Market is open. Quant is online now."),
             ("CLOSED", "Market is closed. Quant is sleeping now."),
             ("BREAK", "Market is on a break. Quant is sleeping until the market reopens."),
-            ("HALTED", "Market is halted now. Quant is sleeping until the market reopens."),
         ):
             with self.subTest(state=state):
                 self.assertIn(f'if (state === "{state}") return {"MSG_MARKET_" + state};',
                               self.source)
                 self.assertIn(f'const MSG_MARKET_{state} = "{message}";', self.source)
+        self.assertNotIn("MSG_MARKET_HALTED", self.source)
+        self.assertNotIn('state === "HALTED") return', self.source)
 
     def test_market_transition_requires_fresh_market_wide_reg_evidence(self):
         self.assertIn("const MARKET_STATUS_MAX_AGE_MS = 90 * 1000;", self.source)

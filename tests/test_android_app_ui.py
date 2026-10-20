@@ -729,20 +729,24 @@ class TypefaceTest(unittest.TestCase):
                       self.main)
         self.assertIn("new TypefaceSpan(ARROW_FACE), from, from + 1", self.main)
 
-    def test_the_estimate_mark_is_one_tag_not_a_tilde_pair(self):
-        """Owner order 2026-10-20: the tilde pair left the quantities.
+    def test_the_quantities_carry_no_estimate_tag(self):
+        """Owner order 2026-10-20 (third note): EST leaves the phone.
 
-        U+2248 drawn by the system face still merged into a pair of tildes in
-        front of B and S, which is what the owner kept seeing. The numbers now
-        carry the plain "=" and one EST tag closes the group when the split
-        came from the day's range rather than from order flow, so the estimate
-        stays labelled and the squiggle is gone (SO-3).
+        The tag was the last survivor of the split's labelling, and the owner
+        read it as part of the quantity. Both sides now carry the plain "="
+        and nothing follows the closing bracket, on the card and in the search
+        answer. The relay still says which method it used in its own JSON
+        (SO-3), and this app never invents a value for a field the relay left
+        out.
         """
-        self.assertNotIn("String mark = estimated", self.main)
-        self.assertIn('sb.append("  EST");', self.main)
-        self.assertIn("if (estimated) {", self.main)
-        # An estimated row is still distinguished from a measured one.
-        self.assertIn("estimatedSplit()", self.main)
+        self.assertNotIn('sb.append("  EST")', self.main)
+        self.assertIn('sb.append(" (B=");', self.main)
+        self.assertIn('sb.append("  S=");', self.main)
+        self.assertNotIn("\u2248", self.main)
+        self.assertNotIn("estimatedSplit", self.main)
+        watcher = WATCHER.read_text(encoding="utf-8")
+        self.assertNotIn('sb.append("  EST")', watcher)
+        self.assertNotIn("estimatedSplit", watcher)
 
     def test_the_bundled_faces_carry_their_licences(self):
         for name in ("Bonskin-PersonalUse.txt", "LEMONMILK-ReadMe.txt"):
@@ -1098,25 +1102,31 @@ class StatusPulseTest(unittest.TestCase):
             self.assertLess(body.index("isFinishing() || isDestroyed()"),
                             body.index("if (resumed) {"))
 
-    def test_the_card_reads_the_live_broker_snapshot_each_round(self):
-        """Owner order 2026-10-19: the numbers move like the broker terminal.
+    def test_the_card_reads_the_live_broker_snapshot_without_a_third_read(self):
+        """Owner orders 2026-10-19 and 2026-10-20 (third note).
 
-        /market is the slow layer (KV, rebuilt by the cloud capture), so the
-        KSE100 line could sit still for minutes. /quotes is the Durable
-        Object's newest broker frame set. The overlay is pinned here: it runs
-        in both rounds, it takes the index only when the snapshot marks it
-        fresh, and a stale quote never overwrites a card value.
+        /quotes is the Durable Object's newest broker frame set, and the relay
+        merges it into /market on every read (applyLiveQuotes in
+        cloud/worker.js). The phone's one-second round therefore makes two
+        reads, health and card, instead of three: the third cost a round trip
+        on every tick and pushed the paint out to two or three seconds. The
+        full round keeps the direct overlay as a fallback, and a stale quote
+        never overwrites a card value in either place.
         """
         watcher = WATCHER.read_text(encoding="utf-8")
+        worker = (ROOT / "cloud" / "worker.js").read_text(encoding="utf-8")
         self.assertIn("private static void applyLiveQuotes(Market market, String base)",
                       watcher)
         self.assertIn('get(base + "/quotes", null)', watcher)
         self.assertIn("if (index != null && index.optBoolean(\"fresh\", false))", watcher)
         self.assertIn("!quote.optBoolean(\"fresh\", false)", watcher)
-        for round_name in ("static void fetchLive(", "static void fetchStatus("):
-            with self.subTest(round=round_name):
-                body = watcher[watcher.index(round_name):][:900]
-                self.assertIn("applyLiveQuotes(market, base);", body)
+        self.assertIn("function applyLiveQuotes(snapshot, quotes, now)", worker)
+        full = watcher[watcher.index("static void fetchStatus("):][:1200]
+        self.assertIn("applyLiveQuotes(market, base);", full)
+        live = watcher[watcher.index("static void fetchLive("):]
+        live = live[:live.index("static void fetchStatus(")]
+        self.assertIn("Market market = fetchMarket(c, base);", live)
+        self.assertNotIn("applyLiveQuotes(market, base);", live)
 
     def test_the_market_card_is_read_on_each_live_display_refresh(self):
         """The app polls the current relay card each second while open.
@@ -1136,7 +1146,7 @@ class StatusPulseTest(unittest.TestCase):
         self.assertIn("Market market = fetchMarket(c, base);", live_body)
         self.assertIn("head.signals, market);", live_body)
         poll = self.main.index("private void pollOnce()")
-        self.assertIn("refreshLive();", self.main[poll:poll + 240])
+        self.assertIn("refreshLive();", self.main[poll:poll + 700])
         self.assertIn("The card route is read from the relay's latest pushed broker snapshot",
                       self.main)
 
@@ -1372,15 +1382,16 @@ class HeaderCopyTest(unittest.TestCase):
 
 class VersionTest(unittest.TestCase):
     def test_the_version_is_the_one_that_ships_these_changes(self):
-        # v1.7.8 is the 2026-10-20 console pass: today's call only, a split
-        # that moves with the frame, the symbol search and the green badge.
+        # v1.7.9 is the 2026-10-20 second pass: one empty-signal sentence, no
+        # clock on the KSE100 line, no EST tag, a see-through search glass
+        # nudged 15% right, and a two-read one-second round.
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="1.7.8"', manifest)
-        self.assertIn('android:versionCode="32"', manifest)
+        self.assertIn('android:versionName="1.7.9"', manifest)
+        self.assertIn('android:versionCode="33"', manifest)
         # The changelog entry ties these user-visible changes to the build.
         readme = (ROOT / "android" / "README.md").read_text(encoding="utf-8")
-        self.assertIn("v1.7.8, owner order 2026-10-20", readme)
-        self.assertIn("Version 1.7.8, versionCode 32", readme)
+        self.assertIn("v1.7.9, owner order 2026-10-20", readme)
+        self.assertIn("Version 1.7.9, versionCode 33", readme)
         layout = LAYOUT.read_text(encoding="utf-8")
         strings = STRINGS.read_text(encoding="utf-8")
         main = MAIN.read_text(encoding="utf-8")
@@ -1391,7 +1402,9 @@ class VersionTest(unittest.TestCase):
         # v1.7.6: the feed-status line is gone and the card shows the broker
         # stamp instead; the signal tile keeps three numbers and no metadata.
         self.assertNotIn("renderMarketFeedStatus", main)
-        self.assertIn("brokerClock(market.indexAsOf)", main)
+        # v1.7.9 (owner order 2026-10-20, third note): the index line carries
+        # no clock at all, so the stamp reader is gone with it.
+        self.assertNotIn("brokerClock", main)
         self.assertIn("latestSignalBackground = s;", main)
         self.assertIn("signalList.setText(latestSignalDisplay(actualSignals));", main)
         # v1.7.7: the three numbers and the ticker live in SignalText, and the

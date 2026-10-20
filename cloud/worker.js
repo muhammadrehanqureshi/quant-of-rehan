@@ -181,7 +181,6 @@ const CONDITION_CLOSED = "Market is closed right now.";
 const MSG_MARKET_OPEN = "Market is open. Quant is online now.";
 const MSG_MARKET_CLOSED = "Market is closed. Quant is sleeping now.";
 const MSG_MARKET_BREAK = "Market is on a break. Quant is sleeping until the market reopens.";
-const MSG_MARKET_HALTED = "Market is halted now. Quant is sleeping until the market reopens.";
 const MARKET_STATUS_MAX_AGE_MS = 90 * 1000;
 const MARKET_OPEN_GRACE_MS = 5 * 60 * 1000;
 const MARKET_TRANSITION_RETRY_MS = 5 * 60 * 1000;
@@ -864,11 +863,14 @@ function normalizeQuoteSnapshot(raw) {
   return snapshot;
 }
 
+// Owner order 2026-10-20 (second note): four notifications exist, market
+// online, market offline, market break and a signal. HALTED is still DETECTED
+// and still shown on the card, but it is not one of the four, so it returns no
+// text and the transition stays silent.
 function marketNotificationText(state) {
   if (state === "OPEN") return MSG_MARKET_OPEN;
   if (state === "BREAK") return MSG_MARKET_BREAK;
   if (state === "CLOSED") return MSG_MARKET_CLOSED;
-  if (state === "HALTED") return MSG_MARKET_HALTED;
   return null;
 }
 
@@ -1130,7 +1132,10 @@ async function trackMarketTransitions(env, snapshot, now, ctx) {
       (state === "BREAK" ||
        (Number.isFinite(openAt) && now.getTime() - openAt <= MARKET_OPEN_GRACE_MS)))
     : state === "HALTED"
-      ? oldState !== "HALTED"
+      // Owner order 2026-10-20 (third note): a halt is drawn on the card but
+      // is not one of the four notification events, so it reserves no send
+      // and leaves no pending frame behind.
+      ? false
       : oldState === "HALTED" || oldState === "BREAK" || oldState === "CLOSED" ||
         (oldDay !== "" && oldDay !== day) || (!previous && withinOpeningGrace));
   if (!shouldNotify) {
@@ -1448,32 +1453,28 @@ export default {
       if (!text) {
         return json({ ok: false, error: "empty text" }, 400);
       }
-      // Owner order 2026-10-08: scheduled ops alerts (capture degraded,
-      // push retry pending) must cost at most ONE Telegram message per day
-      // per distinct text. kind "ops" dedupes on (UTC date, text); signal
-      // traffic (kind "signals") is deduped upstream by the push journal.
-      // The send runs in the background, and the answer separates two facts:
-      // this relay ACCEPTED the message (ok: true), and Telegram's own answer
-      // is recorded in DELIVERY:LAST for /status to report. Waiting for
+      // Owner order 2026-10-20 (third note): four events may reach the phone,
+      // market online, market offline, market break and a real signal. The
+      // operational kinds (capture degraded, push retry pending) are retired
+      // here rather than deduped: they used to cost at most one message a day,
+      // and the owner asked for that channel to be silent entirely. A sender
+      // still gets an honest answer, accepted: false, instead of a delivery
+      // that never happened.
+      //
+      // The signal send runs in the background, and the answer separates two
+      // facts: this relay ACCEPTED the message (ok: true), and Telegram's own
+      // answer is recorded in DELIVERY:LAST for /status to report. Waiting for
       // Telegram inside the request is what broke delivery: a sender with a
       // 30 second budget cannot hold a call Telegram answers in 42, and a
       // scan cycle must not be held hostage to it either.
       if (kind === "ops") {
-        const day = new Date().toISOString().slice(0, 10);
-        let digest = "";
-        try {
-          digest = await crypto.subtle.digest("SHA-256",
-              new TextEncoder().encode(text));
-          digest = Array.from(new Uint8Array(digest)).slice(0, 8)
-              .map((b) => b.toString(16).padStart(2, "0")).join("");
-        } catch (e) {
-          digest = String(text.length);
-        }
-        const alertKey = `ALERT:${day}:${digest}`;
-        const seen = await relayRead(env, alertKey);
-        if (seen) return json({ ok: true, deduped: true, delivery: "deduped" });
-        ctx.waitUntil(sendAndRecord(env, paired, text, "ops", alertKey));
-        return json({ ok: true, accepted: true, delivery: "pending" });
+        // Owner order 2026-10-20 (second note): only market open, market close,
+        // break and signals may reach the phone. Operational alerts (capture
+        // degraded, retry pending) are recorded by their producers and stay
+        // out of the notification channel; the card and /status still carry
+        // the same facts for anyone who looks.
+        return json({ ok: true, accepted: false, retired: "ops",
+          detail: "operational alerts are not sent; only market state and signals" });
       }
       ctx.waitUntil(sendAndRecord(env, paired, text, "signals", null));
       return json({ ok: true, accepted: true, delivery: "pending" });
@@ -1630,6 +1631,25 @@ export default {
         }
       }
       return json({ ok: true, stock });
+    }
+
+    if (request.method === "GET" && path === "/prices") {
+      // Owner order 2026-10-20 (second note): the phone's search rows show a
+      // price and a move, so this returns the whole fresh KMIALL map in one
+      // compact answer. Three fields per symbol, fresh quotes only, and no
+      // invented value for a symbol the relay has not heard from.
+      const snapshot = await readQuoteSnapshot(env);
+      const prices = [];
+      for (const quote of (snapshot && snapshot.quotes) || []) {
+        if (!quote || !quote.fresh) continue;
+        if (!Number.isFinite(quote.price) || quote.price <= 0) continue;
+        prices.push([
+          String(quote.symbol || ""),
+          quote.price,
+          Number.isFinite(quote.change_pct) ? quote.change_pct : null,
+        ]);
+      }
+      return json({ ok: true, prices });
     }
 
     if (request.method === "GET" && path === "/market") {
