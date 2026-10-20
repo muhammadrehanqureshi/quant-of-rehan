@@ -149,6 +149,27 @@
                      two translation dimens, so the totals stack to 90% right
                      and 20% up of the 42dp box and this comment need no
                      further edit to stay true. -->
+                <!-- Owner order 2026-10-20: the search control stands to
+                     the LEFT of the gear, on the same Y, separated by 15%
+                     of its own 42dp box (@dimen/search_gap). It carries
+                     the gear's own translations, so the pair keeps its
+                     6.3dp air wherever the gear is nudged to. -->
+                <ImageView
+                    android:id="@+id/btn_search"
+                    android:layout_width="42dp"
+                    android:layout_height="42dp"
+                    android:layout_centerVertical="true"
+                    android:layout_marginRight="@dimen/search_gap"
+                    android:layout_toStartOf="@id/btn_settings"
+                    android:background="@drawable/settings_ripple"
+                    android:contentDescription="@string/cd_search"
+                    android:padding="8dp"
+                    android:scaleType="fitCenter"
+                    android:src="@drawable/search"
+                    android:tint="@color/gold"
+                    android:translationX="@dimen/settings_shift_x"
+                    android:translationY="@dimen/settings_shift_y"/>
+
                 <ImageView
                     android:id="@+id/btn_settings"
                     android:layout_width="42dp"
@@ -180,6 +201,54 @@
                 android:textColor="@color/teal"
                 android:textSize="10sp"/>
         </RelativeLayout>
+
+        <!-- ══════════ symbol search (hidden until the search icon is tapped) ══════════ -->
+        <LinearLayout
+            android:id="@+id/search_panel"
+            style="@style/QorPanel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <TextView
+                style="@style/QorLabel"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:text="@string/search_volume_label"/>
+
+            <EditText
+                android:id="@+id/search_input"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:background="@drawable/field_bg"
+                android:hint="@string/search_hint"
+                android:imeOptions="actionSearch"
+                android:inputType="textCapCharacters"
+                android:maxLines="1"
+                android:padding="10dp"
+                android:textColor="@color/text_bright"
+                android:textColorHint="@color/text_soft"
+                android:textSize="15sp"/>
+
+            <LinearLayout
+                android:id="@+id/search_results"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:orientation="vertical"/>
+
+            <TextView
+                android:id="@+id/search_status"
+                style="@style/QorValue"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:gravity="center"/>
+        </LinearLayout>
 
         <!-- brand rule: line, diamond, line (from the logo frame). Defined
              once in layout/qor_rule.xml and included at each of the four

@@ -1543,6 +1543,49 @@ export default {
         market: snapshot });
     }
 
+    if (request.method === "GET" && path === "/stock") {
+      // Owner order 2026-10-20: the phone's search asks for ONE symbol's
+      // B, S and T. The split is computed HERE, by the same law the card
+      // uses, so two readers of one question cannot disagree, and the method
+      // that produced it travels with the numbers (SO-3). No portal fetch: the
+      // live frame already carries the published high and low, and a stale
+      // frame is refused rather than aged forward.
+      const symbol = String(url.searchParams.get("symbol") || "").toUpperCase();
+      if (!/^[A-Z0-9]{1,12}$/.test(symbol)) {
+        return json({ ok: false, error: "invalid symbol" }, 400);
+      }
+      const snapshot = await readQuoteSnapshot(env);
+      const quotes = snapshot && Array.isArray(snapshot.quotes) ? snapshot.quotes : [];
+      const quote = quotes.find((q) => q && q.symbol === symbol) || null;
+      if (!quote) {
+        return json({ ok: false, error: "symbol not in the live snapshot" }, 404);
+      }
+      const stock = {
+        symbol,
+        volume: Number.isFinite(quote.volume) ? Math.round(quote.volume) : null,
+        price: Number.isFinite(quote.price) ? quote.price : null,
+        change_pct: Number.isFinite(quote.change_pct) ? quote.change_pct : null,
+        quote_as_of: quote.observed_at || null,
+        quote_fresh: Boolean(quote.fresh),
+        buy_volume: null,
+        sell_volume: null,
+        split_method: "unavailable",
+        split_source: "no fresh frame for this symbol",
+      };
+      if (quote.fresh) {
+        const split = rangePositionSplit(quote.high, quote.low,
+                                         quote.price, quote.volume);
+        if (split) {
+          Object.assign(stock, split);
+          stock.split_method = "range_position";
+          stock.split_source = "B/S estimated from the day's range, not order flow";
+        } else {
+          stock.split_source = "the frame's range is incomplete";
+        }
+      }
+      return json({ ok: true, stock });
+    }
+
     if (request.method === "GET" && path === "/market") {
       // Companion app card (public: exchange data, no secrets). The portal
       // snapshot remains cached, while the one-second broker snapshot is read
