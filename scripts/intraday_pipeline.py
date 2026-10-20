@@ -45,7 +45,6 @@ from src.data import tape_bars  # noqa: E402
 from src.data.sessions import (  # noqa: E402
     KARACHI, close_time, is_scan_window, is_trading_day, now_karachi,
 )
-from src.signals import ai_model  # noqa: E402
 from src.signals import momentum_scanner as scanner  # noqa: E402
 from src.signals import trade_state  # noqa: E402
 from src.signals.trade_state import SessionState, State  # noqa: E402
@@ -294,7 +293,7 @@ def card_text(day, slot: str, body: str, alert: bool) -> str:
     header = (f"INTRADAY ALERT {day.isoformat()}" if alert
               else f"QoR intraday {day.isoformat()}")
     # ASCII only (owner report 2026-10-20). The separator used to be U+00B7 and
-    # reached the relay as the two characters "Â·": UTF-8 that had already been
+    # reached the relay as the two characters "Ã‚Â·": UTF-8 that had already been
     # decoded as latin-1 somewhere between this f-string and the card store.
     # The header is not worth a charset argument, so it carries no non-ASCII at
     # all and the transport's decoding can no longer change what a reader sees.
@@ -304,7 +303,8 @@ def card_text(day, slot: str, body: str, alert: bool) -> str:
 def scheduled_as_of(slot: str, day=None) -> datetime:
     d = day or now_karachi().date()
     hm = tuple(int(part) for part in slot.split(":"))
-    return datetime(d.year, d.month, d.day, hm[0], hm[1], tzinfo=KARACHI)
+    return datetime(d.year, d.month, d.day, hm[0], hm[1],
+                    hm[2] if len(hm) == 3 else 0, tzinfo=KARACHI)
 
 
 def session_legal(as_of: datetime) -> bool:
@@ -356,23 +356,41 @@ def resolve_capture(day) -> Path:
     return tape
 
 
-def target_check(state: SessionState, session: scanner.SessionData):
-    """Was the +2% target touched by any bar after the recorded entry?"""
-    if not state.in_position() or state.entry_time is None:
+def monitor_exit(state: SessionState, session: scanner.SessionData) -> tuple | None:
+    """First subsequent completed-bar exit, conservative stop-first on ties.
+
+    Minute timestamps are opens. Do not skip the first minute starting exactly
+    at entry; do skip the minute containing a mid-minute signal. A target is
+    valued at its reference, not the arbitrary close of the touching bar.
+    """
+    if not state.in_position() or not state.entry_time:
         return None
-    entry_at = datetime.fromisoformat(state.entry_time)
-    rows = session.bars.get(state.symbol or "", [])
-    for bar in rows:
-        if bar.timestamp <= entry_at:
+    entered = datetime.fromisoformat(state.entry_time)
+    for bar in session.bars.get(state.symbol or "", []):
+        if bar.timestamp < entered or bar.timestamp + timedelta(minutes=1) > session.as_of:
             continue
-        if bar.high >= state.target_price:
-            return bar
+        target = bar.high >= state.target_price
+        if state.stop_loss is not None and bar.low <= state.stop_loss:
+            price = min(bar.open, state.stop_loss)
+            state.mark_stop_hit(price, bar.timestamp, ambiguous=target)
+            return (state.exit_reason, price, bar.timestamp)
+        if target:
+            state.mark_target_hit(state.target_price, bar.timestamp)
+            return ("TARGET_HIT", state.target_price, bar.timestamp)
     return None
 
 
-def last_price(session: scanner.SessionData, symbol: str | None) -> float | None:
-    rows = session.bars.get(symbol or "")
-    return rows[-1].close if rows else None
+def session_close_price(session: scanner.SessionData, symbol: str | None) -> float | None:
+    """Value only the actual last session minute, never another stock's freshness."""
+    hour, minute = close_time(session.day)
+    closed = datetime(session.day.year, session.day.month, session.day.day,
+                      hour, minute, tzinfo=KARACHI)
+    if session.as_of < closed:
+        return None
+    rows = session.bars.get(symbol or "", [])
+    final = next((bar for bar in reversed(rows)
+                  if bar.timestamp == closed - timedelta(minutes=1)), None)
+    return final.close if final is not None else None
 
 
 def capture_label(path: Path, session: scanner.SessionData) -> dict:
@@ -402,33 +420,6 @@ def write_observation(payload: dict) -> Path:
     out = target / "observation.json"
     out.write_text(json.dumps(payload, indent=2, allow_nan=False), encoding="utf-8")
     return out
-
-
-def ai_component() -> tuple[dict, dict[str, float] | None]:
-    """The trained AI prior and an honest status, both best effort.
-
-    A missing artifact, an ineligible model or an unreadable panel disables the
-    prior and is REPORTED; it never blocks the rule scan, because the rule
-    scanner is the strategy and the prior is a second opinion on it.
-    """
-    status = ai_model.status()
-    prior = None
-    if status.get("active"):
-        try:
-            prior = ai_model.live_probabilities()
-            # Record WHICH session's features produced the prior. A probability
-            # computed from a stale daily panel is still a probability, but the
-            # observation must say so rather than imply it is yesterday's setup.
-            cache_path = ai_model.live_feature_cache()
-            if cache_path.is_file():
-                cached = json.loads(cache_path.read_text(encoding="utf-8"))
-                status = {**status,
-                          "prior_panel_as_of": cached.get("panel_as_of"),
-                          "prior_symbols": len(cached.get("probabilities") or {})}
-        except Exception as exc:  # noqa: BLE001 - reported, never invented
-            status = {**status, "active": False,
-                      "reason": f"prior unavailable: {type(exc).__name__}"}
-    return status, prior
 
 
 def run_scan(slot: str, capture: Path | None = None,
@@ -474,7 +465,7 @@ def run_scan(slot: str, capture: Path | None = None,
             "status": scanner.DATA_BLOCKED, "reason": quality.reason,
             "capture": capture_label(path, session),
             "data_quality": quality.as_dict(), "trade_state": state.to_dict(),
-            "ai": ai_model.status(),
+            "ai": {"active": False, "reason": "ICT/SMC has no daily-model routing"},
             "universe_size": len(symbols),
             "universe_sha256": universe_fingerprint(symbols),
             "scanner_version": config.SCANNER_VERSION,
@@ -491,18 +482,20 @@ def run_scan(slot: str, capture: Path | None = None,
         print(json.dumps(payload, indent=2, allow_nan=False))
         return payload
 
-    ai_status, ai_prior = ai_component()
-    result = scanner.select_one(session, quality, ai_prior, ai_status)
+    ai_status = {"active": False, "reason": "ICT/SMC has no daily-model routing"}
+    result = scanner.select_one(session, quality)
     context = result.market
 
     if state.in_position():
-        hit = target_check(state, session)
-        if hit is not None:
-            state.mark_target_hit(hit.close, hit.timestamp)
+        exit_event = monitor_exit(state, session)
+        if exit_event is not None:
+            _, price, stamp = exit_event
             state.save()
-            text = scanner.target_hit_message(state.symbol or "", state.entry_price or 0.0,
-                                              state.target_price or 0.0, hit.close,
-                                              hit.timestamp)
+            text = (scanner.target_hit_message(state.symbol or "", state.entry_price or 0.0,
+                                               state.target_price or 0.0, price, stamp)
+                    if state.target_hit else
+                    f"STOP HIT\nSymbol: {state.symbol}\nExit reference: {price:.4f}\n"
+                    f"Stop Loss: {state.stop_loss:.4f}\nDaily lock remains engaged.")
             accepted = deliver(text, "signals")
             delivery = {"channel": "relay:/notify", "kind": "signals",
                         "ok": accepted,
@@ -535,7 +528,8 @@ def run_scan(slot: str, capture: Path | None = None,
         else:
             entry = result.candidate["price"]["last"]
             state.note_candidate(result.candidate["symbol"], result.candidate["score"])
-            state.enter(result.candidate["symbol"], entry, as_of, result.candidate["score"])
+            state.enter(result.candidate["symbol"], entry, as_of, result.candidate["score"],
+                        stop_loss=result.candidate.get("stop_loss"))
             state.save()
             text = scanner.signal_message(result.candidate, context, entry, as_of)
             sent = deliver(text, "signals")
@@ -569,7 +563,8 @@ def run_scan(slot: str, capture: Path | None = None,
             state.save()
         delivered = "LOCKED"
         card_body = (f"One trade already taken today: {state.symbol} entered at "
-                     f"{state.entry_price}, target {state.target_price}. "
+                     f"{state.entry_price}, target {state.target_price}, "
+                     f"stop loss {state.stop_loss}. "
                      f"{state.last_reason or 'position being monitored'}.")
         push_card(card_text(day, slot, card_body, alert=state.target_hit), state, signature=f"{day}|{card_body}")
     else:
@@ -600,11 +595,9 @@ def run_scan(slot: str, capture: Path | None = None,
         "market": context,
         "candidate": entered,
         "observed_candidate": None if entered else observed,
-        "ranked_top": [{k: row.get(k) for k in ("symbol", "score", "momentum",
-                                                "acceleration_label",
-                                                "volume_label",
-                                                "ai_probability",
-                                                "ai_percentile")}
+        "ranked_top": [{k: row.get(k) for k in ("symbol", "score", "strategy",
+                                                "setup", "stop_loss", "target",
+                                                "net_reward_risk")}
                        for row in result.ranked],
         "eligible_count": len(result.ranked),
         "coverage_text": result.coverage_text,
@@ -640,21 +633,24 @@ def run_finalize(capture: Path | None = None) -> dict:
     outcome_label = "NO_CANDIDATE"
     gross_return = net_return = None
     minutes_held = None
-    hit_bar = target_check(state, session)
-    if hit_bar is not None and not state.target_hit:
-        state.mark_target_hit(hit_bar.close, hit_bar.timestamp)
-    if state.target_hit:
+    monitor_exit(state, session)
+    if state.stop_hit:
+        outcome_label = state.exit_reason
+        gross_return = state.return_pct
+    elif state.target_hit:
         outcome_label = "TARGET_HIT"
-        gross_return = round(config.TARGET_PCT, 6)
+        gross_return = state.return_pct
     elif state.entry_price and quality.status == scanner.DATA_BLOCKED:
         # An open paper position that cannot be valued from real bars is never
         # given a made-up return. It is labelled UNVERIFIABLE instead.
         outcome_label = "UNVERIFIABLE"
     elif state.entry_price:
-        final = last_price(session, state.symbol)
+        final = session_close_price(session, state.symbol)
         if final is not None:
             gross_return = round(final / state.entry_price - 1.0, 6)
             outcome_label = "CLOSED_AT_SESSION_END"
+        else:
+            outcome_label = "UNVERIFIABLE"
     if state.entry_time and gross_return is not None:
         end_at = datetime.fromisoformat(state.exit_time) if state.exit_time else as_of
         minutes_held = int((end_at - datetime.fromisoformat(state.entry_time))
@@ -664,7 +660,8 @@ def run_finalize(capture: Path | None = None) -> dict:
     # research gate labels with, so a paper outcome and a research label agree).
     net_return = config.net_return(gross_return)
     if state.entry_price:
-        state.close_day(None if state.target_hit else last_price(session, state.symbol), as_of)
+        state.close_day(session_close_price(session, state.symbol)
+                        if outcome_label == "CLOSED_AT_SESSION_END" else None, as_of)
     else:
         state.close_day(None, as_of)
 
@@ -735,7 +732,7 @@ def run_finalize(capture: Path | None = None) -> dict:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="KMIALL momentum + volume scan")
+    parser = argparse.ArgumentParser(description="KMIALL long-only ICT/SMC scan")
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--scan", action="store_true")
     mode.add_argument("--finalize", action="store_true")
