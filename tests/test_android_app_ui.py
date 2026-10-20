@@ -1385,16 +1385,17 @@ class HeaderCopyTest(unittest.TestCase):
 
 class VersionTest(unittest.TestCase):
     def test_the_version_is_the_one_that_ships_these_changes(self):
-        # v1.7.9 is the 2026-10-20 second pass: one empty-signal sentence, no
-        # clock on the KSE100 line, no EST tag, a see-through search glass
-        # nudged 15% right, and a two-read one-second round.
+        # v1.8.0 is the 2026-10-20 third pass: the searched stock cannot be
+        # wiped by the next ticker tick, the pinned selection carries its own
+        # red/green price and percentage, and the search glass is 15% further
+        # right (owner's measurement law applied to what he touched).
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="1.7.9"', manifest)
-        self.assertIn('android:versionCode="33"', manifest)
+        self.assertIn('android:versionName="1.8.0"', manifest)
+        self.assertIn('android:versionCode="34"', manifest)
         # The changelog entry ties these user-visible changes to the build.
         readme = (ROOT / "android" / "README.md").read_text(encoding="utf-8")
         self.assertIn("v1.7.9, owner order 2026-10-20", readme)
-        self.assertIn("Version 1.7.9, versionCode 33", readme)
+        self.assertIn("Version 1.8.0, versionCode 34", readme)
         layout = LAYOUT.read_text(encoding="utf-8")
         strings = STRINGS.read_text(encoding="utf-8")
         main = MAIN.read_text(encoding="utf-8")
@@ -1458,6 +1459,56 @@ class EmptySignalCopyTest(unittest.TestCase):
         self.assertIn('name="signal_no_call"', strings)
         # Both the empty answer and another session's card land on that string.
         self.assertEqual(main.count("getString(R.string.signal_no_call)"), 2)
+
+
+class SearchPanelStabilityTest(unittest.TestCase):
+    """The searched stock cannot vanish and cannot lose its colour
+    (owner report 2026-10-20, 14:07 PKT).
+
+    The per-second price refresh used to tear the whole result list down and
+    draw it again, so the stock the owner had just tapped was on screen only
+    until the next tick. The law now is: the rows are rebuilt only when what
+    is VISIBLE changes, the tapped symbol stays pinned in its own line, and
+    that line is restamped from the live quote in the colour of the move.
+    """
+
+    def test_ticks_restyle_rows_in_place_instead_of_rebuilding(self):
+        main = MAIN.read_text(encoding="utf-8")
+        # The teardown happens only inside the rebuild branch, never per tick:
+        # one removeAllViews call covers the whole redraw cost.
+        self.assertEqual(main.count("searchResults.removeAllViews();"), 1)
+        self.assertIn("boolean rebuild = !q.equals(renderedQuery)", main)
+        self.assertIn("styleSearchRow(entry.getValue(), entry.getKey());", main)
+
+    def test_the_tapped_symbol_stays_pinned_across_ticks(self):
+        main = MAIN.read_text(encoding="utf-8")
+        self.assertIn("private String selectedSymbol;", main)
+        # The selection is cleared only on purpose: when the stock falls out
+        # of the visible set, or when the panel closes.
+        self.assertIn("selectSymbol(null);", main)
+        self.assertIn("if (!symbol.equals(selectedSymbol)) {", main)
+        self.assertIn("selectedBase = \"\";", main)
+
+    def test_the_pinned_line_is_restamped_in_the_colour_of_the_move(self):
+        main = MAIN.read_text(encoding="utf-8")
+        self.assertIn("private void paintSelectedLine() {", main)
+        marker = "String tail = quote.changePct == null"
+        first = main.index(marker)
+        tail = main[first:]
+        self.assertIn("quote.changePct >= 0 ? R.color.green_hi : R.color.red", tail)
+        # A real sign, and only a real sign, colours the row (SO-3).
+        self.assertIn("? R.color.text_soft", tail)
+        self.assertIn("R.color.green_hi", tail)
+        self.assertIn("R.color.red", tail)
+        self.assertIn("R.color.text_soft", tail)
+
+    def test_the_search_glass_is_fifteen_percent_further_right(self):
+        dimens = (ROOT / "android" / "app" / "src" / "main" / "res" / "values"
+                  / "dimens.xml").read_text(encoding="utf-8")
+        # Owner order: 15% of its own 42dp box, from its existing position:
+        # 50.4 * 1.15 = 57.96dp.
+        self.assertIn('<dimen name="search_shift_x">57.96dp</dimen>', dimens)
+        self.assertNotIn('<dimen name="search_shift_x">50.4dp</dimen>', dimens)
 
 
 if __name__ == "__main__":
