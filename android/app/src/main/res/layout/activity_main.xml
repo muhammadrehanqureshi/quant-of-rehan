@@ -154,8 +154,10 @@
                      of its own 42dp box (@dimen/search_gap). It carries
                      the gear's own translations, so the pair keeps its
                      6.3dp air wherever the gear is nudged to, plus the
-                     further 15% of its own box the owner asked for on the
-                     same day (@dimen/search_shift_x, net 50.4dp).
+                     further shifts the owner ordered that day and again
+                     now: another 15% of its own box to the right at
+                     20:07 PKT (owner report 2026-10-20), on top of the
+                     existing search_shift_x, net 57.96dp.
 
                      Its glass is a vector stroke, not the old search.png
                      disc: a tinted bitmap turned the whole magnifier gold,
