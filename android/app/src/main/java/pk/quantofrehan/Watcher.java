@@ -179,6 +179,10 @@ public final class Watcher {
     static final class Market {
         boolean answered;
         boolean open;
+        /** The relay's Karachi date, "yyyy-MM-dd", or empty when unreported.
+         *  The console compares a signal card's own session against this, so
+         *  "is this call today's?" is answered by the edge's clock (SO-8). */
+        String date = "";
         /** OPEN, BREAK, CLOSED, PRE_OPEN or POST_CLOSE, or null when the
          *  relay did not report a phase. The app never guesses one. */
         String phase;
@@ -345,6 +349,7 @@ public final class Watcher {
             JSONObject body = get(base + "/market", null);
             market.answered = body.optBoolean("ok", false);
             market.open = body.optBoolean("market_open", false);
+            market.date = body.optString("date", "");
             JSONObject transition = body.optJSONObject("market_transition");
             if (transition != null) {
                 market.transitionState = transition.optString("state", "");

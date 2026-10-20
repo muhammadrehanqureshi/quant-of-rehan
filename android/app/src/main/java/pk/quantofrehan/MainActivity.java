@@ -230,6 +230,15 @@ public class MainActivity extends Activity {
      *  settings menu follows: one menu at a time, never two. */
     private boolean searchOpen;
     /**
+     * The session date the relay last reported, in Karachi (SO-8).
+     *
+     * The EDGE owns the clock, exactly as it owns market_open: the phone asks
+     * the relay what day it is rather than deciding from its own zone, so a
+     * handset set to another country cannot promote an old call to today's.
+     * Empty until the first answer, and an empty date never suppresses a card.
+     */
+    private String relayDate = "";
+    /**
      * The console's own views, hidden together while the settings menu is
      * open: the three tiles, the three rules between them and the cadence
      * sentence. Built once in onCreate, so the toggle is one loop over an
@@ -713,6 +722,12 @@ public class MainActivity extends Activity {
         String d = detail == null ? "" : detail.trim();
         String s = signals == null ? "" : signals.trim();
         latestSignalBackground = s;
+        // The relay's own date, not the handset's: the card's session is
+        // compared against the EDGE's clock, the same authority that owns
+        // market_open (owner order 2026-10-20).
+        if (market != null && market.date != null && !market.date.isEmpty()) {
+            relayDate = market.date;
+        }
         // One decision per answer (v1.7.5): an answer that matches the one
         // already on screen is not painted again. The gate compares the ANSWER,
         // never a view, so a skipped paint cannot leave the screen and the
@@ -913,9 +928,8 @@ public class MainActivity extends Activity {
         searchPanel.setVisibility(open ? View.VISIBLE : View.GONE);
         btnSearch.setImageTintList(ColorStateList.valueOf(getColor(
                 open ? R.color.gold_bright : R.color.gold)));
-        btnSettings.setRotation(0f);
         if (open) {
-            searchInput.setText("");
+            searchInput.setText("")
             searchInput.requestFocus();
             renderSearchResults("");
         } else {
@@ -978,7 +992,7 @@ public class MainActivity extends Activity {
         // Friday's HCAR row because the tile rendered whatever the relay
         // last carried and never asked what day it was.
         String stamp = SignalText.cardDate(raw);
-        if (!stamp.isEmpty() && !stamp.equals(karachiToday())) {
+        if (!stamp.isEmpty() && !relayDate.isEmpty() && !stamp.equals(relayDate)) {
             return getString(R.string.signal_no_call);
         }
         String text = SignalText.compact(raw);
@@ -1097,16 +1111,6 @@ public class MainActivity extends Activity {
         return clock.length() >= 8 ? clock.substring(0, 8) : "";
     }
 
-    /** Today in Karachi (SO-8): the phone's own zone never decides. */
-    private static String karachiToday() {
-        java.util.Calendar c = java.util.Calendar.getInstance(
-                java.util.TimeZone.getTimeZone("Asia/Karachi"));
-        return String.format(Locale.US, "%04d-%02d-%02d",
-                c.get(java.util.Calendar.YEAR),
-                c.get(java.util.Calendar.MONTH) + 1,
-                c.get(java.util.Calendar.DAY_OF_MONTH));
-    }
-
     /**
      * Every leader is two lines (owner order 2026-10-12):
      *   "1. ABC (B=12,345  S=9,876  T=22,221)"
@@ -1177,7 +1181,7 @@ public class MainActivity extends Activity {
                 // from order flow, so the honesty stays and the clutter does
                 // not (SO-3).
                 // "(" opens at B and ")" closes after T: one bracketed group.
-                sb.append(" (B=");
+                sb.append(" (B");
                 int buyFrom = sb.length();
                 sb.append(String.format(Locale.US, "%,d", row.buy));
                 spans.add(new int[]{buyFrom, sb.length(), R.color.green});

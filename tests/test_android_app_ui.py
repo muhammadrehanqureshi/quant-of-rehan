@@ -522,10 +522,10 @@ class SettingsControlTest(unittest.TestCase):
         self.assertIn("GEAR_TURN_MS", self.main)
         self.assertIn("new DecelerateInterpolator()", self.main)
         # Every state change goes through the one helper, and the open no
-        # longer swaps a background anywhere. Two call sites since owner order
-        # 2026-10-19: the declaration and the gear tap. The token save handler
-        # that used to close the panel is retired with the token field.
-        self.assertEqual(self.main.count("setSettingsOpen("), 2)
+        # longer swaps a background anywhere. Three call sites since owner
+        # order 2026-10-20: the declaration, the gear tap, and the search menu
+        # closing the panel so two menus can never be open at once.
+        self.assertEqual(self.main.count("setSettingsOpen("), 3)
         self.assertNotIn("gear_bg", self.main)
         self.assertNotIn("setBackgroundResource", self.main)
 
@@ -1087,7 +1087,9 @@ class StatusPulseTest(unittest.TestCase):
         # is the same rule one step further out: a round that outlived its
         # activity paints nothing and holds nothing.
         self.assertEqual(self.main.count("liveInFlight = false;"), 2)
-        self.assertEqual(self.main.count("isFinishing() || isDestroyed()"), 2)
+        # A third callback joins in v1.7.8: the search's one-symbol read, which
+        # guards its paint the same way the two refresh rounds do.
+        self.assertEqual(self.main.count("isFinishing() || isDestroyed()"), 3)
         self.assertEqual(self.main.count("if (resumed) {"), 2)
         for marker in ("private void refresh()", "private void refreshLive()"):
             body = self.main[self.main.index(marker):][:800]
@@ -1370,15 +1372,15 @@ class HeaderCopyTest(unittest.TestCase):
 
 class VersionTest(unittest.TestCase):
     def test_the_version_is_the_one_that_ships_these_changes(self):
-        # v1.7.7 finishes the 2026-10-19 dashboard pass: the signal reader, the
-        # one second scan cadence and the version that ships them.
+        # v1.7.8 is the 2026-10-20 console pass: today's call only, a split
+        # that moves with the frame, the symbol search and the green badge.
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="1.7.7"', manifest)
-        self.assertIn('android:versionCode="31"', manifest)
+        self.assertIn('android:versionName="1.7.8"', manifest)
+        self.assertIn('android:versionCode="32"', manifest)
         # The changelog entry ties these user-visible changes to the build.
         readme = (ROOT / "android" / "README.md").read_text(encoding="utf-8")
-        self.assertIn("v1.7.7, owner order 2026-10-19", readme)
-        self.assertIn("Version 1.7.7, versionCode 31", readme)
+        self.assertIn("v1.7.8, owner order 2026-10-20", readme)
+        self.assertIn("Version 1.7.8, versionCode 32", readme)
         layout = LAYOUT.read_text(encoding="utf-8")
         strings = STRINGS.read_text(encoding="utf-8")
         main = MAIN.read_text(encoding="utf-8")

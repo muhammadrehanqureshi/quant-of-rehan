@@ -35,9 +35,17 @@ final class SignalText {
     private static final Pattern ENTERED =
             Pattern.compile("([A-Z0-9]{2,12})\\s+entered\\s+at\\s+(-?[0-9]+(?:\\.[0-9]+)?)",
                     Pattern.CASE_INSENSITIVE);
-    /** The session date the card header carries (owner order 2026-10-20). */
+    /**
+     * The first ISO date the card carries (owner order 2026-10-20).
+     *
+     * A card opens with the session it was written for, so the first
+     * yyyy-MM-dd in the text is that session. Reading a date is not printing
+     * one: the tile still shows three numbers and a ticker, and this parser
+     * names no header wording of its own, so the copy can change without
+     * leaving a second spelling of it in the code.
+     */
     private static final Pattern CARD_DATE =
-            Pattern.compile("QoR intraday (\\d{4}-\\d{2}-\\d{2})");
+            Pattern.compile("\\b(\\d{4}-\\d{2}-\\d{2})\\b");
     private static final Pattern TARGET =
             Pattern.compile("\\btarget\\s+(-?[0-9]+(?:\\.[0-9]+)?)",
                     Pattern.CASE_INSENSITIVE);
