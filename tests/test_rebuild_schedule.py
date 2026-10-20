@@ -540,10 +540,10 @@ class TestCloudflareSchedule(unittest.TestCase):
                 windows.append(((hour + 5) % 24, minute, frozenset(weekdays)))
         self.assertEqual(
             sorted(windows),
-            [((9, 17), frozenset({5})),
-             ((9, 32), frozenset({1, 2, 3, 4})),
-             ((12, 30), frozenset({1, 2, 3, 4})),
-             ((14, 32), frozenset({5}))],
+            [(9, 17, frozenset({5})),
+             (9, 32, frozenset({1, 2, 3, 4})),
+             (12, 30, frozenset({1, 2, 3, 4})),
+             (14, 32, frozenset({5}))],
             "the session loop must offer exactly the four runnable windows")
 
         # The worker's dispatcher table must carry the same window list, and
