@@ -190,72 +190,38 @@ class RelayRecorder:
         return None
 
 
-def _slope(minute: int, strong: bool) -> float:
-    if not strong:
-        return 0.00005
-    if minute < 25:
-        return 0.0004
-    if minute < 38:
-        return 0.0010
-    if minute < 44:
-        return 0.0025
-    return 0.0040
+from smc_fixture import setup_values
 
 
 def build_capture(path: Path, symbols: list[str], minutes: int = 60) -> Path:
     with path.open("w", encoding="utf-8") as handle:
         for symbol in symbols:
-            strong = symbol == WINNER
-            price = 100.0
             bars = []
             for minute in range(minutes):
-                price *= 1.0 + _slope(minute, strong)
-                stamp = OPEN_AT + timedelta(minutes=minute)
-                volume = 25000.0 if (strong and minute >= 39) else 5000.0
-                bars.append({"t": stamp.strftime("%H:%M"), "o": round(price, 4),
-                             "h": round(price * 1.0002, 4),
-                             "l": round(price * 0.9998, 4),
-                             "c": round(price, 4), "v": volume})
-            handle.write(json.dumps({
-                "ts": (OPEN_AT + timedelta(minutes=minutes - 1)).isoformat(),
-                "symbol": symbol, "bars": bars}) + "\n")
+                op, hi, lo, close, volume = (setup_values(minute) if symbol == WINNER
+                                           else (100, 100.01, 99.99, 100, 5000))
+                bars.append(dict(t=(OPEN_AT + timedelta(minutes=minute)).strftime("%H:%M"),
+                                 o=op, h=hi, l=lo, c=close, v=volume))
+            handle.write(json.dumps({"ts": OPEN_AT.isoformat(), "symbol": symbol,
+                                     "bars": bars}) + "\n")
     return path
 
 
 def build_tape(path: Path, symbols: list[str], minutes: int = 60) -> Path:
-    """The same fixture session in the TAPE's own record shape.
-
-    Owner order 2026-10-14: the scan path reads bars built from the broker
-tape, so the end-to-end cycle is driven in that shape as well. Each symbol
-emits one MKT-FEED row per minute carrying a price and the venue's cumulative
-volume counter, which is exactly what the recorder banks: prints become open,
-high, low and close, and the counter's increments become volume.
-    """
+    """Four prints per minute reproduce real OHLC, not venue daily highs."""
     with path.open("w", encoding="utf-8") as handle:
         for symbol in symbols:
-            strong = symbol == WINNER
-            price = 100.0
             total = 0
-            high = low = 100.0
             for minute in range(minutes):
-                price *= 1.0 + _slope(minute, strong)
-                high, low = max(high, price), min(low, price)
-                volume = 25000 if (strong and minute >= 39) else 5000
-                total += volume
-                stamp = OPEN_AT + timedelta(minutes=minute)
-                handle.write(json.dumps({
-                    "kind": "MKT-FEED|SUB%",
-                    "ts": stamp.isoformat(),
-                    "ticks": [{
-                        "scrip": f"{symbol}:REG",
-                        "last": f"{price:.4f}",
-                        "volume": str(total),
-                        "tick_time": stamp.strftime("%H:%M:%S"),
-                        "high": f"{high:.4f}",
-                        "low": f"{low:.4f}",
-                        "trades": str(minute + 1),
-                    }],
-                }) + "\n")
+                op, hi, lo, close, volume = (setup_values(minute) if symbol == WINNER
+                                           else (100, 100.01, 99.99, 100, 5000))
+                for second, price in zip((0, 10, 20, 50), (op, hi, lo, close)):
+                    total += volume // 4
+                    stamp = OPEN_AT + timedelta(minutes=minute, seconds=second)
+                    handle.write(json.dumps({"kind": "MKT-FEED|SUB%", "ts": stamp.isoformat(),
+                        "ticks": [{"scrip": f"{symbol}:REG", "last": str(price),
+                                   "volume": str(total), "tick_time": stamp.strftime("%H:%M:%S"),
+                                   "trades": str(minute * 4 + second + 1)}]}) + "\n")
     return path
 
 
@@ -669,7 +635,7 @@ class ForwardGuardTest(unittest.TestCase):
 
     def test_a_new_file_written_by_the_synthetic_session_is_a_leak(self):
         after = {"session_state.json":
-                 json.dumps({"day": self.SYNTHETIC}).encode("utf-8")}
+                 json.dumps({"day": self.SYNTHETIC, "state": "DAILY_LOCKED"}).encode("utf-8")}
         with self.assertRaises(AssertionError):
             assert_forward_untouched({}, after, self.SYNTHETIC)
 

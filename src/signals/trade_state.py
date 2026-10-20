@@ -72,6 +72,9 @@ class SessionState:
     exit_time: str | None = None
     return_pct: float | None = None
     target_hit: bool = False
+    stop_loss: float | None = None
+    stop_hit: bool = False
+    exit_reason: str | None = None
     scans: int = 0
     coverage: float | None = None
     symbols_scanned: int | None = None
@@ -222,8 +225,15 @@ class SessionState:
             self.state = State.SCANNING
 
     def enter(self, symbol: str, entry_price: float, entry_time: datetime,
-              score: float) -> None:
+              score: float, stop_loss: float | None = None) -> None:
         """Record the paper entry and lock the day to this one trade."""
+        import math
+
+        if not math.isfinite(entry_price) or entry_price <= 0:
+            raise ValueError("entry must be finite and positive")
+        if stop_loss is not None and (not math.isfinite(stop_loss)
+                                      or not 0 < stop_loss < entry_price):
+            raise ValueError("structural stop must be positive and below entry")
         if not self.can_enter():
             raise RuntimeError(
                 f"entry refused: state {self.state}, trades_today "
@@ -236,17 +246,33 @@ class SessionState:
         self.entry_score = float(score)
         self.target_price = round(float(entry_price) * (1.0 + config.TARGET_PCT), 4)
         self.target_hit = False
+        self.stop_loss = stop_loss
+        self.stop_hit = False
+        self.exit_reason = None
+        self.scanner_version = config.SCANNER_VERSION
         self.last_reason = "entered one KMIALL long, daily lock engaged"
         self.state = State.TARGET_MONITORING
 
     def mark_target_hit(self, exit_price: float, hit_at: datetime) -> None:
         self.state = State.TARGET_HIT
         self.target_hit = True
+        self.exit_reason = "TARGET_HIT"
         self.exit_price = float(exit_price)
         self.exit_time = hit_at.isoformat()
         if self.entry_price:
             self.return_pct = round(self.exit_price / self.entry_price - 1.0, 6)
         self.last_reason = "target hit, paper position closed"
+
+    def mark_stop_hit(self, exit_price: float, hit_at: datetime,
+                      ambiguous: bool = False) -> None:
+        """A structural failure closes the paper position, never resets its lock."""
+        self.state = State.TRADE_CLOSED
+        self.stop_hit = True
+        self.exit_reason = "STOP_AMBIGUOUS" if ambiguous else "STOP_HIT"
+        self.exit_price = float(exit_price)
+        self.exit_time = hit_at.isoformat()
+        self.return_pct = round(self.exit_price / self.entry_price - 1.0, 6)
+        self.last_reason = "structural stop hit, paper position closed"
 
     def close_day(self, last_price: float | None, closed_at: datetime) -> None:
         """Close out the session: value the position if it is still open, then
@@ -256,8 +282,11 @@ class SessionState:
             if last_price is not None:
                 self.exit_price = float(last_price)
                 self.exit_time = closed_at.isoformat()
+                self.exit_reason = "CLOSED_AT_SESSION_END"
                 if self.entry_price:
                     self.return_pct = round(self.exit_price / self.entry_price - 1.0, 6)
+            else:
+                self.exit_reason = "UNVERIFIABLE"
             self.last_reason = "closed at session end without reaching target"
         self.state = State.DAILY_LOCKED
         return None
@@ -273,6 +302,9 @@ class SessionState:
             "entry_time": self.entry_time,
             "target": self.target_price,
             "target_hit": self.target_hit,
+            "stop_loss": self.stop_loss,
+            "stop_hit": self.stop_hit,
+            "exit_reason": self.exit_reason,
             "exit": self.exit_price,
             "exit_time": self.exit_time,
             "return_pct": self.return_pct,

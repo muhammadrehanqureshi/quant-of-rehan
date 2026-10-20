@@ -181,7 +181,7 @@ SCORE_WEIGHTS = {
 
 MIN_SIGNAL_SCORE = _number("MIN_SIGNAL_SCORE", 55.0)
 #: Secondary confirmation: a fresh close at/above the prior 5-bar high and
-#: Wilder RSI(14) >= 50. It is a live hard gate, not a score boost.
+#: Wilder RSI(14) >= 50. Historical HCAR diagnostics only, not a live gate.
 BREAKOUT_CONFIRMATION_BARS = int(_number("BREAKOUT_CONFIRMATION_BARS", 5))
 MIN_CONFIRMATION_RSI = _number("MIN_CONFIRMATION_RSI", 50.0)
 MIN_RELATIVE_VOLUME = _number("MIN_RELATIVE_VOLUME", 1.5)
@@ -222,7 +222,28 @@ def is_etf_symbol(symbol: str) -> bool:
 
     return eligibility.is_etf(symbol)
 
-SCANNER_VERSION = "momentum_volume_breakout_confirmation_v2"
+SCANNER_VERSION = "ict_smc_sweep_mss_fvg_retest_v1"
+
+# Fixed, pre-registered price-action hypothesis. No parameter search uses OOS.
+SMC_SWING_BARS = 2
+SMC_ATR_BARS = 14
+SMC_SETUP_BARS = 30
+SMC_SHIFT_BARS = 4
+SMC_RETEST_BARS = 5
+SMC_DISPLACEMENT_ATR = 1.0
+SMC_DISPLACEMENT_CLOSE_FRACTION = 0.75
+SMC_DEALING_RANGE_BARS = 60
+SMC_MIN_DISPLACEMENT_VOLUME = 1.5
+SMC_MIN_GAP_PCT = 0.0001
+SMC_MAX_CHASE_PCT = 0.001
+SMC_MIN_RISK_PCT = 0.001
+SMC_MAX_RISK_PCT = 0.012
+SMC_MIN_NET_RR = 1.0
+SMC_TICK_SIZE = 0.01
+SMC_MAX_SIGNAL_AGE_SECONDS = 60
+SMC_LAST_ENTRY_MINUTES = 30
+# Legacy momentum constants above are retained only by historical daily-bar
+# research. They have no decision path in the intraday scanner.
 
 # ---------------------------------------------------------------- volatility
 # Session volatility regime, measured from the captured bars
@@ -414,7 +435,7 @@ def live_trading_enabled() -> bool:
 # count toward production. The band workflows already pass them
 # (intraday-session.yml, intraday-capture.yml) but nothing in the code read
 # them, so the gate's production_data_ready check had no input at all and
-# could only ever be false (found 2026-10-16). Read here, once, so the session
+# could only be false (found 2026-10-16). Read here, once, so the session
 # record and the gate answer the same question from the same source.
 DATA_RIGHTS_CONFIRMED_ENV = "KMIALL_DATA_RIGHTS_CONFIRMED"
 DATA_LATENCY_CONFIRMED_ENV = "KMIALL_DATA_LATENCY_CONFIRMED"
@@ -456,20 +477,19 @@ def config_snapshot() -> dict:
         "target_pct": round(TARGET_PCT * 100, 4),
         "max_trades_per_day": MAX_TRADES_PER_DAY,
         "min_coverage_pct": MIN_COVERAGE_PCT,
-        "min_signal_score": MIN_SIGNAL_SCORE,
-        "secondary_confirmation": {
-            "rule": "close_above_previous_range_high_and_rsi14_min",
-            "breakout_bars": BREAKOUT_CONFIRMATION_BARS,
-            "minimum_rsi14": MIN_CONFIRMATION_RSI,
-        },
+        "min_signal_score": None,  # retired momentum threshold, not an SMC gate
+        "secondary_confirmation": {"rule": SCANNER_VERSION},
+        "smc": {name: value for name, value in globals().items()
+                if name.startswith("SMC_")},
         "min_relative_volume": MIN_RELATIVE_VOLUME,
         "min_session_traded_value": MIN_SESSION_TRADED_VALUE,
-        "score_weights": dict(SCORE_WEIGHTS),
+        "score_weights": dict(SCORE_WEIGHTS),  # historical research only
+        "score_basis": "ICT/SMC displacement, volume and cost-inclusive reward/risk",
         "scanner_version": SCANNER_VERSION,
-        "ai_signal_enabled": AI_SIGNAL_ENABLED,
-        "ai_tie_break_enabled": AI_TIE_BREAK_ENABLED,
+        "ai_signal_enabled": False,
+        "ai_tie_break_enabled": False,
         "ai_tie_band": AI_TIE_BAND,
-        "ai_gate_enabled": AI_GATE_ENABLED,
+        "ai_gate_enabled": False,
         "ai_reject_percentile": AI_REJECT_PERCENTILE,
         "model_file": MODEL_FILE,
         "atr_thresholds_pct": [ATR_CALM_PCT, ATR_ELEVATED_PCT, ATR_EXTREME_PCT],
