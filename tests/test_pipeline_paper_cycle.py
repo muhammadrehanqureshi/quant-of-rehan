@@ -348,6 +348,23 @@ class PipelineCycleTest(unittest.TestCase):
         self.assertEqual(
             len([c for c in self.relay.calls if c[1] == "/signals"]), 2)
 
+    def test_the_card_header_is_ascii_and_dated(self):
+        """Owner report 2026-10-20: the header reached the relay double decoded.
+
+        The separator was U+00B7 and arrived as the two characters U+00C2 and
+        U+00B7, so a reader saw a stray A-circumflex before the dot. The header
+        now carries no non-ASCII at all, which makes the transport's charset
+        irrelevant, and it still names the session and the slot a reader needs.
+        """
+        text = pipeline.card_text(FRIDAY, "10:00", "body", False)
+        self.assertEqual(text.splitlines()[0],
+                         f"QoR intraday {FRIDAY.isoformat()} | 10:00 PKT")
+        self.assertEqual(pipeline.card_text(FRIDAY, "10:00", "body", True)
+                         .splitlines()[0],
+                         f"INTRADAY ALERT {FRIDAY.isoformat()} | 10:00 PKT")
+        # Raises if a non-ASCII character ever returns to the header.
+        text.encode("ascii")
+
     def test_full_paper_cycle(self):
         first = self.scan("10:00")
         quality = first["data_quality"]
