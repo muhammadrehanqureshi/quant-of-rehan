@@ -19,23 +19,29 @@ compatibility_date = "2026-10-01"
 # The worker's band table (worker.js) is the same table
 # src/data/sessions.py computes, and the parity test fails if they drift.
 #
-# 04:32 UTC = 09:32 PKT (Mon-Thu open)
+# 03:55/04:32 UTC = 08:55/09:32 PKT (Mon-Thu: the 08:55 pre-market window
+#   opens, owner order 2026-10-21; the 09:32 band-open notification edge)
 # 07:30 UTC = 12:30 PKT (Mon-Thu AFTERNOON dispatch edge: the session loop
-#   started at the 09:32 open ends at 12:30, so without this wake the
-#   afternoon had no publisher and the phone's numbers froze, measured
-#   2026-10-20. Not a notification edge; the dispatch's own dedupe key
-#   separates it from the morning loop).
+#   started at the 08:55 pre-market edge ends at 12:30, so without this
+#   wake the afternoon had no publisher and the phone's numbers froze,
+#   measured 2026-10-20. Not a notification edge; the dispatch's own
+#   dedupe key separates it from the morning loop).
+# 10:33 UTC = 15:33 PKT (Mon-Thu post-market window wake: 2 minutes after
+#   the 15:31 window open, inside the dispatcher's 3 minute grace, and 3
+#   minutes after the 15:30 close edge, outside the 2 minute window that
+#   would duplicate the close notification)
 # 07:00 UTC = 12:00 PKT (Friday session 1 close, midday break begins)
 # 09:32 UTC = 14:32 PKT (Friday session 2 open, trading resumes)
-# 10:30 UTC = 15:30 PKT (Mon-Thu close)
-# 11:30 UTC = 16:30 PKT (Friday session 2 close)
+# packed edge list fires at the 12:00 PKT Friday close, the 15:30 Mon-Thu
+# close and the 16:30 PKT Friday close plus harmless extras the worker
+# discards; a six entry list is rejected (Cloudflare error 10072).
 [triggers]
 crons = [
-  "32 4 * * 1-4",
+  "32,55 3,4 * * 1-4",
   "30 7 * * 1-4",
   "17 4 * * 5",
   "32 9 * * 5",
-  "0,30 7,10,11 * * 1-5",
+  "0,30,33 7,10,11 * * 1-5",
 ]
 
 # No KV namespace, on purpose. Owner order 2026-10-20: no product that

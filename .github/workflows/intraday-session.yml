@@ -25,8 +25,12 @@ name: KMIALL session scan loop
 # fires and the post-close finalize in intraday-capture.yml stay as they are:
 # they are the backstop if a session job dies mid-band.
 #
-#   04:32 UTC = 09:32 PKT  Mon-Thu band 1 (09:32 to 12:30)
+#   03:55 UTC = 08:55 PKT  Mon-Thu band 1 (window opens 08:55; the loop's
+#                          own sleep gate keeps the pre-band minutes off,
+#                          and 09:15 to 09:32, the law's morning gap, is
+#                          deliberately asleep with it)
 #   07:30 UTC = 12:30 PKT  Mon-Thu band 2 (12:30 to 15:30)
+#   10:32 UTC = 15:32 PKT  Mon-Thu post-market (15:32 to 15:49)
 #   04:17 UTC = 09:17 PKT  Friday band 1 (09:17 to 12:00, midday break after)
 #   09:32 UTC = 14:32 PKT  Friday band 2 (14:32 to 16:30)
 #
@@ -39,8 +43,9 @@ name: KMIALL session scan loop
 
 on:
   schedule:
-    - cron: "32 4 * * 1-4"     # 09:32 PKT, Mon-Thu morning band
+    - cron: "55 3 * * 1-4"     # 08:55 PKT, Mon-Thu band 1
     - cron: "30 7 * * 1-4"     # 12:30 PKT, Mon-Thu afternoon band
+    - cron: "32 10 * * 1-4"    # 15:32 PKT, Mon-Thu post-market
     - cron: "17 4 * * 5"       # 09:17 PKT, Friday session 1
     - cron: "32 9 * * 5"       # 14:32 PKT, Friday session 2
   workflow_dispatch:
@@ -129,8 +134,9 @@ jobs:
           # A cron changes only when the runner wakes, never what the loop is
           # allowed to see; the loop itself ends at the band's own close.
           case "${{ github.event.schedule }}" in
-            "32 4 * * 1-4") seconds=10740 ;;   # 179 min, ends 12:31
+            "55 3 * * 1-4") seconds=10860 ;;   # 181 min, ends 12:31
             "30 7 * * 1-4") seconds=10860 ;;   # 181 min, ends 15:31
+            "32 10 * * 1-4") seconds=1200 ;;   # 20 min, post-market to 15:52
             "17 4 * * 5")   seconds=9900  ;;   # 165 min, midday break after
             "32 9 * * 5")   seconds=7200  ;;   # 120 min, ends 16:32
             *)              seconds="${{ inputs.seconds }}" ;;
