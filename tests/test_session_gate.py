@@ -265,7 +265,8 @@ class TestWeekendToOpenTransition(unittest.TestCase):
         (at_karachi(2026, 10, 10, 16, 0), False),   # Saturday, after hours
         (at_karachi(2026, 10, 11, 10, 0), False),   # Sunday
         (at_karachi(2026, 10, 11, 15, 0), False),   # Sunday
-        (at_karachi(2026, 10, 12, 9, 0), False),    # Monday, before pre-market
+        (at_karachi(2026, 10, 12, 9, 0), True),     # the pre-market window
+                                                    # opens and scans (2026-10-21)
         (at_karachi(2026, 10, 12, 9, 5), True),     # pre-market scans (2026-10-21)
         (at_karachi(2026, 10, 12, 9, 31), False),   # the law's morning gap sleeps
         (at_karachi(2026, 10, 12, 9, 32), True),    # THE 09:32 OPEN
@@ -285,9 +286,12 @@ class TestWeekendToOpenTransition(unittest.TestCase):
                     decision = gate.session_gate(moment)
                     self.assertEqual(decision.should_run, expected,
                                      decision.reason)
-        self.assertEqual(probe.call_count,
-                         sum(1 for _, expected in self.TIMELINE if expected),
-                         "the probe must be consulted exactly on the live slots")
+        # Owner order 2026-10-21: the pre and post market windows decide
+        # True without the portal (PROBE_DISABLED, live broker feed), so only
+        # the in-band MARKET slots consult the probe: 09:32, 10:00, 15:29.
+        self.assertEqual(probe.call_count, 3,
+                         "the probe must be consulted exactly on the in-band "
+                         "live slots, never on the pre or post windows")
 
     def test_saturday_and_monday_open_disagree(self):
         """Same wall-clock time, different verdict: the weekend is the difference."""
