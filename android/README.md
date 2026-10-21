@@ -654,6 +654,19 @@ to sixty seconds. The status tile therefore also carries the app's own
   a wide row can never wrap mid group, and the tile carries its own 11.5sp
   so the widest row the relay can publish fits the panel without dropping
   a single digit of the feed's counts. Version 1.8.5, versionCode 39.
+- v1.8.6, owner order 2026-10-21 15:15: one type size for the whole console.
+  The KSE100 rows go back to the body's 13sp (v1.8.5 had shrunk them to
+  11.5sp to force one line) and they still stand on one line, because the
+  row now wins its width from the tile: it spends 8dp of each 16dp panel
+  padding through -8dp side margins and tightens only its own tracking, to
+  -0.02. Measured against the bundled LEMON MILK Light, the widest rank line
+  the card has shown, "2. CNERGY (B=12,626,814 S=25,253,629 T=37,880,443)",
+  advances 342.1dp at that size and tracking against 347dp of line, and nine
+  digit counts still fit at 344.5dp. The search box and its result rows drop
+  from 15sp to 13sp, and the brand tagline and the footer sentence, the last
+  two 10sp lines, join the body size. Only the bold headings keep a size of
+  their own: the 17sp index, the 11sp tile labels and the 12sp buttons.
+  Version 1.8.6, versionCode 40.
 
 **Built and delivered 2026-10-21 (v1.8.5):** the signed v1.8.5 APK was built
 on GitHub Actions from the merge of PR #70, downloaded from the run's

@@ -62,9 +62,12 @@
     <style name="QorValue" parent="QorBody">
         <item name="android:fontFamily">@font/lemonmilk_light</item>
     </style>
+    <!-- The console's last sentence. Owner order 2026-10-21 (15:15): one size
+         for every line that is not a bold heading, so the caption keeps the
+         body's 13sp and only its face marks it as the footer. -->
     <style name="QorCaption" parent="QorBody">
         <item name="android:fontFamily">@font/lemonmilk_light</item>
-        <item name="android:textSize">10sp</item>
+        <item name="android:textSize">13sp</item>
     </style>
     <!-- The brand diamond. No fontFamily on purpose: U+25C6 exists in none of
          the bundled faces, so a custom family here would draw a box. -->

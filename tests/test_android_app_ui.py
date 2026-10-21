@@ -83,6 +83,7 @@ instead of shipping a row of empty boxes or a misaligned control to the phone.
 
 from __future__ import annotations
 
+import re
 import struct
 import unittest
 import xml.etree.ElementTree as ET
@@ -250,6 +251,87 @@ def has_codepoint(path: Path, codepoint: int) -> bool:
                 if lo <= codepoint <= hi:
                     return True
     return False
+
+
+def font_tables(data: bytes) -> dict:
+    """{tag: (offset, length)} from the face's own table directory."""
+    tables = {}
+    for index in range(struct.unpack(">H", data[4:6])[0]):
+        off = 12 + index * 16
+        tables[data[off:off + 4]] = struct.unpack(">II", data[off + 8:off + 16])
+    return tables
+
+
+def _format4_glyph(data: bytes, sub: int, codepoint: int) -> int:
+    """The glyph id format 4 maps this codepoint onto, or 0."""
+    if codepoint > 0xFFFF:
+        return 0
+    seg_x2 = struct.unpack(">H", data[sub + 6:sub + 8])[0]
+    ends_at = sub + 14
+    starts_at = ends_at + seg_x2 + 2
+    deltas_at = starts_at + seg_x2
+    ranges_at = deltas_at + seg_x2
+    for seg in range(seg_x2 // 2):
+        start = struct.unpack(">H", data[starts_at + 2 * seg:starts_at + 2 * seg + 2])[0]
+        end = struct.unpack(">H", data[ends_at + 2 * seg:ends_at + 2 * seg + 2])[0]
+        if not start <= codepoint <= end:
+            continue
+        delta = struct.unpack(">h", data[deltas_at + 2 * seg:deltas_at + 2 * seg + 2])[0]
+        offset = struct.unpack(">H", data[ranges_at + 2 * seg:ranges_at + 2 * seg + 2])[0]
+        if offset == 0:
+            return (codepoint + delta) % 0x10000
+        at = ranges_at + 2 * seg + offset + 2 * (codepoint - start)
+        if at + 2 > len(data):
+            return 0
+        glyph = struct.unpack(">H", data[at:at + 2])[0]
+        return 0 if glyph == 0 else (glyph + delta) % 0x10000
+    return 0
+
+
+def cmap_glyph(data: bytes, tables: dict, codepoint: int) -> int:
+    """The glyph id for a codepoint, through format 4 or format 12."""
+    cmap_off = tables[b"cmap"][0]
+    for index in range(struct.unpack(">H", data[cmap_off + 2:cmap_off + 4])[0]):
+        record = cmap_off + 4 + index * 8
+        sub = cmap_off + struct.unpack(">I", data[record + 4:record + 8])[0]
+        fmt = struct.unpack(">H", data[sub:sub + 2])[0]
+        if fmt == 4:
+            glyph = _format4_glyph(data, sub, codepoint)
+            if glyph:
+                return glyph
+        elif fmt == 12:
+            groups = struct.unpack(">I", data[sub + 12:sub + 16])[0]
+            for g in range(groups):
+                at = sub + 16 + g * 12
+                lo, hi, first = struct.unpack(">III", data[at:at + 12])
+                if lo <= codepoint <= hi:
+                    return first + (codepoint - lo)
+    return 0
+
+
+def text_width_dp(path: Path, text: str, sp: float, tracking: float = 0.0) -> float:
+    """How wide `text` advances at `sp`, read from the face's own metrics.
+
+    The card's widest row is the reason this exists: 13sp either fits the
+    tile or it does not, and that is a fact about the bundled face's advance
+    widths, not a matter of reading the layout. Android adds the tracking
+    after every character, hence the last term.
+    """
+    data = path.read_bytes()
+    tables = font_tables(data)
+    head = tables[b"head"][0]
+    units_per_em = struct.unpack(">H", data[head + 18:head + 20])[0]
+    hhea = tables[b"hhea"][0]
+    metrics = struct.unpack(">H", data[hhea + 34:hhea + 36])[0]
+    hmtx = tables[b"hmtx"][0]
+
+    def advance(codepoint: int) -> int:
+        glyph = cmap_glyph(data, tables, codepoint)
+        index = min(glyph, metrics - 1)
+        return struct.unpack(">H", data[hmtx + index * 4:hmtx + index * 4 + 2])[0]
+
+    units = sum(advance(ord(ch)) for ch in text)
+    return units / units_per_em * sp + tracking * sp * len(text)
 
 
 def _format4_has(data: bytes, sub: int, codepoint: int) -> bool:
@@ -741,14 +823,21 @@ class TypefaceTest(unittest.TestCase):
         """
         self.assertNotIn('sb.append("  EST")', self.main)
         # v1.8.5 (owner 14:51): the group's separators are NON-BREAKING
-        # spaces and the tile carries its own 11.5sp, so the name, B, S and
-        # T of every leader stand on one line without dropping a digit.
+        # spaces, so a wide row can never wrap mid group.
         self.assertIn('sb.append("\\u00A0(B=");', self.main)
         self.assertIn('sb.append("\\u00A0S=");', self.main)
         self.assertIn('"\\u00A0T=%,d)"', self.main)
+        # v1.8.6 (owner 15:15): and that row keeps the body's 13sp. It wins
+        # its width from the tile (8dp of each 16dp panel padding, through the
+        # negative side margins) and from its own tracking, never from a
+        # smaller size, which was the owner's complaint about v1.8.5.
         layout = LAYOUT.read_text(encoding="utf-8")
-        self.assertIn("android:textSize=\"11.5sp\"", layout
-                      [layout.index("@+id/market_leaders"):])
+        leaders = layout[layout.index("@+id/market_leaders"):]
+        leaders = leaders[:leaders.index("/>\n")]
+        self.assertNotIn("textSize", leaders)
+        self.assertIn('android:letterSpacing="-0.02"', leaders)
+        self.assertIn('android:layout_marginLeft="-8dp"', leaders)
+        self.assertIn('android:layout_marginRight="-8dp"', leaders)
         self.assertNotIn("\u2248", self.main)
         self.assertNotIn("estimatedSplit", self.main)
         watcher = WATCHER.read_text(encoding="utf-8")
@@ -1404,8 +1493,8 @@ class VersionTest(unittest.TestCase):
         # gap equals its top gap, and the footer is the owner's exact
         # LIVE/POST/PRE sentence.
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="1.8.5"', manifest)
-        self.assertIn('android:versionCode="39"', manifest)
+        self.assertIn('android:versionName="1.8.6"', manifest)
+        self.assertIn('android:versionCode="40"', manifest)
         # The changelog entry ties these user-visible changes to the build.
         readme = (ROOT / "android" / "README.md").read_text(encoding="utf-8")
         self.assertIn("v1.7.9, owner order 2026-10-20", readme)
@@ -1415,6 +1504,7 @@ class VersionTest(unittest.TestCase):
         self.assertIn("Version 1.8.3, versionCode 37", readme)
         self.assertIn("Version 1.8.4, versionCode 38", readme)
         self.assertIn("Version 1.8.5, versionCode 39", readme)
+        self.assertIn("Version 1.8.6, versionCode 40", readme)
         layout = LAYOUT.read_text(encoding="utf-8")
         strings = STRINGS.read_text(encoding="utf-8")
         main = MAIN.read_text(encoding="utf-8")
@@ -1576,6 +1666,97 @@ class SearchPanelStabilityTest(unittest.TestCase):
         self.assertIn("c.getColor(R.color.red)), sellFrom, sellTo, 0);", watcher)
         self.assertIn("int buyFrom = sb.length();", watcher)
         self.assertIn("int sellFrom = sb.length();", watcher)
+
+
+class UniversalSizeTest(unittest.TestCase):
+    """Owner order 2026-10-21 (15:15): one size for every line.
+
+    The owner read v1.8.5's KSE100 rows as smaller than the rest of the app,
+    because they were: the tile carried its own 11.5sp to force one line.
+    From this version the body has ONE size, the 13sp "NO SIGNAL AVAILABLE
+    RIGHT NOW" is set in, the search box and its rows match it, and only the
+    bold headings keep a size of their own. The leader row wins its width
+    from the tile instead (see LeaderLineTest).
+    """
+
+    def setUp(self):
+        self.layout = LAYOUT.read_text(encoding="utf-8")
+        self.styles = STYLES.read_text(encoding="utf-8")
+        self.main = MAIN.read_text(encoding="utf-8")
+
+    def test_the_layout_declares_only_the_body_and_the_two_headings(self):
+        sizes = set(re.findall(r'android:textSize="([0-9.]+sp)"', self.layout))
+        self.assertEqual(sizes, {"13sp", "17sp", "30sp"})
+        self.assertNotIn("11.5sp", self.layout)
+        self.assertNotIn("15sp", self.layout)
+
+    def test_the_search_box_is_body_size(self):
+        box = self.layout[self.layout.index("@+id/search_input"):]
+        self.assertIn('android:textSize="13sp"', box[:box.index("/>")])
+
+    def test_the_search_rows_are_body_size(self):
+        self.assertIn("row.setTextSize(13f);", self.main)
+        self.assertNotIn("row.setTextSize(15f);", self.main)
+
+    def test_the_tagline_and_the_footer_are_body_size(self):
+        tagline = self.layout[self.layout.index("@+id/brand_tagline"):]
+        self.assertIn('android:textSize="13sp"', tagline[:tagline.index("/>")])
+        caption = self.styles[self.styles.index('name="QorCaption"'):]
+        self.assertIn('android:textSize">13sp', caption[:240])
+
+    def test_the_body_style_is_the_one_size(self):
+        body = self.styles[self.styles.index('name="QorBody"'):]
+        self.assertIn('android:textSize">13sp', body[:body.index("</style>")])
+
+    def test_the_headings_keep_a_size_of_their_own_and_are_bold(self):
+        for style, size in (("QorLabel", "11sp"), ("QorButton", "12sp")):
+            block = self.styles[self.styles.index(f'name="{style}"'):]
+            block = block[:block.index("</style>")]
+            self.assertIn("lemonmilk_bold", block)
+            self.assertIn(f'android:textSize">{size}', block)
+
+
+class LeaderRowFitsAtBodySizeTest(unittest.TestCase):
+    """The measurement, not the intent: 13sp really fits the KSE100 tile.
+
+    The panel in the owner's 2026-10-21 15:15 screenshot is 666 of the image's
+    738 px wide, and the 20dp content padding is 36.5 px of that image, so his
+    tile is 363dp wide. The leaders row spends 8dp of each 16dp panel padding
+    (its -8dp side margins), which leaves 347dp of line for 13sp text.
+    """
+
+    TILE_DP = 363.0
+    SIDE_INSET_DP = 8.0
+    TRACKING = -0.02
+
+    def width(self, row: str, tracking: float = TRACKING) -> float:
+        return text_width_dp(FONT_DIR / "lemonmilk_light.otf", row, 13.0,
+                             tracking)
+
+    def available(self) -> float:
+        return self.TILE_DP - 2 * self.SIDE_INSET_DP
+
+    def test_the_widest_row_the_card_has_shown_fits_at_13sp(self):
+        row = "2. CNERGY (B=12,626,814 S=25,253,629 T=37,880,443)"
+        self.assertLess(self.width(row), self.available())
+
+    def test_nine_digit_counts_fit_too(self):
+        row = "2. CNERGY (B=12,626,814 S=25,253,629 T=101,880,443)"
+        self.assertLess(self.width(row), self.available())
+
+    def test_the_tracking_is_what_makes_13sp_fit(self):
+        # Without it the same row overshoots the line, which is exactly why
+        # v1.8.5 shrank the type instead of using the tile's width.
+        row = "2. CNERGY (B=12,626,814 S=25,253,629 T=37,880,443)"
+        self.assertGreater(self.width(row, 0.0), self.available())
+
+    def test_the_shipped_tracking_and_inset_are_the_measured_ones(self):
+        layout = LAYOUT.read_text(encoding="utf-8")
+        leaders = layout[layout.index("@+id/market_leaders"):]
+        leaders = leaders[:leaders.index("/>\n")]
+        self.assertIn(f'android:letterSpacing="{self.TRACKING}"', leaders)
+        self.assertIn(f'android:layout_marginLeft="-{self.SIDE_INSET_DP:g}dp"',
+                      leaders)
 
 
 if __name__ == "__main__":

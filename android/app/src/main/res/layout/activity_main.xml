@@ -196,6 +196,10 @@
                     android:translationY="@dimen/settings_shift_y"/>
             </RelativeLayout>
 
+            <!-- Owner order 2026-10-21 (15:15): one size for every line that
+                 is not a bold heading. The tagline is not one, so it carries
+                 the body's 13sp like the card values do; its own tracking is
+                 the brand lockup's and stays. -->
             <TextView
                 android:id="@+id/brand_tagline"
                 android:layout_width="wrap_content"
@@ -208,7 +212,7 @@
                 android:letterSpacing="0.18"
                 android:text="@string/tagline"
                 android:textColor="@color/teal"
-                android:textSize="10sp"/>
+                android:textSize="13sp"/>
         </RelativeLayout>
 
         <!-- Owner order 2026-10-21 (13:07 report): hidden children must not
@@ -229,6 +233,9 @@
                  16dp padding is the one gap above and below the box, now
                  that the empty rows and status line carry no margins (the
                  v1.8.3 fix kept, its layout regression reverted separately). -->
+            <!-- Owner order 2026-10-21 (15:15): the box is not a heading, so
+                 it carries the body's 13sp as well. Rows under it match, in
+                 MainActivity.styleSearchRow. -->
             <EditText
                 android:id="@+id/search_input"
                 android:layout_width="match_parent"
@@ -241,7 +248,7 @@
                 android:padding="10dp"
                 android:textColor="@color/text_bright"
                 android:textColorHint="@color/text_soft"
-                android:textSize="15sp"/>
+                android:textSize="13sp"/>
 
             <LinearLayout
                 android:id="@+id/search_results"
@@ -513,18 +520,28 @@
                  by a span in MainActivity, because no bundled face has
                  U+25B2/U+25BC. -->
             <!-- Owner order 2026-10-21 (14:51): the name, B, S and T of
-                 every leader stand on ONE line, so the tile carries its own
-                 size: the widest row the relay can publish (a 48 character
-                 rank line with five and twenty-seven million counts) fits
-                 the panel width, where 13sp wrapped it. -->
+                 every leader stand on ONE line.
+
+                 Owner order 2026-10-21 (15:15): and they do it at the body's
+                 size, not at a smaller one. 13sp was measured against the
+                 bundled LEMON MILK Light: the widest rank line the card has
+                 shown, "2. CNERGY (B=12,626,814 S=25,253,629 T=37,880,443)",
+                 advances 355.1dp at 13sp, so the row wins its width from the
+                 tile instead of losing type: the -8dp side margins let it use
+                 8dp of each 16dp panel padding (347dp of line), and the -0.02
+                 tracking tightens the same row to 342.1dp. Nine digit counts
+                 still fit at 344.5dp. The size never shrinks; the tracking is
+                 what gives way, and only this row pays it. -->
             <TextView
                 android:id="@+id/market_leaders"
                 style="@style/QorValue"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:layout_marginLeft="-8dp"
+                android:layout_marginRight="-8dp"
                 android:layout_marginTop="8dp"
                 android:gravity="center"
-                android:textSize="11.5sp"
+                android:letterSpacing="-0.02"
                 android:text="@string/market_leaders_waiting"/>
 
         </LinearLayout>
