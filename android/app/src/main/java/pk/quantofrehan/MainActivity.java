@@ -1017,6 +1017,12 @@ public class MainActivity extends Activity {
             filtered.clear();
         }
         List<String> visible = filtered.subList(0, Math.min(filtered.size(), 8));
+        // v1.8.4 (owner 13:30 report): the rows and the pinned line must be
+        // VISIBLE exactly when there is something to show, because the
+        // panel's gap law needs the empty views gone but the populated panel
+        // needs them seen. A GONE view's margin never opens a gap, and a
+        // VISIBLE view shows what arrived.
+        searchResults.setVisibility(visible.isEmpty() ? View.GONE : View.VISIBLE);
         boolean rebuild = !q.equals(renderedQuery)
                 || !visible.equals(new java.util.ArrayList<>(searchRows.keySet()));
         if (rebuild) {
@@ -1044,6 +1050,11 @@ public class MainActivity extends Activity {
         if (selectedSymbol != null && !visible.contains(selectedSymbol)) {
             selectSymbol(null);
         }
+        // The status line is visible only when it has content: an empty
+        // view's top margin must never open the bottom gap (v1.8.3), the
+        // populated one must be seen (v1.8.4 regression the gap law caused).
+        searchStatus.setVisibility(
+                searchStatus.getText().length() == 0 ? View.GONE : View.VISIBLE);
         if (selectedSymbol != null) {
             paintSelectedLine();
         } else {
@@ -1121,6 +1132,9 @@ public class MainActivity extends Activity {
         if (selectedSymbol == null || searchStatus == null) {
             return;
         }
+        // A populated line is always a visible line; the gap law hides only
+        // the empty one (v1.8.4, the regression the gap law caused).
+        searchStatus.setVisibility(View.VISIBLE);
         Watcher.Quote quote = Watcher.quote(selectedSymbol);
         if (quote == null) {
             // No fresh quote yet: the fetched detail stands alone, never a
@@ -1251,8 +1265,11 @@ public class MainActivity extends Activity {
      *
      * The gap between the ticker and the volume group is ONE space (owner
      * order 2026-10-12, third note): it used to be three, which read as a
-     * double space on the phone. The two spaces that separate the volume
-     * fields stay, because they are what groups B, S and T apart.
+     * double space on the phone. Owner order 2026-10-21 (14:19, CNERGY
+     * report): the volume fields separate by ONE space now too, because a
+     * five million-share B and a twenty-seven million S wrapped the T onto
+     * its own line at the fat separators; one space keeps the whole group on
+     * the volume line without dropping a single digit of the feed's counts.
      *
      * Owner order 2026-10-13: the group is bracketed, "(" opening at the B
      * indicator and ")" closing after the exchange's total, so the three
@@ -1303,12 +1320,12 @@ public class MainActivity extends Activity {
                 int buyFrom = sb.length();
                 sb.append(String.format(Locale.US, "%,d", row.buy));
                 spans.add(new int[]{buyFrom, sb.length(), R.color.green});
-                sb.append("  S=");
+                sb.append(" S=");
                 int sellFrom = sb.length();
                 sb.append(String.format(Locale.US, "%,d", row.sell));
                 spans.add(new int[]{sellFrom, sb.length(), R.color.red});
                 if (row.hasVolume()) {
-                    sb.append(String.format(Locale.US, "  T=%,d)", row.volume));
+                    sb.append(String.format(Locale.US, " T=%,d)", row.volume));
                 } else {
                     // The quantities stand without the exchange's total.
                     sb.append(')');
