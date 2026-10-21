@@ -211,7 +211,8 @@ scan cadence is 30 seconds, on the public repository's free cloud minutes
 (owner order 2026-10-14; the 2026-10-19 order raised it to one second) ·
 SO-21 the owner's PC is not used at all: backtests and their data crawls run
 on the free Actions minutes of the public repository (owner order
-2026-10-19, supersedes SO-4).
+2026-10-19, supersedes SO-4) · SO-22 the agent never sleeps and never waits
+for the clock; the cloud waits (owner order 2026-10-21).
 
 ## SO-10 · Resource law: the owner's PC is for backtesting and local trials only (owner order, 2026-10-06)
 
@@ -366,3 +367,39 @@ terminal."
   `scripts/land.sh` skips local checks by default and validates in the pull
   request's CI; `--local-checks` is an explicit exception, not the habit.
 - Withdrawal: only a later written owner instruction, recorded here.
+
+## SO-22 · The agent never sleeps; the cloud waits (owner order, 2026-10-21)
+
+Owner order, verbatim: "Don't ever sleep, do the work what I tell you. I have
+noticed you keep sleeping waiting for things, like today you went sleeping
+around 14:30 waiting for the market to close at 15:30, are you serious? Don't
+ever do that. Hardcode all this to your system."
+
+- **The law.** A session that has been given work does that work now. It does
+  not sleep, and it does not wait for wall-clock time: not for an open, a
+  close, a band, a print, a date or a deadline. No `sleep`, no loop that
+  sleeps between status checks, no "I will check back at 15:30", no holding
+  the turn open until something happens on the clock. The 14:30 wait for the
+  15:30 close is the exact offence this order is named after.
+- **What waits instead.** When a number can only exist later (an EOD print,
+  the close, the next open), the cloud waits for it: a schedule in
+  `.github/workflows/`, the relay's own clock, or the owner's phone reading
+  the card when he looks. The session says which of those owns the wait, and
+  then it finishes its turn. It never becomes the clock itself.
+- **What a session may block on.** Only a job it started itself, through that
+  job's own waiter, so the turn ends when the job ends rather than after a
+  guessed number of seconds: `gh pr checks --watch`, `gh run watch
+  --exit-status`, `gh run download`. A `sleep` loop wrapped around a status
+  check is the violation even when that status eventually changes.
+- **The landing tool's ceiling.** `scripts/land.sh` polls two answers that
+  GitHub computes asynchronously (check registration and mergeability) inside
+  a three minute ceiling, at ten seconds of pacing. That ceiling belongs to
+  the tool and not to a session: it may not grow, and nothing else may hold a
+  wait. `scripts/check_governance.py` (`check_no_idle_waits`) fails a pull
+  request that puts a wait longer than thirty seconds in `scripts/` or in a
+  workflow, or any wait at all that is aimed at a market clock.
+- **The same order binds the shell.** A command line the session writes with
+  a sleep in it, a `while true` poll, or a wait for a Karachi clock time is a
+  violation even when nothing is committed. This file is the record because
+  an instruction in chat lasts one session and this one lasts all of them.
+- **Withdrawal.** Only a later written owner instruction, recorded here.

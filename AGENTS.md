@@ -64,6 +64,40 @@ grid search, no full test suite, and no local validation of a pull request.
   that a previous session left (or that this project's own scheduler
   relaunched), take it down and say so.
 
+## The no-idling rule
+
+**The agent never sleeps. It does the work it was given, now.**
+
+Owner order 2026-10-21, verbatim: "Don't ever sleep, do the work what I tell
+you. I have noticed you keep sleeping waiting for things, like today you went
+sleeping around 14:30 waiting for the market to close at 15:30, are you
+serious? Don't ever do that. Hardcode all this to your system."
+
+That wait for the close is the offence the order is named after. In one
+sentence: the agent is never the clock.
+
+- **No waiting for the clock.** No `sleep`, no sleep-equal poll, no "I will
+  check back at 15:30", no holding the turn open until an open, a close, a
+  band, a print or a date arrives. The work the owner asked for is done in the
+  turn he asked for it.
+- **The cloud waits instead.** When a number can only exist later (the EOD
+  print, the close, the next open), say which piece of the cloud owns that
+  wait (an Actions schedule, the relay's clock, his phone reading the card)
+  and finish the turn. `src/data/session_gate.py` and the cloud daemons may
+  wait for a session; a session of yours may not.
+- **Blocking is allowed only on a job you started**, through that job's own
+  waiter, so the turn ends when the job ends: `gh pr checks --watch`,
+  `gh run watch --exit-status`, `gh run download`. Never a guessed number of
+  seconds, never a `sleep 60` loop around a status call.
+- **`scripts/land.sh` keeps its ceiling.** It polls two answers GitHub
+  computes asynchronously inside three minutes, at ten seconds of pacing.
+  That ceiling is the tool's, not a session's: it may not grow, and no other
+  script or workflow may hold a longer wait (checked by
+  `check_no_idle_waits` in `scripts/check_governance.py`).
+- This binds the shell, not only the files: a session command line with a
+  sleep in it, a `while true` poll, or a wait for a Karachi clock time is a
+  violation even when nothing is committed.
+
 ## What is enforced, and where
 
 | Rule | Code | Check |
@@ -72,6 +106,7 @@ grid search, no full test suite, and no local validation of a pull request.
 | The guard opens only for the owner's own instruction | `OWNER_REQUEST_ENV = QOR_OWNER_REQUESTED_LOCAL_RUN` | `tests/test_local_only.py` |
 | No workflow registers local autostart | `LOCAL_AUTOSTART_PATTERNS` | `scripts/check_governance.py` |
 | Backtests run in GitHub Actions, never on this PC | `BACKTEST_SCRIPTS`, `guard_cloud_backtest` | `scripts/check_governance.py` (`check_backtests_in_cloud`) |
+| No wait for the clock sits in the agent's tooling | `MAX_PACING_SECONDS`, `idle_wait_violations` | `scripts/check_governance.py` (`check_no_idle_waits`), `tests/test_governance_no_idle.py` |
 
 The declared cloud-only entry points are `scripts/install_kmiall_tick.py`,
 `scripts/install_scheduler.py`, `scripts/kmiall_tick.py`,
@@ -112,3 +147,6 @@ instruction, not to be discovered as a convenience.
   <noreply@codebuff.com>` is the last line of every commit, PR body and merge.
 - **SO-8** Karachi time (UTC+5, Asia/Karachi) everywhere.
 - **SO-11** known drift is fixed in the same session it is found.
+- **SO-22** the agent never sleeps and never waits for the clock. No `sleep`,
+  no waiting for a market event, no turn held open for a later moment: the
+  cloud waits, the session works.
