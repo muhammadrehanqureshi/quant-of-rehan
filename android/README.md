@@ -684,6 +684,20 @@ to sixty seconds. The status tile therefore also carries the app's own
   AVAILABLE RIGHT NOW" takes the body's soft ink instead of the bright ink it
   inherited from the real-call branch. Version 1.8.7, versionCode 41.
 
+**Built and delivered 2026-10-21 (v1.8.7):** the signed v1.8.7 APK was built
+on GitHub Actions from the merge of PR #75 (run 39586973255), downloaded from
+the run's artifact and copied to
+`C:/Users/rehan/OneDrive/Desktop/QuantOfRehan-v1.8.7.apk`. SHA-256
+`5cca3ab87126da3555cb1787bff311feddf5439abe1d4f425e573b1d6ec82c15`,
+and the run's `badging.txt` reads back `pk.quantofrehan`,
+`versionCode="41"`, `versionName="1.8.7"`, with the launchable
+`MainActivity`. The shipped layout was read back out of the APK: the leaders
+row carries `letterSpacing=-0.035` and -10dp side margins, the search box
+ships `includeFontPadding=false`, and the two new rules are there under their
+own ids (`rule_before_search`, `rule_after_settings`), both GONE until their
+menu opens. The Android tests (116 across app ui, card copy, the render gate
+and the signal reader) were green before the build.
+
 **Built and delivered 2026-10-21 (v1.8.6):** the signed v1.8.6 APK was built
 on GitHub Actions from the merge of PR #73 (run 39584915632), downloaded from
 the run's artifact and copied to
