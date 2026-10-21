@@ -224,11 +224,15 @@
             android:orientation="vertical"
             android:visibility="gone">
 
+            <!-- Owner order 2026-10-21 (14:19, second gap report on this
+                 tile): no marginTop on the box either, so the panel's own
+                 16dp padding is the one gap above and below the box, now
+                 that the empty rows and status line carry no margins (the
+                 v1.8.3 fix kept, its layout regression reverted separately). -->
             <EditText
                 android:id="@+id/search_input"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
                 android:background="@drawable/field_bg"
                 android:hint="@string/search_hint"
                 android:imeOptions="actionSearch"
@@ -244,8 +248,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="6dp"
-                android:orientation="vertical"
-                android:visibility="gone"/>
+                android:orientation="vertical"/>
 
             <TextView
                 android:id="@+id/search_status"
@@ -253,8 +256,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
-                android:gravity="center"
-                android:visibility="gone"/>
+                android:gravity="center"/>
         </LinearLayout>
 
         <!-- brand rule: line, diamond, line (from the logo frame). Defined
@@ -485,11 +487,14 @@
             android:layout_marginTop="14dp"
             android:orientation="vertical">
 
+            <!-- Owner order 2026-10-21 (14:19): no marginTop on the index
+                 line, so the 16dp above it equals the 16dp below the leaders
+                 line from the panel's own padding, and the tile reads with
+                 one gap top and bottom. -->
             <TextView
                 android:id="@+id/market_index"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
                 android:fontFamily="@font/lemonmilk_bold"
                 android:gravity="center"
                 android:text="@string/market_waiting"

@@ -634,6 +634,19 @@ to sixty seconds. The status tile therefore also carries the app's own
   below the box are then the gap), and the footer sentence is replaced
   with the exact wording the owner dictated: "QUANT WILL BE SCANNING THE
   LIVE/POST/PRE MARKET EVERY SECOND." Version 1.8.3, versionCode 37.
+- v1.8.4, owner report 2026-10-21 13:30 and orders at 14:19: the v1.8.3 gap
+  law had a regression (the empty-by-default results and status rows shipped
+  them as layout GONE so no code showed them again, and the whole search
+  output vanished): the rows and the pinned line are now flipped
+  visible/hidden by their content in MainActivity, never by the layout.
+  Second: the search box and the KSE100 line drop their extra 10dp top
+  margins, so both tiles read one gap above and below from the panel's own
+  16dp padding. Third: the volume group's separators between B, S and T
+  are one space (it was two), so CNERGY's five million B and twenty-seven
+  million S no longer wrap the T onto its own line. Fourth: the footer is
+  replaced with the exact wording dictated at 14:19: "QUANT WILL BE
+  SCANNING THE LIVE, THE POST & THE PRE MARKET EVERY SECOND." (the
+  ampersand escaped in XML). Version 1.8.4, versionCode 38.
 
 **Built and delivered 2026-10-21 (v1.8.3):** the signed v1.8.3 APK was built
 on GitHub Actions from the merge of PR #66, downloaded from the run's
