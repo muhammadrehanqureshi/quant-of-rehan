@@ -655,6 +655,17 @@ to sixty seconds. The status tile therefore also carries the app's own
   so the widest row the relay can publish fits the panel without dropping
   a single digit of the feed's counts. Version 1.8.5, versionCode 39.
 
+**Built and delivered 2026-10-21 (v1.8.5):** the signed v1.8.5 APK was built
+on GitHub Actions from the merge of PR #70, downloaded from the run's
+artifact and copied to
+`C:/Users/rehan/OneDrive/Desktop/QuantOfRehan-v1.8.5.apk`. SHA-256
+`d6b9f5c552e770d212f7097d056f356d553a0fe1e3a78a6aeb99666189197676`,
+and the run's `badging.txt` reads back `pk.quantofrehan`,
+`versionCode="39"`, `versionName="1.8.5"`, with the launchable
+`MainActivity`. The shipped footer sentence was read back from the
+resource table, and the Android tests (90 across app ui, card copy and
+the render gate) were green before the build.
+
 **Built and delivered 2026-10-21 (v1.8.4):** the signed v1.8.4 APK was built
 on GitHub Actions from the merge of PR #68, downloaded from the run's
 artifact and copied to
