@@ -16,12 +16,13 @@ Why a tick script plus Windows Task Scheduler, and not an in-process loop:
 
 What a tick does, in order:
 
-    1. PAUSE     outside the session, in the pre-market window, before the
-                 open, or during the warm-up window, the tick exits 0
-                 immediately and says so. It never scans a closed market,
-                 never scans pre-market or post-market (owner order
-                 2026-10-11) and never scans before enough bars exist to score
-                 anything. Post-market is finalize-only.
+    1. PAUSE     outside the session, before the open, or during the warm-up
+                 window, the tick exits 0 immediately and says so. It never
+                 scans a closed market and never scans before enough bars
+                 exist to score anything. Pre-market and post-market scan on
+                 the live broker feed (owner order 2026-10-21, superseding
+                 the 2026-10-11 watch-only rule); outside the post-market
+                 window the tick is finalize-only.
     2. GUARD     one scan per 4-minute slot per trading day (persisted in the
                  session state), so a scheduler retry, a manual run or a laptop
                  waking from sleep cannot double-scan.

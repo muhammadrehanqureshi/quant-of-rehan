@@ -20,16 +20,18 @@ fire is for. Every instant it labels is Asia/Karachi wall clock, UTC+5, because
 it builds no time of its own: it hands the caller's instant to sessions.py and
 reports what the law says.
 
-Decision order, first match wins (the owner's orders, 2026-10-11):
+Decision order, first match wins (the owner's orders):
 
-    PRE_MARKET   wait   the pre-market window is never scanned
     CLOSED       wait   weekend, PSX holiday, or outside every band
     PRE_OPEN     wait   before the first band of the day
+    PRE_MARKET   scan   the live broker feed scans pre-market (2026-10-21,
+                        superseding the 2026-10-11 watch-only rule)
     WARMUP       wait   inside a band, but the strategy has too few bars
     BREAK        wait   the Friday midday break
     OPEN         scan   inside a band, in MARKET
-    POST_MARKET  finalize  the session has closed (never a scan)
-    POST_CLOSE   finalize  the session has closed (never a scan)
+    POST_MARKET  scan    the post-market window scans on the live broker feed
+                        (2026-10-21); outside it, finalize
+    POST_CLOSE   finalize  the session has closed
 """
 
 from __future__ import annotations

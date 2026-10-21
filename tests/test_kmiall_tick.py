@@ -241,16 +241,18 @@ class CaptureTest(TickTestCase):
 
 
 class ScanWindowTest(TickTestCase):
-    """Owner order 2026-10-11: scan only in MARKET, never pre or post market."""
+    """Owner order 2026-10-21: the pre-market and post-market windows scan on
+    the live broker feed; the morning gap and CLOSED stay asleep."""
 
-    def test_pre_market_never_scans(self):
+    def test_pre_market_scans_on_the_live_broker_feed(self):
         self.fake_clock(at(MONDAY, 9, 5))
-        with patch.object(pipeline, "run_scan") as scan:
+        with patch.object(kmiall_tick, "run_capture", return_value=(True, "ok")), \
+                patch.object(pipeline, "run_scan",
+                             return_value={"status": "NO_TRADE"}) as scan:
             self.assertEqual(kmiall_tick.main([]), 0)
-        scan.assert_not_called()
+        scan.assert_called_once()
         log = self.logfile.read_text(encoding="utf-8")
         self.assertIn("PRE_MARKET", log)
-        self.assertIn("never scanned", log)
 
     def test_the_gap_between_pre_market_and_the_open_never_scans(self):
         self.fake_clock(at(MONDAY, 9, 20))
@@ -258,26 +260,26 @@ class ScanWindowTest(TickTestCase):
             self.assertEqual(kmiall_tick.main([]), 0)
         scan.assert_not_called()
 
-    def test_post_market_finalizes_and_never_scans(self):
+    def test_post_market_scans_until_the_window_closes(self):
         self.fake_clock(at(MONDAY, 15, 40))
         with patch.object(kmiall_tick, "run_capture", return_value=(True, "ok")), \
-                patch.object(pipeline, "run_scan") as scan, \
-                patch.object(pipeline, "run_finalize", return_value={
-                    "outcome": {"outcomes_by_rule": {},
-                                "storage_status": "local"}}):
+                patch.object(pipeline, "run_scan",
+                             return_value={"status": "NO_TRADE"}) as scan, \
+                patch.object(pipeline, "run_finalize") as finalize:
             self.assertEqual(kmiall_tick.main([]), 0)
-        scan.assert_not_called()
-        self.assertTrue(self.saved_state(MONDAY).finalized)
+        scan.assert_called_once()
+        finalize.assert_not_called()
+        self.assertFalse(self.saved_state(MONDAY).finalized)
 
-    def test_friday_post_market_never_scans(self):
+    def test_friday_post_market_scans(self):
         self.fake_clock(at(FRIDAY, 16, 40))
         with patch.object(kmiall_tick, "run_capture", return_value=(True, "ok")), \
-                patch.object(pipeline, "run_scan") as scan, \
-                patch.object(pipeline, "run_finalize", return_value={
-                    "outcome": {"outcomes_by_rule": {},
-                                "storage_status": "local"}}):
+                patch.object(pipeline, "run_scan",
+                             return_value={"status": "NO_TRADE"}) as scan, \
+                patch.object(pipeline, "run_finalize") as finalize:
             self.assertEqual(kmiall_tick.main([]), 0)
-        scan.assert_not_called()
+        scan.assert_called_once()
+        finalize.assert_not_called()
 
     def test_the_state_is_reported_in_the_log(self):
         self.assertEqual(kmiall_tick.state_of(at(MONDAY, 11, 0)), "MARKET")
@@ -655,7 +657,9 @@ class TapeFirstCaptureTest(unittest.TestCase):
 
 class FinalizeTest(TickTestCase):
     def test_a_finalized_day_is_not_finalized_twice(self):
-        self.fake_clock(at(MONDAY, 15, 40))
+        # After the post-market window (15:32 to 15:49) closes, the tick
+        # returns to finalize-only.
+        self.fake_clock(at(MONDAY, 15, 52))
         state = self.saved_state(MONDAY)
         state.finalized = True
         state.save()
@@ -664,7 +668,7 @@ class FinalizeTest(TickTestCase):
         finalize.assert_not_called()
 
     def test_post_close_finalizes_and_marks_the_day(self):
-        self.fake_clock(at(MONDAY, 15, 40))
+        self.fake_clock(at(MONDAY, 15, 52))
         with patch.object(kmiall_tick, "run_capture", return_value=(True, "ok")), \
                 patch.object(pipeline, "run_finalize",
                              return_value={"outcome": {"outcomes_by_rule": {

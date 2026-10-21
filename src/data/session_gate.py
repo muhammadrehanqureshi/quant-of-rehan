@@ -16,7 +16,7 @@ it. That asymmetry is the whole design:
 * an unexpected closure may never be scanned as if it were trading, so a probe
   that positively reports the exchange shut degrades to SLEEP.
 
-Purpose: a scan sleeps outside the band, a finalize sleeps until the close
+Purpose: a scan sleeps outside a scan window, a finalize sleeps until the close
 ------------------------------------------------------------------------
 The workflow does two different jobs on the same clock. A **scan** is only
 meaningful inside a live band. A **finalize** is only meaningful *after* the
@@ -36,9 +36,10 @@ Order, first match wins
 3. purpose is finalize ............ RUN once the trading day has closed
                                     (the post-market window counts as
                                     closed), SLEEP until then
-4. pre-market or post-market ...... SLEEP for a scan: the owner's order of
-                                    2026-10-11 is that the quant never
-                                    scans those windows
+4. pre-market or post-market ...... RUN for a scan when the session law
+                                    says the window scans (owner order
+                                    2026-10-21, live broker feed, probe
+                                    disabled), SLEEP when it does not
 5. outside every band today ....... SLEEP (pre-open, the Friday midday break,
                                     post-close)
 6. inside a band:
