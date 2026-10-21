@@ -648,6 +648,18 @@ to sixty seconds. The status tile therefore also carries the app's own
   SCANNING THE LIVE, THE POST & THE PRE MARKET EVERY SECOND." (the
   ampersand escaped in XML). Version 1.8.4, versionCode 38.
 
+**Built and delivered 2026-10-21 (v1.8.4):** the signed v1.8.4 APK was built
+on GitHub Actions from the merge of PR #68, downloaded from the run's
+artifact and copied to
+`C:/Users/rehan/OneDrive/Desktop/QuantOfRehan-v1.8.4.apk`. SHA-256
+`977bba16cc7eeef33ff56db7fef68ff15eb26590ce55d3cb4fe97aef829b959f`,
+and the run's `badging.txt` reads back `pk.quantofrehan`,
+`versionCode="38"`, `versionName="1.8.4"`, with the launchable
+`MainActivity`. The shipped resource table was read back: the dictated
+14:19 footer sentence is in the APK byte for byte, the 13:08 wording is
+gone, and the Android tests (89 across app ui, card copy and the render
+gate) were green before the build.
+
 **Built and delivered 2026-10-21 (v1.8.3):** the signed v1.8.3 APK was built
 on GitHub Actions from the merge of PR #66, downloaded from the run's
 artifact and copied to
