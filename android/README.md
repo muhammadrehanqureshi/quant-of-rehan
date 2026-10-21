@@ -647,6 +647,13 @@ to sixty seconds. The status tile therefore also carries the app's own
   replaced with the exact wording dictated at 14:19: "QUANT WILL BE
   SCANNING THE LIVE, THE POST & THE PRE MARKET EVERY SECOND." (the
   ampersand escaped in XML). Version 1.8.4, versionCode 38.
+- v1.8.5, owner report 2026-10-21 14:51: the pinned search answer's money
+  tail keeps exactly ONE space between the price and the percentage (it
+  had two), and on the KSE100 card every leader's name, B, S and T stand
+  on ONE line: the group's separators are non-breaking spaces (U+00A0) so
+  a wide row can never wrap mid group, and the tile carries its own 11.5sp
+  so the widest row the relay can publish fits the panel without dropping
+  a single digit of the feed's counts. Version 1.8.5, versionCode 39.
 
 **Built and delivered 2026-10-21 (v1.8.4):** the signed v1.8.4 APK was built
 on GitHub Actions from the merge of PR #68, downloaded from the run's

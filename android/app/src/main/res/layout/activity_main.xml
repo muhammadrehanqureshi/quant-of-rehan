@@ -512,6 +512,11 @@
                  arrows are the exception and are drawn with the system face
                  by a span in MainActivity, because no bundled face has
                  U+25B2/U+25BC. -->
+            <!-- Owner order 2026-10-21 (14:51): the name, B, S and T of
+                 every leader stand on ONE line, so the tile carries its own
+                 size: the widest row the relay can publish (a 48 character
+                 rank line with five and twenty-seven million counts) fits
+                 the panel width, where 13sp wrapped it. -->
             <TextView
                 android:id="@+id/market_leaders"
                 style="@style/QorValue"
@@ -519,6 +524,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
                 android:gravity="center"
+                android:textSize="11.5sp"
                 android:text="@string/market_leaders_waiting"/>
 
         </LinearLayout>
