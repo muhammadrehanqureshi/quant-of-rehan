@@ -1074,7 +1074,7 @@ public class MainActivity extends Activity {
             // red (SO-3). A price without a move is neutral ink.
             String tail = quote.changePct == null
                     ? String.format(Locale.US, " PKR %,.2f", quote.price)
-                    : String.format(Locale.US, " PKR %,.2f  %+.2f%%",
+                    : String.format(Locale.US, " PKR %,.2f %+.2f%%",
                             quote.price, quote.changePct);
             SpannableString styled = new SpannableString(symbol + tail);
             styled.setSpan(new ForegroundColorSpan(getColor(quote.changePct == null
@@ -1149,7 +1149,7 @@ public class MainActivity extends Activity {
                         selectedBase == null ? "" : selectedBase);
         String tail = quote.changePct == null
                 ? String.format(Locale.US, " PKR %,.2f", quote.price)
-                : String.format(Locale.US, " PKR %,.2f  %+.2f%%",
+                : String.format(Locale.US, " PKR %,.2f %+.2f%%",
                         quote.price, quote.changePct);
         int from = styled.length();
         styled.append(tail);
@@ -1316,22 +1316,26 @@ public class MainActivity extends Activity {
                 // numbers are the numbers; the split's method is stated in
                 // the relay's own source line, not as a suffix on the tile.
                 // "(" opens at B and ")" closes after T: one bracketed group.
-                sb.append(" (B=");
+                // Owner order 2026-10-21 (14:51): the ticker-to-group gap and
+                // the field separators are non-breaking (U+00A0), so a wide
+                // row can never wrap mid group; the 11.5sp size makes the
+                // widest row fit the panel outright.
+                sb.append("\u00A0(B=");
                 int buyFrom = sb.length();
                 sb.append(String.format(Locale.US, "%,d", row.buy));
                 spans.add(new int[]{buyFrom, sb.length(), R.color.green});
-                sb.append(" S=");
+                sb.append("\u00A0S=");
                 int sellFrom = sb.length();
                 sb.append(String.format(Locale.US, "%,d", row.sell));
                 spans.add(new int[]{sellFrom, sb.length(), R.color.red});
                 if (row.hasVolume()) {
-                    sb.append(String.format(Locale.US, " T=%,d)", row.volume));
+                    sb.append(String.format(Locale.US, "\u00A0T=%,d)", row.volume));
                 } else {
                     // The quantities stand without the exchange's total.
                     sb.append(')');
                 }
             } else if (row.hasVolume()) {
-                sb.append(String.format(Locale.US, " (T=%,d)", row.volume));
+                sb.append(String.format(Locale.US, "\u00A0(T=%,d)", row.volume));
             }
             // The money line: opened whenever there is a price or a move to
             // show, so even a price-less row puts its change on its own line

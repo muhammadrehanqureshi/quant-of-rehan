@@ -149,6 +149,14 @@ class SearchPanelPaddingTest(unittest.TestCase):
         self.assertIsNone(box.get(f"{ANDROID_NS}layout_marginTop"))
 
 
+    def test_the_price_and_percentage_keep_one_space(self):
+        # v1.8.5 (owner 14:51): the pinned answer's money tail has exactly
+        # one space between the price and the percentage, never two.
+        occurrences = self.main.count('" PKR %,.2f %+.2f%%"')
+        self.assertEqual(occurrences, 2, occurrences)
+        self.assertNotIn('" PKR %,.2f  %+.2f%%"', self.main)
+
+
 class LeaderLineTest(unittest.TestCase):
     """Two lines per leader, a bracketed volume group, one space per arrow."""
 
@@ -162,10 +170,14 @@ class LeaderLineTest(unittest.TestCase):
     def test_the_volume_group_is_bracketed_and_keeps_one_space(self):
         # "(" opens at B, ")" closes after T, and the ticker keeps exactly one
         # space before the group: the three fields read as one block.
-        self.assertIn('sb.append(" (B=");', self.main)
-        self.assertIn('sb.append(" S=");', self.main)
-        self.assertIn('" T=%,d)"', self.main)
-        self.assertIn('" (T=%,d)"', self.main)
+        # v1.8.5 (owner 14:51): the group's separators are NON-BREAKING
+        # spaces (U+00A0), so the widest row the relay can publish keeps the
+        # name, B, S and T on ONE line even at an unlucky width. Visible as
+        # an NBSP escape: "\u00A0".
+        self.assertIn('sb.append("\\u00A0(B=");', self.main)
+        self.assertIn('sb.append("\\u00A0S=");', self.main)
+        self.assertIn('"\\u00A0T=%,d)"', self.main)
+        self.assertIn('"\\u00A0(T=%,d)"', self.main)
         # Owner order 2026-10-21 13:07: the tail opens with one space before
         # the price, and with the 14:19 gap fix the box gaps come from the
         # panel padding, not margins.
@@ -174,7 +186,7 @@ class LeaderLineTest(unittest.TestCase):
         self.assertNotIn('sb.append("  S")', self.main)
 
     def test_the_money_line_opens_after_the_volumes(self):
-        volumes = self.main.index('" T=%,d)"')
+        volumes = self.main.index('"\\u00A0T=%,d)"')
         money = self.main.index('"PKR %,.2f"')
         self.assertLess(volumes, money)
         self.assertIn("sb.append('\\n');", self.main[volumes:money])
