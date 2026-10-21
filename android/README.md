@@ -668,6 +668,21 @@ to sixty seconds. The status tile therefore also carries the app's own
   their own: the 17sp index, the 11sp tile labels and the 12sp buttons.
   Version 1.8.6, versionCode 40.
 
+**Built and delivered 2026-10-21 (v1.8.6):** the signed v1.8.6 APK was built
+on GitHub Actions from the merge of PR #73 (run 39584915632), downloaded from
+the run's artifact and copied to
+`C:/Users/rehan/OneDrive/Desktop/QuantOfRehan-v1.8.6.apk`. SHA-256
+`f96b3f978b1ed5fda365dac7c9510fa14781a167cb3598a49b1e5aae9e79b0f4`,
+and the run's `badging.txt` reads back `pk.quantofrehan`,
+`versionCode="40"`, `versionName="1.8.6"`, with the launchable
+`MainActivity`. The shipped layout was read back out of the APK's own
+resource table: 30sp brand, 17sp index, and 13sp for the tagline, the search
+box and the status word, with the leaders row carrying no size of its own
+(so it inherits the body's 13sp) and only its -0.02 tracking and -8dp side
+margins; `style/QorCaption` ships at 13sp. The Android tests (105 across app
+ui, card copy, the render gate and the signal reader) were green before the
+build.
+
 **Built and delivered 2026-10-21 (v1.8.5):** the signed v1.8.5 APK was built
 on GitHub Actions from the merge of PR #70, downloaded from the run's
 artifact and copied to
