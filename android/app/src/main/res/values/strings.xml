@@ -75,8 +75,12 @@
 
          The scanning happens only inside a live band (Mon-Thu 09:32-15:30,
          Friday 09:17-12:00 and 14:32-16:30), which the sentence states.
-         Owner wording 2026-10-12 kept: "when the market is open". -->
-    <string name="scan_cadence">Quant will be scanning the market every second when the market is open.</string>
+         Owner wording 2026-10-12 kept: "when the market is open". Owner
+         order 2026-10-21 (superseding the 2026-10-11 watch-only rule): the
+         quant also scans the market's own pre-market (09:00-09:15) and
+         post-market (Mon-Thu 15:32-15:49, Friday 16:32-16:49) windows on
+         the live broker feed, so the sentence names them; v1.8.2. -->
+    <string name="scan_cadence">Quant will be scanning the market every second when the market is open, and in the pre-market and post-market windows too.</string>
 
     <!-- ============ session copy ============
          Owner order 2026-10-11, exact texts for the three market conditions.
