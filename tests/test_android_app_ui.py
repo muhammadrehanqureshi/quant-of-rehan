@@ -740,13 +740,15 @@ class TypefaceTest(unittest.TestCase):
         out.
         """
         self.assertNotIn('sb.append("  EST")', self.main)
-        self.assertIn('sb.append(" (B=");', self.main)
-        # v1.8.4 (owner 14:19): the separators inside the group are single
-        # spaces, so a five million/share B and a twenty-seven million S
-        # never wrap the T onto its own line again.
-        self.assertIn('sb.append(" S=");', self.main)
-        self.assertIn('" T=%,d)"', self.main)
-        self.assertNotIn('sb.append("  S")', self.main)
+        # v1.8.5 (owner 14:51): the group's separators are NON-BREAKING
+        # spaces and the tile carries its own 11.5sp, so the name, B, S and
+        # T of every leader stand on one line without dropping a digit.
+        self.assertIn('sb.append("\\u00A0(B=");', self.main)
+        self.assertIn('sb.append("\\u00A0S=");', self.main)
+        self.assertIn('"\\u00A0T=%,d)"', self.main)
+        layout = LAYOUT.read_text(encoding="utf-8")
+        self.assertIn("android:textSize=\"11.5sp\"", layout
+                      [layout.index("@+id/market_leaders"):])
         self.assertNotIn("\u2248", self.main)
         self.assertNotIn("estimatedSplit", self.main)
         watcher = WATCHER.read_text(encoding="utf-8")
@@ -1402,8 +1404,8 @@ class VersionTest(unittest.TestCase):
         # gap equals its top gap, and the footer is the owner's exact
         # LIVE/POST/PRE sentence.
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="1.8.4"', manifest)
-        self.assertIn('android:versionCode="38"', manifest)
+        self.assertIn('android:versionName="1.8.5"', manifest)
+        self.assertIn('android:versionCode="39"', manifest)
         # The changelog entry ties these user-visible changes to the build.
         readme = (ROOT / "android" / "README.md").read_text(encoding="utf-8")
         self.assertIn("v1.7.9, owner order 2026-10-20", readme)
@@ -1412,6 +1414,7 @@ class VersionTest(unittest.TestCase):
         self.assertIn("Version 1.8.2, versionCode 36", readme)
         self.assertIn("Version 1.8.3, versionCode 37", readme)
         self.assertIn("Version 1.8.4, versionCode 38", readme)
+        self.assertIn("Version 1.8.5, versionCode 39", readme)
         layout = LAYOUT.read_text(encoding="utf-8")
         strings = STRINGS.read_text(encoding="utf-8")
         main = MAIN.read_text(encoding="utf-8")
