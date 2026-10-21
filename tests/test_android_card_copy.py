@@ -41,8 +41,12 @@ STRINGS = (ROOT / "android" / "app" / "src" / "main" / "res" / "values"
 LAYOUT = (ROOT / "android" / "app" / "src" / "main" / "res" / "layout"
           / "activity_main.xml")
 
+# Owner order 2026-10-21 (v1.8.2): the quant also scans the market's own
+# pre-market and post-market windows on the live broker feed, superseding the
+# 2026-10-11 watch-only rule; the owner's sentence names them.
 CADENCE = ("Quant will be scanning the market every second "
-           "when the market is open.")
+           "when the market is open, "
+           "and in the pre-market and post-market windows too.")
 DISPLAY_CADENCE = 1000
 
 
