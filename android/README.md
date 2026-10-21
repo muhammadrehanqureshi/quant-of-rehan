@@ -627,6 +627,22 @@ to sixty seconds. The status tile therefore also carries the app's own
   they name the exchange's state, which the pre and post windows never
   change. Version 1.8.2, versionCode 36.
 
+**Built and delivered 2026-10-21 (v1.8.2):** the signed v1.8.2 APK was built
+on GitHub Actions from the merge of PR #64, downloaded from the run's
+artifact and copied to
+`C:/Users/rehan/OneDrive/Desktop/QuantOfRehan-v1.8.2.apk`. 543,896 bytes,
+SHA-256
+`83bf64b6d8f8273a6df4bcb7df0a6ee3afe30b3ff74450eadebd989271734fe5`,
+and the run's `badging.txt` reads back `pk.quantofrehan`,
+`versionCode="36"`, `versionName="1.8.2"`, with the launchable
+`MainActivity`. The run's `certificate.txt` carries the repository
+keystore signer (CN=Android Debug, SHA-256
+`8a4cdbe4b445b444771674cff88200dd3b0164a06d84426e2629a4ca89bdc4cc`), so
+the phone accepts this as an update to the running build. The resource
+table inside the shipped APK was read back and carries the new cadence
+sentence, and the Android tests (85 across app ui, card copy and the
+render gate) were green before the build.
+
 **Built and delivered 2026-10-19 (v1.7.7):** the signed v1.7.7 APK was built
 from this checkout with the toolchain above and copied to
 `C:/Users/rehan/OneDrive/Desktop/QuantOfRehan-v1.7.7.apk`, one file under one
