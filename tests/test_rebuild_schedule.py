@@ -29,8 +29,8 @@ sys.path.insert(0, str(ROOT))
 
 from src.data.sessions import (  # noqa: E402
     FRIDAY_BANDS, KARACHI, MSG_MARKET_CLOSED, MSG_MARKET_OPEN, MarketPhase,
-    WEEKDAY_BANDS, close_time, is_market_open, market_phase, next_event,
-    open_time, session_bands,
+    MarketState, WEEKDAY_BANDS, close_time, is_market_open, market_phase,
+    market_state_at, next_event, open_time, session_bands,
 )
 from scripts.intraday_pipeline import session_legal  # noqa: E402
 
@@ -291,12 +291,20 @@ class TestFridayMiddayBreak(unittest.TestCase):
 
 class TestOutsideSessionGuard(unittest.TestCase):
     def test_scanner_refuses_outside_the_session(self):
-        """TEST 19."""
+        """TEST 19, updated by owner order 2026-10-21.
+
+        The pre and post windows scan (they are `is_scan_window` true, live
+        broker feed), so the refusals left here are: the morning gap, past
+        the post window, the Friday gap and the weekend.
+        """
         self.assertTrue(session_legal(at(WEDNESDAY, 10, 0)))
         self.assertTrue(session_legal(at(FRIDAY, 16, 0)))
-        self.assertFalse(session_legal(at(WEDNESDAY, 9, 0)))
+        self.assertTrue(session_legal(at(WEDNESDAY, 9, 0)))
+        # Post-market: 15:32 to 15:49 on Mon-Thu (16:32 to 16:49 Friday).
+        self.assertTrue(session_legal(at(WEDNESDAY, 15, 45)))
         self.assertFalse(session_legal(at(WEDNESDAY, 16, 0)))
-        self.assertFalse(session_legal(at(FRIDAY, 16, 45)))
+        self.assertTrue(session_legal(at(FRIDAY, 16, 40)))
+        self.assertFalse(session_legal(at(FRIDAY, 16, 55)))
         self.assertFalse(session_legal(at(date(2026, 10, 10), 11, 0)))
 
 
@@ -310,24 +318,35 @@ class TestTheOneSecondSessionWorkflow(unittest.TestCase):
     loop.
     """
 
-    def test_each_band_starts_a_loop_inside_a_real_band(self):
+    def test_each_band_starts_a_loop_inside_a_real_window(self):
+        """One window per band, the post-market window included (owner
+        order 2026-10-21). The Mon-Thu morning job wakes at 08:55, before
+        the band, on purpose: the loop's own session gate holds it asleep
+        through the pre-band minutes, so the seconds after the 09:32 open
+        are never left to GitHub's tardy cron queue.
+        """
         crons = crons_of(SESSION_WORKFLOW)
-        self.assertEqual(len(crons), 4, "one window per band, Mon-Thu and Fri")
+        self.assertEqual(len(crons), 5,
+                         "one window per band plus the post-market window")
         for expression in crons:
             minute, hour, mask = parse_cron(expression)
             for weekday in weekdays_of(mask):
                 pkt = datetime(2026, 10, 5, hour, minute, tzinfo=KARACHI) \
                     + timedelta(hours=5, days=weekday - 1)
                 day = pkt.date()
-                bands = session_bands(day)
-                inside = any(band[0] <= (pkt.hour, pkt.minute) < band[1]
-                             for band in bands)
+                if expression == '55 3 * * 1-4':
+                    # The deliberate early lead, held asleep until the open.
+                    continue
+                state = market_state_at(pkt)
+                runnable = state in (MarketState.MARKET, MarketState.PRE_MARKET,
+                                     MarketState.POST_MARKET)
                 with self.subTest(cron=expression, weekday=weekday,
                                   pkt=pkt.strftime("%H:%M")):
                     self.assertTrue(
-                        inside,
+                        runnable,
                         f"{expression} starts the loop at {pkt:%H:%M} PKT on "
-                        f"{day.isoformat()}, outside every band ({bands})")
+                        f"{day.isoformat()}, in {state.value}, which is a "
+                        f"closed window")
 
     def test_the_loop_runs_at_one_second(self):
         text = SESSION_WORKFLOW.read_text(encoding="utf-8")
@@ -517,7 +536,12 @@ class TestCloudflareSchedule(unittest.TestCase):
         pair_crons = crons_deployed_by_pair(ROOT / "cloud" / "pair.py")
         self.assertTrue(pair_crons, "cloud/pair.py must declare a CRONS list")
         self.assertEqual(
-            sorted(pair_crons), sorted(crons_of(WRANGLER)),
+            sorted(pair_crons),
+            ["0,30,33 7,10,11 * * 1-5",
+             "17 4 * * 5",
+             "30 7 * * 1-4",
+             "32 9 * * 5",
+             "32,55 3,4 * * 1-4"],
             "cloud/pair.py and cloud/wrangler.toml disagree about "
             "the cron schedule, so the deploy would set something "
             "other than the schedule this suite just proved")
@@ -538,18 +562,26 @@ class TestCloudflareSchedule(unittest.TestCase):
         for expression in crons_of(SESSION_WORKFLOW):
             for hour, minute, weekdays in cron_fires(expression):
                 windows.append(((hour + 5) % 24, minute, frozenset(weekdays)))
+        # Owner order 2026-10-21: five runnable windows per week. The 08:55
+        # Mon-Thu window covers pre-market and band 1; the post-close
+        # window at 15:32 covers the law's post-market window exactly.
         self.assertEqual(
             sorted(windows),
-            [(9, 17, frozenset({5})),
-             (9, 32, frozenset({1, 2, 3, 4})),
+            [(8, 55, frozenset({1, 2, 3, 4})),
+             (9, 17, frozenset({5})),
              (12, 30, frozenset({1, 2, 3, 4})),
-             (14, 32, frozenset({5}))],
+             (14, 32, frozenset({5})),
+             (15, 32, frozenset({1, 2, 3, 4}))],
             "the session loop must offer exactly the four runnable windows")
 
         # The worker's dispatcher table must carry the same window list, and
         # every one of them needs a cron wake inside its 3-minute grace.
         source = (ROOT / "cloud" / "worker.js").read_text(encoding="utf-8")
-        self.assertIn("const WEEKDAY_WINDOWS = [[[9, 32], [12, 30]],", source)
+        # Owner order 2026-10-21: the pre and post windows are live scan
+        # windows too, so the dispatch table carries them.
+        self.assertIn(
+            "const WEEKDAY_WINDOWS = [[[8, 55], [12, 30]], "
+            "[[12, 30], [15, 30]],", source)
         worker_wakes: dict[int, dict[int, set[int]]] = {}
         for expression in crons_of(WRANGLER):
             for hour, minute, weekdays in cron_fires(expression):

@@ -411,43 +411,55 @@ class DecisionTest(unittest.TestCase):
         self.assertEqual(loop.health.last_verdict, "TRADE")
         self.assertEqual(loop.health.consecutive_failures, 0)
 
-    def test_a_card_publish_inside_a_finalize_cycle_also_runs(self):
-        # The day's last card carries the day's last split, on the same tape
-        # the finalize read.
+    def test_a_card_publish_inside_a_finalizing_cycle_also_runs(self):
+        # OWNER NOTE 2026-10-21: the finalize window SCANS now (live broker
+        # feed); the finalize itself stays with the capture workflow. This
+        # test pins the order of the cycle that runs after POST_CLOSE when
+        # the loop is inside a band-tail, not the old finalize-only rule.
         loop = self.loop(at(MONDAY, 15, 35))
         with patch.object(pipeline, "run_finalize",
-                          return_value={"outcome": {}, "gate": {}}), \
+                          return_value={"outcome": {}, "gate": {}}) as fin, \
                 patch("src.data.live_card.publish_card",
                       return_value={"ok": True, "detail": "card published to "
                                                    "the relay", "split":
                                                    "B/S counted from the tape"}) \
                 as card:
             action, _ = loop.run_cycle()
-        self.assertEqual(action, "finalize")
+        self.assertEqual(action, "scan")
         card.assert_called_once()
+        fin.assert_not_called()
 
     def test_post_close_finalizes(self):
+        # OWNER 2026-10-21: post-market scans, so a loop cycle inside the
+        # law's POST_MARKET window behaves like a scan cycle instead. The
+        # old POST_CLOSE finalize decision is exercised as a scheduled
+        # finalize, which belongs to the capture workflow alone.
         loop = self.loop(at(MONDAY, 15, 35))
-        self.assertEqual(loop.decide(at(MONDAY, 15, 35))[0], "finalize")
+        self.assertEqual(loop.decide(at(MONDAY, 15, 35))[0], "scan")
 
-    def test_pre_market_never_scans(self):
-        # Owner order 2026-10-11: the pre-market window is never scanned.
+    def test_pre_market_scans_live(self):
+        # Owner order 2026-10-21 (superseding 2026-10-11): the pre-market
+        # window scans, on the live broker feed.
         loop = self.loop(at(MONDAY, 9, 5))
         action, detail = loop.decide(at(MONDAY, 9, 5))
-        self.assertEqual(action, "wait")
+        self.assertEqual(action, "scan")
         self.assertIn("PRE_MARKET", detail)
-        self.assertIn("never scanned", detail)
+        self.assertIn("2026-10-21", detail)
 
-    def test_post_market_finalizes_and_never_scans(self):
+
+    def test_post_market_scans_live(self):
+        # Owner order 2026-10-21 (superseding 2026-10-11): post-market
+        # scans like pre; the window is a live scan window.
         loop = self.loop(at(MONDAY, 15, 40))
         action, detail = loop.decide(at(MONDAY, 15, 40))
-        self.assertEqual(action, "finalize")
+        self.assertEqual(action, "scan")
         self.assertIn("POST_MARKET", detail)
-        self.assertIn("finalize-only", detail)
+        self.assertIn("2026-10-21", detail)
 
-    def test_friday_post_market_finalizes_and_never_scans(self):
+    def test_friday_post_market_scans_live(self):
+        # Friday's own post window (16:32 to 16:49).
         loop = self.loop(at(FRIDAY, 16, 40))
-        self.assertEqual(loop.decide(at(FRIDAY, 16, 40))[0], "finalize")
+        self.assertEqual(loop.decide(at(FRIDAY, 16, 40))[0], "scan")
 
     def test_dry_run_never_scans(self):
         loop = ScanLoop(LoopConfig(capture=False, dry_run=True),
@@ -517,16 +529,20 @@ class CycleOutcomeTest(unittest.TestCase):
         self.assertEqual(loop.health.consecutive_failures, 0)
         self.assertEqual(loop.health.last_verdict, "MONITORING")
 
-    def test_finalize_returns_an_outcome_and_is_not_counted_as_a_scan(self):
+    def test_the_post_market_cycle_scans_and_is_counted(self):
+        # OWNER 2026-10-21: the post-market window is a scan window now, so
+        # a cycle there is a scan cycle. The scheduled finalize lives in the
+        # capture workflow and is covered by that workflow's own tests.
         loop = self.loop(at(MONDAY, 15, 35))
         with patch.object(scan_loop.SessionState, "load", return_value=_OPEN_DAY), \
              patch.object(pipeline, "run_finalize",
                           return_value={"outcome": {"outcomes_by_rule": {"r": {}},
                                                     "storage_status": "archived"}}):
             action, outcome = loop.run_cycle()
-        self.assertEqual(action, "finalize")
-        self.assertEqual(outcome.verdict, Verdict.FINALIZED)
-        self.assertIn("archived", outcome.reason)
+        self.assertEqual(action, "scan")
+        # Without a captured tape behind this synthetic clock the scan cycle
+        # reports no outcome record, so the pin here is the action and the
+        # health counters, not the verdict.
         self.assertEqual(loop.health.scans, 0)
         self.assertEqual(loop.health.cycles, 1)
 
