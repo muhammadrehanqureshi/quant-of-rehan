@@ -79,8 +79,10 @@
          order 2026-10-21 (superseding the 2026-10-11 watch-only rule): the
          quant also scans the market's own pre-market (09:00-09:15) and
          post-market (Mon-Thu 15:32-15:49, Friday 16:32-16:49) windows on
-         the live broker feed, so the sentence names them; v1.8.2. -->
-    <string name="scan_cadence">Quant will be scanning the market every second when the market is open, and in the pre-market and post-market windows too.</string>
+         the live broker feed, so the sentence names them; v1.8.2. Owner
+         order 2026-10-21 (13:08 message): exact replacement wording, caps
+         as written: LIVE/POST/PRE. -->
+    <string name="scan_cadence">QUANT WILL BE SCANNING THE LIVE/POST/PRE MARKET EVERY SECOND.</string>
 
     <!-- ============ session copy ============
          Owner order 2026-10-11, exact texts for the three market conditions.
