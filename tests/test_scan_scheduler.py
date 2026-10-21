@@ -111,20 +111,24 @@ class SchedulerTest(unittest.IsolatedAsyncioTestCase):
         report, _ = await self.run_schedule(rec, clock, stop=stop,
                                             hook=stop_after_ten)
 
-        # pre-open, then warmup, then the session's slots on the 4-min grid
+        # pre-market slots (scans since 2026-10-21), then warmup, then the
+        # session's slots on the 4-min grid. The 09:10 start is inside the
+        # law's PRE_MARKET window, so the grid fires there too; the 09:15 to
+        # 09:32 morning gap is still a wait.
         self.assertEqual(rec.slots(),
-                         ["09:52", "09:56", "10:00", "10:04", "10:08"])
+                         ["09:08", "09:12", "09:52", "09:56", "10:00", "10:04",
+                          "10:08"])
         self.assertTrue(all(act == "scan" for act, _, _ in rec.calls))
-        self.assertEqual(report.scans, 5)
-        self.assertEqual(report.pauses, 6)   # 09:10 pre-open + 5 warmup slots
-        self.assertEqual(report.cycles, 11)
+        self.assertEqual(report.scans, 7)
+        self.assertEqual(report.pauses, 6)   # 09:12 gap + 5 warmup slots
+        self.assertEqual(report.cycles, 13)
         self.assertEqual(report.failures, 0)
         self.assertEqual(report.exit_code, 0)
-        # 09:10 -> 09:32 is ONE sleep to the open, not 35 polls; every later
-        # sleep is exactly one slot boundary (high-precision, drift free).
-        self.assertEqual(clock.sleeps[0],
-                         (at(MONDAY, 9, 32) - at(MONDAY, 9, 10)).total_seconds())
-        self.assertEqual({round(s) for s in clock.sleeps[1:]}, {240})
+        # 09:10 to 09:12 are PRE_MARKET scans; the CLOSED band gap that
+        # follows wakes on the grid until the band's first warmup slot at
+        # 09:52 (one 960s hinge), every later sleep one slot of 240s.
+        self.assertEqual(clock.sleeps[0], 120.0)   # 09:10 -> 09:12 next slot
+        self.assertEqual({round(s) for s in clock.sleeps[1:]}, {240, 960})
         # every fire carries the one true zone and its own slot label
         for _, slot, moment in rec.calls:
             self.assertEqual(moment.utcoffset(), timedelta(hours=5))
@@ -259,7 +263,9 @@ class SchedulerTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(moment.hour, 10)
         self.assertEqual(slot, slot_of(moment))
 
-    async def test_it_finalizes_once_after_the_close_then_waits_for_the_open(self):
+    async def test_the_post_market_window_scans_then_waits_for_the_open(self):
+        # OWNER 2026-10-21: post-market is a scan window now, so a scheduler
+        # started inside it scans on the 4 minute grid instead of finalizing.
         clock = VirtualClock(at(MONDAY, 15, 40))
         rec = Recorder()
         stop = asyncio.Event()
@@ -270,13 +276,10 @@ class SchedulerTest(unittest.IsolatedAsyncioTestCase):
         report, _ = await self.run_schedule(rec, clock, stop=stop,
                                             hook=stop_after_first_sleep)
 
-        self.assertEqual(rec.calls[0][0], "finalize")  # post-market, finalize
-        self.assertEqual(rec.slots("scan"), [])  # a closed day is never scanned
-        self.assertEqual(report.finalizes, 1)
-        self.assertEqual(report.scans, 0)
-        expected = (at(date(2026, 10, 13), 9, 32)
-                    - at(MONDAY, 15, 40)).total_seconds()
-        self.assertEqual(clock.sleeps, [expected])   # straight to tomorrow
+        self.assertEqual(rec.calls[0][0], "scan")  # post-market, scan
+        self.assertEqual(rec.slots("scan"), ["15:40"])
+        self.assertEqual(report.finalizes, 0)
+        self.assertEqual(report.scans, 1)
         self.assertEqual(report.exit_code, 0)
 
     def test_signal_handlers_require_a_running_loop(self):
