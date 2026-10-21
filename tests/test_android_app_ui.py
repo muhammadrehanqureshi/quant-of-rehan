@@ -1385,17 +1385,19 @@ class HeaderCopyTest(unittest.TestCase):
 
 class VersionTest(unittest.TestCase):
     def test_the_version_is_the_one_that_ships_these_changes(self):
-        # v1.8.0 is the 2026-10-20 third pass: the searched stock cannot be
-        # wiped by the next ticker tick, the pinned selection carries its own
-        # red/green price and percentage, and the search glass is 15% further
-        # right (owner's measurement law applied to what he touched).
+        # v1.8.1 is the 2026-10-21 morning pass: the VOLUME NOW tile label
+        # is gone, the hint reads "Search for a KMIALL scrip", the no-match
+        # sentence is gone, the price/percentage appears once (the coloured
+        # form), the B and S counts print green and red, and the search
+        # glass moves a further 10% right (owner orders of that morning).
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="1.8.0"', manifest)
-        self.assertIn('android:versionCode="34"', manifest)
+        self.assertIn('android:versionName="1.8.1"', manifest)
+        self.assertIn('android:versionCode="35"', manifest)
         # The changelog entry ties these user-visible changes to the build.
         readme = (ROOT / "android" / "README.md").read_text(encoding="utf-8")
         self.assertIn("v1.7.9, owner order 2026-10-20", readme)
         self.assertIn("Version 1.8.0, versionCode 34", readme)
+        self.assertIn("Version 1.8.1, versionCode 35", readme)
         layout = LAYOUT.read_text(encoding="utf-8")
         strings = STRINGS.read_text(encoding="utf-8")
         main = MAIN.read_text(encoding="utf-8")
@@ -1502,13 +1504,61 @@ class SearchPanelStabilityTest(unittest.TestCase):
         self.assertIn("R.color.red", tail)
         self.assertIn("R.color.text_soft", tail)
 
-    def test_the_search_glass_is_fifteen_percent_further_right(self):
+    def test_the_search_glass_stack_matches_every_owner_order(self):
         dimens = (ROOT / "android" / "app" / "src" / "main" / "res" / "values"
                   / "dimens.xml").read_text(encoding="utf-8")
-        # Owner order: 15% of its own 42dp box, from its existing position:
-        # 50.4 * 1.15 = 57.96dp.
-        self.assertIn('<dimen name="search_shift_x">57.96dp</dimen>', dimens)
-        self.assertNotIn('<dimen name="search_shift_x">50.4dp</dimen>', dimens)
+        # The stack: 50.4 (2026-10-20 first), 57.96 (the 15% order), and
+        # today's 62.16 from the 10% order. Each predecessor value is gone
+        # from the LIVE dimen; the history lives in the comment above it.
+        self.assertIn('<dimen name="search_shift_x">62.16dp</dimen>', dimens)
+        self.assertNotIn('>57.96dp</dimen>', dimens)
+        self.assertNotIn('>50.4dp</dimen>', dimens)
+
+    def test_the_search_hint_names_a_scrip_not_a_symbol(self):
+        strings = STRINGS.read_text(encoding="utf-8")
+        # Owner order 2026-10-21: "Search for a KMIALL scrip".
+        self.assertIn('name="search_hint">Search for a KMIALL scrip<', strings)
+        self.assertNotIn('Search a KMIALL symbol<', strings)
+
+    def test_the_no_match_sentence_is_gone_from_the_panel(self):
+        strings = STRINGS.read_text(encoding="utf-8")
+        main = MAIN.read_text(encoding="utf-8")
+        # Owner order 2026-10-21: a prefix that matches nothing prints no
+        # sentence under the box; the box and the rows are the whole answer.
+        self.assertNotIn('name="search_empty"', strings)
+        self.assertNotIn("R.string.search_empty", main)
+        self.assertIn('searchStatus.setText("");', main)
+
+    def test_the_volume_now_tile_label_is_gone(self):
+        strings = STRINGS.read_text(encoding="utf-8")
+        layout = LAYOUT.read_text(encoding="utf-8")
+        # Owner order 2026-10-21: tapping the search icon shows no VOLUME
+        # NOW tile above the box; the hint inside the box is the label.
+        self.assertNotIn('name="search_volume_label"', strings)
+        self.assertNotIn('@string/search_volume_label', layout)
+
+    def test_the_search_answer_prints_its_price_once_in_colour(self):
+        main = MAIN.read_text(encoding="utf-8")
+        watcher = WATCHER.read_text(encoding="utf-8")
+        # Owner order 2026-10-21: the price and the percentage appear ONE
+        # time in the search answer, in the colour of the move (green up,
+        # red down), never in the neutral ink a second time.
+        # fetchStock no longer carries its own money line; the live restamp
+        # is the only PKR line the pinned answer shows.
+        self.assertNotIn('"\\nPKR %,.2f"', watcher)
+        # The paint pass still owns the one(true) money line.
+        marker = "String tail = quote.changePct == null"
+        first = main.index(marker)
+        self.assertIn("styled.append(tail);", main[first:main.index("private String latestSignalDisplay")])
+
+    def test_the_search_answer_prints_buy_green_and_sell_red(self):
+        watcher = WATCHER.read_text(encoding="utf-8")
+        # Owner order 2026-10-21: B in green and S in red, the digits
+        # themselves, inside the fetched line.
+        self.assertIn("c.getColor(R.color.green)), buyFrom, buyTo, 0);", watcher)
+        self.assertIn("c.getColor(R.color.red)), sellFrom, sellTo, 0);", watcher)
+        self.assertIn("int buyFrom = sb.length();", watcher)
+        self.assertIn("int sellFrom = sb.length();", watcher)
 
 
 if __name__ == "__main__":

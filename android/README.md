@@ -606,6 +606,17 @@ to sixty seconds. The status tile therefore also carries the app's own
   and red for a negative one, true nulls carried in neutral ink. The search
   control moves a further 15% of its own 42dp box to the right (net 57.96dp).
   Version 1.8.0, versionCode 34.
+- v1.8.1, owner orders 2026-10-21 (morning): the VOLUME NOW tile label is
+  gone, the search box's hint reads "Search for a KMIALL scrip", the
+  "NO KMIALL SYMBOL STARTS WITH THAT YET." sentence under the box is gone
+  (a no-match prints nothing), the searched stock's own price and
+  percentage appear exactly once (the coloured form: green when it is up,
+  red when it is down, neutral ink only when the venue reports no move),
+  the fetched B and S counts print in their own colours (green buy, red
+  sell) and those colours survive the one-second restamp because the base
+  line is a spannable now, and the search glass moves a further 10% of its
+  own 42dp box to the right (net 62.16dp).
+  Version 1.8.1, versionCode 35.
 
 **Built and delivered 2026-10-19 (v1.7.7):** the signed v1.7.7 APK was built
 from this checkout with the toolchain above and copied to
