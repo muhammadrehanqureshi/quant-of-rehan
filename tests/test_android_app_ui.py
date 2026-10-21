@@ -776,8 +776,12 @@ class CadencePlacementTest(unittest.TestCase):
     the owner's sentence with no air smuggled into it.
     """
 
+    # Owner order 2026-10-21 (v1.8.2): the quant also scans the market's own
+    # pre-market and post-market windows on the live broker feed, superseding
+    # the 2026-10-11 watch-only rule; the sentence names them.
     CADENCE = ("Quant will be scanning the market every second "
-               "when the market is open.")
+               "when the market is open, "
+               "and in the pre-market and post-market windows too.")
 
     def setUp(self):
         self.layout = LAYOUT.read_text(encoding="utf-8")
@@ -1385,19 +1389,18 @@ class HeaderCopyTest(unittest.TestCase):
 
 class VersionTest(unittest.TestCase):
     def test_the_version_is_the_one_that_ships_these_changes(self):
-        # v1.8.1 is the 2026-10-21 morning pass: the VOLUME NOW tile label
-        # is gone, the hint reads "Search for a KMIALL scrip", the no-match
-        # sentence is gone, the price/percentage appears once (the coloured
-        # form), the B and S counts print green and red, and the search
-        # glass moves a further 10% right (owner orders of that morning).
+        # v1.8.2 is the 2026-10-21 afternoon law on the phone's own copy: the
+        # cadence sentence names the pre-market and post-market windows the
+        # quant now scans on the live broker feed.
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="1.8.1"', manifest)
-        self.assertIn('android:versionCode="35"', manifest)
+        self.assertIn('android:versionName="1.8.2"', manifest)
+        self.assertIn('android:versionCode="36"', manifest)
         # The changelog entry ties these user-visible changes to the build.
         readme = (ROOT / "android" / "README.md").read_text(encoding="utf-8")
         self.assertIn("v1.7.9, owner order 2026-10-20", readme)
         self.assertIn("Version 1.8.0, versionCode 34", readme)
         self.assertIn("Version 1.8.1, versionCode 35", readme)
+        self.assertIn("Version 1.8.2, versionCode 36", readme)
         layout = LAYOUT.read_text(encoding="utf-8")
         strings = STRINGS.read_text(encoding="utf-8")
         main = MAIN.read_text(encoding="utf-8")
