@@ -685,7 +685,10 @@ class BrandRuleTest(unittest.TestCase):
     def test_the_rule_is_defined_once_and_included_at_every_division(self):
         self.assertIn("QorDiamond", self.rule)
         self.assertIn('android:text="@string/diamond"', self.rule)
-        self.assertEqual(self.layout.count('layout="@layout/qor_rule"'), 4)
+        # Four division rules on the console, and since 2026-10-21 the two
+        # the menus own: above the search tile and below the settings tile,
+        # so each menu is bracketed like every tile (owner order 15:35).
+        self.assertEqual(self.layout.count('layout="@layout/qor_rule"'), 6)
 
     def test_the_rules_stand_between_the_tiles_and_never_inside_them(self):
         root = layout_root()
@@ -825,19 +828,22 @@ class TypefaceTest(unittest.TestCase):
         # v1.8.5 (owner 14:51): the group's separators are NON-BREAKING
         # spaces, so a wide row can never wrap mid group.
         self.assertIn('sb.append("\\u00A0(B=");', self.main)
-        self.assertIn('sb.append("\\u00A0S=");', self.main)
-        self.assertIn('"\\u00A0T=%,d)"', self.main)
+        self.assertIn('"\\u00A0(T=%,d)"', self.main)
+        # v1.8.7 (owner 15:35): the three quantities read as a sentence, a
+        # comma after B and an ampersand before T, both non-breaking.
+        self.assertIn('sb.append(",\\u00A0S=");', self.main)
+        self.assertIn('"\\u00A0&\\u00A0T=%,d)"', self.main)
         # v1.8.6 (owner 15:15): and that row keeps the body's 13sp. It wins
-        # its width from the tile (8dp of each 16dp panel padding, through the
+        # its width from the tile (6dp of each 16dp panel padding, through the
         # negative side margins) and from its own tracking, never from a
         # smaller size, which was the owner's complaint about v1.8.5.
         layout = LAYOUT.read_text(encoding="utf-8")
         leaders = layout[layout.index("@+id/market_leaders"):]
         leaders = leaders[:leaders.index("/>\n")]
         self.assertNotIn("textSize", leaders)
-        self.assertIn('android:letterSpacing="-0.02"', leaders)
-        self.assertIn('android:layout_marginLeft="-8dp"', leaders)
-        self.assertIn('android:layout_marginRight="-8dp"', leaders)
+        self.assertIn('android:letterSpacing="-0.035"', leaders)
+        self.assertIn('android:layout_marginLeft="-10dp"', leaders)
+        self.assertIn('android:layout_marginRight="-10dp"', leaders)
         self.assertNotIn("\u2248", self.main)
         self.assertNotIn("estimatedSplit", self.main)
         watcher = WATCHER.read_text(encoding="utf-8")
@@ -890,8 +896,13 @@ class CadencePlacementTest(unittest.TestCase):
     def test_the_sentence_stands_after_the_final_rule_as_the_last_view(self):
         rules = [node for node in self.root.iter() if node.tag == "include"
                  and node.get("layout") == "@layout/qor_rule"]
-        self.assertEqual(len(rules), 4)
-        following = siblings_after(self.root, rules[-1])
+        self.assertEqual(len(rules), 6)
+        # The console's last rule is the market card's: the two rules the
+        # menus own travel with their panels and are not part of it.
+        market_rule = next(
+            rule for rule in rules
+            if rule.get(f"{ANDROID_NS}id") == "@+id/rule_after_market")
+        following = siblings_after(self.root, market_rule)
         self.assertEqual(len(following), 1, "the console ends at the sentence")
         view = following[0]
         self.assertEqual(view.tag, "TextView")
@@ -1493,8 +1504,8 @@ class VersionTest(unittest.TestCase):
         # gap equals its top gap, and the footer is the owner's exact
         # LIVE/POST/PRE sentence.
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="1.8.6"', manifest)
-        self.assertIn('android:versionCode="40"', manifest)
+        self.assertIn('android:versionName="1.8.7"', manifest)
+        self.assertIn('android:versionCode="41"', manifest)
         # The changelog entry ties these user-visible changes to the build.
         readme = (ROOT / "android" / "README.md").read_text(encoding="utf-8")
         self.assertIn("v1.7.9, owner order 2026-10-20", readme)
@@ -1505,6 +1516,7 @@ class VersionTest(unittest.TestCase):
         self.assertIn("Version 1.8.4, versionCode 38", readme)
         self.assertIn("Version 1.8.5, versionCode 39", readme)
         self.assertIn("Version 1.8.6, versionCode 40", readme)
+        self.assertIn("Version 1.8.7, versionCode 41", readme)
         layout = LAYOUT.read_text(encoding="utf-8")
         strings = STRINGS.read_text(encoding="utf-8")
         main = MAIN.read_text(encoding="utf-8")
@@ -1566,8 +1578,11 @@ class EmptySignalCopyTest(unittest.TestCase):
         self.assertNotIn("no_signals", layout)
         self.assertNotIn('name="no_signals"', strings)
         self.assertIn('name="signal_no_call"', strings)
-        # Both the empty answer and another session's card land on that string.
-        self.assertEqual(main.count("getString(R.string.signal_no_call)"), 2)
+        # Both the empty answer and another session's card land on that string,
+        # and since 2026-10-21 the ink check compares against the same
+        # resource rather than a literal, so the sentence still has ONE
+        # spelling in the whole app (owner order 15:35).
+        self.assertEqual(main.count("getString(R.string.signal_no_call)"), 3)
 
 
 class SearchPanelStabilityTest(unittest.TestCase):
@@ -1716,18 +1731,110 @@ class UniversalSizeTest(unittest.TestCase):
             self.assertIn(f'android:textSize">{size}', block)
 
 
+class TileBracketingTest(unittest.TestCase):
+    """Owner order 2026-10-21 (15:35): a menu tile has a rule on each side.
+
+    He opened the search and saw the diamond below that tile but not above
+    it, and opened the settings and saw its diamond above but not below. Each
+    menu now owns the rule on the side the console's brand rule does not
+    cover: `rule_before_search` above the search panel, `rule_after_settings`
+    below the settings panel. Both start GONE and travel with their panel, so
+    a closed menu leaves no rule behind.
+    """
+
+    def setUp(self):
+        self.root = layout_root()
+        self.layout = LAYOUT.read_text(encoding="utf-8")
+        self.main = MAIN.read_text(encoding="utf-8")
+
+    def test_the_search_tile_has_a_rule_above_it(self):
+        rule = find_view(self.root, "@+id/rule_before_search")
+        self.assertIsNotNone(rule)
+        self.assertEqual(rule.get(f"{ANDROID_NS}visibility"), "gone")
+        self.assertLess(self.layout.index("@+id/rule_before_search"),
+                        self.layout.index("@+id/search_panel"))
+
+    def test_the_search_tile_keeps_the_brand_rule_below_it(self):
+        self.assertLess(self.layout.index("@+id/search_panel"),
+                        self.layout.index("<!-- brand rule:"))
+
+    def test_the_settings_tile_has_a_rule_below_it(self):
+        rule = find_view(self.root, "@+id/rule_after_settings")
+        self.assertIsNotNone(rule)
+        self.assertEqual(rule.get(f"{ANDROID_NS}visibility"), "gone")
+        self.assertLess(self.layout.index("@+id/settings_panel"),
+                        self.layout.index("@+id/rule_after_settings"))
+
+    def test_each_rule_travels_with_its_menu(self):
+        self.assertIn("ruleBeforeSearch.setVisibility(open ? View.VISIBLE : View.GONE);",
+                      self.main)
+        self.assertIn("ruleAfterSettings.setVisibility(open ? View.VISIBLE : View.GONE);",
+                      self.main)
+
+
+class SearchBoxGapTest(unittest.TestCase):
+    """Owner order 2026-10-21 (15:35): the box's air is the same on both sides."""
+
+    def setUp(self):
+        self.root = layout_root()
+        self.box = find_view(self.root, "@+id/search_input")
+
+    def test_the_box_centres_its_one_line(self):
+        self.assertEqual(self.box.get(f"{ANDROID_NS}gravity"), "center_vertical")
+
+    def test_the_font_padding_is_out_of_the_box_height(self):
+        self.assertEqual(self.box.get(f"{ANDROID_NS}includeFontPadding"), "false")
+
+    def test_the_box_padding_stays_symmetric(self):
+        self.assertEqual(self.box.get(f"{ANDROID_NS}padding"), "10dp")
+
+    def test_the_hidden_rows_start_hidden_in_the_layout(self):
+        # An empty panel must not draw a 6dp or 8dp margin before its first
+        # render, which is the extra air he could see under the box.
+        self.assertEqual(
+            find_view(self.root, "@+id/search_results").get(
+                f"{ANDROID_NS}visibility"), "gone")
+        self.assertEqual(
+            find_view(self.root, "@+id/search_status").get(
+                f"{ANDROID_NS}visibility"), "gone")
+
+
+class SignalPlaceholderInkTest(unittest.TestCase):
+    """Owner order 2026-10-21 (15:35): the placeholder is body ink."""
+
+    def setUp(self):
+        self.main = MAIN.read_text(encoding="utf-8")
+
+    def test_the_ink_follows_the_sentence_on_screen(self):
+        self.assertIn("private void paintSignalInk(String display) {", self.main)
+        block = self.main[self.main.index("private void paintSignalInk"):]
+        block = block[:block.index("private String latestSignalDisplay")]
+        self.assertIn("R.color.text_soft : R.color.text_bright", block)
+        self.assertIn("signalList.setAlpha(1.0f);", block)
+
+    def test_no_dimmed_placeholder_survives(self):
+        self.assertNotIn("signalList.setAlpha(0.65f)", self.main)
+
+    def test_soft_is_the_body_ink(self):
+        styles = STYLES.read_text(encoding="utf-8")
+        body = styles[styles.index('name="QorBody"'):]
+        self.assertIn("@color/text_soft", body[:body.index("</style>")])
+
+
 class LeaderRowFitsAtBodySizeTest(unittest.TestCase):
     """The measurement, not the intent: 13sp really fits the KSE100 tile.
 
     The panel in the owner's 2026-10-21 15:15 screenshot is 666 of the image's
-    738 px wide, and the 20dp content padding is 36.5 px of that image, so his
-    tile is 363dp wide. The leaders row spends 8dp of each 16dp panel padding
-    (its -8dp side margins), which leaves 347dp of line for 13sp text.
+    738 px wide, and the same image puts the 20dp content padding at 36.5 px,
+    which is 1.81 px per dp, so his tile is 370dp wide. The leaders row spends
+    6dp of each 16dp panel padding (its -10dp side margins), which leaves
+    358dp of line for 13sp text.
     """
 
-    TILE_DP = 363.0
-    SIDE_INSET_DP = 8.0
-    TRACKING = -0.02
+    TILE_DP = 370.0
+    SIDE_INSET_DP = 6.0
+    PANEL_PADDING_DP = 16.0
+    TRACKING = -0.035
 
     def width(self, row: str, tracking: float = TRACKING) -> float:
         return text_width_dp(FONT_DIR / "lemonmilk_light.otf", row, 13.0,
@@ -1737,17 +1844,17 @@ class LeaderRowFitsAtBodySizeTest(unittest.TestCase):
         return self.TILE_DP - 2 * self.SIDE_INSET_DP
 
     def test_the_widest_row_the_card_has_shown_fits_at_13sp(self):
-        row = "2. CNERGY (B=12,626,814 S=25,253,629 T=37,880,443)"
+        row = "2. CNERGY (B=12,626,814, S=25,253,629 & T=37,880,443)"
         self.assertLess(self.width(row), self.available())
 
     def test_nine_digit_counts_fit_too(self):
-        row = "2. CNERGY (B=12,626,814 S=25,253,629 T=101,880,443)"
+        row = "2. CNERGY (B=12,626,814, S=25,253,629 & T=101,880,443)"
         self.assertLess(self.width(row), self.available())
 
     def test_the_tracking_is_what_makes_13sp_fit(self):
         # Without it the same row overshoots the line, which is exactly why
         # v1.8.5 shrank the type instead of using the tile's width.
-        row = "2. CNERGY (B=12,626,814 S=25,253,629 T=37,880,443)"
+        row = "2. CNERGY (B=12,626,814, S=25,253,629 & T=37,880,443)"
         self.assertGreater(self.width(row, 0.0), self.available())
 
     def test_the_shipped_tracking_and_inset_are_the_measured_ones(self):
@@ -1755,8 +1862,9 @@ class LeaderRowFitsAtBodySizeTest(unittest.TestCase):
         leaders = layout[layout.index("@+id/market_leaders"):]
         leaders = leaders[:leaders.index("/>\n")]
         self.assertIn(f'android:letterSpacing="{self.TRACKING}"', leaders)
-        self.assertIn(f'android:layout_marginLeft="-{self.SIDE_INSET_DP:g}dp"',
-                      leaders)
+        margin = self.PANEL_PADDING_DP - self.SIDE_INSET_DP
+        self.assertIn(f'android:layout_marginLeft="-{margin:g}dp"', leaders)
+        self.assertIn(f'android:layout_marginRight="-{margin:g}dp"', leaders)
 
 
 if __name__ == "__main__":
