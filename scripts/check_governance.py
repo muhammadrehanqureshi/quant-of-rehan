@@ -24,6 +24,9 @@ Checks:
 10. SO-20: the scan path reaches for the read-only tape first: the
    recorder subscribes to the tracked KMIALL universe, a start that dies is
    watched and named, and the dead OHLC servlet is only the day with no tape.
+11. SO-22: the agent never sleeps. A wait in the landing tool or in a
+   workflow is pacing, thirty seconds at most, and no wait may be aimed at a
+   market clock: the session works, the cloud waits.
 
 Exit code 0 = compliant. Non-zero = PR must not merge.
 """
@@ -118,6 +121,12 @@ REQUIRED_GOVERNANCE_SNIPPETS = [
     "The scan cadence is 30 seconds",
     "The same scan, observation and data-quality",
     "The owner pays nothing",
+    # Owner order 2026-10-21 (SO-22): the agent never sleeps, the cloud
+    # waits, and the 14:30 wait for the close is the named offence.
+    "The agent never sleeps; the cloud waits",
+    "the cloud waits for it",
+    "It never becomes the clock itself",
+    "aimed at a market clock",
 ]
 
 # SO-12: a workflow that registers local autostart would put recurring work
@@ -129,6 +138,43 @@ LOCAL_AUTOSTART_PATTERNS = (
     ("install_kmiall_tick", "installs the local KMIALL tick task"),
     ("install_scheduler", "installs the local logon task"),
 )
+
+# SO-22 (owner order 2026-10-21): the agent never sleeps. A wait is pacing
+# while it stays short; past this it is idling in a turn the owner asked to
+# be spent working. The longest wait that exists today is ten seconds.
+MAX_PACING_SECONDS = 30
+
+# SO-22: the offence the order names is a wait built out of a market clock,
+# the 14:30 sleep that sat there until the 15:30 close. A wait whose words
+# name a session moment is that wait, whatever its duration.
+# The clock words are matched inside identifiers too (seconds_until_close is
+# the same wait as close), so only a letter on the left disqualifies them.
+MARKET_CLOCK_WORDS = re.compile(
+    r"(?<![A-Za-z])(close|closing|open|opening|band|session|market|finalize"
+    r"|holiday)",
+    re.IGNORECASE,
+)
+# A wait is a call or a command, never the noun: `sleep 5`, `sleep "$left"`,
+# `time.sleep(...)`, `Start-Sleep -Seconds 60`. Prose that merely says "sleep"
+# does not carry one of these openers, so comments and docstrings stay quiet.
+WAIT_CALL = re.compile(
+    r'''\b(time\.sleep|Start-Sleep|sleep)\s*(\(|["'$]|\d|-\w)''',
+)
+LITERAL_WAIT = re.compile(
+    r"\bsleep\s+(\d+)"
+    r"|time\.sleep\(\s*(\d+(?:\.\d+)?)\s*\)"
+    r"|Start-Sleep\s+(?:-s(?:econds)?\s+)?(\d+)",
+    re.IGNORECASE,
+)
+
+REQUIRED_AGENTS_SNIPPETS = [
+    # Owner order 2026-10-21 (SO-22): the rule sits next to the machine rule,
+    # because idling is what an eager session does next, and it must survive
+    # every rewrite of this file.
+    "The no-idling rule",
+    "Don't ever sleep, do the work what I tell you",
+    "the agent is never the clock",
+]
 
 
 def iter_text_files():
@@ -194,6 +240,24 @@ def check_governance_doc(errors: list) -> None:
         if " ".join(snippet.split()).lower() not in flattened:
             errors.append(
                 f"[SO-2] GOVERNANCE.md is missing required standing-order text: "
+                f"{snippet!r}"
+            )
+
+    # SO-22: AGENTS.md is the file a session reads first, so the no-idling
+    # order has to be in it too, in the owner's own words.
+    agents = ROOT / "AGENTS.md"
+    if not agents.is_file():
+        errors.append(
+            "[SO-22] AGENTS.md missing: a session would read no law at all"
+        )
+        return
+    agent_text = " ".join(
+        agents.read_text(encoding="utf-8", errors="replace").split()
+    ).lower()
+    for snippet in REQUIRED_AGENTS_SNIPPETS:
+        if " ".join(snippet.split()).lower() not in agent_text:
+            errors.append(
+                f"[SO-22] AGENTS.md is missing required agent-law text: "
                 f"{snippet!r}"
             )
 
@@ -546,6 +610,76 @@ def check_no_kv_quota(errors: list) -> None:
             )
 
 
+def idle_wait_violations(rel: str, text: str) -> list:
+    """SO-22: the waits that would make a session idle instead of working.
+
+    Two shapes only, because those are the two the owner named. A wait built
+    from a market clock is the 14:30 to 15:30 sleep itself. A wait longer than
+    the pacing ceiling is the same idling in a different coat: a turn spent
+    holding still. Short pacing stays legal, so a retry or a relay deploy is
+    never flagged for it.
+    """
+    found: list = []
+    # A duration computed one line above the wait is the same wait, so the
+    # clock words are read in the statement's own neighbourhood.
+    window: list = []
+    for line_no, line in enumerate(text.splitlines(), 1):
+        code = line.strip()
+        if not code or code.startswith(("#", "//", "*")):
+            continue
+        if not WAIT_CALL.search(code):
+            window = (window + [code])[-2:]
+            continue
+        context = " ".join(window[-2:] + [code])
+        if MARKET_CLOCK_WORDS.search(context):
+            found.append(
+                f"[SO-22] {rel}:{line_no}: waits on a market clock "
+                f"(`{code[:70]}`). The session works now; the cloud waits for "
+                f"the close, never the agent (owner order 2026-10-21)"
+            )
+            continue
+        literal = LITERAL_WAIT.search(code)
+        if literal:
+            seconds = max(
+                float(g) for g in literal.groups() if g is not None
+            )
+            if seconds > MAX_PACING_SECONDS:
+                found.append(
+                    f"[SO-22] {rel}:{line_no}: sleeps {seconds:g}s in one go "
+                    f"(`{code[:70]}`). Pacing stays at {MAX_PACING_SECONDS}s "
+                    f"or less; anything longer is a session idling, and the "
+                    f"cloud is where a wait belongs"
+                )
+    return found
+
+
+def check_no_idle_waits(errors: list) -> None:
+    """SO-22: the agent's own tooling paces a call, it never idles for a clock.
+
+    The scope is the code a session drives (the scripts it launches and the
+    workflows it dispatches), not the cloud daemons, which legitimately hold
+    a session's wait on the far side of the PC. Only those two trees are read,
+    so `src/data/session_gate.py` can keep waiting for a scan window.
+    """
+    for area in ("scripts", ".github/workflows"):
+        base = ROOT / area
+        if not base.is_dir():
+            errors.append(
+                f"[SO-22] {area}/ is missing; the no-idling check cannot "
+                f"verify the agent's tooling"
+            )
+            continue
+        for p in sorted(base.rglob("*")):
+            if not p.is_file() or p.suffix.lower() not in TEXT_EXTS:
+                continue
+            rel = p.relative_to(ROOT).as_posix()
+            try:
+                text = p.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+            errors.extend(idle_wait_violations(rel, text))
+
+
 def main() -> int:
     errors: list = []
     check_secrets(errors)
@@ -558,6 +692,7 @@ def main() -> int:
     check_cloud_only(errors)
     check_tape_before_scanner(errors)
     check_no_kv_quota(errors)
+    check_no_idle_waits(errors)
 
     if errors:
         print("GOVERNANCE CHECK FAILED, PR must not merge:\n")
@@ -570,7 +705,8 @@ def main() -> int:
           "standing orders present, SO-7 style and identity verified, "
           "SO-7a co-author line verified, SO-8 Karachi pin verified, "
           "SO-21 backtests cloud-only enforced, SO-12 cloud-only recurring "
-          "work enforced, SO-20 tape before scanner, KV quota removed.")
+          "work enforced, SO-20 tape before scanner, KV quota removed, "
+          "SO-22 no clock wait in the agent's tooling.")
     return 0
 
 
