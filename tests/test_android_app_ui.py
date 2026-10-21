@@ -741,7 +741,12 @@ class TypefaceTest(unittest.TestCase):
         """
         self.assertNotIn('sb.append("  EST")', self.main)
         self.assertIn('sb.append(" (B=");', self.main)
-        self.assertIn('sb.append("  S=");', self.main)
+        # v1.8.4 (owner 14:19): the separators inside the group are single
+        # spaces, so a five million/share B and a twenty-seven million S
+        # never wrap the T onto its own line again.
+        self.assertIn('sb.append(" S=");', self.main)
+        self.assertIn('" T=%,d)"', self.main)
+        self.assertNotIn('sb.append("  S")', self.main)
         self.assertNotIn("\u2248", self.main)
         self.assertNotIn("estimatedSplit", self.main)
         watcher = WATCHER.read_text(encoding="utf-8")
@@ -778,7 +783,7 @@ class CadencePlacementTest(unittest.TestCase):
 
     # Owner order 2026-10-21 13:08 (v1.8.3): the exact replacement the owner
     # dictated, in caps, for the footer sentence.
-    CADENCE = "QUANT WILL BE SCANNING THE LIVE/POST/PRE MARKET EVERY SECOND."
+    CADENCE = "QUANT WILL BE SCANNING THE LIVE, THE POST & THE PRE MARKET EVERY SECOND."
 
     def setUp(self):
         self.layout = LAYOUT.read_text(encoding="utf-8")
@@ -818,8 +823,13 @@ class CadencePlacementTest(unittest.TestCase):
         # same 12dp the tiles have below their rules, so the sentence sits
         # on the console's grid. The resource holds the words and nothing
         # else: no leading break, no smuggled indent.
+        # The owner's dictated sentence, in caps, with &amp; as the XML
+        # escape of the ampersand.
         value = self.resource_value("scan_cadence")
-        self.assertEqual(value, self.CADENCE)
+        self.assertEqual(
+            value,
+            "QUANT WILL BE SCANNING THE LIVE, THE POST &amp; THE PRE MARKET "
+            "EVERY SECOND.")
         self.assertNotIn("\\n", value)
         view = find_view(self.root, "@+id/scan_cadence")
         margin = view.get(f"{ANDROID_NS}layout_marginTop")
@@ -834,7 +844,7 @@ class CadencePlacementTest(unittest.TestCase):
     def test_the_sentence_still_appears_in_exactly_one_resource(self):
         # v1.8.3 wording: the owner's dictated sentence, in caps.
         lines = [line for line in self.strings.splitlines()
-                 if "SCANNING THE LIVE/POST/PRE MARKET EVERY SECOND" in line]
+                 if "SCANNING THE LIVE, THE POST &amp; THE PRE MARKET" in line]
         self.assertEqual(len(lines), 1, lines)
 
 
@@ -1392,8 +1402,8 @@ class VersionTest(unittest.TestCase):
         # gap equals its top gap, and the footer is the owner's exact
         # LIVE/POST/PRE sentence.
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="1.8.3"', manifest)
-        self.assertIn('android:versionCode="37"', manifest)
+        self.assertIn('android:versionName="1.8.4"', manifest)
+        self.assertIn('android:versionCode="38"', manifest)
         # The changelog entry ties these user-visible changes to the build.
         readme = (ROOT / "android" / "README.md").read_text(encoding="utf-8")
         self.assertIn("v1.7.9, owner order 2026-10-20", readme)
@@ -1401,6 +1411,7 @@ class VersionTest(unittest.TestCase):
         self.assertIn("Version 1.8.1, versionCode 35", readme)
         self.assertIn("Version 1.8.2, versionCode 36", readme)
         self.assertIn("Version 1.8.3, versionCode 37", readme)
+        self.assertIn("Version 1.8.4, versionCode 38", readme)
         layout = LAYOUT.read_text(encoding="utf-8")
         strings = STRINGS.read_text(encoding="utf-8")
         main = MAIN.read_text(encoding="utf-8")

@@ -49,7 +49,7 @@ LAYOUT = (ROOT / "android" / "app" / "src" / "main" / "res" / "layout"
 
 # Owner order 2026-10-21 13:08 (v1.8.3): the exact replacement the owner
 # dictated, in caps, for the footer sentence.
-CADENCE = "QUANT WILL BE SCANNING THE LIVE/POST/PRE MARKET EVERY SECOND."
+CADENCE = "QUANT WILL BE SCANNING THE LIVE, THE POST &amp; THE PRE MARKET EVERY SECOND."
 DISPLAY_CADENCE = 1000
 
 
@@ -132,22 +132,21 @@ class SearchPanelPaddingTest(unittest.TestCase):
 
     def setUp(self):
         self.root = layout_root()
+        self.main = MAIN.read_text(encoding="utf-8")
 
     def test_the_empty_rows_and_status_are_hidden(self):
-        # Empty children must not leave their top margins behind, or the
-        # panel's bottom gap is bigger than its top gap. Both start gone;
-        # MainActivity shows them only when it has something to put in them.
-        results = find_view(self.root, "@+id/search_results")
-        status = find_view(self.root, "@+id/search_status")
-        self.assertEqual(results.get(f"{ANDROID_NS}visibility"), "gone")
-        self.assertEqual(status.get(f"{ANDROID_NS}visibility"), "gone")
+        # v1.8.3 gap law: empty children must not open their top margins as a
+        # hole. Remembered as a content rule after the 13:30 regression the
+        # layout-level GONE caused: the LAYOUT stays VISIBLE and MainActivity
+        # flips visibility exactly when the content arrives or empties.
+        self.assertIn("searchResults.setVisibility(visible.isEmpty()", self.main)
+        self.assertIn("searchStatus.setVisibility", self.main)
 
     def test_the_box_gaps_above_and_below_are_equal(self):
-        # The box's marginTop (10dp above it) and the panel's own 16dp
-        # bottom padding are the gap pair; the box's 10dp padding keeps its
-        # text where it was.
+        # v1.8.4 (owner 14:19): the box carries no marginTop, so the panel's
+        # own 16dp padding is the same air above and below it.
         box = find_view(self.root, "@+id/search_input")
-        self.assertEqual(box.get(f"{ANDROID_NS}layout_marginTop"), "10dp")
+        self.assertIsNone(box.get(f"{ANDROID_NS}layout_marginTop"))
 
 
 class LeaderLineTest(unittest.TestCase):
@@ -164,18 +163,18 @@ class LeaderLineTest(unittest.TestCase):
         # "(" opens at B, ")" closes after T, and the ticker keeps exactly one
         # space before the group: the three fields read as one block.
         self.assertIn('sb.append(" (B=");', self.main)
-        self.assertIn('sb.append("  S=");', self.main)
-        self.assertIn('"  T=%,d)"', self.main)
+        self.assertIn('sb.append(" S=");', self.main)
+        self.assertIn('" T=%,d)"', self.main)
         self.assertIn('" (T=%,d)"', self.main)
-        self.assertNotIn('"  (B', self.main)
-        # The bare form the group replaced is gone, and so is the side without
-        # its "=" (owner order 2026-10-20, third note).
+        # Owner order 2026-10-21 13:07: the tail opens with one space before
+        # the price, and with the 14:19 gap fix the box gaps come from the
+        # panel padding, not margins.
         self.assertNotIn('sb.append(" B")', self.main)
         self.assertNotIn('sb.append(" (B")', self.main)
         self.assertNotIn('sb.append("  S")', self.main)
 
     def test_the_money_line_opens_after_the_volumes(self):
-        volumes = self.main.index('"  T=%,d)"')
+        volumes = self.main.index('" T=%,d)"')
         money = self.main.index('"PKR %,.2f"')
         self.assertLess(volumes, money)
         self.assertIn("sb.append('\\n');", self.main[volumes:money])
