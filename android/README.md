@@ -635,6 +635,18 @@ to sixty seconds. The status tile therefore also carries the app's own
   with the exact wording the owner dictated: "QUANT WILL BE SCANNING THE
   LIVE/POST/PRE MARKET EVERY SECOND." Version 1.8.3, versionCode 37.
 
+**Built and delivered 2026-10-21 (v1.8.3):** the signed v1.8.3 APK was built
+on GitHub Actions from the merge of PR #66, downloaded from the run's
+artifact and copied to
+`C:/Users/rehan/OneDrive/Desktop/QuantOfRehan-v1.8.3.apk`. SHA-256
+`01260b5dd8f0efc6904cb626cbf07b7cf4f70f21b22df3327149939d728c5750`,
+and the run's `badging.txt` reads back `pk.quantofrehan`,
+`versionCode="37"`, `versionName="1.8.3"`, with the launchable
+`MainActivity`. The shipped resource table was read back and carries the
+dictated footer sentence, with the retired wording gone from the APK, and
+the Android tests (89 across app ui, card copy and the render gate) were
+green before the build.
+
 **Built and delivered 2026-10-21 (v1.8.2):** the signed v1.8.2 APK was built
 on GitHub Actions from the merge of PR #64, downloaded from the run's
 artifact and copied to
