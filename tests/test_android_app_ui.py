@@ -776,12 +776,9 @@ class CadencePlacementTest(unittest.TestCase):
     the owner's sentence with no air smuggled into it.
     """
 
-    # Owner order 2026-10-21 (v1.8.2): the quant also scans the market's own
-    # pre-market and post-market windows on the live broker feed, superseding
-    # the 2026-10-11 watch-only rule; the sentence names them.
-    CADENCE = ("Quant will be scanning the market every second "
-               "when the market is open, "
-               "and in the pre-market and post-market windows too.")
+    # Owner order 2026-10-21 13:08 (v1.8.3): the exact replacement the owner
+    # dictated, in caps, for the footer sentence.
+    CADENCE = "QUANT WILL BE SCANNING THE LIVE/POST/PRE MARKET EVERY SECOND."
 
     def setUp(self):
         self.layout = LAYOUT.read_text(encoding="utf-8")
@@ -835,8 +832,9 @@ class CadencePlacementTest(unittest.TestCase):
                          signal_card.get(f"{ANDROID_NS}layout_marginTop"))
 
     def test_the_sentence_still_appears_in_exactly_one_resource(self):
+        # v1.8.3 wording: the owner's dictated sentence, in caps.
         lines = [line for line in self.strings.splitlines()
-                 if "scanning the market every second" in line]
+                 if "SCANNING THE LIVE/POST/PRE MARKET EVERY SECOND" in line]
         self.assertEqual(len(lines), 1, lines)
 
 
@@ -1389,18 +1387,20 @@ class HeaderCopyTest(unittest.TestCase):
 
 class VersionTest(unittest.TestCase):
     def test_the_version_is_the_one_that_ships_these_changes(self):
-        # v1.8.2 is the 2026-10-21 afternoon law on the phone's own copy: the
-        # cadence sentence names the pre-market and post-market windows the
-        # quant now scans on the live broker feed.
+        # v1.8.3 is the 2026-10-21 13:07-13:08 pass: the pinned search line
+        # keeps one space before its price, the closed search panel's bottom
+        # gap equals its top gap, and the footer is the owner's exact
+        # LIVE/POST/PRE sentence.
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="1.8.2"', manifest)
-        self.assertIn('android:versionCode="36"', manifest)
+        self.assertIn('android:versionName="1.8.3"', manifest)
+        self.assertIn('android:versionCode="37"', manifest)
         # The changelog entry ties these user-visible changes to the build.
         readme = (ROOT / "android" / "README.md").read_text(encoding="utf-8")
         self.assertIn("v1.7.9, owner order 2026-10-20", readme)
         self.assertIn("Version 1.8.0, versionCode 34", readme)
         self.assertIn("Version 1.8.1, versionCode 35", readme)
         self.assertIn("Version 1.8.2, versionCode 36", readme)
+        self.assertIn("Version 1.8.3, versionCode 37", readme)
         layout = LAYOUT.read_text(encoding="utf-8")
         strings = STRINGS.read_text(encoding="utf-8")
         main = MAIN.read_text(encoding="utf-8")

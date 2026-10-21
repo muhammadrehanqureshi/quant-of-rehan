@@ -1062,8 +1062,8 @@ public class MainActivity extends Activity {
             // takes no colour: only a real sign may turn a row green or
             // red (SO-3). A price without a move is neutral ink.
             String tail = quote.changePct == null
-                    ? String.format(Locale.US, "   PKR %,.2f", quote.price)
-                    : String.format(Locale.US, "   PKR %,.2f  %+.2f%%",
+                    ? String.format(Locale.US, " PKR %,.2f", quote.price)
+                    : String.format(Locale.US, " PKR %,.2f  %+.2f%%",
                             quote.price, quote.changePct);
             SpannableString styled = new SpannableString(symbol + tail);
             styled.setSpan(new ForegroundColorSpan(getColor(quote.changePct == null
@@ -1134,8 +1134,8 @@ public class MainActivity extends Activity {
                 new android.text.SpannableStringBuilder(
                         selectedBase == null ? "" : selectedBase);
         String tail = quote.changePct == null
-                ? String.format(Locale.US, "   PKR %,.2f", quote.price)
-                : String.format(Locale.US, "   PKR %,.2f  %+.2f%%",
+                ? String.format(Locale.US, " PKR %,.2f", quote.price)
+                : String.format(Locale.US, " PKR %,.2f  %+.2f%%",
                         quote.price, quote.changePct);
         int from = styled.length();
         styled.append(tail);
