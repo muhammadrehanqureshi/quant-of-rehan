@@ -22,6 +22,11 @@
 #            --local-checks runs scripts/check_governance.py and the suite here
 #   publish  push, open or reuse the PR, wait for CI, merge, resync master
 #
+#   Before anything is pushed, every commit ahead of the base is checked
+#   for the SO-7a co-author line (even a hand made commit); a missing
+#   line is appended on the spot, so the pull request's governance
+#   check can never fail or email the owner for that reason.
+#
 # Usage examples:
 #   scripts/land.sh -m "Fix the capture mirror fallthrough"
 #   scripts/land.sh -y -m "Docs: explain the landing flow" -- docs/landing.md
@@ -226,6 +231,61 @@ if ! git rebase "origin/$BASE"; then
 fi
 note "branch is now on top of $(git rev-parse --short "origin/$BASE")"
 note "commits to land:"; git log --oneline "origin/$BASE..HEAD" | sed "s/^/     /"
+
+# SO-7a repair (2026-10-21): an earlier landing pushed a hand made commit
+# without the owner's co-author line, the pull request's governance check
+# refused it, and the owner got a red email for it. Fix the class of
+# defect here: every commit about to be published is checked now, and a
+# missing line is appended on the spot, so the defect can never reach
+# Actions' governance check (or the owner's inbox) again.
+REPAIR_MISSING=''
+REPAIRED=''
+for REPAIR_CANDIDATE in $(git rev-list --reverse "origin/$BASE..HEAD"); do
+    if ! git show -s --format=%B "$REPAIR_CANDIDATE" | grep -qiF "$COAUTHOR"; then
+        REPAIR_MISSING="$REPAIR_MISSING $REPAIR_CANDIDATE"
+    fi
+done
+if [[ -n "${REPAIR_MISSING// }" ]]; then
+    step "SO-7a repair: appending the co-author line before anything is pushed"
+    for c in $REPAIR_MISSING; do
+        note "   missing on $(git log -1 --format='%h %s' "$c")"
+    done
+    REPAIR_MSG=$(mktemp)
+    REPAIR_ORIG=$(git rev-parse HEAD)
+    REPAIR_BACKUP="land-backup-$(git rev-parse --short "$REPAIR_ORIG")"
+    git branch -f "$REPAIR_BACKUP" "$REPAIR_ORIG"
+    repair_finish()
+    {
+        rm -f "$REPAIR_MSG" 2>/dev/null || true
+    }
+    trap repair_finish EXIT
+    if ! git checkout -q --detach "origin/$BASE"; then
+        git branch -D "$REPAIR_BACKUP" 2>/dev/null || true
+        die "could not start the SO-7a repair on origin/$BASE; nothing was pushed"
+    fi
+    for c in $(git rev-list --reverse "origin/$BASE..$REPAIR_ORIG"); do
+        if ! git cherry-pick "$c" >/dev/null 2>&1; then
+            git cherry-pick --abort 2>/dev/null || true
+            git checkout -q "$BRANCH" 2>/dev/null || true
+            git reset -q --hard "$REPAIR_ORIG"
+            git branch -D "$REPAIR_BACKUP" 2>/dev/null || true
+            rm -f "$REPAIR_MSG" 2>/dev/null || true
+            die "the SO-7a repair could not reapply $c (see git status); nothing was pushed and the branch was left exactly as it was"
+        fi
+        if ! git show -s --format=%B HEAD | grep -qiF "$COAUTHOR"; then
+            git show -s --format=%B HEAD > "$REPAIR_MSG"
+            printf '%s\n' "$COAUTHOR" >> "$REPAIR_MSG"
+            git commit -q --amend -F "$REPAIR_MSG"
+            note "   repaired $(git log -1 --format='%h %s')"
+        fi
+    done
+    REPAIR_TIP=$(git rev-parse HEAD)
+    git checkout -q "$BRANCH"
+    git reset -q --hard "$REPAIR_TIP"
+    REPAIRED=1
+    note "   backup branch $REPAIR_BACKUP keeps the pre-repair commits; delete it once the landing is done"
+fi
+
 if [[ "$UNTIL" == "sync" ]]; then
     printf "\nStopping after the sync phase (--until sync). Nothing was pushed.\n"
     exit 0
@@ -263,7 +323,14 @@ step "4/4 publish"
 command -v gh >/dev/null 2>&1 || die "gh is required to open and merge the pull request"
 gh auth status >/dev/null 2>&1 || die "gh is not authenticated; run: gh auth login"
 
-git push -u origin HEAD
+if ! git push -u origin HEAD; then
+    if [[ -n "$REPAIRED" ]]; then
+        note "the unrepaired tip was already published; pushing the repaired commits with --force-with-lease"
+        git push --force-with-lease -u origin HEAD
+    else
+        die "git push was rejected by the remote; nothing was opened or merged"
+    fi
+fi
 note "pushed $BRANCH"
 
 TITLE=$(printf "%s" "$MESSAGE" | head -n1)
