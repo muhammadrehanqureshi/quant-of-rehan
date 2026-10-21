@@ -215,16 +215,35 @@
                 android:textSize="13sp"/>
         </RelativeLayout>
 
+        <!-- Owner order 2026-10-21 (15:35): the search tile is bracketed by
+             the same diamond rule as every other tile, one ABOVE it as well
+             as the brand rule below it. The top rule belongs to the panel
+             (it leaves with it), so the closed console keeps its single
+             brand rule under the header exactly as before. -->
+        <include
+            android:id="@+id/rule_before_search"
+            layout="@layout/qor_rule"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:visibility="gone"/>
+
         <!-- Owner order 2026-10-21 (13:07 report): hidden children must not
              leave their margins behind, or the closed panel's bottom gap is
              bigger than its top gap; the closed panel's own 10dp paddings
-             above and below the box are then the gap, and they are equal. -->
+             above and below the box are then the gap, and they are equal.
+
+             Owner order 2026-10-21 (15:35): and the two children start GONE
+             in the layout, not only through the code that flips them, so an
+             open panel can never show a 6dp or 8dp margin before its first
+             render. MainActivity still sets their visibility from their
+             content on every pass, which is the v1.8.4 fix kept. -->
         <LinearLayout
             android:id="@+id/search_panel"
             style="@style/QorPanel"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="14dp"
+            android:layout_marginTop="12dp"
             android:orientation="vertical"
             android:visibility="gone">
 
@@ -235,16 +254,26 @@
                  v1.8.3 fix kept, its layout regression reverted separately). -->
             <!-- Owner order 2026-10-21 (15:15): the box is not a heading, so
                  it carries the body's 13sp as well. Rows under it match, in
-                 MainActivity.styleSearchRow. -->
+                 MainActivity.styleSearchRow.
+
+                 Owner order 2026-10-21 (15:35): the box's own air is the same
+                 above and below its text. includeFontPadding off takes the
+                 font's descent padding out of the measured height and
+                 center_vertical centres the one line in what is left, which
+                 is the uneven gap he saw inside the box; the panel's 16dp is
+                 then the same gap above and below the box. -->
             <EditText
                 android:id="@+id/search_input"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:background="@drawable/field_bg"
+                android:gravity="center_vertical"
                 android:hint="@string/search_hint"
                 android:imeOptions="actionSearch"
+                android:includeFontPadding="false"
                 android:inputType="textCapCharacters"
                 android:maxLines="1"
+                android:minHeight="0dp"
                 android:padding="10dp"
                 android:textColor="@color/text_bright"
                 android:textColorHint="@color/text_soft"
@@ -255,7 +284,8 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="6dp"
-                android:orientation="vertical"/>
+                android:orientation="vertical"
+                android:visibility="gone"/>
 
             <TextView
                 android:id="@+id/search_status"
@@ -263,7 +293,8 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
-                android:gravity="center"/>
+                android:gravity="center"
+                android:visibility="gone"/>
         </LinearLayout>
 
         <!-- brand rule: line, diamond, line (from the logo frame). Defined
@@ -431,7 +462,7 @@
             style="@style/QorPanel"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="14dp"
+            android:layout_marginTop="12dp"
             android:orientation="vertical"
             android:visibility="gone">
 
@@ -476,6 +507,19 @@
                 android:layout_marginTop="8dp"
                 android:text="@string/btn_arm"/>
         </LinearLayout>
+
+        <!-- Owner order 2026-10-21 (15:35): the settings tile is bracketed
+             too. The brand rule above it already stands while the menu is
+             open; this is the same diamond rule below it, so the menu reads
+             as one tile with a rule on each side instead of a rule on one.
+             It belongs to the menu and leaves with it. -->
+        <include
+            android:id="@+id/rule_after_settings"
+            layout="@layout/qor_rule"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:visibility="gone"/>
 
         <!-- ══════════ market card ══════════
              Third box, same shape as the two above: KSE100 points and
@@ -524,24 +568,28 @@
 
                  Owner order 2026-10-21 (15:15): and they do it at the body's
                  size, not at a smaller one. 13sp was measured against the
-                 bundled LEMON MILK Light: the widest rank line the card has
-                 shown, "2. CNERGY (B=12,626,814 S=25,253,629 T=37,880,443)",
-                 advances 355.1dp at 13sp, so the row wins its width from the
-                 tile instead of losing type: the -8dp side margins let it use
-                 8dp of each 16dp panel padding (347dp of line), and the -0.02
-                 tracking tightens the same row to 342.1dp. Nine digit counts
-                 still fit at 344.5dp. The size never shrinks; the tracking is
-                 what gives way, and only this row pays it. -->
+                 bundled LEMON MILK Light, so the row wins its width from the
+                 tile instead of losing type: the -10dp side margins let it
+                 use 6dp of each 16dp panel padding, and its own tracking is
+                 what gives way when the line is longer.
+
+                 Owner order 2026-10-21 (15:35): the volume group gained a
+                 comma and an ampersand, "(B=..., S=... & T=...)", which is
+                 three characters more, and 13sp asks for them: the widest
+                 line the card has shown advances 372.6dp untracked and
+                 348.5dp at -0.035, against the 358dp of line the tile gives
+                 it. Nine digit counts land at 350.6dp. The size never
+                 shrinks, and no digit is ever dropped. -->
             <TextView
                 android:id="@+id/market_leaders"
                 style="@style/QorValue"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginLeft="-8dp"
-                android:layout_marginRight="-8dp"
+                android:layout_marginLeft="-10dp"
+                android:layout_marginRight="-10dp"
                 android:layout_marginTop="8dp"
                 android:gravity="center"
-                android:letterSpacing="-0.02"
+                android:letterSpacing="-0.035"
                 android:text="@string/market_leaders_waiting"/>
 
         </LinearLayout>
