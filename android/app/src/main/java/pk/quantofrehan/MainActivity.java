@@ -1085,7 +1085,11 @@ public class MainActivity extends Activity {
         } else {
             row.setText(symbol);
         }
-        row.setTextSize(15f);
+        // Owner order 2026-10-21 (15:15): a result row is body text, so it
+        // carries the same 13sp as every other non-heading line, the size the
+        // signal tile's own sentence uses. Its tracking is its own, a list of
+        // tickers rather than a sentence.
+        row.setTextSize(13f);
         row.setTextColor(getColor(R.color.text_bright));
         row.setLetterSpacing(0.12f);
         row.setPadding(dp(10), dp(9), dp(10), dp(9));
@@ -1318,8 +1322,12 @@ public class MainActivity extends Activity {
                 // "(" opens at B and ")" closes after T: one bracketed group.
                 // Owner order 2026-10-21 (14:51): the ticker-to-group gap and
                 // the field separators are non-breaking (U+00A0), so a wide
-                // row can never wrap mid group; the 11.5sp size makes the
-                // widest row fit the panel outright.
+                // row can never wrap mid group.
+                // Owner order 2026-10-21 (15:15): the row keeps the body's
+                // 13sp. The width comes from the tile, which the leaders view
+                // wins with its -8dp side margins and -0.02 tracking, so the
+                // one size rule never costs a character and the row never
+                // shrinks to fit.
                 sb.append("\u00A0(B=");
                 int buyFrom = sb.length();
                 sb.append(String.format(Locale.US, "%,d", row.buy));
