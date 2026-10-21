@@ -617,6 +617,15 @@ to sixty seconds. The status tile therefore also carries the app's own
   line is a spannable now, and the search glass moves a further 10% of its
   own 42dp box to the right (net 62.16dp).
   Version 1.8.1, versionCode 35.
+- v1.8.2, owner order 2026-10-21 (afternoon, superseding the 2026-10-11
+  watch-only rule): the quant scans the market's own pre-market (09:00-09:15)
+  and post-market (Mon-Thu 15:32-15:49, Friday 16:32-16:49) windows on the
+  live broker feed every second, and the phone's cadence sentence says so:
+  "Quant will be scanning the market every second when the market is open,
+  and in the pre-market and post-market windows too." The market-open,
+  break and closed notifications keep the owner's exact 2026-10-11 wording;
+  they name the exchange's state, which the pre and post windows never
+  change. Version 1.8.2, versionCode 36.
 
 **Built and delivered 2026-10-19 (v1.7.7):** the signed v1.7.7 APK was built
 from this checkout with the toolchain above and copied to
