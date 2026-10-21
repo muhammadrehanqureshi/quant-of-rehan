@@ -33,6 +33,12 @@ from __future__ import annotations
 import unittest
 from pathlib import Path
 
+from tests.test_android_app_ui import (  # noqa: E402 - shared layout helpers
+    ANDROID_NS,
+    find_view,
+    layout_root,
+)
+
 ROOT = Path(__file__).resolve().parents[1]
 MAIN = (ROOT / "android" / "app" / "src" / "main" / "java" / "pk"
         / "quantofrehan" / "MainActivity.java")
@@ -41,12 +47,9 @@ STRINGS = (ROOT / "android" / "app" / "src" / "main" / "res" / "values"
 LAYOUT = (ROOT / "android" / "app" / "src" / "main" / "res" / "layout"
           / "activity_main.xml")
 
-# Owner order 2026-10-21 (v1.8.2): the quant also scans the market's own
-# pre-market and post-market windows on the live broker feed, superseding the
-# 2026-10-11 watch-only rule; the owner's sentence names them.
-CADENCE = ("Quant will be scanning the market every second "
-           "when the market is open, "
-           "and in the pre-market and post-market windows too.")
+# Owner order 2026-10-21 13:08 (v1.8.3): the exact replacement the owner
+# dictated, in caps, for the footer sentence.
+CADENCE = "QUANT WILL BE SCANNING THE LIVE/POST/PRE MARKET EVERY SECOND."
 DISPLAY_CADENCE = 1000
 
 
@@ -101,6 +104,50 @@ class CadenceSentenceTest(unittest.TestCase):
 
     def test_the_retired_wording_is_gone(self):
         self.assertNotIn("during market open", STRINGS.read_text(encoding="utf-8"))
+
+
+class PinnedLineSpaceTest(unittest.TestCase):
+    """Owner order 2026-10-21 13:07: the pinned search line's tail opens with
+    ONE space before the PKR label, never the three the first version had."""
+
+    def setUp(self):
+        self.main = MAIN.read_text(encoding="utf-8")
+
+    def test_the_search_row_tail_keeps_one_space_before_the_price(self):
+        self.assertIn('String.format(Locale.US, " PKR %,.2f", quote.price)',
+                      self.main)
+        self.assertNotIn('"   PKR %,.2f"', self.main)
+
+    def test_both_tail_formatters_agree_on_the_single_space(self):
+        # styleSearchRow and paintSelectedLine format the same tail; a
+        # spacing law that one obeys and the other does not would tear the
+        # tile between its list rows and its pinned detail line.
+        occurrences = self.main.count('" PKR %,.2f"')
+        self.assertGreaterEqual(occurrences, 2, occurrences)
+
+
+class SearchPanelPaddingTest(unittest.TestCase):
+    """Owner order 2026-10-21 13:07: the closed search panel's bottom gap
+    equals its top gap."""
+
+    def setUp(self):
+        self.root = layout_root()
+
+    def test_the_empty_rows_and_status_are_hidden(self):
+        # Empty children must not leave their top margins behind, or the
+        # panel's bottom gap is bigger than its top gap. Both start gone;
+        # MainActivity shows them only when it has something to put in them.
+        results = find_view(self.root, "@+id/search_results")
+        status = find_view(self.root, "@+id/search_status")
+        self.assertEqual(results.get(f"{ANDROID_NS}visibility"), "gone")
+        self.assertEqual(status.get(f"{ANDROID_NS}visibility"), "gone")
+
+    def test_the_box_gaps_above_and_below_are_equal(self):
+        # The box's marginTop (10dp above it) and the panel's own 16dp
+        # bottom padding are the gap pair; the box's 10dp padding keeps its
+        # text where it was.
+        box = find_view(self.root, "@+id/search_input")
+        self.assertEqual(box.get(f"{ANDROID_NS}layout_marginTop"), "10dp")
 
 
 class LeaderLineTest(unittest.TestCase):
