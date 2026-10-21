@@ -39,6 +39,7 @@ from datetime import datetime
 from src import config
 from src.data.sessions import (
     MarketState,
+    is_scan_window,
     market_phase,
     market_state_at,
     session_window_text,
@@ -127,10 +128,12 @@ def decide(moment: datetime,
     state = state_of(moment)
     window = session_window_text(moment.date())
 
-    # Owner order 2026-10-11: pre-market is watched and reported, never
-    # scanned. Checked before the phase, because 09:00 to 09:15 is PRE_OPEN by
-    # the band law and must still be named as the pre-market window.
+    # Owner order 2026-10-21 (superseding 2026-10-11): pre-market IS a
+    # scan window, on the live broker feed, every second.
     if state == STATE_PRE_MARKET:
+        if is_scan_window(moment):
+            return ACTION_SCAN, (f"{STATE_PRE_MARKET}: pre-market scanning is "
+                                 f"on (owner order 2026-10-21), live broker feed")
         return ACTION_WAIT, (f"{STATE_PRE_MARKET}: the pre-market window is "
                              f"never scanned (owner order 2026-10-11)")
 
@@ -159,6 +162,14 @@ def decide(moment: datetime,
         return ACTION_SCAN, f"{PHASE_OPEN}: inside the session (today {window})"
 
     if state == STATE_POST_MARKET:
+        # Owner order 2026-10-21 (superseding 2026-10-11): post-market IS
+        # a scan window too. Finalize remains the scheduled finalize's job
+        # and stays strictly after the close; the loop outside a band
+        # neither scans nor finalizes.
+
+        if is_scan_window(moment):
+            return ACTION_SCAN, (f"{STATE_POST_MARKET}: post-market scanning is "
+                                 f"on (owner order 2026-10-21), live broker feed")
         return ACTION_FINALIZE, (f"{STATE_POST_MARKET}: the session has "
                                  f"closed; post-market is finalize-only")
 

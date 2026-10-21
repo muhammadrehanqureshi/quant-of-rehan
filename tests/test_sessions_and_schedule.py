@@ -171,16 +171,21 @@ class TestMarketStateLaw(unittest.TestCase):
         self.assertIsNone(post_market_window(date(2026, 8, 14)))
 
     def test_only_the_market_state_may_be_scanned(self):
+        # OWNER 2026-10-21: MARKET scans always; the pre and post windows
+        # scan too (live broker feed), and the gaps plus the weekend never do.
         self.assertTrue(is_scan_window(at_karachi(2026, 10, 12, 11, 0)))
         for moment in (at_karachi(2026, 10, 12, 9, 5),
-                       at_karachi(2026, 10, 12, 9, 20),
                        at_karachi(2026, 10, 12, 15, 40),
-                       at_karachi(2026, 10, 9, 16, 40),
+                       at_karachi(2026, 10, 9, 16, 40)):
+            self.assertTrue(is_scan_window(moment), moment)
+        for moment in (at_karachi(2026, 10, 12, 9, 20),
+                       at_karachi(2026, 10, 12, 15, 31),
+                       at_karachi(2026, 10, 12, 15, 50),
                        at_karachi(2026, 10, 10, 11, 0)):
             self.assertFalse(is_scan_window(moment), moment)
         self.assertTrue(MarketState.MARKET.is_scan_window)
-        self.assertFalse(MarketState.PRE_MARKET.is_scan_window)
-        self.assertFalse(MarketState.POST_MARKET.is_scan_window)
+        self.assertTrue(MarketState.PRE_MARKET.is_scan_window)
+        self.assertTrue(MarketState.POST_MARKET.is_scan_window)
         self.assertFalse(MarketState.CLOSED.is_scan_window)
 
     def test_windows_are_the_owner_windows(self):

@@ -248,11 +248,17 @@ function bandsFor(k) {
 // needs its own window open edges, one per job the workflow could run.
 // marketPhase, /health and the phone texts keep reading bandsFor, whose
 // parity with src/data/sessions.py is tested.
-const WEEKDAY_WINDOWS = [[[9, 32], [12, 30]], [[12, 30], [15, 30]]];
+// Owner order 2026-10-21: pre and post market are LIVE scan windows too
+// (banking broker ticks at one second), so the morning window opens at
+// 08:55 PKT and a third Mon-Thu window covers 15:31 to 15:49 post-close.
+const WEEKDAY_WINDOWS = [[[8, 55], [12, 30]], [[12, 30], [15, 30]],
+                         [[15, 31], [15, 49]]];
+
+const FRIDAY_WINDOWS = [[[9, 17], [12, 0]], [[14, 32], [16, 30]]];
 
 function dispatchWindowsFor(k) {
   if (!isTradingDay(k)) return [];
-  return k.getUTCDay() === 5 ? FRIDAY_BANDS : WEEKDAY_WINDOWS;
+  return k.getUTCDay() === 5 ? FRIDAY_WINDOWS : WEEKDAY_WINDOWS;
 }
 
 function minutesOf(k) {
@@ -269,7 +275,6 @@ function bandsText(k) {
   return bands.map((b) => `${hmText(b[0])}-${hmText(b[1])}`).join(", ");
 }
 
-// ------------------------------------------------------------------
 // Punctual band dispatch (owner audit, 2026-10-19).
 //
 // GitHub's cron queue delivers schedule events hours late in busy periods:

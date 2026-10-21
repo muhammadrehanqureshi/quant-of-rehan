@@ -72,11 +72,13 @@ class TestIdleStates(unittest.TestCase):
         self.assert_sleeps_without_network(
             at_karachi(2026, 8, 14, 11, 0), "not a PSX trading day")
 
-    def test_pre_market_is_idle_and_never_scanned(self):
-        # Owner order 2026-10-11: 09:00-09:15 is the pre-market window, and
-        # the quant never scans in it.
-        self.assert_sleeps_without_network(
-            at_karachi(2026, 10, 12, 9, 0), "PRE_MARKET")
+    def test_pre_market_scan_window_runs_without_network(self):
+        # Owner order 2026-10-21 (superseding 2026-10-11): 09:00-09:15
+        # scans on the live broker feed, without a portal probe.
+        decision = gate.session_gate(at_karachi(2026, 10, 12, 9, 0))
+        self.assertTrue(decision.should_run)
+        self.assertIn("PRE_MARKET", decision.reason)
+        self.assertIn("2026-10-21", decision.reason)
 
     def test_between_pre_market_and_the_open_is_idle(self):
         # 09:15-09:32 belongs to neither window.
@@ -88,18 +90,24 @@ class TestIdleStates(unittest.TestCase):
         self.assert_sleeps_without_network(
             at_karachi(2026, 10, 9, 13, 0), "BREAK")
 
-    def test_post_market_is_idle_and_never_scanned(self):
-        self.assert_sleeps_without_network(
-            at_karachi(2026, 10, 12, 15, 45), "POST_MARKET")
+    def test_post_market_scan_window_runs_without_network(self):
+        # Owner order 2026-10-21: post-market scans on the live feed too.
+        decision = gate.session_gate(at_karachi(2026, 10, 12, 15, 45))
+        self.assertTrue(decision.should_run)
+        self.assertIn("POST_MARKET", decision.reason)
+        self.assertIn("2026-10-21", decision.reason)
 
     def test_the_two_minute_gap_after_the_close_is_idle(self):
         # 15:30-15:32 is the owner's strict gap: no window owns it.
         self.assert_sleeps_without_network(
             at_karachi(2026, 10, 12, 15, 31), "POST_CLOSE")
 
-    def test_friday_post_market_is_idle(self):
-        self.assert_sleeps_without_network(
-            at_karachi(2026, 10, 9, 16, 40), "POST_MARKET")
+    def test_friday_post_market_scan_window_runs(self):
+        # Owner order 2026-10-21: Friday's own post window (16:32-16:49)
+        # scans like any other.
+        decision = gate.session_gate(at_karachi(2026, 10, 9, 16, 40))
+        self.assertTrue(decision.should_run)
+        self.assertIn("POST_MARKET", decision.reason)
 
     def test_idle_decisions_report_the_next_edge(self):
         decision = gate.session_gate(SATURDAY)
@@ -108,26 +116,25 @@ class TestIdleStates(unittest.TestCase):
 
 
 class TestOwnerScanWindowOrder(unittest.TestCase):
-    """Owner order 2026-10-11: scan only in MARKET, never pre or post market.
-
-    The windows are checked independently of the band law, so a future band
-    change cannot quietly re-enable scanning in them.
+    """Owner order 2026-10-21: the pre and post windows scan on the live
+    broker feed. The refusal half of the 2026-10-11 order is superseded;
+    the identity of the windows is not (2026-10-21's gate defers to the one
+    is_scan_window answer, so a future law change stays a one file edit).
     """
 
-    def test_pre_market_scan_is_refused_and_names_the_order(self):
+    def test_pre_market_scan_runs_and_names_the_order(self):
         decision = gate.session_gate(at_karachi(2026, 10, 12, 9, 5))
-        self.assertFalse(decision.should_run)
+        self.assertTrue(decision.should_run)
         self.assertIn("PRE_MARKET", decision.reason)
-        self.assertIn("never scanned", decision.reason)
-        self.assertIn("2026-10-11", decision.reason)
+        self.assertIn("2026-10-21", decision.reason)
 
-    def test_post_market_scan_is_refused_and_names_the_order(self):
+    def test_post_market_scan_runs_and_names_the_order(self):
         for moment in (at_karachi(2026, 10, 12, 15, 40),
                        at_karachi(2026, 10, 9, 16, 40)):
             decision = gate.session_gate(moment)
-            self.assertFalse(decision.should_run, moment)
+            self.assertTrue(decision.should_run, moment)
             self.assertIn("POST_MARKET", decision.reason)
-            self.assertIn("never scanned", decision.reason)
+            self.assertIn("2026-10-21", decision.reason)
 
     def test_finalize_is_allowed_in_the_post_market_window(self):
         # The finalize crons fire at 15:47 and 16:47 PKT, inside the
@@ -258,12 +265,15 @@ class TestWeekendToOpenTransition(unittest.TestCase):
         (at_karachi(2026, 10, 10, 16, 0), False),   # Saturday, after hours
         (at_karachi(2026, 10, 11, 10, 0), False),   # Sunday
         (at_karachi(2026, 10, 11, 15, 0), False),   # Sunday
-        (at_karachi(2026, 10, 12, 9, 0), False),    # Monday pre-open
-        (at_karachi(2026, 10, 12, 9, 31), False),   # one minute before open
+        (at_karachi(2026, 10, 12, 9, 0), False),    # Monday, before pre-market
+        (at_karachi(2026, 10, 12, 9, 5), True),     # pre-market scans (2026-10-21)
+        (at_karachi(2026, 10, 12, 9, 31), False),   # the law's morning gap sleeps
         (at_karachi(2026, 10, 12, 9, 32), True),    # THE 09:32 OPEN
         (at_karachi(2026, 10, 12, 10, 0), True),    # inside the session
         (at_karachi(2026, 10, 12, 15, 29), True),   # one minute before close
         (at_karachi(2026, 10, 12, 15, 30), False),  # the 15:30 close
+        (at_karachi(2026, 10, 12, 15, 45), True),   # post-market scans (2026-10-21)
+        (at_karachi(2026, 10, 12, 15, 50), False),  # after the post window
         (at_karachi(2026, 10, 12, 20, 0), False),   # Monday evening
     )
 

@@ -82,6 +82,7 @@ from src.data.sessions import (  # noqa: E402
     MarketState,
     as_karachi,
     band_bounds,
+    is_scan_window,
     is_trading_day,
     market_phase,
     market_state_at,
@@ -235,13 +236,19 @@ def session_gate(moment=None, *, probe: bool | None = None,
         return decide(False, f"{phase.value}: {day.isoformat()} has not closed "
                              f"yet ({session_window_text(day)})", PROBE_DISABLED)
 
-    # 3. Owner order 2026-10-11: the pre-market and post-market windows are
-    #    never scanned. This is deliberate and separate from the band check
-    #    below, so a future change to the bands can never quietly re-enable
-    #    scanning in those windows.
+    # 3. Owner order 2026-10-21 (superseding the 2026-10-11 order): the
+    #    pre/post windows scan on the live broker feed when the session law
+    #    says so. The gate defers to is_scan_window, the ONE answer, so a
+    #    future law change needs a future edit in one file only.
     scan_state = market_state_at(now)
     if scan_state is MarketState.PRE_MARKET \
             or scan_state is MarketState.POST_MARKET:
+        if is_scan_window(now):
+            return decide(True,
+                          f"{scan_state.value}: scanning is on in the pre and "
+                          f"post market (owner order 2026-10-21), live "
+                          f"broker feed, next band {upcoming or 'unknown'}",
+                          PROBE_DISABLED)
         return decide(False,
                       f"{scan_state.value}: the pre-market and post-market "
                       f"windows are never scanned (owner order 2026-10-11); "
