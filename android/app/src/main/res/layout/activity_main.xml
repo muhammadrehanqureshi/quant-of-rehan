@@ -156,8 +156,9 @@
                      6.3dp air wherever the gear is nudged to, plus the
                      further shifts the owner ordered that day and again
                      now: another 15% of its own box to the right at
-                     20:07 PKT (owner report 2026-10-20), on top of the
-                     existing search_shift_x, net 57.96dp.
+                     20:07 PKT (owner report 2026-10-20), then another 10% of
+                     its own box on 2026-10-21, on top of the existing
+                     search_shift_x, net 62.16dp.
 
                      Its glass is a vector stroke, not the old search.png
                      disc: a tinted bitmap turned the whole magnifier gold,
@@ -219,13 +220,6 @@
             android:layout_marginTop="14dp"
             android:orientation="vertical"
             android:visibility="gone">
-
-            <TextView
-                style="@style/QorLabel"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:gravity="center"
-                android:text="@string/search_volume_label"/>
 
             <EditText
                 android:id="@+id/search_input"

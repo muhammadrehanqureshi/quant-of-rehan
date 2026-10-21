@@ -247,7 +247,7 @@ public class MainActivity extends Activity {
     private String renderedQuery = "";
     /** The pinned symbol's latest B/S answer, so the selection line survives
      *  every price tick. Cleared when the selection is. */
-    private String selectedBase = "";
+    private CharSequence selectedBase = "";
     /**
      * The session date the relay last reported, in Karachi (SO-8).
      *
@@ -1047,9 +1047,10 @@ public class MainActivity extends Activity {
         if (selectedSymbol != null) {
             paintSelectedLine();
         } else {
-            searchStatus.setText(filtered.isEmpty()
-                    ? getString(R.string.search_empty)
-                    : getString(R.string.search_hint));
+            // Owner order 2026-10-21: neither a no-match nor an empty query
+            // prints a sentence under the box any more; the box's own hint
+            // and the rows are the whole answer.
+            searchStatus.setText("");
         }
     }
 
@@ -1102,12 +1103,20 @@ public class MainActivity extends Activity {
             // tail under it is restamped from the live quote every tick
             // (owner report 2026-10-20).
             selectedBase = ok
-                    ? line : getString(R.string.search_unavailable);
+                    ? line : getText(R.string.search_unavailable);
             paintSelectedLine();
         }));
     }
 
-    /** The pinned symbol's own line, restamped from its own live quote. */
+
+
+    /** The pinned symbol's own line, restamped from its own live quote.
+     *
+     * Owner order 2026-10-21: the fetched base is a spannable that keeps
+     * the green B and the red S from the fetch, so the live tail is
+     * appended to it rather than rebuilding the line from plain text,
+     * which would have dropped both colours on every tick.
+     */
     private void paintSelectedLine() {
         if (selectedSymbol == null || searchStatus == null) {
             return;
@@ -1116,24 +1125,28 @@ public class MainActivity extends Activity {
         if (quote == null) {
             // No fresh quote yet: the fetched detail stands alone, never a
             // guessed price (SO-3).
-            if (selectedBase != null && !selectedBase.isEmpty()) {
+            if (selectedBase != null && selectedBase.length() > 0) {
                 searchStatus.setText(selectedBase);
             }
             return;
         }
-        String base = selectedBase == null ? "" : selectedBase;
+        android.text.SpannableStringBuilder styled =
+                new android.text.SpannableStringBuilder(
+                        selectedBase == null ? "" : selectedBase);
         String tail = quote.changePct == null
                 ? String.format(Locale.US, "   PKR %,.2f", quote.price)
                 : String.format(Locale.US, "   PKR %,.2f  %+.2f%%",
                         quote.price, quote.changePct);
-        SpannableString styled = new SpannableString(base + tail);
-        int from = Math.max(0, styled.length() - tail.length());
+        int from = styled.length();
+        styled.append(tail);
         styled.setSpan(new ForegroundColorSpan(getColor(quote.changePct == null
                         ? R.color.text_soft
                         : quote.changePct >= 0 ? R.color.green_hi : R.color.red)),
                 from, styled.length(), 0);
         searchStatus.setText(styled);
     }
+
+
 
     private String latestSignalDisplay(String raw) {
         // Owner order 2026-10-20: a card stamped with another session is
