@@ -40,6 +40,8 @@
          it. The control stands to the LEFT of the gear and travels with it,
          so the gear's own 44.1dp offset (105% of 42dp) is the base and the
          owner's 15% (6.3dp) is added to it: 50.4dp. The 6.3dp margin keeps
-         the two boxes from overlapping while the translation is applied. -->
-    <dimen name="search_shift_x">57.96dp</dimen>
+         the two boxes from overlapping while the translation is applied.
+         Owner order 2026-10-21: another 10% of its own box (4.2dp) to the
+         right, so the previous 57.96 becomes 62.16dp. -->
+    <dimen name="search_shift_x">62.16dp</dimen>
 </resources>

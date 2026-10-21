@@ -773,10 +773,8 @@ public final class Watcher {
             }
             cb.done();
         });
-    }
-
-    interface StockCallback {
-        void done(boolean ok, String line);
+    }        interface StockCallback {
+        void done(boolean ok, android.text.SpannableString line);
     }
 
     /**
@@ -796,40 +794,54 @@ public final class Watcher {
                         + java.net.URLEncoder.encode(symbol, "UTF-8"), null);
                 JSONObject row = answer.optJSONObject("stock");
                 if (!answer.optBoolean("ok", false) || row == null) {
-                    cb.done(false, "");
+                    cb.done(false, null);
                     return;
                 }
                 StringBuilder sb = new StringBuilder(row.optString("symbol", symbol));
                 Double buy = numberOrNull(row, "buy_volume");
                 Double sell = numberOrNull(row, "sell_volume");
                 Double total = numberOrNull(row, "volume");
+                android.text.SpannableString styled = null;
                 if (buy != null && sell != null) {
                     // Owner order 2026-10-20 (third note): the EST tag after
                     // the total is gone from the search answer exactly as it
                     // is from the card. The numbers are the numbers, and the
                     // relay still labels the method in split_source for
                     // anyone reading the JSON (SO-3).
-                    sb.append(String.format(java.util.Locale.US,
-                            "  (B=%,.0f  S=%,.0f", buy, sell));
+                    // Owner order 2026-10-21: the buy count prints green and
+                    // the sell count red, the digits themselves, and the
+                    // spans travel with the line so the one-second restamp
+                    // keeps them. The money line is not built here any
+                    // more: paintSelectedLine restamps the live quote's own
+                    // price and percentage onto this same line every tick,
+                    // so the copy that lived here was the second print of
+                    // the same numbers and is retired.
+                    sb.append("  (B=");
+                    int buyFrom = sb.length();
+                    sb.append(String.format(java.util.Locale.US, "%,.0f", buy));
+                    int buyTo = sb.length();
+                    sb.append("  S=");
+                    int sellFrom = sb.length();
+                    sb.append(String.format(java.util.Locale.US, "%,.0f", sell));
+                    int sellTo = sb.length();
                     if (total != null) {
                         sb.append(String.format(java.util.Locale.US, "  T=%,.0f", total));
                     }
                     sb.append(')');
+                    styled = new android.text.SpannableString(sb);
+                    styled.setSpan(new android.text.style.ForegroundColorSpan(
+                            c.getColor(R.color.green)), buyFrom, buyTo, 0);
+                    styled.setSpan(new android.text.style.ForegroundColorSpan(
+                            c.getColor(R.color.red)), sellFrom, sellTo, 0);
                 } else if (total != null) {
                     sb.append(String.format(java.util.Locale.US, "  (T=%,.0f)", total));
+                    styled = new android.text.SpannableString(sb);
+                } else {
+                    styled = new android.text.SpannableString(sb);
                 }
-                Double price = numberOrNull(row, "price");
-                if (price != null) {
-                    sb.append(String.format(java.util.Locale.US, "\nPKR %,.2f", price));
-                }
-                Double pct = numberOrNull(row, "change_pct");
-                if (pct != null) {
-                    sb.append(String.format(java.util.Locale.US, "  %s %.2f%%",
-                            pct >= 0 ? "\u25B2" : "\u25BC", Math.abs(pct)));
-                }
-                cb.done(true, sb.toString());
+                cb.done(true, styled);
             } catch (Exception e) {
-                cb.done(false, "");
+                cb.done(false, null);
             }
         });
     }
