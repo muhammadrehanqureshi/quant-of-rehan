@@ -175,8 +175,11 @@ class LeaderLineTest(unittest.TestCase):
         # name, B, S and T on ONE line even at an unlucky width. Visible as
         # an NBSP escape: "\u00A0".
         self.assertIn('sb.append("\\u00A0(B=");', self.main)
-        self.assertIn('sb.append("\\u00A0S=");', self.main)
-        self.assertIn('"\\u00A0T=%,d)"', self.main)
+        # v1.8.7 (owner 15:35): a comma after B and an ampersand before T,
+        # each held to its neighbour by the same non-breaking space, so the
+        # group still cannot be broken across two lines.
+        self.assertIn('sb.append(",\\u00A0S=");', self.main)
+        self.assertIn('"\\u00A0&\\u00A0T=%,d)"', self.main)
         self.assertIn('"\\u00A0(T=%,d)"', self.main)
         # Owner order 2026-10-21 13:07: the tail opens with one space before
         # the price, and with the 14:19 gap fix the box gaps come from the
@@ -186,7 +189,7 @@ class LeaderLineTest(unittest.TestCase):
         self.assertNotIn('sb.append("  S")', self.main)
 
     def test_the_money_line_opens_after_the_volumes(self):
-        volumes = self.main.index('"\\u00A0T=%,d)"')
+        volumes = self.main.index('"\\u00A0&\\u00A0T=%,d)"')
         money = self.main.index('"PKR %,.2f"')
         self.assertLess(volumes, money)
         self.assertIn("sb.append('\\n');", self.main[volumes:money])

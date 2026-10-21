@@ -223,6 +223,14 @@ public class MainActivity extends Activity {
     /** The search control beside the gear (owner order 2026-10-20). */
     private ImageView btnSearch;
     private View searchPanel;
+    /**
+     * The diamond rules the two menus own (owner order 2026-10-21, 15:35):
+     * one above the search tile, one below the settings tile, so each menu is
+     * bracketed like every tile of the console. They travel with their panel:
+     * a closed menu leaves no rule behind.
+     */
+    private View ruleBeforeSearch;
+    private View ruleAfterSettings;
     private EditText searchInput;
     private LinearLayout searchResults;
     private TextView searchStatus;
@@ -337,6 +345,8 @@ public class MainActivity extends Activity {
         btnSettings = findViewById(R.id.btn_settings);
         btnSearch = findViewById(R.id.btn_search);
         searchPanel = findViewById(R.id.search_panel);
+        ruleBeforeSearch = findViewById(R.id.rule_before_search);
+        ruleAfterSettings = findViewById(R.id.rule_after_settings);
         searchInput = findViewById(R.id.search_input);
         searchResults = findViewById(R.id.search_results);
         searchStatus = findViewById(R.id.search_status);
@@ -486,6 +496,11 @@ public class MainActivity extends Activity {
             }
         }
         settingsPanel.setVisibility(open ? View.VISIBLE : View.GONE);
+        if (ruleAfterSettings != null) {
+            // The rule below the tile is the menu's own, so it arrives and
+            // leaves with the menu (owner order 2026-10-21, 15:35).
+            ruleAfterSettings.setVisibility(open ? View.VISIBLE : View.GONE);
+        }
         btnSettings.animate()
                 .rotation(open ? -90f : 0f)
                 .setDuration(GEAR_TURN_MS)
@@ -836,13 +851,13 @@ public class MainActivity extends Activity {
 
         if (actualSignals.isEmpty()) {
             signalList.setText(getString(R.string.signal_no_call));
-            signalList.setTextColor(getColor(R.color.text_soft));
-            signalList.setAlpha(0.65f);
         } else {
             signalList.setText(latestSignalDisplay(actualSignals));
-            signalList.setTextColor(getColor(R.color.text_bright));
-            signalList.setAlpha(1.0f);
         }
+        // The ink follows the sentence that is actually on screen, because a
+        // card the tile cannot show (another session's stamp) also lands here
+        // as the placeholder (owner order 2026-10-21, 15:35).
+        paintSignalInk(signalList.getText().toString());
 
         if (market != null) {
             // Every live display round carries the current relay snapshot;
@@ -970,6 +985,12 @@ public class MainActivity extends Activity {
         }
         settingsPanel.setVisibility(open ? View.GONE : settingsPanel.getVisibility());
         searchPanel.setVisibility(open ? View.VISIBLE : View.GONE);
+        if (ruleBeforeSearch != null) {
+            // The rule above the search tile is the panel's own, so the closed
+            // console keeps the single brand rule under the header (owner
+            // order 2026-10-21, 15:35).
+            ruleBeforeSearch.setVisibility(open ? View.VISIBLE : View.GONE);
+        }
         btnSearch.setImageTintList(ColorStateList.valueOf(getColor(
                 open ? R.color.gold_bright : R.color.gold)));
         if (open) {
@@ -1166,6 +1187,24 @@ public class MainActivity extends Activity {
 
 
 
+    /**
+     * Owner order 2026-10-21 (15:35): the placeholder is body ink.
+     *
+     * The tile used to pick its colour from whether the relay had sent a
+     * signal at all, so a signal the card could not show (one stamped with
+     * another session) reached the screen as "NO SIGNAL AVAILABLE RIGHT NOW"
+     * in the bright ink of a real call. The owner read it as white against
+     * every other line. The ink now follows the sentence that is actually on
+     * screen: the placeholder takes the soft body colour at full alpha, the
+     * same as KARACHI and the card's values, and only a real call is bright.
+     */
+    private void paintSignalInk(String display) {
+        boolean noCall = display.contentEquals(getString(R.string.signal_no_call));
+        signalList.setTextColor(getColor(noCall
+                ? R.color.text_soft : R.color.text_bright));
+        signalList.setAlpha(1.0f);
+    }
+
     private String latestSignalDisplay(String raw) {
         // Owner order 2026-10-20: a card stamped with another session is
         // not today's call. Before this, a Tuesday screen still showed
@@ -1324,20 +1363,20 @@ public class MainActivity extends Activity {
                 // the field separators are non-breaking (U+00A0), so a wide
                 // row can never wrap mid group.
                 // Owner order 2026-10-21 (15:15): the row keeps the body's
-                // 13sp. The width comes from the tile, which the leaders view
-                // wins with its -8dp side margins and -0.02 tracking, so the
-                // one size rule never costs a character and the row never
-                // shrinks to fit.
+                // 13sp. The width comes from the tile, never from the size.
+                // Owner order 2026-10-21 (15:35): the three quantities read
+                // as a sentence, with a comma after B and an ampersand
+                // before T: "(B=..., S=... & T=...)".
                 sb.append("\u00A0(B=");
                 int buyFrom = sb.length();
                 sb.append(String.format(Locale.US, "%,d", row.buy));
                 spans.add(new int[]{buyFrom, sb.length(), R.color.green});
-                sb.append("\u00A0S=");
+                sb.append(",\u00A0S=");
                 int sellFrom = sb.length();
                 sb.append(String.format(Locale.US, "%,d", row.sell));
                 spans.add(new int[]{sellFrom, sb.length(), R.color.red});
                 if (row.hasVolume()) {
-                    sb.append(String.format(Locale.US, "\u00A0T=%,d)", row.volume));
+                    sb.append(String.format(Locale.US, "\u00A0&\u00A0T=%,d)", row.volume));
                 } else {
                     // The quantities stand without the exchange's total.
                     sb.append(')');

@@ -668,6 +668,22 @@ to sixty seconds. The status tile therefore also carries the app's own
   their own: the 17sp index, the 11sp tile labels and the 12sp buttons.
   Version 1.8.6, versionCode 40.
 
+- v1.8.7, owner order 2026-10-21 15:35: the volume group reads as a sentence,
+  `2. CNERGY (B=12,626,814, S=25,253,629 & T=37,880,443)`: a comma after B and
+  an ampersand before T, both held by non-breaking spaces so the group still
+  cannot break across two lines. The two characters cost width at the body's
+  13sp, and the row takes it from the tile rather than from the type: 6dp of
+  each 16dp panel padding through its -10dp side margins plus -0.035
+  tracking, measured at 348.5dp of the 358dp line the tile gives it. The
+  search and settings tiles are bracketed like every other tile: a diamond
+  rule above the search panel and one below the settings panel, each arriving
+  and leaving with its own menu. The search box centres its one line with the
+  font's padding out of the measured height, so its air is the panel's 16dp
+  above and below, and its hidden rows now start GONE in the layout as well as
+  through the code that flips them. The placeholder sentence "NO SIGNAL
+  AVAILABLE RIGHT NOW" takes the body's soft ink instead of the bright ink it
+  inherited from the real-call branch. Version 1.8.7, versionCode 41.
+
 **Built and delivered 2026-10-21 (v1.8.6):** the signed v1.8.6 APK was built
 on GitHub Actions from the merge of PR #73 (run 39584915632), downloaded from
 the run's artifact and copied to
