@@ -211,7 +211,10 @@
                 android:textSize="10sp"/>
         </RelativeLayout>
 
-        <!-- ══════════ symbol search (hidden until the search icon is tapped) ══════════ -->
+        <!-- Owner order 2026-10-21 (13:07 report): hidden children must not
+             leave their margins behind, or the closed panel's bottom gap is
+             bigger than its top gap; the closed panel's own 10dp paddings
+             above and below the box are then the gap, and they are equal. -->
         <LinearLayout
             android:id="@+id/search_panel"
             style="@style/QorPanel"
@@ -241,7 +244,8 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="6dp"
-                android:orientation="vertical"/>
+                android:orientation="vertical"
+                android:visibility="gone"/>
 
             <TextView
                 android:id="@+id/search_status"
@@ -249,7 +253,8 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
-                android:gravity="center"/>
+                android:gravity="center"
+                android:visibility="gone"/>
         </LinearLayout>
 
         <!-- brand rule: line, diamond, line (from the logo frame). Defined

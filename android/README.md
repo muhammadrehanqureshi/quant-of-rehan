@@ -626,6 +626,14 @@ to sixty seconds. The status tile therefore also carries the app's own
   break and closed notifications keep the owner's exact 2026-10-11 wording;
   they name the exchange's state, which the pre and post windows never
   change. Version 1.8.2, versionCode 36.
+- v1.8.3, owner orders 2026-10-21 13:07-13:08: on the pinned search line
+  the gap between the volume group and the price is one space (it was
+  three), the closed search panel's bottom gap equals its top gap (the
+  results and status rows are hidden while empty, so their margins can no
+  longer open a hole under the box, and the panel's own 10dp above and
+  below the box are then the gap), and the footer sentence is replaced
+  with the exact wording the owner dictated: "QUANT WILL BE SCANNING THE
+  LIVE/POST/PRE MARKET EVERY SECOND." Version 1.8.3, versionCode 37.
 
 **Built and delivered 2026-10-21 (v1.8.2):** the signed v1.8.2 APK was built
 on GitHub Actions from the merge of PR #64, downloaded from the run's
