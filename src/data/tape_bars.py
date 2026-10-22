@@ -180,8 +180,6 @@ class TapeBars:
 
     day: date
     bars: dict[str, list[TapeBar]] = field(default_factory=dict)
-    #: Last genuine arrival time seen per symbol, including quiet-book snapshots.
-    observed_at: dict[str, datetime] = field(default_factory=dict)
     path: Path | None = None
     rows_seen: int = 0
     rows_rejected: int = 0
@@ -262,6 +260,139 @@ class TapeBars:
         }
 
 
+def prints(path: Path, symbol: str, day: date, as_of: datetime,
+           limit: int = 3000) -> dict:
+    """The tape's own trade events for one symbol, read the way bars are.
+
+    One event per row that carried a print the tape had not already given
+    us (the same rule the bar builder counts ``prints`` by, so a chart's
+    candles and its order marks can never disagree about what a print is).
+    Each event carries the venue's own facts at that moment: the last price,
+    the size of that last print, and the running order and share counters,
+    plus the print's own side ("B", "S" or "") classified by
+    tick_volume._trade_side, the same quote-then-tick rule that builds the
+    card's buy/sell split - one law of classification for the whole system.
+
+    Totals are the counters at their highest observed value (the venue's own
+    session sums, measured, never approximated here) plus the session's
+    volume split. A share moves to a side only through a window of the
+    running counter with real evidence, bounded by tick_volume's
+    MAX_WINDOW_SECONDS because an outage is not a side; everything else
+    stays unclassified and is reported as one, never dressed as a trade.
+    """
+    wanted = symbol.strip().upper()
+    if as_of.tzinfo is None:
+        as_of = as_of.replace(tzinfo=KARACHI)
+    prior: Mapping | None = None      # the last row of this symbol the walk kept
+    events: list[dict] = []
+    orders_seen = 0
+    volume_seen = 0.0
+    buy_volume = 0
+    sell_volume = 0
+    unclassified_volume = 0
+    windows = 0
+    quote_windows = 0
+    tick_windows = 0
+    gap_windows = 0
+    backward_windows = 0
+    for row in tick_volume.iter_ticks(path):
+        observed = str(row.get("scrip", "")).split(":", 1)[0].strip().upper()
+        if observed != wanted:
+            continue
+        trades = _number(row.get("trades"))
+        total = _number(row.get("volume"))
+        if trades is not None and trades >= 0:
+            orders_seen = max(orders_seen, int(trades))
+        if total is not None and total >= 0:
+            volume_seen = max(volume_seen, total)
+        moment = _moment(row, day)
+        if moment is None or moment.date() != day or moment >= as_of:
+            continue
+
+        # ---- this row's split window against the previous row kept: the
+        # identical rules tick_volume.session_flow enforces (differenced
+        # counter, quote-then-tick evidence, gap bound, backward counters
+        # refused), so the ledger and the card can never disagree.
+        previous_volume = _number(prior.get("volume")) if prior else None
+        if prior is None:
+            if total is not None and total > 0:
+                # Everything traded before the tape saw this symbol: the
+                # counter's own opening value. Reported as unclassified,
+                # never attributed to a side (mirrors session_flow).
+                unclassified_volume += int(total)
+        elif total is not None and total > 0 \
+                and total >= previous_volume:
+            delta = int(total) - int(previous_volume)
+            if delta > 0:
+                windows += 1
+                gap = tick_volume._window_gap(row, prior)
+                if gap is None or gap > tick_volume.MAX_WINDOW_SECONDS:
+                    gap_windows += 1
+                    unclassified_volume += delta
+                else:
+                    side, how = tick_volume._trade_side(row, prior)
+                    if side == "B":
+                        buy_volume += delta
+                    elif side == "S":
+                        sell_volume += delta
+                    else:
+                        unclassified_volume += delta
+                    if how.startswith("quote"):
+                        quote_windows += 1
+                    elif how.startswith("tick"):
+                        tick_windows += 1
+        elif total is not None and previous_volume is not None \
+                and total < previous_volume:
+            backward_windows += 1
+
+        price = _number(row.get("last"))
+        if not _is_new_print(row, prior) or price is None or price <= 0:
+            prior = row
+            continue
+
+        price_side = tick_volume._trade_side(row, prior)[0]
+        prior_price = _number(prior.get("last")) if prior else None
+        change = ("up" if prior_price is not None and price > prior_price
+                  else "down" if prior_price is not None and price < prior_price
+                  else "flat")
+        prior = row
+        events.append({
+            "t": moment.isoformat(timespec="seconds"),
+            "price": price,
+            "size": _number(row.get("last_volume")),
+            "trades": int(trades) if trades is not None else None,
+            "volume": int(total) if total is not None else None,
+            "change": change,
+            "side": price_side,
+        })
+
+    classified = buy_volume + sell_volume
+    return {
+        "day": day.isoformat(),
+        "symbol": wanted,
+        "totals": {
+            "orders": orders_seen if orders_seen > 0 or len(events) > 0
+                else None,
+            "volume": volume_seen if volume_seen > 0 or len(events) > 0
+                else None,
+            "prints": len(events),
+            "buy_volume": buy_volume,
+            "sell_volume": sell_volume,
+            "classified_volume": classified,
+            "unclassified_volume": unclassified_volume,
+            "windows": windows,
+            "quote_windows": quote_windows,
+            "tick_windows": tick_windows,
+            "gap_windows": gap_windows,
+            "backward_windows": backward_windows,
+            "coverage": round(classified / volume_seen, 4)
+                if volume_seen > 0 else 0.0,
+        },
+        "events": events if limit <= 0 else events[-limit:],
+        "events_total": len(events),
+    }
+
+
 def build(path: Path, symbols: Iterable[str], as_of: datetime,
           day: date | None = None) -> TapeBars:
     """Build one session of bars from one tape capture file.
@@ -298,9 +429,6 @@ def build(path: Path, symbols: Iterable[str], as_of: datetime,
             continue
         if moment.date() != session_day or moment >= as_of:
             continue
-        observed = tape.observed_at.get(symbol)
-        if observed is None or moment > observed:
-            tape.observed_at[symbol] = moment
         prior = previous.get(symbol)
         if _repeats(row, prior):
             # The feed re-sends a whole snapshot when only the book moved. It

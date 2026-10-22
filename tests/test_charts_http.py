@@ -22,20 +22,24 @@ from __future__ import annotations
 
 import http.client
 import json
+import shutil
 import sys
 import threading
 import time
 import unittest
 import urllib.error
 import urllib.request
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
-from tempfile import TemporaryDirectory
+from tempfile import TemporaryDirectory, mkdtemp
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from charts.adapters.replay import ReplaySource  # noqa: E402
+from charts.adapters.tape import TapeSource  # noqa: E402
+from charts.contract import SCHEMA_VERSION  # noqa: E402
 from charts.http import ChartServer  # noqa: E402
 from charts.ingest import Ingestor  # noqa: E402
 from charts.ratelimit import UpstreamError  # noqa: E402
@@ -45,9 +49,19 @@ from charts.store import BarStore  # noqa: E402
 #: at it, so the whole suite is indifferent to the hour it runs at.
 SESSION_MOMENT = datetime.fromisoformat("2026-10-12T11:00:00+05:00")
 
+#: The day the tape fixtures in this module belong to, and the minute the
+#: session law calls the open on it (the tape's first bar is one minute later).
+SESSION_DAY = SESSION_MOMENT.date()
+SESSION_OPEN = datetime.fromisoformat("2026-10-12T09:32:00+05:00")
+
 
 def session_clock() -> datetime:
     return SESSION_MOMENT
+
+
+def tuesday_clock() -> datetime:
+    """The next trading day, so Monday is a finished session."""
+    return SESSION_MOMENT + timedelta(days=1)
 
 
 class ServerCase(unittest.TestCase):
@@ -105,7 +119,9 @@ class RouteTest(ServerCase):
         body = self.body(server, "/api/health")
         self.assertTrue(body["ok"])
         self.assertEqual(body["service"], "charts-of-rehan")
-        self.assertEqual(body["schema_version"], 1)
+        # The version travels with the answer, so a consumer can refuse a
+        # shape it does not know; the literal pin lives in the contract test.
+        self.assertEqual(body["schema_version"], SCHEMA_VERSION)
         self.assertEqual(body["market"]["timezone"], "Asia/Karachi")
         self.assertEqual(body["source"]["id"], "replay")
         self.assertIn("karachi_now", body)
@@ -268,6 +284,20 @@ class StaticTest(ServerCase):
         self.assertIn("javascript", headers["Content-Type"])
         self.assertIn("immutable", headers["Cache-Control"])
 
+    def test_an_encoded_parent_path_cannot_escape_the_build(self):
+        server = self.make_server(static_dir=self.root)
+        connection = http.client.HTTPConnection("127.0.0.1",
+                                                server.server_address[1],
+                                                timeout=10)
+        self.addCleanup(connection.close)
+        # The client must not normalise this away: %2e%2e is the attack, and
+        # the server has to decode it before deciding what file it names.
+        connection.request("GET", "/%2e%2e/%2e%2e/pyproject.toml")
+        response = connection.getresponse()
+        self.assertEqual(response.status, 404)
+        self.assertEqual(json.loads(response.read())["error"]["code"],
+                         "NOT_FOUND")
+
     def test_without_a_build_the_api_says_so(self):
         server = self.make_server(static_dir=None)
         status, _, raw = self.get(server, "/")
@@ -344,6 +374,241 @@ class StreamTest(ServerCase):
         self.assertEqual(response.status, 404)
         body = json.loads(response.read())
         self.assertEqual(body["error"]["code"], "UNKNOWN_SYMBOL")
+
+
+class TapeRoutesTest(ServerCase):
+    """The any-day routes, driven over a socket against a real capture file.
+
+    The replay source cannot answer these questions (it has no sessions), so
+    this class runs a server on a temporary tape, a temporary archive and a
+    pinned clock: the same wiring a real deployment uses, with none of the
+    owner's files and none of the wall clock.
+    """
+
+    def setUp(self) -> None:
+        self.tmp = Path(mkdtemp(prefix="charts-http-tape-"))
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        self.captures = self.tmp / "captures"
+        self.captures.mkdir(parents=True)
+        self.archive_dir = self.tmp / "archive"
+        self.capture = self.captures / "capture_20261012.ndjson"
+        self.universe = self.tmp / "universe.json"
+        self.universe.write_text(json.dumps(["OGDC", "PPL"]),
+                                 encoding="utf-8")
+        self.capture.write_text(
+            "\n".join(json.dumps(row) for row in self.rows()) + "\n",
+            encoding="utf-8")
+
+    def rows(self, minutes: int = 4) -> list[dict]:
+        return self.rows_for(SESSION_MOMENT.date(), minutes)
+
+    def rows_for(self, day, minutes: int = 4) -> list[dict]:
+        out: list[dict] = []
+        for index in range(minutes):
+            moment = (datetime(day.year, day.month, day.day, 9, 32,
+                               tzinfo=SESSION_MOMENT.tzinfo)
+                      + timedelta(minutes=index + 1))
+            base = 200.0 if day < SESSION_DAY else 100.0
+            out.append({
+                "kind": "MKT-FEED*x", "ts": moment.isoformat(),
+                "ticks": [
+                    {"scrip": f"{symbol}:REG", "last": str(base + index),
+                     "volume": str(1000 * (index + 1)),
+                     "tick_time": f"{moment:%H:%M:%S}"}
+                    for symbol in ("OGDC", "PPL")],
+            })
+        return out
+
+    def taping_server(self, *, day=None, clock=session_clock):
+        source = TapeSource(clock=clock,
+                            universe_path=self.universe,
+                            capture_dirs=(self.captures,),
+                            archive_dir=self.archive_dir, day=day)
+        patches = [
+            mock.patch("src.data.tape_bars.capture_path",
+                       side_effect=lambda probe: (
+                           self.capture if probe == SESSION_DAY
+                           else self.captures / f"capture_{probe:%Y%m%d}.ndjson")),
+        ]
+        for patch in patches:
+            patch.start()
+            self.addCleanup(patch.stop)
+        # The server reads the same clock the source does, so the session the
+        # payload labels is the one the tape was built for.
+        return self.make_server(source=source, symbols=("OGDC", "PPL"),
+                                clock=clock)
+
+    def test_days_merge_packs_the_last_two_sessions_on_one_chart(self):
+        # A second capture, an older session, so "days=2" has two sessions
+        # to merge: exactly the TradingView-style multi-day intraday chart.
+        older = self.captures / "capture_20261009.ndjson"
+        older.write_text("\n".join(json.dumps(row) for row in
+                                   self.rows_for(datetime(
+                                       2026, 10, 9).date())) + "\n",
+                         encoding="utf-8")
+        server = self.taping_server()
+        body = self.body(server, "/api/bars?symbol=OGDC&days=2")
+        self.assertTrue(body["ok"])
+        self.assertEqual(body["bar_count"], 8)
+        stamps = [row["t"] for row in body["bars"]]
+        self.assertEqual(stamps, sorted(stamps))
+        days = {row["t"][:10] for row in body["bars"]}
+        self.assertEqual(days, {"2026-10-09", "2026-10-12"})
+        # The newest session owns the session block, as a chart of today does.
+        self.assertEqual(body["session"]["day"], "2026-10-12")
+        self.assertTrue(body["session"]["current"])
+        text = " ".join(body["notes"])
+        self.assertIn("merged 2 session(s)", text)
+        self.assertIn("session break", text)
+
+    def test_days_merge_on_a_calendar_rung_ignores_the_merge(self):
+        older = self.captures / "capture_20261009.ndjson"
+        older.write_text("\n".join(json.dumps(row) for row in
+                                   self.rows_for(datetime(
+                                       2026, 10, 9).date())) + "\n",
+                         encoding="utf-8")
+        server = self.taping_server()
+        body = self.body(server,
+                         "/api/bars?symbol=OGDC&days=4&resolution=1d")
+        self.assertTrue(body["ok"])
+        self.assertEqual(body["bar_count"], 2)
+        self.assertEqual([row["t"][:10] for row in body["bars"]],
+                         ["2026-10-09", "2026-10-12"])
+
+    def test_days_without_a_session_store_is_the_callers_400(self):
+        server = self.make_server()
+        connection = http.client.HTTPConnection("127.0.0.1",
+                                                server.server_address[1],
+                                                timeout=10)
+        self.addCleanup(connection.close)
+        connection.request("GET", "/api/bars?symbol=REPLAY1&days=3")
+        response = connection.getresponse()
+        self.assertEqual(response.status, 400)
+        body = json.loads(response.read())
+        self.assertEqual(body["error"]["code"], "UNSUPPORTED_DAY")
+
+    def test_a_bad_days_value_is_the_callers_400(self):
+        server = self.taping_server()
+        connection = http.client.HTTPConnection("127.0.0.1",
+                                                server.server_address[1],
+                                                timeout=10)
+        self.addCleanup(connection.close)
+        connection.request("GET", "/api/bars?symbol=OGDC&days=next")
+        response = connection.getresponse()
+        self.assertEqual(response.status, 400)
+        body = json.loads(response.read())
+        self.assertEqual(body["error"]["code"], "BAD_DAYS")
+
+    def test_sessions_lists_what_this_service_can_draw(self):
+        server = self.taping_server()
+        body = self.body(server, "/api/sessions")
+        self.assertTrue(body["ok"])
+        self.assertEqual(body["today"], "2026-10-12")
+        self.assertEqual(body["timezone"], "Asia/Karachi")
+        self.assertEqual([row["day"] for row in body["sessions"]],
+                         ["2026-10-12"])
+        self.assertTrue(body["sessions"][0]["current"])
+        self.assertFalse(body["sessions"][0]["archived"])
+
+    def test_todays_session_named_by_hand_is_labelled_as_today(self):
+        server = self.taping_server(day="2026-10-12")
+        body = self.body(server, "/api/bars?symbol=OGDC&day=2026-10-12")
+        self.assertEqual(body["bar_count"], 4)
+        self.assertEqual(body["session"]["day"], "2026-10-12")
+        self.assertEqual(body["source"]["id"], "broker_tape")
+        self.assertTrue(body["session"]["current"])
+        self.assertFalse(body["session"]["archived"])
+        self.assertIn("recording file", body["session"]["note"])
+        # The recording that answered is named, so the reader can check it.
+        self.assertEqual(body["session"]["source"],
+                         "capture_20261012.ndjson")
+
+    def test_a_finished_session_names_its_file_and_hash(self):
+        server = self.taping_server(clock=tuesday_clock)
+        body = self.body(server, "/api/bars?symbol=OGDC&day=2026-10-12")
+        self.assertEqual(body["bar_count"], 4)
+        self.assertFalse(body["session"]["current"])
+        self.assertTrue(body["session"]["archived"])
+        self.assertIn("archived 2026-10-12 session", body["session"]["note"])
+        text = " ".join(body["notes"])
+        self.assertIn("capture_20261012.ndjson", text)
+        self.assertIn("sha256", text)
+        self.assertEqual(body["session"]["capture"]["name"],
+                         "capture_20261012.ndjson")
+        self.assertEqual(len(body["session"]["capture"]["sha256"]), 64)
+
+    def test_a_named_day_honours_the_volume_answer(self):
+        server = self.taping_server(day="2026-10-12")
+        body = self.body(server, "/api/bars?symbol=OGDC&day=2026-10-12")
+        # This fixture carries a venue counter, so the pane is real data;
+        # a capture with no counter answers false and the pane is not drawn.
+        self.assertTrue(body["session"]["volume_available"])
+
+    def test_a_named_day_with_no_data_is_an_error_not_an_empty_chart(self):
+        server = self.taping_server()
+        connection = http.client.HTTPConnection("127.0.0.1",
+                                                server.server_address[1],
+                                                timeout=10)
+        self.addCleanup(connection.close)
+        connection.request("GET", "/api/bars?symbol=OGDC&day=2026-10-08")
+        response = connection.getresponse()
+        self.assertEqual(response.status, 502)
+        body = json.loads(response.read())
+        self.assertEqual(body["error"]["code"], "EMPTY_ACK")
+        self.assertIn("2026-10-08", body["error"]["detail"])
+
+    def test_a_malformed_day_is_the_callers_400(self):
+        server = self.taping_server()
+        connection = http.client.HTTPConnection("127.0.0.1",
+                                                server.server_address[1],
+                                                timeout=10)
+        self.addCleanup(connection.close)
+        connection.request("GET", "/api/bars?symbol=OGDC&day=Friday")
+        response = connection.getresponse()
+        self.assertEqual(response.status, 400)
+        body = json.loads(response.read())
+        self.assertEqual(body["error"]["code"], "BAD_DAY")
+
+    def test_a_day_query_on_a_source_without_sessions_is_refused(self):
+        server = self.make_server()
+        connection = http.client.HTTPConnection("127.0.0.1",
+                                                server.server_address[1],
+                                                timeout=10)
+        self.addCleanup(connection.close)
+        connection.request("GET", "/api/bars?symbol=REPLAY1&day=2026-10-12")
+        response = connection.getresponse()
+        self.assertEqual(response.status, 400)
+        body = json.loads(response.read())
+        self.assertEqual(body["error"]["code"], "UNSUPPORTED_DAY")
+
+    def test_symbols_without_facts_keeps_the_plain_shape(self):
+        server = self.taping_server()
+        body = self.body(server, "/api/symbols")
+        self.assertIn("OGDC", [row["symbol"] for row in body["symbols"]])
+        self.assertNotIn("bars", body["symbols"][0])
+
+    def test_symbols_with_facts_says_what_the_session_holds(self):
+        server = self.taping_server()
+        body = self.body(server, "/api/symbols?facts=1")
+        rows = {row["symbol"]: row for row in body["symbols"]}
+        self.assertEqual(rows["OGDC"]["bars"], 4)
+        self.assertEqual(rows["OGDC"]["close"], 103.0)
+        self.assertEqual(body["day"], None)
+
+    def test_symbols_for_a_named_day_reports_that_days_bars(self):
+        server = self.taping_server()
+        body = self.body(server, "/api/symbols?day=2026-10-12")
+        rows = {row["symbol"]: row for row in body["symbols"]}
+        self.assertEqual(rows["PPL"]["bars"], 4)
+        self.assertEqual(body["day"], "2026-10-12")
+
+    def test_health_reports_the_tape_and_the_archive_size(self):
+        server = self.taping_server()
+        body = self.body(server, "/api/health")
+        self.assertEqual(body["tape"]["available"], True)
+        self.assertEqual(body["tape"]["symbols_with_bars"], 2)
+        self.assertEqual(body["tape"]["archive_days"], 0)
+        self.assertEqual(body["schema_version"], SCHEMA_VERSION)
 
 
 if __name__ == "__main__":

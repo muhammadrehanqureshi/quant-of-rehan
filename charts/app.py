@@ -20,6 +20,12 @@ Usage::
 
     python -m charts --source replay --symbols REPLAY1 --once   # one pass
     python -m charts --source tape --port 8787                  # the real one
+    python -m charts --sessions                    # what can be charted
+    python -m charts --build-archive latest        # store a session for good
+
+The last two are the 24/7 pair: a session is stored once, precisely, and every
+later look at it (a Saturday, a week later, a research pass) reads the archive
+instead of a recorder that is not running.
 """
 
 from __future__ import annotations
@@ -32,9 +38,12 @@ import sys
 from pathlib import Path
 
 from charts import __version__, sessions
+from charts import resolutions as ladder
 from charts.adapters import SOURCES
 from charts.adapters.replay import ReplaySource
-from charts.adapters.tape import TapeSource
+from charts.adapters.tape import TapeSource, read_universe
+from charts.archive import discover_capture_dirs
+from charts.contract import RESOLUTION_MINUTE
 from charts.http import ChartServer
 from charts.ingest import Ingestor
 from charts.persistent import PersistentBarStore
@@ -82,6 +91,25 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--cors", default="",
                         help="comma separated extra origins allowed to call "
                              "the API (the Vite dev server is always allowed)")
+    parser.add_argument("--tape-dir", action="append", default=[],
+                        metavar="DIR", dest="tape_dir",
+                        help="where to look for capture_YYYYMMDD.ndjson "
+                             "recording files (repeatable; default: this "
+                             "project's own data directories, plus the parent "
+                             "recorder directory when it holds captures)")
+    parser.add_argument("--archive-dir", default="",
+                        help="where the durable session archive lives "
+                             "(default: data/archive)")
+    parser.add_argument("--day", default="",
+                        help="serve this session (YYYY-MM-DD) instead of the "
+                             "Karachi day of the clock")
+    parser.add_argument("--sessions", action="store_true",
+                        help="list every session this service can draw, with "
+                             "its identity, then exit")
+    parser.add_argument("--build-archive", default="", metavar="DAY",
+                        help="read one session from its capture and store it "
+                             "in the durable archive (YYYY-MM-DD, or 'today' "
+                             "or 'latest'), then exit")
     parser.add_argument("--allow-public-bind", action="store_true",
                         help="required when --host is not a loopback address")
     parser.add_argument("--once", action="store_true",
@@ -103,13 +131,59 @@ def _symbols(text: str) -> list[str]:
     return seen
 
 
-def _source_for(args, clock=sessions.law.now_karachi):
+def _tape_dirs(args) -> tuple[Path, ...]:
+    """Where the capture files are, explicitly or by discovery.
+
+    An explicit ``--tape-dir`` replaces discovery entirely, so an operator who
+    names a directory gets exactly that directory and nothing else. With no
+    flag, discovery is the documented order in ``charts/archive.py``: the
+    environment, this project's own directories, then the parent recorder
+    directory only if it actually holds captures. Discovery lives here and not
+    in the library, so the library's search is predictable to a test.
+    """
+    explicit = tuple(Path(item) for item in (args.tape_dir or []))
+    return explicit or discover_capture_dirs()
+
+
+def _source_for(args, clock=None):
+    # The clock is resolved at call time, never captured at import: a caller
+    # that patches the session law (a test, the offline demo) must get the
+    # clock it patched rather than the one that was bound when this module
+    # was first imported.
+    clock = clock or sessions.law.now_karachi
     if args.source == "tape":
-        return TapeSource(clock=clock)
+        return TapeSource(clock=clock, capture_dirs=_tape_dirs(args),
+                          archive_dir=args.archive_dir or None,
+                          day=args.day or None)
     if args.source == "portal":
         return SOURCES["portal"](clock=clock)
     return ReplaySource(symbols=_symbols(args.symbols) or ["REPLAY1", "REPLAY2"],
                         clock=clock)
+
+
+class Refused(Exception):
+    """A command that cannot run, carrying the sentence to print."""
+
+
+def _fail(message: str) -> int:
+    """One sentence on stderr and a failure exit code, never a traceback."""
+    print(f"charts: {message}", file=sys.stderr)
+    return 2
+
+
+def _resolve_day(source: TapeSource, text: str):
+    """``today``, ``latest`` or a date, as a day the archive understands."""
+    wanted = (text or "").strip().lower()
+    if wanted in ("today", "current"):
+        return source.today()
+    if wanted in ("latest", "last"):
+        sessions_seen = source.sessions()
+        if not sessions_seen:
+            raise Refused(
+                "no capture file and no archived session exists yet, so "
+                "there is no latest session to store")
+        return sessions_seen[0]["day"]
+    return wanted
 
 
 def _warm_symbols(args) -> list[str]:
@@ -120,8 +194,16 @@ def _warm_symbols(args) -> list[str]:
 
 
 def check_environment(args) -> str | None:
-    """Return the sentence that stops this process, or None to continue."""
-    if os.environ.get("GITHUB_ACTIONS"):
+    """Return the sentence that stops this process, or None to continue.
+
+    The GitHub Actions refusal covers the service itself. Serving is the
+    cloud-minute spend SO-12 reserves for the market-hours scans, so a runner
+    never starts the listener. The bounded commands (--sessions,
+    --build-archive, --once) answer from local files and exit, and CI has to
+    run them to prove them.
+    """
+    serving = not (args.sessions or args.build_archive or args.once)
+    if serving and os.environ.get("GITHUB_ACTIONS"):
         return ("this is a foreground chart service and GitHub Actions "
                 "minutes belong to the market-hours scans; run it on the "
                 "owner's machine instead")
@@ -152,7 +234,15 @@ def build(args) -> tuple[BarStore, Ingestor, ChartServer]:
     """Assemble the service. Pure wiring, so a test can call it directly."""
     source = _source_for(args)
     capabilities = source.capabilities()
-    resolution = args.resolution or capabilities.resolutions[0]
+    resolution = args.resolution or (
+        RESOLUTION_MINUTE if RESOLUTION_MINUTE in capabilities.resolutions
+        else capabilities.resolutions[0])
+    try:
+        resolution = ladder.normalise(resolution)
+    except ValueError:
+        raise SystemExit(
+            f"source {source.name} does not serve {resolution}; it serves "
+            f"{', '.join(capabilities.resolutions)}")
     if resolution not in capabilities.resolutions:
         raise SystemExit(
             f"source {source.name} does not serve {resolution}; it serves "
@@ -184,6 +274,44 @@ def summary(server: ChartServer, store: BarStore) -> dict:
             "symbols": [row.get("symbol") for row in store.symbols()]}
 
 
+def _require_tape(args, source) -> TapeSource:
+    if not isinstance(source, TapeSource):
+        raise Refused(
+            f"--sessions and --build-archive belong to the tape source, "
+            f"which owns the durable session archive; --source is "
+            f"{args.source}")
+    return source
+
+
+def _maintenance(args) -> int:
+    """``--sessions`` and ``--build-archive``: two commands, no server.
+
+    Both exist so the 24/7 promise is a thing the owner does once, on demand,
+    rather than a background process. Neither starts a listener, neither
+    registers anything, and both print JSON a shell can read.
+    """
+    try:
+        source = _require_tape(args, _source_for(args))
+        if args.sessions:
+            print(json.dumps({"capture_dirs": [str(item)
+                                              for item in source.capture_dirs],
+                              "archive_dir": str(source.archive.root),
+                              "sessions": source.sessions(hashes=bool(
+                                  args.build_archive))},
+                             indent=2, sort_keys=True))
+            if not args.build_archive:
+                return 0
+        wanted = _resolve_day(source, args.build_archive)
+    except Refused as refusal:
+        return _fail(str(refusal))
+    try:
+        summary = source.archive_session(wanted)
+    except Exception as exc:  # noqa: BLE001 - reported, never a traceback
+        return _fail(f"cannot archive {wanted}: {exc}")
+    print(json.dumps(summary, indent=2, sort_keys=True))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -194,6 +322,8 @@ def main(argv: list[str] | None = None) -> int:
     if refusal:
         print(f"charts: {refusal}", file=sys.stderr)
         return 2
+    if args.sessions or args.build_archive:
+        return _maintenance(args)
     store, ingestor, server = build(args)
     try:
         if args.once:
