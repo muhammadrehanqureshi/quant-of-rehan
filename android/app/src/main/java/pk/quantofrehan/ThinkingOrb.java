@@ -341,7 +341,7 @@ public class ThinkingOrb extends View {
         drawFlames(canvas, cx, cy, seconds, bright);
         drawProminences(canvas, cx, cy, seconds, bright);
         drawBall(canvas, cx, cy, heartBreath, bright);
-        drawCells(canvas, seconds, yaw, pitch, bright);
+        drawCells(canvas, cx, cy, seconds, yaw, pitch, bright);
         drawFlares(canvas, cx, cy, seconds, bright);
         postInvalidateOnAnimation();
     }
@@ -431,8 +431,8 @@ public class ThinkingOrb extends View {
                 sunR * 0.24f, heartPaint);
     }
 
-    private void drawCells(Canvas canvas, float seconds, float yaw,
-                           float pitch, float bright) {
+    private void drawCells(Canvas canvas, float cx, float cy, float seconds,
+                           float yaw, float pitch, float bright) {
         float cosYaw = (float) Math.cos(yaw);
         float sinYaw = (float) Math.sin(yaw);
         float cosPitch = (float) Math.cos(pitch);
