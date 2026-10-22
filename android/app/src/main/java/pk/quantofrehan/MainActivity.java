@@ -342,6 +342,9 @@ public class MainActivity extends Activity {
      * (tests/test_android_render_gate.py) rather than only read.
      */
     private final RenderGate renderGate = new RenderGate();
+    /** The two badge backgrounds, built once instead of once per answer. */
+    private GradientDrawable badgeOnline;
+    private GradientDrawable badgeOffline;
     /**
      * The HUD's own times (owner order 2026-10-22).
      *
@@ -700,7 +703,7 @@ public class MainActivity extends Activity {
             sysDiag.animate()
                     .alpha(DIAG_DIM_ALPHA)
                     .setDuration(DIAG_FADE_MS)
-                    .withEndAction(this::advanceDiagLine)
+                    .withEndAction(MainActivity.this::advanceDiagLine)
                     .start();
         }
     };
