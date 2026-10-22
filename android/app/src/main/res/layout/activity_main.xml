@@ -220,10 +220,13 @@
              reference look): the console reads as if the quant is thinking,
              and the beam and the rotating words of v1.8.8's first pass are
              RETIRED in favour of the one mover that earns the claim: a
-             pk.quantofrehan.ThinkingOrb, a cloud of linked particles that
-             breathes, orbits and re-links like the reference image's living
-             network. It draws itself on its own frame loop (the class is the
-             owner of its pace) and runs only while the console is resumed.
+             pk.quantofrehan.ThinkingOrb. Owner order 2026-10-22 (third
+             pass, v1.9.9): the orb is THE SUN - one big 3D ball that fills
+             this box and burns every second (convection cells on its face,
+             flame tongues on its limb, prominences and flare sparks on a
+             seconds cadence), per the owner's verbatim order. It draws
+             itself on its own frame loop (the class is the owner of its
+             pace) and runs only while the console is resumed.
 
              It sits where the beam lay, under the brand. Owner order
              2026-10-22 (v1.9.5): the orb is on the SEARCH and SETTINGS
@@ -235,7 +238,7 @@
         <pk.quantofrehan.ThinkingOrb
             android:id="@+id/thinking_orb"
             android:layout_width="match_parent"
-            android:layout_height="168dp"
+            android:layout_height="210dp"
             android:layout_marginTop="6dp"
             android:importantForAccessibility="no"/>
 
@@ -553,7 +556,8 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
-                android:text="@string/btn_arm"/>
+                android:text="@string/btn_arm"
+                android:contentDescription="@string/btn_arm"/>
         </LinearLayout>
 
         <!-- Owner order 2026-10-21 (15:35): the settings tile is bracketed
@@ -683,6 +687,8 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"/>
 
+        <!-- Co-Authored-By: Codebuff <noreply@codebuff.com> -->
+
         <!-- The cadence line, 12dp below the last rule: the same gap the
              signal tile has below its own rule, so the footer's spacing is
              the grid's spacing. It is a caption like the card's other small
@@ -696,5 +702,5 @@
             android:layout_marginTop="12dp"
             android:gravity="center"
             android:text="@string/scan_cadence"/>
-    </LinearLayout>
+</LinearLayout>
 </ScrollView>
