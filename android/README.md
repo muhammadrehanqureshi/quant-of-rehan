@@ -704,6 +704,24 @@ to sixty seconds. The status tile therefore also carries the app's own
   and can be restored by copying back over res/layout and the Java sources.
   Version 1.8.8, versionCode 42.
 
+- v1.8.9, owner order 2026-10-22 (second pass, after the reference image the
+  owner sent the same evening): v1.8.8's two HUD movers are RETIRED. The
+  rotating diagnostics line and its phrases, the QorDiag style and the
+  sweeping gold beam (view, deck and drawable) are gone, and the one mover
+  under the brand is now the ThinkingOrb: the living particle cloud of the
+  reference look, drawn by a deterministic build of five cluster anchors and
+  precomputed link pairs, turning rigidly in yaw with a breathing pitch,
+  projected in perspective so the far side renders smaller and dimmer, every
+  node breathing radially on its own phase, and the core breathing on a
+  slower clock so the rhythms cross. It draws on its own paced 30fps
+  invalidate loop with zero per-frame allocations in the ice family of the
+  reference (near-white core 0xFFE4F0FF, cold blue nodes 0xFF86AEDC, dim
+  links 0xFF3E6E9E on the dark field 0xFF0B0F16), joins consoleViews so a  menu takes its space like the tiles', and runs only while the console
+  is resumed. v1.8.8's headings, the 10% bigger labels, the green
+  Karachi clock, instant search and after-close answers stand untouched.
+  Version 1.8.9, versionCode 43
+  (the same one-line form every version stamp in this README carries).
+
 **Built and delivered 2026-10-22 (v1.8.8):** the signed v1.8.8 APK was built
 on GitHub Actions from the master at 59da8f90a1 (run 39722179379, the merge
 of #78, which fixed the two javac errors the HUD edit had introduced),

@@ -977,9 +977,10 @@ class StatusPulseTest(unittest.TestCase):
         self.assertIn(".scaleX(scale)", self.main)
         self.assertIn(".scaleY(scale)", self.main)
         self.assertIn("new AccelerateDecelerateInterpolator()", self.main)
-        # v1.8.8 re-introduced a ValueAnimator for the HUD's scan beam, a
-        # different mover that never touches the beacon: the breath itself
-        # still holds none of them, checked on its own two methods.
+        # The pulse is strictly a view-property animation. The second pass
+        # of the 2026-10-22 HUD (the owner's reference look, v1.8.9) moved
+        # the beam's ValueAnimator out for good: the breath itself still
+        # holds no animator at all, checked on its own two methods.
         breath = self.main[self.main.index("private void startStatusBreath("):]
         breath = breath[:breath.index("private void breathIfOnline(")]
         stop_block = self.main[self.main.index("private void stopStatusBreath("):]
@@ -1431,13 +1432,13 @@ class StatusTileSpacingTest(unittest.TestCase):
         detail = element(self.layout, 'android:id="@+id/status_detail"')
         self.assertIn('android:layout_marginTop="@dimen/status_gap"', badge)
         self.assertIn('android:layout_marginTop="@dimen/status_gap"', detail)
-        # Exactly three views name it: the badge, the detail line and, since
-        # the owner's 2026-10-22 order, the HUD's diagnostics line, which
-        # rides the same air under the Karachi clock. A hand-written number
-        # still cannot replace any of these three, and no FOURTH gap can
-        # quietly join the tile.
+        # Exactly two views name it: the badge and the detail line. The
+        # HUD's diagnostics line, which briefly rode the same air under
+        # the Karachi clock in v1.8.8's first pass, is retired in v1.8.9,
+        # so a hand-written number still cannot replace either of these
+        # two, and no THIRD gap can quietly join the tile.
         self.assertEqual(
-            self.layout.count('android:layout_marginTop="@dimen/status_gap"'), 3)
+            self.layout.count('android:layout_marginTop="@dimen/status_gap"'), 2)
 
     def test_the_gap_is_declared_once(self):
         self.assertEqual(self.dimens.count('name="status_gap"'), 1)
@@ -1513,13 +1514,14 @@ class HeaderCopyTest(unittest.TestCase):
 
 class VersionTest(unittest.TestCase):
     def test_the_version_is_the_one_that_ships_these_changes(self):
-        # v1.8.8 is the 2026-10-22 pass: the search and market tiles carry
-        # their ordered headings, every heading is 10% bigger, the Karachi
-        # clock rides the UP green, search answers after close and as-you-type,
-        # and the console carries the HUD that reads as if it is thinking.
+        # v1.8.9 is the 2026-10-22 second pass: the owner sent the reference
+        # look he wants and v1.8.8's sweeping beam and rotating words are
+        # retired for the ThinkingOrb, the living particle cloud under the
+        # brand; v1.8.8's headings, bigger type, green clock, instant search
+        # and after-close answers stand untouched.
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="1.8.8"', manifest)
-        self.assertIn('android:versionCode="42"', manifest)
+        self.assertIn('android:versionName="1.8.9"', manifest)
+        self.assertIn('android:versionCode="43"', manifest)
         # The changelog entry ties these user-visible changes to the build.
         readme = (ROOT / "android" / "README.md").read_text(encoding="utf-8")
         self.assertIn("v1.7.9, owner order 2026-10-20", readme)
@@ -1532,6 +1534,7 @@ class VersionTest(unittest.TestCase):
         self.assertIn("Version 1.8.6, versionCode 40", readme)
         self.assertIn("Version 1.8.7, versionCode 41", readme)
         self.assertIn("Version 1.8.8, versionCode 42", readme)
+        self.assertIn("Version 1.8.9, versionCode 43", readme)
         layout = LAYOUT.read_text(encoding="utf-8")
         strings = STRINGS.read_text(encoding="utf-8")
         main = MAIN.read_text(encoding="utf-8")
@@ -2000,67 +2003,84 @@ class SearchHighlightTest(unittest.TestCase):
         self.assertIn("renderSearchResults(searchInput.getText().toString());", main)
 
 
-class HudThinkingPlanTest(unittest.TestCase):
-    """Owner order 2026-10-22 (v1.8.8): the console reads as if the quant is
-    thinking, and the animation IS the work. The classic frame's tiles,
-    rules and copy stand untouched beneath the HUD; the HUD is added on
-    top of them, and it runs ONLY while the console is on screen.
+class ThinkingOrbPlanTest(unittest.TestCase):
+    """Owner order 2026-10-22 (second pass, v1.8.9): the owner sent the
+    reference look he wanted - a living network organism that breathes,
+    turns and re-links - and the first HUD pass's movers (the diag line's
+    words and the sweeping beam) are retired in favour of the ONE mover
+    that earns the claim: the ThinkingOrb under the brand. The classic
+    frame's tiles, rules and copy stand untouched beneath it; the orb is
+    a member of consoleViews, so a menu takes its space exactly as the
+    tiles' space is taken, and it runs ONLY while the console is resumed.
     """
 
-    def test_the_diag_line_lives_under_the_karachi_clock(self):
+    def test_the_orb_sits_where_the_beam_lay(self):
         layout = LAYOUT.read_text(encoding="utf-8")
-        self.assertIn("@+id/sys_diag", layout)
-        self.assertLess(layout.index("@+id/status_detail"),
-                        layout.index("@+id/sys_diag"))
-        block = layout[layout.index("@+id/sys_diag"):]
-        block = block[:block.index("/>")]
-        self.assertIn("@style/QorDiag", block)
-        self.assertIn("@dimen/status_gap", block)
+        self.assertIn("<pk.quantofrehan.ThinkingOrb", layout)
+        self.assertIn("@+id/thinking_orb", layout)
+        # Under the brand, ahead of the rule before the search tile: the
+        # beam's former station. The first pass's 3dp restoration of the
+        # pre-HUD 12dp air stands.
+        self.assertLess(layout.index("@+id/thinking_orb"),
+                        layout.index("@+id/rule_before_search"))
+        block = layout[layout.index("@+id/thinking_orb"):
+                       layout.index("@+id/thinking_orb") + 400]
+        self.assertIn("android:importantForAccessibility=\"no\"", block)
+        # The beam and the diag line are gone, and nothing pretends to
+        # be them: the retired ids and resources may not come back.
+        self.assertNotIn("@+id/scan_beam", layout)
+        self.assertNotIn("@+id/sys_diag", layout)
 
-    def test_the_diag_style_is_micro_copy(self):
-        styles = STYLES.read_text(encoding="utf-8")
-        block = styles[styles.index('name="QorDiag"'):]
-        block = block[:block.index("</style>")]
-        self.assertIn("@font/lemonmilk_light", block)
-        self.assertIn('android:textSize">11sp', block)
-
-    def test_the_phrases_describe_watching_never_finding(self):
+    def test_the_first_pass_movers_are_retired(self):
+        main = MAIN.read_text(encoding="utf-8")
         strings = STRINGS.read_text(encoding="utf-8")
-        array = strings[strings.index('name="sys_diag_lines"'):]
-        array = array[:array.index("</string-array>")]
-        self.assertEqual(
-            [item.strip() for item in
-             re.findall(r"<item>([^<]+)</item>", array)],
-            ["SCANNING KMIALL TAPE\u2026", "WATCHING THE INDEX\u2026",
-             "MINING TAPE DEPTH\u2026", "NAVIGATING THE UNIVERSE\u2026"])
+        styles = STYLES.read_text(encoding="utf-8")
+        # No rotating words, no sweeping beam: the class, the string array
+        # and the style that carried them are gone from the console.
+        self.assertNotIn("R.array.sys_diag_lines", main)
+        self.assertNotIn('name="sys_diag_lines"', strings)
+        self.assertNotIn('name="QorDiag"', styles)
+        res = RES / "drawable"
+        self.assertFalse((res / "scan_beam.xml").exists())
 
-    def test_the_cycle_starts_and_stops_with_the_console(self):
+    def test_the_orb_runs_only_while_the_console_is_resumed(self):
         main = MAIN.read_text(encoding="utf-8")
         self.assertIn("private void startHud() {", main)
         self.assertIn("private void stopHud() {", main)
+        self.assertIn("thinkingOrb.start();", main)
+        self.assertIn("thinkingOrb.stop();", main)
         resume = main[main.index("protected void onResume()") :]
         resume = resume[:resume.index("protected void onPause()")]
         self.assertIn("startHud();", resume)
         pause = main[main.index("protected void onPause()") :]
         pause = pause[:pause.index("/** The foreground refresh loop. */")]
         self.assertIn("stopHud();", pause)
-        # A hidden console holds no animation callbacks (the 2026-10-14
-        # law, now with the HUD's two movers added).
-        self.assertIn("cadence.removeCallbacks(diagStep);", main)
+        # A hidden console holds no animation: the orb's loop is the only
+        # runner and MainActivity starts and stops it, never polls it.
+        self.assertNotIn("postDelayed(diagStep", main)
+        self.assertNotIn("ValueAnimator", main)
 
-    def test_the_scan_beam_is_a_translation_not_a_layout(self):
-        layout = LAYOUT.read_text(encoding="utf-8")
+    def test_the_orb_hides_with_the_console(self):
         main = MAIN.read_text(encoding="utf-8")
-        beam = (RES / "drawable" / "scan_beam.xml").read_text(encoding="utf-8")
-        self.assertIn("@+id/scan_beam", layout)
-        self.assertIn("@drawable/scan_beam", layout)
-        self.assertIn("ValueAnimator.ofFloat", main)
-        self.assertIn("ValueAnimator.INFINITE", main)
-        self.assertIn("ValueAnimator.RESTART", main)
-        self.assertIn("new LinearInterpolator()", main)
-        # The beam's ink is the brand gold, declared in its own drawable.
-        self.assertIn("#FFD9A441", beam)
-        self.assertIn("#00D9A441", beam)
+        # The orb joins consoleViews (owner order 2026-10-16): one menu at
+        # a time, so the settings or search menu takes its space too.
+        self.assertIn("findViewById(R.id.thinking_orb),", main)
+
+    def test_the_orb_is_one_budget(self):
+        orb = (MAIN.parent / "ThinkingOrb.java").read_text(encoding="utf-8")
+        # Zero allocations on the frame path: geometry built once.
+        self.assertIn("buildGeometry()", orb)
+        self.assertIn("onSizeChanged", orb)
+        # The frame loop is the view's own paced invalidate, not a sleep
+        # or a background service: nothing runs while the view is parked.
+        self.assertIn("postInvalidateOnAnimation()", orb)
+        self.assertNotIn("Thread.sleep", orb)
+        self.assertNotIn("Service", orb)
+        # The ice family is declared beside the drawing that owns it;
+        # the console palette is untouched by the HUD.
+        self.assertIn("0xFFE4F0FF", orb)
+        self.assertIn("0xFF86AEDC", orb)
+        self.assertIn("0xFF3E6E9E", orb)
 
 
 if __name__ == "__main__":

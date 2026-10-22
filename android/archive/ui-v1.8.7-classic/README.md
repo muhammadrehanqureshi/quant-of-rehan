@@ -28,7 +28,13 @@ Two paths, both end on the same screen the owner already knows:
    reverted, restore these five files over
    `android/app/src/main/res/...` and keep the newer Java. That is possible
    because the JARVIS pass adds view ids and resources but changes no id the
-   v1.8.7 code relied on, except `sys_diag` and the scan beam, which are new
-   elements this README names for whoever reverts: a partial revert leaves
-   those two views flat (safe, because every code reference guards for
-   them), and a full-UI revert uses path 1 instead.
+   v1.8.7 code relied on. Update for v1.8.9 (the owner's second pass of the
+   2026-10-22 order): v1.8.8's `sys_diag` line and sweeping beam are retired,
+   and the HUD mover is now the `ThinkingOrb` view under the brand
+   (`<pk.quantofrehan.ThinkingOrb android:id="@+id/thinking_orb"/>`), a
+   member of MainActivity's consoleViews. A partial revert on the v1.8.9
+   Java would leave the orb flat with the newer layouts, so a look-only
+   revert today should RESTORE THE v1.8.9 RESOURCES and remove only the
+   orb block in the layout and its lines in MainActivity if ever needed;
+   a full-UI revert still uses path 1 with the v1.8.7 tag AND returns the
+   current Java's HUD wiring to no-op.
