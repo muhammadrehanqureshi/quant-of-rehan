@@ -35,7 +35,7 @@
          supersedes it, and the heading now says what the tile is: the index
          and the top three scrips by volume. -->
     <string name="label_search">SEARCH</string>
-    <string name="label_market">INDEX &amp; TOP 3 SCRIPS OF VOL.</string>
+    <string name="label_market">THE INDEX &amp; THE TOP 3 SCRIPS OF VOL.</string>
     <string name="market_open_notification">Market is open. Quant is online now.</string>
     <string name="market_closed_notification">Market is closed. Quant is sleeping now.</string>
     <string name="market_break_notification">Market is on a break. Quant is sleeping until the market reopens.</string>

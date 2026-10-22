@@ -1,0 +1,211 @@
+name: Market email notifications
+
+# Owner order 2026-10-22: the market event notifications travel to the
+# owner's GitHub connected address (mrmrehanqureshi@gmail.com) as email,
+# from GitHub Actions, right on time. A comment on the watched owner
+# email issue IS the email: GitHub mails the owner the moment the
+# comment is written. The texts are the owner's exact sentences and the
+# windows are the session law (SO-8); scripts/market_email.py refuses a
+# window the event does not belong to, and the comment ledger on the
+# issue keeps each event exactly once per Karachi day.
+#
+# The crons name the minutes the law knows:
+#
+#   04:00 UTC = 09:00 PKT  pre market, every trading day
+#   04:32 UTC = 09:32 PKT  open, Mon-Thu band
+#   04:17 UTC = 09:17 PKT  open, Friday band 1
+#   07:00 UTC = 12:00 PKT  break, Friday midday
+#   09:32 UTC = 14:32 PKT  reopen, Friday band 2
+#   10:30 UTC = 15:30 PKT  close, Mon-Thu
+#   11:30 UTC = 16:30 PKT  close, Friday
+#   10:32 UTC = 15:32 PKT  post market, Mon-Thu
+#   11:32 UTC = 16:32 PKT  post market, Friday
+#
+# One schedule entry fires the whole workflow, so every job below gates
+# itself on the fired cron line: only the job that owns that minute
+# sends. The steps are spelled out per job instead of anchored, which is
+# the house style of every other workflow in this repo. A signal call
+# does not come from here: the session loop's own push
+# (intraday_pipeline) emails the actual calls from the band job.
+
+on:
+  schedule:
+    - cron: "0 4 * * 1-5"      # pre market
+    - cron: "32 4 * * 1-4"     # open, Mon-Thu
+    - cron: "17 4 * * 5"       # open, Friday
+    - cron: "0 7 * * 5"        # break, Friday
+    - cron: "32 9 * * 5"       # reopen, Friday
+    - cron: "30 10 * * 1-4"    # close, Mon-Thu
+    - cron: "30 11 * * 5"      # close, Friday
+    - cron: "32 10 * * 1-4"    # post market, Mon-Thu
+    - cron: "32 11 * * 5"      # post market, Friday
+  workflow_dispatch:
+    inputs:
+      event:
+        description: "which event to email now (pre, open, break, close, post)"
+        default: "open"
+
+# A dispatch emails one chosen event, so every job also names the event
+# it owns and a dispatch starts exactly one job instead of nine.
+
+env:
+  OWNER_EMAIL_ISSUE: "81"
+
+jobs:
+  pre:
+    if: (github.event_name == 'schedule' && github.event.schedule == '0 4 * * 1-5') || (github.event_name == 'workflow_dispatch' && inputs.event == 'pre')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      EVENT: pre
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - name: Email the pre-open when the session law says it is due
+        env:
+          GH_REPOSITORY: ${{ github.repository }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            python scripts/market_email.py --event "${{ inputs.event }}"
+          else
+            python scripts/market_email.py --event "$EVENT"
+          fi
+
+  open_weekday:
+    if: (github.event_name == 'schedule' && github.event.schedule == '32 4 * * 1-4') || (github.event_name == 'workflow_dispatch' && inputs.event == 'open')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      EVENT: open
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - name: Email the open when the session law says it is due
+        env:
+          GH_REPOSITORY: ${{ github.repository }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python scripts/market_email.py --event "$EVENT"
+
+  open_friday:
+    if: (github.event_name == 'schedule' && github.event.schedule == '17 4 * * 5') || (github.event_name == 'workflow_dispatch' && inputs.event == 'open')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      EVENT: open
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - name: Email the open when the session law says it is due
+        env:
+          GH_REPOSITORY: ${{ github.repository }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python scripts/market_email.py --event "$EVENT"
+
+  break_friday:
+    if: (github.event_name == 'schedule' && github.event.schedule == '0 7 * * 5') || (github.event_name == 'workflow_dispatch' && inputs.event == 'break')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      EVENT: break
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - name: Email the Friday break when the session law says it is due
+        env:
+          GH_REPOSITORY: ${{ github.repository }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python scripts/market_email.py --event "$EVENT"
+
+  reopen_friday:
+    if: (github.event_name == 'schedule' && github.event.schedule == '32 9 * * 5') || (github.event_name == 'workflow_dispatch' && inputs.event == 'open')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      EVENT: open
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - name: Email the Friday reopen when the session law says it is due
+        env:
+          GH_REPOSITORY: ${{ github.repository }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python scripts/market_email.py --event "$EVENT" --key reopen
+
+  close_weekday:
+    if: (github.event_name == 'schedule' && github.event.schedule == '30 10 * * 1-4') || (github.event_name == 'workflow_dispatch' && inputs.event == 'close')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      EVENT: close
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - name: Email the close when the session law says it is due
+        env:
+          GH_REPOSITORY: ${{ github.repository }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python scripts/market_email.py --event "$EVENT"
+
+  close_friday:
+    if: (github.event_name == 'schedule' && github.event.schedule == '30 11 * * 5') || (github.event_name == 'workflow_dispatch' && inputs.event == 'close')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      EVENT: close
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - name: Email the close when the session law says it is due
+        env:
+          GH_REPOSITORY: ${{ github.repository }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python scripts/market_email.py --event "$EVENT"
+
+  post_weekday:
+    if: (github.event_name == 'schedule' && github.event.schedule == '32 10 * * 1-4') || (github.event_name == 'workflow_dispatch' && inputs.event == 'post')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      EVENT: post
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - name: Email the post-open when the session law says it is due
+        env:
+          GH_REPOSITORY: ${{ github.repository }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python scripts/market_email.py --event "$EVENT"
+
+  post_friday:
+    if: (github.event_name == 'schedule' && github.event.schedule == '32 11 * * 5') || (github.event_name == 'workflow_dispatch' && inputs.event == 'post')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      EVENT: post
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - name: Email the post-open when the session law says it is due
+        env:
+          GH_REPOSITORY: ${{ github.repository }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python scripts/market_email.py --event "$EVENT"
