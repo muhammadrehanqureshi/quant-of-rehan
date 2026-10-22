@@ -1514,13 +1514,15 @@ class HeaderCopyTest(unittest.TestCase):
 
 class VersionTest(unittest.TestCase):
     def test_the_version_is_the_one_that_ships_these_changes(self):
-        # v1.9.6 is the 2026-10-22 sixth pass: the orb is brightened at
-        # least 20% (one GLOW_SCALE constant) and the nucleus is clean and
-        # advanced again, the halo under the heart with a lit inner sphere;
-        # v1.9.5's every-page orb, continuous thinking and 30% speed stand.
+        # v1.9.7 is the 2026-10-22 seventh pass: the nucleus is ONE 3D
+        # ball (an off-centre hotspot over a transparent limb over an
+        # ambient glow, sparks inside, no ring, no flat discs) and the
+        # ENTIRE feature is 30% brighter (BRIGHT_SCALE riding GLOW_SCALE);
+        # v1.9.6's glow order and v1.9.5's every-page orb and continuous
+        # thinking stand.
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="1.9.6"', manifest)
-        self.assertIn('android:versionCode="47"', manifest)
+        self.assertIn('android:versionName="1.9.7"', manifest)
+        self.assertIn('android:versionCode="48"', manifest)
         # The changelog entry ties these user-visible changes to the build.
         readme = (ROOT / "android" / "README.md").read_text(encoding="utf-8")
         self.assertIn("v1.7.9, owner order 2026-10-20", readme)
@@ -1538,6 +1540,7 @@ class VersionTest(unittest.TestCase):
         self.assertIn("Version 1.9.4, versionCode 45", readme)
         self.assertIn("Version 1.9.5, versionCode 46", readme)
         self.assertIn("Version 1.9.6, versionCode 47", readme)
+        self.assertIn("Version 1.9.7, versionCode 48", readme)
         layout = LAYOUT.read_text(encoding="utf-8")
         strings = STRINGS.read_text(encoding="utf-8")
         main = MAIN.read_text(encoding="utf-8")
@@ -2120,45 +2123,63 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         self.assertNotIn("Thread.sleep", orb)
         self.assertNotIn("ValueAnimator", orb)
 
-    def test_the_nucleus_is_layered(self):
+    def test_the_nucleus_is_one_3d_ball(self):
         orb = (MAIN.parent / "ThinkingOrb.java").read_text(
             encoding="utf-8")
-        """Owner order 2026-10-22 (v1.9.5): the nucleus is more advanced.
+        """Owner order 2026-10-22 (v1.9.7): the nucleus is ONE 3D ball.
         """
-        # A breathing heart, an out-of-phase halo, a thin ring and a ring
-        # of orbiting sparks: four layers, built once, drawn free.
-        self.assertIn("ringPaint", orb)
+        # One shaded sphere: an off-centre light hotspot with the body's
+        # colour falling off to transparent at the limb, drawn over an
+        # ambient glow and nothing else. v1.9.5/6's stacked discs and
+        # separate ring are all gone, name and draw alike.
+        self.assertIn("ballPaint", orb)
+        self.assertIn("0xFFFFFFFF, 0xFFEAF5FF, 0xFFB9DCF0", orb)
+        self.assertIn("w / 2f - coreRadius * 0.32f", orb)
+        self.assertIn("h / 2f - coreRadius * 0.38f", orb)
+        self.assertIn("0x003E6E9E", orb)
+        for gone in ("ringPaint", "haloPaint", "corePaint",
+                     "heart * 0.72f", "coreRadius * 2.1f"):
+            with self.subTest(gone=gone):
+                self.assertNotIn(gone, orb)
+        # Draw order: the glow UNDER the ball, the ball, then the white
+        # heart breathing inside it, so nothing dulls what is above it.
+        self.assertLess(orb.index(
+                "canvas.drawCircle(cx, cy, coreRadius * 2.6f, glowPaint)"),
+            orb.index(
+                "canvas.drawCircle(cx, cy, coreRadius, ballPaint)"))
+        self.assertLess(orb.index(
+                "canvas.drawCircle(cx, cy, coreRadius, ballPaint)"),
+            orb.index(
+                "canvas.drawCircle(cx, cy, coreRadius * 0.3f, heartPaint)"))
+        # The glow and the ball cross instead of pulsing together.
+        self.assertIn("OUT of phase", orb)
+        # The eight sparks are plasma currents INSIDE the one ball, never
+        # a second object orbiting outside it.
         self.assertIn("SPARKS = 8", orb)
         self.assertIn("sparkRadius", orb)
         self.assertIn("sparkPhase", orb)
         self.assertIn("sparkRate", orb)
-        self.assertIn("heart", orb)
-        # The halo and the core cross instead of pulsing together.
-        self.assertIn("OUT of phase", orb)
+        self.assertIn("0.55f + frac(seed) * 0.4f", orb)
 
-    def test_the_orb_is_brightened_and_the_heart_is_clean(self):
+    def test_the_whole_feature_is_30_percent_brighter(self):
         orb = (MAIN.parent / "ThinkingOrb.java").read_text(
             encoding="utf-8")
-        """Owner order 2026-10-22 (v1.9.6): the animated feature was too
-        dark, at least 20% brighter, and the nucleus was reported worse
-        than v1.8.9's. The darkness was v1.9.5 drawing its halo disc ON TOP
-        of the heart plus every alpha sitting at v1.8.9's dim level.
+        """Owner order 2026-10-22 (v1.9.7): the ENTIRE animated feature,
+        every ink on the frame and not the nucleus alone, is 30% brighter
+        than v1.9.6's, which had brightened only the nucleus's inks.
         """
-        # The brightness order is ONE named constant, at or above the
-        # owner's 20%, multiplied by every ink alpha on the frame.
+        # The owner's 30% is ONE named constant that rides on v1.9.6's
+        # glow pass at every ink: the links, the travelling pulses, the
+        # nodes, the ball, its glow, its inner heart and its sparks.
+        self.assertIn("private static final float BRIGHT_SCALE = 1.3f;", orb)
+        self.assertGreaterEqual(orb.count("GLOW_SCALE * BRIGHT_SCALE"), 7,
+                                "every ink layer must carry the boost")
+        # v1.9.6's glow order stands underneath the new one.
         self.assertIn("private static final float GLOW_SCALE = 1.25f;", orb)
-        self.assertGreaterEqual(orb.count("GLOW_SCALE"), 6,
-                                "every ink layer must carry the glow")
-        # The order fix: the halo draw precedes the heart draw, so the
-        # halo can never dull the lit centre again.
-        self.assertLess(orb.index(
-                "canvas.drawCircle(cx, cy, coreRadius * 1.5f, haloPaint)"),
-            orb.index("canvas.drawCircle(cx, cy, heart * 3f, corePaint)"))
-        # A clean advanced heart: a sharp almost-solid inner sphere under
-        # the soft corona, a ring that reads, sparks bigger and brighter.
-        self.assertIn("heart * 0.72f", orb)
-        self.assertIn("nodeRadius * 1.35f", orb)
-        self.assertIn("195f + 60f", orb)
+        self.assertGreaterEqual(orb.count("GLOW_SCALE"), 8)
+        # And the flat grey disc the owner saw in the screenshot is gone:
+        # the ball's limb falls off to transparent instead.
+        self.assertNotIn("heart * 0.72f", orb)
 
     def test_the_orb_is_one_budget(self):
         orb = (MAIN.parent / "ThinkingOrb.java").read_text(encoding="utf-8")
