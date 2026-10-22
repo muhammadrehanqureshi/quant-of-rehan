@@ -786,6 +786,28 @@ to sixty seconds. The status tile therefore also carries the app's own
   pulses, nodes, the ball, its glow, its inner heart and its sparks.
   Determinism and the one-second cadence stand untouched.
   Version 1.9.7, versionCode 48.
+- v1.9.8, the 2026-10-22 crash delivery: v1.9.8's first build shipped a
+  RadialGradient with three colours on two stops, which Android refuses
+  when the first layout pass builds the shader, so the console died
+  before it ever drew and never opened. The glow carries one stop per
+  colour now (three colours, three ascending stops), and the manifest
+  was bumped so the delivered APK names itself.
+  Version 1.9.8, versionCode 49.
+- v1.9.9, owner order 2026-10-22 (third pass): the orb is THE SUN, after
+  the owner sent a screenshot of v1.9.8 and rejected it with the
+  verbatim order "sun is like a 3D ball that is burning every second".
+  The view draws one big 3D ball that fills its box (the box grew from
+  168dp to 210dp so the ball has presence): a lit sphere with the
+  hotspot up and to the left from white-hot through the solar golds to
+  deep orange, convection cells on its surface that rotate with the
+  ball and flicker on their own rates, flame tongues around its limb,
+  prominence arcs that roll around it, and flare sparks that burst on a
+  seconds cadence - every ink additive fire, and every ink carrying the
+  four stacked brightness orders as ONE combined per-frame factor. The
+  wake ramp is 1.2 seconds, so the sun is up when the owner looks. The
+  frame budget is the same one: zero per-frame allocations, the view's
+  own paced invalidate, nothing running while the console is paused.
+  Version 1.9.9, versionCode 50.
 
 **Built and delivered 2026-10-22 (v1.8.8):** the signed v1.8.8 APK was built
 on GitHub Actions from the master at 59da8f90a1 (run 39722179379, the merge

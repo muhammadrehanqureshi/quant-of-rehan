@@ -1514,15 +1514,15 @@ class HeaderCopyTest(unittest.TestCase):
 
 class VersionTest(unittest.TestCase):
     def test_the_version_is_the_one_that_ships_these_changes(self):
-        # v1.9.7 is the 2026-10-22 seventh pass: the nucleus is ONE 3D
-        # ball (an off-centre hotspot over a transparent limb over an
-        # ambient glow, sparks inside, no ring, no flat discs) and the
-        # ENTIRE feature is 30% brighter (BRIGHT_SCALE riding GLOW_SCALE);
-        # v1.9.6's glow order and v1.9.5's every-page orb and continuous
-        # thinking stand.
+        # v1.9.9 is the 2026-10-22 third pass: the orb is THE SUN, the
+        # owner's verbatim order ("sun is like a 3D ball that is burning
+        # every second") after he rejected v1.9.8's screenshot - one big
+        # three dimensional ball that fills its box, a burning surface,
+        # limb fire and a seconds flare cadence; v1.9.7's one-ball law,
+        # the brightness stacking and v1.9.5's every-page orb stand.
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="1.9.7"', manifest)
-        self.assertIn('android:versionCode="48"', manifest)
+        self.assertIn('android:versionName="1.9.9"', manifest)
+        self.assertIn('android:versionCode="50"', manifest)
         # The changelog entry ties these user-visible changes to the build.
         readme = (ROOT / "android" / "README.md").read_text(encoding="utf-8")
         self.assertIn("v1.7.9, owner order 2026-10-20", readme)
@@ -1541,6 +1541,8 @@ class VersionTest(unittest.TestCase):
         self.assertIn("Version 1.9.5, versionCode 46", readme)
         self.assertIn("Version 1.9.6, versionCode 47", readme)
         self.assertIn("Version 1.9.7, versionCode 48", readme)
+        self.assertIn("Version 1.9.8, versionCode 49", readme)
+        self.assertIn("Version 1.9.9, versionCode 50", readme)
         layout = LAYOUT.read_text(encoding="utf-8")
         strings = STRINGS.read_text(encoding="utf-8")
         main = MAIN.read_text(encoding="utf-8")
@@ -2011,17 +2013,19 @@ class SearchHighlightTest(unittest.TestCase):
 
 
 class ThinkingOrbPlanTest(unittest.TestCase):
-    """Owner order 2026-10-22 (second pass, v1.8.9): the owner sent the
-    reference look he wanted - a living network organism that breathes,
-    turns and re-links - and the first HUD pass's movers (the diag line's
-    words and the sweeping beam) are retired in favour of the ONE mover
-    that earns the claim: the ThinkingOrb under the brand. The classic
-    frame's tiles, rules and copy stand untouched beneath it; the orb is
-    a member of consoleViews, so a menu takes its space exactly as the
-    tiles' space is taken, and it runs ONLY while the console is resumed.
-    Since v1.9.5 the orb leaves consoleViews and stays on the SEARCH and
-    SETTINGS pages at its own station, the thinking is continuous, the
-    motion is 30% faster and the nucleus is layered.
+    """Owner orders 2026-10-22, stacked: the owner sent the reference look
+    he wanted (a living mover under the brand) and the first HUD pass's
+    movers (the diag line's words and the sweeping beam) are retired in
+    favour of the ONE mover that earns the claim: the ThinkingOrb under
+    the brand, on the SEARCH and SETTINGS pages too, running ONLY while
+    the console is resumed. Owner order 2026-10-22 (third pass, v1.9.9),
+    after the owner sent a screenshot of v1.9.8 and rejected it: "sun is
+    like a 3D ball that is burning every second". So the orb is THE SUN:
+    one big three dimensional ball that fills its box, built of a lit
+    sphere, convection cells on its face, flame tongues on its limb,
+    prominence arcs that roll around it and flare sparks that burst on a
+    seconds cadence. The classic frame's tiles, rules and copy stand
+    untouched beneath it.
     """
 
     def test_the_orb_sits_where_the_beam_lay(self):
@@ -2097,89 +2101,115 @@ class ThinkingOrbPlanTest(unittest.TestCase):
     def test_the_thinking_is_advanced_and_thirty_percent_faster(self):
         orb = (MAIN.parent / "ThinkingOrb.java").read_text(
             encoding="utf-8")
-        """Owner order 2026-10-22 (v1.9.5): the orb looks like it is
-        thinking continuously and moves at 30% more speed.
+        """Owner order 2026-10-22 (v1.9.5): the sun moves at 30% more
+        speed than v1.8.9's mover, and it burns - the surface never still.
         """
         # The owner's 30% is ONE named constant that every rate multiplies,
         # so the order is one decision rather than ten edits.
         self.assertIn("MOTION_SCALE = 1.3f", orb)
         for snippet in (
-                "seconds * 0.22f * MOTION_SCALE",
+                "seconds * 0.12f * MOTION_SCALE",
                 "seconds * 0.13f * MOTION_SCALE",
-                "seconds * 0.55f * MOTION_SCALE",
                 "seconds * 0.9f * MOTION_SCALE",
-                "seconds * 0.8f * MOTION_SCALE",
-                "seconds * 1.4f * MOTION_SCALE"):
+                "seconds * 1.1f * MOTION_SCALE",
+                "seconds * 0.31f * MOTION_SCALE",
+                "seconds * 0.47f * MOTION_SCALE",
+                "seconds * flameRate[f] * MOTION_SCALE",
+                "seconds * cells[o + 5] * MOTION_SCALE"):
             with self.subTest(snippet=snippet):
                 self.assertIn(snippet, orb)
-        self.assertGreaterEqual(orb.count("MOTION_SCALE"), 6)
-        # Continuous thinking: every node wanders its own orbit (stride 7
-        # carries the wander phase and rate) and a travelling spark runs
-        # the links, so the organism is never still between turns.
-        self.assertIn("NODE_STRIDE = 7", orb)
-        self.assertIn("wanderRate", orb)
-        self.assertIn("PULSE_BUDGET = 16", orb)
-        self.assertIn("pulseA", orb)
+        self.assertGreaterEqual(orb.count("MOTION_SCALE"), 9)
+        # The sun is up when the owner looks: the wake ramp is 1.2
+        # seconds, not v1.9.8's four.
+        self.assertIn("WAKE_SECONDS = 1.2f", orb)
         self.assertNotIn("Thread.sleep", orb)
         self.assertNotIn("ValueAnimator", orb)
 
     def test_the_nucleus_is_one_3d_ball(self):
         orb = (MAIN.parent / "ThinkingOrb.java").read_text(
             encoding="utf-8")
-        """Owner order 2026-10-22 (v1.9.7): the nucleus is ONE 3D ball.
+        """Owner order 2026-10-22 (v1.9.7, carried through v1.9.9): the
+        sun is ONE 3D ball, and v1.9.9's order makes it a REAL burning
+        ball that fills its box.
         """
-        # One shaded sphere: an off-centre light hotspot with the body's
-        # colour falling off to transparent at the limb, drawn over an
-        # ambient glow and nothing else. v1.9.5/6's stacked discs and
-        # separate ring are all gone, name and draw alike.
+        # One shaded sphere that fills the view: the hotspot sits up and
+        # to the LEFT of the centre, the body runs white-hot through the
+        # solar golds to a deep burning orange, and the limb falls to
+        # transparent. v1.9.5/6's stacked discs and separate ring are all
+        # gone, name and draw alike.
         self.assertIn("ballPaint", orb)
         self.assertIn("SUN_WHITE", orb)
-        self.assertIn("0xFFE8D47A", orb)
-        self.assertIn("0xFFE8B73A", orb)
-        self.assertIn("0xFFD67A2A", orb)
-        self.assertIn("w / 2f - coreRadius * 0.32f", orb)
-        self.assertIn("h / 2f - coreRadius * 0.38f", orb)
-        self.assertIn("0xFFD67A2A", orb)
+        self.assertIn("0xFFFFF3B0", orb)
+        self.assertIn("0xFFFFC107", orb)
+        self.assertIn("0xFFE65100", orb)
+        self.assertIn("cx - sunR * 0.18f", orb)
+        self.assertIn("cy - sunR * 0.22f", orb)
         for gone in ("ringPaint", "haloPaint", "corePaint",
-                     "heart * 0.72f", "coreRadius * 2.1f"):
+                     "coreRadius", "heart * 0.72f", "coreRadius * 2.1f"):
             with self.subTest(gone=gone):
                 self.assertNotIn(gone, orb)
-        # Draw order: the glow UNDER the ball, the ball, then the white
-        # heart breathing inside it, so nothing dulls what is above it.
+        # It fills the box: the radius is the view's own, minus one breath
+        # of air, never a small nucleus inside it.
+        self.assertIn("sunR = Math.min(w, h) / 2f - dp(4f)", orb)
+        # Draw order: corona UNDER the fire and the ball, flames and
+        # prominences on the limb, then the ball over their inner halves,
+        # then the white-hot heart, the convection cells and the flares.
         self.assertLess(orb.index(
-                "canvas.drawCircle(cx, cy, coreRadius * 2.6f, glowPaint)"),
+                "canvas.drawCircle(cx, cy, sunR * 1.6f, coronaPaint)"),
             orb.index(
-                "canvas.drawCircle(cx, cy, coreRadius, ballPaint)"))
+                "canvas.drawCircle(cx, cy, sunR, ballPaint)"))
         self.assertLess(orb.index(
-                "canvas.drawCircle(cx, cy, coreRadius, ballPaint)"),
-            orb.index(
-                "canvas.drawCircle(cx, cy, coreRadius * 0.3f, heartPaint)"))
-        # The glow and the ball cross instead of pulsing together.
+                "canvas.drawCircle(cx, cy, sunR, ballPaint)"),
+            orb.index("sunR * 0.24f, heartPaint"))
+        # The corona and the ball cross instead of pulsing together.
         self.assertIn("OUT of phase", orb)
-        # The eight sparks are plasma currents INSIDE the one ball, never
-        # a second object orbiting outside it.
-        self.assertIn("SPARKS = 8", orb)
-        self.assertIn("sparkRadius", orb)
-        self.assertIn("sparkPhase", orb)
-        self.assertIn("sparkRate", orb)
-        self.assertIn("0.55f + frac(seed) * 0.4f", orb)
+        # Fire fuses: overlapping glows add, they do not stack as discs.
+        self.assertIn("FIRE_MODE", orb)
+        # The limb is ragged fire, the prominences roll around it and the
+        # flare sparks carry the seconds cadence the owner ordered.
+        self.assertIn("FLAMES = 22", orb)
+        self.assertIn("flameLength", orb)
+        self.assertIn("flamePhase", orb)
+        self.assertIn("flameRate", orb)
+        self.assertIn("PROMINENCES = 4", orb)
+        self.assertIn("FLARES = 6", orb)
+        self.assertIn("flarePeriod", orb)
+        self.assertIn("flarePhase", orb)
+        self.assertIn("0.9f + frac(seed) * 0.7f", orb)
+        # The surface burns: convection cells ON the sphere, culled past
+        # the limb, dimming as they reach it. The ball turns.
+        self.assertIn("GRANULES = 26", orb)
+        self.assertIn("GRANULE_STRIDE = 6", orb)
+        self.assertIn("if (rz <= 0.08f)", orb)
 
     def test_the_whole_feature_is_30_percent_brighter(self):
         orb = (MAIN.parent / "ThinkingOrb.java").read_text(
             encoding="utf-8")
-        """Owner order 2026-10-22 (v1.9.7): the ENTIRE animated feature,
-        every ink on the frame and not the nucleus alone, is 30% brighter
-        than v1.9.6's, which had brightened only the nucleus's inks.
+        """Owner orders 2026-10-22 (v1.9.6 through v1.9.8, stacked): the
+        ENTIRE animated feature grew 25%, then 30%, then 30%, then 30%
+        brighter at every ink and not the nucleus alone.
         """
-        # The owner's 30% is ONE named constant that rides on v1.9.6's
-        # glow pass at every ink: the links, the travelling pulses, the
-        # nodes, the ball, its glow, its inner heart and its sparks.
-        self.assertIn("private static final float BRIGHT_SCALE = 1.3f;", orb)
-        self.assertGreaterEqual(orb.count("GLOW_SCALE * BRIGHT_SCALE"), 7,
-                                "every ink layer must carry the boost")
-        # v1.9.6's glow order stands underneath the new one.
+        # The four orders are each ONE named constant here, and the frame
+        # runs them as ONE combined per-frame factor at every ink, so the
+        # stacking is one decision that can never drift.
         self.assertIn("private static final float GLOW_SCALE = 1.25f;", orb)
-        self.assertGreaterEqual(orb.count("GLOW_SCALE"), 8)
+        self.assertIn("private static final float BRIGHT_SCALE = 1.3f;", orb)
+        self.assertIn("private static final float P1 = 1.3f;", orb)
+        self.assertIn("private static final float P2 = 1.3f;", orb)
+        self.assertIn(
+            "float bright = wake * GLOW_SCALE * BRIGHT_SCALE * P1 * P2;",
+            orb)
+        # Every ink layer carries the boost: the corona, the limb flames,
+        # the prominences, the ball, its heart, the convection cells and
+        # the flare sparks.
+        self.assertGreaterEqual(orb.count("* bright"), 6,
+                                "every ink layer must carry the boost")
+        for ink in ("coronaPaint.setAlpha", "flamePaint.setAlpha",
+                    "prominencePaint.setAlpha", "ballPaint.setAlpha",
+                    "heartPaint.setAlpha", "cellPaint.setAlpha",
+                    "flarePaint.setColor"):
+            with self.subTest(ink=ink):
+                self.assertIn(ink, orb)
         # And the flat grey disc the owner saw in the screenshot is gone:
         # the ball's limb falls off to transparent instead.
         self.assertNotIn("heart * 0.72f", orb)
@@ -2194,11 +2224,12 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         self.assertIn("postInvalidateOnAnimation()", orb)
         self.assertNotIn("Thread.sleep", orb)
         self.assertNotIn("Service", orb)
-        # The ice family is declared beside the drawing that owns it;
-        # the console palette is untouched by the HUD.
-        self.assertIn("0xFFE4F0FF", orb)
-        self.assertIn("0xFF86AEDC", orb)
-        self.assertIn("0xFF3E6E9E", orb)
+        # The solar family is declared beside the drawing that owns it;
+        # the console palette is untouched by the HUD, and the field is
+        # exactly the console's own deep background.
+        self.assertIn("FIELD_COLOR = 0xFF0B070D", orb)
+        self.assertIn("0xFFFFF3B0", orb)
+        self.assertIn("0xFFE65100", orb)
 
 
 class UniversalRuleGapTest(unittest.TestCase):
