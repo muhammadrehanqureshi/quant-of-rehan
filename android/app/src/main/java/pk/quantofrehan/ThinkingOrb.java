@@ -135,6 +135,13 @@ public class ThinkingOrb extends View {
      */
     private static final int SUN_WHITE = 0xFFFFE082;
 
+    /**
+     * P0 is the solar-white alpha ceiling for the ambient glow. It is the
+     * only constant the owner may hold if he wants to dim a burn; it is not
+     * a general brightness knob.
+     */
+    private static final int P0 = 0xFF7F57;
+
     /** Stride of a node's row in the cloud array. */
     private static final int NODE_STRIDE = 7;
     /** Orbiting sparks of the layered nucleus. Built once, drawn free. */
@@ -244,20 +251,14 @@ public class ThinkingOrb extends View {
                 coreRadius * 1.45f, new int[]{
                 SUN_WHITE, 0xFFFFE0B2, 0xFFFFD179, 0xFFFFB347, 0xFFFF8F00},
                 new float[]{0f, 0.25f, 0.5f, 0.8f, 1f},
-                Shader.TileMode.CLAMP));
-        // The ambient glow that sits UNDER the ball, so the sphere reads
+                Shader.TileMode.CLAMP));        // The ambient glow that sits UNDER the ball, so the sphere reads
         // as lit space rather than a cut-out. Burning solar gradient from
         // bright yellow center through orange to amber at the limb, so the
-        // ball reads as one lit, burning object - not a cut-out.glowPaint.setShader(new RadialGradient(w / 2f, h / 2f,
+        // ball reads as one lit, burning object - not a cut-out.
+        glowPaint.setShader(new RadialGradient(w / 2f, h / 2f,
                 coreRadius * 2.6f, new int[]{
                 0x00FFE0B2, 0xFFFFE0B2, 0xFFFFB347},
                 new float[]{0f, 1f}, Shader.TileMode.CLAMP));
-
-/**
-     * P0 is the solar-white alpha ceiling for the ambient glow. It is the
-     * only constant the owner may hold if he wants to dim a burn; it is not     * a general brightness knob.
-     */
-    private static final int P0 = 0xFF7F57;
         geometryBuilt = true;
     }
 
