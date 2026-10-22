@@ -56,12 +56,14 @@
                 android:layout_height="wrap_content">
 
                 <!-- The brand face (owner order 2026-10-12): Bonskin, the
-                     owner's own script signature face, at 30sp.
+                     owner's own script signature face, at 30sp, then the
+                     owner's order of 2026-10-22 took it 15% bigger, to
+                     34.5sp.
                      No letterSpacing and no textStyle="bold": tracking a
                      script face breaks its joins, and Android would fake a
                      bold from a face that already carries one weight.
-                     30sp is measured, not guessed: the string advances
-                     6.677 em, so 200dp on the narrowest phone this app
+                     34.5sp is measured, not guessed: the string advances
+                     6.677 em, so about 230dp on the narrowest phone this app
                      supports, against about 320dp of content width.
 
                      includeFontPadding stays at its default (true) for the
@@ -83,7 +85,7 @@
                     android:shadowRadius="6"
                     android:text="@string/app_name"
                     android:textColor="@color/gold_bright"
-                    android:textSize="30sp"/>
+                    android:textSize="34.5sp"/>
 
                 <!-- The settings control (owner order 2026-10-13): the owner's
                      own settings.png silhouette (res/drawable-nodpi/
@@ -517,6 +519,12 @@
             android:orientation="vertical"
             android:visibility="gone">
 
+            <!-- Owner order 2026-10-22 (second pass on this tile): the
+                 SETTINGS heading is first again, in his exact word, and the
+                 helper paragraph that used to stand under it is GONE from
+                 the screen: he asked for the heading and the controls, not
+                 a sentence over them. The hint string keeps its declaration
+                 in strings.xml but paints nowhere. -->
             <TextView
                 android:id="@+id/settings_heading"
                 style="@style/QorLabel"
@@ -524,12 +532,6 @@
                 android:layout_height="wrap_content"
                 android:gravity="center"
                 android:text="@string/label_settings"/>
-
-            <TextView style="@style/QorBody"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
-                android:text="@string/settings_hint"/>
 
             <!-- Owner order 2026-10-19: the relay token field and its save
                  button are gone. The phone holds no credential: the relay
@@ -607,6 +609,11 @@
                  equals the 10dp gap under the leaders' line from the
                  panel's own padding, and the tile reads with one gap top
                  and bottom. -->
+            <!-- Owner order 2026-10-22 (second pass, after the owner saw the
+                 tile): the index line is NOT a heading, so it carries the
+                 body's one size, the footer's 13sp, like every other
+                 non-heading line on the console. Its face stays LEMON MILK
+                 Bold: the size is universal, not the ink. -->
             <TextView
                 android:id="@+id/market_index"
                 android:layout_width="match_parent"
@@ -616,7 +623,7 @@
                 android:gravity="center"
                 android:text="@string/market_waiting"
                 android:textColor="@color/text_bright"
-                android:textSize="17sp"
+                android:textSize="13sp"
                 android:textStyle="bold"/>
 
             <!-- Owner order 2026-10-19: the "feed status unconfirmed" line

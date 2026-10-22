@@ -481,9 +481,10 @@ class SettingsControlTest(unittest.TestCase):
         self.assertIsNone(button.get(f"{ANDROID_NS}layout_marginTop"),
                           "the baseline overhang is retired with the rule")
         # The promise the no-clip row still has to keep: a box taller than the
-        # line it is centred on.
+        # line it is centred on (owner order 2026-10-22: the title grew 15%,
+        # so the ascent is measured at 34.5sp).
         box = int(button.get(f"{ANDROID_NS}layout_height")[:-2])
-        ascent = 30 * 1006 / 1000          # Bonskin hhea ascender at 30sp
+        ascent = 34.5 * 1006 / 1000        # Bonskin hhea ascender at 34.5sp
         self.assertGreater(box, ascent)
         # The ink sits `padding` inside the box, so the silhouette keeps clear
         # of the box edge as well.
@@ -744,10 +745,11 @@ class TypefaceTest(unittest.TestCase):
         self.assertNotIn("letterSpacing", brand)
 
     def test_the_brand_fits_the_narrowest_screen(self):
-        # Measured advance: 6.677 em. A 24sp brand would be 160dp on a 320dp
-        # content width, so 30sp (200dp) still leaves the header air.
+        # Measured advance: 6.677 em. Owner order 2026-10-22 took the title
+        # 15% bigger, to 34.5sp, which is about 230dp on the 320dp content
+        # width the narrowest phone gives it, so the header air holds.
         brand = element(self.layout, 'android:text="@string/app_name"')
-        self.assertIn('android:textSize="30sp"', brand)
+        self.assertIn('android:textSize="34.5sp"', brand)
 
     def test_the_brand_is_never_measured_with_the_tight_font_box(self):
         # Bonskin's ink for "Quant of Rehan" reaches 779/1000 em, above its own
@@ -783,13 +785,15 @@ class TypefaceTest(unittest.TestCase):
         self.assertNotIn('TypefaceSpan("monospace")', self.main)
         self.assertNotIn("StyleSpan", self.main)
 
-    def test_the_settings_paragraph_keeps_the_system_face(self):
-        # Out of the owner's scope on purpose: the hint is a paragraph, so it
-        # stays readable as a sentence rather than as capitals.
-        hint = element(self.layout, 'android:text="@string/settings_hint"')
-        self.assertIn('style="@style/QorBody"', hint)
-        body = self.styles[self.styles.index('name="QorBody"'):]
-        self.assertNotIn("@font/", body[:body.index("</style>")])
+    def test_the_settings_paragraph_no_longer_paints_on_the_tile(self):
+        # Owner order 2026-10-22 (second pass on the tile): the SETTINGS
+        # heading is back and the help paragraph below it is gone from the
+        # screen. The hint string keeps its declaration in strings.xml, but
+        # no layout paints it.
+        self.assertNotIn('android:text="@string/settings_hint"', self.layout)
+        self.assertIn('name="settings_hint"', self.strings)
+        heading = element(self.layout, 'android:id="@+id/settings_heading"')
+        self.assertIn('android:text="@string/label_settings"', heading)
 
     def test_the_caps_faces_are_wired_to_the_caps_text(self):
         self.assertEqual(self.styles.count("@font/lemonmilk_bold"), 2)
@@ -1254,7 +1258,12 @@ class StatusPulseTest(unittest.TestCase):
         self.assertIn("applyLiveQuotes(market, base);", full)
         live = watcher[watcher.index("static void fetchLive("):]
         live = live[:live.index("static void fetchStatus(")]
-        self.assertIn("Market market = fetchMarket(c, base);", live)
+        # Owner order 2026-10-22 (second report on the lag): the card read is
+        # RACED against the health read, so a tick costs one round trip of
+        # wait, not two stacked ones.
+        self.assertIn("marketJob = CARD_POOL.submit(() -> fetchMarket(c, base));",
+                      live)
+        self.assertIn("Market market = marketJob.get(20, TimeUnit.SECONDS);", live)
         self.assertNotIn("applyLiveQuotes(market, base);", live)
 
     def test_the_market_card_is_read_on_each_live_display_refresh(self):
@@ -1271,8 +1280,9 @@ class StatusPulseTest(unittest.TestCase):
         self.assertIn("static final long DISPLAY_REFRESH_MS = FAST_POLL_MS;",
                       watcher)
         live = watcher.index("static void fetchLive(")
-        live_body = watcher[live:live + 1100]
-        self.assertIn("Market market = fetchMarket(c, base);", live_body)
+        live_body = watcher[live:live + 1400]
+        self.assertIn("marketJob = CARD_POOL.submit(() -> fetchMarket(c, base));",
+                      live_body)
         self.assertIn("head.signals, market);", live_body)
         poll = self.main.index("private void pollOnce()")
         self.assertIn("refreshLive();", self.main[poll:poll + 700])
@@ -1514,15 +1524,15 @@ class HeaderCopyTest(unittest.TestCase):
 
 class VersionTest(unittest.TestCase):
     def test_the_version_is_the_one_that_ships_these_changes(self):
-        # v1.9.9 is the 2026-10-22 third pass: the orb is THE SUN, the
-        # owner's verbatim order ("sun is like a 3D ball that is burning
-        # every second") after he rejected v1.9.8's screenshot - one big
-        # three dimensional ball that fills its box, a burning surface,
-        # limb fire and a seconds flare cadence; v1.9.7's one-ball law,
-        # the brightness stacking and v1.9.5's every-page orb stand.
+        # v1.9.10 is the 2026-10-22 fourth pass: the settings tile keeps its
+        # heading and drops the helper paragraph, the sun's lines grew to ten
+        # and revolve, one body size for every non-heading line (13.31sp
+        # headings after the second 10%, 34.5sp brand after the 15%), and
+        # fetchLive races the health and card reads so a tick paints on the
+        # round it ran. v1.9.9's sun law and v1.9.7's one-ball law stand.
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="1.9.9"', manifest)
-        self.assertIn('android:versionCode="50"', manifest)
+        self.assertIn('android:versionName="1.9.10"', manifest)
+        self.assertIn('android:versionCode="51"', manifest)
         # The changelog entry ties these user-visible changes to the build.
         readme = (ROOT / "android" / "README.md").read_text(encoding="utf-8")
         self.assertIn("v1.7.9, owner order 2026-10-20", readme)
@@ -1543,6 +1553,7 @@ class VersionTest(unittest.TestCase):
         self.assertIn("Version 1.9.7, versionCode 48", readme)
         self.assertIn("Version 1.9.8, versionCode 49", readme)
         self.assertIn("Version 1.9.9, versionCode 50", readme)
+        self.assertIn("Version 1.9.10, versionCode 51", readme)
         layout = LAYOUT.read_text(encoding="utf-8")
         strings = STRINGS.read_text(encoding="utf-8")
         main = MAIN.read_text(encoding="utf-8")
@@ -1726,10 +1737,13 @@ class UniversalSizeTest(unittest.TestCase):
         self.main = MAIN.read_text(encoding="utf-8")
 
     def test_the_layout_declares_only_the_body_and_the_two_headings(self):
+        # Owner order 2026-10-22 (second pass): the index line left its own
+        # 17sp for the body's 13sp, and the brand title grew 15% to 34.5sp.
         sizes = set(re.findall(r'android:textSize="([0-9.]+sp)"', self.layout))
-        self.assertEqual(sizes, {"13sp", "17sp", "30sp"})
+        self.assertEqual(sizes, {"13sp", "34.5sp"})
         self.assertNotIn("11.5sp", self.layout)
         self.assertNotIn("15sp", self.layout)
+        self.assertNotIn("17sp", self.layout)
 
     def test_the_search_box_is_body_size(self):
         box = self.layout[self.layout.index("@+id/search_input"):]
@@ -1750,7 +1764,10 @@ class UniversalSizeTest(unittest.TestCase):
         self.assertIn('android:textSize">13sp', body[:body.index("</style>")])
 
     def test_the_headings_keep_a_size_of_their_own_and_are_bold(self):
-        for style, size in (("QorLabel", "12.1sp"), ("QorButton", "12sp")):
+        # Owner order 2026-10-22 (second 10% pass): headings took another 10%
+        # from their 12.1sp, and the buttons are lines, not headings, so they
+        # hold the body's 13sp.
+        for style, size in (("QorLabel", "13.31sp"), ("QorButton", "13sp")):
             block = self.styles[self.styles.index(f'name="{style}"'):]
             block = block[:block.index("</style>")]
             self.assertIn("lemonmilk_bold", block)
@@ -1905,11 +1922,13 @@ class HeadingGrowthTest(unittest.TestCase):
     """
 
     def test_the_label_style_grew_by_exactly_ten_percent(self):
+        # Owner order 2026-10-22 (second pass): 12.1 x 1.1 = 13.31sp, still on
+        # the one shared style, so every heading grows as one word.
         styles = STYLES.read_text(encoding="utf-8")
         block = styles[styles.index('name="QorLabel"'):]
         block = block[:block.index("</style>")]
-        self.assertIn('android:textSize">12.1sp', block)
-        self.assertNotIn('android:textSize">11sp', block)
+        self.assertIn('android:textSize">13.31sp', block)
+        self.assertNotIn('android:textSize">12.1sp', block)
 
     def test_the_body_kept_its_size(self):
         styles = STYLES.read_text(encoding="utf-8")
@@ -2171,8 +2190,12 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         self.assertIn("flameLength", orb)
         self.assertIn("flamePhase", orb)
         self.assertIn("flameRate", orb)
-        self.assertIn("PROMINENCES = 4", orb)
-        self.assertIn("FLARES = 6", orb)
+        # Owner order 2026-10-22 (second pass on the sun): the lines around
+        # the ball are MANY and they revolve, not wobble in place: ten
+        # bearing-rolling prominence arcs and ten flare sparks.
+        self.assertIn("PROMINENCES = 10", orb)
+        self.assertIn("FLARES = 10", orb)
+        self.assertIn("seconds * (0.05f + p * 0.008f) * MOTION_SCALE", orb)
         self.assertIn("flarePeriod", orb)
         self.assertIn("flarePhase", orb)
         self.assertIn("0.9f + frac(seed) * 0.7f", orb)

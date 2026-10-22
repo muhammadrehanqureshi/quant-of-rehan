@@ -440,7 +440,8 @@ public class MainActivity extends Activity {
      * the right and @dimen/settings_shift_y upward, and that is exactly what
      * this applies whenever the screen has the room. On a narrow phone it may
      * not: the control hangs off the brand title, the title is centred, and a
-     * 30sp Bonskin line is about 200dp wide, so on a 320dp or 360dp content
+     * 34.5sp Bonskin line (owner order 2026-10-22: the title grew 15% from
+     * its 30sp) is about 230dp wide, so on a 320dp or 360dp content
      * area the ordered 44.1dp pushes the control's box past the window's right
      * edge. Its pixels there are not clipped by a parent, they simply do not
      * exist, which is what the owner saw as a cut off gradient.
