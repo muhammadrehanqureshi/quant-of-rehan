@@ -17,8 +17,9 @@
          Owner order 2026-10-13: the drawn shape is now the owner's own
          settings.png silhouette (res/drawable-nodpi/settings.png), tinted
          from the palette and sitting on no plate at all. This string is its
-         short spoken label; the long settings_hint paragraph below it is help
-         text, not a button name. -->
+         short spoken label; the settings_hint paragraph under it retired
+         from the screen on the owner's order of 2026-10-22 (second pass on
+         the tile: heading and controls only). -->
     <string name="cd_settings">Opens the ARM THE 1-SECOND WATCH WINDOW control.</string>
     <string name="cd_search">Search. Finds a KMIALL symbol and shows its buy, sell and total volume.</string>
     <string name="search_hint">Search for a KMIALL scrip</string>
@@ -28,12 +29,13 @@
     <string name="diamond">◆</string>
     <string name="label_system">QUANT STATUS</string>
     <string name="label_signal">LATEST SIGNAL</string>
-    <string name="label_settings"></string>
-    <!-- Owner order 2026-10-22: the console's two unlabelled tiles get their
-         headings back, in the exact words he asked for. The market card had
-         carried no label since 2026-10-12; the owner's order of today
-         supersedes it, and the heading now says what the tile is: the index
-         and the top three scrips by volume. -->
+    <string name="label_settings">SETTINGS</string>
+    <!-- Owner order 2026-10-22, second pass on this tile (overrides the same
+         day's first pass): the SETTINGS heading is BACK, in his exact word,
+         and the helper paragraph that stood under it is gone from the
+         screen: he asked for the heading and the controls, not a sentence
+         over them. The settings_hint string stays declared, so the help
+         copy keeps one home but never paints itself back onto the tile. -->
     <string name="label_search">SEARCH</string>
     <string name="label_market">THE INDEX &amp; THE TOP 3 SCRIPS OF VOL.</string>
     <string name="market_open_notification">Market is open. Quant is online now.</string>

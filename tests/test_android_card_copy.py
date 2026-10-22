@@ -73,7 +73,8 @@ class FooterContractTest(unittest.TestCase):
         main = MAIN.read_text(encoding="utf-8")
         self.assertIn("static final long DISPLAY_REFRESH_MS = FAST_POLL_MS;",
                       watcher)
-        self.assertIn("Market market = fetchMarket(c, base);", watcher[
+        self.assertIn("marketJob = CARD_POOL.submit(() -> fetchMarket(c, base));",
+                      watcher[
             watcher.index("static void fetchLive("):])
         self.assertIn("? Watcher.FAST_POLL_MS : Watcher.REFRESH_MS", main)
         self.assertIn("this is a display read, not a strategy scan", watcher.lower())
