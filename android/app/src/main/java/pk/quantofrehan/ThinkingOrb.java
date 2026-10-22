@@ -83,6 +83,15 @@ public class ThinkingOrb extends View {
      */
     private static final float MOTION_SCALE = 1.3f;
 
+    /**
+     * Owner order 2026-10-22 (v1.9.6): the whole feature was reported too
+     * dark, at least 20% brighter than v1.9.5's. Every ink alpha on the
+     * frame (links, nodes, pulses, the nucleus's layers) multiplies this one
+     * constant, so the brightness order is one named number rather than ten
+     * scattered edits and can never drift back to the dim frame.
+     */
+    private static final float GLOW_SCALE = 1.25f;
+
     /** Stride of a node's row in the cloud array. */
     private static final int NODE_STRIDE = 7;
     /** Orbiting sparks of the layered nucleus. Built once, drawn free. */
@@ -354,7 +363,7 @@ public class ThinkingOrb extends View {
             // viewer, so filaments brighten as their ends come forward.
             float toward = clamp((midway - 1f) / 0.6f, 0f, 1f)
                     * linkFade(linkDist[l]);
-            int alpha = (int) ((16f + 96f * toward) * wake);
+            int alpha = (int) ((16f + 96f * toward) * wake * GLOW_SCALE);
             linkPaint.setARGB(Math.min(255, alpha),
                     Color.red(LINK_COLOR), Color.green(LINK_COLOR),
                     Color.blue(LINK_COLOR));
@@ -371,7 +380,7 @@ public class ThinkingOrb extends View {
             float t = frac2(seconds * 0.55f * MOTION_SCALE
                     + pulsePhase[p]);
             sparkPaint.setARGB(Math.min(255,
-                            (int) ((70f + 110f * t) * wake)),
+                            (int) ((70f + 110f * t) * wake * GLOW_SCALE)),
                     Color.red(CORE_COLOR), Color.green(CORE_COLOR),
                     Color.blue(CORE_COLOR));
             sparkPaint.setStrokeWidth(nodeRadius * 1.2f);
@@ -385,44 +394,55 @@ public class ThinkingOrb extends View {
             float shimmer = 0.8f + 0.2f * (float) Math.sin(
                     seconds * 1.4f * MOTION_SCALE + cloud[o + 4]);
             float size = nodeRadius * (0.6f + 0.9f * toward) * shimmer;
-            int alpha = (int) ((40f + 170f * toward) * wake);
+            int alpha = (int) ((40f + 170f * toward) * wake * GLOW_SCALE);
             nodePaint.setARGB(Math.min(255, alpha),
                     Color.red(NODE_COLOR), Color.green(NODE_COLOR),
                     Color.blue(NODE_COLOR));
             canvas.drawCircle(screenX[n], screenY[n], size, nodePaint);
         }
 
-        // The layered nucleus (owner order 2026-10-22, v1.9.5).
-        // 1. The heart: a radial gradient that breathes on its own clock,
-        //    and now a radius that breathes with it, so the core pulses.
-        float heart = coreRadius * (1f + 0.18f * coreBreath);
+        // The layered nucleus (owner order 2026-10-22, v1.9.5; cleaned and
+        // brightened, v1.9.6). v1.9.5 drew its halo disc ON TOP of the heart,
+        // which is what the owner saw as the washing out; the order below is
+        // halo UNDER heart, so the nucleus is clean and every layer is lit.
+        //
+        // 1. The halo: a soft glow the heart sits in, drawn first so it can
+        //    never dull what is above it, its alpha breathing OUT of phase
+        //    with the core's clock and brightened by GLOW_SCALE.
         haloPaint.setColor(withAlpha(CORE_COLOR, 255));
-        corePaint.setAlpha((int) (255f * coreBreath * wake));
-        canvas.drawCircle(cx, cy, heart * 3f, corePaint);
-        // 2. The halo: one plain translucent disc the core sits in, no blur
-        //    filter (a BlurMaskFilter is a no-op under hardware acceleration
-        //    and a software layer for one circle is not worth the bitmap).
-        //    Its alpha breathes OUT of phase with the heart, so the two
-        //    layers cross instead of pulsing together.
-        haloPaint.setAlpha((int) (70f * (1.4f - coreBreath) * wake));
+        haloPaint.setAlpha(Math.min(255, (int)
+                (78f * (1.4f - coreBreath) * wake * GLOW_SCALE)));
         canvas.drawCircle(cx, cy, coreRadius * 1.5f, haloPaint);
-        // 3. The ring: a thin visible circle that holds the nucleus plan,
-        //    breathing its own alpha against the core's clock.
-        ringPaint.setARGB((int) (110f * coreBreath * wake), 0xC8, 0xE4,
+        // 2. The heart: the breathing radial gradient, its radius breathing
+        //    with it, at full brightness the core's clock allows.
+        float heart = coreRadius * (1f + 0.18f * coreBreath);
+        corePaint.setAlpha((int) Math.min(255f,
+                255f * coreBreath * wake * GLOW_SCALE));
+        canvas.drawCircle(cx, cy, heart * 3f, corePaint);
+        // 3. The inner sphere: a small, almost solid core the gradient
+        //    turns into, so the centre reads as a lit engine with a sharp
+        //    bright centre under a soft corona, rather than one grey disc.
+        haloPaint.setAlpha((int) (235f * wake * GLOW_SCALE));
+        canvas.drawCircle(cx, cy, heart * 0.72f, haloPaint);
+        // 4. The ring: a thin visible circle that holds the nucleus plan,
+        //    brighter than v1.9.5's so the plan reads off the dark field.
+        ringPaint.setARGB(Math.min(255, (int)
+                (150f * (0.4f + 0.6f * coreBreath) * wake)), 0xC8, 0xE4,
                 0xFF);
         canvas.drawCircle(cx, cy, coreRadius * 2.1f, ringPaint);
-        // 4. The orbiting sparks: eight points on the ring's plan, each on
+        // 5. The orbiting sparks: eight points on the ring's plan, each on
         //    its own radius, phase and rate, projected flat like electrons
-        //    on an inclined orbit.
+        //    on an inclined orbit, bigger and brighter than v1.9.5's.
         for (int s = 0; s < SPARKS; s++) {
             float angle = seconds * sparkRate[s] * MOTION_SCALE
                     + sparkPhase[s];
             float sx = cx + sparkRadius[s] * (float) Math.cos(angle);
             float sy = cy + sparkRadius[s] * 0.45f * (float) Math.sin(angle);
-            sparkPaint.setARGB((int) ((150f + 70f * (float) Math.cos(angle))
-                    * wake), Color.red(CORE_COLOR),
+            sparkPaint.setARGB(Math.min(255, (int)
+                    ((195f + 60f * (float) Math.cos(angle)) * wake
+                            * GLOW_SCALE)), Color.red(CORE_COLOR),
                     Color.green(CORE_COLOR), Color.blue(CORE_COLOR));
-            canvas.drawCircle(sx, sy, nodeRadius * 1.1f, sparkPaint);
+            canvas.drawCircle(sx, sy, nodeRadius * 1.35f, sparkPaint);
         }
         postInvalidateOnAnimation();
     }
