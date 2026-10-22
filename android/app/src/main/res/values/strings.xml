@@ -122,6 +122,7 @@
     <string name="market_payload_too_large">The relay sent more data than this app accepts, so the card was skipped.</string>
     <string name="btn_relay">Relay status</string>
     <string name="btn_arm">ARM THE 1-SECOND WATCH WINDOW</string>
+
     <!-- Owner order 2026-10-19: no token, no relay plumbing, no feed jargon.
          Two controls and one plain sentence are the whole settings tile. -->
     <string name="settings_hint">The console reads the relay by itself. ARM THE 1-SECOND WATCH WINDOW, and on some phones also allow autostart and remove battery limits so the 1-second watch window is never frozen.</string>
