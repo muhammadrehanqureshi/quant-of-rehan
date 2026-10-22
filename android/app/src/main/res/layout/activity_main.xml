@@ -215,49 +215,38 @@
                 android:textSize="13sp"/>
         </RelativeLayout>
 
-        <!-- ══════════ HUD scan beam ══════════
-             Owner order 2026-10-22: the console reads as if it is thinking.
-             The beam is a 2dp gold line under the brand, its middle lit and
-             its ends transparent (drawable/scan_beam.xml), swept across the
-             width by a value animator in MainActivity (translated only, so
-             it costs no layout). Its deck declines to clip, in step with
-             the chain the settings gradient requires.
+        <!-- ══════════ HUD: the thinking orb ══════════
+             Owner order 2026-10-22 (second pass, after the owner sent the
+             reference look): the console reads as if the quant is thinking,
+             and the beam and the rotating words of v1.8.8's first pass are
+             RETIRED in favour of the one mover that earns the claim: a
+             pk.quantofrehan.ThinkingOrb, a cloud of linked particles that
+             breathes, orbits and re-links like the reference image's living
+             network. It draws itself on its own frame loop (the class is the
+             owner of its pace) and runs only while the console is resumed.
 
-             Grid note: the header to brand-rule air was 12dp. The deck takes
-             6dp + 3dp of it as its own margin and height, so the two rules
-             this deck now precedes carry 3dp of margin and the visible 12dp
-             is unchanged: with the search closed the brand rule stands
-             6+3+3 = 12dp under the header, and with the search open the
-             before-search rule stands at the same 12dp too (its older
-             spacing rule set, owner order 2026-10-21, keeps its shape). -->
-        <FrameLayout
-            android:id="@+id/scan_beam_deck"
+             It sits where the beam lay, under the brand, and it is a member
+             of consoleViews, so a menu takes its space exactly as the tiles'
+             space is taken (owner order 2026-10-16). -->
+        <pk.quantofrehan.ThinkingOrb
+            android:id="@+id/thinking_orb"
             android:layout_width="match_parent"
-            android:layout_height="3dp"
+            android:layout_height="168dp"
             android:layout_marginTop="6dp"
-            android:clipChildren="false"
-            android:clipToPadding="false">
-            <View
-                android:id="@+id/scan_beam"
-                android:layout_width="96dp"
-                android:layout_height="2dp"
-                android:layout_gravity="center_vertical"
-                android:background="@drawable/scan_beam"/>
-        </FrameLayout>
+            android:importantForAccessibility="no"/>
 
         <!-- Owner order 2026-10-21 (15:35): the search tile is bracketed by
              the same diamond rule as every other tile, one ABOVE it as well
              as the brand rule below it. The top rule belongs to the panel
              (it leaves with it), so the closed console keeps its single
-             brand rule under the header exactly as before. Its 3dp margin
-             is the grid note above: the beam deck ahead of it carries the
-             other 9dp of the same 12dp air. -->
-        <include
+             brand rule under the header exactly as before. Its 12dp margin
+             is the pre-HUD air the first HUD pass borrowed for the beam
+             deck, now returned to the grid. -->            <include
             android:id="@+id/rule_before_search"
             layout="@layout/qor_rule"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="3dp"
+            android:layout_marginTop="12dp"
             android:visibility="gone"/>
 
         <!-- Owner order 2026-10-21 (13:07 report): hidden children must not
@@ -445,20 +434,6 @@
             <TextView
                 android:id="@+id/status_detail"
                 style="@style/QorValue"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/status_gap"
-                android:gravity="center"/>
-
-            <!-- ═ v1.8.8 HUD: the working voice. Owner order 2026-10-22:
-                 the console reads as if it is thinking, so under the
-                 Karachi clock one short line rotates through what the
-                 console is watching (strings: sys_diag_lines), fading in
-                 and out. It is HUD micro-copy at the QorDiag style, and it
-                 describes looking, never finding (SO-3). -->
-            <TextView
-                android:id="@+id/sys_diag"
-                style="@style/QorDiag"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="@dimen/status_gap"
