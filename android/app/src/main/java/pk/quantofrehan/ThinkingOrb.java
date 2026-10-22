@@ -463,9 +463,9 @@ public class ThinkingOrb extends View {
                     + sparkPhase[s];
             float sx = cx + sparkRadius[s] * (float) Math.cos(angle);
             float sy = cy + sparkRadius[s] * 0.6f * (float) Math.sin(angle);
-            sparkPaint.setARGB(Math.min(255, (int) (130f
+            sparkPaint.setARGB(Math.min(255, (int) ((130f
                     + 60f * (float) Math.cos(angle)) * wake
-                    * GLOW_SCALE * BRIGHT_SCALE),
+                    * GLOW_SCALE * BRIGHT_SCALE)),
                     Color.red(CORE_COLOR), Color.green(CORE_COLOR),
                     Color.blue(CORE_COLOR));
             canvas.drawCircle(sx, sy, nodeRadius * 1.05f, sparkPaint);
