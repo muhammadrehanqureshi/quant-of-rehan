@@ -433,6 +433,35 @@ class RelayWorkerContractTest(unittest.TestCase):
         self.assertIn('path.startsWith("/research/") && !adminOk(request, env)',
                       self.source)
 
+    # ------------------------------------------------- post-close search data
+    # Owner order 2026-10-22: "I want to see everything about the stock even
+    # after the market is closed." The relay's publisher stops with the
+    # session, so freshness gating of the READING routes threw away exactly
+    # that. /prices now serves each symbol's last published price and
+    # /stock computes the split from the last published frame, with the
+    # closed-session fact carried in the source line (SO-3), and the write
+    # routes keep their own freshness rules untouched.
+
+    def test_prices_serves_the_last_published_price_after_close(self):
+        """An /prices row is no longer fresh-only; the last price stands."""
+        prices = self.source[self.source.index('path === "/prices"') :]
+        prices = prices[:prices.index('path === "/market"')]
+        self.assertNotIn("quote.fresh", prices)
+        # The rows are the last PUBLISHED price of each symbol, read from
+        # the same snapshot the live answer reads, and a symbol the relay
+        # never heard from is skipped rather than invented (SO-3).
+        self.assertIn("const snapshot = await readQuoteSnapshot(env);", prices)
+        self.assertIn("Number.isFinite(quote.price)", prices)
+
+    def test_stock_computes_the_split_from_the_last_published_frame(self):
+        """B, S and T are stated after close, stamped with their date."""
+        stock = self.source[self.source.index('path === "/stock"') :]
+        stock = stock[:stock.index('path === "/prices"')]
+        self.assertNotIn("if (quote.fresh) {", stock)
+        self.assertIn("rangePositionSplit(quote.high, quote.low", stock)
+        self.assertIn("the market is closed", stock)
+        self.assertIn("quote_fresh: Boolean(quote.fresh),", stock)
+
 
 if __name__ == "__main__":
     unittest.main()
