@@ -1514,13 +1514,14 @@ class HeaderCopyTest(unittest.TestCase):
 
 class VersionTest(unittest.TestCase):
     def test_the_version_is_the_one_that_ships_these_changes(self):
-        # v1.8.8 is the 2026-10-22 pass: the search and market tiles carry
-        # their ordered headings, every heading is 10% bigger, the Karachi
-        # clock rides the UP green, search answers after close and as-you-type,
-        # and the console carries the HUD that reads as if it is thinking.
+        # v1.8.9 is the 2026-10-22 second pass: the owner sent the reference
+        # look he wants and v1.8.8's sweeping beam and rotating words are
+        # retired for the ThinkingOrb, the living particle cloud under the
+        # brand; v1.8.8's headings, bigger type, green clock, instant search
+        # and after-close answers stand untouched.
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="1.8.8"', manifest)
-        self.assertIn('android:versionCode="42"', manifest)
+        self.assertIn('android:versionName="1.8.9"', manifest)
+        self.assertIn('android:versionCode="43"', manifest)
         # The changelog entry ties these user-visible changes to the build.
         readme = (ROOT / "android" / "README.md").read_text(encoding="utf-8")
         self.assertIn("v1.7.9, owner order 2026-10-20", readme)
@@ -1533,6 +1534,7 @@ class VersionTest(unittest.TestCase):
         self.assertIn("Version 1.8.6, versionCode 40", readme)
         self.assertIn("Version 1.8.7, versionCode 41", readme)
         self.assertIn("Version 1.8.8, versionCode 42", readme)
+        self.assertIn("Version 1.8.9, versionCode 43", readme)
         layout = LAYOUT.read_text(encoding="utf-8")
         strings = STRINGS.read_text(encoding="utf-8")
         main = MAIN.read_text(encoding="utf-8")
