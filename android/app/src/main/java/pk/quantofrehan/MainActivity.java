@@ -1,6 +1,7 @@
 package pk.quantofrehan;
 
 import android.app.Activity;
+import android.animation.ValueAnimator;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.res.ColorStateList;
@@ -15,6 +16,7 @@ import android.text.style.TypefaceSpan;
 import android.view.View;
 import android.view.animation.AccelerateDecelerateInterpolator;
 import android.view.animation.DecelerateInterpolator;
+import android.view.animation.LinearInterpolator;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -215,6 +217,22 @@ public class MainActivity extends Activity {
     private TextView statusWord;
     private TextView statusDetail, signalList;
     private TextView marketIndex, marketLeaders;
+    /**
+     * The HUD's two working parts (owner order 2026-10-22): the cycling
+     * diagnostics line in the status tile and the gold scan beam under the
+     * brand. Both are DRAWN from a boolean the lifecycle owns, exactly the
+     * way the settings menu is drawn from `settingsOpen`, so the console is
+     * never seen working while it is hidden.
+     */
+    private TextView sysDiag;
+    private View scanBeam;
+    /** The sweep itself; null when the console is not resumed. */
+    private ValueAnimator beamSweep;
+    /** The HUD's own alive flag, so start and stop have one owner. */
+    private boolean hudRunning;
+    /** The diag phrase now on screen, so the rotation moves one line at a
+     *  time instead of repeating whichever phrase landed last. */
+    private int diagIndex;
     /** Full relay text retained off-screen; the card renders only execution fields. */
     private String latestSignalBackground = "";
     /** Turned and tinted by setSettingsOpen, so it is the ImageView itself. */
@@ -324,9 +342,25 @@ public class MainActivity extends Activity {
      * (tests/test_android_render_gate.py) rather than only read.
      */
     private final RenderGate renderGate = new RenderGate();
-    /** The two badge backgrounds, built once instead of once per answer. */
-    private GradientDrawable badgeOnline;
-    private GradientDrawable badgeOffline;
+    /**
+     * The HUD's own times (owner order 2026-10-22).
+     *
+     * One phrase is on screen for DIAG_HOLD_MS, then fades for
+     * DIAG_FADE_MS, then the next phrase sits on the same air, and the
+     * cycle never shows the same phrase twice in a row. The beam crosses
+     * the content column in BEAM_SWEEP_MS, a pace close to the status
+     * beacon's breath (2200ms), so the console's two moving elements read
+     * as one clock rather than two.
+     */
+    private static final long DIAG_HOLD_MS = 2800L;
+    private static final long DIAG_FADE_MS = 450L;
+    /** The line's resting opacity, and the dim end of its own fade-out. It
+     *  never reaches zero, exactly like the beacon's breath: a light that
+     *  vanished would read as a fault, so the working voice dims before it
+     *  swaps rather than switching off. */
+    private static final float DIAG_ALPHA = 0.62f;
+    private static final float DIAG_DIM_ALPHA = 0.15f;
+    private static final long BEAM_SWEEP_MS = 2300L;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -341,6 +375,8 @@ public class MainActivity extends Activity {
         signalList = findViewById(R.id.signal_list);
         marketIndex = findViewById(R.id.market_index);
         marketLeaders = findViewById(R.id.market_leaders);
+        sysDiag = findViewById(R.id.sys_diag);
+        scanBeam = findViewById(R.id.scan_beam);
         settingsPanel = findViewById(R.id.settings_panel);
         btnSettings = findViewById(R.id.btn_settings);
         btnSearch = findViewById(R.id.btn_search);
@@ -609,6 +645,130 @@ public class MainActivity extends Activity {
     }
 
     /**
+     * The HUD's cycle, owner order 2026-10-22.
+     *
+     * The console reads as if it is thinking, and it IS working while it is
+     * on screen, so two of its own facts are drawn:
+     *
+     *   1. sys_diag rotates through what the console is actually watching
+     *      (resources: sys_diag_lines), one phrase fading out before the
+     *      next fades in, on the pace constants above. No phrase names a
+     *      finding; every one describes the console's own watching (SO-3).
+     *   2. scan_beam sweeps the content column on the render thread, a
+     *      translation ValueAnimator, which costs this thread no layout,
+     *      no measure and no draw, exactly like the beacon's breath.
+     *
+     * The cycle runs only while the activity is resumed: startHud is
+     * called from onResume and stopHud from onPause, the same law that
+     * governs the poll loop and the status beacon (a hidden console holds
+     * no animation). Nothing here touches the relay: the HUD is drawn
+     * whether the market is open or closed, because watching is what the
+     * console does between answers, and the sober facts (ONLINE, the
+     * clock, the card) still carry the session.
+     */
+    private void startHud() {
+        if (hudRunning) {
+            return;
+        }
+        hudRunning = true;
+        if (sysDiag != null) {
+            startDiagCycle();
+        }
+        startBeam();
+    }
+
+    /** Ends the cycle and returns both movers to their rest positions. */
+    private void stopHud() {
+        hudRunning = false;
+        cadence.removeCallbacks(diagStep);
+        if (beamSweep != null) {
+            beamSweep.cancel();
+            beamSweep = null;
+        }
+        if (scanBeam != null) {
+            scanBeam.setTranslationX(0f);
+        }
+    }
+
+    /** Runs one fade-out of the current phrase, then advances it. */
+    private final Runnable diagStep = new Runnable() {
+        @Override
+        public void run() {
+            if (!hudRunning || sysDiag == null) {
+                return;
+            }
+            sysDiag.animate()
+                    .alpha(DIAG_DIM_ALPHA)
+                    .setDuration(DIAG_FADE_MS)
+                    .withEndAction(this::advanceDiagLine)
+                    .start();
+        }
+    };
+
+    /** Swaps in the next phrase and schedules the next fade-out. */
+    private void advanceDiagLine() {
+        if (!hudRunning || sysDiag == null) {
+            return;
+        }
+        String[] phrases = getResources().getStringArray(R.array.sys_diag_lines);
+        diagIndex = (diagIndex + 1) % phrases.length;
+        sysDiag.setText(phrases[diagIndex]);
+        sysDiag.animate()
+                .alpha(DIAG_ALPHA)
+                .setDuration(DIAG_FADE_MS)
+                .start();
+        cadence.postDelayed(diagStep, DIAG_HOLD_MS);
+    }
+
+    /** Opens the cycle: the first phrase is set and the chain scheduled. */
+    private void startDiagCycle() {
+        String[] phrases = getResources().getStringArray(R.array.sys_diag_lines);
+        diagIndex = 0;
+        sysDiag.setText(phrases[0]);
+        sysDiag.setAlpha(DIAG_ALPHA);
+        cadence.postDelayed(diagStep, DIAG_HOLD_MS);
+    }
+
+    /**
+     * The brand's scan beam, owner order 2026-10-22.
+     *
+     * The gold line under the header crosses the content column once every
+     * BEAM_SWEEP_MS, restarting at the left edge each pass, and translation
+     * is the only property the animator moves. The distance is read from
+     * the window's own width after layout, so a narrow screen sweeps the
+     * same beam over whatever length it has; a screen too narrow to sweep
+     * (none today) keeps the beam where it lies and starts nothing, which
+     * is why the animator is created only inside the posted run.
+     */
+    private void startBeam() {
+        if (scanBeam == null || beamSweep != null) {
+            return;
+        }
+        scanBeam.post(() -> {
+            if (!hudRunning || scanBeam == null) {
+                return;
+            }
+            View window = findViewById(android.R.id.content);
+            if (window == null || window.getWidth() == 0) {
+                return;
+            }
+            float maxX = Math.max(0f, window.getWidth() - scanBeam.getWidth());
+            ValueAnimator sweep = ValueAnimator.ofFloat(0f, maxX);
+            sweep.setDuration(BEAM_SWEEP_MS);
+            sweep.setRepeatCount(ValueAnimator.INFINITE);
+            sweep.setRepeatMode(ValueAnimator.RESTART);
+            sweep.setInterpolator(new LinearInterpolator());
+            sweep.addUpdateListener(anim -> {
+                if (scanBeam != null) {
+                    scanBeam.setTranslationX((Float) anim.getAnimatedValue());
+                }
+            });
+            beamSweep = sweep;
+            sweep.start();
+        });
+    }
+
+    /**
      * A 5 minute watchdog on Android is best effort: setExactAndAllowWhileIdle
      * is capped inside Doze and some OEM battery managers stop the app
      * entirely. A battery optimisation exemption is the one thing an app can
@@ -643,6 +803,10 @@ public class MainActivity extends Activity {
         // paint is what starts the breath again on a live market.
         renderGate.reset();
         refresh();
+        // Owner order 2026-10-22: the console works only while it is on
+        // screen, like every other animation here; onPause ends the cycle
+        // and onResume starts it again.
+        startHud();
         // Owner order 2026-10-16: the console polls the relay by itself, so
         // nothing on it has to be refreshed by hand. A full round paints the
         // screen on resume (card included), then scheduleNext picks the
@@ -663,6 +827,7 @@ public class MainActivity extends Activity {
         resumed = false;
         cadence.removeCallbacks(tick);
         stopStatusBreath();
+        stopHud();
     }
 
     /** The foreground refresh loop. */
@@ -1055,7 +1220,7 @@ public class MainActivity extends Activity {
             // no fresh quote is listed bare rather than with a guessed number.
             for (String symbol : visible) {
                 TextView row = new TextView(this);
-                styleSearchRow(row, symbol);
+                styleSearchRow(row, symbol, q);
                 row.setOnClickListener(v -> selectSymbol(symbol));
                 searchResults.addView(row);
                 searchRows.put(symbol, row);
@@ -1064,7 +1229,7 @@ public class MainActivity extends Activity {
         } else {
             for (java.util.Map.Entry<String, TextView> entry : searchRows.entrySet()) {
                 if (visible.contains(entry.getKey())) {
-                    styleSearchRow(entry.getValue(), entry.getKey());
+                    styleSearchRow(entry.getValue(), entry.getKey(), q);
                 }
             }
         }
@@ -1086,8 +1251,8 @@ public class MainActivity extends Activity {
         }
     }
 
-    /** Colour one search row from its own live quote, or list a symbol bare. */
-    private void styleSearchRow(TextView row, String symbol) {
+    /** Colour one search row from its own live quote and its typed match. */
+    private void styleSearchRow(TextView row, String symbol, String q) {
         Watcher.Quote quote = Watcher.quote(symbol);
         if (quote != null) {
             // A move the relay did not report prints no percentage and
@@ -1114,6 +1279,28 @@ public class MainActivity extends Activity {
         row.setTextColor(getColor(R.color.text_bright));
         row.setLetterSpacing(0.12f);
         row.setPadding(dp(10), dp(9), dp(10), dp(9));
+        // Owner order 2026-10-22 (the search highlight): every row whose
+        // symbol STARTS with what is typed lights up while it matches, and
+        // the row that equals the query carries the strongest gold of all.
+        // Typing H lights every H..., typing HU narrows the light, and the
+        // moment the last letter of HUBC lands the exact match is lit
+        // hardest of the list. Both plates are the brand gold at the two
+        // intensities the palette declares: D9A441 at 20% (gold_press) for
+        // a prefix match, at 35% (gold_match) for the exact one. The
+        // highlight is a fact of the QUERY, never of the selection: a row
+        // lights because it matches, whether or not it has been tapped.
+        if (q == null || q.isEmpty() || !symbol.startsWith(q)) {
+            row.setBackground(null);
+            return;
+        }
+        boolean exactMatch = symbol.length() == q.length();
+        GradientDrawable plate = new GradientDrawable();
+        plate.setCornerRadius(dp(8));
+        plate.setColor(getColor(exactMatch
+                ? R.color.gold_match : R.color.gold_press));
+        row.setBackground(plate);
+        row.setTextColor(getColor(exactMatch
+                ? R.color.gold_bright : R.color.gold));
     }
 
     /** One symbol's B, S and T, asked of the relay's own split law. */
@@ -1227,13 +1414,14 @@ public class MainActivity extends Activity {
     }
 
     /**
-     * "Karachi: <clock>" keeps the brand teal.
+     * "Karachi: <clock>" is read in the up-move green.
      *
-     * Owner order 2026-10-13: the tile is drawn in the owner's face end to
-     * end, so the monospace family and the synthesised bold that used to force
-     * the clock into a legacy face are retired. The colour emphasis stays,
-     * because it marks the one live value on the line without touching the
-     * type.
+     * Owner order 2026-10-22: the date and time take the colour the card's
+     * own UP percentage rides in (R.color.green), so one shade of green on
+     * the console always means "a live number that rose". The brand teal it
+     * replaces stays in the palette for the brand lockup's tagline. The
+     * face rule of 2026-10-13 stands untouched: the emphasis is colour
+     * alone, the LEMON MILK Light line does not move.
      */
     private SpannableString clockSpans(String d) {
         SpannableString sp = new SpannableString(d);
@@ -1246,7 +1434,7 @@ public class MainActivity extends Activity {
                 end++;
             }
             end = Math.min(end, d.length());
-            sp.setSpan(new ForegroundColorSpan(getColor(R.color.teal_bright)),
+            sp.setSpan(new ForegroundColorSpan(getColor(R.color.green)),
                     start, end, 0);
         }
         return sp;

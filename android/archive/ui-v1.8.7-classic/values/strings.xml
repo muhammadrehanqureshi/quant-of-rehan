@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Quant of Rehan</string>
+    <!-- Owner order 2026-10-16 (fourth note), exact wording: the header line
+         now names the index it follows and drops the timezone note. Two
+         changes in one string: "PSX KMIALL" became "PSX's KMIALL INDEX", and
+         "KARACHI TIME" is removed from the header entirely. The Karachi clock
+         itself is NOT gone: it still stands in the system status tile, which
+         is where a reader looks for it, and SO-8 keeps every time in the app
+         on Asia/Karachi. The apostrophe is escaped because an Android string
+         resource reads a bare one as punctuation to be stripped. -->
+    <string name="tagline">PSX\'s KMIALL INDEX</string>
+    <string name="checking">Checking system…</string>
+    <!-- Owner order 2026-10-12: the settings glyph is retired, and the
+         control is a drawn shape rather than U+2699 (no bundled face has it,
+         so a glyph could only ever render as whatever the system font chose).
+         Owner order 2026-10-13: the drawn shape is now the owner's own
+         settings.png silhouette (res/drawable-nodpi/settings.png), tinted
+         from the palette and sitting on no plate at all. This string is its
+         short spoken label; the long settings_hint paragraph below it is help
+         text, not a button name. -->
+    <string name="cd_settings">Settings. Opens the relay token and the watchdog controls.</string>
+    <string name="cd_search">Search. Finds a KMIALL symbol and shows its buy, sell and total volume.</string>
+    <string name="search_hint">Search for a KMIALL scrip</string>
+    <string name="search_waiting">Symbols load with the next relay answer.</string>
+    <string name="search_loading">Reading the symbol\u2026</string>
+    <string name="search_unavailable">That symbol has no live quote from the relay yet.</string>
+    <string name="diamond">◆</string>
+    <string name="label_system">QUANT STATUS</string>
+    <string name="label_signal">LATEST SIGNAL</string>
+    <string name="label_settings">SETTINGS</string>
+    <string name="market_open_notification">Market is open. Quant is online now.</string>
+    <string name="market_closed_notification">Market is closed. Quant is sleeping now.</string>
+    <string name="market_break_notification">Market is on a break. Quant is sleeping until the market reopens.</string>
+    <string name="market_halted_notification">Market is halted now. Quant is sleeping until the market reopens.</string>
+    <!-- Owner order 2026-10-12: the market card carries no label any more,
+         so "MARKET NOW" is gone. The index line and the ranking state what
+         the card is by themselves. -->
+    <!-- ============ status pill ============
+         Owner order 2026-10-11: the checkmark and the cross are retired. The
+         state is carried by a vector indicator (drawable/ic_status_online,
+         ic_status_offline, ic_status_checking) beside the word itself, so the
+         badge reads as a status light instead of an emoji, and neither state
+         is a symbol that a screen reader would read as arithmetic. The word
+         lives in a string resource so the pill, its accessibility description
+         and the layout can never drift apart. -->
+    <string name="status_checking">CHECKING</string>
+    <string name="status_online">ONLINE</string>
+    <string name="status_offline">OFFLINE</string>
+    <string name="cd_status_checking">System status: checking. The app has not heard from the relay yet.</string>
+    <string name="cd_status_online">System status: online. The market is trading and the quant is running.</string>
+    <string name="cd_status_offline">System status: offline. The market is closed or on its midday break, or the relay cannot be reached.</string>
+
+    <!-- ============ scan cadence ============
+         Owner order 2026-10-12, exact text. Owner order 2026-10-13 (third
+         note): the sentence leaves the market card and stands immediately
+         after the final diamond rule on the console. Owner order 2026-10-13
+         (fifth note): the air above it is no longer part of this resource.
+         The two leading newlines are retired and the separation lives in
+         the layout as a 12dp margin, the same gap every tile has below its
+         rule, because the sentence must sit on the console's own grid; the
+         words stay exactly as ordered and stay the only place they appear.
+         v1.7.1 changed ONE word in it: 4 minutes became 30 seconds, because
+         the scan moved from the retired local tick to the cloud loop.
+         Owner order 2026-10-19: the interval becomes one second, at
+         config.SCAN_INTERVAL_SECONDS = 1. That is the strategy scan's own
+         cadence, and it is the same number the phone repaints at, so the
+         sentence no longer separates a display read from a scan. A cycle on
+         a real session tape costs about 2.9 seconds, so one second is the
+         request, not a promise the whole universe is ranked between two
+         ticks; the copy says what the loop asks for, which is what the owner
+         ordered and what the card's moving numbers reflect.
+         The sentence states the strategy-scan cadence, not an app refresh,
+         so the scanner and the phone display are not conflated in the code.
+
+         The scanning happens only inside a live band (Mon-Thu 09:32-15:30,
+         Friday 09:17-12:00 and 14:32-16:30), which the sentence states.
+         Owner wording 2026-10-12 kept: "when the market is open". Owner
+         order 2026-10-21 (superseding the 2026-10-11 watch-only rule): the
+         quant also scans the market's own pre-market (09:00-09:15) and
+         post-market (Mon-Thu 15:32-15:49, Friday 16:32-16:49) windows on
+         the live broker feed, so the sentence names them; v1.8.2. Owner
+         order 2026-10-21 (13:08 message): exact replacement wording, caps
+         as written: LIVE/POST/PRE. Owner order 2026-10-21 (14:19 message):
+         exact replacement again, caps as written: THE LIVE, THE POST & THE
+         PRE. -->
+    <string name="scan_cadence">QUANT WILL BE SCANNING THE LIVE, THE POST &amp; THE PRE MARKET EVERY SECOND.</string>
+
+    <!-- ============ session copy ============
+         Owner order 2026-10-11, exact texts for the three market conditions.
+         The relay's own market_state decides which is true (its `condition`
+         and `condition_text` fields, or its `phase` as a fallback), and the
+         app never derives a session from its own clock (SO-8). Both sentences
+         are used verbatim: nothing is appended inside them, so the owner's
+         wording always appears exactly as written. Owner order 2026-10-13:
+         the resume sentence that used to follow them is retired, so the
+         status tile carries the condition alone. -->
+    <string name="market_closed_now">Market is closed right now.</string>
+    <string name="market_on_break">Market is on a break right now.</string>
+    <string name="market_halted_now">Market is halted now. Quant is sleeping until the market reopens.</string>
+    <!-- Shown only when the relay reports no phase at all. The app refuses to
+         guess a session, so it says so instead of claiming the market is shut. -->
+    <string name="market_status_unreported">Market status not reported by the relay yet.</string>
+
+    <string name="market_waiting">KSE100  ·  loading</string>
+    <string name="market_leaders_waiting">Top three by volume load with the next broker-feed update.</string>
+    <string name="market_none_yet">No stock has traded yet this session.</string>
+    <string name="market_unavailable">Volume leaders unavailable right now.</string>
+    <!-- Owner order 2026-10-19: the REG feed status sentences are retired.
+         The index line now carries the broker's own timestamp, so the card
+         states when its numbers were taken instead of narrating feed state. -->
+    <!-- %1$s is a short failure name, never a token or a URL -->
+    <string name="market_card_failed">Market card could not load (%1$s).</string>
+    <string name="market_relay_unreachable">Relay unreachable, so the market card is empty.</string>
+    <string name="market_payload_too_large">The relay sent more data than this app accepts, so the card was skipped.</string>
+    <string name="btn_relay">Relay status</string>
+    <string name="btn_arm">Arm 1-second watchdog</string>
+    <!-- Owner order 2026-10-19: no token, no relay plumbing, no feed jargon.
+         Two controls and one plain sentence are the whole settings tile. -->
+    <string name="settings_hint">The console reads the relay by itself. On some phones also allow autostart and remove battery limits so the watchdog is never frozen.</string>
+    <!-- Owner order 2026-10-20: no call for TODAY. The tile used to fall
+         back to whatever signal the relay last carried, so a Tuesday
+         screen still showed Friday's HCAR row. A card stamped with
+         another session is not today's call and is shown as none. -->
+    <!-- Owner order 2026-10-20 (third note): the placeholder, a card from
+         another session and a NO TRADE verdict are the same sentence. The
+         tile used to read "NO TRADE" straight off the scanner's own wording,
+         which is jargon on a phone screen; one sentence now says what the
+         reader actually has. -->
+    <string name="signal_no_call">NO SIGNAL AVAILABLE RIGHT NOW</string>
+    <string name="signal_none">NO SIGNAL AVAILABLE RIGHT NOW</string>
+    <string name="signal_unavailable">Signal unavailable</string>
+
+</resources>

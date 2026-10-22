@@ -13,6 +13,12 @@
          masked ripple on the gear plates. Low enough that the press reads as
          a touch, not as a state change (the gold RING is the state). -->
     <color name="gold_press">#33D9A441</color>
+    <!-- Owner order 2026-10-22 (the search highlight): a typing match is
+         lit in gold, and the exact match carries a brighter plate than a
+         prefix match, so HUBC is lit hardest of all the moment the last
+         letter of HUBC lands. Both are the same brand gold, at two
+         intensities, over the field's dark plate. -->
+    <color name="gold_match">#59D9A441</color>
     <color name="gold_bright">#FFF8CE66</color>
     <color name="orange_logo">#FFE58142</color>
     <color name="crimson_logo">#FF882F48</color>
@@ -38,6 +44,11 @@
          reads as a lit centre rather than as a flat dot. -->
     <color name="red_hi">#FFD65F66</color>
     <color name="teal">#FF4A9C95</color>
+    <!-- teal_bright remains the tagline's neighbour colour in the header
+         lockup. The Karachi clock left it on 2026-10-22: owner order, the
+         date and time are read in the green the card's own UP percentage
+         is read in (R.color.green), one fact stated at the only place it
+         is drawn rather than as a third green invented for the line. -->
     <color name="teal_bright">#FF63B7AE</color>
     <color name="text_soft">#FFB9A6C2</color>
     <color name="text_bright">#FFF0EAF4</color>

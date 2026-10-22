@@ -1620,8 +1620,14 @@ export default {
       // B, S and T. The split is computed HERE, by the same law the card
       // uses, so two readers of one question cannot disagree, and the method
       // that produced it travels with the numbers (SO-3). No portal fetch: the
-      // live frame already carries the published high and low, and a stale
-      // frame is refused rather than aged forward.
+      // live frame already carries the published high and low. Owner order
+      // 2026-10-22: freshness no longer refuses the answer. After close the
+      // publisher stops, so a fresh-only split left the pinned scrip with its
+      // total alone and the owner asked to see EVERYTHING after close. The
+      // split is now computed from the symbol's LAST PUBLISHED frame, which
+      // is the same frame the card still shows; the frame's own stamp stays
+      // in quote_as_of, freshness stays in quote_fresh, and the source line
+      // names a closed session, so the numbers never claim to be live (SO-3).
       const symbol = String(url.searchParams.get("symbol") || "").toUpperCase();
       if (!/^[A-Z0-9]{1,12}$/.test(symbol)) {
         return json({ ok: false, error: "invalid symbol" }, 400);
@@ -1642,32 +1648,33 @@ export default {
         buy_volume: null,
         sell_volume: null,
         split_method: "unavailable",
-        split_source: "no fresh frame for this symbol",
+        split_source: "the frame's range is incomplete",
       };
-      if (quote.fresh) {
-        const split = rangePositionSplit(quote.high, quote.low,
-                                         quote.price, quote.volume);
-        if (split) {
-          Object.assign(stock, split);
-          stock.split_method = "range_position";
-          stock.split_source = "B/S estimated from the day's range, not order flow";
-        } else {
-          stock.split_source = "the frame's range is incomplete";
-        }
+      const split = rangePositionSplit(quote.high, quote.low,
+                                       quote.price, quote.volume);
+      if (split) {
+        Object.assign(stock, split);
+        stock.split_method = "range_position";
+        stock.split_source = quote.fresh
+          ? "B/S estimated from the day's range, not order flow"
+          : "B/S estimated from the symbol's last published frame; the market is closed";
       }
       return json({ ok: true, stock });
     }
 
     if (request.method === "GET" && path === "/prices") {
       // Owner order 2026-10-20 (second note): the phone's search rows show a
-      // price and a move, so this returns the whole fresh KMIALL map in one
-      // compact answer. Three fields per symbol, fresh quotes only, and no
-      // invented value for a symbol the relay has not heard from.
+      // price and a move, so this returns the whole KMIALL map in one compact
+      // answer. Owner order 2026-10-22: freshness no longer gates the row.
+      // After close the publisher stops, so a fresh-only map erased every
+      // price from the list just as the owner went searching. The rows are
+      // the LAST PUBLISHED price of each symbol; nothing is invented for a
+      // symbol the relay has not heard from, and nothing is aged forward,
+      // while /stock labels a closed session in its own source line (SO-3).
       const snapshot = await readQuoteSnapshot(env);
       const prices = [];
       for (const quote of (snapshot && snapshot.quotes) || []) {
-        if (!quote || !quote.fresh) continue;
-        if (!Number.isFinite(quote.price) || quote.price <= 0) continue;
+        if (!quote || !Number.isFinite(quote.price) || quote.price <= 0) continue;
         prices.push([
           String(quote.symbol || ""),
           quote.price,

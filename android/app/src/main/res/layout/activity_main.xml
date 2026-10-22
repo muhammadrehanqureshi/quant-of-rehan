@@ -215,17 +215,49 @@
                 android:textSize="13sp"/>
         </RelativeLayout>
 
+        <!-- ══════════ HUD scan beam ══════════
+             Owner order 2026-10-22: the console reads as if it is thinking.
+             The beam is a 2dp gold line under the brand, its middle lit and
+             its ends transparent (drawable/scan_beam.xml), swept across the
+             width by a value animator in MainActivity (translated only, so
+             it costs no layout). Its deck declines to clip, in step with
+             the chain the settings gradient requires.
+
+             Grid note: the header to brand-rule air was 12dp. The deck takes
+             6dp + 3dp of it as its own margin and height, so the two rules
+             this deck now precedes carry 3dp of margin and the visible 12dp
+             is unchanged: with the search closed the brand rule stands
+             6+3+3 = 12dp under the header, and with the search open the
+             before-search rule stands at the same 12dp too (its older
+             spacing rule set, owner order 2026-10-21, keeps its shape). -->
+        <FrameLayout
+            android:id="@+id/scan_beam_deck"
+            android:layout_width="match_parent"
+            android:layout_height="3dp"
+            android:layout_marginTop="6dp"
+            android:clipChildren="false"
+            android:clipToPadding="false">
+            <View
+                android:id="@+id/scan_beam"
+                android:layout_width="96dp"
+                android:layout_height="2dp"
+                android:layout_gravity="center_vertical"
+                android:background="@drawable/scan_beam"/>
+        </FrameLayout>
+
         <!-- Owner order 2026-10-21 (15:35): the search tile is bracketed by
              the same diamond rule as every other tile, one ABOVE it as well
              as the brand rule below it. The top rule belongs to the panel
              (it leaves with it), so the closed console keeps its single
-             brand rule under the header exactly as before. -->
+             brand rule under the header exactly as before. Its 3dp margin
+             is the grid note above: the beam deck ahead of it carries the
+             other 9dp of the same 12dp air. -->
         <include
             android:id="@+id/rule_before_search"
             layout="@layout/qor_rule"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
+            android:layout_marginTop="3dp"
             android:visibility="gone"/>
 
         <!-- Owner order 2026-10-21 (13:07 report): hidden children must not
@@ -247,11 +279,28 @@
             android:orientation="vertical"
             android:visibility="gone">
 
+            <!-- Owner order 2026-10-22: the tile has a heading again, in
+                 the exact word he ordered. The heading is first, so the
+                 panel opens onto its name the same way every other labelled
+                 tile does, and the box follows it 10dp below, the gap the
+                 status tile uses between its heading and its badge. -->
+            <TextView
+                android:id="@+id/search_heading"
+                style="@style/QorLabel"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:layout_marginBottom="10dp"
+                android:text="@string/label_search"/>
+
             <!-- Owner order 2026-10-21 (14:19, second gap report on this
-                 tile): no marginTop on the box either, so the panel's own
-                 16dp padding is the one gap above and below the box, now
-                 that the empty rows and status line carry no margins (the
-                 v1.8.3 fix kept, its layout regression reverted separately). -->
+                 tile), restated for the heading above it: the box gains no
+                 margin of its own; the 10dp under the SEARCH heading is the
+                 heading's own marginBottom (2026-10-22), so the box still
+                 carries no marginTop and the v1.8.4 gap law holds, and the
+                 panel's own 16dp padding is the one gap above the heading
+                 and below the rows and status line (the v1.8.3 fix kept,
+                 its layout regression reverted separately). -->
             <!-- Owner order 2026-10-21 (15:15): the box is not a heading, so
                  it carries the body's 13sp as well. Rows under it match, in
                  MainActivity.styleSearchRow.
@@ -306,7 +355,7 @@
             layout="@layout/qor_rule"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"/>
+            android:layout_marginTop="3dp"/>
 
         <!-- ══════════ system status card ══════════
              Owner order 2026-10-16: the console's three tiles carry ids so
@@ -396,6 +445,20 @@
             <TextView
                 android:id="@+id/status_detail"
                 style="@style/QorValue"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/status_gap"
+                android:gravity="center"/>
+
+            <!-- ═ v1.8.8 HUD: the working voice. Owner order 2026-10-22:
+                 the console reads as if it is thinking, so under the
+                 Karachi clock one short line rotates through what the
+                 console is watching (strings: sys_diag_lines), fading in
+                 and out. It is HUD micro-copy at the QorDiag style, and it
+                 describes looking, never finding (SO-3). -->
+            <TextView
+                android:id="@+id/sys_diag"
+                style="@style/QorDiag"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="@dimen/status_gap"
@@ -538,14 +601,28 @@
             android:layout_marginTop="14dp"
             android:orientation="vertical">
 
-            <!-- Owner order 2026-10-21 (14:19): no marginTop on the index
-                 line, so the 16dp above it equals the 16dp below the leaders
-                 line from the panel's own padding, and the tile reads with
-                 one gap top and bottom. -->
+            <!-- Owner order 2026-10-22: the tile has its heading again,
+                 in the exact words he ordered. It is first, like every
+                 other labelled tile's, and the index line follows it
+                 10dp under it, at the status tile's own gap. -->
+            <TextView
+                android:id="@+id/market_heading"
+                style="@style/QorLabel"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:text="@string/label_market"/>
+
+            <!-- Owner order 2026-10-21 (14:19): no wrap-around margin on
+                 the index line, so the 10dp under the heading above it
+                 equals the 10dp gap under the leaders' line from the
+                 panel's own padding, and the tile reads with one gap top
+                 and bottom. -->
             <TextView
                 android:id="@+id/market_index"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
                 android:fontFamily="@font/lemonmilk_bold"
                 android:gravity="center"
                 android:text="@string/market_waiting"

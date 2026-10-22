@@ -39,12 +39,29 @@
         <item name="android:padding">12dp</item>
         <item name="android:textColor">@color/text_bright</item>
     </style>
+    <!-- Owner order 2026-10-22: every heading is 10% bigger than it was.
+         11sp × 1.1 = 12.1sp, carried as one decimal, so the battery of five
+         headings (QUANT STATUS, LATEST SIGNAL, SEARCH, SETTINGS and the
+         market card's new INDEX & TOP 3 SCRIPS OF VOL.) all grow by one
+         order, not by five separate decisions. -->
     <style name="QorLabel">
         <item name="android:fontFamily">@font/lemonmilk_bold</item>
-        <item name="android:textSize">11sp</item>
+        <item name="android:textSize">12.1sp</item>
         <item name="android:textColor">@color/gold</item>
         <item name="android:textStyle">bold</item>
         <item name="android:letterSpacing">0.14</item>
+    </style>
+    <!-- The HUD's own voice (owner order 2026-10-22): the small cycling line
+         under the Karachi clock. It is deliberately a size of its own, 11sp,
+         because it is HUD micro-copy, not a body sentence and not a heading:
+         it sits one step smaller than the body and one step isn't a number
+         it was ever asked to match. The colour is the brand gold at the
+         intensity the code fades; the style carries the face and tracking. -->
+    <style name="QorDiag">
+        <item name="android:fontFamily">@font/lemonmilk_light</item>
+        <item name="android:textSize">11sp</item>
+        <item name="android:textColor">@color/gold</item>
+        <item name="android:letterSpacing">0.16</item>
     </style>
     <!-- The settings paragraph and the token field: system face, by the type
          strategy above. The hint is a paragraph rather than a label, and a
