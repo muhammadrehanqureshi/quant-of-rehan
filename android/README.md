@@ -758,6 +758,18 @@ to sixty seconds. The status tile therefore also carries the app's own
   allocations stand untouched; the build remains deterministic.
   Version 1.9.5, versionCode 46.
 
+- v1.9.6, owner orders 2026-10-22 (the orb was too dark and the nucleus
+  worse than before): the whole animated feature is brightened by at least
+  20% through one named constant, GLOW_SCALE = 1.25f, multiplied by every
+  ink alpha on the frame (links, travelling pulses, nodes, the nucleus's
+  halo, heart, ring and sparks). And the nucleus is CLEAN again: v1.9.5's
+  halo disc was being drawn on top of the heart, which is what dulled the
+  centre, so the order is fixed, halo under heart; the heart gains a
+  small, almost solid inner sphere under its soft corona; the ring and the
+  eight orbiting sparks are bigger and brighter. Zero per-frame
+  allocations, determinism and the one-second cadence stand untouched.
+  Version 1.9.6, versionCode 47.
+
 **Built and delivered 2026-10-22 (v1.8.8):** the signed v1.8.8 APK was built
 on GitHub Actions from the master at 59da8f90a1 (run 39722179379, the merge
 of #78, which fixed the two javac errors the HUD edit had introduced),
