@@ -149,14 +149,19 @@ class BarStore:
     # -------------------------------------------------------------- gaps
     @staticmethod
     def gaps(bars: Iterable[Bar], expected: Iterable[datetime], *,
-             reason: str = "no bar was printed in this minute") -> list[Gap]:
-        """Contiguous stretches of expected minutes with no bar.
+             reason: str = "no bar was printed in this minute",
+             step_minutes: int = 1) -> list[Gap]:
+        """Contiguous stretches of expected buckets with no bar.
 
-        `expected` is the session law's own minute list for the day up to
-        now, so a break or a holiday produces no gap at all. The comparison
-        is done on timestamps truncated to the minute, which is the grain of
+        `expected` is the session law's own bucket list for the day up to
+        now, so a break or a holiday produces no gap at all. `step_minutes`
+        is the width of one expected bucket: one minute for the tape's own
+        grain, five for a five-minute chart, and so on. The comparison is
+        done on timestamps truncated to the minute, which is the grain of
         both sides.
         """
+        step = max(1, int(step_minutes))
+        step_seconds = step * 60
         def stamp(moment: datetime) -> str:
             return moment.replace(second=0, microsecond=0).isoformat(
                 timespec="seconds")
@@ -170,19 +175,19 @@ class BarStore:
         run_start = missing[0]
         previous = missing[0]
         for moment in missing[1:]:
-            if (moment - previous).total_seconds() <= 60:
+            if (moment - previous).total_seconds() <= step_seconds:
                 previous = moment
                 continue
             gaps.append(Gap(start=run_start.isoformat(timespec="seconds"),
                             end=previous.isoformat(timespec="seconds"),
                             minutes=int((previous - run_start).total_seconds()
-                                        // 60) + 1,
+                                        // step_seconds) * step + step,
                             reason=reason))
             run_start = previous = moment
         gaps.append(Gap(start=run_start.isoformat(timespec="seconds"),
                         end=previous.isoformat(timespec="seconds"),
                         minutes=int((previous - run_start).total_seconds()
-                                    // 60) + 1,
+                                    // step_seconds) * step + step,
                         reason=reason))
         return gaps
 
