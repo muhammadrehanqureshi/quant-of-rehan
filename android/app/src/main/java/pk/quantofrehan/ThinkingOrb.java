@@ -4,199 +4,146 @@ import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
+import android.graphics.Path;
+import android.graphics.PorterDuff;
+import android.graphics.PorterDuffXfermode;
 import android.graphics.RadialGradient;
 import android.graphics.Shader;
 import android.util.AttributeSet;
 import android.view.View;
 
 /**
- * The thinking orb, owner order 2026-10-22 (second pass).
+ * The sun, owner order 2026-10-22 (third pass, v1.9.9).
  *
- * The owner sent the reference look that evening: a black field, a glowing
- * cloud of small points held in clusters by fine links, a bright core that
- * breathes, the whole organism slowly turning. This view draws exactly that,
- * and nothing else: no words, no beam, no second clock on the console.
+ * The owner sent a screenshot of v1.9.8 and rejected it: the orb reads as a
+ * sparse dot cloud around a tiny nucleus, and that is not the sun. His
+ * order, verbatim: "sun is like a 3D ball that is burning every second".
+ * This view draws exactly that and nothing else: ONE big ball that fills
+ * the view, lit like a real sphere, whose surface burns and whose flares
+ * burst on a seconds cadence.
  *
- * Owner order 2026-10-22 (v1.9.5): the organism is more advanced. The whole
- * cloud moves at 30% more speed (MOTION_SCALE carries the owner's number so
- * it is one decision, not ten), the organism THINKS CONTINUOUSLY - every
- * node wanders its own slow orbit and a travelling spark runs the links,
- * so the cloud is never still between turns - and the nucleus is layered:
- * a breathing heart, an out-of-phase halo, a thin ring and a ring of
- * orbiting sparks, so the centre reads as an engine, not one disc.
+ * How the picture is built (one ball, four moods of fire):
  *
- * Owner order 2026-10-22 (v1.9.7): two further orders. The nucleus is ONE
- * 3D ball again - a shaded sphere whose light hotspot sits up and to the
- * left of its centre, its body falling off to transparent at the limb, an
- * ambient glow behind it and orbit sparks INSIDE the ball, so nothing
- * reads as a flat disc or a separate ring - and the ENTIRE feature, every
- * ink on the frame and not the nucleus alone, is 30% brighter than
- * v1.9.6's (BRIGHT_SCALE rides on GLOW_SCALE).
- *
- * How the picture is built:
- *
- *   - A fixed population of nodes lives in a unit ball, gathered around a
- *     few cluster anchors, so the cloud reads as one organism rather than
- *     static noise. The build is deterministic, so every launch draws the
- *     same organism.
- *   - Links are precomputed once (pairs under a link distance in ball
- *     space, capped) and re-drawn every frame in screen space; a link's
- *     alpha rises toward the core, which gives the heart its bright
- *     filaments and the rim its faint web.
- *   - Each frame rotates the whole cloud rigidly (a slow yaw plus a small
- *     breathing pitch) and projects it with a perspective divide, so the
- *     far side renders smaller and dimmer and the network reads in depth.
- *   - Every node breathes radially on its own phase, WANDERS on its own
- *     slower orbit (the continuous thinking), and the core is a one-time
- *     radial gradient whose alpha breathes on a slower clock, so the two
- *     rhythms cross and the picture never looks mechanical.
+ *   - The ball is a one-time radial gradient whose hotspot sits up and to
+ *     the left, from a white-hot heart through the solar golds to a deep
+ *     burning orange at the limb, so it reads as ONE lit 3D sphere that
+ *     turns, never as a flat disc.
+ *   - The surface burns: convection cells (granulation) live on the sphere
+ *     itself, rotate rigidly with it (a slow yaw plus a small breathing
+ *     pitch), and flicker at their own rates, so the face of the sun is
+ *     never still. Cells near the limb dim, which is what a 3D ball does.
+ *   - The limb is ragged fire: flame tongues ring the circumference, each
+ *     breathing its own length on its own rate, so the burning edge is not
+ *     a perfect circle.
+ *   - It burns every second: prominence arcs roll slowly around the limb
+ *     and flare sparks launch outward one after another on a seconds
+ *     cadence, so at least one bright burst is always alive each second.
+ *   - A wide corona breathes UNDER the ball, out of phase with its heart.
  *
  * The budget: one View, zero relay requests, zero allocations per frame
- * (nodes, link indices and the spark orbit are built once in
- * onSizeChanged and reused), and the frame loop is the view's own
- * invalidate pacing at FPS_MS. start() and stop() are the only public
- * controls, wired to MainActivity's startHud and stopHud: a paused console
- * draws nothing at all, and stop() holds the last frame instead of
- * abandoning the view blank.
+ * (the granules, flames, prominences and sparks are built once in
+ * onSizeChanged and reused; the one Path an arc needs is reused too), and
+ * the frame loop is the view's own paced invalidate at FPS_MS. start() and
+ * stop() are the only public controls, wired to MainActivity's startHud
+ * and stopHud: a paused console draws nothing at all, and stop() holds
+ * the last frame instead of abandoning the view blank.
  *
- * Colours are the reference look's own ice family (a pale near-white for
- * the core, a cold blue for nodes and links), declared here beside the
- * drawing that owns them; the rest of the console stays on the brand
- * palette untouched.
+ * Colours are the solar family declared here beside the drawing that owns
+ * them: the field is the palette's own deep background, every ink above
+ * it is flame - from white-hot through gold to deep orange - and the rest
+ * of the console stays on the brand palette untouched. Every ink carries
+ * the brightness the owner ordered across the v1.9.5 to v1.9.8 passes as
+ * ONE combined factor, so the stacking can never drift.
  */
+
 public class ThinkingOrb extends View {
 
-    /** The core's near-white, the lit heart of the cloud. */
-    private static final int CORE_COLOR = 0xFFFFC107;
-    /** The node ink, a cold cloud blue. */
-    private static final int NODE_COLOR = 0xFFFFB300;
-    /** The link ink, dimmer than the nodes it joins. */
-    private static final int LINK_COLOR = 0xFFFF8F00;
-    /** The dark field the picture sits on. */
-    private static final int FIELD_COLOR = 0xFF1A140D;
-
-    /** The population. Chosen once; more nodes would cost every frame. */
-    private static final int NODES = 105;
-    /** Cluster anchors the nodes are gathered around. */
-    private static final int CLUSTERS = 5;
-    /** Per-node pace of the frame loop, aimed at a smooth 30fps. */
-    private static final long FPS_MS = 33L;
+    /** The field is the console's own deep background, not a second black. */
+    private static final int FIELD_COLOR = 0xFF0B070D;
 
     /**
-     * Owner order 2026-10-22 (v1.9.5): the organism moves at 30% MORE
-     * speed than v1.8.9's. Every turning, breathing and shimmering rate
-     * below is multiplied by this one number, so the owner's order is one
-     * named constant rather than ten scattered edits, and the applied speed
-     * can never drift off it.
+     * Owner order 2026-10-22 (v1.9.5): the whole thing moves at 30% MORE
+     * speed. Every turning, breathing and flickering rate below is
+     * multiplied by this one number, so the owner's order is one named
+     * constant rather than ten scattered edits.
      */
     private static final float MOTION_SCALE = 1.3f;
 
     /**
-     * Owner order 2026-10-22 (v1.9.6): the whole feature was reported too
-     * dark, at least 20% brighter than v1.9.5's. Every ink alpha on the
-     * frame (links, nodes, pulses, the nucleus's layers) multiplies this one
-     * constant, so the brightness order is one named number rather than ten
-     * scattered edits and can never drift back to the dim frame.
+     * Owner order 2026-10-22 (v1.9.6 through v1.9.8, stacked): the feature
+     * grew 25%, then 30%, then 30%, then 30% brighter. Each is its own
+     * named constant here, and the frame runs them as ONE combined factor
+     * (`bright`) at every ink, so the stacking is one decision on the
+     * frame and can never drift.
      */
     private static final float GLOW_SCALE = 1.25f;
-
-    /**
-     * Owner order 2026-10-22 (v1.9.7): the ENTIRE animated feature, every
-     * ink on the frame and not the nucleus alone, is 30% brighter than
-     * v1.9.6's. It rides on GLOW_SCALE as one named multiplier at the
-     * links, the travelling pulses, the nodes, the ball, its glow, its
-     * inner heart and its sparks, so this order stays one decision and
-     * neither constant can drift.
-     */
     private static final float BRIGHT_SCALE = 1.3f;
-
-    /**
-     * Owner order 2026-10-22 (v1.9.8): the ENTIRE animated feature is
-     * another 30% brighter than v1.9.7's whole frame, not the middle alone.
-     * It rides on GLOW_SCALE and BRIGHT_SCALE and owns its own colour family
-     * (the warm solar white that the sun ball and every spark and glow use),
-     * so this pass is one named constant, one decision, that never drifts.
-     */
     private static final float P1 = 1.3f;
-
-    /**
-     * Owner order 2026-10-22 (latest inline ask): the ENTIRE animating AI
-     * looking feature is another 30% brighter on top of v1.9.8's whole
-     * frame, still ridden on GLOW_SCALE and BRIGHT_SCALE and still in the
-     * same solar colour family, so this sits beside P1 as one named decision
-     * and never drifts back toward a dimmer pass.
-     */
     private static final float P2 = 1.3f;
 
+    /** The sun's white-hot heart. */
+    private static final int SUN_WHITE = 0xFFFFF3B0;
+
+    /** Populations. Chosen once; more would cost every frame for nothing. */
+    private static final int GRANULES = 26;
     /**
-     * The sun ball's near-white, the lit heart of the sun. Declared here
-     * beside the drawing that owns it; the cloud keeps its own palette
-     * untouched.
+     * Convection cell rows, 6 wide: x, y, z on the unit sphere, the cell's
+     * size (a fraction of the sun's radius), its flicker phase and its
+     * flicker rate.
      */
-    private static final int SUN_WHITE = 0xFFFFE082;
+    private static final int GRANULE_STRIDE = 6;
+    private static final int FLAMES = 22;
+    private static final int PROMINENCES = 4;
+    private static final int FLARES = 6;
 
-    /**
-     * P0 is the solar-white alpha ceiling for the ambient glow. It is the
-     * only constant the owner may hold if he wants to dim a burn; it is not
-     * a general brightness knob.
-     */
-    private static final int P0 = 0xFF7F57;
+    /** Pacing of the frame loop, aimed at a smooth 30fps. */
+    private static final long FPS_MS = 33L;
 
-    /** Stride of a node's row in the cloud array. */
-    private static final int NODE_STRIDE = 7;
-    /** Orbiting sparks of the layered nucleus. Built once, drawn free. */
-    private static final int SPARKS = 8;
-    /** Cap on the travelling link sparks (the continuous "thinking" web). */
-    private static final int PULSE_BUDGET = 16;
+    /** The wake ramp: 1.2 seconds, so the sun is up when the owner looks. */
+    private static final float WAKE_SECONDS = 1.2f;
 
-    private final Paint linkPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final Paint nodePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-
-    /** The nucleus ball's ambient glow: a one-time radial gradient. */
-    private final Paint glowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-
-    /** The 3D nucleus ball: a one-time offset-highlight radial gradient. */
+    // The inks: shaders built once, alphas touched per frame, never rebuilt.
+    private final Paint coronaPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint ballPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-
-    /** The small white heart that breathes inside the ball. */
     private final Paint heartPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint cellPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint flamePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint prominencePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint flarePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
 
-    /** The travelling link sparks and the nucleus's orbiting sparks. */
-    private final Paint sparkPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    /** The one Path an arc needs; reused, never reallocated on the frame. */
+    private final Path arcPath = new Path();
 
-    /**
-     * Node geometry, in a unit ball: [0..2] x,y,z; [3] breath phase; [4]
-     * shimmer phase; [5] wander phase; [6] wander rate (the continuous
-     * thinking). Per-frame screen coordinates and depths are parallel
-     * arrays rebuilt in place, so no allocation ever lands on the frame.
-     */
-    private final float[] cloud = new float[NODES * NODE_STRIDE];
-    private final float[] screenX = new float[NODES];
-    private final float[] screenY = new float[NODES];
-    private final float[] depth = new float[NODES];
-    /** Link bookkeeping, capped by budget; triples in (a, b, distance). */
-    private final int[] linkA = new int[linkBudget()];
-    private final int[] linkB = new int[linkBudget()];
-    private final float[] linkDist = new float[linkBudget()];
-    private int linkCount;
-    /** The links that carry a travelling thought, and each one's phase. */
-    private final int[] pulseA = new int[PULSE_BUDGET];
-    private final int[] pulseB = new int[PULSE_BUDGET];
-    private final float[] pulsePhase = new float[PULSE_BUDGET];
-    private int pulseCount;
-    /** The nucleus's orbiting sparks: (radius, phase, rate) triples. */
-    private final float[] sparkRadius = new float[SPARKS];
-    private final float[] sparkPhase = new float[SPARKS];
-    private final float[] sparkRate = new float[SPARKS];
+    /** Convection cells on the sphere: unit ball position, size, phases. */
+    private final float[] cells = new float[GRANULES * GRANULE_STRIDE];
+    /** Per-frame screen detail of the cells, rebuilt in place. */
+    private final float[] cellX = new float[GRANULES];
+    private final float[] cellY = new float[GRANULES];
+    private final float[] cellS = new float[GRANULES];
+    private final float[] cellA = new float[GRANULES];
+
+    /** Flame tongues around the limb: angle, base length, phase, rate. */
+    private final float[] flameAngle = new float[FLAMES];
+    private final float[] flameLength = new float[FLAMES];
+    private final float[] flamePhase = new float[FLAMES];
+    private final float[] flameRate = new float[FLAMES];
+
+    /** Prominence arcs: angle, spread, height, phase (they roll around). */
+    private final float[] promAngle = new float[PROMINENCES];
+    private final float[] promSpread = new float[PROMINENCES];
+    private final float[] promHeight = new float[PROMINENCES];
+    private final float[] promPhase = new float[PROMINENCES];
+
+    /** Flare sparks: angle, period (the seconds cadence), phase, speed. */
+    private final float[] flareAngle = new float[FLARES];
+    private final float[] flarePeriod = new float[FLARES];
+    private final float[] flarePhase = new float[FLARES];
 
     private long clockAnchor;
     private long lastFrameAt = -1;
     private boolean running;
 
-    private float orbRadius;
-    private float nodeRadius;
-    private float linkWidth;
-    private float coreRadius;
+    private float sunR;
     private boolean geometryBuilt;
 
     public ThinkingOrb(Context context) {
@@ -210,6 +157,14 @@ public class ThinkingOrb extends View {
     public ThinkingOrb(Context context, AttributeSet attrs, int style) {
         super(context, attrs, style);
     }
+
+    /**
+     * Fire fuses: every ink above the field blends ADD, so where two glows
+     * overlap they read as hotter, not as stacked discs. One shared mode,
+     * referenced by each ink once at build time, never on the frame.
+     */
+    private static final PorterDuffXfermode FIRE_MODE =
+            new PorterDuffXfermode(PorterDuff.Mode.ADD);
 
     /** Starts the frame loop; a second call while running is a no-op. */
     public void start() {
@@ -235,135 +190,115 @@ public class ThinkingOrb extends View {
             return;
         }
         buildGeometry();
-        orbRadius = Math.min(w, h) / 2f - dp(6f);
-        nodeRadius = dp(1.3f);
-        linkWidth = Math.max(1f, dp(0.9f));
-        coreRadius = orbRadius * 0.17f;
-        // The nucleus is ONE warm solar ball (owner order 2026-10-22,
-        // v1.9.8). The hotspot is a solar-white, the body runs from warm
-        // white through a hot yellow to a deep amber at the limb, and the
-        // body's colour falls off to fully transparent at the limb, so the
-        // ball reads as one object that turns, breathes and glows - a lit
-        // surface, not a cut-out. The gradient itself is built once; the
-        // ball breathes in alpha, never in radius, so the budget holds.
+        sunR = Math.min(w, h) / 2f - dp(4f);
+        float cx = w / 2f;
+        float cy = h / 2f;
+
+        // The corona: ONE warm wide glow, brightest just past the limb and
+        // gone at the edges of the view. Built once; it breathes in alpha,
+        // never in radius, so the budget holds.
+        coronaPaint.setShader(new RadialGradient(cx, cy, sunR * 1.6f,
+                new int[]{0x00FFB179, 0x66FF9800, 0x33FF6F00, 0x00FF6F00},
+                new float[]{0f, 0.42f, 0.75f, 1f}, Shader.TileMode.CLAMP));
+
+        // The ball is ONE 3D sphere (owner order 2026-10-22, v1.9.7, still
+        // standing): the hotspot sits up and to the left of its centre, the
+        // body runs white-hot through the solar golds to a deep burning
+        // orange, and the far limb falls to transparent, so the sphere
+        // reads as lit volume, not a cut-out. RadialGradient insists on one
+        // stop per colour; every stop is here exactly once.
+        float hotspotR = sunR * 1.32f;
         ballPaint.setShader(new RadialGradient(
-                w / 2f - coreRadius * 0.32f, h / 2f - coreRadius * 0.38f,
-                coreRadius * 1.45f, new int[]{
-                SUN_WHITE, 0xFFFFE0B2, 0xFFFFD179, 0xFFFFB347, 0xFFFF8F00},
-                new float[]{0f, 0.25f, 0.5f, 0.8f, 1f},
+                cx - sunR * 0.18f, cy - sunR * 0.22f, hotspotR, new int[]{
+                0xFFFFFDE9, 0xFFFFE9A0, 0xFFFFC107, 0xFFFF9800, 0xFFE65100,
+                0x66BF360C},
+                new float[]{0f, 0.18f, 0.42f, 0.68f, 0.92f, 1f},
                 Shader.TileMode.CLAMP));
-        // The ambient glow that sits UNDER the ball, so the sphere reads
-        // as lit space rather than a cut-out. Burning solar gradient from
-        // bright yellow center through orange to amber at the limb, so the
-        // ball reads as one lit, burning object - not a cut-out. RadialGradient
-        // insists on one stop per colour, so three colours carry three stops.
-        glowPaint.setShader(new RadialGradient(w / 2f, h / 2f,
-                coreRadius * 2.6f, new int[]{
-                0x00FFE0B2, 0xFFFFE0B2, 0xFFFFB347},
-                new float[]{0f, 0.55f, 1f}, Shader.TileMode.CLAMP));
+
+        // The convection cells share one soft, round shader centered on the
+        // origin: each end draws at its OWN size by translating the canvas,
+        // so one shader serves every cell without ever being rebuilt.
+        cellPaint.setShader(new RadialGradient(0f, 0f, dp(6f), new int[]{
+                0xAAFFF176, 0x66FFB74D, 0x00FFB74D},
+                new float[]{0f, 0.45f, 1f}, Shader.TileMode.CLAMP));
+
+        // The limb flames share the same soft trick at their own size.
+        flamePaint.setShader(new RadialGradient(0f, 0f, dp(9f), new int[]{
+                0xCCFFAB40, 0x55FF8F00, 0x00FF8F00},
+                new float[]{0f, 0.5f, 1f}, Shader.TileMode.CLAMP));
+
+        prominencePaint.setStyle(Paint.Style.STROKE);
+        prominencePaint.setStrokeCap(Paint.Cap.ROUND);
+        prominencePaint.setStrokeWidth(dp(2.2f));
+
+        // Fire fuses: these inks blend ADD, so where two glows overlap
+        // they read as hotter, not as stacked discs. The ball itself stays
+        // normal blending: it is the body the fire lives on.
+        coronaPaint.setXfermode(FIRE_MODE);
+        heartPaint.setXfermode(FIRE_MODE);
+        cellPaint.setXfermode(FIRE_MODE);
+        flamePaint.setXfermode(FIRE_MODE);
+        prominencePaint.setXfermode(FIRE_MODE);
+        flarePaint.setXfermode(FIRE_MODE);
+
         geometryBuilt = true;
     }
 
     /**
-     * One full build of the cloud: cluster anchors, node placement, link
-     * list, the travelling link sparks and the nucleus's orbit ring. Ran
-     * once per size; never on the frame path.
+     * One full build of the burning geometry: the convection cells on the
+     * sphere, the flame ring, the prominence arcs and the flare sparks.
+     * Deterministic, so every launch draws the same sun. Runs once per
+     * size; never on the frame path.
      */
     private void buildGeometry() {
         long seed = 20261022L;
-        float[] anchorX = new float[CLUSTERS];
-        float[] anchorY = new float[CLUSTERS];
-        float[] anchorZ = new float[CLUSTERS];
-        for (int c = 0; c < CLUSTERS; c++) {
+        for (int c = 0; c < GRANULES; c++) {
             seed = nextSeed(seed);
             float u = frac(seed) * 2f - 1f;
             seed = nextSeed(seed);
             float theta = frac(seed) * (float) Math.PI * 2f;
             float s = (float) Math.sqrt(1f - u * u);
-            // Anchors sit between heart and shell, reachable by links.
-            anchorX[c] = s * (float) Math.cos(theta) * 0.55f;
-            anchorY[c] = u * 0.55f;
-            anchorZ[c] = s * (float) Math.sin(theta) * 0.55f;
+            seed = nextSeed(seed);
+            float size = 0.07f + frac(seed) * 0.05f;
+            seed = nextSeed(seed);
+            float phase = frac(seed) * (float) Math.PI * 2f;
+            seed = nextSeed(seed);
+            float rate = 1.2f + frac(seed) * 1.3f;
+            int o = c * GRANULE_STRIDE;
+            cells[o] = s * (float) Math.cos(theta);
+            cells[o + 1] = u;
+            cells[o + 2] = s * (float) Math.sin(theta);
+            cells[o + 3] = size;
+            cells[o + 4] = phase;
+            cells[o + 5] = rate;
         }
-        for (int n = 0; n < NODES; n++) {
-            int anchor = n % CLUSTERS;
+        for (int f = 0; f < FLAMES; f++) {
+            flameAngle[f] = (float) Math.PI * 2f * f / FLAMES;
             seed = nextSeed(seed);
-            float jitter1 = frac(seed) * 2f - 1f;
+            flameLength[f] = 0.16f + frac(seed) * 0.09f;
             seed = nextSeed(seed);
-            float jitter2 = frac(seed) * 2f - 1f;
+            flamePhase[f] = frac(seed) * (float) Math.PI * 2f;
             seed = nextSeed(seed);
-            float jitter3 = frac(seed) * 2f - 1f;
-            seed = nextSeed(seed);
-            float wanderRate = 0.35f + frac(seed) * 0.3f;
-            seed = nextSeed(seed);
-            float wanderPhase = frac(seed) * (float) Math.PI * 2f;
-            // Pull toward the anchor, then relax outward; most nodes hug a
-            // cluster, the rest scatter into the halo between anchors.
-            float x = anchorX[anchor] + jitter1 * 0.42f;
-            float y = anchorY[anchor] + jitter2 * 0.42f;
-            float z = anchorZ[anchor] + jitter3 * 0.42f;
-            float length = (float) Math.sqrt(x * x + y * y + z * z);
-            float pulled = (n % 4 == 0) ? 1.05f : 0.78f;
-            float scale = pulled / Math.max(length, 0.01f);
-            x *= scale;
-            y *= scale;
-            z *= scale;
-            // A few escapees sit well outside the clusters, for the cloud's
-            // ragged rim the reference picture carries.
-            if (n % 9 == 0) {
-                x *= 1.25f;
-                y *= 1.25f;
-                z *= 1.25f;
-            }
-            int o = n * NODE_STRIDE;
-            cloud[o] = clampAbs(x, 0.97f);
-            cloud[o + 1] = clampAbs(y, 0.97f);
-            cloud[o + 2] = clampAbs(z, 0.97f);
-            cloud[o + 3] = n * 0.7f;
-            cloud[o + 4] = n * 1.9f;
-            cloud[o + 5] = wanderPhase;
-            cloud[o + 6] = wanderRate;
+            flameRate[f] = 1.4f + frac(seed) * 1.6f;
         }
-        float linkAt = 0.55f;
-        linkCount = 0;
-        for (int i = 0; i < NODES && linkCount < linkBudget(); i++) {
-            for (int j = i + 1; j < NODES && linkCount < linkBudget(); j++) {
-                float dx = cloud[i * NODE_STRIDE] - cloud[j * NODE_STRIDE];
-                float dy = cloud[i * NODE_STRIDE + 1]
-                        - cloud[j * NODE_STRIDE + 1];
-                float dz = cloud[i * NODE_STRIDE + 2]
-                        - cloud[j * NODE_STRIDE + 2];
-                float dist = (float) Math.sqrt(dx * dx + dy * dy + dz * dz);
-                if (dist <= linkAt) {
-                    linkA[linkCount] = i;
-                    linkB[linkCount] = j;
-                    linkDist[linkCount] = dist;
-                    linkCount++;
-                }
-            }
+        for (int p = 0; p < PROMINENCES; p++) {
+            promAngle[p] = (float) Math.PI * 2f * (p + 0.5f) / PROMINENCES;
+            seed = nextSeed(seed);
+            promSpread[p] = 0.28f + frac(seed) * 0.18f;
+            seed = nextSeed(seed);
+            promHeight[p] = 0.16f + frac(seed) * 0.14f;
+            seed = nextSeed(seed);
+            promPhase[p] = frac(seed) * (float) Math.PI * 2f;
         }
-        // The travelling thoughts: a slice of the links carries a moving
-        // spark, so the web visibly carries activity every instant.
-        pulseCount = 0;
-        for (int l = 0; l < linkCount && pulseCount < PULSE_BUDGET; l++) {
-            if (l % 5 == 0) {
-                pulseA[pulseCount] = linkA[l];
-                pulseB[pulseCount] = linkB[l];
-                pulsePhase[pulseCount] = (float) Math.PI * 2f
-                        * (l % 11) / 11f;
-                pulseCount++;
-            }
-        }
-        // The nucleus's orbiting sparks: eight points on their own radii,
-        // phases and rates, all deterministic.
-        for (int s = 0; s < SPARKS; s++) {
+        // The seconds cadence: each spark fires on its own period straddling
+        // one second, phased so a burst is alive almost every second.
+        for (int s = 0; s < FLARES; s++) {
             seed = nextSeed(seed);
-            sparkRadius[s] = coreRadius * (0.55f + frac(seed) * 0.4f);
+            flareAngle[s] = frac(seed) * (float) Math.PI * 2f;
             seed = nextSeed(seed);
-            sparkPhase[s] = frac(seed) * (float) Math.PI * 2f;
+            flarePeriod[s] = 0.9f + frac(seed) * 0.7f;
             seed = nextSeed(seed);
-            sparkRate[s] = (0.9f + frac(seed) * 0.7f)
-                    * (s % 2 == 0 ? 1f : -1f);
+            flarePhase[s] = frac(seed) * flarePeriod[s];
         }
     }
 
@@ -386,134 +321,190 @@ public class ThinkingOrb extends View {
         float seconds = now / 1000f;
         float cx = getWidth() / 2f;
         float cy = getHeight() / 2f;
-        float yaw = seconds * 0.22f * MOTION_SCALE;
-        float pitch = 0.16f * (float) Math.sin(
-                seconds * 0.13f * MOTION_SCALE);
+        // The owner's speeds: one scale on every rate. The sun turns and
+        // breathes slowly; the fire on it flickers fast enough to burn.
+        float yaw = seconds * 0.12f * MOTION_SCALE;
+        float pitch = 0.10f * (float) Math.sin(seconds * 0.13f * MOTION_SCALE);
+        float heartBreath = 0.55f + 0.45f * (float) Math.sin(
+                seconds * 1.1f * MOTION_SCALE);
+        float coronaBreath = 0.55f + 0.45f * (float) Math.sin(
+                seconds * 0.9f * MOTION_SCALE + 2.4f);
+        float wake = Math.min(1f, seconds / WAKE_SECONDS);
+        // Every ink's brightness: the four stacked owner orders as ONE
+        // per-frame factor, so the decisions are constants and the frame
+        // never re-decides them.
+        float bright = wake * GLOW_SCALE * BRIGHT_SCALE * P1 * P2;
+
+        canvas.drawColor(FIELD_COLOR);
+
+        drawCorona(canvas, cx, cy, coronaBreath, bright);
+        drawFlames(canvas, cx, cy, seconds, bright);
+        drawProminences(canvas, cx, cy, seconds, bright);
+        drawBall(canvas, cx, cy, heartBreath, bright);
+        drawCells(canvas, seconds, yaw, pitch, bright);
+        drawFlares(canvas, cx, cy, seconds, bright);
+        postInvalidateOnAnimation();
+    }
+
+    /**
+     * The corona UNDER ball and fire. It breathes OUT of phase with the
+     * ball's heart (owner order v1.9.7: the glow and the heart cross
+     * rather than pulse together).
+     */
+    private void drawCorona(Canvas canvas, float cx, float cy,
+                            float coronaBreath, float bright) {
+        coronaPaint.setAlpha(Math.min(255, (int) (95f
+                * (0.55f + 0.45f * coronaBreath) * bright)));
+        canvas.drawCircle(cx, cy, sunR * 1.6f, coronaPaint);
+    }
+
+    /** The ragged burning edge: one soft tongue per ring slot. */
+    private void drawFlames(Canvas canvas, float cx, float cy, float seconds,
+                            float bright) {
+        for (int f = 0; f < FLAMES; f++) {
+            // The tongue wobbles a few degrees around its slot and breathes
+            // its length on its own rate, so the limb is never a circle.
+            float angle = flameAngle[f] + 0.09f * (float) Math.sin(
+                    seconds * (0.7f + f * 0.13f) * MOTION_SCALE
+                            + flamePhase[f]);
+            float len = flameLength[f] * (0.55f + 0.55f
+                    * (float) Math.sin(seconds * flameRate[f] * MOTION_SCALE
+                    + flamePhase[f] * 2f));
+            if (len < 0.02f) {
+                continue;
+            }
+            canvas.save();
+            canvas.translate(cx + sunR * (float) Math.cos(angle),
+                    cy + sunR * (float) Math.sin(angle));
+            flamePaint.setAlpha(Math.min(255, (int) (145f
+                    * (0.4f + 0.6f * Math.abs(len) / 0.25f) * bright)));
+            canvas.drawCircle(0f, 0f, sunR * len, flamePaint);
+            canvas.restore();
+        }
+    }
+
+    /**
+     * The prominences: plasma arcs that roll slowly around the limb and
+     * leap a little ahead of the burning edge. One reusable Path carries
+     * each arc, so the frame never allocates.
+     */
+    private void drawProminences(Canvas canvas, float cx, float cy,
+                                 float seconds, float bright) {
+        for (int p = 0; p < PROMINENCES; p++) {
+            float roll = promAngle[p] + 0.05f * (float) Math.sin(
+                    seconds * 0.31f * MOTION_SCALE + promPhase[p]);
+            float leap = 0.5f + 0.5f * (float) Math.sin(
+                    seconds * 0.47f * MOTION_SCALE + promPhase[p] * 3f);
+            float height = promHeight[p] * (0.55f + 0.45f * leap);
+            float a0 = roll - promSpread[p] * 0.5f;
+            float a1 = roll + promSpread[p] * 0.5f;
+            arcPath.reset();
+            arcPath.moveTo(
+                    cx + sunR * (float) Math.cos(a0),
+                    cy + sunR * (float) Math.sin(a0));
+            arcPath.quadTo(
+                    cx + sunR * (1f + height * 1.7f)
+                            * (float) Math.cos(roll),
+                    cy + sunR * (1f + height * 1.7f)
+                            * (float) Math.sin(roll),
+                    cx + sunR * (float) Math.cos(a1),
+                    cy + sunR * (float) Math.sin(a1));
+            prominencePaint.setColor(0xFFFFB74D);
+            prominencePaint.setAlpha(Math.min(255, (int) (120f
+                    * (0.35f + 0.65f * leap) * bright)));
+            canvas.drawPath(arcPath, prominencePaint);
+        }
+    }
+
+    /**
+     * The ball itself, then its white-hot heart. Draw order: corona and
+     * fire UNDER the ball, ball, heart, cells, sparks, so nothing dulls
+     * what is above it. The heart breathes in alpha, never in radius.
+     */
+    private void drawBall(Canvas canvas, float cx, float cy, float heartBreath,
+                          float bright) {
+        ballPaint.setAlpha(Math.min(255, (int) (215f * bright)));
+        canvas.drawCircle(cx, cy, sunR, ballPaint);
+        heartPaint.setAlpha(Math.min(255, (int) (200f
+                * (0.55f + 0.45f * heartBreath) * bright)));
+        canvas.drawCircle(cx - sunR * 0.13f, cy - sunR * 0.16f,
+                sunR * 0.24f, heartPaint);
+    }
+
+    private void drawCells(Canvas canvas, float seconds, float yaw,
+                           float pitch, float bright) {
         float cosYaw = (float) Math.cos(yaw);
         float sinYaw = (float) Math.sin(yaw);
         float cosPitch = (float) Math.cos(pitch);
         float sinPitch = (float) Math.sin(pitch);
-        float cloudBreath = 1f + 0.035f * (float) Math.sin(
-                seconds * 0.55f * MOTION_SCALE);
-        float coreBreath = 0.55f + 0.45f * (float) Math.sin(
-                seconds * 0.9f * MOTION_SCALE);
-        // Wake over the first four seconds of a run, so the organism grows
-        // out of the dark instead of popping in.
-        float wake = Math.min(1f, seconds / 4f);
-
-        canvas.drawColor(FIELD_COLOR);
-
-        float distance = orbRadius * 2.8f;
-        for (int n = 0; n < NODES; n++) {
-            int o = n * NODE_STRIDE;
-            float breathe = 1f + 0.06f * (float) Math.sin(
-                    seconds * 0.8f * MOTION_SCALE + cloud[o + 3]);
-            // The continuous thinking: every node wanders on its own slow
-            // orbit (its own rate and phase), so no node is ever still.
-            float wander = 1f + 0.05f * (float) Math.sin(
-                    seconds * cloud[o + 6] * MOTION_SCALE + cloud[o + 5]);
-            float x = cloud[o] * cloudBreath * breathe * wander;
-            float y = cloud[o + 1] * cloudBreath * breathe * wander;
-            float z = cloud[o + 2] * cloudBreath * breathe * wander;
-            // Rigid yaw around the vertical, then a small breathing pitch.
+        for (int c = 0; c < GRANULES; c++) {
+            int o = c * GRANULE_STRIDE;
+            float x = cells[o];
+            float y = cells[o + 1];
+            float z = cells[o + 2];
             float rx = x * cosYaw + z * sinYaw;
             float rz = -x * sinYaw + z * cosYaw;
             float ry = y * cosPitch - rz * sinPitch;
             rz = y * sinPitch + rz * cosPitch;
-            float persp = distance / (distance - rz * orbRadius);
-            depth[n] = persp;
-            screenX[n] = cx + rx * orbRadius * persp;
-            screenY[n] = cy + ry * orbRadius * persp;
+            // Only the face of the sphere burns toward the viewer; cells
+            // near the limb fade, which is what a 3D ball does.
+            if (rz <= 0.08f) {
+                continue;
+            }
+            float flicker = 0.5f + 0.5f * (float) Math.sin(
+                    seconds * cells[o + 5] * MOTION_SCALE
+                            + cells[o + 4] * 7f);
+            flicker *= 0.5f + 0.5f * (float) Math.sin(
+                    seconds * cells[o + 5] * 0.37f * MOTION_SCALE
+                            + cells[o + 4] * 3f);
+            cellX[c] = cx + rx * sunR * 0.84f;
+            cellY[c] = cy + ry * sunR * 0.84f;
+            cellS[c] = sunR * cells[o + 3] * (0.55f + 0.45f * rz);
+            cellA[c] = (150f * rz + 90f * flicker * rz) * bright;
+            if (cellA[c] < 8f) {
+                continue;
+            }
+            canvas.save();
+            canvas.translate(cellX[c], cellY[c]);
+            cellPaint.setAlpha(Math.min(255, (int) cellA[c]));
+            canvas.scale(cellS[c] / dp(6f), cellS[c] / dp(6f));
+            canvas.drawCircle(0f, 0f, dp(6f), cellPaint);
+            canvas.restore();
         }
-        // The warm solar of the sun itself is here: every ink stays on its
-        // own colour family, and this pass's brightness is one named
-        // multiplier on everything that is part of the sun.
-        for (int l = 0; l < linkCount; l++) {
-            int a = linkA[l];
-            int b = linkB[l];
-            float midway = (depth[a] + depth[b]) / 2f;
-            // Perspective divide reading > 1 means this side is near the
-            // viewer, so filaments brighten as their ends come forward.
-            float toward = clamp((midway - 1f) / 0.6f, 0f, 1f)
-                    * linkFade(linkDist[l]);
-            int alpha = (int) ((16f + 96f * toward) * wake
-                    * GLOW_SCALE * BRIGHT_SCALE * P1 * P2);
-            linkPaint.setARGB(Math.min(255, alpha),
-                    Color.red(LINK_COLOR), Color.green(LINK_COLOR),
-                    Color.blue(LINK_COLOR));
-            linkPaint.setStrokeWidth(linkWidth * (0.7f + 0.6f * toward));
-            canvas.drawLine(screenX[a], screenY[a], screenX[b], screenY[b],
-                    linkPaint);
-        }
-        // The travelling thoughts: a spark runs along its link and wraps,
-        // dimmer at the ends it departs, so the web visibly carries
-        // activity every instant.
-        for (int p = 0; p < pulseCount; p++) {
-            int a = pulseA[p];
-            int b = pulseB[p];
-            float t = frac2(seconds * 0.55f * MOTION_SCALE
-                    + pulsePhase[p]);
-            sparkPaint.setARGB(Math.min(255,
-                            (int) ((70f + 110f * t) * wake
-                                    * GLOW_SCALE * BRIGHT_SCALE * P1)),
-                    Color.red(SUN_WHITE), Color.green(SUN_WHITE),
-                    Color.blue(SUN_WHITE));
-            sparkPaint.setStrokeWidth(nodeRadius * 1.2f);
-            float px = screenX[a] + (screenX[b] - screenX[a]) * t;
-            float py = screenY[a] + (screenY[b] - screenY[a]) * t;
-            canvas.drawPoint(px, py, sparkPaint);
-        }
-        for (int n = 0; n < NODES; n++) {
-            int o = n * NODE_STRIDE;
-            float toward = clamp((depth[n] - 1f) / 0.6f, 0f, 1f);
-            float shimmer = 0.8f + 0.2f * (float) Math.sin(
-                    seconds * 1.4f * MOTION_SCALE + cloud[o + 4]);
-            float size = nodeRadius * (0.6f + 0.9f * toward) * shimmer;
-            int alpha = (int) ((40f + 170f * toward) * wake
-                    * GLOW_SCALE * BRIGHT_SCALE * P1 * P2);
-            nodePaint.setARGB(Math.min(255, alpha),
-                    Color.red(NODE_COLOR), Color.green(NODE_COLOR),
-                    Color.blue(NODE_COLOR));
-            canvas.drawCircle(screenX[n], screenY[n], size, nodePaint);
-        }
-
-        // The nucleus is ONE 3D ball (owner order 2026-10-22, v1.9.7).
-        // Draw order: the ambient glow UNDER the ball, then the shaded
-        // sphere with its off-centre hotspot, then the white heart
-        // breathing INSIDE it, then the orbit sparks still inside the
-        // ball's radius, so the whole nucleus reads as a single object -
-        // no stacked discs, no separate ring. The ball breathes in alpha,
-        // the glow breathes OUT of phase with it, and every ink carries
-        // the owner's 30% (BRIGHT_SCALE) on top of the glow pass.
-        glowPaint.setAlpha(Math.min(255, (int) (95f * (1.4f - coreBreath)
-                * wake * GLOW_SCALE * BRIGHT_SCALE * P1)));
-        canvas.drawCircle(cx, cy, coreRadius * 2.6f, glowPaint);
-        ballPaint.setAlpha(Math.min(255, (int) (140f
-                * (0.55f + 0.45f * coreBreath) * wake
-                * GLOW_SCALE * BRIGHT_SCALE * P1 * P2)));
-        canvas.drawCircle(cx, cy, coreRadius, ballPaint);
-        heartPaint.setColor(SUN_WHITE);
-        heartPaint.setAlpha(Math.min(255, (int) (150f
-                * (0.7f + 0.3f * coreBreath) * wake
-                * GLOW_SCALE * BRIGHT_SCALE * P1 * P2)));
-        canvas.drawCircle(cx, cy, coreRadius * 0.3f, heartPaint);
-        for (int s = 0; s < SPARKS; s++) {
-            float angle = seconds * sparkRate[s] * MOTION_SCALE
-                    + sparkPhase[s];
-            float sx = cx + sparkRadius[s] * (float) Math.cos(angle);
-            float sy = cy + sparkRadius[s] * 0.6f * (float) Math.sin(angle);
-            sparkPaint.setARGB(Math.min(255, (int) ((130f
-                    + 60f * (float) Math.cos(angle)) * wake
-                    * GLOW_SCALE * BRIGHT_SCALE * P1)),
-                    Color.red(SUN_WHITE), Color.green(SUN_WHITE),
-                    Color.blue(SUN_WHITE));
-            canvas.drawCircle(sx, sy, nodeRadius * 1.05f, sparkPaint);
-        }
-        postInvalidateOnAnimation();
     }
 
-    private float linkFade(float dist) {
-        return 1f - clamp((dist - 0.18f) / 0.37f, 0f, 1f);
+    /**
+     * The seconds cadence: each flare spark launches outward along its own
+     * limb angle once per period, tracing a short streak of fire and
+     * decaying as it falls. Always at least one alive.
+     */
+    private void drawFlares(Canvas canvas, float cx, float cy, float seconds,
+                            float bright) {
+        for (int s = 0; s < FLARES; s++) {
+            float cycle = seconds * MOTION_SCALE;
+            float period = flarePeriod[s];
+            float t = (cycle + flarePhase[s]) % period;
+            if (t > 0.62f) {
+                continue;
+            }
+            float k = t / 0.62f;
+            float angle = flareAngle[s] + 0.18f * cycle;
+            float dist = sunR * (1.02f + 0.42f * k);
+            float fx = cx + dist * (float) Math.cos(angle);
+            float fy = cy + dist * (float) Math.sin(angle);
+            float shrink = 1f - k;
+            flarePaint.setColor(Color.argb(
+                    Math.min(255, (int) (210f * shrink * k * bright + 40f)),
+                    0xFF, 0xF9, 0xDD));
+            flarePaint.setStrokeWidth(dp(2f) * (0.4f + 0.6f * shrink));
+            flarePaint.setStrokeCap(Paint.Cap.ROUND);
+            canvas.drawLine(
+                    fx - sunR * 0.06f * (float) Math.cos(angle)
+                            * shrink,
+                    fy - sunR * 0.06f * (float) Math.sin(angle)
+                            * shrink,
+                    fx, fy, flarePaint);
+        }
     }
 
     private static long nextSeed(long seed) {
@@ -525,28 +516,6 @@ public class ThinkingOrb extends View {
 
     private static float frac(long seed) {
         return Math.abs(seed % 10007L) / 10007f;
-    }
-
-    /**
-     * A float phase wrapped onto [0, 1).
-     */
-    private static float frac2(float v) {
-        return v - (float) Math.floor(v);
-    }
-
-    private static float clampAbs(float v, float limit) {
-        return v > limit ? limit : (v < -limit ? -limit : v);
-    }
-
-    private static float clamp(float v, float lo, float hi) {
-        return v < lo ? lo : (v > hi ? hi : v);
-    }
-
-    /**
-     * The pair cap: O(N^2) once at build, never on the frame path.
-     */
-    private static int linkBudget() {
-        return NODES * 4;
     }
 
     private float dp(float dp) {

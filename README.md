@@ -90,7 +90,7 @@ QOR_OWNER_REQUESTED_LOCAL_RUN=scripts/kmiall_tick.py python scripts/kmiall_tick.
 
 ## The phone app
 
-`android/` is the companion console: v1.9.7 (versionCode 48), the owner's own
+`android/` is the companion console: v1.9.9 (versionCode 50), the owner's own
 faces and palette, built with aapt2 and D8, no Gradle. It shows the status
 pill with the relay's own phase sentence, the latest signal, and the market
 card (KSE100 points and percentage, then the three volume leaders with their
