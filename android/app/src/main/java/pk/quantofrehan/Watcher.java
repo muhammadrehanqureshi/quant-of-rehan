@@ -732,13 +732,21 @@ public final class Watcher {
     }
 
     /**
-     * Read every fresh symbol's price and move in one compact answer.
+     * Read every published symbol's price and move in one compact answer.
      *
      * The search filters the symbol list locally, so a keystroke costs no
      * request; this map is what lets a row show "PKR 537.00 +0.15%" without
      * asking the relay once per letter. It is read once per foreground tick
      * while the panel is open (owner order 2026-10-20, third note), and the
      * answer is a few kilobytes rather than the whole card.
+     *
+     * Owner order 2026-10-22: the map is what the CLOSED market's search
+     * answers from, so a fresh-only map would erase every price the moment
+     * the publisher stops. The relay now answers /prices with each symbol's
+     * last published price, whatever its age; nothing is aged forward here,
+     * and the selected answer still carries its own stamp through
+     * fetchStock. The relay's freshness field also stays in /stock, so a
+     * reader of the JSON still knows (SO-3).
      */
     static void fetchPrices(final Context c, final PricesCallback cb) {
         POOL.execute(() -> {
@@ -753,13 +761,22 @@ public final class Watcher {
                         String symbol = row.optString(0, "");
                         double price = row.optDouble(1, Double.NaN);
                         double pct = row.optDouble(2, Double.NaN);
-                        if (!symbol.isEmpty() && !Double.isNaN(price) && price > 0) {
-                            map.put(symbol, new Quote(price,
-                                    Double.isNaN(pct) ? null : pct));
-                        }
+                    if (!symbol.isEmpty() && !Double.isNaN(price) && price > 0) {
+                        map.put(symbol, new Quote(price,
+                                Double.isNaN(pct) ? null : pct));
                     }
                 }
-                PRICES = java.util.Collections.unmodifiableMap(map);
+            }
+            // Owner order 2026-10-22: an answer that carries no row keeps
+            // the map that is on screen. A closed market's snapshot names
+            // every scrip it ever published, but a publisher caught between
+            // two pushes could answer with none, and one empty answer
+            // blanking the rows for a tick is the visible flicker the
+            // search's stability law (owner report 2026-10-20) never
+            // approved.
+            PRICES = map.isEmpty() && !PRICES.isEmpty()
+                    ? PRICES
+                    : java.util.Collections.unmodifiableMap(map);
                 // The search's universe comes from the same answer, so the
                 // list exists even before the first full round.
                 if (!map.isEmpty()) {

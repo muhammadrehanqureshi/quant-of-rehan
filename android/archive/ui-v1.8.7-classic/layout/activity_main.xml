@@ -1,0 +1,638 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/bg_deep"
+    android:clipChildren="false"
+    android:clipToPadding="false"
+    android:fillViewport="true"
+    android:scrollbars="none">
+
+    <!-- clipChildren/clipToPadding are off down this chain (owner order
+         2026-10-16, fourth note: the settings icon's press gradient was being
+         cut off). The control is translated 44.1dp right and 6.3dp up from
+         where the brand row anchors it (dimens/settings_shift_x and _y), and a
+         translation moves the DRAWN box without moving any measured bound.
+         Android clips a child to its parent's own bounds unless the parent
+         says otherwise, so every ancestor of that control has to stop
+         clipping: the brand row already did, and the header, this content
+         column and the scroll view now do too. Without that, the gold press
+         flash was sliced along the header's right edge and its top edge, which
+         is exactly the cut the owner reported. MainActivity.applySettingsShift
+         supplies the second half of the fix: the ordered offset is reduced
+         only by the pixels the screen does not have, so the flash cannot be
+         sliced by the window edge either.
+
+         The scroll view is the root of this layout and fills the window, so
+         its own no-clip changes nothing else: there is no sibling for an
+         overhanging pixel to reach, and nothing outside its frame to cover. -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:clipChildren="false"
+        android:clipToPadding="false"
+        android:orientation="vertical"
+        android:paddingLeft="20dp"
+        android:paddingRight="20dp"
+        android:paddingTop="18dp"
+        android:paddingBottom="24dp">
+
+        <!-- ══════════ header: brand centered, gear beside the brand ══════════ -->
+        <RelativeLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:clipChildren="false">
+
+            <!-- The brand line and the settings control share this row, so the
+                 control is centred on "Quant of Rehan" itself rather than on
+                 the brand block with its tagline (owner order 2026-10-13), and
+                 it is centred on that line vertically as well, owner order
+                 2026-10-14 below. The tagline sits below the row and never
+                 influences the control. -->
+            <RelativeLayout
+                android:id="@+id/brand_row"
+                android:clipChildren="false"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+                <!-- The brand face (owner order 2026-10-12): Bonskin, the
+                     owner's own script signature face, at 30sp.
+                     No letterSpacing and no textStyle="bold": tracking a
+                     script face breaks its joins, and Android would fake a
+                     bold from a face that already carries one weight.
+                     30sp is measured, not guessed: the string advances
+                     6.677 em, so 200dp on the narrowest phone this app
+                     supports, against about 320dp of content width.
+
+                     includeFontPadding stays at its default (true) for the
+                     same measured reason: Bonskin's ink for this exact string
+                     reaches 779/1000 em while its TYPOGRAPHIC ascender is only
+                     730/1000, so the tighter box would shave the top of the
+                     capital Q. The default box uses the font's hhea metrics
+                     (1006 / -288), which contain the ink with room to spare. -->
+                <TextView
+                    android:id="@+id/brand_title"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_centerHorizontal="true"
+                    android:fontFamily="@font/bonskin"
+                    android:gravity="center"
+                    android:paddingBottom="2dp"
+                    android:shadowColor="@color/crimson_logo"
+                    android:shadowDy="2"
+                    android:shadowRadius="6"
+                    android:text="@string/app_name"
+                    android:textColor="@color/gold_bright"
+                    android:textSize="30sp"/>
+
+                <!-- The settings control (owner order 2026-10-13): the owner's
+                     own settings.png silhouette (res/drawable-nodpi/
+                     settings.png, 512x512, a black gear on transparency,
+                     copied from his Desktop byte for byte), tinted into the
+                     app's palette and sitting on no plate at all. The old gear
+                     vector and its two plates are retired. The open state is
+                     the quarter turn and the brighter gold, both done in
+                     MainActivity.setSettingsOpen, and its only background is a
+                     masked circular ripple, so a press is acknowledged without
+                     a tile ever being drawn.
+
+                     Owner order 2026-10-13 (second note): the control stands
+                     ON the brand line's baseline rather than centred on the
+                     row. It is anchored to the title here, and MainActivity
+                     puts its bottom edge on the title's own baseline once the
+                     layout exists, because that line's position comes from
+                     Bonskin's metrics and from the system font scale and
+                     cannot be expressed as a fixed margin.
+
+                     Owner order 2026-10-13 (third note): the control used to
+                     overflow its row, because its box is 42dp tall while a
+                     30sp Bonskin line stands only about 30dp of ink above its
+                     baseline. The row therefore turns clipChildren off, so
+                     the guarantee does not rest on one magic number once the
+                     system font scale moves that line.
+
+                     Owner order 2026-10-13 (fourth note): the control stands
+                     directly BESIDE the title instead of pinned to the row's
+                     far edge, so it is always next to "Quant of Rehan" and
+                     never floating alone in the corner. It is anchored with
+                     layout_toEndOf the title, which keeps the pair together
+                     at any screen width and at any font scale: the icon
+                     measures from the title's own right edge, so the title can
+                     never grow into it. The 6dp left margin plus the
+                     control's own 6dp padding leave 12dp of air between the
+                     name and the ink, the grid's own unit and the same 12dp
+                     the rules use.
+
+                     Owner order 2026-10-14 (sixth note): the control is
+                     VERTICALLY CENTRED on the title. The baseline rule of the
+                     second note is retired: standing the box on the brand
+                     baseline needed a measurement after every layout, because
+                     Bonskin puts its baseline wherever its metrics and the
+                     system font scale say, and a 42dp box hung on that line
+                     sat low against the name. centreVertical in the row the
+                     title and the control share puts the box's own middle on
+                     the title's middle, so the pair reads level at any font
+                     scale with no measured pixel and no layout listener at
+                     all.
+
+                     Owner order 2026-10-15 (second note): the control moves
+                     20% of its own box to the right of where that anchor puts
+                     it, and 5% of that box higher, both as translations from
+                     @dimen/settings_shift_x and @dimen/settings_shift_y. A
+                     translation leaves the measurements above intact, so the
+                     title still owns the space it always did and the shift is
+                     the control's own; see dimens.xml for the numbers.
+
+                     Owner order 2026-10-15 (third note, today): the control
+                     moves a further 70% of its own box right and a further
+                     15% of it up from where the shift stood, still the same
+                     two translation dimens, so the totals stack to 90% right
+                     and 20% up of the 42dp box and this comment need no
+                     further edit to stay true. -->
+                <!-- Owner order 2026-10-20: the search control stands to
+                     the LEFT of the gear, on the same Y, separated by 15%
+                     of its own 42dp box (@dimen/search_gap). It carries
+                     the gear's own translations, so the pair keeps its
+                     6.3dp air wherever the gear is nudged to, plus the
+                     further shifts the owner ordered that day and again
+                     now: another 15% of its own box to the right at
+                     20:07 PKT (owner report 2026-10-20), then another 10% of
+                     its own box on 2026-10-21, on top of the existing
+                     search_shift_x, net 62.16dp.
+
+                     Its glass is a vector stroke, not the old search.png
+                     disc: a tinted bitmap turned the whole magnifier gold,
+                     and the owner asked for a see-through glass. -->
+                <ImageView
+                    android:id="@+id/btn_search"
+                    android:layout_width="42dp"
+                    android:layout_height="42dp"
+                    android:layout_centerVertical="true"
+                    android:layout_marginRight="@dimen/search_gap"
+                    android:layout_toStartOf="@id/btn_settings"
+                    android:background="@drawable/settings_ripple"
+                    android:contentDescription="@string/cd_search"
+                    android:padding="8dp"
+                    android:scaleType="fitCenter"
+                    android:src="@drawable/ic_search"
+                    android:tint="@color/gold"
+                    android:translationX="@dimen/search_shift_x"
+                    android:translationY="@dimen/settings_shift_y"/>
+
+                <ImageView
+                    android:id="@+id/btn_settings"
+                    android:layout_width="42dp"
+                    android:layout_height="42dp"
+                    android:layout_centerVertical="true"
+                    android:layout_toEndOf="@id/brand_title"
+                    android:layout_marginLeft="6dp"
+                    android:background="@drawable/settings_ripple"
+                    android:contentDescription="@string/cd_settings"
+                    android:padding="6dp"
+                    android:scaleType="fitCenter"
+                    android:src="@drawable/settings"
+                    android:tint="@color/gold"
+                    android:translationX="@dimen/settings_shift_x"
+                    android:translationY="@dimen/settings_shift_y"/>
+            </RelativeLayout>
+
+            <!-- Owner order 2026-10-21 (15:15): one size for every line that
+                 is not a bold heading. The tagline is not one, so it carries
+                 the body's 13sp like the card values do; its own tracking is
+                 the brand lockup's and stays. -->
+            <TextView
+                android:id="@+id/brand_tagline"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_below="@id/brand_row"
+                android:layout_centerHorizontal="true"
+                android:layout_marginTop="4dp"
+                android:fontFamily="@font/lemonmilk_light"
+                android:gravity="center"
+                android:letterSpacing="0.18"
+                android:text="@string/tagline"
+                android:textColor="@color/teal"
+                android:textSize="13sp"/>
+        </RelativeLayout>
+
+        <!-- Owner order 2026-10-21 (15:35): the search tile is bracketed by
+             the same diamond rule as every other tile, one ABOVE it as well
+             as the brand rule below it. The top rule belongs to the panel
+             (it leaves with it), so the closed console keeps its single
+             brand rule under the header exactly as before. -->
+        <include
+            android:id="@+id/rule_before_search"
+            layout="@layout/qor_rule"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:visibility="gone"/>
+
+        <!-- Owner order 2026-10-21 (13:07 report): hidden children must not
+             leave their margins behind, or the closed panel's bottom gap is
+             bigger than its top gap; the closed panel's own 10dp paddings
+             above and below the box are then the gap, and they are equal.
+
+             Owner order 2026-10-21 (15:35): and the two children start GONE
+             in the layout, not only through the code that flips them, so an
+             open panel can never show a 6dp or 8dp margin before its first
+             render. MainActivity still sets their visibility from their
+             content on every pass, which is the v1.8.4 fix kept. -->
+        <LinearLayout
+            android:id="@+id/search_panel"
+            style="@style/QorPanel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <!-- Owner order 2026-10-21 (14:19, second gap report on this
+                 tile): no marginTop on the box either, so the panel's own
+                 16dp padding is the one gap above and below the box, now
+                 that the empty rows and status line carry no margins (the
+                 v1.8.3 fix kept, its layout regression reverted separately). -->
+            <!-- Owner order 2026-10-21 (15:15): the box is not a heading, so
+                 it carries the body's 13sp as well. Rows under it match, in
+                 MainActivity.styleSearchRow.
+
+                 Owner order 2026-10-21 (15:35): the box's own air is the same
+                 above and below its text. includeFontPadding off takes the
+                 font's descent padding out of the measured height and
+                 center_vertical centres the one line in what is left, which
+                 is the uneven gap he saw inside the box; the panel's 16dp is
+                 then the same gap above and below the box. -->
+            <EditText
+                android:id="@+id/search_input"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@drawable/field_bg"
+                android:gravity="center_vertical"
+                android:hint="@string/search_hint"
+                android:imeOptions="actionSearch"
+                android:includeFontPadding="false"
+                android:inputType="textCapCharacters"
+                android:maxLines="1"
+                android:minHeight="0dp"
+                android:padding="10dp"
+                android:textColor="@color/text_bright"
+                android:textColorHint="@color/text_soft"
+                android:textSize="13sp"/>
+
+            <LinearLayout
+                android:id="@+id/search_results"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:orientation="vertical"
+                android:visibility="gone"/>
+
+            <TextView
+                android:id="@+id/search_status"
+                style="@style/QorValue"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:gravity="center"
+                android:visibility="gone"/>
+        </LinearLayout>
+
+        <!-- brand rule: line, diamond, line (from the logo frame). Defined
+             once in layout/qor_rule.xml and included at each of the four
+             divisions: under the header, between the system status and the
+             latest signal tiles, after the signal tile, and after the market
+             tile, so "the same as the ones above" is true by construction. -->
+        <include
+            layout="@layout/qor_rule"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"/>
+
+        <!-- ══════════ system status card ══════════
+             Owner order 2026-10-16: the console's three tiles carry ids so
+             one state can hide them together. The settings menu must be the
+             ONLY thing on screen while it is open, so this tile, the latest
+             signal tile, the market card, the three rules between them and
+             the cadence sentence all leave the layout at once, and the ids
+             are what let MainActivity.setSettingsOpen do that in one loop. -->
+        <LinearLayout
+            android:id="@+id/tile_status"
+            style="@style/QorPanel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:orientation="vertical">
+
+            <TextView style="@style/QorLabel"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:text="@string/label_system"/>
+
+            <!-- Owner order 2026-10-11: the state is a status light plus the
+                 word, in one badge. The indicator is a vector drawable and
+                 MainActivity swaps it with the state, so ONLINE and OFFLINE
+                 are the same shape lit and unlit rather than two glyphs.
+
+                 Owner order 2026-10-14 (seventh note): the beacon is its own
+                 view now, not a compound drawable of the word. A compound
+                 drawable can only be animated by rewriting its bounds and
+                 alpha from the UI thread, which is the lag the owner
+                 reported; as a view, the pulse is an alpha and scale
+                 animation the platform interpolates on the render thread.
+                 The badge stays one pill: the beacon and the word are its
+                 two children, and the word keeps the face, the size and the
+                 colour that carry the state. The beacon keeps its 18dp.
+
+                 Owner order 2026-10-14 (eighth note): the air above this
+                 badge is @dimen/status_gap, exactly the gap the detail line
+                 below it uses, so the tile reads SYSTEM STATUS, ONLINE,
+                 KARACHI at one spacing rather than at two. -->
+            <LinearLayout
+                android:id="@+id/status_pill"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginTop="@dimen/status_gap"
+                android:accessibilityLiveRegion="polite"
+                android:contentDescription="@string/cd_status_checking"
+                android:gravity="center_vertical"
+                android:importantForAccessibility="yes"
+                android:minHeight="34dp"
+                android:orientation="horizontal"
+                android:paddingLeft="16dp"
+                android:paddingRight="16dp"
+                android:paddingTop="5dp"
+                android:paddingBottom="5dp">
+
+                <ImageView
+                    android:id="@+id/status_dot"
+                    android:layout_width="18dp"
+                    android:layout_height="18dp"
+                    android:importantForAccessibility="no"
+                    android:src="@drawable/ic_status_checking"/>
+
+                <TextView
+                    android:id="@+id/status_word"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginLeft="@dimen/status_dot_gap"
+                    android:fontFamily="@font/lemonmilk_bold"
+                    android:importantForAccessibility="no"
+                    android:letterSpacing="0.08"
+                    android:text="@string/status_checking"
+                    android:textSize="13sp"/>
+            </LinearLayout>
+
+            <!-- Owner order 2026-10-13: every line in this tile is set in the
+                 owner's faces, so the detail keeps QorValue (LEMON MILK
+                 Light) instead of the system face. The clock span no longer
+                 forces monospace inside the tile either.
+
+                 Owner order 2026-10-14 (eighth note): the air above this
+                 line is the same @dimen/status_gap the badge uses, so the
+                 tile's spacing is one number: SYSTEM STATUS to ONLINE is
+                 ONLINE to KARACHI, exactly. -->
+            <TextView
+                android:id="@+id/status_detail"
+                style="@style/QorValue"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/status_gap"
+                android:gravity="center"/>
+
+        </LinearLayout>
+
+        <!-- Owner order 2026-10-13 (second note): a rule divides the system
+             status tile from the latest signal tile, so every change of
+             subject on the console is marked. The same include as the others,
+             so the diamond is the logo's and is defined once.
+
+             Owner order 2026-10-16: this rule belongs to the console, so it
+             is hidden with the tiles it divides and never stands alone as an
+             orphan diamond over the settings menu. -->
+        <include
+            android:id="@+id/rule_status_signal"
+            layout="@layout/qor_rule"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"/>
+
+        <!-- ══════════ latest signal card ══════════ -->
+        <LinearLayout
+            android:id="@+id/tile_signal"
+            style="@style/QorPanel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:orientation="vertical">
+
+            <TextView style="@style/QorLabel"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:text="@string/label_signal"/>
+
+            <!-- The same order sets this tile's lines in the owner's face. -->
+            <TextView
+                android:id="@+id/signal_list"
+                style="@style/QorValue"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:gravity="center"
+                android:text="@string/signal_no_call"/>
+        </LinearLayout>
+
+        <!-- brand rule after the latest signal: the same include, closing the
+             card section like the logo frame. Hidden with the console
+             (owner order 2026-10-16): it closes a section the settings menu
+             replaces, so leaving it would read as a divider with nothing on
+             its left. -->
+        <include
+            android:id="@+id/rule_after_signal"
+            layout="@layout/qor_rule"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="18dp"/>
+
+        <!-- ══════════ settings (hidden until the gear is tapped) ══════════ -->
+        <LinearLayout
+            android:id="@+id/settings_panel"
+            style="@style/QorPanel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/settings_heading"
+                style="@style/QorLabel"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:text="@string/label_settings"/>
+
+            <TextView style="@style/QorBody"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:text="@string/settings_hint"/>
+
+            <!-- Owner order 2026-10-19: the relay token field and its save
+                 button are gone. The phone holds no credential: the relay
+                 serves the latest signal as a public read and keeps every
+                 write route admin gated, so there is nothing here to paste. -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:orientation="horizontal">
+
+                <Button
+                    android:id="@+id/btn_open"
+                    style="@style/QorButton"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                    android:text="@string/btn_relay"/>
+            </LinearLayout>
+
+            <Button
+                android:id="@+id/btn_arm"
+                style="@style/QorButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="@string/btn_arm"/>
+        </LinearLayout>
+
+        <!-- Owner order 2026-10-21 (15:35): the settings tile is bracketed
+             too. The brand rule above it already stands while the menu is
+             open; this is the same diamond rule below it, so the menu reads
+             as one tile with a rule on each side instead of a rule on one.
+             It belongs to the menu and leaves with it. -->
+        <include
+            android:id="@+id/rule_after_settings"
+            layout="@layout/qor_rule"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:visibility="gone"/>
+
+        <!-- ══════════ market card ══════════
+             Third box, same shape as the two above: KSE100 points and
+             percentage plus the day's top three KMIALL stocks by volume,
+             refreshed from the latest available broker-feed publication.
+
+             Owner order 2026-10-12: the card carries no "MARKET NOW" label
+             any more. The index line and the ranking state what the card is
+             by themselves, and the label was the last piece of chrome the
+             owner asked to have removed. -->
+        <LinearLayout
+            android:id="@+id/tile_market"
+            style="@style/QorPanel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:orientation="vertical">
+
+            <!-- Owner order 2026-10-21 (14:19): no marginTop on the index
+                 line, so the 16dp above it equals the 16dp below the leaders
+                 line from the panel's own padding, and the tile reads with
+                 one gap top and bottom. -->
+            <TextView
+                android:id="@+id/market_index"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:fontFamily="@font/lemonmilk_bold"
+                android:gravity="center"
+                android:text="@string/market_waiting"
+                android:textColor="@color/text_bright"
+                android:textSize="17sp"
+                android:textStyle="bold"/>
+
+            <!-- Owner order 2026-10-19: the "feed status unconfirmed" line
+                 is gone. The index line carries the broker's own timestamp
+                 instead, which says when the number was taken without
+                 editorialising about it. -->
+            <!-- The card's values carry LEMON MILK Light (QorValue): tickers,
+                 money and counts are capitals by nature, so the free face's
+                 uppercase-only mapping costs nothing here. The up and down
+                 arrows are the exception and are drawn with the system face
+                 by a span in MainActivity, because no bundled face has
+                 U+25B2/U+25BC. -->
+            <!-- Owner order 2026-10-21 (14:51): the name, B, S and T of
+                 every leader stand on ONE line.
+
+                 Owner order 2026-10-21 (15:15): and they do it at the body's
+                 size, not at a smaller one. 13sp was measured against the
+                 bundled LEMON MILK Light, so the row wins its width from the
+                 tile instead of losing type: the -10dp side margins let it
+                 use 6dp of each 16dp panel padding, and its own tracking is
+                 what gives way when the line is longer.
+
+                 Owner order 2026-10-21 (15:35): the volume group gained a
+                 comma and an ampersand, "(B=..., S=... & T=...)", which is
+                 three characters more, and 13sp asks for them: the widest
+                 line the card has shown advances 372.6dp untracked and
+                 348.5dp at -0.035, against the 358dp of line the tile gives
+                 it. Nine digit counts land at 350.6dp. The size never
+                 shrinks, and no digit is ever dropped. -->
+            <TextView
+                android:id="@+id/market_leaders"
+                style="@style/QorValue"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginLeft="-10dp"
+                android:layout_marginRight="-10dp"
+                android:layout_marginTop="8dp"
+                android:gravity="center"
+                android:letterSpacing="-0.035"
+                android:text="@string/market_leaders_waiting"/>
+
+        </LinearLayout>
+
+        <!-- Owner order 2026-10-13 (second note): the diamond rule that used to
+             close the third tile from inside it now stands immediately after
+             that tile's own boundary, so the divider reads between the card
+             and the air below it rather than as part of the card. It is the
+             same include, with the same diamond, as the three above.
+
+             Owner order 2026-10-13 (third note): the cadence sentence leaves
+             the market card and stands immediately after this final diamond
+             rule. Owner order 2026-10-13 (fifth note): the sentence is
+             separated from the rule by the layout's own 12dp, the same gap
+             a tile has below its rule, so the console's last line sits on
+             the same grid as everything above it. The two leading newlines
+             the third note used are retired: the air above the sentence is
+             now a margin the grid can measure, while the sentence itself
+             stays exactly as ordered and still appears exactly once in the
+             whole app.
+
+             Owner order 2026-10-16: this rule and the sentence under it are
+             the console's footer, so both are hidden while the settings menu
+             is open and the menu ends the screen instead. -->
+        <include
+            android:id="@+id/rule_after_market"
+            layout="@layout/qor_rule"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"/>
+
+        <!-- The cadence line, 12dp below the last rule: the same gap the
+             signal tile has below its own rule, so the footer's spacing is
+             the grid's spacing. It is a caption like the card's other small
+             print, and it is the last element of the console: no footer rule
+             follows it (owner order 2026-10-12). -->
+        <TextView
+            android:id="@+id/scan_cadence"
+            style="@style/QorCaption"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:gravity="center"
+            android:text="@string/scan_cadence"/>
+    </LinearLayout>
+</ScrollView>

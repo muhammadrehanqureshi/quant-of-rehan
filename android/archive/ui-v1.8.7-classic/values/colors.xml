@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Palette sampled from the official quant_of_rehan_logo.png -->
+    <color name="bg_deep">#FF0B070D</color>
+    <color name="bg_panel">#FF170D1C</color>
+    <color name="bg_panel_edge">#FF2A1730</color>
+    <color name="plum_plate">#FF1A0F1F</color>
+    <color name="plum_panel_top">#FF241226</color>
+    <color name="plum_panel_bottom">#FF170C1B</color>
+    <color name="gold_deep">#FFB9822F</color>
+    <color name="gold">#FFD9A441</color>
+    <!-- Settings press feedback: the brand gold at 20% alpha, used by the
+         masked ripple on the gear plates. Low enough that the press reads as
+         a touch, not as a state change (the gold RING is the state). -->
+    <color name="gold_press">#33D9A441</color>
+    <color name="gold_bright">#FFF8CE66</color>
+    <color name="orange_logo">#FFE58142</color>
+    <color name="crimson_logo">#FF882F48</color>
+    <color name="green">#FF2FAE6F</color>
+    <color name="green_hi">#FF43C98A</color>
+    <color name="red">#FFC14A52</color>
+    <!-- The status light's own palette (owner order 2026-10-13, third note;
+         owner order 2026-10-16, fourth note): the ONLINE beacon is the brand
+         green in three weights, and since the 2026-10-16 note the OFFLINE one
+         is the SAME three weights in red, because the owner asked for the
+         offline light to be the online light in red rather than a hollow
+         ring: outside, a thin halo; inside it, a filled disc; inside that, a
+         solid ball. Named here rather than left as raw hex inside the two
+         drawables, so "the online light is green and the offline light is red"
+         is one fact with one home, and the two beacons differ by colour alone
+         (plus the breath, which only the live one is allowed to have). -->
+    <color name="green_halo">#662FAE6F</color>
+    <color name="green_glow">#3343C98A</color>
+    <color name="red_ring">#59C14A52</color>
+    <color name="red_core">#CCC14A52</color>
+    <!-- The red ball inside the red disc: the same relationship the green
+         core has to its glow, one step brighter than the brand red so it
+         reads as a lit centre rather than as a flat dot. -->
+    <color name="red_hi">#FFD65F66</color>
+    <color name="teal">#FF4A9C95</color>
+    <color name="teal_bright">#FF63B7AE</color>
+    <color name="text_soft">#FFB9A6C2</color>
+    <color name="text_bright">#FFF0EAF4</color>
+    <color name="field_bg">#FF120A16</color>
+    <color name="green_soft">#FF1E3F30</color>
+    <color name="red_soft">#FF3F2226</color>
+    <!-- The OFFLINE tile's gradient (owner order 2026-10-19: a darker, more
+         prominent red). Two ends, top to bottom, plus the hairline that closes
+         it. White ink on the lighter end is about 10:1, so the word keeps
+         passing body-text contrast at the top of the gradient as well as the
+         bottom; the beacon and the word still carry the state, never the
+         colour alone. -->
+    <color name="red_deep">#FF8E1F1F</color>
+    <color name="red_deep_edge">#FF561010</color>
+    <color name="red_deep_line">#FFC04545</color>
+    <color name="on_red">#FFFDF3F3</color>
+    <!-- The ONLINE gradient (owner order 2026-10-20): the OFFLINE tile's
+         shape in the brand green. Two ends plus the closing hairline, and
+         white ink on the lighter end stays well past body-text contrast. -->
+    <color name="green_deep">#FF1B6B45</color>
+    <color name="green_deep_edge">#FF0E3D27</color>
+    <color name="green_deep_line">#FF4FC08D</color>
+    <color name="on_green">#FFF2FBF6</color>
+</resources>

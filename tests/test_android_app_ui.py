@@ -108,6 +108,7 @@ MAIN = (ROOT / "android" / "app" / "src" / "main" / "java" / "pk"
         / "quantofrehan" / "MainActivity.java")
 WATCHER = (ROOT / "android" / "app" / "src" / "main" / "java" / "pk"
            / "quantofrehan" / "Watcher.java")
+WORKER = ROOT / "cloud" / "worker.js"
 # v1.7.7: the signal tile's reader is its own plain-Java class so the JVM
 # probe in tests/test_android_signal_text.py can run it rather than read it.
 SIGNAL_TEXT = (ROOT / "android" / "app" / "src" / "main" / "java" / "pk"
@@ -976,7 +977,15 @@ class StatusPulseTest(unittest.TestCase):
         self.assertIn(".scaleX(scale)", self.main)
         self.assertIn(".scaleY(scale)", self.main)
         self.assertIn("new AccelerateDecelerateInterpolator()", self.main)
-        self.assertNotIn("ValueAnimator", self.main)
+        # v1.8.8 re-introduced a ValueAnimator for the HUD's scan beam, a
+        # different mover that never touches the beacon: the breath itself
+        # still holds none of them, checked on its own two methods.
+        breath = self.main[self.main.index("private void startStatusBreath("):]
+        breath = breath[:breath.index("private void breathIfOnline(")]
+        stop_block = self.main[self.main.index("private void stopStatusBreath("):]
+        stop_block = stop_block[:stop_block.index("The HUD's cycle")]
+        self.assertNotIn("ValueAnimator", breath)
+        self.assertNotIn("ValueAnimator", stop_block)
         self.assertNotIn("FRAME_MS", self.main)
         self.assertNotIn("setFrameDelay", self.main)
         self.assertNotIn("getCompoundDrawablesRelative", self.main)
@@ -1073,7 +1082,9 @@ class StatusPulseTest(unittest.TestCase):
         the scanner's own config agree on.
         """
         resume = self.main.index("protected void onResume()")
-        self.assertIn("scheduleNext();", self.main[resume:resume + 900])
+        # v1.8.8: the HUD's startHU joins the same block before the poll is
+        # re-armed, so the window reads past its own order comment.
+        self.assertIn("scheduleNext();", self.main[resume:resume + 1400])
         watcher = (ROOT / "android" / "app" / "src" / "main" / "java"
                    / "pk" / "quantofrehan" / "Watcher.java").read_text(
             encoding="utf-8")
@@ -1420,10 +1431,13 @@ class StatusTileSpacingTest(unittest.TestCase):
         detail = element(self.layout, 'android:id="@+id/status_detail"')
         self.assertIn('android:layout_marginTop="@dimen/status_gap"', badge)
         self.assertIn('android:layout_marginTop="@dimen/status_gap"', detail)
-        # Exactly two views name it, so a third gap cannot quietly join the
-        # tile and a hand-written number cannot replace either of these two.
+        # Exactly three views name it: the badge, the detail line and, since
+        # the owner's 2026-10-22 order, the HUD's diagnostics line, which
+        # rides the same air under the Karachi clock. A hand-written number
+        # still cannot replace any of these three, and no FOURTH gap can
+        # quietly join the tile.
         self.assertEqual(
-            self.layout.count('android:layout_marginTop="@dimen/status_gap"'), 2)
+            self.layout.count('android:layout_marginTop="@dimen/status_gap"'), 3)
 
     def test_the_gap_is_declared_once(self):
         self.assertEqual(self.dimens.count('name="status_gap"'), 1)
@@ -1499,13 +1513,13 @@ class HeaderCopyTest(unittest.TestCase):
 
 class VersionTest(unittest.TestCase):
     def test_the_version_is_the_one_that_ships_these_changes(self):
-        # v1.8.3 is the 2026-10-21 13:07-13:08 pass: the pinned search line
-        # keeps one space before its price, the closed search panel's bottom
-        # gap equals its top gap, and the footer is the owner's exact
-        # LIVE/POST/PRE sentence.
+        # v1.8.8 is the 2026-10-22 pass: the search and market tiles carry
+        # their ordered headings, every heading is 10% bigger, the Karachi
+        # clock rides the UP green, search answers after close and as-you-type,
+        # and the console carries the HUD that reads as if it is thinking.
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="1.8.7"', manifest)
-        self.assertIn('android:versionCode="41"', manifest)
+        self.assertIn('android:versionName="1.8.8"', manifest)
+        self.assertIn('android:versionCode="42"', manifest)
         # The changelog entry ties these user-visible changes to the build.
         readme = (ROOT / "android" / "README.md").read_text(encoding="utf-8")
         self.assertIn("v1.7.9, owner order 2026-10-20", readme)
@@ -1517,6 +1531,7 @@ class VersionTest(unittest.TestCase):
         self.assertIn("Version 1.8.5, versionCode 39", readme)
         self.assertIn("Version 1.8.6, versionCode 40", readme)
         self.assertIn("Version 1.8.7, versionCode 41", readme)
+        self.assertIn("Version 1.8.8, versionCode 42", readme)
         layout = LAYOUT.read_text(encoding="utf-8")
         strings = STRINGS.read_text(encoding="utf-8")
         main = MAIN.read_text(encoding="utf-8")
@@ -1602,7 +1617,7 @@ class SearchPanelStabilityTest(unittest.TestCase):
         # one removeAllViews call covers the whole redraw cost.
         self.assertEqual(main.count("searchResults.removeAllViews();"), 1)
         self.assertIn("boolean rebuild = !q.equals(renderedQuery)", main)
-        self.assertIn("styleSearchRow(entry.getValue(), entry.getKey());", main)
+        self.assertIn("styleSearchRow(entry.getValue(), entry.getKey(), q);", main)
 
     def test_the_tapped_symbol_stays_pinned_across_ticks(self):
         main = MAIN.read_text(encoding="utf-8")
@@ -1724,7 +1739,7 @@ class UniversalSizeTest(unittest.TestCase):
         self.assertIn('android:textSize">13sp', body[:body.index("</style>")])
 
     def test_the_headings_keep_a_size_of_their_own_and_are_bold(self):
-        for style, size in (("QorLabel", "11sp"), ("QorButton", "12sp")):
+        for style, size in (("QorLabel", "12.1sp"), ("QorButton", "12sp")):
             block = self.styles[self.styles.index(f'name="{style}"'):]
             block = block[:block.index("</style>")]
             self.assertIn("lemonmilk_bold", block)
@@ -1865,6 +1880,187 @@ class LeaderRowFitsAtBodySizeTest(unittest.TestCase):
         margin = self.PANEL_PADDING_DP - self.SIDE_INSET_DP
         self.assertIn(f'android:layout_marginLeft="-{margin:g}dp"', leaders)
         self.assertIn(f'android:layout_marginRight="-{margin:g}dp"', leaders)
+
+
+class HeadingGrowthTest(unittest.TestCase):
+    """Owner order 2026-10-22: every heading is 10% bigger, and the two
+    tiles that never had a heading now carry his exact words.
+
+    The 10% lands on the one style every tile heading shares (QorLabel), so
+    QUANT STATUS, LATEST SIGNAL, SETTINGS and the two new headings grow by
+    one decision rather than five copies that could drift apart. The
+    body's 13sp is NOT a heading and stays at its size, and the headings
+    are still carried by the style (no raw textSize appears next to them).
+    """
+
+    def test_the_label_style_grew_by_exactly_ten_percent(self):
+        styles = STYLES.read_text(encoding="utf-8")
+        block = styles[styles.index('name="QorLabel"'):]
+        block = block[:block.index("</style>")]
+        self.assertIn('android:textSize">12.1sp', block)
+        self.assertNotIn('android:textSize">11sp', block)
+
+    def test_the_body_kept_its_size(self):
+        styles = STYLES.read_text(encoding="utf-8")
+        body = styles[styles.index('name="QorBody"'):]
+        self.assertIn('android:textSize">13sp', body[:body.index("</style>")])
+
+    def test_the_search_tile_carries_the_ordered_heading(self):
+        layout = LAYOUT.read_text(encoding="utf-8")
+        strings = STRINGS.read_text(encoding="utf-8")
+        head = layout.index("@+id/search_heading")
+        self.assertLess(head, layout.index("@+id/search_input"))
+        block = layout[head:layout.index("/>", head)]
+        self.assertIn('android:text="@string/label_search"', block)
+        self.assertIn('style="@style/QorLabel"', block)
+        self.assertIn('name="label_search">SEARCH<', strings)
+
+    def test_the_market_tile_carries_the_ordered_heading(self):
+        layout = LAYOUT.read_text(encoding="utf-8")
+        strings = STRINGS.read_text(encoding="utf-8")
+        head = layout.index("@+id/market_heading")
+        self.assertLess(head, layout.index("@+id/market_index"))
+        block = layout[head:layout.index("/>", head)]
+        self.assertIn('android:text="@string/label_market"', block)
+        self.assertIn('style="@style/QorLabel"', block)
+        self.assertIn(
+            'name="label_market">INDEX &amp; TOP 3 SCRIPS OF VOL.<', strings)
+
+    def test_the_existing_headings_keep_their_words(self):
+        strings = STRINGS.read_text(encoding="utf-8")
+        self.assertIn('name="label_system">QUANT STATUS<', strings)
+        self.assertIn('name="label_signal">LATEST SIGNAL<', strings)
+
+
+class KarachiInkTest(unittest.TestCase):
+    """Owner order 2026-10-22: the clock rides the UP-percentage green,
+    read by the same resource name the card's up marks use, so the two
+    facts cannot drift into two different greens."""
+
+    def test_the_clock_spans_colour_the_time_in_the_card_green(self):
+        main = MAIN.read_text(encoding="utf-8")
+        colors = COLORS.read_text(encoding="utf-8")
+        block = main[main.index("private SpannableString clockSpans(String d) {"):]
+        block = block[:block.index("/** The third card")]
+        self.assertIn("getColor(R.color.green)", block)
+        self.assertNotIn("R.color.teal_bright", block)
+        # One green resource serves both duties; near-miss names are
+        # refused so the card's up marks and the clock cannot diverge.
+        self.assertNotIn('name="green_up"', colors)
+        self.assertNotIn('name="up_green"', colors)
+        self.assertIn('name="green"', colors)
+
+
+class SearchHighlightTest(unittest.TestCase):
+    """Owner order 2026-10-22: as the owner types, the rows that match
+    light up, and the row that says the whole answer lights hardest.
+
+    Typing H lights every H... scrip; typing HU narrows the light; the
+    moment HUBC is complete its row carries the strongest gold of the
+    list. Both plate intensities come from the palette by name, and the
+    highlight is a fact of the QUERY, never of the selection.
+    """
+
+    def test_every_row_is_styled_against_the_live_query(self):
+        main = MAIN.read_text(encoding="utf-8")
+        self.assertIn(
+            "private void styleSearchRow(TextView row, String symbol, String q) {",
+            main)
+        # Both draw paths restyle against the SAME live query, so a
+        # keystroke and a price tick light the same rows.
+        self.assertIn("styleSearchRow(row, symbol, q);", main)
+        self.assertIn("styleSearchRow(entry.getValue(), entry.getKey(), q);", main)
+
+    def test_a_prefix_match_lights_and_an_exact_match_lights_hardest(self):
+        main = MAIN.read_text(encoding="utf-8")
+        block = main[main.index("private void styleSearchRow") :]
+        block = block[:block.index("/** One symbol's B, S and T")]
+        self.assertIn("boolean exactMatch = symbol.length() == q.length();", block)
+        self.assertIn("symbol.startsWith(q)", block)
+        self.assertIn("R.color.gold_match", block)
+        self.assertIn("R.color.gold_press", block)
+        self.assertIn("row.setBackground(null);", block)
+
+    def test_the_match_plates_are_the_brand_gold_at_two_intensities(self):
+        colors = COLORS.read_text(encoding="utf-8")
+        # D9A441 at 20% (a prefix match) and at 35% (the exact one): one
+        # brand ink, two how-loud answers, declared in values/colors.xml
+        # rather than invented in Java.
+        self.assertIn('<color name="gold_press">#33D9A441</color>', colors)
+        self.assertIn('<color name="gold_match">#59D9A441</color>', colors)
+
+    def test_the_highlight_rides_the_keystroke_render_not_a_request(self):
+        main = MAIN.read_text(encoding="utf-8")
+        # The owner's 2026-10-20 instant-search law still holds: one
+        # TextWatcher, a render per keystroke, zero relay requests.
+        self.assertIn('renderSearchResults(e == null ? "" : e.toString());', main)
+        # The highlight is restyled on every visible-set tick as well, so a
+        # price refresh cannot leave a row lit that no longer matches (the
+        # tick path re-renders with the box's LIVE query).
+        self.assertIn("renderSearchResults(searchInput.getText().toString());", main)
+
+
+class HudThinkingPlanTest(unittest.TestCase):
+    """Owner order 2026-10-22 (v1.8.8): the console reads as if the quant is
+    thinking, and the animation IS the work. The classic frame's tiles,
+    rules and copy stand untouched beneath the HUD; the HUD is added on
+    top of them, and it runs ONLY while the console is on screen.
+    """
+
+    def test_the_diag_line_lives_under_the_karachi_clock(self):
+        layout = LAYOUT.read_text(encoding="utf-8")
+        self.assertIn("@+id/sys_diag", layout)
+        self.assertLess(layout.index("@+id/status_detail"),
+                        layout.index("@+id/sys_diag"))
+        block = layout[layout.index("@+id/sys_diag"):]
+        block = block[:block.index("/>")]
+        self.assertIn("@style/QorDiag", block)
+        self.assertIn("@dimen/status_gap", block)
+
+    def test_the_diag_style_is_micro_copy(self):
+        styles = STYLES.read_text(encoding="utf-8")
+        block = styles[styles.index('name="QorDiag"'):]
+        block = block[:block.index("</style>")]
+        self.assertIn("@font/lemonmilk_light", block)
+        self.assertIn('android:textSize">11sp', block)
+
+    def test_the_phrases_describe_watching_never_finding(self):
+        strings = STRINGS.read_text(encoding="utf-8")
+        array = strings[strings.index('name="sys_diag_lines"'):]
+        array = array[:array.index("</string-array>")]
+        self.assertEqual(
+            [item.strip() for item in
+             re.findall(r"<item>([^<]+)</item>", array)],
+            ["SCANNING KMIALL TAPE\u2026", "WATCHING THE INDEX\u2026",
+             "MINING TAPE DEPTH\u2026", "NAVIGATING THE UNIVERSE\u2026"])
+
+    def test_the_cycle_starts_and_stops_with_the_console(self):
+        main = MAIN.read_text(encoding="utf-8")
+        self.assertIn("private void startHud() {", main)
+        self.assertIn("private void stopHud() {", main)
+        resume = main[main.index("protected void onResume()") :]
+        resume = resume[:resume.index("protected void onPause()")]
+        self.assertIn("startHud();", resume)
+        pause = main[main.index("protected void onPause()") :]
+        pause = pause[:pause.index("/** The foreground refresh loop. */")]
+        self.assertIn("stopHud();", pause)
+        # A hidden console holds no animation callbacks (the 2026-10-14
+        # law, now with the HUD's two movers added).
+        self.assertIn("cadence.removeCallbacks(diagStep);", main)
+
+    def test_the_scan_beam_is_a_translation_not_a_layout(self):
+        layout = LAYOUT.read_text(encoding="utf-8")
+        main = MAIN.read_text(encoding="utf-8")
+        beam = (RES / "drawable" / "scan_beam.xml").read_text(encoding="utf-8")
+        self.assertIn("@+id/scan_beam", layout)
+        self.assertIn("@drawable/scan_beam", layout)
+        self.assertIn("ValueAnimator.ofFloat", main)
+        self.assertIn("ValueAnimator.INFINITE", main)
+        self.assertIn("ValueAnimator.RESTART", main)
+        self.assertIn("new LinearInterpolator()", main)
+        # The beam's ink is the brand gold, declared in its own drawable.
+        self.assertIn("#FFD9A441", beam)
+        self.assertIn("#00D9A441", beam)
 
 
 if __name__ == "__main__":

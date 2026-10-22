@@ -684,6 +684,26 @@ to sixty seconds. The status tile therefore also carries the app's own
   AVAILABLE RIGHT NOW" takes the body's soft ink instead of the bright ink it
   inherited from the real-call branch. Version 1.8.7, versionCode 41.
 
+- v1.8.8, owner order 2026-10-22: the console reads as if it is thinking, and
+  it IS working while it is on screen. The SEARCH tile and the market tile
+  carry their ordered headings ("SEARCH" and "INDEX & TOP 3 SCRIPS OF VOL."),
+  every tile heading is 10% bigger (the shared label style moves 11sp to
+  12.1sp, one decision, not five), and the Karachi clock rides the same green
+  the card's up percentages ride in. Searching answers after close: the
+  relay's /stock and /prices routes now serve each scrip's last published
+  price and its computed B/S split, stamped with the closed-session fact, so
+  HUBC after 15:30 shows everything instead of a total volume. As the owner
+  types, the rows whose ticker starts with the query light up in the brand
+  gold, and the row that completes the query lights hardest. On top of the
+  untouched classic frame the console carries its thinking HUD: a diagnostics
+  line under the Karachi clock that cycles through what the console is
+  actually watching ("SCANNING KMIALL TAPE...", phrases that describe
+  looking, never finding), and a gold scan beam sweeping the content column
+  on the render thread, both running only while the console is on screen.
+  The pre-HUD interface is preserved in android/archive/ui-v1.8.7-classic
+  and can be restored by copying back over res/layout and the Java sources.
+  Version 1.8.8, versionCode 42.
+
 **Built and delivered 2026-10-21 (v1.8.7):** the signed v1.8.7 APK was built
 on GitHub Actions from the merge of PR #75 (run 39586973255), downloaded from
 the run's artifact and copied to
