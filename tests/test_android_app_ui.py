@@ -1514,14 +1514,13 @@ class HeaderCopyTest(unittest.TestCase):
 
 class VersionTest(unittest.TestCase):
     def test_the_version_is_the_one_that_ships_these_changes(self):
-        # v1.9.5 is the 2026-10-22 fifth pass: the orb is on the SEARCH and
-        # SETTINGS pages at its exact front-page station, it thinks
-        # continuously at 30% more speed with a layered nucleus, and
-        # v1.9.4's universal 12dp gap, the "THE INDEX & THE TOP 3 SCRIPS OF
-        # VOL." heading and the one-second live clock stand.
+        # v1.9.6 is the 2026-10-22 sixth pass: the orb is brightened at
+        # least 20% (one GLOW_SCALE constant) and the nucleus is clean and
+        # advanced again, the halo under the heart with a lit inner sphere;
+        # v1.9.5's every-page orb, continuous thinking and 30% speed stand.
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="1.9.5"', manifest)
-        self.assertIn('android:versionCode="46"', manifest)
+        self.assertIn('android:versionName="1.9.6"', manifest)
+        self.assertIn('android:versionCode="47"', manifest)
         # The changelog entry ties these user-visible changes to the build.
         readme = (ROOT / "android" / "README.md").read_text(encoding="utf-8")
         self.assertIn("v1.7.9, owner order 2026-10-20", readme)
@@ -1538,6 +1537,7 @@ class VersionTest(unittest.TestCase):
         self.assertIn("Version 1.9.0, versionCode 44", readme)
         self.assertIn("Version 1.9.4, versionCode 45", readme)
         self.assertIn("Version 1.9.5, versionCode 46", readme)
+        self.assertIn("Version 1.9.6, versionCode 47", readme)
         layout = LAYOUT.read_text(encoding="utf-8")
         strings = STRINGS.read_text(encoding="utf-8")
         main = MAIN.read_text(encoding="utf-8")
@@ -2135,6 +2135,30 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         self.assertIn("heart", orb)
         # The halo and the core cross instead of pulsing together.
         self.assertIn("OUT of phase", orb)
+
+    def test_the_orb_is_brightened_and_the_heart_is_clean(self):
+        orb = (MAIN.parent / "ThinkingOrb.java").read_text(
+            encoding="utf-8")
+        """Owner order 2026-10-22 (v1.9.6): the animated feature was too
+        dark, at least 20% brighter, and the nucleus was reported worse
+        than v1.8.9's. The darkness was v1.9.5 drawing its halo disc ON TOP
+        of the heart plus every alpha sitting at v1.8.9's dim level.
+        """
+        # The brightness order is ONE named constant, at or above the
+        # owner's 20%, multiplied by every ink alpha on the frame.
+        self.assertIn("private static final float GLOW_SCALE = 1.25f;", orb)
+        self.assertGreaterEqual(orb.count("GLOW_SCALE"), 6,
+                                "every ink layer must carry the glow")
+        # The order fix: the halo draw precedes the heart draw, so the
+        # halo can never dull the lit centre again.
+        self.assertLess(orb.index(
+                "canvas.drawCircle(cx, cy, coreRadius * 1.5f, haloPaint)"),
+            orb.index("canvas.drawCircle(cx, cy, heart * 3f, corePaint)"))
+        # A clean advanced heart: a sharp almost-solid inner sphere under
+        # the soft corona, a ring that reads, sparks bigger and brighter.
+        self.assertIn("heart * 0.72f", orb)
+        self.assertIn("nodeRadius * 1.35f", orb)
+        self.assertIn("195f + 60f", orb)
 
     def test_the_orb_is_one_budget(self):
         orb = (MAIN.parent / "ThinkingOrb.java").read_text(encoding="utf-8")
