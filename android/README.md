@@ -770,6 +770,23 @@ to sixty seconds. The status tile therefore also carries the app's own
   allocations, determinism and the one-second cadence stand untouched.
   Version 1.9.6, versionCode 47.
 
+- v1.9.7, owner orders 2026-10-22 (the nucleus looked wrong and only the
+  middle was bright): the nucleus is rebuilt as ONE 3D ball - a shaded
+  sphere whose light hotspot sits up and to the left of its centre, its
+  body falling off to transparent at the limb, so it melts into the dark
+  field instead of reading as one flat grey disc with a circle inside it.
+  The separate thin ring is gone, the eight orbit sparks now run INSIDE
+  the ball's radius as plasma currents, and an ambient glow sits under
+  the ball, so the whole nucleus reads as a single object that turns,
+  breathes and sparks. The ball breathes in alpha, never in radius, so
+  the frame never rebuilds its one-time gradients and the zero per-frame
+  allocations stand. And the ENTIRE feature is 30% brighter than
+  v1.9.6's frame, not the nucleus alone: BRIGHT_SCALE = 1.3f rides on
+  GLOW_SCALE = 1.25f at every ink on the frame - links, travelling
+  pulses, nodes, the ball, its glow, its inner heart and its sparks.
+  Determinism and the one-second cadence stand untouched.
+  Version 1.9.7, versionCode 48.
+
 **Built and delivered 2026-10-22 (v1.8.8):** the signed v1.8.8 APK was built
 on GitHub Actions from the master at 59da8f90a1 (run 39722179379, the merge
 of #78, which fixed the two javac errors the HUD edit had introduced),
