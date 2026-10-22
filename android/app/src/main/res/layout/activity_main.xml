@@ -340,11 +340,17 @@
              divisions: under the header, between the system status and the
              latest signal tiles, after the signal tile, and after the market
              tile, so "the same as the ones above" is true by construction. -->
+        <!-- Owner order 2026-10-22 (gap law): the air above every diamond
+             rule is the console's one grid gap, 12dp, the same number the
+             tiles carry below their rules. The old 3dp was the pre-HUD air
+             that no longer exists, and a universal divider asks for the
+             grid's own margin, so the header rule reads exactly like the
+             other five. -->
         <include
             layout="@layout/qor_rule"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="3dp"/>
+            android:layout_marginTop="12dp"/>
 
         <!-- ══════════ system status card ══════════
              Owner order 2026-10-16: the console's three tiles carry ids so
@@ -358,7 +364,7 @@
             style="@style/QorPanel"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
+            android:layout_marginTop="12dp"
             android:orientation="vertical">
 
             <TextView style="@style/QorLabel"
@@ -492,7 +498,7 @@
             layout="@layout/qor_rule"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="18dp"/>
+            android:layout_marginTop="12dp"/>
 
         <!-- ══════════ settings (hidden until the gear is tapped) ══════════ -->
         <LinearLayout
@@ -573,7 +579,7 @@
             style="@style/QorPanel"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="14dp"
+            android:layout_marginTop="12dp"
             android:orientation="vertical">
 
             <!-- Owner order 2026-10-22: the tile has its heading again,

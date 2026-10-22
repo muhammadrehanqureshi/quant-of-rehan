@@ -722,6 +722,27 @@ to sixty seconds. The status tile therefore also carries the app's own
   Version 1.8.9, versionCode 43
   (the same one-line form every version stamp in this README carries).
 
+- v1.9.0, owner orders 2026-10-22 (the gap law, the market heading and the
+  live-clock pass): every diamond rule now stands one universal distance
+  from the tiles around it, 12dp on each side, the console's own grid gap;
+  the 3dp header rule, the 16dp status tile, the 18dp rule after the signal
+  tile and the 14dp market tile are all brought onto that one number. The
+  market card's heading grows into the owner's exact wording, "THE INDEX &
+  THE TOP 3 SCRIPS OF VOL.". And the one-second cadence keeps the
+  numbers moving like a digital clock: the phone repolls every second
+  while the market is live, the relay merges the fresh broker snapshot
+  into every /market answer, and the session loop publishes the quote hub
+  every second it scans.
+  Version 1.9.0, versionCode 44.
+
+- v1.9.4, owner orders 2026-10-22 (the same evening): the
+  signal tile stops naming its empty state. The sentence "NO SIGNAL
+  AVAILABLE RIGHT NOW" and the NO-SIGNAL prefix check that gated real text
+  are retired from SignalText, so a tile that holds nothing simply holds a
+  line of clear air, and the removal is pinned by the JVM probe that runs
+  the reader rather than the prose (tests/test_android_signal_text.py).
+  Version 1.9.4, versionCode 45.
+
 **Built and delivered 2026-10-22 (v1.8.8):** the signed v1.8.8 APK was built
 on GitHub Actions from the master at 59da8f90a1 (run 39722179379, the merge
 of #78, which fixed the two javac errors the HUD edit had introduced),
