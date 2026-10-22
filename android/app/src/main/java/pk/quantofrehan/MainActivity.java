@@ -386,11 +386,13 @@ public class MainActivity extends Activity {
         // findViewById is a tree walk, so doing this here is what keeps the
         // toggle off the layout pass entirely.
         //
-        // Owner order 2026-10-22 (second pass): the thinking orb joins the
-        // array, so a menu takes its space too — the same exclusivity the
-        // tiles themselves follow.
+        // Owner order 2026-10-22 (v1.9.5): the thinking orb LEAVES the
+        // array. The owner ordered the orb on the SEARCH and SETTINGS pages
+        // as well, at the same exact placement it holds on the front page,
+        // and the panels open BELOW it, exactly where the tiles sat, so a
+        // menu no longer takes its space: the orb stays put under the brand
+        // and is the one mover on every page of the console.
         consoleViews = new View[]{
-                findViewById(R.id.thinking_orb),
                 findViewById(R.id.tile_status),
                 findViewById(R.id.rule_status_signal),
                 findViewById(R.id.tile_signal),
@@ -641,6 +643,9 @@ public class MainActivity extends Activity {
      * The orb runs only while the activity is resumed: startHud is called
      * from onResume and stopHud from onPause, the same law that governs the
      * poll loop and the status beacon (a hidden console holds no animation).
+     * Since v1.9.5 the orb is on the SEARCH and SETTINGS pages too, at its
+     * exact front-page station, so it is started and stopped once for the
+     * whole console and never per page.
      * Nothing here touches the relay: the HUD is drawn whether the market is
      * open or closed, because watching is what the console does between
      * answers, and the sober facts (ONLINE, the clock, the card) still

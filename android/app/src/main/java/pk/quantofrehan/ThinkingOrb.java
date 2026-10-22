@@ -17,6 +17,14 @@ import android.view.View;
  * breathes, the whole organism slowly turning. This view draws exactly that,
  * and nothing else: no words, no beam, no second clock on the console.
  *
+ * Owner order 2026-10-22 (v1.9.5): the organism is more advanced. The whole
+ * cloud moves at 30% more speed (MOTION_SCALE carries the owner's number so
+ * it is one decision, not ten), the organism THINKS CONTINUOUSLY - every
+ * node wanders its own slow orbit and a travelling spark runs the links,
+ * so the cloud is never still between turns - and the nucleus is layered:
+ * a breathing heart, an out-of-phase halo, a thin ring and a ring of
+ * orbiting sparks, so the centre reads as an engine, not one disc.
+ *
  * How the picture is built:
  *
  *   - A fixed population of nodes lives in a unit ball, gathered around a
@@ -30,16 +38,18 @@ import android.view.View;
  *   - Each frame rotates the whole cloud rigidly (a slow yaw plus a small
  *     breathing pitch) and projects it with a perspective divide, so the
  *     far side renders smaller and dimmer and the network reads in depth.
- *   - Every node breathes radially on its own phase, and the core is a
- *     one-time radial gradient whose alpha breathes on a slower clock, so
- *     the two rhythms cross and the picture never looks mechanical.
+ *   - Every node breathes radially on its own phase, WANDERS on its own
+ *     slower orbit (the continuous thinking), and the core is a one-time
+ *     radial gradient whose alpha breathes on a slower clock, so the two
+ *     rhythms cross and the picture never looks mechanical.
  *
  * The budget: one View, zero relay requests, zero allocations per frame
- * (nodes and link indices are built once in onSizeChanged and reused), and
- * the frame loop is the view's own invalidate pacing at FPS_MS. start() and
- * stop() are the only public controls, wired to MainActivity's startHud and
- * stopHud: a paused console draws nothing at all, and stop() holds the last
- * frame instead of abandoning the view blank.
+ * (nodes, link indices and the spark orbit are built once in
+ * onSizeChanged and reused), and the frame loop is the view's own
+ * invalidate pacing at FPS_MS. start() and stop() are the only public
+ * controls, wired to MainActivity's startHud and stopHud: a paused console
+ * draws nothing at all, and stop() holds the last frame instead of
+ * abandoning the view blank.
  *
  * Colours are the reference look's own ice family (a pale near-white for
  * the core, a cold blue for nodes and links), declared here beside the
@@ -64,18 +74,39 @@ public class ThinkingOrb extends View {
     /** Per-node pace of the frame loop, aimed at a smooth 30fps. */
     private static final long FPS_MS = 33L;
 
+    /**
+     * Owner order 2026-10-22 (v1.9.5): the organism moves at 30% MORE
+     * speed than v1.8.9's. Every turning, breathing and shimmering rate
+     * below is multiplied by this one number, so the owner's order is one
+     * named constant rather than ten scattered edits, and the applied speed
+     * can never drift off it.
+     */
+    private static final float MOTION_SCALE = 1.3f;
+
+    /** Stride of a node's row in the cloud array. */
+    private static final int NODE_STRIDE = 7;
+    /** Orbiting sparks of the layered nucleus. Built once, drawn free. */
+    private static final int SPARKS = 8;
+    /** Cap on the travelling link sparks (the continuous "thinking" web). */
+    private static final int PULSE_BUDGET = 16;
+
     private final Paint linkPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint nodePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint corePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     /** The core's own halo: a plain translucent disc, colour set once. */
     private final Paint haloPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    /** The nucleus ring: thin stroke, drawn in screen space every frame. */
+    private final Paint ringPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    /** The travelling link sparks and the nucleus's orbiting sparks. */
+    private final Paint sparkPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
 
     /**
      * Node geometry, in a unit ball: [0..2] x,y,z; [3] breath phase; [4]
-     * shimmer phase. Per-frame screen coordinates and depths are parallel
+     * shimmer phase; [5] wander phase; [6] wander rate (the continuous
+     * thinking). Per-frame screen coordinates and depths are parallel
      * arrays rebuilt in place, so no allocation ever lands on the frame.
      */
-    private final float[] cloud = new float[NODES * 5];
+    private final float[] cloud = new float[NODES * NODE_STRIDE];
     private final float[] screenX = new float[NODES];
     private final float[] screenY = new float[NODES];
     private final float[] depth = new float[NODES];
@@ -84,6 +115,15 @@ public class ThinkingOrb extends View {
     private final int[] linkB = new int[linkBudget()];
     private final float[] linkDist = new float[linkBudget()];
     private int linkCount;
+    /** The links that carry a travelling thought, and each one's phase. */
+    private final int[] pulseA = new int[PULSE_BUDGET];
+    private final int[] pulseB = new int[PULSE_BUDGET];
+    private final float[] pulsePhase = new float[PULSE_BUDGET];
+    private int pulseCount;
+    /** The nucleus's orbiting sparks: (radius, phase, rate) triples. */
+    private final float[] sparkRadius = new float[SPARKS];
+    private final float[] sparkPhase = new float[SPARKS];
+    private final float[] sparkRate = new float[SPARKS];
 
     private long clockAnchor;
     private long lastFrameAt = -1;
@@ -139,12 +179,16 @@ public class ThinkingOrb extends View {
                 w / 2f, h / 2f, coreRadius * 3f, new int[]{
                 CORE_COLOR, withAlpha(CORE_COLOR, 0x40), 0x00E4F0FF},
                 new float[]{0f, 0.35f, 1f}, Shader.TileMode.CLAMP));
+        // The nucleus ring: one thin stroke, sized once like the others.
+        ringPaint.setStyle(Paint.Style.STROKE);
+        ringPaint.setStrokeWidth(Math.max(1f, dp(0.8f)));
         geometryBuilt = true;
     }
 
     /**
      * One full build of the cloud: cluster anchors, node placement, link
-     * list. Ran once per size; never on the frame path.
+     * list, the travelling link sparks and the nucleus's orbit ring. Ran
+     * once per size; never on the frame path.
      */
     private void buildGeometry() {
         long seed = 20261022L;
@@ -170,6 +214,10 @@ public class ThinkingOrb extends View {
             float jitter2 = frac(seed) * 2f - 1f;
             seed = nextSeed(seed);
             float jitter3 = frac(seed) * 2f - 1f;
+            seed = nextSeed(seed);
+            float wanderRate = 0.35f + frac(seed) * 0.3f;
+            seed = nextSeed(seed);
+            float wanderPhase = frac(seed) * (float) Math.PI * 2f;
             // Pull toward the anchor, then relax outward; most nodes hug a
             // cluster, the rest scatter into the halo between anchors.
             float x = anchorX[anchor] + jitter1 * 0.42f;
@@ -188,20 +236,24 @@ public class ThinkingOrb extends View {
                 y *= 1.25f;
                 z *= 1.25f;
             }
-            int o = n * 5;
+            int o = n * NODE_STRIDE;
             cloud[o] = clampAbs(x, 0.97f);
             cloud[o + 1] = clampAbs(y, 0.97f);
             cloud[o + 2] = clampAbs(z, 0.97f);
             cloud[o + 3] = n * 0.7f;
             cloud[o + 4] = n * 1.9f;
+            cloud[o + 5] = wanderPhase;
+            cloud[o + 6] = wanderRate;
         }
         float linkAt = 0.55f;
         linkCount = 0;
         for (int i = 0; i < NODES && linkCount < linkBudget(); i++) {
             for (int j = i + 1; j < NODES && linkCount < linkBudget(); j++) {
-                float dx = cloud[i * 5] - cloud[j * 5];
-                float dy = cloud[i * 5 + 1] - cloud[j * 5 + 1];
-                float dz = cloud[i * 5 + 2] - cloud[j * 5 + 2];
+                float dx = cloud[i * NODE_STRIDE] - cloud[j * NODE_STRIDE];
+                float dy = cloud[i * NODE_STRIDE + 1]
+                        - cloud[j * NODE_STRIDE + 1];
+                float dz = cloud[i * NODE_STRIDE + 2]
+                        - cloud[j * NODE_STRIDE + 2];
                 float dist = (float) Math.sqrt(dx * dx + dy * dy + dz * dz);
                 if (dist <= linkAt) {
                     linkA[linkCount] = i;
@@ -210,6 +262,29 @@ public class ThinkingOrb extends View {
                     linkCount++;
                 }
             }
+        }
+        // The travelling thoughts: a slice of the links carries a moving
+        // spark, so the web visibly carries activity every instant.
+        pulseCount = 0;
+        for (int l = 0; l < linkCount && pulseCount < PULSE_BUDGET; l++) {
+            if (l % 5 == 0) {
+                pulseA[pulseCount] = linkA[l];
+                pulseB[pulseCount] = linkB[l];
+                pulsePhase[pulseCount] = (float) Math.PI * 2f
+                        * (l % 11) / 11f;
+                pulseCount++;
+            }
+        }
+        // The nucleus's orbiting sparks: eight points on their own radii,
+        // phases and rates, all deterministic.
+        for (int s = 0; s < SPARKS; s++) {
+            seed = nextSeed(seed);
+            sparkRadius[s] = coreRadius * (1.35f + frac(seed) * 0.7f);
+            seed = nextSeed(seed);
+            sparkPhase[s] = frac(seed) * (float) Math.PI * 2f;
+            seed = nextSeed(seed);
+            sparkRate[s] = (0.9f + frac(seed) * 0.7f)
+                    * (s % 2 == 0 ? 1f : -1f);
         }
     }
 
@@ -232,14 +307,17 @@ public class ThinkingOrb extends View {
         float seconds = now / 1000f;
         float cx = getWidth() / 2f;
         float cy = getHeight() / 2f;
-        float yaw = seconds * 0.22f;
-        float pitch = 0.16f * (float) Math.sin(seconds * 0.13);
+        float yaw = seconds * 0.22f * MOTION_SCALE;
+        float pitch = 0.16f * (float) Math.sin(
+                seconds * 0.13f * MOTION_SCALE);
         float cosYaw = (float) Math.cos(yaw);
         float sinYaw = (float) Math.sin(yaw);
         float cosPitch = (float) Math.cos(pitch);
         float sinPitch = (float) Math.sin(pitch);
-        float cloudBreath = 1f + 0.035f * (float) Math.sin(seconds * 0.55f);
-        float coreBreath = 0.55f + 0.45f * (float) Math.sin(seconds * 0.9f);
+        float cloudBreath = 1f + 0.035f * (float) Math.sin(
+                seconds * 0.55f * MOTION_SCALE);
+        float coreBreath = 0.55f + 0.45f * (float) Math.sin(
+                seconds * 0.9f * MOTION_SCALE);
         // Wake over the first four seconds of a run, so the organism grows
         // out of the dark instead of popping in.
         float wake = Math.min(1f, seconds / 4f);
@@ -248,12 +326,16 @@ public class ThinkingOrb extends View {
 
         float distance = orbRadius * 2.8f;
         for (int n = 0; n < NODES; n++) {
-            int o = n * 5;
+            int o = n * NODE_STRIDE;
             float breathe = 1f + 0.06f * (float) Math.sin(
-                    seconds * 0.8f + cloud[o + 3]);
-            float x = cloud[o] * cloudBreath * breathe;
-            float y = cloud[o + 1] * cloudBreath * breathe;
-            float z = cloud[o + 2] * cloudBreath * breathe;
+                    seconds * 0.8f * MOTION_SCALE + cloud[o + 3]);
+            // The continuous thinking: every node wanders on its own slow
+            // orbit (its own rate and phase), so no node is ever still.
+            float wander = 1f + 0.05f * (float) Math.sin(
+                    seconds * cloud[o + 6] * MOTION_SCALE + cloud[o + 5]);
+            float x = cloud[o] * cloudBreath * breathe * wander;
+            float y = cloud[o + 1] * cloudBreath * breathe * wander;
+            float z = cloud[o + 2] * cloudBreath * breathe * wander;
             // Rigid yaw around the vertical, then a small breathing pitch.
             float rx = x * cosYaw + z * sinYaw;
             float rz = -x * sinYaw + z * cosYaw;
@@ -280,11 +362,28 @@ public class ThinkingOrb extends View {
             canvas.drawLine(screenX[a], screenY[a], screenX[b], screenY[b],
                     linkPaint);
         }
+        // The travelling thoughts: a spark runs along its link and wraps,
+        // dimmer at the ends it departs, so the web visibly carries
+        // activity every instant.
+        for (int p = 0; p < pulseCount; p++) {
+            int a = pulseA[p];
+            int b = pulseB[p];
+            float t = frac2(seconds * 0.55f * MOTION_SCALE
+                    + pulsePhase[p]);
+            sparkPaint.setARGB(Math.min(255,
+                            (int) ((70f + 110f * t) * wake)),
+                    Color.red(CORE_COLOR), Color.green(CORE_COLOR),
+                    Color.blue(CORE_COLOR));
+            sparkPaint.setStrokeWidth(nodeRadius * 1.2f);
+            float px = screenX[a] + (screenX[b] - screenX[a]) * t;
+            float py = screenY[a] + (screenY[b] - screenY[a]) * t;
+            canvas.drawPoint(px, py, sparkPaint);
+        }
         for (int n = 0; n < NODES; n++) {
-            int o = n * 5;
+            int o = n * NODE_STRIDE;
             float toward = clamp((depth[n] - 1f) / 0.6f, 0f, 1f);
             float shimmer = 0.8f + 0.2f * (float) Math.sin(
-                    seconds * 1.4f + cloud[o + 4]);
+                    seconds * 1.4f * MOTION_SCALE + cloud[o + 4]);
             float size = nodeRadius * (0.6f + 0.9f * toward) * shimmer;
             int alpha = (int) ((40f + 170f * toward) * wake);
             nodePaint.setARGB(Math.min(255, alpha),
@@ -292,14 +391,39 @@ public class ThinkingOrb extends View {
                     Color.blue(NODE_COLOR));
             canvas.drawCircle(screenX[n], screenY[n], size, nodePaint);
         }
+
+        // The layered nucleus (owner order 2026-10-22, v1.9.5).
+        // 1. The heart: a radial gradient that breathes on its own clock,
+        //    and now a radius that breathes with it, so the core pulses.
+        float heart = coreRadius * (1f + 0.18f * coreBreath);
         haloPaint.setColor(withAlpha(CORE_COLOR, 255));
         corePaint.setAlpha((int) (255f * coreBreath * wake));
-        canvas.drawCircle(cx, cy, coreRadius * 3f, corePaint);
-        // The halo: one plain translucent disc the core sits in, no blur
-        // filter (a BlurMaskFilter is a no-op under hardware acceleration
-        // and a software layer for one circle is not worth the bitmap).
-        haloPaint.setAlpha((int) (70f * wake));
+        canvas.drawCircle(cx, cy, heart * 3f, corePaint);
+        // 2. The halo: one plain translucent disc the core sits in, no blur
+        //    filter (a BlurMaskFilter is a no-op under hardware acceleration
+        //    and a software layer for one circle is not worth the bitmap).
+        //    Its alpha breathes OUT of phase with the heart, so the two
+        //    layers cross instead of pulsing together.
+        haloPaint.setAlpha((int) (70f * (1.4f - coreBreath) * wake));
         canvas.drawCircle(cx, cy, coreRadius * 1.5f, haloPaint);
+        // 3. The ring: a thin visible circle that holds the nucleus plan,
+        //    breathing its own alpha against the core's clock.
+        ringPaint.setARGB((int) (110f * coreBreath * wake), 0xC8, 0xE4,
+                0xFF);
+        canvas.drawCircle(cx, cy, coreRadius * 2.1f, ringPaint);
+        // 4. The orbiting sparks: eight points on the ring's plan, each on
+        //    its own radius, phase and rate, projected flat like electrons
+        //    on an inclined orbit.
+        for (int s = 0; s < SPARKS; s++) {
+            float angle = seconds * sparkRate[s] * MOTION_SCALE
+                    + sparkPhase[s];
+            float sx = cx + sparkRadius[s] * (float) Math.cos(angle);
+            float sy = cy + sparkRadius[s] * 0.45f * (float) Math.sin(angle);
+            sparkPaint.setARGB((int) ((150f + 70f * (float) Math.cos(angle))
+                    * wake), Color.red(CORE_COLOR),
+                    Color.green(CORE_COLOR), Color.blue(CORE_COLOR));
+            canvas.drawCircle(sx, sy, nodeRadius * 1.1f, sparkPaint);
+        }
         postInvalidateOnAnimation();
     }
 
@@ -316,6 +440,11 @@ public class ThinkingOrb extends View {
 
     private static float frac(long seed) {
         return Math.abs(seed % 10007L) / 10007f;
+    }
+
+    /** A float phase wrapped onto [0, 1). */
+    private static float frac2(float v) {
+        return v - (float) Math.floor(v);
     }
 
     private static float clampAbs(float v, float limit) {
