@@ -743,6 +743,21 @@ to sixty seconds. The status tile therefore also carries the app's own
   the reader rather than the prose (tests/test_android_signal_text.py).
   Version 1.9.4, versionCode 45.
 
+- v1.9.5, owner orders 2026-10-22 (the orb on every page, advanced): the
+  ThinkingOrb is on the SEARCH and SETTINGS pages as well, at the same exact
+  placement it holds on the front page, so the menu no longer takes its
+  space; the panels open beneath its station and the one mover rides every
+  page of the console. The orb itself is more advanced: the entire organism
+  moves at 30% more speed (the owner's number is one named constant,
+  MOTION_SCALE = 1.3f, carrying every turning, breathing, shimmering and
+  wandering rate), the thinking is CONTINUOUS now, every node wandering its
+  own slow orbit and a travelling spark running sixteen of the links, so the
+  cloud is never still between turns, and the nucleus is layered: a
+  breathing heart, an out-of-phase halo, a thin ring and a ring of eight
+  orbiting sparks on their own radii, phases and rates. Zero per-frame
+  allocations stand untouched; the build remains deterministic.
+  Version 1.9.5, versionCode 46.
+
 **Built and delivered 2026-10-22 (v1.8.8):** the signed v1.8.8 APK was built
 on GitHub Actions from the master at 59da8f90a1 (run 39722179379, the merge
 of #78, which fixed the two javac errors the HUD edit had introduced),

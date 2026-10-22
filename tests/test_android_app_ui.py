@@ -1514,13 +1514,14 @@ class HeaderCopyTest(unittest.TestCase):
 
 class VersionTest(unittest.TestCase):
     def test_the_version_is_the_one_that_ships_these_changes(self):
-        # v1.9.4 is the 2026-10-22 fourth pass: v1.9.0's universal 12dp gap
-        # around every diamond rule, the "THE INDEX & THE TOP 3 SCRIPS OF
-        # VOL." heading and the one-second live clock stand, and the signal
-        # tile's NO SIGNAL sentence is retired so an empty tile is just air.
+        # v1.9.5 is the 2026-10-22 fifth pass: the orb is on the SEARCH and
+        # SETTINGS pages at its exact front-page station, it thinks
+        # continuously at 30% more speed with a layered nucleus, and
+        # v1.9.4's universal 12dp gap, the "THE INDEX & THE TOP 3 SCRIPS OF
+        # VOL." heading and the one-second live clock stand.
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="1.9.4"', manifest)
-        self.assertIn('android:versionCode="45"', manifest)
+        self.assertIn('android:versionName="1.9.5"', manifest)
+        self.assertIn('android:versionCode="46"', manifest)
         # The changelog entry ties these user-visible changes to the build.
         readme = (ROOT / "android" / "README.md").read_text(encoding="utf-8")
         self.assertIn("v1.7.9, owner order 2026-10-20", readme)
@@ -1536,6 +1537,7 @@ class VersionTest(unittest.TestCase):
         self.assertIn("Version 1.8.9, versionCode 43", readme)
         self.assertIn("Version 1.9.0, versionCode 44", readme)
         self.assertIn("Version 1.9.4, versionCode 45", readme)
+        self.assertIn("Version 1.9.5, versionCode 46", readme)
         layout = LAYOUT.read_text(encoding="utf-8")
         strings = STRINGS.read_text(encoding="utf-8")
         main = MAIN.read_text(encoding="utf-8")
@@ -2014,6 +2016,9 @@ class ThinkingOrbPlanTest(unittest.TestCase):
     frame's tiles, rules and copy stand untouched beneath it; the orb is
     a member of consoleViews, so a menu takes its space exactly as the
     tiles' space is taken, and it runs ONLY while the console is resumed.
+    Since v1.9.5 the orb leaves consoleViews and stays on the SEARCH and
+    SETTINGS pages at its own station, the thinking is continuous, the
+    motion is 30% faster and the nucleus is layered.
     """
 
     def test_the_orb_sits_where_the_beam_lay(self):
@@ -2062,11 +2067,74 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         self.assertNotIn("postDelayed(diagStep", main)
         self.assertNotIn("ValueAnimator", main)
 
-    def test_the_orb_hides_with_the_console(self):
+    def test_the_orb_stays_on_the_search_and_settings_pages(self):
+        layout = LAYOUT.read_text(encoding="utf-8")
         main = MAIN.read_text(encoding="utf-8")
-        # The orb joins consoleViews (owner order 2026-10-16): one menu at
-        # a time, so the settings or search menu takes its space too.
-        self.assertIn("findViewById(R.id.thinking_orb),", main)
+        """Owner order 2026-10-22 (v1.9.5): the orb is on the SEARCH and
+        SETTINGS pages as well, at the SAME exact placement it holds on the
+        front page. The panels open BELOW the orb, exactly where the tiles
+        sat, so the orb keeps its station under the brand on every page
+        rather than a second copy being stamped into each panel.
+        """
+        # The orb is NOT a member of consoleViews any more: a menu no
+        # longer takes its space.
+        self.assertNotIn("findViewById(R.id.thinking_orb),", main)
+        # Its station precedes the panel's own top rule and both panels,
+        # which is the exact spot it holds on the front page.
+        self.assertLess(layout.index("@+id/thinking_orb"),
+                        layout.index("@+id/rule_before_search"))
+        self.assertLess(layout.index("@+id/thinking_orb"),
+                        layout.index("@+id/search_panel"))
+        self.assertLess(layout.index("@+id/thinking_orb"),
+                        layout.index("@+id/settings_panel"))
+        # One orb, not a copy inside a panel: the custom view appears as a
+        # tag exactly once in the layout.
+        self.assertEqual(layout.count("pk.quantofrehan.ThinkingOrb"), 2)
+
+    def test_the_thinking_is_advanced_and_thirty_percent_faster(self):
+        orb = (MAIN.parent / "ThinkingOrb.java").read_text(
+            encoding="utf-8")
+        """Owner order 2026-10-22 (v1.9.5): the orb looks like it is
+        thinking continuously and moves at 30% more speed.
+        """
+        # The owner's 30% is ONE named constant that every rate multiplies,
+        # so the order is one decision rather than ten edits.
+        self.assertIn("MOTION_SCALE = 1.3f", orb)
+        for snippet in (
+                "seconds * 0.22f * MOTION_SCALE",
+                "seconds * 0.13f * MOTION_SCALE",
+                "seconds * 0.55f * MOTION_SCALE",
+                "seconds * 0.9f * MOTION_SCALE",
+                "seconds * 0.8f * MOTION_SCALE",
+                "seconds * 1.4f * MOTION_SCALE"):
+            with self.subTest(snippet=snippet):
+                self.assertIn(snippet, orb)
+        self.assertGreaterEqual(orb.count("MOTION_SCALE"), 6)
+        # Continuous thinking: every node wanders its own orbit (stride 7
+        # carries the wander phase and rate) and a travelling spark runs
+        # the links, so the organism is never still between turns.
+        self.assertIn("NODE_STRIDE = 7", orb)
+        self.assertIn("wanderRate", orb)
+        self.assertIn("PULSE_BUDGET = 16", orb)
+        self.assertIn("pulseA", orb)
+        self.assertNotIn("Thread.sleep", orb)
+        self.assertNotIn("ValueAnimator", orb)
+
+    def test_the_nucleus_is_layered(self):
+        orb = (MAIN.parent / "ThinkingOrb.java").read_text(
+            encoding="utf-8")
+        """Owner order 2026-10-22 (v1.9.5): the nucleus is more advanced.
+        """
+        # A breathing heart, an out-of-phase halo, a thin ring and a ring
+        # of orbiting sparks: four layers, built once, drawn free.
+        self.assertIn("ringPaint", orb)
+        self.assertIn("SPARKS = 8", orb)
+        self.assertIn("sparkRadius", orb)
+        self.assertIn("sparkPhase", orb)
+        self.assertIn("sparkRate", orb)
+        self.assertIn("heart", orb)
+        # The halo and the core cross instead of pulsing together.
+        self.assertIn("OUT of phase", orb)
 
     def test_the_orb_is_one_budget(self):
         orb = (MAIN.parent / "ThinkingOrb.java").read_text(encoding="utf-8")

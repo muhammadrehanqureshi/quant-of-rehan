@@ -225,9 +225,13 @@
              network. It draws itself on its own frame loop (the class is the
              owner of its pace) and runs only while the console is resumed.
 
-             It sits where the beam lay, under the brand, and it is a member
-             of consoleViews, so a menu takes its space exactly as the tiles'
-             space is taken (owner order 2026-10-16). -->
+             It sits where the beam lay, under the brand. Owner order
+             2026-10-22 (v1.9.5): the orb is on the SEARCH and SETTINGS
+             pages too, at the SAME exact placement it holds here, so a menu
+             no longer takes its space; the panels open beneath it instead
+             (it precedes the top search rule and both panels in this
+             layout, which is exactly that station on every page).
+             It is the one mover on every page of the console. -->
         <pk.quantofrehan.ThinkingOrb
             android:id="@+id/thinking_orb"
             android:layout_width="match_parent"
