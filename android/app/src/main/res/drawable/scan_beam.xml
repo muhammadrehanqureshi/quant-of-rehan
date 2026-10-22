@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The HUD's scan beam (owner order 2026-10-22): a 2dp gold line whose
+     middle is lit and whose two ends fade to nothing, sweeping beneath the
+     brand while MainActivity animates its translation. The transparency is
+     written inline because a gradient's stops are a drawing detail of the
+     beam alone: alpha 0 at the ends, full gold at its centre, so the sweep
+     reads as a moving light with no visible tail or hard edge. The hexes
+     carry the SAME D9A441 gold as #33/#59 named colours elsewhere in the
+     palette, so the beam is drawn from the brand gold too. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <gradient
+        android:angle="0"
+        android:startColor="#00D9A441"
+        android:centerColor="#FFD9A441"
+        android:endColor="#00D9A441"
+        android:type="linear"/>
+    <size
+        android:width="96dp"
+        android:height="2dp"/>
+</shape>

@@ -29,6 +29,28 @@
     <string name="label_system">QUANT STATUS</string>
     <string name="label_signal">LATEST SIGNAL</string>
     <string name="label_settings">SETTINGS</string>
+    <!-- Owner order 2026-10-22: the console's two unlabelled tiles get their
+         headings back, in the exact words he asked for. The market card had
+         carried no label since 2026-10-12; the owner's order of today
+         supersedes it, and the heading now says what the tile is: the index
+         and the top three scrips by volume. -->
+    <string name="label_search">SEARCH</string>
+    <string name="label_market">INDEX &amp; TOP 3 SCRIPS OF VOL.</string>
+    <!-- Owner order 2026-10-22: the console reads as if it is thinking. This
+         is its working voice: a small line under the Karachi clock that
+         rotates through what the console is actually watching, one phrase
+         at a time, in HUD grammar. Each phrase describes this app's own
+         truth: it watches the KMIALL universe the relay pushes, reads the
+         exchange's index and mines the tape depth the relay keeps, and it
+         does it by polling the relay (a display read, never a scan). No
+         phrase claims a result the relay has not delivered, so the line
+         describes looking, never finding (SO-3). -->
+    <string-array name="sys_diag_lines">
+        <item>SCANNING KMIALL TAPE…</item>
+        <item>WATCHING THE INDEX…</item>
+        <item>MINING TAPE DEPTH…</item>
+        <item>NAVIGATING THE UNIVERSE…</item>
+    </string-array>
     <string name="market_open_notification">Market is open. Quant is online now.</string>
     <string name="market_closed_notification">Market is closed. Quant is sleeping now.</string>
     <string name="market_break_notification">Market is on a break. Quant is sleeping until the market reopens.</string>
