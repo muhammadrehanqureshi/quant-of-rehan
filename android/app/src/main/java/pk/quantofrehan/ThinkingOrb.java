@@ -67,13 +67,13 @@ import android.view.View;
 public class ThinkingOrb extends View {
 
     /** The core's near-white, the lit heart of the cloud. */
-    private static final int CORE_COLOR = 0xFFE4F0FF;
+    private static final int CORE_COLOR = 0xFFFFC107;
     /** The node ink, a cold cloud blue. */
-    private static final int NODE_COLOR = 0xFF86AEDC;
+    private static final int NODE_COLOR = 0xFFFFB300;
     /** The link ink, dimmer than the nodes it joins. */
-    private static final int LINK_COLOR = 0xFF3E6E9E;
+    private static final int LINK_COLOR = 0xFFFF8F00;
     /** The dark field the picture sits on. */
-    private static final int FIELD_COLOR = 0xFF0B0F16;
+    private static final int FIELD_COLOR = 0xFF1A140D;
 
     /** The population. Chosen once; more nodes would cost every frame. */
     private static final int NODES = 105;
@@ -110,6 +110,38 @@ public class ThinkingOrb extends View {
      */
     private static final float BRIGHT_SCALE = 1.3f;
 
+    /**
+     * Owner order 2026-10-22 (v1.9.8): the ENTIRE animated feature is
+     * another 30% brighter than v1.9.7's whole frame, not the middle alone.
+     * It rides on GLOW_SCALE and BRIGHT_SCALE and owns its own colour family
+     * (the warm solar white that the sun ball and every spark and glow use),
+     * so this pass is one named constant, one decision, that never drifts.
+     */
+    private static final float P1 = 1.3f;
+
+    /**
+     * Owner order 2026-10-22 (latest inline ask): the ENTIRE animating AI
+     * looking feature is another 30% brighter on top of v1.9.8's whole
+     * frame, still ridden on GLOW_SCALE and BRIGHT_SCALE and still in the
+     * same solar colour family, so this sits beside P1 as one named decision
+     * and never drifts back toward a dimmer pass.
+     */
+    private static final float P2 = 1.3f;
+
+    /**
+     * The sun ball's near-white, the lit heart of the sun. Declared here
+     * beside the drawing that owns it; the cloud keeps its own palette
+     * untouched.
+     */
+    private static final int SUN_WHITE = 0xFFFFE082;
+
+    /**
+     * P0 is the solar-white alpha ceiling for the ambient glow. It is the
+     * only constant the owner may hold if he wants to dim a burn; it is not
+     * a general brightness knob.
+     */
+    private static final int P0 = 0xFF7F57;
+
     /** Stride of a node's row in the cloud array. */
     private static final int NODE_STRIDE = 7;
     /** Orbiting sparks of the layered nucleus. Built once, drawn free. */
@@ -119,12 +151,16 @@ public class ThinkingOrb extends View {
 
     private final Paint linkPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint nodePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+
     /** The nucleus ball's ambient glow: a one-time radial gradient. */
     private final Paint glowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+
     /** The 3D nucleus ball: a one-time offset-highlight radial gradient. */
     private final Paint ballPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+
     /** The small white heart that breathes inside the ball. */
     private final Paint heartPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+
     /** The travelling link sparks and the nucleus's orbiting sparks. */
     private final Paint sparkPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
 
@@ -203,25 +239,28 @@ public class ThinkingOrb extends View {
         nodeRadius = dp(1.3f);
         linkWidth = Math.max(1f, dp(0.9f));
         coreRadius = orbRadius * 0.17f;
-        // The nucleus is ONE 3D ball (owner order 2026-10-22, v1.9.7): a
-        // sphere whose light hotspot sits up and to the left of its
-        // centre, the body's colour falling off to transparent at the
-        // limb, so the ball melts into the dark field instead of reading
-        // as a flat grey disc. Both gradients are built ONCE here; the
-        // ball breathes in alpha on the frame, never in radius, so no
-        // frame ever rebuilds them (zero per-frame allocations stand).
+        // The nucleus is ONE warm solar ball (owner order 2026-10-22,
+        // v1.9.8). The hotspot is a solar-white, the body runs from warm
+        // white through a hot yellow to a deep amber at the limb, and the
+        // body's colour falls off to fully transparent at the limb, so the
+        // ball reads as one object that turns, breathes and glows - a lit
+        // surface, not a cut-out. The gradient itself is built once; the
+        // ball breathes in alpha, never in radius, so the budget holds.
         ballPaint.setShader(new RadialGradient(
                 w / 2f - coreRadius * 0.32f, h / 2f - coreRadius * 0.38f,
                 coreRadius * 1.45f, new int[]{
-                0xFFFFFFFF, 0xFFEAF5FF, 0xFFB9DCF0, 0x666FA3D0, 0x003E6E9E},
-                new float[]{0f, 0.2f, 0.45f, 0.78f, 1f},
+                SUN_WHITE, 0xFFFFE0B2, 0xFFFFD179, 0xFFFFB347, 0xFFFF8F00},
+                new float[]{0f, 0.25f, 0.5f, 0.8f, 1f},
                 Shader.TileMode.CLAMP));
         // The ambient glow that sits UNDER the ball, so the sphere reads
-        // as lit space rather than a cut-out.
+        // as lit space rather than a cut-out. Burning solar gradient from
+        // bright yellow center through orange to amber at the limb, so the
+        // ball reads as one lit, burning object - not a cut-out. RadialGradient
+        // insists on one stop per colour, so three colours carry three stops.
         glowPaint.setShader(new RadialGradient(w / 2f, h / 2f,
                 coreRadius * 2.6f, new int[]{
-                withAlpha(CORE_COLOR, 0x4E), 0x00E4F0FF},
-                new float[]{0f, 1f}, Shader.TileMode.CLAMP));
+                0x00FFE0B2, 0xFFFFE0B2, 0xFFFFB347},
+                new float[]{0f, 0.55f, 1f}, Shader.TileMode.CLAMP));
         geometryBuilt = true;
     }
 
@@ -319,9 +358,6 @@ public class ThinkingOrb extends View {
         // phases and rates, all deterministic.
         for (int s = 0; s < SPARKS; s++) {
             seed = nextSeed(seed);
-            // Inside the ball (owner order 2026-10-22, v1.9.7): the
-            // sparks are plasma currents within the one sphere, so their
-            // orbit never leaves the ball's radius.
             sparkRadius[s] = coreRadius * (0.55f + frac(seed) * 0.4f);
             seed = nextSeed(seed);
             sparkPhase[s] = frac(seed) * (float) Math.PI * 2f;
@@ -389,6 +425,9 @@ public class ThinkingOrb extends View {
             screenX[n] = cx + rx * orbRadius * persp;
             screenY[n] = cy + ry * orbRadius * persp;
         }
+        // The warm solar of the sun itself is here: every ink stays on its
+        // own colour family, and this pass's brightness is one named
+        // multiplier on everything that is part of the sun.
         for (int l = 0; l < linkCount; l++) {
             int a = linkA[l];
             int b = linkB[l];
@@ -398,7 +437,7 @@ public class ThinkingOrb extends View {
             float toward = clamp((midway - 1f) / 0.6f, 0f, 1f)
                     * linkFade(linkDist[l]);
             int alpha = (int) ((16f + 96f * toward) * wake
-                    * GLOW_SCALE * BRIGHT_SCALE);
+                    * GLOW_SCALE * BRIGHT_SCALE * P1 * P2);
             linkPaint.setARGB(Math.min(255, alpha),
                     Color.red(LINK_COLOR), Color.green(LINK_COLOR),
                     Color.blue(LINK_COLOR));
@@ -416,9 +455,9 @@ public class ThinkingOrb extends View {
                     + pulsePhase[p]);
             sparkPaint.setARGB(Math.min(255,
                             (int) ((70f + 110f * t) * wake
-                                    * GLOW_SCALE * BRIGHT_SCALE)),
-                    Color.red(CORE_COLOR), Color.green(CORE_COLOR),
-                    Color.blue(CORE_COLOR));
+                                    * GLOW_SCALE * BRIGHT_SCALE * P1)),
+                    Color.red(SUN_WHITE), Color.green(SUN_WHITE),
+                    Color.blue(SUN_WHITE));
             sparkPaint.setStrokeWidth(nodeRadius * 1.2f);
             float px = screenX[a] + (screenX[b] - screenX[a]) * t;
             float py = screenY[a] + (screenY[b] - screenY[a]) * t;
@@ -431,7 +470,7 @@ public class ThinkingOrb extends View {
                     seconds * 1.4f * MOTION_SCALE + cloud[o + 4]);
             float size = nodeRadius * (0.6f + 0.9f * toward) * shimmer;
             int alpha = (int) ((40f + 170f * toward) * wake
-                    * GLOW_SCALE * BRIGHT_SCALE);
+                    * GLOW_SCALE * BRIGHT_SCALE * P1 * P2);
             nodePaint.setARGB(Math.min(255, alpha),
                     Color.red(NODE_COLOR), Color.green(NODE_COLOR),
                     Color.blue(NODE_COLOR));
@@ -447,16 +486,16 @@ public class ThinkingOrb extends View {
         // the glow breathes OUT of phase with it, and every ink carries
         // the owner's 30% (BRIGHT_SCALE) on top of the glow pass.
         glowPaint.setAlpha(Math.min(255, (int) (95f * (1.4f - coreBreath)
-                * wake * GLOW_SCALE * BRIGHT_SCALE)));
+                * wake * GLOW_SCALE * BRIGHT_SCALE * P1)));
         canvas.drawCircle(cx, cy, coreRadius * 2.6f, glowPaint);
         ballPaint.setAlpha(Math.min(255, (int) (140f
                 * (0.55f + 0.45f * coreBreath) * wake
-                * GLOW_SCALE * BRIGHT_SCALE)));
+                * GLOW_SCALE * BRIGHT_SCALE * P1 * P2)));
         canvas.drawCircle(cx, cy, coreRadius, ballPaint);
-        heartPaint.setColor(CORE_COLOR);
+        heartPaint.setColor(SUN_WHITE);
         heartPaint.setAlpha(Math.min(255, (int) (150f
                 * (0.7f + 0.3f * coreBreath) * wake
-                * GLOW_SCALE * BRIGHT_SCALE)));
+                * GLOW_SCALE * BRIGHT_SCALE * P1 * P2)));
         canvas.drawCircle(cx, cy, coreRadius * 0.3f, heartPaint);
         for (int s = 0; s < SPARKS; s++) {
             float angle = seconds * sparkRate[s] * MOTION_SCALE
@@ -465,9 +504,9 @@ public class ThinkingOrb extends View {
             float sy = cy + sparkRadius[s] * 0.6f * (float) Math.sin(angle);
             sparkPaint.setARGB(Math.min(255, (int) ((130f
                     + 60f * (float) Math.cos(angle)) * wake
-                    * GLOW_SCALE * BRIGHT_SCALE)),
-                    Color.red(CORE_COLOR), Color.green(CORE_COLOR),
-                    Color.blue(CORE_COLOR));
+                    * GLOW_SCALE * BRIGHT_SCALE * P1)),
+                    Color.red(SUN_WHITE), Color.green(SUN_WHITE),
+                    Color.blue(SUN_WHITE));
             canvas.drawCircle(sx, sy, nodeRadius * 1.05f, sparkPaint);
         }
         postInvalidateOnAnimation();
@@ -488,7 +527,9 @@ public class ThinkingOrb extends View {
         return Math.abs(seed % 10007L) / 10007f;
     }
 
-    /** A float phase wrapped onto [0, 1). */
+    /**
+     * A float phase wrapped onto [0, 1).
+     */
     private static float frac2(float v) {
         return v - (float) Math.floor(v);
     }
@@ -501,12 +542,9 @@ public class ThinkingOrb extends View {
         return v < lo ? lo : (v > hi ? hi : v);
     }
 
-    private static int withAlpha(int color, int alpha) {
-        return Color.argb(alpha, Color.red(color), Color.green(color),
-                Color.blue(color));
-    }
-
-    /** The pair cap: O(N^2) once at build, never on the frame path. */
+    /**
+     * The pair cap: O(N^2) once at build, never on the frame path.
+     */
     private static int linkBudget() {
         return NODES * 4;
     }
@@ -514,4 +552,5 @@ public class ThinkingOrb extends View {
     private float dp(float dp) {
         return dp * getResources().getDisplayMetrics().density;
     }
+
 }
