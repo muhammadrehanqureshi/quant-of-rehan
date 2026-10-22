@@ -71,5 +71,10 @@
     <color name="green_deep">#FF1B6B45</color>
     <color name="green_deep_edge">#FF0E3D27</color>
     <color name="green_deep_line">#FF4FC08D</color>
+    <color name="orb_ai_layer_shadow_outer">#0A99CCFA</color>
+    <color name="orb_ai_layer_shadow_inner">#20FFFFFF</color>
+    <color name="orb/ai/outer">#0A99CCFA</color>
+    <color name="orb/ai/inner">#20FFFFFF</color>
+
     <color name="on_green">#FFF2FBF6</color>
 </resources>

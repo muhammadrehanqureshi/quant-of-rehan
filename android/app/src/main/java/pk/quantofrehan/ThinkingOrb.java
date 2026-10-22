@@ -120,6 +120,15 @@ public class ThinkingOrb extends View {
     private static final float P1 = 1.3f;
 
     /**
+     * Owner order 2026-10-22 (latest inline ask): the ENTIRE animating AI
+     * looking feature is another 30% brighter on top of v1.9.8's whole
+     * frame, still ridden on GLOW_SCALE and BRIGHT_SCALE and still in the
+     * same solar colour family, so this sits beside P1 as one named decision
+     * and never drifts back toward a dimmer pass.
+     */
+    private static final float P2 = 1.3f;
+
+    /**
      * The sun ball's near-white, the lit heart of the sun. Declared here
      * beside the drawing that owns it; the cloud keeps its own palette
      * untouched.
@@ -135,12 +144,16 @@ public class ThinkingOrb extends View {
 
     private final Paint linkPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint nodePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+
     /** The nucleus ball's ambient glow: a one-time radial gradient. */
     private final Paint glowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+
     /** The 3D nucleus ball: a one-time offset-highlight radial gradient. */
     private final Paint ballPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+
     /** The small white heart that breathes inside the ball. */
     private final Paint heartPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+
     /** The travelling link sparks and the nucleus's orbiting sparks. */
     private final Paint sparkPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
 
@@ -422,7 +435,7 @@ public class ThinkingOrb extends View {
             float toward = clamp((midway - 1f) / 0.6f, 0f, 1f)
                     * linkFade(linkDist[l]);
             int alpha = (int) ((16f + 96f * toward) * wake
-                    * GLOW_SCALE * BRIGHT_SCALE * P1);
+                    * GLOW_SCALE * BRIGHT_SCALE * P1 * P2);
             linkPaint.setARGB(Math.min(255, alpha),
                     Color.red(LINK_COLOR), Color.green(LINK_COLOR),
                     Color.blue(LINK_COLOR));
@@ -455,7 +468,7 @@ public class ThinkingOrb extends View {
                     seconds * 1.4f * MOTION_SCALE + cloud[o + 4]);
             float size = nodeRadius * (0.6f + 0.9f * toward) * shimmer;
             int alpha = (int) ((40f + 170f * toward) * wake
-                    * GLOW_SCALE * BRIGHT_SCALE * P1);
+                    * GLOW_SCALE * BRIGHT_SCALE * P1 * P2);
             nodePaint.setARGB(Math.min(255, alpha),
                     Color.red(NODE_COLOR), Color.green(NODE_COLOR),
                     Color.blue(NODE_COLOR));
@@ -475,12 +488,12 @@ public class ThinkingOrb extends View {
         canvas.drawCircle(cx, cy, coreRadius * 2.6f, glowPaint);
         ballPaint.setAlpha(Math.min(255, (int) (140f
                 * (0.55f + 0.45f * coreBreath) * wake
-                * GLOW_SCALE * BRIGHT_SCALE * P1)));
+                * GLOW_SCALE * BRIGHT_SCALE * P1 * P2)));
         canvas.drawCircle(cx, cy, coreRadius, ballPaint);
         heartPaint.setColor(SUN_WHITE);
         heartPaint.setAlpha(Math.min(255, (int) (150f
                 * (0.7f + 0.3f * coreBreath) * wake
-                * GLOW_SCALE * BRIGHT_SCALE * P1)));
+                * GLOW_SCALE * BRIGHT_SCALE * P1 * P2)));
         canvas.drawCircle(cx, cy, coreRadius * 0.3f, heartPaint);
         for (int s = 0; s < SPARKS; s++) {
             float angle = seconds * sparkRate[s] * MOTION_SCALE

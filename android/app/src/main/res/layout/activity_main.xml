@@ -684,6 +684,8 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"/>
 
+        <!-- Co-Authored-By: Codebuff <noreply@codebuff.com> -->
+
         <!-- The cadence line, 12dp below the last rule: the same gap the
              signal tile has below its own rule, so the footer's spacing is
              the grid's spacing. It is a caption like the card's other small
@@ -697,5 +699,5 @@
             android:layout_marginTop="12dp"
             android:gravity="center"
             android:text="@string/scan_cadence"/>
-    </LinearLayout>
+</LinearLayout>
 </ScrollView>
