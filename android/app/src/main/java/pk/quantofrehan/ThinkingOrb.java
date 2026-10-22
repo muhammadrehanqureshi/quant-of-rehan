@@ -94,16 +94,14 @@ public class ThinkingOrb extends View {
     private static final int GRANULE_STRIDE = 6;
     private static final int FLAMES = 22;
     /**
-     * Owner order 2026-10-22 (second pass on the sun): the lines around the
-     * ball were too few. The prominence arcs grew from four to ten and now
-     * REVOLVE around the limb on their own slow bearing, not a wobble in a
-     * fixed slot, so lines circle the orb continuously; the flare sparks
-     * grew from six to ten, so the seconds cadence always carries a streak.
-     * Each arc's alpha per ink was trimmed from 120 to 85 so ten glows ADD
-     * to about the light the old four carried rather than a white ring.
+     * Owner order 2026-10-22 (more lines around the orb): the lines around the
+     * ball are increased. The prominence arcs now REVOLVE around the limb on
+     * their own slow bearing, not a wobble in a fixed slot, so more lines circle
+     * the orb continuously; the flare sparks also increased, so the seconds
+     * cadence always carries more streaks.
      */
-    private static final int PROMINENCES = 10;
-    private static final int FLARES = 10;
+    private static final int PROMINENCES = 42;
+    private static final int FLARES = 28;
 
     /** Pacing of the frame loop, aimed at a smooth 30fps. */
     private static final long FPS_MS = 33L;
