@@ -19,7 +19,7 @@
          from the palette and sitting on no plate at all. This string is its
          short spoken label; the long settings_hint paragraph below it is help
          text, not a button name. -->
-    <string name="cd_settings">Settings. Opens the ARM THE 1-SECOND WATCH WINDOW control.</string>
+    <string name="cd_settings">Opens the ARM THE 1-SECOND WATCH WINDOW control.</string>
     <string name="cd_search">Search. Finds a KMIALL symbol and shows its buy, sell and total volume.</string>
     <string name="search_hint">Search for a KMIALL scrip</string>
     <string name="search_waiting">Symbols load with the next relay answer.</string>
@@ -28,7 +28,7 @@
     <string name="diamond">◆</string>
     <string name="label_system">QUANT STATUS</string>
     <string name="label_signal">LATEST SIGNAL</string>
-    <string name="label_settings">SETTINGS</string>
+    <string name="label_settings"></string>
     <!-- Owner order 2026-10-22: the console's two unlabelled tiles get their
          headings back, in the exact words he asked for. The market card had
          carried no label since 2026-10-12; the owner's order of today
