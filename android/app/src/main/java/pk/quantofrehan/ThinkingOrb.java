@@ -25,6 +25,14 @@ import android.view.View;
  * a breathing heart, an out-of-phase halo, a thin ring and a ring of
  * orbiting sparks, so the centre reads as an engine, not one disc.
  *
+ * Owner order 2026-10-22 (v1.9.7): two further orders. The nucleus is ONE
+ * 3D ball again - a shaded sphere whose light hotspot sits up and to the
+ * left of its centre, its body falling off to transparent at the limb, an
+ * ambient glow behind it and orbit sparks INSIDE the ball, so nothing
+ * reads as a flat disc or a separate ring - and the ENTIRE feature, every
+ * ink on the frame and not the nucleus alone, is 30% brighter than
+ * v1.9.6's (BRIGHT_SCALE rides on GLOW_SCALE).
+ *
  * How the picture is built:
  *
  *   - A fixed population of nodes lives in a unit ball, gathered around a
@@ -92,6 +100,16 @@ public class ThinkingOrb extends View {
      */
     private static final float GLOW_SCALE = 1.25f;
 
+    /**
+     * Owner order 2026-10-22 (v1.9.7): the ENTIRE animated feature, every
+     * ink on the frame and not the nucleus alone, is 30% brighter than
+     * v1.9.6's. It rides on GLOW_SCALE as one named multiplier at the
+     * links, the travelling pulses, the nodes, the ball, its glow, its
+     * inner heart and its sparks, so this order stays one decision and
+     * neither constant can drift.
+     */
+    private static final float BRIGHT_SCALE = 1.3f;
+
     /** Stride of a node's row in the cloud array. */
     private static final int NODE_STRIDE = 7;
     /** Orbiting sparks of the layered nucleus. Built once, drawn free. */
@@ -101,11 +119,12 @@ public class ThinkingOrb extends View {
 
     private final Paint linkPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint nodePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final Paint corePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-    /** The core's own halo: a plain translucent disc, colour set once. */
-    private final Paint haloPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-    /** The nucleus ring: thin stroke, drawn in screen space every frame. */
-    private final Paint ringPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    /** The nucleus ball's ambient glow: a one-time radial gradient. */
+    private final Paint glowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    /** The 3D nucleus ball: a one-time offset-highlight radial gradient. */
+    private final Paint ballPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    /** The small white heart that breathes inside the ball. */
+    private final Paint heartPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     /** The travelling link sparks and the nucleus's orbiting sparks. */
     private final Paint sparkPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
 
@@ -184,13 +203,25 @@ public class ThinkingOrb extends View {
         nodeRadius = dp(1.3f);
         linkWidth = Math.max(1f, dp(0.9f));
         coreRadius = orbRadius * 0.17f;
-        corePaint.setShader(new RadialGradient(
-                w / 2f, h / 2f, coreRadius * 3f, new int[]{
-                CORE_COLOR, withAlpha(CORE_COLOR, 0x40), 0x00E4F0FF},
-                new float[]{0f, 0.35f, 1f}, Shader.TileMode.CLAMP));
-        // The nucleus ring: one thin stroke, sized once like the others.
-        ringPaint.setStyle(Paint.Style.STROKE);
-        ringPaint.setStrokeWidth(Math.max(1f, dp(0.8f)));
+        // The nucleus is ONE 3D ball (owner order 2026-10-22, v1.9.7): a
+        // sphere whose light hotspot sits up and to the left of its
+        // centre, the body's colour falling off to transparent at the
+        // limb, so the ball melts into the dark field instead of reading
+        // as a flat grey disc. Both gradients are built ONCE here; the
+        // ball breathes in alpha on the frame, never in radius, so no
+        // frame ever rebuilds them (zero per-frame allocations stand).
+        ballPaint.setShader(new RadialGradient(
+                w / 2f - coreRadius * 0.32f, h / 2f - coreRadius * 0.38f,
+                coreRadius * 1.45f, new int[]{
+                0xFFFFFFFF, 0xFFEAF5FF, 0xFFB9DCF0, 0x666FA3D0, 0x003E6E9E},
+                new float[]{0f, 0.2f, 0.45f, 0.78f, 1f},
+                Shader.TileMode.CLAMP));
+        // The ambient glow that sits UNDER the ball, so the sphere reads
+        // as lit space rather than a cut-out.
+        glowPaint.setShader(new RadialGradient(w / 2f, h / 2f,
+                coreRadius * 2.6f, new int[]{
+                withAlpha(CORE_COLOR, 0x4E), 0x00E4F0FF},
+                new float[]{0f, 1f}, Shader.TileMode.CLAMP));
         geometryBuilt = true;
     }
 
@@ -288,7 +319,10 @@ public class ThinkingOrb extends View {
         // phases and rates, all deterministic.
         for (int s = 0; s < SPARKS; s++) {
             seed = nextSeed(seed);
-            sparkRadius[s] = coreRadius * (1.35f + frac(seed) * 0.7f);
+            // Inside the ball (owner order 2026-10-22, v1.9.7): the
+            // sparks are plasma currents within the one sphere, so their
+            // orbit never leaves the ball's radius.
+            sparkRadius[s] = coreRadius * (0.55f + frac(seed) * 0.4f);
             seed = nextSeed(seed);
             sparkPhase[s] = frac(seed) * (float) Math.PI * 2f;
             seed = nextSeed(seed);
@@ -363,7 +397,8 @@ public class ThinkingOrb extends View {
             // viewer, so filaments brighten as their ends come forward.
             float toward = clamp((midway - 1f) / 0.6f, 0f, 1f)
                     * linkFade(linkDist[l]);
-            int alpha = (int) ((16f + 96f * toward) * wake * GLOW_SCALE);
+            int alpha = (int) ((16f + 96f * toward) * wake
+                    * GLOW_SCALE * BRIGHT_SCALE);
             linkPaint.setARGB(Math.min(255, alpha),
                     Color.red(LINK_COLOR), Color.green(LINK_COLOR),
                     Color.blue(LINK_COLOR));
@@ -380,7 +415,8 @@ public class ThinkingOrb extends View {
             float t = frac2(seconds * 0.55f * MOTION_SCALE
                     + pulsePhase[p]);
             sparkPaint.setARGB(Math.min(255,
-                            (int) ((70f + 110f * t) * wake * GLOW_SCALE)),
+                            (int) ((70f + 110f * t) * wake
+                                    * GLOW_SCALE * BRIGHT_SCALE)),
                     Color.red(CORE_COLOR), Color.green(CORE_COLOR),
                     Color.blue(CORE_COLOR));
             sparkPaint.setStrokeWidth(nodeRadius * 1.2f);
@@ -394,55 +430,45 @@ public class ThinkingOrb extends View {
             float shimmer = 0.8f + 0.2f * (float) Math.sin(
                     seconds * 1.4f * MOTION_SCALE + cloud[o + 4]);
             float size = nodeRadius * (0.6f + 0.9f * toward) * shimmer;
-            int alpha = (int) ((40f + 170f * toward) * wake * GLOW_SCALE);
+            int alpha = (int) ((40f + 170f * toward) * wake
+                    * GLOW_SCALE * BRIGHT_SCALE);
             nodePaint.setARGB(Math.min(255, alpha),
                     Color.red(NODE_COLOR), Color.green(NODE_COLOR),
                     Color.blue(NODE_COLOR));
             canvas.drawCircle(screenX[n], screenY[n], size, nodePaint);
         }
 
-        // The layered nucleus (owner order 2026-10-22, v1.9.5; cleaned and
-        // brightened, v1.9.6). v1.9.5 drew its halo disc ON TOP of the heart,
-        // which is what the owner saw as the washing out; the order below is
-        // halo UNDER heart, so the nucleus is clean and every layer is lit.
-        //
-        // 1. The halo: a soft glow the heart sits in, drawn first so it can
-        //    never dull what is above it, its alpha breathing OUT of phase
-        //    with the core's clock and brightened by GLOW_SCALE.
-        haloPaint.setColor(withAlpha(CORE_COLOR, 255));
-        haloPaint.setAlpha(Math.min(255, (int)
-                (78f * (1.4f - coreBreath) * wake * GLOW_SCALE)));
-        canvas.drawCircle(cx, cy, coreRadius * 1.5f, haloPaint);
-        // 2. The heart: the breathing radial gradient, its radius breathing
-        //    with it, at full brightness the core's clock allows.
-        float heart = coreRadius * (1f + 0.18f * coreBreath);
-        corePaint.setAlpha((int) Math.min(255f,
-                255f * coreBreath * wake * GLOW_SCALE));
-        canvas.drawCircle(cx, cy, heart * 3f, corePaint);
-        // 3. The inner sphere: a small, almost solid core the gradient
-        //    turns into, so the centre reads as a lit engine with a sharp
-        //    bright centre under a soft corona, rather than one grey disc.
-        haloPaint.setAlpha((int) (235f * wake * GLOW_SCALE));
-        canvas.drawCircle(cx, cy, heart * 0.72f, haloPaint);
-        // 4. The ring: a thin visible circle that holds the nucleus plan,
-        //    brighter than v1.9.5's so the plan reads off the dark field.
-        ringPaint.setARGB(Math.min(255, (int)
-                (150f * (0.4f + 0.6f * coreBreath) * wake)), 0xC8, 0xE4,
-                0xFF);
-        canvas.drawCircle(cx, cy, coreRadius * 2.1f, ringPaint);
-        // 5. The orbiting sparks: eight points on the ring's plan, each on
-        //    its own radius, phase and rate, projected flat like electrons
-        //    on an inclined orbit, bigger and brighter than v1.9.5's.
+        // The nucleus is ONE 3D ball (owner order 2026-10-22, v1.9.7).
+        // Draw order: the ambient glow UNDER the ball, then the shaded
+        // sphere with its off-centre hotspot, then the white heart
+        // breathing INSIDE it, then the orbit sparks still inside the
+        // ball's radius, so the whole nucleus reads as a single object -
+        // no stacked discs, no separate ring. The ball breathes in alpha,
+        // the glow breathes OUT of phase with it, and every ink carries
+        // the owner's 30% (BRIGHT_SCALE) on top of the glow pass.
+        glowPaint.setAlpha(Math.min(255, (int) (95f * (1.4f - coreBreath)
+                * wake * GLOW_SCALE * BRIGHT_SCALE)));
+        canvas.drawCircle(cx, cy, coreRadius * 2.6f, glowPaint);
+        ballPaint.setAlpha(Math.min(255, (int) (140f
+                * (0.55f + 0.45f * coreBreath) * wake
+                * GLOW_SCALE * BRIGHT_SCALE)));
+        canvas.drawCircle(cx, cy, coreRadius, ballPaint);
+        heartPaint.setColor(CORE_COLOR);
+        heartPaint.setAlpha(Math.min(255, (int) (150f
+                * (0.7f + 0.3f * coreBreath) * wake
+                * GLOW_SCALE * BRIGHT_SCALE)));
+        canvas.drawCircle(cx, cy, coreRadius * 0.3f, heartPaint);
         for (int s = 0; s < SPARKS; s++) {
             float angle = seconds * sparkRate[s] * MOTION_SCALE
                     + sparkPhase[s];
             float sx = cx + sparkRadius[s] * (float) Math.cos(angle);
-            float sy = cy + sparkRadius[s] * 0.45f * (float) Math.sin(angle);
-            sparkPaint.setARGB(Math.min(255, (int)
-                    ((195f + 60f * (float) Math.cos(angle)) * wake
-                            * GLOW_SCALE)), Color.red(CORE_COLOR),
-                    Color.green(CORE_COLOR), Color.blue(CORE_COLOR));
-            canvas.drawCircle(sx, sy, nodeRadius * 1.35f, sparkPaint);
+            float sy = cy + sparkRadius[s] * 0.6f * (float) Math.sin(angle);
+            sparkPaint.setARGB(Math.min(255, (int) (130f
+                    + 60f * (float) Math.cos(angle)) * wake
+                    * GLOW_SCALE * BRIGHT_SCALE),
+                    Color.red(CORE_COLOR), Color.green(CORE_COLOR),
+                    Color.blue(CORE_COLOR));
+            canvas.drawCircle(sx, sy, nodeRadius * 1.05f, sparkPaint);
         }
         postInvalidateOnAnimation();
     }
