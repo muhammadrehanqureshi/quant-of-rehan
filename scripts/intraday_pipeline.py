@@ -175,6 +175,25 @@ def deliver(text: str, kind: str) -> bool:
         return False
 
 
+def email_signal(text: str, marker: str) -> None:
+    """Email the owner the actual call, from Actions (owner order 2026-10-22).
+
+    The consumer does not have Telegram any more; a notification now lands
+    as email through the watched owner email issue (src/notify/
+    owner_email.py), whose comment ledger keeps one email per marker. The
+    text is the exact body the scanner issued, never reworded, and the
+    call is best effort: a mail failure never changes a verdict, the card
+    or the relay's own delivery record.
+    """
+    from src.notify.owner_email import send
+
+    try:
+        if send(text, marker):
+            print(f"owner email sent ({marker})")
+    except Exception as exc:  # noqa: BLE001 - an email is best effort
+        print(f"owner email failed ({marker}): {type(exc).__name__}")
+
+
 def push_card(text: str, state: SessionState | None = None,
               signature: str | None = None) -> bool:
     """Write the current verdict to the app's signal card (POST /signals).
@@ -503,6 +522,7 @@ def run_scan(slot: str, capture: Path | None = None,
                         "state": ("relay_accepted" if accepted
                                   else "refused_by_relay")}
             push_card(card_text(day, slot, text, alert=True), state, signature=f"{day}|{text}")
+            email_signal(text, f"signal-exit:{day.isoformat()}")
             print(text)
         else:
             state.last_reason = "position open, monitoring the target"
@@ -535,6 +555,7 @@ def run_scan(slot: str, capture: Path | None = None,
             text = scanner.signal_message(result.candidate, context, entry, as_of)
             sent = deliver(text, "signals")
             push_card(card_text(day, slot, text, alert=True), state, signature=f"{day}|{text}")
+            email_signal(text, f"signal-buy:{day.isoformat()}")
             delivery = {"channel": "relay:/notify", "kind": "signals",
                         "ok": sent,
                         "state": ("relay_accepted" if sent

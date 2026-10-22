@@ -1514,14 +1514,13 @@ class HeaderCopyTest(unittest.TestCase):
 
 class VersionTest(unittest.TestCase):
     def test_the_version_is_the_one_that_ships_these_changes(self):
-        # v1.8.9 is the 2026-10-22 second pass: the owner sent the reference
-        # look he wants and v1.8.8's sweeping beam and rotating words are
-        # retired for the ThinkingOrb, the living particle cloud under the
-        # brand; v1.8.8's headings, bigger type, green clock, instant search
-        # and after-close answers stand untouched.
+        # v1.9.4 is the 2026-10-22 fourth pass: v1.9.0's universal 12dp gap
+        # around every diamond rule, the "THE INDEX & THE TOP 3 SCRIPS OF
+        # VOL." heading and the one-second live clock stand, and the signal
+        # tile's NO SIGNAL sentence is retired so an empty tile is just air.
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="1.8.9"', manifest)
-        self.assertIn('android:versionCode="43"', manifest)
+        self.assertIn('android:versionName="1.9.4"', manifest)
+        self.assertIn('android:versionCode="45"', manifest)
         # The changelog entry ties these user-visible changes to the build.
         readme = (ROOT / "android" / "README.md").read_text(encoding="utf-8")
         self.assertIn("v1.7.9, owner order 2026-10-20", readme)
@@ -1535,6 +1534,8 @@ class VersionTest(unittest.TestCase):
         self.assertIn("Version 1.8.7, versionCode 41", readme)
         self.assertIn("Version 1.8.8, versionCode 42", readme)
         self.assertIn("Version 1.8.9, versionCode 43", readme)
+        self.assertIn("Version 1.9.0, versionCode 44", readme)
+        self.assertIn("Version 1.9.4, versionCode 45", readme)
         layout = LAYOUT.read_text(encoding="utf-8")
         strings = STRINGS.read_text(encoding="utf-8")
         main = MAIN.read_text(encoding="utf-8")
@@ -1927,7 +1928,8 @@ class HeadingGrowthTest(unittest.TestCase):
         self.assertIn('android:text="@string/label_market"', block)
         self.assertIn('style="@style/QorLabel"', block)
         self.assertIn(
-            'name="label_market">INDEX &amp; TOP 3 SCRIPS OF VOL.<', strings)
+            'name="label_market">THE INDEX &amp; THE TOP 3 SCRIPS OF VOL.<',
+            strings)
 
     def test_the_existing_headings_keep_their_words(self):
         strings = STRINGS.read_text(encoding="utf-8")
@@ -2081,6 +2083,60 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         self.assertIn("0xFFE4F0FF", orb)
         self.assertIn("0xFF86AEDC", orb)
         self.assertIn("0xFF3E6E9E", orb)
+
+
+class UniversalRuleGapTest(unittest.TestCase):
+    """Owner order 2026-10-22 (the gap law): the diamond and the two lines
+    around it stand the SAME distance from the tiles around them in every
+    case on the console. The air above every rule and the air above every
+    tile that follows one is 12dp, the grid gap the console already used
+    under its rules, so a rule that once sat 3dp, 16dp, 14dp or 18dp from
+    its neighbours is brought onto the one number and can never drift
+    back: every include and every tile is read here, and one hand-written
+    exception fails this test instead of shipping a second rhythm.
+    """
+
+    def setUp(self):
+        self.root = layout_root()
+
+    def test_every_rule_carries_the_grid_gap_above_it(self):
+        rules = [node for node in self.root.iter()
+                 if node.tag == "include"
+                 and node.get("layout") == "@layout/qor_rule"]
+        self.assertEqual(len(rules), 6)
+        for rule in rules:
+            with self.subTest(rule=rule.get(f"{ANDROID_NS}id")):
+                self.assertEqual(rule.get(f"{ANDROID_NS}layout_marginTop"),
+                                 "12dp")
+
+    def test_every_tile_that_follows_a_rule_carries_the_same_gap(self):
+        for view_id in ("tile_status", "tile_signal", "tile_market",
+                        "search_panel", "settings_panel"):
+            with self.subTest(tile=view_id):
+                tile = find_view(self.root, f"@+id/{view_id}")
+                self.assertEqual(tile.get(f"{ANDROID_NS}layout_marginTop"),
+                                 "12dp")
+
+    def test_the_footer_stands_on_the_same_gap(self):
+        footer = find_view(self.root, "@+id/scan_cadence")
+        self.assertEqual(footer.get(f"{ANDROID_NS}layout_marginTop"), "12dp")
+
+
+class MarketHeadingWordTest(unittest.TestCase):
+    """Owner order 2026-10-22, exact wording: the market card's heading says
+    "THE INDEX & THE TOP 3 SCRIPS OF VOL.", so the definite articles are
+    part of the resource and no other resource carries the old shorter
+    form. The heading test above pins the layout facts; this one pins the
+    words only, so a later order can lose the ampersand's escape without
+    touching two tests.
+    """
+
+    def test_the_words_are_exactly_the_owners(self):
+        strings = STRINGS.read_text(encoding="utf-8")
+        self.assertIn(
+            'name="label_market">THE INDEX &amp; THE TOP 3 SCRIPS OF VOL.<',
+            strings)
+        self.assertNotIn('INDEX &amp; TOP 3 SCRIPS', strings)
 
 
 if __name__ == "__main__":

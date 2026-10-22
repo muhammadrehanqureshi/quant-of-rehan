@@ -57,6 +57,9 @@ on:
 permissions:
   actions: read
   contents: read
+  # Owner order 2026-10-22: the band loop emails the owner the actual call
+  # through the watched owner email issue, so the job may write there.
+  issues: write
 
 concurrency:
   group: intraday-session
