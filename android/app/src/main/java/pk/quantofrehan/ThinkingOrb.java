@@ -67,13 +67,13 @@ import android.view.View;
 public class ThinkingOrb extends View {
 
     /** The core's near-white, the lit heart of the cloud. */
-    private static final int CORE_COLOR = 0xFFE4F0FF;
+    private static final int CORE_COLOR = 0xFFFFC107;
     /** The node ink, a cold cloud blue. */
-    private static final int NODE_COLOR = 0xFF86AEDC;
+    private static final int NODE_COLOR = 0xFFFFB300;
     /** The link ink, dimmer than the nodes it joins. */
-    private static final int LINK_COLOR = 0xFF3E6E9E;
+    private static final int LINK_COLOR = 0xFFFF8F00;
     /** The dark field the picture sits on. */
-    private static final int FIELD_COLOR = 0xFF0B0F16;
+    private static final int FIELD_COLOR = 0xFF1A140D;
 
     /** The population. Chosen once; more nodes would cost every frame. */
     private static final int NODES = 105;
@@ -133,7 +133,7 @@ public class ThinkingOrb extends View {
      * beside the drawing that owns it; the cloud keeps its own palette
      * untouched.
      */
-    private static final int SUN_WHITE = 0xFFFBFFCF;
+    private static final int SUN_WHITE = 0xFFFFE082;
 
     /** Stride of a node's row in the cloud array. */
     private static final int NODE_STRIDE = 7;
@@ -242,23 +242,22 @@ public class ThinkingOrb extends View {
         ballPaint.setShader(new RadialGradient(
                 w / 2f - coreRadius * 0.32f, h / 2f - coreRadius * 0.38f,
                 coreRadius * 1.45f, new int[]{
-                SUN_WHITE, 0xFFE8D47A, 0xFFE8B73A, 0xFFD67A2A, 0x003E6E9E},
-                new float[]{0f, 0.2f, 0.45f, 0.78f, 1f},
+                SUN_WHITE, 0xFFFFE0B2, 0xFFFFD179, 0xFFFFB347, 0xFFFF8F00},
+                new float[]{0f, 0.25f, 0.5f, 0.8f, 1f},
                 Shader.TileMode.CLAMP));
         // The ambient glow that sits UNDER the ball, so the sphere reads
-        // as lit space rather than a cut-out. Warm solar white (the same
-        // eye of the sun), fading out, brightened by the full current pass.
-        glowPaint.setShader(new RadialGradient(w / 2f, h / 2f,
+        // as lit space rather than a cut-out. Burning solar gradient from
+        // bright yellow center through orange to amber at the limb, so the
+        // ball reads as one lit, burning object - not a cut-out.glowPaint.setShader(new RadialGradient(w / 2f, h / 2f,
                 coreRadius * 2.6f, new int[]{
-                0x00FFFFFF, 0x00E8D47A, 0x003E6E9E},
+                0x00FFE0B2, 0xFFFFE0B2, 0xFFFFB347},
                 new float[]{0f, 1f}, Shader.TileMode.CLAMP));
 
-    /**
+/**
      * P0 is the solar-white alpha ceiling for the ambient glow. It is the
-     * only constant the owner may hold if he wants to dim a burn; it is not
-     * a general brightness knob.
+     * only constant the owner may hold if he wants to dim a burn; it is not     * a general brightness knob.
      */
-    private static final int P0 = 0xFF7F;
+    private static final int P0 = 0xFF7F57;
         geometryBuilt = true;
     }
 
