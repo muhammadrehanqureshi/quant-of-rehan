@@ -298,7 +298,12 @@ class TapeTest(unittest.TestCase):
             encoding="utf-8")
 
     def source(self, clock=MONDAY_1100) -> TapeSource:
-        return TapeSource(clock=lambda: clock, universe_path=self.universe)
+        # A source test must see only its temporary fixtures. The real user's
+        # archive or a sibling monorepo capture must never satisfy a test that
+        # intentionally asks for a missing recording or catalogue.
+        return TapeSource(clock=lambda: clock, universe_path=self.universe,
+                          capture_dirs=(self.tmp,),
+                          archive_dir=self.tmp / "archive")
 
     def test_minute_prints_become_one_bar_per_minute(self):
         minute = MONDAY_MARKET_OPEN + timedelta(minutes=1)
@@ -318,13 +323,24 @@ class TapeTest(unittest.TestCase):
         self.assertEqual((bars[0].o, bars[0].h, bars[0].l, bars[0].c),
                          (100.0, 101.5, 100.0, 101.5))
 
-    def test_the_tape_serves_minute_bars_only(self):
-        self.write_tape([])
+    def test_the_tape_serves_the_whole_timeframe_ladder(self):
+        minute = MONDAY_MARKET_OPEN + timedelta(minutes=1)
+        self.write_tape([
+            frame(minute, tick("OGDC", 100.0, 1000, minute, "09:33:05",
+                               high=101.0, low=99.0)),
+        ])
         with mock.patch("charts.adapters.tape.tape_bars.capture_path",
                         return_value=self.capture):
-            with self.assertRaises(UpstreamError) as caught:
-                self.source().history("OGDC", "1d")
-        self.assertEqual(caught.exception.category, UpstreamError.SCHEMA_CHANGE)
+            source = self.source()
+            # Every rung the owner asked for is advertised, and an intraday
+            # fold of real minute bars returns candles rather than raising.
+            for rung in ("1s", "10s", "1m", "5m", "10m", "15m", "30m",
+                         "1h", "4h", "1D", "1W", "1M"):
+                self.assertIn(rung, source.capabilities().resolutions)
+            self.assertEqual(len(source.history("OGDC", "5m", limit=0)), 1)
+            self.assertEqual(len(source.history("OGDC", "1D", limit=0)), 1)
+            with self.assertRaises(ValueError):
+                source.history("OGDC", "7m")
 
     def test_a_missing_universe_is_refused_in_words(self):
         self.universe.write_text("[]", encoding="utf-8")

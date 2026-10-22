@@ -26,15 +26,28 @@ from datetime import datetime
 from typing import Any, Iterable, Mapping
 
 #: Bumped when the shape of a payload changes in a way a consumer must know.
-SCHEMA_VERSION = 1
+#: v2 added the ``session`` block: which trading day a series belongs to,
+#: whether that day is the one the clock calls today, whether the bars came
+#: from the durable archive, and which file answered. A chart that can show a
+#: finished session has to say which session it is showing.
+#: v3 (2026-10-20) added the full timeframe ladder (``1s`` through ``1M``) and
+#: the computed index proxies ``KSE100`` and ``KMIALLSHR``. The session block
+#: and the bar shape are unchanged; an old consumer keeps reading a v2 series.
+SCHEMA_VERSION = 3
 
-#: The resolutions this service may serve. ``1m`` is the broker tape's own
-#: grain; ``1d`` is the PSX portal's published daily bar; ``session`` is the
-#: single snapshot bar a session quote yields when nothing finer exists.
+#: The resolutions this service may serve, finest first. ``1m`` is the broker
+#: tape's own grain; sub-minute rungs are built from tick rows; coarser
+#: intraday rungs are folds of the tape's minutes; ``1D``/``1W``/``1M`` group
+#: trading sessions. ``1d`` and ``session`` remain accepted aliases.
 RESOLUTION_MINUTE = "1m"
-RESOLUTION_DAY = "1d"
+RESOLUTION_DAY = "1D"
 RESOLUTION_SESSION = "session"
-RESOLUTIONS = (RESOLUTION_MINUTE, RESOLUTION_DAY, RESOLUTION_SESSION)
+RESOLUTIONS = (
+    "1s", "10s", "1m", "5m", "10m", "15m", "30m", "1h", "4h",
+    "1D", "1W", "1M",
+    # Accepted spellings a pre-v3 caller may still send.
+    "1d", "session",
+)
 
 #: Source identifiers, so a consumer can name where a series came from.
 SOURCE_TAPE = "broker_tape"
@@ -168,6 +181,53 @@ class MarketContext:
                 "as_of": self.as_of}
 
 
+@dataclass(frozen=True)
+class ChartSession:
+    """Which session a series belongs to, and where those bars came from.
+
+    A charting service that can draw a finished session has to label it: a
+    reader looking at Friday's candles on a Sunday must not be able to mistake
+    them for a live market, and a research pass must be able to prove which
+    file the bars were read from.
+    """
+
+    day: str
+    current: bool = True
+    archived: bool = False
+    source: str = ""
+    capture: dict | None = None
+    built_at: str = ""
+    note: str = ""
+    #: Whether this session's source reported a volume counter at all. A pane
+    #: of flat zero columns is a lie about a source with no volume, so the
+    #: chart asks rather than assumes.
+    volume_available: bool = False
+
+    def as_dict(self) -> dict:
+        return {"day": self.day, "current": self.current,
+                "archived": self.archived, "source": self.source,
+                "capture": self.capture, "built_at": self.built_at,
+                "note": self.note,
+                "volume_available": self.volume_available}
+
+
+def parse_session(raw: Any) -> "ChartSession":
+    """Read a session block, tolerating a payload that predates v2."""
+    if not isinstance(raw, Mapping):
+        return ChartSession(day="")
+    capture = raw.get("capture")
+    return ChartSession(
+        day=str(raw.get("day", "")),
+        current=bool(raw.get("current", True)),
+        archived=bool(raw.get("archived", False)),
+        source=str(raw.get("source", "")),
+        capture=dict(capture) if isinstance(capture, Mapping) else None,
+        built_at=str(raw.get("built_at", "")),
+        note=str(raw.get("note", "")),
+        volume_available=bool(raw.get("volume_available", False)),
+    )
+
+
 @dataclass
 class ChartPayload:
     """One symbol's series plus everything needed to read it honestly."""
@@ -181,6 +241,7 @@ class ChartPayload:
     gaps: list[Gap] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
     observed_at: str = ""
+    session: ChartSession = field(default_factory=lambda: ChartSession(day=""))
     schema_version: int = SCHEMA_VERSION
 
     def __post_init__(self) -> None:
@@ -200,6 +261,7 @@ class ChartPayload:
             "resolution": self.resolution,
             "source": self.source.as_dict(),
             "market": self.market.as_dict(),
+            "session": self.session.as_dict(),
             "bars": [bar.as_dict() for bar in self.bars],
             "bar_count": len(self.bars),
             "gaps": [gap.as_dict() for gap in self.gaps],
@@ -245,6 +307,7 @@ class ChartPayload:
                 as_of=str(raw.get("as_of", "")),
                 bars=bars,
                 gaps=gaps,
+                session=parse_session(raw.get("session")),
                 notes=[str(note) for note in raw.get("notes", [])],
                 observed_at=str(raw.get("observed_at", raw.get("as_of", ""))),
                 schema_version=int(raw.get("schema_version", SCHEMA_VERSION)),

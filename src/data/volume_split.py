@@ -5,7 +5,7 @@ B and S" for the card's leaders, and it only produces those numbers when a
 real source sits behind them. The truth source is src/data/registry.py; this
 module reads that exact number-source and refuses to split when it says the
 source is degraded or unavailable. Everything SO-3 cares about  --  the decision
-of what is a real source, the refusal language, the labelled-proxy boundary  -- 
+of what is a real source, the refusal language, the labelled-proxy boundary  --
 lives in registry.py, so this module imports it and the governance guard can
 verify that any footprint/order-flow claim goes through the one law.
 

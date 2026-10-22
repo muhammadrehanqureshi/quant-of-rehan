@@ -52,10 +52,9 @@ Every window is half-open, [start, end), so 15:30:00 itself is no longer the
 market and 15:32:00 is already post-market: an instant that sits exactly on
 a boundary belongs to the window that starts there, never to the one that
 ends there. `is_scan_window` is the one answer to "may the scanner run now":
-true in MARKET always, and in PRE_MARKET and POST_MARKET when the owner's
-2026-10-21 order (QOR_SCAN_PRE_POST_MARKET, default on) says so: the quant
-scans every second through those windows too, on the live broker feed.
-The Friday midday break and CLOSED remain sleep windows in every mode.
+true only in MARKET. Pre-market and post-market are watched, logged and
+reported, but the owner's standing order is that the quant never scans in
+them.
 
 Owner's condition law (2026-10-11), the owner-facing half of the same clock:
 
@@ -176,9 +175,8 @@ class MarketState(str, Enum):
     Monday to Thursday and 16:32 to 16:49 on Friday. Every other instant,
     including the strict 2-minute gaps after each close, is CLOSED.
 
-    MARKET is a scan window always; PRE_MARKET and POST_MARKET are scan
-    windows only when SCAN_PRE_POST_MARKET is set (owner order 2026-10-21,
-    which supersedes the 2026-10-11 order).
+    Only MARKET may be scanned. Pre-market and post-market are reported,
+    never scanned (owner order of 2026-10-11).
     """
 
     PRE_MARKET = "PRE_MARKET"
@@ -188,12 +186,8 @@ class MarketState(str, Enum):
 
     @property
     def is_scan_window(self) -> bool:
-        """MARKET always; the pre and post windows under the 2026-10-21
-        order."""
-        if self is MarketState.MARKET:
-            return True
-        return self in (MarketState.PRE_MARKET, MarketState.POST_MARKET) \
-            and SCAN_PRE_POST_MARKET
+        """True only in MARKET: the one state the scanner may run in."""
+        return self is MarketState.MARKET
 
 
 class MarketCondition(str, Enum):
@@ -397,26 +391,14 @@ def market_state_at(moment: datetime | None = None) -> MarketState:
     return MarketState.CLOSED
 
 
-# Owner order 2026-10-21: scan the pre-market and post-market windows too,
-# on the live broker feed, with the exchange's own session bands unchanged.
-# Defaults ON; a future order flips it off and the law above snaps back to
-# MARKET alone.
-SCAN_PRE_POST_MARKET = True
-
-
 def is_scan_window(moment: datetime | None = None) -> bool:
-    """May the scanner run at this instant?
+    """May the scanner run at this instant? True only in MARKET.
 
-    True always in MARKET. True in PRE_MARKET and POST_MARKET when
-    SCAN_PRE_POST_MARKET is set (owner order 2026-10-21, which supersedes
-    the 2026-10-11 order that barred those windows).
+    The owner's standing order of 2026-10-11: the quant scans the whole
+    KMIALL universe only inside a live band; pre-market and post-market
+    are watched and reported but never scanned.
     """
-    state = market_state_at(moment)
-    if state is MarketState.MARKET:
-        return True
-    if state in (MarketState.PRE_MARKET, MarketState.POST_MARKET):
-        return SCAN_PRE_POST_MARKET
-    return False
+    return market_state_at(moment).is_scan_window
 
 
 def market_condition_at(moment: datetime | None = None) -> MarketCondition:
