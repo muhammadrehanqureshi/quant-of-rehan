@@ -637,8 +637,9 @@ public class MainActivity extends Activity {
      * The HUD's cycle, owner order 2026-10-22, rebuilt after the owner sent
      * the reference look that evening: the console's own movers (the diag
      * line's words and the sweeping beam) are RETIRED, and the one mover
-     * that remains is the ThinkingOrb under the brand, a cloud of linked
-     * particles that reads as the quant thinking and moving at once.
+     * that remains is the ThinkingOrb under the brand - since owner order
+     * 2026-10-22 (third pass) THE SUN, a 3D ball that fills its box and
+     * burns every second.
      *
      * The orb runs only while the activity is resumed: startHud is called
      * from onResume and stopHud from onPause, the same law that governs the
