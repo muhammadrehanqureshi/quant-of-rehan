@@ -2133,10 +2133,13 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         # ambient glow and nothing else. v1.9.5/6's stacked discs and
         # separate ring are all gone, name and draw alike.
         self.assertIn("ballPaint", orb)
-        self.assertIn("0xFFFFFFFF, 0xFFEAF5FF, 0xFFB9DCF0", orb)
+        self.assertIn("SUN_WHITE", orb)
+        self.assertIn("0xFFE8D47A", orb)
+        self.assertIn("0xFFE8B73A", orb)
+        self.assertIn("0xFFD67A2A", orb)
         self.assertIn("w / 2f - coreRadius * 0.32f", orb)
         self.assertIn("h / 2f - coreRadius * 0.38f", orb)
-        self.assertIn("0x003E6E9E", orb)
+        self.assertIn("0xFFD67A2A", orb)
         for gone in ("ringPaint", "haloPaint", "corePaint",
                      "heart * 0.72f", "coreRadius * 2.1f"):
             with self.subTest(gone=gone):

@@ -553,7 +553,8 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
-                android:text="@string/btn_arm"/>
+                android:text="@string/btn_arm"
+                android:contentDescription="@string/btn_arm"/>
         </LinearLayout>
 
         <!-- Owner order 2026-10-21 (15:35): the settings tile is bracketed
