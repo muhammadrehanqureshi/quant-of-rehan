@@ -704,6 +704,24 @@ to sixty seconds. The status tile therefore also carries the app's own
   and can be restored by copying back over res/layout and the Java sources.
   Version 1.8.8, versionCode 42.
 
+**Built and delivered 2026-10-22 (v1.8.8):** the signed v1.8.8 APK was built
+on GitHub Actions from the master at 59da8f90a1 (run 39722179379, the merge
+of #78, which fixed the two javac errors the HUD edit had introduced),
+downloaded from the run's artifact and copied to
+`C:/Users/rehan/OneDrive/Desktop/QuantOfRehan-v1.8.8.apk`. SHA-256
+`35aa216ddcc5b682f3276514ef7541ed73b5f38d38b91484806fb41848ebc925`,
+and the run's `badging.txt` reads back `pk.quantofrehan`,
+`versionCode="42"`, `versionName="1.8.8"`, with the launchable
+`MainActivity`. The copy that ships the new UI is self-checking: the Python
+android suite (155 tests across app ui, card copy, the render gate, the
+signal reader and the relay contracts, plus 110 subtests) pins the two
+ordered headings, the 12.1sp label style, the green clock, the match
+highlight plates and the HUD's starts and stops, and the governance guard
+passed on both PRs. The relay's post-close /stock and /prices routes are
+deployed (runs 39721310991 and 39721450673 at master 54177b2), so a closed
+market answers the search with the scrip's last published price and its
+computed split.
+
 **Built and delivered 2026-10-21 (v1.8.7):** the signed v1.8.7 APK was built
 on GitHub Actions from the merge of PR #75 (run 39586973255), downloaded from
 the run's artifact and copied to
