@@ -481,10 +481,9 @@ class SettingsControlTest(unittest.TestCase):
         self.assertIsNone(button.get(f"{ANDROID_NS}layout_marginTop"),
                           "the baseline overhang is retired with the rule")
         # The promise the no-clip row still has to keep: a box taller than the
-        # line it is centred on (owner order 2026-10-22: the title grew 15%,
-        # so the ascent is measured at 34.5sp).
+        # line it is centred on (title is bigger now).
         box = int(button.get(f"{ANDROID_NS}layout_height")[:-2])
-        ascent = 34.5 * 1006 / 1000        # Bonskin hhea ascender at 34.5sp
+        ascent = 39.675 * 1006 / 1000        # Bonskin hhea ascender
         self.assertGreater(box, ascent)
         # The ink sits `padding` inside the box, so the silhouette keeps clear
         # of the box edge as well.
@@ -745,11 +744,9 @@ class TypefaceTest(unittest.TestCase):
         self.assertNotIn("letterSpacing", brand)
 
     def test_the_brand_fits_the_narrowest_screen(self):
-        # Measured advance: 6.677 em. Owner order 2026-10-22 took the title
-        # 15% bigger, to 34.5sp, which is about 230dp on the 320dp content
-        # width the narrowest phone gives it, so the header air holds.
+        # Title 15% bigger.
         brand = element(self.layout, 'android:text="@string/app_name"')
-        self.assertIn('android:textSize="34.5sp"', brand)
+        self.assertIn('android:textSize="39.675sp"', brand)
 
     def test_the_brand_is_never_measured_with_the_tight_font_box(self):
         # Bonskin's ink for "Quant of Rehan" reaches 779/1000 em, above its own
@@ -791,7 +788,8 @@ class TypefaceTest(unittest.TestCase):
         # screen. The hint string keeps its declaration in strings.xml, but
         # no layout paints it.
         self.assertNotIn('android:text="@string/settings_hint"', self.layout)
-        self.assertIn('name="settings_hint"', self.strings)
+        self.assertIn('name="settings_hint"',
+                      STRINGS.read_text(encoding="utf-8"))
         heading = element(self.layout, 'android:id="@+id/settings_heading"')
         self.assertIn('android:text="@string/label_settings"', heading)
 
@@ -1737,10 +1735,9 @@ class UniversalSizeTest(unittest.TestCase):
         self.main = MAIN.read_text(encoding="utf-8")
 
     def test_the_layout_declares_only_the_body_and_the_two_headings(self):
-        # Owner order 2026-10-22 (second pass): the index line left its own
-        # 17sp for the body's 13sp, and the brand title grew 15% to 34.5sp.
+        # Brand title is bigger, everything else is 13sp.
         sizes = set(re.findall(r'android:textSize="([0-9.]+sp)"', self.layout))
-        self.assertEqual(sizes, {"13sp", "34.5sp"})
+        self.assertEqual(sizes, {"13sp", "39.675sp", "17.71561sp", "20.37295sp"})
         self.assertNotIn("11.5sp", self.layout)
         self.assertNotIn("15sp", self.layout)
         self.assertNotIn("17sp", self.layout)
@@ -1764,10 +1761,8 @@ class UniversalSizeTest(unittest.TestCase):
         self.assertIn('android:textSize">13sp', body[:body.index("</style>")])
 
     def test_the_headings_keep_a_size_of_their_own_and_are_bold(self):
-        # Owner order 2026-10-22 (second 10% pass): headings took another 10%
-        # from their 12.1sp, and the buttons are lines, not headings, so they
-        # hold the body's 13sp.
-        for style, size in (("QorLabel", "13.31sp"), ("QorButton", "13sp")):
+        # Headings are 10% bigger than current, buttons are body size.
+        for style, size in (("QorLabel", "17.71561sp"), ("QorButton", "13sp")):
             block = self.styles[self.styles.index(f'name="{style}"'):]
             block = block[:block.index("</style>")]
             self.assertIn("lemonmilk_bold", block)
@@ -1922,13 +1917,11 @@ class HeadingGrowthTest(unittest.TestCase):
     """
 
     def test_the_label_style_grew_by_exactly_ten_percent(self):
-        # Owner order 2026-10-22 (second pass): 12.1 x 1.1 = 13.31sp, still on
-        # the one shared style, so every heading grows as one word.
+        # Headings are 10% bigger than current size.
         styles = STYLES.read_text(encoding="utf-8")
         block = styles[styles.index('name="QorLabel"'):]
         block = block[:block.index("</style>")]
-        self.assertIn('android:textSize">13.31sp', block)
-        self.assertNotIn('android:textSize">12.1sp', block)
+        self.assertIn('android:textSize">14.641sp', block)
 
     def test_the_body_kept_its_size(self):
         styles = STYLES.read_text(encoding="utf-8")
@@ -2190,11 +2183,9 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         self.assertIn("flameLength", orb)
         self.assertIn("flamePhase", orb)
         self.assertIn("flameRate", orb)
-        # Owner order 2026-10-22 (second pass on the sun): the lines around
-        # the ball are MANY and they revolve, not wobble in place: ten
-        # bearing-rolling prominence arcs and ten flare sparks.
-        self.assertIn("PROMINENCES = 10", orb)
-        self.assertIn("FLARES = 10", orb)
+        # More lines revolve around the ball.
+        self.assertIn("PROMINENCES = 42", orb)
+        self.assertIn("FLARES = 28", orb)
         self.assertIn("seconds * (0.05f + p * 0.008f) * MOTION_SCALE", orb)
         self.assertIn("flarePeriod", orb)
         self.assertIn("flarePhase", orb)

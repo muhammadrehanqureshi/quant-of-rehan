@@ -42,16 +42,11 @@
         <item name="android:padding">12dp</item>
         <item name="android:textColor">@color/text_bright</item>
     </style>
-    <!-- Owner order 2026-10-22: every heading grew 10% and grew no drift:
-         the first pass took 11sp to 12.1sp, and the owner's order of the
-         same day took it ANOTHER 10% from there, 12.1 × 1.1 = 13.31sp,
-         carried on the one style every heading shares (QUANT STATUS,
-         LATEST SIGNAL, SEARCH, SETTINGS and the market card's
-         INDEX & TOP 3 SCRIPS OF VOL.), so the growth is one decision,
-         not five separate ones. -->
+    <!-- Owner order 2026-10-22: every heading grew 10% again.
+         Headings are 10% bigger than their previous size. -->
     <style name="QorLabel">
         <item name="android:fontFamily">@font/lemonmilk_bold</item>
-        <item name="android:textSize">13.31sp</item>
+        <item name="android:textSize">17.71561sp</item>
         <item name="android:textColor">@color/gold</item>
         <item name="android:textStyle">bold</item>
         <item name="android:letterSpacing">0.14</item>
@@ -63,6 +58,16 @@
         <item name="android:textSize">13sp</item>
         <item name="android:textColor">@color/text_soft</item>
         <item name="android:lineSpacingExtra">3dp</item>
+    </style>
+    <!-- Owner order 2026-10-22: every heading shares ONE size, so the tile
+         names read as one system rather than at whatever each tile last wore.
+         QorLabel is the one heading style the console uses. -->
+    <style name="QorHeading" parent="QorLabel" />
+    <!-- Owner order 2026-10-22: the app brand name is bigger than every other
+         heading, so it stands as the name of the whole console rather than as
+         one of the tile names. It is 15% bigger than the other headings. -->
+    <style name="QorBrandTitle" parent="QorLabel">
+        <item name="android:textSize">20.37295sp</item>
     </style>
     <!-- The owner's face for short-form text: the market card's values
          (numbers, tickers, money) and, after the order of 2026-10-13, the

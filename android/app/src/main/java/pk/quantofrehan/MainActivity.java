@@ -855,13 +855,8 @@ public class MainActivity extends Activity {
         if (market != null && market.date != null && !market.date.isEmpty()) {
             relayDate = market.date;
         }
-        // One decision per answer (v1.7.5): an answer that matches the one
-        // already on screen is not painted again. The gate compares the ANSWER,
-        // never a view, so a skipped paint cannot leave the screen and the
-        // state disagreeing. See RenderGate.
-        if (renderGate.changed(online, d, s, marketFingerprint(market))) {
-            paint(online, d, s, market);
-        }
+        // Always repaint every foreground tick, every second while the market is live, so the index and the leaders move exactly like the digits on a clock: a frame, even when it is byte-identical to the one before, is what keeps the eye reading motion rather than a paused screen. The live poll already runs on that one-second cadence (scheduleNext), so this is the same loop twice over nothing.
+        paint(online, d, s, market);
         // Owner order 2026-10-16 (fourth note): the cadence is re-decided as
         // soon as the relay's answer lands, not at the end of the tick that
         // carried it, and it is re-decided on EVERY answer, painted or not:

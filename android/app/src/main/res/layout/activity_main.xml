@@ -55,23 +55,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content">
 
-                <!-- The brand face (owner order 2026-10-12): Bonskin, the
-                     owner's own script signature face, at 30sp, then the
-                     owner's order of 2026-10-22 took it 15% bigger, to
-                     34.5sp.
-                     No letterSpacing and no textStyle="bold": tracking a
-                     script face breaks its joins, and Android would fake a
-                     bold from a face that already carries one weight.
-                     34.5sp is measured, not guessed: the string advances
-                     6.677 em, so about 230dp on the narrowest phone this app
-                     supports, against about 320dp of content width.
-
-                     includeFontPadding stays at its default (true) for the
-                     same measured reason: Bonskin's ink for this exact string
-                     reaches 779/1000 em while its TYPOGRAPHIC ascender is only
-                     730/1000, so the tighter box would shave the top of the
-                     capital Q. The default box uses the font's hhea metrics
-                     (1006 / -288), which contain the ink with room to spare. -->
+                <!-- The brand face: Bonskin, 15% bigger. -->
                 <TextView
                     android:id="@+id/brand_title"
                     android:layout_width="wrap_content"
@@ -85,7 +69,7 @@
                     android:shadowRadius="6"
                     android:text="@string/app_name"
                     android:textColor="@color/gold_bright"
-                    android:textSize="34.5sp"/>
+                    style="@style/QorBrandTitle"/>
 
                 <!-- The settings control (owner order 2026-10-13): the owner's
                      own settings.png silhouette (res/drawable-nodpi/
@@ -533,10 +517,6 @@
                 android:gravity="center"
                 android:text="@string/label_settings"/>
 
-            <!-- Owner order 2026-10-19: the relay token field and its save
-                 button are gone. The phone holds no credential: the relay
-                 serves the latest signal as a public read and keeps every
-                 write route admin gated, so there is nothing here to paste. -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
