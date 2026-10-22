@@ -1,7 +1,6 @@
 package pk.quantofrehan;
 
 import android.app.Activity;
-import android.animation.ValueAnimator;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.res.ColorStateList;
@@ -16,7 +15,6 @@ import android.text.style.TypefaceSpan;
 import android.view.View;
 import android.view.animation.AccelerateDecelerateInterpolator;
 import android.view.animation.DecelerateInterpolator;
-import android.view.animation.LinearInterpolator;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -218,21 +216,15 @@ public class MainActivity extends Activity {
     private TextView statusDetail, signalList;
     private TextView marketIndex, marketLeaders;
     /**
-     * The HUD's two working parts (owner order 2026-10-22): the cycling
-     * diagnostics line in the status tile and the gold scan beam under the
-     * brand. Both are DRAWN from a boolean the lifecycle owns, exactly the
-     * way the settings menu is drawn from `settingsOpen`, so the console is
-     * never seen working while it is hidden.
+     * The HUD (owner order 2026-10-22, rebuilt the same day): the thinking
+     * orb under the brand, one view that draws the quant's cloud while the
+     * console is on screen. It is DRAWN from a boolean the lifecycle owns,
+     * exactly the way the settings menu is drawn from `settingsOpen`, so
+     * the console is never seen working while it is hidden.
      */
-    private TextView sysDiag;
-    private View scanBeam;
-    /** The sweep itself; null when the console is not resumed. */
-    private ValueAnimator beamSweep;
+    private ThinkingOrb thinkingOrb;
     /** The HUD's own alive flag, so start and stop have one owner. */
     private boolean hudRunning;
-    /** The diag phrase now on screen, so the rotation moves one line at a
-     *  time instead of repeating whichever phrase landed last. */
-    private int diagIndex;
     /** Full relay text retained off-screen; the card renders only execution fields. */
     private String latestSignalBackground = "";
     /** Turned and tinted by setSettingsOpen, so it is the ImageView itself. */
@@ -346,24 +338,12 @@ public class MainActivity extends Activity {
     private GradientDrawable badgeOnline;
     private GradientDrawable badgeOffline;
     /**
-     * The HUD's own times (owner order 2026-10-22).
+     * The HUD's own times (owner order 2026-10-22, rebuilt the same day).
      *
-     * One phrase is on screen for DIAG_HOLD_MS, then fades for
-     * DIAG_FADE_MS, then the next phrase sits on the same air, and the
-     * cycle never shows the same phrase twice in a row. The beam crosses
-     * the content column in BEAM_SWEEP_MS, a pace close to the status
-     * beacon's breath (2200ms), so the console's two moving elements read
-     * as one clock rather than two.
+     * The orb's own class owns its every beat; MainActivity only starts
+     * and stops it with the console, so the pace constants live beside
+     * the frame loop that uses them.
      */
-    private static final long DIAG_HOLD_MS = 2800L;
-    private static final long DIAG_FADE_MS = 450L;
-    /** The line's resting opacity, and the dim end of its own fade-out. It
-     *  never reaches zero, exactly like the beacon's breath: a light that
-     *  vanished would read as a fault, so the working voice dims before it
-     *  swaps rather than switching off. */
-    private static final float DIAG_ALPHA = 0.62f;
-    private static final float DIAG_DIM_ALPHA = 0.15f;
-    private static final long BEAM_SWEEP_MS = 2300L;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -378,8 +358,7 @@ public class MainActivity extends Activity {
         signalList = findViewById(R.id.signal_list);
         marketIndex = findViewById(R.id.market_index);
         marketLeaders = findViewById(R.id.market_leaders);
-        sysDiag = findViewById(R.id.sys_diag);
-        scanBeam = findViewById(R.id.scan_beam);
+        thinkingOrb = (ThinkingOrb) findViewById(R.id.thinking_orb);
         settingsPanel = findViewById(R.id.settings_panel);
         btnSettings = findViewById(R.id.btn_settings);
         btnSearch = findViewById(R.id.btn_search);
@@ -403,10 +382,15 @@ public class MainActivity extends Activity {
 
         // Owner order 2026-10-16: the console's tiles, the rules between them
         // and the cadence sentence, gathered ONCE so the exclusive-settings
-        // toggle is one loop over seven references rather than seven calls.
+        // toggle is one loop over eight references rather than eight calls.
         // findViewById is a tree walk, so doing this here is what keeps the
         // toggle off the layout pass entirely.
+        //
+        // Owner order 2026-10-22 (second pass): the thinking orb joins the
+        // array, so a menu takes its space too — the same exclusivity the
+        // tiles themselves follow.
         consoleViews = new View[]{
+                findViewById(R.id.thinking_orb),
                 findViewById(R.id.tile_status),
                 findViewById(R.id.rule_status_signal),
                 findViewById(R.id.tile_signal),
@@ -648,127 +632,36 @@ public class MainActivity extends Activity {
     }
 
     /**
-     * The HUD's cycle, owner order 2026-10-22.
+     * The HUD's cycle, owner order 2026-10-22, rebuilt after the owner sent
+     * the reference look that evening: the console's own movers (the diag
+     * line's words and the sweeping beam) are RETIRED, and the one mover
+     * that remains is the ThinkingOrb under the brand, a cloud of linked
+     * particles that reads as the quant thinking and moving at once.
      *
-     * The console reads as if it is thinking, and it IS working while it is
-     * on screen, so two of its own facts are drawn:
-     *
-     *   1. sys_diag rotates through what the console is actually watching
-     *      (resources: sys_diag_lines), one phrase fading out before the
-     *      next fades in, on the pace constants above. No phrase names a
-     *      finding; every one describes the console's own watching (SO-3).
-     *   2. scan_beam sweeps the content column on the render thread, a
-     *      translation ValueAnimator, which costs this thread no layout,
-     *      no measure and no draw, exactly like the beacon's breath.
-     *
-     * The cycle runs only while the activity is resumed: startHud is
-     * called from onResume and stopHud from onPause, the same law that
-     * governs the poll loop and the status beacon (a hidden console holds
-     * no animation). Nothing here touches the relay: the HUD is drawn
-     * whether the market is open or closed, because watching is what the
-     * console does between answers, and the sober facts (ONLINE, the
-     * clock, the card) still carry the session.
+     * The orb runs only while the activity is resumed: startHud is called
+     * from onResume and stopHud from onPause, the same law that governs the
+     * poll loop and the status beacon (a hidden console holds no animation).
+     * Nothing here touches the relay: the HUD is drawn whether the market is
+     * open or closed, because watching is what the console does between
+     * answers, and the sober facts (ONLINE, the clock, the card) still
+     * carry the session.
      */
     private void startHud() {
         if (hudRunning) {
             return;
         }
         hudRunning = true;
-        if (sysDiag != null) {
-            startDiagCycle();
+        if (thinkingOrb != null) {
+            thinkingOrb.start();
         }
-        startBeam();
     }
 
-    /** Ends the cycle and returns both movers to their rest positions. */
+    /** Ends the cycle; the orb parks its frame loop and holds its last frame. */
     private void stopHud() {
         hudRunning = false;
-        cadence.removeCallbacks(diagStep);
-        if (beamSweep != null) {
-            beamSweep.cancel();
-            beamSweep = null;
+        if (thinkingOrb != null) {
+            thinkingOrb.stop();
         }
-        if (scanBeam != null) {
-            scanBeam.setTranslationX(0f);
-        }
-    }
-
-    /** Runs one fade-out of the current phrase, then advances it. */
-    private final Runnable diagStep = new Runnable() {
-        @Override
-        public void run() {
-            if (!hudRunning || sysDiag == null) {
-                return;
-            }
-            sysDiag.animate()
-                    .alpha(DIAG_DIM_ALPHA)
-                    .setDuration(DIAG_FADE_MS)
-                    .withEndAction(MainActivity.this::advanceDiagLine)
-                    .start();
-        }
-    };
-
-    /** Swaps in the next phrase and schedules the next fade-out. */
-    private void advanceDiagLine() {
-        if (!hudRunning || sysDiag == null) {
-            return;
-        }
-        String[] phrases = getResources().getStringArray(R.array.sys_diag_lines);
-        diagIndex = (diagIndex + 1) % phrases.length;
-        sysDiag.setText(phrases[diagIndex]);
-        sysDiag.animate()
-                .alpha(DIAG_ALPHA)
-                .setDuration(DIAG_FADE_MS)
-                .start();
-        cadence.postDelayed(diagStep, DIAG_HOLD_MS);
-    }
-
-    /** Opens the cycle: the first phrase is set and the chain scheduled. */
-    private void startDiagCycle() {
-        String[] phrases = getResources().getStringArray(R.array.sys_diag_lines);
-        diagIndex = 0;
-        sysDiag.setText(phrases[0]);
-        sysDiag.setAlpha(DIAG_ALPHA);
-        cadence.postDelayed(diagStep, DIAG_HOLD_MS);
-    }
-
-    /**
-     * The brand's scan beam, owner order 2026-10-22.
-     *
-     * The gold line under the header crosses the content column once every
-     * BEAM_SWEEP_MS, restarting at the left edge each pass, and translation
-     * is the only property the animator moves. The distance is read from
-     * the window's own width after layout, so a narrow screen sweeps the
-     * same beam over whatever length it has; a screen too narrow to sweep
-     * (none today) keeps the beam where it lies and starts nothing, which
-     * is why the animator is created only inside the posted run.
-     */
-    private void startBeam() {
-        if (scanBeam == null || beamSweep != null) {
-            return;
-        }
-        scanBeam.post(() -> {
-            if (!hudRunning || scanBeam == null) {
-                return;
-            }
-            View window = findViewById(android.R.id.content);
-            if (window == null || window.getWidth() == 0) {
-                return;
-            }
-            float maxX = Math.max(0f, window.getWidth() - scanBeam.getWidth());
-            ValueAnimator sweep = ValueAnimator.ofFloat(0f, maxX);
-            sweep.setDuration(BEAM_SWEEP_MS);
-            sweep.setRepeatCount(ValueAnimator.INFINITE);
-            sweep.setRepeatMode(ValueAnimator.RESTART);
-            sweep.setInterpolator(new LinearInterpolator());
-            sweep.addUpdateListener(anim -> {
-                if (scanBeam != null) {
-                    scanBeam.setTranslationX((Float) anim.getAnimatedValue());
-                }
-            });
-            beamSweep = sweep;
-            sweep.start();
-        });
     }
 
     /**

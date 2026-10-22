@@ -57,12 +57,6 @@
          it sits one step smaller than the body and one step isn't a number
          it was ever asked to match. The colour is the brand gold at the
          intensity the code fades; the style carries the face and tracking. -->
-    <style name="QorDiag">
-        <item name="android:fontFamily">@font/lemonmilk_light</item>
-        <item name="android:textSize">11sp</item>
-        <item name="android:textColor">@color/gold</item>
-        <item name="android:letterSpacing">0.16</item>
-    </style>
     <!-- The settings paragraph and the token field: system face, by the type
          strategy above. The hint is a paragraph rather than a label, and a
          pasted token must render exactly as pasted. -->
