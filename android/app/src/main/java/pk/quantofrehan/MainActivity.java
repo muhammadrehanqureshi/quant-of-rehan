@@ -969,8 +969,40 @@ public class MainActivity extends Activity {
     private void styleSpinnerRow(TextView row, boolean dropped) {
         row.setTextSize(13f);
         row.setTextColor(getColor(R.color.text_bright));
-        row.setPadding(dp(10), dp(dropped ? 12 : 4), dp(10),
-                dp(dropped ? 12 : 4));
+        row.setPadding(dp(dropped ? 18 : 10), dp(dropped ? 15 : 6),
+                dp(dropped ? 18 : 10), dp(dropped ? 15 : 6));
+        row.setText(dropdownLine(row.getText().toString()));
+    }
+
+    /**
+     * One dropdown line's own inks (owner order 2026-10-23, "drop down
+     * menus should also match with the app's UI"): the ticker carries the
+     * brand gold the headings carry, the quote keeps the body ink, and a
+     * signed day move takes exactly the leader rows' green or red, so an
+     * open menu is the console's own face and not the platform's flat
+     * grey. A line without the double-space pair (a theme's own label)
+     * stays one ink; there is no ticker in it to lift.
+     */
+    private CharSequence dropdownLine(String line) {
+        int split = line.indexOf("  ");
+        if (split <= 0) {
+            return line;
+        }
+        SpannableString spans = new SpannableString(line);
+        spans.setSpan(new ForegroundColorSpan(getColor(R.color.gold)),
+                0, split, SpannableString.SPAN_EXCLUSIVE_EXCLUSIVE);
+        String quote = line.substring(split + 2);
+        for (int i = quote.length() - 2; i >= 1; i--) {
+            char c = quote.charAt(i);
+            if ((c == '+' || c == '-') && quote.indexOf('%', i) > 0) {
+                spans.setSpan(new ForegroundColorSpan(getColor(
+                        c == '+' ? R.color.green : R.color.red)),
+                        split + 2 + i, split + 2 + quote.indexOf('%', i) + 1,
+                        SpannableString.SPAN_EXCLUSIVE_EXCLUSIVE);
+                break;
+            }
+        }
+        return spans;
     }
 
     /**
