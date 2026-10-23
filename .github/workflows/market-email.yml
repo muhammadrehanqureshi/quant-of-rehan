@@ -63,6 +63,10 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
+      # The email path speaks GitHub over requests (src/notify/owner_email.py);
+      # the missing install is what clipped every event on 2026-10-22, so the
+      # module is bought here, the same way the other workflows buy theirs.
+      - run: pip install requests --retries 5 --timeout 60
       - name: Email the pre-open when the session law says it is due
         env:
           GH_REPOSITORY: ${{ github.repository }}
@@ -85,6 +89,10 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
+      # The email path speaks GitHub over requests (src/notify/owner_email.py);
+      # the missing install is what clipped every event on 2026-10-22, so the
+      # module is bought here, the same way the other workflows buy theirs.
+      - run: pip install requests --retries 5 --timeout 60
       - name: Email the open when the session law says it is due
         env:
           GH_REPOSITORY: ${{ github.repository }}
@@ -102,6 +110,10 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
+      # The email path speaks GitHub over requests (src/notify/owner_email.py);
+      # the missing install is what clipped every event on 2026-10-22, so the
+      # module is bought here, the same way the other workflows buy theirs.
+      - run: pip install requests --retries 5 --timeout 60
       - name: Email the open when the session law says it is due
         env:
           GH_REPOSITORY: ${{ github.repository }}
@@ -119,6 +131,10 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
+      # The email path speaks GitHub over requests (src/notify/owner_email.py);
+      # the missing install is what clipped every event on 2026-10-22, so the
+      # module is bought here, the same way the other workflows buy theirs.
+      - run: pip install requests --retries 5 --timeout 60
       - name: Email the Friday break when the session law says it is due
         env:
           GH_REPOSITORY: ${{ github.repository }}
@@ -136,6 +152,10 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
+      # The email path speaks GitHub over requests (src/notify/owner_email.py);
+      # the missing install is what clipped every event on 2026-10-22, so the
+      # module is bought here, the same way the other workflows buy theirs.
+      - run: pip install requests --retries 5 --timeout 60
       - name: Email the Friday reopen when the session law says it is due
         env:
           GH_REPOSITORY: ${{ github.repository }}
@@ -153,6 +173,10 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
+      # The email path speaks GitHub over requests (src/notify/owner_email.py);
+      # the missing install is what clipped every event on 2026-10-22, so the
+      # module is bought here, the same way the other workflows buy theirs.
+      - run: pip install requests --retries 5 --timeout 60
       - name: Email the close when the session law says it is due
         env:
           GH_REPOSITORY: ${{ github.repository }}
@@ -170,6 +194,10 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
+      # The email path speaks GitHub over requests (src/notify/owner_email.py);
+      # the missing install is what clipped every event on 2026-10-22, so the
+      # module is bought here, the same way the other workflows buy theirs.
+      - run: pip install requests --retries 5 --timeout 60
       - name: Email the close when the session law says it is due
         env:
           GH_REPOSITORY: ${{ github.repository }}
@@ -187,6 +215,10 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
+      # The email path speaks GitHub over requests (src/notify/owner_email.py);
+      # the missing install is what clipped every event on 2026-10-22, so the
+      # module is bought here, the same way the other workflows buy theirs.
+      - run: pip install requests --retries 5 --timeout 60
       - name: Email the post-open when the session law says it is due
         env:
           GH_REPOSITORY: ${{ github.repository }}
@@ -204,6 +236,10 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
+      # The email path speaks GitHub over requests (src/notify/owner_email.py);
+      # the missing install is what clipped every event on 2026-10-22, so the
+      # module is bought here, the same way the other workflows buy theirs.
+      - run: pip install requests --retries 5 --timeout 60
       - name: Email the post-open when the session law says it is due
         env:
           GH_REPOSITORY: ${{ github.repository }}
