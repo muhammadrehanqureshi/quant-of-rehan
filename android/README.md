@@ -1029,6 +1029,41 @@ to sixty seconds. The status tile therefore also carries the app's own
 
   Version 2.1.0, versionCode 57.
 
+- v2.2.0, owner orders 2026-10-23 (sixth pass, on the v2.1.0 screenshots he
+  sent back with one sentence and one correction: "the UI looks absolutely
+  shit right now ... have a look at the 1.8.7 build I think that was the
+  correct one, but you will also need to change the ORB, I want the center
+  as the sun"):
+
+    1. The feature is the v1.8.9 LIVING PARTICLE CLOUD again, the look he
+       first approved: 105 nodes gathered around five cluster anchors,
+       joined by fine links, turning in depth with a breathing pitch,
+       every node breathing on its own phase. The radial burst of v2.1.0
+       and the rings of v1.9.13/v1.9.14 are retired.
+    2. "I want the center as the sun": the old breathing core gradient is
+       replaced by the ALWAYS-BURNING SUN, the v1.9.14 ball with its
+       convection cells, flame tongues, revolving prominence arcs and the
+       spark cadence, drawn at the cloud's own centre, so the organism
+       circles a star. The sun draws after the cloud, so it reads as the
+       body circling it.
+    3. The paint that never came is held against a blank station: the orb
+       exists the moment the size does (an invalidate on the build) and a
+       view without a size yet asks again instead of returning silent.
+    4. "For the menu tile you only need to match the width of the tile
+       with the other tiles on the app": the bar's edges are no longer
+       margins beside a padded column. The tile rides the SAME 20dp side
+       carrier the scroll's column uses, so its plate's outer edge lands
+       where every other tile's does, by construction rather than by two
+       numbers kept in step by hand.
+    5. "Drop down menus should also match with the app's UI": the open
+       menu is no longer the platform's flat grey receipt. The popup is
+       the app's own panel (the plum gradient, the panel edge, the tiles'
+       roundness), the rows carry the taller air of a menu, the ticker is
+       the brand gold, the quote keeps the body ink, and a signed day
+       move takes the leader rows' green or red.
+
+  Version 2.2.0, versionCode 58.
+
 **Built and delivered 2026-10-22 (v1.8.8):** the signed v1.8.8 APK was built
 on GitHub Actions from the master at 59da8f90a1 (run 39722179379, the merge
 of #78, which fixed the two javac errors the HUD edit had introduced),

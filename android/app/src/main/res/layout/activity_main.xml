@@ -275,6 +275,7 @@
                 android:background="@drawable/field_bg"
                 android:contentDescription="@string/volume_split_caption"
                 android:minHeight="40dp"
+                android:popupBackground="@drawable/dropdown_popup"
                 android:prompt="@string/volume_split_prompt"
                 android:padding="10dp"/>
 
@@ -310,6 +311,7 @@
                 android:background="@drawable/field_bg"
                 android:contentDescription="@string/volume_speed_caption"
                 android:minHeight="40dp"
+                android:popupBackground="@drawable/dropdown_popup"
                 android:prompt="@string/volume_speed_prompt"
                 android:padding="10dp"/>
 
@@ -594,6 +596,7 @@
                     android:background="@drawable/field_bg"
                     android:contentDescription="@string/label_themes"
                     android:minHeight="40dp"
+                    android:popupBackground="@drawable/dropdown_popup"
                     android:prompt="@string/theme_prompt"
                     android:padding="10dp"/>
 
@@ -792,26 +795,35 @@
         </LinearLayout>
     </ScrollView>
 
+    <!-- Owner order 2026-10-23 (v2.2.0, "for the menu tile you only need to
+         match the width of the tile with the other tiles on the app"): the
+         bar's edges are no longer computed from margins beside a padded
+         column. The tile rides the SAME 20dp side carrier the scroll's
+         column uses, so its plate's outer edge lands where every other
+         tile's edge lands, by construction and not by two numbers kept
+         in step by hand. -->
+    <FrameLayout
+        android:id="@+id/nav_carrier"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:paddingLeft="20dp"
+        android:paddingRight="20dp"
+        android:clipChildren="false"
+        android:clipToPadding="false">
+
     <LinearLayout
         android:id="@+id/nav_tile"
         style="@style/QorPanel"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginLeft="20dp"
-        android:layout_marginRight="20dp"
-        android:layout_marginTop="12dp"
-        android:orientation="horizontal"
-        android:paddingLeft="20dp"
-        android:paddingRight="20dp">
+        android:orientation="horizontal">
 
         <!-- Owner order 2026-10-23 (second order, v1.9.14), restated as the
-             third order of v2.1.0 after the owner read the bar as STILL
-             wider than the tiles: the padding alone was air inside the
-             plate; the bar itself then spread past the scroll's rows to
-             the screen's edges. The side MARGINS now match the scroll's
-             20dp too, so the tile's outer edge lands exactly where every
-             other tile's does; the inner 20dp padding stays, because
-             home, search and settings sit at the thirds' own ends. -->
+             v2.2.0 answer: the padding alone was air inside the plate and
+             the margins beside the scroll's own padding kept two numbers
+             in step by hand; the carrier above now owns the side air the
+             scroll owns, so one construction serves both. -->
 
         <FrameLayout
             android:layout_width="0dp"
@@ -867,6 +879,7 @@
                 android:tint="@color/gold"/>
         </FrameLayout>
     </LinearLayout>
+    </FrameLayout>
 
     <!-- ══════════ the footer: the app version ══════════
          Owner order 2026-10-23 (second order, v1.9.14): "App version:
