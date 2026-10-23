@@ -844,6 +844,23 @@ to sixty seconds. The status tile therefore also carries the app's own
        offline hint stays the real one.
 
   Version 1.9.10, versionCode 51.
+- v1.9.11, owner orders 2026-10-23 (the heading, the sun, the tick and the
+  type):
+
+    1. The SETTINGS tile keeps its heading and the helper paragraph under
+       it left the screen; the tile is the heading and its controls.
+    2. The sun's lines around the ball grew to ten and REVOLVE: each arc
+       carries its own bearing that advances forever, and the flare sparks
+       stay on the seconds cadence.
+    3. The index and the leaders repaint on EVERY one-second answer, even a
+       byte-identical one, so the numbers move like the digits on a clock;
+       the health read and the card read race on executors of their own, so
+       a tick costs one round trip of wait, not two stacked ones.
+    4. One body size (the footer's 13sp) for every non-heading line; the
+       headings share one size, 10% bigger than before, and the brand name
+       is 15% bigger than the other headings.
+
+  Version 1.9.11, versionCode 52.
 - v1.9.12, owner orders 2026-10-23 (the menu, the themes, the greeting and
   the scrips):
 
