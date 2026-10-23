@@ -998,6 +998,36 @@ to sixty seconds. The status tile therefore also carries the app's own
        the docs' own old 5 minute figure follow the same rule.
 
   Version 2.0.0, versionCode 56.
+- v2.1.0, owner orders 2026-10-23 (fifth order of the day):
+
+    1. The orb is the reference's own RADIAL BURST again, rebuilt from the
+       screenshot he re-sent ("reattaching another photo make it look like
+       this, but with sun as the core"): 22 spokes of icy lines shot out
+       from the core in every direction, each spoke carrying its own run of
+       dots with the tips lit brightest, a capped web joining the spokes'
+       inner nodes, the whole burst revolving as one body. The rings of
+       v1.9.13/v1.9.14 and the scattered cloud before them are retired;
+       the grey rest ring is gone; the core is the always-burning sun kept
+       from v1.9.14.
+    2. The greeting is ANOTHER 40% bigger: 16.9sp grown to 23.7sp
+       (16.9 x 1.4 = 23.66), the third growth of that line, every other
+       line's body law untouched.
+    3. The menu bar's breadth is every tile's breadth at last: the bar had
+       the 20dp side air inside its plate but still spread to the screen's
+       edges, so it now carries 20dp side MARGINS on top of the padding,
+       and its outer edge lands exactly where the other tiles' does.
+    4. The highlighted feature works: the selection ring is painted as the
+       icon's own FOREGROUND as well as its background, so the icon's png
+       can never read as covering it ("the highlighted feature is not
+       working on the menu bar").
+    5. The search page's dropdowns are named his way: "MORE BUYERS &
+       SELLERS." (the busiest scrips by the relay's own combined B/S
+       activity) and "PRICE MOVING FAST." (the hardest-moving prices,
+       either direction).
+    6. The app version line is the SETTINGS page's own footer: it shows
+       while that menu is open and hides on home and search.
+
+  Version 2.1.0, versionCode 57.
 
 **Built and delivered 2026-10-22 (v1.8.8):** the signed v1.8.8 APK was built
 on GitHub Actions from the master at 59da8f90a1 (run 39722179379, the merge
