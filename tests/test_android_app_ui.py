@@ -415,8 +415,9 @@ class SettingsControlTest(unittest.TestCase):
                 # colour, the png does the shape.
                 self.assertIn('android:layout_width="42dp"', button)
                 self.assertEqual(
-                    button.get(f"{ANDROID_NS}contentDescription"),
-                    f"@string/cd_{name}")
+                    re.search(r'android:contentDescription="\S+"',
+                              button).group(0),
+                    f'android:contentDescription="@string/cd_{name}"')
 
     def test_the_open_page_is_circled_and_the_rest_are_rippled(self):
         home = element(self.layout, 'android:id="@+id/btn_nav_home"')
@@ -425,7 +426,7 @@ class SettingsControlTest(unittest.TestCase):
         self.assertIn('android:background="@drawable/nav_circle"', home)
         self.assertIn('android:tint="@color/gold_bright"', home)
         for other in (search, settings):
-            with self.subTest(other=other.get(f"{ANDROID_NS}id")):
+            with self.subTest(other=other[:other.index("/>")]):
                 self.assertIn(
                     'android:background="@drawable/settings_ripple"',
                     other)
@@ -599,9 +600,15 @@ class TypefaceTest(unittest.TestCase):
         self.assertNotIn("letterSpacing", brand)
 
     def test_the_brand_fits_the_narrowest_screen(self):
-        # Title 15% bigger.
+        # The brand carries no inline size: the layout points at the one
+        # shelf, QorBrandTitle, and the size is a style fact. The title is
+        # the headings' own 17.71561sp times 1.15, the owner's ordered 15%.
         brand = element(self.layout, 'android:text="@string/app_name"')
-        self.assertIn('android:textSize="39.675sp"', brand)
+        self.assertIn('style="@style/QorBrandTitle"', brand)
+        self.assertNotIn("textSize", brand)
+        style = self.styles[self.styles.index('name="QorBrandTitle"'):]
+        style = style[:style.index("</style>")]
+        self.assertIn('<item name="android:textSize">20.37295sp</item>', style)
 
     def test_the_brand_is_never_measured_with_the_tight_font_box(self):
         # Bonskin's ink for "Quant of Rehan" reaches 779/1000 em, above its own
@@ -761,7 +768,7 @@ class CadencePlacementTest(unittest.TestCase):
             rule for rule in rules
             if rule.get(f"{ANDROID_NS}id") == "@+id/rule_after_market")
         following = siblings_after(self.root, market_rule)
-        self.assertEqual(len(following), 1, "the sentence follows the rule")
+        self.assertTrue(following, "the sentence follows the rule")
         view = following[0]
         self.assertEqual(view.tag, "TextView")
         self.assertEqual(view.get(f"{ANDROID_NS}id"), "@+id/scan_cadence")
@@ -773,6 +780,12 @@ class CadencePlacementTest(unittest.TestCase):
         self.assertIsNotNone(find_view(self.root, "@+id/nav_tile"))
         self.assertLess(self.layout.index("@+id/scan_cadence"),
                         self.layout.index("@+id/rule_before_nav"))
+        # And after the sentence, the nav bracket and nothing else: the
+        # rule before the menu tile, the tile itself, the closing rule.
+        self.assertEqual(
+            [node.get(f"{ANDROID_NS}id") for node in following[1:]],
+            ["@+id/rule_before_nav", "@+id/nav_tile", "@+id/rule_after_nav"])
+
     def test_the_market_card_no_longer_carries_the_sentence(self):
         self.assertIsNone(find_view(self.root, "@+id/market_foot"))
         card = parent_of(self.root, find_view(self.root, "@+id/market_leaders"))
@@ -1063,7 +1076,7 @@ class StatusPulseTest(unittest.TestCase):
         loop instead of freezing the console.
         """
         poll = self.main.index("private void pollOnce()")
-        self.assertIn("if (!liveInFlight) {", self.main[poll:poll + 600])
+        self.assertIn("if (!liveInFlight) {", self.main[poll:poll + 1200])
         self.assertEqual(self.main.count("liveInFlight = true;"), 2)
         self.assertEqual(self.main.count("liveInFlight = false;"), 2)
         # Owner order 2026-10-19: neither round carries a credential, because
@@ -1155,7 +1168,7 @@ class StatusPulseTest(unittest.TestCase):
                       live_body)
         self.assertIn("head.signals, market);", live_body)
         poll = self.main.index("private void pollOnce()")
-        self.assertIn("refreshLive();", self.main[poll:poll + 700])
+        self.assertIn("refreshLive();", self.main[poll:poll + 1200])
         self.assertIn("The card route is read from the relay's latest pushed broker snapshot",
                       self.main)
 
@@ -1196,9 +1209,9 @@ class StatusPulseTest(unittest.TestCase):
         body = self.main[open_call:open_call + 700]
         self.assertIn("if (open == settingsOpen) {", body)
         self.assertIn("settingsOpen = open;", body)
-        listener = self.main.index("btnSettings.setOnClickListener")
-        self.assertIn("setSettingsOpen(!settingsOpen)",
-                      self.main[listener:listener + 220])
+        listener = self.main.index("navSettings.setOnClickListener")
+        self.assertIn("setSettingsOpen(true)",
+                      self.main[listener:listener + 120])
         self.assertNotIn("getVisibility() == View.GONE", self.main)
 
     def test_the_offline_light_is_the_online_light_in_red_and_it_is_still(self):
@@ -1401,6 +1414,7 @@ class VersionTest(unittest.TestCase):
         # version on the settings page, and /prices rows that carry the
         # relay's own B/S split. v1.9.10's tile heading, ten solar lines and
         # one body size stand.
+        manifest = MANIFEST.read_text(encoding="utf-8")
         self.assertIn('android:versionName="1.9.12"', manifest)
         self.assertIn('android:versionCode="53"', manifest)
         # The changelog entry ties these user-visible changes to the build.
