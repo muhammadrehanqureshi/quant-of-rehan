@@ -83,7 +83,7 @@ class RenderGateSourceTest(unittest.TestCase):
         # The cadence is still re-decided on EVERY answer, painted or not:
         # skipping the paint must never skip the scheduling point.
         self.assertLess(render.index("paint(online, d, s, market);"),
-                        render.index("marketOpenSeen = online;"))
+                        render.index("scheduleNext();"))
         self.assertIn("scheduleNext();", render)
 
     def test_a_resumed_console_repaints(self):
