@@ -1,13 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Owner order 2026-10-23: the menu tile circles the page he is on.
-     The ring is a thin gold circle with no fill, so the icon's own ink is
-     the only thing it frames. MainActivity sets it as the background of
-     the selected page's icon (see its pageNavSelection); unselected pages
-     carry the masked press ripple instead, so a ring is never drawn by
-     mistake. -->
+<!-- Owner order 2026-10-23 (v2.2.1): the highlight FITS the menu bar.
+     The old selected state was a bare ring plus an 18% view scale, so the
+     circle grew past its own tile inside the panel and read as cut off.
+     There is no scale any more: the highlight is a full disc at the
+     icon's own 42dp bounds - a translucent warm-gold FILL so the whole
+     icon reads as highlighted, with the thin gold ring around it - and
+     nothing overflows, so nothing is ever clipped to a cut-off arc.
+     MainActivity sets it as the background of the selected page's icon
+     (see its setNavPage); unselected pages carry the masked press ripple
+     instead, so a highlight is never drawn by mistake. -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="oval">
+    <solid
+        android:color="#4DFFC24B"/>
     <stroke
         android:width="2dp"
-        android:color="@color/gold"/>
+        android:color="@color/gold_bright"/>
 </shape>

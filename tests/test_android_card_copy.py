@@ -71,12 +71,16 @@ class FooterContractTest(unittest.TestCase):
                    / "pk" / "quantofrehan" / "Watcher.java").read_text(
             encoding="utf-8")
         main = MAIN.read_text(encoding="utf-8")
-        self.assertIn("static final long DISPLAY_REFRESH_MS = FAST_POLL_MS;",
-                      watcher)
+        # v2.2.1: the DISPLAY_REFRESH_MS alias is retired - the foreground
+        # tick is ALWAYS FAST_POLL_MS, one second, open market or not.
+        self.assertNotIn("DISPLAY_REFRESH_MS", watcher)
+        self.assertIn("static final long FAST_POLL_MS = 1000;", watcher)
         self.assertIn("marketJob = CARD_POOL.submit(() -> fetchMarket(c, base));",
                       watcher[
             watcher.index("static void fetchLive("):])
-        self.assertIn("? Watcher.FAST_POLL_MS : Watcher.REFRESH_MS", main)
+        # v2.2.1: the foreground cadence is ALWAYS the one-second tick, so
+        # the INDEX tile moves at the digital-clock read the owner ordered.
+        self.assertIn("cadence.postDelayed(tick, Watcher.FAST_POLL_MS);", main)
         self.assertIn("this is a display read, not a strategy scan", watcher.lower())
         self.assertIn("five minutes old", watcher.lower())
 

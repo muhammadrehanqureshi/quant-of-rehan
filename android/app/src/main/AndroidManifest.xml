@@ -1,18 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Owner order 2026-10-23 (v2.2.1, "why do I need 1 second watch window?
+     if it's not needed anymore then remove it"): the watch window's
+     plumbing left the manifest with its code. The boot receiver (it re-armed
+     the alarm loop after a restart) and the two permissions it served
+     (RECEIVE_BOOT_COMPLETED, REQUEST_IGNORE_BATTERY_OPTIMIZATIONS) are gone;
+     the quant already scans every second in the cloud and the relay
+     delivers the feed and signals from there, so the handset schedules
+     nothing of its own. The build stays versionCode 59 / 2.2.1 by the
+     android-apk workflow's own bump. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="pk.quantofrehan"
-    android:versionCode="58"
-    android:versionName="2.2.0">
+    android:versionCode="59"
+    android:versionName="2.2.1">
 
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="30"/>
 
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
-    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
-    <!-- v1.5.1: the 5 minute watchdog is an exact alarm on a best effort
-         schedule; a battery optimisation exemption is what stops Doze and
-         OEM battery managers from deferring or killing it. -->
-    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
 
     <application
         android:label="@string/app_name"
@@ -30,12 +34,5 @@
 
         <service android:name=".StatusService"
             android:exported="false"/>
-
-        <receiver android:name=".PollReceiver"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="android.intent.action.BOOT_COMPLETED"/>
-            </intent-filter>
-        </receiver>
     </application>
 </manifest>

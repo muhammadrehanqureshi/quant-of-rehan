@@ -397,15 +397,16 @@ class SettingsControlTest(unittest.TestCase):
         self.assertNotIn("@+id/rule_before_nav", self.layout)
         self.assertNotIn("@+id/rule_after_nav", self.layout)
         # The console scroll closes, the carrier follows (v2.2.0: the bar's
-        # breadth is the carrier's own construction), and the app version
-        # line v1.9.14 moved here stands after it, the console's own last
-        # unit, and nothing else does.
+        # breadth is the carrier's own construction), and nothing follows
+        # the carrier: v2.2.1 moved the version line ABOVE the bar, so it
+        # now stands between the scroll and the bar as the root's middle
+        # unit (see the root test below).
         self.assertLess(self.layout.index("@+id/console_scroll"),
                         self.layout.index("@+id/nav_tile"))
         following = siblings_after(root, carrier)
         self.assertEqual(
             [node.get(f"{ANDROID_NS}id") for node in following],
-            ["@+id/app_version"], "the version line is the footer", )
+            [], "no footer follows the carrier any more", )
 
     def test_the_three_icons_are_the_owners_own_pngs(self):
         for view_id, name in (("btn_nav_home", "home"),
@@ -557,15 +558,21 @@ class BrandRuleTest(unittest.TestCase):
     def test_the_rule_is_defined_once_and_included_at_every_division(self):
         self.assertIn("QorDiamond", self.rule)
         self.assertIn('android:text="@string/diamond"', self.rule)
-        # Four rules on the console since 2.0.0 (owner order 2026-10-23):
+        # Six rules on the console since v2.2.1 (owner order 2026-10-23):
         # the brand rule under the header and the three the home tiles
-        # carry. The pair that used to bracket the menu tile pinned at the
-        # very bottom is GONE (the owner read the diamond above and below
-        # the pinned bar as clutter around a fixed bar), and the two rules
-        # the search and settings pages carried of their own are GONE
-        # (the owner read each page's second diamond as an extra one),
-        # and their absence is its own test below.
-        self.assertEqual(self.layout.count('layout="@layout/qor_rule"'), 4)
+        # carry, plus the TWO the THEMES tile now wears of its own - the
+        # qor_rule include again, one diamond rule above it and one below
+        # it (owner order 2026-10-23, v2.2.1: "have separate diamond and
+        # 2 lines around it, up side and down side"). The pair that used
+        # to bracket the menu tile pinned at the very bottom is still
+        # GONE (the owner read the diamond above and below the pinned bar
+        # as clutter around a fixed bar), and the two rules the search
+        # and settings pages carried of their own are still GONE (the
+        # owner read each page's second diamond as an extra one), and
+        # their absence is its own test below. One rule per division,
+        # never two, is the standing law the themes bracket honours:
+        # there the owner ASKED for the bracket.
+        self.assertEqual(self.layout.count('layout="@layout/qor_rule"'), 6)
 
     def test_the_rules_stand_between_the_tiles_and_never_inside_them(self):
         root = layout_root()
@@ -784,12 +791,14 @@ class CadencePlacementTest(unittest.TestCase):
     def test_the_sentence_stands_after_the_market_rule(self):
         rules = [node for node in self.root.iter() if node.tag == "include"
                  and node.get("layout") == "@layout/qor_rule"]
-        # v1.9.13, then 2.0.0 (owner order 2026-10-23): the six rules after
-        # the menu pages each dropped their extra diamond, and the pair
-        # that used to bracket the pinned menu bar is gone as the owner's
-        # clutter order - four rules: the single brand rule under the
-        # header, and the three the home tiles carry.
-        self.assertEqual(len(rules), 4)
+        # v1.9.13, then 2.0.0 (owner order 2026-10-23): the extras the
+        # menu pages owned and the pair that used to bracket the pinned
+        # menu bar were cancelled as the owner's clutter order. v2.2.1
+        # then framed the THEMES tile the owner ordered for its
+        # "separate diamond and 2 lines around it": six rules now - the
+        # single brand rule under the header, the three the home tiles
+        # carry, and the two that frame the THEMES tile above and below.
+        self.assertEqual(len(rules), 6)
         # The market card's rule: the one that closes the card section.
         market_rule = next(
             rule for rule in rules
@@ -805,9 +814,12 @@ class CadencePlacementTest(unittest.TestCase):
         # the second order moved to the footer stands under it, the last
         # fixed unit at the bottom of the screen (v1.9.14).
         self.assertEqual(following[1:], [])
+        # v2.2.1: the version line left the root's end for the station
+        # directly above the pinned menu bar, so the root's own order is
+        # scroll, version line, bar.
         self.assertEqual(
             [n.get(f"{ANDROID_NS}id") or n.tag for n in list(self.root)],
-            ["@+id/console_scroll", "@+id/nav_carrier", "@+id/app_version"])
+            ["@+id/console_scroll", "@+id/app_version", "@+id/nav_carrier"])
 
     def test_the_market_card_no_longer_carries_the_sentence(self):
         self.assertIsNone(find_view(self.root, "@+id/market_foot"))
@@ -958,23 +970,46 @@ class StatusPulseTest(unittest.TestCase):
             with self.subTest(line=line):
                 self.assertIn(line, body)
 
-    def test_the_arm_tap_says_the_one_second_reality(self):
-        """Owner order 2026-10-23 (2.0.0): the watch window's own words.
+    def test_the_watch_window_is_gone(self):
+        """Owner order 2026-10-23 (v2.2.1): "why do I need 1 second watch
+        window? if it's not needed anymore then remove it, since I am
+        already getting live feed and quant is already scanning every
+        second"
 
-        The arm button's toast said "Watchdog armed. Refreshing every 5
-        minutes" - jargon and a cadence that died with the 2026-10-20 one
-        second order. The tap now says what it armed, and neither the
-        retired word nor a stale figure survives anywhere on the tap path.
+        The button, its arm loop, the alarm receiver that re-armed it and
+        the battery exemption that kept it alive are all removed: the
+        quant already scans the market every second in the cloud and the
+        relay delivers the feed and signals from there, so a closed app
+        schedules nothing and the handset carries no second scanner.
         """
-        self.assertIn('toast("The 1-second watch window is armed.");',
-                      self.main)
-        self.assertNotIn("Watchdog armed", self.main)
-        self.assertNotIn("every 5 minutes", self.main)
-        # The button's own label already said "WATCH WINDOW" in one
-        # second, so the tap's answer agrees with what was pressed.
-        self.assertIn(
-            '<string name="btn_arm">ARM THE 1-SECOND WATCH WINDOW</string>',
-            STRINGS.read_text(encoding="utf-8"))
+        self.assertNotIn("@+id/btn_arm", self.layout)
+        self.assertNotIn("btn_arm", STRINGS.read_text(encoding="utf-8"))
+        self.assertNotIn("1-second watch window", self.main)
+        self.assertNotIn("armAlarms", self.main)
+        self.assertNotIn("maybeRequestBatteryExemption", self.main)
+        self.assertNotIn("asked_battery", self.main)
+        watcher = WATCHER.read_text(encoding="utf-8")
+        self.assertNotIn("WATCHDOG_MS", watcher)
+        self.assertNotIn("armAlarms", watcher)
+        self.assertNotIn("AlarmManager", watcher)
+        # The receiver class is deleted with the loop it served, and the
+        # manifest carries neither it nor its two permissions. The chords
+        # are read from the PERMISSION ELEMENTS, not the raw file, so the
+        # manifest's own historical note about why they left is not the
+        # offence this refuses.
+        self.assertFalse(
+            (WATCHER.parent / "PollReceiver.java").exists())
+        manifest_root = ET.parse(MANIFEST).getroot()
+        permissions = [p.get("android:name")
+                       for p in manifest_root.iter("uses-permission")]
+        self.assertNotIn("android.permission.RECEIVE_BOOT_COMPLETED",
+                         permissions)
+        self.assertNotIn(
+            "android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS",
+            permissions)
+        receivers = [r.get("android:name")
+                     for r in manifest_root.iter("receiver")]
+        self.assertNotIn(".PollReceiver", receivers)
 
     def test_a_hidden_console_leaves_it_still(self):
         # v1.7.1: a hidden console releases BOTH things onResume started. The
@@ -1005,10 +1040,13 @@ class StatusPulseTest(unittest.TestCase):
         watcher = (ROOT / "android" / "app" / "src" / "main" / "java"
                    / "pk" / "quantofrehan" / "Watcher.java").read_text(
             encoding="utf-8")
-        self.assertIn("static final long REFRESH_MS = 30 * 1000;", watcher)
-        # The background arm is a watchdog, not a poll, and says so.
-        self.assertIn("static final long WATCHDOG_MS = 1000;", watcher)
-        self.assertIn("System.currentTimeMillis() + WATCHDOG_MS", watcher)
+        # v2.2.1: the idle 30 second cadence and the phone-side watchdog
+        # arm are BOTH retired with the watch window they served - the
+        # foreground tick is always the one-second FAST_POLL_MS, and a
+        # closed app schedules nothing on the handset.
+        self.assertNotIn("REFRESH_MS", watcher)
+        self.assertNotIn("WATCHDOG_MS", watcher)
+        self.assertIn("static final long FAST_POLL_MS = 1000;", watcher)
         # And the app's interval is the scanner's own, not a second opinion.
         config_text = (ROOT / "src" / "config.py").read_text(encoding="utf-8")
         self.assertIn('SCAN_INTERVAL_SECONDS = _number("SCAN_INTERVAL_SECONDS", 1)',
@@ -1028,9 +1066,12 @@ class StatusPulseTest(unittest.TestCase):
             encoding="utf-8")
         self.assertIn("static final long FAST_POLL_MS = 1000;", watcher)
         self.assertIn("private void scheduleNext()", self.main)
-        self.assertIn("marketOpenSeen = online;", self.main)
-        self.assertIn("cadence.postDelayed(tick, marketOpenSeen", self.main)
-        self.assertIn("? Watcher.FAST_POLL_MS : Watcher.REFRESH_MS);", self.main)
+        # v2.2.1: the foreground tick is ALWAYS the one-second cadence, so
+        # the INDEX tile repaints at the digital-clock read the owner
+        # ordered, whatever the relay's market state says.
+        self.assertIn("cadence.postDelayed(tick, Watcher.FAST_POLL_MS);",
+                      self.main)
+        self.assertNotIn("REFRESH_MS", self.main)
         # The tick itself goes through the same scheduling point, so a fast
         # round is followed by another fast round without a second loop.
         tick = self.main.index("private final Runnable tick")
@@ -1071,9 +1112,9 @@ class StatusPulseTest(unittest.TestCase):
         """
         render = self.main[self.main.index("private void render(boolean online"):]
         render = render[:render.index("private String latestSignalDisplay(")]
-        # The state is taken from the answer before the cadence is re-decided:
-        # the order of these two lines is the fix.
-        self.assertLess(render.index("marketOpenSeen = online;"),
+        # The answer is painted BEFORE the cadence is re-decided: the order
+        # of these two calls is the fix's shape, kept through v2.2.1.
+        self.assertLess(render.index("paint(online, d, s, market);"),
                         render.index("scheduleNext();"))
         self.assertIn("cadence.removeCallbacks(tick);", self.main)
         self.assertEqual(self.main.count("scheduleNext();"), 3,
@@ -1201,8 +1242,10 @@ class StatusPulseTest(unittest.TestCase):
                    / "pk" / "quantofrehan" / "Watcher.java").read_text(
             encoding="utf-8")
         self.assertNotIn("CARD_EVERY_SECONDS", self.main)
-        self.assertIn("static final long DISPLAY_REFRESH_MS = FAST_POLL_MS;",
-                      watcher)
+        # v2.2.1: the DISPLAY_REFRESH_MS alias is retired with the idle
+        # cadence it served - the foreground tick is ALWAYS FAST_POLL_MS,
+        # one second, open market or not (owner order 2026-10-23).
+        self.assertNotIn("DISPLAY_REFRESH_MS", watcher)
         live = watcher.index("static void fetchLive(")
         live_body = watcher[live:live + 1400]
         self.assertIn("marketJob = CARD_POOL.submit(() -> fetchMarket(c, base));",
@@ -1487,9 +1530,17 @@ class VersionTest(unittest.TestCase):
         # tile's edges are the SAME 20dp carrier the scroll uses, and the
         # open dropdown popups wear the app's own panel, rows and gold
         # ticker, not the platform's grey.
+        # v2.2.1 is the 2026-10-23 seventh pass, the owner's list in one
+        # message: the orb still AGAIN brighter, no flicker, orange/yellow
+        # cloud lines and +30% of them with a bigger sun, the greeting
+        # +10% again, the nav highlight a filled disc that fits the bar,
+        # the THEMES tile framed by its own diamond rules, the version
+        # line ABOVE the menu bar, ONE volume dropdown whose both entries
+        # reveal the three scrips, the watch window retired with its
+        # alarm loop, and the INDEX tile ticked every second at all times.
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="2.2.0"', manifest)
-        self.assertIn('android:versionCode="58"', manifest)
+        self.assertIn('android:versionName="2.2.1"', manifest)
+        self.assertIn('android:versionCode="59"', manifest)
         # The changelog entry ties these user-visible changes to the build.
         readme = (ROOT / "android" / "README.md").read_text(encoding="utf-8")
         self.assertIn("v1.7.9, owner order 2026-10-20", readme)
@@ -1518,9 +1569,10 @@ class VersionTest(unittest.TestCase):
         self.assertIn("Version 2.0.0, versionCode 56", readme)
         self.assertIn("Version 2.1.0, versionCode 57", readme)
         self.assertIn("Version 2.2.0, versionCode 58", readme)
+        self.assertIn("Version 2.2.1, versionCode 59", readme)
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionCode="58"', manifest)
-        self.assertIn('android:versionName="2.2.0"', manifest)
+        self.assertIn('android:versionCode="59"', manifest)
+        self.assertIn('android:versionName="2.2.1"', manifest)
         layout = LAYOUT.read_text(encoding="utf-8")
         strings = STRINGS.read_text(encoding="utf-8")
         main = MAIN.read_text(encoding="utf-8")
@@ -1712,9 +1764,10 @@ class UniversalSizeTest(unittest.TestCase):
         # the layout carries that one size inline. The headings declare
         # their sizes through their styles, so the law is one decision.
         sizes = set(re.findall(r'android:textSize="([0-9.]+sp)"', self.layout))
-        # v2.1.0: the greeting grew ANOTHER 40% by its own law,
-        # 16.9 x 1.4 = 23.66 => 23.7sp; the body is still the one 13sp.
-        self.assertEqual(sizes, {"13sp", "23.7sp"})
+        # v2.2.1: the greeting grew +10% from ITS OWN current size,
+        # 23.7 x 1.10 = 26.07 => 26.1sp, the fourth growth of this one
+        # line; the body is still the one 13sp.
+        self.assertEqual(sizes, {"13sp", "26.1sp"})
         label = self.styles[self.styles.index('name="QorLabel"'):]
         self.assertIn('android:textSize">15.944049sp',
                       label[:label.index("</style>")])
@@ -2005,16 +2058,15 @@ class MenuOrdersTest(unittest.TestCase):
 
         "when I tell you to have a drop down menu type feature, I want to
         have the arrow down and up as well to pull up the menu, right now
-        there is none." Each of the three dropdowns (the themes look and
-        the two CUSTOM SCRIPS OF VOL menus) carries its arrow beside it:
+        there is none." Each of the two dropdowns (the themes look and
+        the ONE CUSTOM SCRIPS OF VOL menu) carries its arrow beside it:
         DOWN while the menu is closed, UP while it is open, carrying one
         drawable whose rotate the Dropdown's own edges drive.
         """
         dropdown = (ROOT / "android" / "app" / "src" / "main" / "java"
                     / "pk" / "quantofrehan" / "Dropdown.java").read_text(
             encoding="utf-8")
-        for view_id in ("volume_split_arrow", "volume_speed_arrow",
-                        "theme_arrow"):
+        for view_id in ("volume_split_arrow", "theme_arrow"):
             with self.subTest(arrow=view_id):
                 arrow = element(self.layout, f'android:id="@+id/{view_id}"')
                 # Beside the field, at its right edge, facing down.
@@ -2022,8 +2074,6 @@ class MenuOrdersTest(unittest.TestCase):
                               arrow)
                 self.assertIn('android:src="@drawable/dropdown_arrow"', arrow)
         self.assertIn("(ImageView) findViewById(R.id.volume_split_arrow);",
-                      self.main)
-        self.assertIn("(ImageView) findViewById(R.id.volume_speed_arrow);",
                       self.main)
         self.assertIn("(ImageView) findViewById(R.id.theme_arrow);",
                       self.main)
@@ -2046,22 +2096,37 @@ class MenuOrdersTest(unittest.TestCase):
                       self.strings)
         # v2.1.0: the two dropdowns are named the owner's own way, and the
         # ranking follows the words (see the ranking test below).
-        self.assertIn('name="volume_split_caption">MORE BUYERS &amp; SELLERS.<',
-                      self.strings)
-        self.assertIn('name="volume_speed_caption">PRICE MOVING FAST.<',
+        # v2.2.1: the captions are the ONE dropdown's two menu options now,
+        # in the owner's exact wording of the same day.
+        self.assertIn(
+            'name="volume_split_caption">MORE BUYERS &amp; LESS SELLERS<',
+            self.strings)
+        self.assertIn('name="volume_speed_caption">PRICE MOVING FAST<',
                       self.strings)
         self.assertLess(self.layout.index("@+id/tile_volume"),
                         self.layout.index("@+id/tile_market"))
-        for view_id in ("volume_split_spinner", "volume_speed_spinner"):
-            with self.subTest(spinner=view_id):
-                spinner = element(self.layout,
-                                  f'android:id="@+id/{view_id}"')
-                self.assertIn("<pk.quantofrehan.Dropdown", spinner)
-        # Both dropdowns are ranked from the map the search already
-        # refreshes, so neither costs a request of its own.
+        # v2.2.1: ONE dropdown ("make only one drop down menu"), and BOTH
+        # entries live in ITS menu; the second dropdown is deleted with
+        # its caption spinner, arrow and prompt.
+        self.assertNotIn("volume_speed_spinner", self.layout)
+        self.assertNotIn("volume_speed_arrow", self.layout)
+        self.assertNotIn("volume_split_caption\"", self.layout)
+        self.assertNotIn("volume_speed_caption\"", self.layout)
+        for resource in ("volume_split_prompt", "volume_speed_prompt"):
+            self.assertNotIn(f'name="{resource}"', self.strings)
+        spinner = element(self.layout, 'android:id="@+id/volume_split_spinner"')
+        self.assertIn("<pk.quantofrehan.Dropdown", spinner)
+        # The reveal: the three scrips of the chosen menu, hidden until he
+        # picks one.
+        reveal = element(self.layout, 'android:id="@+id/volume_reveal"')
+        self.assertIn('android:visibility="gone"', reveal)
+        # The single dropdown is still ranked from the map the search
+        # already refreshes, so it costs no request of its own.
         self.assertIn("Watcher.quotes()", self.main)
         self.assertIn("rankedSplitSymbols(", self.main)
         self.assertIn("rankedSpeedSymbols(", self.main)
+        self.assertIn("private void paintVolumeReveal()", self.main)
+        self.assertIn("volumeSplitChoice == 1", self.main)
 
     def test_the_dropdowns_rank_their_own_names(self):
         """v2.1.0: the names are the ranking. "More buyers & sellers" is
@@ -2286,7 +2351,7 @@ class ThinkingOrbPlanTest(unittest.TestCase):
             self.assertNotIn(retired, orb)
         # The cloud is built once per size, never on the frame path.
         self.assertIn("private void buildGeometry() {", orb)
-        self.assertIn("float linkAt = 0.55f;", orb)
+        self.assertIn("float linkAt = 0.62f;", orb)
         # The organism turns rigidly in yaw with a breathing pitch, and
         # the perspective divide projects the far side smaller and dimmer.
         self.assertIn("float yaw = seconds * 0.22f * MOTION_SCALE;", orb)
@@ -2324,8 +2389,11 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         # Same size, and the CORE PLACEMENT of the seventh pass: the ball
         # sits at the cloud's own centre as the star the organism circles
         # ("I want the center as the sun"), a fraction of the orb's box
-        # under the v1.8.9 cloud's rim.
-        self.assertIn("ballR = orbRadius * 0.17f", orb)
+        # under the v1.8.9 cloud's rim. v2.2.1: the owner's "bigger sun"
+        # order grew the ball 0.17f to 0.26f of the feature's radius -
+        # a proper star at the centre.
+        self.assertIn("ballR = orbRadius * 0.26f", orb)
+        self.assertNotIn("ballR = orbRadius * 0.17f", orb)
         self.assertNotIn("ballR = shortSide", orb)
         self.assertNotIn("sunR = Math.min", orb)
         # 3D: one shaded sphere, the hotspot up and to the LEFT of the
@@ -2397,8 +2465,10 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         # The cloud keeps the v1.8.9 reference's icy family on the deep
         # field, two declared constants so the palette is one decision
         # (the v2.1.0 six-stop re-ink is retired with its burst).
-        self.assertIn("NODE_COLOR = 0xFF86AEDC", orb)
-        self.assertIn("LINK_COLOR = 0xFF3E6E9E", orb)
+        # v2.2.1: the cloud wears the owner's fire family now - warm gold
+        # nodes and the orangish/yellow links he named - one decision each.
+        self.assertIn("NODE_COLOR = 0xFFFFD166", orb)
+        self.assertIn("LINK_COLOR = 0xFFFFA62B", orb)
         self.assertNotIn("GLOW_SCALE", orb)
         self.assertNotIn("BRIGHT_SCALE", orb)
         self.assertNotIn("P1 = 1.3f", orb)
@@ -2463,11 +2533,12 @@ class UniversalRuleGapTest(unittest.TestCase):
         rules = [node for node in self.root.iter()
                  if node.tag == "include"
                  and node.get("layout") == "@layout/qor_rule"]
-        # v1.9.13, then 2.0.0 (owner order 2026-10-23): six rules, after
-        # the two the menu pages owned were cancelled as the owners' extra
-        # diamonds, and the pair that used to bracket the pinned menu bar
-        # is gone as the owner's clutter order - four rules left.
-        self.assertEqual(len(rules), 4)
+        # v1.9.13, then 2.0.0 (owner order 2026-10-23): the extras the
+        # menu pages owned and the pair that used to bracket the pinned
+        # menu bar were cancelled. v2.2.1 then framed the THEMES tile the
+        # owner ordered for its "separate diamond and 2 lines around it":
+        # six rules - four on the home path and the THEMES tile's two.
+        self.assertEqual(len(rules), 6)
         for rule in rules:
             with self.subTest(rule=rule.get(f"{ANDROID_NS}id")):
                 self.assertEqual(rule.get(f"{ANDROID_NS}layout_marginTop"),
@@ -2535,25 +2606,35 @@ class V19SecondOrderTest(unittest.TestCase):
                     "(long) (frozenSeconds * 1000f);"):
             self.assertIn(pin, self.orb)
 
-    def test_the_selected_nav_icon_is_lifted_and_brighter(self):
-        # "I only see a circle around that, I want to see that icon
-        # highlighted as well": the selection lifts the icon itself,
-        # scale and brighter ink together, re-set on every paint.
-        self.assertIn("NAV_SELECTED_SCALE = 1.18f", self.main)
+    def test_the_selected_nav_icon_is_highlighted_whole(self):
+        # "the circle should be in the highlighted form, right now the
+        # circle is getting cut off and also the entire icon only should
+        # be highlighted in the entire circle" (owner order 2026-10-23,
+        # v2.2.1): the lift and the foreground both grew the highlight
+        # past the icon's own 42dp bounds, so the circle read as cut off.
+        # There is no scale and no foreground any more: the whole
+        # highlight is one filled translucent gold disc at exactly the
+        # icon's bounds, brighter ink rides with it, and the state is
+        # re-set on every paint.
+        self.assertNotIn("NAV_SELECTED_SCALE", self.main)
+        self.assertNotIn("navRingForeground", self.main)
+        self.assertNotIn("navRing", self.main)
+        self.assertNotIn("icon.setForeground(", self.main)
+        self.assertNotIn("icon.setScaleX(", self.main)
+        self.assertNotIn("icon.setScaleY(", self.main)
+        self.assertIn("selected ? R.drawable.nav_circle : R.drawable.settings_ripple",
+                      self.main)
         self.assertIn("icon.setImageTintList(ColorStateList.valueOf(getColor(",
                       self.main)
         self.assertIn("selected ? R.color.gold_bright : R.color.gold)));",
                       self.main)
-        self.assertIn("icon.setScaleX(selected ? NAV_SELECTED_SCALE : 1f);",
-                      self.main)
-        self.assertIn("icon.setScaleY(selected ? NAV_SELECTED_SCALE : 1f);",
-                      self.main)
-        # v2.1.0: the ring is painted as the icon's own FOREGROUND too, so
-        # the png's ink can never read as covering the selection ("the
-        # highlighted feature is not working on the menu bar").
-        self.assertIn("icon.setForeground(selected ? navRingForeground() : null);",
-                      self.main)
-        self.assertIn("navRing.setShape(GradientDrawable.OVAL);", self.main)
+        # The highlight itself: a translucent gold FILL inside the thin
+        # gold ring, so the entire icon reads as highlighted.
+        circle = (RES / "drawable" / "nav_circle.xml").read_text(
+            encoding="utf-8")
+        self.assertIn("solid", circle)
+        self.assertIn("#4DFFC24B", circle)
+        self.assertIn("@color/gold_bright", circle)
 
     def test_the_nav_tile_has_the_app_tile_breadth(self):
         # v2.2.0, on the owner's own words ("for the menu tile you only

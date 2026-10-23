@@ -7,7 +7,8 @@ import android.os.IBinder;
 
 /**
  * Thin facade kept so the manifest has a service entry; all real work
- * happens in Watcher. Started on app open and from the boot receiver.
+ * happens in Watcher. Started on app open (v2.2.1: the boot receiver is
+ * gone with the watch window, so nothing starts this in the background).
  */
 public class StatusService extends Service {
 
@@ -27,10 +28,6 @@ public class StatusService extends Service {
     static void kick(Context c) {
         Watcher.kick(c);
         c.startService(new Intent(c, StatusService.class));
-    }
-
-    static void armAlarms(Context c) {
-        Watcher.armAlarms(c);
     }
 
     interface Callback {
