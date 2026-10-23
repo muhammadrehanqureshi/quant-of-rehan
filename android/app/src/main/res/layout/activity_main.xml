@@ -1,13 +1,32 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/scroll_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/bg_deep"
     android:clipChildren="false"
     android:clipToPadding="false"
-    android:fillViewport="true"
-    android:scrollbars="none">
+    android:orientation="vertical">
+
+    <!-- ══════════ the pinned console ══════════
+         Owner order 2026-10-23 (v1.9.13): the menu bar never leaves the
+         screen again. The console's own scroll now holds EVERYTHING above
+         the bar, and the bar itself (its diamond rule above, the tile,
+         its diamond rule below) stands OUTSIDE that scroll, fixed at the
+         bottom of the screen, so home, search and settings are always on
+         the screen visible and no page change ever needs a hunt for the
+         controls. The old id scroll_root OBEYS the older themes: the
+         theme repaint paints this root, and the bar is inside it, so a
+         themed page carries the bar on the theme's own ground. -->
+    <ScrollView
+        android:id="@+id/console_scroll"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:clipChildren="false"
+        android:clipToPadding="false"
+        android:fillViewport="true"
+        android:scrollbars="none">
 
     <!-- clipChildren/clipToPadding are off down this chain (owner order
          2026-10-16, fourth note: the menu icons' press gradient was being
@@ -111,19 +130,10 @@
             android:layout_marginTop="6dp"
             android:importantForAccessibility="no"/>
 
-        <!-- Owner order 2026-10-21 (15:35): the search tile is bracketed by
-             the same diamond rule as every other tile, one ABOVE it as well
-             as the brand rule below it. The top rule belongs to the panel
-             (it leaves with it), so the closed console keeps its single
-             brand rule under the header exactly as before. Its 12dp margin
-             is the pre-HUD air the first HUD pass borrowed for the beam
-             deck, now returned to the grid. -->            <include
-            android:id="@+id/rule_before_search"
-            layout="@layout/qor_rule"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:visibility="gone"/>
+        <!-- Owner order 2026-10-23 (v1.9.13): the rule that sat above the
+             search tile is GONE. The owner read the menu page's second
+             diamond as an extra one, so the search page keeps the single
+             brand rule under the header, exactly the count he expects. -->
 
         <!-- Owner order 2026-10-21 (13:07 report): hidden children must not
              leave their margins behind, or the closed panel's bottom gap is
@@ -304,6 +314,7 @@
         <TextView
             android:id="@+id/greeting"
             style="@style/QorValue"
+            android:fontFamily="@font/bonskin"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
@@ -555,18 +566,10 @@
                 android:gravity="center"/>
         </LinearLayout>
 
-        <!-- Owner order 2026-10-21 (15:35): the settings tile is bracketed
-             too. The brand rule above it already stands while the menu is
-             open; this is the same diamond rule below it, so the menu reads
-             as one tile with a rule on each side instead of a rule on one.
-             It belongs to the menu and leaves with it. -->
-        <include
-            android:id="@+id/rule_after_settings"
-            layout="@layout/qor_rule"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:visibility="gone"/>
+        <!-- Owner order 2026-10-23 (v1.9.13): the rule that sat below the
+             settings tile is GONE, the same owner count as the search
+             page's removed rule above: one diamond rule per page change,
+             never two. -->
 
         <!-- ══════════ market card ══════════
              Third box, same shape as the two above: KSE100 points and
@@ -703,7 +706,7 @@
             android:gravity="center"
             android:text="@string/scan_cadence"/>
 
-        <!-- ══════════ the menu tile, at the very bottom ══════════
+        <!-- ══════════ the menu tile, pinned at the bottom ══════════
              Owner order 2026-10-23: home, search and settings moved here
              from the brand row, bracketed by the same diamond rule above
              and below as every other change of subject. Each icon is the
@@ -711,65 +714,95 @@
              settings.png, copied from his Desktop), tinted into the
              palette, and the page he is on is circled in a gold ring: the
              ring is the selection, a masked ripple is only the press.
-             The three icons are always on screen: a menu page is chosen
-             here, never lost. -->
-        <include
-            android:id="@+id/rule_before_nav"
-            layout="@layout/qor_rule"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"/>
 
-        <LinearLayout
-            android:id="@+id/nav_tile"
-            style="@style/QorPanel"
-            android:layout_width="match_parent"
+             Owner order 2026-10-23 (v1.9.13), restated on the tile's own
+             law: the three icons leave the shared centre row and take
+             thirds of the tile, home at the very LEFT edge (v1.9.13),
+             search at the exact MIDDLE, settings at the very RIGHT edge,
+             so the row answers the owner's own sentence.
+
+             Owner order 2026-10-23 (v1.9.13), the pin itself: the tile and
+             its two bracket rules live OUTSIDE the console's scroll, one
+             fixed unit at the bottom of the screen, so the menu bar is
+             always on the screen visible and no page change ever needs a
+             hunt for the controls. -->
+        </LinearLayout>
+    </ScrollView>
+
+    <include
+        android:id="@+id/rule_before_nav"
+        layout="@layout/qor_rule"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"/>
+
+    <LinearLayout
+        android:id="@+id/nav_tile"
+        style="@style/QorPanel"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:orientation="horizontal">
+
+        <FrameLayout
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:gravity="center"
-            android:orientation="horizontal">
+            android:layout_weight="1">
 
             <ImageView
                 android:id="@+id/btn_nav_home"
                 android:layout_width="42dp"
                 android:layout_height="42dp"
+                android:layout_gravity="start|center_vertical"
                 android:background="@drawable/nav_circle"
                 android:contentDescription="@string/cd_home"
                 android:padding="8dp"
                 android:scaleType="fitCenter"
                 android:src="@drawable/home"
                 android:tint="@color/gold_bright"/>
+        </FrameLayout>
+
+        <FrameLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1">
 
             <ImageView
                 android:id="@+id/btn_nav_search"
                 android:layout_width="42dp"
                 android:layout_height="42dp"
-                android:layout_marginLeft="24dp"
+                android:layout_gravity="center"
                 android:background="@drawable/settings_ripple"
                 android:contentDescription="@string/cd_search"
                 android:padding="8dp"
                 android:scaleType="fitCenter"
                 android:src="@drawable/search"
                 android:tint="@color/gold"/>
+        </FrameLayout>
+
+        <FrameLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1">
 
             <ImageView
                 android:id="@+id/btn_nav_settings"
                 android:layout_width="42dp"
                 android:layout_height="42dp"
-                android:layout_marginLeft="24dp"
+                android:layout_gravity="end|center_vertical"
                 android:background="@drawable/settings_ripple"
                 android:contentDescription="@string/cd_settings"
                 android:padding="8dp"
                 android:scaleType="fitCenter"
                 android:src="@drawable/settings"
                 android:tint="@color/gold"/>
-        </LinearLayout>
+        </FrameLayout>
+    </LinearLayout>
 
-        <include
-            android:id="@+id/rule_after_nav"
-            layout="@layout/qor_rule"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"/>
+    <include
+        android:id="@+id/rule_after_nav"
+        layout="@layout/qor_rule"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"/>
 </LinearLayout>
-</ScrollView>

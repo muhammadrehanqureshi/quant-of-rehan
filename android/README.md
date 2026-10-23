@@ -895,6 +895,53 @@ to sixty seconds. The status tile therefore also carries the app's own
        itself without a second question.
 
   Version 1.9.12, versionCode 53.
+- v1.9.13, owner orders 2026-10-23 (the ruined look, restated on the
+  reference):
+
+    1. THE UI IS THE REFERENCE AGAIN. The theme repaint had been flattening
+       every tile with a plain setBackgroundColor, which squared the corners
+       the panel drawable owns and killed the plum gradient. Every theme
+       now paints the SAME rounded plate: the purple theme keeps the
+       shipped panelBg drawable untouched, and the other four build a
+       cached rounded drawable in their own panel ink, so the tiles read
+       round on every look.
+    2. The AI feature is the reference constellation again: a lopsided
+       cloud of 30 dots with its mesh of connecting lines, plus THREE
+       rings of nodes revolving around the core on tilted ellipses, so
+       MORE lines revolve around it than any pass before; the whole cloud
+       turns as one body. The white overlapping orb at the centre is
+       replaced by a sun-looking ball of the SAME size: one lit 3D sphere
+       (radial gradient, hotspot up and to the left, gold through deep
+       burning orange) that burns WITHOUT pause, granulation cells on its
+       face, flame tongues on its limb, revolving prominence arcs and a
+       flare spark alive almost every second, behind the reference's own
+       grey rest ring.
+    3. The feature stops animating whenever the market is closed or on a
+       break, ruled by the same ON badge law the status beacon's pulse
+       obeys: an OFFLINE answer parks the view's loop on its last frame
+       and the next ONLINE answer revives the burn, so a parked sun can
+       never claim a live session (SO-3).
+    4. The diamond+two-lines divider is consistent app-wide by REMOVING the
+       two extras the owner called out, not by adding more: the rule above
+       the search tile and the rule below the settings tile are gone, and
+       each menu page keeps the single brand rule under the header.
+    5. Type: every heading is 10% smaller (15.944049sp, the one QorLabel
+       style), the QUANT OF REHAN title grew 20% from its own previous
+       size (24.44754sp), and the greeting speaks in the brand typeface
+       (bonskin) the title itself uses.
+    6. The menu bar is PINNED: the console's scroll now holds everything
+       above it and the bar (its rule above, the tile, its rule below)
+       stands outside that scroll, fixed at the bottom of the screen, so
+       home, search and settings are always on the screen visible. The
+       three icons take thirds of the tile: home at the very LEFT edge,
+       search at the exact MIDDLE, settings at the very RIGHT edge.
+    7. THE THREE SILENT NO-OPS ARE FIXED at their common root: the six
+       feature views (greeting, the volume tile, the THEMES spinner, the
+       app version line and the two CUSTOM SCRIPS OF VOL dropdowns) were
+       declared but never assigned in onCreate, so every one of those
+       features silently did nothing. One block assigns them all.
+
+  Version 1.9.13, versionCode 54.
 
 **Built and delivered 2026-10-22 (v1.8.8):** the signed v1.8.8 APK was built
 on GitHub Actions from the master at 59da8f90a1 (run 39722179379, the merge

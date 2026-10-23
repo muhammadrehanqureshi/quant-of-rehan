@@ -253,14 +253,6 @@ public class MainActivity extends Activity {
     private ImageView navSettings;
     private View settingsPanel;
     private View searchPanel;
-    /**
-     * The diamond rules the two menus own (owner order 2026-10-21, 15:35):
-     * one above the search tile, one below the settings tile, so each menu is
-     * bracketed like every tile of the console. They travel with their panel:
-     * a closed menu leaves no rule behind.
-     */
-    private View ruleBeforeSearch;
-    private View ruleAfterSettings;
     private EditText searchInput;
     private LinearLayout searchResults;
     private TextView searchStatus;
@@ -379,10 +371,22 @@ public class MainActivity extends Activity {
         marketIndex = findViewById(R.id.market_index);
         marketLeaders = findViewById(R.id.market_leaders);
         thinkingOrb = (ThinkingOrb) findViewById(R.id.thinking_orb);
+        // Owner order 2026-10-23 (v1.9.13): the six feature views were
+        // declared but never assigned, so their features silently no-op'd
+        // since the pass that built them: the greeting stayed a string id,
+        // the THEMES dropdown, the two CUSTOM SCRIPS OF VOL dropdowns, the
+        // version line and the volume tile never found themselves. One
+        // block assigns them all, which is also their one reminder.
+        greeting = (TextView) findViewById(R.id.greeting);
+        tileVolume = findViewById(R.id.tile_volume);
+        themeSpinner = (Spinner) findViewById(R.id.theme_spinner);
+        appVersion = (TextView) findViewById(R.id.app_version);
+        volumeSplitSpinner =
+                (Spinner) findViewById(R.id.volume_split_spinner);
+        volumeSpeedSpinner =
+                (Spinner) findViewById(R.id.volume_speed_spinner);
         settingsPanel = findViewById(R.id.settings_panel);
         searchPanel = findViewById(R.id.search_panel);
-        ruleBeforeSearch = findViewById(R.id.rule_before_search);
-        ruleAfterSettings = findViewById(R.id.rule_after_settings);
         searchInput = findViewById(R.id.search_input);
         searchResults = findViewById(R.id.search_results);
         searchStatus = findViewById(R.id.search_status);
@@ -602,12 +606,17 @@ public class MainActivity extends Activity {
                 break;
         }
         int bgColor = getColor(bg);
-        int panelColor = getColor(panel);
-        int accentColor = getColor(accent);
         View root = findViewById(R.id.scroll_root);
         if (root != null) {
             root.setBackgroundColor(bgColor);
         }
+        // Owner order 2026-10-23 (v1.9.13): the repaint used to flatten
+        // every tile with setBackgroundColor, which squared the corners the
+        // panel drawable owns and killed the plum gradient the owner sent
+        // back. The plates keep their round corners on every theme: the
+        // purple theme is the app's own rounded gradient (panel_bg) and the
+        // other four paint the SAME shape from the theme's own panel ink,
+        // cached one rounded drawable per theme and reused.
         View[] plates = {
                 findViewById(R.id.tile_status),
                 findViewById(R.id.tile_signal),
@@ -617,7 +626,7 @@ public class MainActivity extends Activity {
                 findViewById(R.id.nav_tile)};
         for (View plate : plates) {
             if (plate != null) {
-                plate.setBackgroundColor(panelColor);
+                plate.setBackground(themePlate(index, panel));
             }
         }
         int[] headingIds = {
@@ -631,6 +640,35 @@ public class MainActivity extends Activity {
                 ((TextView) heading).setTextColor(accentColor);
             }
         }
+    }
+
+    /** One rounded plate per theme, built once and reused (v1.9.13). */
+    private final GradientDrawable[] themePlates = new GradientDrawable[4];
+
+    /**
+     * The plate a theme paints on every tile (owner order 2026-10-23):
+     * index 0 is the app's own look, so the plate IS the shipped
+     * panel drawable, its corners and gradient intact; the other four
+     * draw the same rounded shape in the theme's own panel ink, cached so
+     * a theme switch never rebuilds one.
+     */
+    private GradientDrawable themePlate(int index, int panelColorId) {
+        if (index <= 0) {
+            @SuppressWarnings("deprecation")
+            GradientDrawable own =
+                    (GradientDrawable) getResources().getDrawable(
+                            R.drawable.panel_bg);
+            return own;
+        }
+        GradientDrawable cached = themePlates[index - 1];
+        if (cached == null) {
+            cached = new GradientDrawable();
+            cached.setColor(getColor(panelColorId));
+            cached.setCornerRadius(dp(20));
+            cached.setStroke(1, getColor(R.color.bg_panel_edge));
+            themePlates[index - 1] = cached;
+        }
+        return cached;
     }
 
     /**
@@ -886,11 +924,10 @@ public class MainActivity extends Activity {
             }
         }
         settingsPanel.setVisibility(open ? View.VISIBLE : View.GONE);
-        if (ruleAfterSettings != null) {
-            // The rule below the tile is the menu's own, so it arrives and
-            // leaves with the menu (owner order 2026-10-21, 15:35).
-            ruleAfterSettings.setVisibility(open ? View.VISIBLE : View.GONE);
-        }
+        // Owner order 2026-10-23 (v1.9.13): the rule below the settings tile
+        // is GONE. The owner read the menu page's second diamond as an
+        // extra one, so the tile keeps the header's own rule alone, the
+        // same single rule it holds while the menu is closed.
         // Owner order 2026-10-23: the header icons are gone, so the menu's
         // look is its ring on the bottom nav tile instead of the old
         // quarter turn and brighter gold.
@@ -1009,18 +1046,47 @@ public class MainActivity extends Activity {
      * Since v1.9.5 the orb is on the SEARCH and SETTINGS pages too, at its
      * exact front-page station, so it is started and stopped once for the
      * whole console and never per page.
-     * Nothing here touches the relay: the HUD is drawn whether the market is
-     * open or closed, because watching is what the console does between
-     * answers, and the sober facts (ONLINE, the clock, the card) still
-     * carry the session.
+     * Owner order 2026-10-23 (v1.9.13) breaks the older law above: the HUD
+     * is no longer drawn open or closed alike. The feature stops whenever
+     * the market is closed or on a break (see orbGate), so startHud wakes
+     * the loop through that gate rather than directly on the view.
      */
     private void startHud() {
         if (hudRunning) {
             return;
         }
         hudRunning = true;
+        // The market gate owns the loop's pace from the last known badge:
+        // a console that resumes onto a closed market wakes PARKED, and
+        // the next render opens or closes the burn from the true state.
         if (thinkingOrb != null) {
+            if (orbBurning) {
+                thinkingOrb.start();
+            } else {
+                thinkingOrb.stop();
+            }
+        }
+    }
+
+    /**
+     * The orb's market gate (owner order 2026-10-23, v1.9.13): burn only
+     * while the badge reads ONLINE, the one boolean the beacon's pulse
+     * already trusts, so a closed market, a break or an unreachable relay
+     * all park the view, and stop() holding the last frame is the parked
+     * picture. `orbBurning` keeps the state between renders so a resume
+     * onto a closed market never flashes an open session (SO-3).
+     */
+    private boolean orbBurning = true;
+
+    private void orbGate(boolean online) {
+        orbBurning = online;
+        if (thinkingOrb == null || !hudRunning) {
+            return;
+        }
+        if (online) {
             thinkingOrb.start();
+        } else {
+            thinkingOrb.stop();
         }
     }
 
@@ -1277,6 +1343,13 @@ public class MainActivity extends Activity {
         // never does, so a pulse cannot claim the market is trading (SO-3).
         breathIfOnline(online);
 
+        // Owner order 2026-10-23 (v1.9.13): the AI feature stops animating
+        // whenever the market is closed or on a break, ruled by the same ON
+        // badge law the beacon's own pulse obeys. The orb's last frame holds
+        // still until the session trades again, and one ON answer revives
+        // the burn at once.
+        orbGate(online);
+
         if (actualDetail.isEmpty()) {
             statusDetail.setText(getString(R.string.checking));
         } else {
@@ -1426,12 +1499,6 @@ public class MainActivity extends Activity {
             // tile (owner order 2026-10-23): it lives and dies with the
             // page, exactly like the search panel above it.
             tileVolume.setVisibility(open ? View.VISIBLE : View.GONE);
-        }
-        if (ruleBeforeSearch != null) {
-            // The rule above the search tile is the panel's own, so the closed
-            // console keeps the single brand rule under the header (owner
-            // order 2026-10-21, 15:35).
-            ruleBeforeSearch.setVisibility(open ? View.VISIBLE : View.GONE);
         }
         paintNavSelection();
         if (open) {
