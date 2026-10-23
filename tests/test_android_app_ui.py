@@ -385,18 +385,24 @@ class SettingsControlTest(unittest.TestCase):
         nav = find_view(root, "@+id/nav_tile")
         self.assertIsNotNone(nav)
         self.assertEqual(nav.get("style"), "@style/QorPanel")
+        # v2.2.0: the tile rides the 20dp side carrier (the bar's breadth
+        # is the carrier's own construction), so the footer follows the
+        # carrier, not the tile.
+        carrier = parent_of(root, nav)
+        self.assertIsNotNone(carrier)
         # Owner order 2026-10-23 (2.0.0): the tile's two bracket rules are
         # GONE. The owner read the diamond above and below the pinned menu
         # bar as clutter around a fixed bar, so neither id exists anywhere
         # in the layout any more and the tile follows the scroll directly.
         self.assertNotIn("@+id/rule_before_nav", self.layout)
         self.assertNotIn("@+id/rule_after_nav", self.layout)
-        # The console scroll closes, the tile follows, and the app version
+        # The console scroll closes, the carrier follows (v2.2.0: the bar's
+        # breadth is the carrier's own construction), and the app version
         # line v1.9.14 moved here stands after it, the console's own last
         # unit, and nothing else does.
         self.assertLess(self.layout.index("@+id/console_scroll"),
                         self.layout.index("@+id/nav_tile"))
-        following = siblings_after(root, nav)
+        following = siblings_after(root, carrier)
         self.assertEqual(
             [node.get(f"{ANDROID_NS}id") for node in following],
             ["@+id/app_version"], "the version line is the footer", )
@@ -801,7 +807,7 @@ class CadencePlacementTest(unittest.TestCase):
         self.assertEqual(following[1:], [])
         self.assertEqual(
             [n.get(f"{ANDROID_NS}id") or n.tag for n in list(self.root)],
-            ["@+id/console_scroll", "@+id/nav_tile", "@+id/app_version"])
+            ["@+id/console_scroll", "@+id/nav_carrier", "@+id/app_version"])
 
     def test_the_market_card_no_longer_carries_the_sentence(self):
         self.assertIsNone(find_view(self.root, "@+id/market_foot"))
@@ -1474,9 +1480,16 @@ class VersionTest(unittest.TestCase):
         # FOREGROUND so the png can never cover it, the two volume
         # dropdowns are "More buyers & sellers" and "Price moving fast",
         # and the version line shows on the settings page only.
+        # v2.2.0 is the 2026-10-23 sixth pass, on the v2.1.0 screenshots
+        # the owner sent back: the feature is the v1.8.9 LIVING PARTICLE
+        # CLOUD again (105 nodes around five anchors, links, turning in
+        # depth), the cloud's centre is the ALWAYS-BURNING SUN, the menu
+        # tile's edges are the SAME 20dp carrier the scroll uses, and the
+        # open dropdown popups wear the app's own panel, rows and gold
+        # ticker, not the platform's grey.
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="2.1.0"', manifest)
-        self.assertIn('android:versionCode="57"', manifest)
+        self.assertIn('android:versionName="2.2.0"', manifest)
+        self.assertIn('android:versionCode="58"', manifest)
         # The changelog entry ties these user-visible changes to the build.
         readme = (ROOT / "android" / "README.md").read_text(encoding="utf-8")
         self.assertIn("v1.7.9, owner order 2026-10-20", readme)
@@ -1504,9 +1517,10 @@ class VersionTest(unittest.TestCase):
         self.assertIn("Version 1.9.14, versionCode 55", readme)
         self.assertIn("Version 2.0.0, versionCode 56", readme)
         self.assertIn("Version 2.1.0, versionCode 57", readme)
+        self.assertIn("Version 2.2.0, versionCode 58", readme)
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionCode="57"', manifest)
-        self.assertIn('android:versionName="2.1.0"', manifest)
+        self.assertIn('android:versionCode="58"', manifest)
+        self.assertIn('android:versionName="2.2.0"', manifest)
         layout = LAYOUT.read_text(encoding="utf-8")
         strings = STRINGS.read_text(encoding="utf-8")
         main = MAIN.read_text(encoding="utf-8")
@@ -2170,6 +2184,11 @@ class ThinkingOrbPlanTest(unittest.TestCase):
     any pass before it, and the white orb at the centre is a sun-looking
     ball of the SAME size, a lit 3D sphere that burns without pause. The
     classic frame's tiles, rules and copy stand untouched beneath it.
+    Owner order 2026-10-23 (seventh pass, v2.2.0), on the v2.1.0
+    screenshots the owner sent back: the feature is the v1.8.9 LIVING
+    PARTICLE CLOUD again, the look he first approved, and the cloud's
+    centre is the sun ("I want the center as the sun"), so the organism
+    circles a star.
     """
 
     def test_the_orb_sits_where_the_beam_lay(self):
@@ -2243,51 +2262,55 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         # tag exactly once in the layout.
         self.assertEqual(layout.count("pk.quantofrehan.ThinkingOrb"), 2)
 
-    def test_more_lines_revolves_as_the_owner_counted(self):
+    def test_the_cloud_is_the_v189_organism_around_the_sun(self):
         orb = (MAIN.parent / "ThinkingOrb.java").read_text(
             encoding="utf-8")
-        """Owner order 2026-10-23 (sixth pass, v2.1.0): the feature is the
-        reference the owner re-sent - a RADIAL BURST around the sun:
-        RAYS spokes of RAY_NODES nodes each, evenly spread and joggled,
-        the spokes' inner halves joined by a capped web, everything
-        revolving as one body. The v1.9.13/v1.9.14 rings and the older
-        scattered cloud are retired, and the grey rest ring retired with
-        the new reference's star of a core.
+        """Owner order 2026-10-23 (seventh pass, v2.2.0): the feature is
+        the v1.8.9 LIVING PARTICLE CLOUD the owner first approved - NODES
+        gathered around CLUSTERS cluster anchors, joined by fine links,
+        turning rigidly in yaw with a breathing pitch and projected in
+        perspective, every node breathing radially on its own phase. The
+        radial burst of v2.1.0 and the rings of v1.9.13/v1.9.14 are
+        retired, and the cloud circles its own SUN.
         """
         # Populations are named constants, so the count is one decision.
-        self.assertIn("private static final int RAYS = 22;", orb)
-        self.assertIn("private static final int RAY_NODES = 5;", orb)
-        self.assertIn(
-            "private static final int NODES = RAYS * RAY_NODES;", orb)
+        self.assertIn("private static final int NODES = 105;", orb)
+        self.assertIn("private static final int CLUSTERS = 5;", orb)
+        self.assertIn("MOTION_SCALE = 1.3f", orb)
         self.assertIn("private static final int NODE_STRIDE = 5;", orb)
-        self.assertIn("private static final int EDGE_STRIDE = 2;", orb)
-        self.assertIn(
-            "private static final float[] RAY_FRACTION = {0.16f, 0.30f, "
-            "0.46f, 0.64f, 0.88f};", orb)
-        self.assertIn(
-            "private static final int WEB_TO_INDEX = 3;", orb)
-        self.assertIn("private static final float LINK_DIST = 0.34f;", orb)
-        self.assertIn("private static final int LINK_MAX = 2;", orb)
         # The retired machinery may not come back.
-        for retired in ("RING_NODES", "RING_FACTOR", "RING_SPEED",
-                        "RING_TILT", "drawRings", "buildCloud", "restRing"):
+        for retired in ("RAYS", "RAY_NODES", "RAY_FRACTION",
+                        "spokeEdgeCount", "drawBurst", "drawRings",
+                        "RING_NODES", "RING_FACTOR", "RING_SPEED",
+                        "RING_TILT", "buildCloud", "restRing"):
             self.assertNotIn(retired, orb)
-        # The burst revolves as ONE body around the core.
-        self.assertIn("float yaw = seconds * 0.13f;", orb)
-        # Each spoke is its own polyline of pairs, and the whole line pass
-        # reads its alpha by depth: near brighter, far dimmed.
-        self.assertIn("boolean spoke = e < spokeEdgeCount;", orb)
-        self.assertIn("float depth = (fz + gz) * 0.5f;", orb)
-        # Tips draw last with their halo, so the brightest stars of the
-        # reference never fall under a spoke line.
-        self.assertIn("for (int pass = 0; pass < 2; pass++) {", orb)
-        self.assertIn("drawBurst(canvas, seconds, wake);", orb)
-        self.assertLess(orb.index("private void drawBurst("),
+        # The cloud is built once per size, never on the frame path.
+        self.assertIn("private void buildGeometry() {", orb)
+        self.assertIn("float linkAt = 0.55f;", orb)
+        # The organism turns rigidly in yaw with a breathing pitch, and
+        # the perspective divide projects the far side smaller and dimmer.
+        self.assertIn("float yaw = seconds * 0.22f * MOTION_SCALE;", orb)
+        self.assertIn("float pitch = 0.16f * (float) Math.sin(", orb)
+        self.assertIn("float persp = distance / (distance - rz * orbRadius);",
+                      orb)
+        # The links brighten as their ends come forward; the nodes breathe
+        # on their own phase.
+        self.assertIn("float toward = clamp((midway - 1f) / 0.6f, 0f, 1f)",
+                      orb)
+        self.assertIn("float toward = clamp((depth[n] - 1f) / 0.6f, 0f, 1f);",
+                      orb)
+        self.assertIn("int o = n * NODE_STRIDE;", orb)
+        # The cloud draws FIRST, the sun after it: the organism reads as
+        # circling its star.
+        self.assertIn("drawCloud(canvas, seconds, wake);", orb)
+        self.assertIn("drawSun(canvas, seconds, wake);", orb)
+        self.assertLess(orb.index("private void drawCloud("),
                         orb.index("private void drawSun("))
-        # The sun's own arcs revolve around the limb on their slow bearing.
-        self.assertIn("seconds * promSpeed[p];", orb)
-        # The sun is up when the owner looks: the wake ramp is 1.2 seconds.
-        self.assertIn("WAKE_SECONDS = 1.2f", orb)
+        # The sun keeps its slow revolving arcs.
+        self.assertIn("seconds * promSpeed[p] * MOTION_SCALE;", orb)
+        # The wake ramp is the v1.8.9 number, so the organism grows out of
+        # the dark instead of popping in.
+        self.assertIn("WAKE_SECONDS = 4f", orb)
         self.assertNotIn("Thread.sleep", orb)
         self.assertNotIn("ValueAnimator", orb)
 
@@ -2298,10 +2321,12 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         overlapping orb is replaced by a sun-looking ball of the SAME
         size, which is 3D and burns without pause.
         """
-        # Same size, SCALED in the second order: the owner read the
-        # v1.9.13 ball as too small to read as the sun he ordered, so it
-        # grew to a tenth of the short side.
-        self.assertIn("ballR = shortSide * 0.10f", orb)
+        # Same size, and the CORE PLACEMENT of the seventh pass: the ball
+        # sits at the cloud's own centre as the star the organism circles
+        # ("I want the center as the sun"), a fraction of the orb's box
+        # under the v1.8.9 cloud's rim.
+        self.assertIn("ballR = orbRadius * 0.17f", orb)
+        self.assertNotIn("ballR = shortSide", orb)
         self.assertNotIn("sunR = Math.min", orb)
         # 3D: one shaded sphere, the hotspot up and to the LEFT of the
         # centre, white-hot through the solar golds to deep burning orange
@@ -2369,12 +2394,11 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         # The sun draws at one woken alpha; the heart and every fire mood
         # ride the same wake, so a closed market parks the picture whole.
         self.assertIn("sunPaint.setAlpha((int) (255f * wake));", orb)
-        # The burst keeps the reference's icy silvers on the deep field,
-        # read by name rather than invented on the frame (v2.1.0 re-inks:
-        # the reference reads ICE, silver-blue, brighter than before).
-        self.assertIn("NODE_BRIGHT = 0xFFEAF3FF", orb)
-        self.assertIn("NODE_DIM = 0xFFA9BBD6", orb)
-        self.assertIn("LINE_INK = 0xFF9CB8DE", orb)
+        # The cloud keeps the v1.8.9 reference's icy family on the deep
+        # field, two declared constants so the palette is one decision
+        # (the v2.1.0 six-stop re-ink is retired with its burst).
+        self.assertIn("NODE_COLOR = 0xFF86AEDC", orb)
+        self.assertIn("LINK_COLOR = 0xFF3E6E9E", orb)
         self.assertNotIn("GLOW_SCALE", orb)
         self.assertNotIn("BRIGHT_SCALE", orb)
         self.assertNotIn("P1 = 1.3f", orb)
@@ -2387,7 +2411,7 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         # Zero allocations on the frame path: constellation, sun geometry
         # and inks are all built once, on the size change, never on the
         # frame; the one Path is shared and reset, never re-allocated.
-        self.assertIn("buildBurst();", orb)
+        self.assertIn("buildGeometry();", orb)
         self.assertIn("buildSun();", orb)
         self.assertIn("buildInks();", orb)
         self.assertIn("onSizeChanged", orb)
@@ -2451,11 +2475,17 @@ class UniversalRuleGapTest(unittest.TestCase):
 
     def test_every_tile_that_follows_a_rule_carries_the_same_gap(self):
         for view_id in ("tile_status", "tile_signal", "tile_market",
-                        "search_panel", "settings_panel", "nav_tile"):
+                        "search_panel", "settings_panel"):
             with self.subTest(tile=view_id):
                 tile = find_view(self.root, f"@+id/{view_id}")
                 self.assertEqual(tile.get(f"{ANDROID_NS}layout_marginTop"),
                                  "12dp")
+        # v2.2.0: the menu tile's one gap rides the carrier that owns its
+        # 20dp side air, one construction for both laws.
+        carrier = parent_of(self.root,
+                            find_view(self.root, "@+id/nav_tile"))
+        self.assertEqual(carrier.get(f"{ANDROID_NS}layout_marginTop"),
+                         "12dp")
 
     def test_the_footer_stands_on_the_same_gap(self):
         footer = find_view(self.root, "@+id/scan_cadence")
@@ -2526,17 +2556,26 @@ class V19SecondOrderTest(unittest.TestCase):
         self.assertIn("navRing.setShape(GradientDrawable.OVAL);", self.main)
 
     def test_the_nav_tile_has_the_app_tile_breadth(self):
-        # "make the broadness of the menu bar tile same as every other
-        # tile" (restated v2.1.0, "the menu bar is so wide right now"):
-        # the tile now carries the 20dp side air as PADDING and the SAME
-        # 20dp as side MARGINS, so its outer edge lands where every other
-        # tile's does and its insides keep the thirds' own air.
-        start = self.layout.index('android:id="@+id/nav_tile"')
-        block = self.layout[start:start + 700]
-        self.assertIn('android:paddingLeft="20dp"', block)
-        self.assertIn('android:paddingRight="20dp"', block)
-        self.assertIn('android:layout_marginLeft="20dp"', block)
-        self.assertIn('android:layout_marginRight="20dp"', block)
+        # v2.2.0, on the owner's own words ("for the menu tile you only
+        # need to match the width of the tile with the other tiles on the
+        # app"): the bar's edges are the SAME 20dp side carrier the
+        # scroll's padded column uses, so the plate's outer edge lands
+        # where every other tile's does by construction, and no two
+        # numbers of side air are kept in step by hand.
+        carrier_start = self.layout.index(
+            'android:id="@+id/nav_tile"')
+        carrier = self.layout[self.layout.rindex("<FrameLayout", 0,
+                                                  carrier_start):]
+        self.assertIn('android:paddingLeft="20dp"',
+                      carrier[:carrier.index(">")])
+        self.assertIn('android:paddingRight="20dp"',
+                      carrier[:carrier.index(">")])
+        # The tile itself carries no side air of its own: the carrier is
+        # the one owner of it.
+        tile = self.layout[carrier_start:carrier_start + 700]
+        self.assertNotIn("android:paddingLeft", tile[:tile.index(">")])
+        self.assertNotIn("android:layout_marginLeft",
+                         tile[:tile.index(">")])
 
 
 if __name__ == "__main__":
