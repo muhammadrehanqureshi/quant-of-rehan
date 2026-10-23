@@ -1,11 +1,8 @@
 package pk.quantofrehan;
 
-import android.app.AlarmManager;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
-import android.app.PendingIntent;
 import android.content.Context;
-import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Build;
 
@@ -45,10 +42,7 @@ public final class Watcher {
     // Owner order 2026-10-19 moved the strategy scanner to a one second
     // cadence, so the foreground display poll and the scan now share one
     // number. This class still only reads the relay: it never scans.
-    static final long REFRESH_MS = 30 * 1000;
     static final long FAST_POLL_MS = 1000;
-    // A fast health/signals/card refresh is still a display read, not a scan.
-    static final long DISPLAY_REFRESH_MS = FAST_POLL_MS;
 
     /**
      * One relay answer, before the market card is asked for.
@@ -70,14 +64,13 @@ public final class Watcher {
         }
     }
 
-    // The background re-arm stays at five minutes, and that is a platform
-    // fact rather than a preference: an AlarmManager wake is not a poll.
-    // setExactAndAllowWhileIdle is capped to roughly one wake per nine minutes
-    // inside Doze and is stopped outright by some OEM battery managers, so a
-    // 30 second alarm would advertise a cadence Android will not honour. This
-    // arm is only the watchdog that wakes a CLOSED app; a signal that lands
-    // between two arms is delivered by the relay's own notification.
-    static final long WATCHDOG_MS = 1000;
+    // Owner order 2026-10-23 (v2.2.1, "why do I need 1 second watch
+    // window? if it's not needed anymore then remove it"): the phone-side
+    // alarm loop - the phone-side 1s watchdog arm and the PollReceiver it
+    // fired - is GONE, and so is the battery-exemption plea that kept it
+    // alive. The quant already scans the market every second in the cloud
+    // and the relay delivers the feed and signals from there, so a closed
+    // app schedules nothing; the handset polls only while it is on screen.
 
     /**
      * Hard cap on an accepted relay body.
@@ -932,20 +925,8 @@ public final class Watcher {
         });
     }
 
-    static void armAlarms(Context c) {
-        AlarmManager am = (AlarmManager) c.getSystemService(Context.ALARM_SERVICE);
-        Intent i = new Intent(c, PollReceiver.class);
-        PendingIntent pi = PendingIntent.getBroadcast(c, 11, i,
-                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-        if (am != null) {
-            am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP,
-                    System.currentTimeMillis() + WATCHDOG_MS, pi);
-        }
-    }
-
     static void kick(Context c) {
         beat(c);
-        armAlarms(c);
     }
 
     private static void notifySignal(Context c, String text) {

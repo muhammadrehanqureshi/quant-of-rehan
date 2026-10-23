@@ -249,34 +249,29 @@
                 android:gravity="center"
                 android:text="@string/label_volume"/>
 
-            <TextView
-                android:id="@+id/volume_split_caption"
-                style="@style/QorValue"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
-                android:gravity="center"
-                android:text="@string/volume_split_caption"/>
-
-            <!-- Owner order 2026-10-23 (2.0.0): every dropdown carries its
-                 state arrow beside it, DOWN while closed (the pull-down
-                 cue) and UP while open (the pull-up cue). The wrapper is
-                 where the wrapper's arrow lives; the field box, the heights
-                 and the prompt stay the spinner's own. -->
+            <!-- Owner order 2026-10-23 (v2.2.1, "for search page, custom
+                 scripts of vol. make only one drop down menu"): the tile's
+                 TWO dropdowns are ONE dropdown now. Its menu carries both
+                 of his entries - MORE BUYERS & LESS SELLERS and PRICE
+                 MOVING FAST - and picking either one reveals the three
+                 scrips of that ranking below the field, so nothing about
+                 a ranking shows before he asks for it. -->
+            <!-- Every dropdown keeps its state arrow beside it (2.0.0):
+                 DOWN while closed, UP while open. -->
             <FrameLayout
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content">
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp">
 
             <pk.quantofrehan.Dropdown
                 android:id="@+id/volume_split_spinner"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
                 android:background="@drawable/field_bg"
-                android:contentDescription="@string/volume_split_caption"
+                android:contentDescription="@string/label_volume"
                 android:minHeight="40dp"
                 android:popupBackground="@drawable/dropdown_popup"
-                android:prompt="@string/volume_split_prompt"
+                android:prompt="@string/label_volume"
                 android:padding="10dp"/>
 
             <ImageView
@@ -289,41 +284,18 @@
                 android:src="@drawable/dropdown_arrow"/>
             </FrameLayout>
 
+            <!-- The reveal: the three scrips of the chosen ranking, one
+                 line per scrip, the same quote lines the old dropdown rows
+                 printed. GONE until he picks a menu, and GONE again while
+                 the feed has no lines for it (SO-3: nothing is faked). -->
             <TextView
-                android:id="@+id/volume_speed_caption"
+                android:id="@+id/volume_reveal"
                 style="@style/QorValue"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
                 android:gravity="center"
-                android:text="@string/volume_speed_caption"/>
-
-            <!-- The second dropdown, its arrow sharing the first's law. -->
-            <FrameLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content">
-
-            <pk.quantofrehan.Dropdown
-                android:id="@+id/volume_speed_spinner"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
-                android:background="@drawable/field_bg"
-                android:contentDescription="@string/volume_speed_caption"
-                android:minHeight="40dp"
-                android:popupBackground="@drawable/dropdown_popup"
-                android:prompt="@string/volume_speed_prompt"
-                android:padding="10dp"/>
-
-            <ImageView
-                android:id="@+id/volume_speed_arrow"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="end|center_vertical"
-                android:layout_marginEnd="14dp"
-                android:contentDescription="@string/cd_dropdown"
-                android:src="@drawable/dropdown_arrow"/>
-            </FrameLayout>
+                android:visibility="gone"/>
         </LinearLayout>
 
         <!-- brand rule: line, diamond, line (from the logo frame). Defined
@@ -353,7 +325,12 @@
              +40% again, 16.9sp grown to 23.7sp (16.9 x 1.4 = 23.66,
              rounded to one decimal), the third growth of this line and
              still every other line's law untouched: the body is still
-             the one 13sp. -->        <TextView
+             the one 13sp.
+
+             Owner order 2026-10-23 (third order, v2.2.1): +10% from its
+             current size, 23.7sp grown to 26.1sp (23.7 x 1.10 = 26.07,
+             rounded to one decimal), the fourth growth of this line,
+             the body still the one 13sp. -->        <TextView
             android:id="@+id/greeting"
             style="@style/QorValue"
             android:fontFamily="@font/bonskin"
@@ -362,7 +339,7 @@
             android:layout_marginTop="12dp"
             android:gravity="center"
             android:text="@string/greeting_morning"
-            android:textSize="23.7sp"/>
+            android:textSize="26.1sp"/>
 
         <!-- ══════════ system status card ══════════
              Owner order 2026-10-16: the console's three tiles carry ids so
@@ -547,26 +524,35 @@
                 <Button
                     android:id="@+id/btn_open"
                     style="@style/QorButton"
-                    android:layout_width="0dp"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                        android:layout_weight="1"
                     android:text="@string/btn_relay"/>
             </LinearLayout>
 
-            <Button
-                android:id="@+id/btn_arm"
-                style="@style/QorButton"
+            <!-- Owner order 2026-10-23 (v2.2.1, "why do I need 1 second watch
+                 window? if it's not needed anymore then remove it"): the
+                 ARM THE 1-SECOND WATCH WINDOW button is GONE, with the
+                 phone-side alarm loop it armed. The quant already scans the
+                 market every second in the cloud and the relay pushes the
+                 live feed and the signals from there, so a second scanner
+                 on the handset is duplicate work the owner asked to take
+                 off. -->
+            <!-- Owner order 2026-10-23: the THEMES tile below, its own
+                 heading and its one dropdown. The five themes carry the
+                 app's look; the selection is made in MainActivity and
+                 remembered between sessions, so the app opens on the
+                 theme he chose. See MainActivity.applyTheme.
+
+                 Owner order 2026-10-23 (v2.2.1): the tile carries its own
+                 diamond rule above and its own diamond rule below - the
+                 qor_rule include, one diamond between two hairlines, so it
+                 stands framed like every other labelled tile on the page. -->
+            <include
+                layout="@layout/qor_rule"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:text="@string/btn_arm"
-                android:contentDescription="@string/btn_arm"/>
+                android:layout_marginTop="12dp"/>
 
-            <!-- Owner order 2026-10-23: its own tile, a THEMES heading and
-                 a dropdown. The five themes carry the app's look; the
-                 selection is made in MainActivity and remembered between
-                 sessions, so the app opens on the theme he chose.
-                 See MainActivity.applyTheme for the five looks. -->
             <LinearLayout
                 android:id="@+id/tile_themes"
                 style="@style/QorPanel"
@@ -610,6 +596,14 @@
                     android:src="@drawable/dropdown_arrow"/>
                 </FrameLayout>
             </LinearLayout>
+
+            <!-- Owner order 2026-10-23 (v2.2.1): the tile's own closing
+                 diamond rule, the same include as the one above it. -->
+            <include
+                layout="@layout/qor_rule"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"/>
 
             <!-- Owner order 2026-10-23 (second order, v1.9.14): the version
                  line left this tile for the root's own footer under the
@@ -790,8 +784,9 @@
              Owner order 2026-10-23 (2.0.0): the tile's two bracket rules
              are GONE. The owner read the diamond above and below the
              pinned menu bar as clutter around a fixed bar, so the bar is
-             the tile alone: the console scroll closes, the tile follows
-             and the version line closes the screen. -->
+             the tile alone: the console scroll closes, the tile follows.
+             Owner order 2026-10-23 (v2.2.1): and the version line left
+             the root's end for the station directly above this bar. -->
         </LinearLayout>
     </ScrollView>
 
@@ -802,6 +797,23 @@
          column uses, so its plate's outer edge lands where every other
          tile's edge lands, by construction and not by two numbers kept
          in step by hand. -->
+    <!-- ══════════ the app version line, ABOVE the menu bar ══════════
+         Owner order 2026-10-23 (v2.2.1, "app version would be written
+         above menu bar on settings page"): the line left the root's
+         footer for this station - directly above the pinned menu bar,
+         still the SETTINGS page's alone: visible while the settings menu
+         is open, gone on home and search, set on every repaint from the
+         page truth in MainActivity.paintNavSelection. MainActivity writes
+         the manifest's own versionName into it, the same number the
+         build prints, so the screen and the APK cannot disagree. -->
+    <TextView
+        android:id="@+id/app_version"
+        style="@style/QorCaption"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:gravity="center"/>
+
     <FrameLayout
         android:id="@+id/nav_carrier"
         android:layout_width="match_parent"
@@ -880,23 +892,4 @@
         </FrameLayout>
     </LinearLayout>
     </FrameLayout>
-
-    <!-- ══════════ the footer: the app version ══════════
-         Owner order 2026-10-23 (second order, v1.9.14): "App version:
-         version number at the footer." The line is the ROOT's own last
-         line, under the pinned menu bar, and MainActivity writes the
-         manifest's own versionName into it, the same number the build
-         prints, so the screen and the APK cannot disagree.
-         Owner order 2026-10-23 (v2.1.0): and it is the SETTINGS page's
-         own footer: visible while the settings menu is open, gone on
-         home and search, set on every repaint from the page truth in
-         MainActivity.paintNavSelection. -->
-    <TextView
-        android:id="@+id/app_version"
-        style="@style/QorCaption"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
-        android:layout_marginBottom="10dp"
-        android:gravity="center"/>
 </LinearLayout>

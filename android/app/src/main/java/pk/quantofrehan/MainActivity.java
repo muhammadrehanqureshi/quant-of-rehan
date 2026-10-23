@@ -121,8 +121,10 @@ import java.util.Locale;
  *   1. the interval was chosen BEFORE the first answer arrived. onResume
  *      scheduled the next round from marketOpenSeen, which is false on a
  *      fresh process, so an open market was polled at the 30 second idle
- *      interval until a whole idle round had completed. render now re-decides
- *      the cadence the moment the relay's answer lands (see scheduleNext);
+     *      interval until a whole idle round had completed. render now re-decides
+     *      the cadence the moment the relay's answer lands (see scheduleNext;
+     *      v2.2.1 makes the foreground cadence the one-second tick at all
+     *      times, so the market-state part of this fix is superseded);
  *   2. the relay's own clock ("Karachi: <date> HH:MM PKT", cloud/worker.js
  *      hhmm) has MINUTE resolution, so a perfect one second poll redrew an
  *      identical screen for up to 60 seconds and looked like no poll at all.
@@ -213,21 +215,24 @@ public class MainActivity extends Activity {
      *  2026-10-23). Its sentence flips at noon in Karachi (SO-8). */
     private TextView greeting;
     /** The search page's own CUSTOM SCRIPS OF VOL. tile (owner order
-     *  2026-10-23): two dropdowns ranked from the same /prices map the
+     *  2026-10-23): one dropdown ranked from the same /prices map the
      *  search rows already refresh once per tick. */
     private View tileVolume;
     private Spinner volumeSplitSpinner;
-    private Spinner volumeSpeedSpinner;
-    // The three dropdowns' state arrows (owner order 2026-10-23, 2.0.0):
+    // The dropdown's state arrow (owner order 2026-10-23, 2.0.0):
     // DOWN while the menu is closed (the pull-down cue), UP while it is
-    // open (the pull-up cue). One arrow per dropdown, declared beside it.
+    // open (the pull-up cue), declared beside it.
     private ImageView volumeSplitArrow;
-    private ImageView volumeSpeedArrow;
     private ImageView themeArrow;
     private ArrayAdapter<String> volumeSplitAdapter;
-    private ArrayAdapter<String> volumeSpeedAdapter;
-    private int volumeSplitChoice;
-    private int volumeSpeedChoice;
+    /** The one dropdown's chosen menu: 0 = MORE BUYERS & LESS SELLERS,
+     *  1 = PRICE MOVING FAST. -1 is "nothing picked yet", so the reveal
+     *  stays hidden until he actually chooses (owner order 2026-10-23,
+     *  v2.2.1). */
+    private int volumeSplitChoice = -1;
+    /** The three scrips revealed under the dropdown once a menu is
+     *  chosen; the ranking lines print one per row. */
+    private TextView volumeReveal;
     /** The settings page's THEMES tile. The spinner's five items and the
      *  selection are theme_name and theme below; the selection survives
      *  between sessions in prefs, so the app opens on the look he chose. */
@@ -327,14 +332,6 @@ public class MainActivity extends Activity {
      */
     private boolean resumed;
     /**
-     * The relay's own market state, which sets the poll interval (SO-8).
-     *
-     * The phone never decides from its own clock whether the market is open:
-     * the last answer from the relay carries `market_open`, and that value
-     * alone chooses between the one second live poll and the slow idle poll.
-     */
-    private boolean marketOpenSeen;
-    /**
      * True while the beacon is breathing, owned by the chain's own halves.
      * Only the state gate reads it, to skip a restart on an already-live
      * chain (owner order 2026-10-15, fourth note): before that the guard sat
@@ -389,8 +386,7 @@ public class MainActivity extends Activity {
         appVersion = (TextView) findViewById(R.id.app_version);
         volumeSplitSpinner =
                 (Spinner) findViewById(R.id.volume_split_spinner);
-        volumeSpeedSpinner =
-                (Spinner) findViewById(R.id.volume_speed_spinner);
+        volumeReveal = (TextView) findViewById(R.id.volume_reveal);
         settingsPanel = findViewById(R.id.settings_panel);
         searchPanel = findViewById(R.id.search_panel);
         searchInput = findViewById(R.id.search_input);
@@ -463,16 +459,10 @@ public class MainActivity extends Activity {
             startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url + "/health")));
         });
 
-        findViewById(R.id.btn_arm).setOnClickListener(v -> {
-            Watcher.armAlarms(this);
-            maybeRequestBatteryExemption(true);
-            // Owner order 2026-10-23 (2.0.0): the toast says what the tap
-            // actually did. The watch window beats every one second
-            // (Watcher.WATCHDOG_MS is 1000, owner order 2026-10-20), and
-            // the retired "watchdog" jargon and the "5 minutes" figure
-            // that belonged to a build before that order said neither.
-            toast("The 1-second watch window is armed.");
-        });
+        // Owner order 2026-10-23 (v2.2.1): the ARM THE 1-SECOND WATCH WINDOW
+        // button and its alarm loop are gone. The quant already scans every
+        // second in the cloud and the relay delivers the feed and the
+        // signals from there, so the handset carries no second scanner.
 
         // Owner order 2026-10-23: the page selects what the app looks like.
         // The spinner is filled with the five pairs in his own order, the
@@ -490,10 +480,10 @@ public class MainActivity extends Activity {
 
         writeAppVersion();
 
+        // v1.5.1's battery exemption ask retired with the watch window
+        // (v2.2.1): nothing on the handset is scheduled any more, so Doze
+        // has nothing to defer and there is nothing to plea for.
         Watcher.kick(this);
-        // v1.5.1: ask once, quietly, so Doze and OEM battery managers do not
-        // defer the watch window. The button can always ask again on demand.
-        maybeRequestBatteryExemption(false);
     }
 
     // ----------------------------------------------------------------
@@ -526,51 +516,27 @@ public class MainActivity extends Activity {
     }
 
     /**
-     * One icon's own face: the ring when its page is live, ripple when not.
+     * One icon's own face: the filled highlight disc when its page is
+     * live, ripple when not.
      *
-     * Owner order 2026-10-23 (second order, v1.9.14): the ring alone was
-     * not picked up as the selection, so the icon itself is highlighted
-     * with it: brighter ink, and a size lift the eye reads at once. The
-     * two ride together so the selection is one state, and both are
-     * re-set every paint, so a theme or a page change cannot leave one
-     * half behind.
-     *
-     * Owner order 2026-10-23 (third order, v2.1.0, "the highlighted
-     * feature is not working on the menu bar"): a background ring sits
-     * UNDER the icon's png, and a png whose ink is not fully transparent
-     * at its own edge can read as covering it, however the padding
-     * insets the drawing. The ring is therefore drawn AGAIN as the view's
-     * own FOREGROUND - on top of the png, where nothing can paint under
-     * it - so the circled page is always visible. One oval is built once
-     * and shared; the ripple stays the unselected face.
+     * Owner order 2026-10-23 (v2.2.1, "the circle is getting cut off and
+     * the entire icon only should be highlighted"): the v2.1.0 answer -
+     * a foreground ring plus an 18% size lift - pushed the circle past
+     * the icon's own 42dp bounds inside the nav panel, so it read as cut
+     * off. There is no size lift and no foreground any more: the whole
+     * highlight is one filled translucent gold disc (nav_circle.xml) at
+     * exactly the icon's own bounds, the entire icon highlighted, and
+     * nothing overflows. Re-set every paint, so a theme or a page change
+     * cannot leave one half behind; the ripple stays the unselected face.
      */
-    private static final float NAV_SELECTED_SCALE = 1.18f;
-
-    /** The foreground ring, built once (v2.1.0). */
-    private GradientDrawable navRing;
-
-    /** The selection ring as a foreground: over the icon's own png. */
-    private GradientDrawable navRingForeground() {
-        if (navRing == null) {
-            navRing = new GradientDrawable();
-            navRing.setShape(GradientDrawable.OVAL);
-            navRing.setColor(0);
-            navRing.setStroke(dp(2), getColor(R.color.gold_bright));
-        }
-        return navRing;
-    }
 
     private void setNavPage(ImageView icon, boolean selected) {
         if (icon == null) {
             return;
         }
-        icon.setBackgroundResource(selected
-                ? R.drawable.nav_circle : R.drawable.settings_ripple);
-        icon.setForeground(selected ? navRingForeground() : null);
+        icon.setBackgroundResource(selected ? R.drawable.nav_circle : R.drawable.settings_ripple);
         icon.setImageTintList(ColorStateList.valueOf(getColor(
                 selected ? R.color.gold_bright : R.color.gold)));
-        icon.setScaleX(selected ? NAV_SELECTED_SCALE : 1f);
-        icon.setScaleY(selected ? NAV_SELECTED_SCALE : 1f);
     }
 
     /**
@@ -736,40 +702,42 @@ public class MainActivity extends Activity {
     }
 
     /**
-     * CUSTOM SCRIPS OF VOL. (owner order 2026-10-23; retitled v2.1.0):
-     * two dropdowns, built once. The first - "More buyers & sellers" -
-     * ranks the busiest scrips by the relay's own combined B/S activity,
-     * the second - "Price moving fast" - the hardest-moving prices either
-     * direction. Both are ranked from the same map the search rows
-     * refresh, so a dropdown never costs a request of its own.
+     * CUSTOM SCRIPS OF VOL. (owner order 2026-10-23; ONE dropdown since
+     * v2.2.1's "make only one drop down menu"): the menu carries both of
+     * his entries, MORE BUYERS & LESS SELLERS and PRICE MOVING FAST, in
+     * the order he named them, and picking either reveals the three
+     * scrips of that ranking. It ranks from the same map the search rows
+     * refresh, so the dropdown never costs a request of its own.
      */
     private void buildVolumeSpinners() {
-        if (volumeSplitSpinner == null || volumeSpeedSpinner == null) {
+        if (volumeSplitSpinner == null) {
             return;
         }
         volumeSplitAdapter = styledSpinnerAdapter();
-        volumeSpeedAdapter = styledSpinnerAdapter();
+        volumeSplitAdapter.add(getString(R.string.volume_split_caption));
+        volumeSplitAdapter.add(getString(R.string.volume_speed_caption));
         volumeSplitSpinner.setAdapter(volumeSplitAdapter);
-        volumeSpeedSpinner.setAdapter(volumeSpeedAdapter);
-        volumeSplitChoice = 0;
-        volumeSpeedChoice = 0;
         volumeSplitSpinner.setOnItemSelectedListener(
                 new AdapterView.OnItemSelectedListener() {
             @Override public void onItemSelected(AdapterView<?> parent, View view,
                                                  int position, long id) {
+                // The first callback fires at bind with position 0 and
+                // is not a choice of his; only a tap inside the open
+                // menu reveals (the Dropdown's own open edges guard it
+                // cheaply enough via the -1 sentinel below).
+                if (volumeSplitChoice < 0 && !spinnerWasTouched) {
+                    spinnerWasTouched = true;
+                    return;
+                }
                 volumeSplitChoice = position;
-            }
-            @Override public void onNothingSelected(AdapterView<?> parent) { }
-        });
-        volumeSpeedSpinner.setOnItemSelectedListener(
-                new AdapterView.OnItemSelectedListener() {
-            @Override public void onItemSelected(AdapterView<?> parent, View view,
-                                                 int position, long id) {
-                volumeSpeedChoice = position;
+                paintVolumeReveal();
             }
             @Override public void onNothingSelected(AdapterView<?> parent) { }
         });
     }
+
+    /** The dropdown's bind-vs-tap gate for the first onItemSelected. */
+    private boolean spinnerWasTouched;
 
     /**
      * The three dropdowns' own arrows (owner order 2026-10-23, 2.0.0):
@@ -784,18 +752,13 @@ public class MainActivity extends Activity {
      */
     private void wireDropdownArrows() {
         volumeSplitArrow = (ImageView) findViewById(R.id.volume_split_arrow);
-        volumeSpeedArrow = (ImageView) findViewById(R.id.volume_speed_arrow);
         themeArrow = (ImageView) findViewById(R.id.theme_arrow);
-        // The layout declares its three dropdowns as pk.quantofrehan.Dropdown
+        // The layout declares its two dropdowns as pk.quantofrehan.Dropdown
         // (extends Spinner), so the instanceof with the cast below is the
         // one true type and no ClassCastException can enter the wiring.
         if (volumeSplitSpinner instanceof Dropdown) {
             wireDropdownArrow((Dropdown) volumeSplitSpinner,
                     volumeSplitArrow);
-        }
-        if (volumeSpeedSpinner instanceof Dropdown) {
-            wireDropdownArrow((Dropdown) volumeSpeedSpinner,
-                    volumeSpeedArrow);
         }
         if (themeSpinner instanceof Dropdown) {
             wireDropdownArrow((Dropdown) themeSpinner, themeArrow);
@@ -820,51 +783,57 @@ public class MainActivity extends Activity {
     }
 
     private void renderVolumeSpinners() {
-        if (volumeSplitSpinner == null || volumeSpeedSpinner == null) {
+        if (volumeSplitSpinner == null) {
+            return;
+        }
+        paintVolumeReveal();
+    }
+
+    /** The reveal (owner order 2026-10-23, v2.2.1): the three scrips of
+     *  the chosen menu, one line per scrip. Nothing reveals before he
+     *  picks, and a menu with no lines on the feed keeps hiding (SO-3).
+     *  A tick that changes no line does not rebuild the text; the search
+     *  rows keep their own gate. */
+    private void paintVolumeReveal() {
+        if (volumeReveal == null) {
+            return;
+        }
+        if (volumeSplitChoice < 0) {
+            volumeReveal.setVisibility(View.GONE);
             return;
         }
         java.util.Map<String, Watcher.Quote> quotes = Watcher.quotes();
-        List<String> ranked = rankedSplitSymbols(quotes);
-        List<String> rankedSpeed = rankedSpeedSymbols(quotes);
-        List<String> splitLines = quoteLines(quotes, ranked);
-        List<String> speedLines = quoteLines(quotes, rankedSpeed);
-        if (!splitLines.equals(volumeSplitLines)) {
-            volumeSplitLines = splitLines;
-            refill(volumeSplitAdapter, splitLines,
-                   volumeSplitSpinner, volumeSplitChoice);
-        }
-        if (!speedLines.equals(volumeSpeedLines)) {
-            volumeSpeedLines = speedLines;
-            refill(volumeSpeedAdapter, speedLines,
-                   volumeSpeedSpinner, volumeSpeedChoice);
-        }
-    }
-
-    /** The last lines shown in the two dropdowns, so a tick that changes no
-     *  number does not rebuild them; the search rows keep their own gate. */
-    private List<String> volumeSplitLines = new ArrayList<>();
-    private List<String> volumeSpeedLines = new ArrayList<>();
-
-    /** Keep the chosen spot when the lines are restamped, so a moving price
-     *  never moves the owner's own choice out from under him. */
-    private void refill(ArrayAdapter<String> adapter, List<String> lines,
-                        Spinner spinner, int choice) {
-        if (adapter == null || spinner == null) {
+        List<String> ranked = volumeSplitChoice == 1
+                ? rankedSpeedSymbols(quotes)
+                : rankedSplitSymbols(quotes);
+        List<String> lines = quoteLines(quotes, ranked);
+        if (lines.isEmpty()) {
+            volumeReveal.setVisibility(View.GONE);
+            volumeLines = new ArrayList<>();
             return;
         }
-        adapter.setNotifyOnChange(false);
-        adapter.clear();
-        for (String line : lines) {
-            adapter.add(line);
+        if (lines.equals(volumeLines)) {
+            return;
         }
-        adapter.notifyDataSetChanged();
-        int keep = Math.max(0, Math.min(choice, lines.size() - 1));
-        spinner.setSelection(lines.isEmpty() ? 0 : keep);
+        StringBuilder text = new StringBuilder();
+        for (int i = 0; i < lines.size(); i++) {
+            if (i > 0) {
+                text.append('\n');
+            }
+            text.append(lines.get(i));
+        }
+        volumeLines = lines;
+        volumeReveal.setText(text);
+        volumeReveal.setVisibility(View.VISIBLE);
     }
 
+    /** The last lines shown in the reveal, so a tick that changes no
+     *  number does not repaint it. */
+    private List<String> volumeLines = new ArrayList<>();
+
     /**
-     * Dropdown 1 (owner order 2026-10-23; retitled v2.1.0, "More buyers
-     * & sellers"): the three BUSIEST scrips the relay's own answer
+     * Menu 1 (owner order 2026-10-23; retitled v2.1.0, v2.2.1's ONE
+     * dropdown): the three BUSIEST scrips the relay's own answer
      * knows, ranked by the combined buying and selling activity of the
      * session's split. A scrip whose frame has no complete range cannot
      * be ranked and is skipped instead of guessed at (SO-3): null is not
@@ -893,7 +862,7 @@ public class MainActivity extends Activity {
     }
 
     /**
-     * Dropdown 2 (owner order 2026-10-23; retitled v2.1.0, "Price moving
+     * Menu 2 (owner order 2026-10-23; retitled v2.1.0, "Price moving
      * fast"): the three prices moving HARDEST, either direction, by the
      * relay's own day move - a falling price is as fast a price as a
      * rising one. A scrip with no day's movement cannot claim the menu,
@@ -1244,32 +1213,6 @@ public class MainActivity extends Activity {
         }
     }
 
-    /**
-     * The 1-second watch window on Android is best effort: setExactAndAllowWhileIdle
-     * is capped inside Doze and some OEM battery managers stop the app
-     * entirely. A battery optimisation exemption is the one thing an app can
-     * ask for, so ask for it. Never nag: the first run asks once and the
-     * watch window button asks again only because the owner pressed it.
-     */
-    private void maybeRequestBatteryExemption(boolean byOwner) {
-        android.os.PowerManager pm =
-                (android.os.PowerManager) getSystemService(POWER_SERVICE);
-        if (pm == null || pm.isIgnoringBatteryOptimizations(getPackageName())) {
-            return; // already exempt: nothing to ask for
-        }
-        if (!byOwner && prefs.getBoolean("asked_battery", false)) {
-            return;
-        }
-        prefs.edit().putBoolean("asked_battery", true).apply();
-        try {
-            startActivity(new Intent(
-                    android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
-                    Uri.parse("package:" + getPackageName())));
-        } catch (Exception e) {
-            toast("Allow the battery exemption so the watch window is never frozen.");
-        }
-    }
-
     @Override
     protected void onResume() {
         super.onResume();
@@ -1321,21 +1264,29 @@ public class MainActivity extends Activity {
     /**
      * The one scheduling point of the whole loop (owner order 2026-10-16).
      *
-     * The interval is a function of the relay's own answer, so it changes the
-     * moment the market does: a live session is polled every
-     * Watcher.FAST_POLL_MS (one second), which is as fast as a new signal can
-     * appear, and a closed market, its midday break or an unreachable relay
-     * falls back to Watcher.REFRESH_MS (thirty seconds), because nothing on
-     * the screen can change until the session does and a shut market must not
-     * cost a request a second on the owner's battery. Every path schedules
-     * through here, so the cadence is decided in exactly one place and a
-     * removeCallbacks on the same runnable makes a re-schedule idempotent
-     * instead of stacking a second loop.
+     * The interval is ALWAYS Watcher.FAST_POLL_MS, one second, whatever the
+     * market is doing: the owner ordered the phone's tick to read like a
+     * digital clock, so every number the relay publishes (the INDEX tile's
+     * volumes, the leaders, the search rows) lands on the screen the second
+     * after the relay has it, open market or not (v2.2.1). Closed sessions
+     * cost a request a second only while the console is on screen - onPause
+     * still removes the runnable, so an off-screen app schedules nothing.
+     * Every path schedules through here, so the cadence is decided in
+     * exactly one place and a removeCallbacks on the same runnable makes a
+     * re-schedule idempotent instead of stacking a second loop.
      */
     private void scheduleNext() {
+        // Owner order 2026-10-23 (v2.2.1, "on the INDEX tile, I am still
+        // not seeing the volume moving in real time, like seconds move in
+        // a digital clock"): the foreground tick is ALWAYS the one-second
+        // cadence now, open market or not, so every number the relay
+        // publishes lands on the INDEX tile within a second - the same
+        // clock-tick read the search rows already have. The relay only
+        // publishes what the feed produced (SO-3): the tile repaints every
+        // second and a number moves the second the feed moves, and the
+        // phone never invents a digit to keep the clock looking alive.
         cadence.removeCallbacks(tick);
-        cadence.postDelayed(tick, marketOpenSeen
-                ? Watcher.FAST_POLL_MS : Watcher.REFRESH_MS);
+        cadence.postDelayed(tick, Watcher.FAST_POLL_MS);
     }
 
     /**
@@ -1448,7 +1399,6 @@ public class MainActivity extends Activity {
         // skipping a repaint must never skip the scheduling point. scheduleNext
         // removes and re-posts the one runnable, so this call cannot stack a
         // second loop.
-        marketOpenSeen = online;
         scheduleNext();
     }
 
