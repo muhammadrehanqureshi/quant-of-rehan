@@ -51,7 +51,10 @@ public class ThinkingOrb extends View {
     private static final int NODES = 105;
     /** Cluster anchors the nodes are gathered around. */
     private static final int CLUSTERS = 5;
+    /** Per-node slots in the cloud[] record: x, y, z, breath, shimmer. */
+    private static final int NODE_STRIDE = 5;
     /** Per-node pace of the frame loop, aimed at a smooth 30fps. */
+    private static final long FPS_MS = 33L;
     private static final long FPS_MS = 33L;
 
     /**
@@ -124,7 +127,7 @@ public class ThinkingOrb extends View {
      * shimmer phase. Per-frame screen coordinates and depths are parallel
      * arrays rebuilt in place, so no allocation ever lands on the frame.
      */
-    private final float[] cloud = new float[NODES * 5];
+    private final float[] cloud = new float[NODES * NODE_STRIDE];
     private final float[] screenX = new float[NODES];
     private final float[] screenY = new float[NODES];
     private final float[] depth = new float[NODES];
@@ -274,8 +277,7 @@ public class ThinkingOrb extends View {
                 x *= 1.25f;
                 y *= 1.25f;
                 z *= 1.25f;
-            }
-            int o = n * 5;
+            }             int o = n * NODE_STRIDE;
             cloud[o] = clampAbs(x, 0.97f);
             cloud[o + 1] = clampAbs(y, 0.97f);
             cloud[o + 2] = clampAbs(z, 0.97f);
@@ -286,9 +288,9 @@ public class ThinkingOrb extends View {
         linkCount = 0;
         for (int i = 0; i < NODES && linkCount < linkBudget(); i++) {
             for (int j = i + 1; j < NODES && linkCount < linkBudget(); j++) {
-                float dx = cloud[i * 5] - cloud[j * 5];
-                float dy = cloud[i * 5 + 1] - cloud[j * 5 + 1];
-                float dz = cloud[i * 5 + 2] - cloud[j * 5 + 2];
+                float dx = cloud[i * NODE_STRIDE] - cloud[j * NODE_STRIDE];
+                float dy = cloud[i * NODE_STRIDE + 1] - cloud[j * NODE_STRIDE + 1];
+                float dz = cloud[i * NODE_STRIDE + 2] - cloud[j * NODE_STRIDE + 2];
                 float dist = (float) Math.sqrt(dx * dx + dy * dy + dz * dz);
                 if (dist <= linkAt) {
                     linkA[linkCount] = i;
@@ -450,8 +452,7 @@ public class ThinkingOrb extends View {
         float sinPitch = (float) Math.sin(pitch);
         float cloudBreath = 1f + 0.035f * (float) Math.sin(seconds * 0.55f);
         float distance = orbRadius * 2.8f;
-        for (int n = 0; n < NODES; n++) {
-            int o = n * 5;
+        for (int n = 0; n < NODES; n++) {             int o = n * NODE_STRIDE;
             float breathe = 1f + 0.06f * (float) Math.sin(
                     seconds * 0.8f * MOTION_SCALE + cloud[o + 3]);
             float x = cloud[o] * cloudBreath * breathe;
@@ -481,8 +482,7 @@ public class ThinkingOrb extends View {
             canvas.drawLine(screenX[a], screenY[a], screenX[b], screenY[b],
                     linkPaint);
         }
-        for (int n = 0; n < NODES; n++) {
-            int o = n * 5;
+        for (int n = 0; n < NODES; n++) {             int o = n * NODE_STRIDE;
             float toward = clamp((depth[n] - 1f) / 0.6f, 0f, 1f);
             float shimmer = 0.8f + 0.2f * (float) Math.sin(
                     seconds * 1.4f * MOTION_SCALE + cloud[o + 4]);
