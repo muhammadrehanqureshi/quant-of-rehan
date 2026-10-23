@@ -42,11 +42,11 @@
         <item name="android:padding">12dp</item>
         <item name="android:textColor">@color/text_bright</item>
     </style>
-    <!-- Owner order 2026-10-22: every heading grew 10% again.
-         Headings are 10% bigger than their previous size. -->
+    <!-- Owner order 2026-10-23 (v1.9.13): every heading shrinks 10% from
+         its previous size, one factor on the one heading style. -->
     <style name="QorLabel">
         <item name="android:fontFamily">@font/lemonmilk_bold</item>
-        <item name="android:textSize">17.71561sp</item>
+        <item name="android:textSize">15.944049sp</item>
         <item name="android:textColor">@color/gold</item>
         <item name="android:textStyle">bold</item>
         <item name="android:letterSpacing">0.14</item>
@@ -63,11 +63,12 @@
          names read as one system rather than at whatever each tile last wore.
          QorLabel is the one heading style the console uses. -->
     <style name="QorHeading" parent="QorLabel" />
-    <!-- Owner order 2026-10-22: the app brand name is bigger than every other
-         heading, so it stands as the name of the whole console rather than as
-         one of the tile names. It is 15% bigger than the other headings. -->
+    <!-- Owner order 2026-10-23 (v1.9.13): the app brand name is bigger
+         than every other heading, so it stands as the name of the whole
+         console rather than as one of the tile names, and it GREW 20% on
+         its own previous size by the owner's word. -->
     <style name="QorBrandTitle" parent="QorLabel">
-        <item name="android:textSize">20.37295sp</item>
+        <item name="android:textSize">24.44754sp</item>
     </style>
     <!-- The owner's face for short-form text: the market card's values
          (numbers, tickers, money) and, after the order of 2026-10-13, the
