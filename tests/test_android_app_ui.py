@@ -362,255 +362,107 @@ def _format4_has(data: bytes, sub: int, codepoint: int) -> bool:
 
 
 class SettingsControlTest(unittest.TestCase):
-    """The owner's own image, on no tile, centred on the brand line."""
+    """The menu tile at the very bottom (owner order 2026-10-23).
+
+    Home, search and settings moved here from the brand row, bracketed by
+    the same diamond rule the console uses at every change of subject. Each
+    icon is the owner's own png (home.png and search.png were copied from
+    his Desktop, settings.png was already bundled), tinted into the palette,
+    and the page he is currently on is circled in a gold ring: the ring is
+    the selection, and a masked ripple is only the press. The header is the
+    name alone.
+    """
 
     def setUp(self):
         self.layout = LAYOUT.read_text(encoding="utf-8")
         self.strings = STRINGS.read_text(encoding="utf-8")
         self.main = MAIN.read_text(encoding="utf-8")
-        self.ripple = SETTINGS_RIPPLE.read_text(encoding="utf-8")
+        self.dimens = DIMENS.read_text(encoding="utf-8")
 
-    def test_the_control_is_the_owners_own_image(self):
-        button = element(self.layout, 'android:id="@+id/btn_settings"')
-        self.assertIn("<ImageView", button)
-        self.assertIn('android:src="@drawable/settings"', button)
-        # The U+2699 glyph and the drawn gear that replaced it are both gone.
-        self.assertNotIn("gear_glyph", self.layout)
-        self.assertNotIn("ic_gear", self.layout)
-        self.assertNotIn("\u2699", self.strings)
-        self.assertFalse((RES / "drawable" / "ic_gear.xml").exists())
-
-    def test_the_file_is_black_ink_on_transparency(self):
-        # The file as the owner saved it: 512 square, 8 bit RGBA, no background
-        # tile inside the file. Corners transparent, the ring's left edge opaque
-        # at the measured bounding box, and the middle a real aperture.
-        self.assertTrue(SETTINGS_PNG.is_file())
-        self.assertEqual(png_header(SETTINGS_PNG), (512, 512, 8, 6))
-        self.assertEqual(png_pixel(SETTINGS_PNG, 0, 0)[3], 0)
-        self.assertEqual(png_pixel(SETTINGS_PNG, 511, 511)[3], 0)
-        self.assertEqual(png_pixel(SETTINGS_PNG, 256, 256)[3], 0)
-        # The ring is opaque at the measured bounding box, and the ink is
-        # black: the layout's tint is the only colour the icon ever has.
-        self.assertEqual(png_pixel(SETTINGS_PNG, 16, 256), (0, 0, 0, 255))
-        self.assertEqual(png_pixel(SETTINGS_PNG, 128, 256), (0, 0, 0, 255))
-
-    def test_the_tile_and_its_plates_are_removed(self):
-        button = element(self.layout, 'android:id="@+id/btn_settings"')
-        self.assertIn('android:background="@drawable/settings_ripple"', button)
-        self.assertNotIn("gear_bg", self.layout)
-        for name in ("gear_bg.xml", "gear_bg_open.xml", "gear_plate.xml",
-                     "gear_plate_open.xml"):
-            with self.subTest(drawable=name):
-                self.assertFalse((RES / "drawable" / name).exists())
-        self.assertIn("<ripple", self.ripple)
-        self.assertIn("@android:id/mask", self.ripple)
-        # No content item: the ripple is the press and nothing else, so the
-        # control has no tile at rest.
-        self.assertNotIn("android:drawable=", self.ripple)
-
-    def test_the_icon_is_tinted_from_the_app_palette(self):
-        button = element(self.layout, 'android:id="@+id/btn_settings"')
-        self.assertIn('android:tint="@color/gold"', button)
-        self.assertIn("btnSettings.setImageTintList", self.main)
-        self.assertIn("R.color.gold_bright", self.main)
-
-    def test_the_control_is_centred_on_the_title(self):
+    def test_the_menu_tile_is_bracketed_by_rules_at_the_very_bottom(self):
         root = layout_root()
-        button = find_view(root, "@+id/btn_settings")
-        title = find_view(root, "@+id/brand_title")
-        tagline = find_view(root, "@+id/brand_tagline")
-        self.assertIsNotNone(button)
-        self.assertIsNotNone(title)
-        self.assertIsNotNone(tagline)
-        row = parent_of(root, button)
-        self.assertTrue(row.tag.endswith("RelativeLayout"))
-        self.assertIs(row, parent_of(root, title))
-        # Owner order 2026-10-14 (sixth note): the control is centred
-        # VERTICALLY on the title, so the box's own middle stands on the
-        # line's middle at any font scale. The baseline rule of 2026-10-13
-        # (second note) is retired, and with it every measured pixel: the
-        # layout holds the centring, and MainActivity holds no layout listener
-        # that could move the control after a layout.
-        self.assertEqual(button.get(f"{ANDROID_NS}layout_centerVertical"),
-                         "true")
-        self.assertIsNone(button.get(f"{ANDROID_NS}layout_alignTop"))
-        self.assertNotIn("alignSettingsToBrandBaseline", self.main)
-        self.assertNotIn("addOnLayoutChangeListener", self.main)
-        self.assertNotIn("brandTitle", self.main)
-        # Owner order 2026-10-16 (fourth note): the one thing MainActivity now
-        # writes on the control is the ORDERED offset, clamped to the room the
-        # screen has. It reads that offset from the same two resources the
-        # layout declares and never re-derives a position from the title, so
-        # the centring is still the layout's fact and this cannot become the
-        # old baseline measure by another name.
-        shift = self.main[self.main.index("private void applySettingsShift()"):]
-        shift = shift[:shift.index("private void setSettingsOpen")]
-        self.assertIn("R.dimen.settings_shift_x", shift)
-        self.assertIn("R.dimen.settings_shift_y", shift)
-        self.assertNotIn("brand_title", shift)
-        self.assertNotIn("getBaseline", shift)
-        # The tagline stays outside the row, so it cannot pull the control
-        # down: the control is centred on the brand text itself.
-        self.assertIsNot(row, parent_of(root, tagline))
-        # And it is still the title the control stands beside, so the pair
-        # shares both axes rather than only the vertical one.
-        self.assertEqual(button.get(f"{ANDROID_NS}layout_toEndOf"),
-                         "@id/brand_title")
+        nav = find_view(root, "@+id/nav_tile")
+        self.assertIsNotNone(nav)
+        self.assertEqual(nav.get("style"), "@style/QorPanel")
+        bracket = [node for node in root.iter() if node.tag == "include"
+                   and node.get(f"{ANDROID_NS}id") in
+                   ("@+id/rule_before_nav", "@+id/rule_after_nav")]
+        self.assertEqual([node.get(f"{ANDROID_NS}id") for node in bracket],
+                         ["@+id/rule_before_nav", "@+id/rule_after_nav"])
+        # Above the tile and below it: the same diamond rule as every other
+        # change of subject, declared once in qor_rule.xml.
+        for rule in bracket:
+            self.assertEqual(rule.get("layout"), "@layout/qor_rule")
+        # Nothing comes after the lower rule: it closes the console.
+        self.assertLess(self.layout.index("@+id/rule_before_nav"),
+                        self.layout.index("@+id/nav_tile"))
+        self.assertLess(self.layout.index("@+id/nav_tile"),
+                        self.layout.index("@+id/rule_after_nav"))
+        following = siblings_after(root, bracket[1])
+        self.assertFalse(following, "the lower rule closes the console")
 
-    def test_the_control_cannot_be_cropped_by_its_row(self):
-        # Owner order 2026-10-13 (third note): the control's box is 42dp while
-        # a 30sp Bonskin line stands only about 30dp of ink above its
-        # baseline, so the box overhangs that line by about 9dp and a
-        # RelativeLayout clips its children by default. The row therefore
-        # holds no clip, which keeps the box whole at any font scale, and the
-        # vertical margin that used to give the overhang a home is retired:
-        # the box is centred on the line now (sixth note), which spends half of
-        # that overhang above the line and half below it. Owner order
-        # 2026-10-16 (fourth note): every ancestor, not only the row, holds no
-        # clip, because the ordered translation moves the DRAWN box past three
-        # of them as well.
-        root = layout_root()
-        button = find_view(root, "@+id/btn_settings")
-        row = find_view(root, "@+id/brand_row")
-        header = parent_of(root, row)
-        self.assertIsNotNone(button)
-        self.assertIsNotNone(row)
-        self.assertEqual(row.get(f"{ANDROID_NS}clipChildren"), "false")
-        self.assertEqual(header.get(f"{ANDROID_NS}clipChildren"), "false")
-        self.assertIs(row, parent_of(root, button))
-        self.assertIsNone(button.get(f"{ANDROID_NS}layout_marginTop"),
-                          "the baseline overhang is retired with the rule")
-        # The promise the no-clip row still has to keep: a box taller than the
-        # line it is centred on (title is bigger now).
-        box = int(button.get(f"{ANDROID_NS}layout_height")[:-2])
-        ascent = 39.675 * 1006 / 1000        # Bonskin hhea ascender
-        self.assertGreater(box, ascent)
-        # The ink sits `padding` inside the box, so the silhouette keeps clear
-        # of the box edge as well.
-        padding = int(button.get(f"{ANDROID_NS}padding")[:-2])
-        self.assertLessEqual(padding, 8)
+    def test_the_three_icons_are_the_owners_own_pngs(self):
+        for view_id, name in (("btn_nav_home", "home"),
+                              ("btn_nav_search", "search"),
+                              ("btn_nav_settings", "settings")):
+            with self.subTest(icon=name):
+                button = element(self.layout, f'android:id="@+id/{view_id}"')
+                self.assertIn("<ImageView", button)
+                self.assertIn(f'android:src="@drawable/{name}"', button)
+                self.assertTrue(
+                    (RES / "drawable-nodpi" / f"{name}.png").is_file())
+                # One box, the ink padded inside it: the tint does the
+                # colour, the png does the shape.
+                self.assertIn('android:layout_width="42dp"', button)
+                self.assertEqual(
+                    button.get(f"{ANDROID_NS}contentDescription"),
+                    f"@string/cd_{name}")
 
-    def test_the_ordered_offset_is_clamped_to_the_room_the_screen_has(self):
-        """Owner order 2026-10-16 (fourth note): the press gradient was cut.
-
-        The control hangs off the centred brand title and is translated by
-        @dimen/settings_shift_x, which is what the owner ordered. On a narrow
-        content area that translation can carry the control's box past the
-        window's right edge, and the pixels outside the window are not clipped
-        by a parent, they simply do not exist, which the owner saw as a sliced
-        gradient. Two halves fix it, and this test pins both:
-
-          * every ancestor of the control stops clipping (scroll view, content
-            column, header, brand row), so a drawn box may overhang its own
-            row;
-          * MainActivity clamps the ordered offset to the pixels actually
-            available between the control's right edge and the window's, read
-            from real geometry after the first layout (posted, so a layout
-            exists), and never to a guessed width.
-        """
-        root = layout_root()
-        button = find_view(root, "@+id/btn_settings")
-        clip_free = []
-        node = button
-        while node is not None:
-            clip_free.append(node.tag)
-            node = parent_of(root, node)
-        # scroll view, content column, header, brand row: the chain above the
-        # control, most of which used to clip.
-        self.assertIn("ScrollView", clip_free)
-        self.assertIn("LinearLayout", clip_free)
-        self.assertIn("RelativeLayout", clip_free)
-        layout = LAYOUT.read_text(encoding="utf-8")
-        self.assertIn('android:clipToPadding="false"', layout)
-        self.assertGreaterEqual(layout.count('android:clipChildren="false"'), 4)
-        # The clamp itself: posted after the first layout, ordered magnitudes
-        # from the layout's own dimens, bounded by measured room.
-        self.assertIn("btnSettings.post(", self.main)
-        self.assertIn("window.getLocationOnScreen(windowAt)", self.main)
-        self.assertIn("room = windowAt[0] + window.getWidth() - naturalRight",
+    def test_the_open_page_is_circled_and_the_rest_are_rippled(self):
+        home = element(self.layout, 'android:id="@+id/btn_nav_home"')
+        search = element(self.layout, 'android:id="@+id/btn_nav_search"')
+        settings = element(self.layout, 'android:id="@+id/btn_nav_settings"')
+        self.assertIn('android:background="@drawable/nav_circle"', home)
+        self.assertIn('android:tint="@color/gold_bright"', home)
+        for other in (search, settings):
+            with self.subTest(other=other.get(f"{ANDROID_NS}id")):
+                self.assertIn(
+                    'android:background="@drawable/settings_ripple"',
+                    other)
+                self.assertIn('android:tint="@color/gold"', other)
+        # The state machine is the one helper MainActivity calls with the
+        # page's truth, never a view's own state.
+        self.assertIn("? R.drawable.nav_circle : R.drawable.settings_ripple",
                       self.main)
-        self.assertIn("Math.min(orderedX, Math.max(0f, room))", self.main)
-        self.assertIn("btnSettings.setTranslationX(", self.main)
-        # It never invents an offset of its own: the ordered one is the
-        # ceiling, so a wide screen gets exactly what the owner asked for.
-        self.assertIn("R.dimen.settings_shift_x", self.main)
-        self.assertIn("R.dimen.settings_shift_y", self.main)
+        self.assertIn("selected ? R.color.gold_bright : R.color.gold",
+                      self.main)
+        self.assertIn("setNavPage(navHome, !searchOpen && !settingsOpen);",
+                      self.main)
+        self.assertIn("setNavPage(navSearch, searchOpen);", self.main)
+        self.assertIn("setNavPage(navSettings, settingsOpen);", self.main)
 
-    def test_the_control_is_nudged_right_and_up_by_the_owners_fractions(self):
-        """Owner orders, stacked: 20% right and 5% up, then a further 70%
-        right and 15% up, then (2026-10-16) 15% right and 5% DOWN.
-
-        Every order is a fraction of the control's own 42dp box and the shift
-        is a translation, so the fractions simply sum: 20 + 70 + 15 = 105%
-        right and 5 + 15 - 5 = 15% up, which is 42 x 1.05 = 44.1dp right and
-        42 x 0.15 = 6.3dp up (a negative translation in Android's
-        coordinates). The anchors of the earlier orders still hold, so a
-        stacked translation keeps the same shape on any screen and at any
-        font scale.
-        """
+    def test_the_header_is_the_name_alone(self):
+        # The gear and the glass left the brand row for the menu tile; no
+        # control shares the name's row any more.
+        self.assertNotIn('android:id="@+id/btn_settings"', self.layout)
+        self.assertNotIn("applySettingsShift", self.main)
+        self.assertNotIn("settings_shift_x", self.dimens)
+        self.assertNotIn("search_shift_x", self.dimens)
         root = layout_root()
-        button = find_view(root, "@+id/btn_settings")
-        self.assertEqual(button.get(f"{ANDROID_NS}translationX"),
-                         "@dimen/settings_shift_x")
-        self.assertEqual(button.get(f"{ANDROID_NS}translationY"),
-                         "@dimen/settings_shift_y")
-        self.assertEqual(button.get(f"{ANDROID_NS}layout_toEndOf"),
-                         "@id/brand_title")
-        self.assertEqual(button.get(f"{ANDROID_NS}layout_centerVertical"),
-                         "true")
-        dimens = (RES / "values" / "dimens.xml").read_text(encoding="utf-8")
-        box = int(button.get(f"{ANDROID_NS}layout_width")[:-2])
-        self.assertIn(
-            f'<dimen name="settings_shift_x">{box * 1.05:.1f}dp</dimen>',
-            dimens)
-        self.assertIn(
-            f'<dimen name="settings_shift_y">-{box * 0.15:.1f}dp</dimen>',
-            dimens)
-        # Today's order is +15% right and +5% down FROM where the control
-        # already stood, so the vertical shift must be SMALLER than the old
-        # 20% up rather than larger: a sign error here would move the icon up
-        # again and still satisfy a magnitude only check.
-        self.assertLess(42 * 0.15, 42 * 0.20)
-        self.assertLess(37.8, box * 1.05)
-
-    def test_the_control_sits_beside_the_title(self):
-        # Owner order 2026-10-13 (fourth note): adjacent to the brand name,
-        # anchored to the title's own right edge rather than pinned to the
-        # row's far corner: the pair holds at any width and any font scale,
-        # and the title can never grow into the control.
-        root = layout_root()
-        button = find_view(root, "@+id/btn_settings")
         title = find_view(root, "@+id/brand_title")
-        self.assertIsNotNone(button)
-        self.assertIsNotNone(title)
-        self.assertEqual(button.get(f"{ANDROID_NS}layout_toEndOf"),
-                         "@id/brand_title")
-        self.assertIsNone(button.get(f"{ANDROID_NS}layout_alignParentEnd"),
-                          "the corner placement is retired")
-        # 6dp of margin plus the control's own 6dp padding: 12dp of air
-        # between the name and the ink, the grid's own unit.
-        margin = int(button.get(f"{ANDROID_NS}layout_marginLeft")[:-2])
-        padding = int(button.get(f"{ANDROID_NS}padding")[:-2])
-        self.assertEqual(margin + padding, 12)
-        # Clickability contract, unchanged: full-size box, masked ripple,
-        # a button's name for the screen reader.
-        self.assertEqual(button.get(f"{ANDROID_NS}layout_height"), "42dp")
-        self.assertIn("settings_ripple",
-                      button.get(f"{ANDROID_NS}background"))
-        self.assertEqual(button.get(f"{ANDROID_NS}contentDescription"),
-                         "@string/cd_settings")
+        row = parent_of(root, title)
+        self.assertEqual(row.get(f"{ANDROID_NS}id"), "@+id/brand_row")
+        children = [node.tag for node in row if node.tag != "Comment"]
+        self.assertEqual(children, ["TextView"])
 
-    def test_the_quarter_turn_is_one_place_per_state(self):
-        self.assertIn(".rotation(open ? -90f : 0f)", self.main)
-        self.assertIn("GEAR_TURN_MS", self.main)
-        self.assertIn("new DecelerateInterpolator()", self.main)
-        # Every state change goes through the one helper, and the open no
-        # longer swaps a background anywhere. Three call sites since owner
-        # order 2026-10-20: the declaration, the gear tap, and the search menu
-        # closing the panel so two menus can never be open at once.
-        self.assertEqual(self.main.count("setSettingsOpen("), 3)
-        self.assertNotIn("gear_bg", self.main)
-        self.assertNotIn("setBackgroundResource", self.main)
+    def test_the_quarter_turn_is_retired_with_the_gear(self):
+        # The icon no longer rotates: nav state is the background and the
+        # tint, so no open/close torque needs an interpolator.
+        self.assertNotIn(".rotation(", self.main)
+        self.assertNotIn("GEAR_TURN_MS", self.main)
+        self.assertNotIn(
+            "settings_shift",
+            (RES / "values" / "dimens.xml").read_text(encoding="utf-8"))
 
     def test_the_settings_tile_carries_no_token_and_no_technical_clutter(self):
         """Owner order 2026-10-19: the phone holds no credential.
@@ -621,18 +473,21 @@ class SettingsControlTest(unittest.TestCase):
         tests/test_relay_worker_contracts.py pins that split (public GET,
         admin-gated POST).
         """
-        layout = LAYOUT.read_text(encoding="utf-8")
         for gone in ("token_box", "btn_save", "field_bg"):
             with self.subTest(view=gone):
-                self.assertNotIn(f'android:id="@+id/{gone}"', layout)
+                self.assertNotIn(f'android:id="@+id/{gone}"', self.layout)
         for source in MAIN, WATCHER, STATUS_SERVICE:
-            self.assertNotIn("admin_token", source.read_text(encoding="utf-8"))
+            self.assertNotIn("admin_token",
+                             source.read_text(encoding="utf-8"))
 
     def test_the_content_description_is_a_button_name_not_the_help_text(self):
-        self.assertIn('name="cd_settings"', self.strings)
+        for name in ("cd_home", "cd_search", "cd_settings"):
+            with self.subTest(resource=name):
+                self.assertIn(f'name="{name}"', self.strings)
         settings_hint = self.strings.index('name="settings_hint"')
         cd = self.strings.index('name="cd_settings"')
-        hint_line = self.strings[settings_hint:self.strings.index("</string>", settings_hint)]
+        hint_line = self.strings[settings_hint:self.strings.index("</string>",
+                                                                  settings_hint)]
         cd_line = self.strings[cd:self.strings.index("</string>", cd)]
         # The button is named briefly; the paragraph stays help text, and the
         # two are different strings.
@@ -686,10 +541,10 @@ class BrandRuleTest(unittest.TestCase):
     def test_the_rule_is_defined_once_and_included_at_every_division(self):
         self.assertIn("QorDiamond", self.rule)
         self.assertIn('android:text="@string/diamond"', self.rule)
-        # Four division rules on the console, and since 2026-10-21 the two
-        # the menus own: above the search tile and below the settings tile,
-        # so each menu is bracketed like every tile (owner order 15:35).
-        self.assertEqual(self.layout.count('layout="@layout/qor_rule"'), 6)
+        # Eight rules on the console (owner order 2026-10-23): the ones the
+        # tiles own, the two the menus carry, and the pair that brackets the
+        # menu tile at the very bottom.
+        self.assertEqual(self.layout.count('layout="@layout/qor_rule"'), 8)
 
     def test_the_rules_stand_between_the_tiles_and_never_inside_them(self):
         root = layout_root()
@@ -896,23 +751,28 @@ class CadencePlacementTest(unittest.TestCase):
         start = self.strings.index(marker) + len(marker)
         return self.strings[start:self.strings.index("</string>", start)]
 
-    def test_the_sentence_stands_after_the_final_rule_as_the_last_view(self):
+    def test_the_sentence_stands_after_the_market_rule(self):
         rules = [node for node in self.root.iter() if node.tag == "include"
                  and node.get("layout") == "@layout/qor_rule"]
-        self.assertEqual(len(rules), 6)
-        # The console's last rule is the market card's: the two rules the
-        # menus own travel with their panels and are not part of it.
+        self.assertEqual(len(rules), 8)
+        # The market card's rule: the two rules the menus own travel with
+        # their panels, and the nav pair closes the console.
         market_rule = next(
             rule for rule in rules
             if rule.get(f"{ANDROID_NS}id") == "@+id/rule_after_market")
         following = siblings_after(self.root, market_rule)
-        self.assertEqual(len(following), 1, "the console ends at the sentence")
+        self.assertEqual(len(following), 1, "the sentence follows the rule")
         view = following[0]
         self.assertEqual(view.tag, "TextView")
         self.assertEqual(view.get(f"{ANDROID_NS}id"), "@+id/scan_cadence")
         self.assertEqual(view.get(f"{ANDROID_NS}text"), "@string/scan_cadence")
         self.assertEqual(view.get("style"), "@style/QorCaption")
-
+        # Owner order 2026-10-23: the menu tile comes after the sentence,
+        # at the very bottom, with its own diamond rules around it. The
+        # sentence is the console's last WORD, not its last view.
+        self.assertIsNotNone(find_view(self.root, "@+id/nav_tile"))
+        self.assertLess(self.layout.index("@+id/scan_cadence"),
+                        self.layout.index("@+id/rule_before_nav"))
     def test_the_market_card_no_longer_carries_the_sentence(self):
         self.assertIsNone(find_view(self.root, "@+id/market_foot"))
         card = parent_of(self.root, find_view(self.root, "@+id/market_leaders"))
@@ -1121,9 +981,21 @@ class StatusPulseTest(unittest.TestCase):
         # round is followed by another fast round without a second loop.
         tick = self.main.index("private final Runnable tick")
         self.assertIn("scheduleNext();", self.main[tick:tick + 400])
-        # The phone never derives the session from its own clock.
-        self.assertNotIn("Calendar", self.main)
-        self.assertNotIn("LocalTime", self.main)
+        # The phone never derives the SESSION from its own clock: no wall
+        # time decides a cadence (SO-8). The greeting is the one exception,
+        # owner order 2026-10-23, and even it reads Karachi's zone and
+        # never the handset's.
+        greeting_start = self.main.index("private void refreshGreeting()")
+        themes_start = self.main.index("THEMES (owner order 2026-10-23)")
+        for slice_ in (self.main[:greeting_start],
+                       self.main[themes_start:]):
+            self.assertNotIn("Calendar", slice_)
+            self.assertNotIn("LocalTime", slice_)
+            self.assertNotIn("System.currentTimeMillis()", slice_)
+        # The greeting reads Karachi's zone, and it is the only reader.
+        greeting = self.main[greeting_start:themes_start]
+        self.assertIn('TimeZone.getTimeZone("Asia/Karachi")', greeting)
+        self.assertIn("HOUR_OF_DAY", greeting)
         self.assertNotIn("System.currentTimeMillis()", self.main)
 
     def test_the_interval_is_re_decided_when_the_answer_lands(self):
@@ -1522,15 +1394,15 @@ class HeaderCopyTest(unittest.TestCase):
 
 class VersionTest(unittest.TestCase):
     def test_the_version_is_the_one_that_ships_these_changes(self):
-        # v1.9.10 is the 2026-10-22 fourth pass: the settings tile keeps its
-        # heading and drops the helper paragraph, the sun's lines grew to ten
-        # and revolve, one body size for every non-heading line (13.31sp
-        # headings after the second 10%, 34.5sp brand after the 15%), and
-        # fetchLive races the health and card reads so a tick paints on the
-        # round it ran. v1.9.9's sun law and v1.9.7's one-ball law stand.
-        manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="1.9.10"', manifest)
-        self.assertIn('android:versionCode="51"', manifest)
+        # v1.9.12 is the 2026-10-23 day: the menu tile at the very bottom with
+        # the owner's own home.png and search.png and a circle on the page he
+        # is on, a THEMES dropdown on the settings page, CUSTOM SCRIPS OF
+        # VOL. on the search page, the greeting above QUANT STATUS, the app
+        # version on the settings page, and /prices rows that carry the
+        # relay's own B/S split. v1.9.10's tile heading, ten solar lines and
+        # one body size stand.
+        self.assertIn('android:versionName="1.9.12"', manifest)
+        self.assertIn('android:versionCode="53"', manifest)
         # The changelog entry ties these user-visible changes to the build.
         readme = (ROOT / "android" / "README.md").read_text(encoding="utf-8")
         self.assertIn("v1.7.9, owner order 2026-10-20", readme)
@@ -1552,6 +1424,8 @@ class VersionTest(unittest.TestCase):
         self.assertIn("Version 1.9.8, versionCode 49", readme)
         self.assertIn("Version 1.9.9, versionCode 50", readme)
         self.assertIn("Version 1.9.10, versionCode 51", readme)
+        self.assertIn("Version 1.9.11, versionCode 52", readme)
+        self.assertIn("Version 1.9.12, versionCode 53", readme)
         layout = LAYOUT.read_text(encoding="utf-8")
         strings = STRINGS.read_text(encoding="utf-8")
         main = MAIN.read_text(encoding="utf-8")
@@ -1661,16 +1535,19 @@ class SearchPanelStabilityTest(unittest.TestCase):
         self.assertIn("R.color.red", tail)
         self.assertIn("R.color.text_soft", tail)
 
-    def test_the_search_glass_stack_matches_every_owner_order(self):
-        dimens = (ROOT / "android" / "app" / "src" / "main" / "res" / "values"
-                  / "dimens.xml").read_text(encoding="utf-8")
-        # The stack: 50.4 (2026-10-20 first), 57.96 (the 15% order), and
-        # today's 62.16 from the 10% order. Each predecessor value is gone
-        # from the LIVE dimen; the history lives in the comment above it.
-        self.assertIn('<dimen name="search_shift_x">62.16dp</dimen>', dimens)
-        self.assertNotIn('>57.96dp</dimen>', dimens)
-        self.assertNotIn('>50.4dp</dimen>', dimens)
-
+    def test_the_search_icon_lives_on_the_nav_tile(self):
+        # Owner order 2026-10-23: the glass moved to the menu tile at the
+        # very bottom; the old header glass, its 42dp shift box and its
+        # shift resources are retired with the placement.
+        layout = LAYOUT.read_text(encoding="utf-8")
+        icon = layout[layout.index("@+id/btn_nav_search"):]
+        icon = icon[:icon.index("/>")]
+        self.assertIn('android:src="@drawable/search"', icon)
+        self.assertFalse((RES / "drawable" / "ic_search.xml").exists())
+        self.assertNotIn(
+            "search_shift",
+            (ROOT / "android" / "app" / "src" / "main" / "res" / "values"
+             / "dimens.xml").read_text(encoding="utf-8"))
     def test_the_search_hint_names_a_scrip_not_a_symbol(self):
         strings = STRINGS.read_text(encoding="utf-8")
         # Owner order 2026-10-21: "Search for a KMIALL scrip".
@@ -1734,14 +1611,30 @@ class UniversalSizeTest(unittest.TestCase):
         self.styles = STYLES.read_text(encoding="utf-8")
         self.main = MAIN.read_text(encoding="utf-8")
 
-    def test_the_layout_declares_only_the_body_and_the_two_headings(self):
-        # Brand title is bigger, everything else is 13sp.
+    def test_the_layout_declares_the_body_size_inline(self):
+        # The owner's 2026-10-23 type law in the resources: every line that
+        # is not a heading is THE body's 13sp, the footer's own number, and
+        # the layout carries that one size inline. The headings declare
+        # their sizes through their styles, so the law is one decision.
         sizes = set(re.findall(r'android:textSize="([0-9.]+sp)"', self.layout))
-        self.assertEqual(sizes, {"13sp", "39.675sp", "17.71561sp", "20.37295sp"})
+        self.assertEqual(sizes, {"13sp"})
+        label = self.styles[self.styles.index('name="QorLabel"'):]
+        self.assertIn('android:textSize">17.71561sp',
+                      label[:label.index("</style>")])
+        brand = self.styles[self.styles.index('name="QorBrandTitle"'):]
+        # The title is its own heading, 15% bigger than the other headings.
+        self.assertIn('android:textSize">20.37295sp',
+                      brand[:brand.index("</style>")])
+        # Body, buttons and captions are the one size round.
+        for style in ("QorBody", "QorButton", "QorCaption"):
+            block = self.styles[self.styles.index(f'name="{style}"'):]
+            self.assertIn('android:textSize">13sp',
+                          block[:block.index("</style>")])
+        # QorValue declares no size of its own: it inherits the body's 13sp.
+        value = self.styles[self.styles.index('name="QorValue"'):]
+        self.assertNotIn("textSize", value[:value.index("</style>")])
         self.assertNotIn("11.5sp", self.layout)
-        self.assertNotIn("15sp", self.layout)
-        self.assertNotIn("17sp", self.layout)
-
+        self.assertNotIn("39.675sp", self.layout)
     def test_the_search_box_is_body_size(self):
         box = self.layout[self.layout.index("@+id/search_input"):]
         self.assertIn('android:textSize="13sp"', box[:box.index("/>")])
@@ -1921,7 +1814,7 @@ class HeadingGrowthTest(unittest.TestCase):
         styles = STYLES.read_text(encoding="utf-8")
         block = styles[styles.index('name="QorLabel"'):]
         block = block[:block.index("</style>")]
-        self.assertIn('android:textSize">14.641sp', block)
+        self.assertIn('android:textSize">17.71561sp', block)
 
     def test_the_body_kept_its_size(self):
         styles = STYLES.read_text(encoding="utf-8")
@@ -1954,6 +1847,90 @@ class HeadingGrowthTest(unittest.TestCase):
         strings = STRINGS.read_text(encoding="utf-8")
         self.assertIn('name="label_system">QUANT STATUS<', strings)
         self.assertIn('name="label_signal">LATEST SIGNAL<', strings)
+
+
+class MenuOrdersTest(unittest.TestCase):
+    """Owner order 2026-10-23: the greeting, the THEMES dropdown, the
+    CUSTOM SCRIPS OF VOL. dropdowns and the version line. Each new
+    contract is pinned on the resources and the one Java decision that
+    carries it.
+    """
+
+    def setUp(self):
+        self.layout = LAYOUT.read_text(encoding="utf-8")
+        self.strings = STRINGS.read_text(encoding="utf-8")
+        self.main = MAIN.read_text(encoding="utf-8")
+        self.colors = COLORS.read_text(encoding="utf-8")
+
+    def resource_value(self, name: str) -> str:
+        marker = f'name="{name}">'
+        start = self.strings.index(marker) + len(marker)
+        return self.strings[start:self.strings.index("</string>", start)]
+
+    def test_the_greeting_precedes_the_status_tile(self):
+        self.assertLess(self.layout.index("@+id/greeting"),
+                        self.layout.index("@+id/tile_status"))
+        self.assertEqual(self.resource_value("greeting_morning"),
+                         "Good morning, Mr. Rehan!")
+        self.assertEqual(self.resource_value("greeting_afternoon"),
+                         "Good afternoon, sir!")
+        # It is a line, not a heading: the body's one size.
+        greeting = element(self.layout, 'android:id="@+id/greeting"')
+        self.assertIn('style="@style/QorValue"', greeting)
+        block = self.main[self.main.index("private void refreshGreeting()"):]
+        block = block[:block.index("private void buildThemeSpinner()")]
+        for resource in ("greeting_morning", "greeting_afternoon"):
+            self.assertIn(f"R.string.{resource}", block)
+
+    def test_the_themes_tile_carries_five_looks(self):
+        self.assertIn('name="label_themes">THEMES<', self.strings)
+        self.assertIn('name="theme_purple">PURPLE &amp; YELLOW<', self.strings)
+        self.assertIn('name="theme_black">BLACK &amp; WHITE<', self.strings)
+        self.assertIn('name="theme_green">GREEN &amp; YELLOW<', self.strings)
+        self.assertIn('name="theme_navy">NAVY BLUE &amp; WHITE<', self.strings)
+        self.assertIn('name="theme_orange">ORANGE &amp; WHITE<', self.strings)
+        spinner = element(self.layout, 'android:id="@+id/theme_spinner"')
+        self.assertIn("<Spinner", spinner)
+        # The five looks are declared colours, not hex in Java.
+        for theme in ("black", "green", "navy", "orange"):
+            for weight in ("bg", "panel", "accent"):
+                self.assertIn(f'name="theme_{theme}_{weight}"', self.colors)
+        # One switch paints the look, and the selection is remembered.
+        self.assertIn('prefs.edit().putInt("theme", index).apply();',
+                      self.main)
+        for theme in ("black", "green", "navy", "orange"):
+            self.assertIn(f"R.color.theme_{theme}_bg", self.main)
+        self.assertIn("THEME_LABELS.length", self.main)
+
+    def test_the_volume_tile_sits_on_the_search_page(self):
+        self.assertIn('name="label_volume">CUSTOM SCRIPS OF VOL.<',
+                      self.strings)
+        self.assertIn('name="volume_split_caption">HIGHEST B &amp; LOWEST S.<',
+                      self.strings)
+        self.assertIn('name="volume_speed_caption">FASTEST PRICE.<',
+                      self.strings)
+        self.assertLess(self.layout.index("@+id/tile_volume"),
+                        self.layout.index("@+id/tile_market"))
+        for view_id in ("volume_split_spinner", "volume_speed_spinner"):
+            with self.subTest(spinner=view_id):
+                spinner = element(self.layout,
+                                  f'android:id="@+id/{view_id}"')
+                self.assertIn("<Spinner", spinner)
+        # Both dropdowns are ranked from the map the search already
+        # refreshes, so neither costs a request of its own.
+        self.assertIn("Watcher.quotes()", self.main)
+        self.assertIn("rankedSplitSymbols(", self.main)
+        self.assertIn("rankedSpeedSymbols(", self.main)
+
+    def test_the_version_line_names_the_manifest(self):
+        version = element(self.layout, 'android:id="@+id/app_version"')
+        self.assertIn('style="@style/QorCaption"', version)
+        self.assertIn('name="app_version_prefix">APP VERSION ', self.strings)
+        # The number is the manifest's own versionName, the same one the
+        # build prints: the page and the APK cannot disagree.
+        self.assertIn("getPackageInfo(getPackageName(), 0).versionName;",
+                      self.main)
+
 
 
 class KarachiInkTest(unittest.TestCase):
@@ -2264,7 +2241,7 @@ class UniversalRuleGapTest(unittest.TestCase):
         rules = [node for node in self.root.iter()
                  if node.tag == "include"
                  and node.get("layout") == "@layout/qor_rule"]
-        self.assertEqual(len(rules), 6)
+        self.assertEqual(len(rules), 8)
         for rule in rules:
             with self.subTest(rule=rule.get(f"{ANDROID_NS}id")):
                 self.assertEqual(rule.get(f"{ANDROID_NS}layout_marginTop"),
@@ -2272,7 +2249,7 @@ class UniversalRuleGapTest(unittest.TestCase):
 
     def test_every_tile_that_follows_a_rule_carries_the_same_gap(self):
         for view_id in ("tile_status", "tile_signal", "tile_market",
-                        "search_panel", "settings_panel"):
+                        "search_panel", "settings_panel", "nav_tile"):
             with self.subTest(tile=view_id):
                 tile = find_view(self.root, f"@+id/{view_id}")
                 self.assertEqual(tile.get(f"{ANDROID_NS}layout_marginTop"),

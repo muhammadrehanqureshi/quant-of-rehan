@@ -72,4 +72,30 @@
     <color name="green_deep_edge">#FF0E3D27</color>
     <color name="green_deep_line">#FF4FC08D</color>
     <color name="on_green">#FFF2FBF6</color>
+
+    <!-- ══════════ THEMES (owner order 2026-10-23) ══════════
+         Five looks, each a (cover, panel, heading ink) triple. The purple
+         theme is the app's current look and keeps the palette above
+         (bg_deep, bg_panel, gold): it is not restuated here, so the
+         default build and the default theme are one and the same. The
+         other four carry their own numbers, named in the order the owner
+         asked and the dropdown lists them: black and white, green and
+         yellow, navy blue and white, orange and white. Every cover is
+         dark enough that the console's existing body inks (text_soft,
+         text_bright) keep their contrast, and the heading colour is the
+         pair's owner-chosen ink; the yellow the green theme shares is
+         the brand gold, so a heading is one fact and never a third
+         yellow invented per theme. -->
+    <color name="theme_black_bg">#FF000000</color>
+    <color name="theme_black_panel">#FF141414</color>
+    <color name="theme_black_accent">#FFFFFFFF</color>
+    <color name="theme_green_bg">#FF0B2417</color>
+    <color name="theme_green_panel">#FF143220</color>
+    <color name="theme_green_accent">#FFD9A441</color>
+    <color name="theme_navy_bg">#FF0A1330</color>
+    <color name="theme_navy_panel">#FF131C3D</color>
+    <color name="theme_navy_accent">#FFFFFFFF</color>
+    <color name="theme_orange_bg">#FF2F1307</color>
+    <color name="theme_orange_panel">#FF3F1B0C</color>
+    <color name="theme_orange_accent">#FFFFFFFF</color>
 </resources>

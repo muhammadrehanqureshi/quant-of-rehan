@@ -23,6 +23,50 @@
     <string name="cd_settings">Opens the ARM THE 1-SECOND WATCH WINDOW control.</string>
     <string name="cd_search">Search. Finds a KMIALL symbol and shows its buy, sell and total volume.</string>
     <string name="search_hint">Search for a KMIALL scrip</string>
+    <!-- Owner order 2026-10-23: the menu tile at the very bottom, its own
+         spoken names. The three pages are labelled HOME on the nav ring. -->
+    <string name="cd_home">Home. Shows the console: status, signal and the index.</string>
+
+    <!-- ══════════ the volume dropdowns (owner order 2026-10-23) ══════════
+         The tile's heading is his exact words. The two dropdowns: the
+         first is ranked by the session's own B/S split (highest buy with
+         the lowest sell), the second by the speed of the price. The
+         captions name which dropdown is which, at the body's size, and
+         the prompts do the same job in the popup. All of it states what
+         the ranking is, never that a split is order flow (SO-3); the
+         split's method stays labelled on the relay's own answer. -->
+    <string name="label_volume">CUSTOM SCRIPS OF VOL.</string>
+    <string name="volume_split_caption">HIGHEST B &amp; LOWEST S.</string>
+    <string name="volume_speed_caption">FASTEST PRICE.</string>
+    <string name="volume_split_prompt">HIGHEST BUY &amp; LOWEST SELL.</string>
+    <string name="volume_speed_prompt">PRICE MOVING FASTEST.</string>
+
+    <!-- ══════════ THEMES tile (owner order 2026-10-23) ══════════
+         Five looks, each a (background, heading colour) pair read in the
+         same order he named them. The values MainActivity applies live
+         in one place (colors.xml, theme_*); the dropdown only names a
+         pair. THE SEQUENCE IS THE ORDER HE ASKED FOR: purple and yellow
+         first (the app's current look), then the four he added. -->
+    <string name="label_themes">THEMES</string>
+    <string name="theme_prompt">THE APP\'S COVER &amp; HEADINGS.</string>
+    <string name="theme_purple">PURPLE &amp; YELLOW</string>
+    <string name="theme_black">BLACK &amp; WHITE</string>
+    <string name="theme_green">GREEN &amp; YELLOW</string>
+    <string name="theme_navy">NAVY BLUE &amp; WHITE</string>
+    <string name="theme_orange">ORANGE &amp; WHITE</string>
+
+    <!-- ══════════ the greeting (owner order 2026-10-23) ══════════
+         His exact sentences. Before noon in Karachi the app calls him by
+         good morning, Mr. Rehan!", after noon by "Good afternoon, sir!",
+         and which one is decided by Asia/Karachi's own clock (SO-8). -->
+    <string name="greeting_morning">Good morning, Mr. Rehan!</string>
+    <string name="greeting_afternoon">Good afternoon, sir!</string>
+
+    <!-- Owner order 2026-10-23: the app version on the settings page. The
+         number itself is the manifest's versionName, written by
+         MainActivity; this sentence is the fallback if the package cannot
+         be read (and should never be seen). -->
+    <string name="app_version_prefix">APP VERSION </string>
     <string name="search_waiting">Symbols load with the next relay answer.</string>
     <string name="search_loading">Reading the symbol\u2026</string>
     <string name="search_unavailable">That symbol has no live quote from the relay yet.</string>

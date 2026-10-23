@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Owner order 2026-10-23: the menu tile circles the page he is on.
+     The ring is a thin gold circle with no fill, so the icon's own ink is
+     the only thing it frames. MainActivity sets it as the background of
+     the selected page's icon (see its pageNavSelection); unselected pages
+     carry the masked press ripple instead, so a ring is never drawn by
+     mistake. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="oval">
+    <stroke
+        android:width="2dp"
+        android:color="@color/gold"/>
+</shape>

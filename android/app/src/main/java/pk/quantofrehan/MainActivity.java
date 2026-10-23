@@ -13,11 +13,14 @@ import android.text.TextWatcher;
 import android.text.style.ForegroundColorSpan;
 import android.text.style.TypefaceSpan;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.animation.AccelerateDecelerateInterpolator;
-import android.view.animation.DecelerateInterpolator;
+import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -134,8 +137,7 @@ import java.util.Locale;
  *      seconds. On 2026-10-19 the scan itself moved to one second, so the two
  *      cadences now agree.
  *
- * The same order's other two notes: the settings control's ordered offset is
- * clamped to the room the screen actually has (see applySettingsShift), which
+ * The same order's other two notes: the settings control's ordered offset is     * clamped to the room the screen actually has, which
  * is what stopped its press gradient being sliced, and the OFFLINE light is
  * the ONLINE light in red and still (drawable/ic_status_offline).
  *
@@ -169,26 +171,18 @@ public class MainActivity extends Activity {
     private static final String ARROW_FACE = "sans-serif";
 
     /**
-     * The settings icon's quarter turn (owner order 2026-10-13). 220ms reads
-     * as one deliberate turn rather than a flicker, and the turn is short
-     * enough to finish while the panel is already sliding into place.
-     */
-    private static final long GEAR_TURN_MS = 220L;
-
-    /**
-     * One breathing cycle of the status light (owner order 2026-10-13, second
-     * note; rebuilt 2026-10-14, seventh note). 2.2 seconds per breath: slow
-     * enough to read as alive rather than as a blink, and long enough that a
-     * glance never catches it mid flicker. Half of it is one direction of the
-     * cycle below, because the animation reverses instead of restarting.
+     * One breathing cycle of the status light (owner order 2026-10-13,
+     * second note; rebuilt 2026-10-14, seventh note). 2.2 seconds per
+     * breath: slow enough to read as alive rather than as a blink, and
+     * long enough that a glance never catches it mid flicker. Half of it
+     * is one direction of the cycle below, because the animation reverses
+     * instead of restarting.
      *
-     * Why it is a view animation and not a drawable rewrite: Android has no
-     * CSS keyframes, and its equivalent of an accelerated keyframe rule is a
-     * view property animation on alpha and scale. The platform keeps those two
-     * in the RenderNode and interpolates them on the render thread, so the
-     * frames cost this thread nothing. The retired version wrote the compound
-     * drawable's bounds and alpha from an update listener on a 40ms grid,
-     * which redrew the whole pill on the UI thread 25 times a second.
+     * Why it is a view animation and not a drawable rewrite: Android has
+     * no CSS keyframes, and its equivalent of an accelerated keyframe rule
+     * is a view property animation on alpha and scale. The platform keeps
+     * those two in the RenderNode and interpolates them on the render
+     * thread, so the frames cost this thread nothing.
      */
     private static final long BREATH_MS = 2200L;
 
@@ -215,6 +209,25 @@ public class MainActivity extends Activity {
     private TextView statusWord;
     private TextView statusDetail, signalList;
     private TextView marketIndex, marketLeaders;
+    /** The console's greeting above the QUANT STATUS tile (owner order
+     *  2026-10-23). Its sentence flips at noon in Karachi (SO-8). */
+    private TextView greeting;
+    /** The search page's own CUSTOM SCRIPS OF VOL. tile (owner order
+     *  2026-10-23): two dropdowns ranked from the same /prices map the
+     *  search rows already refresh once per tick. */
+    private View tileVolume;
+    private Spinner volumeSplitSpinner;
+    private Spinner volumeSpeedSpinner;
+    private ArrayAdapter<String> volumeSplitAdapter;
+    private ArrayAdapter<String> volumeSpeedAdapter;
+    private int volumeSplitChoice;
+    private int volumeSpeedChoice;
+    /** The settings page's THEMES tile. The spinner's five items and the
+     *  selection are theme_name and theme below; the selection survives
+     *  between sessions in prefs, so the app opens on the look he chose. */
+    private Spinner themeSpinner;
+    private TextView appVersion;
+    private int themeIndex;
     /**
      * The HUD (owner order 2026-10-22, rebuilt the same day): the thinking
      * orb under the brand, one view that draws the quant's cloud while the
@@ -227,11 +240,18 @@ public class MainActivity extends Activity {
     private boolean hudRunning;
     /** Full relay text retained off-screen; the card renders only execution fields. */
     private String latestSignalBackground = "";
-    /** Turned and tinted by setSettingsOpen, so it is the ImageView itself. */
-    private ImageView btnSettings;
+    /**
+     * The three pages (owner order 2026-10-23). The selected page's icon
+     * is circled in a gold ring on the menu tile at the very bottom; the
+     * other two carry only the masked press ripple. The ring and the tint
+     * are read from the page booleans here, never from a view's own
+     * state, so the paint is idempotent and one-eyed like the rest of
+     * the console.
+     */
+    private ImageView navHome;
+    private ImageView navSearch;
+    private ImageView navSettings;
     private View settingsPanel;
-    /** The search control beside the gear (owner order 2026-10-20). */
-    private ImageView btnSearch;
     private View searchPanel;
     /**
      * The diamond rules the two menus own (owner order 2026-10-21, 15:35):
@@ -360,15 +380,26 @@ public class MainActivity extends Activity {
         marketLeaders = findViewById(R.id.market_leaders);
         thinkingOrb = (ThinkingOrb) findViewById(R.id.thinking_orb);
         settingsPanel = findViewById(R.id.settings_panel);
-        btnSettings = findViewById(R.id.btn_settings);
-        btnSearch = findViewById(R.id.btn_search);
         searchPanel = findViewById(R.id.search_panel);
         ruleBeforeSearch = findViewById(R.id.rule_before_search);
         ruleAfterSettings = findViewById(R.id.rule_after_settings);
         searchInput = findViewById(R.id.search_input);
         searchResults = findViewById(R.id.search_results);
         searchStatus = findViewById(R.id.search_status);
-        btnSearch.setOnClickListener(v -> setSearchOpen(!searchOpen));
+        // The menu tile at the very bottom (owner order 2026-10-23): the
+        // icon of the page he is on is circled, and a tap opens that page.
+        // One page at a time is enforced inside the two toggles, so home
+        // closes whatever menu is open, and search and settings never
+        // share the screen.
+        navHome = findViewById(R.id.btn_nav_home);
+        navSearch = findViewById(R.id.btn_nav_search);
+        navSettings = findViewById(R.id.btn_nav_settings);
+        navHome.setOnClickListener(v -> {
+            setSearchOpen(false);
+            setSettingsOpen(false);
+        });
+        navSearch.setOnClickListener(v -> setSearchOpen(true));
+        navSettings.setOnClickListener(v -> setSettingsOpen(true));
         // Instant search (owner order 2026-10-20): every keystroke filters
         // the symbol list the relay's own snapshot carries, so the list is
         // local and a letter costs no request.
@@ -393,7 +424,9 @@ public class MainActivity extends Activity {
         // menu no longer takes its space: the orb stays put under the brand
         // and is the one mover on every page of the console.
         consoleViews = new View[]{
-                findViewById(R.id.tile_status),
+                // The greeting is a home-page line, so it hides with the group.
+        findViewById(R.id.greeting),
+        findViewById(R.id.tile_status),
                 findViewById(R.id.rule_status_signal),
                 findViewById(R.id.tile_signal),
                 findViewById(R.id.rule_after_signal),
@@ -407,8 +440,9 @@ public class MainActivity extends Activity {
         // admin gated, which is why the phone needs no credential at all.
         //
         // The tap reads the STATE, never a view's visibility: one source of
-        // truth, so a re-entrant tap cannot land on a stale reading.
-        btnSettings.setOnClickListener(v -> setSettingsOpen(!settingsOpen));
+        // truth, so a re-entrant tap cannot land on a stale reading. The
+        // settings page is opened from the menu tile's own button above;
+        // this method stays the one place the state changes.
 
         findViewById(R.id.btn_open).setOnClickListener(v -> {
             String url = prefs.getString("relay_url", Watcher.DEFAULT_RELAY);
@@ -421,11 +455,20 @@ public class MainActivity extends Activity {
             toast("Watchdog armed. Refreshing every 5 minutes.");
         });
 
-        // The ordered icon offset, applied as far as the screen can show it
-        // (owner order 2026-10-16, fourth note: the press gradient was being
-        // cut off). Posted so it runs after the first layout pass, which is
-        // the first moment the control and the window have real geometry.
-        applySettingsShift();
+        // Owner order 2026-10-23: the page selects what the app looks like.
+        // The spinner is filled with the five pairs in his own order, the
+        // remembered selection is applied once in onCreate, and a change at
+        // the dropdown repaints the console at once. Nothing here touches
+        // the palette behind widgets that carry state of their own: the
+        // status badge, the search highlight plates and the rules keep the
+        // inks of their own laws.
+        themeIndex = prefs.getInt("theme", 0);
+        buildThemeSpinner();
+        applyTheme(themeIndex);
+
+        buildVolumeSpinners();
+
+        writeAppVersion();
 
         Watcher.kick(this);
         // v1.5.1: ask once, quietly, so Doze and OEM battery managers do not
@@ -433,47 +476,368 @@ public class MainActivity extends Activity {
         maybeRequestBatteryExemption(false);
     }
 
+    // ----------------------------------------------------------------
+    // Owner order 2026-10-23: the menu tile, the themes, the greeting and
+    // the volume dropdowns. One block, because they share one law: every
+    // state is a field the views are drawn from, never a read of the view
+    // tree, so each repaint is idempotent and one call deep.
+
     /**
-     * The settings control's offset, bounded by the screen it is drawn on.
-     *
-     * The owner's orders stack to a translation of @dimen/settings_shift_x to
-     * the right and @dimen/settings_shift_y upward, and that is exactly what
-     * this applies whenever the screen has the room. On a narrow phone it may
-     * not: the control hangs off the brand title, the title is centred, and a
-     * 34.5sp Bonskin line (owner order 2026-10-22: the title grew 15% from
-     * its 30sp) is about 230dp wide, so on a 320dp or 360dp content
-     * area the ordered 44.1dp pushes the control's box past the window's right
-     * edge. Its pixels there are not clipped by a parent, they simply do not
-     * exist, which is what the owner saw as a cut off gradient.
-     *
-     * So the translation is clamped to the number of pixels actually available
-     * between the control's own right edge and the window's, and never to a
-     * guessed width: a wide phone gets the ordered offset in full, a narrow
-     * one loses only the pixels it does not have, and the press flash is whole
-     * either way. The vertical offset needs no clamp: every ancestor of the
-     * header now draws outside its own bounds (see activity_main.xml), and the
-     * 6.3dp a 42dp box overhangs its row is inside the screen.
+     * The selected page is circled (owner order 2026-10-23). The selection
+     * is the page state: HOME when no menu is open, otherwise the menu that
+     * is. The ring is a background, so it is set rather than negotiated,
+     * and the tint follows the ring: brighter while circled.
      */
-    private void applySettingsShift() {
-        btnSettings.post(() -> {
-            View window = findViewById(android.R.id.content);
-            if (window == null || window.getWidth() == 0) {
-                return;                     // no geometry yet: the XML offset stands
+    private void paintNavSelection() {
+        setNavPage(navHome, !searchOpen && !settingsOpen);
+        setNavPage(navSearch, searchOpen);
+        setNavPage(navSettings, settingsOpen);
+    }
+
+    /** One icon's own face: the ring when its page is live, ripple when not. */
+    private void setNavPage(ImageView icon, boolean selected) {
+        if (icon == null) {
+            return;
+        }
+        icon.setBackgroundResource(selected
+                ? R.drawable.nav_circle : R.drawable.settings_ripple);
+        icon.setImageTintList(ColorStateList.valueOf(getColor(
+                selected ? R.color.gold_bright : R.color.gold)));
+    }
+
+    /**
+     * The greeting above the QUANT STATUS tile (owner order 2026-10-23).
+     * The flip is Karachi's own clock (SO-8): before noon in
+     * Asia/Karachi he is greeted by his name, after noon as sir. The
+     * handset's zone never decides (the app's type law on times).
+     */
+    private void refreshGreeting() {
+        if (greeting == null) {
+            return;
+        }
+        java.util.Calendar karachi = java.util.Calendar.getInstance(
+                java.util.TimeZone.getTimeZone("Asia/Karachi"));
+        boolean morning = karachi.get(java.util.Calendar.HOUR_OF_DAY) < 12;
+        greeting.setText(getString(morning
+                ? R.string.greeting_morning : R.string.greeting_afternoon));
+    }
+
+    /**
+     * THEMES (owner order 2026-10-23): a dropdown of five pairs, listed in
+     * the order he named them. The selection is remembered, so the app
+     * opens on the look he chose.
+     */
+    // The five themes, in the owner's own order; index 0 is the app's
+    // current look and needs no repaint beyond identity, so the switch in
+    // applyTheme falls through to it.
+    private static final int[] THEME_LABELS = {
+            R.string.theme_purple, R.string.theme_black, R.string.theme_green,
+            R.string.theme_navy, R.string.theme_orange};
+
+    private void buildThemeSpinner() {
+        if (themeSpinner == null) {
+            return;
+        }
+        List<String> labels = new ArrayList<>();
+        for (int label : THEME_LABELS) {
+            labels.add(getString(label));
+        }
+        ArrayAdapter<String> adapter = styledSpinnerAdapter();
+        adapter.addAll(labels);
+        themeSpinner.setAdapter(adapter);
+        themeSpinner.setSelection(Math.max(0, Math.min(themeIndex,
+                THEME_LABELS.length - 1)));
+        themeSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override public void onItemSelected(AdapterView<?> parent,
+                                                 View view, int position, long id) {
+                if (position != themeIndex) {
+                    themeIndex = position;
+                    applyTheme(position);
+                }
             }
-            float orderedX = getResources().getDimension(R.dimen.settings_shift_x);
-            float orderedY = getResources().getDimension(R.dimen.settings_shift_y);
-            int[] windowAt = new int[2];
-            int[] gearAt = new int[2];
-            window.getLocationOnScreen(windowAt);
-            btnSettings.getLocationOnScreen(gearAt);
-            // Where the box's right edge sits with the shift REMOVED, so the
-            // room is a measurement rather than a re-derivation of the anchor.
-            int naturalRight = (int) (gearAt[0] - btnSettings.getTranslationX())
-                    + btnSettings.getWidth();
-            int room = windowAt[0] + window.getWidth() - naturalRight;
-            btnSettings.setTranslationX(Math.min(orderedX, Math.max(0f, room)));
-            btnSettings.setTranslationY(orderedY);
+            @Override public void onNothingSelected(AdapterView<?> parent) { }
         });
+    }
+
+    /**
+     * Paint one theme on the console. Each theme is a (cover, panel,
+     * heading ink) triple: the scroll root behind everything, the tiles'
+     * plates, and the headings' own ink. The purple theme IS the app's
+     * declared palette, so its legibility is a property of the app
+     * rather than of code, and no other ink CHANGES: the body lines,
+     * the search highlight plates, the badge gradients and the diamond
+     * rules all keep the inks of their own laws, so a theme can never
+     * restyle a state that means something else.
+     */
+    private void applyTheme(int index) {
+        prefs.edit().putInt("theme", index).apply();
+        int bg;
+        int panel;
+        int accent;
+        switch (index) {
+            case 1:
+                bg = R.color.theme_black_bg;
+                panel = R.color.theme_black_panel;
+                accent = R.color.theme_black_accent;
+                break;
+            case 2:
+                bg = R.color.theme_green_bg;
+                panel = R.color.theme_green_panel;
+                accent = R.color.theme_green_accent;
+                break;
+            case 3:
+                bg = R.color.theme_navy_bg;
+                panel = R.color.theme_navy_panel;
+                accent = R.color.theme_navy_accent;
+                break;
+            case 4:
+                bg = R.color.theme_orange_bg;
+                panel = R.color.theme_orange_panel;
+                accent = R.color.theme_orange_accent;
+                break;
+            default:
+                bg = R.color.bg_deep;
+                panel = R.color.bg_panel;
+                accent = R.color.gold;
+                break;
+        }
+        int bgColor = getColor(bg);
+        int panelColor = getColor(panel);
+        int accentColor = getColor(accent);
+        View root = findViewById(R.id.scroll_root);
+        if (root != null) {
+            root.setBackgroundColor(bgColor);
+        }
+        View[] plates = {
+                findViewById(R.id.tile_status),
+                findViewById(R.id.tile_signal),
+                findViewById(R.id.tile_market),
+                settingsPanel, searchPanel, tileVolume,
+                findViewById(R.id.tile_themes),
+                findViewById(R.id.nav_tile)};
+        for (View plate : plates) {
+            if (plate != null) {
+                plate.setBackgroundColor(panelColor);
+            }
+        }
+        int[] headingIds = {
+                R.id.brand_title, R.id.status_label, R.id.signal_label,
+                R.id.search_heading, R.id.settings_heading,
+                R.id.market_heading, R.id.volume_heading,
+                R.id.themes_heading};
+        for (int id : headingIds) {
+            View heading = findViewById(id);
+            if (heading instanceof TextView) {
+                ((TextView) heading).setTextColor(accentColor);
+            }
+        }
+    }
+
+    /**
+     * CUSTOM SCRIPS OF VOL. (owner order 2026-10-23): two dropdowns, built
+     * once. The first ranks the relay's own B/S split (highest buy with
+     * the lowest sell), the second the speed of the price. Both are
+     * ranked from the same map the search rows refresh, so a dropdown
+     * never costs a request of its own.
+     */
+    private void buildVolumeSpinners() {
+        if (volumeSplitSpinner == null || volumeSpeedSpinner == null) {
+            return;
+        }
+        volumeSplitAdapter = styledSpinnerAdapter();
+        volumeSpeedAdapter = styledSpinnerAdapter();
+        volumeSplitSpinner.setAdapter(volumeSplitAdapter);
+        volumeSpeedSpinner.setAdapter(volumeSpeedAdapter);
+        volumeSplitChoice = 0;
+        volumeSpeedChoice = 0;
+        volumeSplitSpinner.setOnItemSelectedListener(
+                new AdapterView.OnItemSelectedListener() {
+            @Override public void onItemSelected(AdapterView<?> parent, View view,
+                                                 int position, long id) {
+                volumeSplitChoice = position;
+            }
+            @Override public void onNothingSelected(AdapterView<?> parent) { }
+        });
+        volumeSpeedSpinner.setOnItemSelectedListener(
+                new AdapterView.OnItemSelectedListener() {
+            @Override public void onItemSelected(AdapterView<?> parent, View view,
+                                                 int position, long id) {
+                volumeSpeedChoice = position;
+            }
+            @Override public void onNothingSelected(AdapterView<?> parent) { }
+        });
+    }
+
+    private void renderVolumeSpinners() {
+        if (volumeSplitSpinner == null || volumeSpeedSpinner == null) {
+            return;
+        }
+        java.util.Map<String, Watcher.Quote> quotes = Watcher.quotes();
+        List<String> ranked = rankedSplitSymbols(quotes);
+        List<String> rankedSpeed = rankedSpeedSymbols(quotes);
+        List<String> splitLines = quoteLines(quotes, ranked);
+        List<String> speedLines = quoteLines(quotes, rankedSpeed);
+        if (!splitLines.equals(volumeSplitLines)) {
+            volumeSplitLines = splitLines;
+            refill(volumeSplitAdapter, splitLines,
+                   volumeSplitSpinner, volumeSplitChoice);
+        }
+        if (!speedLines.equals(volumeSpeedLines)) {
+            volumeSpeedLines = speedLines;
+            refill(volumeSpeedAdapter, speedLines,
+                   volumeSpeedSpinner, volumeSpeedChoice);
+        }
+    }
+
+    /** The last lines shown in the two dropdowns, so a tick that changes no
+     *  number does not rebuild them; the search rows keep their own gate. */
+    private List<String> volumeSplitLines = new ArrayList<>();
+    private List<String> volumeSpeedLines = new ArrayList<>();
+
+    /** Keep the chosen spot when the lines are restamped, so a moving price
+     *  never moves the owner's own choice out from under him. */
+    private void refill(ArrayAdapter<String> adapter, List<String> lines,
+                        Spinner spinner, int choice) {
+        if (adapter == null || spinner == null) {
+            return;
+        }
+        adapter.setNotifyOnChange(false);
+        adapter.clear();
+        for (String line : lines) {
+            adapter.add(line);
+        }
+        adapter.notifyDataSetChanged();
+        int keep = Math.max(0, Math.min(choice, lines.size() - 1));
+        spinner.setSelection(lines.isEmpty() ? 0 : keep);
+    }
+
+    /**
+     * Dropdown 1 (owner order 2026-10-23): the three scrips the current
+     * session's split ranks highest buy and lowest sell. A scrip whose
+     * frame has no complete range cannot be ranked and is skipped instead
+     * of guessed at (SO-3): null is not zero.
+     */
+    private List<String> rankedSplitSymbols(java.util.Map<String, Watcher.Quote> quotes) {
+        List<String> symbols = new ArrayList<>();
+        for (java.util.Map.Entry<String, Watcher.Quote> entry : quotes.entrySet()) {
+            Watcher.Quote quote = entry.getValue();
+            if (quote.buy != null && quote.sell != null) {
+                symbols.add(entry.getKey());
+            }
+        }
+        symbols.sort((a, b) -> {
+            Watcher.Quote qa = quotes.get(a);
+            Watcher.Quote qb = quotes.get(b);
+            int byBuy = Long.compare(qb.buy, qa.buy);
+            if (byBuy != 0) {
+                return byBuy;
+            }
+            int byLowestSell = Long.compare(qa.sell, qb.sell);
+            if (byLowestSell != 0) {
+                return byLowestSell;
+            }
+            return a.compareTo(b);
+        });
+        return symbols.subList(0, Math.min(symbols.size(), 3));
+    }
+
+    /**
+     * Dropdown 2 (owner order 2026-10-23): the three prices moving
+     * fastest, which is the relay's own day move, the one number the
+     * feed carries about speed. Flat scrips cannot claim speed, so a
+     * scrip with no reported move is skipped (SO-3).
+     */
+    private List<String> rankedSpeedSymbols(java.util.Map<String, Watcher.Quote> quotes) {
+        List<String> symbols = new ArrayList<>();
+        for (java.util.Map.Entry<String, Watcher.Quote> entry : quotes.entrySet()) {
+            if (entry.getValue().changePct != null) {
+                symbols.add(entry.getKey());
+            }
+        }
+        symbols.sort((a, b) -> {
+            double sa = Math.abs(quotes.get(a).changePct);
+            double sb = Math.abs(quotes.get(b).changePct);
+            int bySpeed = Double.compare(sb, sa);
+            if (bySpeed != 0) {
+                return bySpeed;
+            }
+            return a.compareTo(b);
+        });
+        return symbols.subList(0, Math.min(symbols.size(), 3));
+    }
+
+    /** One dropdown row: the ticker, then its own price and move, the same
+     *  answer the search rows print under their tickers. */
+    private List<String> quoteLines(java.util.Map<String, Watcher.Quote> quotes,
+                                    List<String> symbols) {
+        List<String> lines = new ArrayList<>();
+        for (String symbol : symbols) {
+            Watcher.Quote quote = quotes.get(symbol);
+            if (quote == null) {
+                lines.add(symbol);
+            } else if (quote.changePct == null) {
+                lines.add(String.format(Locale.US, "%s  PKR %,.2f",
+                        symbol, quote.price));
+            } else {
+                lines.add(String.format(Locale.US, "%s  PKR %,.2f %+,.2f%%",
+                        symbol, quote.price, quote.changePct));
+            }
+        }
+        return lines;
+    }
+
+    /**
+     * One drop-down, styled once: every row is the body's one size, the
+     * law every non-heading line of the console already holds. The
+     * closed row is a body line inside the field box; the dropped rows
+     * carry the same ink and a taller padding of their own.
+     */
+    private ArrayAdapter<String> styledSpinnerAdapter() {
+        return new ArrayAdapter<String>(this,
+                android.R.layout.simple_spinner_dropdown_item,
+                new ArrayList<String>()) {
+            @Override
+            public View getView(int position, View convertView, ViewGroup parent) {
+                TextView row = (TextView) super.getView(position, convertView, parent);
+                styleSpinnerRow(row, false);
+                return row;
+            }
+
+            @Override
+            public View getDropDownView(int position, View convertView,
+                                        ViewGroup parent) {
+                TextView row = (TextView)
+                        super.getDropDownView(position, convertView, parent);
+                styleSpinnerRow(row, true);
+                return row;
+            }
+        };
+    }
+
+    private void styleSpinnerRow(TextView row, boolean dropped) {
+        row.setTextSize(13f);
+        row.setTextColor(getColor(R.color.text_bright));
+        row.setPadding(dp(10), dp(dropped ? 12 : 4), dp(10),
+                dp(dropped ? 12 : 4));
+    }
+
+    /**
+     * The app version on the settings page (owner order 2026-10-23): the
+     * manifest's own versionName, so the page and the APK cannot
+     * disagree. The prefix is a resource, the number is the build's.
+     */
+    private void writeAppVersion() {
+        if (appVersion == null) {
+            return;
+        }
+        String version;
+        try {
+            version = getPackageManager()
+                    .getPackageInfo(getPackageName(), 0).versionName;
+        } catch (Exception e) {
+            version = "";              // SO-3: never print a version we cannot read
+        }
+        appVersion.setText(getString(R.string.app_version_prefix) + version);
     }
 
     /**
@@ -527,13 +891,10 @@ public class MainActivity extends Activity {
             // leaves with the menu (owner order 2026-10-21, 15:35).
             ruleAfterSettings.setVisibility(open ? View.VISIBLE : View.GONE);
         }
-        btnSettings.animate()
-                .rotation(open ? -90f : 0f)
-                .setDuration(GEAR_TURN_MS)
-                .setInterpolator(new DecelerateInterpolator())
-                .start();
-        btnSettings.setImageTintList(ColorStateList.valueOf(getColor(
-                open ? R.color.gold_bright : R.color.gold)));
+        // Owner order 2026-10-23: the header icons are gone, so the menu's
+        // look is its ring on the bottom nav tile instead of the old
+        // quarter turn and brighter gold.
+        paintNavSelection();
     }
 
     /**
@@ -706,6 +1067,7 @@ public class MainActivity extends Activity {
         // paint is what starts the breath again on a live market.
         renderGate.reset();
         refresh();
+        refreshGreeting();
         // Owner order 2026-10-22: the console works only while it is on
         // screen, like every other animation here; onPause ends the cycle
         // and onResume starts it again.
@@ -772,6 +1134,11 @@ public class MainActivity extends Activity {
      * in-flight guard skips rather than queues work when the network is slow.
      */
     private void pollOnce() {
+        // Owner order 2026-10-23: the greeting flips on Karachi's own
+        // clock, so the answer is re-decided once per foreground tick;
+        // a call that lands just after noon on an already-open screen
+        // still greets him by the right sentence.
+        refreshGreeting();
         // The search list's prices travel on their own read, once per
         // foreground tick while the panel is open (owner order 2026-10-20,
         // third note: the rows must move every second, like a clock, not
@@ -798,6 +1165,12 @@ public class MainActivity extends Activity {
             }
             if (searchOpen && searchInput != null) {
                 renderSearchResults(searchInput.getText().toString());
+            }
+            // The volume dropdowns ride the same tick (owner order
+            // 2026-10-23): one shared read ranks them, and the tick that
+            // restamps the rows restamps the dropdowns too.
+            if (searchOpen) {
+                renderVolumeSpinners();
             }
         }));
     }
@@ -855,7 +1228,7 @@ public class MainActivity extends Activity {
         if (market != null && market.date != null && !market.date.isEmpty()) {
             relayDate = market.date;
         }
-        // Always repaint every foreground tick, every second while the market is live, so the index and the leaders move exactly like the digits on a clock: a frame, even when it is byte-identical to the one before, is what keeps the eye reading motion rather than a paused screen. The live poll already runs on that one-second cadence (scheduleNext), so this is the same loop twice over nothing.
+        // Always repaint every foreground tick, every second while the market is live, so the index and the leaders move exactly like the digits on a clock: a frame, even when it is byte-identical to the one before, is what keeps the eye reading motion rather than a paused screen. The live poll already runs on that one-second cadence (scheduleNext), so this is the same loop twice over nothing.
         paint(online, d, s, market);
         // Owner order 2026-10-16 (fourth note): the cadence is re-decided as
         // soon as the relay's answer lands, not at the end of the tick that
@@ -1048,16 +1421,22 @@ public class MainActivity extends Activity {
         }
         settingsPanel.setVisibility(open ? View.GONE : settingsPanel.getVisibility());
         searchPanel.setVisibility(open ? View.VISIBLE : View.GONE);
+        if (tileVolume != null) {
+            // The CUSTOM SCRIPS OF VOL. tile is the search page's second
+            // tile (owner order 2026-10-23): it lives and dies with the
+            // page, exactly like the search panel above it.
+            tileVolume.setVisibility(open ? View.VISIBLE : View.GONE);
+        }
         if (ruleBeforeSearch != null) {
             // The rule above the search tile is the panel's own, so the closed
             // console keeps the single brand rule under the header (owner
             // order 2026-10-21, 15:35).
             ruleBeforeSearch.setVisibility(open ? View.VISIBLE : View.GONE);
         }
-        btnSearch.setImageTintList(ColorStateList.valueOf(getColor(
-                open ? R.color.gold_bright : R.color.gold)));
+        paintNavSelection();
         if (open) {
             refreshPrices();
+            renderVolumeSpinners();
             searchInput.setText("");
             searchInput.requestFocus();
             renderSearchResults("");

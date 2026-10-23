@@ -18,6 +18,11 @@ data/secrets/
 *.csv.gz
 backtests/output/
 
+# --- Build drop / scratch: a certificate readout or an APK is never a
+#     tracked artifact, and a scratch patch script is never either. The
+#     drop goes to the OneDrive desktop folder, not the repository. ---
+/build_artifacts/
+
 # --- Legacy local secrets: a token file is never a tracked artifact ---
 legacy/eod/data/
 legacy/sentinel/data/
