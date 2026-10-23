@@ -11,8 +11,8 @@
     <!-- ══════════ the pinned console ══════════
          Owner order 2026-10-23 (v1.9.13): the menu bar never leaves the
          screen again. The console's own scroll now holds EVERYTHING above
-         the bar, and the bar itself (its diamond rule above, the tile,
-         its diamond rule below) stands OUTSIDE that scroll, fixed at the
+         the bar, and the bar itself (the tile) stands OUTSIDE that
+         scroll, fixed at the
          bottom of the screen, so home, search and settings are always on
          the screen visible and no page change ever needs a hunt for the
          controls. The old id scroll_root OBEYS the older themes: the
@@ -257,7 +257,16 @@
                 android:gravity="center"
                 android:text="@string/volume_split_caption"/>
 
-            <Spinner
+            <!-- Owner order 2026-10-23 (2.0.0): every dropdown carries its
+                 state arrow beside it, DOWN while closed (the pull-down
+                 cue) and UP while open (the pull-up cue). The wrapper is
+                 where the wrapper's arrow lives; the field box, the heights
+                 and the prompt stay the spinner's own. -->
+            <FrameLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+            <pk.quantofrehan.Dropdown
                 android:id="@+id/volume_split_spinner"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -268,6 +277,16 @@
                 android:prompt="@string/volume_split_prompt"
                 android:padding="10dp"/>
 
+            <ImageView
+                android:id="@+id/volume_split_arrow"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="end|center_vertical"
+                android:layout_marginEnd="14dp"
+                android:contentDescription="@string/cd_dropdown"
+                android:src="@drawable/dropdown_arrow"/>
+            </FrameLayout>
+
             <TextView
                 android:id="@+id/volume_speed_caption"
                 style="@style/QorValue"
@@ -277,7 +296,12 @@
                 android:gravity="center"
                 android:text="@string/volume_speed_caption"/>
 
-            <Spinner
+            <!-- The second dropdown, its arrow sharing the first's law. -->
+            <FrameLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+            <pk.quantofrehan.Dropdown
                 android:id="@+id/volume_speed_spinner"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -287,6 +311,16 @@
                 android:minHeight="40dp"
                 android:prompt="@string/volume_speed_prompt"
                 android:padding="10dp"/>
+
+            <ImageView
+                android:id="@+id/volume_speed_arrow"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="end|center_vertical"
+                android:layout_marginEnd="14dp"
+                android:contentDescription="@string/cd_dropdown"
+                android:src="@drawable/dropdown_arrow"/>
+            </FrameLayout>
         </LinearLayout>
 
         <!-- brand rule: line, diamond, line (from the logo frame). Defined
@@ -540,7 +574,12 @@
                     android:gravity="center"
                     android:text="@string/label_themes"/>
 
-                <Spinner
+                <!-- The themes dropdown and its state arrow (2.0.0). -->
+                <FrameLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content">
+
+                <pk.quantofrehan.Dropdown
                     android:id="@+id/theme_spinner"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -550,6 +589,16 @@
                     android:minHeight="40dp"
                     android:prompt="@string/theme_prompt"
                     android:padding="10dp"/>
+
+                <ImageView
+                    android:id="@+id/theme_arrow"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="end|center_vertical"
+                    android:layout_marginEnd="14dp"
+                    android:contentDescription="@string/cd_dropdown"
+                    android:src="@drawable/dropdown_arrow"/>
+                </FrameLayout>
             </LinearLayout>
 
             <!-- Owner order 2026-10-23 (second order, v1.9.14): the version
@@ -706,8 +755,7 @@
 
         <!-- ══════════ the menu tile, pinned at the bottom ══════════
              Owner order 2026-10-23: home, search and settings moved here
-             from the brand row, bracketed by the same diamond rule above
-             and below as every other change of subject. Each icon is the
+             from the brand row. Each icon is the
              owner's own png (drawable-nodpi/home.png, search.png and
              settings.png, copied from his Desktop), tinted into the
              palette, and the page he is on is circled in a gold ring: the
@@ -719,20 +767,19 @@
              search at the exact MIDDLE, settings at the very RIGHT edge,
              so the row answers the owner's own sentence.
 
-             Owner order 2026-10-23 (v1.9.13), the pin itself: the tile and
-             its two bracket rules live OUTSIDE the console's scroll, one
-             fixed unit at the bottom of the screen, so the menu bar is
-             always on the screen visible and no page change ever needs a
-             hunt for the controls. -->
+             Owner order 2026-10-23 (v1.9.13), the pin itself: the tile
+             lives OUTSIDE the console's scroll, one fixed unit at the
+             bottom of the screen, so the menu bar is always on the screen
+             visible and no page change ever needs a hunt for the
+             controls.
+
+             Owner order 2026-10-23 (2.0.0): the tile's two bracket rules
+             are GONE. The owner read the diamond above and below the
+             pinned menu bar as clutter around a fixed bar, so the bar is
+             the tile alone: the console scroll closes, the tile follows
+             and the version line closes the screen. -->
         </LinearLayout>
     </ScrollView>
-
-    <include
-        android:id="@+id/rule_before_nav"
-        layout="@layout/qor_rule"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"/>
 
     <LinearLayout
         android:id="@+id/nav_tile"
@@ -805,17 +852,10 @@
         </FrameLayout>
     </LinearLayout>
 
-    <include
-        android:id="@+id/rule_after_nav"
-        layout="@layout/qor_rule"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"/>
-
     <!-- ══════════ the footer: the app version ══════════
          Owner order 2026-10-23 (second order, v1.9.14): "App version:
          version number at the footer." The line is the ROOT's own last
-         line, under the pinned menu bar and its closing rule, on every
+         line, under the pinned menu bar, on every
          page of the app, and it never hides: a version that only shows
          on one page is not a footer. MainActivity writes the manifest's
          own versionName into it, the same number the build prints, so

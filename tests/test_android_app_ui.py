@@ -364,8 +364,9 @@ def _format4_has(data: bytes, sub: int, codepoint: int) -> bool:
 class SettingsControlTest(unittest.TestCase):
     """The menu tile at the very bottom (owner order 2026-10-23).
 
-    Home, search and settings moved here from the brand row, bracketed by
-    the same diamond rule the console uses at every change of subject. Each
+    Home, search and settings moved here from the brand row; since 2.0.0
+    the tile is the bar alone, with no diamond rule above or below it
+    (the owner's order the same day). Each
     icon is the owner's own png (home.png and search.png were copied from
     his Desktop, settings.png was already bundled), tinted into the palette,
     and the page he is currently on is circled in a gold ring: the ring is
@@ -384,23 +385,18 @@ class SettingsControlTest(unittest.TestCase):
         nav = find_view(root, "@+id/nav_tile")
         self.assertIsNotNone(nav)
         self.assertEqual(nav.get("style"), "@style/QorPanel")
-        bracket = [node for node in root.iter() if node.tag == "include"
-                   and node.get(f"{ANDROID_NS}id") in
-                   ("@+id/rule_before_nav", "@+id/rule_after_nav")]
-        self.assertEqual([node.get(f"{ANDROID_NS}id") for node in bracket],
-                         ["@+id/rule_before_nav", "@+id/rule_after_nav"])
-        # Above the tile and below it: the same diamond rule as every other
-        # change of subject, declared once in qor_rule.xml.
-        for rule in bracket:
-            self.assertEqual(rule.get("layout"), "@layout/qor_rule")
-        # The lower rule still closes the console scroll; the app version
+        # Owner order 2026-10-23 (2.0.0): the tile's two bracket rules are
+        # GONE. The owner read the diamond above and below the pinned menu
+        # bar as clutter around a fixed bar, so neither id exists anywhere
+        # in the layout any more and the tile follows the scroll directly.
+        self.assertNotIn("@+id/rule_before_nav", self.layout)
+        self.assertNotIn("@+id/rule_after_nav", self.layout)
+        # The console scroll closes, the tile follows, and the app version
         # line v1.9.14 moved here stands after it, the console's own last
         # unit, and nothing else does.
-        self.assertLess(self.layout.index("@+id/rule_before_nav"),
+        self.assertLess(self.layout.index("@+id/console_scroll"),
                         self.layout.index("@+id/nav_tile"))
-        self.assertLess(self.layout.index("@+id/nav_tile"),
-                        self.layout.index("@+id/rule_after_nav"))
-        following = siblings_after(root, bracket[1])
+        following = siblings_after(root, nav)
         self.assertEqual(
             [node.get(f"{ANDROID_NS}id") for node in following],
             ["@+id/app_version"], "the version line is the footer", )
@@ -461,9 +457,18 @@ class SettingsControlTest(unittest.TestCase):
         self.assertEqual(children, ["TextView"])
 
     def test_the_quarter_turn_is_retired_with_the_gear(self):
-        # The icon no longer rotates: nav state is the background and the
-        # tint, so no open/close torque needs an interpolator.
-        self.assertNotIn(".rotation(", self.main)
+        # The gear icon no longer rotates: nav state is the background and
+        # the tint, so no open/close torque needs an interpolator.
+        # Owner order 2026-10-23 (v2.0.0): the one legitimate rotation left
+        # is the dropdown state arrow's flip (down while closed, up while
+        # open). It lives only in wireDropdownArrow, so the pin counts the
+        # file's rotations and requires the single one to be the arrow's;
+        # any second rotation, including a gear turn, still fails here.
+        rotations = self.main.count(".rotation(")
+        self.assertEqual(rotations, 1,
+                         "expected only the dropdown arrow's flip")
+        needle = ".rotation(".join(self.main.split(".rotation(")[:2])
+        self.assertIn("private void wireDropdownArrow", needle)
         self.assertNotIn("GEAR_TURN_MS", self.main)
         self.assertNotIn(
             "settings_shift",
@@ -546,13 +551,15 @@ class BrandRuleTest(unittest.TestCase):
     def test_the_rule_is_defined_once_and_included_at_every_division(self):
         self.assertIn("QorDiamond", self.rule)
         self.assertIn('android:text="@string/diamond"', self.rule)
-        # Six rules on the console in v1.9.13 (owner order 2026-10-23): the
-        # brand rule under the header, the three the home tiles carry, and
-        # the pair that brackets the menu tile pinned at the very bottom.
-        # The two rules the search and settings pages carried of their own
-        # are GONE (the owner read each page's second diamond as an extra
-        # one), and their absence is its own test below.
-        self.assertEqual(self.layout.count('layout="@layout/qor_rule"'), 6)
+        # Four rules on the console since 2.0.0 (owner order 2026-10-23):
+        # the brand rule under the header and the three the home tiles
+        # carry. The pair that used to bracket the menu tile pinned at the
+        # very bottom is GONE (the owner read the diamond above and below
+        # the pinned bar as clutter around a fixed bar), and the two rules
+        # the search and settings pages carried of their own are GONE
+        # (the owner read each page's second diamond as an extra one),
+        # and their absence is its own test below.
+        self.assertEqual(self.layout.count('layout="@layout/qor_rule"'), 4)
 
     def test_the_rules_stand_between_the_tiles_and_never_inside_them(self):
         root = layout_root()
@@ -771,11 +778,12 @@ class CadencePlacementTest(unittest.TestCase):
     def test_the_sentence_stands_after_the_market_rule(self):
         rules = [node for node in self.root.iter() if node.tag == "include"
                  and node.get("layout") == "@layout/qor_rule"]
-        # v1.9.13 (owner order 2026-10-23): the six rules after the menu
-        # pages each dropped their extra diamond - the single brand rule
-        # under the header, the three the home tiles carry, and the pair
-        # that brackets the pinned menu bar.
-        self.assertEqual(len(rules), 6)
+        # v1.9.13, then 2.0.0 (owner order 2026-10-23): the six rules after
+        # the menu pages each dropped their extra diamond, and the pair
+        # that used to bracket the pinned menu bar is gone as the owner's
+        # clutter order - four rules: the single brand rule under the
+        # header, and the three the home tiles carry.
+        self.assertEqual(len(rules), 4)
         # The market card's rule: the one that closes the card section.
         market_rule = next(
             rule for rule in rules
@@ -793,8 +801,7 @@ class CadencePlacementTest(unittest.TestCase):
         self.assertEqual(following[1:], [])
         self.assertEqual(
             [n.get(f"{ANDROID_NS}id") or n.tag for n in list(self.root)],
-            ["@+id/console_scroll", "@+id/rule_before_nav",
-             "@+id/nav_tile", "@+id/rule_after_nav", "@+id/app_version"])
+            ["@+id/console_scroll", "@+id/nav_tile", "@+id/app_version"])
 
     def test_the_market_card_no_longer_carries_the_sentence(self):
         self.assertIsNone(find_view(self.root, "@+id/market_foot"))
@@ -944,6 +951,24 @@ class StatusPulseTest(unittest.TestCase):
                      "statusDot.setScaleX(1f)", "statusDot.setScaleY(1f)"):
             with self.subTest(line=line):
                 self.assertIn(line, body)
+
+    def test_the_arm_tap_says_the_one_second_reality(self):
+        """Owner order 2026-10-23 (2.0.0): the watch window's own words.
+
+        The arm button's toast said "Watchdog armed. Refreshing every 5
+        minutes" - jargon and a cadence that died with the 2026-10-20 one
+        second order. The tap now says what it armed, and neither the
+        retired word nor a stale figure survives anywhere on the tap path.
+        """
+        self.assertIn('toast("The 1-second watch window is armed.");',
+                      self.main)
+        self.assertNotIn("Watchdog armed", self.main)
+        self.assertNotIn("every 5 minutes", self.main)
+        # The button's own label already said "WATCH WINDOW" in one
+        # second, so the tap's answer agrees with what was pressed.
+        self.assertIn(
+            '<string name="btn_arm">ARM THE 1-SECOND WATCH WINDOW</string>',
+            STRINGS.read_text(encoding="utf-8"))
 
     def test_a_hidden_console_leaves_it_still(self):
         # v1.7.1: a hidden console releases BOTH things onResume started. The
@@ -1435,9 +1460,15 @@ class VersionTest(unittest.TestCase):
         # at the footer of every page, and the speed dropdown ranks the
         # continuously rising stocks. v1.9.13's pinned bar, one rule per
         # page and the round plates stand.
+        # v2.0.0 is the 2026-10-23 third order on the same day: the two
+        # diamond rules around the pinned menu bar are gone (the bar is the
+        # tile alone), every dropdown carries the pull-down, pull-up state
+        # arrow, and the watch window tap says the one-second reality with
+        # no "watchdog" jargon and no "5 minutes" figure. v1.9.14's sun,
+        # nav lift and footer stand.
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="1.9.14"', manifest)
-        self.assertIn('android:versionCode="55"', manifest)
+        self.assertIn('android:versionName="2.0.0"', manifest)
+        self.assertIn('android:versionCode="56"', manifest)
         # The changelog entry ties these user-visible changes to the build.
         readme = (ROOT / "android" / "README.md").read_text(encoding="utf-8")
         self.assertIn("v1.7.9, owner order 2026-10-20", readme)
@@ -1463,9 +1494,10 @@ class VersionTest(unittest.TestCase):
         self.assertIn("Version 1.9.12, versionCode 53", readme)
         self.assertIn("Version 1.9.13, versionCode 54", readme)
         self.assertIn("Version 1.9.14, versionCode 55", readme)
+        self.assertIn("Version 2.0.0, versionCode 56", readme)
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionCode="55"', manifest)
-        self.assertIn('android:versionName="1.9.14"', manifest)
+        self.assertIn('android:versionCode="56"', manifest)
+        self.assertIn('android:versionName="2.0.0"', manifest)
         layout = LAYOUT.read_text(encoding="utf-8")
         strings = STRINGS.read_text(encoding="utf-8")
         main = MAIN.read_text(encoding="utf-8")
@@ -1931,7 +1963,9 @@ class MenuOrdersTest(unittest.TestCase):
         self.assertIn('name="theme_navy">NAVY BLUE &amp; WHITE<', self.strings)
         self.assertIn('name="theme_orange">ORANGE &amp; WHITE<', self.strings)
         spinner = element(self.layout, 'android:id="@+id/theme_spinner"')
-        self.assertIn("<Spinner", spinner)
+        # 2.0.0: the console's own Dropdown subclass carries the open and
+        # close edges the arrow beside it rotates on.
+        self.assertIn("<pk.quantofrehan.Dropdown", spinner)
         # The five looks are declared colours, not hex in Java.
         for theme in ("black", "green", "navy", "orange"):
             for weight in ("bg", "panel", "accent"):
@@ -1942,6 +1976,47 @@ class MenuOrdersTest(unittest.TestCase):
         for theme in ("black", "green", "navy", "orange"):
             self.assertIn(f"R.color.theme_{theme}_bg", self.main)
         self.assertIn("THEME_LABELS.length", self.main)
+
+    def test_every_dropdown_carries_a_state_arrow(self):
+        """Owner order 2026-10-23 (2.0.0): the pull-down, pull-up arrow.
+
+        "when I tell you to have a drop down menu type feature, I want to
+        have the arrow down and up as well to pull up the menu, right now
+        there is none." Each of the three dropdowns (the themes look and
+        the two CUSTOM SCRIPS OF VOL menus) carries its arrow beside it:
+        DOWN while the menu is closed, UP while it is open, carrying one
+        drawable whose rotate the Dropdown's own edges drive.
+        """
+        dropdown = (ROOT / "android" / "app" / "src" / "main" / "java"
+                    / "pk" / "quantofrehan" / "Dropdown.java").read_text(
+            encoding="utf-8")
+        for view_id in ("volume_split_arrow", "volume_speed_arrow",
+                        "theme_arrow"):
+            with self.subTest(arrow=view_id):
+                arrow = element(self.layout, f'android:id="@+id/{view_id}"')
+                # Beside the field, at its right edge, facing down.
+                self.assertIn('android:layout_gravity="end|center_vertical"',
+                              arrow)
+                self.assertIn('android:src="@drawable/dropdown_arrow"', arrow)
+        self.assertIn("(ImageView) findViewById(R.id.volume_split_arrow);",
+                      self.main)
+        self.assertIn("(ImageView) findViewById(R.id.volume_speed_arrow);",
+                      self.main)
+        self.assertIn("(ImageView) findViewById(R.id.theme_arrow);",
+                      self.main)
+        # One wiring law, three calls: the open edge rotates UP, the close
+        # edge back DOWN, and the closed arrow starts facing down.
+        self.assertIn("wireDropdownArrows();", self.main)
+        self.assertIn("arrow.setRotation(0f);", self.main)
+        self.assertIn(".rotation(open ? 180f : 0f)", self.main)
+        # The edges come from the Dropdown subclass, since Spinner has no
+        # public popup state: performClick opens, focus regained closes.
+        self.assertIn("public class Dropdown extends Spinner", dropdown)
+        self.assertIn("openListener.onDropdownOpenChange(true);", dropdown)
+        self.assertIn("openListener.onDropdownOpenChange(false);", dropdown)
+        self.assertIn("public boolean performClick()", dropdown)
+        self.assertIn("public void onWindowFocusChanged", dropdown)
+        self.assertIn("hasWindowFocus && openListener != null", dropdown)
 
     def test_the_volume_tile_sits_on_the_search_page(self):
         self.assertIn('name="label_volume">CUSTOM SCRIPS OF VOL.<',
@@ -1956,7 +2031,7 @@ class MenuOrdersTest(unittest.TestCase):
             with self.subTest(spinner=view_id):
                 spinner = element(self.layout,
                                   f'android:id="@+id/{view_id}"')
-                self.assertIn("<Spinner", spinner)
+                self.assertIn("<pk.quantofrehan.Dropdown", spinner)
         # Both dropdowns are ranked from the map the search already
         # refreshes, so neither costs a request of its own.
         self.assertIn("Watcher.quotes()", self.main)
@@ -2320,9 +2395,11 @@ class UniversalRuleGapTest(unittest.TestCase):
         rules = [node for node in self.root.iter()
                  if node.tag == "include"
                  and node.get("layout") == "@layout/qor_rule"]
-        # v1.9.13 (owner order 2026-10-23): six rules, after the two the
-        # menu pages owned were cancelled as the owners' extra diamonds.
-        self.assertEqual(len(rules), 6)
+        # v1.9.13, then 2.0.0 (owner order 2026-10-23): six rules, after
+        # the two the menu pages owned were cancelled as the owners' extra
+        # diamonds, and the pair that used to bracket the pinned menu bar
+        # is gone as the owner's clutter order - four rules left.
+        self.assertEqual(len(rules), 4)
         for rule in rules:
             with self.subTest(rule=rule.get(f"{ANDROID_NS}id")):
                 self.assertEqual(rule.get(f"{ANDROID_NS}layout_marginTop"),

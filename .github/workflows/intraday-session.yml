@@ -70,6 +70,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 190
     env:
+      # The market event emails are the loop's passenger now (owner order
+      # 2026-10-23): the phase edges it already decides each second email
+      # the owner through the watched issue, so a GitHub cron stall can
+      # no longer silence a break, a close or an open.
+      OWNER_EMAIL_ISSUE: "81"
       RELAY_ADMIN_TOKEN: ${{ secrets.RELAY_ADMIN_TOKEN }}
       # Band-state persistence (src/data/band_state.py): the day's tape and
       # session state survive the runner in R2. The same two repo secrets the
