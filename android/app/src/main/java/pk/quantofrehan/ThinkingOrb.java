@@ -10,7 +10,8 @@ import android.util.AttributeSet;
 import android.view.View;
 
 /**
- * The quant's own look, owner order 2026-10-23 (fourth pass, v1.9.13).
+ * The quant's own look, owner order 2026-10-23 (fourth pass, v1.9.13;
+ * fifth pass, v1.9.14).
  *
  * The owner sent the reference screenshot back beside v1.9.9's picture and
  * rejected it: the feature is the constellation once more, the web of dots
@@ -18,6 +19,19 @@ import android.view.View;
  * around the core than the versions before it, and the white orb at the
  * centre is replaced by a sun-looking ball of the SAME size, which is a
  * lit 3D sphere and burns without pause.
+ *
+ * Owner order 2026-10-23 (fifth pass, v1.9.14), after the v1.9.13 build
+ * went back on the phone: the feature was read as too quiet and, once the
+ * market closed or the theme repainted the screen, as gone. This pass
+ * answers both. MORE LINES: the field holds 40 dots joined by a wider
+ * web (cap 5 each), and three rings of 10, 12 and 14 nodes roll on
+ * their tilted ellipses. A HOTTER SUN: the ball grows to a tenth of the
+ * box's short side, draws at full alpha, fires sparks almost every
+ * second on shorter periods, and its eight prominence arcs and whole
+ * web revolve on faster bearings. A VISIBLE PARK: stop() freezes the
+ * exact pose the loop last drew and onDraw repaints that pose fully
+ * awake, so a closed market, a break or a theme repaint can never
+ * blank the view - it stops moving, and nothing else.
  *
  * How the picture is built, exactly three layers:
  *
@@ -63,34 +77,41 @@ public class ThinkingOrb extends View {
      * the ones before it on ONE count: more lines revolve around the core
      * than before.
      */
-    private static final int NODES = 30;
+    private static final int NODES = 40;
     /** x, y, z (radius-weighted unit sphere), brightness, twinkle phase. */
     private static final int NODE_STRIDE = 5;
     /** One mesh edge's two node indices; built here, read on the frame. */
     private static final int EDGE_STRIDE = 2;
 
     /** The three revolving rings: node counts, radii, speed, tilt. */
-    private static final int[] RING_NODES = {8, 10, 12};
-    private static final float[] RING_FACTOR = {2.1f, 3.2f, 4.35f};
-    private static final float[] RING_SPEED = {0.55f, -0.40f, 0.26f};
+    private static final int[] RING_NODES = {10, 12, 14};
+    private static final float[] RING_FACTOR = {2.1f, 3.0f, 4.2f};
+    private static final float[] RING_SPEED = {0.62f, -0.46f, 0.30f};
     private static final float[] RING_TILT = {0.62f, 0.50f, 0.40f};
 
     /** The maximum distance two field dots may keep to be joined. */
-    private static final float LINK_DIST = 0.62f;
+    private static final float LINK_DIST = 0.66f;
     /** The cap on connections at one node, so no knot over-draws. */
-    private static final int LINK_MAX = 4;
+    private static final int LINK_MAX = 5;
 
     private static final int GRANULES = 10;
     private static final int GRANULE_STRIDE = 6;
     private static final int FLAMES = 12;
-    private static final int PROMINENCES = 6;
-    private static final int FLARES = 5;
+    private static final int PROMINENCES = 8;
+    private static final int FLARES = 7;
 
     /** Pacing of the frame loop, aimed at a smooth 30fps. */
     private static final long FPS_MS = 33L;
 
     /** The wake ramp: 1.2 seconds, so the sun is up when the owner looks. */
     private static final float WAKE_SECONDS = 1.2f;
+
+    /**
+     * The pose a parked view shows when the loop never reached a frame
+     * (a console that resumed straight onto a closed market): two
+     * seconds in, past the wake ramp, fully lit and still.
+     */
+    private static final float PARKED_SECONDS = 2.0f;
 
     // The fixed inks of the constellation, silver on the deep field.
     private static final int NODE_BRIGHT = 0xFFE3ECFA;
@@ -152,6 +173,15 @@ public class ThinkingOrb extends View {
     private boolean running;
     private boolean built;
 
+    /**
+     * The clock the frame loop reads, in seconds, so a parked frame can
+     * be REPAINTED at exactly the pose it froze on (fifth pass,
+     * v1.9.14): park no longer blanks, and resume continues from the
+     * frozen second instead of restarting the wake ramp.
+     */
+    private float lastSeconds;
+    private float frozenSeconds = -1f;
+
     public ThinkingOrb(Context context) {
         super(context);
     }
@@ -164,20 +194,36 @@ public class ThinkingOrb extends View {
         super(context, attrs, style);
     }
 
-    /** Starts the frame loop; a second call while running is a no-op. */
+    /**
+     * Starts the frame loop; a second call while running is a no-op.
+     * The clock is NOT reset: a resume after a park replays from the
+     * frozen second, so the sun neither blanks nor restarts its wake.
+     */
     public void start() {
         if (running) {
             return;
         }
         running = true;
+        if (frozenSeconds >= 0f) {
+            clockAnchor = System.currentTimeMillis()
+                    - (long) (frozenSeconds * 1000f);
+        }
         lastFrameAt = -1;
-        clockAnchor = System.currentTimeMillis();
         postInvalidateOnAnimation();
     }
 
-    /** Parks the loop; the last frame stays until start() revives it. */
+    /**
+     * Parks the loop, holding the pose the loop last DREW. The parked
+     * pose is repainted (not merely left) whenever anything invalidates
+     * the view, which is what keeps a theme paint, a layout pass or a
+     * closed market from ever blanking the feature.
+     */
     public void stop() {
+        if (!running) {
+            return;
+        }
         running = false;
+        frozenSeconds = lastSeconds;
         lastFrameAt = -1;
     }
 
@@ -189,14 +235,17 @@ public class ThinkingOrb extends View {
         }
         cx = w / 2f;
         cy = h / 2f;
-        // The reference's own proportions: the ball about one seventh of
-        // the box's short side, the grey disc just outside it, the cloud
-        // open to three tenths of the short side around the core.
+        // The reference's proportions and the fifth pass's own: the grey
+        // disc just outside the ball, the cloud open to three tenths of
+        // the short side around the core, and the BALL at a tenth of the
+        // short side, because the owner read the v1.9.13 ball as too
+        // small to read as the sun he ordered.
         float shortSide = Math.min(w, h);
-        ballR = shortSide * 0.072f;
+        ballR = shortSide * 0.10f;
         restR = ballR * 1.55f;
         cloudR = shortSide * 0.30f;
         cellRadiusBase = dp(6f);
+        clockAnchor = System.currentTimeMillis();
         buildCloud();
         buildSun();
         buildInks();
@@ -293,13 +342,13 @@ public class ThinkingOrb extends View {
             promHeight[p] = 0.20f + frac(seed) * 0.18f;
             seed = nextSeed(seed);
             promPhase[p] = frac(seed) * (float) Math.PI * 2f;
-            promSpeed[p] = 0.12f + frac(seed) * 0.10f;
+            promSpeed[p] = 0.18f + frac(seed) * 0.12f;
         }
         for (int s = 0; s < FLARES; s++) {
             seed = nextSeed(seed);
             flareAngle[s] = frac(seed) * (float) Math.PI * 2f;
             seed = nextSeed(seed);
-            flarePeriod[s] = 0.9f + frac(seed) * 0.6f;
+            flarePeriod[s] = 0.7f + frac(seed) * 0.5f;
             seed = nextSeed(seed);
             flarePhase[s] = frac(seed) * flarePeriod[s];
         }
@@ -309,7 +358,7 @@ public class ThinkingOrb extends View {
     private void buildInks() {
         cloudDot.setStyle(Paint.Style.FILL);
         cloudLine.setStyle(Paint.Style.STROKE);
-        cloudLine.setStrokeWidth(dp(1.1f));
+        cloudLine.setStrokeWidth(dp(1.3f));
 
         // The sun is ONE 3D sphere: the hotspot up and to the left, the
         // body white-hot through the solar golds to a deep burning orange
@@ -358,9 +407,13 @@ public class ThinkingOrb extends View {
             return;
         }
         if (!running) {
-            // Parked: stop() holds the last frame until start() revives
-            // the loop, so this draw is the parked one and schedules
+            // Parked (fifth pass, v1.9.14): the view REPAINTS the pose
+            // the loop froze on, fully awake, so a theme repaint, a
+            // layout pass or a closed market can never blank it. It
+            // stops moving and stays exactly as seen, and schedules
             // nothing.
+            drawScene(canvas, frozenSeconds >= 0f ? frozenSeconds
+                    : PARKED_SECONDS, 1f);
             return;
         }
         long now = System.currentTimeMillis() - clockAnchor;
@@ -371,10 +424,16 @@ public class ThinkingOrb extends View {
         lastFrameAt = now;
         float seconds = now / 1000f;
         float wake = Math.min(1f, seconds / WAKE_SECONDS);
+        lastSeconds = seconds;
+        drawScene(canvas, seconds, wake);
+        postInvalidateOnAnimation();
+    }
+
+    /** One full picture: the rest ring, the revolving cloud and the sun. */
+    private void drawScene(Canvas canvas, float seconds, float wake) {
         drawRestRing(canvas, wake);
         drawCloud(canvas, seconds, wake);
         drawSun(canvas, seconds, wake);
-        postInvalidateOnAnimation();
     }
 
     private void drawRestRing(Canvas canvas, float wake) {
@@ -389,7 +448,7 @@ public class ThinkingOrb extends View {
      * at its own rate on top of the shared turn.
      */
     private void drawCloud(Canvas canvas, float seconds, float wake) {
-        float yaw = seconds * 0.10f;
+        float yaw = seconds * 0.16f;
         float cosYaw = (float) Math.cos(yaw);
         float sinYaw = (float) Math.sin(yaw);
         // Edges first, dots second, so each ink's colour is set once for
@@ -412,7 +471,7 @@ public class ThinkingOrb extends View {
             float gx = xj * cosYaw + zj * sinYaw;
             float gz = -xj * sinYaw + zj * cosYaw;
             float depth = (fz + gz) * 0.5f;
-            int alpha = (int) ((0.55f + 0.45f * depth) * 165f * wake);
+            int alpha = (int) ((0.55f + 0.45f * depth) * 205f * wake);
             cloudLine.setAlpha(Math.max(0, Math.min(255, alpha)));
             canvas.drawLine(cx + fx * cloudR, cy + nodes[oi + 1] * cloudR,
                     cx + gx * cloudR, cy + nodes[oj + 1] * cloudR, cloudLine);
@@ -477,7 +536,7 @@ public class ThinkingOrb extends View {
      * flame ring, the revolving arcs and the spark cadence.
      */
     private void drawSun(Canvas canvas, float seconds, float wake) {
-        sunPaint.setAlpha((int) (230f * wake));
+        sunPaint.setAlpha((int) (255f * wake));
         canvas.drawCircle(cx, cy, ballR, sunPaint);
         // The heart breathes in alpha, never in radius.
         float breath = 0.55f + 0.45f * (float) Math.sin(seconds * 0.9f);
@@ -495,7 +554,7 @@ public class ThinkingOrb extends View {
 
     /** The granulation: only the face of the sphere toward the viewer. */
     private void drawCells(Canvas canvas, float seconds, float wake) {
-        float yaw = seconds * 0.32f;
+        float yaw = seconds * 0.45f;
         float cosYaw = (float) Math.cos(yaw);
         float sinYaw = (float) Math.sin(yaw);
         for (int c = 0; c < GRANULES; c++) {
@@ -564,8 +623,8 @@ public class ThinkingOrb extends View {
                             * (float) Math.sin(roll),
                     cx + ballR * (float) Math.cos(a1),
                     cy + ballR * (float) Math.sin(a1));
-            sunProm.setAlpha(Math.min(255, (int) (150f
-                    * (0.35f + 0.65f * leap) * wake)));
+        sunProm.setAlpha(Math.min(255, (int) (185f
+                * (0.35f + 0.65f * leap) * wake)));
             canvas.drawPath(promPath, sunProm);
         }
     }
@@ -588,7 +647,7 @@ public class ThinkingOrb extends View {
             float fy = cy + dist * (float) Math.sin(angle);
             float fade = 1f - k;
             sunFlare.setAlpha(Math.min(255,
-                    (int) (200f * fade * k * wake)));
+                    (int) (230f * fade * k * wake)));
             canvas.drawLine(
                     fx - ballR * 0.08f * fade * (float) Math.cos(angle),
                     fy - ballR * 0.08f * fade * (float) Math.sin(angle),
