@@ -942,6 +942,40 @@ to sixty seconds. The status tile therefore also carries the app's own
        features silently did nothing. One block assigns them all.
 
   Version 1.9.13, versionCode 54.
+- v1.9.14, owner orders 2026-10-23 (the look rejected AGAIN, restated as the
+  v1.9.9 sun):
+
+    1. The AI feature is the v1.9.9 sun once more: 12 tilted revolving
+       ellipse rings (10 node lines plus 2 planet orbits) with a web of
+       straight link chords between their nodes, one big burning sun in
+       the middle that fills the tile, and a resting grey ring behind it.
+       The sun itself revolve-fixes: its convection cells spin with a
+       wider yaw with the revolution that carries them, its flare sparks
+       are 1.5x more frequent (one every 0.66 seconds on average) and the
+       lines revolve 1.4x faster than v1.9.13's rings.
+    2. THE PARK KEEPS THE SUN ON SCREEN. v1.9.13's parked frame drew only
+       the last frame: the theme-select-on-break blanking was a park bug
+       that hid the whole feature. The park now holds a FROZEN BUT
+       VISIBLE sun: when the loop skips a frame it still paints the
+       frozen snapshot, so the burn never blanked the feature at all.
+       Parked sun does not claim a live session (SO-3), and the next
+       ONLINE answer revives the burn.
+    3. The greeting line is 30% bigger than its v1.9.13 size (the owner's
+       order "increase the font size of greeting message by 30% of its
+       current size"), and the brand title grew 20% ON TOP of v1.9.13's
+       24.44754sp, landing on 29.337048sp ("another 20%").
+    4. The pinned bar highlights the tapped page's ICON, not just a
+       circle: the selected page's icon scales to 1.15x and lifts to the
+       tile's ring ink, so a phone reader SEES which page he is on.
+    5. The pinned bar tile's own breadth matches every other tile on the
+       app: the 20dp side breadth the grid owns everywhere.
+    6. Speed dropdown's second menu is the fast-RISERS exact wording:
+       "STOCKS RISING FASTEST.", ranked by the continuous upward SPEED,
+       so the caption matches what the dropdown holds.
+    7. The app version line is the footer of the interface now, under the
+       pinned bar, not the settings page.
+
+  Version 1.9.14, versionCode 55.
 
 **Built and delivered 2026-10-22 (v1.8.8):** the signed v1.8.8 APK was built
 on GitHub Actions from the master at 59da8f90a1 (run 39722179379, the merge
