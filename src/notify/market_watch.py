@@ -34,7 +34,7 @@ now_karachi, band_bounds) and never a local or naive clock here.
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from src.data import sessions
 from src.data.sessions import (  # noqa: F401 - re-exported for the tests
@@ -120,7 +120,18 @@ class MarketEventWatcher:
     that starts mid-session just attempts the phase it finds; the ledger,
     not this class, says whether that attempt is a send or a no-op, which
     is what keeps restarts, double drivers and late fires exactly-once.
+
+    Owner order 2026-10-23 ("a retry that doesn't retry is a fail you
+    didn't take seriously"): a send whose attempt hit a raised exception
+    used to be silently dropped with the edge now behind it, so a relay
+    outage at the exact minute of the break stayed silent for the rest
+    of the phase. A failed attempt now books a retry two minutes out,
+    and observe() keeps attempting that same event inside the same phase
+    until the send lands, the ledger says it is already delivered, or
+    the phase itself ends. The ledger still keeps it exactly once.
     """
+
+    RETRY_SECONDS = 120.0
 
     def __init__(self, sender=None, clock=None) -> None:
         # The sender is injectable so tests never speak to GitHub; the
@@ -136,30 +147,45 @@ class MarketEventWatcher:
 
         self._clock = clock or now_karachi
         self._last_memory: tuple[str, str] | None = None
+        # The instant the next retry of the failed send may run, or None
+        # when nothing is in flight.
+        self._retry_at: datetime | None = None
 
     def observe(self, moment: datetime | None = None) -> list[str]:
         """Look once, mail once, on the edge. Returns the markers mailed.
 
         Never raises for a failed send and never raises instead of a
         scan: an email is the loop's passenger, never its reason to run.
-        A failure is logged with its exception and the next cycle
-        attempts it again only when the phase edge says so.
+        A failure is logged with its exception and retried
+        RETRY_SECONDS later, inside the same phase, until it lands.
         """
         k = moment if moment is not None else self._clock()
         memory = (sessions.market_phase(k).value,
                   sessions.market_state_at(k).value)
         mailed: list[str] = []
-        if memory != self._last_memory:
+        changed = memory != self._last_memory
+        if changed:
             self._last_memory = memory
-            entry = event_for(memory, k)
-            if entry is None:
-                return mailed
-            event, label = entry
-            marker = ledger_key(event, label, k.date().isoformat())
-            try:
-                if self._sender(event, label, k.date().isoformat()):
-                    mailed.append(marker)
-            except Exception as exc:  # noqa: BLE001 - email is a passenger
-                LOGGER.error("market email '%s' failed: %s: %s",
-                             marker, type(exc).__name__, exc)
+            self._retry_at = None
+        elif not (self._retry_at is not None and self._retry_at <= k):
+            # Unchanged phase and no retry due: the edge fired once, so
+            # this is not another attempt.
+            return mailed
+        entry = event_for(memory, k)
+        if entry is None:
+            return mailed
+        event, label = entry
+        marker = ledger_key(event, label, k.date().isoformat())
+        try:
+            if self._sender(event, label, k.date().isoformat()):
+                mailed.append(marker)
+                # Delivered: nothing left in flight for this edge.
+                self._retry_at = None
+            else:
+                # The ledger says already delivered; the event is out.
+                self._retry_at = None
+        except Exception as exc:  # noqa: BLE001 - email is a passenger
+            LOGGER.error("market email '%s' failed: %s: %s",
+                         marker, type(exc).__name__, exc)
+            self._retry_at = k + timedelta(seconds=self.RETRY_SECONDS)
         return mailed
