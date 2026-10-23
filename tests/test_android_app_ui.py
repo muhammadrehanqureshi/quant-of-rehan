@@ -2299,7 +2299,7 @@ class ThinkingOrbPlanTest(unittest.TestCase):
                       orb)
         self.assertIn("float toward = clamp((depth[n] - 1f) / 0.6f, 0f, 1f);",
                       orb)
-        self.assertIn("int o = n * 5;", orb)
+        self.assertIn("int o = n * NODE_STRIDE;", orb)
         # The cloud draws FIRST, the sun after it: the organism reads as
         # circling its star.
         self.assertIn("drawCloud(canvas, seconds, wake);", orb)
