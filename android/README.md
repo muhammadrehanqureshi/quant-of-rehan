@@ -844,6 +844,40 @@ to sixty seconds. The status tile therefore also carries the app's own
        offline hint stays the real one.
 
   Version 1.9.10, versionCode 51.
+- v1.9.12, owner orders 2026-10-23 (the menu, the themes, the greeting and
+  the scrips):
+
+    1. The three controls (home, search, settings) moved from the brand row
+       to their own menu tile at the very bottom of the app, bracketed by
+       the same diamond rules as every change of subject. Home and search
+       came to the app as the owner's own pngs copied from his Desktop
+       (drawable-nodpi/home.png and search.png, joining the bundled       settings.png); the dev archive's magnifier vector is retired. The
+       page he is on is circled in a thin gold ring (drawable/nav_circle)
+       drawn as the icon's background; the ring is the selection, a masked
+       ripple is only the press, and unselected pages keep the plain gold
+       tint.
+    2. The settings page gained the THEMES tile: a dropdown listing the
+       five background and heading pairs in the order he named them
+       (purple and yellow, black and white, green and yellow, navy blue
+       and white, orange and white). Each pair is one live repaint of the
+       console's covers, plates and heading ink (colors.xml theme_*), and
+       the selection is remembered, so the app opens on the look he chose.
+       The settings page also reports the app version, read from the
+       manifest's own versionName.
+    3. The home page greets him before the QUANT STATUS tile: "Good
+       morning, Mr. Rehan!" before noon and "Good afternoon, sir!" after,
+       decided by Asia/Karachi's own clock (SO-8), not the handset's zone.
+    4. The search page gained the CUSTOM SCRIPS OF VOL. tile with two
+       dropdowns: the three scrips the session's B/S split ranks highest
+       buy and lowest sell, and the three fastest prices (the largest
+       absolute moves). Both rankings draw from the same /prices map the
+       search rows already refresh once per tick, and the /prices rows now
+       carry the same B/S pair the /stock route computes (columns
+       [symbol, price, change_pct, buy, sell], nulls where a frame's
+       range is incomplete, never a guessed zero), so the phone ranks
+       itself without a second question.
+
+  Version 1.9.12, versionCode 53.
 
 **Built and delivered 2026-10-22 (v1.8.8):** the signed v1.8.8 APK was built
 on GitHub Actions from the master at 59da8f90a1 (run 39722179379, the merge

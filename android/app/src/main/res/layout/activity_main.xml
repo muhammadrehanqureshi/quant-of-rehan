@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/scroll_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/bg_deep"
@@ -9,23 +10,11 @@
     android:scrollbars="none">
 
     <!-- clipChildren/clipToPadding are off down this chain (owner order
-         2026-10-16, fourth note: the settings icon's press gradient was being
-         cut off). The control is translated 44.1dp right and 6.3dp up from
-         where the brand row anchors it (dimens/settings_shift_x and _y), and a
-         translation moves the DRAWN box without moving any measured bound.
-         Android clips a child to its parent's own bounds unless the parent
-         says otherwise, so every ancestor of that control has to stop
-         clipping: the brand row already did, and the header, this content
-         column and the scroll view now do too. Without that, the gold press
-         flash was sliced along the header's right edge and its top edge, which
-         is exactly the cut the owner reported. MainActivity.applySettingsShift
-         supplies the second half of the fix: the ordered offset is reduced
-         only by the pixels the screen does not have, so the flash cannot be
-         sliced by the window edge either.
-
-         The scroll view is the root of this layout and fills the window, so
-         its own no-clip changes nothing else: there is no sibling for an
-         overhanging pixel to reach, and nothing outside its frame to cover. -->
+         2026-10-16, fourth note: the menu icons' press gradient was being
+         cut off while they hung off the brand line). They sit inside their
+         own tile now, but the machines that draw outside their bounds are
+         not: every ancestor here stops clipping, so any floating ink keeps
+         its whole shape. -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -37,18 +26,16 @@
         android:paddingTop="18dp"
         android:paddingBottom="24dp">
 
-        <!-- ══════════ header: brand centered, gear beside the brand ══════════ -->
+        <!-- ══════════ header: the brand, centred, and nothing else ══════════ -->
         <RelativeLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:clipChildren="false">
 
-            <!-- The brand line and the settings control share this row, so the
-                 control is centred on "Quant of Rehan" itself rather than on
-                 the brand block with its tagline (owner order 2026-10-13), and
-                 it is centred on that line vertically as well, owner order
-                 2026-10-14 below. The tagline sits below the row and never
-                 influences the control. -->
+            <!-- The brand line. Owner order 2026-10-23: the controls that used
+                 to share this row (the gear and the search glass) both MOVED
+                 to the menu tile at the very bottom of the app, so the header
+                 is the name alone. The tagline sits below the row. -->
             <RelativeLayout
                 android:id="@+id/brand_row"
                 android:clipChildren="false"
@@ -71,115 +58,11 @@
                     android:textColor="@color/gold_bright"
                     style="@style/QorBrandTitle"/>
 
-                <!-- The settings control (owner order 2026-10-13): the owner's
-                     own settings.png silhouette (res/drawable-nodpi/
-                     settings.png, 512x512, a black gear on transparency,
-                     copied from his Desktop byte for byte), tinted into the
-                     app's palette and sitting on no plate at all. The old gear
-                     vector and its two plates are retired. The open state is
-                     the quarter turn and the brighter gold, both done in
-                     MainActivity.setSettingsOpen, and its only background is a
-                     masked circular ripple, so a press is acknowledged without
-                     a tile ever being drawn.
-
-                     Owner order 2026-10-13 (second note): the control stands
-                     ON the brand line's baseline rather than centred on the
-                     row. It is anchored to the title here, and MainActivity
-                     puts its bottom edge on the title's own baseline once the
-                     layout exists, because that line's position comes from
-                     Bonskin's metrics and from the system font scale and
-                     cannot be expressed as a fixed margin.
-
-                     Owner order 2026-10-13 (third note): the control used to
-                     overflow its row, because its box is 42dp tall while a
-                     30sp Bonskin line stands only about 30dp of ink above its
-                     baseline. The row therefore turns clipChildren off, so
-                     the guarantee does not rest on one magic number once the
-                     system font scale moves that line.
-
-                     Owner order 2026-10-13 (fourth note): the control stands
-                     directly BESIDE the title instead of pinned to the row's
-                     far edge, so it is always next to "Quant of Rehan" and
-                     never floating alone in the corner. It is anchored with
-                     layout_toEndOf the title, which keeps the pair together
-                     at any screen width and at any font scale: the icon
-                     measures from the title's own right edge, so the title can
-                     never grow into it. The 6dp left margin plus the
-                     control's own 6dp padding leave 12dp of air between the
-                     name and the ink, the grid's own unit and the same 12dp
-                     the rules use.
-
-                     Owner order 2026-10-14 (sixth note): the control is
-                     VERTICALLY CENTRED on the title. The baseline rule of the
-                     second note is retired: standing the box on the brand
-                     baseline needed a measurement after every layout, because
-                     Bonskin puts its baseline wherever its metrics and the
-                     system font scale say, and a 42dp box hung on that line
-                     sat low against the name. centreVertical in the row the
-                     title and the control share puts the box's own middle on
-                     the title's middle, so the pair reads level at any font
-                     scale with no measured pixel and no layout listener at
-                     all.
-
-                     Owner order 2026-10-15 (second note): the control moves
-                     20% of its own box to the right of where that anchor puts
-                     it, and 5% of that box higher, both as translations from
-                     @dimen/settings_shift_x and @dimen/settings_shift_y. A
-                     translation leaves the measurements above intact, so the
-                     title still owns the space it always did and the shift is
-                     the control's own; see dimens.xml for the numbers.
-
-                     Owner order 2026-10-15 (third note, today): the control
-                     moves a further 70% of its own box right and a further
-                     15% of it up from where the shift stood, still the same
-                     two translation dimens, so the totals stack to 90% right
-                     and 20% up of the 42dp box and this comment need no
-                     further edit to stay true. -->
-                <!-- Owner order 2026-10-20: the search control stands to
-                     the LEFT of the gear, on the same Y, separated by 15%
-                     of its own 42dp box (@dimen/search_gap). It carries
-                     the gear's own translations, so the pair keeps its
-                     6.3dp air wherever the gear is nudged to, plus the
-                     further shifts the owner ordered that day and again
-                     now: another 15% of its own box to the right at
-                     20:07 PKT (owner report 2026-10-20), then another 10% of
-                     its own box on 2026-10-21, on top of the existing
-                     search_shift_x, net 62.16dp.
-
-                     Its glass is a vector stroke, not the old search.png
-                     disc: a tinted bitmap turned the whole magnifier gold,
-                     and the owner asked for a see-through glass. -->
-                <ImageView
-                    android:id="@+id/btn_search"
-                    android:layout_width="42dp"
-                    android:layout_height="42dp"
-                    android:layout_centerVertical="true"
-                    android:layout_marginRight="@dimen/search_gap"
-                    android:layout_toStartOf="@id/btn_settings"
-                    android:background="@drawable/settings_ripple"
-                    android:contentDescription="@string/cd_search"
-                    android:padding="8dp"
-                    android:scaleType="fitCenter"
-                    android:src="@drawable/ic_search"
-                    android:tint="@color/gold"
-                    android:translationX="@dimen/search_shift_x"
-                    android:translationY="@dimen/settings_shift_y"/>
-
-                <ImageView
-                    android:id="@+id/btn_settings"
-                    android:layout_width="42dp"
-                    android:layout_height="42dp"
-                    android:layout_centerVertical="true"
-                    android:layout_toEndOf="@id/brand_title"
-                    android:layout_marginLeft="6dp"
-                    android:background="@drawable/settings_ripple"
-                    android:contentDescription="@string/cd_settings"
-                    android:padding="6dp"
-                    android:scaleType="fitCenter"
-                    android:src="@drawable/settings"
-                    android:tint="@color/gold"
-                    android:translationX="@dimen/settings_shift_x"
-                    android:translationY="@dimen/settings_shift_y"/>
+                <!-- Owner order 2026-10-23: the brand row is the name and
+                     nothing else. The settings control's own history lives
+                     with its icon, which MOVED to the menu tile at the very
+                     bottom of the app, where it sits beside HOME and SEARCH
+                     and is circled by the page it opens. -->
             </RelativeLayout>
 
             <!-- Owner order 2026-10-21 (15:15): one size for every line that
@@ -328,6 +211,74 @@
                 android:visibility="gone"/>
         </LinearLayout>
 
+        <!-- Owner order 2026-10-23: its own tile on the search page, under
+             the search tile and inside the same bracket. Two dropdowns:
+             the first names the three scrips the current session's B/S
+             split ranks highest buy and lowest sell, and the second names
+             the three fastest prices. The ranking is drawn from the same
+             /prices map the search rows already refresh once per tick, so
+             the dropdowns ride the same seconds cadence and cost no
+             request. Its visibility travels with the search page from
+             MainActivity, so this tile exists only while the search page
+             does. -->
+        <LinearLayout
+            android:id="@+id/tile_volume"
+            style="@style/QorPanel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/volume_heading"
+                style="@style/QorLabel"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:text="@string/label_volume"/>
+
+            <TextView
+                android:id="@+id/volume_split_caption"
+                style="@style/QorValue"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:gravity="center"
+                android:text="@string/volume_split_caption"/>
+
+            <Spinner
+                android:id="@+id/volume_split_spinner"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:background="@drawable/field_bg"
+                android:contentDescription="@string/volume_split_caption"
+                android:minHeight="40dp"
+                android:prompt="@string/volume_split_prompt"
+                android:padding="10dp"/>
+
+            <TextView
+                android:id="@+id/volume_speed_caption"
+                style="@style/QorValue"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:gravity="center"
+                android:text="@string/volume_speed_caption"/>
+
+            <Spinner
+                android:id="@+id/volume_speed_spinner"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:background="@drawable/field_bg"
+                android:contentDescription="@string/volume_speed_caption"
+                android:minHeight="40dp"
+                android:prompt="@string/volume_speed_prompt"
+                android:padding="10dp"/>
+        </LinearLayout>
+
         <!-- brand rule: line, diamond, line (from the logo frame). Defined
              once in layout/qor_rule.xml and included at each of the four
              divisions: under the header, between the system status and the
@@ -345,6 +296,20 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"/>
 
+        <!-- Owner order 2026-10-23: the console greets him before the QUANT
+             STATUS tile. Which sentence, and when it flips from morning to
+             afternoon, is Karachi's own clock (SO-8), decided in
+             MainActivity.refreshGreeting. It is a home-page line, so it
+             travels with the console's hidden group while a menu is open. -->
+        <TextView
+            android:id="@+id/greeting"
+            style="@style/QorValue"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:gravity="center"
+            android:text="@string/greeting_morning"/>
+
         <!-- ══════════ system status card ══════════
              Owner order 2026-10-16: the console's three tiles carry ids so
              one state can hide them together. The settings menu must be the
@@ -361,6 +326,7 @@
             android:orientation="vertical">
 
             <TextView style="@style/QorLabel"
+                android:id="@+id/status_label"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:gravity="center"
@@ -465,6 +431,7 @@
             android:orientation="vertical">
 
             <TextView style="@style/QorLabel"
+                android:id="@+id/signal_label"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:gravity="center"
@@ -540,6 +507,52 @@
                 android:layout_marginTop="8dp"
                 android:text="@string/btn_arm"
                 android:contentDescription="@string/btn_arm"/>
+
+            <!-- Owner order 2026-10-23: its own tile, a THEMES heading and
+                 a dropdown. The five themes carry the app's look; the
+                 selection is made in MainActivity and remembered between
+                 sessions, so the app opens on the theme he chose.
+                 See MainActivity.applyTheme for the five looks. -->
+            <LinearLayout
+                android:id="@+id/tile_themes"
+                style="@style/QorPanel"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/themes_heading"
+                    style="@style/QorLabel"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center"
+                    android:text="@string/label_themes"/>
+
+                <Spinner
+                    android:id="@+id/theme_spinner"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:background="@drawable/field_bg"
+                    android:contentDescription="@string/label_themes"
+                    android:minHeight="40dp"
+                    android:prompt="@string/theme_prompt"
+                    android:padding="10dp"/>
+            </LinearLayout>
+
+            <!-- Owner order 2026-10-23: the app version on the settings
+                 page, one caption line under the theme tile. MainActivity
+                 writes the manifest's own versionName into it, the same
+                 number the build printed, so the page and the APK cannot
+                 disagree. -->
+            <TextView
+                android:id="@+id/app_version"
+                style="@style/QorCaption"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:gravity="center"/>
         </LinearLayout>
 
         <!-- Owner order 2026-10-21 (15:35): the settings tile is bracketed
@@ -689,5 +702,74 @@
             android:layout_marginTop="12dp"
             android:gravity="center"
             android:text="@string/scan_cadence"/>
+
+        <!-- ══════════ the menu tile, at the very bottom ══════════
+             Owner order 2026-10-23: home, search and settings moved here
+             from the brand row, bracketed by the same diamond rule above
+             and below as every other change of subject. Each icon is the
+             owner's own png (drawable-nodpi/home.png, search.png and
+             settings.png, copied from his Desktop), tinted into the
+             palette, and the page he is on is circled in a gold ring: the
+             ring is the selection, a masked ripple is only the press.
+             The three icons are always on screen: a menu page is chosen
+             here, never lost. -->
+        <include
+            android:id="@+id/rule_before_nav"
+            layout="@layout/qor_rule"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"/>
+
+        <LinearLayout
+            android:id="@+id/nav_tile"
+            style="@style/QorPanel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:gravity="center"
+            android:orientation="horizontal">
+
+            <ImageView
+                android:id="@+id/btn_nav_home"
+                android:layout_width="42dp"
+                android:layout_height="42dp"
+                android:background="@drawable/nav_circle"
+                android:contentDescription="@string/cd_home"
+                android:padding="8dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/home"
+                android:tint="@color/gold_bright"/>
+
+            <ImageView
+                android:id="@+id/btn_nav_search"
+                android:layout_width="42dp"
+                android:layout_height="42dp"
+                android:layout_marginLeft="24dp"
+                android:background="@drawable/settings_ripple"
+                android:contentDescription="@string/cd_search"
+                android:padding="8dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/search"
+                android:tint="@color/gold"/>
+
+            <ImageView
+                android:id="@+id/btn_nav_settings"
+                android:layout_width="42dp"
+                android:layout_height="42dp"
+                android:layout_marginLeft="24dp"
+                android:background="@drawable/settings_ripple"
+                android:contentDescription="@string/cd_settings"
+                android:padding="8dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/settings"
+                android:tint="@color/gold"/>
+        </LinearLayout>
+
+        <include
+            android:id="@+id/rule_after_nav"
+            layout="@layout/qor_rule"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"/>
 </LinearLayout>
 </ScrollView>

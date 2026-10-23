@@ -10,38 +10,10 @@
          drawable used to carry as android:drawablePadding. -->
     <dimen name="status_dot_gap">8dp</dimen>
 
-    <!-- The settings control's nudge from where the brand row anchors it
-         (owner orders, stacked). Every order is a fraction of the control's
-         OWN 42dp box, and a translation on a leaf view does not change
-         layout, so the orders simply sum:
-
-           2026-10-15 (first)   20% right,  5% up
-           2026-10-15 (second)  70% right, 15% up
-           2026-10-16 (today)   15% right,  5% DOWN from where it stood
-           net today            105% right, 15% up
-
-         42 x 1.05 = 44.1dp right, 42 x 0.15 = 6.3dp up (a negative
-         translation in Android's coordinates). Fractions of the control
-         rather than screen pixels, so the offset is the same shape on any
-         screen and at any font scale. The anchors themselves are untouched:
-         the control still holds beside the title, and this is only the
-         offset from there. -->
-    <dimen name="settings_shift_x">44.1dp</dimen>
-    <dimen name="settings_shift_y">-6.3dp</dimen>
-
-    <!-- The air between the search control and the gear (owner order
-         2026-10-20): 15% of the control's own 42dp box, so the pair reads
-         as one cluster. The search control carries the gear's own
-         translations, so the gap is the same at any font scale. -->
-    <dimen name="search_gap">6.3dp</dimen>
-
-    <!-- Owner order 2026-10-20 (second note): the search control moves 15%
-         of its own 42dp box (6.3dp) to the right of where the first note put
-         it. The control stands to the LEFT of the gear and travels with it,
-         so the gear's own 44.1dp offset (105% of 42dp) is the base and the
-         owner's 15% (6.3dp) is added to it: 50.4dp. The 6.3dp margin keeps
-         the two boxes from overlapping while the translation is applied.
-         Owner order 2026-10-21: another 10% of its own box (4.2dp) to the
-         right, so the previous 57.96 becomes 62.16dp. -->
-    <dimen name="search_shift_x">62.16dp</dimen>
+    <!-- Owner order 2026-10-23: the settings_shift_x/y, search_gap and
+         search_shift_x dimens are retired with the header controls they
+         nudged. Those controls MOVED to the menu tile at the very bottom
+         of the app, where the icons sit in the tile's own flow and need
+         no ordered translation, so the numbers were dropped rather than
+         kept for nothing. -->
 </resources>

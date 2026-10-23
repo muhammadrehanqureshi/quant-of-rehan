@@ -739,17 +739,30 @@ public final class Watcher {
         return SYMBOLS;
     }
 
-    /** One symbol's last price and percentage move, for the search rows. */
+    /**
+     * One symbol's last price, move and split, for the search rows and the
+     * volume dropdowns (owner order 2026-10-23).
+     *
+     * The relay's own split law computes the buy and sell pair (its frame's
+     * day range), so this is only what the answer carried: null means the
+     * frame's range was incomplete, never zero (SO-3).
+     */
     static final class Quote {
         final double price;
         /** null: the relay has a price but no day's movement for this symbol.
          *  Boxed so the row can print the price in neutral ink instead of
          *  colouring an unknown move as a flat green (SO-3). */
         final Double changePct;
+        /** null: the relay's frame had no complete range for the split. */
+        final Long buy;
+        /** null: the relay's frame had no complete range for the split. */
+        final Long sell;
 
-        Quote(double price, Double changePct) {
+        Quote(double price, Double changePct, Long buy, Long sell) {
             this.price = price;
             this.changePct = changePct;
+            this.buy = buy;
+            this.sell = sell;
         }
     }
 
@@ -762,6 +775,15 @@ public final class Watcher {
 
     static Quote quote(String symbol) {
         return PRICES.get(symbol);
+    }
+
+    /**
+     * The whole price map, for the volume dropdowns (owner order 2026-10-23).
+     * Ranking happens in one place, on the map the search already refreshes,
+     * so the dropdowns ride the same tick the rows do and cost no request.
+     */
+    static java.util.Map<String, Quote> quotes() {
+        return PRICES;
     }
 
     interface PricesCallback {
@@ -798,9 +820,19 @@ public final class Watcher {
                         String symbol = row.optString(0, "");
                         double price = row.optDouble(1, Double.NaN);
                         double pct = row.optDouble(2, Double.NaN);
+                        Long buy = null;
+                        Long sell = null;
+                        Object buyVal = row.opt(3);
+                        Object sellVal = row.opt(4);
+                        if (buyVal instanceof Number) {
+                            buy = ((Number) buyVal).longValue();
+                        }
+                        if (sellVal instanceof Number) {
+                            sell = ((Number) sellVal).longValue();
+                        }
                     if (!symbol.isEmpty() && !Double.isNaN(price) && price > 0) {
                         map.put(symbol, new Quote(price,
-                                Double.isNaN(pct) ? null : pct));
+                                Double.isNaN(pct) ? null : pct, buy, sell));
                     }
                 }
             }

@@ -462,6 +462,23 @@ class RelayWorkerContractTest(unittest.TestCase):
         self.assertIn("the market is closed", stock)
         self.assertIn("quote_fresh: Boolean(quote.fresh),", stock)
 
+    def test_prices_rows_carry_the_relay_split_for_the_dropdowns(self):
+        """Owner order 2026-10-23: the phone ranks the dropdowns itself.
+
+        Each /prices row is [symbol, price, change_pct, buy, sell], the buy
+        and sell pair computed by the relay's own split law from the row's
+        frame, with nulls where the frame's range is incomplete rather than
+        a guessed zero (SO-3). The phone ranks from these columns; the
+        /stock route stays the human-readable answer with its labels.
+        """
+        prices = self.source[self.source.index('path === "/prices"'):]
+        prices = prices[:prices.index('path === "/market"')]
+        self.assertIn("const split = rangePositionSplit(quote.high, quote.low,",
+                      prices)
+        self.assertIn("quote.price, quote.volume);", prices)
+        self.assertIn("split ? split.buy_volume : null,", prices)
+        self.assertIn("split ? split.sell_volume : null,", prices)
+
 
 if __name__ == "__main__":
     unittest.main()
