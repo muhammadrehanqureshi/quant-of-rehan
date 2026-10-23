@@ -27,6 +27,7 @@ and every failure is reported and never hides the delivery state.
 from __future__ import annotations
 
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -107,6 +108,23 @@ def already_sent(issue_no: str, marker: str) -> bool:
         if needle in body:
             return True
     return False
+
+
+MARKER_PATTERN = re.compile(r"^owner-email: (\S+)$", re.MULTILINE)
+
+
+def sent_markers() -> set[str]:
+    """Every marker the watched issue already carries, newest page first.
+
+    The catch-up backstop reads the whole day's ledger in one pass so a
+    single fire can price every event against the same set; `send()`
+    still does its own already-sent check before posting, so this set is
+    only ever an optimisation and never the guarantee.
+    """
+    markers: set[str] = set()
+    for body in _comment_pages(owner_email_issue()):
+        markers.update(MARKER_PATTERN.findall(body))
+    return markers
 
 
 def send(text: str, marker: str) -> bool:

@@ -130,6 +130,46 @@ class WatcherTest(unittest.TestCase):
         watcher = MarketEventWatcher(sender=breaker)
         self.assertEqual(watcher.observe(pkt(12, 1)), [])
 
+    def test_a_failed_send_is_retried_inside_the_phase(self):
+        # Owner order 2026-10-23: the break edge fired while the relay
+        # was down and the send was dropped with it, so the phase stayed
+        # silent for the rest of the break. A failed attempt now books a
+        # retry two minutes out and lands it while the phase holds.
+        holder = {"now": pkt(12, 1)}
+        outcomes = [RuntimeError("503 from the GitHub API"), True]
+
+        def flaky(event, label, day):
+            step = outcomes.pop(0)
+            if isinstance(step, Exception):
+                raise step
+            self.sent.append((event, label, day))
+            return True
+
+        watcher = MarketEventWatcher(sender=flaky,
+                                     clock=lambda: holder["now"])
+        self.assertEqual(watcher.observe(), [])
+        self.assertEqual(self.sent, [])
+        holder["now"] = pkt(12, 2)  # before the retry window: silent
+        self.assertEqual(watcher.observe(), [])
+        self.assertEqual(self.sent, [])
+        holder["now"] = pkt(12, 4)  # the retry fires and lands
+        self.assertEqual(watcher.observe(), ["market-break:2026-10-23"])
+        self.assertEqual(self.sent, [("break", "", "2026-10-23")])
+
+    def test_the_retry_stops_when_the_ledger_says_delivered(self):
+        # A False send means the ledger already carries the marker (another
+        # path emailed it): the event is out, so no retry is ever booked.
+        holder = {"now": pkt(12, 1)}
+
+        def delivered(event, label, day):
+            return False
+
+        watcher = MarketEventWatcher(sender=delivered,
+                                     clock=lambda: holder["now"])
+        self.assertEqual(watcher.observe(), [])
+        holder["now"] = pkt(12, 30)  # deep into the phase
+        self.assertEqual(watcher.observe(), [])
+
     def test_the_ledger_key_carries_the_label(self):
         self.assertEqual(ledger_key("open", "", "2026-10-23"),
                          "market-open:2026-10-23")
