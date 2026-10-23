@@ -25,6 +25,10 @@ Nothing here sleeps, waits, rewords the owner's texts, or invents a
 state: a send only happens for the phase the session law names at this
 instant, and the ledger supplies the exactly-once guarantee across
 restarts, double drivers and late fires.
+
+SO-8: every moment this module speaks of is Karachi, Asia/Karachi, UTC+5,
+built only through src/data/sessions.py's own helpers (as_karachi,
+now_karachi, band_bounds) and never a local or naive clock here.
 """
 
 from __future__ import annotations
@@ -56,19 +60,22 @@ EVENT_TEXTS = {
 
 
 def band_index(moment: datetime) -> int:
-    """How many of today's bands have opened at this instant (0-based).
+    """Which of today's bands holds this instant (1-based), or 0 if none.
 
     The owner hears one open text per band, so the second band's open
     must not be hidden behind the first's ledger marker. Used to choose
-    the reopen label: band 0 writes ``market-open:<date>`` and any later
-    band writes ``market-open:<date>:reopen``.
+    the reopen label: the band holding the moment writes
+    ``market-open:<date>`` and a second band's edge writes
+    ``market-open:<date>:reopen``. The band that is opening AT the
+    instant counts here, so band 1's own open edge is index 1 and is
+    never mislabelled as a reopen.
     """
     k = sessions.as_karachi(moment)
-    opened = 0
-    for band in sessions.session_bands(k.date()):
-        if sessions.band_bounds(k.date(), band)[0] <= k:
-            opened += 1
-    return opened
+    for i, band in enumerate(sessions.session_bands(k.date()), start=1):
+        start, end = sessions.band_bounds(k.date(), band)
+        if start <= k < end:
+            return i
+    return 0
 
 
 def event_for(memory: tuple[str, str], moment: datetime) -> tuple[str, str] | None:
@@ -87,7 +94,7 @@ def event_for(memory: tuple[str, str], moment: datetime) -> tuple[str, str] | No
     if phase in (sessions.MarketPhase.WARMUP.value,
                  sessions.MarketPhase.OPEN.value) and \
             state == sessions.MarketState.MARKET.value:
-        return "open", "" if band_index(moment) == 0 else "reopen"
+        return "open", "reopen" if band_index(moment) > 1 else ""
     if phase == sessions.MarketPhase.BREAK.value:
         return "break", ""
     if state == sessions.MarketState.POST_MARKET.value:
@@ -97,9 +104,9 @@ def event_for(memory: tuple[str, str], moment: datetime) -> tuple[str, str] | No
     return None
 
 
-def ledger_key(event: str, label: str, day) -> str:
-    """The exactly-once key: one event, one label, one Karachi day."""
-    marker = f"market-{event}:{day.isoformat()}"
+def ledger_key(event: str, label: str, day: str) -> str:
+    """The exactly-once key: one event, one label, one ISO Karachi day."""
+    marker = f"market-{event}:{day}"
     if label:
         marker = f"{marker}:{label.strip()}"
     return marker

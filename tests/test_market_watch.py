@@ -58,8 +58,8 @@ class EventMappingTest(unittest.TestCase):
     def test_the_friday_second_band_opens_as_reopen(self):
         from src.data.sessions import market_phase, market_state_at
         for (event, label), moment in (
-            (("", ""), pkt(9, 17)),        # band 1: no label
-            (("reopen", ""), pkt(14, 32)),  # band 2: the reopen label
+            (("open", ""), pkt(9, 17)),         # band 1: no label
+            (("open", "reopen"), pkt(14, 32)),  # band 2: the reopen label
         ):
             with self.subTest(event=event, at=moment.isoformat()):
                 pair = (market_phase(moment).value,
