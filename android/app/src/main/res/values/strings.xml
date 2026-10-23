@@ -36,8 +36,7 @@
          the ranking is, never that a split is order flow (SO-3); the
          split's method stays labelled on the relay's own answer. -->
     <string name="label_volume">CUSTOM SCRIPS OF VOL.</string>
-    <string name="volume_split_caption">HIGHEST B &amp; LOWEST S.</string>
-    <string name="volume_speed_caption">FASTEST PRICE.</string>
+    <string name="volume_split_caption">HIGHEST B &amp; LOWEST S.</string>        <string name="volume_speed_caption">STOCKS RISING FASTEST.</string>
     <string name="volume_split_prompt">HIGHEST BUY &amp; LOWEST SELL.</string>
     <string name="volume_speed_prompt">PRICE MOVING FASTEST.</string>
 
