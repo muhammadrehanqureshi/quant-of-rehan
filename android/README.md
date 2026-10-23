@@ -976,6 +976,28 @@ to sixty seconds. The status tile therefore also carries the app's own
        pinned bar, not the settings page.
 
   Version 1.9.14, versionCode 55.
+- v2.0.0, owner orders 2026-10-23 (fourth order of the day):
+
+    1. The pinned menu bar is the tile ALONE: the diamond rule above it and
+       the diamond rule below it are GONE ("remove the diamond and 2 lines
+       around from top and below the menu bar"). Four rules remain on the
+       console: the brand rule under the header and the three the home
+       tiles carry.
+    2. EVERY dropdown carries its state arrow ("I want to have the arrow
+       down and up as well to pull up the menu, right now there is none"):
+       a small gold triangle beside each field, pointing DOWN while the
+       menu is closed and rotating UP while it is open, flipped on the
+       Dropdown's own open and close edges (a new Spinner subclass, since
+       Spinner has no public popup state). The three dropdowns (THEMES and
+       the two CUSTOM SCRIPS OF VOL. menus) share one wiring law.
+    3. The watch window's tap answer is the one-second reality: it armed
+       the 1-second watch window that has run since 2026-10-20, so "Watchdog
+       armed. Refreshing every 5 minutes" (jargon, plus a cadence that died
+       with that order) is retired and the toast now reads "The 1-second
+       watch window is armed." The battery exemption prompt's wording and
+       the docs' own old 5 minute figure follow the same rule.
+
+  Version 2.0.0, versionCode 56.
 
 **Built and delivered 2026-10-22 (v1.8.8):** the signed v1.8.8 APK was built
 on GitHub Actions from the master at 59da8f90a1 (run 39722179379, the merge
