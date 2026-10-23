@@ -66,9 +66,11 @@
     <!-- Owner order 2026-10-23 (v1.9.13): the app brand name is bigger
          than every other heading, so it stands as the name of the whole
          console rather than as one of the tile names, and it GREW 20% on
-         its own previous size by the owner's word. -->
+         its own previous size by the owner's word. Owner order 2026-10-23
+         (second order, v1.9.14): ANOTHER 20% on top of that, 24.44754 x
+         1.2 = 29.337048sp, one number. -->
     <style name="QorBrandTitle" parent="QorLabel">
-        <item name="android:textSize">24.44754sp</item>
+        <item name="android:textSize">29.337048sp</item>
     </style>
     <!-- The owner's face for short-form text: the market card's values
          (numbers, tickers, money) and, after the order of 2026-10-13, the

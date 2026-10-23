@@ -404,6 +404,10 @@ public class MainActivity extends Activity {
         });
         navSearch.setOnClickListener(v -> setSearchOpen(true));
         navSettings.setOnClickListener(v -> setSettingsOpen(true));
+        // The selection is painted once at the build too, so the opened
+        // console starts with the highlighted icon and not only the
+        // ring the XML declared.
+        paintNavSelection();
         // Instant search (owner order 2026-10-20): every keystroke filters
         // the symbol list the relay's own snapshot carries, so the list is
         // local and a letter costs no request.
@@ -498,7 +502,18 @@ public class MainActivity extends Activity {
         setNavPage(navSettings, settingsOpen);
     }
 
-    /** One icon's own face: the ring when its page is live, ripple when not. */
+    /**
+     * One icon's own face: the ring when its page is live, ripple when not.
+     *
+     * Owner order 2026-10-23 (second order, v1.9.14): the ring alone was
+     * not picked up as the selection, so the icon itself is highlighted
+     * with it: brighter ink, and a size lift the eye reads at once. The
+     * two ride together so the selection is one state, and both are
+     * re-set every paint, so a theme or a page change cannot leave one
+     * half behind.
+     */
+    private static final float NAV_SELECTED_SCALE = 1.18f;
+
     private void setNavPage(ImageView icon, boolean selected) {
         if (icon == null) {
             return;
@@ -507,6 +522,8 @@ public class MainActivity extends Activity {
                 ? R.drawable.nav_circle : R.drawable.settings_ripple);
         icon.setImageTintList(ColorStateList.valueOf(getColor(
                 selected ? R.color.gold_bright : R.color.gold)));
+        icon.setScaleX(selected ? NAV_SELECTED_SCALE : 1f);
+        icon.setScaleY(selected ? NAV_SELECTED_SCALE : 1f);
     }
 
     /**
@@ -780,24 +797,25 @@ public class MainActivity extends Activity {
     }
 
     /**
-     * Dropdown 2 (owner order 2026-10-23): the three prices moving
-     * fastest, which is the relay's own day move, the one number the
-     * feed carries about speed. Flat scrips cannot claim speed, so a
-     * scrip with no reported move is skipped (SO-3).
+     * Dropdown 2 (owner order 2026-10-23, restated 2026-10-23 second
+     * order, v1.9.14): the three scrips RISING fastest, continuously -
+     * the relay's own day move, upward only. A scrip that is not rising
+     * cannot claim the risers' menu, so a flat or falling scrip is
+     * skipped instead of printed (SO-3).
      */
     private List<String> rankedSpeedSymbols(java.util.Map<String, Watcher.Quote> quotes) {
         List<String> symbols = new ArrayList<>();
         for (java.util.Map.Entry<String, Watcher.Quote> entry : quotes.entrySet()) {
-            if (entry.getValue().changePct != null) {
+            Double rise = entry.getValue().changePct;
+            if (rise != null && rise > 0d) {
                 symbols.add(entry.getKey());
             }
         }
         symbols.sort((a, b) -> {
-            double sa = Math.abs(quotes.get(a).changePct);
-            double sb = Math.abs(quotes.get(b).changePct);
-            int bySpeed = Double.compare(sb, sa);
-            if (bySpeed != 0) {
-                return bySpeed;
+            int byRise = Double.compare(quotes.get(b).changePct,
+                    quotes.get(a).changePct);
+            if (byRise != 0) {
+                return byRise;
             }
             return a.compareTo(b);
         });

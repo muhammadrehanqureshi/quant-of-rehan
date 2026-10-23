@@ -310,8 +310,7 @@
              STATUS tile. Which sentence, and when it flips from morning to
              afternoon, is Karachi's own clock (SO-8), decided in
              MainActivity.refreshGreeting. It is a home-page line, so it
-             travels with the console's hidden group while a menu is open. -->
-        <TextView
+             travels with the console's hidden group while a menu is open. -->        <TextView
             android:id="@+id/greeting"
             style="@style/QorValue"
             android:fontFamily="@font/bonskin"
@@ -319,7 +318,8 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
             android:gravity="center"
-            android:text="@string/greeting_morning"/>
+            android:text="@string/greeting_morning"
+            android:textSize="16.9sp"/>
 
         <!-- ══════════ system status card ══════════
              Owner order 2026-10-16: the console's three tiles carry ids so
@@ -552,24 +552,22 @@
                     android:padding="10dp"/>
             </LinearLayout>
 
-            <!-- Owner order 2026-10-23: the app version on the settings
-                 page, one caption line under the theme tile. MainActivity
-                 writes the manifest's own versionName into it, the same
-                 number the build printed, so the page and the APK cannot
+            <!-- Owner order 2026-10-23 (second order, v1.9.14): the version
+                 line left this tile for the root's own footer under the
+                 pinned bar, where it serves every page; MainActivity
+                 writes the manifest's own versionName there, the same
+                 number the build printed, so the screen and the APK cannot
                  disagree. -->
-            <TextView
-                android:id="@+id/app_version"
-                style="@style/QorCaption"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:gravity="center"/>
         </LinearLayout>
 
         <!-- Owner order 2026-10-23 (v1.9.13): the rule that sat below the
              settings tile is GONE, the same owner count as the search
              page's removed rule above: one diamond rule per page change,
-             never two. -->
+             never two. Owner order 2026-10-23 (second order, v1.9.14): the
+             app version line LEFT the settings page for the root's own
+             footer under the pinned bar's closing rule, so the version is
+             on every page of the app and names the build it came from
+             (the footer below). -->
 
         <!-- ══════════ market card ══════════
              Third box, same shape as the two above: KSE100 points and
@@ -742,7 +740,15 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="12dp"
-        android:orientation="horizontal">
+        android:orientation="horizontal"
+        android:paddingLeft="20dp"
+        android:paddingRight="20dp">
+
+        <!-- Owner order 2026-10-23 (second order, v1.9.14): the tile's own
+             breadth is every tile's breadth - the console scroll holds
+             its 20dp sides, the pinned bar sat flush to the screen, so
+             the bar now carries the SAME side air and reads as one tile
+             among the rest rather than as a wider bar under them. -->
 
         <FrameLayout
             android:layout_width="0dp"
@@ -805,4 +811,21 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="12dp"/>
+
+    <!-- ══════════ the footer: the app version ══════════
+         Owner order 2026-10-23 (second order, v1.9.14): "App version:
+         version number at the footer." The line is the ROOT's own last
+         line, under the pinned menu bar and its closing rule, on every
+         page of the app, and it never hides: a version that only shows
+         on one page is not a footer. MainActivity writes the manifest's
+         own versionName into it, the same number the build prints, so
+         the screen and the APK cannot disagree. -->
+    <TextView
+        android:id="@+id/app_version"
+        style="@style/QorCaption"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:layout_marginBottom="10dp"
+        android:gravity="center"/>
 </LinearLayout>
