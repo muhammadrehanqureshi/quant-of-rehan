@@ -10,89 +10,78 @@ import android.util.AttributeSet;
 import android.view.View;
 
 /**
- * The quant's own look, owner order 2026-10-23 (fourth pass, v1.9.13;
- * fifth pass, v1.9.14).
+ * The quant's own look, owner order 2026-10-23 (sixth pass, v2.1.0).
  *
- * The owner sent the reference screenshot back beside v1.9.9's picture and
- * rejected it: the feature is the constellation once more, the web of dots
- * and lines around a small core, but it must show MORE lines revolving
- * around the core than the versions before it, and the white orb at the
- * centre is replaced by a sun-looking ball of the SAME size, which is a
- * lit 3D sphere and burns without pause.
+ * The owner sent the reference screenshot back with this order: the feature
+ * is a RADIAL BURST, spokes of icy lines shot out from the core in every
+ * direction, each spoke carrying its own run of dots, the tips lit
+ * brightest, a faint web joining the spokes near the core - the whole body
+ * of it slowly revolving. The rings of v1.9.13/v1.9.14 and the scattered
+ * lopsided cloud before them are retired in favour of exactly that
+ * picture.
  *
- * Owner order 2026-10-23 (fifth pass, v1.9.14), after the v1.9.13 build
- * went back on the phone: the feature was read as too quiet and, once the
- * market closed or the theme repainted the screen, as gone. This pass
- * answers both. MORE LINES: the field holds 40 dots joined by a wider
- * web (cap 5 each), and three rings of 10, 12 and 14 nodes roll on
- * their tilted ellipses. A HOTTER SUN: the ball grows to a tenth of the
- * box's short side, draws at full alpha, fires sparks almost every
- * second on shorter periods, and its eight prominence arcs and whole
- * web revolve on faster bearings. A VISIBLE PARK: stop() freezes the
- * exact pose the loop last drew and onDraw repaints that pose fully
- * awake, so a closed market, a break or a theme repaint can never
- * blank the view - it stops moving, and nothing else.
+ * "But with sun as the core": the centre is the same always-burning sun
+ * v1.9.9 built and v1.9.14 made hotter (a lit 3D ball, granulation on its
+ * face, flame tongues on its limb, revolving prominence arcs, a spark
+ * alive almost every second). The burst does not replace the sun; it
+ * RADIATES from it, and the grey rest ring of the older reference is gone
+ * because the new reference's core is the star itself.
  *
- * How the picture is built, exactly three layers:
+ * How the picture is built, exactly two layers:
  *
- *   - The constellation: 30 field dots scattered through a lopsided cloud
- *     around the centre, joined by the mesh edges the distances decide
- *     (capped, so no knot over-draws). The whole cloud revolves as one
- *     body around the ball, which is the reference's own orbit.
- *   - The revolving lines: three rings of nodes circle the ball on tilted
- *     ellipses, each at its own radius, direction and speed, and each
- *     ring's nodes are joined into its polyline. Rings and mesh together
- *     hold more lines than the prominence count of any pass before, and
- *     the sun keeps its own six arcs revolving at the limb.
- *   - The sun: a small 3D ball the same size the white orb held, lit by a
- *     radial gradient whose hotspot sits up and to the left, white-hot
- *     through the solar golds to deep burning orange at the limb. It burns
- *     ALWAYS: granulation cells on its face, flame tongues on its ragged
- *     limb, plasma arcs that revolve around it, and a flare spark alive
- *     almost every second. A grey rest ring behind it holds the
- *     reference's own disc.
+ *   - The burst: RAYS spokes, evenly spread around the core with a small
+ *     deterministic jitter per spoke. Each spoke is a polyline of
+ *     RAY_NODES nodes from just outside the sun's limb out to the rim, its
+ *     radii spaced so the spokes bunch near the core the way the reference
+ *     does, its tip the largest and brightest node. A capped web joins
+ *     neighbouring spokes' inner nodes to each other, which is what reads
+ *     as the "structure" around the core. The whole burst revolves as ONE
+ *     body around the sun, which is the reference's own orbit.
+ *   - The sun: unchanged from v1.9.14, at a tenth of the box's short side,
+ *     burning without pause, awake or parked.
  *
  * The feature stops when the market stops (owner order 2026-10-23): the
  * market gate is the ON badge's own boolean in MainActivity, the same
  * knowledge the status dot uses, so the view is ordered stop() whenever
  * the relay reports the session closed or on a break, and start() again
  * the moment it trades. stop() parks the loop and holds the last frame,
- * so a closed market shows one still burning sun: no motion claims the
- * session is live (SO-3), and the picture never blanks.
+ * so a closed market shows one still burning sun inside a still burst: no
+ * motion claims the session is live (SO-3), and the picture never blanks.
  *
- * The budget is the budget that survived the earlier passes: one View,
- * zero relay requests, zero allocations per frame (the cloud, its edges,
- * the rings' nodes, the cells, flames, prominences and sparks are built
- * once in onSizeChanged and every draw touches preallocated arrays), and
- * the frame loop is the view's own paced invalidate at FPS_MS. start()
- * and stop() stay the only public controls, wired to MainActivity's
- * startHud and stopHud: a paused console draws nothing at all, and the
- * market gate decides the rest.
+ * The budget is the budget that survived every pass: one View, zero relay
+ * requests, zero allocations per frame (the burst's nodes and edges, the
+ * cells, flames, prominences and sparks are built once in onSizeChanged
+ * and every draw touches preallocated arrays), and the frame loop is the
+ * view's own paced invalidate at FPS_MS. start() and stop() stay the only
+ * public controls, wired to MainActivity's startHud and stopHud.
  */
 
 public class ThinkingOrb extends View {
 
-    /**
-     * Populations, chosen once. The owner's order compares this pass with
-     * the ones before it on ONE count: more lines revolve around the core
-     * than before.
-     */
-    private static final int NODES = 40;
-    /** x, y, z (radius-weighted unit sphere), brightness, twinkle phase. */
+    /** The spokes of the burst: more lines around the core than ever. */
+    private static final int RAYS = 22;
+    /** Nodes per spoke, from the limb to the rim. */
+    private static final int RAY_NODES = 5;
+    /** Node count the arrays are sized for: every spoke's every node. */
+    private static final int NODES = RAYS * RAY_NODES;
+    /** x, y, z (unit sphere scaled by radius frac), size, twinkle phase. */
     private static final int NODE_STRIDE = 5;
     /** One mesh edge's two node indices; built here, read on the frame. */
     private static final int EDGE_STRIDE = 2;
 
-    /** The three revolving rings: node counts, radii, speed, tilt. */
-    private static final int[] RING_NODES = {10, 12, 14};
-    private static final float[] RING_FACTOR = {2.1f, 3.0f, 4.2f};
-    private static final float[] RING_SPEED = {0.62f, -0.46f, 0.30f};
-    private static final float[] RING_TILT = {0.62f, 0.50f, 0.40f};
+    /**
+     * Each spoke's radii, in fractions of the burst radius, bunched near
+     * the core and stretched at the rim (the reference's own density).
+     */
+    private static final float[] RAY_FRACTION = {0.16f, 0.30f, 0.46f, 0.64f, 0.88f};
 
-    /** The maximum distance two field dots may keep to be joined. */
-    private static final float LINK_DIST = 0.66f;
-    /** The cap on connections at one node, so no knot over-draws. */
-    private static final int LINK_MAX = 5;
+    /** The index past which a node joins the cross-spoke web (inner half). */
+    private static final int WEB_TO_INDEX = 3;
+
+    /** The maximum unit distance two inner nodes may keep to be joined. */
+    private static final float LINK_DIST = 0.34f;
+    /** The cross-web cap on connections at one node, so no over-draw. */
+    private static final int LINK_MAX = 2;
 
     private static final int GRANULES = 10;
     private static final int GRANULE_STRIDE = 6;
@@ -113,20 +102,20 @@ public class ThinkingOrb extends View {
      */
     private static final float PARKED_SECONDS = 2.0f;
 
-    // The fixed inks of the constellation, silver on the deep field.
-    private static final int NODE_BRIGHT = 0xFFE3ECFA;
-    private static final int NODE_DIM = 0xFF9FB0C8;
-    private static final int LINE_INK = 0xFF7E93B4;
+    // The fixed inks of the burst, ice on the deep field.
+    private static final int NODE_BRIGHT = 0xFFEAF3FF;
+    private static final int NODE_DIM = 0xFFA9BBD6;
+    private static final int LINE_INK = 0xFF9CB8DE;
 
-    private final Paint cloudDot = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final Paint cloudLine = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint burstDot = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint burstHalo = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint burstLine = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint sunPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint sunHeart = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint sunCell = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint sunFlame = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint sunProm = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint sunFlare = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final Paint restRing = new Paint(Paint.ANTI_ALIAS_FLAG);
 
     /** The one Path the prominence arcs share; reset, never reallocated. */
     private final Path promPath = new Path();
@@ -134,18 +123,20 @@ public class ThinkingOrb extends View {
     private float cx;
     private float cy;
     private float ballR;
-    private float restR;
-    private float cloudR;
+    private float burstR;
     private float cellRadiusBase;
 
     /**
-     * Field cloud nodes: unit sphere position weighted by each dot's own
-     * gravity, plus brightness and twinkle phase, all built once. Edges
-     * are the two node indices per line.
+     * Burst nodes: unit sphere position scaled by each node's own radius
+     * fraction, plus size and twinkle phase, all built once. Edges are
+     * the two node indices per line: the spokes first, then the web.
      */
     private final float[] nodes = new float[NODES * NODE_STRIDE];
-    private final int[] edges = new int[NODES * LINK_MAX * EDGE_STRIDE];
+    private final int[] edges = new int[(RAYS * (RAY_NODES - 1)
+            + NODES * LINK_MAX) * EDGE_STRIDE];
     private int edgeCount;
+    /** The index where the spoke polylines end and the web begins. */
+    private int spokeEdgeCount;
 
     /** The sun's granulation cells: unit position, size, phase, rate. */
     private final float[] cells = new float[GRANULES * GRANULE_STRIDE];
@@ -235,58 +226,81 @@ public class ThinkingOrb extends View {
         }
         cx = w / 2f;
         cy = h / 2f;
-        // The reference's proportions and the fifth pass's own: the grey
-        // disc just outside the ball, the cloud open to three tenths of
-        // the short side around the core, and the BALL at a tenth of the
-        // short side, because the owner read the v1.9.13 ball as too
-        // small to read as the sun he ordered.
+        // The reference's proportions and the fifth pass's own: the burst
+        // fills the box the old cloud openned (three tenths of the short
+        // side) plus the rim the tips carry, and the BALL stays at a
+        // tenth of the short side, the sun the owner fixed at v1.9.14.
         float shortSide = Math.min(w, h);
         ballR = shortSide * 0.10f;
-        restR = ballR * 1.55f;
-        cloudR = shortSide * 0.30f;
+        burstR = shortSide * 0.34f;
         cellRadiusBase = dp(6f);
         clockAnchor = System.currentTimeMillis();
-        buildCloud();
+        buildBurst();
         buildSun();
         buildInks();
         built = true;
     }
 
     /**
-     * One full build of the deterministic geometry: the field cloud and
-     * its edge web (capped so no node over-connects) and the sun's fire.
-     * Runs once per size; never on the frame path.
+     * One full build of the deterministic geometry: the radial burst of
+     * spokes and its inner web (capped so no node over-connects) and the
+     * sun's fire. Runs once per size; never on the frame path.
      */
-    private void buildCloud() {
+    private void buildBurst() {
         long seed = 20261023L;
-        // Lopsided cloud: the reference gathers its dots tighter to the
-        // core and lets a few wander further, so the gravity frac is
-        // squared: dense near the sun, sparse at the rim.
-        for (int n = 0; n < NODES; n++) {
+        for (int r = 0; r < RAYS; r++) {
+            // The spoke's own bearing, evenly spread, then joggled once so
+            // the burst never reads as a mechanical radial chart.
             seed = nextSeed(seed);
-            float u = frac(seed) * 2f - 1f;
-            seed = nextSeed(seed);
-            float theta = frac(seed) * (float) Math.PI * 2f;
-            float s = (float) Math.sqrt(1f - u * u);
-            seed = nextSeed(seed);
-            float radius = 0.30f + 0.70f * frac(seed) * frac(seed);
-            seed = nextSeed(seed);
-            float bright = 0.45f + frac(seed) * 0.55f;
-            seed = nextSeed(seed);
-            float twinkle = frac(seed) * 2f - 1f;
-            int o = n * NODE_STRIDE;
-            nodes[o] = s * (float) Math.cos(theta) * radius;
-            nodes[o + 1] = u * radius;
-            nodes[o + 2] = s * (float) Math.sin(theta) * radius;
-            nodes[o + 3] = bright;
-            nodes[o + 4] = twinkle;
+            float jitter = (frac(seed) * 2f - 1f) * 0.34f
+                    * ((float) Math.PI * 2f / RAYS);
+            float base = (float) Math.PI * 2f * r / RAYS + jitter;
+            for (int n = 0; n < RAY_NODES; n++) {
+                int index = r * RAY_NODES + n;
+                // Inner nodes sit near their spoke's line; outwards, the
+                // spoke fans slightly, the way the reference's spokes
+                // splinter at the rim.
+                seed = nextSeed(seed);
+                float fan = (frac(seed) * 2f - 1f) * 0.04f * n;
+                float angle = base + fan;
+                seed = nextSeed(seed);
+                float radius = RAY_FRACTION[n]
+                        * (0.92f + frac(seed) * 0.16f);
+                seed = nextSeed(seed);
+                // Tip nodes are the reference's brightest stars; inner
+                // ones are the smaller beads.
+                float size = n == RAY_NODES - 1 ? 2.6f : 0.9f + 1.1f * n / RAY_NODES;
+                seed = nextSeed(seed);
+                float twinkle = frac(seed) * 2f - 1f;
+                int o = index * NODE_STRIDE;
+                nodes[o] = (float) Math.cos(angle) * radius;
+                // The burst is a shallow sphere around the core, so the
+                // revolution gives it depth without ever swallowing the
+                // sun: the circle is squashed in y and given a small z.
+                nodes[o + 1] = (float) Math.sin(angle) * radius * 0.94f;
+                nodes[o + 2] = 0.30f * radius;
+                nodes[o + 3] = size;
+                nodes[o + 4] = twinkle;
+            }
         }
-        // The web: the distances decide, the cap keeps any one dot from
-        // gathering all of them.
+        // The spokes first: each ray's polyline, limb to rim.
         edgeCount = 0;
+        for (int r = 0; r < RAYS; r++) {
+            for (int n = 0; n < RAY_NODES - 1; n++) {
+                edges[edgeCount++] = r * RAY_NODES + n;
+                edges[edgeCount++] = r * RAY_NODES + n + 1;
+            }
+        }
+        spokeEdgeCount = edgeCount;
+        // The web: inner nodes of neighbouring spokes, distances decide,
+        // the cap keeps any one bead from gathering all of them.
         for (int i = 0; i < NODES; i++) {
             int drawn = 0;
             for (int j = i + 1; j < NODES && drawn < LINK_MAX; j++) {
+                if (indexOnSpoke(i) >= WEB_TO_INDEX
+                        || indexOnSpoke(j) >= WEB_TO_INDEX) {
+                    continue;
+                }
                 int oi = i * NODE_STRIDE;
                 int oj = j * NODE_STRIDE;
                 float dx = nodes[oi] - nodes[oj];
@@ -301,7 +315,12 @@ public class ThinkingOrb extends View {
         }
     }
 
-    /** The sun's fire: cells, flames, prominences, sparks. */
+    /** Which node of its own spoke a node index is (0 = innermost). */
+    private static int indexOnSpoke(int index) {
+        return index % RAY_NODES;
+    }
+
+    /** The sun's fire: cells, flames, prominences, sparks (v1.9.14 kept). */
     private void buildSun() {
         long seed = 20261024L;
         for (int c = 0; c < GRANULES; c++) {
@@ -356,9 +375,15 @@ public class ThinkingOrb extends View {
 
     /** The paints and the one shader the sun keeps by its builder. */
     private void buildInks() {
-        cloudDot.setStyle(Paint.Style.FILL);
-        cloudLine.setStyle(Paint.Style.STROKE);
-        cloudLine.setStrokeWidth(dp(1.3f));
+        burstDot.setStyle(Paint.Style.FILL);
+        burstLine.setStyle(Paint.Style.STROKE);
+        burstLine.setStrokeWidth(dp(1.2f));
+        burstLine.setStrokeCap(Paint.Cap.ROUND);
+
+        // The tips' halo: one soft disc under each tip dot, the icy glow
+        // the reference's stars read through.
+        burstHalo.setStyle(Paint.Style.FILL);
+        burstHalo.setColor(0xFF9CB8DE);
 
         // The sun is ONE 3D sphere: the hotspot up and to the left, the
         // body white-hot through the solar golds to a deep burning orange
@@ -394,11 +419,6 @@ public class ThinkingOrb extends View {
         sunFlare.setColor(0xFFF9E8C8);
         sunFlare.setStrokeCap(Paint.Cap.ROUND);
         sunFlare.setStrokeWidth(dp(1.8f));
-
-        // The grey rest ring behind the ball, the reference's own disc.
-        restRing.setStyle(Paint.Style.STROKE);
-        restRing.setStrokeWidth(dp(2.2f));
-        restRing.setColor(0xFF78839B);
     }
 
     @Override
@@ -407,11 +427,10 @@ public class ThinkingOrb extends View {
             return;
         }
         if (!running) {
-            // Parked (fifth pass, v1.9.14): the view REPAINTS the pose
-            // the loop froze on, fully awake, so a theme repaint, a
-            // layout pass or a closed market can never blank it. It
-            // stops moving and stays exactly as seen, and schedules
-            // nothing.
+            // Parked (v1.9.14, kept): the view REPAINTS the pose the loop
+            // froze on, fully awake, so a theme repaint, a layout pass or
+            // a closed market can never blank it. It stops moving and
+            // stays exactly as seen, and schedules nothing.
             drawScene(canvas, frozenSeconds >= 0f ? frozenSeconds
                     : PARKED_SECONDS, 1f);
             return;
@@ -429,37 +448,28 @@ public class ThinkingOrb extends View {
         postInvalidateOnAnimation();
     }
 
-    /** One full picture: the rest ring, the revolving cloud and the sun. */
+    /** One full picture: the revolving burst and the sun it radiates. */
     private void drawScene(Canvas canvas, float seconds, float wake) {
-        drawRestRing(canvas, wake);
-        drawCloud(canvas, seconds, wake);
+        drawBurst(canvas, seconds, wake);
         drawSun(canvas, seconds, wake);
     }
 
-    private void drawRestRing(Canvas canvas, float wake) {
-        restRing.setAlpha(Math.min(255, (int) (76f * wake)));
-        canvas.drawCircle(cx, cy, restR + dp(4), restRing);
-    }
-
     /**
-     * The cloud, ONE body revolving around the core: the rotation is a
-     * single yaw on every dot, so the web's shape is kept by the frame.
-     * Depth decides the alpha, near dots brighter, and each dot twinkles
-     * at its own rate on top of the shared turn.
+     * The burst, ONE body revolving around the core: single yaw on every
+     * node, so the spokes' shape is kept by the frame. spokes first (line
+     * colour set once for the whole pass, alpha per segment by depth),
+     * then the web, then the dots; tips last so their halo reads on top.
      */
-    private void drawCloud(Canvas canvas, float seconds, float wake) {
-        float yaw = seconds * 0.16f;
+    private void drawBurst(Canvas canvas, float seconds, float wake) {
+        float yaw = seconds * 0.13f;
         float cosYaw = (float) Math.cos(yaw);
         float sinYaw = (float) Math.sin(yaw);
-        // Edges first, dots second, so each ink's colour is set once for
-        // its whole population and only the alpha moves per element.
-        // edgeCount walks the flat pair array, two entries per edge, so
-        // the loop runs over the pair count, never over the indices.
-        cloudLine.setColor(LINE_INK);
-        int edgePairs = edgeCount / 2;
-        for (int e = 0; e < edgePairs; e++) {
-            int i = edges[e * EDGE_STRIDE];
-            int j = edges[e * EDGE_STRIDE + 1];
+        burstLine.setColor(LINE_INK);
+        // Lines first, in one pass over the pairs: spokes then web, the
+        // alpha of each line by its mean depth, near brighter.
+        for (int e = 0; e < edgeCount; e += EDGE_STRIDE) {
+            int i = edges[e];
+            int j = edges[e + 1];
             int oi = i * NODE_STRIDE;
             int oj = j * NODE_STRIDE;
             float xi = nodes[oi];
@@ -471,63 +481,62 @@ public class ThinkingOrb extends View {
             float gx = xj * cosYaw + zj * sinYaw;
             float gz = -xj * sinYaw + zj * cosYaw;
             float depth = (fz + gz) * 0.5f;
-            int alpha = (int) ((0.55f + 0.45f * depth) * 205f * wake);
-            cloudLine.setAlpha(Math.max(0, Math.min(255, alpha)));
-            canvas.drawLine(cx + fx * cloudR, cy + nodes[oi + 1] * cloudR,
-                    cx + gx * cloudR, cy + nodes[oj + 1] * cloudR, cloudLine);
+            boolean spoke = e < spokeEdgeCount;
+            int alpha = (int) ((spoke ? 0.62f : 0.34f)
+                    * (0.55f + 0.45f * depth) * 235f * wake);
+            burstLine.setAlpha(Math.max(0, Math.min(255, alpha)));
+            canvas.drawLine(cx + fx * burstR, cy + nodes[oi + 1] * burstR,
+                    cx + gx * burstR, cy + nodes[oj + 1] * burstR, burstLine);
         }
-        for (int n = 0; n < NODES; n++) {
-            int o = n * NODE_STRIDE;
-            float x = nodes[o];
-            float z = nodes[o + 2];
-            float rx = x * cosYaw + z * sinYaw;
-            float rz = -x * sinYaw + z * cosYaw;
-            float size = 1.4f + 1.6f * nodes[o + 3] * (0.5f + 0.5f * rz);
-            cloudDot.setColor(rz > 0f ? NODE_BRIGHT : NODE_DIM);
-            cloudDot.setAlpha(Math.min(255, (int) (255f * wake
-                    * (0.35f + 0.65f * (rz + 1f) / 2f))));
-            canvas.drawCircle(cx + rx * cloudR, cy + nodes[o + 1] * cloudR,
-                    dp(size), cloudDot);
-        }
-        drawRings(canvas, seconds, wake);
-    }
-
-    /**
-     * The THREE revolving rings: each an ellipse of its own nodes, joined
-     * into its polyline, and each drawn behind the next, so the reader
-     * sees the orbits cross rather than stack. These complete the owner's
-     * count: more lines revolve around the core here than in any pass
-     * before this one.
-     */
-    private void drawRings(Canvas canvas, float seconds, float wake) {
-        for (int r = 0; r < RING_NODES.length; r++) {
-            int count = RING_NODES[r];
-            float radius = ballR * RING_FACTOR[r];
-            float speed = RING_SPEED[r];
-            float tilt = RING_TILT[r];
-            cloudLine.setColor(LINE_INK);
-            for (int n = 0; n < count; n++) {
-                float a0 = (float) Math.PI * 2f * n / count
-                        + seconds * speed;
-                float a1 = (float) Math.PI * 2f * (n + 1) / count
-                        + seconds * speed;
-                float x0 = cx + radius * (float) Math.cos(a0);
-                float y0 = cy + radius * tilt * (float) Math.sin(a0);
-                float x1 = cx + radius * (float) Math.cos(a1);
-                float y1 = cy + radius * tilt * (float) Math.sin(a1);
-                // The far half of each ellipse is dimmer: the ring is a
-                // flat orbit read in depth, which is its own 3D.
-                float mid = (a0 + a1) / 2f;
-                float depth = 0.5f + 0.5f * (float) Math.sin(mid);
-                cloudLine.setAlpha(Math.min(255,
-                        (int) ((40f + 130f * depth) * wake)));
-                canvas.drawLine(x0, y0, x1, y1, cloudLine);
-                cloudDot.setColor(depth > 0.5f ? NODE_BRIGHT : NODE_DIM);
-                cloudDot.setAlpha(Math.min(255, (int) (220f
-                        * (0.4f + 0.6f * depth) * wake)));
-                canvas.drawCircle(x0, y0, dp(1.6f), cloudDot);
+        // Dots, tips after all others so the halos never fall under a line.
+        for (int pass = 0; pass < 2; pass++) {
+            for (int n = 0; n < NODES; n++) {
+                boolean isTip = indexOnSpoke(n) == RAY_NODES - 1;
+                if (pass == 0 && isTip) {
+                    continue;
+                }
+                if (pass == 1) {
+                    if (!isTip) {
+                        continue;
+                    }
+                    // The halo under the tip: a soft disc of the line ink.
+                    int oi = n * NODE_STRIDE;
+                    float x = nodes[oi];
+                    float z = nodes[oi + 2];
+                    float rx = x * cosYaw + z * sinYaw;
+                    burstHalo.setAlpha(Math.min(255,
+                            (int) (60f * wake)));
+                    canvas.drawCircle(cx + rx * burstR,
+                            cy + nodes[oi + 1] * burstR, dp(5.5f), burstHalo);
+                }
+                drawBurstDot(canvas, n, cosYaw, sinYaw, wake);
             }
         }
+    }
+
+    /** One node's own dot: twinkle on the shared turn, size by depth. */
+    private void drawBurstDot(Canvas canvas, int n, float cosYaw,
+                              float sinYaw, float wake) {
+        int o = n * NODE_STRIDE;
+        float x = nodes[o];
+        float z = nodes[o + 2];
+        float rx = x * cosYaw + z * sinYaw;
+        float rz = -x * sinYaw + z * cosYaw;
+        boolean tip = indexOnSpoke(n) == RAY_NODES - 1;
+        float baseSize = nodes[o + 3] * (tip ? 1f : (0.6f + 0.4f * (rz + 1f) / 2f));
+        float twinkle = 0.7f + 0.3f
+                * (float) Math.sin(secondsFor(n) + nodes[o + 4] * 3f);
+        float size = baseSize * twinkle * (0.65f + 0.35f * (rz + 1f) / 2f);
+        burstDot.setColor(rz > -0.1f ? NODE_BRIGHT : NODE_DIM);
+        burstDot.setAlpha(Math.min(255, (int) (255f * wake
+                * (tip ? 0.85f : 0.42f) * (0.5f + 0.5f * (rz + 1f) / 2f))));
+        canvas.drawCircle(cx + rx * burstR, cy + nodes[o + 1] * burstR,
+                dp(size), burstDot);
+    }
+
+    /** A per-node tick source for the twinkle, from the shared clock. */
+    private float secondsFor(int n) {
+        return lastSeconds * (0.8f + 0.35f * (n % 7));
     }
 
     /**
@@ -623,8 +632,8 @@ public class ThinkingOrb extends View {
                             * (float) Math.sin(roll),
                     cx + ballR * (float) Math.cos(a1),
                     cy + ballR * (float) Math.sin(a1));
-        sunProm.setAlpha(Math.min(255, (int) (185f
-                * (0.35f + 0.65f * leap) * wake)));
+            sunProm.setAlpha(Math.min(255, (int) (185f
+                    * (0.35f + 0.65f * leap) * wake)));
             canvas.drawPath(promPath, sunProm);
         }
     }

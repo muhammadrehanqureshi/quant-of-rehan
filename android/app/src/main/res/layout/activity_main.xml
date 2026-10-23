@@ -222,15 +222,16 @@
         </LinearLayout>
 
         <!-- Owner order 2026-10-23: its own tile on the search page, under
-             the search tile and inside the same bracket. Two dropdowns:
-             the first names the three scrips the current session's B/S
-             split ranks highest buy and lowest sell, and the second names
-             the three fastest prices. The ranking is drawn from the same
-             /prices map the search rows already refresh once per tick, so
-             the dropdowns ride the same seconds cadence and cost no
-             request. Its visibility travels with the search page from
-             MainActivity, so this tile exists only while the search page
-             does. -->
+             the search tile and inside the same bracket. Two dropdowns,
+             the owner's own names (v2.1.0): the first "More buyers &
+             sellers" names the three busiest scrips the current session's
+             B/S split knows by combined activity, and the second "Price
+             moving fast" names the three prices moving hardest, either
+             direction. The ranking is drawn from the same /prices map the
+             search rows already refresh once per tick, so the dropdowns
+             ride the same seconds cadence and cost no request. Its
+             visibility travels with the search page from MainActivity, so
+             this tile exists only while the search page does. -->
         <LinearLayout
             android:id="@+id/tile_volume"
             style="@style/QorPanel"
@@ -344,7 +345,13 @@
              STATUS tile. Which sentence, and when it flips from morning to
              afternoon, is Karachi's own clock (SO-8), decided in
              MainActivity.refreshGreeting. It is a home-page line, so it
-             travels with the console's hidden group while a menu is open. -->        <TextView
+             travels with the console's hidden group while a menu is open.
+
+             Owner order 2026-10-23 (second order, v2.1.0): the greeting is
+             +40% again, 16.9sp grown to 23.7sp (16.9 x 1.4 = 23.66,
+             rounded to one decimal), the third growth of this line and
+             still every other line's law untouched: the body is still
+             the one 13sp. -->        <TextView
             android:id="@+id/greeting"
             style="@style/QorValue"
             android:fontFamily="@font/bonskin"
@@ -353,7 +360,7 @@
             android:layout_marginTop="12dp"
             android:gravity="center"
             android:text="@string/greeting_morning"
-            android:textSize="16.9sp"/>
+            android:textSize="23.7sp"/>
 
         <!-- ══════════ system status card ══════════
              Owner order 2026-10-16: the console's three tiles carry ids so
@@ -603,20 +610,24 @@
 
             <!-- Owner order 2026-10-23 (second order, v1.9.14): the version
                  line left this tile for the root's own footer under the
-                 pinned bar, where it serves every page; MainActivity
+                 pinned bar, where it serves the settings page; MainActivity
                  writes the manifest's own versionName there, the same
                  number the build printed, so the screen and the APK cannot
-                 disagree. -->
+                 disagree. Owner order 2026-10-23 (v2.1.0): it is also the
+                 SETTINGS PAGE ONLY - the version shows while this menu is
+                 open and hides everywhere else. -->
         </LinearLayout>
 
         <!-- Owner order 2026-10-23 (v1.9.13): the rule that sat below the
              settings tile is GONE, the same owner count as the search
              page's removed rule above: one diamond rule per page change,
-             never two. Owner order 2026-10-23 (second order, v1.9.14): the
+             never two.             Owner order 2026-10-23 (second order, v1.9.14): the
              app version line LEFT the settings page for the root's own
-             footer under the pinned bar's closing rule, so the version is
-             on every page of the app and names the build it came from
-             (the footer below). -->
+             footer under the pinned bar's closing rule, which served the
+             whole app; Owner order 2026-10-23 (v2.1.0): and the footer is
+             now the settings page's alone, so the version reads next to
+             the controls that name the build it came from (the footer
+             below). -->
 
         <!-- ══════════ market card ══════════
              Third box, same shape as the two above: KSE100 points and
@@ -786,16 +797,21 @@
         style="@style/QorPanel"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:layout_marginLeft="20dp"
+        android:layout_marginRight="20dp"
         android:layout_marginTop="12dp"
         android:orientation="horizontal"
         android:paddingLeft="20dp"
         android:paddingRight="20dp">
 
-        <!-- Owner order 2026-10-23 (second order, v1.9.14): the tile's own
-             breadth is every tile's breadth - the console scroll holds
-             its 20dp sides, the pinned bar sat flush to the screen, so
-             the bar now carries the SAME side air and reads as one tile
-             among the rest rather than as a wider bar under them. -->
+        <!-- Owner order 2026-10-23 (second order, v1.9.14), restated as the
+             third order of v2.1.0 after the owner read the bar as STILL
+             wider than the tiles: the padding alone was air inside the
+             plate; the bar itself then spread past the scroll's rows to
+             the screen's edges. The side MARGINS now match the scroll's
+             20dp too, so the tile's outer edge lands exactly where every
+             other tile's does; the inner 20dp padding stays, because
+             home, search and settings sit at the thirds' own ends. -->
 
         <FrameLayout
             android:layout_width="0dp"
@@ -855,11 +871,13 @@
     <!-- ══════════ the footer: the app version ══════════
          Owner order 2026-10-23 (second order, v1.9.14): "App version:
          version number at the footer." The line is the ROOT's own last
-         line, under the pinned menu bar, on every
-         page of the app, and it never hides: a version that only shows
-         on one page is not a footer. MainActivity writes the manifest's
-         own versionName into it, the same number the build prints, so
-         the screen and the APK cannot disagree. -->
+         line, under the pinned menu bar, and MainActivity writes the
+         manifest's own versionName into it, the same number the build
+         prints, so the screen and the APK cannot disagree.
+         Owner order 2026-10-23 (v2.1.0): and it is the SETTINGS page's
+         own footer: visible while the settings menu is open, gone on
+         home and search, set on every repaint from the page truth in
+         MainActivity.paintNavSelection. -->
     <TextView
         android:id="@+id/app_version"
         style="@style/QorCaption"
