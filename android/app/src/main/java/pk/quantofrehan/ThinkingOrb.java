@@ -30,9 +30,25 @@ import android.view.View;
  * the same 3D ball with its convection cells, flame tongues, revolving
  * prominence arcs and the spark cadence, drawn at the cloud's own centre,
  * so the organism circles a star instead of a light.
- *
- * The park law of v1.9.14 stands: stop() freezes the pose the loop last
- * DREW and the parked frame REPAINTS it fully awake, so a closed market, a
+ * * Owner order 2026-10-23 (v2.2.1, eighth pass, THIS order): three edits
+     * the owner listed in one message.
+     *
+     * 1. No flicker: every fast alpha modulation on the picture is gone.
+     *    The node shimmer term, the harsh flame length bounce and the deep
+     *    cell-breath dimming all read as flicker on a real screen; the
+     *    motion that remains is slow rotation and gentle breathing only,
+     *    so the organism turns but never strobes.
+     * 2. Brighter everywhere: the link ink is the fire family now
+     *    (orangish/yellow, the owner's own words), the node ink is warm
+     *    gold, and every alpha floor is raised, so the whole feature
+     *    reads hot instead of dark.
+     * 3. More lines: the pair cap grows 30% (owner's own figure) and the
+     *    link threshold widens, so the cloud carries visibly more
+     *    filaments; and the sun itself grows from 17% to 26% of the
+     *    feature's radius, a proper star at the centre.
+     *
+     * The park law of v1.9.14 stands: stop() freezes the pose the loop last
+     * DREW and the parked frame REPAINTS it fully awake, so a closed market, a
  * break, a theme repaint or a layout pass can never blank the feature; the
  * loop only stops MOVING. A resume replays from the frozen second.
  *
@@ -76,10 +92,10 @@ public class ThinkingOrb extends View {
      */
     private static final float MOTION_SCALE = 1.3f;
 
-    /** The node ink, a cold cloud blue. */
-    private static final int NODE_COLOR = 0xFF86AEDC;
-    /** The link ink, dimmer than the nodes it joins. */
-    private static final int LINK_COLOR = 0xFF3E6E9E;
+    /** The node ink, warm gold in the sun's own family (v2.2.1). */
+    private static final int NODE_COLOR = 0xFFFFD166;
+    /** The link ink, the orangish/yellow the owner ordered (v2.2.1). */
+    private static final int LINK_COLOR = 0xFFFFA62B;
 
     private final Paint linkPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint nodePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -217,7 +233,8 @@ public class ThinkingOrb extends View {
         orbRadius = Math.min(w, h) / 2f - dp(6f);
         // The sun is the cloud's own core: the old breathing heart's
         // radius, now a BALL that burns instead of a gradient that fades.
-        ballR = orbRadius * 0.17f;
+        // v2.2.1: 0.17f grew to 0.26f, the owner's bigger-sun order.
+        ballR = orbRadius * 0.26f;
         nodeRadius = dp(1.3f);
         linkWidth = Math.max(1f, dp(0.9f));
         cellRadiusBase = dp(6f);
@@ -284,7 +301,9 @@ public class ThinkingOrb extends View {
             cloud[o + 3] = n * 0.7f;
             cloud[o + 4] = n * 1.9f;
         }
-        float linkAt = 0.55f;
+        // v2.2.1: the pair threshold widens so the +30% cap is actually
+        // spent; the cloud reads as visibly more lines than v2.2.0 drew.
+        float linkAt = 0.62f;
         linkCount = 0;
         for (int i = 0; i < NODES && linkCount < linkBudget(); i++) {
             for (int j = i + 1; j < NODES && linkCount < linkBudget(); j++) {
@@ -477,19 +496,22 @@ public class ThinkingOrb extends View {
             // viewer, so filaments brighten as their ends come forward.
             float toward = clamp((midway - 1f) / 0.6f, 0f, 1f)
                     * linkFade(linkDist[l]);
-            int alpha = (int) ((16f + 96f * toward) * wake);
+        // v2.2.1: floor 16 to 70 and reach 96 to 165, the brightness
+        // order; the fire-family ink completes the line's own warmth.
+            int alpha = (int) ((70f + 165f * toward) * wake);
             linkPaint.setAlpha(Math.min(255, alpha));
-            linkPaint.setStrokeWidth(linkWidth * (0.7f + 0.6f * toward));
+            linkPaint.setStrokeWidth(linkWidth * (0.85f + 0.65f * toward));
             canvas.drawLine(screenX[a], screenY[a], screenX[b], screenY[b],
                     linkPaint);
         }
         for (int n = 0; n < NODES; n++) {
             int o = n * NODE_STRIDE;
             float toward = clamp((depth[n] - 1f) / 0.6f, 0f, 1f);
-            float shimmer = 0.8f + 0.2f * (float) Math.sin(
-                    seconds * 1.4f * MOTION_SCALE + cloud[o + 4]);
-            float size = nodeRadius * (0.6f + 0.9f * toward) * shimmer;
-            int alpha = (int) ((40f + 170f * toward) * wake);
+            // v2.2.1: the 1.4Hz shimmer term is GONE - it read as flicker
+            // on a real screen. The node keeps its depth scaling alone,
+            // motion smooth and slow.
+            float size = nodeRadius * (0.6f + 0.9f * toward);
+            int alpha = (int) ((95f + 160f * toward) * wake);
             nodePaint.setAlpha(Math.min(255, alpha));
             nodePaint.setColor(NODE_COLOR);
             canvas.drawCircle(screenX[n], screenY[n], size, nodePaint);
@@ -506,8 +528,10 @@ public class ThinkingOrb extends View {
     private void drawSun(Canvas canvas, float seconds, float wake) {
         sunPaint.setAlpha((int) (255f * wake));
         canvas.drawCircle(cx, cy, ballR, sunPaint);
-        // The heart breathes in alpha, never in radius.
-        float breath = 0.55f + 0.45f * (float) Math.sin(
+        // The heart breathes in alpha, never in radius. v2.2.1: the
+        // swing narrows (0.55/0.45 to 0.8/0.2), so the core glows
+        // steadily instead of pulsing hard enough to read as flicker.
+        float breath = 0.8f + 0.2f * (float) Math.sin(
                 seconds * 0.9f * MOTION_SCALE);
         sunHeart.setAlpha(Math.min(255, (int) (255f * (0.4f
                 + 0.6f * breath) * wake)));
@@ -535,13 +559,16 @@ public class ThinkingOrb extends View {
             if (rz <= 0.05f) {
                 continue;
             }
+            // v2.2.1: granulation brightness floor raised from 0.3 to
+            // 0.75 - the cells now only gently modulate, never dim the
+            // face into a flicker.
             float flicker = 0.5f + 0.5f * (float) Math.sin(
                     seconds * cells[o + 5] * MOTION_SCALE + cells[o + 4]);
             float radius = cellRadiusBase * cells[o + 3] * (0.5f + 0.5f * rz);
             canvas.save();
             canvas.translate(cx + rx * ballR * 0.78f,
                     cy + cells[o + 1] * ballR * 0.78f);
-            sunCell.setAlpha(Math.min(255, (int) (200f * (0.3f + 0.7f
+            sunCell.setAlpha(Math.min(255, (int) (200f * (0.75f + 0.25f
                     * flicker) * wake * rz)));
             canvas.drawCircle(0f, 0f, radius, sunCell);
             canvas.restore();
@@ -556,8 +583,12 @@ public class ThinkingOrb extends View {
         for (int f = 0; f < FLAMES; f++) {
             float angle = flameAngle[f] + 0.07f * (float) Math.sin(
                     seconds * flameRate[f] * MOTION_SCALE + flamePhase[f]);
-            float len = flameLength[f] * (0.55f + 0.55f * (float) Math.sin(
-                    seconds * flameRate[f] * 1.7f * MOTION_SCALE
+            // v2.2.1: both the length swing and the alpha swing narrow
+            // (0.55/0.55 to 0.72/0.28, 0.4/0.6 to 0.75/0.25) and the rate
+            // multiplier drops 1.7x to 1.1x - the rim rolls instead of
+            // strobing.
+            float len = flameLength[f] * (0.72f + 0.28f * (float) Math.sin(
+                    seconds * flameRate[f] * 1.1f * MOTION_SCALE
                             + flamePhase[f] * 2f));
             if (len < 0.02f) {
                 continue;
@@ -565,7 +596,7 @@ public class ThinkingOrb extends View {
             canvas.save();
             canvas.translate(cx + ballR * (float) Math.cos(angle),
                     cy + ballR * (float) Math.sin(angle));
-            sunFlame.setAlpha(Math.min(255, (int) (170f * (0.4f + 0.6f
+            sunFlame.setAlpha(Math.min(255, (int) (170f * (0.75f + 0.25f
                     * len / 0.22f) * wake)));
             canvas.drawCircle(0f, 0f, ballR * len, sunFlame);
             canvas.restore();
@@ -648,9 +679,15 @@ public class ThinkingOrb extends View {
         return v < lo ? lo : (v > hi ? hi : v);
     }
 
-    /** The pair cap: O(N^2) once at build, never on the frame path. */
+    /**
+     * The pair cap: O(N^2) once at build, never on the frame path.
+     * v2.2.1: NODES x 4 grew 30% to NODES x 26 / 5 (4 x 1.3 = 5.2) - the
+     * owner's "increase the number of lines by another 30%" order, applied
+     * to the only line budget this feature keeps. The widened pair
+     * threshold below is what actually spends the cap.
+     */
     private static int linkBudget() {
-        return NODES * 4;
+        return NODES * 26 / 5;
     }
 
     private float dp(float dp) {

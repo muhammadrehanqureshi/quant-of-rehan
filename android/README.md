@@ -1064,6 +1064,55 @@ to sixty seconds. The status tile therefore also carries the app's own
 
   Version 2.2.0, versionCode 58.
 
+- v2.2.1, owner orders 2026-10-23 (seventh pass): a batch of four orders,
+  all delivered in this checkout.
+
+    1. "Why do I need 1 second watch window? if it's not needed anymore
+       then remove it." The watch window and its plumbing are GONE: the
+       ARM THE 1-SECOND WATCH WINDOW button, the phone-side alarm loop
+       and the PollReceiver that armed it, the boot-completed receiver
+       and the two permissions it served
+       (RECEIVE_BOOT_COMPLETED,
+       REQUEST_IGNORE_BATTERY_OPTIMIZATIONS), and the battery
+       exemption ask of v1.5.1. The quant already scans the market
+       every second in the cloud and the relay delivers the feed and
+       the signals from there, so a closed app on the handset
+       schedules nothing; the console polls only while it is on
+       screen, and onPause still removes the runnable.
+    2. "On the INDEX tile, I am still not seeing the volume moving in
+       real time, like seconds move in a digital clock." The
+       foreground tick is ALWAYS the one-second FAST_POLL_MS now,
+       open market or not, so every number the relay publishes (the
+       INDEX tile, the leaders, the search rows) lands on the screen
+       the second after the relay has it. The relay only publishes
+       what the feed produced (SO-3): a number moves the second the
+       feed moves, and the phone never invents a digit to keep the
+       clock looking alive.
+    3. "For search page, custom scripts of vol. make only one drop
+       down menu." The tile's TWO dropdowns are ONE dropdown now;
+       its menu carries both of his entries - the busiest B/S
+       scrips and the fast movers - and picking either one reveals
+       the three scrips of that ranking below the field, so nothing
+       about a ranking shows before he asks for it.
+    4. The orb's eighth pass, three edits the owner listed in one
+       message: no flicker (the node shimmer term, the harsh flame
+       bounce and the deep cell-breath dimming are gone, so the
+       picture turns and breathes without strobing), brighter
+       everywhere (the link ink is the fire family,
+       orangish/yellow in his own words, the node ink warm gold,
+       and every alpha floor is raised), and more lines (the pair
+       cap grew 30%, the link threshold widened, and the sun grew
+       from 17% to 26% of the feature's radius, a proper star).
+
+    Also in this pass: the greeting grew 10% again, 23.7sp to
+    26.1sp; the THEMES tile carries its own diamond rule above and
+    below, framed like every other labelled tile; the pinned bar's
+    highlight is the icon's own full disc at its 42dp bounds with
+    nothing clipped ("the circle is getting cut off"); the settings
+    page writes "APP VERSION is 2.2.1" from the manifest itself.
+
+  Version 2.2.1, versionCode 59.
+
 **Built and delivered 2026-10-22 (v1.8.8):** the signed v1.8.8 APK was built
 on GitHub Actions from the master at 59da8f90a1 (run 39722179379, the merge
 of #78, which fixed the two javac errors the HUD edit had introduced),
