@@ -1,15 +1,20 @@
-"""RenderGate: the decision that keeps an unchanged answer off the screen.
+"""RenderGate: the skip that the clock retired for the card's own loop.
 
-The console polls once a second while the market is live, but most answers are
-identical to the one before them, and a repaint of an identical answer is a
-whole-tile measure, layout and draw per second for no visible change. The
-gate compares the answer with the one already painted and skips that work.
+The console polls once a second while the market is live, and the owner's
+order of 2026-10-22 (v1.9.11) moved its card past the gate: the index and
+the leaders repaint on EVERY foreground answer, even a byte-identical one,
+so the numbers move like the digits on a clock rather than waiting for news.
+RenderGate itself survives as the plain-Java skip decision, exercised by the
+JVM probe below, and the console still holds and resets it beside the loop;
+but the one-second card path is an unconditional paint, and that contract is
+pinned here too, because a reintroduced skip in the loop would put the
+clock's hand back on pause.
 
 Two kinds of check live here, because they catch different mistakes:
 
-  * the source contract below proves the console actually asks the gate, and
-    asks it again after a resume, which is the case a skip would otherwise
-    turn into a frozen status light;
+  * the source contract below proves the card's loop paints every answer and
+    still re-decides the cadence on each one, and that the console holds
+    the gate and asks it again after a resume;
   * the JVM probe compiles the real RenderGate and exercises its decisions,
     because a comparison that always returns true (or always false) passes any
     amount of reading and fails here.
@@ -63,15 +68,21 @@ class RenderGateSourceTest(unittest.TestCase):
         self.assertIn("final class RenderGate", self.gate)
 
     def test_the_console_paints_through_the_gate(self):
+        # Owner order 2026-10-22 (v1.9.11): the card's one-second loop is an
+        # UNCONDITIONAL paint, so the index and the leaders move every second
+        # even when the upstream answer is byte-identical. The gate survives
+        # as the plain-Java decision the console holds beside the loop (and
+        # resets on resume), but a skip can never stand between the loop and
+        # the card again; this pins both halves of that.
         self.assertIn("private final RenderGate renderGate = new RenderGate();",
                       self.console)
         render = self.console[self.console.index("private void render(boolean online"):]
         render = render[:render.index("private void paint(")]
-        self.assertIn("renderGate.changed(online, d, s, marketFingerprint(market))",
-                      render)
+        self.assertIn("paint(online, d, s, market);", render)
+        self.assertNotIn("renderGate.changed(", render)
         # The cadence is still re-decided on EVERY answer, painted or not:
         # skipping the paint must never skip the scheduling point.
-        self.assertLess(render.index("renderGate.changed("),
+        self.assertLess(render.index("paint(online, d, s, market);"),
                         render.index("marketOpenSeen = online;"))
         self.assertIn("scheduleNext();", render)
 

@@ -24,8 +24,11 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Talks to the relay on the Cloudflare edge, posts notifications, and keeps
@@ -87,6 +90,23 @@ public final class Watcher {
     private static final int MAX_BODY_CHARS = 512 * 1024;
 
     private static final ExecutorService POOL = Executors.newSingleThreadExecutor();
+    /**
+     * The health and the card halves of an on-screen tick, raced against each
+     * other (owner order 2026-10-22, second report on the same lag: "the
+     * numbers move, but not in real time"). Both reads used to run on POOL
+     * BACK TO BACK, so every one second tick paid two sequential round trips
+     * plus the health retry's own 1.5s sleep, and a single flaky health read
+     * pushed every later card read behind it. Each half now owns a thread of
+     * its own, so a tick costs one round trip plus the slower of two
+     * concurrent reads. Reads only: no write is raced, so nothing on
+     * Watcher's state can interleave; the two jobs are joined in this thread,
+     * which is POOL's usual single queue of rounds, so two ticks can never
+     * overlap.
+     */
+    private static final ExecutorService HEALTH_POOL =
+            Executors.newSingleThreadExecutor();
+    private static final ExecutorService CARD_POOL =
+            Executors.newSingleThreadExecutor();
     /**
      * The symbols the relay's newest snapshot carries, sorted. The search
      * filters this list, so a keystroke costs no request (owner order
@@ -532,9 +552,11 @@ public final class Watcher {
     static void fetchLive(final Context c, final Callback cb) {
         POOL.execute(() -> {
             String base = relayUrl(c);
+            Future<Head> headJob = null;
+            Future<Market> marketJob = null;
             try {
-                Head head = fetchHead(c, base);
-                Market market = fetchMarket(c, base);
+                headJob = HEALTH_POOL.submit(() -> fetchHead(c, base));
+                marketJob = CARD_POOL.submit(() -> fetchMarket(c, base));
                 // The relay already merges the live quote hub into /market
                 // (applyLiveQuotes in cloud/worker.js), so one answer carries
                 // the card, its prices and the index. The extra /quotes read
@@ -542,11 +564,26 @@ public final class Watcher {
                 // one-second tick, which on a phone connection made the
                 // console paint every two or three seconds and is exactly the
                 // "not moving like a clock" the owner reported on 2026-10-20.
-                // The full round and the search read still use it.
+                // The health read is now RACED against this one rather than
+                // queued behind it, so a tick costs one round trip, not two
+                // stacked ones.
+                Head head = headJob.get(20, TimeUnit.SECONDS);
+                Market market = marketJob.get(20, TimeUnit.SECONDS);
                 cb.done(head.online(), head.reachable, head.detail,
                         head.signals, market);
             } catch (Exception e) {
-                String why = e.getClass().getSimpleName();
+                // A read that lost its race must never linger with its socket
+                // open: cancel both before reporting. Only POOL's own queue
+                // can create a new pair, so no racing job can be missed.
+                if (headJob != null) {
+                    headJob.cancel(true);
+                }
+                if (marketJob != null) {
+                    marketJob.cancel(true);
+                }
+                Throwable cause = e instanceof ExecutionException
+                        && e.getCause() != null ? e.getCause() : e;
+                String why = cause.getClass().getSimpleName();
                 String hint = why.contains("UnknownHost") || why.contains("Connect")
                         ? "No route to the relay from this phone. Check internet or VPN."
                         : "The relay did not answer in time. Will retry.";
@@ -702,17 +739,30 @@ public final class Watcher {
         return SYMBOLS;
     }
 
-    /** One symbol's last price and percentage move, for the search rows. */
+    /**
+     * One symbol's last price, move and split, for the search rows and the
+     * volume dropdowns (owner order 2026-10-23).
+     *
+     * The relay's own split law computes the buy and sell pair (its frame's
+     * day range), so this is only what the answer carried: null means the
+     * frame's range was incomplete, never zero (SO-3).
+     */
     static final class Quote {
         final double price;
         /** null: the relay has a price but no day's movement for this symbol.
          *  Boxed so the row can print the price in neutral ink instead of
          *  colouring an unknown move as a flat green (SO-3). */
         final Double changePct;
+        /** null: the relay's frame had no complete range for the split. */
+        final Long buy;
+        /** null: the relay's frame had no complete range for the split. */
+        final Long sell;
 
-        Quote(double price, Double changePct) {
+        Quote(double price, Double changePct, Long buy, Long sell) {
             this.price = price;
             this.changePct = changePct;
+            this.buy = buy;
+            this.sell = sell;
         }
     }
 
@@ -725,6 +775,15 @@ public final class Watcher {
 
     static Quote quote(String symbol) {
         return PRICES.get(symbol);
+    }
+
+    /**
+     * The whole price map, for the volume dropdowns (owner order 2026-10-23).
+     * Ranking happens in one place, on the map the search already refreshes,
+     * so the dropdowns ride the same tick the rows do and cost no request.
+     */
+    static java.util.Map<String, Quote> quotes() {
+        return PRICES;
     }
 
     interface PricesCallback {
@@ -761,9 +820,19 @@ public final class Watcher {
                         String symbol = row.optString(0, "");
                         double price = row.optDouble(1, Double.NaN);
                         double pct = row.optDouble(2, Double.NaN);
+                        Long buy = null;
+                        Long sell = null;
+                        Object buyVal = row.opt(3);
+                        Object sellVal = row.opt(4);
+                        if (buyVal instanceof Number) {
+                            buy = ((Number) buyVal).longValue();
+                        }
+                        if (sellVal instanceof Number) {
+                            sell = ((Number) sellVal).longValue();
+                        }
                     if (!symbol.isEmpty() && !Double.isNaN(price) && price > 0) {
                         map.put(symbol, new Quote(price,
-                                Double.isNaN(pct) ? null : pct));
+                                Double.isNaN(pct) ? null : pct, buy, sell));
                     }
                 }
             }
