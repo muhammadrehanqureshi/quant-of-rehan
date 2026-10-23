@@ -637,7 +637,7 @@ public class MainActivity extends Activity {
         for (int id : headingIds) {
             View heading = findViewById(id);
             if (heading instanceof TextView) {
-                ((TextView) heading).setTextColor(accentColor);
+                ((TextView) heading).setTextColor(getColor(accent));
             }
         }
     }
