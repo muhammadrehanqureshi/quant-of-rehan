@@ -507,11 +507,22 @@ public class MainActivity extends Activity {
      * is the page state: HOME when no menu is open, otherwise the menu that
      * is. The ring is a background, so it is set rather than negotiated,
      * and the tint follows the ring: brighter while circled.
+     *
+     * Owner order 2026-10-23 (v2.1.0): the version line is the SETTINGS
+     * page's own footer - it keeps the root's last-line station v1.9.14
+     * gave it, but a version on every page is now refused: the line shows
+     * while the settings menu is open and hides everywhere else. The state
+     * is this method's own page truth, so every open and close repaints
+     * it and no other place has to remember it.
      */
     private void paintNavSelection() {
         setNavPage(navHome, !searchOpen && !settingsOpen);
         setNavPage(navSearch, searchOpen);
         setNavPage(navSettings, settingsOpen);
+        if (appVersion != null) {
+            appVersion.setVisibility(
+                    settingsOpen ? View.VISIBLE : View.GONE);
+        }
     }
 
     /**
@@ -523,8 +534,31 @@ public class MainActivity extends Activity {
      * two ride together so the selection is one state, and both are
      * re-set every paint, so a theme or a page change cannot leave one
      * half behind.
+     *
+     * Owner order 2026-10-23 (third order, v2.1.0, "the highlighted
+     * feature is not working on the menu bar"): a background ring sits
+     * UNDER the icon's png, and a png whose ink is not fully transparent
+     * at its own edge can read as covering it, however the padding
+     * insets the drawing. The ring is therefore drawn AGAIN as the view's
+     * own FOREGROUND - on top of the png, where nothing can paint under
+     * it - so the circled page is always visible. One oval is built once
+     * and shared; the ripple stays the unselected face.
      */
     private static final float NAV_SELECTED_SCALE = 1.18f;
+
+    /** The foreground ring, built once (v2.1.0). */
+    private GradientDrawable navRing;
+
+    /** The selection ring as a foreground: over the icon's own png. */
+    private GradientDrawable navRingForeground() {
+        if (navRing == null) {
+            navRing = new GradientDrawable();
+            navRing.setShape(GradientDrawable.OVAL);
+            navRing.setColor(0);
+            navRing.setStroke(dp(2), getColor(R.color.gold_bright));
+        }
+        return navRing;
+    }
 
     private void setNavPage(ImageView icon, boolean selected) {
         if (icon == null) {
@@ -532,6 +566,7 @@ public class MainActivity extends Activity {
         }
         icon.setBackgroundResource(selected
                 ? R.drawable.nav_circle : R.drawable.settings_ripple);
+        icon.setForeground(selected ? navRingForeground() : null);
         icon.setImageTintList(ColorStateList.valueOf(getColor(
                 selected ? R.color.gold_bright : R.color.gold)));
         icon.setScaleX(selected ? NAV_SELECTED_SCALE : 1f);
@@ -701,11 +736,12 @@ public class MainActivity extends Activity {
     }
 
     /**
-     * CUSTOM SCRIPS OF VOL. (owner order 2026-10-23): two dropdowns, built
-     * once. The first ranks the relay's own B/S split (highest buy with
-     * the lowest sell), the second the speed of the price. Both are
-     * ranked from the same map the search rows refresh, so a dropdown
-     * never costs a request of its own.
+     * CUSTOM SCRIPS OF VOL. (owner order 2026-10-23; retitled v2.1.0):
+     * two dropdowns, built once. The first - "More buyers & sellers" -
+     * ranks the busiest scrips by the relay's own combined B/S activity,
+     * the second - "Price moving fast" - the hardest-moving prices either
+     * direction. Both are ranked from the same map the search rows
+     * refresh, so a dropdown never costs a request of its own.
      */
     private void buildVolumeSpinners() {
         if (volumeSplitSpinner == null || volumeSpeedSpinner == null) {
@@ -827,10 +863,12 @@ public class MainActivity extends Activity {
     }
 
     /**
-     * Dropdown 1 (owner order 2026-10-23): the three scrips the current
-     * session's split ranks highest buy and lowest sell. A scrip whose
-     * frame has no complete range cannot be ranked and is skipped instead
-     * of guessed at (SO-3): null is not zero.
+     * Dropdown 1 (owner order 2026-10-23; retitled v2.1.0, "More buyers
+     * & sellers"): the three BUSIEST scrips the relay's own answer
+     * knows, ranked by the combined buying and selling activity of the
+     * session's split. A scrip whose frame has no complete range cannot
+     * be ranked and is skipped instead of guessed at (SO-3): null is not
+     * zero.
      */
     private List<String> rankedSplitSymbols(java.util.Map<String, Watcher.Quote> quotes) {
         List<String> symbols = new ArrayList<>();
@@ -843,13 +881,11 @@ public class MainActivity extends Activity {
         symbols.sort((a, b) -> {
             Watcher.Quote qa = quotes.get(a);
             Watcher.Quote qb = quotes.get(b);
-            int byBuy = Long.compare(qb.buy, qa.buy);
-            if (byBuy != 0) {
-                return byBuy;
-            }
-            int byLowestSell = Long.compare(qa.sell, qb.sell);
-            if (byLowestSell != 0) {
-                return byLowestSell;
+            long totalA = qa.buy + qa.sell;
+            long totalB = qb.buy + qb.sell;
+            int byActivity = Long.compare(totalB, totalA);
+            if (byActivity != 0) {
+                return byActivity;
             }
             return a.compareTo(b);
         });
@@ -857,25 +893,25 @@ public class MainActivity extends Activity {
     }
 
     /**
-     * Dropdown 2 (owner order 2026-10-23, restated 2026-10-23 second
-     * order, v1.9.14): the three scrips RISING fastest, continuously -
-     * the relay's own day move, upward only. A scrip that is not rising
-     * cannot claim the risers' menu, so a flat or falling scrip is
-     * skipped instead of printed (SO-3).
+     * Dropdown 2 (owner order 2026-10-23; retitled v2.1.0, "Price moving
+     * fast"): the three prices moving HARDEST, either direction, by the
+     * relay's own day move - a falling price is as fast a price as a
+     * rising one. A scrip with no day's movement cannot claim the menu,
+     * so a null move is skipped instead of printed (SO-3).
      */
     private List<String> rankedSpeedSymbols(java.util.Map<String, Watcher.Quote> quotes) {
         List<String> symbols = new ArrayList<>();
         for (java.util.Map.Entry<String, Watcher.Quote> entry : quotes.entrySet()) {
-            Double rise = entry.getValue().changePct;
-            if (rise != null && rise > 0d) {
+            if (entry.getValue().changePct != null) {
                 symbols.add(entry.getKey());
             }
         }
         symbols.sort((a, b) -> {
-            int byRise = Double.compare(quotes.get(b).changePct,
-                    quotes.get(a).changePct);
-            if (byRise != 0) {
-                return byRise;
+            Double moveA = quotes.get(a).changePct;
+            Double moveB = quotes.get(b).changePct;
+            int bySpeed = Double.compare(Math.abs(moveB), Math.abs(moveA));
+            if (bySpeed != 0) {
+                return bySpeed;
             }
             return a.compareTo(b);
         });
