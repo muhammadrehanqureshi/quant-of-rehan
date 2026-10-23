@@ -118,6 +118,7 @@ from src.data.ohlc_poller import (  # noqa: E402
     EXIT_PASS_INCOMPLETE,
     capture_budget_seconds as budget_for_cadence,
 )
+from src.notify.market_watch import MarketEventWatcher  # noqa: E402
 from src.signals.contracts import (  # noqa: E402
     ScanFault, ScanOutcome, Verdict, verdict_from_status,
 )
@@ -307,6 +308,11 @@ class ScanLoop:
         self.health = LoopHealth()
         self._stopping = False
         self._sleeping = False
+        # Owner order 2026-10-23: the market event emails (pre, open,
+        # break, close, post) ride this loop's own phase table from here
+        # on, because GitHub's crons were hours late on 2026-10-22 and
+        # silent on 2026-10-23. See src/notify/market_watch.py.
+        self.market_events = MarketEventWatcher()
 
     # ---- lifecycle -----------------------------------------------------
     def request_stop(self, signum: int | None = None,
@@ -389,6 +395,15 @@ class ScanLoop:
         self.health.last_cycle_at = moment.isoformat(timespec="seconds")
         self.health.last_phase = phase_of(moment, self.config.warmup_minutes)
         self.health.last_slot = slot
+
+        # The market emails are the loop's passenger: the edge fires on the
+        # law the decide step already reads, the ledger keeps it exactly
+        # once per day, and the loop outlives any send failure.
+        try:
+            self.market_events.observe(moment)
+        except Exception as exc:  # noqa: BLE001 - the loop outlives a bad email
+            LOGGER.error("market event watch failed: %s: %s",
+                         type(exc).__name__, exc)
 
         if action == "wait":
             self.health.pauses += 1

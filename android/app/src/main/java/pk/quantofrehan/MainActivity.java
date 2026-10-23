@@ -218,6 +218,12 @@ public class MainActivity extends Activity {
     private View tileVolume;
     private Spinner volumeSplitSpinner;
     private Spinner volumeSpeedSpinner;
+    // The three dropdowns' state arrows (owner order 2026-10-23, 2.0.0):
+    // DOWN while the menu is closed (the pull-down cue), UP while it is
+    // open (the pull-up cue). One arrow per dropdown, declared beside it.
+    private ImageView volumeSplitArrow;
+    private ImageView volumeSpeedArrow;
+    private ImageView themeArrow;
     private ArrayAdapter<String> volumeSplitAdapter;
     private ArrayAdapter<String> volumeSpeedAdapter;
     private int volumeSplitChoice;
@@ -460,7 +466,12 @@ public class MainActivity extends Activity {
         findViewById(R.id.btn_arm).setOnClickListener(v -> {
             Watcher.armAlarms(this);
             maybeRequestBatteryExemption(true);
-            toast("Watchdog armed. Refreshing every 5 minutes.");
+            // Owner order 2026-10-23 (2.0.0): the toast says what the tap
+            // actually did. The watch window beats every one second
+            // (Watcher.WATCHDOG_MS is 1000, owner order 2026-10-20), and
+            // the retired "watchdog" jargon and the "5 minutes" figure
+            // that belonged to a build before that order said neither.
+            toast("The 1-second watch window is armed.");
         });
 
         // Owner order 2026-10-23: the page selects what the app looks like.
@@ -475,12 +486,13 @@ public class MainActivity extends Activity {
         applyTheme(themeIndex);
 
         buildVolumeSpinners();
+        wireDropdownArrows();
 
         writeAppVersion();
 
         Watcher.kick(this);
         // v1.5.1: ask once, quietly, so Doze and OEM battery managers do not
-        // defer the watchdog. The Arm button can always ask again on demand.
+        // defer the watch window. The button can always ask again on demand.
         maybeRequestBatteryExemption(false);
     }
 
@@ -721,6 +733,54 @@ public class MainActivity extends Activity {
             }
             @Override public void onNothingSelected(AdapterView<?> parent) { }
         });
+    }
+
+    /**
+     * The three dropdowns' own arrows (owner order 2026-10-23, 2.0.0):
+     * "when I tell you to have a drop down menu type feature, I want to
+     * have the arrow down and up as well to pull up the menu, right now
+     * there is none." Each arrow starts DOWN beside its closed menu (the
+     * pull-down cue), and the Dropdown's two edges rotate it: UP while the
+     * menu is open, DOWN the moment the focus returns and it has closed.
+     * Consistency never has to be remembered here precisely because one
+     * arrangement and one law serve all three instead of three copies of
+     * the work.
+     */
+    private void wireDropdownArrows() {
+        volumeSplitArrow = (ImageView) findViewById(R.id.volume_split_arrow);
+        volumeSpeedArrow = (ImageView) findViewById(R.id.volume_speed_arrow);
+        themeArrow = (ImageView) findViewById(R.id.theme_arrow);
+        // The layout declares its three dropdowns as pk.quantofrehan.Dropdown
+        // (extends Spinner), so the instanceof with the cast below is the
+        // one true type and no ClassCastException can enter the wiring.
+        if (volumeSplitSpinner instanceof Dropdown) {
+            wireDropdownArrow((Dropdown) volumeSplitSpinner,
+                    volumeSplitArrow);
+        }
+        if (volumeSpeedSpinner instanceof Dropdown) {
+            wireDropdownArrow((Dropdown) volumeSpeedSpinner,
+                    volumeSpeedArrow);
+        }
+        if (themeSpinner instanceof Dropdown) {
+            wireDropdownArrow((Dropdown) themeSpinner, themeArrow);
+        }
+    }
+
+    /** One dropdown's arrow: down while closed, up while open, one flip.
+     *
+     * The rotation is animated, so the flip is the pull the cue promises.
+     * A re-entrant call is free: animate() on an already converged frame
+     * re-emits the same values and the view stays where it is.
+     */
+    private void wireDropdownArrow(Dropdown dropdown, ImageView arrow) {
+        if (dropdown == null || arrow == null) {
+            return;
+        }
+        arrow.setRotation(0f);
+        dropdown.setOpenListener(open -> arrow.animate()
+                .rotation(open ? 180f : 0f)
+                .setDuration(150L)
+                .start());
     }
 
     private void renderVolumeSpinners() {
@@ -1117,11 +1177,11 @@ public class MainActivity extends Activity {
     }
 
     /**
-     * A 5 minute watchdog on Android is best effort: setExactAndAllowWhileIdle
+     * The 1-second watch window on Android is best effort: setExactAndAllowWhileIdle
      * is capped inside Doze and some OEM battery managers stop the app
      * entirely. A battery optimisation exemption is the one thing an app can
-     * ask for, so ask for it. Never nag: the first run asks once and the Arm
-     * button asks again only because the owner pressed it.
+     * ask for, so ask for it. Never nag: the first run asks once and the
+     * watch window button asks again only because the owner pressed it.
      */
     private void maybeRequestBatteryExemption(boolean byOwner) {
         android.os.PowerManager pm =
@@ -1138,7 +1198,7 @@ public class MainActivity extends Activity {
                     android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
                     Uri.parse("package:" + getPackageName())));
         } catch (Exception e) {
-            toast("Allow the battery exemption so the watchdog is never frozen.");
+            toast("Allow the battery exemption so the watch window is never frozen.");
         }
     }
 
@@ -1162,7 +1222,7 @@ public class MainActivity extends Activity {
         // interval from what the relay last reported. The loop runs only
         // while the activity is resumed (onPause removes it) and only on the
         // main thread's own queue, so a hidden app neither polls nor holds a
-        // wake lock, and the watchdog in Watcher is untouched by it.
+        // wake lock, and the watch window in Watcher is untouched by it.
         scheduleNext();
     }
 
