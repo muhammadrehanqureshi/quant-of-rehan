@@ -48,6 +48,13 @@ on:
 # A dispatch emails one chosen event, so every job also names the event
 # it owns and a dispatch starts exactly one job instead of nine.
 
+# The email IS an issue comment written on the owner's watched issue (81);
+# a workflow token is read-only by default since the token hardening, so
+# the write permission is granted here or the POST lands as a 403 and the
+# bell stays silent twice over.
+permissions:
+  issues: write
+
 env:
   OWNER_EMAIL_ISSUE: "81"
 
