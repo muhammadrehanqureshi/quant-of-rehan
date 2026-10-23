@@ -28,17 +28,21 @@
     <string name="cd_home">Home. Shows the console: status, signal and the index.</string>
 
     <!-- ══════════ the volume dropdowns (owner order 2026-10-23) ══════════
-         The tile's heading is his exact words. The two dropdowns: the
-         first is ranked by the session's own B/S split (highest buy with
-         the lowest sell), the second by the speed of the price. The
-         captions name which dropdown is which, at the body's size, and
-         the prompts do the same job in the popup. All of it states what
-         the ranking is, never that a split is order flow (SO-3); the
-         split's method stays labelled on the relay's own answer. -->
+         The tile's heading is his exact words. Owner order 2026-10-23
+         (v2.1.0): the two dropdowns are named HIS way - the first one
+         "More buyers & sellers" (the busiest scrips the relay knows,
+         the biggest combined B/S activity on its own answer), the second
+         "Price moving fast" (the three prices moving hardest, either
+         direction). The captions name which dropdown is which, at the
+         body's size, and the prompts do the same job in the popup. All
+         of it states what the ranking is, never that a split is order
+         flow (SO-3); the split's method stays labelled on the relay's
+         own answer. -->
     <string name="label_volume">CUSTOM SCRIPS OF VOL.</string>
-    <string name="volume_split_caption">HIGHEST B &amp; LOWEST S.</string>        <string name="volume_speed_caption">STOCKS RISING FASTEST.</string>
-    <string name="volume_split_prompt">HIGHEST BUY &amp; LOWEST SELL.</string>
-    <string name="volume_speed_prompt">PRICE MOVING FASTEST.</string>
+    <string name="volume_split_caption">MORE BUYERS &amp; SELLERS.</string>
+    <string name="volume_speed_caption">PRICE MOVING FAST.</string>
+    <string name="volume_split_prompt">MOST BUYERS &amp; SELLERS.</string>
+    <string name="volume_speed_prompt">PRICE MOVING FAST.</string>
 
     <!-- ══════════ THEMES tile (owner order 2026-10-23) ══════════
          Five looks, each a (background, heading colour) pair read in the

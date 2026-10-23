@@ -1456,19 +1456,27 @@ class VersionTest(unittest.TestCase):
         # hotter burn, the park that stopped moving STAYS VISIBLE (frozen,
         # never blanked), the greeting grew 30% and the brand ANOTHER 20%,
         # the tapped nav icon is lifted and brightened, the pinned bar
-        # carries the tiles' 20dp side breadth, the app version line lives
-        # at the footer of every page, and the speed dropdown ranks the
-        # continuously rising stocks. v1.9.13's pinned bar, one rule per
-        # page and the round plates stand.
+        # carries the tiles' 20dp side air AND side margins, the app version
+        # line is the settings page's own footer, and the dropdowns rank
+        # THE OWNER'S OWN WORDS (v2.1.0): busy scrips and fast prices.
+        # v1.9.13's pinned bar, one rule per page and the round plates stand.
         # v2.0.0 is the 2026-10-23 third order on the same day: the two
         # diamond rules around the pinned menu bar are gone (the bar is the
         # tile alone), every dropdown carries the pull-down, pull-up state
         # arrow, and the watch window tap says the one-second reality with
         # no "watchdog" jargon and no "5 minutes" figure. v1.9.14's sun,
         # nav lift and footer stand.
+        # v2.1.0 is the 2026-10-23 fourth order on the same day: the orb is
+        # the radial ice-burst of the reference the owner re-sent (rays and
+        # nodes revolving around the sun), the greeting is ANOTHER 40%
+        # bigger, the menu bar matches the other tiles' breadth with side
+        # margins too, the selection ring is painted as the icon's
+        # FOREGROUND so the png can never cover it, the two volume
+        # dropdowns are "More buyers & sellers" and "Price moving fast",
+        # and the version line shows on the settings page only.
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="2.0.0"', manifest)
-        self.assertIn('android:versionCode="56"', manifest)
+        self.assertIn('android:versionName="2.1.0"', manifest)
+        self.assertIn('android:versionCode="57"', manifest)
         # The changelog entry ties these user-visible changes to the build.
         readme = (ROOT / "android" / "README.md").read_text(encoding="utf-8")
         self.assertIn("v1.7.9, owner order 2026-10-20", readme)
@@ -1495,9 +1503,10 @@ class VersionTest(unittest.TestCase):
         self.assertIn("Version 1.9.13, versionCode 54", readme)
         self.assertIn("Version 1.9.14, versionCode 55", readme)
         self.assertIn("Version 2.0.0, versionCode 56", readme)
+        self.assertIn("Version 2.1.0, versionCode 57", readme)
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionCode="56"', manifest)
-        self.assertIn('android:versionName="2.0.0"', manifest)
+        self.assertIn('android:versionCode="57"', manifest)
+        self.assertIn('android:versionName="2.1.0"', manifest)
         layout = LAYOUT.read_text(encoding="utf-8")
         strings = STRINGS.read_text(encoding="utf-8")
         main = MAIN.read_text(encoding="utf-8")
@@ -1689,9 +1698,9 @@ class UniversalSizeTest(unittest.TestCase):
         # the layout carries that one size inline. The headings declare
         # their sizes through their styles, so the law is one decision.
         sizes = set(re.findall(r'android:textSize="([0-9.]+sp)"', self.layout))
-        # v1.9.14: the greeting carries the inline 30%-bigger line by its
-        # own law, 13 x 1.3 = 16.9sp; the body is still the one 13sp.
-        self.assertEqual(sizes, {"13sp", "16.9sp"})
+        # v2.1.0: the greeting grew ANOTHER 40% by its own law,
+        # 16.9 x 1.4 = 23.66 => 23.7sp; the body is still the one 13sp.
+        self.assertEqual(sizes, {"13sp", "23.7sp"})
         label = self.styles[self.styles.index('name="QorLabel"'):]
         self.assertIn('android:textSize">15.944049sp',
                       label[:label.index("</style>")])
@@ -2021,9 +2030,11 @@ class MenuOrdersTest(unittest.TestCase):
     def test_the_volume_tile_sits_on_the_search_page(self):
         self.assertIn('name="label_volume">CUSTOM SCRIPS OF VOL.<',
                       self.strings)
-        self.assertIn('name="volume_split_caption">HIGHEST B &amp; LOWEST S.<',
+        # v2.1.0: the two dropdowns are named the owner's own way, and the
+        # ranking follows the words (see the ranking test below).
+        self.assertIn('name="volume_split_caption">MORE BUYERS &amp; SELLERS.<',
                       self.strings)
-        self.assertIn('name="volume_speed_caption">STOCKS RISING FASTEST.<',
+        self.assertIn('name="volume_speed_caption">PRICE MOVING FAST.<',
                       self.strings)
         self.assertLess(self.layout.index("@+id/tile_volume"),
                         self.layout.index("@+id/tile_market"))
@@ -2038,6 +2049,27 @@ class MenuOrdersTest(unittest.TestCase):
         self.assertIn("rankedSplitSymbols(", self.main)
         self.assertIn("rankedSpeedSymbols(", self.main)
 
+    def test_the_dropdowns_rank_their_own_names(self):
+        """v2.1.0: the names are the ranking. "More buyers & sellers" is
+        the busiest scrips by the relay's own combined B/S activity;
+        "Price moving fast" is the hardest-moving prices, either
+        direction. Null data is skipped, never ranked as zero (SO-3)."""
+        split = self.main[self.main.index(
+            "private List<String> rankedSplitSymbols"):]
+        split = split[:split.index("private List<String> rankedSpeedSymbols")]
+        speed = self.main[self.main.index(
+            "private List<String> rankedSpeedSymbols"):]
+        speed = speed[:speed.index("One dropdown row")]
+        # Split: complete ranges only, ranked by buy + sell combined.
+        self.assertIn("quote.buy != null && quote.sell != null", split)
+        self.assertIn("qa.buy + qa.sell", split)
+        self.assertIn("Long.compare(totalB, totalA)", split)
+        self.assertNotIn("byLowestSell", split)
+        # Speed: any move counts, both directions, biggest first.
+        self.assertIn("entry.getValue().changePct != null", speed)
+        self.assertIn("Math.abs(moveB), Math.abs(moveA)", speed)
+        self.assertNotIn("rise > 0d", speed)
+
     def test_the_version_line_names_the_manifest(self):
         version = element(self.layout, 'android:id="@+id/app_version"')
         self.assertIn('style="@style/QorCaption"', version)
@@ -2046,6 +2078,15 @@ class MenuOrdersTest(unittest.TestCase):
         # build prints: the page and the APK cannot disagree.
         self.assertIn("getPackageInfo(getPackageName(), 0).versionName;",
                       self.main)
+        # v2.1.0: it is the settings page's own footer - visible while that
+        # menu is open, gone on home and search, set from the page truth
+        # inside paintNavSelection, the one place the page state repaints.
+        self.assertIn("settingsOpen ? View.VISIBLE : View.GONE);", self.main)
+        self.assertGreater(
+            self.main.index("private void paintNavSelection()"), 0)
+        paint_end = self.main.index("private void refreshGreeting()")
+        self.assertIn("appVersion != null",
+                      self.main[self.main.index("private void paintNavSelection()"):paint_end])
 
 
 
@@ -2205,42 +2246,43 @@ class ThinkingOrbPlanTest(unittest.TestCase):
     def test_more_lines_revolves_as_the_owner_counted(self):
         orb = (MAIN.parent / "ThinkingOrb.java").read_text(
             encoding="utf-8")
-        """Owner order 2026-10-23 (second order, v1.9.14): MORE lines revolve
-        around the core than the pass before it: a wider field web and
-        three bigger rings of nodes, each at its own radius, direction and
-        speed, and the sun keeps its own arcs revolving at the limb.
+        """Owner order 2026-10-23 (sixth pass, v2.1.0): the feature is the
+        reference the owner re-sent - a RADIAL BURST around the sun:
+        RAYS spokes of RAY_NODES nodes each, evenly spread and joggled,
+        the spokes' inner halves joined by a capped web, everything
+        revolving as one body. The v1.9.13/v1.9.14 rings and the older
+        scattered cloud are retired, and the grey rest ring retired with
+        the new reference's star of a core.
         """
-        # Populations and the mesh cap are named constants, so the count is
-        # one decision rather than ten edits.
-        self.assertIn("private static final int NODES = 40;", orb)
+        # Populations are named constants, so the count is one decision.
+        self.assertIn("private static final int RAYS = 22;", orb)
+        self.assertIn("private static final int RAY_NODES = 5;", orb)
+        self.assertIn(
+            "private static final int NODES = RAYS * RAY_NODES;", orb)
         self.assertIn("private static final int NODE_STRIDE = 5;", orb)
         self.assertIn("private static final int EDGE_STRIDE = 2;", orb)
-        self.assertIn("private static final float LINK_DIST = 0.66f;", orb)
-        self.assertIn("private static final int LINK_MAX = 5;", orb)
-        # The three rings: ten, twelve and fourteen nodes, tilted at their
-        # own radii, and each at its own direction and speed.
-        self.assertIn("private static final int[] RING_NODES = {10, 12, 14};",
-                      orb)
         self.assertIn(
-            "private static final float[] RING_FACTOR = {2.1f, 3.0f, 4.2f};",
-            orb)
+            "private static final float[] RAY_FRACTION = {0.16f, 0.30f, "
+            "0.46f, 0.64f, 0.88f};", orb)
         self.assertIn(
-            "private static final float[] RING_SPEED = {0.62f, -0.46f, 0.30f};",
-            orb)
-        self.assertIn(
-            "private static final float[] RING_TILT = {0.62f, 0.50f, 0.40f};",
-            orb)
-        # The cloud revolves as ONE body around the core.
-        self.assertIn("float yaw = seconds * 0.16f;", orb)
-        # Each ring's polyline rolls on the frame: one seam angle and the
-        # next, both on that ring's own speed, and the far half is dimmed
-        # by depth, which is the ring's 3D.
-        self.assertIn("+ seconds * speed;", orb)
-        self.assertIn("float depth = 0.5f + 0.5f * (float) Math.sin(mid);", orb)
-        # The rings are drawn between the cloud and the sun, inside the
-        # cloud's own pass, so the orbits cross rather than stack.
-        self.assertIn("drawRings(canvas, seconds, wake);", orb)
-        self.assertLess(orb.index("private void drawRings("),
+            "private static final int WEB_TO_INDEX = 3;", orb)
+        self.assertIn("private static final float LINK_DIST = 0.34f;", orb)
+        self.assertIn("private static final int LINK_MAX = 2;", orb)
+        # The retired machinery may not come back.
+        for retired in ("RING_NODES", "RING_FACTOR", "RING_SPEED",
+                        "RING_TILT", "drawRings", "buildCloud", "restRing"):
+            self.assertNotIn(retired, orb)
+        # The burst revolves as ONE body around the core.
+        self.assertIn("float yaw = seconds * 0.13f;", orb)
+        # Each spoke is its own polyline of pairs, and the whole line pass
+        # reads its alpha by depth: near brighter, far dimmed.
+        self.assertIn("boolean spoke = e < spokeEdgeCount;", orb)
+        self.assertIn("float depth = (fz + gz) * 0.5f;", orb)
+        # Tips draw last with their halo, so the brightest stars of the
+        # reference never fall under a spoke line.
+        self.assertIn("for (int pass = 0; pass < 2; pass++) {", orb)
+        self.assertIn("drawBurst(canvas, seconds, wake);", orb)
+        self.assertLess(orb.index("private void drawBurst("),
                         orb.index("private void drawSun("))
         # The sun's own arcs revolve around the limb on their slow bearing.
         self.assertIn("seconds * promSpeed[p];", orb)
@@ -2288,9 +2330,10 @@ class ThinkingOrbPlanTest(unittest.TestCase):
                       orb)
         self.assertIn("canvas.drawCircle(0f, 0f, ballR * 0.55f, sunHeart);", orb)
         self.assertNotIn("heart * 0.72f", orb)
-        # The reference's own grey rest ring stands behind the ball.
-        self.assertIn("restRing", orb)
-        self.assertIn("0xFF78839B", orb)
+        # v2.1.0: the older reference's grey rest ring is RETIRED - the new
+        # reference's core is the sun itself, framed by the burst.
+        self.assertNotIn("restRing", orb)
+        self.assertNotIn("0xFF78839B", orb)
 
     def test_the_sun_keeps_its_revolving_arcs_and_the_sparks(self):
         orb = (MAIN.parent / "ThinkingOrb.java").read_text(
@@ -2326,11 +2369,12 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         # The sun draws at one woken alpha; the heart and every fire mood
         # ride the same wake, so a closed market parks the picture whole.
         self.assertIn("sunPaint.setAlpha((int) (255f * wake));", orb)
-        # The constellation keeps the reference's silvers on the deep
-        # field, read by name rather than invented on the frame.
-        self.assertIn("NODE_BRIGHT = 0xFFE3ECFA", orb)
-        self.assertIn("NODE_DIM = 0xFF9FB0C8", orb)
-        self.assertIn("LINE_INK = 0xFF7E93B4", orb)
+        # The burst keeps the reference's icy silvers on the deep field,
+        # read by name rather than invented on the frame (v2.1.0 re-inks:
+        # the reference reads ICE, silver-blue, brighter than before).
+        self.assertIn("NODE_BRIGHT = 0xFFEAF3FF", orb)
+        self.assertIn("NODE_DIM = 0xFFA9BBD6", orb)
+        self.assertIn("LINE_INK = 0xFF9CB8DE", orb)
         self.assertNotIn("GLOW_SCALE", orb)
         self.assertNotIn("BRIGHT_SCALE", orb)
         self.assertNotIn("P1 = 1.3f", orb)
@@ -2343,7 +2387,7 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         # Zero allocations on the frame path: constellation, sun geometry
         # and inks are all built once, on the size change, never on the
         # frame; the one Path is shared and reset, never re-allocated.
-        self.assertIn("buildCloud();", orb)
+        self.assertIn("buildBurst();", orb)
         self.assertIn("buildSun();", orb)
         self.assertIn("buildInks();", orb)
         self.assertIn("onSizeChanged", orb)
@@ -2474,14 +2518,25 @@ class V19SecondOrderTest(unittest.TestCase):
                       self.main)
         self.assertIn("icon.setScaleY(selected ? NAV_SELECTED_SCALE : 1f);",
                       self.main)
+        # v2.1.0: the ring is painted as the icon's own FOREGROUND too, so
+        # the png's ink can never read as covering the selection ("the
+        # highlighted feature is not working on the menu bar").
+        self.assertIn("icon.setForeground(selected ? navRingForeground() : null);",
+                      self.main)
+        self.assertIn("navRing.setShape(GradientDrawable.OVAL);", self.main)
 
     def test_the_nav_tile_has_the_app_tile_breadth(self):
         # "make the broadness of the menu bar tile same as every other
-        # tile": the 20dp side air the grid owns on the console.
+        # tile" (restated v2.1.0, "the menu bar is so wide right now"):
+        # the tile now carries the 20dp side air as PADDING and the SAME
+        # 20dp as side MARGINS, so its outer edge lands where every other
+        # tile's does and its insides keep the thirds' own air.
         start = self.layout.index('android:id="@+id/nav_tile"')
         block = self.layout[start:start + 700]
         self.assertIn('android:paddingLeft="20dp"', block)
         self.assertIn('android:paddingRight="20dp"', block)
+        self.assertIn('android:layout_marginLeft="20dp"', block)
+        self.assertIn('android:layout_marginRight="20dp"', block)
 
 
 if __name__ == "__main__":
