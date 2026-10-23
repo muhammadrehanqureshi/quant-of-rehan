@@ -542,10 +542,13 @@ class BrandRuleTest(unittest.TestCase):
     def test_the_rule_is_defined_once_and_included_at_every_division(self):
         self.assertIn("QorDiamond", self.rule)
         self.assertIn('android:text="@string/diamond"', self.rule)
-        # Eight rules on the console (owner order 2026-10-23): the ones the
-        # tiles own, the two the menus carry, and the pair that brackets the
-        # menu tile at the very bottom.
-        self.assertEqual(self.layout.count('layout="@layout/qor_rule"'), 8)
+        # Six rules on the console in v1.9.13 (owner order 2026-10-23): the
+        # brand rule under the header, the three the home tiles carry, and
+        # the pair that brackets the menu tile pinned at the very bottom.
+        # The two rules the search and settings pages carried of their own
+        # are GONE (the owner read each page's second diamond as an extra
+        # one), and their absence is its own test below.
+        self.assertEqual(self.layout.count('layout="@layout/qor_rule"'), 6)
 
     def test_the_rules_stand_between_the_tiles_and_never_inside_them(self):
         root = layout_root()
@@ -601,14 +604,15 @@ class TypefaceTest(unittest.TestCase):
 
     def test_the_brand_fits_the_narrowest_screen(self):
         # The brand carries no inline size: the layout points at the one
-        # shelf, QorBrandTitle, and the size is a style fact. The title is
-        # the headings' own 17.71561sp times 1.15, the owner's ordered 15%.
+        # shelf, QorBrandTitle, and the size is a style fact. Owner order
+        # 2026-10-23 (v1.9.13): the title GREW 20% from its own previous
+        # size, its own law, not a ratio of the headings.
         brand = element(self.layout, 'android:text="@string/app_name"')
         self.assertIn('style="@style/QorBrandTitle"', brand)
         self.assertNotIn("textSize", brand)
         style = self.styles[self.styles.index('name="QorBrandTitle"'):]
         style = style[:style.index("</style>")]
-        self.assertIn('<item name="android:textSize">20.37295sp</item>', style)
+        self.assertIn('<item name="android:textSize">24.44754sp</item>', style)
 
     def test_the_brand_is_never_measured_with_the_tight_font_box(self):
         # Bonskin's ink for "Quant of Rehan" reaches 779/1000 em, above its own
@@ -761,9 +765,12 @@ class CadencePlacementTest(unittest.TestCase):
     def test_the_sentence_stands_after_the_market_rule(self):
         rules = [node for node in self.root.iter() if node.tag == "include"
                  and node.get("layout") == "@layout/qor_rule"]
-        self.assertEqual(len(rules), 8)
-        # The market card's rule: the two rules the menus own travel with
-        # their panels, and the nav pair closes the console.
+        # v1.9.13 (owner order 2026-10-23): the six rules after the menu
+        # pages each dropped their extra diamond - the single brand rule
+        # under the header, the three the home tiles carry, and the pair
+        # that brackets the pinned menu bar.
+        self.assertEqual(len(rules), 6)
+        # The market card's rule: the one that closes the card section.
         market_rule = next(
             rule for rule in rules
             if rule.get(f"{ANDROID_NS}id") == "@+id/rule_after_market")
@@ -774,17 +781,15 @@ class CadencePlacementTest(unittest.TestCase):
         self.assertEqual(view.get(f"{ANDROID_NS}id"), "@+id/scan_cadence")
         self.assertEqual(view.get(f"{ANDROID_NS}text"), "@string/scan_cadence")
         self.assertEqual(view.get("style"), "@style/QorCaption")
-        # Owner order 2026-10-23: the menu tile comes after the sentence,
-        # at the very bottom, with its own diamond rules around it. The
-        # sentence is the console's last WORD, not its last view.
-        self.assertIsNotNone(find_view(self.root, "@+id/nav_tile"))
-        self.assertLess(self.layout.index("@+id/scan_cadence"),
-                        self.layout.index("@+id/rule_before_nav"))
-        # And after the sentence, the nav bracket and nothing else: the
-        # rule before the menu tile, the tile itself, the closing rule.
+        # Owner order 2026-10-23 (v1.9.13): the menu bar LEFT the scroll.
+        # The sentence is the console scroll's own last child, and the root
+        # carries exactly the pinned bar after the scroll: the rule, the
+        # tile, the rule, one fixed unit at the bottom of the screen.
+        self.assertEqual(following[1:], [])
         self.assertEqual(
-            [node.get(f"{ANDROID_NS}id") for node in following[1:]],
-            ["@+id/rule_before_nav", "@+id/nav_tile", "@+id/rule_after_nav"])
+            [n.get(f"{ANDROID_NS}id") or n.tag for n in list(self.root)],
+            ["@+id/console_scroll", "@+id/rule_before_nav",
+             "@+id/nav_tile", "@+id/rule_after_nav"])
 
     def test_the_market_card_no_longer_carries_the_sentence(self):
         self.assertIsNone(find_view(self.root, "@+id/market_foot"))
@@ -1407,16 +1412,18 @@ class HeaderCopyTest(unittest.TestCase):
 
 class VersionTest(unittest.TestCase):
     def test_the_version_is_the_one_that_ships_these_changes(self):
-        # v1.9.12 is the 2026-10-23 day: the menu tile at the very bottom with
-        # the owner's own home.png and search.png and a circle on the page he
-        # is on, a THEMES dropdown on the settings page, CUSTOM SCRIPS OF
-        # VOL. on the search page, the greeting above QUANT STATUS, the app
-        # version on the settings page, and /prices rows that carry the
-        # relay's own B/S split. v1.9.10's tile heading, ten solar lines and
-        # one body size stand.
+        # v1.9.13 is the 2026-10-23 pass on the ruined look: the pinned menu
+        # bar (home at the LEFT edge, search at the MIDDLE, settings at the
+        # RIGHT edge, one tiled thirds row outside the console scroll), one
+        # diamond rule per menu page (the second ones cancelled), every
+        # heading 10% smaller at one style, QUANT OF REHAN 20% bigger on its
+        # own size, the greeting in the brand face, round corners on every
+        # plate, and the sun that stops burning when the market closes or
+        # breaks. v1.9.12's themes, CUSTOM SCRIPS OF VOL., version line and
+        # /prices B/S rows stand.
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="1.9.12"', manifest)
-        self.assertIn('android:versionCode="53"', manifest)
+        self.assertIn('android:versionName="1.9.13"', manifest)
+        self.assertIn('android:versionCode="54"', manifest)
         # The changelog entry ties these user-visible changes to the build.
         readme = (ROOT / "android" / "README.md").read_text(encoding="utf-8")
         self.assertIn("v1.7.9, owner order 2026-10-20", readme)
@@ -1440,6 +1447,7 @@ class VersionTest(unittest.TestCase):
         self.assertIn("Version 1.9.10, versionCode 51", readme)
         self.assertIn("Version 1.9.11, versionCode 52", readme)
         self.assertIn("Version 1.9.12, versionCode 53", readme)
+        self.assertIn("Version 1.9.13, versionCode 54", readme)
         layout = LAYOUT.read_text(encoding="utf-8")
         strings = STRINGS.read_text(encoding="utf-8")
         main = MAIN.read_text(encoding="utf-8")
@@ -1633,11 +1641,11 @@ class UniversalSizeTest(unittest.TestCase):
         sizes = set(re.findall(r'android:textSize="([0-9.]+sp)"', self.layout))
         self.assertEqual(sizes, {"13sp"})
         label = self.styles[self.styles.index('name="QorLabel"'):]
-        self.assertIn('android:textSize">17.71561sp',
+        self.assertIn('android:textSize">15.944049sp',
                       label[:label.index("</style>")])
         brand = self.styles[self.styles.index('name="QorBrandTitle"'):]
-        # The title is its own heading, 15% bigger than the other headings.
-        self.assertIn('android:textSize">20.37295sp',
+        # The title grew 20% from its own previous size (v1.9.13).
+        self.assertIn('android:textSize">24.44754sp',
                       brand[:brand.index("</style>")])
         # Body, buttons and captions are the one size round.
         for style in ("QorBody", "QorButton", "QorCaption"):
@@ -1668,8 +1676,9 @@ class UniversalSizeTest(unittest.TestCase):
         self.assertIn('android:textSize">13sp', body[:body.index("</style>")])
 
     def test_the_headings_keep_a_size_of_their_own_and_are_bold(self):
-        # Headings are 10% bigger than current, buttons are body size.
-        for style, size in (("QorLabel", "17.71561sp"), ("QorButton", "13sp")):
+        # Owner order 2026-10-23 (v1.9.13): headings are 10% smaller than
+        # their previous size; buttons stay body size.
+        for style, size in (("QorLabel", "15.944049sp"), ("QorButton", "13sp")):
             block = self.styles[self.styles.index(f'name="{style}"'):]
             block = block[:block.index("</style>")]
             self.assertIn("lemonmilk_bold", block)
@@ -1677,14 +1686,14 @@ class UniversalSizeTest(unittest.TestCase):
 
 
 class TileBracketingTest(unittest.TestCase):
-    """Owner order 2026-10-21 (15:35): a menu tile has a rule on each side.
+    """Owner order 2026-10-23 (v1.9.13): the menu pages each carry ONE
 
-    He opened the search and saw the diamond below that tile but not above
-    it, and opened the settings and saw its diamond above but not below. Each
-    menu now owns the rule on the side the console's brand rule does not
-    cover: `rule_before_search` above the search panel, `rule_after_settings`
-    below the settings panel. Both start GONE and travel with their panel, so
-    a closed menu leaves no rule behind.
+    diamond rule, and never two. The owner read the second diamond on the
+    search and settings pages as an extra one, so the pair the v1.9.12
+    pass added (`rule_before_search` above the search panel and
+    `rule_after_settings` below the settings panel) is gone from the
+    layout and from the code that drove it. Each page keeps the single
+    brand rule under the header exactly as the closed console does.
     """
 
     def setUp(self):
@@ -1692,29 +1701,25 @@ class TileBracketingTest(unittest.TestCase):
         self.layout = LAYOUT.read_text(encoding="utf-8")
         self.main = MAIN.read_text(encoding="utf-8")
 
-    def test_the_search_tile_has_a_rule_above_it(self):
-        rule = find_view(self.root, "@+id/rule_before_search")
-        self.assertIsNotNone(rule)
-        self.assertEqual(rule.get(f"{ANDROID_NS}visibility"), "gone")
-        self.assertLess(self.layout.index("@+id/rule_before_search"),
+    def test_the_search_page_has_no_rule_of_its_own(self):
+        self.assertIsNone(find_view(self.root, "@+id/rule_before_search"))
+        self.assertNotIn("@+id/rule_before_search", self.layout)
+
+    def test_the_settings_page_has_no_rule_of_its_own(self):
+        self.assertIsNone(find_view(self.root, "@+id/rule_after_settings"))
+        self.assertNotIn("@+id/rule_after_settings", self.layout)
+
+    def test_each_page_keeps_the_single_brand_rule(self):
+        # The one rule under the header precedes both panels' stations, so
+        # each menu page reads with the header's own diamond alone.
+        self.assertLess(self.layout.index("<!-- brand rule:"),
                         self.layout.index("@+id/search_panel"))
+        self.assertLess(self.layout.index("<!-- brand rule:"),
+                        self.layout.index("@+id/settings_panel"))
 
-    def test_the_search_tile_keeps_the_brand_rule_below_it(self):
-        self.assertLess(self.layout.index("@+id/search_panel"),
-                        self.layout.index("<!-- brand rule:"))
-
-    def test_the_settings_tile_has_a_rule_below_it(self):
-        rule = find_view(self.root, "@+id/rule_after_settings")
-        self.assertIsNotNone(rule)
-        self.assertEqual(rule.get(f"{ANDROID_NS}visibility"), "gone")
-        self.assertLess(self.layout.index("@+id/settings_panel"),
-                        self.layout.index("@+id/rule_after_settings"))
-
-    def test_each_rule_travels_with_its_menu(self):
-        self.assertIn("ruleBeforeSearch.setVisibility(open ? View.VISIBLE : View.GONE);",
-                      self.main)
-        self.assertIn("ruleAfterSettings.setVisibility(open ? View.VISIBLE : View.GONE);",
-                      self.main)
+    def test_drivers_of_the_lost_rules_are_gone(self):
+        self.assertNotIn("ruleBeforeSearch", self.main)
+        self.assertNotIn("ruleAfterSettings", self.main)
 
 
 class SearchBoxGapTest(unittest.TestCase):
@@ -1813,22 +1818,21 @@ class LeaderRowFitsAtBodySizeTest(unittest.TestCase):
 
 
 class HeadingGrowthTest(unittest.TestCase):
-    """Owner order 2026-10-22: every heading is 10% bigger, and the two
-    tiles that never had a heading now carry his exact words.
-
-    The 10% lands on the one style every tile heading shares (QorLabel), so
-    QUANT STATUS, LATEST SIGNAL, SETTINGS and the two new headings grow by
-    one decision rather than five copies that could drift apart. The
-    body's 13sp is NOT a heading and stays at its size, and the headings
-    are still carried by the style (no raw textSize appears next to them).
+    """Owner order 2026-10-23 (v1.9.13): every heading is 10% SMALLER
+    than its previous size, and the QUANT OF REHAN title grew 20% from
+    its own size the same day. The heading change lands on the one style
+    every tile heading shares (QorLabel), so the titles move by one
+    decision rather than five copies that could drift apart. The body's
+    13sp is NOT a heading and stays at its size, and the headings are
+    still carried by the style (no raw textSize appears next to them).
     """
 
-    def test_the_label_style_grew_by_exactly_ten_percent(self):
-        # Headings are 10% bigger than current size.
+    def test_the_label_style_shrank_by_exactly_ten_percent(self):
+        # Headings are 10% smaller than their previous size.
         styles = STYLES.read_text(encoding="utf-8")
         block = styles[styles.index('name="QorLabel"'):]
         block = block[:block.index("</style>")]
-        self.assertIn('android:textSize">17.71561sp', block)
+        self.assertIn('android:textSize">15.944049sp', block)
 
     def test_the_body_kept_its_size(self):
         styles = STYLES.read_text(encoding="utf-8")
@@ -2035,11 +2039,12 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         layout = LAYOUT.read_text(encoding="utf-8")
         self.assertIn("<pk.quantofrehan.ThinkingOrb", layout)
         self.assertIn("@+id/thinking_orb", layout)
-        # Under the brand, ahead of the rule before the search tile: the
-        # beam's former station. The first pass's 3dp restoration of the
-        # pre-HUD 12dp air stands.
+        # Under the brand, ahead of both menu panels: the beam's former
+        # station. The menu page's own rule the v1.9.13 pass removed no
+        # longer divides the orb from the panel; the single brand rule
+        # under the header does.
         self.assertLess(layout.index("@+id/thinking_orb"),
-                        layout.index("@+id/rule_before_search"))
+                        layout.index("@+id/search_panel"))
         block = layout[layout.index("@+id/thinking_orb"):
                        layout.index("@+id/thinking_orb") + 400]
         self.assertIn("android:importantForAccessibility=\"no\"", block)
@@ -2089,10 +2094,10 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         # The orb is NOT a member of consoleViews any more: a menu no
         # longer takes its space.
         self.assertNotIn("findViewById(R.id.thinking_orb),", main)
-        # Its station precedes the panel's own top rule and both panels,
-        # which is the exact spot it holds on the front page.
-        self.assertLess(layout.index("@+id/thinking_orb"),
-                        layout.index("@+id/rule_before_search"))
+        # Its station precedes both panels, which is the exact spot it
+        # holds on the front page; the menu pages' own rules are the ones
+        # the v1.9.13 pass removed, so the single brand rule under the
+        # header is the orb's only division on every page.
         self.assertLess(layout.index("@+id/thinking_orb"),
                         layout.index("@+id/search_panel"))
         self.assertLess(layout.index("@+id/thinking_orb"),
