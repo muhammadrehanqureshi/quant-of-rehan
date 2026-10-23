@@ -1675,10 +1675,20 @@ export default {
       const prices = [];
       for (const quote of (snapshot && snapshot.quotes) || []) {
         if (!quote || !Number.isFinite(quote.price) || quote.price <= 0) continue;
+        // The volume dropdowns (owner order 2026-10-23) rank scrips by their
+        // published split, so each row carries the same B/S pair the /stock
+        // route computes: the day's range is the frame it is split from, and
+        // a frame whose range is incomplete ships nulls instead of guessing
+        // (SO-3). The exclusion row stays the row: the phone reads a row of
+        // five, and indexes beyond three stay null.
+        const split = rangePositionSplit(quote.high, quote.low,
+                                         quote.price, quote.volume);
         prices.push([
           String(quote.symbol || ""),
           quote.price,
           Number.isFinite(quote.change_pct) ? quote.change_pct : null,
+          split ? split.buy_volume : null,
+          split ? split.sell_volume : null,
         ]);
       }
       return json({ ok: true, prices });

@@ -808,6 +808,93 @@ to sixty seconds. The status tile therefore also carries the app's own
   frame budget is the same one: zero per-frame allocations, the view's
   own paced invalidate, nothing running while the console is paused.
   Version 1.9.9, versionCode 50.
+- v1.9.10, owner orders 2026-10-22 (fourth pass, the tile, the type and the
+  tick):
+
+    1. The settings tile keeps only its heading and its controls. The owner
+       had asked for the "crap" under the heading to go and the first pass
+       removed the heading with it; the second pass restored the heading in
+       his exact word (label_settings = "SETTINGS", first in the tile again)
+       and retired the helper paragraph from the SCREEN: the settings_hint
+       string keeps its declaration in strings.xml, so the copy has one home
+       and paints nowhere.
+    2. The sun's second pass: the lines around the ball grew from 4 to 10
+       and REVOLVE now, each arc carrying its own slow bearing that advances
+       forever plus its round-robin slot, so lines circle the orb
+       continuously instead of wobbling in place. The flare sparks grew from
+       6 to 10, so the seconds cadence always carries a streak. Ten additive
+       inks would wash out, so each arc's alpha was trimmed 120 to 85 and the
+       stroke 2.2dp to 1.9dp: the ring glows, it does not whiten.
+    3. The type pass: one size for every non-heading line, and that size is
+       the footer's own 13sp. QorButton left its 12sp, the market card's
+       index line left its 17sp, and the tagline, search box, status word and
+       every list row already sat there. The headings took their ordered 10%
+       again, 12.1 x 1.1 = 13.31sp on the one shared style, and the brand
+       title grew 15% from its 30sp to 34.5sp (measured against the narrowed
+       header: about 230dp of Bonskin line, the settings shift's clamp is
+       unchanged).
+    4. The lag the owner reported ("the numbers move, but not in real
+       time") is the tick's SHAPE, not its cadence: fetchLive ran the health
+       read and the card read back to back on one executor, so every tick
+       paid two sequential round trips and one flaky health read (with its
+       own 1.5s retry sleep) pushed every later card read behind it. The two
+       halves now race on executors of their own, a tick costs the slower of
+       two concurrent reads, a job that loses its race is cancelled so no
+       socket lingers, and a lost race's reported cause is unwrapped so the
+       offline hint stays the real one.
+
+  Version 1.9.10, versionCode 51.
+- v1.9.11, owner orders 2026-10-23 (the heading, the sun, the tick and the
+  type):
+
+    1. The SETTINGS tile keeps its heading and the helper paragraph under
+       it left the screen; the tile is the heading and its controls.
+    2. The sun's lines around the ball grew to ten and REVOLVE: each arc
+       carries its own bearing that advances forever, and the flare sparks
+       stay on the seconds cadence.
+    3. The index and the leaders repaint on EVERY one-second answer, even a
+       byte-identical one, so the numbers move like the digits on a clock;
+       the health read and the card read race on executors of their own, so
+       a tick costs one round trip of wait, not two stacked ones.
+    4. One body size (the footer's 13sp) for every non-heading line; the
+       headings share one size, 10% bigger than before, and the brand name
+       is 15% bigger than the other headings.
+
+  Version 1.9.11, versionCode 52.
+- v1.9.12, owner orders 2026-10-23 (the menu, the themes, the greeting and
+  the scrips):
+
+    1. The three controls (home, search, settings) moved from the brand row
+       to their own menu tile at the very bottom of the app, bracketed by
+       the same diamond rules as every change of subject. Home and search
+       came to the app as the owner's own pngs copied from his Desktop
+       (drawable-nodpi/home.png and search.png, joining the bundled       settings.png); the dev archive's magnifier vector is retired. The
+       page he is on is circled in a thin gold ring (drawable/nav_circle)
+       drawn as the icon's background; the ring is the selection, a masked
+       ripple is only the press, and unselected pages keep the plain gold
+       tint.
+    2. The settings page gained the THEMES tile: a dropdown listing the
+       five background and heading pairs in the order he named them
+       (purple and yellow, black and white, green and yellow, navy blue
+       and white, orange and white). Each pair is one live repaint of the
+       console's covers, plates and heading ink (colors.xml theme_*), and
+       the selection is remembered, so the app opens on the look he chose.
+       The settings page also reports the app version, read from the
+       manifest's own versionName.
+    3. The home page greets him before the QUANT STATUS tile: "Good
+       morning, Mr. Rehan!" before noon and "Good afternoon, sir!" after,
+       decided by Asia/Karachi's own clock (SO-8), not the handset's zone.
+    4. The search page gained the CUSTOM SCRIPS OF VOL. tile with two
+       dropdowns: the three scrips the session's B/S split ranks highest
+       buy and lowest sell, and the three fastest prices (the largest
+       absolute moves). Both rankings draw from the same /prices map the
+       search rows already refresh once per tick, and the /prices rows now
+       carry the same B/S pair the /stock route computes (columns
+       [symbol, price, change_pct, buy, sell], nulls where a frame's
+       range is incomplete, never a guessed zero), so the phone ranks
+       itself without a second question.
+
+  Version 1.9.12, versionCode 53.
 
 **Built and delivered 2026-10-22 (v1.8.8):** the signed v1.8.8 APK was built
 on GitHub Actions from the master at 59da8f90a1 (run 39722179379, the merge

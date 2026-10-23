@@ -93,8 +93,15 @@ public class ThinkingOrb extends View {
      */
     private static final int GRANULE_STRIDE = 6;
     private static final int FLAMES = 22;
-    private static final int PROMINENCES = 4;
-    private static final int FLARES = 6;
+    /**
+     * Owner order 2026-10-22 (more lines around the orb): the lines around the
+     * ball are increased. The prominence arcs now REVOLVE around the limb on
+     * their own slow bearing, not a wobble in a fixed slot, so more lines circle
+     * the orb continuously; the flare sparks also increased, so the seconds
+     * cadence always carries more streaks.
+     */
+    private static final int PROMINENCES = 42;
+    private static final int FLARES = 28;
 
     /** Pacing of the frame loop, aimed at a smooth 30fps. */
     private static final long FPS_MS = 33L;
@@ -229,7 +236,7 @@ public class ThinkingOrb extends View {
 
         prominencePaint.setStyle(Paint.Style.STROKE);
         prominencePaint.setStrokeCap(Paint.Cap.ROUND);
-        prominencePaint.setStrokeWidth(dp(2.2f));
+        prominencePaint.setStrokeWidth(dp(1.9f));
 
         // Fire fuses: these inks blend ADD, so where two glows overlap
         // they read as hotter, not as stacked discs. The ball itself stays
@@ -282,7 +289,11 @@ public class ThinkingOrb extends View {
             flameRate[f] = 1.4f + frac(seed) * 1.6f;
         }
         for (int p = 0; p < PROMINENCES; p++) {
-            promAngle[p] = (float) Math.PI * 2f * (p + 0.5f) / PROMINENCES;
+            // Owned slots, but the owner's second pass makes the LINES move:
+            // each arc also carries its own small extra bearing, drawn in
+            // round-robin fractions of 2 pi, so the ring never reads as ten
+            // evenly spaced spokes.
+            promAngle[p] = (float) Math.PI * 2f * (p * 0.37f);
             seed = nextSeed(seed);
             promSpread[p] = 0.28f + frac(seed) * 0.18f;
             seed = nextSeed(seed);
@@ -391,7 +402,13 @@ public class ThinkingOrb extends View {
     private void drawProminences(Canvas canvas, float cx, float cy,
                                  float seconds, float bright) {
         for (int p = 0; p < PROMINENCES; p++) {
-            float roll = promAngle[p] + 0.05f * (float) Math.sin(
+            // The owner's order: the lines REVOLVE around the orb. Each arc
+            // has its own slow bearing that advances forever, at its own
+            // rate, rounder than a wobble: five degrees of breath on top of
+            // the continuous roll.
+            float roll = promAngle[p]
+                    + seconds * (0.05f + p * 0.008f) * MOTION_SCALE
+                    + 0.09f * (float) Math.sin(
                     seconds * 0.31f * MOTION_SCALE + promPhase[p]);
             float leap = 0.5f + 0.5f * (float) Math.sin(
                     seconds * 0.47f * MOTION_SCALE + promPhase[p] * 3f);
@@ -410,7 +427,9 @@ public class ThinkingOrb extends View {
                     cx + sunR * (float) Math.cos(a1),
                     cy + sunR * (float) Math.sin(a1));
             prominencePaint.setColor(0xFFFFB74D);
-            prominencePaint.setAlpha(Math.min(255, (int) (120f
+            // Ten inks ADD on the same canvas: the per-arc light was trimmed
+            // so the ring glows instead of washing out.
+            prominencePaint.setAlpha(Math.min(255, (int) (85f
                     * (0.35f + 0.65f * leap) * bright)));
             canvas.drawPath(arcPath, prominencePaint);
         }
