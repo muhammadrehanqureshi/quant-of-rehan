@@ -6,12 +6,14 @@
      (RECEIVE_BOOT_COMPLETED, REQUEST_IGNORE_BATTERY_OPTIMIZATIONS) are gone;
      the quant already scans every second in the cloud and the relay
      delivers the feed and signals from there, so the handset schedules
-     nothing of its own. The build stays versionCode 59 / 2.2.1 by the
-     android-apk workflow's own bump. -->
+     nothing of its own. versionCode 60 / versionName 2.2.2 belong to the
+     owner order 2026-10-24; the versions are set here, in the source
+     tree, and the android-apk workflow reads and asserts them - it never
+     bumps them on its own. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="pk.quantofrehan"
-    android:versionCode="59"
-    android:versionName="2.2.1">
+    android:versionCode="60"
+    android:versionName="2.2.2">
 
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="30"/>
 
