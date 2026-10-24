@@ -579,7 +579,17 @@ public class ThinkingOrb extends View {
         float texW = sunPhoto.getWidth();
         int texH = sunPhoto.getHeight();
         float span = (lam1 - lam0) / SUN_LAP * texW;
-        float s0 = mod01(lam0 / SUN_LAP) * texW;
+        // The face's phase: longitude zero must LAND ON the disc's centre
+        // column (texW/4), not on the disc's left edge (texW zero). The
+        // v2.2.6 build shipped without this quarter-offset and the
+        // owner's screenshot caught the result: the visible face window
+        // held LEFT HALVES of the disc and its mirror instead of one
+        // whole face - the crescent wreckage ("look what the hell you
+        // did to the sun", owner order 2026-10-24, sixth pass). With the
+        // offset the window is always one whole face, sliding limb to
+        // limb, its mirror closing in from behind exactly like the
+        // Earth's own turn.
+        float s0 = mod01(lam0 / SUN_LAP + 0.25f) * texW;
         float s1 = s0 + span;
         if (s1 <= texW) {
             paintFaceBand(canvas, x0, x1, y0, y1, s0, s1, texH);

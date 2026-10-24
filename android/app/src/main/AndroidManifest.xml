@@ -32,11 +32,19 @@
      app's current theme and stay seated in their tiles, and the
      volume tile's menu carries the scanner's own first entry - the
      three fast risers, capped scrips out, each with its buyers,
-     sellers, total volume, price and percentage. -->
+     sellers, total volume, price and percentage.
+
+     versionCode 65 / versionName 2.2.7 belong to the owner order
+     2026-10-24, sixth pass ("look what the hell you did to the sun"):
+     the longitude window's phase was landing on the loop's seam edge
+     instead of the face's centre, so the v2.2.6 build showed halves of
+     the disc and its mirror (the crescent wreckage); with the
+     quarter-phase offset the visible window is always ONE whole face,
+     sliding limb to limb under the owner's own 10% cut. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="pk.quantofrehan"
-    android:versionCode="64"
-    android:versionName="2.2.6">
+    android:versionCode="65"
+    android:versionName="2.2.7">
 
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="30"/>
 
