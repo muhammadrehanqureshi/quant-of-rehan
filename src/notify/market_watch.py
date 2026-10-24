@@ -16,10 +16,13 @@ loop runs continuously through every event the owner is emailed about:
 
 So the emails now ride the loop's every-second `decide`, not GitHub's
 cron: a phase the loop can already see is an email the loop itself can
-send, without any clock the agent or a workflow waits on. The
+send, without any clock the agent or a workflow waits on. TheOwner order 2026-10-24: the owner's "post market closing" email (16:49
+Friday, 15:49 Mon-Thu) is an event of its own, and the loop is the only
+work live at that minute, so it emails the end of the post-market
+window too. The texts are the owner's sentences, and the
 market-email.yml cron jobs stay exactly as they are as a backstop, and
-src/notify/owner_email.py's comment ledger keeps each event exactly once
-per Karachi day whichever path arrives first.
+src/notify/owner_email.py's comment ledger keeps each event exactly
+once per Karachi day whichever path arrives first.
 
 Nothing here sleeps, waits, rewords the owner's texts, or invents a
 state: a send only happens for the phase the session law names at this
@@ -28,7 +31,8 @@ restarts, double drivers and late fires.
 
 SO-8: every moment this module speaks of is Karachi, Asia/Karachi, UTC+5,
 built only through src/data/sessions.py's own helpers (as_karachi,
-now_karachi, band_bounds) and never a local or naive clock here.
+now_karachi, band_bounds, post_market_window) and never a local or
+naive clock here.
 """
 
 from __future__ import annotations
@@ -56,6 +60,7 @@ EVENT_TEXTS = {
              "reopens.",
     "close": MSG_MARKET_CLOSED,
     "post": "The market is post-opened. Quant is online now.",
+    "post-close": "The market is post-closed. Quant is offline now.",
 }
 
 
@@ -83,7 +88,7 @@ def event_for(memory: tuple[str, str], moment: datetime) -> tuple[str, str] | No
 
     Pure and clock free, so the mapping is testable without a network.
     The loop's decide table already runs on exactly these phases; this
-    mirrors them into the owner's five email events, in the order the
+    mirrors them into the owner's six email events, in the order the
     day lays them out.
     """
     phase, state = memory
@@ -100,6 +105,20 @@ def event_for(memory: tuple[str, str], moment: datetime) -> tuple[str, str] | No
     if state == sessions.MarketState.POST_MARKET.value:
         return "post", ""
     if phase == sessions.MarketPhase.POST_CLOSE.value:
+        # POST_CLOSE with the market CLOSED happens twice, and both are
+        # owner events: right after the last close (before the
+        # post-market window) this is the close email, and at or after
+        # the window's end (15:49 / 16:49) this is post-close (owner
+        # order 2026-10-24). The post window's own edge says which is
+        # which, straight from the session law.
+        k = sessions.as_karachi(moment)
+        window = sessions.post_market_window(k.date())
+        if window is not None:
+            # The window is band-shaped, so band_bounds builds both of
+            # its instants inside the one law (SO-8).
+            _p_open, p_close = sessions.band_bounds(k.date(), window)
+            if k >= p_close:
+                return "post-close", ""
         return "close", ""
     return None
 

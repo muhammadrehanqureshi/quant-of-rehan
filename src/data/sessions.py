@@ -143,6 +143,12 @@ PSX_HOLIDAYS_2026 = frozenset({
     "2026-11-09", "2026-12-25",
 })
 
+# Owner order 2026-10-24, hardcoded into the system: every 9th of November
+# and every 25th of December, YEARLY and without regard to what any PSX
+# calendar publishes, the PSX is always closed. This is the calendar's own
+# law and does not depend on the yearly list above being refreshed.
+ALWAYS_CLOSED_MONTH_DAY = frozenset({(11, 9), (12, 25)})
+
 # PSX trades Monday to Friday only; Saturdays and Sundays never have a
 # session. TradingDay = datetime.weekday() (0=Monday ... 6=Sunday).
 TradingDay = int
@@ -235,8 +241,15 @@ def as_karachi(moment: datetime | None = None) -> datetime:
 
 
 def is_trading_day(d: date) -> bool:
-    """True for Mon-Fri dates that are not PSX holidays."""
+    """True for Mon-Fri dates that are not PSX holidays.
+
+    Owner order 2026-10-24: the 9th of November and the 25th of December
+    are hard law every year - a weekday that lands on either date is
+    CLOSED no matter what the yearly holiday list carries.
+    """
     if d.weekday() >= 5:
+        return False
+    if (d.month, d.day) in ALWAYS_CLOSED_MONTH_DAY:
         return False
     return d.isoformat() not in PSX_HOLIDAYS_2026
 
