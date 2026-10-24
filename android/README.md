@@ -1189,6 +1189,59 @@ to sixty seconds. The status tile therefore also carries the app's own
        `APP VERSION IS ` with the manifest's own versionName after
        it, 2.2.4 on this build.
 
+  Version 2.2.5, versionCode 63.
+
+    Owner order 2026-10-24, fourth pass, the six corrections the
+    installed v2.2.4 build answered with:
+    1. The sun actually turns now ("even now the SUN is not
+       revolving, and it's just flickering now"): the v2.2.4 spin
+       handed the platform's Canvas.rotate RADIAN numbers, and rotate
+       takes DEGREES - the disc was creeping 0.455 degrees per second,
+       a thirteen-and-a-half-minute lap nobody could see, while the
+       limb fire's own pulsing was doing all the visible moving. The
+       degrees bug is fixed (toDegrees!), the fire swing narrows so
+       its ink is steady, and the two prominence-level alpha pumps
+       are retired; the turn itself now does the moving, exactly the
+       Earth revolve he asked for twice.
+    2. The orbiting lines breathe ("the lines that are moving outside
+       the SUN, make them look like they are breathing, like the
+       lines will get a bit short and then will get long"): every
+       filament now carries its own breath phase (one golden-angle
+       step apart) and shrinks to a bit short and reaches back out to
+       a bit long on one breath period around its own midpoint, so
+       the swing never detaches it from the nodes it joins. The no
+       two lines pulsing in unison law keeps the refined v2.2.3 look.
+    3. APP VERSION IS 2.2.5 ("there is no space betwen IS & 2.2.4"):
+       the trailing space the wording carries was Lost when the
+       source carried it, so the fused IS2.2.4 read; the prefix
+       resource now PADS OWN space on the string's end, the join is
+       code, and the assertion pins the padded prefix and the space.
+    4. Dropdowns and search boxes take the theme ("when I change the
+       theme the theme changes but the drop down and the search
+       boxes are still purple, make them match the app's current
+       theme", "the drop down menus and the search boxes are coming
+       out from their respective tiles"): the closed dropdown rows,
+       their POPUP plates and the search box are painted from the
+       theme's own plate in ONE place (applyThemeToInputs), each
+       theme's popup a named plate of the same family so an open
+       menu reads as the theme the console is wearing; the theme
+       spinner is exempt by the owner's own sentence, it already
+       sits inside the plate it is choosing. The purple stencil
+       (field_bg on the popup, a volume-split popupBackground) came
+       off the layout so no input can carry a colour its tile does
+       not declare.
+    5. The scanner's own entry now heads the menu ("the riser set"
+       law): PRICES RISING FAST, the three scrips whose prices are
+       INCREASING really fast (a stock that was dead through the day
+       then the buyers came in clutch), with every already-capped
+       scrip OUT of the set; the set is remade against the living
+       market every tick, so a market performer that belongs stands
+       in the three. Each row carries its buyers, sellers, total
+       volume, current price and current percentage, all from the
+       relay's own answer (SO-3: a split whose frame is incomplete
+       prints fewer numbers, never invented ones).
+    6. The version bump is versionCode 63 / versionName 2.2.5.
+
 **Built and delivered 2026-10-24 (v2.2.3):** the signed v2.2.3 APK was built
 on GitHub Actions from the merged PR #110 (master 3fd20f0, run 40071196152,
 the push build the merge itself triggered), downloaded from the run's

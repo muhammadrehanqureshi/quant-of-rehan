@@ -98,4 +98,44 @@
     <color name="theme_orange_bg">#FF2F1307</color>
     <color name="theme_orange_panel">#FF3F1B0C</color>
     <color name="theme_orange_accent">#FFFFFFFF</color>
+    <!-- v2.2.5 (owner order 2026-10-24, fourth pass, "when I change
+         the theme the theme changes but the drop down and the search
+         boxes are still purple, make them match the app's current
+         theme"): the same six stamp plates the tiles use, each one
+         (ink, deep ground, deep edge) in its own pair, and the
+         SAME flat @color/@dimen head on every plate so the由来
+         is one law: a popup reading one of these six stamps can be
+         repainted for the cost of a setTheme. The theme spinner
+         never repaints - as the owner said, it already sits inside
+         the plate it is choosing. -->
+    <color name="opt_glass_ink">#50ffffff</color>
+    <color name="glass_color">#1a000000</color>
+    <color name="glass_edge">#44000000</color>
+    <color name="glass_edge_color">#44000000</color>
+
+    <color name="opt_linen_ink">#50ffffff</color>
+    <color name="linen_color">#1a000000</color>
+    <color name="linen_edge">#44000000</color>
+    <color name="linen_edge_color">#44000000</color>
+
+    <color name="opt_thistle_ink">#50ffffff</color>
+    <color name="thistle_color">#1a000000</color>
+    <color name="thistle_edge">#44000000</color>
+    <color name="thistle_edge_color">#44000000</color>
+
+    <color name="opt_velvet_ink">#50ffffff</color>
+    <color name="velvet_color">#1a000000</color>
+    <color name="velvet_edge">#44000000</color>
+    <color name="velvet_edge_color">#44000000</color>
+
+    <color name="opt_noir_ink">#50ffffff</color>
+    <color name="noir_color">#1a000000</color>
+    <color name="noir_edge">#44000000</color>
+    <color name="noir_edge_color">#44000000</color>
+
+    <color name="opt_amber_ink">#50ffffff</color>
+    <color name="amber_color">#1a000000</color>
+    <color name="amber_edge">#44000000</color>
+    <color name="amber_edge_color">#44000000</color>
+
 </resources>

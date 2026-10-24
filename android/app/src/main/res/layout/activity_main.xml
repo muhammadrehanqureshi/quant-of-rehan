@@ -299,8 +299,6 @@
                 android:background="@drawable/field_bg"
                 android:contentDescription="@string/label_volume"
                 android:minHeight="40dp"
-                android:popupBackground="@drawable/dropdown_popup"
-                android:prompt="@string/label_volume"
                 android:padding="10dp"/>
 
             <ImageView

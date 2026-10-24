@@ -415,8 +415,13 @@ public class MainActivity extends Activity {
         tileVolume = findViewById(R.id.tile_volume);
         themeSpinner = (Spinner) findViewById(R.id.theme_spinner);
         appVersion = (TextView) findViewById(R.id.app_version);
-        volumeSplitSpinner =
-                (Spinner) findViewById(R.id.volume_split_spinner);
+        volumeSplitSpinner = (Spinner) findViewById(R.id.volume_split_spinner);
+        if (volumeSplitSpinner != null) {
+            themedInputs.add(volumeSplitSpinner);
+        }
+        if (themeSpinner != null) {
+            themedInputs.add(themeSpinner);
+        }
         volumeReveal = (TextView) findViewById(R.id.volume_reveal);
         settingsPanel = findViewById(R.id.settings_panel);
         searchPanel = findViewById(R.id.search_panel);
@@ -426,6 +431,13 @@ public class MainActivity extends Activity {
         searchInput = findViewById(R.id.search_input);
         searchResults = findViewById(R.id.search_results);
         searchStatus = findViewById(R.id.search_status);
+
+        // The search box: the theme paints it with the same field plate
+        // the dropdowns' closed rows wear (v2.2.5 owner order 2026-10-24,
+        // fourth note, "the drop down and the search boxes are still
+        // purple, make them match the app's current theme").
+        themedInputs.add(searchInput);
+
         // The menu tile at the very bottom (owner order 2026-10-23): the
         // icon of the page he is on is circled, and a tap opens that page.
         // One page at a time is enforced inside the two toggles, so home
@@ -524,6 +536,10 @@ public class MainActivity extends Activity {
         applyTheme(themeIndex);
 
         buildVolumeSpinners();
+        // v2.2.5: the dropdowns' closed rows, their popups and the search
+        // box open ON the theme's look, not the app's default, when a
+        // non-default theme is remembered.
+        applyThemeToInputs(themeIndex);
         wireDropdownArrows();
 
         writeAppVersion();
@@ -665,12 +681,141 @@ public class MainActivity extends Activity {
                 if (position != themeIndex) {
                     themeIndex = position;
                     applyTheme(position);
+                    // v2.2.5: the dropdowns, their popups and the search
+                    // boxes belong to the theme too (owner order
+                    // 2026-10-24, fourth note, "drop down menus and the
+                    // search boxes are still purple, make them match
+                    // the app's current theme").
+                    applyThemeToInputs(position);
                 }
             }
             @Override public void onNothingSelected(AdapterView<?> parent) { }
         });
     }
 
+    /** The input views one theme pass repaints: the two spinners and
+     *  the four field boxes, gathered once. */
+    private final List<View> themedInputs = new ArrayList<>();
+
+    /**
+     * One theme, every input (v2.2.5 owner order above): the closed
+     * dropdown rows, their POPUP mosaic and the four field boxes are
+     * painted from the theme's own plate, in ONE place. The theme
+     * spinner is exempt: as the owner said on 2026-10-24, it already
+     * sits inside the plate it is choosing.
+     */
+    private void applyThemeToInputs(int index) {
+        for (View input : themedInputs) {
+            if (input == themeSpinner) continue;
+            if (input instanceof Spinner) {
+                paintDropdown((Spinner) input, index);
+            } else {
+                paintField(input, index);
+            }
+        }
+    }
+
+    /** One spinner: closed row, popup mosaic, from one plate.
+     *  notifyDataSetChanged re-walks every closed row with the code's
+     *  current paints; the popup's paint cannot run at a null adapter. */
+    private void paintDropdown(Spinner spinner, int index) {
+        if (spinner == null) return;
+        // The closed row sits inside its tile with the FIELD law's own
+        // 12dp corners (the tile plate's 20dp would swallow the field's
+        // air), the same plate the boxes wear below.
+        spinner.setBackground(fieldPlate(index));
+        ArrayAdapter<?> adapter =
+                spinner.getAdapter() instanceof ArrayAdapter<?>
+                        ? (ArrayAdapter<?>) spinner.getAdapter() : null;
+        if (adapter != null) {
+            adapter.notifyDataSetChanged();
+        }
+        // The dropped menu is the STAMP, not the tile paint (the owner's
+        // wording "drop down menus ... match the app's current theme", and
+        // the v2.2.2 law that a paper never colours a spoon below its
+        // station): each theme's own plate id, from this one place.
+        int popup = popupResourceFor(index);
+        if (popup != View.NO_ID && spinner != themeSpinner) {
+            @SuppressWarnings("deprecation")
+            android.graphics.drawable.Drawable popupPlate =
+                    getResources().getDrawable(popup);
+            spinner.setPopupBackgroundDrawable(popupPlate);
+        }
+    }
+
+    /** One field box: the field's own plate, and the hint ink rides the
+     *  theme's heading colour, which is what the boxes' hints were
+     *  printed in at v2.2.4. */
+    private void paintField(View field, int index) {
+        if (field == null) return;
+        field.setBackground(fieldPlate(index));
+        if (field instanceof TextView) {
+            ((TextView) field).setHintTextColor(getColor(
+                    hintInkFor(index)));
+        }
+    }
+
+    /** The tile plate each theme paints (mirrors applyTheme's switch;
+     *  one truth, two readers). */
+    private int panelResourceFor(int index) {
+        switch (index) {
+            case 1:  return R.color.theme_black_panel;
+            case 2:  return R.color.theme_green_panel;
+            case 3:  return R.color.theme_navy_panel;
+            case 4:  return R.color.theme_orange_panel;
+            default: return R.color.bg_panel;
+        }
+    }
+
+    /** One rounded field plate per theme, built once and reused: the
+     *  field law's own corners, 12dp, on the theme's panel ink (the
+     *  plate the closed dropdown row and the search box both wear). */
+    private final GradientDrawable[] themeFieldPlates = new GradientDrawable[4];
+
+    private GradientDrawable fieldPlate(int index) {
+        if (index <= 0) {
+            @SuppressWarnings("deprecation")
+            GradientDrawable own = (GradientDrawable) getResources()
+                    .getDrawable(R.drawable.field_bg);
+            return own;
+        }
+        GradientDrawable cached = themeFieldPlates[index - 1];
+        if (cached == null) {
+            cached = new GradientDrawable();
+            cached.setColor(getColor(panelResourceFor(index)));
+            cached.setCornerRadius(dp(12));
+            cached.setStroke(1, getColor(R.color.bg_panel_edge));
+            themeFieldPlates[index - 1] = cached;
+        }
+        return cached;
+    }
+
+    /** The POPUP mosaic each theme paints, the stamp hand's own table. */
+    private int popupResourceFor(int index) {
+        switch (index) {
+            case 1:  return R.drawable.dropdown_popup_black;
+            case 2:  return R.drawable.dropdown_popup_green;
+            case 3:  return R.drawable.dropdown_popup_navy;
+            case 4:  return R.drawable.dropdown_popup_orange;
+            default: return R.drawable.dropdown_popup;
+        }
+    }
+
+    /** The hint ink under each theme, the headings' own colour. */
+    private int hintInkFor(int index) {
+        switch (index) {
+            case 1:  return R.color.theme_black_accent;
+            case 2:  return R.color.theme_green_accent;
+            case 3:  return R.color.theme_navy_accent;
+            case 4:  return R.color.theme_orange_accent;
+            default: return R.color.text_soft;
+        }
+    }
+
+    /** The input plate marker: a scrip with a day move at or past this
+     *  mark is already capped for the SPEED menu (see the v2.2.5 law
+     *  on rankedSpeedSymbols). */
+    private static final double CAPPED_MOVE_MARK = 4.9d;
     /**
      * Paint one theme on the console. Each theme is a (cover, panel,
      * heading ink) triple: the scroll root behind everything, the tiles'
@@ -792,8 +937,12 @@ public class MainActivity extends Activity {
             return;
         }
         volumeSplitAdapter = styledSpinnerAdapter();
-        volumeSplitAdapter.add(getString(R.string.volume_split_caption));
+        // v2.2.5 (owner order 2026-10-24, fourth note): the scanner's own
+        // entry is the menu's FIRST row - the rising prices, capped out -
+        // then the two rankings he named before it. The index to ranking
+        // mapping lives at paintVolumeReveal alone.
         volumeSplitAdapter.add(getString(R.string.volume_speed_caption));
+        volumeSplitAdapter.add(getString(R.string.volume_split_caption));
         volumeSplitSpinner.setAdapter(volumeSplitAdapter);
         volumeSplitSpinner.setOnItemSelectedListener(
                 new AdapterView.OnItemSelectedListener() {
@@ -881,10 +1030,16 @@ public class MainActivity extends Activity {
             return;
         }
         java.util.Map<String, Watcher.Quote> quotes = Watcher.quotes();
+        // v2.2.5: row 0 is the scanner's riser entry (PRICES RISING FAST),
+        // row 1 the busiest B/S ranking (MORE BUYERS & LESS SELLERS). The
+        // riser rows carry the owner's own six numbers (B, S, T, price,
+        // percent), the B/S ranking keeps its quote lines.
         List<String> ranked = volumeSplitChoice == 1
-                ? rankedSpeedSymbols(quotes)
-                : rankedSplitSymbols(quotes);
-        List<String> lines = quoteLines(quotes, ranked);
+                ? rankedSplitSymbols(quotes)
+                : rankedSpeedSymbols(quotes);
+        List<String> lines = volumeSplitChoice == 1
+                ? quoteLines(quotes, ranked)
+                : quoteLinesRiser(quotes, ranked);
         if (lines.isEmpty()) {
             volumeReveal.setVisibility(View.GONE);
             volumeLines = new ArrayList<>();
@@ -941,22 +1096,36 @@ public class MainActivity extends Activity {
 
     /**
      * Menu 2 (owner order 2026-10-23; retitled v2.1.0, "Price moving
-     * fast"): the three prices moving HARDEST, either direction, by the
-     * relay's own day move - a falling price is as fast a price as a
-     * rising one. A scrip with no day's movement cannot claim the menu,
-     * so a null move is skipped instead of printed (SO-3).
+     * fast"; v2.2.5 re-scoped by owner order 2026-10-24, fourth note,
+     * "don't show me the stocks that are already capped, instead show
+     * those stocks whose prices are increasing really fast, for
+     * example, during the day that stock was really dead but soon the
+     * buyers came in clutch and took the price really high, that is
+     * the point of the scanner"). Three rows only, three laws: a
+     * falling price does not earn the menu (rising only), a scrip
+     * already capped is out (the leaf marks capped as the day's move
+     * at the circuit bound), and the move itself is the relay's own
+     * day move, unaged (SO-3).
      */
     private List<String> rankedSpeedSymbols(java.util.Map<String, Watcher.Quote> quotes) {
         List<String> symbols = new ArrayList<>();
         for (java.util.Map.Entry<String, Watcher.Quote> entry : quotes.entrySet()) {
-            if (entry.getValue().changePct != null) {
-                symbols.add(entry.getKey());
+            Double move = entry.getValue().changePct;
+            if (move == null) {
+                continue;                    // no move earned: not ranked (SO-3)
             }
+            if (move <= 0d) {
+                continue;                    // rising only, owner law.
+            }
+            if (move >= CAPPED_MOVE_MARK) {
+                continue;                    // already capped, owner law.
+            }
+            symbols.add(entry.getKey());
         }
         symbols.sort((a, b) -> {
             Double moveA = quotes.get(a).changePct;
             Double moveB = quotes.get(b).changePct;
-            int bySpeed = Double.compare(Math.abs(moveB), Math.abs(moveA));
+            int bySpeed = Double.compare(moveB, moveA);
             if (bySpeed != 0) {
                 return bySpeed;
             }
@@ -980,6 +1149,41 @@ public class MainActivity extends Activity {
             } else {
                 lines.add(String.format(Locale.US, "%s  PKR %,.2f %+,.2f%%",
                         symbol, quote.price, quote.changePct));
+            }
+        }
+        return lines;
+    }
+
+    /**
+     * One riser row (v2.2.5 owner order above, "buyers, sellers, total
+     * volume, current price and current percentage"): the ticker, then
+     * B and S from the relay's own split, T the true session volume the
+     * split adds back to, then the price and the move. A split whose
+     * frame is incomplete prints WITHOUT its B/S/T rather than printing
+     * zeros dressed as numbers (SO-3): the row is one number pair fewer,
+     * not a guess.
+     */
+    private List<String> quoteLinesRiser(java.util.Map<String, Watcher.Quote> quotes,
+                                         List<String> symbols) {
+        List<String> lines = new ArrayList<>();
+        for (String symbol : symbols) {
+            Watcher.Quote quote = quotes.get(symbol);
+            if (quote == null) {
+                lines.add(symbol);
+                continue;
+            }
+            String head = symbol;
+            if (quote.buy != null && quote.sell != null) {
+                head += String.format(Locale.US,
+                        "  B %,d  S %,d  T %,d",
+                        quote.buy, quote.sell, quote.buy + quote.sell);
+            }
+            if (quote.changePct == null) {
+                lines.add(String.format(Locale.US, "%s  PKR %,.2f",
+                        head, quote.price));
+            } else {
+                lines.add(String.format(Locale.US, "%s  PKR %,.2f %+,.2f%%",
+                        head, quote.price, quote.changePct));
             }
         }
         return lines;
@@ -1053,9 +1257,10 @@ public class MainActivity extends Activity {
     }
 
     /**
-     * The app version on the settings page (owner order 2026-10-23): the
-     * manifest's own versionName, so the page and the APK cannot
-     * disagree. The prefix is a resource, the number is the build's.
+     * The version line (owner order 2026-10-23, retitled 2026-10-24):
+     * "APP VERSION IS 2.2.5". The prefix resource carries its own
+     * trailing space, so the number can never fuse against "IS" (the
+     * v2.2.4 defect the sent-back build showed).
      */
     private void writeAppVersion() {
         if (appVersion == null) {
