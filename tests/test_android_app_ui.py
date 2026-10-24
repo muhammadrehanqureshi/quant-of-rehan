@@ -1538,17 +1538,15 @@ class VersionTest(unittest.TestCase):
         # tile's edges are the SAME 20dp carrier the scroll uses, and the
         # open dropdown popups wear the app's own panel, rows and gold
         # ticker, not the platform's grey.
-        # v2.2.1 is the 2026-10-23 seventh pass, the owner's list in one
-        # message: the orb still AGAIN brighter, no flicker, orange/yellow
-        # cloud lines and +30% of them with a bigger sun, the greeting
-        # +10% again, the nav highlight a filled disc that fits the bar,
-        # the THEMES tile framed by its own diamond rules, the version
-        # line ABOVE the menu bar, ONE volume dropdown whose both entries
-        # reveal the three scrips, the watch window retired with its
-        # alarm loop, and the INDEX tile ticked every second at all times.
+        # v2.2.2 is owner order 2026-10-24: the four greeting windows
+        # hardcoded with the 05:01 morning edge, the always-closed 9 Nov /
+        # 25 Dec PSX law, market emails delivered on the event's own minute
+        # with the Friday post-market crons and the 5-minute catch-up, and
+        # the scanner page: a fourth nav icon beside home opening the moved
+        # CUSTOM SCRIPS OF VOL. tile.
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="2.2.1"', manifest)
-        self.assertIn('android:versionCode="59"', manifest)
+        self.assertIn('android:versionName="2.2.2"', manifest)
+        self.assertIn('android:versionCode="60"', manifest)
         # The changelog entry ties these user-visible changes to the build.
         readme = (ROOT / "android" / "README.md").read_text(encoding="utf-8")
         self.assertIn("v1.7.9, owner order 2026-10-20", readme)
@@ -1579,8 +1577,8 @@ class VersionTest(unittest.TestCase):
         self.assertIn("Version 2.2.0, versionCode 58", readme)
         self.assertIn("Version 2.2.1, versionCode 59", readme)
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionCode="59"', manifest)
-        self.assertIn('android:versionName="2.2.1"', manifest)
+        self.assertIn('android:versionCode="60"', manifest)
+        self.assertIn('android:versionName="2.2.2"', manifest)
         layout = LAYOUT.read_text(encoding="utf-8")
         strings = STRINGS.read_text(encoding="utf-8")
         main = MAIN.read_text(encoding="utf-8")
