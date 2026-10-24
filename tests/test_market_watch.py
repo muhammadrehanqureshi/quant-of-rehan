@@ -7,10 +7,10 @@ fires landed five hours late). The band loop is the one worker that is
 alive at every event minute, so it sends the emails now, from
 src/notify/market_watch.py, with the ledger keeping each one exactly
 once. These tests pin the mapping from the session law's own phases and
-states to the owner's five events, and the facts a stalled cron can no
-longer break: one attempt per edge, the reopen label for the Friday
-second band, no attempt without a session, and a failed send that never
-raises into the scan.
+states to the owner's six events (post-close booked 2026-10-24), and
+the facts a stalled cron can no longer break: one attempt per edge, the
+reopen label for the Friday second band, no attempt without a session,
+and a failed send that never raises into the scan.
 """
 
 from __future__ import annotations
@@ -34,9 +34,9 @@ def pkt(hour: int, minute: int = 0, day="2026-10-23") -> datetime:
 
 
 class EventMappingTest(unittest.TestCase):
-    """Phase and state pairs map to the owner's five events, or None."""
+    """Phase and state pairs map to the owner's six events, or None."""
 
-    def test_the_five_events_map_from_the_session_law_itself(self):
+    def test_the_six_events_map_from_the_session_law_itself(self):
         friday = "2026-10-23"
         cases = [
             ("pre", pkt(9, 0, friday)),          # PRE_MARKET begins
@@ -45,6 +45,7 @@ class EventMappingTest(unittest.TestCase):
             ("open", pkt(14, 32, friday)),        # band 2 opens (reopen)
             ("close", pkt(16, 30, friday)),       # the last close
             ("post", pkt(16, 32, friday)),        # POST_MARKET begins
+            ("post-close", pkt(16, 49, friday)),  # the post window ends
         ]
         from src.data.sessions import market_phase, market_state_at
         for event, moment in cases:
@@ -86,7 +87,30 @@ class EventMappingTest(unittest.TestCase):
         pair = (market_phase(gap).value, market_state_at(gap).value)
         self.assertIsNone(event_for(pair, gap))
 
+    def test_the_close_and_post_close_split_on_the_window_edge(self):
+        # Owner order 2026-10-24: POST_CLOSE + CLOSED is the close event
+        # before the post window (15:32/16:32 minutes) and the post-close
+        # event from the window's end (15:49/16:49) onward. The pair is
+        # identical; the post window's own edge says which is which.
+        from src.data.sessions import market_phase, market_state_at
+        for moment, expected in (
+            (pkt(15, 31, day="2026-10-26"), "close"),
+            (pkt(15, 33, day="2026-10-26"), "post"),
+            (pkt(15, 49, day="2026-10-26"), "post-close"),
+            (pkt(16, 31, day="2026-10-23"), "close"),
+            (pkt(16, 33, day="2026-10-23"), "post"),
+            (pkt(16, 49, day="2026-10-23"), "post-close"),
+        ):
+            with self.subTest(at=moment.isoformat()):
+                pair = (market_phase(moment).value,
+                        market_state_at(moment).value)
+                entry = event_for(pair, moment)
+                self.assertIsNotNone(entry)
+                self.assertEqual(entry[0], expected)
+
     def test_the_texts_are_the_owner_booked_sentences(self):
+        self.assertEqual(EVENT_TEXTS["post-close"],
+                         "The market is post-closed. Quant is offline now.")
         self.assertEqual(EVENT_TEXTS["open"],
                          "Market is open. Quant is online now.")
         self.assertEqual(EVENT_TEXTS["break"],

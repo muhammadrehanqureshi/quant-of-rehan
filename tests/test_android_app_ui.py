@@ -408,8 +408,11 @@ class SettingsControlTest(unittest.TestCase):
             [node.get(f"{ANDROID_NS}id") for node in following],
             [], "no footer follows the carrier any more", )
 
-    def test_the_three_icons_are_the_owners_own_pngs(self):
+    def test_the_four_icons_are_the_owners_own_pngs(self):
+        """Owner order 2026-10-24: the scanner page's icon (his own
+        scanner.png from the Desktop) joins the bar beside home."""
         for view_id, name in (("btn_nav_home", "home"),
+                              ("btn_nav_scanner", "scanner"),
                               ("btn_nav_search", "search"),
                               ("btn_nav_settings", "settings")):
             with self.subTest(icon=name):
@@ -428,11 +431,12 @@ class SettingsControlTest(unittest.TestCase):
 
     def test_the_open_page_is_circled_and_the_rest_are_rippled(self):
         home = element(self.layout, 'android:id="@+id/btn_nav_home"')
+        scanner = element(self.layout, 'android:id="@+id/btn_nav_scanner"')
         search = element(self.layout, 'android:id="@+id/btn_nav_search"')
         settings = element(self.layout, 'android:id="@+id/btn_nav_settings"')
         self.assertIn('android:background="@drawable/nav_circle"', home)
         self.assertIn('android:tint="@color/gold_bright"', home)
-        for other in (search, settings):
+        for other in (scanner, search, settings):
             with self.subTest(other=other[:other.index("/>")]):
                 self.assertIn(
                     'android:background="@drawable/settings_ripple"',
@@ -444,8 +448,12 @@ class SettingsControlTest(unittest.TestCase):
                       self.main)
         self.assertIn("selected ? R.color.gold_bright : R.color.gold",
                       self.main)
-        self.assertIn("setNavPage(navHome, !searchOpen && !settingsOpen);",
+        # Owner order 2026-10-24: home is the console's page only when all
+        # three menus are closed, and the scanner page paints like the
+        # rest of them.
+        self.assertIn("setNavPage(navHome, !searchOpen && !settingsOpen && !scannerOpen);",
                       self.main)
+        self.assertIn("setNavPage(navScanner, scannerOpen);", self.main)
         self.assertIn("setNavPage(navSearch, searchOpen);", self.main)
         self.assertIn("setNavPage(navSettings, settingsOpen);", self.main)
 
@@ -2031,6 +2039,28 @@ class MenuOrdersTest(unittest.TestCase):
         for resource in ("greeting_morning", "greeting_afternoon"):
             self.assertIn(f"R.string.{resource}", block)
 
+    def test_the_flat_minute_05_00_is_the_night_its_tail(self):
+        """Owner order 2026-10-24, the windows: 05:01-12:00 morning,
+        12:01-17:00 afternoon, 17:01-19:00 evening, 19:01-05:00 night.
+        A flat minute belongs to the window that ENDS there, so 05:00
+        itself is still the night's tail and the morning opens at 05:01
+        - the one edge the hour-based branch would otherwise claim too
+        early (12:00, 17:00 and 19:00 already sat in their tails)."""
+        block = self.main[self.main.index("private void refreshGreeting()") + 10:]
+        block = block[:block.index("private void buildThemeSpinner()")]
+        # The boundary minute is one branch all its own, before the
+        # morning's hour window can claim its hour.
+        self.assertLess(block.index("if (hour == 5 && minute == 0) {"),
+                        block.index("hour >= 5 && hour <= 11"))
+        tail = block[block.index("if (hour == 5 && minute == 0) {") + 10:]
+        tail = tail[:tail.index("} else if")]
+        self.assertIn("R.string.greeting_night", tail)
+        # Every sentence the windows name is a resource, never a string
+        # typed in Java (SO-9).
+        for resource in ("greeting_morning", "greeting_afternoon",
+                         "greeting_evening", "greeting_night"):
+            self.assertIn(f"R.string.{resource}", block)
+
     def test_the_themes_tile_carries_five_looks(self):
         self.assertIn('name="label_themes">THEMES<', self.strings)
         self.assertIn('name="theme_purple">PURPLE &amp; YELLOW<', self.strings)
@@ -2091,7 +2121,13 @@ class MenuOrdersTest(unittest.TestCase):
         self.assertIn("public void onWindowFocusChanged", dropdown)
         self.assertIn("hasWindowFocus && openListener != null", dropdown)
 
-    def test_the_volume_tile_sits_on_the_search_page(self):
+    def test_the_volume_tile_is_the_scanner_page(self):
+        """Owner order 2026-10-24 ("move the custom scrips of volume in
+        the scanner page"): the tile left the search page for its own
+        page, opened by the nav icon beside home. The tile itself is the
+        page's content: it lives and dies with `scannerOpen` in
+        MainActivity the way the panels do, and nothing else about the
+        v2.2.1 tile changed."""
         self.assertIn('name="label_volume">CUSTOM SCRIPS OF VOL.<',
                       self.strings)
         # v2.1.0: the two dropdowns are named the owner's own way, and the
@@ -2127,6 +2163,22 @@ class MenuOrdersTest(unittest.TestCase):
         self.assertIn("rankedSpeedSymbols(", self.main)
         self.assertIn("private void paintVolumeReveal()", self.main)
         self.assertIn("volumeSplitChoice == 1", self.main)
+        # The tile is the scanner page's own content now: one boolean owns
+        # its visibility, in the one scanner toggle, and the search toggle
+        # no longer touches it.
+        self.assertEqual(self.main.count("tileVolume.setVisibility"), 1,
+                         "the tile's visibility is one call, in one toggle")
+        block = self.main[self.main.index(
+            "private void setScannerOpen(boolean open) {") + 100:]
+        block = block[:block.index("The status light's pulse")]
+        self.assertIn("scannerOpen = open;", block)
+        self.assertIn("tileVolume.setVisibility(open ? View.VISIBLE : View.GONE);",
+                      block)
+        self.assertIn("renderVolumeSpinners();", block)
+        # And the pricing tick covers the scanner page alike: one read, one
+        # rank pass per tick, on either page.
+        self.assertEqual(self.main.count("if (searchOpen || scannerOpen) {"),
+                         2, "the tick and its paint, for both pages")
 
     def test_the_dropdowns_rank_their_own_names(self):
         """v2.1.0: the names are the ranking. "More buyers & sellers" is

@@ -319,15 +319,22 @@ class TestTheOneSecondSessionWorkflow(unittest.TestCase):
     """
 
     def test_each_band_starts_a_loop_inside_a_real_window(self):
-        """One window per band, the post-market window included (owner
-        order 2026-10-21). The Mon-Thu morning job wakes at 08:55, before
+        """One window per band, both post-market windows included (owner
+        order 2026-10-24: Friday's post-market window at 16:32 is the
+        sixth runnable window; the five-window law of 2026-10-21 never
+        woke the Friday post-market loop at all, which is why Friday's
+        16:32 and 16:49 emails never reached the owner). The Mon-Thu
+        morning job wakes at 08:55, before
         the band, on purpose: the loop's own session gate holds it asleep
         through the pre-band minutes, so the seconds after the 09:32 open
         are never left to GitHub's tardy cron queue.
         """
         crons = crons_of(SESSION_WORKFLOW)
-        self.assertEqual(len(crons), 5,
-                         "one window per band plus the post-market window")
+        self.assertEqual(len(crons), 6,
+                         "one window per band plus the post-market windows:\n"
+                         "Mon-Thu band 1, band 2 and post-market, plus Friday's "
+                         "band 1, band 2 and the Friday post-market window at "
+                         "16:32 (owner order 2026-10-24)")
         for expression in crons:
             minute, hour, mask = parse_cron(expression)
             for weekday in weekdays_of(mask):
@@ -562,17 +569,24 @@ class TestCloudflareSchedule(unittest.TestCase):
         for expression in crons_of(SESSION_WORKFLOW):
             for hour, minute, weekdays in cron_fires(expression):
                 windows.append(((hour + 5) % 24, minute, frozenset(weekdays)))
-        # Owner order 2026-10-21: five runnable windows per week. The 08:55
+        # Owner order 2026-10-24: six runnable windows per week. The 08:55
         # Mon-Thu window covers pre-market and band 1; the post-close
-        # window at 15:32 covers the law's post-market window exactly.
+        # window at 15:32 covers the law's Mon-Thu post-market window exactly,
+        # and the 16:32 Friday window covers Friday's own post-market window
+        # (16:32 to 16:49), which the five-window law of 2026-10-21 left
+        # unwoken - the Friday emails that never arrived.
         self.assertEqual(
             sorted(windows),
             [(8, 55, frozenset({1, 2, 3, 4})),
              (9, 17, frozenset({5})),
              (12, 30, frozenset({1, 2, 3, 4})),
              (14, 32, frozenset({5})),
-             (15, 32, frozenset({1, 2, 3, 4}))],
-            "the session loop must offer exactly the four runnable windows")
+             (15, 32, frozenset({1, 2, 3, 4})),
+             (16, 32, frozenset({5}))],
+            "the session loop must offer exactly the six runnable windows: "
+            "Mon-Thu pre/band1, band 2 and post-market, Friday band 1 and "
+            "band 2, and Friday's own post-market window at 16:32 "
+            "(owner order 2026-10-24)")
 
         # The worker's dispatcher table must carry the same window list, and
         # every one of them needs a cron wake inside its 3-minute grace.
