@@ -15,6 +15,7 @@ import android.text.style.TypefaceSpan;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.animation.AccelerateDecelerateInterpolator;
+import android.view.animation.DecelerateInterpolator;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.EditText;
@@ -219,6 +220,22 @@ public class MainActivity extends Activity {
      *  the same /prices map the search rows already refresh once per
      *  tick. */
     private View tileVolume;
+    /**
+     * The search page's own diamond rule (owner order 2026-10-24, second
+     * note): the qor_rule include that sits above the SEARCH tile and is
+     * drawn from the page state, visible while the search page is and
+     * gone on every other page, exactly like the panel it marks.
+     */
+    private View ruleSearch;
+    /**
+     * The settings page's THEMES holder (owner order 2026-10-24, third
+     * note): the plain container that stands BEHIND the THEMES tile and
+     * its own diamond-rule bracket, a sibling of the settings panel and
+     * no longer a box inside the settings box. Its visibility is the
+     * page's: visible while the settings menu is open, gone everywhere
+     * else, exactly like the panel itself.
+     */
+    private View themesHolder;
     private Spinner volumeSplitSpinner;
     // The dropdown's state arrow (owner order 2026-10-23, 2.0.0):
     // DOWN while the menu is closed (the pull-down cue), UP while it is
@@ -399,6 +416,8 @@ public class MainActivity extends Activity {
         volumeReveal = (TextView) findViewById(R.id.volume_reveal);
         settingsPanel = findViewById(R.id.settings_panel);
         searchPanel = findViewById(R.id.search_panel);
+        ruleSearch = findViewById(R.id.rule_search);
+        themesHolder = findViewById(R.id.themes_holder);
         searchInput = findViewById(R.id.search_input);
         searchResults = findViewById(R.id.search_results);
         searchStatus = findViewById(R.id.search_status);
@@ -421,7 +440,15 @@ public class MainActivity extends Activity {
         });
         navScanner.setOnClickListener(v -> setScannerOpen(true));
         navSearch.setOnClickListener(v -> setSearchOpen(true));
-        navSettings.setOnClickListener(v -> setSettingsOpen(true));
+
+        // Owner order 2026-10-24, fourth note: the settings icon is its
+        // own switch now, the way he tapped it on the screen - one tap
+        // opens the page and turns the wheel to the LEFT, untapping it
+        // (the same icon again, or home, search or the scanner) closes the
+        // page and turns the wheel back to the RIGHT. The boolean is still
+        // the one state and setSettingsOpen is still the one writer; the
+        // listener just reads it before it lands.
+        navSettings.setOnClickListener(v -> setSettingsOpen(!settingsOpen));
         // The selection is painted once at the build too, so the opened
         // console starts with the highlighted icon and not only the
         // ring the XML declared.
@@ -1088,13 +1115,33 @@ public class MainActivity extends Activity {
             }
         }
         settingsPanel.setVisibility(open ? View.VISIBLE : View.GONE);
-        // Owner order 2026-10-23 (v1.9.13): the rule below the settings tile
-        // is GONE. The owner read the menu page's second diamond as an
-        // extra one, so the tile keeps the header's own rule alone, the
-        // same single rule it holds while the menu is closed.
-        // Owner order 2026-10-23: the header icons are gone, so the menu's
-        // look is its ring on the bottom nav tile instead of the old
-        // quarter turn and brighter gold.
+        // Owner order 2026-10-24, third note: the THEMES tile is its own
+        // tile on this page now (its own diamond bracket rides inside the
+        // holder) and lives exactly when the panel does: the settings page
+        // is the panel PLUS its themes tile, one truth, one toggle.
+        if (themesHolder != null) {
+            themesHolder.setVisibility(open ? View.VISIBLE : View.GONE);
+        }
+        // Owner order 2026-10-24, fourth note: the wheel. Opening turns
+        // the settings icon to the LEFT (counterclockwise, so a negative
+        // rotation); closing turns it back to the RIGHT, home at zero
+        // degrees, which is also what it shows while the page is closed.
+        // The icon's ring and tint are still paintNavSelection's state;
+        // the rotation is this toggle's own and only runs on a change,
+        // because the early return above already refused a repeated call.
+        if (navSettings != null) {
+            navSettings.animate()
+                    .rotation(open ? -90f : 0f)
+                    .setDuration(280L)
+                    .setInterpolator(new DecelerateInterpolator())
+                    .start();
+        }
+        // Owner order 2026-10-23 (v1.9.13), the rule below the settings
+        // tile: still GONE. The owner read the tile's own second diamond
+        // as an extra one; the THEMES tile now stands behind the panel
+        // framed by its own bracket, which is the diamond he asked for on
+        // this page (owner order 2026-10-24, third note), and nothing else
+        // was added.
         paintNavSelection();
     }
 
@@ -1131,6 +1178,20 @@ public class MainActivity extends Activity {
         }
         settingsPanel.setVisibility(open ? View.GONE : settingsPanel.getVisibility());
         searchPanel.setVisibility(open ? View.GONE : searchPanel.getVisibility());
+        // The search page's own diamond rule above the tile (owner order
+        // 2026-10-24, second note) and THEMES tile (third note) follow
+        // the pages they belong to: an opening scanner closes the search
+        // page and takes its rule and the settings page's themes tile
+        // with it; a closing one touches neither, because their pages
+        // already own their state.
+        if (ruleSearch != null) {
+            ruleSearch.setVisibility(open ? View.GONE
+                    : ruleSearch.getVisibility());
+        }
+        if (themesHolder != null) {
+            themesHolder.setVisibility(open ? View.GONE
+                    : themesHolder.getVisibility());
+        }
         if (tileVolume != null) {
             // The CUSTOM SCRIPS OF VOL. tile is the scanner page's own
             // tile (owner order 2026-10-24): it lives and dies with the
@@ -1689,9 +1750,27 @@ public class MainActivity extends Activity {
         }
         settingsPanel.setVisibility(open ? View.GONE : settingsPanel.getVisibility());
         searchPanel.setVisibility(open ? View.VISIBLE : View.GONE);
+        // Owner order 2026-10-24, second note: the search page's own
+        // diamond rule above the tile is drawn from this state. It opens
+        // and closes WITH the page: visible while he searches, gone on
+        // home and on every other page, the same truth the panel follows.
+        if (ruleSearch != null) {
+            ruleSearch.setVisibility(open ? View.VISIBLE : View.GONE);
+        }
+        // Owner order 2026-10-24, third note: the settings page's THEMES
+        // tile follows the settings page, so an opening search (which has
+        // already closed settings through the toggle above) takes it off
+        // the screen; a closing search touches nothing, because both the
+        // settings toggle and the scanner's own close paths own their
+        // state.
+        if (themesHolder != null) {
+            themesHolder.setVisibility(open ? View.GONE
+                    : themesHolder.getVisibility());
+        }
         // The CUSTOM SCRIPS OF VOL. tile left the search page for its own
         // page (owner order 2026-10-24), so this toggle touches only the
-        // search panel now; setScannerOpen owns the tile's visibility.
+        // search panel and its rule now; setScannerOpen owns the tile's
+        // visibility.
         paintNavSelection();
         if (open) {
             refreshPrices();

@@ -1133,6 +1133,24 @@ to sixty seconds. The status tile therefore also carries the app's own
     4. The scanner page: a fourth nav icon beside home opens the
        CUSTOM SCRIPS OF VOL. tile, moved out of the settings page.
 
+  Version 2.2.3, versionCode 61.
+
+    Owner order 2026-10-24, second pass, five edits in one batch:
+    1. The menu bar's four icons sit centred in their own equal
+       quarters, so the gap between any two neighbours is one width
+       (home no longer pinned to the left edge, settings to the right).
+    2. The orb's drawn sun is retired: the centre is the owner's own
+       picture, the SUN ONLY of the ORB.jpg he sent, bundled as the
+       sun asset and clamped to a circle at the limb; the limb fire
+       and the cloud are untouched.
+    3. The settings wheel turns LEFT when the settings page opens and
+       turns RIGHT back home when it closes.
+    4. The THEMES tile leaves the settings tile and stands alone on
+       the same page, framed by its own diamond rule above and below.
+    5. The search page: the diamond rule is back above the search
+       tile, and the CUSTOM SCRIPS OF VOL. tile is off that page -
+       it lives on the scanner page alone.
+
 **Built and delivered 2026-10-22 (v1.8.8):** the signed v1.8.8 APK was built
 on GitHub Actions from the master at 59da8f90a1 (run 39722179379, the merge
 of #78, which fixed the two javac errors the HUD edit had introduced),
