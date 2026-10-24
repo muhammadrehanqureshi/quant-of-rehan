@@ -775,6 +775,13 @@
              search at the exact MIDDLE, settings at the very RIGHT edge,
              so the row answers the owner's own sentence.
 
+             Owner order 2026-10-24: a FOURTH page joins, the scanner
+             beside home ("Add another icon on the menu bar next to home
+             icon, the png for that icon is on my desktop, scanner.png").
+             The tile now takes quarters of its width: home at the very
+             left edge, scanner right of it, search at its middle slot,
+             settings at the very right edge.
+
              Owner order 2026-10-23 (v1.9.13), the pin itself: the tile
              lives OUTSIDE the console's scroll, one fixed unit at the
              bottom of the screen, so the menu bar is always on the screen
@@ -853,6 +860,30 @@
                 android:scaleType="fitCenter"
                 android:src="@drawable/home"
                 android:tint="@color/gold_bright"/>
+        </FrameLayout>
+
+        <FrameLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1">
+
+            <!-- Owner order 2026-10-24: the scanner page's icon, the
+                 owner's own png copied from his Desktop (drawable-nodpi
+                 scanner.png), next to home exactly where he ordered. It
+                 opens the page the CUSTOM SCRIPS OF VOL. tile now lives
+                 on; the press ripple and gold tint are the unselected
+                 face every other non-home slot paints. -->
+            <ImageView
+                android:id="@+id/btn_nav_scanner"
+                android:layout_width="42dp"
+                android:layout_height="42dp"
+                android:layout_gravity="center"
+                android:background="@drawable/settings_ripple"
+                android:contentDescription="@string/cd_scanner"
+                android:padding="8dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/scanner"
+                android:tint="@color/gold"/>
         </FrameLayout>
 
         <FrameLayout

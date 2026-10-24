@@ -16,6 +16,16 @@ The wording is the owner's own, and is never edited on the way through:
 - pre and post are the owner's sentences booked 2026-10-22; post follows
   the same shape he typed for pre. Both name the window, which never
   changes the exchange state (owner order 2026-10-21).
+- post-close is the owner's 2026-10-24 order ("post market closing"),
+  the mirror sentence of post: it names the END of the post-market
+  window (15:49 Mon-Thu, 16:49 Friday), the minute the quant goes back
+  to sleep.
+
+Owner order 2026-10-24 ("Make sure I receive the emails from github
+actions exactly on time"): a fire that arrives far past its own minute
+refuses to email - the 16:30 Friday close was emailed at 20:50 by a
+writes-mostly morning close cron delivered hours late, and nothing in
+the old fire() checked the event's own minute.
 
 The job's decision is the session law (SO-8): the script recomputes the
 Karachi instant itself, refuses a weekend or a window the event does not
@@ -57,6 +67,7 @@ EVENT_TEXTS = {
     "break": "Market is on a break. Quant is sleeping until the market reopens.",
     "close": MSG_MARKET_CLOSED,
     "post": "The market is post-opened. Quant is online now.",
+    "post-close": "The market is post-closed. Quant is offline now.",
 }
 
 EVENTS = tuple(EVENT_TEXTS)
@@ -85,6 +96,19 @@ def due(event: str, moment=None) -> bool:
         return market_phase(k) is MarketPhase.POST_CLOSE
     if event == "post":
         return market_state_at(k) is MarketState.POST_MARKET
+    if event == "post-close":
+        # Inside the after-close phase but strictly after the post-market
+        # window has ended (the 15:49/16:49 edge), the quant is back to
+        # sleep: this instant is the post-close event's own minute.
+        if market_phase(k) is not MarketPhase.POST_CLOSE:
+            return False
+        window = post_market_window(k.date())
+        if window is None:
+            return False
+        end = as_karachi(datetime(
+            k.date().year, k.date().month, k.date().day,
+            window[1][0], window[1][1]))
+        return k >= end
     return False
 
 
@@ -93,8 +117,9 @@ def event_roadmap(day: date) -> list[tuple[str, str, datetime]]:
 
     This is the session law again, in the shape catch_up walks: the
     pre-market opening, each band's open (the second band labelled
-    reopen), the midday break between two bands, the last close and the
-    post-market opening that follows it. derived only from the band
+    reopen), the midday break between two bands, the last close, the
+    post-market opening that follows it, and the post-close edge that
+    ends the day (owner order 2026-10-24). Derived only from the band
     table and the two fixed windows, never from a clock.
     """
     bands = session_bands(day)
@@ -117,6 +142,8 @@ def event_roadmap(day: date) -> list[tuple[str, str, datetime]]:
     if window is not None:
         p_open = window[0]
         roadmap.append(("post", "", at(*p_open)))
+        # The end of the post window is its own emailed edge (2026-10-24).
+        roadmap.append(("post-close", "", at(*window[1])))
     return roadmap
 
 
@@ -126,6 +153,16 @@ def event_roadmap(day: date) -> list[tuple[str, str, datetime]]:
 # band loop's own passenger (market_watch) is the tolerant path anyway
 # (it attempts the phase it finds inside the whole band).
 CATCH_UP_GRACE_MINUTES = 15.0
+
+# Owner order 2026-10-24 ("Make sure I receive the emails from github
+# actions exactly on time"): a per-event cron that GitHub delivered
+# far past the event's own minute refuses to email. This is the exact
+# defect of the 16:30 Friday close landing at 20:50 - the close job's
+# phase check is true all evening, so a late delivery emailed hours
+# after the fact. The catch-up backstop above still emails a missed
+# event inside ITS grace; beyond both, the event is silent by law
+# rather than emailed hours late.
+EVENT_LATE_FIRE_MINUTES = 20.0
 
 
 def catch_up(moment: datetime | None = None, sender=None,
@@ -187,6 +224,13 @@ def fire(event: str, label: str = "", moment=None) -> bool:
     ``market-open:<date>:reopen`` while the morning open writes
     ``market-open:<date>``, so both go out and neither is hidden by the
     other.
+
+    A fire that arrives more than EVENT_LATE_FIRE_MINUTES past the
+    event's own minute (looked up in the day's roadmap, the session law
+    itself) is refused with a printed reason: the 16:30 close must never
+    be emailed at 20:50 again, however late GitHub delivers the job. The
+    catch-up backstop still recovers a missed event inside its own,
+    shorter grace.
     """
     if event not in EVENTS:
         raise SystemExit(f"unknown event: {event}")
@@ -194,6 +238,16 @@ def fire(event: str, label: str = "", moment=None) -> bool:
     if not due(event, now):
         print(f"{event}: not due at {now:%Y-%m-%d %H:%M:%S} PKT; no email")
         return False
+    wanted = label.strip() if label else ""
+    for tail_event, tail_label, fire_at in event_roadmap(now.date()):
+        if tail_event == event and tail_label == wanted:
+            if now > fire_at + timedelta(minutes=EVENT_LATE_FIRE_MINUTES):
+                print(f"{event}: {now - fire_at} past its own minute "
+                      f"({fire_at:%H:%M} PKT); refusing a late email "
+                      f"(the owner gets it exactly on time or not at "
+                      f"all, order 2026-10-24)")
+                return False
+            break
     key = f"market-{event}:{now.date().isoformat()}"
     if label:
         key = f"{key}:{label.strip()}"
@@ -203,7 +257,8 @@ def fire(event: str, label: str = "", moment=None) -> bool:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="owner's market event email")
     parser.add_argument("--event", choices=EVENTS,
-                        help="one event; each cron's own job owns its minute")
+                        help="one event (pre, open, break, close, post, "
+                             "post-close); each cron's own job owns its minute")
     parser.add_argument("--key", default="",
                         help="distinguishes two fires of one event per day "
                              "(the Friday reopen) in the dedup ledger")

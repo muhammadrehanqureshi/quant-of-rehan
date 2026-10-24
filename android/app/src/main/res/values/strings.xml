@@ -27,8 +27,14 @@
     <string name="cd_search">Search. Finds a KMIALL symbol and shows its buy, sell and total volume.</string>
     <string name="search_hint">Search for a KMIALL scrip</string>
     <!-- Owner order 2026-10-23: the menu tile at the very bottom, its own
-         spoken names. The three pages are labelled HOME on the nav ring. -->
+         spoken names. Owner order 2026-10-24: four pages now, the scanner
+         beside home; the page he is on is circled on the nav ring. -->
     <string name="cd_home">Home. Shows the console: status, signal and the index.</string>
+
+    <!-- Owner order 2026-10-24: the scanner page joins the menu tile
+         beside home, and its spoken name names the page it opens (the
+         CUSTOM SCRIPS OF VOL. tile's new home). -->
+    <string name="cd_scanner">Scanner. Shows the custom scrips of volume.</string>
 
     <!-- ══════════ the volume dropdown (owner order 2026-10-23) ══════════
          The tile's heading is his exact words. Owner order 2026-10-23
@@ -60,12 +66,14 @@
     <string name="theme_navy">NAVY BLUE &amp; WHITE</string>
     <string name="theme_orange">ORANGE &amp; WHITE</string>
 
-    <!-- ══════════ the greeting (owner order 2026-10-23) ══════════
-         His exact sentences. Before noon in Karachi the app calls him by
-         good morning, Mr. Rehan!", after noon by "Good afternoon, sir!",
-         and which one is decided by Asia/Karachi's own clock (SO-8). -->
+    <!-- ══════════ the greeting (owner orders 2026-10-23 and 2026-10-24) ══════════
+         His exact sentences. The window owner order 2026-10-24 hardcoded:
+         05:01-12:00 morning, 12:01-17:00 afternoon, 17:01-19:00 evening,
+         19:01-05:00 night, all by Asia/Karachi's own clock (SO-8). -->
     <string name="greeting_morning">Good morning, Mr. Rehan!</string>
     <string name="greeting_afternoon">Good afternoon, sir!</string>
+    <string name="greeting_evening">Good evening, sir!</string>
+    <string name="greeting_night">You have a wonderful night, Mr. Rehan!</string>
 
     <!-- Owner order 2026-10-23: the app version above the pinned menu bar
          on the settings page, exactly like "APP VERSION is 2.2.1" (v2.2.1).

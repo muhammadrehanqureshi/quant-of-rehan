@@ -47,22 +47,25 @@ class RoadmapTest(unittest.TestCase):
                 ("open", "reopen"),
                 ("close", ""),
                 ("post", ""),
+                ("post-close", ""),
             ])
         # The schedule below is watch-scheduled _that_ day.
         # fmt: off
         self.assertEqual(
             [(fire.hour, fire.minute) for _e, _l, fire in road],
-            [(9, 0), (9, 17), (12, 0), (14, 32), (16, 30), (16, 32)])
+            [(9, 0), (9, 17), (12, 0), (14, 32), (16, 30), (16, 32),
+             (16, 49)])
         # fmt: on
 
     def test_weekday_roadmap_has_no_break_or_reopen(self):
         road = me.event_roadmap(pkt("2026-10-21", 16, 30).date())
         self.assertEqual(
             [(event, label) for event, label, _fire in road],
-            [("pre", ""), ("open", ""), ("close", ""), ("post", "")])
+            [("pre", ""), ("open", ""), ("close", ""), ("post", ""),
+             ("post-close", "")])
         self.assertEqual(
             [(fire.hour, fire.minute) for _e, _l, fire in road],
-            [(9, 0), (9, 32), (15, 30), (15, 32)])
+            [(9, 0), (9, 32), (15, 30), (15, 32), (15, 49)])
 
     def test_weekend_roadmap_is_empty(self):
         self.assertEqual(
@@ -139,9 +142,17 @@ class CatchUpTest(unittest.TestCase):
         mailed, track = self._runner(pkt(DAY, 9, 5), set())
         self.assertEqual(mailed, ["market-pre:2026-10-23"])
         self.assertEqual(track, ["market-pre:2026-10-23"])
-        # 17:00 PKT: everything is beyond the grace; nothing is sent,
-        # not even the events the ledger is missing.
+        # 17:00 PKT: everything is far past the grace, EXCEPT the new
+        # post-close event (booked 2026-10-24, fires 16:49): 11 minutes
+        # old, it is inside the grace and the run still emails it. A
+        # catch-up fire at 20:50 would keep even that silent.
         mailed, track = self._runner(pkt(DAY, 17, 0), set())
+        self.assertEqual(mailed, ["market-post-close:2026-10-23"])
+        self.assertEqual(track, ["market-post-close:2026-10-23"])
+        # 20:50 PKT: every event including post-close is beyond the
+        # grace; nothing is sent, not even the events the ledger is
+        # missing. This is the 16:30 close that used to email at 20:50.
+        mailed, track = self._runner(pkt(DAY, 20, 50), set())
         self.assertEqual(mailed, [])
         self.assertEqual(track, [])
 
