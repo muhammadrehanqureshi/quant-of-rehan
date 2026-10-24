@@ -380,6 +380,36 @@ class SettingsControlTest(unittest.TestCase):
         self.main = MAIN.read_text(encoding="utf-8")
         self.dimens = DIMENS.read_text(encoding="utf-8")
 
+    def test_the_four_icons_sit_centred_in_equal_quarters(self):
+        """Owner order 2026-10-24 ("the gap between all the icons are not
+        the same, make the gap same between all four icons"): the tile
+        takes four equal cells and each icon sits CENTRED in its own
+        cell, so the air between any two neighbours is one width by
+        construction - home is no longer pinned to the very left edge
+        and settings to the very right edge (the thirds law that
+        pinned them is retired with its pass).
+        """
+        root = layout_root()
+        nav = find_view(root, "@+id/nav_tile")
+        cells = [node for node in nav if node.tag == "FrameLayout"]
+        self.assertEqual(len(cells), 4)
+        for cell in cells:
+            self.assertEqual(cell.get(f"{ANDROID_NS}layout_width"), "0dp")
+            self.assertEqual(cell.get(f"{ANDROID_NS}layout_weight"), "1")
+            icons = [node for node in cell
+                     if node.tag == "ImageView"
+                     and node.get(f"{ANDROID_NS}id", "").startswith(
+                         "@+id/btn_nav_")]
+            self.assertEqual(len(icons), 1)
+            self.assertEqual(icons[0].get(f"{ANDROID_NS}layout_gravity"),
+                             "center")
+        # And the old edge pinning is retired: no icon carries the
+        # start or end gravity any more.
+        nav_text = self.layout[self.layout.index("@+id/nav_tile"):]
+        nav_text = nav_text[:nav_text.index("</LinearLayout>")]
+        self.assertNotIn('android:layout_gravity="start', nav_text)
+        self.assertNotIn('android:layout_gravity="end', nav_text)
+
     def test_the_menu_tile_is_bracketed_by_rules_at_the_very_bottom(self):
         root = layout_root()
         nav = find_view(root, "@+id/nav_tile")
@@ -471,23 +501,77 @@ class SettingsControlTest(unittest.TestCase):
         children = [node.tag for node in row if node.tag != "Comment"]
         self.assertEqual(children, ["TextView"])
 
-    def test_the_quarter_turn_is_retired_with_the_gear(self):
-        # The gear icon no longer rotates: nav state is the background and
-        # the tint, so no open/close torque needs an interpolator.
-        # Owner order 2026-10-23 (v2.0.0): the one legitimate rotation left
-        # is the dropdown state arrow's flip (down while closed, up while
-        # open). It lives only in wireDropdownArrow, so the pin counts the
-        # file's rotations and requires the single one to be the arrow's;
-        # any second rotation, including a gear turn, still fails here.
+    def test_the_gear_turns_left_on_open_and_right_on_close(self):
+        # Owner order 2026-10-24, fourth note: the wheel moves again -
+        # opening the settings page turns the icon LEFT (a negative
+        # rotation, counterclockwise) and closing it turns the icon back
+        # RIGHT home to zero. The v2.0.0 pass retired the gear's torque;
+        # today's order brings it back with its own law, still in one
+        # place (setSettingsOpen, beside the page toggle) and still no
+        # shift constant.
+        turn = self.main[
+            self.main.index("navSettings.animate()"):
+            self.main.index(".start();", self.main.index("navSettings.animate()"))]
+        self.assertIn(".rotation(open ? -90f : 0f)", turn)
+        self.assertIn("new DecelerateInterpolator()", turn)
+        self.assertIn(".setDuration(", turn)
+        # Two view-property rotations in the whole file: the dropdown
+        # arrow's flip (inside wireDropdownArrow) and this wheel's turn.
         rotations = self.main.count(".rotation(")
-        self.assertEqual(rotations, 1,
-                         "expected only the dropdown arrow's flip")
-        needle = ".rotation(".join(self.main.split(".rotation(")[:2])
-        self.assertIn("private void wireDropdownArrow", needle)
+        self.assertEqual(rotations, 2,
+                         "the dropdown arrow's flip and the gear's turn")
+        arrow = self.main.index(".rotation(open ? 180f : 0f)")
+        # The SINGULAR def's exact signature anchors the slice: the plural
+        # wireDropdownArrows def is a prefix of the singular name and a
+        # bare "private void wireDropdownArrow" index finds the plural's
+        # own start first, whose "extent" then catches the singular def
+        # and reads the flipped arrow as outside its own method.
+        arrow_owner = self.main.index(
+                "private void wireDropdownArrow(Dropdown dropdown, "
+                "ImageView arrow)")
+        arrow_extent = self.main.index("private void", arrow_owner + 30)
+        self.assertLess(arrow_owner, arrow)
+        self.assertLess(arrow, arrow_extent)
         self.assertNotIn("GEAR_TURN_MS", self.main)
         self.assertNotIn(
             "settings_shift",
             (RES / "values" / "dimens.xml").read_text(encoding="utf-8"))
+
+    def test_the_themes_tile_lives_with_the_settings_page_alone(self):
+        # Owner order 2026-10-24, third note: the THEMES tile left the
+        # settings box; it is its OWN tile, a sibling of the settings
+        # panel behind the settings page's diamond bracket (two
+        # qor_rule includes inside the holder, one above and one
+        # below the tile). The holder is drawn from the page truth
+        # exactly like the panel: visible while the settings page is,
+        # gone on home, search and scanner - one toggle owns it.
+        root = layout_root()
+        holder = find_view(root, "@+id/themes_holder")
+        self.assertIsNotNone(holder)
+        self.assertEqual(holder.get(f"{ANDROID_NS}visibility"), "gone")
+        # Two diamond bracket rules and the tile: one rule above, one
+        # below, the tile between them, all inside the holder and
+        # nowhere else.
+        holder_rules = [node.tag for node in holder.iter()
+                        if node.tag == "include"]
+        self.assertEqual(len(holder_rules), 2)
+        for node in holder.iter():
+            if node.tag == "include":
+                self.assertEqual(node.get("layout"), "@layout/qor_rule")
+        ids = [node.get(f"{ANDROID_NS}id") for node in holder.iter()
+               if node.get(f"{ANDROID_NS}id")]
+        self.assertIn("@+id/tile_themes", ids)
+        # The holder is a sibling of the settings panel, never a child.
+        self.assertIn("@+id/settings_panel",
+                      self.layout[:self.layout.index("@+id/themes_holder")])
+        # The code's one truth: setSettingsOpen toggles the holder with
+        # the panel, and the search and scanner toggles take it off.
+        block = self.main[self.main.index("private void setSettingsOpen(") :]
+        block = block[:block.index("paintNavSelection();")]
+        self.assertIn("themesHolder.setVisibility(open ? View.VISIBLE : View.GONE);",
+                      block)
+        self.assertIn("themesHolder.setVisibility(open ? View.GONE", self.main)
+        self.assertIn("themesHolder = findViewById(R.id.themes_holder);", self.main)
 
     def test_the_settings_tile_carries_no_token_and_no_technical_clutter(self):
         """Owner order 2026-10-19: the phone holds no credential.
@@ -566,21 +650,23 @@ class BrandRuleTest(unittest.TestCase):
     def test_the_rule_is_defined_once_and_included_at_every_division(self):
         self.assertIn("QorDiamond", self.rule)
         self.assertIn('android:text="@string/diamond"', self.rule)
-        # Six rules on the console since v2.2.1 (owner order 2026-10-23):
-        # the brand rule under the header and the three the home tiles
-        # carry, plus the TWO the THEMES tile now wears of its own - the
-        # qor_rule include again, one diamond rule above it and one below
-        # it (owner order 2026-10-23, v2.2.1: "have separate diamond and
-        # 2 lines around it, up side and down side"). The pair that used
-        # to bracket the menu tile pinned at the very bottom is still
-        # GONE (the owner read the diamond above and below the pinned bar
-        # as clutter around a fixed bar), and the two rules the search
-        # and settings pages carried of their own are still GONE (the
-        # owner read each page's second diamond as an extra one), and
-        # their absence is its own test below. One rule per division,
-        # never two, is the standing law the themes bracket honours:
-        # there the owner ASKED for the bracket.
-        self.assertEqual(self.layout.count('layout="@layout/qor_rule"'), 6)
+        # Seven rules on the console since v2.2.3 (owner order 2026-10-24):
+        # the brand rule under the header, the three the home tiles
+        # carry, the TWO the THEMES tile wears of its own - the
+        # qor_rule include again, one diamond rule above it and one
+        # below it (owner order 2026-10-23, v2.2.1: "have separate diamond and
+        # 2 lines around it, up side and down side") - and the search
+        # page's diamond rule above the search tile, back by the owner's
+        # v2.2.3 order after the v1.9.13 cancellation took it away. The
+        # pair that used to bracket the menu tile pinned at the very
+        # bottom is still GONE (the owner read the diamond above and
+        # below the pinned bar as clutter around a fixed bar), and the
+        # SETTINGS page's own rule is still GONE (the owner read each
+        # page's second diamond as an extra one; the themes bracket is
+        # the diamond the settings page carries now). One rule per
+        # division, never two, is the standing law the themes bracket
+        # honours: there the owner ASKED for the bracket.
+        self.assertEqual(self.layout.count('layout="@layout/qor_rule"'), 7)
 
     def test_the_rules_stand_between_the_tiles_and_never_inside_them(self):
         root = layout_root()
@@ -803,10 +889,12 @@ class CadencePlacementTest(unittest.TestCase):
         # menu pages owned and the pair that used to bracket the pinned
         # menu bar were cancelled as the owner's clutter order. v2.2.1
         # then framed the THEMES tile the owner ordered for its
-        # "separate diamond and 2 lines around it": six rules now - the
-        # single brand rule under the header, the three the home tiles
-        # carry, and the two that frame the THEMES tile above and below.
-        self.assertEqual(len(rules), 6)
+        # "separate diamond and 2 lines around it", and v2.2.3 put the
+        # search page's own rule back above the search tile: seven rules
+        # now - the single brand rule under the header, the three the
+        # home tiles carry, the two that frame the THEMES tile above and
+        # below, and the search page's own diamond.
+        self.assertEqual(len(rules), 7)
         # The market card's rule: the one that closes the card section.
         market_rule = next(
             rule for rule in rules
@@ -1302,7 +1390,11 @@ class StatusPulseTest(unittest.TestCase):
         self.assertIn("if (open == settingsOpen) {", body)
         self.assertIn("settingsOpen = open;", body)
         listener = self.main.index("navSettings.setOnClickListener")
-        self.assertIn("setSettingsOpen(true)",
+        # v2.2.3 (owner order 2026-10-24, fourth note): the wheel's untap
+        # closes, so the listener passes the state's flip - tap opens,
+        # untap (a second tap while open) closes - and the toggle's own
+        # early return is still what keeps a repeated call inert.
+        self.assertIn("setSettingsOpen(!settingsOpen)",
                       self.main[listener:listener + 120])
         self.assertNotIn("getVisibility() == View.GONE", self.main)
 
@@ -1544,9 +1636,15 @@ class VersionTest(unittest.TestCase):
         # with the Friday post-market crons and the 5-minute catch-up, and
         # the scanner page: a fourth nav icon beside home opening the moved
         # CUSTOM SCRIPS OF VOL. tile.
+        # v2.2.3 is owner order 2026-10-24, second pass: the four menu icons
+        # sit centred in equal quarters, the orb's centre is the owner's own
+        # ORB.jpg sun, the settings wheel turns left on open and right on
+        # close, the THEMES tile stands alone on its page behind its own
+        # diamond bracket, the search page's diamond rule is back above the
+        # tile, and the CUSTOM SCRIPS OF VOL. tile is off the search page.
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="2.2.2"', manifest)
-        self.assertIn('android:versionCode="60"', manifest)
+        self.assertIn('android:versionName="2.2.3"', manifest)
+        self.assertIn('android:versionCode="61"', manifest)
         # The changelog entry ties these user-visible changes to the build.
         readme = (ROOT / "android" / "README.md").read_text(encoding="utf-8")
         self.assertIn("v1.7.9, owner order 2026-10-20", readme)
@@ -1576,9 +1674,10 @@ class VersionTest(unittest.TestCase):
         self.assertIn("Version 2.1.0, versionCode 57", readme)
         self.assertIn("Version 2.2.0, versionCode 58", readme)
         self.assertIn("Version 2.2.1, versionCode 59", readme)
+        self.assertIn("Version 2.2.3, versionCode 61", readme)
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionCode="60"', manifest)
-        self.assertIn('android:versionName="2.2.2"', manifest)
+        self.assertIn('android:versionCode="61"', manifest)
+        self.assertIn('android:versionName="2.2.3"', manifest)
         layout = LAYOUT.read_text(encoding="utf-8")
         strings = STRINGS.read_text(encoding="utf-8")
         main = MAIN.read_text(encoding="utf-8")
@@ -1820,14 +1919,15 @@ class UniversalSizeTest(unittest.TestCase):
 
 
 class TileBracketingTest(unittest.TestCase):
-    """Owner order 2026-10-23 (v1.9.13): the menu pages each carry ONE
+    """Owner order 2026-10-23 (v1.9.13), then 2026-10-24 (v2.2.3): the menu
+    pages' rules.
 
-    diamond rule, and never two. The owner read the second diamond on the
-    search and settings pages as an extra one, so the pair the v1.9.12
-    pass added (`rule_before_search` above the search panel and
-    `rule_after_settings` below the settings panel) is gone from the
-    layout and from the code that drove it. Each page keeps the single
-    brand rule under the header exactly as the closed console does.
+    The owner read the SECOND diamond on the settings page as an extra
+    one, so `rule_after_settings` stays gone; and on the search page he
+    first cancelled its own diamond and then asked for it back. The
+    v2.2.3 rule carries the id `rule_search` above the search tile,
+    drawn from the page state in MainActivity.setSearchOpen - visible
+    while he searches, gone on home and on every other page.
     """
 
     def setUp(self):
@@ -1835,7 +1935,19 @@ class TileBracketingTest(unittest.TestCase):
         self.layout = LAYOUT.read_text(encoding="utf-8")
         self.main = MAIN.read_text(encoding="utf-8")
 
-    def test_the_search_page_has_no_rule_of_its_own(self):
+    def test_the_search_rule_stands_above_the_search_tile(self):
+        # v2.2.3: the rule that was cancelled on 2026-10-23 is BACK, and
+        # it carries the id it drives from in MainActivity.
+        rule = find_view(self.root, "@+id/rule_search")
+        self.assertIsNotNone(rule)
+        self.assertEqual(rule.get("layout"), "@layout/qor_rule")
+        self.assertIn("@+id/rule_search", self.layout)
+        self.assertLess(self.layout.index("@+id/rule_search"),
+                        self.layout.index("@+id/search_panel"))
+
+    def test_the_old_search_rule_id_is_not_back(self):
+        # The cancelled v1.9.12 id stays retired; the new rule is ITS OWN
+        # id, so the two can never be confused.
         self.assertIsNone(find_view(self.root, "@+id/rule_before_search"))
         self.assertNotIn("@+id/rule_before_search", self.layout)
 
@@ -1843,15 +1955,19 @@ class TileBracketingTest(unittest.TestCase):
         self.assertIsNone(find_view(self.root, "@+id/rule_after_settings"))
         self.assertNotIn("@+id/rule_after_settings", self.layout)
 
-    def test_each_page_keeps_the_single_brand_rule(self):
+    def test_each_page_brand_rule_sits_after_the_search_rule(self):
         # The header's own brand rule stands after the home page's last of
         # the owner's four diamond stations (the search and volume tiles
         # open the home path) and before the settings tile, so the search
         # page reads with the one diamond the header owns and the
         # settings page no longer carries a second one of its own.
+        # v2.2.3: the first rule that follows the orb is the search
+        # page's own rule_search now, so the scan starts after IT.
         brand = self.layout.index("layout=\"@layout/qor_rule\"",
-                                  self.layout.index("@+id/thinking_orb"))
-        self.assertLess(self.layout.index("@+id/search_panel"), brand)
+                                  self.layout.index("@+id/search_panel"))
+        self.assertLess(self.layout.index("@+id/rule_search"),
+                        self.layout.index("@+id/search_panel"))
+        self.assertLess(self.layout.index("@+id/tile_volume"), brand)
         self.assertLess(brand, self.layout.index("@+id/settings_panel"))
 
     def test_drivers_of_the_lost_rules_are_gone(self):
@@ -2416,11 +2532,16 @@ class ThinkingOrbPlanTest(unittest.TestCase):
                       orb)
         self.assertIn("int o = n * NODE_STRIDE;", orb)
         # The cloud draws FIRST, the sun after it: the organism reads as
-        # circling its star.
+        # circling its star. v2.2.3: the call order in drawScene is the
+        # pin - the photo sun's own build sits between these methods, so
+        # the definition order is no longer the draw order.
         self.assertIn("drawCloud(canvas, seconds, wake);", orb)
         self.assertIn("drawSun(canvas, seconds, wake);", orb)
-        self.assertLess(orb.index("private void drawCloud("),
-                        orb.index("private void drawSun("))
+        scene_index = orb.index("private void drawScene(")
+        scene = orb[scene_index:scene_index + 700]
+        self.assertIn("drawCloud(canvas, seconds, wake);", scene)
+        self.assertLess(scene.index("drawCloud(canvas, seconds, wake);"),
+                        scene.index("drawSun(canvas, seconds, wake);"))
         # The sun keeps its slow revolving arcs.
         self.assertIn("seconds * promSpeed[p] * MOTION_SCALE;", orb)
         # The wake ramp is the v1.8.9 number, so the organism grows out of
@@ -2429,49 +2550,57 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         self.assertNotIn("Thread.sleep", orb)
         self.assertNotIn("ValueAnimator", orb)
 
-    def test_the_ball_is_a_same_size_3d_burning_sun(self):
+    def test_the_centre_is_the_owners_photo_sun(self):
         orb = (MAIN.parent / "ThinkingOrb.java").read_text(
             encoding="utf-8")
-        """Owner order 2026-10-23 (fourth pass, v1.9.13): the white
-        overlapping orb is replaced by a sun-looking ball of the SAME
-        size, which is 3D and burns without pause.
+        """Owner order 2026-10-24 ("the ORB that is in the centre is really
+        bad, remove that and replace with the picture that I just
+        attached, picture is on my desktop with the name ORB, only take
+        the SUN looking feature, don't touch anything else"): the drawn
+        ball is retired and the centre is his own photograph, shipped as
+        the sun asset squared out around the sun's centre from ORB.jpg.
         """
-        # Same size, and the CORE PLACEMENT of the seventh pass: the ball
-        # sits at the cloud's own centre as the star the organism circles
-        # ("I want the center as the sun"), a fraction of the orb's box
-        # under the v1.8.9 cloud's rim. v2.2.1: the owner's "bigger sun"
-        # order grew the ball 0.17f to 0.26f of the feature's radius -
-        # a proper star at the centre.
-        self.assertIn("ballR = orbRadius * 0.26f", orb)
         self.assertNotIn("ballR = orbRadius * 0.17f", orb)
         self.assertNotIn("ballR = shortSide", orb)
         self.assertNotIn("sunR = Math.min", orb)
-        # 3D: one shaded sphere, the hotspot up and to the LEFT of the
-        # centre, white-hot through the solar golds to deep burning orange
-        # at the limb, which falls into the field.
-        self.assertIn("sunPaint.setShader(new RadialGradient(\n", orb)
-        self.assertIn("cx - ballR * 0.20f, cy - ballR * 0.22f, ballR * 1.65f,",
-                      orb)
-        for stop in ("0xFFFFFCE7", "0xFFFFE07D", "0xFFFFBF12",
-                     "0xFFF57C00", "0xFFC44600", "0x77933A00"):
-            with self.subTest(stop=stop):
-                self.assertIn(stop, orb)
-        # Burning without pause: granulation ON the sphere, culled past
-        # the limb and flickering on its own rate, so the surface never
-        # stills.
-        self.assertIn("private static final int GRANULES = 10;", orb)
-        self.assertIn("private static final int GRANULE_STRIDE = 6;", orb)
-        self.assertIn("if (rz <= 0.05f) {", orb)
-        self.assertIn("seconds * cells[o + 5]", orb)
-        # Flame tongues keep the rim ragged, and the burning heart
-        # breathes in ALPHA, never in radius: the ball stays one ball.
-        self.assertIn("private static final int FLAMES = 12;", orb)
-        self.assertIn("flameLength", orb)
-        self.assertIn("flamePhase", orb)
-        self.assertIn("flameRate", orb)
-        self.assertIn("canvas.translate(cx - ballR * 0.15f, cy - ballR * 0.18f);",
-                      orb)
-        self.assertIn("canvas.drawCircle(0f, 0f, ballR * 0.55f, sunHeart);", orb)
+        # The fraction the drawn ball held stands: the photo's own sun
+        # lands on the SAME radius (drawSun scales the destination by
+        # SUN_SCALE for the crop's margin).
+        self.assertIn("ballR = orbRadius * 0.26f", orb)
+        self.assertIn("ballR * SUN_SCALE * breath", orb)
+        # No painted sphere of ours repaints his photograph: no shader,
+        # no granulation, no burned heart - the retired machinery
+        # stays retired.
+        for retired in ("sunHeart", "GRANULES", "GRANULE_STRIDE",
+                        "cells[o", "drawCloudHeart"):
+            with self.subTest(retired=retired):
+                self.assertNotIn(retired, orb)
+        self.assertNotIn("sunPaint.setShader(new RadialGradient(\n", orb)
+        # The picture: read from the sun asset, composed ONCE per size
+        # into a circle-clipped disc with a softened rim, and drawn each
+        # frame from the composed bitmap only - the asset itself is
+        # recycled and never drawn. SO-3: no asset, no invented picture.
+        self.assertIn("BitmapFactory.decodeResource(\n", orb)
+        self.assertIn("R.drawable.sun);", orb)
+        self.assertIn("private void buildSunPhoto() {", orb)
+        self.assertIn("circle.addCircle(size / 2f, size / 2f, size / 2f,", orb)
+        self.assertIn("PorterDuff.Mode.DST_OUT", orb)
+        self.assertIn("asset.recycle();", orb)
+        self.assertIn("if (sunPhoto == null) {", orb)
+        self.assertIn("return;     // no asset, no picture invented in its place (SO-3)", orb)
+        # The composed disc draws after the cloud and limb fire and the
+        # flares still fly in front of it, so the picture IS the sun and
+        # the organism reads as circling its star.
+        self.assertLess(orb.index("drawSun(canvas"),
+                        orb.index("drawFlares(canvas"))
+        self.assertLess(orb.index("private void drawSun("),
+                        orb.index("private void drawFlares("))
+        # Alpha rides the wake: parked or closed, the picture never
+        # goes dark (the never-goes-dark law the drawn ball kept).
+        self.assertIn("sunPaint.setAlpha((int) (255f * wake));", orb)
+        self.assertIn("sunPaint.setFilterBitmap(true);", orb)
+        # The asset is on disk, with the other owner pngs.
+        self.assertTrue((RES / "drawable-nodpi" / "sun.jpg").is_file())
         self.assertNotIn("heart * 0.72f", orb)
         # v2.1.0: the older reference's grey rest ring is RETIRED - the new
         # reference's core is the sun itself, framed by the burst.
@@ -2586,9 +2715,11 @@ class UniversalRuleGapTest(unittest.TestCase):
         # v1.9.13, then 2.0.0 (owner order 2026-10-23): the extras the
         # menu pages owned and the pair that used to bracket the pinned
         # menu bar were cancelled. v2.2.1 then framed the THEMES tile the
-        # owner ordered for its "separate diamond and 2 lines around it":
-        # six rules - four on the home path and the THEMES tile's two.
-        self.assertEqual(len(rules), 6)
+        # owner ordered for its "separate diamond and 2 lines around it",
+        # and v2.2.3 put the search page's own rule back above the search
+        # tile: seven rules - four on the home path, the THEMES tile's
+        # two, and the search page's own diamond.
+        self.assertEqual(len(rules), 7)
         for rule in rules:
             with self.subTest(rule=rule.get(f"{ANDROID_NS}id")):
                 self.assertEqual(rule.get(f"{ANDROID_NS}layout_marginTop"),

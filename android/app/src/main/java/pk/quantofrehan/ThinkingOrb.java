@@ -1,11 +1,16 @@
 package pk.quantofrehan;
 
 import android.content.Context;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
-import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Path;
+import android.graphics.PorterDuff;
+import android.graphics.PorterDuffXfermode;
 import android.graphics.RadialGradient;
+import android.graphics.Rect;
+import android.graphics.RectF;
 import android.graphics.Shader;
 import android.util.AttributeSet;
 import android.view.View;
@@ -24,13 +29,12 @@ import android.view.View;
  * breathing radially on its own phase while the cloud turns. The radial
  * burst of v2.1.0 and the rings of v1.9.13/v1.9.14 are retired; the scattered
  * excesses the later passes grew around the cloud go with them.
- *
- * "I want the center as the sun": the cloud's old breathing core gradient is
- * replaced by the ALWAYS-BURNING SUN v1.9.9 built and v1.9.14 made hotter -
- * the same 3D ball with its convection cells, flame tongues, revolving
- * prominence arcs and the spark cadence, drawn at the cloud's own centre,
- * so the organism circles a star instead of a light.
- * * Owner order 2026-10-23 (v2.2.1, eighth pass, THIS order): three edits
+ *     * "I want the center as the sun": the cloud's old breathing core gradient
+     * is replaced by the ALWAYS-BURNING SUN v1.9.9 built and v1.9.14 made
+     * hotter - flame tongues on the limb, revolving prominence arcs and the
+     * spark cadence drawn at the cloud's own centre, so the organism circles
+     * a star instead of a light.
+     * * Owner order 2026-10-23 (v2.2.1, eighth pass): three edits
      * the owner listed in one message.
      *
      * 1. No flicker: every fast alpha modulation on the picture is gone.
@@ -47,19 +51,34 @@ import android.view.View;
      *    filaments; and the sun itself grows from 17% to 26% of the
      *    feature's radius, a proper star at the centre.
      *
+     * Owner order 2026-10-24 (ninth pass, THE order): the drawn ball at the
+     * centre is RETIRED and the centre is the owner's own sun picture now -
+     * the sun he cropped out of the picture he sent ("replace with the
+     * picture that I just attached... only take the SUN looking feature,
+     * don't touch anything else"), bundled once as drawable-nodpi/sun.jpg -
+     * his ORB.jpg with the sun's square built out around its centre, the
+     * HUD panels of the frame he sent cropped away by that square.
+     * The picture is composed ONCE per size - clamped to a circle at the
+     * limb, a short fade softening the clip edge - and each frame only ever
+     * draws that composed disc, breathing gently in size and riding the wake
+     * in alpha. The limb's own fire (flame tongues, revolving prominence
+     * arcs and the spark cadence) stays where it is, and the cloud and its
+     * laws stay untouched: the picture IS the sun, everything else is the
+     * living organism as it was on the screen he asked to keep.
+     *
      * The park law of v1.9.14 stands: stop() freezes the pose the loop last
      * DREW and the parked frame REPAINTS it fully awake, so a closed market, a
- * break, a theme repaint or a layout pass can never blank the feature; the
- * loop only stops MOVING. A resume replays from the frozen second.
- *
- * The budget is the one that survived every pass: one View, zero relay
- * requests, zero allocations per frame - the cloud's nodes and links and
- * the sun's cells, flames, prominences and flares are all built once in
- * onSizeChanged, and every frame touches preallocated arrays. The frame
- * loop is the view's own paced invalidate at FPS_MS; start() and stop()
- * stay the only public controls, wired to MainActivity's startHud and
- * stopHud behind the market gate.
- */
+     * break, a theme repaint or a layout pass can never blank the feature; the
+     * loop only stops MOVING. A resume replays from the frozen second.
+     *
+     * The budget is the one that survived every pass: one View, zero relay
+     * requests, zero allocations per frame - the cloud's nodes and links and
+     * the sun's flames, prominences and flares are all built once in
+     * onSizeChanged, and every frame touches preallocated arrays. The frame
+     * loop is the view's own paced invalidate at FPS_MS; start() and stop()
+     * stay the only public controls, wired to MainActivity's startHud and
+     * stopHud behind the market gate.
+     */
 
 public class ThinkingOrb extends View {
 
@@ -100,21 +119,30 @@ public class ThinkingOrb extends View {
     private final Paint linkPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint nodePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
 
-    /** The sun's own fire (kept from v1.9.14): its six painters. */
+    /**
+     * The sun's fire and picture (kept from v1.9.14): the flaming limb and
+     * the spark painter, and the one paint that carries the composed photo
+     * disc of the owner's own sun (alpha per frame, filtered scaling).
+     */
     private final Paint sunPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final Paint sunHeart = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final Paint sunCell = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint sunFlame = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint sunProm = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint sunFlare = new Paint(Paint.ANTI_ALIAS_FLAG);
+    /** The owner's own sun picture, composed once per size. */
+    private Bitmap sunPhoto;
+    /**
+     * The crop's own fill: the shipped asset was squared out around the
+     * sun with a 1.18 margin (side = 2 x sun radius x 1.18), so the
+     * disc's inscribed square holds the sun at 1/1.18 of its half side.
+     * drawSun divides by this to land the picture's own sun on the
+     * radius the drawn ball it replaced held.
+     */
+    private static final float SUN_SCALE = 1.18f;
+    /** The frame's destination rect for the photo disc; one, preallocated. */
+    private final RectF sunDst = new RectF();
 
     /** The one Path the prominence arcs share; reset, never reallocated. */
     private final Path promPath = new Path();
-
-    /** The sun's granulation: unit position, size, phase, rate. */
-    private static final int GRANULES = 10;
-    private static final int GRANULE_STRIDE = 6;
-    private final float[] cells = new float[GRANULES * GRANULE_STRIDE];
 
     /** Flame tongues around the limb: angle, length, phase, rate. */
     private static final int FLAMES = 12;
@@ -164,7 +192,6 @@ public class ThinkingOrb extends View {
     private float ballR;
     private float nodeRadius;
     private float linkWidth;
-    private float cellRadiusBase;
 
     /**
      * The clock the frame loop reads, in seconds, so a parked frame can
@@ -231,17 +258,19 @@ public class ThinkingOrb extends View {
         cx = w / 2f;
         cy = h / 2f;
         orbRadius = Math.min(w, h) / 2f - dp(6f);
-        // The sun is the cloud's own core: the old breathing heart's
-        // radius, now a BALL that burns instead of a gradient that fades.
-        // v2.2.1: 0.17f grew to 0.26f, the owner's bigger-sun order.
+        // The sun is the cloud's own core: the owner's own PICTURE now
+        // (owner order 2026-10-24), sized by the same fraction the drawn
+        // ball held - 0.26f, the bigger-sun order of v2.2.1 - so the
+        // photo's own sun lands exactly where the ball he replaced stood
+        // (drawSun scales the destination by SUN_SCALE for that).
         ballR = orbRadius * 0.26f;
         nodeRadius = dp(1.3f);
         linkWidth = Math.max(1f, dp(0.9f));
-        cellRadiusBase = dp(6f);
         clockAnchor = System.currentTimeMillis();
         buildGeometry();
         buildSun();
         buildInks();
+        buildSunPhoto();
         built = true;
         // The picture exists the moment the size exists; never count on a
         // later invalidation to introduce it.
@@ -321,29 +350,9 @@ public class ThinkingOrb extends View {
         }
     }
 
-    /** The sun's fire: cells, flames, prominences, sparks (v1.9.14 kept). */
+    /** The sun's fire: flames, prominences, sparks (v1.9.14 kept). */
     private void buildSun() {
         long seed = 20261024L;
-        for (int c = 0; c < GRANULES; c++) {
-            seed = nextSeed(seed);
-            float u = frac(seed) * 2f - 1f;
-            seed = nextSeed(seed);
-            float theta = frac(seed) * (float) Math.PI * 2f;
-            float s = (float) Math.sqrt(1f - u * u);
-            seed = nextSeed(seed);
-            float size = 0.10f + frac(seed) * 0.08f;
-            seed = nextSeed(seed);
-            float phase = frac(seed) * (float) Math.PI * 2f;
-            seed = nextSeed(seed);
-            float rate = 1.4f + frac(seed) * 1.6f;
-            int o = c * GRANULE_STRIDE;
-            cells[o] = s * (float) Math.cos(theta);
-            cells[o + 1] = u;
-            cells[o + 2] = s * (float) Math.sin(theta);
-            cells[o + 3] = size;
-            cells[o + 4] = phase;
-            cells[o + 5] = rate;
-        }
         for (int f = 0; f < FLAMES; f++) {
             flameAngle[f] = (float) Math.PI * 2f * f / FLAMES;
             seed = nextSeed(seed);
@@ -375,33 +384,16 @@ public class ThinkingOrb extends View {
         }
     }
 
-    /** The paints and the one shader family the sun keeps by its builder. */
+    /** The paints: the photo disc first, then the limb's own fire. */
     private void buildInks() {
         linkPaint.setStyle(Paint.Style.STROKE);
         linkPaint.setStrokeCap(Paint.Cap.ROUND);
         linkPaint.setColor(LINK_COLOR);
         nodePaint.setStyle(Paint.Style.FILL);
-        // The sun is ONE 3D sphere: the hotspot up and to the left, the
-        // body white-hot through the solar golds to a deep burning orange
-        // at the limb, whose rim falls into the field. One stop per
-        // colour; RadialGradient insists.
-        sunPaint.setShader(new RadialGradient(
-                cx - ballR * 0.20f, cy - ballR * 0.22f, ballR * 1.65f,
-                new int[]{0xFFFFFCE7, 0xFFFFE07D, 0xFFFFBF12, 0xFFF57C00,
-                          0xFFC44600, 0x77933A00},
-                new float[]{0f, 0.16f, 0.30f, 0.48f, 0.75f, 1f},
-                Shader.TileMode.CLAMP));
-
-        // The heart shares the same face one disc further out.
-        sunHeart.setShader(new RadialGradient(0f, 0f, ballR * 0.6f, new int[]{
-                0x88FFF3C0, 0x33FFE082, 0x00FFE082},
-                new float[]{0f, 0.45f, 1f}, Shader.TileMode.CLAMP));
-
-        // The granulation cells share one soft shader on the origin, drawn
-        // at each cell's OWN size by translating and scaling the canvas.
-        sunCell.setShader(new RadialGradient(0f, 0f, cellRadiusBase,
-                new int[]{0x88FFECB3, 0x44FFE082, 0x00FFE082},
-                new float[]{0f, 0.45f, 1f}, Shader.TileMode.CLAMP));
+        // The sun is the owner's own picture (owner order 2026-10-24):
+        // the composed disc is drawn scaled with filtering, its alpha the
+        // wake's. No shader of ours repaints his photograph.
+        sunPaint.setFilterBitmap(true);
 
         // The flame tongues share the same soft trick at the limb.
         sunFlame.setShader(new RadialGradient(0f, 0f, dp(7f), new int[]{
@@ -453,7 +445,71 @@ public class ThinkingOrb extends View {
     /** One full picture: the living cloud around its burning sun. */
     private void drawScene(Canvas canvas, float seconds, float wake) {
         drawCloud(canvas, seconds, wake);
+        drawFlames(canvas, seconds, wake);
+        drawProminences(canvas, seconds, wake);
         drawSun(canvas, seconds, wake);
+        drawFlares(canvas, seconds, wake);
+    }
+
+    /**
+     * Owner order 2026-10-24: the centre is the owner's own sun picture,
+     * the composed disc of buildSunPhoto. It draws AFTER the cloud and
+     * the limb fire, so the organism reads as circling its star and the
+     * picture's disc sits clean over the tongues' inner halves; the
+     * flares keep drawing after it, so a spark can still fly across the
+     * face. The disc breathes gently in size and rides the wake in
+     * alpha, exactly the never-goes-dark law the drawn ball kept.
+     */
+    private void drawSun(Canvas canvas, float seconds, float wake) {
+        if (sunPhoto == null) {
+            return;     // no asset, no picture invented in its place (SO-3)
+        }
+        float breath = 1f + 0.015f * (float) Math.sin(
+                seconds * 0.9f * MOTION_SCALE);
+        // The asset holds the sun at 1/SUN_SCALE of its half side (see
+        // the constant's note), so scaling the destination UP by that
+        // factor renders the picture's own sun at the ball radius the
+        // drawn sun he retired carried.
+        float r = ballR * SUN_SCALE * breath;
+        sunDst.set(cx - r, cy - r, cx + r, cy + r);
+        sunPaint.setAlpha((int) (255f * wake));
+        canvas.drawBitmap(sunPhoto, null, sunDst, sunPaint);
+    }
+
+    /**
+     * The owner's own sun (owner order 2026-10-24): the SUN ONLY of the
+     * picture he sent, bundled once as drawable-nodpi/sun.jpg. Composed
+     * ONCE per size and never on the frame path: the square carried over
+     * drawable-nodpi keeps its own pixels, they are clamped to a circle
+     * at the limb, and a short DST_OUT fade softens the very rim so the
+     * clip edge never shows the way a coin edge would. The asset is
+     * recycled off; the frame only ever draws the composed disc.
+     */
+    private void buildSunPhoto() {
+        Bitmap asset = BitmapFactory.decodeResource(
+                getResources(), R.drawable.sun);
+        if (asset == null) {
+            sunPhoto = null;    // no asset, no faked picture (SO-3)
+            return;
+        }
+        int size = Math.max(96, Math.min(768, asset.getWidth()));
+        sunPhoto = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
+        Canvas work = new Canvas(sunPhoto);
+        int side = asset.getWidth();
+        Path circle = new Path();
+        circle.addCircle(size / 2f, size / 2f, size / 2f, Path.Direction.CW);
+        work.clipPath(circle);
+        work.drawBitmap(asset, new Rect(0, 0, side, side),
+                new Rect(0, 0, size, size), null);
+        // The rim fade: transparent over the burn, opaque only at the
+        // very edge, punched OUT of the composed disc.
+        Paint rim = new Paint(Paint.ANTI_ALIAS_FLAG);
+        rim.setShader(new RadialGradient(size / 2f, size / 2f, size / 2f,
+                new int[]{0x00000000, 0x00000000, 0xFF000000},
+                new float[]{0f, 0.86f, 1f}, Shader.TileMode.CLAMP));
+        rim.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.DST_OUT));
+        work.drawCircle(size / 2f, size / 2f, size / 2f, rim);
+        asset.recycle();
     }
 
     /**
@@ -515,63 +571,6 @@ public class ThinkingOrb extends View {
             nodePaint.setAlpha(Math.min(255, alpha));
             nodePaint.setColor(NODE_COLOR);
             canvas.drawCircle(screenX[n], screenY[n], size, nodePaint);
-        }
-    }
-
-    /**
-     * The sun itself (v1.9.14 kept): the always-burning mix of its four
-     * moods of fire at the cloud's centre. Ball first, breath on top,
-     * then granulation, the flame ring, the revolving arcs and the spark
-     * cadence. Its rates ride MOTION_SCALE with the cloud, so one body
-     * keeps one clock.
-     */
-    private void drawSun(Canvas canvas, float seconds, float wake) {
-        sunPaint.setAlpha((int) (255f * wake));
-        canvas.drawCircle(cx, cy, ballR, sunPaint);
-        // The heart breathes in alpha, never in radius. v2.2.1: the
-        // swing narrows (0.55/0.45 to 0.8/0.2), so the core glows
-        // steadily instead of pulsing hard enough to read as flicker.
-        float breath = 0.8f + 0.2f * (float) Math.sin(
-                seconds * 0.9f * MOTION_SCALE);
-        sunHeart.setAlpha(Math.min(255, (int) (255f * (0.4f
-                + 0.6f * breath) * wake)));
-        canvas.save();
-        canvas.translate(cx - ballR * 0.15f, cy - ballR * 0.18f);
-        canvas.drawCircle(0f, 0f, ballR * 0.55f, sunHeart);
-        canvas.restore();
-        drawCells(canvas, seconds, wake);
-        drawFlames(canvas, seconds, wake);
-        drawProminences(canvas, seconds, wake);
-        drawFlares(canvas, seconds, wake);
-    }
-
-    /** The granulation: only the face of the sphere toward the viewer. */
-    private void drawCells(Canvas canvas, float seconds, float wake) {
-        float yaw = seconds * 0.45f * MOTION_SCALE;
-        float cosYaw = (float) Math.cos(yaw);
-        float sinYaw = (float) Math.sin(yaw);
-        for (int c = 0; c < GRANULES; c++) {
-            int o = c * GRANULE_STRIDE;
-            float x = cells[o];
-            float z = cells[o + 2];
-            float rx = x * cosYaw + z * sinYaw;
-            float rz = -x * sinYaw + z * cosYaw;
-            if (rz <= 0.05f) {
-                continue;
-            }
-            // v2.2.1: granulation brightness floor raised from 0.3 to
-            // 0.75 - the cells now only gently modulate, never dim the
-            // face into a flicker.
-            float flicker = 0.5f + 0.5f * (float) Math.sin(
-                    seconds * cells[o + 5] * MOTION_SCALE + cells[o + 4]);
-            float radius = cellRadiusBase * cells[o + 3] * (0.5f + 0.5f * rz);
-            canvas.save();
-            canvas.translate(cx + rx * ballR * 0.78f,
-                    cy + cells[o + 1] * ballR * 0.78f);
-            sunCell.setAlpha(Math.min(255, (int) (200f * (0.75f + 0.25f
-                    * flicker) * wake * rz)));
-            canvas.drawCircle(0f, 0f, radius, sunCell);
-            canvas.restore();
         }
     }
 

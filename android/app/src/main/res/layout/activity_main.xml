@@ -130,10 +130,23 @@
             android:layout_marginTop="6dp"
             android:importantForAccessibility="no"/>
 
-        <!-- Owner order 2026-10-23 (v1.9.13): the rule that sat above the
-             search tile is GONE. The owner read the menu page's second
-             diamond as an extra one, so the search page keeps the single
-             brand rule under the header, exactly the count he expects. -->
+        <!-- Owner order 2026-10-24, second note: the diamond rule is BACK
+             above the search tile. The v1.9.13 pass removed it because he
+             read the menu page's second diamond as an extra one two days
+             ago; today he read the page without it and asked why the
+             search tile stands there with no diamond line above it. The
+             rule is the same qor_rule include, and like the tiles it marks
+             it is drawn from the page state: gone on home and on every
+             other page, visible while the search page is (the visibility
+             line lives in MainActivity.setSearchOpen beside the panel's
+             own). -->
+        <include
+            android:id="@+id/rule_search"
+            layout="@layout/qor_rule"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:visibility="gone"/>
 
         <!-- Owner order 2026-10-21 (13:07 report): hidden children must not
              leave their margins behind, or the closed panel's bottom gap is
@@ -537,11 +550,31 @@
                  live feed and the signals from there, so a second scanner
                  on the handset is duplicate work the owner asked to take
                  off. -->
-            <!-- Owner order 2026-10-23: the THEMES tile below, its own
-                 heading and its one dropdown. The five themes carry the
-                 app's look; the selection is made in MainActivity and
-                 remembered between sessions, so the app opens on the
-                 theme he chose. See MainActivity.applyTheme.
+        </LinearLayout>
+
+        <!-- Owner order 2026-10-24, third note ("you put themes in the same
+             tile as settings tile, make another separate tile for theme,
+             with its own diamond feature"): the THEMES tile LEAVES the
+             settings tile and stands as its own tile on the same page,
+             framed by its own qor_rule bracket - one diamond rule above,
+             one below - the bracket the v2.2.1 pass gave it, now around a
+             tile that is a SIBLING of the settings panel and no longer a
+             box inside the settings box. The holder is drawn from the page
+             state in MainActivity.setSettingsOpen, exactly like the panel
+             itself: visible while the settings page is, gone on home, on
+             search and on the scanner page. -->
+        <LinearLayout
+            android:id="@+id/themes_holder"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <!-- Owner order 2026-10-23: the THEMES tile, its own heading
+                 and its one dropdown. The five themes carry the app's look;
+                 the selection is made in MainActivity and remembered
+                 between sessions, so the app opens on the theme he chose.
+                 See MainActivity.applyTheme.
 
                  Owner order 2026-10-23 (v2.2.1): the tile carries its own
                  diamond rule above and its own diamond rule below - the
@@ -604,15 +637,6 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="12dp"/>
-
-            <!-- Owner order 2026-10-23 (second order, v1.9.14): the version
-                 line left this tile for the root's own footer under the
-                 pinned bar, where it serves the settings page; MainActivity
-                 writes the manifest's own versionName there, the same
-                 number the build printed, so the screen and the APK cannot
-                 disagree. Owner order 2026-10-23 (v2.1.0): it is also the
-                 SETTINGS PAGE ONLY - the version shows while this menu is
-                 open and hides everywhere else. -->
         </LinearLayout>
 
         <!-- Owner order 2026-10-23 (v1.9.13): the rule that sat below the
@@ -778,9 +802,17 @@
              Owner order 2026-10-24: a FOURTH page joins, the scanner
              beside home ("Add another icon on the menu bar next to home
              icon, the png for that icon is on my desktop, scanner.png").
-             The tile now takes quarters of its width: home at the very
-             left edge, scanner right of it, search at its middle slot,
-             settings at the very right edge.
+             The tile now takes quarters of its width.
+
+             Owner order 2026-10-24, second note ("the gap between all the
+             icons are not the same, make the gap same between all four
+             icons"): every icon sits CENTRED in its own equal quarter,
+             home no longer pinned to the very left edge and settings no
+             longer pinned to the very right edge (the v1.9.13 thirds law
+             the edge pinning came from). Equal quarters and the same
+             gravity make the air between any two neighbours one width:
+             the gap home-scanner, scanner-search and search-settings are
+             the same number by construction.
 
              Owner order 2026-10-23 (v1.9.13), the pin itself: the tile
              lives OUTSIDE the console's scroll, one fixed unit at the
@@ -853,7 +885,7 @@
                 android:id="@+id/btn_nav_home"
                 android:layout_width="42dp"
                 android:layout_height="42dp"
-                android:layout_gravity="start|center_vertical"
+                android:layout_gravity="center"
                 android:background="@drawable/nav_circle"
                 android:contentDescription="@string/cd_home"
                 android:padding="8dp"
@@ -913,7 +945,7 @@
                 android:id="@+id/btn_nav_settings"
                 android:layout_width="42dp"
                 android:layout_height="42dp"
-                android:layout_gravity="end|center_vertical"
+                android:layout_gravity="center"
                 android:background="@drawable/settings_ripple"
                 android:contentDescription="@string/cd_settings"
                 android:padding="8dp"
