@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The brand rule's half, owner order 2026-10-24 (the picture he sent
+     with it): the line keeps its fade at the outer end and TAPERS with
+     the fade - the ink gets THINNER as it fades, thickest where it
+     meets the diamond, instead of the flat hairline the fading picture
+     shows (same fading width at both ends). One vector, one path, one
+     gradient, shared by every qor_rule include on the console: the left
+     half draws it thin-end-out, and the right half is the same drawable
+     rotated 180 in qor_rule.xml, so the two halves can never disagree.
+
+     The path is a long lens in a 240 x 2 viewport: at x=0 (the outer
+     end) the ink is 0.2 units tall (0.2dp at the ImageView's 2dp
+     height), a hairline; at x=240 (the diamond's side) it is the full
+     1.6 units (1.6dp), and the two quadratics breathe it smoothly in
+     between. The gradient fades the OUTER END away over the first 30%
+     of the line and holds the rest, gold_deep. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="240dp"
+    android:height="2dp"
+    android:viewportWidth="240"
+    android:viewportHeight="2">
+    <path
+        android:pathData="M0,0.9 Q90,0.35 240,0.2 L240,1.8 Q90,1.65 0,1.1 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="0"
+                android:startY="0"
+                android:endX="240"
+                android:endY="0">
+                <item
+                    android:offset="0.0"
+                    android:color="#00B9822F"/>
+                <item
+                    android:offset="0.30"
+                    android:color="#FFB9822F"/>
+                <item
+                    android:offset="1.0"
+                    android:color="#FFB9822F"/>
+            </gradient>
+        </aapt:attr>
+    </path>
+</vector>

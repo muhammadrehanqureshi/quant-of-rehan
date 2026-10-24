@@ -84,12 +84,14 @@
          on the settings page, exactly like "APP VERSION is 2.2.1" (v2.2.1).
          The number itself is the manifest's versionName, written by
          MainActivity; this prefix is the wording left of the number, and
-         the sentence the page cannot read should never appear. -->    <!-- v2.2.5: the owner's own wording again, after the sent-back
-         build showed APP VERSION IS2.2.4 fused - the trailing space
-         before `2.2.4` belongs HERE, and was lost when the source
-         carried it. The resource line is padded, the join is code
-         and the assertion below pins both. -->
-    <string name="app_version_prefix">APP VERSION IS </string>
+         the sentence the page cannot read should never appear. -->         <!-- v2.2.6: the plain trailing space was STILL being trimmed
+              - aapt2 drops unquoted leading/trailing whitespace of a
+              string resource at build time, which is why the sent-back
+              v2.2.5 build showed the fused "APP VERSION IS2.2.5" again.
+              Quoted literals keep their whitespace on the floor, so the
+              gap is pinned in the resource text and the assertion below
+              pins it in the file. -->
+    <string name="app_version_prefix">"APP VERSION IS "</string>
     <string name="search_waiting">Symbols load with the next relay answer.</string>
     <string name="search_loading">Reading the symbol\u2026</string>
     <string name="search_unavailable">That symbol has no live quote from the relay yet.</string>

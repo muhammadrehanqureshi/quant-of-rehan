@@ -1242,6 +1242,42 @@ to sixty seconds. The status tile therefore also carries the app's own
        prints fewer numbers, never invented ones).
     6. The version bump is versionCode 63 / versionName 2.2.5.
 
+  Version 2.2.6, versionCode 64.
+
+    Owner order 2026-10-24, fifth pass, four corrections on the
+    pictures he sent back from the v2.2.5 build:
+    1. The sun's revolve is a longitude travel now ("also make the
+       SUN revolve in X-axis and reduce it's revolving speed by 10%
+       from the current speed", on a build whose flat in-plane spin
+       still read as flicker): the whole-photo rotate is retired and
+       the face is resampled in SUN_STRIPS longitude bands each
+       frame, band i drawing the texture where asin(2x/r - 1) puts
+       its line, so the sun's own granulation slides limb to limb
+       with real foreshortening at the edges, the way the Earth's
+       turn reads from space. The axis leans SUN_AXIS_TILT (the
+       Earth's own tilt reading), the loop is the composed disc laid
+       beside its own mirror so no longitude seam can show, and the
+       pace is the third pass's bearing cut by the owner's own 10%
+       (SUN_SLOWDOWN).
+    2. Every diamond rule's lines taper with their fade ("I want you
+       to have like the lines also getting thin, ... I want you to
+       make the end of each line thinner as they are fading, make
+       this change across the entire app"): drawable/rule_taper.xml,
+       a lens whose ink is a 0.2dp hairline at the outer end and 1.6dp
+       where it meets the diamond, its gradient fading the outer 30%
+       away; qor_rule carries ONE drawable, the left half as drawn,
+       the right half the same drawable rotated 180, so the two
+       halves can never disagree and every one of the console's
+       eight includes inherits the taper by construction.
+    3. The version gap is fused-proof for good ("on the footer,
+       there is no space between the app version is and the actual
+       app version number, it's like this right now 'APP VERSION
+       IS2.5.5'"): the plain trailing space was still being TRIMMED
+       - aapt2 drops unquoted leading/trailing whitespace of a string
+       resource at build time - so the prefix literal is quoted,
+       which keeps its whitespace to the floor.
+    4. The version bump is versionCode 64 / versionName 2.2.6.
+
 **Built and delivered 2026-10-24 (v2.2.3):** the signed v2.2.3 APK was built
 on GitHub Actions from the merged PR #110 (master 3fd20f0, run 40071196152,
 the push build the merge itself triggered), downloaded from the run's
