@@ -1676,9 +1676,12 @@ class VersionTest(unittest.TestCase):
         # revolve is a longitude travel (X-axis) under the owner's own
         # 10% cut, every rule line tapers with its fade, and the fused
         # version gap is closed with a quoted resource literal.
+        # v2.2.7 is owner order 2026-10-24, sixth pass: the longitude
+        # window's phase lands on the face's centre now - the v2.2.6
+        # build showed half-faces and mirror wreckage.
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="2.2.6"', manifest)
-        self.assertIn('android:versionCode="64"', manifest)
+        self.assertIn('android:versionName="2.2.7"', manifest)
+        self.assertIn('android:versionCode="65"', manifest)
         # The changelog entry ties these user-visible changes to the build.
         readme = (ROOT / "android" / "README.md").read_text(encoding="utf-8")
         self.assertIn("v1.7.9, owner order 2026-10-20", readme)
@@ -1712,9 +1715,10 @@ class VersionTest(unittest.TestCase):
         self.assertIn("Version 2.2.4, versionCode 62", readme)
         self.assertIn("Version 2.2.5, versionCode 63", readme)
         self.assertIn("Version 2.2.6, versionCode 64", readme)
+        self.assertIn("Version 2.2.7, versionCode 65", readme)
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionCode="64"', manifest)
-        self.assertIn('android:versionName="2.2.6"', manifest)
+        self.assertIn('android:versionCode="65"', manifest)
+        self.assertIn('android:versionName="2.2.7"', manifest)
         layout = LAYOUT.read_text(encoding="utf-8")
         strings = STRINGS.read_text(encoding="utf-8")
         main = MAIN.read_text(encoding="utf-8")
@@ -2735,6 +2739,13 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         band0 = orb.index("private void drawFaceBand(")
         band1 = orb.index("private void paintFaceBand(", band0)
         band = orb[band0:band1]
+        # v2.2.7 (owner order 2026-10-24, sixth pass, "look what the hell
+        # you did to the sun"): the phase pin - longitude zero LANDS ON
+        # the disc face's centre column (texW/4), never on the seam edge
+        # (texW zero). Without the quarter offset the visible window held
+        # half-faces and their mirror, and the build showed the crescent
+        # wreckage on the owner's handset.
+        self.assertIn("mod01(lam0 / SUN_LAP + 0.25f) * texW", band)
         self.assertIn("paintFaceBand(canvas, x0, cut, y0, y1, s0, texW, texH);",
                       band)
         self.assertIn("paintFaceBand(canvas, cut, x1, y0, y1, 0f, s1 - texW, texH);",
