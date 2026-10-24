@@ -138,8 +138,17 @@ public class ThinkingOrb extends View {
      * radius the drawn ball it replaced held.
      */
     private static final float SUN_SCALE = 1.18f;
-    /** The frame's destination rect for the photo disc; one, preallocated. */
+    /** The destination rect for the photo disc's frame; one, preallocated. */
     private final RectF sunDst = new RectF();
+    /**
+     * Owner order 2026-10-24 ("right now the SUN itself is not revolving,
+     * it's just like a picture there, standing still, make it revolving"):
+     * the photo disc is TURNED on its own slow bearing, this many radians
+     * per second, so the face's granulation carries the disc around while
+     * the rim and the asset's own circular clip (drawn once, radially
+     * symmetric) hide the turn everywhere but on the face itself.
+     */
+    private static final float SUN_SPIN_RATE = 0.35f;
 
     /** The one Path the prominence arcs share; reset, never reallocated. */
     private final Path promPath = new Path();
@@ -330,9 +339,15 @@ public class ThinkingOrb extends View {
             cloud[o + 3] = n * 0.7f;
             cloud[o + 4] = n * 1.9f;
         }
-        // v2.2.1: the pair threshold widens so the +30% cap is actually
-        // spent; the cloud reads as visibly more lines than v2.2.0 drew.
-        float linkAt = 0.62f;
+        // Owner order 2026-10-24 ("the lines that are revolving the SUN,
+        // they look very tangled, make them untangled and make them look
+        // nice and refined"): the pair threshold narrows from the v2.2.1
+        // 0.62 to 0.42, so a link is a short filament inside its own
+        // neighbourhood and never a long chord crossing the ball; the
+        // fade at the bottom of this file steepens to match, so whatever
+        // length the threshold leaves quietly drops away before it can
+        // cross another neighbourhood. The v2.2.1 pair cap stands.
+        float linkAt = 0.42f;
         linkCount = 0;
         for (int i = 0; i < NODES && linkCount < linkBudget(); i++) {
             for (int j = i + 1; j < NODES && linkCount < linkBudget(); j++) {
@@ -473,7 +488,16 @@ public class ThinkingOrb extends View {
         float r = ballR * SUN_SCALE * breath;
         sunDst.set(cx - r, cy - r, cx + r, cy + r);
         sunPaint.setAlpha((int) (255f * wake));
+        // The spin (owner order 2026-10-24): the disc turns on its own
+        // slow bearing about the centre, so the face's granulation
+        // revolves while the rim and the asset's circular clip (both
+        // radially symmetric, drawn once) hide the turn everywhere but
+        // on the face; the fire and the flares keep drawing after it
+        // unchanged.
+        canvas.save();
+        canvas.rotate(seconds * SUN_SPIN_RATE * MOTION_SCALE, cx, cy);
         canvas.drawBitmap(sunPhoto, null, sunDst, sunPaint);
+        canvas.restore();
     }
 
     /**
@@ -553,10 +577,12 @@ public class ThinkingOrb extends View {
             float toward = clamp((midway - 1f) / 0.6f, 0f, 1f)
                     * linkFade(linkDist[l]);
         // v2.2.1: floor 16 to 70 and reach 96 to 165, the brightness
-        // order; the fire-family ink completes the line's own warmth.
+        // order; v2.2.4: the refined filament draws thinner as it
+        // recedes, 0.85+0.65 narrowed to 0.8+0.45, so the mesh reads as
+        // fine hair instead of a tangled net.
             int alpha = (int) ((70f + 165f * toward) * wake);
             linkPaint.setAlpha(Math.min(255, alpha));
-            linkPaint.setStrokeWidth(linkWidth * (0.85f + 0.65f * toward));
+            linkPaint.setStrokeWidth(linkWidth * (0.8f + 0.45f * toward));
             canvas.drawLine(screenX[a], screenY[a], screenX[b], screenY[b],
                     linkPaint);
         }
@@ -655,8 +681,14 @@ public class ThinkingOrb extends View {
         }
     }
 
+    /**
+     * The refined fade (owner order 2026-10-24): a link keeps its full
+     * ink out to 0.14 and is GONE by 0.42 - the v2.2.1 numbers drew to
+     * 0.55 and let the longest threads cross the whole ball, which is
+     * the tangle the owner sent back.
+     */
     private float linkFade(float dist) {
-        return 1f - clamp((dist - 0.18f) / 0.37f, 0f, 1f);
+        return 1f - clamp((dist - 0.14f) / 0.28f, 0f, 1f);
     }
 
     private static long nextSeed(long seed) {

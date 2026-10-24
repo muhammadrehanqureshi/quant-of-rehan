@@ -80,7 +80,7 @@
          The number itself is the manifest's versionName, written by
          MainActivity; this prefix is the wording left of the number, and
          the sentence the page cannot read should never appear. -->
-    <string name="app_version_prefix">APP VERSION is </string>
+    <string name="app_version_prefix">APP VERSION IS </string>
     <string name="search_waiting">Symbols load with the next relay answer.</string>
     <string name="search_loading">Reading the symbol\u2026</string>
     <string name="search_unavailable">That symbol has no live quote from the relay yet.</string>
