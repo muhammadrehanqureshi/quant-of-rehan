@@ -2408,7 +2408,7 @@ class MenuOrdersTest(unittest.TestCase):
         # build showed as fused IS2.2.4; the padded prefix is its own
         # pin, so the gap can never be Lost again.
         prefix_block = self.strings[self.strings.index(
-            'name="app_version_prefix"')]
+            'name="app_version_prefix"'):]
         prefix_block = prefix_block[:prefix_block.index("</string>")]
         self.assertIn('name="app_version_prefix">APP VERSION IS ',
                       self.strings)
