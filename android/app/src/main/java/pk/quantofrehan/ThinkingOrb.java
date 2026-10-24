@@ -263,6 +263,7 @@ public class ThinkingOrb extends View {
         // ball held - 0.26f, the bigger-sun order of v2.2.1 - so the
         // photo's own sun lands exactly where the ball he replaced stood
         // (drawSun scales the destination by SUN_SCALE for that).
+        ballR = orbRadius * 0.26f;
         nodeRadius = dp(1.3f);
         linkWidth = Math.max(1f, dp(0.9f));
         clockAnchor = System.currentTimeMillis();

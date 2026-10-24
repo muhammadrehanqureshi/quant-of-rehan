@@ -516,13 +516,15 @@ class SettingsControlTest(unittest.TestCase):
         self.assertIn("new DecelerateInterpolator()", turn)
         self.assertIn(".setDuration(", turn)
         # Two view-property rotations in the whole file: the dropdown
-        # arrow's flip and this wheel's turn - and only these two.
+        # arrow's flip (inside wireDropdownArrow) and this wheel's turn.
         rotations = self.main.count(".rotation(")
         self.assertEqual(rotations, 2,
                          "the dropdown arrow's flip and the gear's turn")
-        self.assertIn("private void wireDropdownArrow",
-                      self.main[self.main.index(".rotation(open ? 180f : 0f)")
-                                - 2000:self.main.index(".rotation(open ? 180f : 0f)")])
+        arrow = self.main.index(".rotation(open ? 180f : 0f)")
+        arrow_owner = self.main.index("private void wireDropdownArrow")
+        arrow_extent = self.main.index("private void", arrow_owner + 30)
+        self.assertLess(arrow_owner, arrow)
+        self.assertLess(arrow, arrow_extent)
         self.assertNotIn("GEAR_TURN_MS", self.main)
         self.assertNotIn(
             "settings_shift",
@@ -536,15 +538,25 @@ class SettingsControlTest(unittest.TestCase):
         # below the tile). The holder is drawn from the page truth
         # exactly like the panel: visible while the settings page is,
         # gone on home, search and scanner - one toggle owns it.
-        holder = self.layout.index("@+id/themes_holder")
-        self.assertLess(self.layout.index("@+id/settings_panel"), holder)
-        holder_text = self.layout[holder:]
-        holder_text = holder_text[:holder_text.index(
-            "@+id/btn_nav_home")]
-        self.assertEqual(holder_text.count("layout=\"@layout/qor_rule\""), 2)
-        self.assertLess(holder_text.index("@+id/tile_themes"),
-                        holder_text.index("layout=\"@layout/qor_rule\"",
-                                          holder_text.index("@+id/tile_themes")))
+        root = layout_root()
+        holder = find_view(root, "@+id/themes_holder")
+        self.assertIsNotNone(holder)
+        self.assertEqual(holder.get(f"{ANDROID_NS}visibility"), "gone")
+        # Two diamond bracket rules and the tile: one rule above, one
+        # below, the tile between them, all inside the holder and
+        # nowhere else.
+        holder_rules = [node.tag for node in holder.iter()
+                        if node.tag == "include"]
+        self.assertEqual(len(holder_rules), 2)
+        for node in holder.iter():
+            if node.tag == "include":
+                self.assertEqual(node.get("layout"), "@layout/qor_rule")
+        ids = [node.get(f"{ANDROID_NS}id") for node in holder.iter()
+               if node.get(f"{ANDROID_NS}id")]
+        self.assertIn("@+id/tile_themes", ids)
+        # The holder is a sibling of the settings panel, never a child.
+        self.assertIn("@+id/settings_panel",
+                      self.layout[:self.layout.index("@+id/themes_holder")])
         # The code's one truth: setSettingsOpen toggles the holder with
         # the panel, and the search and scanner toggles take it off.
         block = self.main[self.main.index("private void setSettingsOpen(") :]
@@ -1371,7 +1383,11 @@ class StatusPulseTest(unittest.TestCase):
         self.assertIn("if (open == settingsOpen) {", body)
         self.assertIn("settingsOpen = open;", body)
         listener = self.main.index("navSettings.setOnClickListener")
-        self.assertIn("setSettingsOpen(true)",
+        # v2.2.3 (owner order 2026-10-24, fourth note): the wheel's untap
+        # closes, so the listener passes the state's flip - tap opens,
+        # untap (a second tap while open) closes - and the toggle's own
+        # early return is still what keeps a repeated call inert.
+        self.assertIn("setSettingsOpen(!settingsOpen)",
                       self.main[listener:listener + 120])
         self.assertNotIn("getVisibility() == View.GONE", self.main)
 
@@ -2509,11 +2525,16 @@ class ThinkingOrbPlanTest(unittest.TestCase):
                       orb)
         self.assertIn("int o = n * NODE_STRIDE;", orb)
         # The cloud draws FIRST, the sun after it: the organism reads as
-        # circling its star.
+        # circling its star. v2.2.3: the call order in drawScene is the
+        # pin - the photo sun's own build sits between these methods, so
+        # the definition order is no longer the draw order.
         self.assertIn("drawCloud(canvas, seconds, wake);", orb)
         self.assertIn("drawSun(canvas, seconds, wake);", orb)
-        self.assertLess(orb.index("private void drawCloud("),
-                        orb.index("private void drawSun("))
+        scene_index = orb.index("private void drawScene(")
+        scene = orb[scene_index:scene_index + 700]
+        self.assertIn("drawCloud(canvas, seconds, wake);", scene)
+        self.assertLess(scene.index("drawCloud(canvas, seconds, wake);"),
+                        scene.index("drawSun(canvas, seconds, wake);"))
         # The sun keeps its slow revolving arcs.
         self.assertIn("seconds * promSpeed[p] * MOTION_SCALE;", orb)
         # The wake ramp is the v1.8.9 number, so the organism grows out of
