@@ -49,8 +49,13 @@
          the ranking is, never that a split is order flow (SO-3); the
          split's method stays labelled on the relay's own answer. -->
     <string name="label_volume">CUSTOM SCRIPS OF VOL.</string>
+    <!-- v2.2.5 (owner order 2026-10-24, fourth note): the menu's first
+         row is now the SCANNER's own entry - "PRICES RISING FAST", the
+         three fast risers the day's tape carries, capped scrips out -
+         followed by the two rankings he named before. It reads what
+         the ranking is, never that a split is order flow (SO-3). -->
+    <string name="volume_speed_caption">PRICES RISING FAST</string>
     <string name="volume_split_caption">MORE BUYERS &amp; LESS SELLERS</string>
-    <string name="volume_speed_caption">PRICE MOVING FAST</string>
 
     <!-- ══════════ THEMES tile (owner order 2026-10-23) ══════════
          Five looks, each a (background, heading colour) pair read in the
@@ -79,7 +84,11 @@
          on the settings page, exactly like "APP VERSION is 2.2.1" (v2.2.1).
          The number itself is the manifest's versionName, written by
          MainActivity; this prefix is the wording left of the number, and
-         the sentence the page cannot read should never appear. -->
+         the sentence the page cannot read should never appear. -->    <!-- v2.2.5: the owner's own wording again, after the sent-back
+         build showed APP VERSION IS2.2.4 fused - the trailing space
+         before `2.2.4` belongs HERE, and was lost when the source
+         carried it. The resource line is padded, the join is code
+         and the assertion below pins both. -->
     <string name="app_version_prefix">APP VERSION IS </string>
     <string name="search_waiting">Symbols load with the next relay answer.</string>
     <string name="search_loading">Reading the symbol\u2026</string>

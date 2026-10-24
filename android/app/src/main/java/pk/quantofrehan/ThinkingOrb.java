@@ -187,6 +187,16 @@ public class ThinkingOrb extends View {
     private final int[] linkA = new int[linkBudget()];
     private final int[] linkB = new int[linkBudget()];
     private final float[] linkDist = new float[linkBudget()];
+    /**
+     * Owner order 2026-10-24, fourth pass ("the lines that are moving
+     * outside the SUN, make them look like they are breathing, like
+     * the lines will get a bit short and then will get long"): each
+     * filament gets its own breath phase, one golden-angle step apart,
+     * so the mesh breathes with a ripple instead of every line
+     * twitching in unison. Preallocated once per size, like the rest
+     * of the link bookkeeping.
+     */
+    private final float[] linkPhase = new float[linkBudget()];
     private int linkCount;
 
     private long clockAnchor;
@@ -359,6 +369,10 @@ public class ThinkingOrb extends View {
                     linkA[linkCount] = i;
                     linkB[linkCount] = j;
                     linkDist[linkCount] = dist;
+                    // One golden-angle step per link: the multiplying
+                    // constant spreads the phases around the circle so
+                    // no two neighbours breathe in perfect step.
+                    linkPhase[linkCount] = 2.39996f * linkCount;
                     linkCount++;
                 }
             }
@@ -495,7 +509,15 @@ public class ThinkingOrb extends View {
         // on the face; the fire and the flares keep drawing after it
         // unchanged.
         canvas.save();
-        canvas.rotate(seconds * SUN_SPIN_RATE * MOTION_SCALE, cx, cy);
+        // v2.2.5 (owner order 2026-10-24, fourth pass, "even now the SUN
+        // is not revolving, and it's just flickering now"): the platform's
+        // rotate takes DEGREES, and the third pass handed it radians - at
+        // 0.455 deg/s the disc needed a thirteen-minute lap, which is why
+        // the face stood still while the limb fire's own pulsing read as
+        // the only motion. The turn is real now: the photo's own
+        // granulation carries the star visibly around, like the Earth.
+        canvas.rotate((float) Math.toDegrees(
+                seconds * SUN_SPIN_RATE * MOTION_SCALE), cx, cy);
         canvas.drawBitmap(sunPhoto, null, sunDst, sunPaint);
         canvas.restore();
     }
@@ -583,8 +605,25 @@ public class ThinkingOrb extends View {
             int alpha = (int) ((70f + 165f * toward) * wake);
             linkPaint.setAlpha(Math.min(255, alpha));
             linkPaint.setStrokeWidth(linkWidth * (0.8f + 0.45f * toward));
-            canvas.drawLine(screenX[a], screenY[a], screenX[b], screenY[b],
-                    linkPaint);
+            // Owner order 2026-10-24, fourth pass ("the lines that are
+            // moving outside the SUN, make them look like they are
+            // breathing, like the lines will get a bit short and then
+            // will get long"): every filament SHORTENS to a bit short
+            // and reaches back out to a bit long, one breath period,\n            // each link a golden-angle step apart. The breath shrinks
+            // the line around its own MIDPOINT, so the swing never
+            // detaches the filament from the nodes it joins.
+            float breath = 1f + 0.12f * (float) Math.sin(
+                    seconds * 0.7f * MOTION_SCALE + linkPhase[l]);
+            float ax = screenX[a];
+            float ay = screenY[a];
+            float bx = screenX[b];
+            float by = screenY[b];
+            float midX = (ax + bx) / 2f;
+            float midY = (ay + by) / 2f;
+            canvas.drawLine(midX + (ax - midX) * breath,
+                    midY + (ay - midY) * breath,
+                    midX + (bx - midX) * breath,
+                    midY + (by - midY) * breath, linkPaint);
         }
         for (int n = 0; n < NODES; n++) {
             int o = n * NODE_STRIDE;
@@ -612,7 +651,11 @@ public class ThinkingOrb extends View {
             // (0.55/0.55 to 0.72/0.28, 0.4/0.6 to 0.75/0.25) and the rate
             // multiplier drops 1.7x to 1.1x - the rim rolls instead of
             // strobing.
-            float len = flameLength[f] * (0.72f + 0.28f * (float) Math.sin(
+            // v2.2.5: the swing narrows again (0.72/0.28 to 0.82/0.18) -
+            // the tongue breathes in LENGTH alone, its ink now steady,
+            // because the alpha swing was the flicker the owner sent
+            // back. The alpha floor stands below.
+            float len = flameLength[f] * (0.82f + 0.18f * (float) Math.sin(
                     seconds * flameRate[f] * 1.1f * MOTION_SCALE
                             + flamePhase[f] * 2f));
             if (len < 0.02f) {
@@ -621,8 +664,7 @@ public class ThinkingOrb extends View {
             canvas.save();
             canvas.translate(cx + ballR * (float) Math.cos(angle),
                     cy + ballR * (float) Math.sin(angle));
-            sunFlame.setAlpha(Math.min(255, (int) (170f * (0.75f + 0.25f
-                    * len / 0.22f) * wake)));
+            sunFlame.setAlpha(Math.min(255, (int) (170f * wake)));
             canvas.drawCircle(0f, 0f, ballR * len, sunFlame);
             canvas.restore();
         }
@@ -649,8 +691,7 @@ public class ThinkingOrb extends View {
                             * (float) Math.sin(roll),
                     cx + ballR * (float) Math.cos(a1),
                     cy + ballR * (float) Math.sin(a1));
-            sunProm.setAlpha(Math.min(255, (int) (185f
-                    * (0.35f + 0.65f * leap) * wake)));
+            sunProm.setAlpha(Math.min(255, (int) (185f * wake)));
             canvas.drawPath(promPath, sunProm);
         }
     }
