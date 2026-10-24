@@ -531,8 +531,12 @@ class CycleOutcomeTest(unittest.TestCase):
 
     def test_the_post_market_cycle_scans_and_is_counted(self):
         # OWNER 2026-10-21: the post-market window is a scan window now, so
-        # a cycle there is a scan cycle. The scheduled finalize lives in the
-        # capture workflow and is covered by that workflow's own tests.
+        # a cycle there is a scan cycle. Owner order 2026-10-24: that cycle
+        # is a COUNTED scan (health.scans includes it), because the owner
+        # reads the day's scan count off the health card and a post-market
+        # scan of the finished tape is a real scan. The scheduled finalize
+        # lives in the capture workflow and is covered by that workflow's
+        # own tests.
         loop = self.loop(at(MONDAY, 15, 35))
         with patch.object(scan_loop.SessionState, "load", return_value=_OPEN_DAY), \
              patch.object(pipeline, "run_finalize",
@@ -540,10 +544,9 @@ class CycleOutcomeTest(unittest.TestCase):
                                                     "storage_status": "archived"}}):
             action, outcome = loop.run_cycle()
         self.assertEqual(action, "scan")
-        # Without a captured tape behind this synthetic clock the scan cycle
-        # reports no outcome record, so the pin here is the action and the
-        # health counters, not the verdict.
-        self.assertEqual(loop.health.scans, 0)
+        # Owner order 2026-10-24: the post-market cycle is a COUNTED scan -
+        # a scan of the day's finished tape is a real scan of that day.
+        self.assertEqual(loop.health.scans, 1)
         self.assertEqual(loop.health.cycles, 1)
 
     def test_a_waiting_cycle_reports_no_outcome(self):
