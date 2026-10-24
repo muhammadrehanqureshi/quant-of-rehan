@@ -8,6 +8,7 @@ import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.PorterDuff;
 import android.graphics.PorterDuffXfermode;
+import android.graphics.Matrix;
 import android.graphics.RadialGradient;
 import android.graphics.Rect;
 import android.graphics.RectF;
@@ -138,17 +139,44 @@ public class ThinkingOrb extends View {
      * radius the drawn ball it replaced held.
      */
     private static final float SUN_SCALE = 1.18f;
-    /** The destination rect for the photo disc's frame; one, preallocated. */
-    private final RectF sunDst = new RectF();
+    /**
+     * The longitude draw's own pair of rect books (one source, one dest),
+     * preallocated: every band of every frame reuses them and nothing is
+     * ever allocated on the frame path.
+     */
+    private final Rect bandSrc = new Rect();
+    private final RectF bandDst = new RectF();
+    /**
+     * Owner order 2026-10-24, fifth pass ("make the SUN revolve in
+     * X-axis"): the face's plane leans by this many degrees, the way the
+     * Earth's own axis leans, so the travel visibly reads as a revolve
+     * about a tilted axis rather than a flat slide. Static: the tilt is
+     * the pose, the travel supplies all the motion.
+     */
+    private static final float SUN_AXIS_TILT = 10f;
+    /**
+     * The longitude sample count: at the phone's silver sizes this keeps
+     * the mapping visually smooth and well inside the frame budget.
+     */
+    private static final int SUN_STRIPS = 40;
+    /** One revolution of the face's longitude loop. */
+    private static final float SUN_LAP = (float) (2f * Math.PI);
     /**
      * Owner order 2026-10-24 ("right now the SUN itself is not revolving,
      * it's just like a picture there, standing still, make it revolving"):
-     * the photo disc is TURNED on its own slow bearing, this many radians
-     * per second, so the face's granulation carries the disc around while
-     * the rim and the asset's own circular clip (drawn once, radially
-     * symmetric) hide the turn everywhere but on the face itself.
+     * the face TRAVELS - the photo is redrawn in longitude bands each
+     * frame (drawSun), so the sun's own granulation slides from limb to
+     * limb the way the Earth's turn reads from space, instead of the
+     * picture standing still.
      */
     private static final float SUN_SPIN_RATE = 0.35f;
+    /**
+     * Owner order 2026-10-24, fifth pass ("reduce its revolving speed by
+     * 10% from the current speed"): the bearing above runs at 10% under
+     * the speed the owner last saw, carried as one named factor so the
+     * pace stays one decision.
+     */
+    private static final float SUN_SLOWDOWN = 0.9f;
 
     /** The one Path the prominence arcs share; reset, never reallocated. */
     private final Path promPath = new Path();
@@ -489,6 +517,23 @@ public class ThinkingOrb extends View {
      * face. The disc breathes gently in size and rides the wake in
      * alpha, exactly the never-goes-dark law the drawn ball kept.
      */
+    /**
+     * The revolve (owner order 2026-10-24, fifth pass, "make the SUN
+     * revolve in X-axis and reduce its revolving speed by 10% from the
+     * current speed", on the v2.2.5 build he still sent back for
+     * flicker): the flat in-plane rotate is RETIRED - turning a whole
+     * photograph in the plane is what read as flicker - and the face
+     * now TRAVELS the way the Earth's turn reads from space: the photo
+     * is resampled in SUN_STRIPS longitude bands each frame, band i
+     * drawing the texture where asin(2x/r - 1) puts its line, so the
+     * face's own granulation slides from limb to limb with a real
+     * foreshortening at the edges while the composed rim's radial fade
+     * and the circular clip hide the fold. The axis leans the owner's
+     * SUN_AXIS_TILT, so the travel reads as a revolve in X. The pace is
+     * the third pass's bearing under the owner's own 10% cut
+     * (SUN_SLOWDOWN), and every term rides the frame clock, so the
+     * frozen-second park law holds the pose for free.
+     */
     private void drawSun(Canvas canvas, float seconds, float wake) {
         if (sunPhoto == null) {
             return;     // no asset, no picture invented in its place (SO-3)
@@ -500,26 +545,69 @@ public class ThinkingOrb extends View {
         // factor renders the picture's own sun at the ball radius the
         // drawn sun he retired carried.
         float r = ballR * SUN_SCALE * breath;
-        sunDst.set(cx - r, cy - r, cx + r, cy + r);
         sunPaint.setAlpha((int) (255f * wake));
-        // The spin (owner order 2026-10-24): the disc turns on its own
-        // slow bearing about the centre, so the face's granulation
-        // revolves while the rim and the asset's circular clip (both
-        // radially symmetric, drawn once) hide the turn everywhere but
-        // on the face; the fire and the flares keep drawing after it
-        // unchanged.
         canvas.save();
-        // v2.2.5 (owner order 2026-10-24, fourth pass, "even now the SUN
-        // is not revolving, and it's just flickering now"): the platform's
-        // rotate takes DEGREES, and the third pass handed it radians - at
-        // 0.455 deg/s the disc needed a thirteen-minute lap, which is why
-        // the face stood still while the limb fire's own pulsing read as
-        // the only motion. The turn is real now: the photo's own
-        // granulation carries the star visibly around, like the Earth.
-        canvas.rotate((float) Math.toDegrees(
-                seconds * SUN_SPIN_RATE * MOTION_SCALE), cx, cy);
-        canvas.drawBitmap(sunPhoto, null, sunDst, sunPaint);
+        // The standing tilt: the pose; the longitude carries the motion.
+        canvas.rotate(SUN_AXIS_TILT, cx, cy);
+        // The longitude line: band i takes destination x in [-r, r], maps
+        // it by the asin(2x/r - 1) of a sphere to the longitude visible
+        // there, and rides the bearing across the texture.
+        float phi = seconds * SUN_SPIN_RATE * MOTION_SCALE * SUN_SLOWDOWN;
+        for (int i = 0; i < SUN_STRIPS; i++) {
+            float x0 = 2f * r * i / SUN_STRIPS;
+            float x1 = 2f * r * (i + 1) / SUN_STRIPS;
+            float u0 = clamp(x0 / r - 1f, -1f, 1f);
+            float u1 = clamp(x1 / r - 1f, -1f, 1f);
+            drawFaceBand(canvas,
+                    cx - r + x0, cx - r + x1, cy - r, cy + r,
+                    phi + (float) Math.asin(u0),
+                    phi + (float) Math.asin(u1));
+        }
         canvas.restore();
+    }
+
+    /**
+     * One longitude band of the face: the destination strip [x0, x1] x
+     * [y0, 1] draws the texture's longitude window [lam0, lam1]; the
+     * texture is the seam-free loop of buildSunPhoto, so a band whose
+     * window crosses the loop's edge splits into two draws instead of
+     * a seam. Built once, preallocated, never allocated on the frame
+     * path.
+     */
+    private void drawFaceBand(Canvas canvas, float x0, float x1,
+            float y0, float y1, float lam0, float lam1) {
+        float texW = sunPhoto.getWidth();
+        int texH = sunPhoto.getHeight();
+        float span = (lam1 - lam0) / SUN_LAP * texW;
+        float s0 = mod01(lam0 / SUN_LAP) * texW;
+        float s1 = s0 + span;
+        if (s1 <= texW) {
+            paintFaceBand(canvas, x0, x1, y0, y1, s0, s1, texH);
+            return;
+        }
+        // The window crosses the loop's own edge: two draws, split where
+        // the texture runs out, so the face never shows a jump line.
+        float cut = x0 + (x1 - x0) * (texW - s0) / span;
+        paintFaceBand(canvas, x0, cut, y0, y1, s0, texW, texH);
+        paintFaceBand(canvas, cut, x1, y0, y1, 0f, s1 - texW, texH);
+    }
+
+    /** One continuous (non-wrapping) window into the seam-free loop. */
+    private void paintFaceBand(Canvas canvas, float x0, float x1,
+            float y0, float y1, float s0, float s1, int texH) {
+        if (x1 - x0 < 0.25f || s1 - s0 < 0.25f) {
+            return;     // the asin fold's sliver at either limb
+        }
+        bandSrc.set((int) Math.round(s0), 0,
+                Math.max((int) Math.round(s0) + 1,
+                        (int) Math.round(s1)), texH);
+        bandDst.set(x0, y0, x1, y1);
+        canvas.drawBitmap(sunPhoto, bandSrc, bandDst, sunPaint);
+    }
+
+    /** Wrap a fraction into [0, 1): the loop's own modulus. */
+    private static float mod01(float v) {
+        return ((v % 1f) + 1f) % 1f;
     }
 
     /**
@@ -528,8 +616,16 @@ public class ThinkingOrb extends View {
      * ONCE per size and never on the frame path: the square carried over
      * drawable-nodpi keeps its own pixels, they are clamped to a circle
      * at the limb, and a short DST_OUT fade softens the very rim so the
-     * clip edge never shows the way a coin edge would. The asset is
-     * recycled off; the frame only ever draws the composed disc.
+     * clip edge never shows the way a coin edge would.
+     *
+     * The seam-free loop (owner order 2026-10-24, fifth pass): the face
+     * now resamples in longitude bands, and a plain square would re-enter
+     * its left edge from its right edge at the tube of the lap - a seam.
+     * So the composed side is laid down beside ITS OWN MIRROR, each half
+     * rim-faded and circle-clipped: every edge column of the loop is
+     * shared by identical pixels, and the longitude line can cross the
+     * fold without a jump. The asset is recycled off; the frame only
+     * ever draws the composed loop.
      */
     private void buildSunPhoto() {
         Bitmap asset = BitmapFactory.decodeResource(
@@ -539,13 +635,14 @@ public class ThinkingOrb extends View {
             return;
         }
         int size = Math.max(96, Math.min(768, asset.getWidth()));
-        sunPhoto = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
-        Canvas work = new Canvas(sunPhoto);
-        int side = asset.getWidth();
+        // The disc once: clip to the circle, fade the rim, exactly the
+        // composition the drawn-ball era drew.
+        Bitmap disc = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
+        Canvas work = new Canvas(disc);
         Path circle = new Path();
         circle.addCircle(size / 2f, size / 2f, size / 2f, Path.Direction.CW);
         work.clipPath(circle);
-        work.drawBitmap(asset, new Rect(0, 0, side, side),
+        work.drawBitmap(asset, new Rect(0, 0, size, size),
                 new Rect(0, 0, size, size), null);
         // The rim fade: transparent over the burn, opaque only at the
         // very edge, punched OUT of the composed disc.
@@ -555,6 +652,16 @@ public class ThinkingOrb extends View {
                 new float[]{0f, 0.86f, 1f}, Shader.TileMode.CLAMP));
         rim.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.DST_OUT));
         work.drawCircle(size / 2f, size / 2f, size / 2f, rim);
+        // The loop: the disc and its own mirror, so every longitude seam
+        // is pixels meeting themselves and the wrap cannot show.
+        sunPhoto = Bitmap.createBitmap(size * 2, size,
+                Bitmap.Config.ARGB_8888);
+        Canvas loop = new Canvas(sunPhoto);
+        loop.drawBitmap(disc, 0f, 0f, null);
+        Matrix mirror = new Matrix();
+        mirror.setScale(-1f, 1f);
+        mirror.postTranslate(size * 2f, 0f);
+        loop.drawBitmap(disc, mirror, null);
         asset.recycle();
     }
 

@@ -1672,9 +1672,13 @@ class VersionTest(unittest.TestCase):
         # the version line can no longer fuse, the dropdowns and search
         # boxes follow the app's current theme, and the volume menu's
         # first entry is the scanner's fast risers with capped out.
+        # v2.2.6 is owner order 2026-10-24, fifth pass continued: the sun's
+        # revolve is a longitude travel (X-axis) under the owner's own
+        # 10% cut, every rule line tapers with its fade, and the fused
+        # version gap is closed with a quoted resource literal.
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="2.2.5"', manifest)
-        self.assertIn('android:versionCode="63"', manifest)
+        self.assertIn('android:versionName="2.2.6"', manifest)
+        self.assertIn('android:versionCode="64"', manifest)
         # The changelog entry ties these user-visible changes to the build.
         readme = (ROOT / "android" / "README.md").read_text(encoding="utf-8")
         self.assertIn("v1.7.9, owner order 2026-10-20", readme)
@@ -1707,9 +1711,10 @@ class VersionTest(unittest.TestCase):
         self.assertIn("Version 2.2.3, versionCode 61", readme)
         self.assertIn("Version 2.2.4, versionCode 62", readme)
         self.assertIn("Version 2.2.5, versionCode 63", readme)
+        self.assertIn("Version 2.2.6, versionCode 64", readme)
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionCode="63"', manifest)
-        self.assertIn('android:versionName="2.2.5"', manifest)
+        self.assertIn('android:versionCode="64"', manifest)
+        self.assertIn('android:versionName="2.2.6"', manifest)
         layout = LAYOUT.read_text(encoding="utf-8")
         strings = STRINGS.read_text(encoding="utf-8")
         main = MAIN.read_text(encoding="utf-8")
@@ -2404,16 +2409,19 @@ class MenuOrdersTest(unittest.TestCase):
         self.assertIn('style="@style/QorCaption"', version)
         # Owner order 2026-10-24, third pass: the wording is HIS OWN
         # ("change the wording like this APP VERSION IS (VERSION NUMBER)").
-        # v2.2.5: the prefix carries the trailing space the sent-back
-        # build showed as fused IS2.2.4; the padded prefix is its own
-        # pin, so the gap can never be Lost again.
+        # v2.2.6: the gap was fused AGAIN on the sent-back v2.2.5 build
+        # ("it's like this right now 'APP VERSION IS2.5.5'") because
+        # aapt2 trims UNQUOTED leading/trailing whitespace of a string
+        # resource at build time; the prefix literal is QUOTED now, and
+        # the quoted gap is its own pin, so the gap can never be lost
+        # again.
         prefix_block = self.strings[self.strings.index(
             'name="app_version_prefix"'):]
         prefix_block = prefix_block[:prefix_block.index("</string>")]
-        self.assertIn('name="app_version_prefix">APP VERSION IS ',
+        self.assertIn('name="app_version_prefix">"APP VERSION IS "',
                       self.strings)
-        self.assertTrue(prefix_block.rstrip("\r\n").endswith("IS "),
-                        "the prefix pads its own space: it ends in \"IS \"")
+        self.assertTrue(prefix_block.rstrip("\r\n").endswith('IS "'),
+                        "the prefix pads its own space: it ends in 'IS '")
         # The number is the manifest's own versionName, the same one the
         # build prints: the page and the APK cannot disagree.
         self.assertIn("getPackageInfo(getPackageName(), 0).versionName;",
@@ -2675,44 +2683,62 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         self.assertNotIn("Thread.sleep", orb)
         self.assertNotIn("ValueAnimator", orb)
 
-    def test_the_sun_revolves_on_its_own_bearing(self):
+    def test_the_sun_revolves_in_x_like_the_earth(self):
         orb = (MAIN.parent / "ThinkingOrb.java").read_text(
             encoding="utf-8")
         """Owner order 2026-10-24, third pass ("right now the SUN itself
         is not revolving, it's just like a picture there, standing
-        still, make it revolving"): the photo disc turns on its own
-        slow bearing about the centre, so the face's granulation
-        carries the star around instead of the picture standing still.
+        still, make it revolving"), carried as a longitude travel from
+        the fifth pass ("also make the SUN revolve in X-axis and
+        reduce it's revolving speed by 10% from the current speed"):
+        the face's own granulation slides limb to limb, band by band,
+        the way the Earth's turn reads from space, instead of the
+        picture standing still or the whole photo spinning in plane.
         """
         # One named rate, turned by the owner's own 30% motion law.
         self.assertIn("SUN_SPIN_RATE = 0.35f", orb)
-        # v2.2.5 (owner order 2026-10-24, fourth pass, "even now the SUN
-        # is not revolving, and it's just flickering now"): the platform
-        # rotate takes DEGREES and v2.2.4 handed it radians, so the disc
-        # crept a lap in thirteen minutes and the only visible motion
-        # was the fire's own pulsing - the flicker he reported. The
-        # turn is the real one: toDegrees! is the pin, and the bare
-        # radians call is gone for good.
-        self.assertIn("(float) Math.toDegrees(", orb)
-        self.assertIn("seconds * SUN_SPIN_RATE * MOTION_SCALE), cx, cy);", orb)
-        self.assertNotIn(
-            "canvas.rotate(seconds * SUN_SPIN_RATE * MOTION_SCALE, cx, cy);",
-            orb)
-        # The turn happens around the centre INSIDE drawSun, between a
-        # save and a restore, so only the picture rotates and the
-        # drawing state never leaks into the fire and the flares.
+        # v2.2.6 (owner order 2026-10-24, fifth pass, "also make the SUN
+        # revolve in X-axis and reduce it's revolving speed by 10% from
+        # the current speed"): the flat in-plane rotate is retired for
+        # good - turning a whole photograph in the plane was the flicker
+        # the owner sent back - and the face TRAVELS in longitude bands
+        # like the Earth's turn reads from space; the pace carries the
+        # owner's own named 10% cut.
+        self.assertNotIn("Math.toDegrees", orb)
+        self.assertIn("SUN_SLOWDOWN = 0.9f", orb)
+        self.assertIn("SUN_AXIS_TILT = 10f", orb)
+        self.assertIn("SUN_STRIPS = 40", orb)
+        self.assertIn("SUN_LAP = (float) (2f * Math.PI);", orb)
         method0 = orb.index("private void drawSun(")
-        method1 = orb.index("private void buildSunPhoto(", method0)
+        method1 = orb.index("private void drawFaceBand(", method0)
         method = orb[method0:method1]
         self.assertIn("canvas.save();", method)
+        tilt = method.index("canvas.rotate(SUN_AXIS_TILT, cx, cy);")
+        self.assertLess(method.index("canvas.save();"), tilt)
+        self.assertGreater(method.index("canvas.restore();"), tilt)
+        # The travel: the face's longitude line maps the disc by the
+        # asin(2x/r - 1) of a sphere, band by band, SUN_STRIPS bands a
+        # frame, under the owner's own slowed pace.
         self.assertIn(
-            "seconds * SUN_SPIN_RATE * MOTION_SCALE), cx, cy);", method)
-        rotate = method.index("canvas.rotate")
-        self.assertLess(method.index("canvas.save();"), rotate)
-        self.assertGreater(method.index("canvas.restore();"), rotate)
-        # The spin rides the same frame clock the breathing does: the
-        # frozen-second park law keeps the pose for free.
-        self.assertIn("seconds * SUN_SPIN_RATE", method)
+            "seconds * SUN_SPIN_RATE * MOTION_SCALE * SUN_SLOWDOWN", method)
+        self.assertIn("(float) Math.asin(u0)", method)
+        self.assertIn("(float) Math.asin(u1)", method)
+        # The seam-free loop exists so the travel never shows a jump
+        # line: the composed disc laid beside its own mirror, and a
+        # window crossing the loop's edge splits into two draws.
+        self.assertIn("loop.drawBitmap(disc, 0f, 0f, null);", orb)
+        self.assertIn("loop.drawBitmap(disc, mirror, null);", orb)
+        self.assertIn("mirror.setScale(-1f, 1f);", orb)
+        # The split lives in the band's own helper, not in drawSun: the
+        # two draws are the seam law of drawFaceBand, one window per
+        # call, each painting the pixels its own destination holds.
+        band0 = orb.index("private void drawFaceBand(")
+        band1 = orb.index("private void paintFaceBand(", band0)
+        band = orb[band0:band1]
+        self.assertIn("paintFaceBand(canvas, x0, cut, y0, y1, s0, texW, texH);",
+                      band)
+        self.assertIn("paintFaceBand(canvas, cut, x1, y0, y1, 0f, s1 - texW, texH);",
+                      band)
 
     def test_v2_2_5_the_fire_is_steady_and_the_lines_breathe(self):
         orb = (MAIN.parent / "ThinkingOrb.java").read_text(

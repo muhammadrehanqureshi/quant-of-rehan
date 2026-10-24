@@ -19,8 +19,12 @@
      one-icon highlight law, and the version line moved under the
      themes tile's closing diamond in his own wording.
 
-     versionCode 63 / versionName 2.2.5 belong to the owner order
-     2026-10-24, fourth pass: the sun actually TURNS (the platform's
+     versionCode 64 / versionName 2.2.6 belong to the owner order
+     2026-10-24, fifth pass continued (the sun's revolve is a
+     longitude travel under the owner's own 10% cut, every rule line
+     tapers with its fade, and the fused version gap is closed with a
+     quoted resource literal), standing on the fourth pass: the sun
+     actually TURNS (the platform's
      degrees-and-radians bug found and fixed, fire steady, no flicker),
      the orbiting lines breathe (each shorter then longer, one breath
      period, no two in step), the version line can no longer fuse
@@ -31,8 +35,8 @@
      sellers, total volume, price and percentage. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="pk.quantofrehan"
-    android:versionCode="63"
-    android:versionName="2.2.5">
+    android:versionCode="64"
+    android:versionName="2.2.6">
 
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="30"/>
 

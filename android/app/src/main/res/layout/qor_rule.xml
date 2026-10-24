@@ -1,16 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- The brand rule: a hairline, the logo's diamond, a hairline.
+<!-- The brand rule: a tapering hairline, the logo's diamond, a hairline.
 
      Owner order 2026-10-12 (third note): the diamond rule closes the market
      card, "just like you have it on the two different places above". Owner
      order 2026-10-13 (second note): it also divides the system status tile
      from the latest signal tile, and the one that closed the market card from
-     inside it now stands immediately after that tile's boundary. It is
-     defined once and included everywhere it appears, so "the same as the
-     others" is true by construction rather than by copies drifting apart,
-     and the diamond keeps the system face (QorDiamond sets no fontFamily:
-     named as U+25C6, it exists in no bundled face, so a custom font there
-     would render a box).
+     inside it now stands immediately after that tile's boundary. Owner order
+     2026-10-24 (the picture he sent with it): both lines FADE at their outer
+     ends AND GET THINNER as they fade - drawable/rule_taper.xml, the lens
+     whose ink widens toward the diamond; the LEFT half is the drawable as
+     drawn (thin end outboard), the RIGHT half the same drawable rotated
+     180, so the two halves can never disagree. It is defined once and
+     included everywhere it appears, so "the same as the others" is true by
+     construction rather than by copies drifting apart, and the diamond keeps
+     the system face (QorDiamond sets no fontFamily: named as U+25C6, it
+     exists in no bundled face, so a custom font there would render a box).
 
      The caller supplies the margins, because the spacing differs: the rule
      under the header sits closer to the brand than the ones that divide the
@@ -21,11 +25,13 @@
     android:gravity="center_vertical"
     android:orientation="horizontal">
 
-    <View
+    <ImageView
         android:layout_width="0dp"
-        android:layout_height="1dp"
+        android:layout_height="2dp"
         android:layout_weight="1"
-        android:background="@color/gold_deep"/>
+        android:contentDescription="@null"
+        android:scaleType="fitXY"
+        android:src="@drawable/rule_taper"/>
 
     <TextView
         style="@style/QorDiamond"
@@ -35,9 +41,12 @@
         android:paddingRight="8dp"
         android:text="@string/diamond"/>
 
-    <View
+    <ImageView
         android:layout_width="0dp"
-        android:layout_height="1dp"
+        android:layout_height="2dp"
         android:layout_weight="1"
-        android:background="@color/gold_deep"/>
+        android:contentDescription="@null"
+        android:rotation="180"
+        android:scaleType="fitXY"
+        android:src="@drawable/rule_taper"/>
 </LinearLayout>
