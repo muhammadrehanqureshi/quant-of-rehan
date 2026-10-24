@@ -583,9 +583,9 @@ class TestCloudflareSchedule(unittest.TestCase):
              (14, 32, frozenset({5})),
              (15, 32, frozenset({1, 2, 3, 4})),
              (16, 32, frozenset({5}))],
-            "the session loop must offer exactly the six runnable windows:
-            Mon-Thu pre/band1, band 2 and post-market, Friday band 1 and
-            band 2, and Friday's own post-market window at 16:32 "
+            "the session loop must offer exactly the six runnable windows: "
+            "Mon-Thu pre/band1, band 2 and post-market, Friday band 1 and "
+            "band 2, and Friday's own post-market window at 16:32 "
             "(owner order 2026-10-24)")
 
         # The worker's dispatcher table must carry the same window list, and
