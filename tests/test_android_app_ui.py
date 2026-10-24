@@ -2397,9 +2397,10 @@ class MenuOrdersTest(unittest.TestCase):
         # themes tile"): the line left the station above the pinned menu
         # bar for the THEMES holder, after the tile's closing rule, so
         # the number sits under the bracket it closes.
-        version = find_view(self.root, "@+id/app_version")
+        root = layout_root()
+        version = find_view(root, "@+id/app_version")
         self.assertIsNotNone(version)
-        holder = parent_of(self.root, version)
+        holder = parent_of(root, version)
         assert holder is not None
         self.assertEqual(holder.get(f"{ANDROID_NS}id"), "@+id/themes_holder")
         # Inside the holder: the tile, its TWO diamond includes, then the
