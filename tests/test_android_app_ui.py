@@ -668,14 +668,16 @@ class BrandRuleTest(unittest.TestCase):
     def test_the_rule_is_defined_once_and_included_at_every_division(self):
         self.assertIn("QorDiamond", self.rule)
         self.assertIn('android:text="@string/diamond"', self.rule)
-        # Seven rules on the console since v2.2.3 (owner order 2026-10-24):
-        # the brand rule under the header, the three the home tiles
-        # carry, the TWO the THEMES tile wears of its own - the
-        # qor_rule include again, one diamond rule above it and one
+        # Eight rules on the console since v2.2.4 (owner order 2026-10-24,
+        # third pass): the brand rule under the header, the three the
+        # home tiles carry, the TWO the THEMES tile wears of its own -
+        # the qor_rule include again, one diamond rule above it and one
         # below it (owner order 2026-10-23, v2.2.1: "have separate diamond and
-        # 2 lines around it, up side and down side") - and the search
+        # 2 lines around it, up side and down side") - the search
         # page's diamond rule above the search tile, back by the owner's
-        # v2.2.3 order after the v1.9.13 cancellation took it away. The
+        # v2.2.3 order after the v1.9.13 cancellation took it away, and
+        # the volume pair's own rule between the search tile and the
+        # CUSTOM SCRIPS OF VOL. tile. The
         # pair that used to bracket the menu tile pinned at the very
         # bottom is still GONE (the owner read the diamond above and
         # below the pinned bar as clutter around a fixed bar), and the
@@ -683,8 +685,9 @@ class BrandRuleTest(unittest.TestCase):
         # page's second diamond as an extra one; the themes bracket is
         # the diamond the settings page carries now). One rule per
         # division, never two, is the standing law the themes bracket
-        # honours: there the owner ASKED for the bracket.
-        self.assertEqual(self.layout.count('layout="@layout/qor_rule"'), 7)
+        # honours: there the owner ASKED for the bracket, and so does
+        # the search-volume pair's own.
+        self.assertEqual(self.layout.count('layout="@layout/qor_rule"'), 8)
 
     def test_the_rules_stand_between_the_tiles_and_never_inside_them(self):
         root = layout_root()
@@ -1665,8 +1668,8 @@ class VersionTest(unittest.TestCase):
         # diamond bracket, the search page's diamond rule is back above the
         # tile, and the CUSTOM SCRIPS OF VOL. tile is off the search page.
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="2.2.3"', manifest)
-        self.assertIn('android:versionCode="61"', manifest)
+        self.assertIn('android:versionName="2.2.4"', manifest)
+        self.assertIn('android:versionCode="62"', manifest)
         # The changelog entry ties these user-visible changes to the build.
         readme = (ROOT / "android" / "README.md").read_text(encoding="utf-8")
         self.assertIn("v1.7.9, owner order 2026-10-20", readme)
@@ -1697,9 +1700,10 @@ class VersionTest(unittest.TestCase):
         self.assertIn("Version 2.2.0, versionCode 58", readme)
         self.assertIn("Version 2.2.1, versionCode 59", readme)
         self.assertIn("Version 2.2.3, versionCode 61", readme)
+        self.assertIn("Version 2.2.4, versionCode 62", readme)
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionCode="61"', manifest)
-        self.assertIn('android:versionName="2.2.3"', manifest)
+        self.assertIn('android:versionCode="62"', manifest)
+        self.assertIn('android:versionName="2.2.4"', manifest)
         layout = LAYOUT.read_text(encoding="utf-8")
         strings = STRINGS.read_text(encoding="utf-8")
         main = MAIN.read_text(encoding="utf-8")
