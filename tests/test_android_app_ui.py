@@ -1667,9 +1667,14 @@ class VersionTest(unittest.TestCase):
         # close, the THEMES tile stands alone on its page behind its own
         # diamond bracket, the search page's diamond rule is back above the
         # tile, and the CUSTOM SCRIPS OF VOL. tile is off the search page.
+        # v2.2.5 is owner order 2026-10-24, fourth pass: the sun actually
+        # TURNS (the radians-vs-degrees bug), the orbiting lines breathe,
+        # the version line can no longer fuse, the dropdowns and search
+        # boxes follow the app's current theme, and the volume menu's
+        # first entry is the scanner's fast risers with capped out.
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="2.2.4"', manifest)
-        self.assertIn('android:versionCode="62"', manifest)
+        self.assertIn('android:versionName="2.2.5"', manifest)
+        self.assertIn('android:versionCode="63"', manifest)
         # The changelog entry ties these user-visible changes to the build.
         readme = (ROOT / "android" / "README.md").read_text(encoding="utf-8")
         self.assertIn("v1.7.9, owner order 2026-10-20", readme)
@@ -1701,9 +1706,10 @@ class VersionTest(unittest.TestCase):
         self.assertIn("Version 2.2.1, versionCode 59", readme)
         self.assertIn("Version 2.2.3, versionCode 61", readme)
         self.assertIn("Version 2.2.4, versionCode 62", readme)
+        self.assertIn("Version 2.2.5, versionCode 63", readme)
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionCode="62"', manifest)
-        self.assertIn('android:versionName="2.2.4"', manifest)
+        self.assertIn('android:versionCode="63"', manifest)
+        self.assertIn('android:versionName="2.2.5"', manifest)
         layout = LAYOUT.read_text(encoding="utf-8")
         strings = STRINGS.read_text(encoding="utf-8")
         main = MAIN.read_text(encoding="utf-8")
@@ -2303,11 +2309,20 @@ class MenuOrdersTest(unittest.TestCase):
         # ranking follows the words (see the ranking test below).
         # v2.2.1: the captions are the ONE dropdown's two menu options now,
         # in the owner's exact wording of the same day.
+        # v2.1.0: the two dropdowns are named the owner's own way, and the
+        # ranking follows the words (see the ranking test below).
+        # v2.2.1: the captions are the ONE dropdown's two menu options now,
+        # in the owner's exact wording of the same day.
+        # v2.2.5: the scanner's own entry heads the menu (PRICES RISING
+        # FAST), the B/S ranking second; the strings order is the pin.
+        self.assertIn(
+            'name="volume_speed_caption">PRICES RISING FAST<',
+            self.strings)
         self.assertIn(
             'name="volume_split_caption">MORE BUYERS &amp; LESS SELLERS<',
             self.strings)
-        self.assertIn('name="volume_speed_caption">PRICE MOVING FAST<',
-                      self.strings)
+        self.assertLess(self.strings.index('"volume_speed_caption"'),
+                        self.strings.index('"volume_split_caption"'))
         self.assertLess(self.layout.index("@+id/tile_volume"),
                         self.layout.index("@+id/tile_market"))
         # v2.2.1: ONE dropdown ("make only one drop down menu"), and BOTH
@@ -2351,9 +2366,13 @@ class MenuOrdersTest(unittest.TestCase):
 
     def test_the_dropdowns_rank_their_own_names(self):
         """v2.1.0: the names are the ranking. "More buyers & sellers" is
-        the busiest scrips by the relay's own combined B/S activity;
-        "Price moving fast" is the hardest-moving prices, either
-        direction. Null data is skipped, never ranked as zero (SO-3)."""
+        the busiest scrips by the relay's own combined B/S activity.
+        v2.2.5 re-scopes the speed menu to the owner's own law ("don't
+        show me the stocks that are already capped, instead show those
+        stocks whose prices are increasing really fast ... that is the
+        point of the scanner"): rising only, capped out, biggest move
+        first, at most three rows. Null data is skipped, never ranked
+        as zero (SO-3)."""
         split = self.main[self.main.index(
             "private List<String> rankedSplitSymbols"):]
         split = split[:split.index("private List<String> rankedSpeedSymbols")]
@@ -2365,18 +2384,36 @@ class MenuOrdersTest(unittest.TestCase):
         self.assertIn("qa.buy + qa.sell", split)
         self.assertIn("Long.compare(totalB, totalA)", split)
         self.assertNotIn("byLowestSell", split)
-        # Speed: any move counts, both directions, biggest first.
-        self.assertIn("entry.getValue().changePct != null", speed)
-        self.assertIn("Math.abs(moveB), Math.abs(moveA)", speed)
-        self.assertNotIn("rise > 0d", speed)
+        # Speed (v2.2.5): a move earns the row, RISING moves only; a
+        # scrip at or past the cap mark is out; no absolute-value
+        # ranking can return (a falling price is not a rising one).
+        self.assertIn("move == null", speed)
+        self.assertIn("move <= 0d", speed)
+        self.assertIn("CAPPED_MOVE_MARK", speed)
+        self.assertIn("private static final double CAPPED_MOVE_MARK", self.main)
+        self.assertIn("Double.compare(moveB, moveA)", speed)
+        self.assertNotIn("Math.abs(moveB)", speed)
+        self.assertNotIn("Math.abs(moveA)", speed)
+        # The riser rows carry the owner's own six numbers.
+        self.assertIn("private List<String> quoteLinesRiser(", self.main)
+        self.assertIn("B %,d  S %,d  T %,d", self.main)
+        self.assertIn("quoteLinesRiser(quotes, ranked)", self.main)
 
     def test_the_version_line_names_the_manifest(self):
         version = element(self.layout, 'android:id="@+id/app_version"')
         self.assertIn('style="@style/QorCaption"', version)
         # Owner order 2026-10-24, third pass: the wording is HIS OWN
         # ("change the wording like this APP VERSION IS (VERSION NUMBER)").
+        # v2.2.5: the prefix carries the trailing space the sent-back
+        # build showed as fused IS2.2.4; the padded prefix is its own
+        # pin, so the gap can never be Lost again.
+        prefix_block = self.strings[self.strings.index(
+            'name="app_version_prefix"'):]
+        prefix_block = prefix_block[:prefix_block.index("</string>")]
         self.assertIn('name="app_version_prefix">APP VERSION IS ',
                       self.strings)
+        self.assertTrue(prefix_block.rstrip("\r\n").endswith("IS "),
+                        "the prefix pads its own space: it ends in \"IS \"")
         # The number is the manifest's own versionName, the same one the
         # build prints: the page and the APK cannot disagree.
         self.assertIn("getPackageInfo(getPackageName(), 0).versionName;",
@@ -2649,6 +2686,18 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         """
         # One named rate, turned by the owner's own 30% motion law.
         self.assertIn("SUN_SPIN_RATE = 0.35f", orb)
+        # v2.2.5 (owner order 2026-10-24, fourth pass, "even now the SUN
+        # is not revolving, and it's just flickering now"): the platform
+        # rotate takes DEGREES and v2.2.4 handed it radians, so the disc
+        # crept a lap in thirteen minutes and the only visible motion
+        # was the fire's own pulsing - the flicker he reported. The
+        # turn is the real one: toDegrees! is the pin, and the bare
+        # radians call is gone for good.
+        self.assertIn("(float) Math.toDegrees(", orb)
+        self.assertIn("seconds * SUN_SPIN_RATE * MOTION_SCALE), cx, cy);", orb)
+        self.assertNotIn(
+            "canvas.rotate(seconds * SUN_SPIN_RATE * MOTION_SCALE, cx, cy);",
+            orb)
         # The turn happens around the centre INSIDE drawSun, between a
         # save and a restore, so only the picture rotates and the
         # drawing state never leaks into the fire and the flares.
@@ -2657,14 +2706,90 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         method = orb[method0:method1]
         self.assertIn("canvas.save();", method)
         self.assertIn(
-            "canvas.rotate(seconds * SUN_SPIN_RATE * MOTION_SCALE, cx, cy);",
-            method)
+            "seconds * SUN_SPIN_RATE * MOTION_SCALE), cx, cy);", method)
         rotate = method.index("canvas.rotate")
         self.assertLess(method.index("canvas.save();"), rotate)
         self.assertGreater(method.index("canvas.restore();"), rotate)
         # The spin rides the same frame clock the breathing does: the
         # frozen-second park law keeps the pose for free.
         self.assertIn("seconds * SUN_SPIN_RATE", method)
+
+    def test_v2_2_5_the_fire_is_steady_and_the_lines_breathe(self):
+        orb = (MAIN.parent / "ThinkingOrb.java").read_text(
+            encoding="utf-8")
+        """v2.2.5, on the sent-back v2.2.4 build: "the SUN is not
+        revolving and it's just flickering now". The flicker WAS the
+        fire's alpha pumps (flame 0.75-1.0 swing, prominence 0.35-1.0
+        swing); the fix narrows the flame swing to length alone and
+        holds both inks steady. The breathe is the NLINES' own law:
+        "the lines will get a bit short and then will get long" - one
+        breath period on each filament, around its own midpoint."""
+        # The two inks are steady (no alpha swing inside the fire):
+        self.assertIn("sunFlame.setAlpha(Math.min(255, (int) (170f * wake)));",
+                      orb)
+        self.assertIn("sunProm.setAlpha(Math.min(255, (int) (185f * wake)));",
+                      orb)
+        # The flame swing is length alone now (0.82 + 0.18 sine).
+        self.assertIn("0.82f + 0.18f * (float) Math.sin(", orb)
+        self.assertNotIn("0.72f + 0.28f * (float) Math.sin(", orb)
+        self.assertNotIn("0.35f + 0.65f * leap", orb)
+        # The breathe: a phase per link (golden-angle step, so no two
+        # lines pulse in step), one breath period, and the swing NEVER
+        # detaches the filament from the nodes it joins.
+        self.assertIn("private final float[] linkPhase = new float[linkBudget()];",
+                      orb)
+        self.assertIn("linkPhase[linkCount] = 2.39996f * linkCount;", orb)
+        self.assertIn("seconds * 0.7f * MOTION_SCALE + linkPhase[l]", orb)
+        self.assertIn("float breath = 1f + 0.12f *", orb)
+        self.assertIn("float midX = (ax + bx) / 2f;", orb)
+        self.assertIn("float midY = (ay + by) / 2f;", orb)
+        self.assertIn("midX + (ax - midX) * breath,", orb)
+
+    def test_v2_2_5_the_theme_paints_the_inputs(self):
+        """v2.2.5 (owner order 2026-10-24, fourth pass, "when I change the
+        theme the theme changes but the drop down and the search boxes
+        are still purple, make them match the app's current theme"). One
+        place (applyThemeToInputs) paints the closed dropdown rows, their
+        popup plates and the search box from the theme's own plate, at
+        selection time AND on start. The theme spinner itself is exempt:
+        as the owner said on 2026-10-24, it already sits inside the plate
+        it is choosing."""
+        main = MAIN.read_text(encoding="utf-8")
+        # One place, all three paints.
+        self.assertIn("private void applyThemeToInputs(int index) {", main)
+        self.assertIn("private void paintDropdown(Spinner spinner, int index) {",
+                      main)
+        self.assertIn("private void paintField(View field, int index) {", main)
+        # On selection, and on the remembered theme at start.
+        self.assertIn("applyTheme(position);", main)
+        self.assertLess(main.index("applyThemeToInputs(themeIndex)"),
+                        main.index("wireDropdownArrows();"))
+        # The theme spinner is exempt by the owner's own sentence.
+        self.assertIn("if (input == themeSpinner) continue;", main)
+        self.assertIn("spinner != themeSpinner", main)
+        # Each theme's popup is a plate of its own family, named once.
+        for suffix in ("black", "green", "navy", "orange"):
+            self.assertTrue((RES / "drawable"
+                             / f"dropdown_popup_{suffix}.xml").exists())
+        self.assertIn("R.drawable.dropdown_popup_black", main)
+        self.assertIn("R.drawable.dropdown_popup_green", main)
+        self.assertIn("R.drawable.dropdown_popup_navy", main)
+        self.assertIn("R.drawable.dropdown_popup_orange", main)
+        # The field law's own corners travel with the theme, built once.
+        self.assertIn("private final GradientDrawable[] themeFieldPlates",
+                      main)
+        self.assertIn("cached.setCornerRadius(dp(12));", main)
+        # The search box rides the same pass.
+        self.assertIn("themedInputs.add(searchInput);", main)
+
+    def test_v2_2_5_no_purple_stencil_under_a_themed_input(self):
+        """v2.2.5: the volume dropdown no longer carries a purple
+        popupBackground in the layout (the popup plate is stamped from
+        Java per theme), so no themed input can keep a colour its tile
+        does not declare."""
+        layout = LAYOUT.read_text(encoding="utf-8")
+        spinner = element(layout, 'android:id="@+id/volume_split_spinner"')
+        self.assertNotIn("android:popupBackground", spinner)
 
     def test_the_centre_is_the_owners_photo_sun(self):
         orb = (MAIN.parent / "ThinkingOrb.java").read_text(
