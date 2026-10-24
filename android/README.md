@@ -1113,6 +1113,26 @@ to sixty seconds. The status tile therefore also carries the app's own
 
   Version 2.2.1, versionCode 59.
 
+  Version 2.2.2, versionCode 60.
+
+    Owner order 2026-10-24, four seams in one pass:
+    1. The four greeting windows are hardcoded: 05:01-12:00 "Good
+       morning, Mr. Rehan!", 12:01-17:00 "Good afternoon, sir!",
+       17:01-19:00 "Good evening, sir!", and 19:01-05:00 "You have a
+       wonderful night, Mr. Rehan!". The 05:01 edge means the morning
+       greeting survives the night shift of a 04:00 start.
+    2. The PSX calendar law: every 9 November and every 25 December,
+       every year, the exchange is closed all day, in `sessions.py`
+       beside the yearly holiday list.
+    3. The market emails land on the event's own minute: the market
+       close, the post-market open (16:32 Friday, 15:32 Mon-Thu) and
+       the post-market close (16:49 Friday, 15:49 Mon-Thu) each carry
+       their own cron, with a 5-minute catch-up for a late runner.
+       Friday's post-market edges were unwoken before, which is why
+       the 16:32 and 16:49 Friday emails never arrived.
+    4. The scanner page: a fourth nav icon beside home opens the
+       CUSTOM SCRIPS OF VOL. tile, moved out of the settings page.
+
 **Built and delivered 2026-10-22 (v1.8.8):** the signed v1.8.8 APK was built
 on GitHub Actions from the master at 59da8f90a1 (run 39722179379, the merge
 of #78, which fixed the two javac errors the HUD edit had introduced),
