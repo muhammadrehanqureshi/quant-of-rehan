@@ -521,7 +521,14 @@ class SettingsControlTest(unittest.TestCase):
         self.assertEqual(rotations, 2,
                          "the dropdown arrow's flip and the gear's turn")
         arrow = self.main.index(".rotation(open ? 180f : 0f)")
-        arrow_owner = self.main.index("private void wireDropdownArrow")
+        # The SINGULAR def's exact signature anchors the slice: the plural
+        # wireDropdownArrows def is a prefix of the singular name and a
+        # bare "private void wireDropdownArrow" index finds the plural's
+        # own start first, whose "extent" then catches the singular def
+        # and reads the flipped arrow as outside its own method.
+        arrow_owner = self.main.index(
+                "private void wireDropdownArrow(Dropdown dropdown, "
+                "ImageView arrow)")
         arrow_extent = self.main.index("private void", arrow_owner + 30)
         self.assertLess(arrow_owner, arrow)
         self.assertLess(arrow, arrow_extent)
