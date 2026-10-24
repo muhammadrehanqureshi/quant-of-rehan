@@ -1278,6 +1278,25 @@ to sixty seconds. The status tile therefore also carries the app's own
        which keeps its whitespace to the floor.
     4. The version bump is versionCode 64 / versionName 2.2.6.
 
+**Version 2.2.7, versionCode 65.**
+
+  Owner order 2026-10-24, sixth pass, on the v2.2.6 screenshot he sent
+  back ("look what the hell you did to the sun? what is this? I told you
+  to make it revolve like the Earth revolves in x-axis"):
+  the longitude window's PHASE was the defect. The loop texture is the
+  disc laid beside its own mirror, so the disc's face occupies loop
+  columns [0, W) with its centre at W/2 (texW/4 of the whole loop), but
+  the sampler put longitude zero on column zero - the disc's left EDGE.
+  The visible window (phi plus asin over half a lap) then held LEFT
+  HALVES of the disc and its mirror instead of one whole face, which
+  is exactly the crescent wreckage the screenshot caught. The fix is
+  one line: the sampler adds the quarter phase (mod01(lam0 / SUN_LAP
+  + 0.25f)), longitude zero lands on the face's centre column, and the
+  window is always ONE whole face sliding limb to limb, its mirror
+  closing in from behind, under the same 10% cut. Test pin:
+  tests/test_android_app_ui.py asserts the offset in the band helper's
+  own slice.
+
 **Built and delivered 2026-10-24 (v2.2.3):** the signed v2.2.3 APK was built
 on GitHub Actions from the merged PR #110 (master 3fd20f0, run 40071196152,
 the push build the merge itself triggered), downloaded from the run's
