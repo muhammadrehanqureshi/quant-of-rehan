@@ -1151,6 +1151,29 @@ to sixty seconds. The status tile therefore also carries the app's own
        tile, and the CUSTOM SCRIPS OF VOL. tile is off that page -
        it lives on the scanner page alone.
 
+**Built and delivered 2026-10-24 (v2.2.3):** the signed v2.2.3 APK was built
+on GitHub Actions from the merged PR #110 (master 3fd20f0, run 40071196152,
+the push build the merge itself triggered), downloaded from the run's
+artifact and copied to
+`C:/Users/rehan/OneDrive/Desktop/QuantOfRehan-v2.2.3.apk`. SHA-256
+`ea17cbab45de5ca2dd04130463ed5333a9cadbfd849afc0381f01cbcc59deb34`,
+and the run's `badging.txt` reads back `pk.quantofrehan`,
+`versionCode="61"`, `versionName="2.2.3"`, with the launchable
+`MainActivity`. The copy is signed by the repository keystore
+(CN=Quant of Rehan, certificate SHA-256
+fa3b2a125ba12405956159acf99d9d19e5c4e9ad0b4dfb3b1d1c47cf99ace136),
+so it installs straight over the running build, no uninstall needed. The two
+judgment calls that took three runs to land: the orb's `ballR`
+assignment came back where the layout edit dropped it, and the
+gear pin's method slice is anchored on the singular
+`wireDropdownArrow(Dropdown dropdown, ImageView arrow)` signature,
+because the plural def is a prefix of the singular name and a bare
+index found the plural first, whose extent read the arrow's own
+flip as outside its owner. Governance green on the third run;
+the four delivered icons, the ORB.jpg sun, the wheel's left/right
+turn, the THEMES tile's own diamond bracket and the scanner page's
+sole ownership of the volume tile are all pinned in the tests.
+
 **Built and delivered 2026-10-22 (v1.8.8):** the signed v1.8.8 APK was built
 on GitHub Actions from the master at 59da8f90a1 (run 39722179379, the merge
 of #78, which fixed the two javac errors the HUD edit had introduced),
