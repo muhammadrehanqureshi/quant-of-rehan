@@ -30,9 +30,11 @@ name: KMIALL session scan loop
 #                          and 09:15 to 09:32, the law's morning gap, is
 #                          deliberately asleep with it)
 #   07:30 UTC = 12:30 PKT  Mon-Thu band 2 (12:30 to 15:30)
-#   10:32 UTC = 15:32 PKT  Mon-Thu post-market (15:32 to 15:49)
+#   10:32 UTC = 15:32 PKT  Mon-Thu post-market (15:32 to 15:52)
 #   04:17 UTC = 09:17 PKT  Friday band 1 (09:17 to 12:00, midday break after)
 #   09:32 UTC = 14:32 PKT  Friday band 2 (14:32 to 16:30)
+#   11:32 UTC = 16:32 PKT  Friday post-market (16:32 to 16:52; owner order
+#                          2026-10-24, emails the post and post-close edges)
 #
 # Minutes: GitHub Actions is free on a public repository, and this repository
 # is public as of the owner's 2026-10-14 order, so the 2,000-minute private
@@ -48,6 +50,13 @@ on:
     - cron: "32 10 * * 1-4"    # 15:32 PKT, Mon-Thu post-market
     - cron: "17 4 * * 5"       # 09:17 PKT, Friday session 1
     - cron: "32 9 * * 5"       # 14:32 PKT, Friday session 2
+    # Owner order 2026-10-24: Friday's post-market window (16:32 to 16:49)
+    # had no loop at all - the band-2 job ends on the 16:30 close's
+    # finalize - so the 16:32 post and 16:49 post-close emails depended
+    # on GitHub crons that had just staged a mass drop. The same
+    # 20-minute post-market window Monday-Thursday already has is
+    # mirrored here.
+    - cron: "32 11 * * 5"     # 16:32 PKT, Friday post-market
   workflow_dispatch:
     inputs:
       seconds:
@@ -70,6 +79,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 190
     env:
+      # Owner order 2026-10-24: the token was missing from this job, so
+      # the passenger's every send raised (403 permission denied) and
+      # the loop emailed NOTHING on the day the events went missing -
+      # pre, open, break, reopen, close all silently failed inside
+      # scan_loop's passenger. github.token is the workflow's own
+      # token; `issues: write` above is already granted.
+      GITHUB_TOKEN: ${{ github.token }}
       # The market event emails are the loop's passenger now (owner order
       # 2026-10-23): the phase edges it already decides each second email
       # the owner through the watched issue, so a GitHub cron stall can
@@ -147,6 +163,7 @@ jobs:
             "32 10 * * 1-4") seconds=1200 ;;   # 20 min, post-market to 15:52
             "17 4 * * 5")   seconds=9900  ;;   # 165 min, midday break after
             "32 9 * * 5")   seconds=7200  ;;   # 120 min, ends 16:32
+            "32 11 * * 5")  seconds=1200 ;;   # 20 min, post-market to 16:52
             *)              seconds="${{ inputs.seconds }}" ;;
           esac
           echo "seconds=${seconds}" >> "$GITHUB_OUTPUT"

@@ -20,17 +20,26 @@ name: Market email notifications
 #   11:30 UTC = 16:30 PKT  close, Friday
 #   10:32 UTC = 15:32 PKT  post market, Mon-Thu
 #   11:32 UTC = 16:32 PKT  post market, Friday
+#   10:49 UTC = 15:49 PKT  post-close, Mon-Thu (owner order 2026-10-24)
+#   11:49 UTC = 16:49 PKT  post-close, Friday
+#
+# Owner order 2026-10-24 ("Make my system reliable"): on 2026-10-23 the
+# close job was delivered 4.5 hours late and emailed at 20:50, and the
+# post-market jobs never ran. fire() now refuses a fire far past the
+# event's own minute, the catch-up backstop below tightened from every
+# quarter hour to every 5 minutes, and the trailing post-close edges
+# got their own two crons and jobs. The per-event jobs stay exactly as
+# they were: first to land wins, the rest are no-ops.
 #
 # Owner order 2026-10-23 ("sync with relex: the abortascade had killed
 # cron scheduling"): on 2026-10-22 the queued crons fired 5 hours late
 # and on 2026-10-23 the break and reopen crons never fired at all. The
-# catch-up fire below is the backstop for exactly that: every 15
+# catch-up fire below is the backstop for exactly that: every 5
 # minutes, inside the session hours, it walks the day's roadmap
 # (scripts/market_email.py --catch-up) and emails whatever event's own
 # minute passed within the grace and is still missing from the ledger
-# (the ledger keeps it exactly once across every path). The per-event
-# jobs above stay exactly as they were: first to land wins, the rest
-# are no-ops.
+# (the ledger keeps it exactly once across every path). A missed event
+# is therefore in someone's hands within 5 minutes, never 15.
 #
 # One schedule entry fires the whole workflow, so every job below gates
 # itself on the fired cron line: only the job that owns that minute
@@ -50,15 +59,18 @@ on:
     - cron: "30 11 * * 5"      # close, Friday
     - cron: "32 10 * * 1-4"    # post market, Mon-Thu
     - cron: "32 11 * * 5"      # post market, Friday
-    # The catch-up backstop (owner order 2026-10-23): every quarter hour
-    # from 09:05 to 16:50 PKT, walk the day's event roadmap and email
+    - cron: "49 10 * * 1-4"    # post-close, Mon-Thu
+    - cron: "49 11 * * 5"      # post-close, Friday
+    # The catch-up backstop (owner order 2026-10-24): every 5 minutes
+    # from 09:00 to 17:55 PKT, walk the day's event roadmap and email
     # what a late or dead cron above missed inside the 15 minute grace.
-    # The ledger keeps each event exactly once across every path.
-    - cron: "5,20,35,50 4-12 * * 1-5"
+    # The ledger keeps each event exactly once across every path, and a
+    # missed event is picked up within 5 minutes of its own edge.
+    - cron: "*/5 4-12 * * 1-5"
   workflow_dispatch:
     inputs:
       event:
-        description: "which event to email now (pre, open, break, close, post, catch-up)"
+        description: "which event to email now (pre, open, break, close, post, post-close, catch-up)"
         default: "open"
 
 # A dispatch emails one chosen event, so every job also names the event
@@ -75,13 +87,13 @@ env:
   OWNER_EMAIL_ISSUE: "81"
 
 jobs:
-  # The catch-up backstop: on a quarter hour, walk the morning-to-close
+  # The catch-up backstop: every 5 minutes, walk the morning-to-close
   # roadmap and email what the per-event crons above missed inside the
   # grace window. The ledger on the watched issue keeps each event
   # exactly once across this job, the per-event jobs and the session
   # loop's own passenger (src/notify/market_watch.py).
   catch_up:
-    if: (github.event_name == 'schedule' && github.event.schedule == '5,20,35,50 4-12 * * 1-5') || (github.event_name == 'workflow_dispatch' && inputs.event == 'catch-up')
+    if: (github.event_name == 'schedule' && github.event.schedule == '*/5 4-12 * * 1-5') || (github.event_name == 'workflow_dispatch' && inputs.event == 'catch-up')
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -289,6 +301,48 @@ jobs:
       # module is bought here, the same way the other workflows buy theirs.
       - run: pip install requests --retries 5 --timeout 60
       - name: Email the post-open when the session law says it is due
+        env:
+          GH_REPOSITORY: ${{ github.repository }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python scripts/market_email.py --event "$EVENT"
+
+  post_close_weekday:
+    if: (github.event_name == 'schedule' && github.event.schedule == '49 10 * * 1-4') || (github.event_name == 'workflow_dispatch' && inputs.event == 'post-close')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      EVENT: post-close
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      # The email path speaks GitHub over requests (src/notify/owner_email.py);
+      # the missing install is what clipped every event on 2026-10-22, so the
+      # module is bought here, the same way the other workflows buy theirs.
+      - run: pip install requests --retries 5 --timeout 60
+      - name: Email the post-close when the session law says it is due
+        env:
+          GH_REPOSITORY: ${{ github.repository }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python scripts/market_email.py --event "$EVENT"
+
+  post_close_friday:
+    if: (github.event_name == 'schedule' && github.event.schedule == '49 11 * * 5') || (github.event_name == 'workflow_dispatch' && inputs.event == 'post-close')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      EVENT: post-close
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      # The email path speaks GitHub over requests (src/notify/owner_email.py);
+      # the missing install is what clipped every event on 2026-10-22, so the
+      # module is bought here, the same way the other workflows buy theirs.
+      - run: pip install requests --retries 5 --timeout 60
+      - name: Email the Friday post-close when the session law says it is due
         env:
           GH_REPOSITORY: ${{ github.repository }}
           GITHUB_TOKEN: ${{ github.token }}

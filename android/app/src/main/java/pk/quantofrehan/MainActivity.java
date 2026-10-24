@@ -214,9 +214,10 @@ public class MainActivity extends Activity {
     /** The console's greeting above the QUANT STATUS tile (owner order
      *  2026-10-23). Its sentence flips at noon in Karachi (SO-8). */
     private TextView greeting;
-    /** The search page's own CUSTOM SCRIPS OF VOL. tile (owner order
-     *  2026-10-23): one dropdown ranked from the same /prices map the
-     *  search rows already refresh once per tick. */
+    /** The scanner page's own CUSTOM SCRIPS OF VOL. tile (owner order
+     *  2026-10-24, moved off the search page): one dropdown ranked from
+     *  the same /prices map the search rows already refresh once per
+     *  tick. */
     private View tileVolume;
     private Spinner volumeSplitSpinner;
     // The dropdown's state arrow (owner order 2026-10-23, 2.0.0):
@@ -252,14 +253,15 @@ public class MainActivity extends Activity {
     /** Full relay text retained off-screen; the card renders only execution fields. */
     private String latestSignalBackground = "";
     /**
-     * The three pages (owner order 2026-10-23). The selected page's icon
-     * is circled in a gold ring on the menu tile at the very bottom; the
-     * other two carry only the masked press ripple. The ring and the tint
-     * are read from the page booleans here, never from a view's own
-     * state, so the paint is idempotent and one-eyed like the rest of
-     * the console.
+     * The four pages (owner order 2026-10-23; the scanner joined beside
+     * home on 2026-10-24). The selected page's icon is circled in a gold
+     * ring on the menu tile at the very bottom; the other three carry
+     * only the masked press ripple. The ring and the tint are read from
+     * the page booleans here, never from a view's own state, so the
+     * paint is idempotent and one-eyed like the rest of the console.
      */
     private ImageView navHome;
+    private ImageView navScanner;
     private ImageView navSearch;
     private ImageView navSettings;
     private View settingsPanel;
@@ -270,6 +272,14 @@ public class MainActivity extends Activity {
     /** True while the search menu replaces the console, the same law the
      *  settings menu follows: one menu at a time, never two. */
     private boolean searchOpen;
+    /**
+     * The scanner page (owner order 2026-10-24): the CUSTOM SCRIPS OF
+     * VOL. tile's own page, opened by the nav icon beside home. The views
+     * are drawn from this boolean exactly the way the search and settings
+     * pages are drawn from theirs, and the four states honour the same
+     * one-page-at-a-time law.
+     */
+    private boolean scannerOpen;
     /** One price refresh is in flight at a time, on every foreground tick
      *  while the search is open (owner order 2026-10-20, third note). */
     private boolean pricesInFlight;
@@ -398,12 +408,18 @@ public class MainActivity extends Activity {
         // closes whatever menu is open, and search and settings never
         // share the screen.
         navHome = findViewById(R.id.btn_nav_home);
+        navScanner = findViewById(R.id.btn_nav_scanner);
         navSearch = findViewById(R.id.btn_nav_search);
         navSettings = findViewById(R.id.btn_nav_settings);
+        // Owner order 2026-10-24: four pages now. Home closes every page
+        // that is open, and search, scanner and settings never share the
+        // screen: each toggle enforces the one-page law itself.
         navHome.setOnClickListener(v -> {
             setSearchOpen(false);
             setSettingsOpen(false);
+            setScannerOpen(false);
         });
+        navScanner.setOnClickListener(v -> setScannerOpen(true));
         navSearch.setOnClickListener(v -> setSearchOpen(true));
         navSettings.setOnClickListener(v -> setSettingsOpen(true));
         // The selection is painted once at the build too, so the opened
@@ -506,7 +522,8 @@ public class MainActivity extends Activity {
      * it and no other place has to remember it.
      */
     private void paintNavSelection() {
-        setNavPage(navHome, !searchOpen && !settingsOpen);
+        setNavPage(navHome, !searchOpen && !settingsOpen && !scannerOpen);
+        setNavPage(navScanner, scannerOpen);
         setNavPage(navSearch, searchOpen);
         setNavPage(navSettings, settingsOpen);
         if (appVersion != null) {
@@ -541,9 +558,19 @@ public class MainActivity extends Activity {
 
     /**
      * The greeting above the QUANT STATUS tile (owner order 2026-10-23).
-     * The flip is Karachi's own clock (SO-8): before noon in
-     * Asia/Karachi he is greeted by his name, after noon as sir. The
-     * handset's zone never decides (the app's type law on times).
+     *
+     * Owner order 2026-10-24 hardcoded the windows, and they are Karachi's
+     * own clock that decides (SO-8), never the handset's zone:
+     *
+     *     05:01-12:00  "Good morning, Mr. Rehan!"
+     *     12:01-17:00  "Good afternoon, sir!"
+     *     17:01-19:00  "Good evening, sir!"
+     *     19:01-05:00  "You have a wonderful night, Mr. Rehan!"
+     *
+     * The flat minutes obey the windows as dictated: 05:00, 12:00, 17:00
+     * and 19:00 are read as the tail of the window that ENDS there, so
+     * 12:00 is still morning, 17:00 still afternoon and 19:00 still
+     * evening, and 19:01 to 05:00 inclusive is the night.
      */
     private void refreshGreeting() {
         if (greeting == null) {
@@ -551,9 +578,28 @@ public class MainActivity extends Activity {
         }
         java.util.Calendar karachi = java.util.Calendar.getInstance(
                 java.util.TimeZone.getTimeZone("Asia/Karachi"));
-        boolean morning = karachi.get(java.util.Calendar.HOUR_OF_DAY) < 12;
-        greeting.setText(getString(morning
-                ? R.string.greeting_morning : R.string.greeting_afternoon));
+        int hour = karachi.get(java.util.Calendar.HOUR_OF_DAY);
+        int minute = karachi.get(java.util.Calendar.MINUTE);
+        final int message;
+        // The 05:00 flat minute is the NIGHT's own tail, because it ends
+        // the night window: the morning starts at 05:01 exactly as the
+        // window says, so the first branch peels the boundary minute off
+        // before the morning's hour window opens.
+        if (hour == 5 && minute == 0) {
+            message = R.string.greeting_night;
+        } else if (hour >= 5 && hour <= 11
+                || (hour == 12 && minute == 0)) {
+            message = R.string.greeting_morning;
+        } else if (hour >= 12 && hour <= 16
+                || (hour == 17 && minute == 0)) {
+            message = R.string.greeting_afternoon;
+        } else if (hour >= 17 && hour <= 18
+                || (hour == 19 && minute == 0)) {
+            message = R.string.greeting_evening;
+        } else {
+            message = R.string.greeting_night;
+        }
+        greeting.setText(getString(message));
     }
 
     /**
@@ -1027,6 +1073,9 @@ public class MainActivity extends Activity {
         if (open && searchOpen) {
             setSearchOpen(false);   // one menu at a time
         }
+        if (open && scannerOpen) {
+            setScannerOpen(false);  // one page at a time (2026-10-24)
+        }
         if (open == settingsOpen) {
             return;                     // already there: no animation, no reflow
         }
@@ -1047,6 +1096,54 @@ public class MainActivity extends Activity {
         // look is its ring on the bottom nav tile instead of the old
         // quarter turn and brighter gold.
         paintNavSelection();
+    }
+
+    /**
+     * The scanner page (owner order 2026-10-24): the CUSTOM SCRIPS OF VOL.
+     * tile's own page, opened by the menu tile's icon beside home. One
+     * page at a time, the same law the search and settings toggles
+     * enforce: opening the scanner closes whatever page is showing, and
+     * every page's close restores the console.
+     *
+     * The volume tile IS the page: it lives and dies with `scannerOpen`
+     * exactly the way it previously lived with the search page (the same
+     * v2.2.1 visibility line, moved here), and the pricing tick that
+     * restamps it covers both pages alike. Nothing else about the tile
+     * moved: its plate, heading, dropdown and reveal are the build's own.
+     */
+    private void setScannerOpen(boolean open) {
+        if (open && searchOpen) {
+            setSearchOpen(false);   // one page at a time
+        }
+        if (open && settingsOpen) {
+            setSettingsOpen(false); // one page at a time
+        }
+        if (open == scannerOpen) {
+            return;                 // already there: no animation, no reflow
+        }
+        scannerOpen = open;
+        if (consoleViews != null) {
+            // One pass, one state: the console leaves and the tile arrives
+            // in the same frame, so no intermediate layout is ever drawn.
+            for (View view : consoleViews) {
+                view.setVisibility(open ? View.GONE : View.VISIBLE);
+            }
+        }
+        settingsPanel.setVisibility(open ? View.GONE : settingsPanel.getVisibility());
+        searchPanel.setVisibility(open ? View.GONE : searchPanel.getVisibility());
+        if (tileVolume != null) {
+            // The CUSTOM SCRIPS OF VOL. tile is the scanner page's own
+            // tile (owner order 2026-10-24): it lives and dies with the
+            // page, exactly like the menu panels do.
+            tileVolume.setVisibility(open ? View.VISIBLE : View.GONE);
+        }
+        paintNavSelection();
+        if (open) {
+            // The dropdowns ride the /prices read like the search rows
+            // do: the page opens onto live data, then stays on the tick.
+            refreshPrices();
+            renderVolumeSpinners();
+        }
     }
 
     /**
@@ -1307,7 +1404,8 @@ public class MainActivity extends Activity {
         // third note: the rows must move every second, like a clock, not
         // once every five). Filtering a keystroke still costs no request;
         // the one in-flight guard skips a tick rather than queueing work.
-        if (searchOpen) {
+        // Owner order 2026-10-24: the scanner page's dropdowns tick alike.
+        if (searchOpen || scannerOpen) {
             refreshPrices();
         }
         if (!liveInFlight) {
@@ -1331,8 +1429,9 @@ public class MainActivity extends Activity {
             }
             // The volume dropdowns ride the same tick (owner order
             // 2026-10-23): one shared read ranks them, and the tick that
-            // restamps the rows restamps the dropdowns too.
-            if (searchOpen) {
+            // restamps the rows restamps the dropdowns too. Owner order
+            // 2026-10-24: the tile's scanner page is covered alike.
+            if (searchOpen || scannerOpen) {
                 renderVolumeSpinners();
             }
         }));
@@ -1590,12 +1689,9 @@ public class MainActivity extends Activity {
         }
         settingsPanel.setVisibility(open ? View.GONE : settingsPanel.getVisibility());
         searchPanel.setVisibility(open ? View.VISIBLE : View.GONE);
-        if (tileVolume != null) {
-            // The CUSTOM SCRIPS OF VOL. tile is the search page's second
-            // tile (owner order 2026-10-23): it lives and dies with the
-            // page, exactly like the search panel above it.
-            tileVolume.setVisibility(open ? View.VISIBLE : View.GONE);
-        }
+        // The CUSTOM SCRIPS OF VOL. tile left the search page for its own
+        // page (owner order 2026-10-24), so this toggle touches only the
+        // search panel now; setScannerOpen owns the tile's visibility.
         paintNavSelection();
         if (open) {
             refreshPrices();
