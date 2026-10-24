@@ -234,6 +234,22 @@
                 android:visibility="gone"/>
         </LinearLayout>
 
+        <!-- Owner order 2026-10-24, third pass ("there should be diamond
+             line feature between the tiles of search and custom scrips of
+             volume, have that line there"): the rule stands BETWEEN the
+             two tiles, the same qor_rule include every other division of
+             the page carries. It is drawn from the scanner page's state
+             in MainActivity.setScannerOpen beside the tile's own line,
+             the single truth both obey: visible while the CUSTOM SCRIPS
+             OF VOL. page is, gone on home and on every other page. -->
+        <include
+            android:id="@+id/rule_volume"
+            layout="@layout/qor_rule"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:visibility="gone"/>
+
         <!-- Owner order 2026-10-23: its own tile on the search page, under
              the search tile and inside the same bracket. Two dropdowns,
              the owner's own names (v2.1.0): the first "More buyers &
@@ -637,6 +653,22 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="12dp"/>
+
+            <!-- The app version line, under the tile's closing diamond
+                 (owner order 2026-10-24, third pass: "move app version
+                 position just below the diamond line feature of the
+                 bottom part of themes tile"). It left the station above
+                 the pinned menu bar for this one: the settings page's
+                 own last line, under the tile bracket it belongs to.
+                 The wording is the version resource, the number the
+                 manifest's own versionName (MainActivity.writeAppVersion). -->
+            <TextView
+                android:id="@+id/app_version"
+                style="@style/QorCaption"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:gravity="center"/>
         </LinearLayout>
 
         <!-- Owner order 2026-10-23 (v1.9.13): the rule that sat below the
@@ -830,29 +862,16 @@
     </ScrollView>
 
     <!-- Owner order 2026-10-23 (v2.2.0, "for the menu tile you only need to
-         match the width of the tile with the other tiles on the app"): the
-         bar's edges are no longer computed from margins beside a padded
+         match the width of the tile with the other tiles on the app"):    the bar's edges are no longer computed from margins beside a padded
          column. The tile rides the SAME 20dp side carrier the scroll's
          column uses, so its plate's outer edge lands where every other
          tile's edge lands, by construction and not by two numbers kept
-         in step by hand. -->
-    <!-- ══════════ the app version line, ABOVE the menu bar ══════════
-         Owner order 2026-10-23 (v2.2.1, "app version would be written
-         above menu bar on settings page"): the line left the root's
-         footer for this station - directly above the pinned menu bar,
-         still the SETTINGS page's alone: visible while the settings menu
-         is open, gone on home and search, set on every repaint from the
-         page truth in MainActivity.paintNavSelection. MainActivity writes
-         the manifest's own versionName into it, the same number the
-         build prints, so the screen and the APK cannot disagree. -->
-    <TextView
-        android:id="@+id/app_version"
-        style="@style/QorCaption"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
-        android:gravity="center"/>
+         in step by hand.
 
+         Owner order 2026-10-24, third pass: the app version line left
+         this station for the settings page itself, under the THEMES
+         tile's closing diamond, so the number sits with the page it
+         names and the bar closes the screen with the tile alone. -->
     <FrameLayout
         android:id="@+id/nav_carrier"
         android:layout_width="match_parent"

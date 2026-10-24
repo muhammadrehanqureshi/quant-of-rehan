@@ -227,6 +227,10 @@ public class MainActivity extends Activity {
      * gone on every other page, exactly like the panel it marks.
      */
     private View ruleSearch;
+    /** The diamond rule between the search tile and the CUSTOM SCRIPS
+     *  OF VOL. tile (owner order 2026-10-24, third pass): the page's own
+     *  division, drawn from the scanner page's state beside its tile. */
+    private View ruleVolume;
     /**
      * The settings page's THEMES holder (owner order 2026-10-24, third
      * note): the plain container that stands BEHIND the THEMES tile and
@@ -417,6 +421,7 @@ public class MainActivity extends Activity {
         settingsPanel = findViewById(R.id.settings_panel);
         searchPanel = findViewById(R.id.search_panel);
         ruleSearch = findViewById(R.id.rule_search);
+        ruleVolume = findViewById(R.id.rule_volume);
         themesHolder = findViewById(R.id.themes_holder);
         searchInput = findViewById(R.id.search_input);
         searchResults = findViewById(R.id.search_results);
@@ -1198,6 +1203,12 @@ public class MainActivity extends Activity {
             // page, exactly like the menu panels do.
             tileVolume.setVisibility(open ? View.VISIBLE : View.GONE);
         }
+        if (ruleVolume != null) {
+            // The diamond rule between the search tile and the volume
+            // tile (owner order 2026-10-24, third pass) lives exactly
+            // when the tile below it does: one truth, both lines.
+            ruleVolume.setVisibility(open ? View.VISIBLE : View.GONE);
+        }
         paintNavSelection();
         if (open) {
             // The dropdowns ride the /prices read like the search rows
@@ -1742,6 +1753,17 @@ public class MainActivity extends Activity {
         searchOpen = open;
         if (open && settingsOpen) {
             setSettingsOpen(false);
+        }
+        // Owner order 2026-10-24, third pass ("then I tap on search icon
+        // it highlights with the scanner icon highlighted as well"): the
+        // v2.2.3 search toggle closed the settings page but never the
+        // scanner one, so the scanner stayed open under the search page
+        // and its icon kept the highlight two pages at once. One page at
+        // a time, the same law every other toggle here keeps: an opening
+        // search closes the scanner first, and its own toggle owns the
+        // tile and the icon it hands back.
+        if (open && scannerOpen) {
+            setScannerOpen(false);
         }
         if (consoleViews != null) {
             for (View view : consoleViews) {
