@@ -2706,8 +2706,7 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         method = orb[method0:method1]
         self.assertIn("canvas.save();", method)
         self.assertIn(
-            "canvas.rotate(seconds * SUN_SPIN_RATE * MOTION_SCALE, cx, cy);",
-            method)
+            "seconds * SUN_SPIN_RATE * MOTION_SCALE), cx, cy);", method)
         rotate = method.index("canvas.rotate")
         self.assertLess(method.index("canvas.save();"), rotate)
         self.assertGreater(method.index("canvas.restore();"), rotate)
@@ -2755,40 +2754,41 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         selection time AND on start. The theme spinner itself is exempt:
         as the owner said on 2026-10-24, it already sits inside the plate
         it is choosing."""
+        main = MAIN.read_text(encoding="utf-8")
         # One place, all three paints.
-        self.assertIn("private void applyThemeToInputs(int index) {", self.main)
+        self.assertIn("private void applyThemeToInputs(int index) {", main)
         self.assertIn("private void paintDropdown(Spinner spinner, int index) {",
-                      self.main)
-        self.assertIn("private void paintField(View field, int index) {", self.main)
+                      main)
+        self.assertIn("private void paintField(View field, int index) {", main)
         # On selection, and on the remembered theme at start.
-        self.assertIn("applyTheme(position);", self.main)
-        self.assertLess(self.main.index("applyThemeToInputs(themeIndex)"),
-                        self.main.index("wireDropdownArrows();"))
+        self.assertIn("applyTheme(position);", main)
+        self.assertLess(main.index("applyThemeToInputs(themeIndex)"),
+                        main.index("wireDropdownArrows();"))
         # The theme spinner is exempt by the owner's own sentence.
-        self.assertIn("if (input == themeSpinner) continue;", self.main)
-        self.assertIn("spinner != themeSpinner", self.main)
+        self.assertIn("if (input == themeSpinner) continue;", main)
+        self.assertIn("spinner != themeSpinner", main)
         # Each theme's popup is a plate of its own family, named once.
         for suffix in ("black", "green", "navy", "orange"):
-            self.assertTrue((ROOT / "android" / "app" / "src" / "main" / "res"
-                             / "drawable"
+            self.assertTrue((RES / "drawable"
                              / f"dropdown_popup_{suffix}.xml").exists())
-        self.assertIn("R.drawable.dropdown_popup_black", self.main)
-        self.assertIn("R.drawable.dropdown_popup_green", self.main)
-        self.assertIn("R.drawable.dropdown_popup_navy", self.main)
-        self.assertIn("R.drawable.dropdown_popup_orange", self.main)
+        self.assertIn("R.drawable.dropdown_popup_black", main)
+        self.assertIn("R.drawable.dropdown_popup_green", main)
+        self.assertIn("R.drawable.dropdown_popup_navy", main)
+        self.assertIn("R.drawable.dropdown_popup_orange", main)
         # The field law's own corners travel with the theme, built once.
         self.assertIn("private final GradientDrawable[] themeFieldPlates",
-                      self.main)
-        self.assertIn("cached.setCornerRadius(dp(12));", self.main)
+                      main)
+        self.assertIn("cached.setCornerRadius(dp(12));", main)
         # The search box rides the same pass.
-        self.assertIn("themedInputs.add(searchInput);", self.main)
+        self.assertIn("themedInputs.add(searchInput);", main)
 
     def test_v2_2_5_no_purple_stencil_under_a_themed_input(self):
         """v2.2.5: the volume dropdown no longer carries a purple
         popupBackground in the layout (the popup plate is stamped from
         Java per theme), so no themed input can keep a colour its tile
         does not declare."""
-        spinner = element(self.layout, 'android:id="@+id/volume_split_spinner"')
+        layout = LAYOUT.read_text(encoding="utf-8")
+        spinner = element(layout, 'android:id="@+id/volume_split_spinner"')
         self.assertNotIn("android:popupBackground", spinner)
 
     def test_the_centre_is_the_owners_photo_sun(self):
