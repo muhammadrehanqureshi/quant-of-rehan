@@ -17,11 +17,22 @@
      2026-10-24, third pass: the revolving sun, the refined filaments,
      the diamond rule between the search tile and the volume tile, the
      one-icon highlight law, and the version line moved under the
-     themes tile's closing diamond in his own wording. -->
+     themes tile's closing diamond in his own wording.
+
+     versionCode 63 / versionName 2.2.5 belong to the owner order
+     2026-10-24, fourth pass: the sun actually TURNS (the platform's
+     degrees-and-radians bug found and fixed, fire steady, no flicker),
+     the orbiting lines breathe (each shorter then longer, one breath
+     period, no two in step), the version line can no longer fuse
+     (APP VERSION IS 2.2.5), the dropdowns and search boxes follow the
+     app's current theme and stay seated in their tiles, and the
+     volume tile's menu carries the scanner's own first entry - the
+     three fast risers, capped scrips out, each with its buyers,
+     sellers, total volume, price and percentage. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="pk.quantofrehan"
-    android:versionCode="62"
-    android:versionName="2.2.4">
+    android:versionCode="63"
+    android:versionName="2.2.5">
 
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="30"/>
 
