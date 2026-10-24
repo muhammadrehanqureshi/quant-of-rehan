@@ -11,11 +11,17 @@
      left-turn gear, the themes tile of its own and the search page's
      diamond rule and de-cluttering); the versions are set here, in the
      source tree, and the android-apk workflow reads and asserts them -
-     it never bumps them on its own. -->
+     it never bumps them on its own.
+
+     versionCode 62 / versionName 2.2.4 belong to the owner order
+     2026-10-24, third pass: the revolving sun, the refined filaments,
+     the diamond rule between the search tile and the volume tile, the
+     one-icon highlight law, and the version line moved under the
+     themes tile's closing diamond in his own wording. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="pk.quantofrehan"
-    android:versionCode="61"
-    android:versionName="2.2.3">
+    android:versionCode="62"
+    android:versionName="2.2.4">
 
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="30"/>
 

@@ -1151,6 +1151,44 @@ to sixty seconds. The status tile therefore also carries the app's own
        tile, and the CUSTOM SCRIPS OF VOL. tile is off that page -
        it lives on the scanner page alone.
 
+  Version 2.2.4, versionCode 62.
+
+    Owner order 2026-10-24, third pass, five edits in one batch:
+    1. The sun REVOLVES ("right now the SUN itself is not revolving,
+       it's just like a picture there, standing still"): the photo
+       disc turns on its own slow bearing about the centre, at
+       SUN_SPIN_RATE x the owner's 30% motion law, so the face's
+       granulation carries the star around; the rim and the circular
+       clip are both radially symmetric, so the turn shows on the
+       face alone.
+    2. The cloud's filaments are refined ("the lines that are
+       revolving the SUN, they look very tangled"): the pair
+       threshold narrows 0.62 to 0.42 so a link is a short filament
+       inside its own neighbourhood and never a chord crossing the
+       ball, the distance fade steepens (full ink to 0.14, gone by
+       0.42, against the old 0.18/0.55), and the stroke narrows as a
+       link recedes; the v2.2.1 +30% pair cap and the fire ink stand.
+    3. The diamond rule stands BETWEEN the two tiles ("there should
+       be diamond line feature between the tiles of search and
+       custom scrips of volume"): rule_volume, the same qor_rule
+       include, drawn from the scanner page's state in
+       MainActivity.setScannerOpen beside the tile's own line.
+    4. One page, one highlighted icon ("then I tap on search icon it
+       highlights with the scanner icon highlighted as well"): the
+       v2.2.3 search toggle closed the settings page but never the
+       scanner one, so the scanner stayed open under the search
+       page and both icons lit at once; an opening search now
+       closes the scanner first, the one-page-at-a-time law every
+       toggle here keeps.
+    5. The app version line moves under the THEMES tile's closing
+       diamond ("move app version position just below the diamond
+       line feature of the bottom part of themes tile", "change the
+       wording like this APP VERSION IS (VERSION NUMBER)"): the
+       line left the station above the pinned menu bar for the
+       settings page itself, and the prefix resource now reads
+       `APP VERSION IS ` with the manifest's own versionName after
+       it, 2.2.4 on this build.
+
 **Built and delivered 2026-10-24 (v2.2.3):** the signed v2.2.3 APK was built
 on GitHub Actions from the merged PR #110 (master 3fd20f0, run 40071196152,
 the push build the merge itself triggered), downloaded from the run's
