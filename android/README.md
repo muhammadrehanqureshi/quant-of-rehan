@@ -868,7 +868,8 @@ to sixty seconds. The status tile therefore also carries the app's own
        to their own menu tile at the very bottom of the app, bracketed by
        the same diamond rules as every change of subject. Home and search
        came to the app as the owner's own pngs copied from his Desktop
-       (drawable-nodpi/home.png and search.png, joining the bundled       settings.png); the dev archive's magnifier vector is retired. The
+       (drawable-nodpi/home.png and search.png, joining the bundled
+       settings.png); the dev archive's magnifier vector is retired. The
        page he is on is circled in a thin gold ring (drawable/nav_circle)
        drawn as the icon's background; the ring is the selection, a masked
        ripple is only the press, and unselected pages keep the plain gold
@@ -1292,7 +1293,8 @@ to sixty seconds. The status tile therefore also carries the app's own
   is exactly the crescent wreckage the screenshot caught. The fix is
   one line: the sampler adds the quarter phase (mod01(lam0 / SUN_LAP
   + 0.25f)), longitude zero lands on the face's centre column, and the
-  window is always ONE whole face sliding limb to limb, its mirror
+  window is always ONE whole face sliding limb to limb, its mirror
+
   closing in from behind, under the same 10% cut. Test pin:
   tests/test_android_app_ui.py asserts the offset in the band helper's
   own slice.
@@ -1438,6 +1440,24 @@ to sixty seconds. The status tile therefore also carries the app's own
      owner could not see the old breath, and asked for the lines to get
      "a big small and then get bigger".
  10. The version bump is versionCode 69 / versionName 2.3.1.
+
+**Version 2.3.2, versionCode 70.**
+
+  Owner order 2026-10-25, fifth pass, on the first build of the v2.3.1 ball
+  (the same message: it must burn continuously, with small explosions, and
+  look advanced rather than rendered): the design held, but two things were
+  too timid on the phone, so the ball gets them here.
+
+  1. SHARPER FIRE. The surface blur drops from two texels to one, and the
+     fine filament pass laid back over the rank normalisation rises from
+     0.22 to 0.30, so the picture's own granules and threads survive into
+     the render instead of averaging into a smooth ball.
+  2. VISIBLE ERUPTIONS. Each burst's hot core grows from a 0.11 radian half
+     angle to 0.15 (and swells to 0.28 as it burns), and its heat curve is
+     re-shaped: a wider q-cubed skirt plus a harder q-eighth core, so an
+     eruption reads as a small explosion with a white-hot centre rather
+     than a pinprick.
+  3. The version bump is versionCode 70 / versionName 2.3.2.
 
 **Built and delivered 2026-10-24 (v2.2.3):** the signed v2.2.3 APK was built
 on GitHub Actions from the merged PR #110 (master 3fd20f0, run 40071196152,
