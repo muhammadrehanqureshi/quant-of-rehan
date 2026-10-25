@@ -1685,9 +1685,12 @@ class VersionTest(unittest.TestCase):
         # v2.2.9 is owner order 2026-10-25, second pass: the ball wears
         # the photograph's crown (amber band and white-hot edge) and the
         # thin revolving arcs are gone from the limb.
+        # v2.3.0 is owner order 2026-10-25, third pass: the surface is a
+        # photograph at 448x224 through a ten-stop ramp, the painted band
+        # is a ragged noise crown, and the fake rays are deleted.
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="2.2.9"', manifest)
-        self.assertIn('android:versionCode="67"', manifest)
+        self.assertIn('android:versionName="2.3.0"', manifest)
+        self.assertIn('android:versionCode="68"', manifest)
         # The changelog entry ties these user-visible changes to the build.
         readme = (ROOT / "android" / "README.md").read_text(encoding="utf-8")
         self.assertIn("v1.7.9, owner order 2026-10-20", readme)
@@ -1724,9 +1727,10 @@ class VersionTest(unittest.TestCase):
         self.assertIn("Version 2.2.7, versionCode 65", readme)
         self.assertIn("Version 2.2.8, versionCode 66", readme)
         self.assertIn("Version 2.2.9, versionCode 67", readme)
+        self.assertIn("Version 2.3.0, versionCode 68", readme)
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionCode="67"', manifest)
-        self.assertIn('android:versionName="2.2.9"', manifest)
+        self.assertIn('android:versionCode="68"', manifest)
+        self.assertIn('android:versionName="2.3.0"', manifest)
         layout = LAYOUT.read_text(encoding="utf-8")
         strings = STRINGS.read_text(encoding="utf-8")
         main = MAIN.read_text(encoding="utf-8")
@@ -2698,14 +2702,9 @@ class ThinkingOrbPlanTest(unittest.TestCase):
             encoding="utf-8")
         """Owner order 2026-10-25: "fix the sun, that looked so bad, you
         just turned a 3D SUN into two disc slices type crap, also don't
-        flicker my SUN". The picture projections are retired for good. A
-        flat photograph covers one hemisphere of a sphere and nothing
-        else; the mirror that covers the rest is the two-discs join the
-        owner kept catching, and no phase offset, melt band or strip
-        height could hide a join that lives in the geometry. The ball is
-        a real rendered sphere now: the surface is baked on the ball's
-        own unit sphere and each frame reads it through the frame's
-        longitude, so the granulation slides limb to limb with
+        flicker my SUN". The ball is a real rendered sphere: the surface is
+        baked on the ball's own unit sphere and each frame reads it through
+        the frame's longitude, so the granulation slides limb to limb with
         foreshortening in BOTH directions and the map wraps in longitude
         without a seam.
         """
@@ -2754,51 +2753,56 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         self.assertGreater(method.index("canvas.restore();"), tilt)
         self.assertIn("canvas.drawBitmap(sunBall, null, ballDst, sunPaint);",
                       method)
-        # The ball's own size is the approved 26% of the feature, and the
-        # sphere is shaded at a fixed render resolution, so the frame cost
-        # is bounded whatever the panel's size.
+        # The ball's own size is the approved 26% of the feature.
         self.assertIn("ballR = orbRadius * 0.26f", orb)
-        self.assertIn("SUN_RENDER = 256", orb)
-        # v2.2.9 (owner order 2026-10-25, second pass, "I want my SUN
-        # looking like this ... with fire like features burning"): the
-        # photograph's own crown is pinned to the radii his sun carries it
-        # at, a wide amber band and a white-hot edge, both baked into the
-        # frame tables so the ring costs the frame nothing.
-        self.assertIn("SUN_RING_IN = 0.42f", orb)
-        self.assertIn("SUN_RING_OUT = 0.78f", orb)
-        self.assertIn("SUN_RING_LIFT = 0.55f", orb)
-        self.assertIn("SUN_EDGE_IN = 0.78f", orb)
-        self.assertIn("SUN_EDGE_OUT = 0.96f", orb)
-        self.assertIn("sphereRing[k] = smoothstep(SUN_RING_IN, "
-                      "SUN_RING_OUT, limb)", orb)
-        self.assertIn("sphereEdge[k] = smoothstep(SUN_EDGE_IN, "
-                      "SUN_EDGE_OUT, limb);", orb)
-        self.assertIn("float redLift = 255f * ring + 255f * edge;", orb)
-        self.assertIn("float greenLift = 200f * ring + 250f * edge;", orb)
-        self.assertIn("private static float smoothstep(float a, float b, "
-                      "float v) {", orb)
-        self.assertIn("SUN_LIMB_FLOOR = 0.90f", orb)
-        self.assertIn("SUN_LIMB_GAIN = 0.38f", orb)
+        # v2.3.0 (owner order 2026-10-25, third pass, "you made the sun
+        # really low quality ... a PS2 graphics looking SUN"): the detail
+        # budget is raised, because the cure for a low quality ball is
+        # detail and never a filter laid over the lack of it.
+        self.assertIn("SUN_RENDER = 320", orb)
+        self.assertIn("SUN_MAP_W = 448", orb)
+        self.assertIn("SUN_MAP_H = 224", orb)
+        # The crown is the ball's own curvature plus a RAGGED rim: a radius
+        # ramp whose strength is value noise on the ball's face, so the
+        # white-hot edge is uneven like the photograph's, never a painted
+        # ring (the v2.2.9 smoothstep bands were exactly what he called
+        # fake).
+        self.assertIn("SUN_LIMB_FLOOR = 0.95f", orb)
+        self.assertIn("SUN_LIMB_GAIN = 0.20f", orb)
+        self.assertIn("SUN_EDGE_IN = 0.855f", orb)
+        self.assertIn("SUN_EDGE_OUT = 0.990f", orb)
+        self.assertIn("SUN_EDGE_GAIN = 0.32f", orb)
+        self.assertIn("SUN_EDGE_NOISE = 1.25f", orb)
+        self.assertIn("SUN_EDGE_CORE_IN = 0.965f", orb)
+        self.assertIn("SUN_EDGE_CORE_OUT = 0.995f", orb)
+        self.assertIn("float rag = 0.40f + 1.30f * noise3(x * 7f + 2f,", orb)
+        self.assertIn("float rim = band * (SUN_EDGE_GAIN + SUN_EDGE_NOISE"
+                      " * rag)", orb)
+        self.assertIn("float rn = (float) Math.sqrt(d2);", orb)
+        # The lift is baked per pixel as ints, so the frame adds and clamps
+        # and never recomputes a colour.
+        self.assertIn("sphereLiftR[k] = (int) (255f * (SUN_CROWN_INK[0]"
+                      " * crown", orb)
+        self.assertIn("int redLift = sphereLiftR[k];", orb)
+        self.assertIn("int greenLift = sphereLiftG[k];", orb)
+        self.assertIn("int blueLift = sphereLiftB[k];", orb)
 
-    def test_v2_2_5_the_fire_is_steady_and_the_lines_breathe(self):
+    def test_v2_2_5_the_ball_is_steady_and_the_lines_breathe(self):
         orb = (MAIN.parent / "ThinkingOrb.java").read_text(
             encoding="utf-8")
         """v2.2.5, on the sent-back v2.2.4 build: "the SUN is not
         revolving and it's just flickering now". The flicker WAS the
-        fire's alpha pumps (flame 0.75-1.0 swing, the arc ink's 0.35-1.0
-        swing); the fix narrows the flame swing to length alone and holds
-        the ink steady. The breathe is the NLINES' own law: "the lines will
-        get a bit short and then will get long" - one breath period on each
-        filament, around its own midpoint. v2.2.9 deleted the arcs, so the
-        flame ink is the one fire ink left to hold steady."""
-        # The flame ink is steady (no alpha swing inside the fire):
-        self.assertIn("sunFlame.setAlpha(Math.min(255, (int) (200f * wake)));",
-                      orb)
-        self.assertNotIn("sunProm", orb)
-        # The flame swing is length alone now (0.82 + 0.18 sine).
-        self.assertIn("0.82f + 0.18f * (float) Math.sin(", orb)
+        fire's alpha pumps; v2.3.0 deleted the fire that pumped at all, so
+        the ball's ink is the wake and nothing else. The breathe is the
+        NLINES' own law: "the lines will get a bit short and then will get
+        long" - one breath period on each filament, around its own
+        midpoint, no two in step.
+        """
+        # The ball's ink is the wake alone: no fire term can pump it.
+        self.assertIn("sunPaint.setAlpha((int) (255f * wake));", orb)
+        self.assertNotIn("sunFlame", orb)
+        self.assertNotIn("0.82f + 0.18f * (float) Math.sin(", orb)
         self.assertNotIn("0.72f + 0.28f * (float) Math.sin(", orb)
-        self.assertNotIn("0.35f + 0.65f * leap", orb)
         # The breathe: a phase per link (golden-angle step, so no two
         # lines pulse in step), one breath period, and the swing NEVER
         # detaches the filament from the nodes it joins.
@@ -2862,9 +2866,11 @@ class ThinkingOrbPlanTest(unittest.TestCase):
             encoding="utf-8")
         """Owner order 2026-10-25, closing sentence: "also don't flicker my
         SUN". Nothing on the sphere's own frame path may pulse: the alpha
-        is the wake alone, the shade and the halo are baked once per size,
-        and there is no breathing term, no shader rebuild and no flash on
-        the ball itself.
+        is the wake alone, the shade, the crown and the halo are baked once
+        per size, and there is no breathing term, no shader rebuild and no
+        flash on the ball itself. v2.3.0 deleted the flame tongues and the
+        spark streaks, which were the only two things left on this path
+        that could animate an ink.
         """
         frame = orb[orb.index("private void drawSun("):
                     orb.index("private void buildSunSurface(")]
@@ -2879,24 +2885,52 @@ class ThinkingOrbPlanTest(unittest.TestCase):
             encoding="utf-8")
         """The owner's order of 2026-10-24 shipped his own sun picture at
         the centre (drawable-nodpi/sun.jpg, the SUN ONLY of the ORB.jpg he
-        sent). The owner order of 2026-10-25 keeps it where a flat
-        photograph can actually hold: its palette. The surface's ramp is
-        the photograph's own colours, sampled from its disc, and the
-        picture itself stays on disk as that source. A flat disc cannot
-        cover a turning sphere, which is why the picture no longer paints
-        the ball.
+        sent). The order of 2026-10-25 keeps it where a flat photograph can
+        actually hold: its palette. v2.3.0 re-read that palette as TEN
+        stops with a near black floor, because the seven-stop ramp spent
+        its top half on cream and the owner read the result as "PS2
+        graphics": cream is the top 7% now and the body is saturated
+        orange over black-red lanes.
         """
         # The asset is still the source and still on disk.
         self.assertTrue((RES / "drawable-nodpi" / "sun.jpg").is_file())
         self.assertIn("private static final int[] SUN_RAMP = {", orb)
-        for colour in ("0xFF480C02", "0xFF7F1902", "0xFFBC421D",
-                       "0xFFE27C28", "0xFFF5A947", "0xFFFFDB69",
-                       "0xFFFCFBA1", "0xFFFFFFD6"):
+        for colour in ("0xFF1E0500", "0xFF4A0B01", "0xFF7A1A03",
+                       "0xFFAE3308", "0xFFD95511", "0xFFF07B1C",
+                       "0xFFFFA63C", "0xFFFFD06A", "0xFFFFF0AE",
+                       "0xFFFFFFE8"):
             with self.subTest(colour=colour):
                 self.assertIn(colour, orb)
         self.assertIn("private static final float[] SUN_STOP = {", orb)
+        # The cream-heavy ramp of v2.2.9 is retired by name.
+        for retired in ("0xFF480C02", "0xFF7F1902", "0xFFBC421D",
+                        "0xFFE27C28", "0xFFF5A947", "0xFFFFDB69",
+                        "0xFFFCFBA1", "0xFFFFFFD6"):
+            with self.subTest(retired=retired):
+                self.assertNotIn(retired, orb)
         # The ramp is what colours every surface texel.
         self.assertIn("sunSurface[row * SUN_MAP_W + col] = sunRamp(v);", orb)
+        # The five fields of the photograph's body, and the contrast curve
+        # that gives them its darks. A smooth two-field sum is what looked
+        # moulded; this is the recipe that must stay.
+        self.assertIn("float cell = fbm3(px * 5.4f, py * 5.4f, pz * 5.4f,"
+                      " 5, 0.55f);", orb)
+        self.assertIn("float grain = fbm3(px * 26f + 31f,", orb)
+        self.assertIn("lane = lane * lane * lane * lane;", orb)
+        self.assertIn("float region = fbm3(px * 1.7f + 21f,", orb)
+        self.assertIn("v = (float) Math.pow(clamp(v - 0.09f, 0f, 1f),"
+                      " 1.75f);", orb)
+        self.assertIn("float v = 0.5f + (cell - 0.5f) * 1.55f", orb)
+        # The octave gain is named, so a cell may be rougher than one half.
+        self.assertIn("private static float fbm3(float x, float y, float z,"
+                      " int octaves,", orb)
+        # The glow is noise, pinned to the ball's own radius: a smooth
+        # gradient is exactly the painted ring he sent back.
+        self.assertIn("float fall = clamp((1.42f - rad) / 0.42f, 0f, 1f);",
+                      orb)
+        self.assertIn("float wisp = 0.62f + 1.05f * n + 0.45f * n2;", orb)
+        self.assertIn("float alpha = clamp(fall * wisp * 0.62f, 0f, 1f);",
+                      orb)
         # No painted sphere of ours is allowed to repaint his photograph
         # through a shader; the ball is geometry and palette only.
         for retired in ("sunHeart", "GRANULES", "GRANULE_STRIDE", "cells[o"):
@@ -2905,32 +2939,38 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         self.assertNotIn("drawCloudHeart", orb)
         self.assertNotIn("PorterDuff", orb)
 
-    def test_the_sun_keeps_its_sparks_and_the_arcs_are_gone(self):
+    def test_the_painted_rays_are_deleted_with_their_book_keeping(self):
         orb = (MAIN.parent / "ThinkingOrb.java").read_text(
             encoding="utf-8")
-        """Owner order 2026-10-25: "don't have the curve lines that were
-        moving just outside the sun ... those little curve lines that were
-        moving as well on the SUN". The eight revolving prominence arcs and
-        everything that fed them (their angles, spreads, heights, phases
-        and speeds, their paint and their Path) are deleted, while the spark
-        cadence of v1.9.14 stays: one spark alive almost every second, a
-        period per spark, the streak drawn only while the spark is young.
+        """Owner order 2026-10-25, third pass: "the ray that are on the sun
+        right now looks absolute fake and ugly". The twelve radial flame
+        tongues and the seven spark streaks are what that sentence caught:
+        a radial gradient blob at a fixed angle can only ever read as a
+        drawn ray, never as fire. Both are DELETED with their angles,
+        lengths, phases, rates, paints and methods, and the limb carries
+        the fire the same way the photograph's does - in the surface and
+        the ragged crown. The big straight HUD rules are untouched: they
+        are drawCloud's, and the owner exempted them by name.
         """
-        for retired in ("PROMINENCES", "promAngle", "promSpread",
-                        "promHeight", "promPhase", "promSpeed",
-                        "promPath", "sunProm", "drawProminences"):
+        for retired in ("FLAMES", "FLARES", "flameAngle", "flameLength",
+                        "flamePhase", "flameRate", "flareAngle",
+                        "flarePeriod", "flarePhase", "buildSun(",
+                        "drawFlames", "drawFlares", "sunFlame", "sunFlare",
+                        "SUN_RING_IN", "SUN_RING_OUT", "SUN_RING_LIFT",
+                        "sphereRing", "sphereEdge"):
             with self.subTest(retired=retired):
                 self.assertNotIn(retired, orb)
+        # One scene, two draws: the cloud, then its sun.
+        scene = orb[orb.index("private void drawScene("):
+                    orb.index("private void drawSun(")]
+        self.assertIn("drawCloud(canvas, seconds, wake);", scene)
+        self.assertIn("drawSun(canvas, seconds, wake);", scene)
+        self.assertEqual(scene.count("canvas"), 3,
+                         "drawScene draws the cloud and the sun, nothing else")
+        # The cloud and its laws stand: the rays he exempted are these.
+        self.assertIn("float linkAt = 0.42f;", orb)
+        self.assertIn("private void drawCloud(", orb)
         self.assertNotIn("Path", orb)
-        self.assertIn("private static final int FLARES = 7;", orb)
-        # The spark cadence is the seconds cadence the owner ordered: a
-        # period per spark, one streak drawn while the spark is young, and
-        # the fall decays it.
-        self.assertIn("flarePeriod[s] = 0.7f + frac(seed) * 0.5f;", orb)
-        self.assertIn("(seconds + flarePhase[s]) % period;", orb)
-        self.assertIn("if (t > 0.62f) {", orb)
-        self.assertIn("dist = ballR * (1.04f + 0.5f * k);", orb)
-        self.assertIn("float fade = 1f - k;", orb)
 
     def test_the_burn_reads_alone_and_the_palettes_ahead_of_it_are_retired(self):
         orb = (MAIN.parent / "ThinkingOrb.java").read_text(
@@ -2963,8 +3003,10 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         # frame; the ball's destination rect is shared and reused, and the
         # sphere's tables and bitmap are built beside the rest (v2.2.8).
         self.assertIn("buildGeometry();", orb)
-        self.assertIn("buildSun();", orb)
         self.assertIn("buildInks();", orb)
+        # v2.3.0: the flame and spark build is gone with the rays it drew;
+        # the sphere's own bake is the sun's whole build now.
+        self.assertNotIn("buildSun();", orb)
         self.assertIn("buildSunSphere();", orb)
         self.assertIn("onSizeChanged", orb)
         self.assertIn("private final RectF ballDst = new RectF();", orb)
