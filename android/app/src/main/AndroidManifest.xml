@@ -49,11 +49,20 @@
      SPHERE - a surface baked once on the ball's own unit sphere (its
      palette read from the owner's own sun picture), read each frame
      through the frame's longitude, with a steady baked shade and halo
-     and no pulsing term anywhere on the ball. -->
+     and no pulsing term anywhere on the ball.
+
+     versionCode 67 / versionName 2.2.9 belong to the owner order
+     2026-10-25, second pass ("I want my SUN looking like this ... with
+     fire like features burning", "don't have the curve lines that were
+     moving just outside the sun"): the ball wears the photograph's own
+     crown, the wide amber band and the white-hot edge pinned to the
+     radii his sun carries them at, the thin revolving arcs are deleted
+     with their book keeping, and the flame tongues and sparks carry the
+     fire alone. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="pk.quantofrehan"
-    android:versionCode="66"
-    android:versionName="2.2.8">
+    android:versionCode="67"
+    android:versionName="2.2.9">
 
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="30"/>
 
