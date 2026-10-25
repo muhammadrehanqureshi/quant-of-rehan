@@ -1533,6 +1533,20 @@ to sixty seconds. The status tile therefore also carries the app's own
      shift under the owner's own 10% cut.
   6. The version bump is versionCode 72 / versionName 2.3.5.
 
+**Built and delivered 2026-10-25 (v2.3.5):** the signed v2.3.5 APK was built
+on GitHub Actions from the merge of PR #131 (master 92c4a166b8, run
+40177646242, the push build the merge itself triggered), downloaded from the
+run's artifact and copied to
+`C:/Users/rehan/OneDrive/Desktop/QuantOfRehan-v2.3.5.apk`. SHA-256
+`3394b6e3cfafabeccc79434cb7b867979e67f86605e29ba7ba0dc60626d37632`,
+and the run's `badging.txt` reads back `pk.quantofrehan`,
+`versionCode="72"`, `versionName="2.3.5"`, with the launchable
+`MainActivity`. The copy is signed by the repository keystore, so it installs
+straight over the running build. The sun in this build is his own rim and his
+own corona, read off his photograph per screen angle and turned with the
+surface, with the sphere's poles dissolved into their own map row, so no
+radius in that file decides the edge any more.
+
 **Built and delivered 2026-10-25 (v2.3.3):** the signed v2.3.3 APK was built
 on GitHub Actions from the merge of PR #129 (master 7a30fcb, run 40174319118,
 the push build the merge itself triggered), downloaded from the run's
