@@ -103,11 +103,21 @@
      photograph, its fire crop wrapped on the sphere on a triangle wrap and
      its rim baked as a fixed crown, every pixel inside the disc solid; the
      filaments' breath is tripled, their fade no longer reaches zero and
-     every node is guaranteed a filament. -->
+     every node is guaranteed a filament.
+
+     versionCode 72 / versionName 2.3.5 belong to the owner order
+     2026-10-25, seventh pass ("there is this one outline on the SUN and
+     even the render of SUN looks really cheap, make it look very
+     realistic"): the crown is gone, and so is every other decision made
+     from the screen radius. His own rim is sampled per screen angle with
+     its own tongues and gaps, his own corona is sampled per angle and
+     radius and turns with the surface, the sphere's poles dissolve into
+     their own map row, and the fire crop opens from 0.62 to 0.75 of the
+     disc so the face is nearer the scale of his picture. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="pk.quantofrehan"
-    android:versionCode="71"
-    android:versionName="2.3.3">
+    android:versionCode="72"
+    android:versionName="2.3.5">
 
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="30"/>
 
