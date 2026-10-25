@@ -38,7 +38,8 @@ export class FormulaError extends Error {
 type Value = number | Float64Array;
 
 interface Token {
-  readonly kind: "number" | "ident" | "op" | "lparen" | "rparen" | "comma";
+  readonly kind: "number" | "ident" | "op" | "lparen" | "rparen" |
+    "comma" | "assign" | "end";
   readonly text: string;
   readonly at: number;
 }
@@ -57,18 +58,44 @@ const SERIES = new Set([
 const FUNCTIONS = new Set([
   "sma", "ema", "rsi", "atr", "stddev", "highest", "lowest", "roc",
   "change", "abs", "sqrt", "log", "exp", "min", "max", "nz", "obv",
+  "plot", "hline",
 ]);
 
-const MAX_SOURCE = 400;
-const MAX_TOKENS = 256;
+/**
+ * A whole script, not a one-line formula.
+ *
+ * The editor used to hold four hundred characters, which is less than a
+ * single real indicator: a reader pasting their own study hit the ceiling
+ * before the parser ever saw the maths. Eight thousand characters with four
+ * thousand tokens is several screens of a Pine-style script and still ends.
+ */
+const MAX_SOURCE = 8_000;
+const MAX_TOKENS = 4_096;
 const MAX_DEPTH = 48;
+
+/** Every statement of a script, so `x = ...` lines can be read back. */
+type Statement =
+  | { kind: "assign"; name: string; value: Node }
+  | { kind: "expr"; value: Node };
 
 function tokenize(source: string): Token[] {
   const tokens: Token[] = [];
   let index = 0;
+  // A newline inside brackets continues the same statement, so a wrapped
+  // call is not read as two broken ones.
+  let brackets = 0;
   while (index < source.length) {
     const character = source[index] ?? "";
     if (/\s/.test(character)) {
+      // A newline or a semicolon ends one statement; plain spaces do not.
+      const breaks = character === "\n" || character === "\r" ||
+        (character === ";" && brackets === 0);
+      if (breaks && brackets === 0) {
+        const last = tokens[tokens.length - 1];
+        if (last !== undefined && last.kind !== "end") {
+          tokens.push({ kind: "end", text: character, at: index });
+        }
+      }
       index += 1;
       continue;
     }
@@ -102,11 +129,13 @@ function tokenize(source: string): Token[] {
       continue;
     }
     if (character === "(") {
+      brackets += 1;
       tokens.push({ kind: "lparen", text: character, at: index });
       index += 1;
       continue;
     }
     if (character === ")") {
+      brackets = Math.max(0, brackets - 1);
       tokens.push({ kind: "rparen", text: character, at: index });
       index += 1;
       continue;
@@ -121,7 +150,20 @@ function tokenize(source: string): Token[] {
       index += 1;
       continue;
     }
+    if (character === "=") {
+      // `==` is a comparison this language does not have; say so plainly
+      // rather than reading half of it as an assignment.
+      if (source[index + 1] === "=") {
+        throw new FormulaError(`"==" is not supported (at ${index})`);
+      }
+      tokens.push({ kind: "assign", text: character, at: index });
+      index += 1;
+      continue;
+    }
     throw new FormulaError(`unexpected character "${character}" at ${index}`);
+  }
+  while (tokens.length > 0 && tokens[tokens.length - 1]?.kind === "end") {
+    tokens.pop();
   }
   if (tokens.length > MAX_TOKENS) {
     throw new FormulaError("the formula is too long to be safe");
@@ -135,14 +177,35 @@ class Parser {
 
   constructor(private readonly tokens: readonly Token[]) {}
 
-  parse(): Node {
-    const node = this.additive();
-    if (this.index < this.tokens.length) {
-      const token = this.tokens[this.index];
-      throw new FormulaError(
-        `unexpected "${token?.text ?? ""}" at ${token?.at ?? 0}`);
+  parseProgram(): Statement[] {
+    const statements: Statement[] = [];
+    while (this.index < this.tokens.length) {
+      if (this.peek()?.kind === "end") {
+        this.take();
+        continue;
+      }
+      const first = this.peek();
+      const second = this.tokens[this.index + 1];
+      if (first?.kind === "ident" && second?.kind === "assign") {
+        this.take();
+        this.take();
+        const value = this.additive();
+        statements.push({
+          kind: "assign", name: first.text.toLowerCase(), value,
+        });
+      } else {
+        statements.push({ kind: "expr", value: this.additive() });
+      }
+      const next = this.peek();
+      if (next !== undefined && next.kind !== "end") {
+        throw new FormulaError(
+          `unexpected "${next.text}" at ${next.at} (each statement is one line)`);
+      }
     }
-    return node;
+    if (statements.length === 0) {
+      throw new FormulaError("the formula is empty");
+    }
+    return statements;
   }
 
   private peek(): Token | undefined {
@@ -231,9 +294,8 @@ class Parser {
         this.depth -= 1;
         return { kind: "call", name, args };
       }
-      if (!SERIES.has(name)) {
-        throw new FormulaError(`unknown series "${token.text}"`);
-      }
+      // A bare name may be a variable an earlier line assigned; the parser
+      // cannot know that, so the check happens when the script runs.
       this.depth -= 1;
       return { kind: "ref", name };
     }
@@ -244,6 +306,9 @@ class Parser {
       }
       this.depth -= 1;
       return node;
+    }
+    if (token.kind === "end") {
+      throw new FormulaError(`the statement ends too early (at ${token.at})`);
     }
     throw new FormulaError(`unexpected "${token.text}" at ${token.at}`);
   }
@@ -305,13 +370,21 @@ export function compileFormula(source: string): (data: SeriesData) => Float64Arr
   if (clean.length > MAX_SOURCE) {
     throw new FormulaError(`the formula is longer than ${MAX_SOURCE} characters`);
   }
-  const tree = new Parser(tokenize(clean)).parse();
+  const program = new Parser(tokenize(clean)).parseProgram();
+  const env = new Map<string, Value>();
 
   const evaluate = (node: Node, data: SeriesData): Value => {
     switch (node.kind) {
       case "number":
         return node.value;
       case "ref": {
+        const held = env.get(node.name);
+        if (held !== undefined) {
+          return held;
+        }
+        if (!SERIES.has(node.name)) {
+          throw new FormulaError(`unknown series or variable "${node.name}"`);
+        }
         switch (node.name) {
           case "open": return data.open;
           case "high": return data.high;
@@ -431,6 +504,9 @@ export function compileFormula(source: string): (data: SeriesData) => Float64Arr
             }
             return out;
           }
+          case "plot":
+          case "hline":
+            return args[0] ?? Number.NaN;
           default:
             throw new FormulaError(`unknown function "${node.name}"`);
         }
@@ -439,7 +515,16 @@ export function compileFormula(source: string): (data: SeriesData) => Float64Arr
   };
 
   return (data: SeriesData): Float64Array => {
-    const result = evaluate(tree, data);
+    env.clear();
+    let result: Value = Number.NaN;
+    for (const statement of program) {
+      result = evaluate(statement.value, data);
+      if (statement.kind === "assign") {
+        // A script's last line is the line it draws, assignment or not: a
+        // reader who names their study still expects to see it.
+        env.set(statement.name, result);
+      }
+    }
     return asArray(result, data.length);
   };
 }
