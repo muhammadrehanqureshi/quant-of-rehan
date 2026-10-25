@@ -40,11 +40,20 @@
      instead of the face's centre, so the v2.2.6 build showed halves of
      the disc and its mirror (the crescent wreckage); with the
      quarter-phase offset the visible window is always ONE whole face,
-     sliding limb to limb under the owner's own 10% cut. -->
+     sliding limb to limb under the owner's own 10% cut.
+
+     versionCode 66 / versionName 2.2.8 belong to the owner order
+     2026-10-25 ("fix the sun, that looked so bad, you just turned a 3D
+     SUN into two disc slices type crap, also don't flicker my SUN"):
+     every picture projection is retired and the centre is a rendered
+     SPHERE - a surface baked once on the ball's own unit sphere (its
+     palette read from the owner's own sun picture), read each frame
+     through the frame's longitude, with a steady baked shade and halo
+     and no pulsing term anywhere on the ball. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="pk.quantofrehan"
-    android:versionCode="65"
-    android:versionName="2.2.7">
+    android:versionCode="66"
+    android:versionName="2.2.8">
 
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="30"/>
 
