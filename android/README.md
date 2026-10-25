@@ -1329,6 +1329,31 @@ to sixty seconds. The status tile therefore also carries the app's own
      passes it served.
   3. The version bump is versionCode 66 / versionName 2.2.8.
 
+**Version 2.2.9, versionCode 67.**
+
+  Owner order 2026-10-25, second pass, on the v2.2.8 sun ("you changes the
+  appearance of my original SUN, I want my SUN looking like this ... with
+  fire like features burning", and "don't have the curve lines that were
+  moving just outside the sun ... those little curve lines that were
+  moving as well on the SUN"):
+
+  1. The ball wears the photograph's own CROWN. The v2.2.8 sphere carried
+     only a thin rim lift, which read as a mottled orange disc rather than
+     his blazing star. The crown is baked into the frame tables now as two
+     bands pinned to the radii his sun carries them at: a wide amber band
+     over the outer disc and a white-hot edge at the ring, with the
+     surface's own shade lifted to 0.90 at the centre. The halo grows to
+     1.55x the ball and warms at a stronger alpha, and the flame tongues
+     are larger and hotter, so the fire reads at the limb.
+  2. The thin curved arcs that revolved on the limb are GONE. The owner
+     called them the little curve lines moving on the sun (the big
+     straight filaments around the HUD are not that, and are untouched):
+     the eight prominence arcs and all their book keeping (angles,
+     spreads, heights, phases, speeds, the shared Path and its paint) are
+     deleted. The flame tongues and the spark cadence stay, so the sun
+     still burns.
+  3. The version bump is versionCode 67 / versionName 2.2.9.
+
 **Built and delivered 2026-10-24 (v2.2.3):** the signed v2.2.3 APK was built
 on GitHub Actions from the merged PR #110 (master 3fd20f0, run 40071196152,
 the push build the merge itself triggered), downloaded from the run's

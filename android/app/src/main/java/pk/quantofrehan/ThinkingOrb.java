@@ -4,7 +4,6 @@ import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Paint;
-import android.graphics.Path;
 import android.graphics.RadialGradient;
 import android.graphics.RectF;
 import android.graphics.Shader;
@@ -27,9 +26,8 @@ import android.view.View;
  * excesses the later passes grew around the cloud go with them.
  *     * "I want the center as the sun": the cloud's old breathing core gradient
      * is replaced by the ALWAYS-BURNING SUN v1.9.9 built and v1.9.14 made
-     * hotter - flame tongues on the limb, revolving prominence arcs and the
-     * spark cadence drawn at the cloud's own centre, so the organism circles
-     * a star instead of a light.
+     * hotter - flame tongues on the limb and the spark cadence drawn at the
+     * cloud's own centre, so the organism circles a star instead of a light.
      * * Owner order 2026-10-23 (v2.2.1, eighth pass): three edits
      * the owner listed in one message.
      *
@@ -56,9 +54,17 @@ import android.view.View;
      * the unit sphere, its palette read from his own sun picture, and each
      * frame's longitude travelling over it. The ball never pulses: its
      * alpha is the wake alone and its shade is baked, so it turns without
-     * a flicker. The limb's own fire (flame tongues, revolving arcs and the
-     * spark cadence) stays where it is, and the cloud and its laws stay
-     * untouched.
+     * a flicker.
+     *
+     * Owner order 2026-10-25, second pass ("I want my SUN looking like this
+     * ... with fire like features burning", "don't have the curve lines
+     * that were moving just outside the sun"): the ball wears the
+     * photograph's own crown now, the wide amber band and the white-hot
+     * edge pinned to the radii his sun carries them at, so it reads as the
+     * blazing star he sent rather than a mottled orange disc. The thin
+     * curved arcs that revolved at the limb are deleted with their book
+     * keeping, the flame tongues and the spark cadence stay so the fire
+     * still burns, and the cloud and its laws are untouched.
      *
      * The park law of v1.9.14 stands: stop() freezes the pose the loop last
      * DREW and the parked frame REPAINTS it fully awake, so a closed market, a
@@ -67,7 +73,7 @@ import android.view.View;
      *
      * The budget is the one that survived every pass: one View, zero relay
      * requests, zero allocations per frame - the cloud's nodes and links and
-     * the sun's flames, prominences and flares are all built once in
+     * the sun's flames and flares are all built once in
      * onSizeChanged, and every frame touches preallocated arrays. The frame
      * loop is the view's own paced invalidate at FPS_MS; start() and stop()
      * stay the only public controls, wired to MainActivity's startHud and
@@ -114,15 +120,14 @@ public class ThinkingOrb extends View {
     private final Paint nodePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
 
     /**
-     * The sun's fire (kept from v1.9.14): the flaming limb, the arcs and
-     * the spark painter, and the one paint that carries the rendered
-     * sphere (alpha per frame, filtered scaling).
+     * The sun's fire (kept from v1.9.14): the flaming limb and the spark
+     * painter, and the one paint that carries the rendered sphere (alpha
+     * per frame, filtered scaling).
      */
     private final Paint sunPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     /** The baked halo's own paint: only its alpha moves, with the wake. */
     private final Paint sunHaloPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint sunFlame = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final Paint sunProm = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint sunFlare = new Paint(Paint.ANTI_ALIAS_FLAG);
     /** The steady halo glow, baked once per size beside the ball. */
     private Bitmap halo;
@@ -135,14 +140,15 @@ public class ThinkingOrb extends View {
     /**
      * The sphere's frame tables, baked once per size: the longitude each
      * ball pixel reads at zero spin, the surface row it reads, the shade
-     * the ball's own curvature gives it, the rim's warm lift and the
+     * the ball's own curvature gives it, the crown's two lifts and the
      * pixel's edge coverage. Nothing here is computed on the frame path
      * but the one shared spin.
      */
     private float[] sphereU;
     private float[] sphereV;
     private float[] sphereShade;
-    private float[] sphereRim;
+    private float[] sphereRing;
+    private float[] sphereEdge;
     private int[] sphereCover;
     /** The destination square the ball fills, preallocated for the frame. */
     private final RectF ballDst = new RectF();
@@ -174,18 +180,29 @@ public class ThinkingOrb extends View {
     private static final float[] SUN_STOP = {
             0.00f, 0.18f, 0.38f, 0.55f, 0.70f, 0.82f, 0.92f, 1.00f,
     };
-    /** How far the ball's own limb lifts its fire, and its warm rim. */
-    private static final float SUN_LIMB_FLOOR = 0.82f;
-    private static final float SUN_LIMB_GAIN = 0.60f;
-    private static final float SUN_RIM_LIFT = 34f;
+    /** How far the ball's own limb lifts its fire, and its bright ring. */
+    private static final float SUN_LIMB_FLOOR = 0.90f;
+    private static final float SUN_LIMB_GAIN = 0.38f;
+    /**
+     * The owner's own ring (owner order 2026-10-25, "I want my SUN looking
+     * like this"): the photograph's wide amber band and its white-hot
+     * edge, pinned to the same radii his sun carries them at, so the ball
+     * reads as the blazing crowned star he sent rather than a mottled
+     * orange disc.
+     */
+    private static final float SUN_RING_IN = 0.42f;
+    private static final float SUN_RING_OUT = 0.78f;
+    private static final float SUN_RING_LIFT = 0.55f;
+    private static final float SUN_EDGE_IN = 0.78f;
+    private static final float SUN_EDGE_OUT = 0.96f;
     /** The rim's own antialiasing width, in render pixels. */
-    private static final float SUN_EDGE = 1.3f;
+    private static final float SUN_FEATHER = 1.3f;
     /**
      * The halo's own reach, as a multiple of the ball's radius: baked
      * ONCE per size into a bitmap (buildSunSphere), so the frame only
      * alpha-drives it, never a per-frame shader and never a flicker term.
      */
-    private static final float SUN_HALO = 1.5f;
+    private static final float SUN_HALO = 1.55f;
     /** One revolution of the sphere's own longitude. */
     private static final float SUN_LAP = (float) (2f * Math.PI);
     /**
@@ -204,23 +221,12 @@ public class ThinkingOrb extends View {
      */
     private static final float SUN_SLOWDOWN = 0.9f;
 
-    /** The one Path the prominence arcs share; reset, never reallocated. */
-    private final Path promPath = new Path();
-
     /** Flame tongues around the limb: angle, length, phase, rate. */
     private static final int FLAMES = 12;
     private final float[] flameAngle = new float[FLAMES];
     private final float[] flameLength = new float[FLAMES];
     private final float[] flamePhase = new float[FLAMES];
     private final float[] flameRate = new float[FLAMES];
-
-    /** Revolving prominence arcs: angle, spread, height, phase, speed. */
-    private static final int PROMINENCES = 8;
-    private final float[] promAngle = new float[PROMINENCES];
-    private final float[] promSpread = new float[PROMINENCES];
-    private final float[] promHeight = new float[PROMINENCES];
-    private final float[] promPhase = new float[PROMINENCES];
-    private final float[] promSpeed = new float[PROMINENCES];
 
     /** Flare sparks: angle, period (the seconds cadence), phase. */
     private static final int FLARES = 7;
@@ -432,7 +438,13 @@ public class ThinkingOrb extends View {
         }
     }
 
-    /** The sun's fire: flames, prominences, sparks (v1.9.14 kept). */
+    /**
+     * The sun's fire: flames and sparks. Owner order 2026-10-25: the thin
+     * curved arcs that revolved on the limb are GONE ("don't have the
+     * curve lines that were moving just outside the sun ... those little
+     * curve lines that were moving as well on the SUN"), so the limb
+     * carries fire alone.
+     */
     private void buildSun() {
         long seed = 20261024L;
         for (int f = 0; f < FLAMES; f++) {
@@ -443,18 +455,6 @@ public class ThinkingOrb extends View {
             flamePhase[f] = frac(seed) * (float) Math.PI * 2f;
             seed = nextSeed(seed);
             flameRate[f] = 1.5f + frac(seed) * 1.5f;
-        }
-        for (int p = 0; p < PROMINENCES; p++) {
-            promAngle[p] = (float) Math.PI * 2f * p / PROMINENCES
-                    + 0.37f * p;
-            seed = nextSeed(seed);
-            promSpread[p] = 0.30f + frac(seed) * 0.15f;
-            seed = nextSeed(seed);
-            promHeight[p] = 0.20f + frac(seed) * 0.18f;
-            seed = nextSeed(seed);
-            promPhase[p] = frac(seed) * (float) Math.PI * 2f;
-            seed = nextSeed(seed);
-            promSpeed[p] = 0.18f + frac(seed) * 0.12f;
         }
         for (int s = 0; s < FLARES; s++) {
             seed = nextSeed(seed);
@@ -478,14 +478,9 @@ public class ThinkingOrb extends View {
         sunPaint.setFilterBitmap(true);
 
         // The flame tongues share the same soft trick at the limb.
-        sunFlame.setShader(new RadialGradient(0f, 0f, dp(7f), new int[]{
-                0xAAFFB84D, 0x55FF8F00, 0x00FF8F00},
+        sunFlame.setShader(new RadialGradient(0f, 0f, dp(9f), new int[]{
+                0xCCFFC96A, 0x66FF8F00, 0x00FF8F00},
                 new float[]{0f, 0.5f, 1f}, Shader.TileMode.CLAMP));
-
-        sunProm.setStyle(Paint.Style.STROKE);
-        sunProm.setStrokeCap(Paint.Cap.ROUND);
-        sunProm.setStrokeWidth(dp(1.4f));
-        sunProm.setColor(0xFFFFCA66);
 
         sunFlare.setColor(0xFFF9E8C8);
         sunFlare.setStrokeCap(Paint.Cap.ROUND);
@@ -528,7 +523,6 @@ public class ThinkingOrb extends View {
     private void drawScene(Canvas canvas, float seconds, float wake) {
         drawCloud(canvas, seconds, wake);
         drawFlames(canvas, seconds, wake);
-        drawProminences(canvas, seconds, wake);
         drawSun(canvas, seconds, wake);
         drawFlares(canvas, seconds, wake);
     }
@@ -556,11 +550,11 @@ public class ThinkingOrb extends View {
      * directions, and no frame can show a join: the map is continuous by
      * construction and wraps in longitude without a seam.
      *
-     * The shade is the curvature: a steady limb lift plus a warm rim, both
-     * baked into the frame tables. Nothing on this path pulses - the ball
-     * breathes in nothing, its alpha is the wake alone, and the halo is one
-     * baked bitmap - which is the owner's "don't flicker my SUN" order of
-     * the same pass.
+     * The shade is the curvature: a steady limb lift plus the photograph's
+     * own crown, both baked into the frame tables. Nothing on this path
+     * pulses - the ball breathes in nothing, its alpha is the wake alone,
+     * and the halo is one baked bitmap - which is the owner's "don't
+     * flicker my SUN" order of the same pass.
      */
     private void drawSun(Canvas canvas, float seconds, float wake) {
         if (sunBall == null) {
@@ -569,7 +563,7 @@ public class ThinkingOrb extends View {
         // The halo first, under everything: one baked bitmap, its alpha
         // only the wake - steady, never a flicker term.
         float haloHalf = halo.getWidth() / 2f;
-        sunHaloPaint.setAlpha((int) (150f * wake));
+        sunHaloPaint.setAlpha((int) (175f * wake));
         canvas.drawBitmap(halo, cx - haloHalf, cy - haloHalf, sunHaloPaint);
         // The bearing: the owner's own pace under the owner's own 10% cut.
         float phi = seconds * SUN_SPIN_RATE * MOTION_SCALE * SUN_SLOWDOWN;
@@ -623,18 +617,22 @@ public class ThinkingOrb extends View {
             float w01 = (1f - fu) * fv;
             float w11 = fu * fv;
             float shade = sphereShade[k];
-            float rim = sphereRim[k];
+            float ring = sphereRing[k];
+            float edge = sphereEdge[k];
+            float redLift = 255f * ring + 255f * edge;
+            float greenLift = 200f * ring + 250f * edge;
+            float blueLift = 95f * ring + 215f * edge;
             int red = (int) ((((a >> 16) & 0xFF) * w00
                     + ((b >> 16) & 0xFF) * w10
                     + ((c >> 16) & 0xFF) * w01
-                    + ((d >> 16) & 0xFF) * w11) * shade + rim);
+                    + ((d >> 16) & 0xFF) * w11) * shade + redLift);
             int green = (int) ((((a >> 8) & 0xFF) * w00
                     + ((b >> 8) & 0xFF) * w10
                     + ((c >> 8) & 0xFF) * w01
-                    + ((d >> 8) & 0xFF) * w11) * shade + rim * 0.63f);
+                    + ((d >> 8) & 0xFF) * w11) * shade + greenLift);
             int blue = (int) (((a & 0xFF) * w00 + (b & 0xFF) * w10
                     + (c & 0xFF) * w01 + (d & 0xFF) * w11) * shade
-                    + rim * 0.20f);
+                    + blueLift);
             sunBallPixels[k] = (cover << 24)
                     | (Math.min(255, Math.max(0, red)) << 16)
                     | (Math.min(255, Math.max(0, green)) << 8)
@@ -657,10 +655,11 @@ public class ThinkingOrb extends View {
         sphereU = new float[count];
         sphereV = new float[count];
         sphereShade = new float[count];
-        sphereRim = new float[count];
+        sphereRing = new float[count];
+        sphereEdge = new float[count];
         sphereCover = new int[count];
         float half = SUN_RENDER / 2f;
-        float feather = SUN_EDGE / half;
+        float feather = SUN_FEATHER / half;
         for (int j = 0; j < SUN_RENDER; j++) {
             float y = (j + 0.5f) / half - 1f;
             for (int i = 0; i < SUN_RENDER; i++) {
@@ -682,7 +681,9 @@ public class ThinkingOrb extends View {
                 float limb = 1f - z;
                 sphereShade[k] = SUN_LIMB_FLOOR
                         + SUN_LIMB_GAIN * limb * limb;
-                sphereRim[k] = SUN_RIM_LIFT * limb * limb * limb;
+                sphereRing[k] = smoothstep(SUN_RING_IN, SUN_RING_OUT, limb)
+                        * SUN_RING_LIFT;
+                sphereEdge[k] = smoothstep(SUN_EDGE_IN, SUN_EDGE_OUT, limb);
                 float edge = (1f - (float) Math.sqrt(d2)) / feather;
                 sphereCover[k] = (int) (255f * Math.min(1f, edge));
             }
@@ -717,7 +718,7 @@ public class ThinkingOrb extends View {
                         nz * 1.9f - 23f, 2);
                 float v = (0.66f * coarse + 0.34f * grain)
                         * (0.80f + 0.40f * region);
-                v = clamp((v - 0.24f) / 0.52f, 0f, 1f);
+                v = clamp((v - 0.22f) / 0.50f, 0f, 1f);
                 sunSurface[row * SUN_MAP_W + col] = sunRamp(v);
             }
         }
@@ -730,7 +731,7 @@ public class ThinkingOrb extends View {
         Canvas warm = new Canvas(halo);
         Paint glow = new Paint(Paint.ANTI_ALIAS_FLAG);
         glow.setShader(new RadialGradient(haloD / 2f, haloD / 2f, haloD / 2f,
-                new int[]{0x66FFC24A, 0x22FFA726, 0x00000000},
+                new int[]{0x80FFC24A, 0x2AFFA726, 0x00000000},
                 new float[]{0f, 0.55f, 1f}, Shader.TileMode.CLAMP));
         warm.drawCircle(haloD / 2f, haloD / 2f, haloD / 2f, glow);
     }
@@ -925,35 +926,9 @@ public class ThinkingOrb extends View {
             canvas.save();
             canvas.translate(cx + ballR * (float) Math.cos(angle),
                     cy + ballR * (float) Math.sin(angle));
-            sunFlame.setAlpha(Math.min(255, (int) (170f * wake)));
+            sunFlame.setAlpha(Math.min(255, (int) (200f * wake)));
             canvas.drawCircle(0f, 0f, ballR * len, sunFlame);
             canvas.restore();
-        }
-    }
-
-    /** The arcs that REVOLVE around the limb on their own slow bearing. */
-    private void drawProminences(Canvas canvas, float seconds, float wake) {
-        for (int p = 0; p < PROMINENCES; p++) {
-            float roll = promAngle[p]
-                    + seconds * promSpeed[p] * MOTION_SCALE;
-            float leap = 0.5f + 0.5f * (float) Math.sin(
-                    seconds * 0.47f * MOTION_SCALE + promPhase[p]);
-            float height = promHeight[p] * (0.55f + 0.45f * leap);
-            float a0 = roll - promSpread[p] * 0.5f;
-            float a1 = roll + promSpread[p] * 0.5f;
-            promPath.reset();
-            promPath.moveTo(
-                    cx + ballR * (float) Math.cos(a0),
-                    cy + ballR * (float) Math.sin(a0));
-            promPath.quadTo(
-                    cx + ballR * (1f + height * 1.6f)
-                            * (float) Math.cos(roll),
-                    cy + ballR * (1f + height * 1.6f)
-                            * (float) Math.sin(roll),
-                    cx + ballR * (float) Math.cos(a1),
-                    cy + ballR * (float) Math.sin(a1));
-            sunProm.setAlpha(Math.min(255, (int) (185f * wake)));
-            canvas.drawPath(promPath, sunProm);
         }
     }
 
@@ -1010,6 +985,12 @@ public class ThinkingOrb extends View {
 
     private static float clamp(float v, float lo, float hi) {
         return v < lo ? lo : (v > hi ? hi : v);
+    }
+
+    /** Smooth 0..1 ramp, the sun's ring and edge in one place. */
+    private static float smoothstep(float a, float b, float v) {
+        float t = clamp((v - a) / (b - a), 0f, 1f);
+        return t * t * (3f - 2f * t);
     }
 
     /**
