@@ -114,9 +114,6 @@
      radius and turns with the surface, the sphere's poles dissolve into
      their own map row, and the fire crop opens from 0.62 to 0.75 of the
      disc so the face is nearer the scale of his picture. -->
-
-    android:versionCode="72"
-    android:versionName="2.3.5">
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="pk.quantofrehan"
     android:versionCode="72"
