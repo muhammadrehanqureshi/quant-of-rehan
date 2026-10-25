@@ -5,12 +5,15 @@ Owner correction 2026-10-20: the chart showed "KSE100" as an equal-weight
 proxy rebased to 1000, and the owner was right to call it wrong. The broker's
 read-only recorder banks every frame it receives, including the index frames
 (``EXS-FEED*``) that carry the real published levels: on 2026-10-16 the KSE100
-frame read ``KSE100;166231.18;45.02;166599.29;413.125;165956.51;...`` — the
+frame read ``KSE100;166231.18;45.02;166599.29;413.125;165956.51;...`` , the
 real level, the day's change against the previous close, the session high and
 low, and the totals. This module turns those frames into bars.
 
+Every stamp is read on the exchange's own clock, Asia/Karachi (UTC+5), never
+in whatever zone the host machine happens to be in.
+
 What one EXS-FEED frame carries, measured on the real captures (2026-10-12,
-10-13, 10-14, 10-16, 10-18 — every file banks the same layout):
+10-13, 10-14, 10-16, 10-18 , every file banks the same layout):
 
     stamp            ``10/16/2026 10:05:34 AM`` Karachi, per index group
     fields[0]        index name (KSE100, KSE30, KMI30, BKTI, ALLSHR)
@@ -29,7 +32,7 @@ values seen in that minute; the session's running extremes are reported in
 the session note rather than forged into a single minute.
 
 ``ALLSHR`` is the exchange's own all-shares index, which this service serves
-as ``KMIALLSHR`` — the name the card and the watchlist already used. The
+as ``KMIALLSHR`` , the name the card and the watchlist already used. The
 level is authoritative; the mental model "all shares" is unchanged.
 
 Previous closes, the base of the day's change, are read from the frame
@@ -170,7 +173,7 @@ def minute_bars(path: Path, day: date, name: str) -> list[dict]:
     Open is the first value seen in the minute, close the last, high/low span
     the values the recorder banked in that minute (running session extremes
     are reported by the caller's notes, not folded into minutes). A minute
-    the capture did not watch is simply absent — no carry, no invention.
+    the capture did not watch is simply absent , no carry, no invention.
     """
     wanted = name.strip().upper()
     buckets: dict[datetime, dict] = {}
