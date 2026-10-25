@@ -1693,8 +1693,8 @@ class VersionTest(unittest.TestCase):
         # boils, the eruptions blow, the bloom bleeds and the filaments
         # breathe in width and ink as well as length.
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="2.3.1"', manifest)
-        self.assertIn('android:versionCode="69"', manifest)
+        self.assertIn('android:versionName="2.3.2"', manifest)
+        self.assertIn('android:versionCode="70"', manifest)
         # The changelog entry ties these user-visible changes to the build.
         readme = (ROOT / "android" / "README.md").read_text(encoding="utf-8")
         self.assertIn("v1.7.9, owner order 2026-10-20", readme)
@@ -1733,6 +1733,7 @@ class VersionTest(unittest.TestCase):
         self.assertIn("Version 2.2.9, versionCode 67", readme)
         self.assertIn("Version 2.3.0, versionCode 68", readme)
         self.assertIn("Version 2.3.1, versionCode 69", readme)
+        self.assertIn("Version 2.3.2, versionCode 70", readme)
         manifest = MANIFEST.read_text(encoding="utf-8")
         self.assertIn('android:versionCode="69"', manifest)
         self.assertIn('android:versionName="2.3.1"', manifest)
@@ -2791,7 +2792,7 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         self.assertIn("private void stepEruptions(float seconds, "
                       "float phi) {", orb)
         self.assertIn("float q = (dot - cos) / (1f - cos);", orb)
-        self.assertIn("heat += (q4 * 0.35f + q10 * 1.25f) * energy;", orb)
+        self.assertIn("heat += (q3 * 0.40f + q8 * 1.60f) * energy;", orb)
         # The bloom: quarter resolution, high knee, all buffers fields.
         self.assertIn("SUN_BLOOM = 64", orb)
         self.assertIn("SUN_BLOOM_KNEE = 214", orb)
@@ -2991,9 +2992,9 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         # The field SPANS the palette: rank normalised against its own
         # distribution, then levels stretched, because a field that
         # clusters near its mean is the flat, moulded look he rejected.
-        self.assertIn("heat = boxBlurHeat(heat, 2);", orb)
+        self.assertIn("heat = boxBlurHeat(heat, 1);", orb)
         self.assertIn("cdf[b] = run / (float) count;", orb)
-        self.assertIn("float rank = cdf[bin] * 0.88f;", orb)
+        self.assertIn("float rank = cdf[bin] * 0.85f;", orb)
         self.assertIn("rank = (rank - 0.5f) * 1.38f + 0.47f;", orb)
         # The glow is light in the air: a gaussian peaking at the limb, a
         # wide tail, value noise at three scales, warm ink (pale cream at
