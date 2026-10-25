@@ -4,7 +4,7 @@
  * The tool order follows the terminal: the crosshair cursor first, then
  * the trend tools (trend line, flat top, flat bottom, horizontal line,
  * horizontal ray), then the measure ruler, then the chart management
- * group (hide all drawings, clear them). Every icon is an inline path —
+ * group (hide all drawings, clear them). Every icon is an inline path -
  * the style is monochrome line icons on hover-lit squares, exactly the
  * felt language, without borrowing anyone's asset files.
  */
@@ -175,7 +175,7 @@ export function DrawToolRail(props: DrawToolRailProps) {
       {button(
         false,
         "measure",
-        "Measure (drag, read, release — never kept)",
+        "Measure (drag, read, release - never kept)",
         () => pick("measure"),
       )}
       <div className="tv-rail__gap" aria-hidden="true" />
