@@ -2,15 +2,10 @@ package pk.quantofrehan;
 
 import android.content.Context;
 import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.Path;
-import android.graphics.PorterDuff;
-import android.graphics.PorterDuffXfermode;
-import android.graphics.Matrix;
 import android.graphics.RadialGradient;
-import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.Shader;
 import android.util.AttributeSet;
@@ -52,20 +47,18 @@ import android.view.View;
      *    filaments; and the sun itself grows from 17% to 26% of the
      *    feature's radius, a proper star at the centre.
      *
-     * Owner order 2026-10-24 (ninth pass, THE order): the drawn ball at the
-     * centre is RETIRED and the centre is the owner's own sun picture now -
-     * the sun he cropped out of the picture he sent ("replace with the
-     * picture that I just attached... only take the SUN looking feature,
-     * don't touch anything else"), bundled once as drawable-nodpi/sun.jpg -
-     * his ORB.jpg with the sun's square built out around its centre, the
-     * HUD panels of the frame he sent cropped away by that square.
-     * The picture is composed ONCE per size - clamped to a circle at the
-     * limb, a short fade softening the clip edge - and each frame only ever
-     * draws that composed disc, breathing gently in size and riding the wake
-     * in alpha. The limb's own fire (flame tongues, revolving prominence
-     * arcs and the spark cadence) stays where it is, and the cloud and its
-     * laws stay untouched: the picture IS the sun, everything else is the
-     * living organism as it was on the screen he asked to keep.
+     * Owner order 2026-10-25 ("fix the sun, that looked so bad, you just
+     * turned a 3D SUN into two disc slices type crap, also don't flicker
+     * my SUN"): the centre is a RENDERED SPHERE. Every picture projection
+     * is retired - a flat photograph covers one hemisphere and the mirror
+     * that covers the rest is the two-discs join he kept catching - and the
+     * fire is put on the ball's own body instead: a surface baked once on
+     * the unit sphere, its palette read from his own sun picture, and each
+     * frame's longitude travelling over it. The ball never pulses: its
+     * alpha is the wake alone and its shade is baked, so it turns without
+     * a flicker. The limb's own fire (flame tongues, revolving arcs and the
+     * spark cadence) stays where it is, and the cloud and its laws stay
+     * untouched.
      *
      * The park law of v1.9.14 stands: stop() freezes the pose the loop last
      * DREW and the parked frame REPAINTS it fully awake, so a closed market, a
@@ -121,53 +114,86 @@ public class ThinkingOrb extends View {
     private final Paint nodePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
 
     /**
-     * The sun's fire and picture (kept from v1.9.14): the flaming limb and
-     * the spark painter, and the one paint that carries the composed photo
-     * disc of the owner's own sun (alpha per frame, filtered scaling).
+     * The sun's fire (kept from v1.9.14): the flaming limb, the arcs and
+     * the spark painter, and the one paint that carries the rendered
+     * sphere (alpha per frame, filtered scaling).
      */
     private final Paint sunPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    /** The baked halo's own paint: only its alpha moves, with the wake. */
+    private final Paint sunHaloPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint sunFlame = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint sunProm = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint sunFlare = new Paint(Paint.ANTI_ALIAS_FLAG);
-    /** The owner's own sun picture, composed once per size. */
-    private Bitmap sunPhoto;
+    /** The steady halo glow, baked once per size beside the ball. */
+    private Bitmap halo;
+    /** The rendered sphere: one bitmap of the ball, reused every frame. */
+    private Bitmap sunBall;
+    /** The ball's own pixel buffer, refilled each frame, never reallocated. */
+    private int[] sunBallPixels;
+    /** The equirectangular surface, baked once per size from the palette. */
+    private int[] sunSurface;
     /**
-     * The crop's own fill: the shipped asset was squared out around the
-     * sun with a 1.18 margin (side = 2 x sun radius x 1.18), so the
-     * disc's inscribed square holds the sun at 1/1.18 of its half side.
-     * drawSun divides by this to land the picture's own sun on the
-     * radius the drawn ball it replaced held.
+     * The sphere's frame tables, baked once per size: the longitude each
+     * ball pixel reads at zero spin, the surface row it reads, the shade
+     * the ball's own curvature gives it, the rim's warm lift and the
+     * pixel's edge coverage. Nothing here is computed on the frame path
+     * but the one shared spin.
      */
-    private static final float SUN_SCALE = 1.18f;
+    private float[] sphereU;
+    private float[] sphereV;
+    private float[] sphereShade;
+    private float[] sphereRim;
+    private int[] sphereCover;
+    /** The destination square the ball fills, preallocated for the frame. */
+    private final RectF ballDst = new RectF();
     /**
-     * The longitude draw's own pair of rect books (one source, one dest),
-     * preallocated: every band of every frame reuses them and nothing is
-     * ever allocated on the frame path.
-     */
-    private final Rect bandSrc = new Rect();
-    private final RectF bandDst = new RectF();
-    /**
-     * Owner order 2026-10-24, fifth pass ("make the SUN revolve in
-     * X-axis"): the face's plane leans by this many degrees, the way the
-     * Earth's own axis leans, so the travel visibly reads as a revolve
-     * about a tilted axis rather than a flat slide. Static: the tilt is
-     * the pose, the travel supplies all the motion.
+     * Owner order 2026-10-25 ("fix the sun ... you just turned a 3D SUN
+     * into two disc slices type crap, also don't flicker my SUN"): the
+     * centre is a RENDERED SPHERE and nothing less, and none of the
+     * picture-projection machinery survives. See drawSun for the law.
      */
     private static final float SUN_AXIS_TILT = 10f;
+    /** The ball's own render resolution: the sphere is shaded into this. */
+    private static final int SUN_RENDER = 256;
+    /** The surface map: equirectangular, baked once per size. */
+    private static final int SUN_MAP_W = 256;
+    private static final int SUN_MAP_H = 128;
     /**
-     * The longitude sample count: at the phone's silver sizes this keeps
-     * the mapping visually smooth and well inside the frame budget.
+     * The palette, read off the owner's own sun photograph: the ramp his
+     * ORB.jpg shows, from the deep red of its cooler lanes to the near
+     * white of its hottest granules. The photograph itself cannot be
+     * revolved - a flat disc covers one hemisphere only, and the mirror
+     * that covers the rest is the two-discs wreckage he kept sending
+     * back - so its COLOURS seed the surface and the sphere owns the
+     * geometry.
      */
-    private static final int SUN_STRIPS = 40;
-    /** One revolution of the face's longitude loop. */
+    private static final int[] SUN_RAMP = {
+            0xFF480C02, 0xFF7F1902, 0xFFBC421D, 0xFFE27C28,
+            0xFFF5A947, 0xFFFFDB69, 0xFFFCFBA1, 0xFFFFFFD6,
+    };
+    private static final float[] SUN_STOP = {
+            0.00f, 0.18f, 0.38f, 0.55f, 0.70f, 0.82f, 0.92f, 1.00f,
+    };
+    /** How far the ball's own limb lifts its fire, and its warm rim. */
+    private static final float SUN_LIMB_FLOOR = 0.82f;
+    private static final float SUN_LIMB_GAIN = 0.60f;
+    private static final float SUN_RIM_LIFT = 34f;
+    /** The rim's own antialiasing width, in render pixels. */
+    private static final float SUN_EDGE = 1.3f;
+    /**
+     * The halo's own reach, as a multiple of the ball's radius: baked
+     * ONCE per size into a bitmap (buildSunSphere), so the frame only
+     * alpha-drives it, never a per-frame shader and never a flicker term.
+     */
+    private static final float SUN_HALO = 1.5f;
+    /** One revolution of the sphere's own longitude. */
     private static final float SUN_LAP = (float) (2f * Math.PI);
     /**
      * Owner order 2026-10-24 ("right now the SUN itself is not revolving,
      * it's just like a picture there, standing still, make it revolving"):
-     * the face TRAVELS - the photo is redrawn in longitude bands each
-     * frame (drawSun), so the sun's own granulation slides from limb to
-     * limb the way the Earth's turn reads from space, instead of the
-     * picture standing still.
+     * the surface TRAVELS. The bake puts the granulation on the ball's own
+     * body and the render reads it through the frame's longitude, so the
+     * fire slides limb to limb the way the Earth's turn reads from space.
      */
     private static final float SUN_SPIN_RATE = 0.35f;
     /**
@@ -305,11 +331,10 @@ public class ThinkingOrb extends View {
         cx = w / 2f;
         cy = h / 2f;
         orbRadius = Math.min(w, h) / 2f - dp(6f);
-        // The sun is the cloud's own core: the owner's own PICTURE now
-        // (owner order 2026-10-24), sized by the same fraction the drawn
-        // ball held - 0.26f, the bigger-sun order of v2.2.1 - so the
-        // photo's own sun lands exactly where the ball he replaced stood
-        // (drawSun scales the destination by SUN_SCALE for that).
+        // The sun is the cloud's own core: a rendered SPHERE now (owner
+        // order 2026-10-25), sized by the same fraction the drawn ball
+        // held - 0.26f, the bigger-sun order of v2.2.1 - so the star
+        // stands exactly where the ball he approved stood.
         ballR = orbRadius * 0.26f;
         nodeRadius = dp(1.3f);
         linkWidth = Math.max(1f, dp(0.9f));
@@ -317,9 +342,9 @@ public class ThinkingOrb extends View {
         buildGeometry();
         buildSun();
         buildInks();
-        buildSunPhoto();
+        buildSunSphere();
         built = true;
-        // The picture exists the moment the size exists; never count on a
+        // The ball exists the moment the size exists; never count on a
         // later invalidation to introduce it.
         invalidate();
     }
@@ -441,15 +466,15 @@ public class ThinkingOrb extends View {
         }
     }
 
-    /** The paints: the photo disc first, then the limb's own fire. */
+    /** The paints: the rendered ball first, then the limb's own fire. */
     private void buildInks() {
         linkPaint.setStyle(Paint.Style.STROKE);
         linkPaint.setStrokeCap(Paint.Cap.ROUND);
         linkPaint.setColor(LINK_COLOR);
         nodePaint.setStyle(Paint.Style.FILL);
-        // The sun is the owner's own picture (owner order 2026-10-24):
-        // the composed disc is drawn scaled with filtering, its alpha the
-        // wake's. No shader of ours repaints his photograph.
+        // The sun is the rendered sphere (owner order 2026-10-25): the
+        // ball bitmap is drawn scaled with filtering, its alpha the
+        // wake's. No shader of ours repaints the ball.
         sunPaint.setFilterBitmap(true);
 
         // The flame tongues share the same soft trick at the limb.
@@ -509,170 +534,289 @@ public class ThinkingOrb extends View {
     }
 
     /**
-     * Owner order 2026-10-24: the centre is the owner's own sun picture,
-     * the composed disc of buildSunPhoto. It draws AFTER the cloud and
-     * the limb fire, so the organism reads as circling its star and the
-     * picture's disc sits clean over the tongues' inner halves; the
-     * flares keep drawing after it, so a spark can still fly across the
-     * face. The disc breathes gently in size and rides the wake in
-     * alpha, exactly the never-goes-dark law the drawn ball kept.
-     */
-    /**
-     * The revolve (owner order 2026-10-24, fifth pass, "make the SUN
-     * revolve in X-axis and reduce its revolving speed by 10% from the
-     * current speed", on the v2.2.5 build he still sent back for
-     * flicker): the flat in-plane rotate is RETIRED - turning a whole
-     * photograph in the plane is what read as flicker - and the face
-     * now TRAVELS the way the Earth's turn reads from space: the photo
-     * is resampled in SUN_STRIPS longitude bands each frame, band i
-     * drawing the texture where asin(2x/r - 1) puts its line, so the
-     * face's own granulation slides from limb to limb with a real
-     * foreshortening at the edges while the composed rim's radial fade
-     * and the circular clip hide the fold. The axis leans the owner's
-     * SUN_AXIS_TILT, so the travel reads as a revolve in X. The pace is
-     * the third pass's bearing under the owner's own 10% cut
-     * (SUN_SLOWDOWN), and every term rides the frame clock, so the
-     * frozen-second park law holds the pose for free.
+     * Owner order 2026-10-25 ("fix the sun, that looked so bad, you just
+     * turned a 3D SUN into two disc slices type crap, also don't flicker
+     * my SUN"): the centre is a RENDERED SPHERE.
+     *
+     * The picture projections are retired for good. A flat photograph
+     * covers one hemisphere of a sphere and nothing else; wrapping it into
+     * a loop means laying it beside its own mirror, and the moment that
+     * loop turns, some frame shows half of the disc joined to half of its
+     * mirror. That join IS the two-discs wreckage the owner kept sending
+     * back, and no phase offset, melt band or strip height could hide it,
+     * because it lives in the geometry, not in the filter.
+     *
+     * So the fire is put ON the sphere instead: the surface is baked once
+     * as an equirectangular map sampled on the ball's own unit sphere (the
+     * noise lives on the sphere, not on a sheet), the palette comes from
+     * the owner's own sun photograph, and each frame reads that surface
+     * through the frame's longitude. Every ball pixel carries the sphere's
+     * own latitude and its own place on the turning body, so the
+     * granulation slides limb to limb with real foreshortening in BOTH
+     * directions, and no frame can show a join: the map is continuous by
+     * construction and wraps in longitude without a seam.
+     *
+     * The shade is the curvature: a steady limb lift plus a warm rim, both
+     * baked into the frame tables. Nothing on this path pulses - the ball
+     * breathes in nothing, its alpha is the wake alone, and the halo is one
+     * baked bitmap - which is the owner's "don't flicker my SUN" order of
+     * the same pass.
      */
     private void drawSun(Canvas canvas, float seconds, float wake) {
-        if (sunPhoto == null) {
-            return;     // no asset, no picture invented in its place (SO-3)
+        if (sunBall == null) {
+            return;     // no sphere built, no picture invented (SO-3)
         }
-        float breath = 1f + 0.015f * (float) Math.sin(
-                seconds * 0.9f * MOTION_SCALE);
-        // The asset holds the sun at 1/SUN_SCALE of its half side (see
-        // the constant's note), so scaling the destination UP by that
-        // factor renders the picture's own sun at the ball radius the
-        // drawn sun he retired carried.
-        float r = ballR * SUN_SCALE * breath;
+        // The halo first, under everything: one baked bitmap, its alpha
+        // only the wake - steady, never a flicker term.
+        float haloHalf = halo.getWidth() / 2f;
+        sunHaloPaint.setAlpha((int) (150f * wake));
+        canvas.drawBitmap(halo, cx - haloHalf, cy - haloHalf, sunHaloPaint);
+        // The bearing: the owner's own pace under the owner's own 10% cut.
+        float phi = seconds * SUN_SPIN_RATE * MOTION_SCALE * SUN_SLOWDOWN;
+        renderSunBall(phi);
         sunPaint.setAlpha((int) (255f * wake));
         canvas.save();
         // The standing tilt: the pose; the longitude carries the motion.
         canvas.rotate(SUN_AXIS_TILT, cx, cy);
-        // The longitude line: band i takes destination x in [-r, r], maps
-        // it by the asin(2x/r - 1) of a sphere to the longitude visible
-        // there, and rides the bearing across the texture.
-        float phi = seconds * SUN_SPIN_RATE * MOTION_SCALE * SUN_SLOWDOWN;
-        for (int i = 0; i < SUN_STRIPS; i++) {
-            float x0 = 2f * r * i / SUN_STRIPS;
-            float x1 = 2f * r * (i + 1) / SUN_STRIPS;
-            float u0 = clamp(x0 / r - 1f, -1f, 1f);
-            float u1 = clamp(x1 / r - 1f, -1f, 1f);
-            drawFaceBand(canvas,
-                    cx - r + x0, cx - r + x1, cy - r, cy + r,
-                    phi + (float) Math.asin(u0),
-                    phi + (float) Math.asin(u1));
-        }
+        float r = ballR;
+        ballDst.set(cx - r, cy - r, cx + r, cy + r);
+        canvas.drawBitmap(sunBall, null, ballDst, sunPaint);
         canvas.restore();
     }
 
     /**
-     * One longitude band of the face: the destination strip [x0, x1] x
-     * [y0, 1] draws the texture's longitude window [lam0, lam1]; the
-     * texture is the seam-free loop of buildSunPhoto, so a band whose
-     * window crosses the loop's edge splits into two draws instead of
-     * a seam. Built once, preallocated, never allocated on the frame
-     * path.
+     * One frame of the sphere: fill the ball's buffer from the baked
+     * surface, reading each pixel at the frame's longitude. Every table
+     * this loop touches was baked once per size, and the only arithmetic
+     * per pixel is the wrapped map read and the baked shade, so the ball
+     * can turn every frame without allocating or stuttering.
      */
-    private void drawFaceBand(Canvas canvas, float x0, float x1,
-            float y0, float y1, float lam0, float lam1) {
-        float texW = sunPhoto.getWidth();
-        int texH = sunPhoto.getHeight();
-        float span = (lam1 - lam0) / SUN_LAP * texW;
-        // The face's phase: longitude zero must LAND ON the disc's centre
-        // column (texW/4), not on the disc's left edge (texW zero). The
-        // v2.2.6 build shipped without this quarter-offset and the
-        // owner's screenshot caught the result: the visible face window
-        // held LEFT HALVES of the disc and its mirror instead of one
-        // whole face - the crescent wreckage ("look what the hell you
-        // did to the sun", owner order 2026-10-24, sixth pass). With the
-        // offset the window is always one whole face, sliding limb to
-        // limb, its mirror closing in from behind exactly like the
-        // Earth's own turn.
-        float s0 = mod01(lam0 / SUN_LAP + 0.25f) * texW;
-        float s1 = s0 + span;
-        if (s1 <= texW) {
-            paintFaceBand(canvas, x0, x1, y0, y1, s0, s1, texH);
-            return;
+    private void renderSunBall(float phi) {
+        // The spin as a number of map columns: longitude is uniform in
+        // the map, so one frame is one shared shift for every pixel.
+        float spin = phi / SUN_LAP * SUN_MAP_W;
+        int count = SUN_RENDER * SUN_RENDER;
+        for (int k = 0; k < count; k++) {
+            int cover = sphereCover[k];
+            if (cover == 0) {
+                sunBallPixels[k] = 0;
+                continue;
+            }
+            float u = sphereU[k] + spin;
+            u = u % SUN_MAP_W;
+            if (u < 0f) {
+                u += SUN_MAP_W;
+            }
+            int c0 = (int) u;
+            int c1 = c0 + 1 == SUN_MAP_W ? 0 : c0 + 1;
+            float fu = u - c0;
+            float v = sphereV[k];
+            int r0 = (int) v;
+            int r1 = r0 + 1 < SUN_MAP_H ? r0 + 1 : r0;
+            float fv = v - r0;
+            int a = sunSurface[r0 * SUN_MAP_W + c0];
+            int b = sunSurface[r0 * SUN_MAP_W + c1];
+            int c = sunSurface[r1 * SUN_MAP_W + c0];
+            int d = sunSurface[r1 * SUN_MAP_W + c1];
+            float w00 = (1f - fu) * (1f - fv);
+            float w10 = fu * (1f - fv);
+            float w01 = (1f - fu) * fv;
+            float w11 = fu * fv;
+            float shade = sphereShade[k];
+            float rim = sphereRim[k];
+            int red = (int) ((((a >> 16) & 0xFF) * w00
+                    + ((b >> 16) & 0xFF) * w10
+                    + ((c >> 16) & 0xFF) * w01
+                    + ((d >> 16) & 0xFF) * w11) * shade + rim);
+            int green = (int) ((((a >> 8) & 0xFF) * w00
+                    + ((b >> 8) & 0xFF) * w10
+                    + ((c >> 8) & 0xFF) * w01
+                    + ((d >> 8) & 0xFF) * w11) * shade + rim * 0.63f);
+            int blue = (int) (((a & 0xFF) * w00 + (b & 0xFF) * w10
+                    + (c & 0xFF) * w01 + (d & 0xFF) * w11) * shade
+                    + rim * 0.20f);
+            sunBallPixels[k] = (cover << 24)
+                    | (Math.min(255, Math.max(0, red)) << 16)
+                    | (Math.min(255, Math.max(0, green)) << 8)
+                    | Math.min(255, Math.max(0, blue));
         }
-        // The window crosses the loop's own edge: two draws, split where
-        // the texture runs out, so the face never shows a jump line.
-        float cut = x0 + (x1 - x0) * (texW - s0) / span;
-        paintFaceBand(canvas, x0, cut, y0, y1, s0, texW, texH);
-        paintFaceBand(canvas, cut, x1, y0, y1, 0f, s1 - texW, texH);
-    }
-
-    /** One continuous (non-wrapping) window into the seam-free loop. */
-    private void paintFaceBand(Canvas canvas, float x0, float x1,
-            float y0, float y1, float s0, float s1, int texH) {
-        if (x1 - x0 < 0.25f || s1 - s0 < 0.25f) {
-            return;     // the asin fold's sliver at either limb
-        }
-        bandSrc.set((int) Math.round(s0), 0,
-                Math.max((int) Math.round(s0) + 1,
-                        (int) Math.round(s1)), texH);
-        bandDst.set(x0, y0, x1, y1);
-        canvas.drawBitmap(sunPhoto, bandSrc, bandDst, sunPaint);
-    }
-
-    /** Wrap a fraction into [0, 1): the loop's own modulus. */
-    private static float mod01(float v) {
-        return ((v % 1f) + 1f) % 1f;
+        sunBall.setPixels(sunBallPixels, 0, SUN_RENDER, 0, 0,
+                SUN_RENDER, SUN_RENDER);
     }
 
     /**
-     * The owner's own sun (owner order 2026-10-24): the SUN ONLY of the
-     * picture he sent, bundled once as drawable-nodpi/sun.jpg. Composed
-     * ONCE per size and never on the frame path: the square carried over
-     * drawable-nodpi keeps its own pixels, they are clamped to a circle
-     * at the limb, and a short DST_OUT fade softens the very rim so the
-     * clip edge never shows the way a coin edge would.
-     *
-     * The seam-free loop (owner order 2026-10-24, fifth pass): the face
-     * now resamples in longitude bands, and a plain square would re-enter
-     * its left edge from its right edge at the tube of the lap - a seam.
-     * So the composed side is laid down beside ITS OWN MIRROR, each half
-     * rim-faded and circle-clipped: every edge column of the loop is
-     * shared by identical pixels, and the longitude line can cross the
-     * fold without a jump. The asset is recycled off; the frame only
-     * ever draws the composed loop.
+     * The sphere, baked once per size: the surface map, the frame tables
+     * and the halo. Never on the frame path.
      */
-    private void buildSunPhoto() {
-        Bitmap asset = BitmapFactory.decodeResource(
-                getResources(), R.drawable.sun);
-        if (asset == null) {
-            sunPhoto = null;    // no asset, no faked picture (SO-3)
-            return;
-        }
-        int size = Math.max(96, Math.min(768, asset.getWidth()));
-        // The disc once: clip to the circle, fade the rim, exactly the
-        // composition the drawn-ball era drew.
-        Bitmap disc = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
-        Canvas work = new Canvas(disc);
-        Path circle = new Path();
-        circle.addCircle(size / 2f, size / 2f, size / 2f, Path.Direction.CW);
-        work.clipPath(circle);
-        work.drawBitmap(asset, new Rect(0, 0, size, size),
-                new Rect(0, 0, size, size), null);
-        // The rim fade: transparent over the burn, opaque only at the
-        // very edge, punched OUT of the composed disc.
-        Paint rim = new Paint(Paint.ANTI_ALIAS_FLAG);
-        rim.setShader(new RadialGradient(size / 2f, size / 2f, size / 2f,
-                new int[]{0x00000000, 0x00000000, 0xFF000000},
-                new float[]{0f, 0.86f, 1f}, Shader.TileMode.CLAMP));
-        rim.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.DST_OUT));
-        work.drawCircle(size / 2f, size / 2f, size / 2f, rim);
-        // The loop: the disc and its own mirror, so every longitude seam
-        // is pixels meeting themselves and the wrap cannot show.
-        sunPhoto = Bitmap.createBitmap(size * 2, size,
+    private void buildSunSphere() {
+        buildSunSurface();
+        int count = SUN_RENDER * SUN_RENDER;
+        sunBall = Bitmap.createBitmap(SUN_RENDER, SUN_RENDER,
                 Bitmap.Config.ARGB_8888);
-        Canvas loop = new Canvas(sunPhoto);
-        loop.drawBitmap(disc, 0f, 0f, null);
-        Matrix mirror = new Matrix();
-        mirror.setScale(-1f, 1f);
-        mirror.postTranslate(size * 2f, 0f);
-        loop.drawBitmap(disc, mirror, null);
-        asset.recycle();
+        sunBallPixels = new int[count];
+        sphereU = new float[count];
+        sphereV = new float[count];
+        sphereShade = new float[count];
+        sphereRim = new float[count];
+        sphereCover = new int[count];
+        float half = SUN_RENDER / 2f;
+        float feather = SUN_EDGE / half;
+        for (int j = 0; j < SUN_RENDER; j++) {
+            float y = (j + 0.5f) / half - 1f;
+            for (int i = 0; i < SUN_RENDER; i++) {
+                int k = j * SUN_RENDER + i;
+                float x = (i + 0.5f) / half - 1f;
+                float d2 = x * x + y * y;
+                if (d2 >= 1f) {
+                    continue;   // outside the ball: no coverage, no cost
+                }
+                float z = (float) Math.sqrt(1f - d2);
+                // The azimuth about the ball's own standing axis: the
+                // frame's spin is one addition to this, so no atan2 ever
+                // runs on the frame path.
+                float azimuth = (float) Math.atan2(z, x);
+                sphereU[k] = (azimuth / SUN_LAP + 0.5f) * SUN_MAP_W;
+                float latitude = (float) Math.asin(clamp(y, -1f, 1f));
+                sphereV[k] = (0.5f - latitude / (float) Math.PI)
+                        * (SUN_MAP_H - 1);
+                float limb = 1f - z;
+                sphereShade[k] = SUN_LIMB_FLOOR
+                        + SUN_LIMB_GAIN * limb * limb;
+                sphereRim[k] = SUN_RIM_LIFT * limb * limb * limb;
+                float edge = (1f - (float) Math.sqrt(d2)) / feather;
+                sphereCover[k] = (int) (255f * Math.min(1f, edge));
+            }
+        }
+        buildSunHalo();
+    }
+
+    /**
+     * The surface: one equirectangular map, sampled on the ball's own unit
+     * sphere so the noise lives on the sphere and never stretches with an
+     * image's sheet. Three value-noise fields - the coarse cells, the
+     * granulation grain and a slow region term - are summed and coloured
+     * through the owner's own palette. Baked once per size.
+     */
+    private void buildSunSurface() {
+        sunSurface = new int[SUN_MAP_W * SUN_MAP_H];
+        for (int row = 0; row < SUN_MAP_H; row++) {
+            float latitude = (0.5f - (row + 0.5f) / SUN_MAP_H)
+                    * (float) Math.PI;
+            float cosLat = (float) Math.cos(latitude);
+            float sinLat = (float) Math.sin(latitude);
+            for (int col = 0; col < SUN_MAP_W; col++) {
+                float longitude = ((col + 0.5f) / SUN_MAP_W - 0.5f)
+                        * (float) (2f * Math.PI);
+                float nx = cosLat * (float) Math.cos(longitude);
+                float nz = cosLat * (float) Math.sin(longitude);
+                float ny = sinLat;
+                float coarse = fbm3(nx * 6.5f, ny * 6.5f, nz * 6.5f, 4);
+                float grain = fbm3(nx * 13f + 11f, ny * 13f - 7f,
+                        nz * 13f + 3f, 3);
+                float region = fbm3(nx * 1.9f + 41f, ny * 1.9f + 9f,
+                        nz * 1.9f - 23f, 2);
+                float v = (0.66f * coarse + 0.34f * grain)
+                        * (0.80f + 0.40f * region);
+                v = clamp((v - 0.24f) / 0.52f, 0f, 1f);
+                sunSurface[row * SUN_MAP_W + col] = sunRamp(v);
+            }
+        }
+    }
+
+    /** The steady halo, baked once per size: alpha only moves with the wake. */
+    private void buildSunHalo() {
+        int haloD = Math.max(2, (int) (ballR * 2f * SUN_HALO));
+        halo = Bitmap.createBitmap(haloD, haloD, Bitmap.Config.ARGB_8888);
+        Canvas warm = new Canvas(halo);
+        Paint glow = new Paint(Paint.ANTI_ALIAS_FLAG);
+        glow.setShader(new RadialGradient(haloD / 2f, haloD / 2f, haloD / 2f,
+                new int[]{0x66FFC24A, 0x22FFA726, 0x00000000},
+                new float[]{0f, 0.55f, 1f}, Shader.TileMode.CLAMP));
+        warm.drawCircle(haloD / 2f, haloD / 2f, haloD / 2f, glow);
+    }
+
+    /** One colour of the owner's palette, at the given position. */
+    private static int sunRamp(float t) {
+        int last = SUN_STOP.length - 1;
+        for (int s = 1; s <= last; s++) {
+            if (t <= SUN_STOP[s]) {
+                float span = SUN_STOP[s] - SUN_STOP[s - 1];
+                float k = span <= 0f ? 0f : (t - SUN_STOP[s - 1]) / span;
+                return rampMix(SUN_RAMP[s - 1], SUN_RAMP[s], k);
+            }
+        }
+        return SUN_RAMP[last];
+    }
+
+    /** Linear mix of two opaque colours, the ramp's own blend. */
+    private static int rampMix(int a, int b, float k) {
+        int red = (int) (((a >> 16) & 0xFF) + (((b >> 16) & 0xFF)
+                - ((a >> 16) & 0xFF)) * k);
+        int green = (int) (((a >> 8) & 0xFF) + (((b >> 8) & 0xFF)
+                - ((a >> 8) & 0xFF)) * k);
+        int blue = (int) ((a & 0xFF) + ((b & 0xFF) - (a & 0xFF)) * k);
+        return 0xFF000000 | (red << 16) | (green << 8) | blue;
+    }
+
+    /**
+     * Fractal value noise on the unit sphere: the octaves are sampled in
+     * three dimensions, so the granulation is isotropic everywhere and
+     * the map carries no pole stretch and no longitude seam.
+     */
+    private static float fbm3(float x, float y, float z, int octaves) {
+        float total = 0f;
+        float amplitude = 1f;
+        float norm = 0f;
+        for (int o = 0; o < octaves; o++) {
+            total += noise3(x, y, z) * amplitude;
+            norm += amplitude;
+            x *= 2.03f;
+            y *= 2.03f;
+            z *= 2.03f;
+            amplitude *= 0.5f;
+        }
+        return total / norm;
+    }
+
+    /** Trilinear value noise over a hashed integer lattice. */
+    private static float noise3(float x, float y, float z) {
+        int ix = (int) Math.floor(x);
+        int iy = (int) Math.floor(y);
+        int iz = (int) Math.floor(z);
+        float u = fade(x - ix);
+        float v = fade(y - iy);
+        float w = fade(z - iz);
+        float c000 = hash3(ix, iy, iz);
+        float c100 = hash3(ix + 1, iy, iz);
+        float c010 = hash3(ix, iy + 1, iz);
+        float c110 = hash3(ix + 1, iy + 1, iz);
+        float c001 = hash3(ix, iy, iz + 1);
+        float c101 = hash3(ix + 1, iy, iz + 1);
+        float c011 = hash3(ix, iy + 1, iz + 1);
+        float c111 = hash3(ix + 1, iy + 1, iz + 1);
+        float x00 = c000 + (c100 - c000) * u;
+        float x10 = c010 + (c110 - c010) * u;
+        float x01 = c001 + (c101 - c001) * u;
+        float x11 = c011 + (c111 - c011) * u;
+        float y0 = x00 + (x10 - x00) * v;
+        float y1 = x01 + (x11 - x01) * v;
+        return y0 + (y1 - y0) * w;
+    }
+
+    /** The smoothstep the value noise interpolates with. */
+    private static float fade(float t) {
+        return t * t * t * (t * (t * 6f - 15f) + 10f);
+    }
+
+    /** One lattice corner of the noise, 0..1, from its integer cell. */
+    private static float hash3(int x, int y, int z) {
+        int n = x * 0x1f1f1f1f ^ y * 0x3b9aca07 ^ z * 0x27d4eb2d;
+        n ^= n >>> 15;
+        n *= 0x85ebca6b;
+        n ^= n >>> 13;
+        n *= 0xc2b2ae35;
+        n ^= n >>> 16;
+        return (n & 0xFFFF) / 65535f;
     }
 
     /**
