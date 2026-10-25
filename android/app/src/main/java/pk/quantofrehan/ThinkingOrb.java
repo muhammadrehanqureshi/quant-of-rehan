@@ -10,7 +10,7 @@ import android.util.AttributeSet;
 import android.view.View;
 
 /**
- * The thinking orb (v2.3.1).
+ * The thinking orb (v2.3.3).
  *
  * The feature is the v1.8.9 LIVING PARTICLE CLOUD the owner first approved:
  * 105 nodes gathered around five cluster anchors, joined by fine links,
@@ -27,58 +27,48 @@ import android.view.View;
  *           feature.
  *   v2.2.3  the flat photograph was wrapped into a panorama; its mirror
  *           seam is the two-discs wreckage he kept sending back.
- *   v2.2.6  the panorama turned, with the owner's own 10% speed cut.
- *   v2.2.8  the picture projections were retired for good and the centre
- *           became a RENDERED SPHERE: a surface baked on the ball's own
- *           unit sphere, read through the frame's longitude.
- *   v2.2.9  the photographs's crown (the wide amber band, the white edge)
- *           was baked into the ball.
- *   v2.3.0  the fake rays (twelve radial flame tongues, seven spark
- *           streaks) were deleted, the surface raised to 448x224 with five
- *           noise fields, and the painted ring replaced by a ragged one.
+ *   v2.2.8  the picture projections were retired and the centre became a
+ *           RENDERED SPHERE.
+ *   v2.3.0  the fake rays were deleted and the surface raised to a noise
+ *           photograph at 448x224.
+ *   v2.3.1  one heat field folded through his palette, a boil, eruptions,
+ *           a bloom, and filaments that breathe in width and ink.
+ *   v2.3.2  sharper fire and longer eruption cores.
  *
- * Owner order 2026-10-25, fourth pass: "still looks very old fashioned
- * render, like it's from PS2, the SUN should be looking advanced, like it's
- * burning continuously, like small explosions, fire burning through the
- * SUN". Everything the v2.3.0 ball did wrong was structural, not cosmetic,
- * and each cure below is measured off his own photograph:
+ * Owner order 2026-10-25, sixth pass: "you made the sun transparent, SUN is
+ * a solid entity, make it solid, make it look high quality", "the very left
+ * one is my own uploaded photo, and I would really love to have that same
+ * exact render, and then you can make it revolve just like the Earth does",
+ * with "the outside revolving lines are still not breathing" and "few
+ * independent dots without any lines". Four answers, and not one of them is
+ * another noise field:
  *
- *   1. ONE HEAT FIELD, ONE PALETTE. The ball used to be coloured channel by
- *      channel with additive lifts, so every lift pushed green and blue up
- *      and the picture's saturated orange died into tan cream. Now the
- *      surface is a single heat field, every frame folds it through the
- *      photograph's own twelve colour quantiles (a 256 entry lookup), and
- *      the ink is his at every brightness.
- *   2. RANK NORMALISED, THEN STRETCHED. A noise sum clusters around its
- *      mean, which is the flat, moulded look he rejected. The bake sorts
- *      the field's own distribution so it spans the palette end to end and
- *      then stretches the levels, so the near-black lanes and the pale
- *      granules both exist.
- *   3. HIS OWN FIRE. The photograph's high-pass detail (its filaments, its
- *      granulation) is read through two planar projections at two scales
- *      and folded into the body, so the fine structure is his picture's
- *      and not another noise octave.
- *   4. LIMB BRIGHTENED, like the picture: dark in the middle, blazing at
- *      0.7-0.8 of the radius. A shaded ball does the opposite, which is
- *      exactly what reads as a render.
- *   5. THE FIRE BOILS. The same surface is read twice, one copy
- *      counter-turning and offset in latitude, and mixed per pixel, so no
- *      frame is a rigid rotation of the last.
- *   6. ERUPTIONS - the "small explosions": seven short, smooth bursts of
- *      white-hot plasma that travel with the surface, swell as they burn
- *      and fade, so something is always blowing somewhere on the disc.
- *   7. A QUARTER-RESOLUTION BLOOM. The hot plasma bleeds the way light
- *      does instead of sitting in crisp pixels.
- *   8. A WARM GLOW, baked once, pinned to the ball's radius: the bright
- *      limb is light in the air, not a painted ring of pixels.
+ *   1. THE BALL IS HIS PICTURE. Noise can only approximate fire, which is
+ *      why every procedural pass since v2.2.9 came back as "PS2 graphics".
+ *      The surface is the photograph itself (drawable-nodpi/sun.jpg), never
+ *      a generated field: its fire crop is wrapped onto the sphere as a
+ *      planet map and its rim is the crown below.
+ *   2. IT REVOLVES LIKE THE EARTH. One shared longitude shift per frame
+ *      (his 10% cut kept), read through the sphere's own latitude, so the
+ *      fire slides limb to limb with foreshortening in both directions
+ *      instead of a flat sheet scrolling behind a circle. The crop travels
+ *      on a TRIANGLE wrap, because his disc is an orthographic view and not
+ *      a texture: wrapped as a disc, one quarter turn collapsed the face
+ *      into a single column and dragged his bright ring through the
+ *      middle. The triangle makes the turn rigid, so nothing collapses.
+ *   3. IT IS SOLID. A pixel inside the disc is opaque; only the outermost
+ *      pixel of the edge carries partial coverage. The ball's alpha is
+ *      still the wake alone, so a solid ball cannot flicker.
+ *   4. THE CROWN IS FIXED. A star's limb is bright because of where the
+ *      light leaves it, not because of what pattern sits under it: his
+ *      picture's own rim is sampled once per screen angle and blended back
+ *      at the limb every frame, so the edge blazes while the fire turns.
  *
- * Owner order 2026-10-25, fifth pass, same message: "the big lines that are
- * moving outside the circle, make them look like they are breathing as
- * well, like they should be getting a big small and then get bigger". The
- * cloud's filaments already breathed in length (v2.2.4) but so gently that
- * he could not see it: the swing is nearly doubled now, and each filament's
- * stroke widens and its ink brightens on the same breath, one golden-angle
- * phase per line so no two are in step.
+ * The cloud answers the other two sentences: every node now wears at least
+ * one filament (no naked dots), the filament fade bottoms out above zero
+ * (a link at the cap used to be painted at alpha zero, which is exactly the
+ * invisible thread), and the breath is nearly tripled, so the outer lines
+ * visibly swell and thin instead of changing length by a few percent.
  *
  * The park law of v1.9.14 stands: stop() freezes the pose the loop last
  * DREW and the parked frame REPAINTS it fully awake, so a closed market, a
@@ -86,9 +76,9 @@ import android.view.View;
  * loop only stops MOVING. A resume replays from the frozen second.
  *
  * The budget stands too: one View, zero relay requests, zero allocations on
- * the frame path. The cloud's nodes and links, and the sun's surface, frame
- * tables, palette, detail field, bloom buffers and glow are all built once
- * in onSizeChanged; every frame touches preallocated arrays. start() and
+ * the frame path. The cloud's nodes and links, and the sun's planet map,
+ * crown, frame tables, bloom buffers and glow are all built once in
+ * onSizeChanged; every frame touches preallocated arrays. start() and
  * stop() stay the only public controls, wired to MainActivity's startHud
  * and stopHud behind the market gate.
  */
@@ -147,18 +137,17 @@ public class ThinkingOrb extends View {
     /** The quarter-resolution bloom: current and scratch, both reused. */
     private int[] bloomPix;
     private int[] bloomTmp;
-    /** The surface heat map, 0..255 per texel, baked once per size. */
-    private int[] sunSurface;
-    /** The photograph's own high-pass detail, luminance 0..255. */
-    private int[] sunDetail;
-    private int sunDetailW;
-    private int sunDetailH;
+    /** The planet map: the owner's own photograph wrapped onto a sphere. */
+    private int[] sunMap;
+    /** The photograph's rim, one ink per screen angle: the steady crown. */
+    private int[] sunCrown;
+    /** The crown's average ink, which tints the glow. */
+    private int crownInk;
     /**
-     * The sphere's frame tables, baked once per size: the longitude each
-     * ball pixel reads at zero spin, the surface row it reads, the ball's
-     * own direction there (the eruptions are lit from it), the heat gain
-     * its place on the limb earns, the crown's lift, the mix weight and
-     * latitude wobble the second, counter-turning read uses, and the
+     * The sphere's frame tables, baked once per size: the map column each
+     * ball pixel reads at zero spin, the map row it reads, the ball's own
+     * direction there (the eruptions are lit from it), the photograph's
+     * crown index and its blend weight at that place on the limb, and the
      * pixel's edge coverage. Nothing here is computed on the frame path
      * but the one shared spin.
      */
@@ -167,38 +156,28 @@ public class ThinkingOrb extends View {
     private float[] sphereX;
     private float[] sphereY;
     private float[] sphereZ;
-    private float[] sphereGain;
     private float[] sphereRim;
-    private float[] sphereMix;
-    private float[] sphereWob;
+    private int[] sphereCrown;
     private int[] sphereCover;
     /** The destination square the ball fills, preallocated for the frame. */
     private final RectF ballDst = new RectF();
 
-    /** The photograph's own twelve colour quantiles, 0% to 100% of its light. */
-    private static final int[] SUN_RAMP = {
-            0xFF260402, 0xFF861B08, 0xFFA72F0C, 0xFFC34E17, 0xFFD87028,
-            0xFFE69039, 0xFFF3B051, 0xFFF8D56E, 0xFFFBF096, 0xFFFDFCB4,
-            0xFFFDFEC8, 0xFFFEFEE4,
-    };
-    private static final float[] SUN_STOP = {
-            0.00f, 0.05f, 0.10f, 0.20f, 0.32f, 0.44f,
-            0.56f, 0.68f, 0.80f, 0.90f, 0.96f, 1.00f,
-    };
-    /** The heat lookups: 256 palette colours, built once from the ramp. */
-    private final int[] sunHeat = new int[256];
+    /**
+     * The ball's own render resolution. It is SET BY THE TEXTURE, not by the
+     * phone: his fire crop carries about 146 pixels across, so a 320 pixel
+     * buffer only interpolated it (that is what read as soft, "PS2" fire).
+     * 192 still supersamples the 154 pixel ball the handset draws, and every
+     * texel above that is invented detail anyway.
+     */
+    private static final int SUN_RENDER = 192;
 
     /**
-     * The ball's own render resolution. v2.3.0 raised it to 320 and the
-     * owner still read the picture as a render: detail was never the
-     * problem, structure was. v2.3.1 spends the budget on the boil, the
-     * eruptions and the bloom instead, on a 256 pixel buffer that still
-     * oversamples the 154 pixel ball the phone draws.
+     * The planet map. Row 0 is the top of the ball and the last row its
+     * bottom; the columns are the sphere's longitudes. The visible face
+     * reads HALF the columns, which is his crop exactly at zero spin.
      */
-    private static final int SUN_RENDER = 256;
-    /** The surface map: equirectangular, baked once per size. */
-    private static final int SUN_MAP_W = 448;
-    private static final int SUN_MAP_H = 224;
+    private static final int SUN_MAP_W = 640;
+    private static final int SUN_MAP_H = 320;
 
     /** The standing tilt: the pose; the longitude carries the motion. */
     private static final float SUN_AXIS_TILT = 10f;
@@ -206,13 +185,45 @@ public class ThinkingOrb extends View {
     private static final float SUN_LAP = (float) (2f * Math.PI);
 
     /**
-     * The boil: a second read of the same surface, counter-turning at 58%
-     * of the main spin and offset by 61 rows of latitude, mixed per pixel.
-     * Two decorrelated copies of the fire that drift against each other
-     * read as plasma churning; one copy reads as a printed ball turning.
+     * His photograph's own disc, as a fraction of its half side: the crown
+     * blazes at 0.85 of the half side and has fallen away by 0.90, so the
+     * disc edge is 0.86 and the glow beyond it is the baked halo's.
      */
-    private static final float SUN_CHURN_TURN = -0.58f;
-    private static final float SUN_CHURN_ROW = 61f;
+    private static final float SUN_BALL_EDGE = 0.86f;
+    /**
+     * The crop the ball is made of, again as a fraction of that disc. The
+     * whole disc cannot be the texture: it is an orthographic VIEW, so one
+     * quarter turn of a sphere wearing it collapses the face into a single
+     * column (the streaks) and drags its bright ring through the middle (the
+     * band). This crop is the uniform fire inside the ring, and the ring
+     * itself is the fixed crown below. 0.62 keeps his own filaments at close
+     * to one texel per screen pixel on the handset.
+     */
+    private static final float SUN_CROP = 0.62f;
+
+    /**
+     * The fixed crown: the picture's rim, sampled once per screen angle and
+     * blended back in at the limb every frame, because a star's edge is
+     * bright from its own light and not from whatever pattern is under it.
+     */
+    private static final int SUN_CROWN = 512;
+    private static final float SUN_CROWN_AT = 0.96f;
+    private static final float SUN_CROWN_IN = 0.90f;
+    private static final float SUN_CROWN_OUT = 0.995f;
+    private static final float SUN_HOT = 0.25f;
+
+    /**
+     * The grade his picture needs to survive the crop. The crop sits in the
+     * photograph's darker middle (a mean luminance near 110 where the disc
+     * runs to 240), so the body is lifted and its darks are held by a
+     * contrast curve, and the result is his own fire, not a milky blur.
+     */
+    private static final float SUN_CONTRAST = 1.22f;
+    private static final float SUN_GAIN = 1.45f;
+    private static final float SUN_GAMMA = 0.88f;
+
+    /** The eruptions lift his own texels toward white; they draw nothing. */
+    private static final float SUN_FLARE = 0.45f;
 
     /**
      * The bloom: a quarter-resolution bright pass, blurred and added back.
@@ -221,8 +232,8 @@ public class ThinkingOrb extends View {
      */
     private static final int SUN_BLOOM = 64;
     private static final int SUN_BLOOM_CELL = SUN_RENDER / SUN_BLOOM;
-    private static final int SUN_BLOOM_KNEE = 214;
-    private static final float SUN_BLOOM_ADD = 0.30f;
+    private static final int SUN_BLOOM_KNEE = 228;
+    private static final float SUN_BLOOM_ADD = 0.26f;
 
     /**
      * The glow's own reach, as a multiple of the ball's radius, and the
@@ -373,7 +384,7 @@ public class ThinkingOrb extends View {
         // stands exactly where the ball he approved stood.
         ballR = orbRadius * 0.26f;
         nodeRadius = dp(1.3f);
-        linkWidth = Math.max(1f, dp(0.9f));
+        linkWidth = Math.max(1f, dp(1.1f));
         clockAnchor = System.currentTimeMillis();
         buildGeometry();
         buildInks();
@@ -460,6 +471,46 @@ public class ThinkingOrb extends View {
                 }
             }
         }
+        // v2.3.3 (owner order 2026-10-25, "few independent dots without any
+        // lines"): every node must wear at least one filament. A node whose
+        // neighbours all sat beyond the cap used to be drawn as a naked
+        // dot, so each orphan now joins its own nearest neighbour whatever
+        // the distance, and the fade's floor keeps that thread visible.
+        boolean[] joined = new boolean[NODES];
+        for (int l = 0; l < linkCount; l++) {
+            joined[linkA[l]] = true;
+            joined[linkB[l]] = true;
+        }
+        for (int i = 0; i < NODES && linkCount < linkBudget(); i++) {
+            if (joined[i]) {
+                continue;
+            }
+            int nearest = -1;
+            float nearestDist = Float.MAX_VALUE;
+            for (int j = 0; j < NODES; j++) {
+                if (j == i) {
+                    continue;
+                }
+                float dx = cloud[i * NODE_STRIDE] - cloud[j * NODE_STRIDE];
+                float dy = cloud[i * NODE_STRIDE + 1]
+                        - cloud[j * NODE_STRIDE + 1];
+                float dz = cloud[i * NODE_STRIDE + 2]
+                        - cloud[j * NODE_STRIDE + 2];
+                float dist = (float) Math.sqrt(dx * dx + dy * dy + dz * dz);
+                if (dist < nearestDist) {
+                    nearestDist = dist;
+                    nearest = j;
+                }
+            }
+            if (nearest < 0) {
+                continue;
+            }
+            linkA[linkCount] = i;
+            linkB[linkCount] = nearest;
+            linkDist[linkCount] = nearestDist;
+            linkPhase[linkCount] = 2.39996f * linkCount;
+            linkCount++;
+        }
     }
 
     /** The paints: the rendered ball, its glow, and the cloud's inks. */
@@ -513,14 +564,14 @@ public class ThinkingOrb extends View {
     }
 
     /**
-     * The centre is a RENDERED SPHERE, and the picture is a star rather than
-     * a lit ball: the glow goes down first, the ball over it, and the ball's
-     * own frame is one heat field folded through the photograph's palette.
+     * The centre is a RENDERED SPHERE wearing the owner's own photograph:
+     * the glow goes down first, then the ball, whose face is his picture
+     * read through the frame's longitude.
      *
      * Nothing on this path pumps the ball's alpha: its ink is the wake
-     * alone, the heat moves in the surface and in the eruptions, and the
-     * glow is one baked bitmap. That is how a picture burns continuously
-     * without ever flickering (the owner's order of the same pass).
+     * alone, the fire moves in the map and in the eruptions, and the glow
+     * is one baked bitmap. That is how a picture burns continuously
+     * without ever flickering (the owner's own order).
      */
     private void drawSun(Canvas canvas, float seconds, float wake) {
         if (sunBall == null) {
@@ -543,11 +594,14 @@ public class ThinkingOrb extends View {
     }
 
     /**
-     * One frame of the sphere. Each ball pixel reads the baked heat at the
-     * frame's longitude, at a second counter-turning longitude, mixes the
-     * two, scales the mix by its place on the limb, adds whatever eruptions
-     * are burning over it, and folds the result through the palette. Then
-     * the bloom pass lets the hot plasma bleed.
+     * One frame of the sphere. Each ball pixel reads HIS photograph at the
+     * frame's longitude, blends in the picture's own rim at the limb, and
+     * lifts whatever eruptions are burning over it. Then the bloom pass
+     * lets the hottest plasma bleed.
+     *
+     * The ball is SOLID (owner order 2026-10-25, "SUN is a solid entity,
+     * make it solid"): a pixel inside the disc is opaque, and only the
+     * outermost pixel of the edge carries partial coverage.
      *
      * The whole loop is array reads and multiply-adds on preallocated
      * tables: no allocation, no trigonometry, no texture object.
@@ -555,7 +609,6 @@ public class ThinkingOrb extends View {
     private void renderSunBall(float phi) {
         stepEruptions(sunSeconds, phi);
         float spin = phi / SUN_LAP * SUN_MAP_W;
-        float spin2 = spin * SUN_CHURN_TURN;
         int count = SUN_RENDER * SUN_RENDER;
         for (int k = 0; k < count; k++) {
             int cover = sphereCover[k];
@@ -563,17 +616,18 @@ public class ThinkingOrb extends View {
                 sunScratch[k] = 0;
                 continue;
             }
-            int hot1 = sampleSun(sphereU[k] + spin, sphereV[k]);
-            int hot2 = sampleSun(sphereU[k] + spin2,
-                    mirrorRow(sphereV[k] + SUN_CHURN_ROW + sphereWob[k]));
-            float mix = sphereMix[k];
-            float heat = (hot1 + (hot2 - hot1) * mix) * (1f / 255f);
-            heat *= sphereGain[k];
-            heat += sphereRim[k];
-            // The eruptions: white-hot plasma, wide skirt and a small core.
+            // His picture, read at the frame's own longitude.
+            int rgb = sampleMap(sphereU[k] + spin, sphereV[k]);
+            float rim = sphereRim[k];
+            if (rim > 0f) {
+                rgb = mixInk(rgb, sunCrown[sphereCrown[k]], rim);
+            }
+            // The eruptions lift the texels they cover toward white, so a
+            // burst reads as his plasma flaring and not as a drawn shape.
             float px = sphereX[k];
             float py = sphereY[k];
             float pz = sphereZ[k];
+            float flare = 0f;
             for (int e = 0; e < ERUPTIONS; e++) {
                 float energy = eruptEnergy[e];
                 if (energy <= 0.02f) {
@@ -590,14 +644,11 @@ public class ThinkingOrb extends View {
                 float q3 = q2 * q;
                 float q4 = q2 * q2;
                 float q8 = q4 * q4;
-                heat += (q3 * 0.40f + q8 * 1.60f) * energy;
+                flare += (q3 * 0.20f + q8 * 0.55f) * energy;
             }
-            if (heat < 0f) {
-                heat = 0f;
-            } else if (heat > 1f) {
-                heat = 1f;
+            if (flare > 0f) {
+                rgb = mixInk(rgb, 0xFFFFFF, Math.min(1f, flare * SUN_FLARE));
             }
-            int rgb = sunHeat[(int) (heat * 255f)];
             sunScratch[k] = (cover << 24) | (rgb & 0x00FFFFFF);
         }
         bloomSun();
@@ -765,10 +816,10 @@ public class ThinkingOrb extends View {
     }
 
     /**
-     * One bilinear read of the heat map. The columns wrap (longitude is a
+     * One bilinear read of the planet map. The columns wrap (longitude is a
      * circle); the rows are clamped, because the ball never reads past them.
      */
-    private int sampleSun(float u, float v) {
+    private int sampleMap(float u, float v) {
         u = u % SUN_MAP_W;
         if (u < 0f) {
             u += SUN_MAP_W;
@@ -784,23 +835,35 @@ public class ThinkingOrb extends View {
         }
         int r1 = r0 + 1 < SUN_MAP_H ? r0 + 1 : r0;
         float fv = clamp(v - r0, 0f, 1f);
-        int a = sunSurface[r0 * SUN_MAP_W + c0];
-        int b = sunSurface[r0 * SUN_MAP_W + c1];
-        int c = sunSurface[r1 * SUN_MAP_W + c0];
-        int d = sunSurface[r1 * SUN_MAP_W + c1];
-        float top = a + (b - a) * fu;
-        float bottom = c + (d - c) * fu;
+        int a = sunMap[r0 * SUN_MAP_W + c0];
+        int b = sunMap[r0 * SUN_MAP_W + c1];
+        int c = sunMap[r1 * SUN_MAP_W + c0];
+        int d = sunMap[r1 * SUN_MAP_W + c1];
+        int red = bilinearChannel(a, b, c, d, fu, fv, 16);
+        int green = bilinearChannel(a, b, c, d, fu, fv, 8);
+        int blue = bilinearChannel(a, b, c, d, fu, fv, 0);
+        return 0xFF000000 | (red << 16) | (green << 8) | blue;
+    }
+
+    /** One channel of a bilinear read over four corner colours. */
+    private static int bilinearChannel(int a, int b, int c, int d,
+            float fu, float fv, int shift) {
+        float top = ((a >> shift) & 0xFF)
+                + (((b >> shift) & 0xFF) - ((a >> shift) & 0xFF)) * fu;
+        float bottom = ((c >> shift) & 0xFF)
+                + (((d >> shift) & 0xFF) - ((c >> shift) & 0xFF)) * fu;
         return (int) (top + (bottom - top) * fv + 0.5f);
     }
 
-    /** A latitude coordinate mirrored instead of wrapped, so no seam shows. */
-    private static float mirrorRow(float v) {
-        float span = 2f * (SUN_MAP_H - 1);
-        float m = v % span;
-        if (m < 0f) {
-            m += span;
-        }
-        return m > SUN_MAP_H - 1 ? span - m : m;
+    /** One colour moved toward another, channel by channel, edges clamped. */
+    private static int mixInk(int from, int to, float k) {
+        int red = (int) (((from >> 16) & 0xFF) + (((to >> 16) & 0xFF)
+                - ((from >> 16) & 0xFF)) * k);
+        int green = (int) (((from >> 8) & 0xFF) + (((to >> 8) & 0xFF)
+                - ((from >> 8) & 0xFF)) * k);
+        int blue = (int) ((from & 0xFF) + ((to & 0xFF) - (from & 0xFF)) * k);
+        return 0xFF000000 | (clampInt(red, 0, 255) << 16)
+                | (clampInt(green, 0, 255) << 8) | clampInt(blue, 0, 255);
     }
 
     /**
@@ -829,14 +892,12 @@ public class ThinkingOrb extends View {
     }
 
     /**
-     * The sphere, baked once per size: the palette, the photograph's detail
-     * field, the surface heat map, the frame tables and the glow. Never on
-     * the frame path.
+     * The sphere, baked once per size: the planet map off his photograph,
+     * the picture's rim, the frame tables and the glow. Never on the frame
+     * path.
      */
     private void buildSunSphere() {
-        buildSunHeat();
-        buildSunDetail();
-        buildSunSurface();
+        buildSunMap();
         int count = SUN_RENDER * SUN_RENDER;
         sunBall = Bitmap.createBitmap(SUN_RENDER, SUN_RENDER,
                 Bitmap.Config.ARGB_8888);
@@ -849,10 +910,8 @@ public class ThinkingOrb extends View {
         sphereX = new float[count];
         sphereY = new float[count];
         sphereZ = new float[count];
-        sphereGain = new float[count];
         sphereRim = new float[count];
-        sphereMix = new float[count];
-        sphereWob = new float[count];
+        sphereCrown = new int[count];
         sphereCover = new int[count];
         for (int e = 0; e < ERUPTIONS; e++) {
             float dx = ERUPT_DIR[e * 3];
@@ -864,7 +923,9 @@ public class ThinkingOrb extends View {
             eruptDir[e * 3 + 2] = dz / len;
         }
         float half = SUN_RENDER / 2f;
-        float feather = 1.6f / half;
+        // The edge is ONE pixel of anti-aliasing, not a fade: a sun is a
+        // solid body (owner order 2026-10-25, "SUN is a solid entity").
+        float feather = 1.15f / half;
         for (int j = 0; j < SUN_RENDER; j++) {
             float y = (j + 0.5f) / half - 1f;
             for (int i = 0; i < SUN_RENDER; i++) {
@@ -875,45 +936,25 @@ public class ThinkingOrb extends View {
                     continue;   // outside the ball: no coverage, no cost
                 }
                 float z = (float) Math.sqrt(1f - d2);
-                // The azimuth about the ball's own standing axis: the
-                // frame's spin is one addition to this, so no atan2 ever
-                // runs on the frame path.
-                float azimuth = (float) Math.atan2(z, x);
-                sphereU[k] = (azimuth / SUN_LAP + 0.5f) * SUN_MAP_W;
+                float rn = (float) Math.sqrt(d2);
+                // His fire, read at the sphere's own longitude and
+                // latitude. At zero spin this IS his crop; the one shared
+                // spin then slides it limb to limb with foreshortening.
+                float longitude = (float) Math.atan2(x, z);
+                sphereU[k] = (longitude / SUN_LAP + 0.5f) * SUN_MAP_W;
                 float latitude = (float) Math.asin(clamp(y, -1f, 1f));
                 sphereV[k] = (0.5f - latitude / (float) Math.PI)
                         * (SUN_MAP_H - 1);
                 sphereX[k] = x;
                 sphereY[k] = y;
                 sphereZ[k] = z;
-                float rn = (float) Math.sqrt(d2);
-                // The photograph is LIMB BRIGHTENED: dark in the middle,
-                // blazing at 0.7-0.8 of the radius. A shaded ball does the
-                // opposite, and that is exactly what reads as a render.
-                float limb = smoothstep(0.02f, 0.90f, rn);
-                float low = fbm3(x * 1.9f + 1.3f, y * 1.9f - 4.7f, 6.1f, 4);
-                float gain = (0.46f + 0.66f * limb) * (0.94f + 0.12f * low);
-                gain *= 0.84f + 0.26f * fbm3(x * 5.5f + 2f, y * 5.5f - 3f,
-                        1.7f, 3);
-                // Only an eruption may reach the palette's white; the body
-                // tops out at pale yellow, because a surface that clips to
-                // white everywhere is the plastic look he keeps sending back.
-                sphereGain[k] = Math.min(gain, 0.93f);
-                // A limb that blazes in PLACES, not all the way round: the
-                // photograph's rim varies enormously along its
-                // circumference, and an even ring is what reads as painted.
-                float rag = 0.42f + 1.25f * fbm3(x * 5.5f + 2f,
-                        y * 5.5f - 3f, 1.7f, 3);
-                float blaze = (float) Math.pow(clamp(0.10f + 1.75f * low,
-                        0f, 1f), 1.5f);
-                float band = smoothstep(0.800f, 1f,
-                        rn + 0.050f * (rag - 1f));
-                sphereRim[k] = band * (0.04f + 0.08f * rag)
-                        * (0.30f + 1.20f * blaze);
-                sphereMix[k] = 0.24f + 0.38f * fbm3(x * 3.3f + 11f,
-                        y * 3.3f - 7f, 5.3f, 2);
-                sphereWob[k] = 3.1f * fbm3(x * 4.7f - 2f, y * 4.7f + 6f,
-                        9.1f, 2);
+                // The picture's rim at this place on the limb, which does
+                // not turn with the fire under it.
+                float ang = (float) Math.atan2(y, x);
+                int crown = (int) ((ang + (float) Math.PI) / SUN_LAP
+                        * SUN_CROWN);
+                sphereCrown[k] = crown >= SUN_CROWN ? 0 : crown;
+                sphereRim[k] = smoothstep(SUN_CROWN_IN, SUN_CROWN_OUT, rn);
                 sphereCover[k] = (int) (255f * clamp((1f - rn) / feather,
                         0f, 1f));
             }
@@ -921,295 +962,126 @@ public class ThinkingOrb extends View {
         buildSunHalo();
     }
 
-    /** The palette lookup: 256 colours of the photograph, built once. */
-    private void buildSunHeat() {
-        int last = SUN_STOP.length - 1;
-        for (int t = 0; t < 256; t++) {
-            float v = t / 255f;
-            int stop = 1;
-            while (stop < last && v > SUN_STOP[stop]) {
-                stop++;
-            }
-            float span = SUN_STOP[stop] - SUN_STOP[stop - 1];
-            float k = span <= 0f ? 0f : (v - SUN_STOP[stop - 1]) / span;
-            sunHeat[t] = rampMix(SUN_RAMP[stop - 1], SUN_RAMP[stop],
-                    clamp(k, 0f, 1f));
-        }
-    }
-
     /**
-     * The photograph's own fire, as a high-pass detail field. The ball's
-     * geometry must be ours (a flat disc maps to one hemisphere only), but
-     * its TEXTURE can be his: the picture's filament structure is exactly
-     * the fine detail that procedural noise never gets right. Luminance
-     * minus a wide blur is that detail, neutral 128 outside the disc.
+     * The planet map, built once: his photograph wrapped onto the sphere.
+     *
+     * At zero spin the visible face is his crop exactly, one texel of his
+     * fire per texel of the ball. The columns run the crop's own width over
+     * the visible half turn and then mirror it for the hidden half, so a
+     * revolution is a rigid slide and the join is a mirror line rather than
+     * a seam: there is no second disc and no edge to see.
      */
-    private void buildSunDetail() {
+    private void buildSunMap() {
+        int count = SUN_MAP_W * SUN_MAP_H;
+        sunMap = new int[count];
+        sunCrown = new int[SUN_CROWN];
         Bitmap photo = null;
         try {
             photo = BitmapFactory.decodeResource(getResources(),
                     R.drawable.sun);
         } catch (RuntimeException ignored) {
-            // No picture is no excuse to invent one (SO-3): the surface
-            // falls back to its own noise, neutral detail.
+            // No picture is no excuse to invent one (SO-3).
         }
         if (photo == null) {
-            sunDetail = null;
+            // A missing asset is reported as a plain disc, never as a fake
+            // photograph: his fire is his, and nothing here invents it.
+            for (int i = 0; i < count; i++) {
+                sunMap[i] = 0xFFAA3A0E;
+            }
+            for (int i = 0; i < SUN_CROWN; i++) {
+                sunCrown[i] = 0xFFF3B051;
+            }
+            crownInk = 0xFFF3B051;
             return;
         }
         int w = photo.getWidth();
         int h = photo.getHeight();
-        sunDetailW = w;
-        sunDetailH = h;
         int[] pixels = new int[w * h];
         photo.getPixels(pixels, 0, w, 0, 0, w, h);
         photo.recycle();
-        int[] gray = new int[w * h];
-        for (int i = 0; i < gray.length; i++) {
-            int pixel = pixels[i];
-            gray[i] = (((pixel >> 16) & 0xFF) * 77
-                    + ((pixel >> 8) & 0xFF) * 150
-                    + (pixel & 0xFF) * 29) >> 8;
-        }
-        int radius = Math.max(3, w * 3 / 100);
-        int[] blurred = boxBlurGray(gray, w, h, radius);
-        sunDetail = new int[w * h];
         float midX = w / 2f;
         float midY = h / 2f;
-        float midR = Math.min(w, h) / 2f;
-        for (int y = 0; y < h; y++) {
-            for (int x = 0; x < w; x++) {
-                int i = y * w + x;
-                float dx = x - midX;
-                float dy = y - midY;
-                float rn = (float) Math.sqrt(dx * dx + dy * dy) / midR;
-                float weight = clamp((0.94f - rn) / 0.12f, 0f, 1f);
-                float d = (gray[i] - blurred[i]) * 2.2f;
-                float v = 128f + d * weight;
-                sunDetail[i] = (int) clamp(v, 0f, 255f);
-            }
-        }
-    }
-
-    /** Separable box blur of a luminance field, edges clamped. */
-    private static int[] boxBlurGray(int[] src, int w, int h, int radius) {
-        int[] tmp = new int[w * h];
-        int[] out = new int[w * h];
-        int span = 2 * radius + 1;
-        for (int y = 0; y < h; y++) {
-            int row = y * w;
-            for (int x = 0; x < w; x++) {
-                int sum = 0;
-                for (int d = -radius; d <= radius; d++) {
-                    sum += src[row + clampInt(x + d, 0, w - 1)];
-                }
-                tmp[row + x] = sum / span;
-            }
-        }
-        for (int x = 0; x < w; x++) {
-            for (int y = 0; y < h; y++) {
-                int sum = 0;
-                for (int d = -radius; d <= radius; d++) {
-                    sum += tmp[clampInt(y + d, 0, h - 1) * w + x];
-                }
-                out[y * w + x] = sum / span;
-            }
-        }
-        return out;
-    }
-
-    /** The detail field read bilinearly, its edges clamped. */
-    private float sampleDetail(float u, float v) {
-        if (sunDetail == null) {
-            return 0.5f;
-        }
-        float ww = sunDetailW - 1.001f;
-        float hh = sunDetailH - 1.001f;
-        u = clamp(u, 0f, ww);
-        v = clamp(v, 0f, hh);
-        int x0 = (int) u;
-        int y0 = (int) v;
-        float fx = u - x0;
-        float fy = v - y0;
-        int i00 = y0 * sunDetailW + x0;
-        int row1 = y0 + 1 < sunDetailH ? y0 + 1 : y0;
-        int i01 = row1 * sunDetailW + x0;
-        float top = sunDetail[i00]
-                + (sunDetail[y0 * sunDetailW + x0 + 1] - sunDetail[i00]) * fx;
-        float bottom = sunDetail[i01]
-                + (sunDetail[row1 * sunDetailW + x0 + 1] - sunDetail[i01]) * fx;
-        return (top + (bottom - top) * fy) * (1f / 255f);
-    }
-
-    /**
-     * The surface: one equirectangular heat map, sampled on the ball's own
-     * unit sphere so the noise lives on the sphere and never stretches with
-     * an image's sheet.
-     *
-     * Scale order of the photograph: broad hot tongues, the mottled cells
-     * inside them, fine granulation, bright specks, few large cool regions
-     * and the black-red lanes. Then HIS OWN filaments, read through two
-     * planar projections at two scales. Then a blur (fire is smooth at a
-     * few pixels' scale; raw noise reads as sandpaper), the rank
-     * normalisation, the levels stretch, and the fine detail laid back on.
-     */
-    private void buildSunSurface() {
-        int count = SUN_MAP_W * SUN_MAP_H;
-        float[] heat = new float[count];
+        float disc = Math.min(w, h) / 2f * SUN_BALL_EDGE;
+        float crop = disc * SUN_CROP;
         for (int row = 0; row < SUN_MAP_H; row++) {
             float latitude = (0.5f - (row + 0.5f) / SUN_MAP_H)
                     * (float) Math.PI;
-            float cosLat = (float) Math.cos(latitude);
-            float sinLat = (float) Math.sin(latitude);
+            float py = midY + crop * (float) Math.sin(latitude);
             for (int col = 0; col < SUN_MAP_W; col++) {
                 float longitude = ((col + 0.5f) / SUN_MAP_W - 0.5f)
                         * (float) (2f * Math.PI);
-                float nx = cosLat * (float) Math.cos(longitude);
-                float nz = cosLat * (float) Math.sin(longitude);
-                float ny = sinLat;
-                // The warp: three low fields fold the body before it is read.
-                float wx = fbm3(nx * 2.3f + 3.1f, ny * 2.3f - 1.7f,
-                        nz * 2.3f + 5.3f, 2) - 0.5f;
-                float wy = fbm3(nx * 2.3f - 7.9f, ny * 2.3f + 4.3f,
-                        nz * 2.3f - 2.1f, 2) - 0.5f;
-                float wz = fbm3(nx * 2.3f + 11.7f, ny * 2.3f + 8.1f,
-                        nz * 2.3f + 1.3f, 2) - 0.5f;
-                float px = nx + 0.34f * wx;
-                float py = ny + 0.34f * wy;
-                float pz = nz + 0.34f * wz;
-                float tongueN = fbm3(px * 4.2f + 9f, py * 4.2f - 4f,
-                        pz * 4.2f + 2f, 4);
-                float ridge = 1f - Math.abs(2f * tongueN - 1f);
-                float tongue = ridge * ridge;
-                float cell = fbm3(px * 9f, py * 9f, pz * 9f, 5, 0.55f);
-                float grain = fbm3(px * 22f + 31f, py * 22f - 13f,
-                        pz * 22f + 7f, 4);
-                float vein = fbm3(px * 10f - 5f, py * 10f + 11f,
-                        pz * 10f - 19f, 3);
-                float veinRidge = 1f - Math.abs(2f * vein - 1f);
-                float lane = 1f - (float) Math.pow(veinRidge, 8f);
-                float spec = fbm3(px * 52f + 17f, py * 52f - 23f,
-                        pz * 52f + 41f, 3);
-                float sparkle = clamp((spec - 0.66f) * 7f, 0f, 1f);
-                sparkle *= sparkle;
-                float coolN = fbm3(px * 2.6f + 5f, py * 2.6f - 2f,
-                        pz * 2.6f + 9f, 3);
-                float cool = smoothstep(0.56f, 0.26f, coolN);
-                float v = 0.54f
-                        + (tongue - 0.45f) * 0.30f
-                        + (cell - 0.5f) * 0.34f
-                        + (grain - 0.5f) * 0.18f
-                        + sparkle * 0.20f
-                        - cool * 0.46f
-                        - lane * 0.10f;
-                // His flames at two scales: the wide filaments that shape
-                // the body, then a finer pass over them, so the fire has
-                // depth instead of one blob size.
-                float size = sunDetailW > 0 ? sunDetailW - 1.001f : 1f;
-                float coarse = sampleDetail((px * 0.5f + 0.5f) * size,
-                        (py * 0.5f + 0.5f) * size) * 0.6f
-                        + sampleDetail((pz * 0.5f + 0.5f) * size,
-                        (py * 0.5f + 0.5f) * size) * 0.4f;
-                float fine = sampleDetail(mirrorDetail(
-                                px * 1.05f * size + 40f), 
-                                mirrorDetail(py * 1.05f * size + 90f)) * 0.5f
-                        + sampleDetail(mirrorDetail(
-                                pz * 1.05f * size + 70f),
-                                mirrorDetail(px * 1.05f * size + 20f)) * 0.5f;
-                v = v * 0.62f + (coarse - 0.5f) * 0.30f
-                        + (fine - 0.5f) * 0.14f;
-                heat[row * SUN_MAP_W + col] = v;
+                // The triangle wrap: linear across the visible half turn,
+                // mirrored behind it. His crop slides round the sphere as a
+                // rigid texture, so a quarter turn is a quarter turn and
+                // never a collapse into one column.
+                float swing = (float) Math.asin(Math.sin(longitude));
+                float px = midX + swing * (2f / (float) Math.PI) * crop;
+                sunMap[row * SUN_MAP_W + col] =
+                        gradeInk(samplePhoto(pixels, w, h, px, py));
             }
         }
-        heat = boxBlurHeat(heat, 1);
-        // Rank normalisation: a field that clusters around its mean is the
-        // flat, moulded look he rejected. Sorted, it spans the palette.
-        int bins = 1024;
-        int[] histogram = new int[bins];
-        for (int i = 0; i < count; i++) {
-            int bin = (int) (clamp(heat[i], 0f, 0.9999f) * bins);
-            histogram[bin]++;
+        long red = 0L;
+        long green = 0L;
+        long blue = 0L;
+        for (int i = 0; i < SUN_CROWN; i++) {
+            float ang = i * (float) (2f * Math.PI) / SUN_CROWN;
+            float px = midX + (float) Math.cos(ang) * disc * SUN_CROWN_AT;
+            float py = midY + (float) Math.sin(ang) * disc * SUN_CROWN_AT;
+            int ink = mixInk(gradeInk(samplePhoto(pixels, w, h, px, py)),
+                    0xFFFFFF, SUN_HOT);
+            sunCrown[i] = ink;
+            red += (ink >> 16) & 0xFF;
+            green += (ink >> 8) & 0xFF;
+            blue += ink & 0xFF;
         }
-        float[] cdf = new float[bins];
-        int run = 0;
-        for (int b = 0; b < bins; b++) {
-            run += histogram[b];
-            cdf[b] = run / (float) count;
-        }
-        sunSurface = new int[count];
-        for (int i = 0; i < count; i++) {
-            int bin = (int) (clamp(heat[i], 0f, 0.9999f) * bins);
-            float rank = cdf[bin] * 0.85f;
-            // The fine filaments go back on at a low amplitude, so the
-            // ball has micro texture without salt-and-pepper.
-            float detail = sampleDetail(mirrorDetail(
-                    (i % SUN_MAP_W) * 1.7f + 11f),
-                    mirrorDetail((i / SUN_MAP_W) * 1.7f + 33f));
-            rank += (detail - 0.5f) * 0.30f;
-            // A levels stretch: the photograph runs from near black to
-            // white, and a field that sits in the middle reads as a peach.
-            rank = (rank - 0.5f) * 1.38f + 0.47f;
-            sunSurface[i] = (int) (clamp(rank, 0f, 1f) * 255f);
-        }
+        crownInk = 0xFF000000
+                | ((int) (red / SUN_CROWN) << 16)
+                | ((int) (green / SUN_CROWN) << 8)
+                | (int) (blue / SUN_CROWN);
     }
 
-    /** Mirror the detail sheet's coordinates, so its tiling has no seam. */
-    private float mirrorDetail(float u) {
-        if (sunDetailW <= 0) {
-            return 0f;
-        }
-        float span = 2f * (sunDetailW - 1f);
-        float m = u % span;
-        if (m < 0f) {
-            m += span;
-        }
-        return m > sunDetailW - 1f ? span - m : m;
+    /** His picture's own tonality, applied once to every texel of the map. */
+    private static int gradeInk(int ink) {
+        return 0xFF000000
+                | (gradeChannel((ink >> 16) & 0xFF) << 16)
+                | (gradeChannel((ink >> 8) & 0xFF) << 8)
+                | gradeChannel(ink & 0xFF);
     }
 
-    /** Separable box blur of the heat field: wrapped in longitude, clamped. */
-    private static float[] boxBlurHeat(float[] src, int radius) {
-        int w = SUN_MAP_W;
-        int h = SUN_MAP_H;
-        float[] tmp = new float[src.length];
-        float[] out = new float[src.length];
-        float norm = 1f / (2 * radius + 1);
-        for (int y = 0; y < h; y++) {
-            int row = y * w;
-            for (int x = 0; x < w; x++) {
-                float sum = 0f;
-                for (int d = -radius; d <= radius; d++) {
-                    int sx = (x + d) % w;
-                    if (sx < 0) {
-                        sx += w;
-                    }
-                    sum += src[row + sx];
-                }
-                tmp[row + x] = sum * norm;
-            }
-        }
-        for (int x = 0; x < w; x++) {
-            for (int y = 0; y < h; y++) {
-                float sum = 0f;
-                for (int d = -radius; d <= radius; d++) {
-                    int sy = y + d;
-                    if (sy < 0) {
-                        sy = 0;
-                    } else if (sy > h - 1) {
-                        sy = h - 1;
-                    }
-                    sum += tmp[sy * w + x];
-                }
-                out[y * w + x] = sum * norm;
-            }
-        }
-        return out;
+    /** One channel of the grade: contrast about the middle, then a lift. */
+    private static int gradeChannel(int value) {
+        float v = (value / 255f - 0.5f) * SUN_CONTRAST + 0.52f;
+        v = clamp(v, 0f, 1f) * SUN_GAIN;
+        v = (float) Math.pow(clamp(v, 0f, 1f), SUN_GAMMA);
+        return (int) (clamp(v, 0f, 1f) * 255f + 0.5f);
+    }
+
+    /** One bilinear read of the photograph, edges clamped. */
+    private static int samplePhoto(int[] pixels, int w, int h,
+            float x, float y) {
+        x = clamp(x, 0f, w - 1.001f);
+        y = clamp(y, 0f, h - 1.001f);
+        int x0 = (int) x;
+        int y0 = (int) y;
+        int x1 = x0 + 1 < w ? x0 + 1 : x0;
+        int y1 = y0 + 1 < h ? y0 + 1 : y0;
+        float fx = x - x0;
+        float fy = y - y0;
+        int a = pixels[y0 * w + x0];
+        int b = pixels[y0 * w + x1];
+        int c = pixels[y1 * w + x0];
+        int d = pixels[y1 * w + x1];
+        int red = bilinearChannel(a, b, c, d, fx, fy, 16);
+        int green = bilinearChannel(a, b, c, d, fx, fy, 8);
+        int blue = bilinearChannel(a, b, c, d, fx, fy, 0);
+        return 0xFF000000 | (red << 16) | (green << 8) | blue;
     }
 
     /**
      * The glow, baked once per size. It is light in the air, not a ring: a
      * gaussian peaking at the limb plus a wide tail, its strength value
-     * noise at three scales, and its ink warm (the palette's amber end),
-     * because pale cream at low alpha over black reads as grey.
+     * noise at three scales, and its ink his picture's own rim, because
+     * pale cream at low alpha over black reads as grey.
      */
     private void buildSunHalo() {
         int haloD = Math.max(8, (int) (ballR * 2f * SUN_HALO));
@@ -1239,24 +1111,14 @@ public class ThinkingOrb extends View {
                 if (alpha <= 0.002f) {
                     continue;
                 }
-                int ink = sunHeat[(int) (clamp(0.24f + 0.30f * wisp,
-                        0f, 1f) * 255f)];
+                int ink = mixInk(crownInk, 0xFFFFF2C0,
+                        clamp(0.10f + 0.55f * wisp, 0f, 1f));
                 pixels[j * haloD + i] = (Math.min(255, (int) (alpha * 255f))
                         << 24) | (ink & 0x00FFFFFF);
             }
         }
         halo = Bitmap.createBitmap(haloD, haloD, Bitmap.Config.ARGB_8888);
         halo.setPixels(pixels, 0, haloD, 0, 0, haloD, haloD);
-    }
-
-    /** One colour of the owner's palette, at the given position. */
-    private static int rampMix(int a, int b, float k) {
-        int red = (int) (((a >> 16) & 0xFF) + (((b >> 16) & 0xFF)
-                - ((a >> 16) & 0xFF)) * k);
-        int green = (int) (((a >> 8) & 0xFF) + (((b >> 8) & 0xFF)
-                - ((a >> 8) & 0xFF)) * k);
-        int blue = (int) ((a & 0xFF) + ((b & 0xFF) - (a & 0xFF)) * k);
-        return 0xFF000000 | (red << 16) | (green << 8) | blue;
     }
 
     /**
@@ -1367,21 +1229,22 @@ public class ThinkingOrb extends View {
             float toward = clamp((midway - 1f) / 0.6f, 0f, 1f)
                     * linkFade(linkDist[l]);
             // Owner order 2026-10-25 ("the big lines ... should be getting
-            // a big small and then get bigger"): each filament's own breath,
-            // one period, its own phase, and the breath carries its width
-            // and its ink as well as its length, so the swell is visible
-            // instead of lost in a straight line.
+            // a big small and then get bigger"), answered again in v2.3.3
+            // because the phone showed "still not breathing": the breath
+            // carries the filament's width and its ink as well as its
+            // length, and the swing is tripled, so it is unmistakable.
             float breathWave = (float) Math.sin(
-                    seconds * 0.7f * MOTION_SCALE + linkPhase[l]);
-            float widthBreath = 1f + 0.30f * breathWave;
+                    seconds * 0.55f * MOTION_SCALE + linkPhase[l]);
+            float widthBreath = 1f + 0.60f * breathWave;
             int alpha = (int) ((70f + 165f * toward) * wake
-                    * (0.72f + 0.36f * widthBreath));
+                    * (0.55f + 0.55f * widthBreath));
             linkPaint.setAlpha(Math.min(255, alpha));
             linkPaint.setStrokeWidth(linkWidth * (0.8f + 0.45f * toward)
                     * widthBreath);
-            // The length swings around the filament's own MIDPOINT, so the
-            // growth never detaches it from the nodes it joins.
-            float breath = 1f + 0.20f * breathWave;
+            // The length swings around the filament's own MIDPOINT, so
+            // both ends breathe outward and inward together instead of the
+            // whole line sliding off the nodes it joins.
+            float breath = 1f + 0.30f * breathWave;
             float ax = screenX[a];
             float ay = screenY[a];
             float bx = screenX[b];
@@ -1409,12 +1272,15 @@ public class ThinkingOrb extends View {
 
     /**
      * The refined fade (owner order 2026-10-24): a link keeps its full
-     * ink out to 0.14 and is GONE by 0.42 - the v2.2.1 numbers drew to
-     * 0.55 and let the longest threads cross the whole ball, which is
-     * the tangle the owner sent back.
+     * ink out to 0.14 and fades to a fifth by 0.42 - the v2.2.1 numbers
+     * drew out to 0.55 and let the longest threads cross the whole ball,
+     * which is the tangle the owner sent back.
      */
     private float linkFade(float dist) {
-        return 1f - clamp((dist - 0.14f) / 0.28f, 0f, 1f);
+        // The floor is what killed the "independent dots without any
+        // lines": a link at the 0.42 cap used to be painted at alpha
+        // ZERO, so its two nodes sat there looking unconnected.
+        return 1f - 0.80f * clamp((dist - 0.14f) / 0.28f, 0f, 1f);
     }
 
     private static long nextSeed(long seed) {
