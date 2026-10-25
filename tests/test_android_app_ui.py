@@ -1682,9 +1682,12 @@ class VersionTest(unittest.TestCase):
         # v2.2.8 is owner order 2026-10-25: the centre is a rendered
         # SPHERE again, the picture projections are gone, and the ball
         # carries no pulsing term.
+        # v2.2.9 is owner order 2026-10-25, second pass: the ball wears
+        # the photograph's crown (amber band and white-hot edge) and the
+        # thin revolving arcs are gone from the limb.
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="2.2.8"', manifest)
-        self.assertIn('android:versionCode="66"', manifest)
+        self.assertIn('android:versionName="2.2.9"', manifest)
+        self.assertIn('android:versionCode="67"', manifest)
         # The changelog entry ties these user-visible changes to the build.
         readme = (ROOT / "android" / "README.md").read_text(encoding="utf-8")
         self.assertIn("v1.7.9, owner order 2026-10-20", readme)
@@ -1720,9 +1723,10 @@ class VersionTest(unittest.TestCase):
         self.assertIn("Version 2.2.6, versionCode 64", readme)
         self.assertIn("Version 2.2.7, versionCode 65", readme)
         self.assertIn("Version 2.2.8, versionCode 66", readme)
+        self.assertIn("Version 2.2.9, versionCode 67", readme)
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionCode="66"', manifest)
-        self.assertIn('android:versionName="2.2.8"', manifest)
+        self.assertIn('android:versionCode="67"', manifest)
+        self.assertIn('android:versionName="2.2.9"', manifest)
         layout = LAYOUT.read_text(encoding="utf-8")
         strings = STRINGS.read_text(encoding="utf-8")
         main = MAIN.read_text(encoding="utf-8")
@@ -2683,8 +2687,6 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         self.assertIn("drawCloud(canvas, seconds, wake);", scene)
         self.assertLess(scene.index("drawCloud(canvas, seconds, wake);"),
                         scene.index("drawSun(canvas, seconds, wake);"))
-        # The sun keeps its slow revolving arcs.
-        self.assertIn("seconds * promSpeed[p] * MOTION_SCALE;", orb)
         # The wake ramp is the v1.8.9 number, so the organism grows out of
         # the dark instead of popping in.
         self.assertIn("WAKE_SECONDS = 4f", orb)
@@ -2757,22 +2759,42 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         # is bounded whatever the panel's size.
         self.assertIn("ballR = orbRadius * 0.26f", orb)
         self.assertIn("SUN_RENDER = 256", orb)
+        # v2.2.9 (owner order 2026-10-25, second pass, "I want my SUN
+        # looking like this ... with fire like features burning"): the
+        # photograph's own crown is pinned to the radii his sun carries it
+        # at, a wide amber band and a white-hot edge, both baked into the
+        # frame tables so the ring costs the frame nothing.
+        self.assertIn("SUN_RING_IN = 0.42f", orb)
+        self.assertIn("SUN_RING_OUT = 0.78f", orb)
+        self.assertIn("SUN_RING_LIFT = 0.55f", orb)
+        self.assertIn("SUN_EDGE_IN = 0.78f", orb)
+        self.assertIn("SUN_EDGE_OUT = 0.96f", orb)
+        self.assertIn("sphereRing[k] = smoothstep(SUN_RING_IN, "
+                      "SUN_RING_OUT, limb)", orb)
+        self.assertIn("sphereEdge[k] = smoothstep(SUN_EDGE_IN, "
+                      "SUN_EDGE_OUT, limb);", orb)
+        self.assertIn("float redLift = 255f * ring + 255f * edge;", orb)
+        self.assertIn("float greenLift = 200f * ring + 250f * edge;", orb)
+        self.assertIn("private static float smoothstep(float a, float b, "
+                      "float v) {", orb)
+        self.assertIn("SUN_LIMB_FLOOR = 0.90f", orb)
+        self.assertIn("SUN_LIMB_GAIN = 0.38f", orb)
 
     def test_v2_2_5_the_fire_is_steady_and_the_lines_breathe(self):
         orb = (MAIN.parent / "ThinkingOrb.java").read_text(
             encoding="utf-8")
         """v2.2.5, on the sent-back v2.2.4 build: "the SUN is not
         revolving and it's just flickering now". The flicker WAS the
-        fire's alpha pumps (flame 0.75-1.0 swing, prominence 0.35-1.0
-        swing); the fix narrows the flame swing to length alone and
-        holds both inks steady. The breathe is the NLINES' own law:
-        "the lines will get a bit short and then will get long" - one
-        breath period on each filament, around its own midpoint."""
-        # The two inks are steady (no alpha swing inside the fire):
-        self.assertIn("sunFlame.setAlpha(Math.min(255, (int) (170f * wake)));",
+        fire's alpha pumps (flame 0.75-1.0 swing, the arc ink's 0.35-1.0
+        swing); the fix narrows the flame swing to length alone and holds
+        the ink steady. The breathe is the NLINES' own law: "the lines will
+        get a bit short and then will get long" - one breath period on each
+        filament, around its own midpoint. v2.2.9 deleted the arcs, so the
+        flame ink is the one fire ink left to hold steady."""
+        # The flame ink is steady (no alpha swing inside the fire):
+        self.assertIn("sunFlame.setAlpha(Math.min(255, (int) (200f * wake)));",
                       orb)
-        self.assertIn("sunProm.setAlpha(Math.min(255, (int) (185f * wake)));",
-                      orb)
+        self.assertNotIn("sunProm", orb)
         # The flame swing is length alone now (0.82 + 0.18 sine).
         self.assertIn("0.82f + 0.18f * (float) Math.sin(", orb)
         self.assertNotIn("0.72f + 0.28f * (float) Math.sin(", orb)
@@ -2847,7 +2869,7 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         frame = orb[orb.index("private void drawSun("):
                     orb.index("private void buildSunSurface(")]
         self.assertIn("sunPaint.setAlpha((int) (255f * wake));", frame)
-        self.assertIn("sunHaloPaint.setAlpha((int) (150f * wake));", frame)
+        self.assertIn("sunHaloPaint.setAlpha((int) (175f * wake));", frame)
         self.assertNotIn("Math.sin", frame)
         self.assertNotIn("setShader", frame)
         self.assertNotIn("PorterDuff", frame)
@@ -2883,21 +2905,24 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         self.assertNotIn("drawCloudHeart", orb)
         self.assertNotIn("PorterDuff", orb)
 
-    def test_the_sun_keeps_its_revolving_arcs_and_the_sparks(self):
+    def test_the_sun_keeps_its_sparks_and_the_arcs_are_gone(self):
         orb = (MAIN.parent / "ThinkingOrb.java").read_text(
             encoding="utf-8")
-        """Owner order 2026-10-23 (second order, v1.9.14): the sun keeps its
-        own eight arcs revolving at the limb, and one spark is alive
-        almost EVERY second: periods cut to 0.7-1.2s.
+        """Owner order 2026-10-25: "don't have the curve lines that were
+        moving just outside the sun ... those little curve lines that were
+        moving as well on the SUN". The eight revolving prominence arcs and
+        everything that fed them (their angles, spreads, heights, phases
+        and speeds, their paint and their Path) are deleted, while the spark
+        cadence of v1.9.14 stays: one spark alive almost every second, a
+        period per spark, the streak drawn only while the spark is young.
         """
-        self.assertIn("private static final int PROMINENCES = 8;", orb)
+        for retired in ("PROMINENCES", "promAngle", "promSpread",
+                        "promHeight", "promPhase", "promSpeed",
+                        "promPath", "sunProm", "drawProminences"):
+            with self.subTest(retired=retired):
+                self.assertNotIn(retired, orb)
+        self.assertNotIn("Path", orb)
         self.assertIn("private static final int FLARES = 7;", orb)
-        # Each arc LEAPS on its own leap (one breathing factor) while its
-        # bearing revolves; the leap never stretches the arc past its
-        # prebuilt spread.
-        self.assertIn("float leap = 0.5f + 0.5f * (float) Math.sin(\n", orb)
-        self.assertIn("promHeight[p] * (0.55f + 0.45f * leap);", orb)
-        self.assertIn("1f + height * 1.6f", orb)
         # The spark cadence is the seconds cadence the owner ordered: a
         # period per spark, one streak drawn while the spark is young, and
         # the fall decays it.
@@ -2935,13 +2960,15 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         orb = (MAIN.parent / "ThinkingOrb.java").read_text(encoding="utf-8")
         # Zero allocations on the frame path: constellation, sun geometry
         # and inks are all built once, on the size change, never on the
-        # frame; the one Path is shared and reset, never re-allocated.
+        # frame; the ball's destination rect is shared and reused, and the
+        # sphere's tables and bitmap are built beside the rest (v2.2.8).
         self.assertIn("buildGeometry();", orb)
         self.assertIn("buildSun();", orb)
         self.assertIn("buildInks();", orb)
+        self.assertIn("buildSunSphere();", orb)
         self.assertIn("onSizeChanged", orb)
-        self.assertIn("private final Path promPath = new Path();", orb)
-        self.assertIn("promPath.reset();", orb)
+        self.assertIn("private final RectF ballDst = new RectF();", orb)
+        self.assertIn("ballDst.set(cx - r, cy - r, cx + r, cy + r);", orb)
         # The frame loop is the view's own paced invalidate, not a sleep
         # or a background service: nothing runs while the view is parked.
         self.assertIn("FPS_MS = 33L", orb)
