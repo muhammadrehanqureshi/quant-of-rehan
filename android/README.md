@@ -1503,6 +1503,36 @@ to sixty seconds. The status tile therefore also carries the app's own
      nearest neighbour at build time.
   7. The version bump is versionCode 71 / versionName 2.3.3.
 
+**Version 2.3.5, versionCode 72.**
+
+  Owner order 2026-10-25, seventh pass, on the v2.3.3 build read on the
+  phone: "there is this one outline on the SUN and even the render of SUN
+  looks really cheap, make it look very realistic", with the picture he
+  wants it to look like attached again. The outline was this app's own: a
+  crown of one ink, and then a limb curve of many, are both functions of the
+  screen radius, and a function of the screen radius is a circle.
+
+  1. THE RIM IS HIS. His picture's edge is sampled once per screen angle and
+     averaged over four radii, and its brightness around the disc becomes
+     the rim's own tongues and its own gaps. It turns with the surface,
+     because it is the same fire: the rim is uneven where his is uneven and
+     dark where his fire does not reach the edge.
+  2. THE CORONA IS HIS. The light outside the disc is read from the same
+     picture, one cell per angle and radius, with its alpha taken from the
+     picture's own brightness. The flames end where his end; the exponential
+     glow, its core constant and its warm tail are deleted.
+  3. THE POLES DISSOLVE. A sphere converges every longitude into its poles,
+     and converging photographic detail reads as a woven seam. Where the
+     mapping converges the fire gives way to the colour of its own map row,
+     so the ball has no cap at either end and no starburst to give it away.
+  4. THE FIRE IS AS SHARP AS HIS PICTURE. The crop opens from 0.62 to 0.75
+     of the disc so the face is nearer his own scale, the unsharp pass rises
+     from 0.60 to 1.05, and the grade is retuned to keep his darker lanes
+     instead of lifting everything to a uniform yellow.
+  5. Still solid, still one alpha (the wake's), still one shared longitude
+     shift under the owner's own 10% cut.
+  6. The version bump is versionCode 72 / versionName 2.3.5.
+
 **Built and delivered 2026-10-25 (v2.3.3):** the signed v2.3.3 APK was built
 on GitHub Actions from the merge of PR #129 (master 7a30fcb, run 40174319118,
 the push build the merge itself triggered), downloaded from the run's

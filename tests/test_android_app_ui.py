@@ -1693,8 +1693,8 @@ class VersionTest(unittest.TestCase):
         # boils, the eruptions blow, the bloom bleeds and the filaments
         # breathe in width and ink as well as length.
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="2.3.3"', manifest)
-        self.assertIn('android:versionCode="71"', manifest)
+        self.assertIn('android:versionName="2.3.5"', manifest)
+        self.assertIn('android:versionCode="72"', manifest)
         # The changelog entry ties these user-visible changes to the build.
         readme = (ROOT / "android" / "README.md").read_text(encoding="utf-8")
         self.assertIn("v1.7.9, owner order 2026-10-20", readme)
@@ -1735,9 +1735,10 @@ class VersionTest(unittest.TestCase):
         self.assertIn("Version 2.3.1, versionCode 69", readme)
         self.assertIn("Version 2.3.2, versionCode 70", readme)
         self.assertIn("Version 2.3.3, versionCode 71", readme)
+        self.assertIn("Version 2.3.5, versionCode 72", readme)
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionCode="71"', manifest)
-        self.assertIn('android:versionName="2.3.3"', manifest)
+        self.assertIn('android:versionCode="72"', manifest)
+        self.assertIn('android:versionName="2.3.5"', manifest)
         layout = LAYOUT.read_text(encoding="utf-8")
         strings = STRINGS.read_text(encoding="utf-8")
         main = MAIN.read_text(encoding="utf-8")
@@ -2717,55 +2718,91 @@ class ThinkingOrbPlanTest(unittest.TestCase):
     def test_the_sun_is_his_photograph_on_a_revolving_sphere(self):
         orb = (MAIN.parent / "ThinkingOrb.java").read_text(
             encoding="utf-8")
-        """Owner order 2026-10-25, sixth pass: "you made the sun transparent,
-        SUN is a solid entity, make it solid, make it look high quality",
-        "the very left one is my own uploaded photo, and I would really love
-        to have that same exact render, and then you can make it revolve
-        just like the Earth does".
+        """Owner order 2026-10-25, sixth and seventh passes: "you made the
+        sun transparent, SUN is a solid entity, make it solid", "the very
+        left one is my own uploaded photo, and I would really love to have
+        that same exact render, and then you can make it revolve just like
+        the Earth does", then "there is this one outline on the SUN and even
+        the render of SUN looks really cheap, make it look very realistic".
 
-        v2.3.3 stops generating fire. The surface is the owner's own picture
-        (drawable-nodpi/sun.jpg), its fire crop wrapped onto the sphere, so
-        the texture under the ball IS his photograph; the rim is the fixed
-        crown, because a star's limb is bright from its own light and not
-        from whatever pattern sits under it. The revolve is one shared
-        longitude shift, and the crop travels on a triangle wrap, because
-        his disc is an orthographic view: wrapped as a disc it collapsed at
-        a quarter turn and dragged his bright ring through the middle.
+        The surface is the owner's own picture (drawable-nodpi/sun.jpg), its
+        fire crop wrapped onto the sphere on a triangle wrap, and v2.3.5
+        takes his RIM and his CORONA from the same picture: one ink and one
+        height per screen angle, one alpha per angle and radius. Nothing in
+        this file is a function of the screen radius any more, because a
+        function of the screen radius is a circle by construction. The
+        sphere's poles, which converge by geometry, dissolve into their own
+        map row so the ball has no woven cap.
         """
         self.assertIn("private void buildSunSphere() {", orb)
-        self.assertIn("private void buildSunMap() {", orb)
+        self.assertIn("private void buildSunMap(int[] pixels, int w, int h) {",
+                      orb)
+        self.assertIn("private void buildSunRing(int[] pixels, int w, int h) {",
+                      orb)
+        self.assertIn("private void buildSunCorona(int[] pixels, int w, int h)"
+                      " {", orb)
+        self.assertIn("private void sharpenMap() {", orb)
         self.assertIn("private void renderSunBall(float phi) {", orb)
         self.assertIn("private int sampleMap(float u, float v) {", orb)
-        self.assertIn("private void buildSunHalo() {", orb)
         # His picture is the source, decoded from the asset.
         self.assertIn("BitmapFactory.decodeResource(getResources(),", orb)
         self.assertIn("R.drawable.sun", orb)
         self.assertIn("private static int samplePhoto(int[] pixels, int w, "
                       "int h,", orb)
         self.assertIn("sunMap[row * SUN_MAP_W + col] =", orb)
+        self.assertIn("mapRowInk[row] = 0xFF000000", orb)
         self.assertIn("gradeInk(samplePhoto(pixels, w, h, px, py))", orb)
-        # The generated surface is gone, with every table it needed.
-        for retired in ("SUN_RAMP", "SUN_STOP", "sunHeat", "sampleSun",
-                        "mirrorRow", "SUN_CHURN_TURN", "SUN_CHURN_ROW",
-                        "sphereGain", "sphereMix", "sphereWob",
-                        "buildSunHeat", "buildSunSurface", "buildSunDetail",
-                        "sunDetail", "sunSurface", "rampMix", "sampleDetail"):
+        # The drawn ring is gone, with the table and the blend that made it.
+        for retired in ("SUN_CROWN", "sunCrown", "crownInk", "sphereRim",
+                        "sphereCrown", "SUN_HALO", "buildSunHalo",
+                        "SUN_RAMP", "SUN_STOP", "sunHeat", "sampleSun",
+                        "mirrorRow", "SUN_CHURN_TURN", "sphereGain",
+                        "buildSunHeat", "buildSunSurface", "sampleDetail",
+                        "rampMix", "fbm3", "noise3", "hash3",
+                        # v2.3.5: the radius brightening, the white-hot
+                        # band and the exponential glow were the outline he
+                        # kept sending back. His own rim and corona replace
+                        # all three.
+                        "SUN_LIMB", "SUN_HOT", "SUN_GLOW", "sunGlow",
+                        "glowInk"):
             with self.subTest(retired=retired):
                 self.assertNotIn(retired, orb)
-        # The numbers are measured off the picture: its disc at 0.86 of the
-        # half side, the fire crop at 0.62 of that disc, the crown at 0.96.
-        self.assertIn("SUN_RENDER = 192", orb)
-        self.assertIn("SUN_MAP_W = 640", orb)
-        self.assertIn("SUN_MAP_H = 320", orb)
+        # One bitmap holds the ball and its glow: the disc is 96 of its 128
+        # pixels, which is what removes every possible seam.
+        self.assertIn("SUN_RENDER = 256", orb)
+        self.assertIn("SUN_BALL = 96f", orb)
+        self.assertIn("SUN_REACH = SUN_RENDER / 2f / SUN_BALL", orb)
+        self.assertIn("float r = ballR * (SUN_RENDER / 2f) / SUN_BALL;", orb)
+        self.assertIn("sunBallPixels[k] = (alpha << 24) | (red << 16)", orb)
+        # His numbers: the disc at 0.86 of the picture's half side, the crop
+        # at 0.62 of the disc, the limb curve and the white-hot edge.
+        self.assertIn("SUN_MAP_W = 512", orb)
+        self.assertIn("SUN_MAP_H = 256", orb)
         self.assertIn("SUN_BALL_EDGE = 0.86f", orb)
-        self.assertIn("SUN_CROP = 0.62f", orb)
-        self.assertIn("SUN_CROWN_AT = 0.96f", orb)
-        self.assertIn("SUN_CROWN_IN = 0.90f", orb)
-        self.assertIn("SUN_CROWN_OUT = 0.995f", orb)
-        self.assertIn("SUN_HOT = 0.25f", orb)
-        self.assertIn("SUN_CONTRAST = 1.22f", orb)
-        self.assertIn("SUN_GAIN = 1.45f", orb)
-        self.assertIn("SUN_GAMMA = 0.88f", orb)
+        self.assertIn("SUN_CROP = 0.75f", orb)
+        self.assertIn("SUN_BOIL_ROW = 5f", orb)
+        self.assertIn("SUN_BOIL_MIX = 0.07f", orb)
+        self.assertIn("SUN_SHARPEN = 1.05f", orb)
+        self.assertIn("SUN_CONTRAST = 1.30f", orb)
+        # His rim: one ink and one height per screen angle, both from the
+        # picture, both turning with the surface.
+        self.assertIn("SUN_RING_IN = 0.87f", orb)
+        self.assertIn("SUN_RING = 1.55f", orb)
+        self.assertIn("SUN_RING_BASE = 0.30f", orb)
+        self.assertIn("SUN_RING_FLAME = 1.35f", orb)
+        self.assertIn("float ring = smoothstep(SUN_RING_IN, 0.995f, rn)", orb)
+        self.assertIn("ringFlame[ang]", orb)
+        self.assertIn("ringInk[ang]", orb)
+        # His corona: alpha and ink per angle and radius.
+        self.assertIn("FLAME_STEPS = 512", orb)
+        self.assertIn("CORONA_STEPS = 28", orb)
+        self.assertIn("CORONA_REACH = 0.20f", orb)
+        self.assertIn("coronaInk[near * FLAME_STEPS + ang]", orb)
+        # The pole dissolve.
+        self.assertIn("SUN_POLE_IN = 0.64f", orb)
+        self.assertIn("SUN_POLE_MIX = 0.92f", orb)
+        self.assertIn("int row = mapRowInk[clampInt((int) v, 0, SUN_MAP_H - 1)];",
+                      orb)
         # The revolve: one shared longitude shift, the owner's 10% cut kept.
         self.assertIn("SUN_SPIN_RATE = 0.35f", orb)
         self.assertIn("SUN_SLOWDOWN = 0.9f", orb)
@@ -2780,16 +2817,12 @@ class ThinkingOrbPlanTest(unittest.TestCase):
                       orb)
         self.assertIn("float px = midX + swing * (2f / (float) Math.PI) "
                       "* crop;", orb)
-        # SOLID: every pixel inside the disc is opaque and only the edge is
-        # anti-aliased (owner order: "SUN is a solid entity").
-        self.assertIn("float feather = 1.15f / half;", orb)
-        self.assertIn("(int) (255f * clamp((1f - rn) / feather,", orb)
-        self.assertIn("sunScratch[k] = (cover << 24) | (rgb & 0x00FFFFFF);",
-                      orb)
-        # The fixed crown rides the limb while the fire turns under it.
-        self.assertIn("sphereRim[k] = smoothstep(SUN_CROWN_IN, "
-                      "SUN_CROWN_OUT, rn);", orb)
-        self.assertIn("rgb = mixInk(rgb, sunCrown[sphereCrown[k]], rim);",
+        # SOLID: every pixel inside the disc is opaque (owner order: "SUN is
+        # a solid entity").
+        self.assertIn("sphereCover[k] = 255;", orb)
+        self.assertIn("sunScratch[k] = 0xFF000000", orb)
+        # The rim comes from his picture, not from a radius.
+        self.assertIn("* (SUN_RING_BASE + SUN_RING_FLAME * ringFlame[ang])",
                       orb)
         # The frame draws it under the standing tilt.
         method0 = orb.index("private void drawSun(")
@@ -2901,12 +2934,12 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         frame = orb[orb.index("private void drawSun("):
                     orb.index("private void renderSunBall(")]
         self.assertIn("sunPaint.setAlpha((int) (255f * wake));", frame)
-        self.assertIn("sunHaloPaint.setAlpha((int) (175f * wake));", frame)
         # Every alpha written on this path is the wake's, with no other
-        # factor in it: no sine, no phase, no pulse term.
+        # factor in it: no sine, no phase, no pulse term. v2.3.4 folds the
+        # glow into the ball's own bitmap, so there is one alpha, not two.
         alphas = [line.strip() for line in frame.splitlines()
                   if "setAlpha" in line]
-        self.assertEqual(len(alphas), 2, alphas)
+        self.assertEqual(len(alphas), 1, alphas)
         for line in alphas:
             self.assertIn("wake", line)
             self.assertNotIn("Math.sin", line)
@@ -2922,24 +2955,19 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         self.assertNotIn("Math.random", step)
         self.assertNotIn("Random", orb)
 
-    def test_the_balls_texture_is_his_picture_and_its_rim_is_his_rim(self):
+    def test_the_balls_texture_is_his_picture_and_its_limb_is_his_curve(self):
         orb = (MAIN.parent / "ThinkingOrb.java").read_text(
             encoding="utf-8")
         """The owner's own sun photograph shipped on 2026-10-24
         (drawable-nodpi/sun.jpg, the SUN ONLY of the picture he sent) and
-        has been the source of this ball ever since. Up to v2.3.2 it was
-        only its palette and its fine detail; v2.3.3 makes it the surface
-        itself, so the fire on the ball is his fire and not another noise
-        octave, and its rim is the crown below.
-
-        The one thing the picture cannot do on its own is rotate: it is an
-        orthographic view of a disc, not a texture, so the map reads its
-        fire crop and its rim separately, and the grade keeps the crop's
-        darker middle from turning the ball into a milky blur.
+        has been the source of this ball ever since. v2.3.4 reads it for
+        the surface AND for the limb: his picture's radial brightening is
+        applied at render time, so the ball carries his own light instead of
+        a painted crown, and one unsharp pass keeps his filaments.
         """
         self.assertTrue((RES / "drawable-nodpi" / "sun.jpg").is_file())
         self.assertIn("R.drawable.sun", orb)
-        # The crop, its grade, and the map built from his texels.
+        # The crop, its grade, its sharpen and the map built from his texels.
         self.assertIn("float disc = Math.min(w, h) / 2f * SUN_BALL_EDGE;",
                       orb)
         self.assertIn("float crop = disc * SUN_CROP;", orb)
@@ -2949,18 +2977,19 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         self.assertIn("private static int gradeChannel(int value) {", orb)
         self.assertIn("float v = (value / 255f - 0.5f) * SUN_CONTRAST "
                       "+ 0.52f;", orb)
-        self.assertIn("v = (float) Math.pow(clamp(v, 0f, 1f), SUN_GAMMA);",
+        self.assertIn("private static int sharpenChannel(int value, "
+                      "int blurred) {", orb)
+        # The rim and the corona, both read off his picture at build, both
+        # carried in the same bitmap as the ball.
+        self.assertIn("private void buildSunRing(int[] pixels, int w, int h) {",
                       orb)
-        # The crown is the picture's own rim, sampled once per angle and
-        # lifted white, never a drawn ring of pixels.
-        self.assertIn("private static final int SUN_CROWN = 512;", orb)
-        self.assertIn("int ink = mixInk(gradeInk(samplePhoto(pixels, w, h, "
-                      "px, py)),", orb)
-        self.assertIn("0xFFFFFF, SUN_HOT);", orb)
-        # The glow is baked once and inked from the crown, not a palette.
-        self.assertIn("int ink = mixInk(crownInk, 0xFFFFF2C0,", orb)
-        # A shader may not repaint his picture: the ball is his texels,
-        # his rim and the bloom.
+        self.assertIn("private void buildSunCorona(int[] pixels, int w, "
+                      "int h) {", orb)
+        self.assertIn("float r = disc * RING_BANDS[b];", orb)
+        self.assertIn("float radius = disc * (1f + CORONA_REACH * f);", orb)
+        self.assertIn("float alpha = clamp((lum - 0.04f) / 0.34f, 0f, 1f)",
+                      orb)
+        # A shader may not repaint his picture, and nothing may draw a ring.
         for retired in ("setShader", "PorterDuff", "GRANULES",
                         "SUN_LIMB_FLOOR", "SUN_EDGE_IN", "SUN_CROWN_INK",
                         "drawCloudHeart"):
@@ -2984,7 +3013,7 @@ class ThinkingOrbPlanTest(unittest.TestCase):
                         "flamePhase", "flameRate", "flareAngle",
                         "flarePeriod", "flarePhase", "buildSun(",
                         "drawFlames", "drawFlares", "sunFlame", "sunFlare",
-                        "SUN_RING_IN", "SUN_RING_OUT", "SUN_RING_LIFT",
+                        "SUN_RING_OUT", "SUN_RING_LIFT",
                         "sphereRing", "sphereEdge"):
             with self.subTest(retired=retired):
                 self.assertNotIn(retired, orb)
