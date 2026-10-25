@@ -24,13 +24,17 @@ import {
   type BarEvent,
   type ChartPayload,
   type ErrorCategory,
-  type LiveQuote,
+  type PrintReport,
   type Resolution,
+  type SessionsReport,
+  type SymbolRow,
   ContractViolation,
   parseBarEvent,
   parseErrorBody,
-  parseLiveQuote,
   parsePayload,
+  parsePrints,
+  parseSessions,
+  parseSymbolRows,
   parseSymbols,
 } from "./types";
 
@@ -76,8 +80,6 @@ export interface EventSourceLike {
 export interface ClientOptions {
   /** Base URL of the service; empty means same origin, which is the norm. */
   readonly baseUrl?: string;
-  readonly quoteBaseUrl?: string;
-  readonly webSocketFactory?: WebSocketFactory;
   readonly timeoutMs?: number;
   readonly attempts?: number;
   readonly baseDelayMs?: number;
@@ -87,18 +89,6 @@ export interface ClientOptions {
   readonly sleep?: (milliseconds: number) => Promise<void>;
   readonly random?: () => number;
 }
-
-export interface LiveQuoteHandlers {
-  onQuote: (quote: LiveQuote) => void;
-  onState: (state: StreamState, detail?: string) => void;
-}
-
-export interface WebSocketLike {
-  addEventListener(type: "open" | "error" | "message", listener: (event: Event | MessageEvent) => void): void;
-  close(): void;
-}
-
-export type WebSocketFactory = (url: string) => WebSocketLike;
 
 export interface StreamHandlers {
   onSnapshot: (payload: ChartPayload) => void;
@@ -137,8 +127,6 @@ function retryAfterSeconds(headers: Headers): number | null {
 
 export class ChartClient {
   private readonly baseUrl: string;
-  private readonly quoteBaseUrl: string;
-  private readonly webSocketFactory: WebSocketFactory;
   private readonly timeoutMs: number;
   private readonly attempts: number;
   private readonly baseDelayMs: number;
@@ -150,9 +138,6 @@ export class ChartClient {
 
   constructor(options: ClientOptions = {}) {
     this.baseUrl = options.baseUrl ?? "";
-    this.quoteBaseUrl = options.quoteBaseUrl ??
-      "https://quant-of-rehan-relay.mrmrehanqureshi.workers.dev";
-    this.webSocketFactory = options.webSocketFactory ?? ((url) => new WebSocket(url));
     this.timeoutMs = options.timeoutMs ?? DEFAULTS.timeoutMs;
     this.attempts = options.attempts ?? DEFAULTS.attempts;
     this.baseDelayMs = options.baseDelayMs ?? DEFAULTS.baseDelayMs;
@@ -167,11 +152,23 @@ export class ChartClient {
   async bars(
     symbol: string,
     resolution: Resolution,
-    options: { limit?: number; signal?: AbortSignal } = {},
+    options: {
+      limit?: number;
+      day?: string;
+      /** Merge this many newest sessions into one chart (2+). */
+      days?: number | undefined;
+      signal?: AbortSignal;
+    } = {},
   ): Promise<ChartPayload> {
     const query = new URLSearchParams({ symbol, resolution });
     if (options.limit !== undefined) {
       query.set("limit", String(options.limit));
+    }
+    if (options.day !== undefined && options.day.length > 0) {
+      query.set("day", options.day);
+    }
+    if (options.days !== undefined && options.days > 1) {
+      query.set("days", String(Math.round(options.days)));
     }
     const url = `${this.baseUrl}/api/bars?${query.toString()}`;
     const raw = await this.request(url, options.signal);
@@ -185,31 +182,24 @@ export class ChartClient {
     }
   }
 
-  async health(): Promise<unknown> {
-    return this.request(`${this.baseUrl}/api/health`);
-  }
-
-  async liveQuote(symbol: string, signal?: AbortSignal): Promise<LiveQuote> {
-    const query = new URLSearchParams({ symbol: symbol.trim().toUpperCase() });
-    const raw = await this.request(`${this.quoteBaseUrl}/quotes?${query.toString()}`, signal);
+  /**
+   * One symbol's order prints: the tape's own ledger, on which a chart
+   * can draw the trades as they came. A source without a ledger answers
+   * events: [] with a note, so a missing feature is not an error state.
+   */
+  async prints(
+    symbol: string,
+    day = "",
+    signal?: AbortSignal,
+  ): Promise<PrintReport> {
+    const query = new URLSearchParams({ symbol });
+    if (day.length > 0) {
+      query.set("day", day);
+    }
+    const raw = await this.request(
+      `${this.baseUrl}/api/prints?${query.toString()}`, signal);
     try {
-      const body = raw as Record<string, unknown>;
-      if (body["ok"] !== true) {
-        throw new ContractViolation("quote", "quote response was not successful");
-      }
-      const quotes = body["quotes"];
-      if (!Array.isArray(quotes)) {
-        throw new ContractViolation("quote.quotes", "expected a quote array");
-      }
-      const symbolName = symbol.trim().toUpperCase();
-      const quote = quotes.find((item) => {
-        if (!item || typeof item !== "object") return false;
-        return (item as Record<string, unknown>)["symbol"] === symbolName;
-      });
-      if (quote === undefined) {
-        throw new ContractViolation("quote", `no quote for ${symbolName}`);
-      }
-      return parseLiveQuote(quote, symbolName);
+      return parsePrints(raw);
     } catch (error) {
       if (error instanceof ContractViolation) {
         throw new ApiError("CONTRACT", error.message);
@@ -218,57 +208,8 @@ export class ChartClient {
     }
   }
 
-  streamLiveQuote(symbol: string, handlers: LiveQuoteHandlers): StreamHandle {
-    const query = new URLSearchParams({ symbol: symbol.trim().toUpperCase() });
-    const httpUrl = `${this.quoteBaseUrl}/quotes/stream?${query.toString()}`;
-    const url = httpUrl.replace(/^http:/, "ws:").replace(/^https:/, "wss:");
-    let closed = false;
-    let source: WebSocketLike | null = null;
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    let attempt = 0;
-    const open = () => {
-      if (closed) return;
-      handlers.onState(attempt === 0 ? "connecting" : "reconnecting");
-      source = this.webSocketFactory(url);
-      source.addEventListener("open", () => {
-        attempt = 0;
-        handlers.onState("live");
-      });
-      source.addEventListener("message", (event) => {
-        try {
-          const raw = JSON.parse(String((event as MessageEvent).data)) as Record<string, unknown>;
-          if (!Array.isArray(raw["quotes"])) {
-            throw new ContractViolation("quote", "stream update is malformed");
-          }
-          const symbolName = symbol.trim().toUpperCase();
-          const quote = raw["quotes"].find((item) =>
-            Boolean(item) && typeof item === "object" &&
-            (item as Record<string, unknown>)["symbol"] === symbolName);
-          if (quote !== undefined) handlers.onQuote(parseLiveQuote(quote, symbolName));
-        } catch (error) {
-          handlers.onState("reconnecting", describe(error));
-        }
-      });
-      source.addEventListener("error", () => {
-        if (closed) return;
-        source?.close();
-        source = null;
-        attempt += 1;
-        const delay = Math.min(this.maxDelayMs, this.baseDelayMs * 2 ** (attempt - 1));
-        handlers.onState("reconnecting", `quote stream interrupted; retrying in ${delay}ms`);
-        timer = setTimeout(open, delay);
-      });
-    };
-    open();
-    return {
-      close: () => {
-        closed = true;
-        if (timer !== null) clearTimeout(timer);
-        source?.close();
-        source = null;
-        handlers.onState("closed");
-      },
-    };
+  async health(): Promise<unknown> {
+    return this.request(`${this.baseUrl}/api/health`);
   }
 
   /** The symbols this service can serve, for the picker. */
@@ -276,6 +217,53 @@ export class ChartClient {
     const raw = await this.request(`${this.baseUrl}/api/symbols`, signal);
     try {
       return parseSymbols(raw);
+    } catch (error) {
+      if (error instanceof ContractViolation) {
+        throw new ApiError("CONTRACT", error.message);
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * The catalogue with per-session facts, for the watchlist.
+   *
+   * ``day`` asks a named session (the same contract the chart uses); without
+   * it the service answers for the session its own clock calls current. The
+   * facts are what let a watchlist mark a symbol that printed nothing in this
+   * session, instead of leaving the reader to guess from an empty chart.
+   */
+  async symbolRows(
+    day?: string,
+    signal?: AbortSignal,
+  ): Promise<SymbolRow[]> {
+    const query = new URLSearchParams({ facts: "1" });
+    if (day !== undefined && day.length > 0) {
+      query.set("day", day);
+    }
+    const raw = await this.request(
+      `${this.baseUrl}/api/symbols?${query.toString()}`, signal);
+    try {
+      return parseSymbolRows(raw);
+    } catch (error) {
+      if (error instanceof ContractViolation) {
+        throw new ApiError("CONTRACT", error.message);
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Every session this service can draw, newest first.
+   *
+   * This is the call that makes the chart honest about time: the day selector
+   * is built from the service's own answer, never from the browser's clock,
+   * so choosing a session can only ever ask for a session that exists.
+   */
+  async sessions(signal?: AbortSignal): Promise<SessionsReport> {
+    const raw = await this.request(`${this.baseUrl}/api/sessions`, signal);
+    try {
+      return parseSessions(raw);
     } catch (error) {
       if (error instanceof ContractViolation) {
         throw new ApiError("CONTRACT", error.message);
@@ -294,8 +282,14 @@ export class ChartClient {
     symbol: string,
     resolution: Resolution,
     handlers: StreamHandlers,
+    options: { day?: string } = {},
   ): StreamHandle {
     const query = new URLSearchParams({ symbol, resolution });
+    // A named session is a finished thing: there is nothing to stream, so the
+    // caller simply does not ask for one and gets a plain REST answer.
+    if (options.day !== undefined && options.day.length > 0) {
+      query.set("day", options.day);
+    }
     const path = `/api/stream?${query.toString()}`;
     const url = this.baseUrl.length > 0 ? `${this.baseUrl}${path}` : path;
     let closed = false;
