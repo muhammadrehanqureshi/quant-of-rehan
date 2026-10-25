@@ -54,10 +54,10 @@ import android.view.View;
  *      the field's own distribution so it spans the palette end to end and
  *      then stretches the levels, so the near-black lanes and the pale
  *      granules both exist.
- *   3. HIS FLAMES. The photograph's own high-pass detail (its filaments,
- *      its granulation) is read through two planar projections at two
- *      scales and folded into the body, so the fine structure is his
- *      picture's and not another noise octave.
+ *   3. HIS OWN FIRE. The photograph's high-pass detail (its filaments, its
+ *      granulation) is read through two planar projections at two scales
+ *      and folded into the body, so the fine structure is his picture's
+ *      and not another noise octave.
  *   4. LIMB BRIGHTENED, like the picture: dark in the middle, blazing at
  *      0.7-0.8 of the radius. A shaded ball does the opposite, which is
  *      exactly what reads as a render.
