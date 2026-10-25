@@ -1387,6 +1387,58 @@ to sixty seconds. The status tile therefore also carries the app's own
      of the HUD are drawCloud's and are untouched, as he exempted them.
   4. The version bump is versionCode 68 / versionName 2.3.0.
 
+**Version 2.3.1, versionCode 69.**
+
+  Owner order 2026-10-25, fourth pass, on the v2.3.0 sun ("still looks very
+  old fashioned render, like it's from PS2, the SUN should be looking
+  advanced, like it's burning continuously, like small explosions, fire
+  burning through the SUN"), and the same message's line order ("the big
+  lines that are moving outside the circle, make them look like they are
+  breathing as well, like they should be getting a big small and then get
+  bigger"):
+
+  1. The ball is ONE HEAT FIELD, not three colour channels. v2.3.0
+     coloured the surface channel by channel with additive lifts, and
+     every lift pushed green and blue up, so the picture's saturated
+     orange died into tan cream. The surface is now a single heat value
+     per texel, and every frame folds it through the photograph's own
+     TWELVE colour quantiles (its 0, 5, 10, 20, 32, 44, 56, 68, 80, 90,
+     96 and 100 percentiles of luminance, read off the disc), so the ink
+     is his at every brightness.
+  2. The field SPANS the palette. A noise sum clusters around its mean,
+     and that is the flat, moulded look he keeps sending back; the bake
+     now rank normalises the field against its own distribution, blurs it
+     first (fire is smooth at a few pixels' scale, raw noise reads as
+     sandpaper) and then stretches the levels, so the near-black lanes
+     and the pale granules both exist.
+  3. HIS FLAMES are in it. The photograph's own high-pass detail - its
+     filaments, its granulation - is decoded from the sun asset and read
+     through two planar projections at two scales, so the fine structure
+     is his picture's and not another noise octave. The asset was already
+     on disk; it is texture now, never a projection.
+  4. LIMB BRIGHTENED, like the picture: dark in the middle, blazing at
+     0.7-0.8 of the radius. A shaded ball darkens at the limb, and that
+     is exactly what reads as a render.
+  5. THE FIRE BOILS: the same surface is read twice, one copy
+     counter-turning at 58% of the spin and offset 61 rows of latitude,
+     and mixed per pixel, so no frame is a rigid rotation of the last.
+  6. THE ERUPTIONS, his "small explosions": seven bursts with their own
+     direction on the ball, period, phase, strength and growing core,
+     turned with the surface they sit on so they travel the disc with the
+     fire, each with a wide skirt and a white-hot centre.
+  7. THE BLOOM: a quarter-resolution bright pass, blurred and added back,
+     so the plasma bleeds the way light does instead of sitting in crisp
+     pixels. Its knee is high (214), so the disc's body keeps its contrast
+     and only the hottest parts carry light.
+  8. A WARM GLOW replaces the ring look: the glow is baked once, peaks at
+     the limb and falls away, its ink from the palette's amber end because
+     pale cream at low alpha over black reads as grey.
+  9. Every cloud filament's breath now carries its width and its ink as
+     well as its length, and the length swing rises from 12% to 20%: the
+     owner could not see the old breath, and asked for the lines to get
+     "a big small and then get bigger".
+ 10. The version bump is versionCode 69 / versionName 2.3.1.
+
 **Built and delivered 2026-10-24 (v2.2.3):** the signed v2.2.3 APK was built
 on GitHub Actions from the merged PR #110 (master 3fd20f0, run 40071196152,
 the push build the merge itself triggered), downloaded from the run's
