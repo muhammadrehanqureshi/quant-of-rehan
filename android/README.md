@@ -1354,6 +1354,39 @@ to sixty seconds. The status tile therefore also carries the app's own
      still burns.
   3. The version bump is versionCode 67 / versionName 2.2.9.
 
+**Version 2.3.0, versionCode 68.**
+
+  Owner order 2026-10-25, third pass, on the v2.2.9 sun ("you made the sun
+  really low quality, look at the picture I just attached, you just made my
+  photo into a PS2 graphics looking SUN, i really hate it", and "the ray
+  that are on the sun right now looks absolute fake and ugly"):
+
+  1. The surface is a PHOTOGRAPH now, not a moulded sphere. The v2.2.9
+     map was 256x128 fed by two low noise fields through a seven-stop
+     cream-heavy ramp, and that is exactly why it read as a PS2 render.
+     The map is 448x224 and five fields make the body: a domain warp, the
+     convection cells, granulation at four times the cell frequency, the
+     dark lanes between the cells sharpened to a vein, and hot and cool
+     provinces. They are summed and folded through a contrast curve
+     (offset down 0.09, gamma 1.75) into a TEN-stop ramp read off his
+     picture, near black floor to pale white: the darks and the veins are
+     the contrast that makes a disc read as a photograph. The ball's
+     render resolution rises 256 to 320 to carry it.
+  2. The painted ring is gone. v2.2.9 put a smoothstep amber band and a
+     smoothstep white edge at fixed radii, which is a drawn circle by
+     construction; v2.3.0 makes the crown's strength value NOISE on the
+     ball's own face, so the white-hot rim is ragged and uneven the way
+     his photograph's is, and the glow behind it is a noisy glow pinned
+     to the ball's own radius instead of a smooth gradient.
+  3. The fake rays are DELETED. The twelve radial flame tongues and the
+     seven spark streaks are the "ray ... absolute fake and ugly": a
+     radial gradient blob at a fixed angle can only ever read as a drawn
+     ray, never as fire. Angles, lengths, phases, rates, paints, the
+     build and both draw methods go with them, so drawScene draws the
+     cloud and then its sun and nothing else. The big straight filaments
+     of the HUD are drawCloud's and are untouched, as he exempted them.
+  4. The version bump is versionCode 68 / versionName 2.3.0.
+
 **Built and delivered 2026-10-24 (v2.2.3):** the signed v2.2.3 APK was built
 on GitHub Actions from the merged PR #110 (master 3fd20f0, run 40071196152,
 the push build the merge itself triggered), downloaded from the run's
