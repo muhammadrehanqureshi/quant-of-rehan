@@ -1679,9 +1679,12 @@ class VersionTest(unittest.TestCase):
         # v2.2.7 is owner order 2026-10-24, sixth pass: the longitude
         # window's phase lands on the face's centre now - the v2.2.6
         # build showed half-faces and mirror wreckage.
+        # v2.2.8 is owner order 2026-10-25: the centre is a rendered
+        # SPHERE again, the picture projections are gone, and the ball
+        # carries no pulsing term.
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="2.2.7"', manifest)
-        self.assertIn('android:versionCode="65"', manifest)
+        self.assertIn('android:versionName="2.2.8"', manifest)
+        self.assertIn('android:versionCode="66"', manifest)
         # The changelog entry ties these user-visible changes to the build.
         readme = (ROOT / "android" / "README.md").read_text(encoding="utf-8")
         self.assertIn("v1.7.9, owner order 2026-10-20", readme)
@@ -1716,9 +1719,10 @@ class VersionTest(unittest.TestCase):
         self.assertIn("Version 2.2.5, versionCode 63", readme)
         self.assertIn("Version 2.2.6, versionCode 64", readme)
         self.assertIn("Version 2.2.7, versionCode 65", readme)
+        self.assertIn("Version 2.2.8, versionCode 66", readme)
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionCode="65"', manifest)
-        self.assertIn('android:versionName="2.2.7"', manifest)
+        self.assertIn('android:versionCode="66"', manifest)
+        self.assertIn('android:versionName="2.2.8"', manifest)
         layout = LAYOUT.read_text(encoding="utf-8")
         strings = STRINGS.read_text(encoding="utf-8")
         main = MAIN.read_text(encoding="utf-8")
@@ -2687,69 +2691,72 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         self.assertNotIn("Thread.sleep", orb)
         self.assertNotIn("ValueAnimator", orb)
 
-    def test_the_sun_revolves_in_x_like_the_earth(self):
+    def test_the_sun_is_a_rendered_sphere_that_revolves_in_x(self):
         orb = (MAIN.parent / "ThinkingOrb.java").read_text(
             encoding="utf-8")
-        """Owner order 2026-10-24, third pass ("right now the SUN itself
-        is not revolving, it's just like a picture there, standing
-        still, make it revolving"), carried as a longitude travel from
-        the fifth pass ("also make the SUN revolve in X-axis and
-        reduce it's revolving speed by 10% from the current speed"):
-        the face's own granulation slides limb to limb, band by band,
-        the way the Earth's turn reads from space, instead of the
-        picture standing still or the whole photo spinning in plane.
+        """Owner order 2026-10-25: "fix the sun, that looked so bad, you
+        just turned a 3D SUN into two disc slices type crap, also don't
+        flicker my SUN". The picture projections are retired for good. A
+        flat photograph covers one hemisphere of a sphere and nothing
+        else; the mirror that covers the rest is the two-discs join the
+        owner kept catching, and no phase offset, melt band or strip
+        height could hide a join that lives in the geometry. The ball is
+        a real rendered sphere now: the surface is baked on the ball's
+        own unit sphere and each frame reads it through the frame's
+        longitude, so the granulation slides limb to limb with
+        foreshortening in BOTH directions and the map wraps in longitude
+        without a seam.
         """
-        # One named rate, turned by the owner's own 30% motion law.
+        # The sphere's own bake and frame read exist; the panorama
+        # machinery is gone from the file.
+        self.assertIn("private void buildSunSphere() {", orb)
+        self.assertIn("private void buildSunSurface() {", orb)
+        self.assertIn("private void renderSunBall(float phi) {", orb)
+        self.assertIn("private void buildSunHalo() {", orb)
+        for retired in ("sunPhoto", "SUN_STRIPS", "buildSunPhoto",
+                        "drawFaceBand", "paintFaceBand", "mixPx(",
+                        "bandSrc", "bandDst", "SUN_SCALE", "mod01("):
+            with self.subTest(retired=retired):
+                self.assertNotIn(retired, orb)
+        # The surface lives on the sphere: the noise is sampled in three
+        # dimensions around the ball, so no map can stretch at a pole or
+        # jump at a longitude edge.
+        self.assertIn("float nx = cosLat * (float) Math.cos(longitude);",
+                      orb)
+        self.assertIn("float nz = cosLat * (float) Math.sin(longitude);",
+                      orb)
+        self.assertIn("private static float fbm3(float x, float y, "
+                      "float z, int octaves) {", orb)
+        self.assertIn("private static float noise3(float x, float y, "
+                      "float z) {", orb)
+        self.assertIn("private static float hash3(int x, int y, int z) {",
+                      orb)
+        # The revolve: one shared longitude shift per frame, about the
+        # standing tilted axis, at the owner's own pace under the
+        # owner's own 10% cut.
         self.assertIn("SUN_SPIN_RATE = 0.35f", orb)
-        # v2.2.6 (owner order 2026-10-24, fifth pass, "also make the SUN
-        # revolve in X-axis and reduce it's revolving speed by 10% from
-        # the current speed"): the flat in-plane rotate is retired for
-        # good - turning a whole photograph in the plane was the flicker
-        # the owner sent back - and the face TRAVELS in longitude bands
-        # like the Earth's turn reads from space; the pace carries the
-        # owner's own named 10% cut.
-        self.assertNotIn("Math.toDegrees", orb)
         self.assertIn("SUN_SLOWDOWN = 0.9f", orb)
         self.assertIn("SUN_AXIS_TILT = 10f", orb)
-        self.assertIn("SUN_STRIPS = 40", orb)
-        self.assertIn("SUN_LAP = (float) (2f * Math.PI);", orb)
+        self.assertIn("float phi = seconds * SUN_SPIN_RATE * MOTION_SCALE"
+                      " * SUN_SLOWDOWN;", orb)
+        self.assertIn("float spin = phi / SUN_LAP * SUN_MAP_W;", orb)
+        self.assertIn("float u = sphereU[k] + spin;", orb)
+        self.assertIn("sunBall.setPixels(sunBallPixels, 0, SUN_RENDER, 0, 0,",
+                      orb)
         method0 = orb.index("private void drawSun(")
-        method1 = orb.index("private void drawFaceBand(", method0)
+        method1 = orb.index("private void renderSunBall(", method0)
         method = orb[method0:method1]
         self.assertIn("canvas.save();", method)
         tilt = method.index("canvas.rotate(SUN_AXIS_TILT, cx, cy);")
         self.assertLess(method.index("canvas.save();"), tilt)
         self.assertGreater(method.index("canvas.restore();"), tilt)
-        # The travel: the face's longitude line maps the disc by the
-        # asin(2x/r - 1) of a sphere, band by band, SUN_STRIPS bands a
-        # frame, under the owner's own slowed pace.
-        self.assertIn(
-            "seconds * SUN_SPIN_RATE * MOTION_SCALE * SUN_SLOWDOWN", method)
-        self.assertIn("(float) Math.asin(u0)", method)
-        self.assertIn("(float) Math.asin(u1)", method)
-        # The seam-free loop exists so the travel never shows a jump
-        # line: the composed disc laid beside its own mirror, and a
-        # window crossing the loop's edge splits into two draws.
-        self.assertIn("loop.drawBitmap(disc, 0f, 0f, null);", orb)
-        self.assertIn("loop.drawBitmap(disc, mirror, null);", orb)
-        self.assertIn("mirror.setScale(-1f, 1f);", orb)
-        # The split lives in the band's own helper, not in drawSun: the
-        # two draws are the seam law of drawFaceBand, one window per
-        # call, each painting the pixels its own destination holds.
-        band0 = orb.index("private void drawFaceBand(")
-        band1 = orb.index("private void paintFaceBand(", band0)
-        band = orb[band0:band1]
-        # v2.2.7 (owner order 2026-10-24, sixth pass, "look what the hell
-        # you did to the sun"): the phase pin - longitude zero LANDS ON
-        # the disc face's centre column (texW/4), never on the seam edge
-        # (texW zero). Without the quarter offset the visible window held
-        # half-faces and their mirror, and the build showed the crescent
-        # wreckage on the owner's handset.
-        self.assertIn("mod01(lam0 / SUN_LAP + 0.25f) * texW", band)
-        self.assertIn("paintFaceBand(canvas, x0, cut, y0, y1, s0, texW, texH);",
-                      band)
-        self.assertIn("paintFaceBand(canvas, cut, x1, y0, y1, 0f, s1 - texW, texH);",
-                      band)
+        self.assertIn("canvas.drawBitmap(sunBall, null, ballDst, sunPaint);",
+                      method)
+        # The ball's own size is the approved 26% of the feature, and the
+        # sphere is shaded at a fixed render resolution, so the frame cost
+        # is bounded whatever the panel's size.
+        self.assertIn("ballR = orbRadius * 0.26f", orb)
+        self.assertIn("SUN_RENDER = 256", orb)
 
     def test_v2_2_5_the_fire_is_steady_and_the_lines_breathe(self):
         orb = (MAIN.parent / "ThinkingOrb.java").read_text(
@@ -2828,62 +2835,53 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         spinner = element(layout, 'android:id="@+id/volume_split_spinner"')
         self.assertNotIn("android:popupBackground", spinner)
 
-    def test_the_centre_is_the_owners_photo_sun(self):
+    def test_the_sun_never_flickers(self):
         orb = (MAIN.parent / "ThinkingOrb.java").read_text(
             encoding="utf-8")
-        """Owner order 2026-10-24 ("the ORB that is in the centre is really
-        bad, remove that and replace with the picture that I just
-        attached, picture is on my desktop with the name ORB, only take
-        the SUN looking feature, don't touch anything else"): the drawn
-        ball is retired and the centre is his own photograph, shipped as
-        the sun asset squared out around the sun's centre from ORB.jpg.
+        """Owner order 2026-10-25, closing sentence: "also don't flicker my
+        SUN". Nothing on the sphere's own frame path may pulse: the alpha
+        is the wake alone, the shade and the halo are baked once per size,
+        and there is no breathing term, no shader rebuild and no flash on
+        the ball itself.
         """
-        self.assertNotIn("ballR = orbRadius * 0.17f", orb)
-        self.assertNotIn("ballR = shortSide", orb)
-        self.assertNotIn("sunR = Math.min", orb)
-        # The fraction the drawn ball held stands: the photo's own sun
-        # lands on the SAME radius (drawSun scales the destination by
-        # SUN_SCALE for the crop's margin).
-        self.assertIn("ballR = orbRadius * 0.26f", orb)
-        self.assertIn("ballR * SUN_SCALE * breath", orb)
-        # No painted sphere of ours repaints his photograph: no shader,
-        # no granulation, no burned heart - the retired machinery
-        # stays retired.
-        for retired in ("sunHeart", "GRANULES", "GRANULE_STRIDE",
-                        "cells[o", "drawCloudHeart"):
+        frame = orb[orb.index("private void drawSun("):
+                    orb.index("private void buildSunSurface(")]
+        self.assertIn("sunPaint.setAlpha((int) (255f * wake));", frame)
+        self.assertIn("sunHaloPaint.setAlpha((int) (150f * wake));", frame)
+        self.assertNotIn("Math.sin", frame)
+        self.assertNotIn("setShader", frame)
+        self.assertNotIn("PorterDuff", frame)
+
+    def test_the_suns_palette_is_the_owners_own_picture(self):
+        orb = (MAIN.parent / "ThinkingOrb.java").read_text(
+            encoding="utf-8")
+        """The owner's order of 2026-10-24 shipped his own sun picture at
+        the centre (drawable-nodpi/sun.jpg, the SUN ONLY of the ORB.jpg he
+        sent). The owner order of 2026-10-25 keeps it where a flat
+        photograph can actually hold: its palette. The surface's ramp is
+        the photograph's own colours, sampled from its disc, and the
+        picture itself stays on disk as that source. A flat disc cannot
+        cover a turning sphere, which is why the picture no longer paints
+        the ball.
+        """
+        # The asset is still the source and still on disk.
+        self.assertTrue((RES / "drawable-nodpi" / "sun.jpg").is_file())
+        self.assertIn("private static final int[] SUN_RAMP = {", orb)
+        for colour in ("0xFF480C02", "0xFF7F1902", "0xFFBC421D",
+                       "0xFFE27C28", "0xFFF5A947", "0xFFFFDB69",
+                       "0xFFFCFBA1", "0xFFFFFFD6"):
+            with self.subTest(colour=colour):
+                self.assertIn(colour, orb)
+        self.assertIn("private static final float[] SUN_STOP = {", orb)
+        # The ramp is what colours every surface texel.
+        self.assertIn("sunSurface[row * SUN_MAP_W + col] = sunRamp(v);", orb)
+        # No painted sphere of ours is allowed to repaint his photograph
+        # through a shader; the ball is geometry and palette only.
+        for retired in ("sunHeart", "GRANULES", "GRANULE_STRIDE", "cells[o"):
             with self.subTest(retired=retired):
                 self.assertNotIn(retired, orb)
-        self.assertNotIn("sunPaint.setShader(new RadialGradient(\n", orb)
-        # The picture: read from the sun asset, composed ONCE per size
-        # into a circle-clipped disc with a softened rim, and drawn each
-        # frame from the composed bitmap only - the asset itself is
-        # recycled and never drawn. SO-3: no asset, no invented picture.
-        self.assertIn("BitmapFactory.decodeResource(\n", orb)
-        self.assertIn("R.drawable.sun);", orb)
-        self.assertIn("private void buildSunPhoto() {", orb)
-        self.assertIn("circle.addCircle(size / 2f, size / 2f, size / 2f,", orb)
-        self.assertIn("PorterDuff.Mode.DST_OUT", orb)
-        self.assertIn("asset.recycle();", orb)
-        self.assertIn("if (sunPhoto == null) {", orb)
-        self.assertIn("return;     // no asset, no picture invented in its place (SO-3)", orb)
-        # The composed disc draws after the cloud and limb fire and the
-        # flares still fly in front of it, so the picture IS the sun and
-        # the organism reads as circling its star.
-        self.assertLess(orb.index("drawSun(canvas"),
-                        orb.index("drawFlares(canvas"))
-        self.assertLess(orb.index("private void drawSun("),
-                        orb.index("private void drawFlares("))
-        # Alpha rides the wake: parked or closed, the picture never
-        # goes dark (the never-goes-dark law the drawn ball kept).
-        self.assertIn("sunPaint.setAlpha((int) (255f * wake));", orb)
-        self.assertIn("sunPaint.setFilterBitmap(true);", orb)
-        # The asset is on disk, with the other owner pngs.
-        self.assertTrue((RES / "drawable-nodpi" / "sun.jpg").is_file())
-        self.assertNotIn("heart * 0.72f", orb)
-        # v2.1.0: the older reference's grey rest ring is RETIRED - the new
-        # reference's core is the sun itself, framed by the burst.
-        self.assertNotIn("restRing", orb)
-        self.assertNotIn("0xFF78839B", orb)
+        self.assertNotIn("drawCloudHeart", orb)
+        self.assertNotIn("PorterDuff", orb)
 
     def test_the_sun_keeps_its_revolving_arcs_and_the_sparks(self):
         orb = (MAIN.parent / "ThinkingOrb.java").read_text(

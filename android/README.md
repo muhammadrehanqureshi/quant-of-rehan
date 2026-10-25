@@ -1297,6 +1297,38 @@ to sixty seconds. The status tile therefore also carries the app's own
   tests/test_android_app_ui.py asserts the offset in the band helper's
   own slice.
 
+**Version 2.2.8, versionCode 66.**
+
+  Owner order 2026-10-25, on the v2.2.7 handset ("fix the sun, that looked
+  so bad, you just turned a 3D SUN into two disc slices type crap, also
+  don't flicker my SUN"):
+
+  1. The centre is a RENDERED SPHERE again. Every picture-projection
+     pass is retired: a flat photograph covers one hemisphere of a
+     sphere and nothing else, and the mirror that covers the rest IS
+     the two-discs join he kept catching, so no phase offset, melt band
+     or strip height could ever hide it. The fire is put on the ball's
+     own body instead: an equirectangular surface baked once on the
+     unit sphere from three value-noise fields (the noise is sampled
+     in three dimensions, so it never stretches at a pole or jumps at
+     a longitude edge), its palette read from his own sun picture
+     (deep red lanes to near-white granules), and each frame reads
+     that surface through the frame's longitude. The granulation
+     therefore slides limb to limb with foreshortening in BOTH
+     directions, the map wraps without a seam, and no frame can show
+     a join. The ball's own size, the approved 26% of the feature, is
+     unchanged.
+  2. No flicker on the ball. The sphere is shaded at a fixed 256 pixel
+     render and its frame tables (longitude, surface row, curvature
+     shade, rim lift, edge coverage) are baked once per size, so the
+     frame path does one wrapped map read per pixel and nothing else:
+     the alpha is the wake alone, the shade and the halo are baked,
+     and no sine, shader rebuild or flash sits on the ball. The old
+     panorama machinery (SUN_STRIPS, the band helpers, the mirror
+     loop, the strip rects, the photo build) is deleted with the
+     passes it served.
+  3. The version bump is versionCode 66 / versionName 2.2.8.
+
 **Built and delivered 2026-10-24 (v2.2.3):** the signed v2.2.3 APK was built
 on GitHub Actions from the merged PR #110 (master 3fd20f0, run 40071196152,
 the push build the merge itself triggered), downloaded from the run's
