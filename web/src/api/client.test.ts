@@ -10,7 +10,6 @@ import {
   type EventSourceLike,
   ChartClient,
   type StreamState,
-  type WebSocketLike,
 } from "./client";
 
 function payloadBody() {
@@ -18,7 +17,6 @@ function payloadBody() {
     ok: true,
     schema_version: 1,
     as_of: "2026-10-12T11:00:00+05:00",
-    observed_at: "2026-10-12T10:59:30+05:00",
     symbol: "OGDC",
     resolution: "1m",
     source: { id: "broker_tape", label: "tape", delay_seconds: 0, note: "" },
@@ -89,55 +87,6 @@ function clientWith(
   return { client, sleeps };
 }
 
-function liveQuoteBody(symbol = "OGDC", observedAt = "2026-10-12T11:01:00+05:00") {
-  return {
-    symbol,
-    price: 280.25,
-    bid: 280,
-    ask: 280.5,
-    change: 2.25,
-    change_pct: 0.81,
-    volume: 1200,
-    high: 281,
-    low: 278,
-    status: "OPEN",
-    source_tick_time: "11:01:00",
-    observed_at: observedAt,
-    age_seconds: 2,
-    fresh: true,
-    source: "eClear MKT-FEED REG",
-  };
-}
-
-class FakeWebSocket implements WebSocketLike {
-  static instances: FakeWebSocket[] = [];
-  readonly url: string;
-  private readonly listeners = new Map<string, ((event: Event | MessageEvent) => void)[]>();
-  closed = false;
-
-  constructor(url: string) {
-    this.url = url;
-    FakeWebSocket.instances.push(this);
-  }
-
-  addEventListener(type: "open" | "error" | "message", listener: (event: Event | MessageEvent) => void): void {
-    const list = this.listeners.get(type) ?? [];
-    list.push(listener);
-    this.listeners.set(type, list);
-  }
-
-  close(): void {
-    this.closed = true;
-  }
-
-  emit(type: "open" | "error" | "message", data?: unknown): void {
-    const event = type === "message"
-      ? { data: JSON.stringify(data) } as MessageEvent
-      : {} as Event;
-    for (const listener of this.listeners.get(type) ?? []) listener(event);
-  }
-}
-
 class FakeEventSource implements EventSourceLike {
   static instances: FakeEventSource[] = [];
   readonly url: string;
@@ -178,7 +127,6 @@ class FakeEventSource implements EventSourceLike {
 
 afterEach(() => {
   FakeEventSource.instances = [];
-  FakeWebSocket.instances = [];
   vi.useRealTimers();
 });
 
@@ -304,53 +252,6 @@ describe("bars", () => {
   });
 });
 
-describe("live quotes", () => {
-  it("selects the requested symbol from the REST snapshot", async () => {
-    const calls: string[] = [];
-    const { client } = clientWith((input) => {
-      calls.push(String(input));
-      return Promise.resolve(jsonResponse(200, {
-        ok: true,
-        stale: false,
-        quotes: [liveQuoteBody("HBL"), liveQuoteBody()],
-      }));
-    });
-    const quote = await client.liveQuote("ogdc");
-    expect(quote.symbol).toBe("OGDC");
-    expect(quote.price).toBe(280.25);
-    expect(calls[0]).toContain("/quotes?symbol=OGDC");
-  });
-
-  it("uses a fresh symbol update from WebSocket and reconnects cleanly", () => {
-    vi.useFakeTimers();
-    const states: StreamState[] = [];
-    const quotes: number[] = [];
-    const client = new ChartClient({
-      quoteBaseUrl: "https://relay.example",
-      webSocketFactory: (url) => new FakeWebSocket(url),
-      baseDelayMs: 100,
-      maxDelayMs: 1000,
-    });
-    const stream = client.streamLiveQuote("OGDC", {
-      onQuote: (quote) => quotes.push(quote.price),
-      onState: (state) => states.push(state),
-    });
-    const first = FakeWebSocket.instances[0];
-    expect(first?.url).toBe("wss://relay.example/quotes/stream?symbol=OGDC");
-    first?.emit("open");
-    first?.emit("message", { quotes: [liveQuoteBody()] });
-    first?.emit("error");
-    expect(first?.closed).toBe(true);
-    vi.advanceTimersByTime(100);
-    expect(FakeWebSocket.instances).toHaveLength(2);
-    expect(quotes).toEqual([280.25]);
-    expect(states).toContain("live");
-    expect(states).toContain("reconnecting");
-    stream.close();
-    expect(FakeWebSocket.instances[1]?.closed).toBe(true);
-  });
-});
-
 describe("stream", () => {
   const factory = (url: string) => new FakeEventSource(url);
 
@@ -440,6 +341,108 @@ describe("stream", () => {
     });
     expect(failures.length).toBe(1);
     expect(failures[0]).toMatch(/bars\[0\]/);
+    handle.close();
+  });
+});
+
+describe("named sessions and the catalogue facts", () => {
+  it("asks for a named session with the day in the query", async () => {
+    const seen: string[] = [];
+    const { client } = clientWith((input) => {
+      seen.push(String(input));
+      return Promise.resolve(jsonResponse(200, payloadBody()));
+    });
+    await client.bars("OGDC", "1m", { day: "2026-10-14", limit: 500 });
+    expect(seen[0]).toContain("day=2026-10-14");
+  });
+
+  it("asks for a merged span with the day count in the query", async () => {
+    const seen: string[] = [];
+    const { client } = clientWith((input) => {
+      seen.push(String(input));
+      return Promise.resolve(jsonResponse(200, payloadBody()));
+    });
+    await client.bars("OGDC", "1m", { days: 5, limit: 500 });
+    expect(seen[0]).toContain("days=5");
+    // One requested day is the ordinary chart, never a "merge".
+    await client.bars("OGDC", "1m", { days: 1, limit: 500 });
+    expect(seen[1]).not.toContain("days=");
+  });
+
+  it("does not put an empty day in the query", async () => {
+    const seen: string[] = [];
+    const { client } = clientWith((input) => {
+      seen.push(String(input));
+      return Promise.resolve(jsonResponse(200, payloadBody()));
+    });
+    await client.bars("OGDC", "1m", { day: "" });
+    expect(seen[0]).toBe("/api/bars?symbol=OGDC&resolution=1m");
+  });
+
+  it("reads the sessions report", async () => {
+    const seen: string[] = [];
+    const { client } = clientWith((input) => {
+      seen.push(String(input));
+      return Promise.resolve(jsonResponse(200, {
+        ok: true,
+        today: "2026-10-16",
+        timezone: "Asia/Karachi",
+        sessions: [{ day: "2026-10-16", current: true, archived: false,
+                     capture: null, archive: null, sources: [] }],
+      }));
+    });
+    const report = await client.sessions();
+    expect(seen[0]).toBe("/api/sessions");
+    expect(report.sessions[0]?.day).toBe("2026-10-16");
+  });
+
+  it("names a contract violation in the sessions answer", async () => {
+    const { client } = clientWith(() =>
+      Promise.resolve(jsonResponse(200, { ok: true, sessions: [] })));
+    await expect(client.sessions()).rejects.toMatchObject({ category: "CONTRACT" });
+  });
+
+  it("asks the catalogue for a session's own facts", async () => {
+    const seen: string[] = [];
+    const { client } = clientWith((input) => {
+      seen.push(String(input));
+      return Promise.resolve(jsonResponse(200, {
+        ok: true,
+        day: "2026-10-14",
+        symbols: [{ symbol: "OGDC", bars: 128, close: 296.45,
+                    first: null, last: null, day: "2026-10-14",
+                    source: "broker_tape", listed: true }],
+      }));
+    });
+    const rows = await client.symbolRows("2026-10-14");
+    expect(seen[0]).toBe("/api/symbols?facts=1&day=2026-10-14");
+    expect(rows[0]?.close).toBe(296.45);
+  });
+
+  it("keeps the plain catalogue call plain", async () => {
+    const seen: string[] = [];
+    const { client } = clientWith((input) => {
+      seen.push(String(input));
+      return Promise.resolve(jsonResponse(200, { ok: true, symbols: [{ symbol: "OGDC" }] }));
+    });
+    await client.symbols();
+    expect(seen[0]).toBe("/api/symbols");
+  });
+
+  it("puts the day on a stream only when one was named", () => {
+    FakeEventSource.instances = [];
+    const client = new ChartClient({
+      eventSourceFactory: (url) => new FakeEventSource(url),
+      fetchImpl: () => Promise.resolve(jsonResponse(200, {})),
+      sleep: () => Promise.resolve(),
+    });
+    const handle = client.stream("OGDC", "1m", {
+      onSnapshot: () => undefined,
+      onBars: () => undefined,
+      onState: () => undefined,
+    }, { day: "2026-10-14" });
+    expect(FakeEventSource.instances[0]?.url)
+      .toBe("/api/stream?symbol=OGDC&resolution=1m&day=2026-10-14");
     handle.close();
   });
 });
