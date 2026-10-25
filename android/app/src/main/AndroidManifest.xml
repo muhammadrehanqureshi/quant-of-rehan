@@ -68,11 +68,26 @@
      noise fields and a ten-stop ramp read off his picture, the painted
      amber band is replaced by a ragged noise crown and a noisy glow, and
      the twelve radial flame tongues and the seven spark streaks - the
-     fake rays - are deleted with their book keeping. -->
+     fake rays - are deleted with their book keeping.
+
+     versionCode 69 / versionName 2.3.1 belong to the owner order
+     2026-10-25, fourth pass ("still looks very old fashioned render, like
+     it's from PS2, the SUN should be looking advanced, like it's burning
+     continuously, like small explosions, fire burning through the SUN",
+     "the big lines that are moving outside the circle, make them look like
+     they are breathing as well, like they should be getting a big small
+     and then get bigger"): the ball is one heat field folded through the
+     photograph's own twelve colour quantiles, rank normalised and levels
+     stretched so it spans his palette, wearing his own flame detail at two
+     scales; the fire boils (a second, counter-turning read of the same
+     surface), seven eruptions blow and swell and fade across it, a
+     quarter-resolution bloom lets the plasma bleed, the bright limb is a
+     baked warm glow instead of a painted ring, and every cloud filament's
+     breath now carries its length, its width and its ink. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="pk.quantofrehan"
-    android:versionCode="68"
-    android:versionName="2.3.0">
+    android:versionCode="69"
+    android:versionName="2.3.1">
 
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="30"/>
 
