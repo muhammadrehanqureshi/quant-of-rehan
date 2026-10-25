@@ -91,11 +91,23 @@
      can actually see, so the surface blur drops from two texels to one, the
      fine filaments come up from 0.22 to 0.30, and every eruption's core
      grows from a 0.11 radian half angle to 0.15 and burns with a wider
-     skirt. -->
+     skirt.
+
+     versionCode 71 / versionName 2.3.3 belong to the owner order
+     2026-10-25, sixth pass ("you made the sun transparent, SUN is a solid
+     entity, make it solid, make it look high quality", "the very left one
+     is my own uploaded photo, and I would really love to have that same
+     exact render, and then you can make it revolve just like the Earth
+     does", "the outside revolving lines are still not breathing", "few
+     independent dots without any lines"): the ball's surface is his own
+     photograph, its fire crop wrapped on the sphere on a triangle wrap and
+     its rim baked as a fixed crown, every pixel inside the disc solid; the
+     filaments' breath is tripled, their fade no longer reaches zero and
+     every node is guaranteed a filament. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="pk.quantofrehan"
-    android:versionCode="70"
-    android:versionName="2.3.2">
+    android:versionCode="71"
+    android:versionName="2.3.3">
 
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="30"/>
 
