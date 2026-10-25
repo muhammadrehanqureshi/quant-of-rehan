@@ -5,7 +5,7 @@
  * inside it are placed with the engine's own mappings (time → x, price →
  * y), so a drawing glued to a bar stays glued when the reader pans, zooms
  * or the next bars arrive. A drawing the viewport left is simply not
- * drawn this frame — the engine's timeToCoordinate answers null there.
+ * drawn this frame - the engine's timeToCoordinate answers null there.
  */
 
 import type {

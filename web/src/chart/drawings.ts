@@ -2,8 +2,8 @@
  * Drawings: what a reader has drawn on one chart, and how it is kept.
  *
  * A drawing belongs to one chart key (symbol|session|interval) and is two
- * anchored points on the tape's own coordinates — a Karachi-clock instant
- * and a price — so it lands back on the same bars after reload, zoom or a
+ * anchored points on the tape's own coordinates - a Karachi-clock instant
+ * and a price - so it lands back on the same bars after reload, zoom or a
  * merged-session shift. One tool measures and is never kept: measurement
  * is read, not recorded, exactly like TradingView's ruler.
  */
