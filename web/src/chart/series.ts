@@ -73,6 +73,27 @@ export class ColumnSeries {
     this.revisions = 0;
   }
 
+  /**
+   * A copy of every column, for the indicator engine.
+   *
+   * The copies are deliberate: a calculation may never write into the bars
+   * the renderer is drawing, and an indicator is allowed to fail without
+   * corrupting the chart.
+   */
+  columns(): {
+    time: Float64Array; open: Float64Array; high: Float64Array;
+    low: Float64Array; close: Float64Array; volume: Float64Array;
+  } {
+    return {
+      time: this.time.slice(0, this.count),
+      open: this.open.slice(0, this.count),
+      high: this.high.slice(0, this.count),
+      low: this.low.slice(0, this.count),
+      close: this.close.slice(0, this.count),
+      volume: this.volume.slice(0, this.count),
+    };
+  }
+
   /** The bar at an index, or undefined outside the series. */
   at(index: number): BarRow | undefined {
     if (!Number.isInteger(index) || index < 0 || index >= this.count) {
@@ -128,6 +149,96 @@ export class ColumnSeries {
       }
     }
     return { appended, revised };
+  }
+
+  /**
+   * The shape a viewport needs: first and last bar, how many, and the step.
+   *
+   * Returned as a plain object so the drawing code can hand it straight to
+   * the viewport maths without either module importing the other.
+   */
+  bounds(): { firstMs: number; lastMs: number; count: number; stepMs: number } | null {
+    if (this.count === 0) {
+      return null;
+    }
+    const firstMs = this.time[0] ?? 0;
+    const lastMs = this.time[this.count - 1] ?? firstMs;
+    return { firstMs, lastMs, count: this.count, stepMs: this.stepMs() };
+  }
+
+  /**
+   * One bar's width: the median interval between recent bars.
+   *
+   * Not the last interval, and not the average, because a minute series is
+   * full of holes: PSX stocks print nothing for long stretches, so a single
+   * 74-minute hole between two bars would otherwise be taken for the bar
+   * width and a chart would open hours wide with a handful of candles in it.
+   * The median of the recent intervals reports the real interval (a minute)
+   * and ignores the holes, which is exactly right: a hole is missing data,
+   * not a wider bar. It reads at most 64 intervals, so it is O(1) per frame.
+   */
+  stepMs(): number {
+    if (this.count < 2) {
+      return 60_000;
+    }
+    const sample = Math.min(64, this.count - 1);
+    const gaps: number[] = [];
+    for (let offset = 0; offset < sample; offset += 1) {
+      const index = this.count - 1 - offset;
+      const later = this.time[index] ?? 0;
+      const earlier = this.time[index - 1] ?? 0;
+      const gap = later - earlier;
+      if (gap > 0) {
+        gaps.push(gap);
+      }
+    }
+    if (gaps.length === 0) {
+      return 60_000;
+    }
+    gaps.sort((left, right) => left - right);
+    return gaps[Math.floor(gaps.length / 2)] ?? 60_000;
+  }
+
+  /**
+   * The timestamps of the newest `count` bars.
+   *
+   * Used once per series to open a chart on the last N bars, which is not the
+   * same question as "the last N minutes": a symbol with a long hole in its
+   * session has its recent bars spread over hours, and a window sized in
+   * minutes would show one candle and hide the rest.
+   */
+  timesOfLast(count: number): number[] {
+    const take = Math.max(1, Math.min(this.count, Math.floor(count)));
+    const times: number[] = [];
+    for (let index = this.count - take; index < this.count; index += 1) {
+      times.push(this.time[index] ?? 0);
+    }
+    return times;
+  }
+
+  /** How many bars a window contains, found by bisection rather than a scan. */
+  countInWindow(fromMs: number, toMs: number): number {
+    if (this.count === 0 || toMs < fromMs) {
+      return 0;
+    }
+    const first = this.lowerBound(fromMs);
+    const past = this.lowerBound(toMs);
+    return Math.max(0, past - first);
+  }
+
+  /** The first index whose timestamp is at or after `moment`. */
+  private lowerBound(moment: number): number {
+    let lo = 0;
+    let hi = this.count;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if ((this.time[mid] ?? 0) < moment) {
+        lo = mid + 1;
+      } else {
+        hi = mid;
+      }
+    }
+    return lo;
   }
 
   /** Index of the last bar at or before `moment`, or -1. */
@@ -381,6 +492,29 @@ export function bucketFor(
   const wanted = spanMs / Math.max(1, pixelWidth / minCandlePixels);
   const buckets = Math.max(1, Math.ceil(wanted / baseMs));
   return buckets * baseMs;
+}
+
+/**
+ * The bucket to draw a window with, given how many bars it covers.
+ *
+ * Folding is decided by the bars in the window, never by its clock span. The
+ * span is the wrong question for the same reason it is the wrong question for
+ * the viewport: one hole in an illiquid session makes a window far wider than
+ * the bars inside it, and a span-sized bucket then folded real one-minute
+ * candles into two-minute ones although every candle had room on the canvas.
+ *
+ * `baseMs` is the series' own step, so a minute series folds in whole minutes
+ * and a daily one in whole days, and nothing is ever folded below one step.
+ */
+export function displayBucket(
+  visibleBars: number,
+  baseMs: number,
+  pixelWidth: number,
+  minCandlePixels = 3,
+): number {
+  const step = Number.isFinite(baseMs) && baseMs > 0 ? baseMs : 60_000;
+  return bucketFor(Math.max(1, visibleBars) * step, pixelWidth, step,
+                   minCandlePixels);
 }
 
 /** Gaps that intersect a window, in the order the exchange printed them. */

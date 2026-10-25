@@ -45,6 +45,8 @@ export interface StatusBarProps {
   /** The venue's own cumulative order counter for this session, when it has one. */
   readonly ordersTotal: number | null;
   readonly error: { category: string; detail: string } | null;
+  /** The expanded reading: the second detail line the toggle reveals. */
+  readonly details: boolean;
 }
 
 const STATUS_TEXT: Record<FeedStatus, string> = {
@@ -61,7 +63,7 @@ export function StatusBar(props: StatusBarProps) {
     status, resolution, market, symbol, day, sessionNote, archived,
     captureName, sha256, bars, gaps, missingMinutes, sourceLabel,
     delaySeconds, lastBarAt, asOf, volumeAvailable, staleAfterMinutes,
-    ordersTotal, error,
+    ordersTotal, error, details,
   } = props;
 
   // A local tick so "2 min ago" keeps counting while a quiet session sits on
@@ -127,16 +129,6 @@ export function StatusBar(props: StatusBarProps) {
           <span className="status__key">gaps</span> {gaps}
           {missingMinutes > 0 ? ` (${formatMinutes(missingMinutes)} missing)` : ""}
         </span>
-        <span className="status__item" title={sourceLabel}>
-          <span className="status__key">source</span> {sourceLabel || "unknown"}
-          {delaySeconds > 0
-            ? ` · ${Math.round(delaySeconds / 60)} min delayed`
-            : " · no delay reported"}
-        </span>
-        <span className="status__item">
-          <span className="status__key">volume</span>{" "}
-          {volumeAvailable ? "reported" : "not reported"}
-        </span>
         <span className={stale ? "status__item status__item--stale" : "status__item"}>
           <span className="status__key">newest bar</span>{" "}
           {lastBarAt.length > 0 ? formatClock(lastBarAt) : "none"}
@@ -161,23 +153,35 @@ export function StatusBar(props: StatusBarProps) {
         </p>
       ) : null}
 
-      <div className="status__row status__row--provenance">
-        <span className="status__item" title={sessionNote}>
-          {sessionNote}
-        </span>
-        {captureName.length > 0 ? (
-          <span className="status__item">
-            <span className="status__key">file</span> {captureName}
-            {sha256.length > 0 ? ` · sha256 ${sha256.slice(0, 12)}…` : ""}
+      {details ? (
+        <div className="status__row status__row--provenance">
+          <span className="status__item" title={sessionNote}>
+            {sessionNote}
           </span>
-        ) : null}
-        {asOf.length > 0 ? (
-          <span className="status__item">
-            <span className="status__key">service answered</span>{" "}
-            {formatStamp(asOf)}
+          <span className="status__item" title={sourceLabel}>
+            <span className="status__key">source</span> {sourceLabel || "unknown"}
+            {delaySeconds > 0
+              ? ` · ${Math.round(delaySeconds / 60)} min delayed`
+              : " · no delay reported"}
           </span>
-        ) : null}
-      </div>
+          <span className="status__item">
+            <span className="status__key">volume</span>{" "}
+            {volumeAvailable ? "reported" : "not reported"}
+          </span>
+          {captureName.length > 0 ? (
+            <span className="status__item">
+              <span className="status__key">file</span> {captureName}
+              {sha256.length > 0 ? ` · sha256 ${sha256.slice(0, 12)}…` : ""}
+            </span>
+          ) : null}
+          {asOf.length > 0 ? (
+            <span className="status__item">
+              <span className="status__key">service answered</span>{" "}
+              {formatStamp(asOf)}
+            </span>
+          ) : null}
+        </div>
+      ) : null}
 
       {error !== null ? (
         <p className="status__error" role="status">

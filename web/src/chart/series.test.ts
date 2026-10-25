@@ -9,6 +9,7 @@ import type { Bar } from "../api/types";
 import {
   bucketFor,
   ColumnSeries,
+  displayBucket,
   gapsInWindow,
   timeMs,
 } from "./series";
@@ -175,6 +176,37 @@ describe("bucketFor", () => {
   });
 });
 
+describe("displayBucket", () => {
+  const DAY = 86_400_000;
+
+  it("keeps minute candles when a holey window has room for every bar", () => {
+    // The shape that made this necessary: 37 bars spread over 121 minutes by a
+    // 73 minute hole, drawn 358 pixels wide. Sizing buckets by the 127 minute
+    // span folded them into two minute candles although each bar had 9 pixels.
+    expect(displayBucket(37, 60_000, 358)).toBe(60_000);
+  });
+
+  it("folds a crowded window into whole steps", () => {
+    const bucket = displayBucket(2000, 60_000, 358);
+    expect(bucket % 60_000).toBe(0);
+    expect(bucket).toBeGreaterThan(60_000);
+    expect(2000 * 60_000 / bucket).toBeLessThanOrEqual(358 / 3 + 1);
+  });
+
+  it("folds a daily series in whole days, not in minutes", () => {
+    const bucket = displayBucket(240, DAY, 358);
+    expect(bucket % DAY).toBe(0);
+    expect(bucket).toBeGreaterThan(DAY);
+  });
+
+  it("never folds below one step, whatever it is given", () => {
+    expect(displayBucket(0, 60_000, 0)).toBe(60_000);
+    expect(displayBucket(-4, 60_000, -10)).toBe(60_000);
+    expect(displayBucket(1, 0, 358)).toBe(60_000);
+    expect(displayBucket(5, DAY, 358)).toBe(DAY);
+  });
+});
+
 describe("gapsInWindow", () => {
   it("keeps only the gaps that intersect the window", () => {
     const gaps = [
@@ -194,5 +226,80 @@ describe("gapsInWindow", () => {
     const kept = gapsInWindow(gaps, timeMs(BASE), timeMs(BASE) + 10 * 60_000);
     expect(kept.length).toBe(1);
     expect(kept[0]?.minutes).toBe(2);
+  });
+});
+
+describe("the viewport shape a series reports", () => {
+  function filled(count: number, startMs = 1_700_000_000_000) {
+    const series = new ColumnSeries(64);
+    for (let index = 0; index < count; index += 1) {
+      series.upsert({
+        t: new Date(startMs + index * 60_000).toISOString(),
+        o: 100 + index,
+        h: 101 + index,
+        l: 99 + index,
+        c: 100.5 + index,
+        v: 1000,
+      });
+    }
+    return series;
+  }
+
+  it("reports nothing for an empty series", () => {
+    expect(new ColumnSeries(8).bounds()).toBeNull();
+  });
+
+  it("reports the first bar, the last bar, the count and the step", () => {
+    const bounds = filled(10).bounds();
+    expect(bounds?.count).toBe(10);
+    expect(bounds?.lastMs).toBe(1_700_000_000_000 + 9 * 60_000);
+    expect(bounds?.stepMs).toBe(60_000);
+  });
+
+  it("assumes a minute for a single bar", () => {
+    expect(filled(1).bounds()?.stepMs).toBe(60_000);
+  });
+
+  it("ignores a long hole when measuring the bar width", () => {
+    // The real shape of an illiquid PSX minute series: a run of minutes, then
+    // a long stretch with no print, then one more bar. The width is a minute.
+    const series = new ColumnSeries(64);
+    const start = 1_700_000_000_000;
+    const push = (ms: number) =>
+      series.upsert({ t: new Date(ms).toISOString(), o: 100, h: 101, l: 99,
+                      c: 100, v: 10 });
+    for (let index = 0; index < 40; index += 1) {
+      push(start + index * 60_000);
+    }
+    push(start + (40 + 74) * 60_000);
+    expect(series.bounds()?.stepMs).toBe(60_000);
+  });
+
+  it("measures an aggregated series by its own bucket", () => {
+    const hourly = new ColumnSeries(16);
+    const start = 1_700_000_000_000;
+    for (let index = 0; index < 8; index += 1) {
+      hourly.upsert({ t: new Date(start + index * 3_600_000).toISOString(),
+                      o: 100, h: 101, l: 99, c: 100, v: 10 });
+    }
+    expect(hourly.bounds()?.stepMs).toBe(3_600_000);
+  });
+
+  it("counts the bars in a window without scanning them", () => {
+    const series = filled(100);
+    const start = 1_700_000_000_000;
+    expect(series.countInWindow(start, start + 10 * 60_000)).toBe(10);
+    expect(series.countInWindow(start + 10 * 60_000, start + 20 * 60_000)).toBe(10);
+    expect(series.countInWindow(start - 60_000, start)).toBe(0);
+  });
+
+  it("counts nothing for an inverted window", () => {
+    expect(filled(5).countInWindow(1_700_000_500_000, 1_700_000_000_000)).toBe(0);
+  });
+
+  it("reports how many bars a window holds of a short series", () => {
+    const series = filled(3);
+    const start = 1_700_000_000_000;
+    expect(series.countInWindow(start, start + 60 * 60_000)).toBe(3);
   });
 });
