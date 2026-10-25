@@ -587,9 +587,10 @@ public class ThinkingOrb extends View {
                 }
                 float q = (dot - cos) / (1f - cos);
                 float q2 = q * q;
+                float q3 = q2 * q;
                 float q4 = q2 * q2;
-                float q10 = q4 * q4 * q2;
-                heat += (q4 * 0.35f + q10 * 1.25f) * energy;
+                float q8 = q4 * q4;
+                heat += (q3 * 0.40f + q8 * 1.60f) * energy;
             }
             if (heat < 0f) {
                 heat = 0f;
@@ -817,7 +818,7 @@ public class ThinkingOrb extends View {
             float attack = smoothstep(0f, 0.20f, t);
             float decay = 1f - smoothstep(0.34f, 1f, t);
             eruptEnergy[e] = attack * decay * ERUPT_STRENGTH[e];
-            eruptCos[e] = (float) Math.cos(0.110f + 0.110f * t);
+            eruptCos[e] = (float) Math.cos(0.150f + 0.130f * t);
             float dx = eruptDir[e * 3];
             float dy = eruptDir[e * 3 + 1];
             float dz = eruptDir[e * 3 + 2];
@@ -1120,7 +1121,7 @@ public class ThinkingOrb extends View {
                 heat[row * SUN_MAP_W + col] = v;
             }
         }
-        heat = boxBlurHeat(heat, 2);
+        heat = boxBlurHeat(heat, 1);
         // Rank normalisation: a field that clusters around its mean is the
         // flat, moulded look he rejected. Sorted, it spans the palette.
         int bins = 1024;
@@ -1138,13 +1139,13 @@ public class ThinkingOrb extends View {
         sunSurface = new int[count];
         for (int i = 0; i < count; i++) {
             int bin = (int) (clamp(heat[i], 0f, 0.9999f) * bins);
-            float rank = cdf[bin] * 0.88f;
+            float rank = cdf[bin] * 0.85f;
             // The fine filaments go back on at a low amplitude, so the
             // ball has micro texture without salt-and-pepper.
             float detail = sampleDetail(mirrorDetail(
                     (i % SUN_MAP_W) * 1.7f + 11f),
                     mirrorDetail((i / SUN_MAP_W) * 1.7f + 33f));
-            rank += (detail - 0.5f) * 0.22f;
+            rank += (detail - 0.5f) * 0.30f;
             // A levels stretch: the photograph runs from near black to
             // white, and a field that sits in the middle reads as a peach.
             rank = (rank - 0.5f) * 1.38f + 0.47f;

@@ -83,11 +83,19 @@
      surface), seven eruptions blow and swell and fade across it, a
      quarter-resolution bloom lets the plasma bleed, the bright limb is a
      baked warm glow instead of a painted ring, and every cloud filament's
-     breath now carries its length, its width and its ink. -->
+     breath now carries its length, its width and its ink.
+
+     versionCode 70 / versionName 2.3.2 belong to the owner order
+     2026-10-25, fifth pass on the same sentence: the first build of the new
+     ball was read on the phone and needed sharper fire and explosions you
+     can actually see, so the surface blur drops from two texels to one, the
+     fine filaments come up from 0.22 to 0.30, and every eruption's core
+     grows from a 0.11 radian half angle to 0.15 and burns with a wider
+     skirt. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="pk.quantofrehan"
-    android:versionCode="69"
-    android:versionName="2.3.1">
+    android:versionCode="70"
+    android:versionName="2.3.2">
 
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="30"/>
 
