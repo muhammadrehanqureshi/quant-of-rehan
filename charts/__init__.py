@@ -36,8 +36,10 @@ rather than in prose:
   restate them.
 
 Nothing in this package registers a schedule, a daemon or a watcher. The
-service is a foreground process a human starts, and it refuses to start under
-GitHub Actions, where the minutes belong to the market-hours scans.
+service is a foreground process a human starts, and it refuses to serve under
+GitHub Actions, where the minutes belong to the market-hours scans. The
+bounded maintenance commands still run there, because that is how CI proves
+them.
 """
 
 from __future__ import annotations

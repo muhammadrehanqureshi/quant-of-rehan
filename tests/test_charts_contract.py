@@ -97,7 +97,7 @@ class PayloadTest(unittest.TestCase):
 
     def test_unknown_resolution_is_refused(self):
         with self.assertRaises(ContractError):
-            sample_payload(resolution="5m")
+            sample_payload(resolution="7m")
 
     def test_unsorted_bars_are_refused(self):
         later = Bar.build(t=datetime(2026, 10, 12, 10, 33, tzinfo=KARACHI),
@@ -125,7 +125,45 @@ class PayloadTest(unittest.TestCase):
             ChartPayload.from_dict(raw)
 
     def test_the_contract_names_every_resolution_it_accepts(self):
-        self.assertEqual(RESOLUTIONS, ("1m", "1d", "session"))
+        self.assertEqual(
+            RESOLUTIONS,
+            ("1s", "10s", "1m", "5m", "10m", "15m", "30m", "1h", "4h",
+             "1D", "1W", "1M", "1d", "session"))
+
+    def test_the_schema_version_is_pinned_literally(self):
+        """A bump has to be a decision, so it is written twice.
+
+        The rest of the suite compares against the constant, which would
+        follow a bump silently. This is the one place the number is written
+        out: v2 added the ``session`` block (which trading day a series
+        belongs to, and whether it came from the durable archive); v3 added
+        the full timeframe ladder and the computed index proxies, without
+        changing the session block or the bar shape.
+        """
+        self.assertEqual(SCHEMA_VERSION, 3)
+
+    def test_a_v2_payload_carries_the_session_it_is_showing(self):
+        from charts.contract import ChartSession
+
+        payload = sample_payload(session=ChartSession(
+            day="2026-10-12", current=False, archived=True,
+            source="broker_tape", capture={"name": "capture_20261012.ndjson",
+                                          "bytes": 44, "sha256": "ab" * 32},
+            built_at="2026-10-12T15:31:00+05:00",
+            note="this is the archived session"))
+        again = ChartPayload.from_dict(payload.as_dict())
+        self.assertEqual(again.session.day, "2026-10-12")
+        self.assertTrue(again.session.archived)
+        self.assertFalse(again.session.current)
+        self.assertEqual(again.session.capture["name"],
+                         "capture_20261012.ndjson")
+
+    def test_a_pre_v2_payload_without_a_session_block_still_reads(self):
+        raw = sample_payload().as_dict()
+        del raw["session"]
+        again = ChartPayload.from_dict(raw)
+        self.assertEqual(again.session.day, "")
+        self.assertEqual(len(again.bars), 1)
 
 
 class RowsTest(unittest.TestCase):

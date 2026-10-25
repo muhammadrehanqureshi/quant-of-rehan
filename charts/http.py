@@ -29,15 +29,16 @@ from __future__ import annotations
 import json
 import logging
 import mimetypes
-import posixpath
 import queue
-from datetime import datetime
+import sys
+from datetime import date, datetime
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Callable
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
+from charts import resolutions as ladder
 from charts import sessions
 from charts.contract import RESOLUTION_MINUTE, SCHEMA_VERSION, ContractError
 from charts.ingest import Ingestor
@@ -126,9 +127,20 @@ class ChartHandler(BaseHTTPRequestHandler):
             }.get(exc.category, 502)
             self._send_json(error_body(exc.category, exc.detail), status=status,
                             extra={"Retry-After": "30"})
+        except ConnectionError:
+            # A browser that closes a stream, a phone that loses Wi-Fi and a
+            # health probe that times out all look the same here. The request
+            # is already over, so there is no response to send and no error
+            # worth a traceback: trying to answer a disconnected client is
+            # what turns one closed tab into a log full of noise.
+            LOGGER.debug("client disconnected while serving %s", self.path)
         except Exception as exc:  # noqa: BLE001 - logged, never leaked
             LOGGER.exception("unhandled error serving %s", self.path)
-            self._send_error_json(500, "INTERNAL", type(exc).__name__)
+            try:
+                self._send_error_json(500, "INTERNAL", type(exc).__name__)
+            except ConnectionError:
+                LOGGER.debug("client disconnected before the 500 for %s",
+                             self.path)
 
     # ----------------------------------------------------------------- API
     def _route_api(self, path: str, query: dict) -> None:
@@ -136,12 +148,16 @@ class ChartHandler(BaseHTTPRequestHandler):
             self._send_json(self.state.health())
             return
         if path == "/api/symbols":
-            self._send_json({"ok": True,
-                             "symbols": self.state.store.symbols() or
-                             self.state.source.catalog()})
+            self._symbols(query)
             return
         if path == "/api/bars":
             self._bars(query)
+            return
+        if path == "/api/sessions":
+            self._sessions()
+            return
+        if path == "/api/prints":
+            self._prints(query)
             return
         if path == "/api/stream":
             self._stream(query)
@@ -163,20 +179,128 @@ class ChartHandler(BaseHTTPRequestHandler):
             return None
         return symbol
 
-    def _payload(self, symbol: str, resolution: str, limit: int) -> dict:
-        """The chart payload for one symbol, via the shared builder."""
+    def _payload(self, symbol: str, resolution: str, limit: int,
+                 day: str | None = None, days: int = 0) -> dict:
+        """The chart payload for one symbol, via the shared builder.
+
+        ``day`` names one session; without it the builder describes today and
+        falls back to the newest stored session when today has nothing, which
+        is what makes the chart useful at 02:00 on a Sunday. ``days`` bigger
+        than one merges the newest sessions into one intraday chart.
+        """
         body = build_payload(self.state.store, self.state.source, symbol,
                              resolution, limit=limit,
-                             moment=self.state.moment()).as_dict()
+                             moment=self.state.moment(), day=day,
+                             days=days).as_dict()
         body["ok"] = True
         body["ingest"] = self.state.ingestor.health()
         return body
+
+    def _symbols(self, query: dict) -> None:
+        """The catalogue: names always, per-session facts when asked for.
+
+        ``?day=YYYY-MM-DD`` (or ``?facts=1`` for the source's own session)
+        asks the source what it actually holds for each symbol, which is what
+        a watchlist needs to avoid printing an empty price. The plain call is
+        unchanged, so an existing consumer keeps working.
+        """
+        day = self._day_or_error(query)
+        if day is None:
+            return
+        wants_facts = bool(day) or query.get("facts") not in (None, "", "0")
+        source = self.state.source
+        catalog = getattr(source, "catalog", None)
+        rows = None
+        if callable(catalog):
+            try:
+                rows = catalog(day=day or None, facts=wants_facts)
+            except TypeError:
+                rows = catalog()
+        if rows is None:
+            rows = [{"symbol": name} for name in
+                    (self.state.store.symbols() or source.catalog())]
+        if not wants_facts:
+            rows = [{"symbol": row["symbol"]} for row in rows]
+        self._send_json({"ok": True, "day": day or None, "symbols": rows})
+
+    def _prints(self, query: dict) -> None:
+        """The tape's own order prints for one symbol, the live paper trail.
+
+        ``?symbol=SYMBOL&day=YYYY-MM-DD&limit=N``. The events are the venue's
+        prints as the capture held them and the totals are its own running
+        counters, so a chart can draw the orders as they came and name how
+        many there were. A source with no tape behind it (a snapshot source,
+        say) answers a documented empty report rather than an error, because
+        "no print ledger" is a fact about the source, not a failure.
+        """
+        symbol = self._symbol_or_error(query)
+        if symbol is None:
+            return
+        day = self._day_or_error(query)
+        if day is None:
+            return
+        try:
+            limit = max(1, min(8000, int(query.get("limit", "3000"))))
+        except ValueError:
+            self._send_error_json(400, "BAD_LIMIT",
+                                  "limit must be a whole number")
+            return
+        prints_for = getattr(self.state.source, "prints_for", None)
+        if not callable(prints_for):
+            self._send_json({
+                "ok": True,
+                "symbol": symbol,
+                "day": day or None,
+                "totals": None,
+                "events": [],
+                "events_total": 0,
+                "notes": [f"this source ({self.state.source.name}) serves "
+                          f"bars without a print tape, so no order ledger "
+                          f"exists to show"],
+            })
+            return
+        report = prints_for(symbol, day or None, limit=limit)
+        self._send_json({"ok": True, **report})
+
+    def _sessions(self) -> None:
+        """Every session this service can draw, newest first.
+
+        This is the 24/7 answer in one call: the recorder does not have to be
+        running, the market does not have to be open, and the client can see
+        exactly which days exist and which of them are stored durably.
+        """
+        lister = getattr(self.state.source, "sessions", None)
+        rows = lister(hashes=False) if callable(lister) else []
+        self._send_json({
+            "ok": True,
+            "today": sessions.law.as_karachi(self.state.moment()).date().isoformat(),
+            "timezone": str(sessions.law.KARACHI),
+            "sessions": rows,
+        })
+
+    def _day_or_error(self, query: dict) -> str | None:
+        """The ``day`` query value, validated, or None when it was unusable."""
+        text = (query.get("day") or "").strip()
+        if not text:
+            return ""
+        try:
+            return date.fromisoformat(text).isoformat()
+        except ValueError:
+            self._send_error_json(
+                400, "BAD_DAY",
+                f"day must be a YYYY-MM-DD session date, not {text!r}")
+            return None
 
     def _bars(self, query: dict) -> None:
         symbol = self._symbol_or_error(query)
         if symbol is None:
             return
-        resolution = query.get("resolution", self.state.default_resolution)
+        try:
+            resolution = ladder.normalise(
+                query.get("resolution", self.state.default_resolution))
+        except ValueError as exc:
+            self._send_error_json(400, "UNSUPPORTED_RESOLUTION", str(exc))
+            return
         if resolution not in self.state.source.capabilities().resolutions:
             self._send_error_json(
                 400, "UNSUPPORTED_RESOLUTION",
@@ -189,15 +313,46 @@ class ChartHandler(BaseHTTPRequestHandler):
             self._send_error_json(400, "BAD_LIMIT",
                                   "limit must be a whole number")
             return
-        self.state.ingestor.watch(symbol)
-        self._send_json(self._payload(symbol, resolution, limit))
+        try:
+            days = max(0, min(60, int(query.get("days", "0"))))
+        except ValueError:
+            self._send_error_json(400, "BAD_DAYS",
+                                  "days must be a whole number")
+            return
+        if days < 2:
+            # A merge of one day is not a merge: it is the ordinary chart.
+            days = 0
+        day = self._day_or_error(query)
+        if day is None:
+            return
+        if (day or days) and not callable(getattr(self.state.source, "sessions", None)):
+            # Asking a source for a named session it cannot list is the
+            # caller's mistake, not a server fault, so it is a 400 and not a
+            # 500: the source in play has no session store to read.
+            wanted = "that day from" if day else "several days from"
+            self._send_error_json(
+                400, "UNSUPPORTED_DAY",
+                f"source {self.state.source.name} serves the running session "
+                f"only; it keeps no session archive to read {wanted}")
+            return
+        if not day:
+            # Today's live route: a symbol nobody has asked for yet is worth
+            # warming, because the next poll of this chart will want it.
+            self.state.ingestor.watch(symbol)
+        self._send_json(self._payload(symbol, resolution, limit, day or None,
+                                      days))
 
     # ----------------------------------------------------------------- SSE
     def _stream(self, query: dict) -> None:
         symbol = self._symbol_or_error(query)
         if symbol is None:
             return
-        resolution = query.get("resolution", self.state.default_resolution)
+        try:
+            resolution = ladder.normalise(
+                query.get("resolution", self.state.default_resolution))
+        except ValueError as exc:
+            self._send_error_json(400, "UNSUPPORTED_RESOLUTION", str(exc))
+            return
         # The first payload is built before any header is written, so a
         # failure here is still an ordinary JSON error rather than half a
         # stream. Only after it exists does the response become an event
@@ -229,8 +384,29 @@ class ChartHandler(BaseHTTPRequestHandler):
                         break
                     continue
                 idle = 0.0
-                self._write_event("bars", event)
-        except (BrokenPipeError, ConnectionResetError):
+                # The ingestor polls the tape's own grain (one minute). A
+                # coarser rung must be rebuilt from it rather than forwarding
+                # minute bars under a five-minute label: a client that folded
+                # them itself would double-fold, and one that did not would
+                # draw the wrong candle width.
+                if resolution == self.state.default_resolution:
+                    self._write_event("bars", event)
+                else:
+                    fresh = self._payload(symbol, resolution, 1500)
+                    self._write_event("bars", {
+                        "event": "bars",
+                        "symbol": symbol,
+                        "resolution": resolution,
+                        "as_of": fresh["as_of"],
+                        "bars": fresh["bars"],
+                        "bar_count": fresh["bar_count"],
+                        "gaps": fresh["gaps"],
+                        "session": fresh["session"],
+                    })
+        except ConnectionError:
+            # BrokenPipe, ConnectionReset and ConnectionAborted are all the
+            # same fact: the reader went away. The subscription is cleaned up
+            # below and the server keeps serving everyone else.
             pass
         finally:
             self.state.ingestor.unsubscribe(subscription)
@@ -252,13 +428,25 @@ class ChartHandler(BaseHTTPRequestHandler):
                 "the chart UI is not built in this deployment; run the "
                 "development server or build the web app")
             return
-        relative = posixpath.normpath(path).lstrip("/")
-        wanted = (root / relative) if relative else (root / "index.html")
-        if wanted.is_dir():
-            wanted = wanted / "index.html"
+        # Decode first, then resolve, then prove the result is inside the
+        # build directory. `%2e%2e` and a symlink are both attempts to read a
+        # file this server was never asked to publish, so neither may become
+        # a path under the document root by accident.
+        relative = unquote(path).lstrip("/")
+        try:
+            root_resolved = root.resolve()
+            wanted = (root / relative).resolve() if relative else root_resolved
+            if wanted.is_dir():
+                wanted = (wanted / "index.html").resolve()
+            wanted.relative_to(root_resolved)
+        except (OSError, ValueError):
+            self._send_error_json(404, "NOT_FOUND", f"{path} not found")
+            return
         if not wanted.is_file():
-            # A single page app: unknown paths render the app shell.
-            wanted = root / "index.html"
+            # A single page app: unknown paths render the app shell. The
+            # shell itself is resolved and checked above, so the fallback
+            # cannot leave the build directory either.
+            wanted = root_resolved / "index.html"
             if not wanted.is_file():
                 self._send_error_json(404, "NOT_FOUND", f"{path} not found")
                 return
@@ -282,6 +470,22 @@ class ChartServer(ThreadingHTTPServer):
 
     daemon_threads = True
     allow_reuse_address = True
+
+    def handle_error(self, request, client_address) -> None:
+        """A disconnected client is normal, not an incident.
+
+        ``socketserver`` prints a full traceback for every exception that
+        escapes a handler, including the ``ConnectionAbortedError`` Windows
+        raises when a browser closes a keep-alive socket between requests.
+        Those tracebacks are noise: the request is gone and there is nobody
+        to answer. Every other exception keeps the standard loud treatment,
+        because a real bug must not be hidden by this override.
+        """
+        if isinstance(sys.exc_info()[1], ConnectionError):
+            LOGGER.debug("client %s disconnected: %s", client_address,
+                         sys.exc_info()[1])
+            return
+        super().handle_error(request, client_address)
 
     def __init__(self, address: tuple[str, int], *, store: BarStore,
                  ingestor: Ingestor, source, static_dir: Path | None,
@@ -324,6 +528,8 @@ class ChartServer(ThreadingHTTPServer):
             "market": sessions.market_context(moment).as_dict(),
             "source": self.source.capabilities().source.as_dict(),
             "resolutions": list(self.source.capabilities().resolutions),
+            "timeframes": ladder.all_specs(),
+            "indices": ["KSE100", "KMIALLSHR"],
             "tape": tape,
             "ingest": self.ingestor.health(),
             "symbols": len(self.store.symbols()),
