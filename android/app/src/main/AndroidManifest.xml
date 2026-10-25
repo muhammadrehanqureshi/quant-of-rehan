@@ -58,11 +58,21 @@
      crown, the wide amber band and the white-hot edge pinned to the
      radii his sun carries them at, the thin revolving arcs are deleted
      with their book keeping, and the flame tongues and sparks carry the
-     fire alone. -->
+     fire alone.
+
+     versionCode 68 / versionName 2.3.0 belong to the owner order
+     2026-10-25, third pass ("you made the sun really low quality ... you
+     just made my photo into a PS2 graphics looking SUN, i really hate
+     it", "the ray that are on the sun right now looks absolute fake and
+     ugly"): the surface is rebuilt as a photograph at 448x224 with five
+     noise fields and a ten-stop ramp read off his picture, the painted
+     amber band is replaced by a ragged noise crown and a noisy glow, and
+     the twelve radial flame tongues and the seven spark streaks - the
+     fake rays - are deleted with their book keeping. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="pk.quantofrehan"
-    android:versionCode="67"
-    android:versionName="2.2.9">
+    android:versionCode="68"
+    android:versionName="2.3.0">
 
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="30"/>
 
