@@ -3,7 +3,8 @@
  * more, so the UI cannot ask for a symbol the backend would refuse.
  */
 
-import type { Resolution } from "../api/types";
+import { RESOLUTIONS, type Resolution } from "../api/types";
+import { timeframeLabel } from "../chart/timeframes";
 
 export interface SymbolPickerProps {
   readonly symbol: string;
@@ -41,11 +42,16 @@ export function SymbolPicker(props: SymbolPickerProps) {
         <span>Resolution</span>
         <select
           value={resolution}
-          onChange={(event) => onResolution(event.target.value as Resolution)}
+          onChange={(event) => {
+            const next = RESOLUTIONS.find((item) => item === event.target.value);
+            if (next !== undefined) {
+              onResolution(next);
+            }
+          }}
         >
           {resolutions.map((item) => (
             <option key={item} value={item}>
-              {item === "1m" ? "one minute" : item === "1d" ? "daily" : "session"}
+              {timeframeLabel(item)}
             </option>
           ))}
         </select>

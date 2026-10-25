@@ -10,6 +10,8 @@ import {
   parseBarEvent,
   parseErrorBody,
   parsePayload,
+  parseSessions,
+  parseSymbolRows,
   parseSymbols,
 } from "./types";
 
@@ -18,7 +20,6 @@ function payload(): Record<string, unknown> {
     ok: true,
     schema_version: 1,
     as_of: "2026-10-12T11:00:00+05:00",
-    observed_at: "2026-10-12T10:59:30+05:00",
     symbol: "OGDC",
     resolution: "1m",
     source: {
@@ -139,7 +140,7 @@ describe("parsePayload", () => {
   });
 
   it("refuses an unknown resolution", () => {
-    const broken = { ...payload(), resolution: "5m" };
+    const broken = { ...payload(), resolution: "7m" };
     expect(() => parsePayload(broken)).toThrow(/resolution/);
   });
 
@@ -190,5 +191,124 @@ describe("parseErrorBody", () => {
 
   it("refuses a body with no error object", () => {
     expect(() => parseErrorBody({ ok: false })).toThrow(ContractViolation);
+  });
+});
+
+describe("the session block (schema v2)", () => {
+  const session = {
+    day: "2026-10-14",
+    current: false,
+    archived: true,
+    source: "capture_20261014.ndjson",
+    capture: {
+      name: "capture_20261014.ndjson",
+      bytes: 13101212,
+      mtime_ns: 1_791_960_305_449_193_600,
+      sha256: "a".repeat(64),
+    },
+    built_at: "2026-10-16T14:22:54+05:00",
+    note: "this is the archived 2026-10-14 session",
+    volume_available: true,
+  };
+
+  it("reads which session a series belongs to", () => {
+    const parsed = parsePayload({
+      ...payload(),
+      schema_version: 2,
+      session,
+    });
+    expect(parsed.session.day).toBe("2026-10-14");
+    expect(parsed.session.archived).toBe(true);
+    expect(parsed.session.current).toBe(false);
+    expect(parsed.session.capture?.name).toBe("capture_20261014.ndjson");
+    expect(parsed.session.volume_available).toBe(true);
+  });
+
+  it("tolerates a pre-v2 answer without inventing a session", () => {
+    const raw = payload();
+    delete (raw as Record<string, unknown>)["session"];
+    const parsed = parsePayload(raw);
+    expect(parsed.session.day).toBe("");
+    expect(parsed.session.capture).toBeNull();
+    expect(parsed.session.volume_available).toBe(false);
+  });
+
+  it("treats a missing volume answer as not reported", () => {
+    const bare = { ...session } as Record<string, unknown>;
+    delete bare["volume_available"];
+    const parsed = parsePayload({ ...payload(), session: bare });
+    expect(parsed.session.volume_available).toBe(false);
+  });
+});
+
+describe("parseSymbolRows", () => {
+  it("keeps the per-session facts, and a missing fact stays null", () => {
+    const rows = parseSymbolRows({
+      ok: true,
+      day: "2026-10-14",
+      symbols: [
+        { symbol: "OGDC", source: "broker_tape", listed: true, bars: 128,
+          first: "2026-10-14T10:30:00+05:00", last: "2026-10-14T12:34:00+05:00",
+          close: 296.45, day: "2026-10-14" },
+        { symbol: "PPL", source: "broker_tape", listed: true, bars: 0,
+          first: null, last: null, close: null, day: "2026-10-14" },
+      ],
+    });
+    expect(rows[0]?.close).toBe(296.45);
+    expect(rows[0]?.bars).toBe(128);
+    expect(rows[1]?.close).toBeNull();
+    expect(rows[1]?.bars).toBe(0);
+    expect(rows[1]?.last).toBeNull();
+  });
+
+  it("reads a plain catalogue where the facts were never asked for", () => {
+    const rows = parseSymbolRows({ symbols: [{ symbol: "OGDC" }] });
+    expect(rows[0]?.listed).toBe(true);
+    expect(rows[0]?.bars).toBeNull();
+  });
+});
+
+describe("parseSessions", () => {
+  it("reads the days a service can draw, with their identity", () => {
+    const report = parseSessions({
+      ok: true,
+      today: "2026-10-16",
+      timezone: "Asia/Karachi",
+      sessions: [
+        {
+          day: "2026-10-16",
+          current: true,
+          archived: true,
+          capture: { name: "capture_20261016.ndjson", bytes: 73550171,
+                     mtime_ns: 1, sha256: "b".repeat(64) },
+          archive: {
+            day: "2026-10-16", symbols: 290, bars: 36595,
+            priced_bars: 36037, carried_bars: 558, volume_available: true,
+            capture: null, built_at: "2026-10-16T14:23:08+05:00", builds: 1,
+            first_observation: "2026-10-16T10:05:41+05:00", notes: ["a note"],
+          },
+          sources: ["C:/somewhere/capture_20261016.ndjson"],
+        },
+        {
+          day: "2026-10-14",
+          current: false,
+          archived: false,
+          capture: null,
+          archive: null,
+          sources: [],
+        },
+      ],
+    });
+    expect(report.today).toBe("2026-10-16");
+    expect(report.timezone).toBe("Asia/Karachi");
+    expect(report.sessions.map((row) => row.day))
+      .toEqual(["2026-10-16", "2026-10-14"]);
+    expect(report.sessions[0]?.archive?.bars).toBe(36595);
+    expect(report.sessions[1]?.archive).toBeNull();
+    expect(report.sessions[1]?.sources).toEqual([]);
+  });
+
+  it("refuses an answer with no today", () => {
+    expect(() => parseSessions({ sessions: [] })).toThrow(ContractViolation);
   });
 });

@@ -64,7 +64,6 @@ export function CustomChart() {
           viewKey="example|KSE100|5m"
           version={feed.version}
           volumeAvailable={session?.volume_available ?? false}
-          theme="dark"
           sessionLabel={
             session === null
               ? "No session reported."

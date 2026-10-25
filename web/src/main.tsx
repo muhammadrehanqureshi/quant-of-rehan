@@ -8,7 +8,12 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
 import { App } from "./App";
+import { CustomChart } from "./examples/CustomChart";
 import "./styles.css";
+
+// A documented, reachable example: `/?example=1` renders the smallest chart
+// with custom indicators, while the normal URL renders the full terminal.
+const EXAMPLE = new URLSearchParams(window.location.search).get("example") === "1";
 
 const container = document.getElementById("root");
 if (container === null) {
@@ -17,6 +22,6 @@ if (container === null) {
 
 createRoot(container).render(
   <StrictMode>
-    <App />
+    {EXAMPLE ? <CustomChart /> : <App />}
   </StrictMode>,
 );

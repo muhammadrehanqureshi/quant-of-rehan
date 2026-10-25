@@ -23,8 +23,6 @@ export interface ToolbarProps {
   readonly day: string;
   readonly onDay: (day: string) => void;
   readonly sessions: readonly SessionRow[];
-  readonly theme: "dark" | "light";
-  readonly onTheme: (theme: "dark" | "light") => void;
   readonly onRefresh: () => void;
   readonly busy: boolean;
   readonly watchlistOpen: boolean;
@@ -32,13 +30,17 @@ export interface ToolbarProps {
   readonly indicatorsOpen: boolean;
   readonly onToggleIndicators: () => void;
   readonly onSearch: () => void;
+  readonly onOpenSettings: () => void;
+  readonly screenerOpen: boolean;
+  readonly onToggleScreener: () => void;
 }
 
 export function Toolbar(props: ToolbarProps) {
   const {
     symbol, resolution, onResolution, resolutions, day, onDay, sessions,
-    theme, onTheme, onRefresh, busy, watchlistOpen, onToggleWatchlist,
+    onRefresh, busy, watchlistOpen, onToggleWatchlist,
     indicatorsOpen, onToggleIndicators, onSearch,
+    onOpenSettings, screenerOpen, onToggleScreener,
   } = props;
   const available = TIMEFRAMES.filter((item) => resolutions.includes(item.id));
 
@@ -99,6 +101,20 @@ export function Toolbar(props: ToolbarProps) {
       <div className="toolbar__cell">
         <button
           type="button"
+          className={screenerOpen ? "toolbar__menu toolbar__menu--on"
+            : "toolbar__menu"}
+          aria-expanded={screenerOpen}
+          aria-label={screenerOpen ? "hide the screener" : "show the screener"}
+          title="Screen every symbol in this session"
+          onClick={onToggleScreener}
+        >
+          Screener
+        </button>
+      </div>
+
+      <div className="toolbar__cell">
+        <button
+          type="button"
           className={indicatorsOpen ? "toolbar__menu toolbar__menu--on"
             : "toolbar__menu"}
           aria-expanded={indicatorsOpen}
@@ -121,7 +137,7 @@ export function Toolbar(props: ToolbarProps) {
             value={day}
             onChange={(event) => onDay(event.target.value)}
           >
-            <option value="">recent · 5 sessions merged</option>
+            <option value="">this session (live)</option>
             {sessions.map((row) => (
               <option key={row.day} value={row.day}>
                 {formatDay(`${row.day}T00:00:00+05:00`)}
@@ -138,14 +154,11 @@ export function Toolbar(props: ToolbarProps) {
                 title={busy ? "loading…" : "Reload"}>
           ↻
         </button>
-        <button
-          type="button"
-          className="toolbar__icon"
-          onClick={() => onTheme(theme === "dark" ? "light" : "dark")}
-          aria-label={`switch to the ${theme === "dark" ? "light" : "dark"} theme`}
-          title="Light or dark"
-        >
-          {theme === "dark" ? "☾" : "☀"}
+        <button type="button" className="toolbar__icon"
+                aria-label="open the chart settings"
+                title="Chart settings"
+                onClick={onOpenSettings}>
+          ⚙
         </button>
       </div>
     </header>
