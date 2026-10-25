@@ -1503,6 +1503,19 @@ to sixty seconds. The status tile therefore also carries the app's own
      nearest neighbour at build time.
   7. The version bump is versionCode 71 / versionName 2.3.3.
 
+**Built and delivered 2026-10-25 (v2.3.3):** the signed v2.3.3 APK was built
+on GitHub Actions from the merge of PR #129 (master 7a30fcb, run 40174319118,
+the push build the merge itself triggered), downloaded from the run's
+artifact and copied to
+`C:/Users/rehan/OneDrive/Desktop/QuantOfRehan-v2.3.3.apk`. SHA-256
+`ae6cf295d2fa7c8183a0fcb5f60bf2e0e45b637cadf7f270236641a3784da4e1`,
+and the run's `badging.txt` reads back `pk.quantofrehan`,
+`versionCode="71"`, `versionName="2.3.3"`, with the launchable
+`MainActivity`. The copy is signed by the repository keystore
+(CN=Quant of Rehan, certificate SHA-256
+fa3b2a125ba12405956159acf99d9d19e5c4e9ad0b4dfb3b1d1c47cf99ace136),
+so it installs straight over the running build.
+
 **Built and delivered 2026-10-24 (v2.2.3):** the signed v2.2.3 APK was built
 on GitHub Actions from the merged PR #110 (master 3fd20f0, run 40071196152,
 the push build the merge itself triggered), downloaded from the run's
