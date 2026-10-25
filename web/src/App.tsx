@@ -66,6 +66,18 @@ const SPAN_SESSIONS = 1;
 
 const WATCHLIST_KEY = "charts-watchlist";
 
+/**
+ * The chart this browser last opened.
+ *
+ * Opening the app used to land on whatever the catalogue listed first, which
+ * is an index: every visit began on KSE100 no matter what the reader was
+ * charting last night. The last symbol you charted is the one you meant to
+ * see again, so it is kept beside the watchlist and reopened on the next
+ * visit. A first visit has no last symbol and falls back to the session's
+ * own most traded name.
+ */
+const LAST_SYMBOL_KEY = "charts-symbol";
+
 /** One shared empty list, so a poll without a ledger never re-renders. */
 const EMPTY_PRINTS: readonly PrintEvent[] = [];
 
@@ -88,6 +100,41 @@ function readWatchlist(): string[] {
   return [...DEFAULT_WATCHLIST];
 }
 
+function readLastSymbol(): string {
+  try {
+    const stored = window.localStorage.getItem(LAST_SYMBOL_KEY);
+    return stored === null ? "" : stored.trim().toUpperCase();
+  } catch {
+    return ""; // a disabled storage is a first visit, not a crash
+  }
+}
+
+/**
+ * The name a first visit opens.
+ *
+ * The most traded scrip of the session, never a computed index: a reader who
+ * has never chosen anything is better served by the tape's busiest symbol
+ * than by a breadth gauge. An index answers only when nothing in the
+ * catalogue traded at all.
+ */
+export function openingSymbol(
+  items: readonly SymbolRow[],
+): SymbolRow | undefined {
+  const traded = items.filter((row) => (row.bars ?? 0) > 0);
+  const named = traded.filter((row) => row.index !== true);
+  const pool = named.length > 0 ? named : traded;
+  if (pool.length === 0) {
+    return items[0];
+  }
+  let best = pool[0];
+  for (const row of pool) {
+    if ((row.volume ?? 0) > (best?.volume ?? 0)) {
+      best = row;
+    }
+  }
+  return best;
+}
+
 function hash(): { symbol: string; day: string } {
   const raw = window.location.hash.replace(/^#/, "");
   const [symbol = "", day = ""] = raw.split("/");
@@ -97,7 +144,9 @@ function hash(): { symbol: string; day: string } {
 export function App() {
   const client = useMemo(() => new ChartClient(), []);
   const initial = useMemo(hash, []);
-  const [symbol, setSymbol] = useState(initial.symbol);
+  const [symbol, setSymbol] = useState(
+    () => initial.symbol.length > 0 ? initial.symbol : readLastSymbol(),
+  );
   const [day, setDay] = useState(initial.day);
   const [resolution, setResolution] = useState<Resolution>("1m");
   const [resolutions, setResolutions] =
@@ -142,6 +191,17 @@ export function App() {
   useEffect(() => {
     window.localStorage.setItem(WATCHLIST_KEY, JSON.stringify(watch));
   }, [watch]);
+
+  // The chart you were reading is the chart you get back.
+  useEffect(() => {
+    if (symbol.length > 0) {
+      try {
+        window.localStorage.setItem(LAST_SYMBOL_KEY, symbol);
+      } catch {
+        // A full storage must never stop the chart from opening.
+      }
+    }
+  }, [symbol]);
 
   // The service's own facts, read once per mount and again after a refresh.
   useEffect(() => {
@@ -201,7 +261,7 @@ export function App() {
           // Opening on a chart the reader put in the list is the point of a
           // watchlist; only when there is none does the session's own most
           // traded symbol answer.
-          const first = items.find((row) => (row.bars ?? 0) > 0) ?? items[0];
+          const first = openingSymbol(items);
           setSymbol((current) =>
             current.length > 0 ? current : (first?.symbol ?? ""));
         }
