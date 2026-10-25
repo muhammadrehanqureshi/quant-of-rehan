@@ -1459,6 +1459,50 @@ to sixty seconds. The status tile therefore also carries the app's own
      than a pinprick.
   3. The version bump is versionCode 70 / versionName 2.3.2.
 
+**Version 2.3.3, versionCode 71.**
+
+  Owner order 2026-10-25, sixth pass, on the v2.3.2 build read on the phone:
+  "you made the sun transparent, SUN is a solid entity, make it solid, make
+  it look high quality", "the very left one is my own uploaded photo, and I
+  would really love to have that same exact render, and then you can make it
+  revolve just like the Earth does", with "the outside revolving lines are
+  still not breathing" and "few independent dots without any lines". This
+  pass stops generating fire and puts his picture on the ball.
+
+  1. THE SURFACE IS HIS PICTURE. drawable-nodpi/sun.jpg is wrapped onto the
+     sphere as a planet map: its fire crop (0.62 of the picture's disc, the
+     part inside its bright ring) is the texture, read one texel of his fire
+     per texel of the ball. Every procedural field of v2.3.0-v2.3.2 is gone
+     with its palette, its detail sheet and its rank normalisation, which is
+     what kept coming back as "PS2 graphics": noise can only approximate
+     fire once it is sampled far from the picture it came from.
+  2. IT REVOLVES LIKE THE EARTH, RIGIDLY. One shared longitude shift per
+     frame (the owner's 10% cut kept) slides the crop limb to limb with the
+     sphere's foreshortening. The crop travels on a TRIANGLE wrap, and this
+     is the defect the first cut of this pass had: his disc is an
+     orthographic view, not a texture, so a disc wrapped as a texture
+     collapses into a single column a quarter turn in (the horizontal
+     streaks) and drags its bright ring through the middle (the band). The
+     triangle makes the turn rigid, and the hidden half is the same crop
+     mirrored, so there is no seam and no second disc.
+  3. IT IS SOLID. Every pixel inside the disc is opaque; only the outer
+     pixel of the edge is anti-aliased. The ball's alpha is still the wake
+     alone, so a solid ball cannot flicker.
+  4. HIS RIM ALWAYS BLAZES. A star's limb is bright because of where its
+     light leaves it, not because of what pattern sits under it, so the
+     picture's own rim is sampled once per screen angle at 0.96 of its disc
+     and lifted 25% toward white, then blended back at the limb every
+     frame. The fire turns; the crown does not.
+  5. THE OUTSIDE LINES BREATHE. The filament breath's swing is tripled
+     (width 0.4 to 1.6 of its own, ink with it) and its period slowed, so
+     the outer lines visibly swell and thin instead of moving by a few
+     percent the phone cannot show.
+  6. NO NAKED DOTS. The filament fade bottoms out at a fifth instead of
+     zero (a link at the 0.42 cap used to be painted at alpha zero, which
+     is the invisible thread), and every node without a link now joins its
+     nearest neighbour at build time.
+  7. The version bump is versionCode 71 / versionName 2.3.3.
+
 **Built and delivered 2026-10-24 (v2.2.3):** the signed v2.2.3 APK was built
 on GitHub Actions from the merged PR #110 (master 3fd20f0, run 40071196152,
 the push build the merge itself triggered), downloaded from the run's
