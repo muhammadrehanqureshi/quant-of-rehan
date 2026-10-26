@@ -194,10 +194,15 @@ class LeaderLineTest(unittest.TestCase):
         self.assertNotIn('sb.append("  S")', self.main)
 
     def test_the_money_line_opens_after_the_volumes(self):
-        volumes = self.main.index('"\\u00A0&\\u00A0T=%,d)"')
-        money = self.main.index('"PKR %,.2f"')
+        # v2.3.7 (owner 2026-10-26, ninth pass): the volume reveal prints
+        # the leaders card's own money line too, so the order probe reads
+        # the card builder it guards, not the whole console file.
+        leaders = self.main[
+            self.main.index("private SpannableString leadersText("):]
+        volumes = leaders.index('"\\u00A0&\\u00A0T=%,d)"')
+        money = leaders.index('"PKR %,.2f"')
         self.assertLess(volumes, money)
-        self.assertIn("sb.append('\\n');", self.main[volumes:money])
+        self.assertIn("sb.append('\\n');", leaders[volumes:money])
 
     def test_a_price_less_row_still_opens_the_money_line(self):
         # The edge case the layout must not lose: the relay can report a
