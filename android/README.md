@@ -1533,6 +1533,48 @@ to sixty seconds. The status tile therefore also carries the app's own
      shift under the owner's own 10% cut.
   6. The version bump is versionCode 72 / versionName 2.3.5.
 
+**Version 2.3.8, versionCode 75.**
+
+  Owner order 2026-10-26, tenth pass, on the v2.3.7 build read on the
+  phone: "the SUN is still flickering/phasing", "you ruined the
+  animating feature, the LINES are looking absolute horseshit, change
+  them back", and "I can't even tell the highlighted colour, at least
+  make it look highlighted". Three answers, every one of them a law an
+  earlier pass already proved and the ninth pass replaced with
+  something weaker:
+
+  1. THE CLUSTERS ARE BACK. The ninth pass's even shell opened the
+     mesh into a structureless net - one side crowded, the other
+     empty, exactly as the owner said - and the WORKING law is the
+     v1.8.9 gather itself: five seeded anchors between the sun and
+     the shell, each node pulled to and re-normalised against its
+     anchor, the four-node break-outs, and the escapees that keep
+     the rim ragged. Nothing is re-derived; it is restored as it was.
+  2. THE BREATH IS MIDDLE-STRENGTH AGAIN. The ninth pass's one-fifth
+     swing read as dead - the lines grew and shrank without living.
+     The v2.3.3 swing is back over the line length, and the ink rides
+     its own narrow band: alpha = 0.945 + 0.17 * widthBreath, so a
+     filament's ink breathes WITH its width, never rises above its
+     own trough, and can never hollow into the blink he kept
+     reporting.
+  3. THE SUN REVOLVES ON ITS OWN THREAD. Chaining the 256x256 surface
+     pass onto the 33ms HUD frames throttled both and dropped frames
+     that read as flicker no matter how often the cadence was retuned.
+     The pass now runs on its own DEDICATED thread at its own 60ms
+     cadence, the finished frame is published with post(), the HUD
+     sleeps its own wait, and the bitmap is double buffered - the
+     pass renders into the BACK bitmap and setPixels copies it whole
+     into the visible one, so a frame goes up as a whole or not at
+     all. The cloud keeps its 30fps; the fire's 0.41 rad/s never
+     depends on the HUD loop again.
+  4. THE SEARCH HIGHLIGHT IS GOLD AGAIN. The ninth pass's theme-ink
+     plate sat barely above the field's dark and read as NOTHING lit
+     at all. The brand-gold plates return: a prefix match wears the
+     dropdown's own gold press plate, the exact match the brighter
+     gold match plate with its hairline in gold_bright - the same
+     family the clock, the headings and the nav ring already wear.
+  5. The version bump is versionCode 75 / versionName 2.3.8.
+
 **Version 2.3.7, versionCode 74.**
 
   Owner order 2026-10-26, ninth pass, on the v2.3.6 build read on the
