@@ -63,9 +63,12 @@ class RoadmapTest(unittest.TestCase):
             [(event, label) for event, label, _fire in road],
             [("pre", ""), ("open", ""), ("close", ""), ("post", ""),
              ("post-close", "")])
+        # Owner order 2026-10-26: the pre email opens at 09:15 on Monday
+        # to Thursday (the minute the owner named), not the scanner's own
+        # 09:00 state edge. Friday's roadmap above keeps its 09:00.
         self.assertEqual(
             [(fire.hour, fire.minute) for _e, _l, fire in road],
-            [(9, 0), (9, 32), (15, 30), (15, 32), (15, 49)])
+            [(9, 15), (9, 32), (15, 30), (15, 32), (15, 49)])
 
     def test_weekend_roadmap_is_empty(self):
         self.assertEqual(
