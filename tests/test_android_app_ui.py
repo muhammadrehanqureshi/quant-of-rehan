@@ -2723,7 +2723,7 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         # one decision). The seeded radius walk keeps the rim ragged.
         self.assertIn("float y = 1f - 2f * (n + 0.5f) / (float) NODES;", orb)
         self.assertIn("float theta = 2.39996f * n;", orb)
-        self.assertIn("float radiusSeed = 20261026L;", orb)
+        self.assertIn("long radiusSeed = 20261026L;", orb)
         self.assertIn("float radius = 0.78f + swing;", orb)
         self.assertNotIn("CLUSTERS", orb)
         # v2.3.3: the fade bottoms out above zero, because a link at the cap
