@@ -1693,8 +1693,8 @@ class VersionTest(unittest.TestCase):
         # boils, the eruptions blow, the bloom bleeds and the filaments
         # breathe in width and ink as well as length.
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="2.3.9"', manifest)
-        self.assertIn('android:versionCode="76"', manifest)
+        self.assertIn('android:versionName="2.3.10"', manifest)
+        self.assertIn('android:versionCode="77"', manifest)
         # The changelog entry ties these user-visible changes to the build.
         readme = (ROOT / "android" / "README.md").read_text(encoding="utf-8")
         self.assertIn("v1.7.9, owner order 2026-10-20", readme)
@@ -1747,9 +1747,12 @@ class VersionTest(unittest.TestCase):
         # buyers-surplus law, the theme's own highlight lift, the blended
         # sun handover and the 15% cut, versionCode 76.
         self.assertIn("Version 2.3.9, versionCode 76", readme)
+        # v2.3.10 (owner order 2026-10-26, thirteenth pass): the corona
+        # deletion and the commit gate, versionCode 77.
+        self.assertIn("Version 2.3.10, versionCode 77", readme)
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionCode="76"', manifest)
-        self.assertIn('android:versionName="2.3.9"', manifest)
+        self.assertIn('android:versionCode="77"', manifest)
+        self.assertIn('android:versionName="2.3.10"', manifest)
         layout = LAYOUT.read_text(encoding="utf-8")
         strings = STRINGS.read_text(encoding="utf-8")
         main = MAIN.read_text(encoding="utf-8")
@@ -2852,8 +2855,6 @@ class ThinkingOrbPlanTest(unittest.TestCase):
                       orb)
         self.assertIn("private void buildSunRing(int[] pixels, int w, int h) {",
                       orb)
-        self.assertIn("private void buildSunCorona(int[] pixels, int w, int h)"
-                      " {", orb)
         self.assertIn("private void sharpenMap() {", orb)
         self.assertIn("private void renderSunBall(float phi) {", orb)
         self.assertIn("private int sampleMap(float u, float v) {", orb)
@@ -2906,16 +2907,18 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         self.assertIn("float ring = smoothstep(SUN_RING_IN, 0.995f, rn)", orb)
         self.assertIn("ringFlame[ang]", orb)
         self.assertIn("ringInk[ang]", orb)
-        # His corona: alpha and ink per angle and radius.
+        # His rim: alpha and ink per angle, baked from his picture.
         self.assertIn("FLAME_STEPS = 512", orb)
-        self.assertIn("CORONA_STEPS = 28", orb)
-        self.assertIn("CORONA_REACH = 0.20f", orb)
-        # v2.3.6 (owner order 2026-10-26, eighth pass): the fuzz's weight
-        # and breadth are pins too, so the corona cannot drift back to the
-        # barely visible fade of the seventh pass.
-        self.assertIn("CORONA_GAIN = 1.75f", orb)
-        self.assertIn("CORONA_SMOOTH = 19", orb)
-        self.assertIn("coronaInk[near * FLAME_STEPS + ang]", orb)
+        # v2.3.10 (owner order 2026-10-26: "you added the thick orange
+        # outline just outside the SUN, who told you to do that? remove
+        # that crap"): the corona is deleted with its bake, its constants
+        # and its mixer, and NOTHING is drawn outside the disc.
+        for retired in ("CORONA_STEPS", "CORONA_REACH", "CORONA_GAIN",
+                        "CORONA_SMOOTH", "coronaInk", "buildSunCorona",
+                        "mixChannel"):
+            with self.subTest(retired=retired):
+                self.assertNotIn(retired, orb)
+        self.assertIn("sunBallPixels[k] = 0;", orb)
         # The pole dissolve.
         self.assertIn("SUN_POLE_IN = 0.64f", orb)
         self.assertIn("SUN_POLE_MIX = 0.92f", orb)
@@ -2957,6 +2960,17 @@ class ThinkingOrbPlanTest(unittest.TestCase):
                       orb)
         self.assertIn("blend.drawBitmap(fresh, 0f, 0f, sunBlendPaint);", orb)
         self.assertIn("sunPublished = false;", orb)
+        # v2.3.10 (owner order 2026-10-26, "the entire thing is still
+        # flickering"): the commit gate. The render thread signs its
+        # bitmap under the gate, the HUD's handover reads it under the
+        # same gate, so a torn half-commit can never be blended into the
+        # visible picture.
+        self.assertIn("private final Object sunGate = new Object();", orb)
+        self.assertEqual(orb.count("synchronized (sunGate) {"), 2,
+                         "one gate at the commit, one at the handover")
+        ball = orb[orb.index("private void renderSunBall("):
+                   orb.index("private void bloomSun()") + 2000]
+        self.assertIn("synchronized (sunGate) {", ball)
         self.assertNotIn("Bitmap tmp = sunBall;", orb)
         self.assertNotIn("sunBall = sunBallBack;", orb)
         self.assertIn("renderSunBall(phi);", orb)
@@ -3155,20 +3169,14 @@ class ThinkingOrbPlanTest(unittest.TestCase):
                       "+ 0.52f;", orb)
         self.assertIn("private static int sharpenChannel(int value, "
                       "int blurred) {", orb)
-        # The rim and the corona, both read off his picture at build, both
-        # carried in the same bitmap as the ball.
+        # The rim is read off his picture at build. v2.3.10 deleted the
+        # corona beside it with its bake: the bake's own edge-sampling
+        # numbers are gone with it.
         self.assertIn("private void buildSunRing(int[] pixels, int w, int h) {",
                       orb)
-        self.assertIn("private void buildSunCorona(int[] pixels, int w, "
-                      "int h) {", orb)
         self.assertIn("float r = disc * RING_BANDS[b];", orb)
-        self.assertIn("float radius = disc * (1f + CORONA_REACH * f);", orb)
-        self.assertIn("float alpha = clamp((lum - 0.12f) / 0.55f, 0f, 1f)",
-                      orb)
-        # The prototype's own overexposure: where the alpha passes 1 the
-        # surplus lifts the texel toward white, the same clamp the preview
-        # applies per channel.
-        self.assertIn("float surplus = alpha - clipped;", orb)
+        self.assertNotIn("clamp((lum - 0.12f) / 0.55f, 0f, 1f)", orb)
+        self.assertNotIn("float surplus = alpha - clipped;", orb)
         # A shader may not repaint his picture, and nothing may draw a ring.
         for retired in ("setShader", "PorterDuff", "GRANULES",
                         "SUN_LIMB_FLOOR", "SUN_EDGE_IN", "SUN_CROWN_INK",
