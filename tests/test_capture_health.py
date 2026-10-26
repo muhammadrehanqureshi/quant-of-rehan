@@ -31,7 +31,10 @@ from src.data.feed_capture import CaptureSession, parse_message  # noqa: E402
 from src.data.ohlc_poller import (  # noqa: E402
     OhlcPoller, capture_coverage_ok, make_opener,
 )
-from scripts.ops_alert import capture_health_message, main as ops_main  # noqa: E402
+from scripts.ops_alert import (  # noqa: E402
+    capture_health_message, main as ops_main,
+    _email_fallback,
+)
 
 
 KARACHI = timezone(timedelta(hours=5))
@@ -275,6 +278,44 @@ class TestTheRelayHasOneSendSeam(unittest.TestCase):
         # The flag path and the --text path: there is no third way out.
         self.assertIn("        send(capture_health_message())", self.source)
         self.assertIn("    send(args.text)", self.source)
+
+class TestTheFallbackReachesTheOwnerEmail(unittest.TestCase):
+    """A relay refusal is not the end of the alert (owner order 2026-10-22).
+
+    Telegram is no longer an owner channel, so the text the relay path
+    cannot carry must land through the owner email issue: the same
+    transport the market broadcasts already use, deduped by marker to
+    exactly one email per day. The seam is owner_email.send, so the
+    transport itself stays out of these tests.
+    """
+
+    def setUp(self):
+        self.source = (ROOT / "scripts" / "ops_alert.py").read_text(
+            encoding="utf-8")
+
+    def test_the_fallback_mounts_on_every_refusal(self):
+        # A token failure, a non-200 answer and a transport error all fall
+        # through; there is no refusal so special it deletes the alert.
+        self.assertEqual(self.source.count("return _email_fallback(text)"), 3)
+
+    def test_the_fallback_sends_through_owner_email_once_per_day(self):
+        with patch("scripts.ops_alert.owner_email.send",
+                   return_value=True) as email, \
+                patch("scripts.ops_alert.now_karachi") as clock:
+            clock.return_value = datetime(2026, 10, 26, 10, 0, tzinfo=KARACHI)
+            self.assertTrue(_email_fallback("relay down"))
+        email.assert_called_once()
+        self.assertEqual(email.call_args.args,
+                         ("relay down", "ops-alert:2026-10-26"))
+
+    def test_a_dead_email_transport_is_reported_not_swallowed(self):
+        # Even the fallback may fail (no token in a bare env, no watched
+        # issue). The call then returns False: visible failure, no lie.
+        with patch("scripts.ops_alert.owner_email.send",
+                   side_effect=RuntimeError("github token missing")), \
+                patch("scripts.ops_alert.now_karachi") as clock:
+            clock.return_value = datetime(2026, 10, 26, 10, 0, tzinfo=KARACHI)
+            self.assertFalse(_email_fallback("relay down"))
 
 
 if __name__ == "__main__":

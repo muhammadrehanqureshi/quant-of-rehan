@@ -10,7 +10,7 @@ import android.util.AttributeSet;
 import android.view.View;
 
 /**
- * The thinking orb (v2.3.5).
+ * The thinking orb (v2.3.6).
  *
  * The feature is the v1.8.9 LIVING PARTICLE CLOUD the owner first approved:
  * 105 nodes gathered around five cluster anchors, joined by fine links,
@@ -41,7 +41,19 @@ import android.view.View;
  *   v2.3.5  the outline was the crown itself, so it is gone: his own rim
  *           and his own corona, read from the picture per screen angle,
  *           plus the pole dissolve and his darker lanes.
+ *   v2.3.6  the corona's gain and smoothing are retuned to the blend the
+ *           prototype grid showed, so his feathered orange fringe reads
+ *           the way his own picture reads it.
  *
+ * Owner order 2026-10-26, eighth pass: "I don't see the orange fuzz from
+ * the reference photo's rim. Also that the sun's fringes aren't the same
+ * categories" (as the reference photo). The seventh pass's face and rim
+ * hold their settings; what they lacked was the fuzz's weight and
+ * breadth: the corona's alpha gain rises from 1.45 to 1.75 and its
+ * lobes widen from 15 to 19 steps of smoothing, the two settings the
+ * prototype grid (sun-preview/emulate_v238.py, variant j, built against
+ * his uploaded render as reference) showed bring the fringe from his own
+ * picture, drawn from his own picture, so it cannot be another category.
  * Owner order 2026-10-25, seventh pass: "there is this one outline on the
  * SUN and even the render of SUN looks really cheap, make it look very
  * realistic", with his picture attached again. He was right about the
@@ -297,13 +309,13 @@ public class ThinkingOrb extends View {
     private static final int FLAME_STEPS = 512;
     private static final int CORONA_STEPS = 28;
     private static final float CORONA_REACH = 0.20f;
-    private static final float CORONA_GAIN = 1.45f;
+    private static final float CORONA_GAIN = 1.75f;
     /** The radii of his rim that are averaged into the ring's own ink. */
     private static final float[] RING_BANDS = {
             0.90f, 0.95f, 1.00f, 1.05f,
     };
     private static final int RING_SMOOTH = 24;
-    private static final int CORONA_SMOOTH = 15;
+    private static final int CORONA_SMOOTH = 19;
 
     /**
      * The eruptions: the owner's "small explosions". Seven bursts, each
@@ -1194,9 +1206,28 @@ public class ThinkingOrb extends View {
                 int blue = ink & 0xFF;
                 float lum = (red * 0.299f + green * 0.587f + blue * 0.114f)
                         / 255f;
-                float alpha = clamp((lum - 0.04f) / 0.34f, 0f, 1f)
+                // v2.3.6: the threshold and slope are the prototype's own
+                // (sun-preview/emulate_v238.py), the two numbers the grid
+                // showed carry the feathered orange fringe; the sixth
+                // pass's 0.04/0.34 fired at a brightness of 4% and burned
+                // out by 38%, which fattened the fade and crushed the
+                // tongue gaps the owner's picture shows.
+                float alpha = clamp((lum - 0.12f) / 0.55f, 0f, 1f)
                         * fade * CORONA_GAIN;
-                int a8 = (int) (Math.min(1f, alpha) * 255f);
+                // The prototype overexposes where the alpha passes 1 (the
+                // hot inner cells push to white, not to the ink's own
+                // level). The packed int cannot hold alpha above 1, so the
+                // surplus lifts the ink itself toward white: the same
+                // clamp the preview applies per channel.
+                float clipped = Math.min(1f, alpha);
+                float surplus = alpha - clipped;
+                if (surplus > 0f) {
+                    red = (int) Math.min(255f, red + surplus * (255f - red));
+                    green = (int) Math.min(255f,
+                            green + surplus * (255f - green));
+                    blue = (int) Math.min(255f, blue + surplus * (255f - blue));
+                }
+                int a8 = (int) (clipped * 255f);
                 raw[r * FLAME_STEPS + i] = (a8 << 24) | (red << 16)
                         | (green << 8) | blue;
             }

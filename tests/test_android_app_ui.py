@@ -1693,8 +1693,8 @@ class VersionTest(unittest.TestCase):
         # boils, the eruptions blow, the bloom bleeds and the filaments
         # breathe in width and ink as well as length.
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="2.3.5"', manifest)
-        self.assertIn('android:versionCode="72"', manifest)
+        self.assertIn('android:versionName="2.3.6"', manifest)
+        self.assertIn('android:versionCode="73"', manifest)
         # The changelog entry ties these user-visible changes to the build.
         readme = (ROOT / "android" / "README.md").read_text(encoding="utf-8")
         self.assertIn("v1.7.9, owner order 2026-10-20", readme)
@@ -1736,9 +1736,10 @@ class VersionTest(unittest.TestCase):
         self.assertIn("Version 2.3.2, versionCode 70", readme)
         self.assertIn("Version 2.3.3, versionCode 71", readme)
         self.assertIn("Version 2.3.5, versionCode 72", readme)
+        self.assertIn("Version 2.3.6, versionCode 73", readme)
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionCode="72"', manifest)
-        self.assertIn('android:versionName="2.3.5"', manifest)
+        self.assertIn('android:versionCode="73"', manifest)
+        self.assertIn('android:versionName="2.3.6"', manifest)
         layout = LAYOUT.read_text(encoding="utf-8")
         strings = STRINGS.read_text(encoding="utf-8")
         main = MAIN.read_text(encoding="utf-8")
@@ -2797,6 +2798,11 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         self.assertIn("FLAME_STEPS = 512", orb)
         self.assertIn("CORONA_STEPS = 28", orb)
         self.assertIn("CORONA_REACH = 0.20f", orb)
+        # v2.3.6 (owner order 2026-10-26, eighth pass): the fuzz's weight
+        # and breadth are pins too, so the corona cannot drift back to the
+        # barely visible fade of the seventh pass.
+        self.assertIn("CORONA_GAIN = 1.75f", orb)
+        self.assertIn("CORONA_SMOOTH = 19", orb)
         self.assertIn("coronaInk[near * FLAME_STEPS + ang]", orb)
         # The pole dissolve.
         self.assertIn("SUN_POLE_IN = 0.64f", orb)

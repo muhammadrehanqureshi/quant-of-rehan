@@ -48,13 +48,14 @@ from src.data.sessions import (  # noqa: E402
     MSG_MARKET_OPEN,
     MarketPhase,
     MarketState,
-    PRE_MARKET_OPEN,
     as_karachi,
     band_bounds,
     market_phase,
     market_state_at,
     now_karachi,
     post_market_window,
+    pre_email_due,
+    pre_email_open_time,
     session_bands,
 )
 from src.notify import owner_email  # noqa: E402
@@ -87,7 +88,10 @@ def due(event: str, moment=None) -> bool:
         # No session today (weekend or PSX holiday): no event is due.
         return False
     if event == "pre":
-        return market_state_at(k) is MarketState.PRE_MARKET
+        # Owner order 2026-10-26: the pre email opens when the pre market
+        # opens, 09:15 PKT Monday to Thursday (the session helper names the
+        # window; the state-only check used to email it at 09:00).
+        return pre_email_due(k)
     if event == "open":
         return market_phase(k) in (MarketPhase.WARMUP, MarketPhase.OPEN)
     if event == "break":
@@ -125,7 +129,11 @@ def event_roadmap(day: date) -> list[tuple[str, str, datetime]]:
     bands = session_bands(day)
     if not bands:
         return []
-    open_h, open_m = PRE_MARKET_OPEN
+    # Owner order 2026-10-26: the pre minute comes from the session
+    # helper (09:15 Monday to Thursday, 09:00 Friday), so the roadmap,
+    # the catch-up backstop and the loop's own passenger cannot drift
+    # apart about when the pre email is due.
+    open_h, open_m = pre_email_open_time(day)
     # A naive wall-time in the law's alone zone (SO-8).
     at = lambda hour, minute: as_karachi(
         datetime(day.year, day.month, day.day, hour, minute))
