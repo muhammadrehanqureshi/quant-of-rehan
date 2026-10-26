@@ -26,7 +26,9 @@ from src.signals.contracts import (  # noqa: E402
 )
 from scripts import intraday_pipeline as pipeline  # noqa: E402
 import scan_loop  # noqa: E402
-from scan_loop import LoopConfig, LoopHealth, ScanLoop  # noqa: E402
+from scan_loop import (  # noqa: E402
+    LoopConfig, LoopHealth, QuietTape, ScanLoop,
+)
 
 MONDAY = date(2026, 10, 12)      # open 09:32, close 15:30
 FRIDAY = date(2026, 10, 9)       # open 09:17, close 16:30
@@ -198,7 +200,12 @@ class TapeCaptureTest(unittest.TestCase):
     """
 
     def _loop(self) -> ScanLoop:
-        return ScanLoop(LoopConfig(dry_run=True))
+        # An injected clock at a MARKET moment: the zero-tape and thin-tape
+        # answers must not depend on the wall time the suite happens to
+        # execute at (a real 09:00 to 09:15 PKT Monday is the pre band's
+        # own quiet now, owner order 2026-10-26).
+        return ScanLoop(LoopConfig(dry_run=True),
+                        clock=lambda: at(MONDAY, 10, 5))
 
     def _tape_path(self, tmp: str) -> Path:
         path = Path(tmp) / "capture_20261012.ndjson"
@@ -286,14 +293,20 @@ class TapeCaptureTest(unittest.TestCase):
         loop = self._loop()
         with tempfile.TemporaryDirectory() as tmp:
             tape_path = self._tape_path(tmp)
-            with patch.object(scan_loop.tape_bars, "capture_path",
-                              return_value=tape_path), \
-                    patch("src.data.live_card.ensure_tape",
-                          return_value=(True, "alive but quiet")), \
-                    patch.object(scan_loop.tape_bars, "build",
-                                 return_value=self._tape(symbols=0)), \
-                    patch.object(scan_loop.tape_bars, "write_low_coverage_flag",
-                                 return_value=None):
+            # _capture reads the REAL clock, so the state behind its
+            # zero-bar branch is pinned: a CI run's own wall time would
+            # otherwise decide the verdict.
+            with (patch.object(scan_loop.tape_bars, "capture_path",
+                               return_value=tape_path),
+                  patch("src.data.live_card.ensure_tape",
+                        return_value=(True, "alive but quiet")),
+                  patch.object(scan_loop, "now_karachi",
+                               return_value=at(MONDAY, 10, 5)),
+                  patch.object(scan_loop.tape_bars, "build",
+                               return_value=self._tape(symbols=0)),
+                  patch.object(scan_loop.tape_bars,
+                               "write_low_coverage_flag",
+                               return_value=None)):
                 with self.assertRaises(ScanFault):
                     loop._capture()
 
@@ -309,6 +322,86 @@ class TapeCaptureTest(unittest.TestCase):
                                  return_value=True) as poller:
                 self.assertTrue(loop._capture())
         poller.assert_called_once()
+
+
+class PreMarketQuietTapeTest(unittest.TestCase):
+    """Owner order 2026-10-26: the pre band's empty tape is a wait, never off.
+
+    On the day that order was mailed, the loop died from its own breaker:
+    five zero-bar cycles inside the pre band crossed the five-failure cap
+    at 09:07, the band stood down and the owner received neither scan nor
+    the 09:32 open email. The pre band's quiet books a pause from now on.
+
+    These are full-path tests, so the fixture builds a live tape source
+    and empty bars, exactly the shape that killed the 2026-10-26 band.
+    """
+
+    def setUp(self) -> None:
+        self._dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self._dir.cleanup)
+        self.health = Path(self._dir.name) / "health.json"
+
+    def _mocks(self, moment: datetime):
+        from contextlib import ExitStack
+        from types import SimpleNamespace
+
+        stack = ExitStack()
+        # _capture reads the REAL clock (scan_loop.now_karachi), so the
+        # state behind the quiet branch is pinned here: no test may depend
+        # on the wall time the suite happens to execute at.
+        stack.enter_context(patch.object(
+            scan_loop, "now_karachi", return_value=moment))
+        tape_path = Path(self._dir.name) / "capture_20261012.ndjson"
+        tape_path.write_text("", encoding="utf-8")
+        stack.enter_context(patch.object(
+            scan_loop.tape_bars, "capture_path", return_value=tape_path))
+        stack.enter_context(patch(
+            "src.data.live_card.ensure_tape",
+            return_value=(True, "broker tape alive")))
+        stack.enter_context(patch.object(
+            scan_loop.tape_bars, "build",
+            return_value=SimpleNamespace(symbols_with_bars=0,
+                                         priced_bars=0, carried_bars=0,
+                                         counter_rows=0)))
+        stack.enter_context(patch.object(
+            scan_loop.tape_bars, "write_low_coverage_flag",
+            return_value=None))
+        return stack
+
+    def test_a_premarket_zero_tape_raises_the_wait_not_the_fault(self):
+        loop = ScanLoop(LoopConfig(dry_run=True), health_path=self.health,
+                        clock=lambda: at(MONDAY, 9, 5))
+        with self._mocks(at(MONDAY, 9, 5)):
+            with self.assertRaises(ScanFault) as ctx:
+                loop._capture()
+        self.assertIsInstance(ctx.exception, QuietTape)
+
+    def test_a_market_zero_tape_is_still_a_fault(self):
+        # A real quantum change of shape: outside the pre band the same
+        # zero-bar tape is a dead input, Blessed, always a fault.
+        loop = ScanLoop(LoopConfig(dry_run=True), health_path=self.health,
+                        clock=lambda: at(MONDAY, 10, 5))
+        with self._mocks(at(MONDAY, 10, 5)):
+            with self.assertRaises(ScanFault) as ctx:
+                loop._capture()
+        self.assertNotIsInstance(ctx.exception, QuietTape)
+
+    def test_a_premarket_quiet_cycle_books_a_pause_and_lives(self):
+        # The whole cycle: the quiet enters the run_decision, is booked
+        # as one pause (never a fault), the health is published and the
+        # loop is ready for its next cycle.
+        loop = ScanLoop(LoopConfig(), health_path=self.health,
+                        clock=lambda: at(MONDAY, 9, 5))
+        with self._mocks(at(MONDAY, 9, 5)), \
+                patch.object(pipeline, "run_scan") as scan:
+            action, outcome = loop.run_cycle()
+        self.assertEqual(action, "scan")
+        self.assertIsNone(outcome)
+        self.assertEqual(loop.health.pauses, 1)
+        self.assertEqual(loop.health.last_verdict, "QUIET")
+        self.assertEqual(loop.health.consecutive_failures, 0)
+        self.assertTrue(self.health.is_file())
+        scan.assert_not_called()
 
 
 class LoopConfigTest(unittest.TestCase):

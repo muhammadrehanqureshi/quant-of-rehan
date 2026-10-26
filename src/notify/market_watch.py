@@ -90,11 +90,20 @@ def event_for(memory: tuple[str, str], moment: datetime) -> tuple[str, str] | No
     The loop's decide table already runs on exactly these phases; this
     mirrors them into the owner's six email events, in the order the
     day lays them out.
+
+    Owner order 2026-10-26: the pre-market email fires when the pre
+    market OPENS, 09:15 PKT Monday to Thursday (his words: "even though
+    the pre market opens on Monday at 09:15"), not on the scanner's own
+    PRE_MARKET state edge at 09:00. sessions.pre_email_due() is that
+    window's one answer, the same helper the email crons and the
+    catch-up roadmap read, so all three paths agree by construction.
+    Friday keeps the 09:00 minute the earlier orders gave it.
     """
     phase, state = memory
-    if not sessions.session_bands(sessions.as_karachi(moment).date()):
+    k = sessions.as_karachi(moment)
+    if not sessions.session_bands(k.date()):
         return None
-    if state == sessions.MarketState.PRE_MARKET.value:
+    if sessions.pre_email_due(k):
         return "pre", ""
     if phase in (sessions.MarketPhase.WARMUP.value,
                  sessions.MarketPhase.OPEN.value) and \
