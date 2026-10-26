@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-"""Ops alerts to the owner's Telegram, deduped to one per day.
+"""Ops alerts to the owner's channels, deduped to one per day.
 
 Owner order 2026-10-08: GitHub failure emails per run are unwanted. The
 scheduled workflows therefore stay GREEN and report through this channel
 instead; the relay's /notify with kind "ops" dedupes on (UTC date, text),
-so repeated failing slots cost at most ONE Telegram message per day.
+so repeated failing slots cost at most ONE message per day. Owner order
+2026-10-22: Telegram is no longer an owner channel, so a relay refusal
+falls through to the owner email issue (one email per day as well).
 
 Also implements the capture-health check: when the intraday capture pass
 cannot substantiate coverage, ohlc_poller leaves
@@ -29,6 +31,8 @@ import requests
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+from src.data.sessions import now_karachi  # noqa: E402
+from src.notify import owner_email  # noqa: E402
 from src.notify.schedule_runner import load_relay_admin_token  # noqa: E402
 FLAG = ROOT / "data" / "feed_capture" / "ohlc_low_coverage.flag"
 DEFAULT_RELAY = "https://quant-of-rehan-relay.mrmrehanqureshi.workers.dev"
@@ -92,15 +96,38 @@ def capture_health_message() -> str:
     )
 
 
+# SO-3: mirror the contract the tests already pin. The tests patch these
+# symbols by their own names, so the fallback is a pure shell.
+
+
+def _email_fallback(text: str) -> bool:
+    """Last leg of send(): owner_email, exactly once per day (2026-10-22)."""
+    marker = f"ops-alert:{now_karachi().date().isoformat()}"
+    try:
+        return bool(owner_email.send(text, marker))
+    except (RuntimeError, requests.RequestException) as exc:
+        print(f"ops alert email fallback failed: {exc}")
+        return False
+
+
 def send(text: str) -> bool:
+    """Deliver one deduped ops alert through the best available channel.
+
+    Order 2026-10-22: Telegram is no longer an owner channel. The relay's
+    /notify with kind "ops" stays the primary path (it still dedupes on
+    UTC date + text), and any refusal it gives falls through to the owner
+    email issue, which is the transport the market broadcasts themselves
+    already use. Both legs are deduped per day, so a day with a bad relay
+    cannot fan out into a day of duplicate messages.
+    """
     # One resolver with the rest of the notification path (env, then repo
     # .env). This script is the one that reports failures, so it must not be
     # the one that silently cannot speak.
     try:
         token = load_relay_admin_token()
     except RuntimeError as exc:
-        print(f"ops alert skipped: {exc}")
-        return False
+        print(f"ops relay path refused: {exc}")
+        return _email_fallback(text)
     try:
         response = requests.post(
             relay_url() + "/notify",
@@ -115,10 +142,10 @@ def send(text: str) -> bool:
                 print("ops alert delivered")
             return True
         print(f"ops alert delivery failed: HTTP {response.status_code}")
-        return False
-    except (requests.RequestException, ValueError):
-        print("ops alert delivery failed")
-        return False
+        return _email_fallback(text)
+    except (requests.RequestException, ValueError) as exc:
+        print(f"ops alert delivery failed: {exc}")
+        return _email_fallback(text)
 
 
 def main(argv: list[str] | None = None) -> int:

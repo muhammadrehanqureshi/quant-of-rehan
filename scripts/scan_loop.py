@@ -94,7 +94,8 @@ from src import config  # noqa: E402
 from src.ci.local_only import guard_owner_requested  # noqa: E402
 from src.data import tape_bars  # noqa: E402
 from src.data.sessions import (  # noqa: E402
-    next_open, now_karachi, session_window_text,
+    MarketState, market_state_at, next_open, now_karachi,
+    session_window_text,
 )
 
 # The grid the loop sleeps to, owned by the async scheduler: one answer to
@@ -132,6 +133,20 @@ HEALTH_FILE = ROOT / "data" / "scan_loop_health.json"
 
 LOGGER = logging.getLogger("scan_loop")
 
+
+class QuietTape(ScanFault):
+    """The tape is alive but holds no bars yet, in the owner's own pre band.
+
+    Owner order 2026-10-21 ("pre market scan") made the pre-market window a
+    live scan window, and owner order 2026-10-26 ("the pre market opens on
+    Monday at 09:15") confirmed the pre band as its own state on the day the
+    loop died from it: at 09:00:04 PKT the five minute of the pre band held
+    zero bars, five ScanFaults raised the 5-failure breaker, and the band
+    loop stopped at 09:07 and never reached the 09:32 open (so the owner got
+    neither scan nor the open email). A quiet pre band is a WAIT, never a
+    failure: this subclass lets the cycle answer without touching the
+    failure count, so the loop lives across the gap it is supposed to live
+    across. """
 
 # --------------------------------------------------------------------- config
 
@@ -421,6 +436,18 @@ class ScanLoop:
         fault: ScanFault | None = None
         try:
             outcome = self._execute(action, slot, moment)
+        except QuietTape as quiet:
+            # Owner order 2026-10-26: the pre-market band's empty tape is
+            # the band's own quiet, counted as a pause like a wait cycle
+            # and never as a failure, so the 5-failure breaker that ended
+            # the 2026-10-26 band at 09:07 cannot fire on it again. The
+            # next cycle simply runs again when the slot's boundary sits.
+            self.health.pauses += 1
+            self.health.last_verdict = "QUIET"
+            self.health.last_reason = str(quiet)
+            LOGGER.info("cycle %d: quiet (%s)", self.health.cycles, quiet)
+            self.health.save(self.health_path)
+            return action, None
         except ScanFault as fault:
             self.health.note_fault(fault)
             LOGGER.warning("cycle %d: %s class=%s retryable=%s detail=%s",
@@ -615,6 +642,14 @@ class ScanLoop:
         if not alive:
             raise ScanFault(f"broker tape down: {note}")
         if tape.symbols_with_bars == 0:
+            # Owner order 2026-10-26: inside the PRE_MARKET state the tape
+            # legitimately holds no bars (quotes only, no trades yet), so
+            # this is the pre band's own quiet, not a dead feed. Counted
+            # as a pause, never as a failure, so the breaker that stopped
+            # the band at 09:07 today can never fire on it again.
+            if market_state_at(moment) is MarketState.PRE_MARKET:
+                raise QuietTape(
+                    f"the tape is alive but holds no bars yet: {note}")
             raise ScanFault(f"the tape is alive but holds no bars yet: {note}")
         flag = tape_bars.write_low_coverage_flag(
             tape, len(symbols),
