@@ -10,13 +10,13 @@ import android.util.AttributeSet;
 import android.view.View;
 
 /**
- * The thinking orb (v2.3.6).
+ * The thinking orb (v2.3.7).
  *
  * The feature is the v1.8.9 LIVING PARTICLE CLOUD the owner first approved:
- * 105 nodes gathered around five cluster anchors, joined by fine links,
- * turning rigidly in yaw with a breathing pitch and projected in
- * perspective, every node breathing radially on its own phase, around an
- * always-burning sun at its centre.
+ * 105 nodes spread evenly over a shell around the centre (v2.3.7 retuned the
+ * v1.8.9 cluster gather, order below), joined by fine links, turning rigidly
+ * in yaw with a breathing pitch and projected in perspective, every node
+ * breathing radially on its own phase, around an always-burning sun.
  *
  * The sun's own history, because each pass below is an order of his and the
  * constants in this file are the answers to it:
@@ -44,8 +44,42 @@ import android.view.View;
  *   v2.3.6  the corona's gain and smoothing are retuned to the blend the
  *           prototype grid showed, so his feathered orange fringe reads
  *           the way his own picture reads it.
+ *   v2.3.7  the cloud is an EVEN shell (order of 2026-10-26: one side
+ *           tangled, the other side no lines), the filament breath is
+ *           one fifth its v2.3.3 swing with its ink floor lifted so
+ *           nothing blinks ("everything is flickering", same order),
+ *           and the sun's own surface pass runs at 60ms instead of on
+ *           every frame, because a 256x256 pass inside a 33ms budget
+ *           janked the fire into stutter ("the SUN is flickering").
  *
- * Owner order 2026-10-26, eighth pass: "I don't see the orange fuzz from
+ * Owner order 2026-10-26, ninth pass, with the three phone screenshots:
+ * "also, the AI looking feature, the SUN and the LINES every thing is
+ * flickering, make it fucking stop, also, the lines are really tangled
+ * and overlapping, on one side of the LINES there are so many tangled
+ * lines and on the other side of the LINES there are literally no
+ * LINES". Three answers, none of them new noise:
+ *
+ *   1. THE CLOUD IS AN EVEN SHELL. The v1.8.9 cluster gather put five
+ *      anchor bundles in the same 3D space, so their projections
+ *      collapsed into one crowded lobe with an empty opposite side, and
+ *      that is exactly the screen he sent. A Fibonacci walk over the
+ *      sphere puts every node about as far from its neighbours as every
+ *      other, in every direction, so the web fills all the way around
+ *      the sun.
+ *   2. NOTHING BLINKS. The v2.3.3 breath swung each filament's ink
+ *      between 0.1x and 1.4x, so 546 differently phased lines dipped to
+ *      near-invisible alpha cyclically, and that cycle read as the
+ *      whole feature flickering. The swing is one fifth now and the
+ *      ink's factor floors at 0.90, so the breathing stays and the
+ *      blinking goes.
+ *   3. NO FRAME SKIPS THE BUDGET. The sun's surface pass (256x256, two
+ *      map reads, seven eruptions, bloom and blur) refired inside every
+ *      33ms frame; when it overran, whole frames dropped and the
+ *      surface jumped, which is what he saw as the SUN flickering. The
+ *      surface now refires at a 60ms cadence and the fire's own speed
+ *      barely hides the difference.
+ *
+ * Owner order 2026-10-25, eighth pass: "I don't see the orange fuzz from
  * the reference photo's rim. Also that the sun's fringes aren't the same
  * categories" (as the reference photo). The seventh pass's face and rim
  * hold their settings; what they lacked was the fuzz's weight and
@@ -54,6 +88,7 @@ import android.view.View;
  * prototype grid (sun-preview/emulate_v238.py, variant j, built against
  * his uploaded render as reference) showed bring the fringe from his own
  * picture, drawn from his own picture, so it cannot be another category.
+ *
  * Owner order 2026-10-25, seventh pass: "there is this one outline on the
  * SUN and even the render of SUN looks really cheap, make it look very
  * realistic", with his picture attached again. He was right about the
@@ -104,11 +139,11 @@ import android.view.View;
  *      pixel of the edge carries partial coverage. The ball's alpha is
  *      still the wake alone, so a solid ball cannot flicker.
  *
- * The cloud answers the other two sentences: every node now wears at least
- * one filament (no naked dots), the filament fade bottoms out above zero
- * (a link at the cap used to be painted at alpha zero, which is exactly the
- * invisible thread), and the breath is nearly tripled, so the outer lines
- * visibly swell and thin instead of changing length by a few percent.
+ * The cloud answers the other two sentences: every node wears at least
+ * one filament (no naked dots) and the filament fade bottoms out above
+ * zero (a link at the cap used to be painted at alpha zero, which is
+ * exactly the invisible thread); the breath keeps breathing, at the
+ * gentler ninth-pass swing, so the lines pulse without blinking.
  *
  * The park law of v1.9.14 stands: stop() freezes the pose the loop last
  * DREW and the parked frame REPAINTS it fully awake, so a closed market, a
@@ -128,8 +163,6 @@ public class ThinkingOrb extends View {
 
     /** The population. Chosen once; more nodes would cost every frame. */
     private static final int NODES = 105;
-    /** Cluster anchors the nodes are gathered around. */
-    private static final int CLUSTERS = 5;
     /** Per-node slots in the cloud[] record: x, y, z, breath, shimmer. */
     private static final int NODE_STRIDE = 5;
     /** Per-node pace of the frame loop, aimed at a smooth 30fps. */
@@ -217,6 +250,9 @@ public class ThinkingOrb extends View {
     private static final float SUN_BALL = 96f;
     /** Where the light dies: the bitmap's own half width, in ball radii. */
     private static final float SUN_REACH = SUN_RENDER / 2f / SUN_BALL;
+
+    /** The surface's own refresh cadence, in seconds (v2.3.7). */
+    private static final float SUN_REFRESH_S = 0.06f;
 
     /**
      * The planet map. Row 0 is the top of the ball and the last row its
@@ -471,55 +507,42 @@ public class ThinkingOrb extends View {
     }
 
     /**
-     * One full build of the cloud (v1.8.9 kept): cluster anchors, node
-     * placement, link list. Runs once per size; never on the frame path.
+     * One full build of the cloud (v1.8.9's life kept, v2.3.7's even
+     * shell): node placement on the shell, then the link list. Runs once
+     * per size; never on the frame path.
      */
     private void buildGeometry() {
-        long seed = 20261022L;
-        float[] anchorX = new float[CLUSTERS];
-        float[] anchorY = new float[CLUSTERS];
-        float[] anchorZ = new float[CLUSTERS];
-        for (int c = 0; c < CLUSTERS; c++) {
-            seed = nextSeed(seed);
-            float u = frac(seed) * 2f - 1f;
-            seed = nextSeed(seed);
-            float theta = frac(seed) * (float) Math.PI * 2f;
-            float s = (float) Math.sqrt(1f - u * u);
-            // Anchors sit between the sun and the shell, reachable by links.
-            anchorX[c] = s * (float) Math.cos(theta) * 0.55f;
-            anchorY[c] = u * 0.55f;
-            anchorZ[c] = s * (float) Math.sin(theta) * 0.55f;
-        }
+        //
+        // v2.3.7 (owner order 2026-10-26, ninth pass, with the phone
+        // screenshot attached): "the lines are really tangled and
+        // overlapping, on one side of the LINES there are so many tangled
+        // lines and on the other side of the LINES there are literally
+        // no LINES". He was right, and the cause was the v1.8.9 cluster
+        // law itself: five anchor gathering points meant five bundles,
+        // and whenever their projections overlapped the whole mesh
+        // collapsed into one crowded lobe with an empty opposite side.
+        // A bundle can never fill a sphere, and the empty half of the
+        // screen is the proof. So the shell is EVEN now: the nodes take
+        // a golden-angle walk over the sphere, which puts every node
+        // about as far from its nearest neighbours as every other, in
+        // every direction, and the web then reads all the way around
+        // the sun. The radius rides 0.78..1.06 on a seeded per-node walk,
+        // so the rim keeps some raggedness without any group forming.
+        float radiusSeed = 20261026L;
         for (int n = 0; n < NODES; n++) {
-            int anchor = n % CLUSTERS;
-            seed = nextSeed(seed);
-            float jitter1 = frac(seed) * 2f - 1f;
-            seed = nextSeed(seed);
-            float jitter2 = frac(seed) * 2f - 1f;
-            seed = nextSeed(seed);
-            float jitter3 = frac(seed) * 2f - 1f;
-            // Pull toward the anchor, then relax outward; most nodes hug a
-            // cluster, the rest scatter into the halo between anchors.
-            float x = anchorX[anchor] + jitter1 * 0.42f;
-            float y = anchorY[anchor] + jitter2 * 0.42f;
-            float z = anchorZ[anchor] + jitter3 * 0.42f;
-            float length = (float) Math.sqrt(x * x + y * y + z * z);
-            float pulled = (n % 4 == 0) ? 1.05f : 0.78f;
-            float scale = pulled / Math.max(length, 0.01f);
-            x *= scale;
-            y *= scale;
-            z *= scale;
-            // A few escapees sit well outside the clusters, for the cloud's
-            // ragged rim the reference picture carries.
-            if (n % 9 == 0) {
-                x *= 1.25f;
-                y *= 1.25f;
-                z *= 1.25f;
-            }
+            // The seeded swing: one step per node, the same every run.
+            radiusSeed = nextSeed(radiusSeed);
+            float y = 1f - 2f * (n + 0.5f) / (float) NODES;
+            float s = (float) Math.sqrt(1f - y * y);
+            float theta = 2.39996f * n;
+            float swing = 0.28f * frac(radiusSeed);
+            float radius = 0.78f + swing;
+            float x = s * (float) Math.cos(theta) * radius;
+            float z = s * (float) Math.sin(theta) * radius;
             int o = n * NODE_STRIDE;
-            cloud[o] = clampAbs(x, 0.97f);
-            cloud[o + 1] = clampAbs(y, 0.97f);
-            cloud[o + 2] = clampAbs(z, 0.97f);
+            cloud[o] = clampAbs(x, 1f);
+            cloud[o + 1] = clampAbs(y * radius, 1f);
+            cloud[o + 2] = clampAbs(z, 1f);
             cloud[o + 3] = n * 0.7f;
             cloud[o + 4] = n * 1.9f;
         }
@@ -650,9 +673,20 @@ public class ThinkingOrb extends View {
         if (sunBall == null) {
             return;     // no sphere built, no picture invented (SO-3)
         }
-        float phi = seconds * SUN_SPIN_RATE * MOTION_SCALE * SUN_SLOWDOWN;
+        // Owner order 2026-10-26 ("the SUN ... is flickering"): the
+        // surface refires its whole 256x256 pass (two map reads, seven
+        // eruptions, bloom and blur) on every 33ms frame, and on a busy
+        // phone a pass that takes longer than the frame rate janks the
+        // picture into stutter, which is the flicker he saw. The fire moves at
+        // 0.41 rad/s, so a 60ms surface cadence is well below its own
+        // speed; the cloud keeps its 30fps around it.
+        boolean fresh = sunSeconds < 0f
+                || seconds - sunSeconds >= SUN_REFRESH_S;
         sunSeconds = seconds;
-        renderSunBall(phi);
+        if (fresh) {
+            renderSunBall(seconds * SUN_SPIN_RATE * MOTION_SCALE
+                    * SUN_SLOWDOWN);
+        }
         sunPaint.setAlpha((int) (255f * wake));
         // The destination holds the whole bitmap, whose ball is SUN_BALL of
         // its half, so the disc still draws at ballR and the glow gets its
@@ -1435,16 +1469,20 @@ public class ThinkingOrb extends View {
             // viewer, so filaments brighten as their ends come forward.
             float toward = clamp((midway - 1f) / 0.6f, 0f, 1f)
                     * linkFade(linkDist[l]);
-            // Owner order 2026-10-25 ("the big lines ... should be getting
-            // a big small and then get bigger"), answered again in v2.3.3
-            // because the phone showed "still not breathing": the breath
-            // carries the filament's width and its ink as well as its
-            // length, and the swing is tripled, so it is unmistakable.
+            // Owner order 2026-10-26 ("everything is flickering, make it
+            // \ FUCKING stop") supersedes the tripled-swing order of
+            // 2026-10-25. The breath keeps breathing, but the swing is
+            // one fifth of the tripled value, and the ink's factor now
+            // sits at 0.90..1.12 instead of 0.10..1.43: the trough used
+            // to pull a filament's alpha to near zero every half second,
+            // which with 546 different phases read as the whole web
+            // flashing. A line now swells and thins gently and never
+            // crosses into itself.
             float breathWave = (float) Math.sin(
                     seconds * 0.55f * MOTION_SCALE + linkPhase[l]);
-            float widthBreath = 1f + 0.60f * breathWave;
+            float widthBreath = 1f + 0.12f * breathWave;
             int alpha = (int) ((70f + 165f * toward) * wake
-                    * (0.55f + 0.55f * widthBreath));
+                    * (0.90f + 0.22f * widthBreath));
             linkPaint.setAlpha(Math.min(255, alpha));
             linkPaint.setStrokeWidth(linkWidth * (0.8f + 0.45f * toward)
                     * widthBreath);

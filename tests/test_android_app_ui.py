@@ -1693,8 +1693,8 @@ class VersionTest(unittest.TestCase):
         # boils, the eruptions blow, the bloom bleeds and the filaments
         # breathe in width and ink as well as length.
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="2.3.6"', manifest)
-        self.assertIn('android:versionCode="73"', manifest)
+        self.assertIn('android:versionName="2.3.7"', manifest)
+        self.assertIn('android:versionCode="74"', manifest)
         # The changelog entry ties these user-visible changes to the build.
         readme = (ROOT / "android" / "README.md").read_text(encoding="utf-8")
         self.assertIn("v1.7.9, owner order 2026-10-20", readme)
@@ -1737,9 +1737,12 @@ class VersionTest(unittest.TestCase):
         self.assertIn("Version 2.3.3, versionCode 71", readme)
         self.assertIn("Version 2.3.5, versionCode 72", readme)
         self.assertIn("Version 2.3.6, versionCode 73", readme)
+        # v2.3.7 (owner order 2026-10-26, ninth pass): the flicker and the
+        # tangle pass, versionCode 74.
+        self.assertIn("Version 2.3.7, versionCode 74", readme)
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionCode="73"', manifest)
-        self.assertIn('android:versionName="2.3.6"', manifest)
+        self.assertIn('android:versionCode="74"', manifest)
+        self.assertIn('android:versionName="2.3.7"', manifest)
         layout = LAYOUT.read_text(encoding="utf-8")
         strings = STRINGS.read_text(encoding="utf-8")
         main = MAIN.read_text(encoding="utf-8")
@@ -2408,7 +2411,9 @@ class MenuOrdersTest(unittest.TestCase):
         split = split[:split.index("private List<String> rankedSpeedSymbols")]
         speed = self.main[self.main.index(
             "private List<String> rankedSpeedSymbols"):]
-        speed = speed[:speed.index("One dropdown row")]
+        # v2.3.7: the row builder is the reveal; the slice ends at it.
+        speed = speed[:speed.index(
+            "private SpannableStringBuilder volumeRevealText(")]
         # Split: complete ranges only, ranked by buy + sell combined.
         self.assertIn("quote.buy != null && quote.sell != null", split)
         self.assertIn("qa.buy + qa.sell", split)
@@ -2425,9 +2430,32 @@ class MenuOrdersTest(unittest.TestCase):
         self.assertNotIn("Math.abs(moveB)", speed)
         self.assertNotIn("Math.abs(moveA)", speed)
         # The riser rows carry the owner's own six numbers.
-        self.assertIn("private List<String> quoteLinesRiser(", self.main)
-        self.assertIn("B %,d  S %,d  T %,d", self.main)
-        self.assertIn("quoteLinesRiser(quotes, ranked)", self.main)
+        # Owner order 2026-10-26 ("there is no consistency, no = sign,
+        # no , sign, no green and red colors"): the volume reveal prints
+        # the leaders card's own sentence, both menus, one shape. The
+        # riser's "B %,d  S %,d  T %,d" and the ranking's bare quote
+        # lines are both retired: one spannable builder serves them.
+        self.assertIn("private SpannableStringBuilder volumeRevealText(", self.main)
+        self.assertNotIn("quoteLinesRiser", self.main)
+        self.assertNotIn("List<String> quoteLines(", self.main)
+        block = self.main[self.main.index(
+            "private SpannableStringBuilder volumeRevealText(") :]
+        block = block[:block.index("/** One coloured quantity")]
+        # The leaders card's own bracket, comma after B, ampersand before T.
+        self.assertEqual(block.count("\\u00A0(B="), 1)
+        self.assertEqual(block.count(",\\u00A0S="), 1)
+        self.assertEqual(block.count("\\u00A0&\\u00A0T="), 1)
+        # The buy digits in green and the sell digits in red, the money
+        # line with the coloured arrow and the glyph face.
+        self.assertIn("colorQuantity(sb, quote.buy, R.color.green)", block)
+        self.assertIn("colorQuantity(sb, quote.sell, R.color.red)", block)
+        self.assertIn("TypefaceSpan(ARROW_FACE)", block)
+        self.assertIn("R.color.green : R.color.red", block)
+        self.assertIn("private void colorQuantity(SpannableStringBuilder sb, long value, int res)", self.main)
+        reveal = self.main[self.main.index("private void paintVolumeReveal"):]
+        reveal = reveal[:reveal.index("/** One coloured quantity")]
+        self.assertIn("volumeRevealText(quotes, ranked)", reveal)
+        self.assertIn("volumeReveal.setText(styled)", reveal)
 
     def test_the_version_line_names_the_manifest(self):
         version = element(self.layout, 'android:id="@+id/app_version"')
@@ -2504,13 +2532,16 @@ class KarachiInkTest(unittest.TestCase):
 
 
 class SearchHighlightTest(unittest.TestCase):
-    """Owner order 2026-10-22: as the owner types, the rows that match
-    light up, and the row that says the whole answer lights hardest.
+    """Owner orders, stacked: 2026-10-22 gave the typing matches their
+    light and made it a fact of the QUERY; 2026-10-26 ("it should be
+    highlighted in the theme's own colors") took the light out of the
+    brand gold and put it in the theme's own family, because the gold
+    plate read as the orange block he keeps sending back.
 
-    Typing H lights every H... scrip; typing HU narrows the light; the
-    moment HUBC is complete its row carries the strongest gold of the
-    list. Both plate intensities come from the palette by name, and the
-    highlight is a fact of the QUERY, never of the selection.
+    A prefix match wears the theme's panel ink lifted a step (the default
+    theme's lighter plum), and the exact match closes with a hairline in
+    the theme's heading ink. The matched symbol keeps the body's ink; the
+    green/red price tail is the quote's own and survives untouched.
     """
 
     def test_every_row_is_styled_against_the_live_query(self):
@@ -2529,17 +2560,26 @@ class SearchHighlightTest(unittest.TestCase):
         block = block[:block.index("/** One symbol's B, S and T")]
         self.assertIn("boolean exactMatch = symbol.length() == q.length();", block)
         self.assertIn("symbol.startsWith(q)", block)
-        self.assertIn("R.color.gold_match", block)
-        self.assertIn("R.color.gold_press", block)
+        # The theme's own ink, never the brand gold: the plate is built
+        # from the live theme, and no gold text lands on a matched row.
+        self.assertIn("row.setBackground(highlightPlate(exactMatch));", block)
+        self.assertIn("private GradientDrawable highlightPlate(boolean exact)", block)
+        self.assertNotIn("R.color.gold", block)
         self.assertIn("row.setBackground(null);", block)
 
-    def test_the_match_plates_are_the_brand_gold_at_two_intensities(self):
-        colors = COLORS.read_text(encoding="utf-8")
-        # D9A441 at 20% (a prefix match) and at 35% (the exact one): one
-        # brand ink, two how-loud answers, declared in values/colors.xml
-        # rather than invented in Java.
-        self.assertIn('<color name="gold_press">#33D9A441</color>', colors)
-        self.assertIn('<color name="gold_match">#59D9A441</color>', colors)
+    def test_the_highlight_plates_are_the_theme_s_own_family(self):
+        main = MAIN.read_text(encoding="utf-8")
+        start = main.index("private GradientDrawable highlightPlate(")
+        block = main[start:main.index("/** One symbol's B, S and T", start)]
+        # Default theme: the lighter plum lifted over the field's dark,
+        # with the panel edge as the exact match's hairline. Other themes:
+        # that theme's own panel ink with its heading ink as the hairline.
+        self.assertIn("R.color.plum_panel_top", block)
+        self.assertIn("R.color.bg_panel_edge", block)
+        self.assertIn("panelResourceFor(themeIndex)", block)
+        self.assertIn("hintInkFor(themeIndex)", block)
+        self.assertIn("plate.setStroke(exact ? 1 : 0", block)
+        self.assertNotIn("R.color.gold", block)
 
     def test_the_highlight_rides_the_keystroke_render_not_a_request(self):
         main = MAIN.read_text(encoding="utf-8")
@@ -2647,15 +2687,15 @@ class ThinkingOrbPlanTest(unittest.TestCase):
             encoding="utf-8")
         """Owner order 2026-10-23 (seventh pass, v2.2.0): the feature is
         the v1.8.9 LIVING PARTICLE CLOUD the owner first approved - NODES
-        gathered around CLUSTERS cluster anchors, joined by fine links,
-        turning rigidly in yaw with a breathing pitch and projected in
-        perspective, every node breathing radially on its own phase. The
-        radial burst of v2.1.0 and the rings of v1.9.13/v1.9.14 are
-        retired, and the cloud circles its own SUN.
+        joined by fine links, turning rigidly in yaw with a breathing
+        pitch and projected in perspective, every node breathing radially
+        on its own phase. The radial burst of v2.1.0 and the rings of
+        v1.9.13/v1.9.14 are retired, and the cloud circles its own SUN.
+        v2.3.7 retunes the gather to the EVEN shell (see below).
         """
         # Populations are named constants, so the count is one decision.
+        # v2.3.7 retires CLUSTERS with the gather it owned.
         self.assertIn("private static final int NODES = 105;", orb)
-        self.assertIn("private static final int CLUSTERS = 5;", orb)
         self.assertIn("MOTION_SCALE = 1.3f", orb)
         self.assertIn("private static final int NODE_STRIDE = 5;", orb)
         # The retired machinery may not come back.
@@ -2672,6 +2712,20 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         # and the fire ink stand; the filaments simply no longer cross.
         self.assertIn("private void buildGeometry() {", orb)
         self.assertIn("float linkAt = 0.42f;", orb)
+        # v2.3.7 (owner order 2026-10-26, "the lines are really tangled
+        # and overlapping, on one side of the LINES there are so many
+        # tangled lines and on the other side of the LINES there are
+        # literally no LINES"): the cluster gather is RETIRED - a bundle
+        # can never fill a sphere, and the cluster projection collapsing
+        # onto itself is the empty half he sent. The shell is EVEN now:
+        # a golden-angle Fibonacci walk over the sphere, seeded so the
+        # build is the same every run (never Math.random; the build is
+        # one decision). The seeded radius walk keeps the rim ragged.
+        self.assertIn("float y = 1f - 2f * (n + 0.5f) / (float) NODES;", orb)
+        self.assertIn("float theta = 2.39996f * n;", orb)
+        self.assertIn("float radiusSeed = 20261026L;", orb)
+        self.assertIn("float radius = 0.78f + swing;", orb)
+        self.assertNotIn("CLUSTERS", orb)
         # v2.3.3: the fade bottoms out above zero, because a link at the cap
         # painted at alpha zero is the invisible thread that left its nodes
         # looking like the owner's "independent dots without any lines".
@@ -2813,8 +2867,14 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         self.assertIn("SUN_SPIN_RATE = 0.35f", orb)
         self.assertIn("SUN_SLOWDOWN = 0.9f", orb)
         self.assertIn("SUN_AXIS_TILT = 10f", orb)
-        self.assertIn("float phi = seconds * SUN_SPIN_RATE * MOTION_SCALE"
-                      " * SUN_SLOWDOWN;", orb)
+        # v2.3.7 (owner order 2026-10-26): the surface pass runs on its own
+        # 60ms cadence, so phi is handed in at the one gated call site.
+        self.assertIn("SUN_REFRESH_S = 0.06f", orb)
+        self.assertIn("boolean fresh = sunSeconds < 0f", orb)
+        self.assertIn("|| seconds - sunSeconds >= SUN_REFRESH_S;", orb)
+        self.assertIn("renderSunBall(seconds * SUN_SPIN_RATE * MOTION_SCALE",
+                      orb)
+        self.assertIn("* SUN_SLOWDOWN);", orb)
         self.assertIn("float spin = phi / SUN_LAP * SUN_MAP_W;", orb)
         self.assertIn("sampleMap(sphereU[k] + spin, sphereV[k])", orb)
         # The triangle wrap: linear across the visible half turn, mirrored
@@ -2866,13 +2926,18 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         self.assertIn("linkPhase[linkCount] = 2.39996f * linkCount;", orb)
         self.assertIn("seconds * 0.55f * MOTION_SCALE + linkPhase[l]", orb)
         # v2.3.3 (owner order 2026-10-25: "the outside revolving lines are
-        # still not breathing"): the swing is tripled, so the filament's
-        # width runs from 0.4 to 1.6 of its own and its ink swings with it.
-        # A breath the phone cannot show is the same as no breath.
+        # still not breathing") tripled the swing. v2.3.7 (owner order
+        # 2026-10-26: "the SUN and the LINES every thing is flickering,
+        # make it fucking stop") supersedes it: with 546 differently
+        # phased filaments the tripled swing pulled a line's ink to
+        # near-invisible every half second, and the whole web read as
+        # flashing, so the swing is one fifth of it and the ink's factor
+        # floors at 0.90. The breath stays (the lines still swell and
+        # thin gently); the blinking goes.
         self.assertIn("float breathWave = (float) Math.sin(", orb)
-        self.assertIn("float widthBreath = 1f + 0.60f * breathWave;", orb)
+        self.assertIn("float widthBreath = 1f + 0.12f * breathWave;", orb)
         self.assertIn("float breath = 1f + 0.30f * breathWave;", orb)
-        self.assertIn("* (0.55f + 0.55f * widthBreath));", orb)
+        self.assertIn("* (0.90f + 0.22f * widthBreath));", orb)
         self.assertIn("* widthBreath);", orb)
         self.assertIn("float midX = (ax + bx) / 2f;", orb)
         self.assertIn("float midY = (ay + by) / 2f;", orb)
@@ -2960,6 +3025,15 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         self.assertIn("float decay = 1f - smoothstep(0.34f, 1f, t);", step)
         self.assertNotIn("Math.random", step)
         self.assertNotIn("Random", orb)
+        # v2.3.7 (owner order 2026-10-26: "the SUN ... is flickering"): a
+        # 256x256 surface pass with two map reads, seven eruptions, bloom
+        # and blur refiring inside every 33ms frame dropped whole frames
+        # on a busy phone, and the dropped frames are what read as the
+        # ball jumping. The surface refires at its own 60ms cadence - the
+        # fire moves at 0.41 rad/s, so the cadence stays far below the
+        # fire's own speed - while the cloud keeps its 30fps.
+        self.assertIn("SUN_REFRESH_S = 0.06f", orb)
+        self.assertIn("seconds - sunSeconds >= SUN_REFRESH_S", orb)
 
     def test_the_balls_texture_is_his_picture_and_its_limb_is_his_curve(self):
         orb = (MAIN.parent / "ThinkingOrb.java").read_text(

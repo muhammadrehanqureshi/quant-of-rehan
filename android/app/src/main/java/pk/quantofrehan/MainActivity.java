@@ -9,6 +9,7 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.text.Editable;
 import android.text.SpannableString;
+import android.text.SpannableStringBuilder;
 import android.text.TextWatcher;
 import android.text.style.ForegroundColorSpan;
 import android.text.style.TypefaceSpan;
@@ -1020,7 +1021,11 @@ public class MainActivity extends Activity {
      *  the chosen menu, one line per scrip. Nothing reveals before he
      *  picks, and a menu with no lines on the feed keeps hiding (SO-3).
      *  A tick that changes no line does not rebuild the text; the search
-     *  rows keep their own gate. */
+     *  rows keep their own gate.
+     *
+     *  v2.3.7 (owner order 2026-10-26, "there is no consistency"): both
+     *  menus print ONE sentence now, the leaders card's own shape.
+     */
     private void paintVolumeReveal() {
         if (volumeReveal == null) {
             return;
@@ -1031,38 +1036,30 @@ public class MainActivity extends Activity {
         }
         java.util.Map<String, Watcher.Quote> quotes = Watcher.quotes();
         // v2.2.5: row 0 is the scanner's riser entry (PRICES RISING FAST),
-        // row 1 the busiest B/S ranking (MORE BUYERS & LESS SELLERS). The
-        // riser rows carry the owner's own six numbers (B, S, T, price,
-        // percent), the B/S ranking keeps its quote lines.
+        // row 1 the busiest B/S ranking (MORE BUYERS & LESS SELLERS). Since
+        // v2.3.7 both carry the same sentence: the quantity bracket with
+        // the green buy and the red sell, and the money line with the now
+        // coloured arrow, so no menu prints a format of its own.
         List<String> ranked = volumeSplitChoice == 1
                 ? rankedSplitSymbols(quotes)
                 : rankedSpeedSymbols(quotes);
-        List<String> lines = volumeSplitChoice == 1
-                ? quoteLines(quotes, ranked)
-                : quoteLinesRiser(quotes, ranked);
-        if (lines.isEmpty()) {
+        SpannableStringBuilder styled = volumeRevealText(quotes, ranked);
+        if (styled.length() == 0) {
             volumeReveal.setVisibility(View.GONE);
-            volumeLines = new ArrayList<>();
+            volumeLines = "";
             return;
         }
-        if (lines.equals(volumeLines)) {
+        if (styled.toString().equals(volumeLines)) {
             return;
         }
-        StringBuilder text = new StringBuilder();
-        for (int i = 0; i < lines.size(); i++) {
-            if (i > 0) {
-                text.append('\n');
-            }
-            text.append(lines.get(i));
-        }
-        volumeLines = lines;
-        volumeReveal.setText(text);
+        volumeLines = styled.toString();
+        volumeReveal.setText(styled);
         volumeReveal.setVisibility(View.VISIBLE);
     }
 
-    /** The last lines shown in the reveal, so a tick that changes no
+    /** The last plain text shown in the reveal, so a tick that changes no
      *  number does not repaint it. */
-    private List<String> volumeLines = new ArrayList<>();
+    private String volumeLines = "";
 
     /**
      * Menu 1 (owner order 2026-10-23; retitled v2.1.0, v2.2.1's ONE
@@ -1134,59 +1131,75 @@ public class MainActivity extends Activity {
         return symbols.subList(0, Math.min(symbols.size(), 3));
     }
 
-    /** One dropdown row: the ticker, then its own price and move, the same
-     *  answer the search rows print under their tickers. */
-    private List<String> quoteLines(java.util.Map<String, Watcher.Quote> quotes,
-                                    List<String> symbols) {
-        List<String> lines = new ArrayList<>();
-        for (String symbol : symbols) {
-            Watcher.Quote quote = quotes.get(symbol);
-            if (quote == null) {
-                lines.add(symbol);
-            } else if (quote.changePct == null) {
-                lines.add(String.format(Locale.US, "%s  PKR %,.2f",
-                        symbol, quote.price));
-            } else {
-                lines.add(String.format(Locale.US, "%s  PKR %,.2f %+,.2f%%",
-                        symbol, quote.price, quote.changePct));
-            }
-        }
-        return lines;
-    }
-
     /**
-     * One riser row (v2.2.5 owner order above, "buyers, sellers, total
-     * volume, current price and current percentage"): the ticker, then
-     * B and S from the relay's own split, T the true session volume the
-     * split adds back to, then the price and the move. A split whose
-     * frame is incomplete prints WITHOUT its B/S/T rather than printing
-     * zeros dressed as numbers (SO-3): the row is one number pair fewer,
-     * not a guess.
+     * The three scrips of the chosen menu, in the SAME sentence the
+     * leaders card prints (v2.3.7, owner order 2026-10-26, "there is no
+     * consistency, no = sign, no , sign, no green and red colors"):
+     *
+     *   "1. NRSL (B=1,662,818, S=1,762,588 & T=3,425,406)"
+     *   "PKR 32.36 ▲ 4.64%"
+     *
+     * The quantities are the leaders card's own bracket, the plain "="
+     * after each letter, the comma after B and the ampersand before T,
+     * the buy digits in the brand green and the sell digits in the brand
+     * red (2026-10-24's colour law), the total neutral. The money sits on
+     * its own line with the arrow, and the arrow plus its percentage take
+     * the move's colour and the glyph face, exactly as renderMarket and
+     * leadersText print them. A quote without a split still gets its
+     * numbered ticker and its money line, never zeros (SO-3). Non-breaking
+     * gaps hold each group together, as they hold the leaders card's.
      */
-    private List<String> quoteLinesRiser(java.util.Map<String, Watcher.Quote> quotes,
-                                         List<String> symbols) {
-        List<String> lines = new ArrayList<>();
-        for (String symbol : symbols) {
-            Watcher.Quote quote = quotes.get(symbol);
+    private SpannableStringBuilder volumeRevealText(
+            java.util.Map<String, Watcher.Quote> quotes, List<String> symbols) {
+        SpannableStringBuilder sb = new SpannableStringBuilder();
+        for (int i = 0; i < symbols.size(); i++) {
+            Watcher.Quote quote = quotes.get(symbols.get(i));
             if (quote == null) {
-                lines.add(symbol);
                 continue;
             }
-            String head = symbol;
-            if (quote.buy != null && quote.sell != null) {
-                head += String.format(Locale.US,
-                        "  B %,d  S %,d  T %,d",
-                        quote.buy, quote.sell, quote.buy + quote.sell);
+            if (sb.length() > 0) {
+                sb.append('\n');
             }
-            if (quote.changePct == null) {
-                lines.add(String.format(Locale.US, "%s  PKR %,.2f",
-                        head, quote.price));
-            } else {
-                lines.add(String.format(Locale.US, "%s  PKR %,.2f %+,.2f%%",
-                        head, quote.price, quote.changePct));
+            sb.append(String.format(Locale.US, "%d.\u00A0%s",
+                    i + 1, symbols.get(i)));
+            if (quote.buy != null && quote.sell != null) {
+                sb.append("\u00A0(B=");
+                colorQuantity(sb, quote.buy, R.color.green);
+                sb.append(",\u00A0S=");
+                colorQuantity(sb, quote.sell, R.color.red);
+                sb.append("\u00A0&\u00A0T=");
+                sb.append(String.format(Locale.US, "%,d",
+                        quote.buy + quote.sell));
+                sb.append(')');
+            }
+            if (quote.price != null) {
+                sb.append('\n');
+                sb.append(String.format(Locale.US, "PKR %,.2f", quote.price));
+            }
+            if (quote.changePct != null) {
+                if (quote.price != null) {
+                    sb.append(' ');
+                }
+                int from = sb.length();
+                sb.append(String.format(Locale.US, "%s %.2f%%",
+                        quote.changePct >= 0 ? "\u25B2" : "\u25BC",
+                        Math.abs(quote.changePct)));
+                sb.setSpan(new ForegroundColorSpan(getColor(
+                                quote.changePct >= 0 ? R.color.green : R.color.red)),
+                        from, sb.length(), 0);
+                sb.setSpan(new TypefaceSpan(ARROW_FACE), from, from + 1, 0);
             }
         }
-        return lines;
+        return sb;
+    }
+
+    /** One coloured quantity: the digits alone carry the colour, the
+     *  letters stay neutral, so the ink is the split's own split law. */
+    private void colorQuantity(SpannableStringBuilder sb, long value, int res) {
+        int from = sb.length();
+        sb.append(String.format(Locale.US, "%,d", value));
+        sb.setSpan(new ForegroundColorSpan(getColor(res)),
+                from, sb.length(), 0);
     }
 
     /**
@@ -2122,27 +2135,45 @@ public class MainActivity extends Activity {
         row.setLetterSpacing(0.12f);
         row.setPadding(dp(10), dp(9), dp(10), dp(9));
         // Owner order 2026-10-22 (the search highlight): every row whose
-        // symbol STARTS with what is typed lights up while it matches, and
-        // the row that equals the query carries the strongest gold of all.
+        // symbol STARTS with what is typed lights up while it matches.
         // Typing H lights every H..., typing HU narrows the light, and the
         // moment the last letter of HUBC lands the exact match is lit
-        // hardest of the list. Both plates are the brand gold at the two
-        // intensities the palette declares: D9A441 at 20% (gold_press) for
-        // a prefix match, at 35% (gold_match) for the exact one. The
-        // highlight is a fact of the QUERY, never of the selection: a row
-        // lights because it matches, whether or not it has been tapped.
+        // hardest of the list. v2.3.7 (owner order 2026-10-26, "it should
+        // be highlighted in the theme's own colors") supersedes the gold
+        // plates: the light is the theme's OWN ink now. A matched row
+        // wears the theme's panel colour - the same ink its tiles, boxes
+        // and dropdowns wear - lifted a step (the default theme's lighter
+        // plum), and the exact match carries a hairline in the theme's
+        // heading ink, so the brightest answer stays inside the theme's
+        // family. The matched symbol keeps the body's ink: no orange is
+        // invented anywhere. The green/red price tail is the quote's own,
+        // set in the spans above, and survives all of this untouched.
+        // The highlight is a fact of the QUERY, never of the selection: a
+        // row lights because it matches, whether or not it has been tapped.
         if (q == null || q.isEmpty() || !symbol.startsWith(q)) {
             row.setBackground(null);
             return;
         }
         boolean exactMatch = symbol.length() == q.length();
+        row.setBackground(highlightPlate(exactMatch));
+    }
+
+    /** One highlight plate from the theme's own family (v2.3.7): the
+     *  panel ink the theme already paints its surfaces with, lifted one
+     *  step so the row reads as lit, and the exact match closes with the
+     *  theme's heading ink as a hairline. Built per call, not cached:
+     *  it is a keystroke-time path, so it follows the live theme. */
+    private GradientDrawable highlightPlate(boolean exact) {
         GradientDrawable plate = new GradientDrawable();
         plate.setCornerRadius(dp(8));
-        plate.setColor(getColor(exactMatch
-                ? R.color.gold_match : R.color.gold_press));
-        row.setBackground(plate);
-        row.setTextColor(getColor(exactMatch
-                ? R.color.gold_bright : R.color.gold));
+        if (themeIndex <= 0) {
+            plate.setColor(getColor(R.color.plum_panel_top));
+            plate.setStroke(exact ? 1 : 0, getColor(R.color.bg_panel_edge));
+        } else {
+            plate.setColor(getColor(panelResourceFor(themeIndex)));
+            plate.setStroke(exact ? 1 : 0, getColor(hintInkFor(themeIndex)));
+        }
+        return plate;
     }
 
     /** One symbol's B, S and T, asked of the relay's own split law. */
