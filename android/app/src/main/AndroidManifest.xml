@@ -146,11 +146,21 @@
      sun's surface pass runs on its own dedicated double-buffered render
      thread and the turn reads the render clock, and the search highlight
      wears the brand-gold press and match plates again as they read.
+
+     versionCode 76 / versionName 2.3.9 belong to the owner's orders of
+     2026-10-26, twelfth pass ("look at the current data on the drop
+     down", "HUBC is still getting highlighted in orange in purple
+     theme", "the entire ANIMATING FEATURE is still flickering/phasing",
+     "reduce the SUN's revolving speed by 15% from its current speed"):
+     the split menu ranks by the buyers' own surplus and a sellers-flooded
+     scrip is not a row at all, the highlight is a lift of the theme's
+     own panel ink again, the sun's handover blends half ink so no frame
+     can pop, and the revolve is cut 15%.
      -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="pk.quantofrehan"
-    android:versionCode="75"
-    android:versionName="2.3.8">
+    android:versionCode="76"
+    android:versionName="2.3.9">
 
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="30"/>
 

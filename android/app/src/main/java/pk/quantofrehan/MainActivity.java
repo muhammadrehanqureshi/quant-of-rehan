@@ -894,6 +894,13 @@ public class MainActivity extends Activity {
                 ((TextView) heading).setTextColor(getColor(accent));
             }
         }
+        // v2.3.9: the search rows' plates are the theme's own now, so a
+        // theme switch restyles whatever rows are lit this second instead
+        // of leaving the previous theme's plates on them until the next
+        // keystroke or tick repaints the list.
+        if (searchInput != null) {
+            renderSearchResults(searchInput.getText().toString());
+        }
     }
 
     /** One rounded plate per theme, built once and reused (v1.9.13). */
@@ -1062,12 +1069,16 @@ public class MainActivity extends Activity {
     private String volumeLines = "";
 
     /**
-     * Menu 1 (owner order 2026-10-23; retitled v2.1.0, v2.2.1's ONE
-     * dropdown): the three BUSIEST scrips the relay's own answer
-     * knows, ranked by the combined buying and selling activity of the
-     * session's split. A scrip whose frame has no complete range cannot
-     * be ranked and is skipped instead of guessed at (SO-3): null is not
-     * zero.
+     * Menu 1 (owner order 2026-10-23; retitled v2.1.0; re-ranked v2.3.9
+     * to the NAME'S OWN law): MORE BUYERS & LESS SELLERS is a fact about
+     * which side outweighs the other, so a scrip whose sellers outweigh
+     * its buyers is not a row of this menu at all, and the rows rank by
+     * the buyers' own SURPLUS (buy minus sell) - never by the combined
+     * buy+sell activity, which put a sellers-flooded scrip at the top of
+     * the menu (owner report 2026-10-26: MACFL, B=212k against S=9.1M
+     * and the price falling 9.72%). A scrip whose frame has no complete
+     * range cannot be ranked and is skipped instead of guessed at
+     * (SO-3): null is not zero.
      */
     private List<String> rankedSplitSymbols(java.util.Map<String, Watcher.Quote> quotes) {
         List<String> symbols = new ArrayList<>();
@@ -1077,14 +1088,17 @@ public class MainActivity extends Activity {
                 symbols.add(entry.getKey());
             }
         }
+        // The label names the dominance: no buyers-majority, no row.
+        symbols.removeIf(key -> {
+            Watcher.Quote q = quotes.get(key);
+            return q.buy <= q.sell;
+        });
         symbols.sort((a, b) -> {
             Watcher.Quote qa = quotes.get(a);
             Watcher.Quote qb = quotes.get(b);
-            long totalA = qa.buy + qa.sell;
-            long totalB = qb.buy + qb.sell;
-            int byActivity = Long.compare(totalB, totalA);
-            if (byActivity != 0) {
-                return byActivity;
+            int bySurplus = Long.compare(qb.buy - qb.sell, qa.buy - qa.sell);
+            if (bySurplus != 0) {
+                return bySurplus;
             }
             return a.compareTo(b);
         });
@@ -2137,19 +2151,18 @@ public class MainActivity extends Activity {
         // symbol STARTS with what is typed lights up while it matches.
         // Typing H lights every H..., typing HU narrows the light, and the
         // moment the last letter of HUBC lands the exact match is lit
-        // hardest of the list. v2.3.8 (owner order 2026-10-26, "I can't
-        // even tell the highlighted colour, at least make it look
-        // highlighted") restores the brand-gold plates: the theme-ink
-        // pass of v2.3.7 read as NOTHING lit (the plum panel sits barely
-        // over the field's dark, so his eye found no highlight at all).
-        // A matched row wears the translucent gold PRESS plate, and the
-        // exact match the brighter gold MATCH plate with its hairline in
-        // gold_bright: the same family the clock, the headings and the
-        // nav ring already wear. The matched symbol keeps the body's ink;
-        // the green/red price tail is the quote's own, set in the spans
-        // above, and survives all of this untouched. The highlight is a
-        // fact of the QUERY, never of the selection: a row lights because
-        // it matches, whether or not it has been tapped.
+        // hardest of the list. v2.3.9 (owner order 2026-10-26: HUBC again
+        // orange over the purple theme) returns the highlight to the
+        // THEME'S OWN ink: the v2.3.8 gold plates were theme-blind and
+        // read orange over the violet field. A matched row wears a lift
+        // of the theme's own panel colour - violet on the purple theme,
+        // green on the green theme - and the exact match lifts it
+        // hardest with a closing hairline in the theme's heading ink.
+        // The matched symbol keeps the body's ink; the green/red price
+        // tail is the quote's own, set in the spans above, and survives
+        // all of this untouched. The highlight is a fact of the QUERY,
+        // never of the selection: a row lights because it matches,
+        // whether or not it has been tapped.
         if (q == null || q.isEmpty() || !symbol.startsWith(q)) {
             row.setBackground(null);
             return;
@@ -2158,20 +2171,64 @@ public class MainActivity extends Activity {
         row.setBackground(highlightPlate(exactMatch));
     }
 
-    /** One highlight plate, v2.3.8: the brand gold family the owner
-     *  named when the light arrived, and which the v2.3.7 theme pass
-     *  erased. A prefix match wears the dropdown's own gold press plate;
-     *  the exact match (the LAST letter set down) closes with the
-     *  brighter gold match plate and a hairline in gold_bright. Built
-     *  per call, not cached: it is a keystroke-time path. */
+    /** One highlight plate, v2.3.9: the row lights in a LIFT of the
+     *  theme's OWN panel ink, never in an invented wash. The v2.3.8
+     *  gold plates were theme-blind: on the purple theme they read
+     *  ORANGE over the violet field (the owner's twelfth report today,
+     *  HUBC). The panel ink is the colour each theme is NAMED for, so
+     *  the purple theme lights violet, the green theme green, and so on;
+     *  a prefix match lifts the panel 26% toward white, and the exact
+     *  match 42% with a closing hairline in the theme's heading ink, so
+     *  the eye reads the exact match hardest while every row stays in
+     *  the theme's own family. Built per call, not cached: it is a
+     *  keystroke-time path. */
     private GradientDrawable highlightPlate(boolean exact) {
         GradientDrawable plate = new GradientDrawable();
         plate.setCornerRadius(dp(8));
-        plate.setColor(getColor(exact ? R.color.gold_match : R.color.gold_press));
+        plate.setColor(lighten(getColor(panelInkFor(themeIndex)),
+                exact ? 0.42f : 0.26f));
         if (exact) {
-            plate.setStroke(1, getColor(R.color.gold_bright));
+            plate.setStroke(1, getColor(accentInkFor(themeIndex)));
         }
         return plate;
+    }
+
+    /** The panel ink each theme is NAMED for (the tile plates' own). */
+    private int panelInkFor(int index) {
+        switch (index) {
+            case 1: return R.color.theme_black_panel;
+            case 2: return R.color.theme_green_panel;
+            case 3: return R.color.theme_navy_panel;
+            case 4: return R.color.theme_orange_panel;
+            default: return R.color.bg_panel;
+        }
+    }
+
+    /** The heading ink each theme is NAMED for: the exact match's
+     *  closing hairline follows the headings' own accent. */
+    private int accentInkFor(int index) {
+        switch (index) {
+            case 1: return R.color.theme_black_accent;
+            case 2: return R.color.theme_green_accent;
+            case 3: return R.color.theme_navy_accent;
+            case 4: return R.color.theme_orange_accent;
+            default: return R.color.gold;
+        }
+    }
+
+    /** A lift of one ink toward white, written by hand because the
+     *  app compiles against android.jar alone: the arithmetic is the
+     *  same blend androidxColorUtils would do, panel + lift * white. */
+    private static int lighten(int ink, float lift) {
+        int r = (int) (((ink >> 16) & 0xFF)
+                + (255 - ((ink >> 16) & 0xFF)) * lift);
+        int g = (int) (((ink >> 8) & 0xFF)
+                + (255 - ((ink >> 8) & 0xFF)) * lift);
+        int b = (int) ((ink & 0xFF) + (255 - (ink & 0xFF)) * lift);
+        return 0xFF000000
+                | (Math.min(255, r) << 16)
+                | (Math.min(255, g) << 8)
+                | Math.min(255, b);
     }
 
     /** One symbol's B, S and T, asked of the relay's own split law. */
