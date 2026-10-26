@@ -26,13 +26,6 @@
          colour, and nothing of the quote tail changes. -->
     <color name="gold_match">#59D9A441</color>
     <color name="gold_bright">#FFF8CE66</color>
-    <!-- Owner order 2026-10-22 (the search highlight): a typing match is
-         lit in gold, and the exact match carries a brighter plate than a
-         prefix match, so HUBC is lit hardest of all the moment the last
-         letter of HUBC lands. Both are the same brand gold, at two
-         intensities, over the field's dark plate. -->
-    <color name="gold_match">#59D9A441</color>
-    <color name="gold_bright">#FFF8CE66</color>
     <color name="orange_logo">#FFE58142</color>
     <color name="crimson_logo">#FF882F48</color>
     <color name="green">#FF2FAE6F</color>
