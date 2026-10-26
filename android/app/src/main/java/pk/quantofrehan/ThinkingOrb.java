@@ -528,7 +528,7 @@ public class ThinkingOrb extends View {
         // every direction, and the web then reads all the way around
         // the sun. The radius rides 0.78..1.06 on a seeded per-node walk,
         // so the rim keeps some raggedness without any group forming.
-        float radiusSeed = 20261026L;
+        long radiusSeed = 20261026L;
         for (int n = 0; n < NODES; n++) {
             // The seeded swing: one step per node, the same every run.
             radiusSeed = nextSeed(radiusSeed);
