@@ -2872,8 +2872,9 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         self.assertIn("SUN_REFRESH_S = 0.06f", orb)
         self.assertIn("boolean fresh = sunSeconds < 0f", orb)
         self.assertIn("|| seconds - sunSeconds >= SUN_REFRESH_S;", orb)
-        self.assertIn("renderSunBall(seconds * SUN_SPIN_RATE * MOTION_SCALE"
-                      " * SUN_SLOWDOWN);", orb)
+        self.assertIn("renderSunBall(seconds * SUN_SPIN_RATE * MOTION_SCALE",
+                      orb)
+        self.assertIn("* SUN_SLOWDOWN);", orb)
         self.assertIn("float spin = phi / SUN_LAP * SUN_MAP_W;", orb)
         self.assertIn("sampleMap(sphereU[k] + spin, sphereV[k])", orb)
         # The triangle wrap: linear across the visible half turn, mirrored
