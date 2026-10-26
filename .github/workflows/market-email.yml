@@ -11,7 +11,10 @@ name: Market email notifications
 #
 # The crons name the minutes the law knows:
 #
-#   04:00 UTC = 09:00 PKT  pre market, every trading day
+#   04:15 UTC = 09:15 PKT  pre market, Mon-Thu (owner order 2026-10-26: the
+#                          pre market opens at 09:15, so the email fires
+#                          there, not at 09:00)
+#   04:00 UTC = 09:00 PKT  pre market, Friday band shape (unchanged)
 #   04:32 UTC = 09:32 PKT  open, Mon-Thu band
 #   04:17 UTC = 09:17 PKT  open, Friday band 1
 #   07:00 UTC = 12:00 PKT  break, Friday midday
@@ -50,7 +53,10 @@ name: Market email notifications
 
 on:
   schedule:
-    - cron: "0 4 * * 1-5"      # pre market
+    # Pre market: 09:15 PKT Monday to Thursday (owner order 2026-10-26),
+    # 09:00 PKT Friday where the earlier orders left it.
+    - cron: "15 4 * * 1-4"
+    - cron: "0 4 * * 5"
     - cron: "32 4 * * 1-4"     # open, Mon-Thu
     - cron: "17 4 * * 5"       # open, Friday
     - cron: "0 7 * * 5"        # break, Friday
@@ -113,7 +119,7 @@ jobs:
         run: python scripts/market_email.py --catch-up
 
   pre:
-    if: (github.event_name == 'schedule' && github.event.schedule == '0 4 * * 1-5') || (github.event_name == 'workflow_dispatch' && inputs.event == 'pre')
+    if: (github.event_name == 'schedule' && (github.event.schedule == '15 4 * * 1-4' || github.event.schedule == '0 4 * * 5')) || (github.event_name == 'workflow_dispatch' && inputs.event == 'pre')
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:

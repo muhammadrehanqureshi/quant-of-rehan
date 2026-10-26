@@ -113,11 +113,20 @@
      its own tongues and gaps, his own corona is sampled per angle and
      radius and turns with the surface, the sphere's poles dissolve into
      their own map row, and the fire crop opens from 0.62 to 0.75 of the
-     disc so the face is nearer the scale of his picture. -->
+     disc so the face is nearer the scale of his picture.
+
+     versionCode 73 / versionName 2.3.6 belong to the owner order
+     2026-10-26, eighth pass ("I don't see the orange fuzz from the
+     reference photo's rim", "the sun's fringes aren't the same
+     categories"): the corona is a tuned blend, its gain rises
+     from 1.45 to 1.75 and its smoothing from 15 to 19 steps, the two
+     settings the prototype grid showed bring the feathered orange
+     fringe his own picture carries, while the face and rim keep the
+     settings of the seventh pass. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="pk.quantofrehan"
-    android:versionCode="72"
-    android:versionName="2.3.5">
+    android:versionCode="73"
+    android:versionName="2.3.6">
 
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="30"/>
 

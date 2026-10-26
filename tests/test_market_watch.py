@@ -79,13 +79,19 @@ class EventMappingTest(unittest.TestCase):
         pair = (market_phase(saturday).value, market_state_at(saturday).value)
         self.assertIsNone(event_for(pair, saturday))
 
-    def test_the_morning_gap_is_silent(self):
-        # 09:15 to 09:32 on a Monday is CLOSED and never emailed: the
-        # break text belongs to the Friday midday break alone.
+    def test_the_pre_email_window_names_the_morning_gap(self):
+        # Owner order 2026-10-26: on Monday to Thursday the pre email's
+        # own window is 09:15 to the band open (09:32). A moment inside
+        # it speaks the pre event from the edge the owner named, and the
+        # OLD 09:00 edge stays dead: the scanner's 09:00 PRE_MARKET state
+        # emails nothing until the 09:15 edge arrives.
         from src.data.sessions import market_phase, market_state_at
         gap = pkt(9, 20, day="2026-10-26")
         pair = (market_phase(gap).value, market_state_at(gap).value)
-        self.assertIsNone(event_for(pair, gap))
+        self.assertEqual(event_for(pair, gap), ("pre", ""))
+        early = pkt(9, 10, day="2026-10-26")
+        pair = (market_phase(early).value, market_state_at(early).value)
+        self.assertIsNone(event_for(pair, early))
 
     def test_the_close_and_post_close_split_on_the_window_edge(self):
         # Owner order 2026-10-24: POST_CLOSE + CLOSED is the close event

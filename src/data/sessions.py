@@ -111,6 +111,16 @@ Band = tuple[tuple[int, int], tuple[int, int]]
 # close after the owner's strict 2-minute gap (15:32 and 16:32).
 PRE_MARKET_OPEN = (9, 0)
 PRE_MARKET_CLOSE = (9, 15)
+
+# Owner order 2026-10-26: the PRE-MARKET EMAIL opens at 09:15 on Monday to
+# Thursday (his words: "I got pre market email ... at 09:00, even though the
+# pre market opens on Monday at 09:15"). The scanner's own PRE_MARKET state
+# window (09:00 to 09:15, the 2026-10-11 law) is unchanged, so the scanning
+# still happens exactly as the 2026-10-21 scanning order says; only the email
+# the owner receives moves to the 09:15 edge he named. Friday's shape is not
+# named in the order, so it keeps its 09:00 email where the owner's earlier
+# orders left it.
+MONDAY_THURSDAY_PRE_EMAIL_OPEN = (9, 15)
 POST_MARKET_OPEN = (15, 32)
 POST_MARKET_CLOSE = (15, 49)
 FRIDAY_POST_MARKET_OPEN = (16, 32)
@@ -347,6 +357,39 @@ def pre_market_window(d: date) -> tuple[tuple[int, int], tuple[int, int]] | None
     if not is_trading_day(d):
         return None
     return (PRE_MARKET_OPEN, PRE_MARKET_CLOSE)
+
+
+def pre_email_open_time(d: date) -> tuple[int, int]:
+    """The minute the owner's pre-market email fires (owner order 2026-10-26).
+
+    Monday to Thursday: 09:15 PKT, the minute the owner named. Friday keeps
+    the 09:00 PKT minute every earlier order gave it.
+    """
+    if not is_trading_day(d):
+        return PRE_MARKET_OPEN
+    if d.weekday() <= 3:
+        return MONDAY_THURSDAY_PRE_EMAIL_OPEN
+    return PRE_MARKET_OPEN
+
+
+def pre_email_due(moment: datetime | None = None) -> bool:
+    """True when this instant is inside the window the pre email names.
+
+    Monday to Thursday: from the 09:15 PKT edge the owner set (order
+    2026-10-26) until the band 1 open (09:32), the moment between the
+    pre-market window and the live session; Friday: inside the pre-market
+    state window as the law already laid it out (09:00 to 09:15).
+    """
+    k = as_karachi(moment)
+    if not is_trading_day(k.date()):
+        return False
+    if k.date().weekday() <= 3:
+        bands = session_bands(k.date())
+        if not bands:
+            return False
+        first_open = _at(k.date(), bands[0][0])
+        return _at(k.date(), MONDAY_THURSDAY_PRE_EMAIL_OPEN) <= k < first_open
+    return market_state_at(k) is MarketState.PRE_MARKET
 
 
 def post_market_window(d: date) -> tuple[tuple[int, int], tuple[int, int]] | None:

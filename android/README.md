@@ -1533,6 +1533,28 @@ to sixty seconds. The status tile therefore also carries the app's own
      shift under the owner's own 10% cut.
   6. The version bump is versionCode 72 / versionName 2.3.5.
 
+**Version 2.3.6, versionCode 73.**
+
+  Owner order 2026-10-26, eighth pass, on the v2.3.5 build read on the
+  phone: "I don't see the orange fuzz from the reference photo's rim. Also
+  that the sun's fringes aren't the same categories" (as the reference
+  photo). The seventh pass's face and rim hold their settings; what they
+  lacked was the fuzz's weight and breadth.
+
+  1. THE CORONA CARRIES THE FUZZ. The frame's corona is his own fire read
+     from the picture per angle and radius; the fuzz the owner missed is
+     that light at its own weight, and its alpha gain rises from 1.45 to
+     1.75 so the orange fringe outside the disc is plainly visible.
+  2. THE FUZZ IS BROAD TONGUES, NOT SPIKES. The smoothing over the strip
+     widens from 15 to 19 steps, which is the setting the prototype grid
+     showed turns independent per-degree spikes into lobes like his
+     reference's feathered fringe.
+  3. NOTHING ELSE MOVES. The face (crop 0.75, grade 1.30/1.06/1.02,
+     sharpen 1.05) and the rim (0.87 in, 1.55 gain, 0.30 base, 1.35
+     flame) keep the seventh pass's settings, so a bad face cannot hide
+     behind the fuzz; the retune is the fuzz alone.
+  4. The version bump is versionCode 73 / versionName 2.3.6.
+
 **Built and delivered 2026-10-25 (v2.3.5):** the signed v2.3.5 APK was built
 on GitHub Actions from the merge of PR #131 (master 92c4a166b8, run
 40177646242, the push build the merge itself triggered), downloaded from the
