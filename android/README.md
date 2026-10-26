@@ -1533,6 +1533,45 @@ to sixty seconds. The status tile therefore also carries the app's own
      shift under the owner's own 10% cut.
   6. The version bump is versionCode 72 / versionName 2.3.5.
 
+**Version 2.3.7, versionCode 74.**
+
+  Owner order 2026-10-26, ninth pass, on the v2.3.6 build read on the
+  phone, with three screenshots: "there is no consistency, no = sign,
+  no , sign, no green and red colors" (the custom scrips of volume
+  reveal), "look at the search box, HUBC still getting highlighted in
+  orange, it should be highlighted in the theme's own colors",
+  "the AI looking feature, the SUN and the LINES every thing is
+  flickering, make it fucking stop", and "the lines are really tangled
+  and overlapping, on one side of the LINES there are so many tangled
+  lines and on the other side of the LINES there are literally no
+  LINES". Four answers, none of them new noise:
+
+  1. THE REVEAL IS THE LEADERS CARD'S OWN SENTENCE. Both menus print the
+     same shape now - the numbered ticker, the quantity bracket with the
+     plain "=" after each letter, the comma after B, the ampersand
+     before T, the buy digits in the brand green and the sell digits in
+     the brand red, the total neutral, and the money line with the
+     coloured arrow. No menu prints a format of its own any more.
+  2. THE SEARCH HIGHLIGHT IS THE THEME'S OWN INK. The brand-gold plate
+     on a matched row is retired: the row wears the theme's panel ink,
+     lifted one step, and an exact match closes with a hairline in the
+     theme's heading ink. No orange is invented anywhere.
+  3. THE CLOUD IS AN EVEN SHELL. The five-anchor cluster gather is
+     retired - a bundle can never fill a sphere, and its projection
+     collapsing onto itself was the crowded lobe with an empty
+     opposite side in the screenshot. The nodes take a seeded
+     golden-angle walk over the sphere, so the web fills all the way
+     around the sun, and the filament swing is one fifth of the
+     tripled v2.3.3 value with its ink floor lifted, so the breathing
+     stays and the blinking goes.
+  4. THE SUN'S SURFACE REFIRE AT ITS OWN 60MS CADENCE. The 256x256
+     surface pass (two map reads, seven eruptions, bloom and blur)
+     refiring inside every 33ms frame dropped whole frames on the
+     phone, and the dropped frames were the flicker he saw. The fire
+     moves at 0.41 rad/s, so the cadence stays far below the fire's
+     own speed; the cloud keeps its 30fps.
+  5. The version bump is versionCode 74 / versionName 2.3.7.
+
 **Version 2.3.6, versionCode 73.**
 
   Owner order 2026-10-26, eighth pass, on the v2.3.5 build read on the
