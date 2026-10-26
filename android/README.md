@@ -1533,6 +1533,40 @@ to sixty seconds. The status tile therefore also carries the app's own
      shift under the owner's own 10% cut.
   6. The version bump is versionCode 72 / versionName 2.3.5.
 
+**Version 2.3.9, versionCode 76.**
+
+  Owner order 2026-10-26, twelfth pass, on the v2.3.8 build read on the
+  phone: "I got the market online github email after noon, why is this
+  even happening still", "look at the current data on the drop down",
+  "HUBC is still getting highlighted in orange in purple theme", "the
+  entire ANIMATING FEATURE is still flickering/phasing", and "reduce
+  the SUN's revolving speed by 15% from its current speed". Four
+  answers, two app-side:
+
+  1. THE SPLIT MENU IS THE NAME'S OWN LAW. MORE BUYERS & LESS SELLERS
+     ranked by combined buy+sell activity, which put MACFL (B=212k
+     against S=9.1M, price falling 9.72%) - a scrip whose SELLERS
+     outweigh its buyers - at the top of the menu. A scrip whose sellers
+     outweigh its buyers is not a row of the menu at all, and the rows
+     rank by the buyers' own surplus (buy minus sell).
+  2. THE HIGHLIGHT IS THE THEME'S OWN INK AGAIN. The v2.3.8 gold plates
+     were theme-blind and read orange over the purple theme's violet
+     field. A matched row wears a lift of the theme's own panel colour
+     (prefix 26% toward white, exact match 42% with a closing hairline
+     in the theme's heading ink), and a theme switch restyles the lit
+     rows at once.
+  3. THE SUN'S HANDOVER BLENDS. The v2.3.8 thread published a WHOLE new
+     frame every 60ms in one swap inside the HUD's 30fps cycle: each
+     swap jumped the bloom's gain and the fire in one beat the cloud
+     could not match, which is the phasing that kept being seen. The
+     first handover onto a rebuilt surface copies whole (the parked
+     view stays fully lit) and every later handover blends the newest
+     pass into the visible bitmap at half ink, so no published frame
+     can pop and the HUD always draws one whole picture.
+  4. THE SUN REVOLVES 15% SLOWER. 0.35 rad/s becomes 0.2975 rad/s by
+     the owner's own order.
+  5. The version bump is versionCode 76 / versionName 2.3.9.
+
 **Version 2.3.8, versionCode 75.**
 
   Owner order 2026-10-26, tenth pass, on the v2.3.7 build read on the
