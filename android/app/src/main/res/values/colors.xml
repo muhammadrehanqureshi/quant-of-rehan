@@ -10,9 +10,22 @@
     <color name="gold_deep">#FFB9822F</color>
     <color name="gold">#FFD9A441</color>
     <!-- Settings press feedback: the brand gold at 20% alpha, used by the
-         masked ripple on the gear plates. Low enough that the press reads as
-         a touch, not as a state change (the gold RING is the state). -->
+         masked ripple on the gear plates and (since 2026-10-26) by the
+         search PREFIX plates. Low enough that the press reads as a touch,
+         not as a state change - a named row shows a hint of the brand,
+         no more. -->
     <color name="gold_press">#33D9A441</color>
+    <!-- The search bar's own drop-down highlight plates (restored
+         2026-10-26). The rule is his own words: "searching any word, that
+         result if possible make it highlighted or coloured, otherwise if
+         I search H, then H's results, all should be highlighted". A PREFIX
+         match wears the gold press plate; the EXACT match (the moment the
+         last letter lands) wears a plate a few steps harder, so HUBC is lit
+         hardest of every H... row. Both are the same brand gold, over the
+         field's dark plate; the field ink stays the matched row's own
+         colour, and nothing of the quote tail changes. -->
+    <color name="gold_match">#59D9A441</color>
+    <color name="gold_bright">#FFF8CE66</color>
     <!-- Owner order 2026-10-22 (the search highlight): a typing match is
          lit in gold, and the exact match carries a brighter plate than a
          prefix match, so HUBC is lit hardest of all the moment the last

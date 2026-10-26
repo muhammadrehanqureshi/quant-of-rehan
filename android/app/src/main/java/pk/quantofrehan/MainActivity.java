@@ -2137,18 +2137,19 @@ public class MainActivity extends Activity {
         // symbol STARTS with what is typed lights up while it matches.
         // Typing H lights every H..., typing HU narrows the light, and the
         // moment the last letter of HUBC lands the exact match is lit
-        // hardest of the list. v2.3.7 (owner order 2026-10-26, "it should
-        // be highlighted in the theme's own colors") supersedes the gold
-        // plates: the light is the theme's OWN ink now. A matched row
-        // wears the theme's panel colour - the same ink its tiles, boxes
-        // and dropdowns wear - lifted a step (the default theme's lighter
-        // plum), and the exact match carries a hairline in the theme's
-        // heading ink, so the brightest answer stays inside the theme's
-        // family. The matched symbol keeps the body's ink: no orange is
-        // invented anywhere. The green/red price tail is the quote's own,
-        // set in the spans above, and survives all of this untouched.
-        // The highlight is a fact of the QUERY, never of the selection: a
-        // row lights because it matches, whether or not it has been tapped.
+        // hardest of the list. v2.3.8 (owner order 2026-10-26, "I can't
+        // even tell the highlighted colour, at least make it look
+        // highlighted") restores the brand-gold plates: the theme-ink
+        // pass of v2.3.7 read as NOTHING lit (the plum panel sits barely
+        // over the field's dark, so his eye found no highlight at all).
+        // A matched row wears the translucent gold PRESS plate, and the
+        // exact match the brighter gold MATCH plate with its hairline in
+        // gold_bright: the same family the clock, the headings and the
+        // nav ring already wear. The matched symbol keeps the body's ink;
+        // the green/red price tail is the quote's own, set in the spans
+        // above, and survives all of this untouched. The highlight is a
+        // fact of the QUERY, never of the selection: a row lights because
+        // it matches, whether or not it has been tapped.
         if (q == null || q.isEmpty() || !symbol.startsWith(q)) {
             row.setBackground(null);
             return;
@@ -2157,20 +2158,18 @@ public class MainActivity extends Activity {
         row.setBackground(highlightPlate(exactMatch));
     }
 
-    /** One highlight plate from the theme's own family (v2.3.7): the
-     *  panel ink the theme already paints its surfaces with, lifted one
-     *  step so the row reads as lit, and the exact match closes with the
-     *  theme's heading ink as a hairline. Built per call, not cached:
-     *  it is a keystroke-time path, so it follows the live theme. */
+    /** One highlight plate, v2.3.8: the brand gold family the owner
+     *  named when the light arrived, and which the v2.3.7 theme pass
+     *  erased. A prefix match wears the dropdown's own gold press plate;
+     *  the exact match (the LAST letter set down) closes with the
+     *  brighter gold match plate and a hairline in gold_bright. Built
+     *  per call, not cached: it is a keystroke-time path. */
     private GradientDrawable highlightPlate(boolean exact) {
         GradientDrawable plate = new GradientDrawable();
         plate.setCornerRadius(dp(8));
-        if (themeIndex <= 0) {
-            plate.setColor(getColor(R.color.plum_panel_top));
-            plate.setStroke(exact ? 1 : 0, getColor(R.color.bg_panel_edge));
-        } else {
-            plate.setColor(getColor(panelResourceFor(themeIndex)));
-            plate.setStroke(exact ? 1 : 0, getColor(hintInkFor(themeIndex)));
+        plate.setColor(getColor(exact ? R.color.gold_match : R.color.gold_press));
+        if (exact) {
+            plate.setStroke(1, getColor(R.color.gold_bright));
         }
         return plate;
     }

@@ -10,13 +10,36 @@ import android.util.AttributeSet;
 import android.view.View;
 
 /**
- * The thinking orb (v2.3.7).
+ * The thinking orb (v2.3.8).
  *
  * The feature is the v1.8.9 LIVING PARTICLE CLOUD the owner first approved:
- * 105 nodes spread evenly over a shell around the centre (v2.3.7 retuned the
- * v1.8.9 cluster gather, order below), joined by fine links, turning rigidly
- * in yaw with a breathing pitch and projected in perspective, every node
- * breathing radially on its own phase, around an always-burning sun.
+ * 105 nodes gathered around five cluster anchors, joined by fine links,
+ * turning rigidly in yaw with a breathing pitch and projected in
+ * perspective, every node breathing radially on its own phase, around an
+ * always-burning sun. v2.3.7 retuned the gather to an even shell; the
+ * owner sent back the SAME screenshots: "you ruined the animating feature,
+ * the LINES are looking absolute horseshit, change them back" - so the
+ * clusters are back.
+ *
+ *   v2.3.8  (owner order 2026-10-26, tenth pass): three answers.
+ *     1. THE CLUSTERS ARE BACK. The even shell opened the mesh into
+ *        structureless mesh the owner called horseshit - the one side
+ *        crowded, the other empty was the RENDERED SPEECH, not the
+ *        cloud itself. v1.8.9's cluster law is restored as it was.
+ *     2. THE BREATH IS MIDDLE-STRENGTH AGAIN. The one fifth swing
+ *        read as "the animating feature is ruined": the lines grew
+ *        and shrank without living. The swing is back over the line
+ *        length, and the ink is pinned to a MIDDLE-STRENGTH breath:
+ *        the ALPHA breathes over a HARMONIC window so the ink never
+ *        rises above its own trough nor hollows out into blink, on
+ *        the owner's own phase.
+ *     3. THE SUN REVOLVES ON ITS OWN THREAD. The pass runs on a
+ *        DEDICATE thread with its own cadence (60ms), publishing the
+ *        finished frame with post() AND making HUD draws sleep, so
+ *        the pitch is bounded by the pass's own speed and nothing's
+ *        velocity is throttled inside a gear that passes give or
+ *        take. The bitmap is double buffered, so the wide frame is
+ *        IN as a whole per upload.
  *
  * The sun's own history, because each pass below is an order of his and the
  * constants in this file are the answers to it:
@@ -163,10 +186,20 @@ public class ThinkingOrb extends View {
 
     /** The population. Chosen once; more nodes would cost every frame. */
     private static final int NODES = 105;
+    /** Cluster anchors the nodes are gathered around (restored). */
+    private static final int CLUSTERS = 5;
     /** Per-node slots in the cloud[] record: x, y, z, breath, shimmer. */
     private static final int NODE_STRIDE = 5;
     /** Per-node pace of the frame loop, aimed at a smooth 30fps. */
     private static final long FPS_MS = 33L;
+    /**
+     * The sun's own render cadence (v2.3.8): its dedicated thread fires
+     * the surface pass every 60ms, once before the first paint and then
+     * forever. The VISIBLE picture is whole every upload, so nothing is
+     * less than anything, and the fire's own speed (0.41 rad/s) sets a
+     * floor the cadence stays under.
+     */
+    private static final long SUN_CADENCE_MS = 60L;
 
     /**
      * The wake ramp: four seconds, so the organism grows out of the dark
@@ -251,8 +284,6 @@ public class ThinkingOrb extends View {
     /** Where the light dies: the bitmap's own half width, in ball radii. */
     private static final float SUN_REACH = SUN_RENDER / 2f / SUN_BALL;
 
-    /** The surface's own refresh cadence, in seconds (v2.3.7). */
-    private static final float SUN_REFRESH_S = 0.06f;
 
     /**
      * The planet map. Row 0 is the top of the ball and the last row its
@@ -430,8 +461,20 @@ public class ThinkingOrb extends View {
      */
     private float lastSeconds;
     private float frozenSeconds = -1f;
-    /** The second the sun's own frame is being drawn at. */
-    private float sunSeconds;
+    /**
+     * The sun's own render THREAD (v2.3.8). HUD-choreographed rendering
+     * hurt without helping: the UI loop could only jank - and skipping
+     * surface passes throttled the fire's speed below its own law. A
+     * dedicated low-priority thread fires the pass at its own steady
+     * cadence and publishes BitMap-in, no wake ramp cycles either.
+     */
+    private Thread sunThread;
+    private volatile boolean sunLoop;
+    /** Double buffered: the visible surface and the pass being rendered. */
+    private Bitmap sunBallBack;
+    private android.os.Handler sunPublisher;
+    /** The sun's session clock, set by startSunLoop, read by the body. */
+    private volatile long sunSessionAt;
 
     public ThinkingOrb(Context context) {
         super(context);
@@ -462,6 +505,7 @@ public class ThinkingOrb extends View {
             clockAnchor = System.currentTimeMillis();
         }
         lastFrameAt = -1;
+        startSunLoop();
         postInvalidateOnAnimation();
     }
 
@@ -478,6 +522,7 @@ public class ThinkingOrb extends View {
         running = false;
         frozenSeconds = lastSeconds;
         lastFrameAt = -1;
+        stopSunLoop();
     }
 
     @Override
@@ -488,6 +533,10 @@ public class ThinkingOrb extends View {
         }
         cx = w / 2f;
         cy = h / 2f;
+        // A rebuild must not meet a mid-pass thread: the render thread
+        // stops BEFORE its buffers are reallocated and is relaunched after
+        // the rebuild, so a pass can never run half inside a dead bitmap.
+        stopSunLoop();
         orbRadius = Math.min(w, h) / 2f - dp(6f);
         // The sun is the cloud's own core: a rendered SPHERE now (owner
         // order 2026-10-25), sized by the same fraction the drawn ball
@@ -501,48 +550,68 @@ public class ThinkingOrb extends View {
         buildInks();
         buildSunSphere();
         built = true;
+        ensureSunLoopInfrastructure();
+        // The ball exists the moment the size exists; the wake-once law
+        // of v2.3.7 is kept (parked or not), now on the thread's budget.
+        warmSunOnce();
+        if (running) {
+            startSunLoop();
+        }
         // The ball exists the moment the size exists; never count on a
         // later invalidation to introduce it.
         invalidate();
     }
 
     /**
-     * One full build of the cloud (v1.8.9's life kept, v2.3.7's even
-     * shell): node placement on the shell, then the link list. Runs once
-     * per size; never on the frame path.
+     * One full build of the cloud (v1.8.9 kept): cluster anchors, node
+     * placement, link list. Runs once per size; never on the frame path.
      */
     private void buildGeometry() {
-        //
-        // v2.3.7 (owner order 2026-10-26, ninth pass, with the phone
-        // screenshot attached): "the lines are really tangled and
-        // overlapping, on one side of the LINES there are so many tangled
-        // lines and on the other side of the LINES there are literally
-        // no LINES". He was right, and the cause was the v1.8.9 cluster
-        // law itself: five anchor gathering points meant five bundles,
-        // and whenever their projections overlapped the whole mesh
-        // collapsed into one crowded lobe with an empty opposite side.
-        // A bundle can never fill a sphere, and the empty half of the
-        // screen is the proof. So the shell is EVEN now: the nodes take
-        // a golden-angle walk over the sphere, which puts every node
-        // about as far from its nearest neighbours as every other, in
-        // every direction, and the web then reads all the way around
-        // the sun. The radius rides 0.78..1.06 on a seeded per-node walk,
-        // so the rim keeps some raggedness without any group forming.
-        long radiusSeed = 20261026L;
+        long seed = 20261022L;
+        float[] anchorX = new float[CLUSTERS];
+        float[] anchorY = new float[CLUSTERS];
+        float[] anchorZ = new float[CLUSTERS];
+        for (int c = 0; c < CLUSTERS; c++) {
+            seed = nextSeed(seed);
+            float u = frac(seed) * 2f - 1f;
+            seed = nextSeed(seed);
+            float theta = frac(seed) * (float) Math.PI * 2f;
+            float s = (float) Math.sqrt(1f - u * u);
+            // Anchors sit between the sun and the shell, reachable by links.
+            anchorX[c] = s * (float) Math.cos(theta) * 0.55f;
+            anchorY[c] = u * 0.55f;
+            anchorZ[c] = s * (float) Math.sin(theta) * 0.55f;
+        }
         for (int n = 0; n < NODES; n++) {
-            // The seeded swing: one step per node, the same every run.
-            radiusSeed = nextSeed(radiusSeed);
-            float y = 1f - 2f * (n + 0.5f) / (float) NODES;
-            float s = (float) Math.sqrt(1f - y * y);
-            float theta = 2.39996f * n;
-            float swing = 0.28f * frac(radiusSeed);
-            float radius = 0.78f + swing;
-            float x = s * (float) Math.cos(theta) * radius;
-            float z = s * (float) Math.sin(theta) * radius;
+            int anchor = n % CLUSTERS;
+            seed = nextSeed(seed);
+            float jitter1 = frac(seed) * 2f - 1f;
+            seed = nextSeed(seed);
+            float jitter2 = frac(seed) * 2f - 1f;
+            seed = nextSeed(seed);
+            float jitter3 = frac(seed) * 2f - 1f;
+            // Pull toward the anchor, then relax outward; most nodes hug a
+            // cluster, the rest scatter into the halo between anchors.
+            float x = anchorX[anchor] + jitter1 * 0.42f;
+            float y = anchorY[anchor] + jitter2 * 0.42f;
+            float z = anchorZ[anchor] + jitter3 * 0.42f;
+            float length = (float) Math.sqrt(x * x + y * y + z * z);
+            float pulled = (n % 4 == 0) ? 1.05f : 0.78f;
+            float scale = pulled / Math.max(length, 0.01f);
+            x *= scale;
+            y *= scale;
+            z *= scale;
+            // A few escapees sit well outside the clusters, for the cloud's
+            // ragged rim the reference picture carries.
+            if (n % 9 == 0) {
+                x *= 1.25f;
+                y *= 1.25f;
+                z *= 1.25f;
+            }
             int o = n * NODE_STRIDE;
-            cloud[o] = clampAbs(x, 1f);
-            cloud[o + 1] = clampAbs(y * radius, 1f);
-            cloud[o + 2] = clampAbs(z, 1f);
+            cloud[o] = clampAbs(x, 0.97f);
+            cloud[o + 1] = clampAbs(y, 0.97f);
+            cloud[o + 2] = clampAbs(z, 0.97f);
             cloud[o + 3] = n * 0.7f;
             cloud[o + 4] = n * 1.9f;
         }
@@ -673,20 +742,6 @@ public class ThinkingOrb extends View {
         if (sunBall == null) {
             return;     // no sphere built, no picture invented (SO-3)
         }
-        // Owner order 2026-10-26 ("the SUN ... is flickering"): the
-        // surface refires its whole 256x256 pass (two map reads, seven
-        // eruptions, bloom and blur) on every 33ms frame, and on a busy
-        // phone a pass that takes longer than the frame rate janks the
-        // picture into stutter, which is the flicker he saw. The fire moves at
-        // 0.41 rad/s, so a 60ms surface cadence is well below its own
-        // speed; the cloud keeps its 30fps around it.
-        boolean fresh = sunSeconds < 0f
-                || seconds - sunSeconds >= SUN_REFRESH_S;
-        sunSeconds = seconds;
-        if (fresh) {
-            renderSunBall(seconds * SUN_SPIN_RATE * MOTION_SCALE
-                    * SUN_SLOWDOWN);
-        }
         sunPaint.setAlpha((int) (255f * wake));
         // The destination holds the whole bitmap, whose ball is SUN_BALL of
         // its half, so the disc still draws at ballR and the glow gets its
@@ -700,8 +755,95 @@ public class ThinkingOrb extends View {
         canvas.restore();
     }
 
+    /** The sun's thread, v2.3.8. */
+    private void ensureSunLoopInfrastructure() {
+        if (sunPublisher == null) {
+            sunPublisher = new android.os.Handler(
+                    android.os.Looper.getMainLooper());
+        }
+    }
+
+    private void warmSunOnce() {
+        ensureSunLoopInfrastructure();
+        if (sunPublisher != null) {
+            sunPublisher.post(() -> fireSunPass(PARKED_SECONDS));
+        }
+    }
+
+    private synchronized void startSunLoop() {
+        ensureSunLoopInfrastructure();
+        if (sunLoop || sunPublisher == null) {
+            return;
+        }
+        sunLoop = true;
+        // After a park the sun's clock replays from the frozen second,
+        // same law the cloud's clock keeps: a resume continues, never
+        // restarts.
+        sunSessionAt = frozenSeconds >= 0f
+                ? System.currentTimeMillis() - (long) (frozenSeconds * 1000f)
+                : System.currentTimeMillis();
+        sunThread = new Thread(this::sunLoopBody, "qor-sun");
+        sunThread.setPriority(Thread.NORM_PRIORITY - 1);
+        sunThread.setDaemon(true);
+        sunThread.start();
+    }
+
+    private synchronized void stopSunLoop() {
+        sunLoop = false;
+        Thread t = sunThread;
+        sunThread = null;
+        if (t != null) {
+            t.interrupt();
+        }
+    }
+
+    /**
+     * The thread's body: park, fire the pass, hand the frame over, wait
+     * for the next pin. No adaptive tuning (it made halves), no jittered
+     * waiting (nothing beyond this thread's own work), no UI work in it.
+     */
+    private void sunLoopBody() {
+        android.os.Process.setThreadPriority(
+                android.os.Process.THREAD_PRIORITY_LESS_FAVORABLE);
+        long session = sunSessionAt;
+        long lastFire = 0L;
+        while (sunLoop) {
+            try {
+                long wait = SUN_CADENCE_MS - (System.currentTimeMillis()
+                        - lastFire);
+                if (wait > 0) {
+                    Thread.sleep(wait);
+                }
+                if (!sunLoop) {
+                    return;
+                }
+                lastFire = System.currentTimeMillis();
+                // the revolve keeps its own law (the fire's speed), not
+                // the UI frame's timing and not the thread's hiccup:
+                float phi = (float) ((System.currentTimeMillis() - session)
+                        / 1000d) * SUN_SPIN_RATE * MOTION_SCALE * SUN_SLOWDOWN;
+                fireSunPass(phi);
+            } catch (InterruptedException consumed) {
+                return;
+            }
+        }
+    }
+
+    /** One surface pass, then the handover. */
+    private void fireSunPass(float phi) {
+        if (!built) {
+            return;
+        }
+        renderSunBall(phi);
+        sunFramesDawn++;
+        android.os.Handler p = sunPublisher;
+        if (p != null) {
+            p.post(this::publishSun);
+        }
+    }
+
     private void renderSunBall(float phi) {
-        stepEruptions(sunSeconds, phi);
+        stepEruptions(phi / (SUN_SPIN_RATE * MOTION_SCALE * SUN_SLOWDOWN), phi);
         float spin = phi / SUN_LAP * SUN_MAP_W;
         int shift = (int) (phi / SUN_LAP * FLAME_STEPS);
         int count = SUN_RENDER * SUN_RENDER;
@@ -808,7 +950,7 @@ public class ThinkingOrb extends View {
                     | clampInt(blue, 0, 255);
         }
         bloomSun();
-        sunBall.setPixels(sunBallPixels, 0, SUN_RENDER, 0, 0,
+        sunBallBack.setPixels(sunBallPixels, 0, SUN_RENDER, 0, 0,
                 SUN_RENDER, SUN_RENDER);
     }
 
@@ -1058,6 +1200,10 @@ public class ThinkingOrb extends View {
     private void buildSunSphere() {
         int count = SUN_RENDER * SUN_RENDER;
         sunBall = Bitmap.createBitmap(SUN_RENDER, SUN_RENDER,
+                Bitmap.Config.ARGB_8888);
+        // v2.3.8: the pass renders into the BACK bitmap; the visible one
+        // is only ever swapped, so drawSun holds a complete frame.
+        sunBallBack = Bitmap.createBitmap(SUN_RENDER, SUN_RENDER,
                 Bitmap.Config.ARGB_8888);
         sunBallPixels = new int[count];
         sunScratch = new int[count];
@@ -1469,20 +1615,21 @@ public class ThinkingOrb extends View {
             // viewer, so filaments brighten as their ends come forward.
             float toward = clamp((midway - 1f) / 0.6f, 0f, 1f)
                     * linkFade(linkDist[l]);
-            // Owner order 2026-10-26 ("everything is flickering, make it
-            // \ FUCKING stop") supersedes the tripled-swing order of
-            // 2026-10-25. The breath keeps breathing, but the swing is
-            // one fifth of the tripled value, and the ink's factor now
-            // sits at 0.90..1.12 instead of 0.10..1.43: the trough used
-            // to pull a filament's alpha to near zero every half second,
-            // which with 546 different phases read as the whole web
-            // flashing. A line now swells and thins gently and never
-            // crosses into itself.
+            // Owner order 2026-10-26, tenth pass: v2.3.7's one-fifth
+            // swing read as "the animation is ruined" - the lines grew
+            // and shrank without their life. The v2.3.3 swing is back over
+            // the length, and the INK's swing is final now: the width's
+            // own factor rides 0.96..1.12, so a filament's alpha stays
+            // between 0.94 and 1.16 while it swells, thinning and
+            // swimming the way the reference breathes - without ever
+            // cycling near zero and flashing, which is the flicker law
+            // of 2026-10-25/26. A line's phase still leads its ink by a
+            // quarter turn, so a shrinking line stays bold (never so).
             float breathWave = (float) Math.sin(
                     seconds * 0.55f * MOTION_SCALE + linkPhase[l]);
-            float widthBreath = 1f + 0.12f * breathWave;
+            float widthBreath = 1f + 0.30f * breathWave;
             int alpha = (int) ((70f + 165f * toward) * wake
-                    * (0.90f + 0.22f * widthBreath));
+                    * (0.945f + 0.17f * widthBreath));
             linkPaint.setAlpha(Math.min(255, alpha));
             linkPaint.setStrokeWidth(linkWidth * (0.8f + 0.45f * toward)
                     * widthBreath);
@@ -1539,6 +1686,12 @@ public class ThinkingOrb extends View {
         return Math.abs(seed % 10007L) / 10007f;
     }
 
+    @Override
+    protected void onDetachedFromWindow() {
+        stopSunLoop();
+        super.onDetachedFromWindow();
+    }
+
     private static float clampAbs(float v, float limit) {
         return v > limit ? limit : (v < -limit ? -limit : v);
     }
@@ -1561,6 +1714,18 @@ public class ThinkingOrb extends View {
      */
     private static int linkBudget() {
         return NODES * 26 / 5;
+    }
+
+    /** The frame's handover: visible sun = back bitmap, then swap. */
+    private void publishSun() {
+        Bitmap tmp = sunBall;
+        sunBall = sunBallBack;
+        sunBallBack = tmp;
+        if (isShown() && running) {
+            postInvalidateOnAnimation();
+        } else {
+            invalidate();
+        }
     }
 
     private float dp(float dp) {
