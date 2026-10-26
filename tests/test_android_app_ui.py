@@ -1693,8 +1693,8 @@ class VersionTest(unittest.TestCase):
         # boils, the eruptions blow, the bloom bleeds and the filaments
         # breathe in width and ink as well as length.
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="2.3.7"', manifest)
-        self.assertIn('android:versionCode="74"', manifest)
+        self.assertIn('android:versionName="2.3.8"', manifest)
+        self.assertIn('android:versionCode="75"', manifest)
         # The changelog entry ties these user-visible changes to the build.
         readme = (ROOT / "android" / "README.md").read_text(encoding="utf-8")
         self.assertIn("v1.7.9, owner order 2026-10-20", readme)
@@ -1740,9 +1740,12 @@ class VersionTest(unittest.TestCase):
         # v2.3.7 (owner order 2026-10-26, ninth pass): the flicker and the
         # tangle pass, versionCode 74.
         self.assertIn("Version 2.3.7, versionCode 74", readme)
+        # v2.3.8 (owner order 2026-10-26, tenth pass): the clusters, the
+        # breath and the sun's own thread, versionCode 75.
+        self.assertIn("Version 2.3.8, versionCode 75", readme)
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionCode="74"', manifest)
-        self.assertIn('android:versionName="2.3.7"', manifest)
+        self.assertIn('android:versionCode="75"', manifest)
+        self.assertIn('android:versionName="2.3.8"', manifest)
         layout = LAYOUT.read_text(encoding="utf-8")
         strings = STRINGS.read_text(encoding="utf-8")
         main = MAIN.read_text(encoding="utf-8")
@@ -2534,14 +2537,18 @@ class KarachiInkTest(unittest.TestCase):
 class SearchHighlightTest(unittest.TestCase):
     """Owner orders, stacked: 2026-10-22 gave the typing matches their
     light and made it a fact of the QUERY; 2026-10-26 ("it should be
-    highlighted in the theme's own colors") took the light out of the
-    brand gold and put it in the theme's own family, because the gold
-    plate read as the orange block he keeps sending back.
+    highlighted in the theme's own colors") moved the light to the
+    theme's own family, and the SAME owner hour ("I can't even tell the
+    highlighted colour, at least make it look highlighted") sent it
+    back: the theme's panel ink over the field's dark is a step the eye
+    cannot see, and the owner wants a highlight HE CAN SEE. The light is
+    the brand gold again - the family the clock, the headings and the
+    nav ring already wear.
 
-    A prefix match wears the theme's panel ink lifted a step (the default
-    theme's lighter plum), and the exact match closes with a hairline in
-    the theme's heading ink. The matched symbol keeps the body's ink; the
-    green/red price tail is the quote's own and survives untouched.
+    A prefix match wears the translucent gold PRESS plate, and the exact
+    match closes with the brighter gold MATCH plate and a hairline in
+    gold_bright. The matched symbol keeps the body's ink; the green/red
+    price tail is the quote's own and survives untouched.
     """
 
     def test_every_row_is_styled_against_the_live_query(self):
@@ -2560,26 +2567,35 @@ class SearchHighlightTest(unittest.TestCase):
         block = block[:block.index("/** One symbol's B, S and T")]
         self.assertIn("boolean exactMatch = symbol.length() == q.length();", block)
         self.assertIn("symbol.startsWith(q)", block)
-        # The theme's own ink, never the brand gold: the plate is built
-        # from the live theme, and no gold text lands on a matched row.
+        # The brand gold, back on the matched rows (owner order above):
+        # the plate carries the family, and the gold hairline only on the
+        # exact match.
         self.assertIn("row.setBackground(highlightPlate(exactMatch));", block)
         self.assertIn("private GradientDrawable highlightPlate(boolean exact)", block)
-        self.assertNotIn("R.color.gold", block)
         self.assertIn("row.setBackground(null);", block)
 
-    def test_the_highlight_plates_are_the_theme_s_own_family(self):
+    def test_the_highlight_plates_are_the_brand_gold_again(self):
         main = MAIN.read_text(encoding="utf-8")
         start = main.index("private GradientDrawable highlightPlate(")
         block = main[start:main.index("/** One symbol's B, S and T", start)]
-        # Default theme: the lighter plum lifted over the field's dark,
-        # with the panel edge as the exact match's hairline. Other themes:
-        # that theme's own panel ink with its heading ink as the hairline.
-        self.assertIn("R.color.plum_panel_top", block)
-        self.assertIn("R.color.bg_panel_edge", block)
-        self.assertIn("panelResourceFor(themeIndex)", block)
-        self.assertIn("hintInkFor(themeIndex)", block)
-        self.assertIn("plate.setStroke(exact ? 1 : 0", block)
-        self.assertNotIn("R.color.gold", block)
+        # KNOWN inks, named in the new colors.xml block: the prefix plate
+        # is the settings-press gold, the exact plate the brighter match
+        # gold, and the exact match alone a hairline in gold_bright.
+        self.assertIn("R.color.gold_press", block)
+        self.assertIn("R.color.gold_match", block)
+        self.assertIn("R.color.gold_bright", block)
+        self.assertIn("exact ? R.color.gold_match : R.color.gold_press", block)
+        self.assertIn("if (exact) {", block)
+        self.assertIn("plate.setStroke(1, getColor(R.color.gold_bright));", block)
+        # The retired theme-ink pass may not return: it is the pass the
+        # owner sent back for showing nothing.
+        self.assertNotIn("R.color.plum_panel_top", block)
+        self.assertNotIn("panelResourceFor(themeIndex)", block)
+        self.assertNotIn("hintInkFor(themeIndex)", block)
+        # The inks themselves are declared once.
+        colors = COLORS.read_text(encoding="utf-8")
+        for name in ("gold_press", "gold_match", "gold_bright"):
+            self.assertIn(f'name="{name}"', colors)
 
     def test_the_highlight_rides_the_keystroke_render_not_a_request(self):
         main = MAIN.read_text(encoding="utf-8")
@@ -2691,10 +2707,13 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         pitch and projected in perspective, every node breathing radially
         on its own phase. The radial burst of v2.1.0 and the rings of
         v1.9.13/v1.9.14 are retired, and the cloud circles its own SUN.
-        v2.3.7 retunes the gather to the EVEN shell (see below).
-        """
+        v2.3.7 retuned the gather to an even shell and the SAME owner hour
+        sent it back ("you ruined the animating feature, the LINES are
+        looking absolute horseshit, change them back"): v2.3.8 restores
+        the v1.8.9 CLUSTER law as it was.
+    """
         # Populations are named constants, so the count is one decision.
-        # v2.3.7 retires CLUSTERS with the gather it owned.
+        # v2.3.8 restores CLUSTERS with the gather it owned.
         self.assertIn("private static final int NODES = 105;", orb)
         self.assertIn("MOTION_SCALE = 1.3f", orb)
         self.assertIn("private static final int NODE_STRIDE = 5;", orb)
@@ -2712,20 +2731,22 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         # and the fire ink stand; the filaments simply no longer cross.
         self.assertIn("private void buildGeometry() {", orb)
         self.assertIn("float linkAt = 0.42f;", orb)
-        # v2.3.7 (owner order 2026-10-26, "the lines are really tangled
-        # and overlapping, on one side of the LINES there are so many
-        # tangled lines and on the other side of the LINES there are
-        # literally no LINES"): the cluster gather is RETIRED - a bundle
-        # can never fill a sphere, and the cluster projection collapsing
-        # onto itself is the empty half he sent. The shell is EVEN now:
-        # a golden-angle Fibonacci walk over the sphere, seeded so the
-        # build is the same every run (never Math.random; the build is
-        # one decision). The seeded radius walk keeps the rim ragged.
-        self.assertIn("float y = 1f - 2f * (n + 0.5f) / (float) NODES;", orb)
-        self.assertIn("float theta = 2.39996f * n;", orb)
-        self.assertIn("long radiusSeed = 20261026L;", orb)
-        self.assertIn("float radius = 0.78f + swing;", orb)
-        self.assertNotIn("CLUSTERS", orb)
+        # v2.3.8 (owner order 2026-10-26, tenth pass, on the v2.3.7
+        # screenshots: "you ruined the animating feature, the LINES are
+        # looking absolute horseshit, change them back"): the even shell
+        # is RETIRED with the pass that built it, and the v1.8.9 CLUSTER
+        # law is back AS IT WAS - seeded anchors between the sun and the
+        # shell (never Math.random; the build is one decision), a jitter
+        # pulled and re-normalised against each anchor, the four- node
+        # break-outs, the escapees that keep the rim ragged.
+        self.assertIn("private static final int CLUSTERS = 5;", orb)
+        self.assertIn("anchorX[c] = s * (float) Math.cos(theta) * 0.55f;", orb)
+        self.assertIn("float pulled = (n % 4 == 0) ? 1.05f : 0.78f;", orb)
+        self.assertIn("if (n % 9 == 0) {", orb)
+        self.assertIn("long seed = 20261022L;", orb)
+        # The even walk's own machinery may not come back.
+        self.assertNotIn("radiusSeed", orb)
+        self.assertNotIn("float theta = 2.39996f * n;", orb)
         # v2.3.3: the fade bottoms out above zero, because a link at the cap
         # painted at alpha zero is the invisible thread that left its nodes
         # looking like the owner's "independent dots without any lines".
@@ -2767,7 +2788,13 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         # The wake ramp is the v1.8.9 number, so the organism grows out of
         # the dark instead of popping in.
         self.assertIn("WAKE_SECONDS = 4f", orb)
-        self.assertNotIn("Thread.sleep", orb)
+        # The one sleep belongs to the sun's own render thread (v2.3.8),
+        # pacing its 60ms cadence on its own back; with that single pinned
+        # call removed, NO other sleep may appear anywhere in the file
+        # (the HUD loop stays the view's own paced invalidate), and no
+        # animator may animate the organism.
+        self.assertNotIn("Thread.sleep",
+                         orb.replace("Thread.sleep(wait);", ""))
         self.assertNotIn("ValueAnimator", orb)
 
     def test_the_sun_is_his_photograph_on_a_revolving_sphere(self):
@@ -2867,16 +2894,32 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         self.assertIn("SUN_SPIN_RATE = 0.35f", orb)
         self.assertIn("SUN_SLOWDOWN = 0.9f", orb)
         self.assertIn("SUN_AXIS_TILT = 10f", orb)
-        # v2.3.7 (owner order 2026-10-26): the surface pass runs on its own
-        # 60ms cadence, so phi is handed in at the one gated call site.
-        self.assertIn("SUN_REFRESH_S = 0.06f", orb)
-        self.assertIn("boolean fresh = sunSeconds < 0f", orb)
-        self.assertIn("|| seconds - sunSeconds >= SUN_REFRESH_S;", orb)
-        self.assertIn("renderSunBall(seconds * SUN_SPIN_RATE * MOTION_SCALE",
-                      orb)
-        self.assertIn("* SUN_SLOWDOWN);", orb)
+        # v2.3.8 (owner order 2026-10-26: "the SUN is still
+        # flickering/phasing"): the revolve carries the render thread's
+        # OWN elapsed time, scaled by HIS spin law, so the turn never
+        # jumps behind a stale phi line and never stop.
+        self.assertIn(
+            "* SUN_SPIN_RATE * MOTION_SCALE * SUN_SLOWDOWN;", orb)
+        self.assertIn("renderSunBall(phi);", orb)
         self.assertIn("float spin = phi / SUN_LAP * SUN_MAP_W;", orb)
         self.assertIn("sampleMap(sphereU[k] + spin, sphereV[k])", orb)
+        # The thread (v2.3.8): its own cadence, double buffered, parked
+        # when the market stops, warm before the first paint, and the
+        # visible bitmap is swapped in whole (no partial frame the UI can
+        # catch mid-pass).
+        self.assertIn("long SUN_CADENCE_MS = 60L", orb)
+        self.assertIn("sunThread.setPriority(Thread.NORM_PRIORITY - 1);", orb)
+        self.assertIn("sunThread.setDaemon(true);", orb)
+        self.assertIn("sunThread.start();", orb)
+        self.assertIn("Thread.sleep(wait);", orb)
+        self.assertIn("sunBallBack.setPixels", orb)
+        self.assertIn("Bitmap tmp = sunBall;", orb)
+        self.assertIn("sunBall = sunBallBack;", orb)
+        self.assertIn("sunBallBack = tmp;", orb)
+        self.assertIn("startSunLoop();", orb)
+        self.assertIn("stopSunLoop();", orb)
+        self.assertIn("warmSunOnce();", orb)
+        self.assertIn("onDetachedFromWindow();", orb)
         # The triangle wrap: linear across the visible half turn, mirrored
         # behind it, so a quarter turn is a quarter turn.
         self.assertIn("float swing = (float) Math.asin(Math.sin(longitude));",
@@ -2928,16 +2971,18 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         # v2.3.3 (owner order 2026-10-25: "the outside revolving lines are
         # still not breathing") tripled the swing. v2.3.7 (owner order
         # 2026-10-26: "the SUN and the LINES every thing is flickering,
-        # make it fucking stop") supersedes it: with 546 differently
-        # phased filaments the tripled swing pulled a line's ink to
-        # near-invisible every half second, and the whole web read as
-        # flashing, so the swing is one fifth of it and the ink's factor
-        # floors at 0.90. The breath stays (the lines still swell and
-        # thin gently); the blinking goes.
+        # make it fucking stop") cut it to one fifth, and the SAME owner
+        # hour sent that back ("you ruined the animating feature"). The
+        # v2.3.8 tenth pass is the final law: the v2.3.3 swing is back
+        # over the LENGTH, and the INK breathes with the width on the one
+        # shared wave - its own factor (0.945f + 0.17f * widthBreath) -
+        # so a filament's alpha rides a narrow band above its trough and
+        # can never hollow out into the 0.1x..1.4x flashing he called
+        # flicker, however deep its side of the ball.
         self.assertIn("float breathWave = (float) Math.sin(", orb)
-        self.assertIn("float widthBreath = 1f + 0.12f * breathWave;", orb)
+        self.assertIn("float widthBreath = 1f + 0.30f * breathWave;", orb)
         self.assertIn("float breath = 1f + 0.30f * breathWave;", orb)
-        self.assertIn("* (0.90f + 0.22f * widthBreath));", orb)
+        self.assertIn("* (0.945f + 0.17f * widthBreath));", orb)
         self.assertIn("* widthBreath);", orb)
         self.assertIn("float midX = (ax + bx) / 2f;", orb)
         self.assertIn("float midY = (ay + by) / 2f;", orb)
@@ -3029,11 +3074,18 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         # 256x256 surface pass with two map reads, seven eruptions, bloom
         # and blur refiring inside every 33ms frame dropped whole frames
         # on a busy phone, and the dropped frames are what read as the
-        # ball jumping. The surface refires at its own 60ms cadence - the
-        # fire moves at 0.41 rad/s, so the cadence stays far below the
-        # fire's own speed - while the cloud keeps its 30fps.
-        self.assertIn("SUN_REFRESH_S = 0.06f", orb)
-        self.assertIn("seconds - sunSeconds >= SUN_REFRESH_S", orb)
+        # ball jumping. v2.3.8 ("the SUN is still flickering/phasing") is
+        # the final law: the pass runs on a DEDICATED thread - its own
+        # 60ms cadence, a low priority rank, double buffered - so it
+        # can never drop a UI frame and the fire's own speed is never
+        # throttled by it. The cloud keeps its 30fps.
+        self.assertIn("private static final long SUN_CADENCE_MS = 60L;", orb)
+        self.assertIn("boolean sunLoop;", orb)
+        self.assertIn("startSunLoop();", orb)
+        self.assertIn("stopSunLoop();", orb)
+        # The handover is the swap, not a re-tinted, re-graded pass: the
+        # pass fills the BACK bitmap and publishSun swaps the two whole.
+        self.assertIn("sunBallBack.setPixels", orb)
 
     def test_the_balls_texture_is_his_picture_and_its_limb_is_his_curve(self):
         orb = (MAIN.parent / "ThinkingOrb.java").read_text(
@@ -3159,11 +3211,16 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         self.assertIn("onSizeChanged", orb)
         self.assertIn("private final RectF ballDst = new RectF();", orb)
         self.assertIn("ballDst.set(cx - r, cy - r, cx + r, cy + r);", orb)
-        # The frame loop is the view's own paced invalidate, not a sleep
-        # or a background service: nothing runs while the view is parked.
+        # The HUD frame loop is still the view's own paced invalidate, not
+        # a sleep or a background service: nothing HUD-side runs while the
+        # view is parked. The sun's dedicated render thread (v2.3.8) owns
+        # the file's ONE sleep - the pacing of its own 60ms cadence - and
+        # with that single pinned call removed, no other sleep is legal
+        # anywhere in this file.
         self.assertIn("FPS_MS = 33L", orb)
         self.assertIn("postInvalidateOnAnimation()", orb)
-        self.assertNotIn("Thread.sleep", orb)
+        self.assertNotIn("Thread.sleep",
+                         orb.replace("Thread.sleep(wait);", ""))
         self.assertNotIn("Service", orb)
         # start() and stop() are still the only public controls, wired to
         # MainActivity's startHud, stopHud and the market gate.
