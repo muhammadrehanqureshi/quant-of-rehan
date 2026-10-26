@@ -1172,14 +1172,13 @@ public class MainActivity extends Activity {
                         quote.buy + quote.sell));
                 sb.append(')');
             }
-            if (quote.price != null) {
-                sb.append('\n');
-                sb.append(String.format(Locale.US, "PKR %,.2f", quote.price));
-            }
+            // The map only ever carries a live price (Watcher's law), so
+            // the symbol's presence in the menu is the price's presence on
+            // the card; changePct stays boxed, its null a real "no move".
+            sb.append('\n');
+            sb.append(String.format(Locale.US, "PKR %,.2f", quote.price));
             if (quote.changePct != null) {
-                if (quote.price != null) {
-                    sb.append(' ');
-                }
+                sb.append(' ');
                 int from = sb.length();
                 sb.append(String.format(Locale.US, "%s %.2f%%",
                         quote.changePct >= 0 ? "\u25B2" : "\u25BC",
