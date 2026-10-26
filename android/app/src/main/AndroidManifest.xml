@@ -156,11 +156,20 @@
      scrip is not a row at all, the highlight is a lift of the theme's
      own panel ink again, the sun's handover blends half ink so no frame
      can pop, and the revolve is cut 15%.
+
+     versionCode 77 / versionName 2.3.10 belong to the owner's orders of
+     2026-10-26, thirteenth pass ("you added the thick orange outline
+     just outside the SUN, who told you to do that? remove that crap",
+     "the entire thing is still flickering"): the feathered corona band
+     outside the disc is deleted with its bake, nothing is drawn beyond
+     the surface's own rim, and the render thread's commit passes under
+     a gate the HUD's handover reads under the same, so no torn
+     half-frame can ever be blended into the visible picture.
      -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="pk.quantofrehan"
-    android:versionCode="76"
-    android:versionName="2.3.9">
+    android:versionCode="77"
+    android:versionName="2.3.10">
 
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="30"/>
 
