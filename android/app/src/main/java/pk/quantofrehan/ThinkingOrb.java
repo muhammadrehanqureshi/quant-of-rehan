@@ -10,7 +10,7 @@ import android.util.AttributeSet;
 import android.view.View;
 
 /**
- * The thinking orb (v2.3.8).
+ * The thinking orb (v2.3.10).
  *
  * The feature is the v1.8.9 LIVING PARTICLE CLOUD the owner first approved:
  * 105 nodes gathered around five cluster anchors, joined by fine links,
@@ -40,6 +40,24 @@ import android.view.View;
  *        velocity is throttled inside a gear that passes give or
  *        take. The bitmap is double buffered, so the wide frame is
  *        IN as a whole per upload.
+ *
+ *   v2.3.9  (owner order 2026-10-26, twelfth pass): the handover BLENDs.
+ *        The whole-frame swap stepped a new frame in every 60ms in one
+ *        beat the HUD could not match, which was the phasing. The first
+ *        handover copies whole; every later one blends the newest pass
+ *        into the visible bitmap at half ink. The revolve is cut 15%.
+ *
+ *   v2.3.10 (owner order 2026-10-26, thirteenth pass): two answers.
+ *     1. THE OUTSIDE OUTLINE IS GONE. The feathered corona band around
+ *        the disc was the sign the owner read as a thick orange outline
+ *        ("you added the thick orange outline just outside the SUN, who
+ *        told you to do that? remove that crap"). The corona, its bake
+ *        and its cells are deleted: NOTHING is drawn outside the disc;
+ *        the sun's edge is its surface's own rim, inside the limb.
+ *     2. THE TORN FRAME IS GONE. The render thread commits its bitmap
+ *        under a gate the HUD's handover also reads under, so the publish
+ *        can never catch the back bitmap mid-write (the shimmer the
+ *        blend left once the whole-frame swap was gone).
  *
  * The sun's own history, because each pass below is an order of his and the
  * constants in this file are the answers to it:
@@ -124,10 +142,11 @@ import android.view.View;
  *      averaged over four radii so no stray pixel can sparkle, and its
  *      brightness around the disc becomes the rim's own tongues and gaps.
  *      It turns with the surface, because it is the same fire.
- *   2. THE CORONA IS HIS. The light outside the disc is read from the same
- *      picture, one cell per angle and radius, with its alpha taken from
- *      the picture's own brightness: the flames end where his end, and no
- *      exponential glow is baked anywhere.
+ *   2. HIS RIM IS HIS. (The corona that shared this caveat has since been
+ *      DELETED: v2.3.10 draws nothing outside the disc.) The rest held:
+ *      the light is read from the picture with its alpha taken from the
+ *      picture's own brightness at the limb, and no exponential glow is
+ *      baked anywhere.
  *   3. THE POLES DISSOLVE. A sphere converges every longitude into its
  *      poles, and converging photographic detail reads as a woven seam.
  *      Where the mapping converges the fire gives way to the colour of its
@@ -246,8 +265,6 @@ public class ThinkingOrb extends View {
     /** His rim: one ink and one height per screen angle, baked once. */
     private int[] ringInk;
     private float[] ringFlame;
-    /** His corona: alpha and ink per angle and radius, baked once. */
-    private int[] coronaInk;
     /**
      * The sphere's frame tables, baked once per size: the map column each
      * ball pixel reads at zero spin, the map row it reads, the ball's own
@@ -268,15 +285,15 @@ public class ThinkingOrb extends View {
     private final RectF ballDst = new RectF();
 
     /**
-     * ONE bitmap holds the ball AND the light it throws. The disc's limb and
-     * the fire beyond it are the same pixels, so there is no seam to see and
-     * no ring drawn at a fixed radius: the rim is his own, sampled once per
-     * screen angle, and the light outside it is his own corona, sampled once
-     * per angle and radius. Both turn with the surface, so the tongues stay
-     * attached to the fire that throws them.
+     * ONE bitmap holds the ball and its rim. The rim is his own, sampled
+     * once per screen angle, turning with the surface, inside the limb.
+     * v2.3.10 deleted the light that used to live outside it (the feathered
+     * corona band the owner read as a thick orange outline): the pixels
+     * beyond rn 1 are transparent, and the space around the sun is the
+     * background's own dark.
      *
-     * The ball is 96 pixels of the bitmap's 128, which leaves the corona its
-     * reach without ever touching the bitmap's edge.
+     * The ball is 96 pixels of the bitmap's 128, which keeps its edge well
+     * off the bitmap's border.
      */
     private static final int SUN_RENDER = 256;
     private static final float SUN_BALL = 96f;
@@ -368,20 +385,19 @@ public class ThinkingOrb extends View {
     private static final float SUN_BLOOM_ADD = 0.26f;
 
     /**
-     * His rim and his corona, sampled once at build: 512 angles around the
-     * disc, and the corona out to a fifth of a ball radius in 28 steps. The
-     * frame only reads them, so the light never costs a shader.
+     * His rim, sampled once at build: 512 angles around the disc. The
+     * frame only reads it, so the light never costs a shader. The CORONA
+     * beside it is DELETED (v2.3.10, owner order 2026-10-26: "you added
+     * the thick orange outline just outside the SUN, who told you to do
+     * that? remove that crap"): nothing is drawn outside the disc, and
+     * the sun's edge is its surface's own rim, inside the limb.
      */
     private static final int FLAME_STEPS = 512;
-    private static final int CORONA_STEPS = 28;
-    private static final float CORONA_REACH = 0.20f;
-    private static final float CORONA_GAIN = 1.75f;
     /** The radii of his rim that are averaged into the ring's own ink. */
     private static final float[] RING_BANDS = {
             0.90f, 0.95f, 1.00f, 1.05f,
     };
     private static final int RING_SMOOTH = 24;
-    private static final int CORONA_SMOOTH = 19;
 
     /**
      * The eruptions: the owner's "small explosions". Seven bursts, each
@@ -475,6 +491,12 @@ public class ThinkingOrb extends View {
     private Bitmap sunBallBack;
     /** v2.3.9: the pass BLENDs into the visible bitmap at half ink. */
     private final Paint sunBlendPaint = new Paint(Paint.FILTER_BITMAP_FLAG);
+    /**
+     * The commit gate (v2.3.10): the render thread passes under it to
+     * commit the back bitmap, the HUD's handover passes under it to copy
+     * and blend it, and so a torn half-commit can never be published.
+     */
+    private final Object sunGate = new Object();
     /**
      * v2.3.9: the FIRST handover onto a rebuilt surface copies whole so
      * the parked view (one warm pass, no loop) arrives fully lit; every
@@ -855,38 +877,18 @@ public class ThinkingOrb extends View {
         float spin = phi / SUN_LAP * SUN_MAP_W;
         int shift = (int) (phi / SUN_LAP * FLAME_STEPS);
         int count = SUN_RENDER * SUN_RENDER;
-        float reach = SUN_REACH - 1f;
-        float cells = CORONA_STEPS - 1;
         for (int k = 0; k < count; k++) {
             float rn = sphereRn[k];
             int ang = (sphereAng[k] + shift) % FLAME_STEPS;
             if (sphereCover[k] == 0) {
-                // The light outside the ball is HIS corona, read at this
-                // pixel's own angle and distance from the edge. It has gaps
-                // and tongues because his picture has them, so no ring is
-                // ever drawn at a fixed radius.
-                float out = (rn - 1f) / reach;
-                if (out >= 1f) {
-                    sunBallPixels[k] = 0;
-                    continue;
-                }
-                float cell = out * cells;
-                int near = (int) cell;
-                int far = near + 1 < CORONA_STEPS ? near + 1 : near;
-                float frac = cell - near;
-                int a0 = coronaInk[near * FLAME_STEPS + ang];
-                int a1 = coronaInk[far * FLAME_STEPS + ang];
-                int alpha = (a0 >>> 24)
-                        + (int) (((a1 >>> 24) - (a0 >>> 24)) * frac);
-                if (alpha <= 1) {
-                    sunBallPixels[k] = 0;
-                    continue;
-                }
-                int red = mixChannel(a0, a1, frac, 16);
-                int green = mixChannel(a0, a1, frac, 8);
-                int blue = mixChannel(a0, a1, frac, 0);
-                sunBallPixels[k] = (alpha << 24) | (red << 16)
-                        | (green << 8) | blue;
+                // Owner order 2026-10-26 ("you added the thick orange
+                // outline just outside the SUN, who told you to do that?
+                // remove that crap"): NOTHING is drawn outside the disc.
+                // The corona's feathered band is deleted with its bake;
+                // the space around the sun stays the background's own
+                // dark, and the sun's edge is its surface's own rim,
+                // inside the limb.
+                sunBallPixels[k] = 0;
                 continue;
             }
             // His picture, read at the frame's own longitude, then again a
@@ -958,15 +960,14 @@ public class ThinkingOrb extends View {
                     | clampInt(blue, 0, 255);
         }
         bloomSun();
-        sunBallBack.setPixels(sunBallPixels, 0, SUN_RENDER, 0, 0,
-                SUN_RENDER, SUN_RENDER);
-    }
-
-    /** One channel of a corona cell pair, moved toward the far cell. */
-    private static int mixChannel(int near, int far, float frac, int shift) {
-        int a = (near >> shift) & 0xFF;
-        int b = (far >> shift) & 0xFF;
-        return clampInt(a + (int) ((b - a) * frac), 0, 255);
+        // The commit passes under the sun's own gate (v2.3.10), so the
+        // HUD's handover can never copy the bitmap mid-write or between
+        // two commits: the torn half-frame left in v2.3.9's handshake was
+        // the shim the blend could not fix, and worked as it.
+        synchronized (sunGate) {
+            sunBallBack.setPixels(sunBallPixels, 0, SUN_RENDER, 0, 0,
+                    SUN_RENDER, SUN_RENDER);
+        }
     }
 
     /**
@@ -1014,8 +1015,8 @@ public class ThinkingOrb extends View {
             int pixel = sunScratch[k];
             int cover = pixel >>> 24;
             if (cover == 0) {
-                // Outside the disc: the corona is already there, carried
-                // from his picture's own light. It is never blurred flat.
+                // Outside the disc: nothing is drawn there any more
+                // (v2.3.10), so the bloom has nothing to carry either.
                 continue;
             }
             float gx = ((k % SUN_RENDER) + 0.5f) * step - 0.5f;
@@ -1230,7 +1231,6 @@ public class ThinkingOrb extends View {
         mapRowInk = new int[SUN_MAP_H];
         ringInk = new int[FLAME_STEPS];
         ringFlame = new float[FLAME_STEPS];
-        coronaInk = new int[CORONA_STEPS * FLAME_STEPS];
         for (int e = 0; e < ERUPTIONS; e++) {
             float dx = ERUPT_DIR[e * 3];
             float dy = ERUPT_DIR[e * 3 + 1];
@@ -1258,7 +1258,6 @@ public class ThinkingOrb extends View {
         }
         buildSunMap(photo, photoW, photoH);
         buildSunRing(photo, photoW, photoH);
-        buildSunCorona(photo, photoW, photoH);
         float mid = SUN_RENDER / 2f;
         for (int j = 0; j < SUN_RENDER; j++) {
             float y = (j + 0.5f - mid) / SUN_BALL;
@@ -1276,7 +1275,7 @@ public class ThinkingOrb extends View {
                 }
                 sphereAng[k] = ((int) (turn * FLAME_STEPS)) % FLAME_STEPS;
                 if (d2 >= 1f) {
-                    continue;   // outside the disc: the corona's own work
+                    continue;   // outside the disc: not a ball pixel
                 }
                 float z = (float) Math.sqrt(1f - d2);
                 // His fire, read at the sphere's own longitude and
@@ -1366,86 +1365,6 @@ public class ThinkingOrb extends View {
                 | (clampInt((int) (green * 1.20f + 26f), 0, 255) << 8)
                 | clampInt((int) (blue * 1.05f + 20f), 0, 255);
     }
-
-    /**
-     * His corona, baked once: the light his picture throws past its own rim,
-     * one cell per angle and radius. Its alpha is the picture's own
-     * brightness there, so the flames end exactly where they end in the
-     * photograph, and the strip is smoothed around the disc so the tongues
-     * are lobes of flame rather than one ray per degree.
-     */
-    private void buildSunCorona(int[] pixels, int w, int h) {
-        if (pixels == null) {
-            return;     // nothing to read, nothing invented (SO-3)
-        }
-        float midX = w / 2f;
-        float midY = h / 2f;
-        float disc = Math.min(w, h) / 2f * SUN_BALL_EDGE;
-        int[] raw = new int[CORONA_STEPS * FLAME_STEPS];
-        for (int r = 0; r < CORONA_STEPS; r++) {
-            float f = (r + 0.5f) / CORONA_STEPS;
-            float radius = disc * (1f + CORONA_REACH * f);
-            float fade = (float) Math.pow(1f - f, 1.5f);
-            for (int i = 0; i < FLAME_STEPS; i++) {
-                float a = (i + 0.5f) / FLAME_STEPS * SUN_LAP;
-                int ink = samplePhoto(pixels, w, h,
-                        midX + radius * (float) Math.cos(a),
-                        midY + radius * (float) Math.sin(a));
-                int red = (ink >> 16) & 0xFF;
-                int green = (ink >> 8) & 0xFF;
-                int blue = ink & 0xFF;
-                float lum = (red * 0.299f + green * 0.587f + blue * 0.114f)
-                        / 255f;
-                // v2.3.6: the threshold and slope are the prototype's own
-                // (sun-preview/emulate_v238.py), the two numbers the grid
-                // showed carry the feathered orange fringe; the sixth
-                // pass's 0.04/0.34 fired at a brightness of 4% and burned
-                // out by 38%, which fattened the fade and crushed the
-                // tongue gaps the owner's picture shows.
-                float alpha = clamp((lum - 0.12f) / 0.55f, 0f, 1f)
-                        * fade * CORONA_GAIN;
-                // The prototype overexposes where the alpha passes 1 (the
-                // hot inner cells push to white, not to the ink's own
-                // level). The packed int cannot hold alpha above 1, so the
-                // surplus lifts the ink itself toward white: the same
-                // clamp the preview applies per channel.
-                float clipped = Math.min(1f, alpha);
-                float surplus = alpha - clipped;
-                if (surplus > 0f) {
-                    red = (int) Math.min(255f, red + surplus * (255f - red));
-                    green = (int) Math.min(255f,
-                            green + surplus * (255f - green));
-                    blue = (int) Math.min(255f, blue + surplus * (255f - blue));
-                }
-                int a8 = (int) (clipped * 255f);
-                raw[r * FLAME_STEPS + i] = (a8 << 24) | (red << 16)
-                        | (green << 8) | blue;
-            }
-        }
-        int half = CORONA_SMOOTH / 2;
-        int n = 2 * half + 1;
-        for (int r = 0; r < CORONA_STEPS; r++) {
-            for (int i = 0; i < FLAME_STEPS; i++) {
-                int alpha = 0;
-                int red = 0;
-                int green = 0;
-                int blue = 0;
-                for (int t = -half; t <= half; t++) {
-                    int ink = raw[r * FLAME_STEPS
-                            + (i + t + FLAME_STEPS) % FLAME_STEPS];
-                    alpha += ink >>> 24;
-                    red += (ink >> 16) & 0xFF;
-                    green += (ink >> 8) & 0xFF;
-                    blue += ink & 0xFF;
-                }
-                coronaInk[r * FLAME_STEPS + i] = ((alpha / n) << 24)
-                        | ((red / n) << 16)
-                        | ((green / n) << 8)
-                        | (blue / n);
-            }
-        }
-    }
-
 
 
     private void buildSunMap(int[] pixels, int w, int h) {
@@ -1748,11 +1667,16 @@ public class ThinkingOrb extends View {
         // The first handover onto a fresh or rebuilt surface copies whole
         // (the parked view's one warm pass arrives fully lit); after that
         // every handover is a half-ink blend, which carries each texture
-        // over several HUD frames and can never pop.
-        sunBlendPaint.setAlpha(sunPublished ? 128 : 255);
-        sunPublished = true;
-        android.graphics.Canvas blend = new android.graphics.Canvas(visible);
-        blend.drawBitmap(fresh, 0f, 0f, sunBlendPaint);
+        // over several HUD frames and can never pop. The copy passes under
+        // the sun's gate, so the render thread's commit is either wholly
+        // before it or wholly after it, never mid-write.
+        synchronized (sunGate) {
+            sunBlendPaint.setAlpha(sunPublished ? 128 : 255);
+            sunPublished = true;
+            android.graphics.Canvas blend =
+                    new android.graphics.Canvas(visible);
+            blend.drawBitmap(fresh, 0f, 0f, sunBlendPaint);
+        }
         if (isShown() && running) {
             postInvalidateOnAnimation();
         } else {
