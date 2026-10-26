@@ -2993,8 +2993,12 @@ class ThinkingOrbPlanTest(unittest.TestCase):
                       "int h) {", orb)
         self.assertIn("float r = disc * RING_BANDS[b];", orb)
         self.assertIn("float radius = disc * (1f + CORONA_REACH * f);", orb)
-        self.assertIn("float alpha = clamp((lum - 0.04f) / 0.34f, 0f, 1f)",
+        self.assertIn("float alpha = clamp((lum - 0.12f) / 0.55f, 0f, 1f)",
                       orb)
+        # The prototype's own overexposure: where the alpha passes 1 the
+        # surplus lifts the texel toward white, the same clamp the preview
+        # applies per channel.
+        self.assertIn("float surplus = alpha - clipped;", orb)
         # A shader may not repaint his picture, and nothing may draw a ring.
         for retired in ("setShader", "PorterDuff", "GRANULES",
                         "SUN_LIMB_FLOOR", "SUN_EDGE_IN", "SUN_CROWN_INK",
