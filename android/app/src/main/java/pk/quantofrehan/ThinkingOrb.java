@@ -195,9 +195,8 @@ public class ThinkingOrb extends View {
     /**
      * The sun's own render cadence (v2.3.8): its dedicated thread fires
      * the surface pass every 60ms, once before the first paint and then
-     * forever. The VISIBLE picture is whole every upload, so nothing is
-     * less than anything, and the fire's own speed (0.41 rad/s) sets a
-     * floor the cadence stays under.
+     * forever. The fire's own speed (0.35 rad/s under the owner's 15%
+     * cut of v2.3.9) sets a floor the cadence stays under.
      */
     private static final long SUN_CADENCE_MS = 60L;
 
@@ -412,10 +411,12 @@ public class ThinkingOrb extends View {
     private final float[] eruptEnergy = new float[ERUPTIONS];
 
     /**
-     * Owner order 2026-10-24 (the sun must revolve) and 2026-10-24 (the
-     * 10% speed cut), both kept: the surface TRAVELS limb to limb.
+     * Owner order 2026-10-24 (the sun must revolve), the 2026-10-24 cut
+     * of 10%, and the owner order of 2026-10-26 ("reduce the SUN's
+     * revolving speed by 15% from its current speed"): 0.35 * 0.85 =
+     * 0.2975 rad/s. The surface TRAVELS limb to limb, slower now.
      */
-    private static final float SUN_SPIN_RATE = 0.35f;
+    private static final float SUN_SPIN_RATE = 0.2975f;
     private static final float SUN_SLOWDOWN = 0.9f;
 
     /**
@@ -472,6 +473,14 @@ public class ThinkingOrb extends View {
     private volatile boolean sunLoop;
     /** Double buffered: the visible surface and the pass being rendered. */
     private Bitmap sunBallBack;
+    /** v2.3.9: the pass BLENDs into the visible bitmap at half ink. */
+    private final Paint sunBlendPaint = new Paint(Paint.FILTER_BITMAP_FLAG);
+    /**
+     * v2.3.9: the FIRST handover onto a rebuilt surface copies whole so
+     * the parked view (one warm pass, no loop) arrives fully lit; every
+     * later handover blends half ink. Set false when the bitmaps are.
+     */
+    private boolean sunPublished;
     private android.os.Handler sunPublisher;
     /** The sun's session clock, set by startSunLoop, read by the body. */
     private volatile long sunSessionAt;
@@ -1200,10 +1209,12 @@ public class ThinkingOrb extends View {
         int count = SUN_RENDER * SUN_RENDER;
         sunBall = Bitmap.createBitmap(SUN_RENDER, SUN_RENDER,
                 Bitmap.Config.ARGB_8888);
-        // v2.3.8: the pass renders into the BACK bitmap; the visible one
-        // is only ever swapped, so drawSun holds a complete frame.
+        // v2.3.8: the pass renders into the BACK bitmap; under v2.3.9 the
+        // visible surface is only ever drawn on (copy first, blend after),
+        // so drawSun always holds a whole frame.
         sunBallBack = Bitmap.createBitmap(SUN_RENDER, SUN_RENDER,
                 Bitmap.Config.ARGB_8888);
+        sunPublished = false;
         sunBallPixels = new int[count];
         sunScratch = new int[count];
         bloomPix = new int[SUN_BLOOM * SUN_BLOOM];
@@ -1716,10 +1727,32 @@ public class ThinkingOrb extends View {
     }
 
     /** The frame's handover: visible sun = back bitmap, then swap. */
+    /**
+     * The frame's handover, v2.3.9. The v2.3.8 handover swapped the
+     * whole bitmap: a WHOLE new frame stepped in every 60ms (16.7
+     * steps/s) inside the HUD's 30fps cycle, so the bloom's gain and the
+     * fire jumped in one beat the cloud's frames could not match - the
+     * phasing the owner still saw (his twelfth report, 2026-10-26).
+     * Now the finished pass BLENDs into the visible bitmap at half ink
+     * (an exponential average): every texture arrives over a few HUD
+     * frames, no published frame can pop, and the HUD keeps drawing one
+     * whole picture. The blend runs on the UI thread onto the visible
+     * surface only; the render thread keeps its own back bitmap.
+     */
     private void publishSun() {
-        Bitmap tmp = sunBall;
-        sunBall = sunBallBack;
-        sunBallBack = tmp;
+        Bitmap visible = sunBall;
+        Bitmap fresh = sunBallBack;
+        if (visible == null || fresh == null) {
+            return;
+        }
+        // The first handover onto a fresh or rebuilt surface copies whole
+        // (the parked view's one warm pass arrives fully lit); after that
+        // every handover is a half-ink blend, which carries each texture
+        // over several HUD frames and can never pop.
+        sunBlendPaint.setAlpha(sunPublished ? 128 : 255);
+        sunPublished = true;
+        android.graphics.Canvas blend = new android.graphics.Canvas(visible);
+        blend.drawBitmap(fresh, 0f, 0f, sunBlendPaint);
         if (isShown() && running) {
             postInvalidateOnAnimation();
         } else {
