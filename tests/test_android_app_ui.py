@@ -1693,8 +1693,8 @@ class VersionTest(unittest.TestCase):
         # boils, the eruptions blow, the bloom bleeds and the filaments
         # breathe in width and ink as well as length.
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="2.3.8"', manifest)
-        self.assertIn('android:versionCode="75"', manifest)
+        self.assertIn('android:versionName="2.3.9"', manifest)
+        self.assertIn('android:versionCode="76"', manifest)
         # The changelog entry ties these user-visible changes to the build.
         readme = (ROOT / "android" / "README.md").read_text(encoding="utf-8")
         self.assertIn("v1.7.9, owner order 2026-10-20", readme)
@@ -1743,9 +1743,13 @@ class VersionTest(unittest.TestCase):
         # v2.3.8 (owner order 2026-10-26, tenth pass): the clusters, the
         # breath and the sun's own thread, versionCode 75.
         self.assertIn("Version 2.3.8, versionCode 75", readme)
+        # v2.3.9 (owner order 2026-10-26, twelfth pass): the split menu's
+        # buyers-surplus law, the theme's own highlight lift, the blended
+        # sun handover and the 15% cut, versionCode 76.
+        self.assertIn("Version 2.3.9, versionCode 76", readme)
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionCode="75"', manifest)
-        self.assertIn('android:versionName="2.3.8"', manifest)
+        self.assertIn('android:versionCode="76"', manifest)
+        self.assertIn('android:versionName="2.3.9"', manifest)
         layout = LAYOUT.read_text(encoding="utf-8")
         strings = STRINGS.read_text(encoding="utf-8")
         main = MAIN.read_text(encoding="utf-8")
@@ -2417,11 +2421,18 @@ class MenuOrdersTest(unittest.TestCase):
         # v2.3.7: the row builder is the reveal; the slice ends at it.
         speed = speed[:speed.index(
             "private SpannableStringBuilder volumeRevealText(")]
-        # Split: complete ranges only, ranked by buy + sell combined.
+        # Split: complete ranges only. v2.3.9 (owner order 2026-10-26,
+        # "look at the current data on the drop down", with MACFL's
+        # B=212k against S=9.1M at the top of the menu): the label names
+        # the dominance, so a scrip whose sellers outweigh its buyers is
+        # not a row at all, and the rows rank by the buyers' own SURPLUS
+        # (buy minus sell) - never back to the buy+sell activity that
+        # put a sellers-flooded scrip first.
         self.assertIn("quote.buy != null && quote.sell != null", split)
-        self.assertIn("qa.buy + qa.sell", split)
-        self.assertIn("Long.compare(totalB, totalA)", split)
+        self.assertIn("return q.buy <= q.sell;", split)
+        self.assertIn("Long.compare(qb.buy - qb.sell, qa.buy - qa.sell);", split)
         self.assertNotIn("byLowestSell", split)
+        self.assertNotIn("qa.buy + qa.sell", split)
         # Speed (v2.2.5): a move earns the row, RISING moves only; a
         # scrip at or past the cap mark is out; no absolute-value
         # ranking can return (a falling price is not a rising one).
@@ -2578,22 +2589,42 @@ class SearchHighlightTest(unittest.TestCase):
         main = MAIN.read_text(encoding="utf-8")
         start = main.index("private GradientDrawable highlightPlate(")
         block = main[start:main.index("/** One symbol's B, S and T", start)]
-        # KNOWN inks, named in the new colors.xml block: the prefix plate
-        # is the settings-press gold, the exact plate the brighter match
-        # gold, and the exact match alone a hairline in gold_bright.
-        self.assertIn("R.color.gold_press", block)
-        self.assertIn("R.color.gold_match", block)
-        self.assertIn("R.color.gold_bright", block)
-        self.assertIn("exact ? R.color.gold_match : R.color.gold_press", block)
+        # v2.3.9 (owner order 2026-10-26, twelfth pass: "HUBC is still
+        # getting highlighted in orange in purple theme"): the highlight
+        # is a LIFT of the THEME'S OWN panel ink, never an invented wash.
+        # The v2.3.8 gold plates were theme-blind and read orange over
+        # the violet field.
+        self.assertIn("lighten(getColor(panelInkFor(themeIndex)),", block)
+        self.assertIn("exact ? 0.42f : 0.26f", block)
         self.assertIn("if (exact) {", block)
-        self.assertIn("plate.setStroke(1, getColor(R.color.gold_bright));", block)
-        # The retired theme-ink pass may not return: it is the pass the
-        # owner sent back for showing nothing.
-        self.assertNotIn("R.color.plum_panel_top", block)
-        self.assertNotIn("panelResourceFor(themeIndex)", block)
-        self.assertNotIn("hintInkFor(themeIndex)", block)
-        # The inks themselves are declared once.
+        self.assertIn(
+            "plate.setStroke(1, getColor(accentInkFor(themeIndex)));", block)
+        # The lift is panel + lift * white, written by hand because the
+        # app compiles against android.jar alone.
+        self.assertIn(
+            "+ (255 - ((ink >> 16) & 0xFF)) * lift", block)
+        self.assertIn(
+            "+ (255 - ((ink >> 8) & 0xFF)) * lift", block)
+        self.assertIn(
+            "+ (255 - (ink & 0xFF)) * lift", block)
+        # The theme's own inks are named per theme, through the same
+        # panel ink every tile of that theme wears.
+        self.assertIn("case 1: return R.color.theme_black_panel;", block)
+        self.assertIn("case 2: return R.color.theme_green_panel;", block)
+        self.assertIn("case 3: return R.color.theme_navy_panel;", block)
+        self.assertIn("case 4: return R.color.theme_orange_panel;", block)
+        self.assertIn("default: return R.color.bg_panel;", block)
+        self.assertIn("case 1: return R.color.theme_black_accent;", block)
+        self.assertIn("case 2: return R.color.theme_green_accent;", block)
+        self.assertIn("case 3: return R.color.theme_navy_accent;", block)
+        self.assertIn("case 4: return R.color.theme_orange_accent;", block)
+        self.assertIn("default: return R.color.gold;", block)
         colors = COLORS.read_text(encoding="utf-8")
+        for name in ("theme_black_panel", "theme_green_panel",
+                     "theme_navy_panel", "theme_orange_panel",
+                     "theme_black_accent", "theme_green_accent",
+                     "theme_navy_accent", "theme_orange_accent"):
+            self.assertIn(f'name="{name}"', colors)
         for name in ("gold_press", "gold_match", "gold_bright"):
             self.assertIn(f'name="{name}"', colors)
 
@@ -2890,8 +2921,10 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         self.assertIn("SUN_POLE_MIX = 0.92f", orb)
         self.assertIn("int row = mapRowInk[clampInt((int) v, 0, SUN_MAP_H - 1)];",
                       orb)
-        # The revolve: one shared longitude shift, the owner's 10% cut kept.
-        self.assertIn("SUN_SPIN_RATE = 0.35f", orb)
+        # The revolve: one shared longitude shift, the owner's 10% cut
+        # kept - then his 2026-10-26 order cuts it a further 15%:
+        # 0.35 * 0.85 = 0.2975 rad/s.
+        self.assertIn("SUN_SPIN_RATE = 0.2975f", orb)
         self.assertIn("SUN_SLOWDOWN = 0.9f", orb)
         self.assertIn("SUN_AXIS_TILT = 10f", orb)
         # v2.3.8 (owner order 2026-10-26: "the SUN is still
@@ -2904,18 +2937,29 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         self.assertIn("float spin = phi / SUN_LAP * SUN_MAP_W;", orb)
         self.assertIn("sampleMap(sphereU[k] + spin, sphereV[k])", orb)
         # The thread (v2.3.8): its own cadence, double buffered, parked
-        # when the market stops, warm before the first paint, and the
-        # visible bitmap is swapped in whole (no partial frame the UI can
-        # catch mid-pass).
+        # when the market stops, warm before the first paint. v2.3.9
+        # (owner order 2026-10-26, twelfth report of the phasing): the
+        # handover no longer swaps a WHOLE frame every 60ms inside the
+        # HUD's 30fps cycle - that step was the phase the owner kept
+        # seeing. The first handover onto a rebuilt surface copies whole
+        # (the parked view arrives fully lit) and every later handover
+        # BLENDs the newest pass into the visible bitmap at half ink, so
+        # no published frame can pop and the HUD draws one whole picture.
         self.assertIn("long SUN_CADENCE_MS = 60L", orb)
         self.assertIn("sunThread.setPriority(Thread.NORM_PRIORITY - 1);", orb)
         self.assertIn("sunThread.setDaemon(true);", orb)
         self.assertIn("sunThread.start();", orb)
         self.assertIn("Thread.sleep(wait);", orb)
         self.assertIn("sunBallBack.setPixels", orb)
-        self.assertIn("Bitmap tmp = sunBall;", orb)
-        self.assertIn("sunBall = sunBallBack;", orb)
-        self.assertIn("sunBallBack = tmp;", orb)
+        self.assertIn("Bitmap visible = sunBall;", orb)
+        self.assertIn("Bitmap fresh = sunBallBack;", orb)
+        self.assertIn("sunBlendPaint.setAlpha(sunPublished ? 128 : 255);",
+                      orb)
+        self.assertIn("blend.drawBitmap(fresh, 0f, 0f, sunBlendPaint);", orb)
+        self.assertIn("sunPublished = false;", orb)
+        self.assertNotIn("Bitmap tmp = sunBall;", orb)
+        self.assertNotIn("sunBall = sunBallBack;", orb)
+        self.assertIn("renderSunBall(phi);", orb)
         self.assertIn("startSunLoop();", orb)
         self.assertIn("stopSunLoop();", orb)
         self.assertIn("warmSunOnce();", orb)
