@@ -134,11 +134,23 @@
      colors"): the cloud is an even shell around the sun, the filament
      breath cannot blink, the sun's surface pass runs at its own 60ms
      cadence, the volume reveal prints the leaders card's own sentence,
-     and the search highlight wears the theme's own ink. -->
+     and the search highlight wears the theme's own ink.
+
+     versionCode 75 / versionName 2.3.8 belong to the owner's orders of
+     2026-10-26, tenth pass ("you ruined the animating feature, the LINES
+     are looking absolute horseshit, change them back", "I can't even
+     tell the highlighted colour, at least make it look highlighted",
+     "the SUN is still flickering/phasing"): the v1.8.9 cluster law is
+     restored in the cloud, the v2.3.3 breath swing is back over the
+     length with an ink factor that can never hollow into a blink, the
+     sun's surface pass runs on its own dedicated double-buffered render
+     thread and the turn reads the render clock, and the search highlight
+     wears the brand-gold press and match plates again as they read.
+     -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="pk.quantofrehan"
-    android:versionCode="74"
-    android:versionName="2.3.7">
+    android:versionCode="75"
+    android:versionName="2.3.8">
 
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="30"/>
 

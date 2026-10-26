@@ -473,6 +473,19 @@ const MARKET_MEMBERSHIP = "KMIALLSHR";
 const MARKET_TOP_N = 3;
 const MARKET_TTL_MS = 5 * 60 * 1000;
 
+// Owner order 2026-10-26: "show it only if the market is open today".
+// Yesterday's frames must not answer a today question. A quote is from
+// today when its own stamp carries the SAME Karachi trading day the
+// reading instant belongs to - both sides use dayStamp/isTradingDay so a
+// weekend roll and a holiday agree by construction (SO-3, SO-8).
+function quoteIsFromToday(quote) {
+  const at = quote && quote.observed_at ? new Date(quote.observed_at) : null;
+  if (!at || Number.isNaN(at.getTime())) return false;
+  const kNow = dayStamp(karachiView(Date.now()));
+  return dayStamp(karachiView(at.getTime())) === kNow &&
+         isTradingDay(karachiView(at.getTime()));
+}
+
 // The change text is printed signed on a falling day ("-5.15") and the
 // direction is ALSO carried by the change__text--pos/neg class, so the sign
 // comes from the class and the magnitude from the text. The percentage is
@@ -1628,13 +1641,18 @@ export default {
       // is the same frame the card still shows; the frame's own stamp stays
       // in quote_as_of, freshness stays in quote_fresh, and the source line
       // names a closed session, so the numbers never claim to be live (SO-3).
+      // Owner order 2026-10-26 ("it shows the CHNGM data from yesterday, it
+      // should only show it if the market is open today"): the yesterday's
+      // session frame is NOT today's data. A frame stamped from a previous
+      // Karachi trading day is refused just like a never-seen symbol (SO-3).
       const symbol = String(url.searchParams.get("symbol") || "").toUpperCase();
       if (!/^[A-Z0-9]{1,12}$/.test(symbol)) {
         return json({ ok: false, error: "invalid symbol" }, 400);
       }
       const snapshot = await readQuoteSnapshot(env);
       const quotes = snapshot && Array.isArray(snapshot.quotes) ? snapshot.quotes : [];
-      const quote = quotes.find((q) => q && q.symbol === symbol) || null;
+      const quote = quotes.find((q) => q && q.symbol === symbol &&
+                                  quoteIsFromToday(q)) || null;
       if (!quote) {
         return json({ ok: false, error: "symbol not in the live snapshot" }, 404);
       }
@@ -1668,13 +1686,20 @@ export default {
       // answer. Owner order 2026-10-22: freshness no longer gates the row.
       // After close the publisher stops, so a fresh-only map erased every
       // price from the list just as the owner went searching. The rows are
-      // the LAST PUBLISHED price of each symbol; nothing is invented for a
-      // symbol the relay has not heard from, and nothing is aged forward,
-      // while /stock labels a closed session in its own source line (SO-3).
+      // the LAST PUBLISHED price of each symbol, from TODAY'S session only;
+      // nothing is invented for a symbol the relay has not heard from, and
+      // nothing is aged forward, while /stock labels a closed session in its
+      // own source line (SO-3). Owner order 2026-10-26: yesterday's frames
+      // are not in the list either - the card cannot fill with the last
+      // session's prices before today's publisher has spoken. Both laws
+      // measure the same thing: the quote's own stamp against the Karachi
+      // trading day in progress (SO-8), so a pre-open list is honestly
+      // empty and the first published bar of the new session fills it.
       const snapshot = await readQuoteSnapshot(env);
       const prices = [];
       for (const quote of (snapshot && snapshot.quotes) || []) {
-        if (!quote || !Number.isFinite(quote.price) || quote.price <= 0) continue;
+        if (!quote || !quoteIsFromToday(quote) ||
+            !Number.isFinite(quote.price) || quote.price <= 0) continue;
         // The volume dropdowns (owner order 2026-10-23) rank scrips by their
         // published split, so each row carries the same B/S pair the /stock
         // route computes: the day's range is the frame it is split from, and
