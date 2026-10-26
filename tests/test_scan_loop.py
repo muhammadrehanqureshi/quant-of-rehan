@@ -631,7 +631,12 @@ class CycleOutcomeTest(unittest.TestCase):
         # lives in the capture workflow and is covered by that workflow's
         # own tests.
         loop = self.loop(at(MONDAY, 15, 35))
+        # The unit never touches the venue (same law as the tape guard):
+        # the pipeline is stubbed to the data block it answers when the
+        # capture holds nothing yet, which keeps the COUNTED part of the
+        # contract decided by the loop itself.
         with patch.object(scan_loop.SessionState, "load", return_value=_OPEN_DAY), \
+             patch.object(pipeline, "run_scan", return_value=blocked_payload()), \
              patch.object(pipeline, "run_finalize",
                           return_value={"outcome": {"outcomes_by_rule": {"r": {}},
                                                     "storage_status": "archived"}}):
