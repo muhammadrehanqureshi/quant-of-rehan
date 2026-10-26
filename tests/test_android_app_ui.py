@@ -2411,7 +2411,9 @@ class MenuOrdersTest(unittest.TestCase):
         split = split[:split.index("private List<String> rankedSpeedSymbols")]
         speed = self.main[self.main.index(
             "private List<String> rankedSpeedSymbols"):]
-        speed = speed[:speed.index("One dropdown row")]
+        # v2.3.7: the row builder is the reveal; the slice ends at it.
+        speed = speed[:speed.index(
+            "private SpannableStringBuilder volumeRevealText(")]
         # Split: complete ranges only, ranked by buy + sell combined.
         self.assertIn("quote.buy != null && quote.sell != null", split)
         self.assertIn("qa.buy + qa.sell", split)
@@ -2865,8 +2867,13 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         self.assertIn("SUN_SPIN_RATE = 0.35f", orb)
         self.assertIn("SUN_SLOWDOWN = 0.9f", orb)
         self.assertIn("SUN_AXIS_TILT = 10f", orb)
-        self.assertIn("float phi = seconds * SUN_SPIN_RATE * MOTION_SCALE"
-                      " * SUN_SLOWDOWN;", orb)
+        # v2.3.7 (owner order 2026-10-26): the surface pass runs on its own
+        # 60ms cadence, so phi is handed in at the one gated call site.
+        self.assertIn("SUN_REFRESH_S = 0.06f", orb)
+        self.assertIn("boolean fresh = sunSeconds < 0f", orb)
+        self.assertIn("|| seconds - sunSeconds >= SUN_REFRESH_S;", orb)
+        self.assertIn("renderSunBall(seconds * SUN_SPIN_RATE * MOTION_SCALE"
+                      " * SUN_SLOWDOWN);", orb)
         self.assertIn("float spin = phi / SUN_LAP * SUN_MAP_W;", orb)
         self.assertIn("sampleMap(sphereU[k] + spin, sphereV[k])", orb)
         # The triangle wrap: linear across the visible half turn, mirrored
