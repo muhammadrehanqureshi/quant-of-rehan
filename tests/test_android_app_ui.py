@@ -2887,7 +2887,7 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         self.assertIn("SUN_BALL = 96f", orb)
         self.assertIn("SUN_REACH = SUN_RENDER / 2f / SUN_BALL", orb)
         self.assertIn("float r = ballR * (SUN_RENDER / 2f) / SUN_BALL;", orb)
-        self.assertIn("sunBallPixels[k] = (alpha << 24) | (red << 16)", orb)
+        self.assertIn("sunBallPixels[k] = (cover << 24)", orb)
         # His numbers: the disc at 0.86 of the picture's half side, the crop
         # at 0.62 of the disc, the limb curve and the white-hot edge.
         self.assertIn("SUN_MAP_W = 512", orb)
