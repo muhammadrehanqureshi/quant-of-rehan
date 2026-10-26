@@ -835,7 +835,6 @@ public class ThinkingOrb extends View {
             return;
         }
         renderSunBall(phi);
-        sunFramesDawn++;
         android.os.Handler p = sunPublisher;
         if (p != null) {
             p.post(this::publishSun);
