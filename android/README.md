@@ -1533,6 +1533,30 @@ to sixty seconds. The status tile therefore also carries the app's own
      shift under the owner's own 10% cut.
   6. The version bump is versionCode 72 / versionName 2.3.5.
 
+**Version 2.3.10, versionCode 77.**
+
+  Owner order 2026-10-26, thirteenth pass, on the v2.3.9 build: "you added
+  the thick orange outline just outside the SUN, who told you to do
+  that? remove that crap", and "the entire thing is still flickering,
+  solve this flickering". Two answers, both found in the code:
+
+  1. THE OUTLINE WAS THE CORONA AND IT IS GONE. The feathered band the
+     app draws just outside the disc (his picture's light, baked per
+     angle and radius and strengthened in the eighth pass) is the thick
+     orange outline he read. The corona, its bake, its constants and its
+     cell mixer are DELETED. Nothing is drawn outside the disc any
+     more: the sun's edge is its surface's own rim, inside the limb,
+     and the space around the sun is the background's own dark.
+  2. THE FLICKER'S LAST HOME WAS A TORN FRAME. The blend itself was
+     sound, but the render thread's commit of the back bitmap and the
+     HUD's copy of it ran with nothing between them: a publish that ran
+     late caught the bitmap mid-write and blended a torn half-frame at
+     half ink into the visible picture, over and over (16.7 times a
+     second worst case). The commit and the handover now both pass under
+     the sun's own gate, so the HUD can only ever copy a bitmap the
+     render thread has wholly finished. A torn frame cannot exist.
+  3. The version bump is versionCode 77 / versionName 2.3.10.
+
 **Version 2.3.9, versionCode 76.**
 
   Owner order 2026-10-26, twelfth pass, on the v2.3.8 build read on the
