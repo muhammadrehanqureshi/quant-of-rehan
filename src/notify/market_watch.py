@@ -50,11 +50,7 @@ import logging
 from datetime import date, datetime, timedelta
 
 from src.data import sessions
-from src.data.sessions import (  # noqa: F401 - re-exported for the tests
-    MORNING_BREAK_MINUTES,
-    MSG_MARKET_CLOSED,
-    MSG_MARKET_OPEN,
-)
+from src.data.sessions import MORNING_BREAK_MINUTES
 
 LOGGER = logging.getLogger("market_watch")
 

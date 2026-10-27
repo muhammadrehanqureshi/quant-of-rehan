@@ -45,6 +45,7 @@ from src.data.sessions import (  # noqa: E402
     band_bounds,
     market_phase,
     market_state_at,
+    morning_break_due,
     morning_break_window,
     now_karachi,
     post_market_window,
@@ -83,7 +84,7 @@ def due(event: str, moment=None) -> bool:
     if event == "morning-break":
         # Owner order 2026-10-27: the morning 2-minute break ahead of
         # band 1's open is its own event (09:30 Mon-Thu, 09:15 Friday).
-        return sessions.morning_break_due(k)
+        return morning_break_due(k)
     if event == "open":
         return market_phase(k) in (MarketPhase.WARMUP, MarketPhase.OPEN)
     if event == "break":
