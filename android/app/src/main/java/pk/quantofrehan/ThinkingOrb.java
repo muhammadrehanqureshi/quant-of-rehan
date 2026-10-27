@@ -740,13 +740,25 @@ public class ThinkingOrb extends View {
         }
         long now = System.currentTimeMillis() - clockAnchor;
         if (lastFrameAt >= 0 && now - lastFrameAt < FPS_MS) {
+            // v2.3.12 (owner order 2026-10-27: "the entire animating feature
+            // is still flickering"): a Choreographer frame that arrived
+            // before the 33ms gate used to return WITHOUT drawing, so the
+            // vsync this skip belonged to carried whichever picture the
+            // surface already held - and a sun publish rides the same
+            // scheduler, so the alternation between a redraw and a held
+            // frame showed at the screen's rate as phasing. A short frame
+            // is now REPAINTED WHOLE at the pose the loop last drew, so
+            // every vsync carries one complete picture and the picture
+            // still changes only at the loop's own 33ms pace.
+            drawScene(canvas, lastSeconds,
+                    Math.min(1f, lastSeconds / WAKE_SECONDS));
             postInvalidateOnAnimation();
             return;
         }
         lastFrameAt = now;
         float seconds = now / 1000f;
-        float wake = Math.min(1f, seconds / WAKE_SECONDS);
         lastSeconds = seconds;
+        float wake = Math.min(1f, seconds / WAKE_SECONDS);
         drawScene(canvas, seconds, wake);
         postInvalidateOnAnimation();
     }

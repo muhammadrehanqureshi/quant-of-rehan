@@ -1533,6 +1533,31 @@ to sixty seconds. The status tile therefore also carries the app's own
      shift under the owner's own 10% cut.
   6. The version bump is versionCode 72 / versionName 2.3.5.
 
+**Version 2.3.12, versionCode 79.**
+
+  Owner order 2026-10-27, on the v2.3.11 build: "the entire animating
+  feature is still flickering, yes, it is still flickering, make it stop
+  flickering/phasing", "on scanner page, custom scrips of volume tile,
+  you reduced the width of drop down box, and some features are getting
+  cut off because of that", "I told you to reduce the height of drop
+  down box by 5%, do it". Three answers:
+
+  1. THE WIDTH HUG IS RETIRED. v2.3.11's text-hug width cut the closed
+     box short and clipped the parts sitting at its edge, so both
+     dropdown boxes fill their tile again as they always had - and the
+     height alone steps down 5% (the box's own 40dp floor to 38dp), his
+     own number for this tile.
+  2. EVERY VSYNC CARRIES A WHOLE PICTURE. The frame loop's 33ms gate
+     used to answer a Choreographer frame that arrived early by
+     returning WITHOUT drawing, so that vsync carried whatever the
+     surface already held - and the sun's publish rides the same
+     scheduler, so the alternation between a redraw and a held frame
+     showed at the screen's own rate as phasing. A short frame is now
+     repainted WHOLE at the pose the loop last drew: every frame on the
+     screen is one complete picture, and the picture still changes only
+     at the loop's own 33ms pace.
+  3. The version bump is versionCode 79 / versionName 2.3.12.
+
 **Version 2.3.11, versionCode 78.**
 
   Owner order 2026-10-26, fourteenth pass, on the v2.3.10 build: "the

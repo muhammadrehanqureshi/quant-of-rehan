@@ -165,11 +165,23 @@
      the surface's own rim, and the render thread's commit passes under
      a gate the HUD's handover reads under the same, so no torn
      half-frame can ever be blended into the visible picture.
+
+     versionCode 79 / versionName 2.3.12 belong to the owner's orders of
+     2026-10-27 ("the entire animating feature is still flickering, make
+     it stop flickering/phasing", "you reduced the width of drop down
+     box, and some features are getting cut off because of that", "I
+     told you to reduce the height of drop down box by 5%, do it"):
+     v2.3.11's text-hug dropdown width is retired so the closed box and
+     its edge contents are clipped no more, the height alone steps down
+     5% (40dp floor to 38dp), and the frame loop answers an early
+     Choreographer frame with a WHOLE repaint of the pose it last drew
+     instead of an empty return, so no vsync can carry a held frame
+     against a redrawn one any more.
      -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="pk.quantofrehan"
-    android:versionCode="78"
-    android:versionName="2.3.11">
+    android:versionCode="79"
+    android:versionName="2.3.12">
 
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="30"/>
 
