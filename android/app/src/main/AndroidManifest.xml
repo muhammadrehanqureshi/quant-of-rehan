@@ -257,11 +257,25 @@
      is 20% longer at its swing's floor (0.70 * 1.2 = 0.84) while the
      swing's ceiling stays pinned at the dots by the standing inward
      law, so no end can ever leave its dot.
+
+     versionCode 85 / versionName 2.3.18 belong to the owner's orders
+     of 2026-10-27 ("increase all the dropdown/search boxes heigh by
+     another 50% from their current height", and "the animating LINES,
+     some of them are open, I mean to say that while moving, some of
+     the LINES just end with the dots, all the LINES should be
+     interconnected with each other"): all three field boxes grow 50%
+     of the height they wear (29 * 1.5 = 43.5, floored to 43dp, the
+     same universal one measure, the same 3dp air, the same sides and
+     centring), and the cloud's mesh is made WHOLE: the web's parts
+     are named by union-find after the neighbourhood and orphan
+     joins, and the shortest pair across two parts joins until one
+     mesh remains, so no filament can any longer end at a dot no
+     other thread carries on from.
      -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="pk.quantofrehan"
-    android:versionCode="84"
-    android:versionName="2.3.17">
+    android:versionCode="85"
+    android:versionName="2.3.18">
 
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="30"/>
 

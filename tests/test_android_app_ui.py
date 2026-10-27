@@ -1726,9 +1726,20 @@ class VersionTest(unittest.TestCase):
         # floored to 29dp, the same exact setting) and every filament's
         # swing floor lifts exactly 20% (0.70 * 1.2 = 0.84) with the
         # ceiling still pinned at the dots by the standing inward law.
+        # v2.3.18 is owner order 2026-10-27, twenty-second pass ("increase
+        # all the dropdown/search boxes heigh by another 50% from their
+        # current height", and "the animating LINES, some of them are
+        # open, I mean to say that while moving, some of the LINES just
+        # end with the dots, all the LINES should be interconnected with
+        # each other"): all three field boxes carry one universal 43dp
+        # now (29 * 1.5 = 43.5, floored to 43dp, the same exact setting)
+        # and the cloud's mesh is made WHOLE - the web's parts named by
+        # union-find, the shortest pair across two parts joined until
+        # one mesh remains, so no line can end at a dot no other thread
+        # carries on from.
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="2.3.17"', manifest)
-        self.assertIn('android:versionCode="84"', manifest)
+        self.assertIn('android:versionName="2.3.18"', manifest)
+        self.assertIn('android:versionCode="85"', manifest)
         # The changelog entry ties these user-visible changes to the build.
         readme = (ROOT / "android" / "README.md").read_text(encoding="utf-8")
         self.assertIn("v1.7.9, owner order 2026-10-20", readme)
@@ -1817,9 +1828,14 @@ class VersionTest(unittest.TestCase):
         # filament's swing floor 20% longer with the ceiling at its
         # dots, versionCode 84.
         self.assertIn("Version 2.3.17, versionCode 84", readme)
+        # v2.3.18 (owner order 2026-10-27, twenty-second pass): the
+        # three field boxes 50% taller onto the one universal 43dp, and
+        # the cloud's mesh made whole by the shortest bridge across
+        # every two parts, versionCode 85.
+        self.assertIn("Version 2.3.18, versionCode 85", readme)
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionCode="84"', manifest)
-        self.assertIn('android:versionName="2.3.17"', manifest)
+        self.assertIn('android:versionCode="85"', manifest)
+        self.assertIn('android:versionName="2.3.18"', manifest)
         layout = LAYOUT.read_text(encoding="utf-8")
         strings = STRINGS.read_text(encoding="utf-8")
         main = MAIN.read_text(encoding="utf-8")
@@ -2176,17 +2192,17 @@ class SearchBoxGapTest(unittest.TestCase):
         self.assertEqual(self.box.get(f"{ANDROID_NS}paddingBottom"), "3dp")
         self.assertEqual(self.box.get(f"{ANDROID_NS}paddingLeft"), "10dp")
         self.assertEqual(self.box.get(f"{ANDROID_NS}paddingRight"), "10dp")
-        # v2.3.17 (owner order 2026-10-27, twenty-first pass: "increase
-        # all the drop down and search box heights by 30% from their
+        # v2.3.18 (owner order 2026-10-27, twenty-second pass: "increase
+        # all the dropdown/search boxes heigh by another 50% from their
         # current height"): the growth lands on the height the box
-        # wears - 23 * 1.3 = 29.9, floored to 29dp - and the air stays
+        # wears - 29 * 1.5 = 43.5, floored to 43dp - and the air stays
         # 3dp above and below the line, the same numbers every other
         # field box carries - and no floor is named again under the
         # height it retired.
         self.assertEqual(self.box.get(f"{ANDROID_NS}layout_height"),
-                         "29dp")
+                         "43dp")
         self.assertIsNone(self.box.get(f"{ANDROID_NS}minHeight"))
-        self.assertIn('android:layout_height="29dp"',
+        self.assertIn('android:layout_height="43dp"',
                       LAYOUT.read_text(encoding="utf-8"))
 
     def test_the_hidden_rows_start_hidden_in_the_layout(self):
@@ -2384,9 +2400,9 @@ class MenuOrdersTest(unittest.TestCase):
         # v2.3.16: the closed box is its own one-line TextView at the
         # universal height, and its menu is the box's OWN inline list
         # (theme_menu) - no platform spinner, no popup window anywhere.
-        # v2.3.17 grows that universal height 30% onto 29dp.
+        # v2.3.18 grows that universal height 50% onto 43dp.
         self.assertIn("<TextView", spinner)
-        self.assertIn('android:layout_height="29dp"', spinner)
+        self.assertIn('android:layout_height="43dp"', spinner)
         menu = element(self.layout, 'android:id="@+id/theme_menu"')
         self.assertIn("<LinearLayout", menu)
         self.assertIn('android:visibility="gone"', menu)
@@ -2488,10 +2504,10 @@ class MenuOrdersTest(unittest.TestCase):
         # v2.3.16: the closed box is its own one-line TextView at the
         # universal height and the menu is the box's OWN inline list
         # (volume_split_menu) standing directly below it - no platform
-        # spinner, no popup window anywhere. v2.3.17 grows that
-        # universal height 30% onto 29dp.
+        # spinner, no popup window anywhere. v2.3.18 grows that
+        # universal height 50% onto 43dp.
         self.assertIn("<TextView", spinner)
-        self.assertIn('android:layout_height="29dp"', spinner)
+        self.assertIn('android:layout_height="43dp"', spinner)
         menu = element(self.layout, 'android:id="@+id/volume_split_menu"')
         self.assertIn("<LinearLayout", menu)
         self.assertIn('android:visibility="gone"', menu)
@@ -3231,19 +3247,22 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         spinner = element(layout, 'android:id="@+id/volume_split_spinner"')
         self.assertNotIn("android:popupBackground", spinner)
 
-    def test_v2_3_17_all_three_boxes_carry_the_one_universal_height(self):
-        """Owner order 2026-10-27, twenty-first pass ("increase all the
-        drop down and search box heights by 30% from their current
-        height"). The growth lands on the height the boxes really
-        wear, v2.3.16's one universal measure: 23 * 1.3 = 29.9, floored
-        to EXACTLY 29dp, and all three field boxes (the two closed
-        dropdown boxes and the search box) are BY that one height -
-        one exact 29dp measure, the 3dp air above and below the line,
-        the 10dp sides, one centre_vertical gravity, the font's own
-        padding out of the measure. No floor is named again: the box
-        names its height in one place, layout_height, and the retired
-        23dp/32dp/38dp/40dp/43dp/35dp measures stay retired under the
-        content they used to name.
+    def test_v2_3_18_all_three_boxes_carry_the_one_universal_height(self):
+        """Owner orders 2026-10-27, twenty-first and twenty-second passes
+        ("increase all the drop down and search box heights by 30% from
+        their current height", then "increase all the dropdown/search
+        boxes heigh by another 50% from their current height"). The
+        growth lands on the height the boxes really wear, v2.3.16's one
+        universal measure: 23 * 1.3 = 29.9 floored to 29dp, then
+        29 * 1.5 = 43.5 floored to EXACTLY 43dp, and all three field
+        boxes (the two closed dropdown boxes and the search box) are BY
+        that one height - one exact 43dp measure, the 3dp air above and
+        below the line, the 10dp sides, one centre_vertical gravity,
+        the font's own padding out of the measure. No floor is named
+        again: the box names its height in one place, layout_height,
+        and the retired 23dp/32dp/38dp/40dp/35dp measures stay retired
+        under the content they used to name (the engine-read 43dp is
+        the box's own new universal measure, not the old floor).
         """
         layout = LAYOUT.read_text(encoding="utf-8")
         for view_id in ("volume_split_spinner", "theme_spinner",
@@ -3253,7 +3272,7 @@ class ThinkingOrbPlanTest(unittest.TestCase):
                 # Tile's width, one exact height, the universal numbers,
                 # the same law three times.
                 self.assertIn('android:layout_width="match_parent"', box)
-                self.assertIn('android:layout_height="29dp"', box)
+                self.assertIn('android:layout_height="43dp"', box)
                 self.assertNotIn("minHeight", box)
                 self.assertIn('android:paddingTop="3dp"', box)
                 self.assertIn('android:paddingBottom="3dp"', box)
@@ -3359,20 +3378,21 @@ class ThinkingOrbPlanTest(unittest.TestCase):
                 self.assertIn('android:layout_height="20dp"', arrow)
                 self.assertNotIn('wrap_content', arrow)
 
-    def test_v2_3_17_the_search_box_joins_the_universal_height(self):
-        """Owner order 2026-10-27, twenty-first pass ("increase all the
-        drop down and search box heights by 30% from their current
-        height"). The 30% lands on the height the box really wears,
-        v2.3.16's universal 23dp: 23 * 1.3 = 29.9, floored to 29dp,
+    def test_v2_3_18_the_search_box_joins_the_universal_height(self):
+        """Owner order 2026-10-27, twenty-second pass ("increase all the
+        dropdown/search boxes heigh by another 50% from their current
+        height"). The 50% lands on the height the box really wears,
+        v2.3.17's universal 29dp: 29 * 1.5 = 43.5, floored to 43dp,
         the air reads 3dp above and below the line, and nothing of the
-        grown floors (35dp, 43dp) survives under their own name.
+        GROWN floors (35dp) survives under its own name - the engine
+        43dp the box carries is its own new universal measure, not the
+        old v2.3.15 floor.
         """
         box = element(LAYOUT.read_text(encoding="utf-8"),
                       'android:id="@+id/search_input"')
-        self.assertIn('android:layout_height="29dp"', box)
+        self.assertIn('android:layout_height="43dp"', box)
         self.assertNotIn("minHeight", box)
         self.assertNotIn('android:layout_height="35dp"', box)
-        self.assertNotIn('android:layout_height="43dp"', box)
         self.assertIn('android:paddingTop="3dp"', box)
         self.assertIn('android:paddingBottom="3dp"', box)
 
@@ -3409,6 +3429,41 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         # ceiling is still 1.00.
         self.assertIn("float breath = 1f - 0.08f * (1f - breathWave);", orb)
         self.assertIn("0.84..1.00", orb)
+
+    def test_v2_3_18_no_line_ends_open_every_mesh_is_whole(self):
+        """Owner order 2026-10-27, twenty-second pass: "the animating
+        LINES, some of them are open, I mean to say that while moving,
+        some of the LINES just end with the dots, all the LINES should
+        be interconnected with each other".
+
+        The four-neighbour join spends its pairs inside the
+        neighbourhoods the seed packed, so the mesh could still be
+        SEVERAL webs - a filament ending at a dot no other thread
+        carries on from is an OPEN line, and the orphan law of v2.3.3
+        only stood for the one naked dot, not for a whole island.
+        After the neighbourhood and orphan joins, the web's parts are
+        named by union-find and the SHORTEST pair across two parts
+        joins them, until ONE mesh remains: every bridge is the
+        nearest pair that still separates two parts, never a champion
+        chord, and the fade's floor keeps the longer bridge visible.
+        """
+        orb = (MAIN.parent / "ThinkingOrb.java").read_text(
+            encoding="utf-8")
+        # The parts are named by union-find over the joins made above.
+        self.assertIn("int[] part = new int[NODES];", orb)
+        self.assertIn("private static int meshRoot(int[] part, int i) {", orb)
+        self.assertIn("part[meshRoot(part, bestI)] = meshRoot(part, bestJ);",
+                      orb)
+        # The bridge is the SHORTEST pair across two parts, named so.
+        self.assertIn(
+            "if (meshRoot(part, i) == meshRoot(part, j)) {", orb)
+        self.assertIn("linkDist[linkCount] = bestDist;", orb)
+        # The pass ends only when one mesh remains, and it runs inside
+        # the same budget the arrays were sized on.
+        self.assertIn("// one mesh: nothing is open.", orb)
+        self.assertIn("while (linkCount < linkBudget()) {", orb)
+        # The bridge carries the mesh's own phase law, no two in step.
+        self.assertIn("linkPhase[linkCount] = 2.39996f * linkCount;", orb)
 
     def test_v2_3_15_the_anchors_walk_an_even_path_and_the_mesh_is_a_neighbourhood(self):
         """Owner order 2026-10-27, eighteenth pass, on the v2.3.14
@@ -3465,8 +3520,10 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         self.assertIn("boolean[] linked = new boolean[NODES * NODES];", orb)
         self.assertIn("linked[i * NODES + nearest] = true;", orb)
         self.assertIn("linked[nearest * NODES + i] = true;", orb)
-        # The link budget the arrays are sized on is unchanged.
-        self.assertEqual(orb.count("linkBudget()"), 6)
+        # The link budget the arrays are sized on is unchanged in law;
+        # v2.3.18's whole-mesh bridge pass rides inside the same budget
+        # (its own while guard is the added seventh read).
+        self.assertEqual(orb.count("linkBudget()"), 7)
         # The orphan law stands.
         self.assertIn("boolean[] joined = new boolean[NODES];", orb)
         self.assertIn("linkDist[linkCount] = nearestDist;", orb)
