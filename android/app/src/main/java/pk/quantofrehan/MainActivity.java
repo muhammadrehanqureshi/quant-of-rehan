@@ -13,6 +13,7 @@ import android.text.SpannableStringBuilder;
 import android.text.TextWatcher;
 import android.text.style.ForegroundColorSpan;
 import android.text.style.TypefaceSpan;
+import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.animation.AccelerateDecelerateInterpolator;
@@ -1237,9 +1238,18 @@ public class MainActivity extends Activity {
      * their boxes size' height by 15%"): the closed row's own pads are
      * part of the box's REAL height, and v2.3.13's floor could never
      * move them - the box measured its own 10dp air plus this row's
-     * 12dp. The row's pads are 5dp now, so with the field's 7dp air
-     * the closed box measures about 42dp (50 * 0.85 = 42.5): the one
-     * number the owner can see shrink.
+     * 12dp. The row's pads are stepped down and their height named.
+     *
+     * Owner order 2026-10-27, v2.3.15 ("reduce the height by another
+     * 20% of both themes box and custom scrips of volume box" and "the
+     * drop down is not even aligned on the centre for themes box"): the
+     * row fills the box's own inner measure now - a minHeight of 23dp,
+     * the exact inner measure of the 33dp box the field's new 5dp air
+     * leaves - and centres its one line in what it fills. The closed box
+     * measures 5 + 23 + 5 = 33dp (about 42 * 0.8 = 33.6, carried under
+     * the one flat number this law gives), and the line sits in the
+     * centre of it without relying on the Spinner's own draw to place
+     * the row.
      */
     private ArrayAdapter<String> styledSpinnerAdapter() {
         return new ArrayAdapter<String>(this,
@@ -1266,8 +1276,16 @@ public class MainActivity extends Activity {
     private void styleSpinnerRow(TextView row, boolean dropped) {
         row.setTextSize(13f);
         row.setTextColor(getColor(R.color.text_bright));
-        row.setPadding(dp(dropped ? 18 : 10), dp(dropped ? 15 : 5),
-                dp(dropped ? 18 : 10), dp(dropped ? 15 : 5));
+        row.setPadding(dp(dropped ? 18 : 10), dp(dropped ? 15 : 2),
+                dp(dropped ? 18 : 10), dp(dropped ? 15 : 2));
+        if (!dropped) {
+            // The row owns the box's inner measure exactly, so the line
+            // centres in it: the platform style's small minHeight and
+            // the two 2dp pads measure, and the centre asks for nothing
+            // the row does not already fill.
+            row.setMinHeight(dp(23));
+            row.setGravity(Gravity.CENTER_VERTICAL);
+        }
         row.setText(dropdownLine(row.getText().toString()));
     }
 

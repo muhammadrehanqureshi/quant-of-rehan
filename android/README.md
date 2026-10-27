@@ -1593,6 +1593,54 @@ to sixty seconds. The status tile therefore also carries the app's own
      never again reach past the dots that draw it.
   5. The version bump is versionCode 81 / versionName 2.3.14.
 
+**Version 2.3.15, versionCode 82.**
+
+  Owner orders of 2026-10-27, eighteenth pass, on the v2.3.14 build:
+  "the drop down is not even aligned on the centre for themes box",
+  "for themes and for custom scrips of volume the drop down icon is
+  really small, I can't even see it", "you need to reduce the height
+  by another 20% of both themes box and custom scrips of volume box",
+  "for search box you need to increase the height of its box by
+  another 25%", and "the LINES that are revolving around the SUN
+  looks really tangled and very over lapping to me, and they don't
+  even connect on one side of the entire feature". Five answers:
+
+  1. THE TWO BOXES SHRINK ANOTHER 20%, STILL ON THE HEIGHT THEY
+     REALLY WEAR. The v2.3.14 closed box (7dp air above and below the
+     line, the closed row's own 5dp pads) is cut again: the field's
+     air is 5dp above and below the line, and the closed row now
+     FILLS the box's inner measure exactly - its own pads at 2dp, a
+     23dp minHeight, its one line centred in what it fills
+     (MainActivity.styleSpinnerRow) - so the closed box is
+     5 + 23 + 5 = 33dp (about 42 * 0.8 = 33.6), and the line is
+     centred in the box by the row's own gravity.
+  2. THE SEARCH BOX GROWS ANOTHER 25%. The floor law once more:
+     35 * 1.25 = 43.75, floored to 43dp, air untouched.
+  3. THE ARROW IS PLAINLY VISIBLE AND CENTRED ON ITS BOX. The old
+     triangle was 10x5 units inside a 24x24 viewport drawn from a
+     14dp intrinsic - about 6x3dp of ink, which read as nothing. The
+     path fills half the viewport, the intrinsic is 20dp, and both
+     arrow views name that size. And the themes arrow sat off
+     centre because the box's own 10dp top margin sat on the
+     Dropdown INSIDE its holder, making the holder 10dp taller than
+     the box: the margin moves onto the holder, so the arrow aims
+     at the box's own centre by construction.
+  4. THE CLOUD FILLS EVERY SIDE AND NO LOBE SPENDS ANOTHER'S LINKS.
+     Two named causes: (a) the v2.3.8 anchors sat on five RANDOM
+     seeded spots, so two near each other made the crowded,
+     overlapped mass his tangled side was, and the stretches between
+     anchors had almost nothing to link, which is his unconnected
+     side - the anchors walk the golden angle's EVEN path around
+     the sun now (one latitude band per cluster, one 2.39996 turn
+     apart), the nodes' seeded jitter, break-outs and escapees
+     standing; (b) the pair sweep walked first come, first served
+     and died at the link budget wherever the nodes crowded, so the
+     far side of the sweep reached no pairs at all - the mesh is a
+     neighbourhood mesh now: every node joins K = 3 of its OWN
+     nearest neighbours under the one 0.42 cap, each pair once, and
+     the orphan law stands so every dot still wears a filament.
+  5. The version bump is versionCode 82 / versionName 2.3.15.
+
 **Version 2.3.13, versionCode 80.**
 
   Owner order 2026-10-27, sixteenth pass, on the v2.3.12 build ("just

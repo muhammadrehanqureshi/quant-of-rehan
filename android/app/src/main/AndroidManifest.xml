@@ -206,11 +206,32 @@
      (SUN_SPIN_RATE 0.26775 to 0.240975), and the cloud filaments'
      breathing is inward-only: a line's ends range 0.70..1.00 of the
      distance its dots own, so no end can ever leave its dot.
+
+     versionCode 82 / versionName 2.3.15 belong to the owner's orders of
+     2026-10-27 ("reduce the height by another 20% of both themes box
+     and custom scrips of volume box", "for search box you need to
+     increase the height of its box by another 25%", "the drop down is
+     not even aligned on the centre for themes box", "the drop down
+     icon is really small, I can't even see it", and the cloud: "the
+     LINES that are revolving around the SUN looks really tangled and
+     very over lapping to me, and they don't even connect on one side
+     of the entire feature"): the two dropdowns cut another 20% of the
+     height they really wear (air 7dp to 5dp, closed row's pads to
+     2dp inside the row's own 23dp minHeight, 42dp to 33dp) and the
+     row centres its line by its own gravity; the search box grows
+     another 25% on its floor (35dp to 43dp); the arrow drawable
+     doubles to a plainly visible 20dp and both arrow views name that
+     size; the themes arrow's 10dp margin moves onto its holder so the
+     arrow aims at the box's own centre; and the cloud's five anchors
+     walk an even golden-angle path around the sun (one band per
+     cluster) and every node joins K = 3 of ITS OWN nearest
+     neighbours under the 0.42 cap, so all sides carry filaments and
+     no side can spend another's links.
      -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="pk.quantofrehan"
-    android:versionCode="81"
-    android:versionName="2.3.14">
+    android:versionCode="82"
+    android:versionName="2.3.15">
 
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="30"/>
 
