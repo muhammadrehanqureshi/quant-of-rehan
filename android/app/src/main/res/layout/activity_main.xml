@@ -211,7 +211,13 @@
                  search box by another 10%"): the floor alone carries the
                  growth, 32 * 1.1 = 35 dp - the same floor law as every
                  cut before it, so the air stays 7dp and the box grows
-                 exactly 10% at the line that decides its height. -->
+                 exactly 10% at the line that decides its height.
+
+                 v2.3.15 owner order 2026-10-27 ("increase the height of
+                 its box by another 25%"): the same floor law carries the
+                 growth again, 35 * 1.25 = 43.75, floored to 43dp - the
+                 air stays 7dp and the name of the box's height is still
+                 the one number. -->
             <EditText
                 android:id="@+id/search_input"
                 android:layout_width="match_parent"
@@ -223,7 +229,7 @@
                 android:includeFontPadding="false"
                 android:inputType="textCapCharacters"
                 android:maxLines="1"
-                android:minHeight="35dp"
+                android:minHeight="43dp"
                 android:paddingLeft="10dp"
                 android:paddingRight="10dp"
                 android:paddingTop="7dp"
@@ -323,7 +329,20 @@
                  7dp above and below the line now and the row's own
                  pads read to 5dp, so the box measures about 42dp -
                  50 * 0.85 = 42.5, cut from the height the box actually
-                 wears and not from a floor nothing on the screen uses. -->
+                 wears and not from a floor nothing on the screen uses.
+
+                 v2.3.15 owner order 2026-10-27 ("reduce the height by
+                 another 20% of both themes box and custom scrips of
+                 volume box" - said with "the drop down is not even
+                 aligned on the centre for themes box" and "the drop
+                 down icon is really small, I can't even see it"): the
+                 field's air steps to 5dp above and below the line and
+                 the closed row is given the box's inner measure
+                 exactly - a 23dp floor on the row, its line centred in
+                 what it fills (MainActivity.styleSpinnerRow) - so the
+                 box measures 5 + 23 + 5 = 33dp (about 42 * 0.8 = 33.6)
+                 AND the line sits in the centre of it by the row's own
+                 gravity, not by the Spinner's mercy. -->
             <FrameLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -338,13 +357,13 @@
                 android:minHeight="32dp"
                 android:paddingLeft="10dp"
                 android:paddingRight="10dp"
-                android:paddingTop="7dp"
-                android:paddingBottom="7dp"/>
+                android:paddingTop="5dp"
+                android:paddingBottom="5dp"/>
 
             <ImageView
                 android:id="@+id/volume_split_arrow"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
+                android:layout_width="20dp"
+                android:layout_height="20dp"
                 android:layout_gravity="end|center_vertical"
                 android:layout_marginEnd="14dp"
                 android:contentDescription="@string/cd_dropdown"
@@ -662,22 +681,30 @@
                      the cuts - now the same 32dp floor as every field
                      (v2.3.12's 38dp * 0.85 = 32.3, floored to 32dp) - and
                      v2.3.14 puts the owner's 15% on the height the box
-                     really wears, floors aside: its own air is 7dp
-                     above and below the line, the closed row inside the
-                     box reads to 5dp, and the box measures about 42dp
-                     (50 * 0.85 = 42.5), the same law as the volume
-                     dropdown - so the themes box shrinks WITH it and
-                     never again stands taller than the box the owner
-                     ordered smaller. -->
+                     really wears, and v2.3.15 takes the owner's further
+                     20% with the row-centring law: the field's air is
+                     5dp above and below the line, the closed row inside
+                     the box owns the inner measure exact - a 23dp
+                     floor, its line centred in what it fills
+                     (MainActivity.styleSpinnerRow) - and the                     box measures 5 + 23 + 5 = 33dp, the same law as the
+                     volume dropdown, with the line IN THE CENTRE of the
+                     box this time. And the problem the owner named - the
+                     arrow NOT aligned to the box's centre - is the box's
+                     own 10dp top margin: it sat on the Dropdown inside
+                     the holder, so the holder drew taller than the box
+                     and the arrow's center_vertical aimed at the
+                     holder. The margin moves onto the holder now, so
+                     the holder is exactly the box and the arrow aims
+                     at the box's centre by construction. -->
                 <FrameLayout
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content">
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp">
 
                 <pk.quantofrehan.Dropdown
                     android:id="@+id/theme_spinner"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
                     android:background="@drawable/field_bg"
                     android:contentDescription="@string/label_themes"
                     android:minHeight="32dp"
@@ -685,13 +712,13 @@
                     android:prompt="@string/theme_prompt"
                     android:paddingLeft="10dp"
                     android:paddingRight="10dp"
-                    android:paddingTop="7dp"
-                    android:paddingBottom="7dp"/>
+                    android:paddingTop="5dp"
+                    android:paddingBottom="5dp"/>
 
                 <ImageView
                     android:id="@+id/theme_arrow"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
                     android:layout_gravity="end|center_vertical"
                     android:layout_marginEnd="14dp"
                     android:contentDescription="@string/cd_dropdown"

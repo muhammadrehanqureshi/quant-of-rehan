@@ -612,15 +612,24 @@ public class ThinkingOrb extends View {
         float[] anchorX = new float[CLUSTERS];
         float[] anchorY = new float[CLUSTERS];
         float[] anchorZ = new float[CLUSTERS];
+        // Owner order 2026-10-27 ("they are very tangled and very
+        // overlapped on one side of the entire section of the lines, and
+        // they don't even connect on one side of the entire feature"):
+        // the five anchors sat on FIVE RANDOM spots, so the lobes were
+        // five random fists - two near each other made one crowded,
+        // overlapped mass, and the sides between the anchors had almost
+        // nothing to link. The anchors walk the golden angle's EVEN path
+        // around the sphere now - one latitude band per cluster, one
+        // 2.39996 turn apart - so the lobes stand apart everywhere in
+        // every direction and the web fills all the way around the sun
+        // by construction, never by luck.
         for (int c = 0; c < CLUSTERS; c++) {
-            seed = nextSeed(seed);
-            float u = frac(seed) * 2f - 1f;
-            seed = nextSeed(seed);
-            float theta = frac(seed) * (float) Math.PI * 2f;
-            float s = (float) Math.sqrt(1f - u * u);
+            float v = (c + 0.5f) / CLUSTERS * 2f - 1f;
+            float s = (float) Math.sqrt(Math.max(0f, 1f - v * v));
+            float theta = c * 2.39996f;
             // Anchors sit between the sun and the shell, reachable by links.
             anchorX[c] = s * (float) Math.cos(theta) * 0.55f;
-            anchorY[c] = u * 0.55f;
+            anchorY[c] = v * 0.55f;
             anchorZ[c] = s * (float) Math.sin(theta) * 0.55f;
         }
         for (int n = 0; n < NODES; n++) {
@@ -659,24 +668,59 @@ public class ThinkingOrb extends View {
         // Owner order 2026-10-24 ("the lines ... look very tangled, make
         // them untangled"): a link is a short filament inside its own
         // neighbourhood, never a long chord crossing the ball.
+        //
+        // Owner order 2026-10-27 (same subject, on the phone's own
+        // screenshot: "they are very tangled and very overlapped on one
+        // side ... they don't even connect on one side of the entire
+        // feature"): the old sweep walked the pairs FIRST COME, FIRST
+        // SERVED and died at the link budget, so wherever the nodes
+        // crowded - and the anchors made them crowd - the budget was
+        // spent there, and the far side of the sweep reached no pairs at
+        // all. The mesh is a NEIGHBOURHOOD MESH now: every node joins
+        // K = 3 of its own nearest neighbours, each pair once, every
+        // link still under the one 0.42 cap - so every side of the ball
+        // carries its own filaments and no lobe can spend another's
+        // links. The sweep is O(N^2 x K) once, at build, never on the
+        // frame path; the deduplicated pair count sits far under the
+        // v2.2.1 budget the arrays were sized on.
         float linkAt = 0.42f;
+        final int K = 3;
+        boolean[] linked = new boolean[NODES * NODES];
         linkCount = 0;
-        for (int i = 0; i < NODES && linkCount < linkBudget(); i++) {
-            for (int j = i + 1; j < NODES && linkCount < linkBudget(); j++) {
-                float dx = cloud[i * NODE_STRIDE] - cloud[j * NODE_STRIDE];
-                float dy = cloud[i * NODE_STRIDE + 1] - cloud[j * NODE_STRIDE + 1];
-                float dz = cloud[i * NODE_STRIDE + 2] - cloud[j * NODE_STRIDE + 2];
-                float dist = (float) Math.sqrt(dx * dx + dy * dy + dz * dz);
-                if (dist <= linkAt) {
-                    linkA[linkCount] = i;
-                    linkB[linkCount] = j;
-                    linkDist[linkCount] = dist;
-                    // One golden-angle step per link: the multiplying
-                    // constant spreads the phases around the circle so
-                    // no two neighbours breathe in perfect step.
-                    linkPhase[linkCount] = 2.39996f * linkCount;
-                    linkCount++;
+        for (int i = 0; i < NODES; i++) {
+            for (int take = 0; take < K; take++) {
+                int nearest = -1;
+                float nearestDist = Float.MAX_VALUE;
+                for (int j = 0; j < NODES; j++) {
+                    if (j == i || linked[i * NODES + j]) {
+                        continue;
+                    }
+                    float dx = cloud[i * NODE_STRIDE]
+                            - cloud[j * NODE_STRIDE];
+                    float dy = cloud[i * NODE_STRIDE + 1]
+                            - cloud[j * NODE_STRIDE + 1];
+                    float dz = cloud[i * NODE_STRIDE + 2]
+                            - cloud[j * NODE_STRIDE + 2];
+                    float dist = (float) Math.sqrt(dx * dx + dy * dy
+                            + dz * dz);
+                    if (dist <= linkAt && dist < nearestDist) {
+                        nearest = j;
+                        nearestDist = dist;
+                    }
                 }
+                if (nearest < 0) {
+                    break;
+                }
+                linked[i * NODES + nearest] = true;
+                linked[nearest * NODES + i] = true;
+                linkA[linkCount] = i;
+                linkB[linkCount] = nearest;
+                linkDist[linkCount] = nearestDist;
+                // One golden-angle step per link: the multiplying
+                // constant spreads the phases around the circle so
+                // no two neighbours breathe in perfect step.
+                linkPhase[linkCount] = 2.39996f * linkCount;
+                linkCount++;
             }
         }
         // v2.3.3 (owner order 2026-10-25, "few independent dots without any
