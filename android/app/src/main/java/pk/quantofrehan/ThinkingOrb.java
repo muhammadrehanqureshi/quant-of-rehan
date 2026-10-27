@@ -95,7 +95,10 @@ import android.view.View;
  *      can never become the visible frame even if the swap races the
  *      pass.
  *
- * The owner's 2026-10-26 speed order stands: 0.35 * 0.85 = 0.2975 rad/s.
+ * The speed chain stands, each cut on the rate itself: 0.35 * 0.85 =
+ * 0.2975 (2026-10-26), 0.2975 * 0.9 = 0.26775 (2026-10-27, third pass),
+ * 0.26775 * 0.9 = 0.240975 (2026-10-27, the owner's "Decrease the sun's
+ * revolving speed by another 10%").
  * Owner order 2026-10-26, ninth pass, with the three phone screenshots:
  * "also, the AI looking feature, the SUN and the LINES every thing is
  * flickering, make it fucking stop, also, the lines are really tangled
@@ -440,8 +443,12 @@ public class ThinkingOrb extends View {
      * from its current speed", third pass on the feature): the cut is
      * applied to the rate itself, the same place every earlier cut sat,
      * and never to SUN_SLOWDOWN below: 0.2975 * 0.9 = 0.26775 rad/s.
+     *
+     * Owner order 2026-10-27 ("Decrease the sun's revolving speed by
+     * another 10%"): the same law, the fourth pass on the rate:
+     * 0.26775 * 0.9 = 0.240975 rad/s.
      */
-    private static final float SUN_SPIN_RATE = 0.26775f;
+    private static final float SUN_SPIN_RATE = 0.240975f;
     // Owner order 2026-10-26: the 15% cut applied to the v2.3.8 rate
     // itself, not to the older slowdown multiplier. The 2026-10-27 pass
     // follows the same law - the rate alone carries the newer cuts.
@@ -1681,9 +1688,19 @@ public class ThinkingOrb extends View {
             linkPaint.setStrokeWidth(linkWidth * (0.8f + 0.45f * toward)
                     * widthBreath);
             // The length swings around the filament's own MIDPOINT, so
-            // both ends breathe outward and inward together instead of the
-            // whole line sliding off the nodes it joins.
-            float breath = 1f + 0.30f * breathWave;
+            // both ends pool in and return together instead of the whole
+            // line sliding off the nodes it joins.
+            //
+            // Owner order 2026-10-27 ("the moving big lines that are
+            // revolving around the sun are coming out from their dots.
+            // Make it not exceed those dots"): the v2.3.3 law let the
+            // swing carry a filament's ends up to 30% BEYOND the dots it
+            // joins. The swing is inward-only now: this factor rides
+            // 0.70..1.00 over the wave, so the line shrinks toward its
+            // own midpoint and stretches back exactly to the dots that
+            // own it - and no end can ever leave the dot it is drawn
+            // from, whatever the wave is doing.
+            float breath = 1f - 0.15f * (1f - breathWave);
             float ax = screenX[a];
             float ay = screenY[a];
             float bx = screenX[b];

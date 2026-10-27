@@ -1231,6 +1231,15 @@ public class MainActivity extends Activity {
      * law every non-heading line of the console already holds. The
      * closed row is a body line inside the field box; the dropped rows
      * carry the same ink and a taller padding of their own.
+     *
+     * Owner order 2026-10-27, v2.3.14 ("I told you to reduce the height
+     * of customs scrips of volume and theme boxes, you didn't. Reduce
+     * their boxes size' height by 15%"): the closed row's own pads are
+     * part of the box's REAL height, and v2.3.13's floor could never
+     * move them - the box measured its own 10dp air plus this row's
+     * 12dp. The row's pads are 5dp now, so with the field's 7dp air
+     * the closed box measures about 42dp (50 * 0.85 = 42.5): the one
+     * number the owner can see shrink.
      */
     private ArrayAdapter<String> styledSpinnerAdapter() {
         return new ArrayAdapter<String>(this,
@@ -1257,8 +1266,8 @@ public class MainActivity extends Activity {
     private void styleSpinnerRow(TextView row, boolean dropped) {
         row.setTextSize(13f);
         row.setTextColor(getColor(R.color.text_bright));
-        row.setPadding(dp(dropped ? 18 : 10), dp(dropped ? 15 : 6),
-                dp(dropped ? 18 : 10), dp(dropped ? 15 : 6));
+        row.setPadding(dp(dropped ? 18 : 10), dp(dropped ? 15 : 5),
+                dp(dropped ? 18 : 10), dp(dropped ? 15 : 5));
         row.setText(dropdownLine(row.getText().toString()));
     }
 

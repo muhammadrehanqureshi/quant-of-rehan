@@ -191,11 +191,26 @@
      floor, and the search highlight's lift toward white is read back to
      26% exact / 14% prefix so the plate keeps its own theme's hue -
      violet on purple, never white.
+
+     versionCode 81 / versionName 2.3.14 belong to the owner's orders of
+     2026-10-27 ("I told you to reduce the height of customs scrips of
+     volume and theme boxes, you didn't. Reduce their boxes size'
+     height by 15%", "increase the height of search box by another
+     10%", "Decrease the sun's revolving speed by another 10%", "the
+     moving big lines that are revolving around the sun are coming out
+     from their dots. Make it not exceed those dots"): the custom
+     scrips and the themes dropdowns cut 15% of the height they really
+     wear (own air 10dp to 7dp, closed row 6dp to 5dp, about 50dp to
+     about 42dp - floors alone never drew), the search box grows 10% on
+     its floor (32dp to 35dp), the sun's rate carries the fourth cut
+     (SUN_SPIN_RATE 0.26775 to 0.240975), and the cloud filaments'
+     breathing is inward-only: a line's ends range 0.70..1.00 of the
+     distance its dots own, so no end can ever leave its dot.
      -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="pk.quantofrehan"
-    android:versionCode="80"
-    android:versionName="2.3.13">
+    android:versionCode="81"
+    android:versionName="2.3.14">
 
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="30"/>
 

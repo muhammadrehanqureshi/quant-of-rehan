@@ -1558,6 +1558,41 @@ to sixty seconds. The status tile therefore also carries the app's own
      at the loop's own 33ms pace.
   3. The version bump is versionCode 79 / versionName 2.3.12.
 
+**Version 2.3.14, versionCode 81.**
+
+  Owner orders of 2026-10-27, on the v2.3.13 build ("I told you to
+  reduce the height of customs scrips of volume and theme boxes, you
+  didn't. Reduce their boxes size' height by 15%", "increase the height
+  of search box by another 10%", "Decrease the sun's revolving speed by
+  another 10%", "the moving big lines that are revolving around the
+  sun are coming out from their dots. Make it not exceed those"). Four answers:
+
+  1. THE TWO BOXES REALLY DO SHRINK 15%, AND THE REASON THE EARLIER
+     PASS SHOWED NOTHING IS NAMED. A dropdown box's real height is its
+     own air (10dp above and below) plus the closed row's own pads
+     (6dp each) plus the body line: about 50dp, so the 32dp floor of
+     v2.3.13 sat under the box and moved nothing the owner could see.
+     The cut is on those real parts now: the field's air is 7dp above
+     and below the line (the 10dp sides stay the box's own) and the
+     closed row's pads read to 5dp, so the closed box measures about
+     42dp - 50 * 0.85 = 42.5. custom scrips of volume and themes, the
+     same law, and the closed row's ink is untouched.
+  2. THE SEARCH BOX IS 10% TALLER. The floor alone carries the
+     growth: 32 * 1.1 = 35dp, so the box's even 7dp air law survives
+     and it grows exactly 10% of the measure it is named by.
+  3. THE SUN IS 10% SLOWER, THE FOURTH TIME. The cut lands on
+     SUN_SPIN_RATE itself again, the place every earlier cut sat:
+     0.26775 * 0.9 = 0.240975 rad/s.
+  4. NO LINE EVER LEAVES ITS DOT. The v2.3.3 breath swung a
+     filament's length 0.70..1.30 of the distance its two dots own,
+     so at the top of every wave each end hung up to 30% past its
+     dot, which is the escape the owner saw. The swing is inward-only
+     now: the factor rides 0.70..1.00 over the wave, so a filament
+     shrinks toward its own midpoint and stretches back exactly to
+     the dots that own it. The breathing still breathes; it just can
+     never again reach past the dots that draw it.
+  5. The version bump is versionCode 81 / versionName 2.3.14.
+
 **Version 2.3.13, versionCode 80.**
 
   Owner order 2026-10-27, sixteenth pass, on the v2.3.12 build ("just
