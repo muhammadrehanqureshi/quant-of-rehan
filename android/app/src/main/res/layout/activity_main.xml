@@ -205,7 +205,13 @@
                  padding stays the box's own; the air above and below the
                  line is read back to 7dp so the text plus that air
                  measures to the same 32dp - the box's own even air law
-                 (2026-10-21, 15:35) survives with the smaller number. -->
+                 (2026-10-21, 15:35) survives with the smaller number.
+
+                 v2.3.14 owner order 2026-10-27 ("increase the height of
+                 search box by another 10%"): the floor alone carries the
+                 growth, 32 * 1.1 = 35 dp - the same floor law as every
+                 cut before it, so the air stays 7dp and the box grows
+                 exactly 10% at the line that decides its height. -->
             <EditText
                 android:id="@+id/search_input"
                 android:layout_width="match_parent"
@@ -217,7 +223,7 @@
                 android:includeFontPadding="false"
                 android:inputType="textCapCharacters"
                 android:maxLines="1"
-                android:minHeight="32dp"
+                android:minHeight="35dp"
                 android:paddingLeft="10dp"
                 android:paddingRight="10dp"
                 android:paddingTop="7dp"
@@ -298,14 +304,26 @@
             <!-- Every dropdown keeps its state arrow beside it (2.0.0):
                  DOWN while closed, UP while open. v2.3.12 retired the hug
                  (v2.3.11's text-hug width cut the box off short and
-                 clipped the parts sitting at its edge), so the box fills
+                 clipped the parts sitting at its edge), so the box                 fills
                  the tile again as it always had - and v2.3.13 (owner
                  order 2026-10-27, "make all drop down boxes' height
                  reduce by 15% from current height ... across everywhere
                  on the app") takes the height alone down the next 15%:
                  the 38dp floor becomes 32dp, and the search box carries
                  the same floor, so every field on the console is one
-                 height now. -->
+                 height now.
+
+                 v2.3.14 owner order 2026-10-27 ("I told you to reduce
+                 the height of customs scrips of volume and theme boxes,
+                 you didn't. Reduce their boxes size' height by 15%"): the
+                 cut is on the box's REAL height this time, the measure
+                 the earlier floor could never touch: the closed box
+                 was its own 10dp air plus the closed row's 6dp, so a
+                 box the floor had left at about 50dp drew. The air is
+                 7dp above and below the line now and the row's own
+                 pads read to 5dp, so the box measures about 42dp -
+                 50 * 0.85 = 42.5, cut from the height the box actually
+                 wears and not from a floor nothing on the screen uses. -->
             <FrameLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -318,7 +336,10 @@
                 android:background="@drawable/field_bg"
                 android:contentDescription="@string/label_volume"
                 android:minHeight="32dp"
-                android:padding="10dp"/>
+                android:paddingLeft="10dp"
+                android:paddingRight="10dp"
+                android:paddingTop="7dp"
+                android:paddingBottom="7dp"/>
 
             <ImageView
                 android:id="@+id/volume_split_arrow"
@@ -637,9 +658,17 @@
 
                 <!-- The themes dropdown and its state arrow (2.0.0).
                      v2.3.12 then v2.3.13, one hour: the hug is retired, the
-                     box fills the tile again, and the height alone carries
+                     box fills the tile again,                                     and the height alone carries
                      the cuts - now the same 32dp floor as every field
-                     (v2.3.12's 38dp * 0.85 = 32.3, floored to 32dp). -->
+                     (v2.3.12's 38dp * 0.85 = 32.3, floored to 32dp) - and
+                     v2.3.14 puts the owner's 15% on the height the box
+                     really wears, floors aside: its own air is 7dp
+                     above and below the line, the closed row inside the
+                     box reads to 5dp, and the box measures about 42dp
+                     (50 * 0.85 = 42.5), the same law as the volume
+                     dropdown - so the themes box shrinks WITH it and
+                     never again stands taller than the box the owner
+                     ordered smaller. -->
                 <FrameLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content">
@@ -654,7 +683,10 @@
                     android:minHeight="32dp"
                     android:popupBackground="@drawable/dropdown_popup"
                     android:prompt="@string/theme_prompt"
-                    android:padding="10dp"/>
+                    android:paddingLeft="10dp"
+                    android:paddingRight="10dp"
+                    android:paddingTop="7dp"
+                    android:paddingBottom="7dp"/>
 
                 <ImageView
                     android:id="@+id/theme_arrow"
