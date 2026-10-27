@@ -1641,6 +1641,37 @@ to sixty seconds. The status tile therefore also carries the app's own
      the orphan law stands so every dot still wears a filament.
   5. The version bump is versionCode 82 / versionName 2.3.15.
 
+**Version 2.3.18, versionCode 85.**
+
+  Owner orders of 2026-10-27, twenty-second pass, on the v2.3.17
+  build: "increase all the dropdown/search boxes heigh by another 50%
+  from their current height", and "the animating LINES, some of them
+  are open, I mean to say that while moving, some of the LINES just
+  end with the dots, all the LINES should be interconnected with each
+  other". Two answers:
+
+  1. THE THREE FIELD BOXES GROW 50%. The growth lands on the height
+     the boxes really wear, v2.3.17's one universal measure:
+     29 * 1.5 = 43.5, floored to EXACTLY 43dp. The custom scrips box,
+     the themes box and the search box all name that one height -
+     the same air (3dp above and below the line), the same 10dp
+     sides, the same centre_vertical centring - so all three field
+     boxes are one exact 43dp and nothing of the old engine numbers
+     (23dp, 35dp) survives under its name.
+  2. EVERY LINES IS INTERCONNECTED. The four-neighbour join spends
+     its pairs inside the neighbourhoods the seed packed, so the
+     mesh could still be SEVERAL webs - a filament that ends at a
+     dot no other thread carries on from is an OPEN line, and the
+     v2.3.3 orphan law only stood for the one naked dot. Now, after
+     the neighbourhood and orphan joins, the web's parts are named
+     by union-find and the SHORTEST pair across two parts joins
+     them, until ONE mesh remains: every bridge is the nearest pair
+     that still separates two parts, never a champion chord, the
+     bridge carries the mesh's own phase law (no two in step), and
+     the fade's floor keeps a longer bridge visible as the thread
+     it is.
+  3. The version bump is versionCode 85 / versionName 2.3.18.
+
 **Version 2.3.17, versionCode 84.**
 
   Owner orders of 2026-10-27, twenty-first pass, on the v2.3.16 build:

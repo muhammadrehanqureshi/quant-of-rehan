@@ -771,6 +771,78 @@ public class ThinkingOrb extends View {
             linkPhase[linkCount] = 2.39996f * linkCount;
             linkCount++;
         }
+        // Owner order 2026-10-27, v2.3.18 ("the animating LINES, some of
+        // them are open, I mean to say that while moving, some of the
+        // LINES just end with the dots, all the LINES should be
+        // interconnected with each other"): the four-neighbour join
+        // spends its pairs inside the neighbourhoods the seed packed, so
+        // the mesh could still be SEVERAL webs - a filament that ends at
+        // a dot no other thread carries on from is an OPEN line. The
+        // web's parts are named by union-find over the joins above, and
+        // the SHORTEST pair across two parts joins them until ONE mesh
+        // remains: each bridge is the nearest pair that still separates
+        // two parts, so the interconnection is made of the shortest
+        // threads the geometry offers, never a champion chord - and the
+        // fade's floor keeps a longer bridge visible as the thread it is
+        // (v2.3.3's orphan law already stood for the one naked dot; the
+        // bound holds: at most 420 four-neighbour joins, 105 orphan
+        // joins and 104 bridges, far under the 651 the arrays are
+        // sized on).
+        int[] part = new int[NODES];
+        for (int i = 0; i < NODES; i++) {
+            part[i] = i;
+        }
+        for (int l = 0; l < linkCount; l++) {
+            int ra = meshRoot(part, linkA[l]);
+            int rb = meshRoot(part, linkB[l]);
+            if (ra != rb) {
+                part[ra] = rb;
+            }
+        }
+        while (linkCount < linkBudget()) {
+            int bestI = -1;
+            int bestJ = -1;
+            float bestDist = Float.MAX_VALUE;
+            for (int i = 0; i < NODES; i++) {
+                for (int j = i + 1; j < NODES; j++) {
+                    if (meshRoot(part, i) == meshRoot(part, j)) {
+                        continue;
+                    }
+                    float dx = cloud[i * NODE_STRIDE]
+                            - cloud[j * NODE_STRIDE];
+                    float dy = cloud[i * NODE_STRIDE + 1]
+                            - cloud[j * NODE_STRIDE + 1];
+                    float dz = cloud[i * NODE_STRIDE + 2]
+                            - cloud[j * NODE_STRIDE + 2];
+                    float dist = (float) Math.sqrt(dx * dx + dy * dy
+                            + dz * dz);
+                    if (dist < bestDist) {
+                        bestDist = dist;
+                        bestI = i;
+                        bestJ = j;
+                    }
+                }
+            }
+            if (bestI < 0) {
+                break;                       // one mesh: nothing is open.
+            }
+            part[meshRoot(part, bestI)] = meshRoot(part, bestJ);
+            linkA[linkCount] = bestI;
+            linkB[linkCount] = bestJ;
+            linkDist[linkCount] = bestDist;
+            linkPhase[linkCount] = 2.39996f * linkCount;
+            linkCount++;
+        }
+    }
+
+    /** The mesh's union-find root, path-halved on every walk, so the
+     *  connectivity pass above stays cheap. */
+    private static int meshRoot(int[] part, int i) {
+        while (part[i] != i) {
+            part[i] = part[part[i]];
+            i = part[i];
+        }
+        return i;
     }
 
     /** The paints: the rendered ball, its glow, and the cloud's inks. */
