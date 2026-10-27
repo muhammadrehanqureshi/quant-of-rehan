@@ -677,14 +677,22 @@ public class ThinkingOrb extends View {
         // crowded - and the anchors made them crowd - the budget was
         // spent there, and the far side of the sweep reached no pairs at
         // all. The mesh is a NEIGHBOURHOOD MESH now: every node joins
-        // K = 3 of its own nearest neighbours, each pair once, every
+        // K of its own nearest neighbours, each pair once, every
         // link still under the one 0.42 cap - so every side of the ball
         // carries its own filaments and no lobe can spend another's
-        // links. The sweep is O(N^2 x K) once, at build, never on the
+        // links. (v2.3.15 set K = 3; v2.3.16 carries the +20% below.) The sweep is O(N^2 x K) once, at build, never on the
         // frame path; the deduplicated pair count sits far under the
         // v2.2.1 budget the arrays were sized on.
+        //
+        // Owner order 2026-10-27, v2.3.16 ("the animating lines are less
+        // as of now, make more LINES ... increase the number of LINES by
+        // 20% from the current number, across the entire animating
+        // feautre"): K carries the growth whole - 3 * 1.2 = 3.6, floored
+        // to 4 - so every node joins one more neighbour than v2.3.15
+        // gave it, under the same 0.42 cap and with the same one-pair
+        // once rule: the lines grow 20% on the SAME law, not a new one.
         float linkAt = 0.42f;
-        final int K = 3;
+        final int K = 4;
         boolean[] linked = new boolean[NODES * NODES];
         linkCount = 0;
         for (int i = 0; i < NODES; i++) {
@@ -1819,9 +1827,14 @@ public class ThinkingOrb extends View {
      * v2.2.1: NODES x 4 grew 30% to NODES x 26 / 5 (4 x 1.3 = 5.2) - the
      * owner's "increase the number of lines by another 30%" order, applied
      * to the only line budget this feature keeps.
+     *
+     * Owner order 2026-10-27, v2.3.16: the budget carries the same +20%
+     * the mesh law above carries (26/5 * 1.2 = 31.2, floored to 31/5),
+     * so the arrays hold every pair the four-neighbour join now asks
+     * for, whatever the seed's lobes do.
      */
     private static int linkBudget() {
-        return NODES * 26 / 5;
+        return NODES * 31 / 5;
     }
 
     /** The frame's handover: visible sun = back bitmap, then swap. The

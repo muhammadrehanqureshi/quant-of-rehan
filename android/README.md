@@ -1641,6 +1641,54 @@ to sixty seconds. The status tile therefore also carries the app's own
      the orphan law stands so every dot still wears a filament.
   5. The version bump is versionCode 82 / versionName 2.3.15.
 
+**Version 2.3.16, versionCode 83.**
+
+  Owner orders of 2026-10-27, nineteenth pass, on the v2.3.15 build:
+  "make the decrease the height of custom scrips of volume by another
+  30%, and with that same exact setting, make the changes for theme
+  box and search box as well, I mean all these three boxes should
+  have universal height", "when I tap on custom scrips of volume,
+  another window pops up which is wrong, drop down menu should appear
+  from the same box, not as a completely separate window", and "the
+  animating lines are less as of now, make more LINES in the
+  animating feature, don't overdo it, I think increase the number of
+  LINES by 20% from the current number, across the entire animating
+  feautre". Three answers:
+
+  1. THE THREE BOXES CARRY ONE UNIVERSAL HEIGHT. The v2.3.15 closed
+     dropdown box was 33dp and the search box 43dp on its floor;
+     the 30% cut named here lands on the dropdown's real height
+     (33 * 0.7 = 23.1, floored to EXACTLY 23dp - the box's own air
+     steps 5dp to 3dp above and below the line, the closed row's
+     23dp measure is the box's height now, no floor underneath) and
+     the THEME box and the SEARCH box take the same exact setting:
+     the search box is one exact 23dp measure too, its air 3dp above
+     and below the line, and the grown floors (35dp, 43dp) stand
+     retired under the heights they used to name.
+  2. NO SEPARATE WINDOW. A tap on custom scrips of volume opened the
+     platform Spinner's POPUP WINDOW - measured, vertical-offset,
+     proper-popup - which is what read as another window, and it
+     was spinning on its own animation while the box stayed still
+     and the theme box kept its dark wall. The whole platform class
+     is retired with its popup: every closed dropdown box is its
+     own plain TextView and every menu is a LinearLayout of the
+     app's own rows, standing DIRECTLY below the box it belongs to
+     in the page's own scroll, revealed and hidden by the app's own
+     state - buildVolumeMenu and buildThemeMenu, one menu row at a     time, the open toggles on the box itself and on the arrow
+     beside it, one menu opened at a time. The arrow no longer
+     spins in its own window (no platform spinner to rotate it):
+     it flips with the same state that shows the menu. The closed
+     box now centres its one line by its own gravity.
+  3. THE LINES GROW 20%. The mesh's join carries the growth whole:
+     every node joins K = 4 of its OWN nearest neighbours
+     (3 * 1.2 = 3.6, floored to 4) under the same 0.42 cap and the
+     same one-pair-once law, so the visible filaments grow 20% by
+     the neighbourhood law itself, not by a new one - and the link
+     budget the arrays are sized on carries the same +20%
+     (NODES * 26 / 5.120 * 1.2 = NODES * 31 / 5), whatever the
+     seed's lobes do.
+  4. The version bump is versionCode 83 / versionName 2.3.16.
+
 **Version 2.3.13, versionCode 80.**
 
   Owner order 2026-10-27, sixteenth pass, on the v2.3.12 build ("just
