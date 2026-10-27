@@ -56,6 +56,9 @@
          the ranking is, never that a split is order flow (SO-3). -->
     <string name="volume_speed_caption">PRICES RISING FAST</string>
     <string name="volume_split_caption">MORE BUYERS &amp; LESS SELLERS</string>
+    <!-- v2.3.11 owner order: the volume menu's pilot row and the closed
+         box's default cap. -->
+    <string name="volume_placeholder_scrips">SELECT CUSTOM SCRIPS</string>
 
     <!-- ══════════ THEMES tile (owner order 2026-10-23) ══════════
          Five looks, each a (background, heading colour) pair read in the

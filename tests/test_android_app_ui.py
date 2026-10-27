@@ -1693,8 +1693,8 @@ class VersionTest(unittest.TestCase):
         # boils, the eruptions blow, the bloom bleeds and the filaments
         # breathe in width and ink as well as length.
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="2.3.10"', manifest)
-        self.assertIn('android:versionCode="77"', manifest)
+        self.assertIn('android:versionName="2.3.11"', manifest)
+        self.assertIn('android:versionCode="78"', manifest)
         # The changelog entry ties these user-visible changes to the build.
         readme = (ROOT / "android" / "README.md").read_text(encoding="utf-8")
         self.assertIn("v1.7.9, owner order 2026-10-20", readme)
@@ -1750,9 +1750,13 @@ class VersionTest(unittest.TestCase):
         # v2.3.10 (owner order 2026-10-26, thirteenth pass): the corona
         # deletion and the commit gate, versionCode 77.
         self.assertIn("Version 2.3.10, versionCode 77", readme)
+        # v2.3.11 (owner order 2026-10-26, fourteenth pass): the animation
+        # removed and rebuilt from v2.3.8, the placeholder cap, and the
+        # snug dropdown boxes, versionCode 78.
+        self.assertIn("Version 2.3.11, versionCode 78", readme)
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionCode="77"', manifest)
-        self.assertIn('android:versionName="2.3.10"', manifest)
+        self.assertIn('android:versionCode="78"', manifest)
+        self.assertIn('android:versionName="2.3.11"', manifest)
         layout = LAYOUT.read_text(encoding="utf-8")
         strings = STRINGS.read_text(encoding="utf-8")
         main = MAIN.read_text(encoding="utf-8")
@@ -2909,15 +2913,17 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         self.assertIn("ringInk[ang]", orb)
         # His rim: alpha and ink per angle, baked from his picture.
         self.assertIn("FLAME_STEPS = 512", orb)
-        # v2.3.10 (owner order 2026-10-26: "you added the thick orange
-        # outline just outside the SUN, who told you to do that? remove
-        # that crap"): the corona is deleted with its bake, its constants
-        # and its mixer, and NOTHING is drawn outside the disc.
-        for retired in ("CORONA_STEPS", "CORONA_REACH", "CORONA_GAIN",
-                        "CORONA_SMOOTH", "coronaInk", "buildSunCorona",
-                        "mixChannel"):
-            with self.subTest(retired=retired):
-                self.assertNotIn(retired, orb)
+        # The corona is restored THIN (v2.3.11 owner order: the entire
+        # feature removed and readded from v2.3.8, whose sun he named
+        # good; the eighth pass's 1.75 bulge was the thick orange
+        # outline, so the gain stands at the v2.3.6 blend).
+        self.assertIn("CORONA_STEPS = 28", orb)
+        self.assertIn("CORONA_REACH = 0.20f", orb)
+        self.assertIn("CORONA_GAIN = 1.45f", orb)
+        self.assertIn("CORONA_SMOOTH = 19", orb)
+        self.assertIn("buildSunCorona(photo, photoW, photoH);", orb)
+        self.assertIn("coronaInk[r * FLAME_STEPS + i] = ((alpha / n) << 24)",
+                      orb)
         self.assertIn("sunBallPixels[k] = 0;", orb)
         # The pole dissolve.
         self.assertIn("SUN_POLE_IN = 0.64f", orb)
@@ -2940,39 +2946,29 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         self.assertIn("float spin = phi / SUN_LAP * SUN_MAP_W;", orb)
         self.assertIn("sampleMap(sphereU[k] + spin, sphereV[k])", orb)
         # The thread (v2.3.8): its own cadence, double buffered, parked
-        # when the market stops, warm before the first paint. v2.3.9
-        # (owner order 2026-10-26, twelfth report of the phasing): the
-        # handover no longer swaps a WHOLE frame every 60ms inside the
-        # HUD's 30fps cycle - that step was the phase the owner kept
-        # seeing. The first handover onto a rebuilt surface copies whole
-        # (the parked view arrives fully lit) and every later handover
-        # BLENDs the newest pass into the visible bitmap at half ink, so
-        # no published frame can pop and the HUD draws one whole picture.
+        # when the market stops, warm before the first paint. v2.3.11
+        # (owner order 2026-10-26, fourteenth pass: "remove the entire
+        # feature then add it again, and fix it"): the handover is the
+        # v2.3.8 HARD SWAP again - v2.3.9's half-alpha blend was the
+        # ghosting he kept seeing - and the v2.3.10 commit gate stands:
+        # the render thread signs its bitmap and the swap runs under one
+        # monitor, so a torn half-pass can never become the picture.
         self.assertIn("long SUN_CADENCE_MS = 60L", orb)
         self.assertIn("sunThread.setPriority(Thread.NORM_PRIORITY - 1);", orb)
         self.assertIn("sunThread.setDaemon(true);", orb)
         self.assertIn("sunThread.start();", orb)
         self.assertIn("Thread.sleep(wait);", orb)
         self.assertIn("sunBallBack.setPixels", orb)
-        self.assertIn("Bitmap visible = sunBall;", orb)
-        self.assertIn("Bitmap fresh = sunBallBack;", orb)
-        self.assertIn("sunBlendPaint.setAlpha(sunPublished ? 128 : 255);",
-                      orb)
-        self.assertIn("blend.drawBitmap(fresh, 0f, 0f, sunBlendPaint);", orb)
-        self.assertIn("sunPublished = false;", orb)
-        # v2.3.10 (owner order 2026-10-26, "the entire thing is still
-        # flickering"): the commit gate. The render thread signs its
-        # bitmap under the gate, the HUD's handover reads it under the
-        # same gate, so a torn half-commit can never be blended into the
-        # visible picture.
+        self.assertIn("p.post(this::publishSun);", orb)
+        self.assertIn("Bitmap tmp = sunBall;", orb)
+        self.assertIn("sunBall = sunBallBack;", orb)
+        self.assertIn("sunBallBack = tmp;", orb)
         self.assertIn("private final Object sunGate = new Object();", orb)
         self.assertEqual(orb.count("synchronized (sunGate) {"), 2,
                          "one gate at the commit, one at the handover")
         ball = orb[orb.index("private void renderSunBall("):
                    orb.index("private void bloomSun()") + 2000]
         self.assertIn("synchronized (sunGate) {", ball)
-        self.assertNotIn("Bitmap tmp = sunBall;", orb)
-        self.assertNotIn("sunBall = sunBallBack;", orb)
         self.assertIn("renderSunBall(phi);", orb)
         self.assertIn("startSunLoop();", orb)
         self.assertIn("stopSunLoop();", orb)
