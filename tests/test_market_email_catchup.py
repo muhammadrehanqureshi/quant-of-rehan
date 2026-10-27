@@ -42,6 +42,7 @@ class RoadmapTest(unittest.TestCase):
             [(event, label) for event, label, _fire in road],
             [
                 ("pre", ""),
+                ("morning-break", ""),
                 ("open", ""),
                 ("break", ""),
                 ("open", "reopen"),
@@ -53,22 +54,24 @@ class RoadmapTest(unittest.TestCase):
         # fmt: off
         self.assertEqual(
             [(fire.hour, fire.minute) for _e, _l, fire in road],
-            [(9, 0), (9, 17), (12, 0), (14, 32), (16, 30), (16, 32),
-             (16, 49)])
+            [(9, 0), (9, 15), (9, 17), (12, 0), (14, 32), (16, 30),
+             (16, 32), (16, 49)])
         # fmt: on
 
     def test_weekday_roadmap_has_no_break_or_reopen(self):
         road = me.event_roadmap(pkt("2026-10-21", 16, 30).date())
         self.assertEqual(
             [(event, label) for event, label, _fire in road],
-            [("pre", ""), ("open", ""), ("close", ""), ("post", ""),
-             ("post-close", "")])
+            [("pre", ""), ("morning-break", ""), ("open", ""),
+             ("close", ""), ("post", ""), ("post-close", "")])
         # Owner order 2026-10-26: the pre email opens at 09:15 on Monday
         # to Thursday (the minute the owner named), not the scanner's own
-        # 09:00 state edge. Friday's roadmap above keeps its 09:00.
+        # 09:00 state edge. Owner order 2026-10-27 adds the morning
+        # break at 09:30, two minutes ahead of the 09:32 open. Friday's
+        # roadmap above keeps its 09:00 pre and breaks at 09:15.
         self.assertEqual(
             [(fire.hour, fire.minute) for _e, _l, fire in road],
-            [(9, 15), (9, 32), (15, 30), (15, 32), (15, 49)])
+            [(9, 15), (9, 30), (9, 32), (15, 30), (15, 32), (15, 49)])
 
     def test_weekend_roadmap_is_empty(self):
         self.assertEqual(
@@ -128,6 +131,15 @@ class CatchUpTest(unittest.TestCase):
         mailed, track = self._runner(pkt(DAY, 12, 7), set())
         self.assertEqual(mailed, ["market-break:2026-10-23"])
         self.assertEqual(track, ["market-break:2026-10-23"])
+
+    def test_morning_break_is_caught_up_inside_the_grace(self):
+        # 09:31 PKT Monday: the morning break's own minute (09:30) is
+        # one minute old, the pre (09:15) is sixteen and is beyond the
+        # grace, and the open (09:32) is still to come.
+        road_day = pkt("2026-10-26", 9, 31)
+        mailed, track = self._runner(road_day, set())
+        self.assertEqual(mailed, ["market-morning-break:2026-10-26"])
+        self.assertEqual(track, ["market-morning-break:2026-10-26"])
 
     def test_close_and_post_are_caught_up_in_one_pass(self):
         # 16:35 PKT: the close (16:30) and the post window (16:32) both

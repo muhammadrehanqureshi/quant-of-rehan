@@ -15,6 +15,10 @@ name: Market email notifications
 #                          pre market opens at 09:15, so the email fires
 #                          there, not at 09:00)
 #   04:00 UTC = 09:00 PKT  pre market, Friday band shape (unchanged)
+#   04:30 UTC = 09:30 PKT  morning break, Mon-Thu (owner order 2026-10-27:
+#                          the 2-minute gap before the 09:32 open)
+#   04:15 UTC = 09:15 PKT  morning break, Friday (the same order: the
+#                          gap before the 09:17 open)
 #   04:32 UTC = 09:32 PKT  open, Mon-Thu band
 #   04:17 UTC = 09:17 PKT  open, Friday band 1
 #   07:00 UTC = 12:00 PKT  break, Friday midday
@@ -57,6 +61,8 @@ on:
     # 09:00 PKT Friday where the earlier orders left it.
     - cron: "15 4 * * 1-4"
     - cron: "0 4 * * 5"
+    - cron: "30 4 * * 1-4"     # morning break, Mon-Thu (owner 2026-10-27)
+    - cron: "15 4 * * 5"       # morning break, Friday (owner 2026-10-27)
     - cron: "32 4 * * 1-4"     # open, Mon-Thu
     - cron: "17 4 * * 5"       # open, Friday
     - cron: "0 7 * * 5"        # break, Friday
@@ -76,7 +82,7 @@ on:
   workflow_dispatch:
     inputs:
       event:
-        description: "which event to email now (pre, open, break, close, post, post-close, catch-up)"
+        description: "which event to email now (pre, morning-break, open, break, close, post, post-close, catch-up)"
         default: "open"
 
 # A dispatch emails one chosen event, so every job also names the event
@@ -143,6 +149,48 @@ jobs:
           else
             python scripts/market_email.py --event "$EVENT"
           fi
+
+  morning_break_weekday:
+    if: (github.event_name == 'schedule' && github.event.schedule == '30 4 * * 1-4') || (github.event_name == 'workflow_dispatch' && inputs.event == 'morning-break')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      EVENT: morning-break
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      # The email path speaks GitHub over requests (src/notify/owner_email.py);
+      # the missing install is what clipped every event on 2026-10-22, so the
+      # module is bought here, the same way the other workflows buy theirs.
+      - run: pip install requests --retries 5 --timeout 60
+      - name: Email the Mon-Thu morning break when the session law says it is due
+        env:
+          GH_REPOSITORY: ${{ github.repository }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python scripts/market_email.py --event "$EVENT"
+
+  morning_break_friday:
+    if: (github.event_name == 'schedule' && github.event.schedule == '15 4 * * 5') || (github.event_name == 'workflow_dispatch' && inputs.event == 'morning-break')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      EVENT: morning-break
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      # The email path speaks GitHub over requests (src/notify/owner_email.py);
+      # the missing install is what clipped every event on 2026-10-22, so the
+      # module is bought here, the same way the other workflows buy theirs.
+      - run: pip install requests --retries 5 --timeout 60
+      - name: Email the Friday morning break when the session law says it is due
+        env:
+          GH_REPOSITORY: ${{ github.repository }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python scripts/market_email.py --event "$EVENT"
 
   open_weekday:
     if: (github.event_name == 'schedule' && github.event.schedule == '32 4 * * 1-4') || (github.event_name == 'workflow_dispatch' && inputs.event == 'open')
