@@ -1718,9 +1718,17 @@ class VersionTest(unittest.TestCase):
         # rows opening from their own box), and the cloud's mesh joins
         # K = 4 of its own nearest neighbours on the budget the same
         # +20% carries.
+        # v2.3.17 is owner order 2026-10-27, twenty-first pass ("increase
+        # all the drop down and search box heights by 30% from their
+        # current height", and "I don't like the LINES right now,
+        # increase the length of all the LINES by 20%"): all three
+        # field boxes carry one universal 29dp now (23 * 1.3 = 29.9,
+        # floored to 29dp, the same exact setting) and every filament's
+        # swing floor lifts exactly 20% (0.70 * 1.2 = 0.84) with the
+        # ceiling still pinned at the dots by the standing inward law.
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="2.3.16"', manifest)
-        self.assertIn('android:versionCode="83"', manifest)
+        self.assertIn('android:versionName="2.3.17"', manifest)
+        self.assertIn('android:versionCode="84"', manifest)
         # The changelog entry ties these user-visible changes to the build.
         readme = (ROOT / "android" / "README.md").read_text(encoding="utf-8")
         self.assertIn("v1.7.9, owner order 2026-10-20", readme)
@@ -1804,9 +1812,14 @@ class VersionTest(unittest.TestCase):
         # spinner retired with its popup window, and the cloud's mesh
         # joined four-neighbour on the +20% budget, versionCode 83.
         self.assertIn("Version 2.3.16, versionCode 83", readme)
+        # v2.3.17 (owner order 2026-10-27, twenty-first pass): the three
+        # field boxes 30% taller onto the one universal 29dp, and every
+        # filament's swing floor 20% longer with the ceiling at its
+        # dots, versionCode 84.
+        self.assertIn("Version 2.3.17, versionCode 84", readme)
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionCode="83"', manifest)
-        self.assertIn('android:versionName="2.3.16"', manifest)
+        self.assertIn('android:versionCode="84"', manifest)
+        self.assertIn('android:versionName="2.3.17"', manifest)
         layout = LAYOUT.read_text(encoding="utf-8")
         strings = STRINGS.read_text(encoding="utf-8")
         main = MAIN.read_text(encoding="utf-8")
@@ -2163,17 +2176,17 @@ class SearchBoxGapTest(unittest.TestCase):
         self.assertEqual(self.box.get(f"{ANDROID_NS}paddingBottom"), "3dp")
         self.assertEqual(self.box.get(f"{ANDROID_NS}paddingLeft"), "10dp")
         self.assertEqual(self.box.get(f"{ANDROID_NS}paddingRight"), "10dp")
-        # v2.3.16 (owner order 2026-10-27, nineteenth pass: "with that
-        # same exact setting, make the changes for theme box and search
-        # box as well ... all these three boxes should have universal
-        # height"): the box is BY the universal height now - one exact
-        # 23dp measure, the air 3dp above and below the line, the same
-        # numbers the two dropdown boxes carry - and no floor is named
-        # again under the height it retired.
+        # v2.3.17 (owner order 2026-10-27, twenty-first pass: "increase
+        # all the drop down and search box heights by 30% from their
+        # current height"): the growth lands on the height the box
+        # wears - 23 * 1.3 = 29.9, floored to 29dp - and the air stays
+        # 3dp above and below the line, the same numbers every other
+        # field box carries - and no floor is named again under the
+        # height it retired.
         self.assertEqual(self.box.get(f"{ANDROID_NS}layout_height"),
-                         "23dp")
+                         "29dp")
         self.assertIsNone(self.box.get(f"{ANDROID_NS}minHeight"))
-        self.assertIn('android:layout_height="23dp"',
+        self.assertIn('android:layout_height="29dp"',
                       LAYOUT.read_text(encoding="utf-8"))
 
     def test_the_hidden_rows_start_hidden_in_the_layout(self):
@@ -2371,8 +2384,9 @@ class MenuOrdersTest(unittest.TestCase):
         # v2.3.16: the closed box is its own one-line TextView at the
         # universal height, and its menu is the box's OWN inline list
         # (theme_menu) - no platform spinner, no popup window anywhere.
+        # v2.3.17 grows that universal height 30% onto 29dp.
         self.assertIn("<TextView", spinner)
-        self.assertIn('android:layout_height="23dp"', spinner)
+        self.assertIn('android:layout_height="29dp"', spinner)
         menu = element(self.layout, 'android:id="@+id/theme_menu"')
         self.assertIn("<LinearLayout", menu)
         self.assertIn('android:visibility="gone"', menu)
@@ -2474,9 +2488,10 @@ class MenuOrdersTest(unittest.TestCase):
         # v2.3.16: the closed box is its own one-line TextView at the
         # universal height and the menu is the box's OWN inline list
         # (volume_split_menu) standing directly below it - no platform
-        # spinner, no popup window anywhere.
+        # spinner, no popup window anywhere. v2.3.17 grows that
+        # universal height 30% onto 29dp.
         self.assertIn("<TextView", spinner)
-        self.assertIn('android:layout_height="23dp"', spinner)
+        self.assertIn('android:layout_height="29dp"', spinner)
         menu = element(self.layout, 'android:id="@+id/volume_split_menu"')
         self.assertIn("<LinearLayout", menu)
         self.assertIn('android:visibility="gone"', menu)
@@ -3152,10 +3167,12 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         # v2.3.14 (owner order 2026-10-27: "the moving big lines that are
         # revolving around the sun are coming out from their dots. Make
         # it not exceed those dots") made the length swing inward-only:
-        # the old 0.70..1.30 factor is gone, and the 0.70..1.00 law
-        # keeps the v2.3.3-sized swing without ever hanging an end past
-        # the dot it is drawn from.
-        self.assertIn("float breath = 1f - 0.15f * (1f - breathWave);", orb)
+        # the old 0.70..1.30 factor is gone. v2.3.17 (owner order
+        # 2026-10-27: "increase the length of all the LINES by 20%")
+        # lifts the swing's floor exactly 20% (0.70 * 1.2 = 0.84) and
+        # the ceiling still stays pinned at the dots it is drawn from -
+        # every line 20% longer at its trough, no end ever past its dot.
+        self.assertIn("float breath = 1f - 0.08f * (1f - breathWave);", orb)
         self.assertIn("* (0.945f + 0.17f * widthBreath));", orb)
         self.assertIn("* widthBreath);", orb)
         self.assertIn("float midX = (ax + bx) / 2f;", orb)
@@ -3214,20 +3231,19 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         spinner = element(layout, 'android:id="@+id/volume_split_spinner"')
         self.assertNotIn("android:popupBackground", spinner)
 
-    def test_v2_3_16_all_three_boxes_carry_the_one_universal_height(self):
-        """Owner orders 2026-10-27, nineteenth pass ("make the decrease
-        the height of custom scrips of volume by another 30%, and with
-        that same exact setting, make the changes for theme box and
-        search box as well, I mean all these three boxes should have
-        universal height"). The universal height is the custom scrips
-        box's own new one: 33 * 0.7 = 23.1, floored to EXACTLY 23dp, and
-        all three field boxes (the two closed dropdown boxes and the
-        search box) are BY that one height - one exact 23dp measure,
-        the 3dp air above and below the line, the 10dp sides, one
-        centre_vertical gravity, the font's own padding out of the
-        measure. No floor is named again: the box now names its height
-        in one place, layout_height, so the retired 32dp/38dp/40dp/43dp
-        floors stay retired under the content they used to name.
+    def test_v2_3_17_all_three_boxes_carry_the_one_universal_height(self):
+        """Owner order 2026-10-27, twenty-first pass ("increase all the
+        drop down and search box heights by 30% from their current
+        height"). The growth lands on the height the boxes really
+        wear, v2.3.16's one universal measure: 23 * 1.3 = 29.9, floored
+        to EXACTLY 29dp, and all three field boxes (the two closed
+        dropdown boxes and the search box) are BY that one height -
+        one exact 29dp measure, the 3dp air above and below the line,
+        the 10dp sides, one centre_vertical gravity, the font's own
+        padding out of the measure. No floor is named again: the box
+        names its height in one place, layout_height, and the retired
+        23dp/32dp/38dp/40dp/43dp/35dp measures stay retired under the
+        content they used to name.
         """
         layout = LAYOUT.read_text(encoding="utf-8")
         for view_id in ("volume_split_spinner", "theme_spinner",
@@ -3237,7 +3253,7 @@ class ThinkingOrbPlanTest(unittest.TestCase):
                 # Tile's width, one exact height, the universal numbers,
                 # the same law three times.
                 self.assertIn('android:layout_width="match_parent"', box)
-                self.assertIn('android:layout_height="23dp"', box)
+                self.assertIn('android:layout_height="29dp"', box)
                 self.assertNotIn("minHeight", box)
                 self.assertIn('android:paddingTop="3dp"', box)
                 self.assertIn('android:paddingBottom="3dp"', box)
@@ -3343,21 +3359,17 @@ class ThinkingOrbPlanTest(unittest.TestCase):
                 self.assertIn('android:layout_height="20dp"', arrow)
                 self.assertNotIn('wrap_content', arrow)
 
-    def test_v2_3_16_the_search_box_joins_the_universal_height(self):
-        """Owner order 2026-10-27, nineteenth pass ("with that same
-        exact setting, make the changes for theme box and search box as
-        well, I mean all these three boxes should have universal
-        height"). The search box was allowed to grow twice (10% on
-        v2.3.14, 25% on v2.3.15); today's order names the universal
-        height from the custom scrips box's own side and the search box
-        is BY it: the box is one exact 23dp measure (33 * 0.7 = 23.1,
-        floored to 23dp), the air reads 7dp to 3dp above and below the
-        line, and nothing of the grown floors (35dp, 43dp) survives
-        under their own name.
+    def test_v2_3_17_the_search_box_joins_the_universal_height(self):
+        """Owner order 2026-10-27, twenty-first pass ("increase all the
+        drop down and search box heights by 30% from their current
+        height"). The 30% lands on the height the box really wears,
+        v2.3.16's universal 23dp: 23 * 1.3 = 29.9, floored to 29dp,
+        the air reads 3dp above and below the line, and nothing of the
+        grown floors (35dp, 43dp) survives under their own name.
         """
         box = element(LAYOUT.read_text(encoding="utf-8"),
                       'android:id="@+id/search_input"')
-        self.assertIn('android:layout_height="23dp"', box)
+        self.assertIn('android:layout_height="29dp"', box)
         self.assertNotIn("minHeight", box)
         self.assertNotIn('android:layout_height="35dp"', box)
         self.assertNotIn('android:layout_height="43dp"', box)
@@ -3381,18 +3393,22 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         not exceed those dots". The v2.3.3 law synced a filament's
         length 0.70..1.30 of the distance its two dots own, so at the
         top of every wave each end hung up to 30% BEYOND its dot. The
-        breathing is inward-only now: the law's factor rides 0.70..1.00
-        over the wave, so the line shrinks toward its own midpoint and
-        stretches back exactly to the dots that own it, at its longest
-        end to end and not one pixel past them.
+        breathing is inward-only since then, and v2.3.17 (owner order
+        2026-10-27, "increase the length of all the LINES by 20%")
+        lifts the swing's floor exactly 20% while the ceiling stays
+        pinned at the dots: the law's factor rides 0.84..1.00 over the
+        wave, so the line shrinks toward its own midpoint and stretches
+        back exactly to the dots that own it, at its longest end to end
+        and not one pixel past them.
         """
         orb = (MAIN.parent / "ThinkingOrb.java").read_text(
             encoding="utf-8")
         # The outward-breathing factor is retired with its excuse.
         self.assertNotIn("float breath = 1f + 0.30f * breathWave;", orb)
-        # The inward-only law is named, and its ceiling is 1.00.
-        self.assertIn("float breath = 1f - 0.15f * (1f - breathWave);", orb)
-        self.assertIn("0.70..1.00", orb)
+        # The inward-only law is named, lifted 20% by v2.3.17, and its
+        # ceiling is still 1.00.
+        self.assertIn("float breath = 1f - 0.08f * (1f - breathWave);", orb)
+        self.assertIn("0.84..1.00", orb)
 
     def test_v2_3_15_the_anchors_walk_an_even_path_and_the_mesh_is_a_neighbourhood(self):
         """Owner order 2026-10-27, eighteenth pass, on the v2.3.14
