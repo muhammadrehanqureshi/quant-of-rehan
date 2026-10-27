@@ -8,18 +8,27 @@ never ran at the edge. GitHub owes nobody a punctual cron; the Cloudflare
 relay's own crons dispatch the band loop on time every day, and the band
 loop runs continuously through every event the owner is emailed about:
 
-    pre   09:00 PKT (both session shapes)      PRE_MARKET begins
-    open  each band's open                     WARMUP or OPEN begins
-    break the Friday midday break              BREAK begins
-    close each band's close                    POST_CLOSE begins
-    post  after the last close                 POST_MARKET begins
+Owner order 2026-10-24: the owner's "post market closing" email (16:49
+Friday, 15:49 Mon-Thu) is an event of its own, and the loop is the only
+work live at that minute, so it emails the end of the post-market
+window too. Owner order 2026-10-27 books the owner's own sentences for
+every event, and breaks the morning in its own right:
+
+    pre            09:15 PKT Mon-Thu, 09:00 PKT Friday   PRE_MARKET / his
+                                                        pre-open minute
+    morning-break  09:30 PKT Mon-Thu, 09:15 PKT Friday  the morning
+                                                        2-minute gap
+    open        each band's open                        WARMUP or OPEN
+                                                        begins
+    break       the Friday midday break                 BREAK begins
+    close       each band's close                       POST_CLOSE begins
+    post        after the last close                    POST_MARKET begins
+    post-close  15:49 PKT Mon-Thu, 16:49 PKT Friday     POST_MARKET ends
 
 So the emails now ride the loop's every-second `decide`, not GitHub's
 cron: a phase the loop can already see is an email the loop itself can
-send, without any clock the agent or a workflow waits on. TheOwner order 2026-10-24: the owner's "post market closing" email (16:49
-Friday, 15:49 Mon-Thu) is an event of its own, and the loop is the only
-work live at that minute, so it emails the end of the post-market
-window too. The texts are the owner's sentences, and the
+send, without any clock the agent or a workflow waits on. The texts are
+the owner's sentences, and the
 market-email.yml cron jobs stay exactly as they are as a backstop, and
 src/notify/owner_email.py's comment ledger keeps each event exactly
 once per Karachi day whichever path arrives first.
@@ -38,30 +47,69 @@ naive clock here.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 from src.data import sessions
-from src.data.sessions import (  # noqa: F401 - re-exported for the tests
-    MSG_MARKET_CLOSED,
-    MSG_MARKET_OPEN,
-)
+from src.data.sessions import MORNING_BREAK_MINUTES
 
 LOGGER = logging.getLogger("market_watch")
 
-# Owner's exact texts (SO-9). Do not reword, ever. Break is the phone
-# notification sentence mirrored from cloud/worker.js and the app, exactly
-# as scripts/market_email.py books it; the texts live once in each entry
-# point and never drift by construction, because both are taken from the
-# session law's own constants where the owner fixed them.
-EVENT_TEXTS = {
-    "pre": "The market is pre-opened. Quant is online now.",
-    "open": MSG_MARKET_OPEN,
-    "break": "Market is on a break. Quant is sleeping until the market "
-             "reopens.",
-    "close": MSG_MARKET_CLOSED,
-    "post": "The market is post-opened. Quant is online now.",
-    "post-close": "The market is post-closed. Quant is offline now.",
-}
+# Owner's exact texts (SO-9), owner order 2026-10-27. Do not reword, ever.
+# The close and break sentences name a minute the session law owns, so
+# event_text() builds them from it alone (15:32/16:32 post opens, 14:30
+# Friday break end), and every other sentence is fixed.
+TEXT_PRE = ("Good morning, Mr. Rehan. PSX is pre-opened and the Quant is "
+            "online now. I wish you make millions today, sir.")
+TEXT_MORNING_BREAK = "PSX is on a 2-minute break, sir."
+TEXT_OPEN = ("PSX is now open and the Quant will be scanning the market "
+             "every second, Mr. Rehan.")
+TEXT_BREAK = "PSX is on a break till {till}, sir"
+TEXT_CLOSE = ("Live market is closed and the Quant will scan the "
+              "post-market at {at}, sir.")
+TEXT_POST = "PSX is now in post-market state."
+TEXT_POST_CLOSE = ("PSX is now closed. You have a wonderful night, Mr. "
+                   "Rehan. Quant will be sleeping till the next business "
+                   "day.")
+
+
+def _hm_text(hm: tuple[int, int]) -> str:
+    return f"{hm[0]:02d}:{hm[1]:02d}"
+
+
+def event_text(event: str, day=None) -> str:
+    """The owner's sentence for one event on Karachi date ``day``.
+
+    The break names the Friday reopen minus two minutes (14:30) and the
+    close names the day's post-market open (15:32, Friday 16:32), both
+    from the session law, so the wording cannot fall out of step with the
+    schedule. ``day`` may be a date or an ISO string.
+    """
+    if isinstance(day, str):
+        day = date.fromisoformat(day)
+    if event == "pre":
+        return TEXT_PRE
+    if event == "morning-break":
+        return TEXT_MORNING_BREAK
+    if event == "open":
+        return TEXT_OPEN
+    if event == "break":
+        bands = sessions.session_bands(day)
+        if len(bands) < 2:
+            # Wording the owner booked for the Friday midday break; a
+            # day without bands has no break to describe.
+            return TEXT_BREAK.format(till="14:30")
+        reopen = bands[1][0]
+        till = (reopen[0] * 60 + reopen[1]
+                - MORNING_BREAK_MINUTES)
+        return TEXT_BREAK.format(till=f"{till // 60:02d}:{till % 60:02d}")
+    if event == "close":
+        return TEXT_CLOSE.format(
+            at=_hm_text(sessions.post_market_window(day)[0]))
+    if event == "post":
+        return TEXT_POST
+    if event == "post-close":
+        return TEXT_POST_CLOSE
+    raise KeyError(event)
 
 
 def band_index(moment: datetime) -> int:
@@ -98,11 +146,21 @@ def event_for(memory: tuple[str, str], moment: datetime) -> tuple[str, str] | No
     window's one answer, the same helper the email crons and the
     catch-up roadmap read, so all three paths agree by construction.
     Friday keeps the 09:00 minute the earlier orders gave it.
+
+    Owner order 2026-10-27 breaks the morning in its own right: the
+    strict 2-minute gap before band 1 opens (09:30 Monday to Thursday,
+    09:15 Friday) is its own event, checked BEFORE the pre window so
+    Monday to Thursday's 09:30 edge, which still sits inside the pre
+    window on paper, speaks the break his order named and not pre
+    again. The morning window looks only at the moment it is given,
+    never at the memory, so both entry points agree.
     """
-    phase, state = memory
+    phase, state = memory[0], memory[1]
     k = sessions.as_karachi(moment)
     if not sessions.session_bands(k.date()):
         return None
+    if sessions.morning_break_due(k):
+        return "morning-break", ""
     if sessions.pre_email_due(k):
         return "pre", ""
     if phase in (sessions.MarketPhase.WARMUP.value,
@@ -143,8 +201,12 @@ def ledger_key(event: str, label: str, day: str) -> str:
 class MarketEventWatcher:
     """Emails the owner on a phase edge the loop can already see.
 
-    The watcher holds ONE thing in memory: the (phase, state) it observed
-    last. An edge fires an attempt only for its own instant, so a job
+    The watcher holds ONE thing in memory: the (phase, state,
+    morning-break) it observed last - the newest member is the morning
+    break's own answer, so Monday to Thursday's 09:30 entry into the
+    2-minute window is an edge the loop can see although no phase and
+    no market state moves there. An edge fires an attempt only for its
+    own instant, so a job
     that starts mid-session just attempts the phase it finds; the ledger,
     not this class, says whether that attempt is a send or a no-op, which
     is what keeps restarts, double drivers and late fires exactly-once.
@@ -169,7 +231,7 @@ class MarketEventWatcher:
 
             def sender(event: str, label: str, day) -> bool:
                 return bool(owner_email.send(
-                    EVENT_TEXTS[event], ledger_key(event, label, day)))
+                    event_text(event, day), ledger_key(event, label, day)))
         self._sender = sender
         from src.data.sessions import now_karachi  # local: SO-8 only zone
 
@@ -189,7 +251,8 @@ class MarketEventWatcher:
         """
         k = moment if moment is not None else self._clock()
         memory = (sessions.market_phase(k).value,
-                  sessions.market_state_at(k).value)
+                  sessions.market_state_at(k).value,
+                  sessions.morning_break_due(k))
         mailed: list[str] = []
         changed = memory != self._last_memory
         if changed:
