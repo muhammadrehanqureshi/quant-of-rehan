@@ -939,12 +939,20 @@ public class MainActivity extends Activity {
      * the order he named them, and picking either reveals the three
      * scrips of that ranking. It ranks from the same map the search rows
      * refresh, so the dropdown never costs a request of its own.
+     *
+     * v2.3.11 (owner order 2026-10-26): the menu's PILOT row is the
+     * placeholder now - SELECT CUSTOM SCRIPS - and it is what the closed
+     * box shows until he taps it and picks a menu of his own.
      */
     private void buildVolumeSpinners() {
         if (volumeSplitSpinner == null) {
             return;
         }
         volumeSplitAdapter = styledSpinnerAdapter();
+        // The placeholder is row 0 and starts selected: nothing of any
+        // ranking shows before he asks for it, and the closed box reads
+        // SELECT CUSTOM SCRIPS exactly as the owner ordered.
+        volumeSplitAdapter.add(getString(R.string.volume_placeholder_scrips));
         // v2.2.5 (owner order 2026-10-24, fourth note): the scanner's own
         // entry is the menu's FIRST row - the rising prices, capped out -
         // then the two rankings he named before it. The index to ranking
@@ -1037,17 +1045,20 @@ public class MainActivity extends Activity {
         if (volumeReveal == null) {
             return;
         }
-        if (volumeSplitChoice < 0) {
+        // Row 0 is the placeholder (v2.3.11 owner order): nothing reveals
+        // while it is the selection.
+        if (volumeSplitChoice < 1) {
             volumeReveal.setVisibility(View.GONE);
             return;
         }
         java.util.Map<String, Watcher.Quote> quotes = Watcher.quotes();
-        // v2.2.5: row 0 is the scanner's riser entry (PRICES RISING FAST),
-        // row 1 the busiest B/S ranking (MORE BUYERS & LESS SELLERS). Since
-        // v2.3.7 both carry the same sentence: the quantity bracket with
+        // v2.2.5: row 1 is the scanner's riser entry (PRICES RISING FAST),
+        // row 2 the busiest B/S ranking (MORE BUYERS & LESS SELLERS); row
+        // 0 is the SELECT CUSTOM SCRIPS placeholder. Since v2.3.7 both
+        // carry the same sentence: the quantity bracket with
         // the green buy and the red sell, and the money line with the now
         // coloured arrow, so no menu prints a format of its own.
-        List<String> ranked = volumeSplitChoice == 1
+        List<String> ranked = volumeSplitChoice == 2
                 ? rankedSplitSymbols(quotes)
                 : rankedSpeedSymbols(quotes);
         SpannableStringBuilder styled = volumeRevealText(quotes, ranked);
