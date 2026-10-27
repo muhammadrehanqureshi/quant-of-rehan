@@ -7,7 +7,8 @@ fires landed five hours late). The band loop is the one worker that is
 alive at every event minute, so it sends the emails now, from
 src/notify/market_watch.py, with the ledger keeping each one exactly
 once. These tests pin the mapping from the session law's own phases and
-states to the owner's six events (post-close booked 2026-10-24), and
+states to the owner's events (post-close booked 2026-10-24, the
+morning break 2026-10-27), and
 the facts a stalled cron can no longer break: one attempt per edge, the
 reopen label for the Friday second band, no attempt without a session,
 and a failed send that never raises into the scan.
@@ -16,13 +17,13 @@ and a failed send that never raises into the scan.
 from __future__ import annotations
 
 import unittest
-from datetime import datetime
+from datetime import date, datetime
 
 from src.data.sessions import KARACHI
 from src.notify.market_watch import (
-    EVENT_TEXTS,
     MarketEventWatcher,
     event_for,
+    event_text,
     ledger_key,
 )
 
@@ -34,7 +35,7 @@ def pkt(hour: int, minute: int = 0, day="2026-10-23") -> datetime:
 
 
 class EventMappingTest(unittest.TestCase):
-    """Phase and state pairs map to the owner's six events, or None."""
+    """Phase and state pairs map to the owner's events, or None."""
 
     def test_the_six_events_map_from_the_session_law_itself(self):
         friday = "2026-10-23"
@@ -93,6 +94,29 @@ class EventMappingTest(unittest.TestCase):
         pair = (market_phase(early).value, market_state_at(early).value)
         self.assertIsNone(event_for(pair, early))
 
+    def test_the_morning_break_is_its_own_event(self):
+        # Owner order 2026-10-27: the strict 2-minute gap before band 1
+        # opens is its own event, 09:30 Monday to Thursday and 09:15
+        # Friday, mapped from the moment alone so the crons and the
+        # loop's memory agree.
+        from src.data.sessions import market_phase, market_state_at
+        for moment in (pkt(9, 30, day="2026-10-26"),
+                       pkt(9, 31, day="2026-10-26"),
+                       pkt(9, 15, day="2026-10-23")):
+            with self.subTest(at=moment.isoformat()):
+                pair = (market_phase(moment).value,
+                        market_state_at(moment).value)
+                self.assertEqual(event_for(pair, moment),
+                                 ("morning-break", ""))
+        just_before = pkt(9, 29, day="2026-10-26")
+        pair = (market_phase(just_before).value,
+                market_state_at(just_before).value)
+        self.assertEqual(event_for(pair, just_before), ("pre", ""))
+        just_after = pkt(9, 32, day="2026-10-26")
+        pair = (market_phase(just_after).value,
+                market_state_at(just_after).value)
+        self.assertEqual(event_for(pair, just_after), ("open", ""))
+
     def test_the_close_and_post_close_split_on_the_window_edge(self):
         # Owner order 2026-10-24: POST_CLOSE + CLOSED is the close event
         # before the post window (15:32/16:32 minutes) and the post-close
@@ -115,15 +139,37 @@ class EventMappingTest(unittest.TestCase):
                 self.assertEqual(entry[0], expected)
 
     def test_the_texts_are_the_owner_booked_sentences(self):
-        self.assertEqual(EVENT_TEXTS["post-close"],
-                         "The market is post-closed. Quant is offline now.")
-        self.assertEqual(EVENT_TEXTS["open"],
-                         "Market is open. Quant is online now.")
-        self.assertEqual(EVENT_TEXTS["break"],
-                         "Market is on a break. Quant is sleeping until "
-                         "the market reopens.")
-        self.assertEqual(EVENT_TEXTS["close"],
-                         "Market is closed. Quant is sleeping now.")
+        # Owner order 2026-10-27: every sentence is his own words, and
+        # the close names the day's post-market open while the Friday
+        # break names 14:30, both built from the session law.
+        friday = date(2026, 10, 23)
+        monday = date(2026, 10, 26)
+        self.assertEqual(
+            event_text("pre"),
+            "Good morning, Mr. Rehan. PSX is pre-opened and the Quant is "
+            "online now. I wish you make millions today, sir.")
+        self.assertEqual(event_text("morning-break"),
+                         "PSX is on a 2-minute break, sir.")
+        self.assertEqual(
+            event_text("open"),
+            "PSX is now open and the Quant will be scanning the market "
+            "every second, Mr. Rehan.")
+        self.assertEqual(event_text("break", friday),
+                         "PSX is on a break till 14:30, sir")
+        self.assertEqual(
+            event_text("close", monday),
+            "Live market is closed and the Quant will scan the "
+            "post-market at 15:32, sir.")
+        self.assertEqual(
+            event_text("close", friday),
+            "Live market is closed and the Quant will scan the "
+            "post-market at 16:32, sir.")
+        self.assertEqual(event_text("post"),
+                         "PSX is now in post-market state.")
+        self.assertEqual(
+            event_text("post-close"),
+            "PSX is now closed. You have a wonderful night, Mr. Rehan. "
+            "Quant will be sleeping till the next business day.")
 
 
 class WatcherTest(unittest.TestCase):
@@ -143,6 +189,25 @@ class WatcherTest(unittest.TestCase):
         self.assertEqual(self.sent, [("break", "", "2026-10-23")])
         # The same phase held again one second later is not another edge.
         self.assertEqual(watcher.observe(pkt(12, 1)), [])
+
+    def test_the_monday_morning_break_is_seen_by_the_loop_memory(self):
+        # Owner order 2026-10-27: on Monday to Thursday no phase and no
+        # market state moves at 09:30, so the watcher's memory carries
+        # the morning break itself as its third member and its entry
+        # there is an edge the loop can see. pre fired at 09:15 and the
+        # morning break fires on its own edge three quarters later.
+        watcher = MarketEventWatcher(sender=self.sender)
+        self.assertEqual(watcher.observe(pkt(9, 20, day="2026-10-26")),
+                         ["market-pre:2026-10-26"])
+        self.assertEqual(self.sent, [("pre", "", "2026-10-26")])
+        self.assertEqual(watcher.observe(pkt(9, 31, day="2026-10-26")),
+                         ["market-morning-break:2026-10-26"])
+        self.assertEqual(self.sent[-1], ("morning-break", "", "2026-10-26"))
+        # Held again: not another edge.
+        self.assertEqual(watcher.observe(pkt(9, 31, day="2026-10-26")), [])
+        # And the 09:32 open is the next edge, after the flag falls.
+        self.assertEqual(watcher.observe(pkt(9, 32, day="2026-10-26")),
+                         ["market-open:2026-10-26"])
 
     def test_a_restart_inside_the_same_phase_does_not_reattempt(self):
         watcher = MarketEventWatcher(sender=self.sender)

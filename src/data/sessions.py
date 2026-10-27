@@ -392,6 +392,43 @@ def pre_email_due(moment: datetime | None = None) -> bool:
     return market_state_at(k) is MarketState.PRE_MARKET
 
 
+#: The owner's morning 2-minute break (order 2026-10-27): the strict gap
+#: the law puts between the pre-market edge and band 1's own open, exactly
+#: two minutes of it, on every trading day. Monday to Thursday it runs
+#: 09:30 to 09:32 ahead of the 09:32 open; Friday it is 09:15 to 09:17
+#: ahead of the 09:17 open.
+MORNING_BREAK_MINUTES = 2
+
+
+def morning_break_window(d: date) -> tuple[tuple[int, int], tuple[int, int]] | None:
+    """((start_hm, band_open_hm)) for the morning break on Karachi date d.
+
+    The window ENDS at band 1's own open (09:32 Monday to Thursday, 09:17
+    Friday) and opens MORNING_BREAK_MINUTES before it, so both edges are
+    taken from the band table itself and can never drift from it.
+    """
+    bands = session_bands(d)
+    if not bands:
+        return None
+    opens = bands[0][0]
+    start_total = opens[0] * 60 + opens[1] - MORNING_BREAK_MINUTES
+    return ((start_total // 60, start_total % 60), opens)
+
+
+def morning_break_due(moment: datetime | None = None) -> bool:
+    """True when this instant sits inside today's morning break.
+
+    Monday to Thursday [09:30, 09:32); Friday [09:15, 09:17); every other
+    instant, including the weekend and the holidays, is not.
+    """
+    k = as_karachi(moment)
+    window = morning_break_window(k.date())
+    if window is None:
+        return False
+    start_hm, open_hm = window
+    return _at(k.date(), start_hm) <= k < _at(k.date(), open_hm)
+
+
 def post_market_window(d: date) -> tuple[tuple[int, int], tuple[int, int]] | None:
     """The post-market window for a Karachi date, or None when closed.
 
