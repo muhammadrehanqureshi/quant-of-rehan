@@ -1558,6 +1558,34 @@ to sixty seconds. The status tile therefore also carries the app's own
      at the loop's own 33ms pace.
   3. The version bump is versionCode 79 / versionName 2.3.12.
 
+**Version 2.3.13, versionCode 80.**
+
+  Owner order 2026-10-27, sixteenth pass, on the v2.3.12 build ("just
+  reduce the SUN's revolving speed by 10% from its current speed",
+  "make all drop down boxes' height reduce by 15% from current height,
+  make this changes across everywhere on the app, and make the same
+  size for the search box on the search page", "on the purple theme,
+  the search box is highlighting the search results in white colour,
+  make them match the theme's color"). Four answers:
+
+  1. THE SUN IS 10% SLOWER AGAIN. The cut lands on SUN_SPIN_RATE
+     itself, the place every previous cut sat: 0.2975 * 0.9 = 0.26775,
+     so the face crawls, it does not stall.
+  2. ONE 32DP FLOOR, EVERYWHERE. The dropdown boxes step down 15% of
+     their current height (38 * 0.85 = 32.3, floored to 32dp) - the
+     custom scrips of volume box and the themes box alike - and the
+     search box carries the same floor, so every field on the console
+     is one height now. The search box's own air above and below the
+     line is read back to 7dp so the text plus that air measures to the
+     same 32dp.
+  3. THE HIGHLIGHT KEEPS ITS THEME'S HUE. The white the purple theme
+     showed was the plate's lift toward WHITE (a 42% exact lift of a
+     near-black panel), not a theme choice. The lift is 26% exact / 14%
+     prefix now, so every theme's plate stays in its own colour
+     family: violet on purple, light green on green, navy on navy,
+     grey on black, pale orange on orange - never white.
+  4. The version bump is versionCode 80 / versionName 2.3.13.
+
 **Version 2.3.11, versionCode 78.**
 
   Owner order 2026-10-26, fourteenth pass, on the v2.3.10 build: "the

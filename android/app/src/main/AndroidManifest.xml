@@ -177,11 +177,25 @@
      Choreographer frame with a WHOLE repaint of the pose it last drew
      instead of an empty return, so no vsync can carry a held frame
      against a redrawn one any more.
+
+     versionCode 80 / versionName 2.3.13 belong to the owner's orders of
+     2026-10-27, sixteenth pass ("just reduce the SUN's revolving speed
+     by 10% from its current speed", "make all drop down boxes' height
+     reduce by 15% from current height, make this changes across
+     everywhere on the app, and make the same size for the search box on
+     the search page", "on the purple theme, the search box is
+     highlighting the search results in white colour, make them match
+     the theme's color"): the 10% cut lands on the sun's own rate
+     (SUN_SPIN_RATE 0.2975 to 0.26775), every dropdown on the console
+     steps to the one 32dp floor and the search box carries the same
+     floor, and the search highlight's lift toward white is read back to
+     26% exact / 14% prefix so the plate keeps its own theme's hue -
+     violet on purple, never white.
      -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="pk.quantofrehan"
-    android:versionCode="79"
-    android:versionName="2.3.12">
+    android:versionCode="80"
+    android:versionName="2.3.13">
 
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="30"/>
 
