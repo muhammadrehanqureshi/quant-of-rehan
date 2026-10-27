@@ -516,19 +516,17 @@ class SettingsControlTest(unittest.TestCase):
         self.assertIn("new DecelerateInterpolator()", turn)
         self.assertIn(".setDuration(", turn)
         # Two view-property rotations in the whole file: the dropdown
-        # arrow's flip (inside wireDropdownArrow) and this wheel's turn.
+        # arrow's flip (inside rotateDropdownArrow) and this wheel's turn.
         rotations = self.main.count(".rotation(")
         self.assertEqual(rotations, 2,
                          "the dropdown arrow's flip and the gear's turn")
         arrow = self.main.index(".rotation(open ? 180f : 0f)")
-        # The SINGULAR def's exact signature anchors the slice: the plural
-        # wireDropdownArrows def is a prefix of the singular name and a
-        # bare "private void wireDropdownArrow" index finds the plural's
-        # own start first, whose "extent" then catches the singular def
-        # and reads the flipped arrow as outside its own method.
+        # v2.3.16: the flip's owner is the inline engine's own helper, one
+        # view-property animation the two open states share - the arrow is
+        # no longer driven by a platform window's own open/close edges.
         arrow_owner = self.main.index(
-                "private void wireDropdownArrow(Dropdown dropdown, "
-                "ImageView arrow)")
+                "private void rotateDropdownArrow(ImageView arrow, "
+                "boolean open)")
         arrow_extent = self.main.index("private void", arrow_owner + 30)
         self.assertLess(arrow_owner, arrow)
         self.assertLess(arrow, arrow_extent)
@@ -1708,9 +1706,21 @@ class VersionTest(unittest.TestCase):
         # becomes plainly visible and centres on the themes box, and
         # the cloud's anchors and mesh are named so the lines fill every
         # side and no lobe can spend another's links.
+        # v2.3.16 is owner order 2026-10-27, nineteenth pass ("make the
+        # decrease the height of custom scrips of volume by another 30%
+        # ... all these three boxes should have universal height", "when
+        # I tap on custom scrips of volume, another window pops up which
+        # is wrong, drop down menu should appear from the same box", and
+        # "increase the number of LINES by 20% from the current
+        # number, across the entire animating feautre"): the three field
+        # boxes on ONE universal 23dp height, the platform spinner
+        # retired with its popup window (the menus are the app's own
+        # rows opening from their own box), and the cloud's mesh joins
+        # K = 4 of its own nearest neighbours on the budget the same
+        # +20% carries.
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="2.3.15"', manifest)
-        self.assertIn('android:versionCode="82"', manifest)
+        self.assertIn('android:versionName="2.3.16"', manifest)
+        self.assertIn('android:versionCode="83"', manifest)
         # The changelog entry ties these user-visible changes to the build.
         readme = (ROOT / "android" / "README.md").read_text(encoding="utf-8")
         self.assertIn("v1.7.9, owner order 2026-10-20", readme)
@@ -1789,9 +1799,14 @@ class VersionTest(unittest.TestCase):
         # and centred dropdown arrow, and the cloud's even anchors and
         # neighbourhood mesh, versionCode 82.
         self.assertIn("Version 2.3.15, versionCode 82", readme)
+        # v2.3.16 (owner order 2026-10-27, nineteenth pass): the three
+        # field boxes on ONE universal 23dp height, the platform
+        # spinner retired with its popup window, and the cloud's mesh
+        # joined four-neighbour on the +20% budget, versionCode 83.
+        self.assertIn("Version 2.3.16, versionCode 83", readme)
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionCode="82"', manifest)
-        self.assertIn('android:versionName="2.3.15"', manifest)
+        self.assertIn('android:versionCode="83"', manifest)
+        self.assertIn('android:versionName="2.3.16"', manifest)
         layout = LAYOUT.read_text(encoding="utf-8")
         strings = STRINGS.read_text(encoding="utf-8")
         main = MAIN.read_text(encoding="utf-8")
@@ -2144,11 +2159,22 @@ class SearchBoxGapTest(unittest.TestCase):
         # increase the height of its box by another 25%") grows the
         # floor alone again, 35 * 1.25 = 43.75 floored to 43dp, the air
         # still untouched.
-        self.assertEqual(self.box.get(f"{ANDROID_NS}paddingTop"), "7dp")
-        self.assertEqual(self.box.get(f"{ANDROID_NS}paddingBottom"), "7dp")
+        self.assertEqual(        self.box.get(f"{ANDROID_NS}paddingTop"), "3dp")
+        self.assertEqual(self.box.get(f"{ANDROID_NS}paddingBottom"), "3dp")
         self.assertEqual(self.box.get(f"{ANDROID_NS}paddingLeft"), "10dp")
         self.assertEqual(self.box.get(f"{ANDROID_NS}paddingRight"), "10dp")
-        self.assertEqual(self.box.get(f"{ANDROID_NS}minHeight"), "43dp")
+        # v2.3.16 (owner order 2026-10-27, nineteenth pass: "with that
+        # same exact setting, make the changes for theme box and search
+        # box as well ... all these three boxes should have universal
+        # height"): the box is BY the universal height now - one exact
+        # 23dp measure, the air 3dp above and below the line, the same
+        # numbers the two dropdown boxes carry - and no floor is named
+        # again under the height it retired.
+        self.assertEqual(self.box.get(f"{ANDROID_NS}layout_height"),
+                         "23dp")
+        self.assertIsNone(self.box.get(f"{ANDROID_NS}minHeight"))
+        self.assertIn('android:layout_height="23dp"',
+                      LAYOUT.read_text(encoding="utf-8"))
 
     def test_the_hidden_rows_start_hidden_in_the_layout(self):
         # An empty panel must not draw a 6dp or 8dp margin before its first
@@ -2308,7 +2334,7 @@ class MenuOrdersTest(unittest.TestCase):
         greeting = element(self.layout, 'android:id="@+id/greeting"')
         self.assertIn('style="@style/QorValue"', greeting)
         block = self.main[self.main.index("private void refreshGreeting()"):]
-        block = block[:block.index("private void buildThemeSpinner()")]
+        block = block[:block.index("private void buildThemeMenu()")]
         for resource in ("greeting_morning", "greeting_afternoon"):
             self.assertIn(f"R.string.{resource}", block)
 
@@ -2320,7 +2346,7 @@ class MenuOrdersTest(unittest.TestCase):
         - the one edge the hour-based branch would otherwise claim too
         early (12:00, 17:00 and 19:00 already sat in their tails)."""
         block = self.main[self.main.index("private void refreshGreeting()") + 10:]
-        block = block[:block.index("private void buildThemeSpinner()")]
+        block = block[:block.index("private void buildThemeMenu()")]
         # The boundary minute is one branch all its own, before the
         # morning's hour window can claim its hour.
         self.assertLess(block.index("if (hour == 5 && minute == 0) {"),
@@ -2342,9 +2368,15 @@ class MenuOrdersTest(unittest.TestCase):
         self.assertIn('name="theme_navy">NAVY BLUE &amp; WHITE<', self.strings)
         self.assertIn('name="theme_orange">ORANGE &amp; WHITE<', self.strings)
         spinner = element(self.layout, 'android:id="@+id/theme_spinner"')
-        # 2.0.0: the console's own Dropdown subclass carries the open and
-        # close edges the arrow beside it rotates on.
-        self.assertIn("<pk.quantofrehan.Dropdown", spinner)
+        # v2.3.16: the closed box is its own one-line TextView at the
+        # universal height, and its menu is the box's OWN inline list
+        # (theme_menu) - no platform spinner, no popup window anywhere.
+        self.assertIn("<TextView", spinner)
+        self.assertIn('android:layout_height="23dp"', spinner)
+        menu = element(self.layout, 'android:id="@+id/theme_menu"')
+        self.assertIn("<LinearLayout", menu)
+        self.assertIn('android:visibility="gone"', menu)
+        self.assertIn("private void buildThemeMenu() {", self.main)
         # The five looks are declared colours, not hex in Java.
         for theme in ("black", "green", "navy", "orange"):
             for weight in ("bg", "panel", "accent"):
@@ -2366,9 +2398,17 @@ class MenuOrdersTest(unittest.TestCase):
         DOWN while the menu is closed, UP while it is open, carrying one
         drawable whose rotate the Dropdown's own edges drive.
         """
-        dropdown = (ROOT / "android" / "app" / "src" / "main" / "java"
-                    / "pk" / "quantofrehan" / "Dropdown.java").read_text(
-            encoding="utf-8")
+        # v2.3.16 (owner order "another window pops up which is wrong, drop
+        # down menu should appear from the same box"): the platform Spinner
+        # is retired with its popup window entirely, so the arrow's open
+        # and close edges are MainActivity's OWN menu state, never a window
+        # subclass's two callbacks. The class and its file stand retired.
+        self.assertFalse(
+            (ROOT / "android" / "app" / "src" / "main" / "java"
+             / "pk" / "quantofrehan" / "Dropdown.java").exists(),
+            "Dropdown.java is retired with the platform popup window")
+        self.assertNotIn("onDropdownOpenChange", self.main)
+        self.assertNotIn("extends Spinner", self.main)
         for view_id in ("volume_split_arrow", "theme_arrow"):
             with self.subTest(arrow=view_id):
                 arrow = element(self.layout, f'android:id="@+id/{view_id}"')
@@ -2380,19 +2420,17 @@ class MenuOrdersTest(unittest.TestCase):
                       self.main)
         self.assertIn("(ImageView) findViewById(R.id.theme_arrow);",
                       self.main)
-        # One wiring law, three calls: the open edge rotates UP, the close
-        # edge back DOWN, and the closed arrow starts facing down.
+        # One wiring law: the box and the arrow beside it are the two taps
+        # into the menu's own open state, and one helper flips every
+        # arrow UP while open, DOWN while closed.
         self.assertIn("wireDropdownArrows();", self.main)
-        self.assertIn("arrow.setRotation(0f);", self.main)
+        self.assertIn("private void wireDropdownArrows() {", self.main)
+        self.assertIn("private void rotateDropdownArrow(ImageView arrow, "
+                      "boolean open) {", self.main)
         self.assertIn(".rotation(open ? 180f : 0f)", self.main)
-        # The edges come from the Dropdown subclass, since Spinner has no
-        # public popup state: performClick opens, focus regained closes.
-        self.assertIn("public class Dropdown extends Spinner", dropdown)
-        self.assertIn("openListener.onDropdownOpenChange(true);", dropdown)
-        self.assertIn("openListener.onDropdownOpenChange(false);", dropdown)
-        self.assertIn("public boolean performClick()", dropdown)
-        self.assertIn("public void onWindowFocusChanged", dropdown)
-        self.assertIn("hasWindowFocus && openListener != null", dropdown)
+        self.assertIn("arrow.animate()", self.main)
+        self.assertIn("showVolumeMenu(!volumeMenuOpen)", self.main)
+        self.assertIn("showThemeMenu(!themeMenuOpen)", self.main)
 
     def test_the_volume_tile_is_the_scanner_page(self):
         """Owner order 2026-10-24 ("move the custom scrips of volume in
@@ -2433,7 +2471,16 @@ class MenuOrdersTest(unittest.TestCase):
         for resource in ("volume_split_prompt", "volume_speed_prompt"):
             self.assertNotIn(f'name="{resource}"', self.strings)
         spinner = element(self.layout, 'android:id="@+id/volume_split_spinner"')
-        self.assertIn("<pk.quantofrehan.Dropdown", spinner)
+        # v2.3.16: the closed box is its own one-line TextView at the
+        # universal height and the menu is the box's OWN inline list
+        # (volume_split_menu) standing directly below it - no platform
+        # spinner, no popup window anywhere.
+        self.assertIn("<TextView", spinner)
+        self.assertIn('android:layout_height="23dp"', spinner)
+        menu = element(self.layout, 'android:id="@+id/volume_split_menu"')
+        self.assertIn("<LinearLayout", menu)
+        self.assertIn('android:visibility="gone"', menu)
+        self.assertIn("private void buildVolumeMenu() {", self.main)
         # The reveal: the three scrips of the chosen menu, hidden until he
         # picks one.
         reveal = element(self.layout, 'android:id="@+id/volume_reveal"')
@@ -3127,16 +3174,22 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         main = MAIN.read_text(encoding="utf-8")
         # One place, all three paints.
         self.assertIn("private void applyThemeToInputs(int index) {", main)
-        self.assertIn("private void paintDropdown(Spinner spinner, int index) {",
-                      main)
+        # v2.3.16: the popup plates moved onto the two inline menus, and
+        # the closed boxes paint their plates through paintField - the
+        # Spinner-only painting is retired with the popup window.
+        self.assertIn("private android.graphics.drawable.Drawable "
+                      "popupPlate(int index) {", main)
         self.assertIn("private void paintField(View field, int index) {", main)
         # On selection, and on the remembered theme at start.
-        self.assertIn("applyTheme(position);", main)
+        self.assertIn("applyTheme(index);", main)
         self.assertLess(main.index("applyThemeToInputs(themeIndex)"),
                         main.index("wireDropdownArrows();"))
-        # The theme spinner is exempt by the owner's own sentence.
+        # The theme box is exempt by the owner's own sentence.
         self.assertIn("if (input == themeSpinner) continue;", main)
-        self.assertIn("spinner != themeSpinner", main)
+        # The two inline menus carry the theme's own popup plate.
+        self.assertIn("volumeSplitMenu.setBackground(popupPlate(index));",
+                      main)
+        self.assertIn("themeMenu.setBackground(popupPlate(index));", main)
         # Each theme's popup is a plate of its own family, named once.
         for suffix in ("black", "green", "navy", "orange"):
             self.assertTrue((RES / "drawable"
@@ -3161,78 +3214,102 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         spinner = element(layout, 'android:id="@+id/volume_split_spinner"')
         self.assertNotIn("android:popupBackground", spinner)
 
-    def test_v2_3_13_the_boxes_share_the_one_32dp_floor_and_fill_their_tile(self):
-        """Owner orders 2026-10-27, two passes: 2026-10-27 ("you reduced
-        the width of drop down box, and some features are getting cut off
-        because of that, I told you to reduce the height of drop down box
-        by 5%, do it") then v2.3.13 ("make all drop down boxes' height
-        reduce by 15% from current height, make this changes across
-        everywhere on the app, and make the same size for the search box
-        on the search page"). The v2.3.11 text-hug width stays RETIRED -
-        both closed boxes match their tile's width, so nothing sitting
-        at their edge can clip - and the height carries both cuts: the
-        40dp floor stepped to 38dp on the first pass, then to 32dp
-        (38 * 0.85 = 32.3) across EVERY dropdown, and the search box
-        carries the same floor, so every field on the console is one
-        height now.
+    def test_v2_3_16_all_three_boxes_carry_the_one_universal_height(self):
+        """Owner orders 2026-10-27, nineteenth pass ("make the decrease
+        the height of custom scrips of volume by another 30%, and with
+        that same exact setting, make the changes for theme box and
+        search box as well, I mean all these three boxes should have
+        universal height"). The universal height is the custom scrips
+        box's own new one: 33 * 0.7 = 23.1, floored to EXACTLY 23dp, and
+        all three field boxes (the two closed dropdown boxes and the
+        search box) are BY that one height - one exact 23dp measure,
+        the 3dp air above and below the line, the 10dp sides, one
+        centre_vertical gravity, the font's own padding out of the
+        measure. No floor is named again: the box now names its height
+        in one place, layout_height, so the retired 32dp/38dp/40dp/43dp
+        floors stay retired under the content they used to name.
         """
         layout = LAYOUT.read_text(encoding="utf-8")
-        for view_id in ("volume_split_spinner", "theme_spinner"):
+        for view_id in ("volume_split_spinner", "theme_spinner",
+                        "search_input"):
             with self.subTest(view_id=view_id):
                 box = element(layout, f'android:id="@+id/{view_id}"')
-                start = layout.rindex("<FrameLayout", 0, layout.index(box))
-                holder = layout[start:layout.index("</FrameLayout>", start)]
-                self.assertIn('android:layout_width="match_parent"',
-                              holder)
+                # Tile's width, one exact height, the universal numbers,
+                # the same law three times.
                 self.assertIn('android:layout_width="match_parent"', box)
-                # The height alone carries both cuts: the box's 40dp floor
-                # stepped to 38dp (v2.3.12) and then to 32dp (v2.3.13),
-                # never a width number again.
-                self.assertIn('android:minHeight="32dp"', box)
-                self.assertNotIn('android:minHeight="38dp"', box)
-                self.assertNotIn('android:minHeight="40dp"', box)
+                self.assertIn('android:layout_height="23dp"', box)
+                self.assertNotIn("minHeight", box)
+                self.assertIn('android:paddingTop="3dp"', box)
+                self.assertIn('android:paddingBottom="3dp"', box)
+                self.assertIn('android:paddingLeft="10dp"', box)
+                self.assertIn('android:paddingRight="10dp"', box)
+                self.assertIn('android:gravity="center_vertical"', box)
+                self.assertIn('android:includeFontPadding="false"', box)
 
-    def test_v2_3_15_the_boxes_shrink_another_twenty_percent_and_row(self):
-        """Owner orders of 2026-10-27, eighteenth pass, on the v2.3.14
-        build ("reduce the height by another 20% of both themes box and
-        custom scrips of volume box", "the drop down is not even aligned
-        on the centre for themes box").
+    def test_v2_3_16_the_dropdown_menu_opens_from_the_box_itself(self):
+        """Owner order 2026-10-27, nineteenth pass: "when I tap on
+        custom scrips of volume, another window pops up which is wrong,
+        drop down menu should appear from the same box, not as a
+        completely separate window".
 
-        The v2.3.14 law already had the cut on the box's real parts
-        (field air 10dp to 7dp, the closed row's pads 6dp to 5dp, the
-        closed box about 50dp to about 42dp); this pass takes the
-        further 20% off the same real parts and fixes the centring the
-        second half of the order named: the field's air steps 7dp to
-        5dp above and below the line, and the closed row FILLS the
-        box's inner measure exactly - styleSpinnerRow pads it to 2dp,
-        gives it the row's own 23dp minHeight and centres its one line
-        in what it fills - so the closed box measures 5 + 23 + 5 = 33dp
-        (about 42 * 0.8 = 33.6) and the line sits in its centre by the
-        row's own gravity, not by the Spinner's mercy. The box's own
-        32dp floor stays retired under the content it used to name.
+        The platform Spinner is retired with its popup window
+        entirely: every closed dropdown box is its own one-line
+        TextView, and every menu is a LinearLayout of the app's own
+        rows standing DIRECTLY below the box it belongs to, in the
+        page's own scroll, drawn from MainActivity's own open state -
+        no popup window, no platform spinner, no adapter, anywhere.
+        The theme menu carries the same exact setting, since the two
+        dropdowns keep one law.
         """
         layout = LAYOUT.read_text(encoding="utf-8")
         main = MAIN.read_text(encoding="utf-8")
-        for view_id in ("volume_split_spinner", "theme_spinner"):
+        # The platform dropdown class is retired with its file.
+        self.assertNotIn("pk.quantofrehan.Dropdown", layout)
+        self.assertFalse(
+            (ROOT / "android" / "app" / "src" / "main" / "java"
+             / "pk" / "quantofrehan" / "Dropdown.java").exists())
+        for view_id, menu_id in (("volume_split_spinner",
+                                  "volume_split_menu"),
+                                 ("theme_spinner", "theme_menu")):
             with self.subTest(view_id=view_id):
                 box = element(layout, f'android:id="@+id/{view_id}"')
-                # The sides stay the field's own 10dp; the air is 5dp.
-                self.assertIn('android:paddingLeft="10dp"', box)
-                self.assertIn('android:paddingRight="10dp"', box)
-                self.assertIn('android:paddingTop="5dp"', box)
-                self.assertIn('android:paddingBottom="5dp"', box)
-                # The undifferentiated 10dp wall is gone from both boxes,
-                # and the v2.3.14 7dp air is gone with it.
-                self.assertNotIn('android:padding="10dp"', box)
-                self.assertNotIn('android:paddingTop="7dp"', box)
-        # The closed row fills the box's inner measure and centres its
-        # line in what it fills.
-        self.assertIn("row.setPadding(dp(dropped ? 18 : 10),"
-                      " dp(dropped ? 15 : 2),", main)
-        self.assertIn("dp(dropped ? 18 : 10), dp(dropped ? 15 : 2));", main)
-        self.assertNotIn("dp(dropped ? 15 : 5)", main)
-        self.assertIn("row.setMinHeight(dp(23));", main)
-        self.assertIn("row.setGravity(Gravity.CENTER_VERTICAL);", main)
+                menu = element(layout, f'android:id="@+id/{menu_id}"')
+                # The closed box is a plain TextView; nothing of the
+                # platform spinner's own attributes survives on it.
+                self.assertIn("<TextView", box)
+                self.assertNotIn("popupBackground", box)
+                self.assertNotIn("android:prompt", box)
+                self.assertNotIn("extends Spinner", main)
+                # The menu stands DIRECTLY after the box's own holder,
+                # in the page's own flow, until the state opens it.
+                self.assertIn("<LinearLayout", menu)
+                self.assertIn('android:layout_marginTop="2dp"', menu)
+                self.assertIn('android:visibility="gone"', menu)
+        # The engine: rows built by the app, open states drawn between
+        # the menu's visibility, the arrow and the one-menu-at-a-time
+        # law; the adapter machinery is retired with the popup window.
+        self.assertIn("private void buildVolumeMenu() {", main)
+        self.assertIn("private void buildThemeMenu() {", main)
+        self.assertIn("private TextView menuRow(String line) {", main)
+        self.assertIn("private void showVolumeMenu(boolean open) {", main)
+        self.assertIn("private void showThemeMenu(boolean open) {", main)
+        self.assertIn("private void rotateDropdownArrow(ImageView arrow, "
+                      "boolean open) {", main)
+        self.assertNotIn("ArrayAdapter", main)
+        self.assertNotIn("AdapterView", main)
+        self.assertNotIn("android.widget.Spinner", main)
+        self.assertNotIn("styledSpinnerAdapter", main)
+        self.assertNotIn("styleSpinnerRow", main)
+        self.assertNotIn("setOnItemSelectedListener", main)
+        # Both menus open FROM their own box and their own arrow: four
+        # taps, one toggle each.
+        self.assertEqual(main.count("showVolumeMenu(!volumeMenuOpen)"), 2)
+        self.assertEqual(main.count("showThemeMenu(!themeMenuOpen)"), 2)
+        # One menu at a time, served by the states themselves.
+        self.assertIn("        if (open) {\n"
+                      "            showThemeMenu(false);\n        }", main)
+        self.assertIn("        if (open) {\n"
+                      "            showVolumeMenu(false);\n        }", main)
 
     def test_v2_3_15_the_themes_arrow_aims_at_the_box_itself(self):
         """Owner order 2026-10-27, eighteenth pass: "the drop down is
@@ -3266,21 +3343,26 @@ class ThinkingOrbPlanTest(unittest.TestCase):
                 self.assertIn('android:layout_height="20dp"', arrow)
                 self.assertNotIn('wrap_content', arrow)
 
-    def test_v2_3_15_the_search_box_grows_another_twenty_five_percent(self):
-        """Owner order 2026-10-27, eighteenth pass: "for search box you
-        need to increase the height of its box by another 25%". The
-        floor alone carries the growth again, the same floor law every
-        pass before it sat on: 35 * 1.25 = 43.75, floored to 43dp, so
-        the box's even 7dp air law survives and the growth is exactly
-        25% of the measure the box is named by.
+    def test_v2_3_16_the_search_box_joins_the_universal_height(self):
+        """Owner order 2026-10-27, nineteenth pass ("with that same
+        exact setting, make the changes for theme box and search box as
+        well, I mean all these three boxes should have universal
+        height"). The search box was allowed to grow twice (10% on
+        v2.3.14, 25% on v2.3.15); today's order names the universal
+        height from the custom scrips box's own side and the search box
+        is BY it: the box is one exact 23dp measure (33 * 0.7 = 23.1,
+        floored to 23dp), the air reads 7dp to 3dp above and below the
+        line, and nothing of the grown floors (35dp, 43dp) survives
+        under their own name.
         """
         box = element(LAYOUT.read_text(encoding="utf-8"),
                       'android:id="@+id/search_input"')
-        self.assertIn('android:minHeight="43dp"', box)
-        self.assertNotIn('android:minHeight="35dp"', box)
-        self.assertNotIn('android:minHeight="32dp"', box)
-        self.assertIn('android:paddingTop="7dp"', box)
-        self.assertIn('android:paddingBottom="7dp"', box)
+        self.assertIn('android:layout_height="23dp"', box)
+        self.assertNotIn("minHeight", box)
+        self.assertNotIn('android:layout_height="35dp"', box)
+        self.assertNotIn('android:layout_height="43dp"', box)
+        self.assertIn('android:paddingTop="3dp"', box)
+        self.assertIn('android:paddingBottom="3dp"', box)
 
     def test_v2_3_14_the_sun_is_ten_percent_slower_the_fourth_time(self):
         """Owner order 2026-10-27: "Decrease the sun's revolving speed by
@@ -3349,9 +3431,20 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         # escape, one decision.
         self.assertIn("long seed = 20261022L;", orb)
         self.assertIn("float pulled = (n % 4 == 0) ? 1.05f : 0.78f;", orb)
-        # The neighbourhood mesh: K = 3 own nearest neighbours, each pair
-        # once, still under the one 0.42 cap.
-        self.assertIn("final int K = 3;", orb)
+        # The neighbourhood mesh: K = 4 own nearest neighbours, each pair
+        # once, still under the one 0.42 cap. v2.3.16 (owner order 2026-10-27,
+        # nineteenth pass, "the animating lines are less as of now, make
+        # more LINES ... increase the number of LINES by 20% from the
+        # current number, across the entire animating feautre") takes the
+        # join up from 3, and the mesh's own pair budget carries the same
+        # 20% (3 per node / 1.2 = 2.5 floored to 2 net, 31/5 up
+        # granularity), so the arrays hold every pair the four-neighbour
+        # join now asks for.
+        self.assertIn("final int K = 4;", orb)
+        # The pair budget the arrays are sized on carries the same +20%
+        # (26/5 * 1.2 = 31.2, floored to 31/5), so the four-neighbour
+        # join can never outrun it.
+        self.assertIn("return NODES * 31 / 5;", orb)
         self.assertIn("for (int take = 0; take < K; take++) {", orb)
         self.assertIn("boolean[] linked = new boolean[NODES * NODES];", orb)
         self.assertIn("linked[i * NODES + nearest] = true;", orb)

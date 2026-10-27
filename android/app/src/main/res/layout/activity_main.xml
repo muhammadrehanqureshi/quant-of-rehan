@@ -217,11 +217,22 @@
                  its box by another 25%"): the same floor law carries the
                  growth again, 35 * 1.25 = 43.75, floored to 43dp - the
                  air stays 7dp and the name of the box's height is still
-                 the one number. -->
+                 the one number.
+
+                 v2.3.16 owner order 2026-10-27 ("make the changes for
+                 theme box and search box as well ... all these three
+                 boxes should have universal height"): the universal
+                 height is the custom scrips box's own new 23dp (33 *
+                 0.7 = 23.1, floored to 23dp, this file's same law) and
+                 the search box is BY that height now, not beside it:
+                 the box is one exact 23dp tall, the air is 3dp above
+                 and below the line, the side padding and the one
+                 body ink stay, and the line centres in the 23dp it
+                 gets. -->
             <EditText
                 android:id="@+id/search_input"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
+                android:layout_height="23dp"
                 android:background="@drawable/field_bg"
                 android:gravity="center_vertical"
                 android:hint="@string/search_hint"
@@ -229,11 +240,10 @@
                 android:includeFontPadding="false"
                 android:inputType="textCapCharacters"
                 android:maxLines="1"
-                android:minHeight="43dp"
                 android:paddingLeft="10dp"
                 android:paddingRight="10dp"
-                android:paddingTop="7dp"
-                android:paddingBottom="7dp"
+                android:paddingTop="3dp"
+                android:paddingBottom="3dp"
                 android:textColor="@color/text_bright"
                 android:textColorHint="@color/text_soft"
                 android:textSize="13sp"/>
@@ -339,26 +349,46 @@
                  field's air steps to 5dp above and below the line and
                  the closed row is given the box's inner measure
                  exactly - a 23dp floor on the row, its line centred in
-                 what it fills (MainActivity.styleSpinnerRow) - so the
-                 box measures 5 + 23 + 5 = 33dp (about 42 * 0.8 = 33.6)
-                 AND the line sits in the centre of it by the row's own
-                 gravity, not by the Spinner's mercy. -->
+                 what it fills - so the box measures 5 + 23 + 5 = 33dp
+                 (about 42 * 0.8 = 33.6) AND the line sits in the centre
+                 of it by the row's own gravity.
+
+                 v2.3.16 owner order 2026-10-27, two orders on this box:
+                 ("make the decrease the height of custom scrips of
+                 volume by another 30%") the box measures 23dp now -
+                 33 * 0.7 = 23.1, floored to 23dp, the same floor law
+                 every height in this file carries - the air is 3dp
+                 above and below the line, and the line centres in the
+                 23dp by its own gravity (the closed box is its own one
+                 line now, no row child to fill with). ("another window
+                 pops up which is wrong, drop down menu should appear
+                 from the same box, not as a completely separate
+                 window") the dropdown is NOT a Spinner any more: the
+                 closed box is a TextView and the menu opens INSIDE the
+                 tile, directly below the box it belongs to
+                 (volume_split_menu below), in the page's own scroll -
+                 no platform popup window of any kind. The theme box
+                 carries the same exact setting right behind it. -->
             <FrameLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="10dp">
 
-            <pk.quantofrehan.Dropdown
+            <TextView
                 android:id="@+id/volume_split_spinner"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
+                android:layout_height="23dp"
                 android:background="@drawable/field_bg"
                 android:contentDescription="@string/label_volume"
-                android:minHeight="32dp"
+                android:gravity="center_vertical"
+                android:includeFontPadding="false"
                 android:paddingLeft="10dp"
                 android:paddingRight="10dp"
-                android:paddingTop="5dp"
-                android:paddingBottom="5dp"/>
+                android:paddingTop="3dp"
+                android:paddingBottom="3dp"
+                android:text="@string/volume_placeholder_scrips"
+                android:textColor="@color/text_bright"
+                android:textSize="13sp"/>
 
             <ImageView
                 android:id="@+id/volume_split_arrow"
@@ -369,6 +399,20 @@
                 android:contentDescription="@string/cd_dropdown"
                 android:src="@drawable/dropdown_arrow"/>
             </FrameLayout>
+
+            <!-- The volume dropdown's OWN menu (v2.3.16 owner order
+                 "drop down menu should appear from the same box, not as
+                 a completely separate window"): the rows stand directly
+                 below the box, in the page's own scroll. GONE until the
+                 box or its arrow is tapped, exact like the reveal. -->
+            <LinearLayout
+                android:id="@+id/volume_split_menu"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:background="@drawable/dropdown_popup"
+                android:orientation="vertical"
+                android:visibility="gone"/>
 
             <!-- The reveal: the three scrips of the chosen ranking, one
                  line per scrip, the same quote lines the old dropdown rows
@@ -685,8 +729,8 @@
                      20% with the row-centring law: the field's air is
                      5dp above and below the line, the closed row inside
                      the box owns the inner measure exact - a 23dp
-                     floor, its line centred in what it fills
-                     (MainActivity.styleSpinnerRow) - and the                     box measures 5 + 23 + 5 = 33dp, the same law as the
+                     floor, its line centred in what it fills - so the
+                     box measures 5 + 23 + 5 = 33dp, the same law as the
                      volume dropdown, with the line IN THE CENTRE of the
                      box this time. And the problem the owner named - the
                      arrow NOT aligned to the box's centre - is the box's
@@ -695,25 +739,34 @@
                      and the arrow's center_vertical aimed at the
                      holder. The margin moves onto the holder now, so
                      the holder is exactly the box and the arrow aims
-                     at the box's centre by construction. -->
+                     at the box's centre by construction.
+
+                     v2.3.16 owner order 2026-10-27 ("with that same
+                     exact setting, make the changes for theme box"): the
+                     themes box is the volume box's own 23dp exactly, the
+                     same 3dp air, the same one-line closed box, and it
+                     opens its OWN menu below the box (theme_menu) like
+                     the volume box opens its own - no platform window of
+                     any kind, the same exact setting two boxes. -->
                 <FrameLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="10dp">
 
-                <pk.quantofrehan.Dropdown
+                <TextView
                     android:id="@+id/theme_spinner"
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
+                    android:layout_height="23dp"
                     android:background="@drawable/field_bg"
                     android:contentDescription="@string/label_themes"
-                    android:minHeight="32dp"
-                    android:popupBackground="@drawable/dropdown_popup"
-                    android:prompt="@string/theme_prompt"
+                    android:gravity="center_vertical"
+                    android:includeFontPadding="false"
                     android:paddingLeft="10dp"
                     android:paddingRight="10dp"
-                    android:paddingTop="5dp"
-                    android:paddingBottom="5dp"/>
+                    android:paddingTop="3dp"
+                    android:paddingBottom="3dp"
+                    android:textColor="@color/text_bright"
+                    android:textSize="13sp"/>
 
                 <ImageView
                     android:id="@+id/theme_arrow"
@@ -724,6 +777,19 @@
                     android:contentDescription="@string/cd_dropdown"
                     android:src="@drawable/dropdown_arrow"/>
                 </FrameLayout>
+
+                <!-- The themes dropdown's OWN menu, the volume menu's one
+                     law (v2.3.16): directly below the box, in the page's
+                     own scroll, its plate painted by the theme it opens
+                     the look with. -->
+                <LinearLayout
+                    android:id="@+id/theme_menu"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:background="@drawable/dropdown_popup"
+                    android:orientation="vertical"
+                    android:visibility="gone"/>
             </LinearLayout>
 
             <!-- Owner order 2026-10-23 (v2.2.1): the tile's own closing
