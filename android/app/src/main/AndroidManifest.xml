@@ -227,11 +227,30 @@
      cluster) and every node joins K = 3 of ITS OWN nearest
      neighbours under the 0.42 cap, so all sides carry filaments and
      no side can spend another's links.
+
+     versionCode 83 / versionName 2.3.16 belong to the owner's orders of
+     2026-10-27 ("make the decrease the height of custom scrips of
+     volume by another 30%, and with that same exact setting, make the
+     changes for theme box and search box as well, I mean all these
+     three boxes should have universal height", "when I tap on custom
+     scrips of volume, another window pops up which is wrong, drop down
+     menu should appear from the same box, not as a completely separate
+     window", and "the animating lines are less as of now, make more
+     LINES ... increase the number of LINES by 20% from the current
+     number, across the entire animating feautre"): the three field
+     boxes (custom scrips, themes, search) carry ONE universal height,
+     33 * 0.7 = 23.1 floored to EXACTLY 23dp, the air 3dp above and
+     below the line; the platform spinner is retired with its popup
+     window entirely - both dropdown menus are the app's own rows
+     opening directly below their box, in the page's own scroll - and
+     the cloud's mesh joins K = 4 of its own nearest neighbours (3 net
+     of the +20% floor) with the array budget carrying the same 20%
+     (NODES * 31 / 5).
      -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="pk.quantofrehan"
-    android:versionCode="82"
-    android:versionName="2.3.15">
+    android:versionCode="83"
+    android:versionName="2.3.16">
 
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="30"/>
 

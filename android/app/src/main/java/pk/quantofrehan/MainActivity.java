@@ -18,12 +18,9 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.animation.AccelerateDecelerateInterpolator;
 import android.view.animation.DecelerateInterpolator;
-import android.widget.AdapterView;
-import android.widget.ArrayAdapter;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
-import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -242,13 +239,24 @@ public class MainActivity extends Activity {
      * else, exactly like the panel itself.
      */
     private View themesHolder;
-    private Spinner volumeSplitSpinner;
+    // v2.3.16 (owner order "another window pops up which is wrong, drop
+    // down menu should appear from the same box"): the closed box is its
+    // own TextView now and the menu is a LinearLayout in the page's own
+    // flow - the name carries the history, the view carries the truth.
+    private TextView volumeSplitSpinner;
+    private LinearLayout volumeSplitMenu;
+    private LinearLayout themeMenu;
+    /** The menu rows' own captions, the closed box restamps from. */
+    private String[] volumeChoices;
+    /** The menu's own open state, drawn into the menu's visibility and
+     *  the arrow's angle, never read back from the views. */
+    private boolean volumeMenuOpen;
+    private boolean themeMenuOpen;
     // The dropdown's state arrow (owner order 2026-10-23, 2.0.0):
     // DOWN while the menu is closed (the pull-down cue), UP while it is
     // open (the pull-up cue), declared beside it.
     private ImageView volumeSplitArrow;
     private ImageView themeArrow;
-    private ArrayAdapter<String> volumeSplitAdapter;
     /** The one dropdown's chosen menu: 0 = MORE BUYERS & LESS SELLERS,
      *  1 = PRICE MOVING FAST. -1 is "nothing picked yet", so the reveal
      *  stays hidden until he actually chooses (owner order 2026-10-23,
@@ -257,10 +265,9 @@ public class MainActivity extends Activity {
     /** The three scrips revealed under the dropdown once a menu is
      *  chosen; the ranking lines print one per row. */
     private TextView volumeReveal;
-    /** The settings page's THEMES tile. The spinner's five items and the
-     *  selection are theme_name and theme below; the selection survives
-     *  between sessions in prefs, so the app opens on the look he chose. */
-    private Spinner themeSpinner;
+    /** The settings page's THEMES closed box (the same v2.3.16 law the
+     *  volume box carries): the dropdown is the box's own inline menu. */
+    private TextView themeSpinner;
     private TextView appVersion;
     private int themeIndex;
     /**
@@ -415,9 +422,11 @@ public class MainActivity extends Activity {
         // block assigns them all, which is also their one reminder.
         greeting = (TextView) findViewById(R.id.greeting);
         tileVolume = findViewById(R.id.tile_volume);
-        themeSpinner = (Spinner) findViewById(R.id.theme_spinner);
+        themeSpinner = (TextView) findViewById(R.id.theme_spinner);
+        volumeSplitMenu = (LinearLayout) findViewById(R.id.volume_split_menu);
+        themeMenu = (LinearLayout) findViewById(R.id.theme_menu);
         appVersion = (TextView) findViewById(R.id.app_version);
-        volumeSplitSpinner = (Spinner) findViewById(R.id.volume_split_spinner);
+        volumeSplitSpinner = (TextView) findViewById(R.id.volume_split_spinner);
         if (volumeSplitSpinner != null) {
             themedInputs.add(volumeSplitSpinner);
         }
@@ -534,10 +543,10 @@ public class MainActivity extends Activity {
         // status badge, the search highlight plates and the rules keep the
         // inks of their own laws.
         themeIndex = prefs.getInt("theme", 0);
-        buildThemeSpinner();
+        buildThemeMenu();
         applyTheme(themeIndex);
 
-        buildVolumeSpinners();
+        buildVolumeMenu();
         // v2.2.5: the dropdowns' closed rows, their popups and the search
         // box open ON the theme's look, not the app's default, when a
         // non-default theme is remembered.
@@ -664,35 +673,50 @@ public class MainActivity extends Activity {
             R.string.theme_purple, R.string.theme_black, R.string.theme_green,
             R.string.theme_navy, R.string.theme_orange};
 
-    private void buildThemeSpinner() {
-        if (themeSpinner == null) {
+    /**
+     * THEMES (owner order 2026-10-23): five pairs, listed in the order he
+     * named them, the selection remembered so the app opens on the look
+     * he chose.
+     *
+     * v2.3.16 (owner order "drop down menu should appear from the same
+     * box, not as a completely separate window"): no platform spinner
+     * and no popup window of any kind. The menu is the theme_menu rows
+     * built here, standing directly below the box it belongs to, in the
+     * page's own scroll; a row tap paints the theme the pick names and
+     * closes the menu it was picked from.
+     */
+    private void buildThemeMenu() {
+        if (themeSpinner == null || themeMenu == null) {
             return;
         }
-        List<String> labels = new ArrayList<>();
-        for (int label : THEME_LABELS) {
-            labels.add(getString(label));
-        }
-        ArrayAdapter<String> adapter = styledSpinnerAdapter();
-        adapter.addAll(labels);
-        themeSpinner.setAdapter(adapter);
-        themeSpinner.setSelection(Math.max(0, Math.min(themeIndex,
-                THEME_LABELS.length - 1)));
-        themeSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-            @Override public void onItemSelected(AdapterView<?> parent,
-                                                 View view, int position, long id) {
-                if (position != themeIndex) {
-                    themeIndex = position;
-                    applyTheme(position);
-                    // v2.2.5: the dropdowns, their popups and the search
-                    // boxes belong to the theme too (owner order
-                    // 2026-10-24, fourth note, "drop down menus and the
-                    // search boxes are still purple, make them match
-                    // the app's current theme").
-                    applyThemeToInputs(position);
+        themeMenu.removeAllViews();
+        for (int i = 0; i < THEME_LABELS.length; i++) {
+            final int index = i;
+            TextView row = menuRow(getString(THEME_LABELS[index]));
+            row.setOnClickListener(v -> {
+                showThemeMenu(false);
+                if (index != themeIndex) {
+                    themeIndex = index;
+                    applyTheme(index);
+                    // v2.2.5: the boxes, the menus and the search box
+                    // belong to the theme too (owner order 2026-10-24,
+                    // fourth note).
+                    applyThemeToInputs(index);
                 }
-            }
-            @Override public void onNothingSelected(AdapterView<?> parent) { }
-        });
+            });
+            themeMenu.addView(row);
+        }
+        themeIndex = Math.max(0, Math.min(themeIndex,
+                THEME_LABELS.length - 1));
+        restampThemeText();
+    }
+
+    /** The closed box restamps itself with the theme's own label, so
+     *  the box always names the look she chose. */
+    private void restampThemeText() {
+        if (themeSpinner != null) {
+            themeSpinner.setText(getString(THEME_LABELS[themeIndex]));
+        }
     }
 
     /** The input views one theme pass repaints: the two spinners and
@@ -709,40 +733,29 @@ public class MainActivity extends Activity {
     private void applyThemeToInputs(int index) {
         for (View input : themedInputs) {
             if (input == themeSpinner) continue;
-            if (input instanceof Spinner) {
-                paintDropdown((Spinner) input, index);
-            } else {
-                paintField(input, index);
-            }
+            // The theme spinner is exempt: as the owner said on
+            // 2026-10-24, it already sits inside the plate it is
+            // choosing. Every other textbox paints its plate.
+            paintField(input, index);
+        }
+        // v2.3.16: the two inline menus paint the same theme stamps the
+        // platform popup wore, now on the box's own flow (each theme's
+        // own plate id, from this one place).
+        if (volumeSplitMenu != null) {
+            volumeSplitMenu.setBackground(popupPlate(index));
+        }
+        if (themeMenu != null) {
+            themeMenu.setBackground(popupPlate(index));
         }
     }
 
-    /** One spinner: closed row, popup mosaic, from one plate.
-     *  notifyDataSetChanged re-walks every closed row with the code's
-     *  current paints; the popup's paint cannot run at a null adapter. */
-    private void paintDropdown(Spinner spinner, int index) {
-        if (spinner == null) return;
-        // The closed row sits inside its tile with the FIELD law's own
-        // 12dp corners (the tile plate's 20dp would swallow the field's
-        // air), the same plate the boxes wear below.
-        spinner.setBackground(fieldPlate(index));
-        ArrayAdapter<?> adapter =
-                spinner.getAdapter() instanceof ArrayAdapter<?>
-                        ? (ArrayAdapter<?>) spinner.getAdapter() : null;
-        if (adapter != null) {
-            adapter.notifyDataSetChanged();
-        }
-        // The dropped menu is the STAMP, not the tile paint (the owner's
-        // wording "drop down menus ... match the app's current theme", and
-        // the v2.2.2 law that a paper never colours a spoon below its
-        // station): each theme's own plate id, from this one place.
-        int popup = popupResourceFor(index);
-        if (popup != View.NO_ID && spinner != themeSpinner) {
-            @SuppressWarnings("deprecation")
-            android.graphics.drawable.Drawable popupPlate =
-                    getResources().getDrawable(popup);
-            spinner.setPopupBackgroundDrawable(popupPlate);
-        }
+    /** One menu's plate per theme, the stamp hand's own table, resolved
+     *  once per pass (the platform popup's own fetch, moved inline). */
+    private android.graphics.drawable.Drawable popupPlate(int index) {
+        @SuppressWarnings("deprecation")
+        android.graphics.drawable.Drawable plate =
+                getResources().getDrawable(popupResourceFor(index));
+        return plate;
     }
 
     /** One field box: the field's own plate, and the hint ink rides the
@@ -945,85 +958,68 @@ public class MainActivity extends Activity {
      * placeholder now - SELECT CUSTOM SCRIPS - and it is what the closed
      * box shows until he taps it and picks a menu of his own.
      */
-    private void buildVolumeSpinners() {
-        if (volumeSplitSpinner == null) {
+    /**
+     * CUSTOM SCRIPS OF VOL., the box's own dropdown (owner order
+     * 2026-10-23; ONE menu since v2.2.1; v2.3.16 the menu opens from the
+     * box itself). The two rankings he named - PRICE MOVING FAST first,
+     * MORE BUYERS & LESS SELLERS beside it - are the menu's own rows,
+     * standing directly below the closed box in the page's own scroll;
+     * the picker's placeholder row is the closed box's own text, what it
+     * reads until he picks a menu of his own.
+     */
+    private void buildVolumeMenu() {
+        if (volumeSplitSpinner == null || volumeSplitMenu == null) {
             return;
         }
-        volumeSplitAdapter = styledSpinnerAdapter();
-        // The placeholder is row 0 and starts selected: nothing of any
-        // ranking shows before he asks for it, and the closed box reads
-        // SELECT CUSTOM SCRIPS exactly as the owner ordered.
-        volumeSplitAdapter.add(getString(R.string.volume_placeholder_scrips));
-        // v2.2.5 (owner order 2026-10-24, fourth note): the scanner's own
-        // entry is the menu's FIRST row - the rising prices, capped out -
-        // then the two rankings he named before it. The index to ranking
-        // mapping lives at paintVolumeReveal alone.
-        volumeSplitAdapter.add(getString(R.string.volume_speed_caption));
-        volumeSplitAdapter.add(getString(R.string.volume_split_caption));
-        volumeSplitSpinner.setAdapter(volumeSplitAdapter);
-        volumeSplitSpinner.setOnItemSelectedListener(
-                new AdapterView.OnItemSelectedListener() {
-            @Override public void onItemSelected(AdapterView<?> parent, View view,
-                                                 int position, long id) {
-                // The first callback fires at bind with position 0 and
-                // is not a choice of his; only a tap inside the open
-                // menu reveals (the Dropdown's own open edges guard it
-                // cheaply enough via the -1 sentinel below).
-                if (volumeSplitChoice < 0 && !spinnerWasTouched) {
-                    spinnerWasTouched = true;
-                    return;
-                }
-                volumeSplitChoice = position;
+        volumeSplitMenu.removeAllViews();
+        // The rows are the captions, in v2.2.5's own order (the rising
+        // prices first); the index to ranking mapping lives at
+        // paintVolumeReveal alone: row i is volumeSplitChoice i + 1.
+        volumeChoices = new String[]{
+                getString(R.string.volume_speed_caption),
+                getString(R.string.volume_split_caption)};
+        for (int i = 0; i < volumeChoices.length; i++) {
+            final int index = i;
+            TextView row = menuRow(volumeChoices[index]);
+            row.setOnClickListener(v -> {
+                volumeSplitChoice = index + 1;
+                volumeSplitSpinner.setText(
+                        dropdownLine(volumeChoices[index]));
+                showVolumeMenu(false);
                 paintVolumeReveal();
-            }
-            @Override public void onNothingSelected(AdapterView<?> parent) { }
-        });
+            });
+            volumeSplitMenu.addView(row);
+        }
+        // The closed box reads the placeholder until he picks one.
+        volumeSplitSpinner.setText(getString(
+                R.string.volume_placeholder_scrips));
     }
 
-    /** The dropdown's bind-vs-tap gate for the first onItemSelected. */
-    private boolean spinnerWasTouched;
-
     /**
-     * The three dropdowns' own arrows (owner order 2026-10-23, 2.0.0):
-     * "when I tell you to have a drop down menu type feature, I want to
-     * have the arrow down and up as well to pull up the menu, right now
-     * there is none." Each arrow starts DOWN beside its closed menu (the
-     * pull-down cue), and the Dropdown's two edges rotate it: UP while the
-     * menu is open, DOWN the moment the focus returns and it has closed.
-     * Consistency never has to be remembered here precisely because one
-     * arrangement and one law serve all three instead of three copies of
-     * the work.
+     * The boxes' own taps (v2.3.16): the two closed boxes and their two
+     * arrows are the four ways into the two menus, and the pull cue is
+     * the same animated flip it always carried - DOWN while closed (the
+     * pull-down cue), UP while open.
      */
     private void wireDropdownArrows() {
         volumeSplitArrow = (ImageView) findViewById(R.id.volume_split_arrow);
         themeArrow = (ImageView) findViewById(R.id.theme_arrow);
-        // The layout declares its two dropdowns as pk.quantofrehan.Dropdown
-        // (extends Spinner), so the instanceof with the cast below is the
-        // one true type and no ClassCastException can enter the wiring.
-        if (volumeSplitSpinner instanceof Dropdown) {
-            wireDropdownArrow((Dropdown) volumeSplitSpinner,
-                    volumeSplitArrow);
+        if (volumeSplitSpinner != null) {
+            volumeSplitSpinner.setOnClickListener(
+                    v -> showVolumeMenu(!volumeMenuOpen));
         }
-        if (themeSpinner instanceof Dropdown) {
-            wireDropdownArrow((Dropdown) themeSpinner, themeArrow);
+        if (volumeSplitArrow != null) {
+            volumeSplitArrow.setOnClickListener(
+                    v -> showVolumeMenu(!volumeMenuOpen));
         }
-    }
-
-    /** One dropdown's arrow: down while closed, up while open, one flip.
-     *
-     * The rotation is animated, so the flip is the pull the cue promises.
-     * A re-entrant call is free: animate() on an already converged frame
-     * re-emits the same values and the view stays where it is.
-     */
-    private void wireDropdownArrow(Dropdown dropdown, ImageView arrow) {
-        if (dropdown == null || arrow == null) {
-            return;
+        if (themeSpinner != null) {
+            themeSpinner.setOnClickListener(
+                    v -> showThemeMenu(!themeMenuOpen));
         }
-        arrow.setRotation(0f);
-        dropdown.setOpenListener(open -> arrow.animate()
-                .rotation(open ? 180f : 0f)
-                .setDuration(150L)
-                .start());
+        if (themeArrow != null) {
+            themeArrow.setOnClickListener(
+                    v -> showThemeMenu(!themeMenuOpen));
+        }
     }
 
     private void renderVolumeSpinners() {
@@ -1228,65 +1224,61 @@ public class MainActivity extends Activity {
     }
 
     /**
-     * One drop-down, styled once: every row is the body's one size, the
-     * law every non-heading line of the console already holds. The
-     * closed row is a body line inside the field box; the dropped rows
-     * carry the same ink and a taller padding of their own.
-     *
-     * Owner order 2026-10-27, v2.3.14 ("I told you to reduce the height
-     * of customs scrips of volume and theme boxes, you didn't. Reduce
-     * their boxes size' height by 15%"): the closed row's own pads are
-     * part of the box's REAL height, and v2.3.13's floor could never
-     * move them - the box measured its own 10dp air plus this row's
-     * 12dp. The row's pads are stepped down and their height named.
-     *
-     * Owner order 2026-10-27, v2.3.15 ("reduce the height by another
-     * 20% of both themes box and custom scrips of volume box" and "the
-     * drop down is not even aligned on the centre for themes box"): the
-     * row fills the box's own inner measure now - a minHeight of 23dp,
-     * the exact inner measure of the 33dp box the field's new 5dp air
-     * leaves - and centres its one line in what it fills. The closed box
-     * measures 5 + 23 + 5 = 33dp (about 42 * 0.8 = 33.6, carried under
-     * the one flat number this law gives), and the line sits in the
-     * centre of it without relying on the Spinner's own draw to place
-     * the row.
+     * One inline menu row (v2.3.16), the console's own face: one body
+     * line, one ink, the dropdownLine inks it carries when it names a
+     * ticker and a quote, and the air that makes it a menu row of its
+     * own - not the platform row the Spinner styled.
      */
-    private ArrayAdapter<String> styledSpinnerAdapter() {
-        return new ArrayAdapter<String>(this,
-                android.R.layout.simple_spinner_dropdown_item,
-                new ArrayList<String>()) {
-            @Override
-            public View getView(int position, View convertView, ViewGroup parent) {
-                TextView row = (TextView) super.getView(position, convertView, parent);
-                styleSpinnerRow(row, false);
-                return row;
-            }
-
-            @Override
-            public View getDropDownView(int position, View convertView,
-                                        ViewGroup parent) {
-                TextView row = (TextView)
-                        super.getDropDownView(position, convertView, parent);
-                styleSpinnerRow(row, true);
-                return row;
-            }
-        };
-    }
-
-    private void styleSpinnerRow(TextView row, boolean dropped) {
+    private TextView menuRow(String line) {
+        TextView row = new TextView(this);
         row.setTextSize(13f);
         row.setTextColor(getColor(R.color.text_bright));
-        row.setPadding(dp(dropped ? 18 : 10), dp(dropped ? 15 : 2),
-                dp(dropped ? 18 : 10), dp(dropped ? 15 : 2));
-        if (!dropped) {
-            // The row owns the box's inner measure exactly, so the line
-            // centres in it: the platform style's small minHeight and
-            // the two 2dp pads measure, and the centre asks for nothing
-            // the row does not already fill.
-            row.setMinHeight(dp(23));
-            row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setIncludeFontPadding(false);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(dp(14), dp(7), dp(14), dp(7));
+        row.setText(dropdownLine(line));
+        return row;
+    }
+
+    /**
+     * The volume menu's own open state (v2.3.16): the menu opens FROM the
+     * box, below it, in the page's own scroll - and one menu at a time,
+     * the same law the pages follow. The state is the boolean; the menu's
+     * visibility and the arrow's angle are drawn from it, never read
+     * back, so a repeated tap cannot thrash the view tree.
+     */
+    private void showVolumeMenu(boolean open) {
+        volumeMenuOpen = open;
+        if (volumeSplitMenu != null) {
+            volumeSplitMenu.setVisibility(open ? View.VISIBLE : View.GONE);
         }
-        row.setText(dropdownLine(row.getText().toString()));
+        rotateDropdownArrow(volumeSplitArrow, open);
+        if (open) {
+            showThemeMenu(false);
+        }
+    }
+
+    /** The themes menu's own open state, the volume menu's one law. */
+    private void showThemeMenu(boolean open) {
+        themeMenuOpen = open;
+        if (themeMenu != null) {
+            themeMenu.setVisibility(open ? View.VISIBLE : View.GONE);
+        }
+        rotateDropdownArrow(themeArrow, open);
+        if (open) {
+            showVolumeMenu(false);
+        }
+    }
+
+    /** One arrow's pull: down while closed, up while open, one flip. */
+    private void rotateDropdownArrow(ImageView arrow, boolean open) {
+        if (arrow == null) {
+            return;
+        }
+        arrow.animate()
+                .rotation(open ? 180f : 0f)
+                .setDuration(150L)
+                .start();
     }
 
     /**
