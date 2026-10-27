@@ -1702,9 +1702,15 @@ class VersionTest(unittest.TestCase):
         # height the boxes wear, not on a floor nothing draws), the
         # search box grows 10% on its floor, the sun's fourth 10% cut,
         # and the cloud filaments can no longer leave their dots.
+        # v2.3.15 is owner order 2026-10-27, eighteenth pass: the two
+        # boxes shrink ANOTHER 20% (the heights they really wear), the
+        # search box grows another 25% on its floor, the dropdown arrow
+        # becomes plainly visible and centres on the themes box, and
+        # the cloud's anchors and mesh are named so the lines fill every
+        # side and no lobe can spend another's links.
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="2.3.14"', manifest)
-        self.assertIn('android:versionCode="81"', manifest)
+        self.assertIn('android:versionName="2.3.15"', manifest)
+        self.assertIn('android:versionCode="82"', manifest)
         # The changelog entry ties these user-visible changes to the build.
         readme = (ROOT / "android" / "README.md").read_text(encoding="utf-8")
         self.assertIn("v1.7.9, owner order 2026-10-20", readme)
@@ -1778,9 +1784,14 @@ class VersionTest(unittest.TestCase):
         # the sun's fourth 10% cut, and the filaments' inward-only
         # breathing, versionCode 81.
         self.assertIn("Version 2.3.14, versionCode 81", readme)
+        # v2.3.15 (owner order 2026-10-27, eighteenth pass): a further
+        # 20% off the two dropdowns, the search box +25%, the visible
+        # and centred dropdown arrow, and the cloud's even anchors and
+        # neighbourhood mesh, versionCode 82.
+        self.assertIn("Version 2.3.15, versionCode 82", readme)
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionCode="81"', manifest)
-        self.assertIn('android:versionName="2.3.14"', manifest)
+        self.assertIn('android:versionCode="82"', manifest)
+        self.assertIn('android:versionName="2.3.15"', manifest)
         layout = LAYOUT.read_text(encoding="utf-8")
         strings = STRINGS.read_text(encoding="utf-8")
         main = MAIN.read_text(encoding="utf-8")
@@ -2129,11 +2140,15 @@ class SearchBoxGapTest(unittest.TestCase):
         # (owner order 2026-10-27: "increase the height of search box by
         # another 10%") grows the floor alone, 32 * 1.1 = 35dp, so the
         # box's even air is untouched and the growth is exactly 10%.
+        # v2.3.15 (owner order 2026-10-27: "for search box you need to
+        # increase the height of its box by another 25%") grows the
+        # floor alone again, 35 * 1.25 = 43.75 floored to 43dp, the air
+        # still untouched.
         self.assertEqual(self.box.get(f"{ANDROID_NS}paddingTop"), "7dp")
         self.assertEqual(self.box.get(f"{ANDROID_NS}paddingBottom"), "7dp")
         self.assertEqual(self.box.get(f"{ANDROID_NS}paddingLeft"), "10dp")
         self.assertEqual(self.box.get(f"{ANDROID_NS}paddingRight"), "10dp")
-        self.assertEqual(self.box.get(f"{ANDROID_NS}minHeight"), "35dp")
+        self.assertEqual(self.box.get(f"{ANDROID_NS}minHeight"), "43dp")
 
     def test_the_hidden_rows_start_hidden_in_the_layout(self):
         # An empty panel must not draw a 6dp or 8dp margin before its first
@@ -2794,7 +2809,11 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         v2.3.7 retuned the gather to an even shell and the SAME owner hour
         sent it back ("you ruined the animating feature, the LINES are
         looking absolute horseshit, change them back"): v2.3.8 restores
-        the v1.8.9 CLUSTER law as it was.
+        the v1.8.9 CLUSTER law as it was. v2.3.15 keeps the gather and
+        walks its FIVE ANCHORS on the even golden-angle path instead of
+        five random spots, because the owner read the build on the
+        phone and the random anchors were the tangled lobe he sent back
+        (see the v2.3.15 tests).
     """
         # Populations are named constants, so the count is one decision.
         # v2.3.8 restores CLUSTERS with the gather it owned.
@@ -3173,48 +3192,92 @@ class ThinkingOrbPlanTest(unittest.TestCase):
                 self.assertNotIn('android:minHeight="38dp"', box)
                 self.assertNotIn('android:minHeight="40dp"', box)
 
-    def test_v2_3_14_the_boxes_shrink_the_height_they_really_wear(self):
-        """Owner order 2026-10-27, seventeenth pass: "I told you to reduce
-        the height of customs scrips of volume and theme boxes, you
-        didn't. Reduce their boxes size' height by 15%".
+    def test_v2_3_15_the_boxes_shrink_another_twenty_percent_and_row(self):
+        """Owner orders of 2026-10-27, eighteenth pass, on the v2.3.14
+        build ("reduce the height by another 20% of both themes box and
+        custom scrips of volume box", "the drop down is not even aligned
+        on the centre for themes box").
 
-        He was right: the v2.3.13 floor never drew. A dropdown box's real
-        height is its own air plus the closed row's pads, about 10dp +
-        10dp + 12dp + a body line, so the 32dp floor sat below a box
-        that measured about 50dp and the order showed nothing. The cut
-        is on the box's real parts now: the field's own air steps 10dp
-        to 7dp above and below the line (the 10dp sides stay the box's
-        own), and the closed row's pads in styleSpinnerRow read 6dp to
-        5dp, so the closed box measures about 42dp - 50 * 0.85 = 42.5,
-        cut from the height the box actually wears.
+        The v2.3.14 law already had the cut on the box's real parts
+        (field air 10dp to 7dp, the closed row's pads 6dp to 5dp, the
+        closed box about 50dp to about 42dp); this pass takes the
+        further 20% off the same real parts and fixes the centring the
+        second half of the order named: the field's air steps 7dp to
+        5dp above and below the line, and the closed row FILLS the
+        box's inner measure exactly - styleSpinnerRow pads it to 2dp,
+        gives it the row's own 23dp minHeight and centres its one line
+        in what it fills - so the closed box measures 5 + 23 + 5 = 33dp
+        (about 42 * 0.8 = 33.6) and the line sits in its centre by the
+        row's own gravity, not by the Spinner's mercy. The box's own
+        32dp floor stays retired under the content it used to name.
         """
         layout = LAYOUT.read_text(encoding="utf-8")
         main = MAIN.read_text(encoding="utf-8")
         for view_id in ("volume_split_spinner", "theme_spinner"):
             with self.subTest(view_id=view_id):
                 box = element(layout, f'android:id="@+id/{view_id}"')
-                # The sides stay the field's own 10dp; the air is 7dp.
+                # The sides stay the field's own 10dp; the air is 5dp.
                 self.assertIn('android:paddingLeft="10dp"', box)
                 self.assertIn('android:paddingRight="10dp"', box)
-                self.assertIn('android:paddingTop="7dp"', box)
-                self.assertIn('android:paddingBottom="7dp"', box)
-                # The undifferentiated 10dp wall is gone from both boxes.
+                self.assertIn('android:paddingTop="5dp"', box)
+                self.assertIn('android:paddingBottom="5dp"', box)
+                # The undifferentiated 10dp wall is gone from both boxes,
+                # and the v2.3.14 7dp air is gone with it.
                 self.assertNotIn('android:padding="10dp"', box)
-        # The closed row's own pads carry the rest of the cut.
+                self.assertNotIn('android:paddingTop="7dp"', box)
+        # The closed row fills the box's inner measure and centres its
+        # line in what it fills.
         self.assertIn("row.setPadding(dp(dropped ? 18 : 10),"
-                      " dp(dropped ? 15 : 5),", main)
-        self.assertIn("dp(dropped ? 18 : 10), dp(dropped ? 15 : 5));", main)
-        self.assertNotIn("dp(dropped ? 15 : 6)", main)
+                      " dp(dropped ? 15 : 2),", main)
+        self.assertIn("dp(dropped ? 18 : 10), dp(dropped ? 15 : 2));", main)
+        self.assertNotIn("dp(dropped ? 15 : 5)", main)
+        self.assertIn("row.setMinHeight(dp(23));", main)
+        self.assertIn("row.setGravity(Gravity.CENTER_VERTICAL);", main)
 
-    def test_v2_3_14_the_search_box_grows_ten_percent(self):
-        """Owner order 2026-10-27: "increase the height of search box by
-        another 10%". The floor alone carries the growth: 32 * 1.1 =
-        35dp, so the box's even 7dp air law survives and the growth is
-        exactly 10% of the measure the box is named by.
+    def test_v2_3_15_the_themes_arrow_aims_at_the_box_itself(self):
+        """Owner order 2026-10-27, eighteenth pass: "the drop down is
+        not even aligned on the centre for themes box.
+
+        The themes dropdown's own 10dp top margin sat on the Dropdown
+        INSIDE its holder, so the holder was 10dp taller than the box
+        and the arrow's center_vertical aimed at the holder - the box's
+        line sat low in its own frame and the arrow sat high beside it.
+        The margin moves onto the holder now, so the holder is exactly
+        the box and both arrows aim at the box's own centre by
+        construction.
+        """
+        layout = LAYOUT.read_text(encoding="utf-8")
+        for view_id in ("volume_split_spinner", "theme_spinner"):
+            with self.subTest(view_id=view_id):
+                box = element(layout, f'android:id="@+id/{view_id}"')
+                start = layout.rindex("<FrameLayout", 0, layout.index(box))
+                holder = layout[start:layout.index("</FrameLayout>", start)]
+                # The box itself carries no top margin; the holder does,
+                # so the holder is exactly the box and the arrow's
+                # center_vertical aims at the box's own centre.
+                self.assertNotIn('android:layout_marginTop', box)
+                self.assertIn('android:layout_marginTop="10dp"', holder)
+        # Both arrows name a plain 20dp size, so the cue is visible
+        # whatever a drawable's own intrinsic later says.
+        for view_id in ("volume_split_arrow", "theme_arrow"):
+            with self.subTest(arrow=view_id):
+                arrow = element(layout, f'android:id="@+id/{view_id}"')
+                self.assertIn('android:layout_width="20dp"', arrow)
+                self.assertIn('android:layout_height="20dp"', arrow)
+                self.assertNotIn('wrap_content', arrow)
+
+    def test_v2_3_15_the_search_box_grows_another_twenty_five_percent(self):
+        """Owner order 2026-10-27, eighteenth pass: "for search box you
+        need to increase the height of its box by another 25%". The
+        floor alone carries the growth again, the same floor law every
+        pass before it sat on: 35 * 1.25 = 43.75, floored to 43dp, so
+        the box's even 7dp air law survives and the growth is exactly
+        25% of the measure the box is named by.
         """
         box = element(LAYOUT.read_text(encoding="utf-8"),
                       'android:id="@+id/search_input"')
-        self.assertIn('android:minHeight="35dp"', box)
+        self.assertIn('android:minHeight="43dp"', box)
+        self.assertNotIn('android:minHeight="35dp"', box)
         self.assertNotIn('android:minHeight="32dp"', box)
         self.assertIn('android:paddingTop="7dp"', box)
         self.assertIn('android:paddingBottom="7dp"', box)
@@ -3248,6 +3311,56 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         # The inward-only law is named, and its ceiling is 1.00.
         self.assertIn("float breath = 1f - 0.15f * (1f - breathWave);", orb)
         self.assertIn("0.70..1.00", orb)
+
+    def test_v2_3_15_the_anchors_walk_an_even_path_and_the_mesh_is_a_neighbourhood(self):
+        """Owner order 2026-10-27, eighteenth pass, on the v2.3.14
+        build: "the LINES that are revolving around the SUN looks really
+        tangled and very over lapping to me, and they don't even connect
+        on one side of the entire feature".
+
+        Two causes, named and cut:
+
+        1. The v2.3.8 anchors sat on FIVE RANDOM seeded spots, so the
+           lobes were five random fists - anchors that happened to sit
+           near each other made one crowded, overlapped mass (his
+           tangled side) and the stretches between anchors had almost
+           nothing to link (his unconnected side). The anchors walk the
+           golden angle's EVEN path around the sphere now - one latitude
+           band per cluster, one 2.39996 turn apart - so the lobes stand
+           apart everywhere in every direction and the web fills all the
+           way around the sun by construction, never by luck. The nodes'
+           own seeded jitter, the break-outs and the escapees stand.
+        2. The pair sweep walked FIRST COME, FIRST SERVED and died at
+           the link budget, so wherever the nodes crowded, the budget
+           was spent there and the far side of the sweep reached no
+           pairs at all. The mesh is a NEIGHBOURHOOD mesh now: every
+           node joins K = 3 of its own nearest neighbours under the one
+           0.42 cap, each pair once, so every side of the ball carries
+           its own filaments and no lobe can spend another's links. The
+           orphan law stands; every node still wears a filament.
+        """
+        orb = (MAIN.parent / "ThinkingOrb.java").read_text(
+            encoding="utf-8")
+        # The even anchor walk: one band per cluster, the golden angle's
+        # own turn apart, between the sun and the shell.
+        self.assertIn("float v = (c + 0.5f) / CLUSTERS * 2f - 1f;", orb)
+        self.assertIn("float theta = c * 2.39996f;", orb)
+        # The seeded gather stands: the nodes still jitter, break out and
+        # escape, one decision.
+        self.assertIn("long seed = 20261022L;", orb)
+        self.assertIn("float pulled = (n % 4 == 0) ? 1.05f : 0.78f;", orb)
+        # The neighbourhood mesh: K = 3 own nearest neighbours, each pair
+        # once, still under the one 0.42 cap.
+        self.assertIn("final int K = 3;", orb)
+        self.assertIn("for (int take = 0; take < K; take++) {", orb)
+        self.assertIn("boolean[] linked = new boolean[NODES * NODES];", orb)
+        self.assertIn("linked[i * NODES + nearest] = true;", orb)
+        self.assertIn("linked[nearest * NODES + i] = true;", orb)
+        # The link budget the arrays are sized on is unchanged.
+        self.assertEqual(orb.count("linkBudget()"), 6)
+        # The orphan law stands.
+        self.assertIn("boolean[] joined = new boolean[NODES];", orb)
+        self.assertIn("linkDist[linkCount] = nearestDist;", orb)
 
     def test_v2_3_12_every_vsync_carries_a_whole_picture(self):
         """Owner order 2026-10-27: "the entire animating feature is still
