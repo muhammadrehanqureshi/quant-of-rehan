@@ -1697,9 +1697,14 @@ class VersionTest(unittest.TestCase):
         # highlight hue (the white read WAS the purple panel lifted 42%
         # toward white). The animation renders whole frames and the
         # theme's own inks are named again.
+        # v2.3.14 is owner order 2026-10-27, seventeenth pass: the custom
+        # scrips and themes boxes really do shrink 15% (the cut on the
+        # height the boxes wear, not on a floor nothing draws), the
+        # search box grows 10% on its floor, the sun's fourth 10% cut,
+        # and the cloud filaments can no longer leave their dots.
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="2.3.13"', manifest)
-        self.assertIn('android:versionCode="80"', manifest)
+        self.assertIn('android:versionName="2.3.14"', manifest)
+        self.assertIn('android:versionCode="81"', manifest)
         # The changelog entry ties these user-visible changes to the build.
         readme = (ROOT / "android" / "README.md").read_text(encoding="utf-8")
         self.assertIn("v1.7.9, owner order 2026-10-20", readme)
@@ -1768,9 +1773,14 @@ class VersionTest(unittest.TestCase):
         # floor the search box shares, and the purple theme's white
         # highlight lift, versionCode 80.
         self.assertIn("Version 2.3.13, versionCode 80", readme)
+        # v2.3.14 (owner order 2026-10-27, seventeenth pass): the real
+        # 15% on the custom scrips and themes boxes, the search box +10%,
+        # the sun's fourth 10% cut, and the filaments' inward-only
+        # breathing, versionCode 81.
+        self.assertIn("Version 2.3.14, versionCode 81", readme)
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionCode="80"', manifest)
-        self.assertIn('android:versionName="2.3.13"', manifest)
+        self.assertIn('android:versionCode="81"', manifest)
+        self.assertIn('android:versionName="2.3.14"', manifest)
         layout = LAYOUT.read_text(encoding="utf-8")
         strings = STRINGS.read_text(encoding="utf-8")
         main = MAIN.read_text(encoding="utf-8")
@@ -2115,12 +2125,15 @@ class SearchBoxGapTest(unittest.TestCase):
         # search box on the search page"): the box carries the one 32dp
         # field floor the dropdowns carry, so the air is symmetric at the
         # smaller number - 7dp above and below the line, 10dp on the
-        # sides - and the floor is named on the box itself.
+        # sides - and the floor is named on the box itself. v2.3.14
+        # (owner order 2026-10-27: "increase the height of search box by
+        # another 10%") grows the floor alone, 32 * 1.1 = 35dp, so the
+        # box's even air is untouched and the growth is exactly 10%.
         self.assertEqual(self.box.get(f"{ANDROID_NS}paddingTop"), "7dp")
         self.assertEqual(self.box.get(f"{ANDROID_NS}paddingBottom"), "7dp")
         self.assertEqual(self.box.get(f"{ANDROID_NS}paddingLeft"), "10dp")
         self.assertEqual(self.box.get(f"{ANDROID_NS}paddingRight"), "10dp")
-        self.assertEqual(self.box.get(f"{ANDROID_NS}minHeight"), "32dp")
+        self.assertEqual(self.box.get(f"{ANDROID_NS}minHeight"), "35dp")
 
     def test_the_hidden_rows_start_hidden_in_the_layout(self):
         # An empty panel must not draw a 6dp or 8dp margin before its first
@@ -2964,11 +2977,11 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         self.assertIn("int row = mapRowInk[clampInt((int) v, 0, SUN_MAP_H - 1)];",
                       orb)
         # The revolve: one shared longitude shift, the owner's 10% cut
-        # kept, his 2026-10-26 order a further 15%, and his 2026-10-27
-        # order a further 10% - each cut on the rate itself, the place the
-        # earlier cuts sit:
-        # 0.35 * 0.85 * 0.9 = 0.26775 rad/s.
-        self.assertIn("SUN_SPIN_RATE = 0.26775f", orb)
+        # kept, his 2026-10-26 order a further 15%, and his two
+        # 2026-10-27 orders a further 10% each - each cut on the rate
+        # itself, the place the earlier cuts sit:
+        # 0.35 * 0.85 * 0.9 * 0.9 = 0.240975 rad/s.
+        self.assertIn("SUN_SPIN_RATE = 0.240975f", orb)
         self.assertIn("SUN_SLOWDOWN = 0.9f", orb)
         self.assertIn("SUN_AXIS_TILT = 10f", orb)
         # v2.3.8 (owner order 2026-10-26: "the SUN is still
@@ -3070,7 +3083,13 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         # flicker, however deep its side of the ball.
         self.assertIn("float breathWave = (float) Math.sin(", orb)
         self.assertIn("float widthBreath = 1f + 0.30f * breathWave;", orb)
-        self.assertIn("float breath = 1f + 0.30f * breathWave;", orb)
+        # v2.3.14 (owner order 2026-10-27: "the moving big lines that are
+        # revolving around the sun are coming out from their dots. Make
+        # it not exceed those dots") made the length swing inward-only:
+        # the old 0.70..1.30 factor is gone, and the 0.70..1.00 law
+        # keeps the v2.3.3-sized swing without ever hanging an end past
+        # the dot it is drawn from.
+        self.assertIn("float breath = 1f - 0.15f * (1f - breathWave);", orb)
         self.assertIn("* (0.945f + 0.17f * widthBreath));", orb)
         self.assertIn("* widthBreath);", orb)
         self.assertIn("float midX = (ax + bx) / 2f;", orb)
@@ -3153,6 +3172,82 @@ class ThinkingOrbPlanTest(unittest.TestCase):
                 self.assertIn('android:minHeight="32dp"', box)
                 self.assertNotIn('android:minHeight="38dp"', box)
                 self.assertNotIn('android:minHeight="40dp"', box)
+
+    def test_v2_3_14_the_boxes_shrink_the_height_they_really_wear(self):
+        """Owner order 2026-10-27, seventeenth pass: "I told you to reduce
+        the height of customs scrips of volume and theme boxes, you
+        didn't. Reduce their boxes size' height by 15%".
+
+        He was right: the v2.3.13 floor never drew. A dropdown box's real
+        height is its own air plus the closed row's pads, about 10dp +
+        10dp + 12dp + a body line, so the 32dp floor sat below a box
+        that measured about 50dp and the order showed nothing. The cut
+        is on the box's real parts now: the field's own air steps 10dp
+        to 7dp above and below the line (the 10dp sides stay the box's
+        own), and the closed row's pads in styleSpinnerRow read 6dp to
+        5dp, so the closed box measures about 42dp - 50 * 0.85 = 42.5,
+        cut from the height the box actually wears.
+        """
+        layout = LAYOUT.read_text(encoding="utf-8")
+        main = MAIN.read_text(encoding="utf-8")
+        for view_id in ("volume_split_spinner", "theme_spinner"):
+            with self.subTest(view_id=view_id):
+                box = element(layout, f'android:id="@+id/{view_id}"')
+                # The sides stay the field's own 10dp; the air is 7dp.
+                self.assertIn('android:paddingLeft="10dp"', box)
+                self.assertIn('android:paddingRight="10dp"', box)
+                self.assertIn('android:paddingTop="7dp"', box)
+                self.assertIn('android:paddingBottom="7dp"', box)
+                # The undifferentiated 10dp wall is gone from both boxes.
+                self.assertNotIn('android:padding="10dp"', box)
+        # The closed row's own pads carry the rest of the cut.
+        self.assertIn("row.setPadding(dp(dropped ? 18 : 10),"
+                      " dp(dropped ? 15 : 5),", main)
+        self.assertIn("dp(dropped ? 18 : 10), dp(dropped ? 15 : 5));", main)
+        self.assertNotIn("dp(dropped ? 15 : 6)", main)
+
+    def test_v2_3_14_the_search_box_grows_ten_percent(self):
+        """Owner order 2026-10-27: "increase the height of search box by
+        another 10%". The floor alone carries the growth: 32 * 1.1 =
+        35dp, so the box's even 7dp air law survives and the growth is
+        exactly 10% of the measure the box is named by.
+        """
+        box = element(LAYOUT.read_text(encoding="utf-8"),
+                      'android:id="@+id/search_input"')
+        self.assertIn('android:minHeight="35dp"', box)
+        self.assertNotIn('android:minHeight="32dp"', box)
+        self.assertIn('android:paddingTop="7dp"', box)
+        self.assertIn('android:paddingBottom="7dp"', box)
+
+    def test_v2_3_14_the_sun_is_ten_percent_slower_the_fourth_time(self):
+        """Owner order 2026-10-27: "Decrease the sun's revolving speed by
+        another 10%". The cut lands on SUN_SPIN_RATE itself, the place
+        every earlier cut sat: 0.26775 * 0.9 = 0.240975 rad/s.
+        """
+        orb = (MAIN.parent / "ThinkingOrb.java").read_text(
+            encoding="utf-8")
+        self.assertIn("SUN_SPIN_RATE = 0.240975f", orb)
+        self.assertNotIn("SUN_SPIN_RATE = 0.26775f", orb)
+        self.assertIn("0.26775 * 0.9 = 0.240975 rad/s", orb)
+
+    def test_v2_3_14_no_line_ever_leaves_its_dot(self):
+        """Owner order 2026-10-27: "the moving big lines that are
+        revolving around the sun are coming out from their dots. Make it
+        not exceed those dots". The v2.3.3 law synced a filament's
+        length 0.70..1.30 of the distance its two dots own, so at the
+        top of every wave each end hung up to 30% BEYOND its dot. The
+        breathing is inward-only now: the law's factor rides 0.70..1.00
+        over the wave, so the line shrinks toward its own midpoint and
+        stretches back exactly to the dots that own it, at its longest
+        end to end and not one pixel past them.
+        """
+        orb = (MAIN.parent / "ThinkingOrb.java").read_text(
+            encoding="utf-8")
+        # The outward-breathing factor is retired with its excuse.
+        self.assertNotIn("float breath = 1f + 0.30f * breathWave;", orb)
+        # The inward-only law is named, and its ceiling is 1.00.
+        self.assertIn("float breath = 1f - 0.15f * (1f - breathWave);", orb)
+        self.assertIn("0.70..1.00", orb)
 
     def test_v2_3_12_every_vsync_carries_a_whole_picture(self):
         """Owner order 2026-10-27: "the entire animating feature is still
