@@ -286,22 +286,23 @@
                  scrips of that ranking below the field, so nothing about
                  a ranking shows before he asks for it. -->
             <!-- Every dropdown keeps its state arrow beside it (2.0.0):
-                 DOWN while closed, UP while open. -->
+                 DOWN while closed, UP while open. v2.3.12 owner order
+                 2026-10-27: v2.3.11's text-hug width cut the box off short
+                 (features clipped at its edge), so the box fills the tile
+                 again as it always had - and the height alone steps down
+                 5% (40dp to 38dp), his own number for this tile. -->
             <FrameLayout
-                android:layout_width="wrap_content"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_gravity="center_horizontal"
                 android:layout_marginTop="10dp">
 
-            <!-- v2.3.11 owner order: the closed dropdown box hugs the text
-                 inside it, not the tile's whole width. -->
             <pk.quantofrehan.Dropdown
                 android:id="@+id/volume_split_spinner"
-                android:layout_width="wrap_content"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:background="@drawable/field_bg"
                 android:contentDescription="@string/label_volume"
-                android:minHeight="40dp"
+                android:minHeight="38dp"
                 android:padding="10dp"/>
 
             <ImageView
@@ -620,21 +621,21 @@
                     android:text="@string/label_themes"/>
 
                 <!-- The themes dropdown and its state arrow (2.0.0).
-                     v2.3.11 owner order: the closed box hugs the text like
-                     the volume menu's own box, centred in the tile. -->
+                     v2.3.12 owner order 2026-10-27: the same revert as the
+                     volume menu's box - the hug is retired, the box fills
+                     the tile again, and only the height steps down 5%. -->
                 <FrameLayout
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="center_horizontal">
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content">
 
                 <pk.quantofrehan.Dropdown
                     android:id="@+id/theme_spinner"
-                    android:layout_width="wrap_content"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="10dp"
                     android:background="@drawable/field_bg"
                     android:contentDescription="@string/label_themes"
-                    android:minHeight="40dp"
+                    android:minHeight="38dp"
                     android:popupBackground="@drawable/dropdown_popup"
                     android:prompt="@string/theme_prompt"
                     android:padding="10dp"/>

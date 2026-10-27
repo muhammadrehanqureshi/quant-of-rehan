@@ -1692,9 +1692,11 @@ class VersionTest(unittest.TestCase):
         # folded through the photograph's own twelve quantiles, the fire
         # boils, the eruptions blow, the bloom bleeds and the filaments
         # breathe in width and ink as well as length.
+        # v2.3.12 is owner order 2026-10-27: the box hug retired with its
+        # clipping, the height alone down 5%, and the whole-frame law.
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="2.3.11"', manifest)
-        self.assertIn('android:versionCode="78"', manifest)
+        self.assertIn('android:versionName="2.3.12"', manifest)
+        self.assertIn('android:versionCode="79"', manifest)
         # The changelog entry ties these user-visible changes to the build.
         readme = (ROOT / "android" / "README.md").read_text(encoding="utf-8")
         self.assertIn("v1.7.9, owner order 2026-10-20", readme)
@@ -1754,9 +1756,13 @@ class VersionTest(unittest.TestCase):
         # removed and rebuilt from v2.3.8, the placeholder cap, and the
         # snug dropdown boxes, versionCode 78.
         self.assertIn("Version 2.3.11, versionCode 78", readme)
+        # v2.3.12 (owner order 2026-10-27, fifteenth pass): the hug retired
+        # with its clipping, the height alone down 5%, and the whole-frame
+        # law, versionCode 79.
+        self.assertIn("Version 2.3.12, versionCode 79", readme)
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionCode="78"', manifest)
-        self.assertIn('android:versionName="2.3.11"', manifest)
+        self.assertIn('android:versionCode="79"', manifest)
+        self.assertIn('android:versionName="2.3.12"', manifest)
         layout = LAYOUT.read_text(encoding="utf-8")
         strings = STRINGS.read_text(encoding="utf-8")
         main = MAIN.read_text(encoding="utf-8")
@@ -3090,6 +3096,56 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         layout = LAYOUT.read_text(encoding="utf-8")
         spinner = element(layout, 'android:id="@+id/volume_split_spinner"')
         self.assertNotIn("android:popupBackground", spinner)
+
+    def test_v2_3_12_the_dropdown_boxes_fill_their_tile_at_5percent_less_height(self):
+        """Owner order 2026-10-27, on the v2.3.11 build: "you reduced the
+        width of drop down box, and some features are getting cut off
+        because of that, I told you to reduce the height of drop down box
+        by 5%, do it". The v2.3.11 text-hug width is RETIRED - both
+        closed boxes match their tile's width again, so nothing sitting
+        at their edge can clip - and the height alone steps down 5%, the
+        box's own 40dp floor to 38dp, the owner's own number.
+        """
+        layout = LAYOUT.read_text(encoding="utf-8")
+        for view_id in ("volume_split_spinner", "theme_spinner"):
+            with self.subTest(view_id=view_id):
+                box = element(layout, f'android:id="@+id/{view_id}"')
+                start = layout.rindex("<FrameLayout", 0, layout.index(box))
+                holder = layout[start:layout.index("</FrameLayout>", start)]
+                self.assertIn('android:layout_width="match_parent"',
+                              holder)
+                self.assertIn('android:layout_width="match_parent"', box)
+                # The height alone steps down 5%: the box's 40dp floor to
+                # 38dp, never a width number again.
+                self.assertIn('android:minHeight="38dp"', box)
+                self.assertNotIn('android:minHeight="40dp"', box)
+
+    def test_v2_3_12_every_vsync_carries_a_whole_picture(self):
+        """Owner order 2026-10-27: "the entire animating feature is still
+        flickering, make it stop flickering/phasing". The flicker was the
+        33ms gate's own empty return: an early Choreographer frame
+        returned WITHOUT drawing, so that vsync carried whatever the
+        surface already held while the next carried a redraw, and the
+        alternation showed at the screen's own rate as phasing (the sun's
+        publish rides the same scheduler). The law: a short frame is
+        REPAINTED WHOLE at the pose the loop last drew, so every vsync
+        carries one complete picture and the picture still changes only
+        at the loop's own 33ms pace.
+        """
+        orb = (MAIN.parent / "ThinkingOrb.java").read_text(
+            encoding="utf-8")
+        gate = orb[orb.index("if (lastFrameAt >= 0"):
+                   orb.index("lastFrameAt = now;")]
+        # The early frame paints the LAST DRAWN pose, not a held surface.
+        self.assertIn("drawScene(canvas, lastSeconds,", gate)
+        # It never returns empty, and it keeps the cadence alive.
+        self.assertLess(gate.index("drawScene(canvas, lastSeconds,"),
+                        gate.index("postInvalidateOnAnimation();"))
+        self.assertIn("return;", gate)
+        # The full frame still assigns the pose the early frames repaint.
+        full = orb[orb.index("lastFrameAt = now;"):
+                   orb.index("drawScene(canvas, seconds, wake);")]
+        self.assertIn("lastSeconds = seconds;", full)
 
     def test_the_sun_never_flickers(self):
         orb = (MAIN.parent / "ThinkingOrb.java").read_text(
