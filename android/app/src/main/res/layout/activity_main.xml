@@ -224,15 +224,17 @@
                  boxes should have universal height"): the universal
                  height is the custom scrips box's own new 23dp (33 *
                  0.7 = 23.1, floored to 23dp, this file's same law) and
-                 the search box is BY that height now, not beside it:
-                 the box is one exact 23dp tall, the air is 3dp above
-                 and below the line, the side padding and the one
-                 body ink stay, and the line centres in the 23dp it
+                 v2.3.17 owner order 2026-10-27 ("increase all the drop
+                 down and search box heights by 30% from their current
+                 height"): the growth lands on the height the box wears,
+                 23 * 1.3 = 29.9, floored to 29dp - the air stays 3dp
+                 above and below the line, the side padding and the one
+                 body ink stay, and the line centres in the 29dp it
                  gets. -->
             <EditText
                 android:id="@+id/search_input"
                 android:layout_width="match_parent"
-                android:layout_height="23dp"
+                android:layout_height="29dp"
                 android:background="@drawable/field_bg"
                 android:gravity="center_vertical"
                 android:hint="@string/search_hint"
@@ -359,7 +361,7 @@
                  33 * 0.7 = 23.1, floored to 23dp, the same floor law
                  every height in this file carries - the air is 3dp
                  above and below the line, and the line centres in the
-                 23dp by its own gravity (the closed box is its own one
+                 box by its own gravity (the closed box is its own one
                  line now, no row child to fill with). ("another window
                  pops up which is wrong, drop down menu should appear
                  from the same box, not as a completely separate
@@ -377,7 +379,7 @@
             <TextView
                 android:id="@+id/volume_split_spinner"
                 android:layout_width="match_parent"
-                android:layout_height="23dp"
+                android:layout_height="29dp"
                 android:background="@drawable/field_bg"
                 android:contentDescription="@string/label_volume"
                 android:gravity="center_vertical"
@@ -747,7 +749,12 @@
                      same 3dp air, the same one-line closed box, and it
                      opens its OWN menu below the box (theme_menu) like
                      the volume box opens its own - no platform window of
-                     any kind, the same exact setting two boxes. -->
+                     any kind, the same exact setting two boxes.
+
+                     v2.3.17 owner order 2026-10-27 ("increase all the
+                     drop down and search box heights by 30% from their
+                     current height"): 23 * 1.3 = 29.9, floored to 29dp,
+                     the same exact setting every other number carries. -->
                 <FrameLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -756,7 +763,7 @@
                 <TextView
                     android:id="@+id/theme_spinner"
                     android:layout_width="match_parent"
-                    android:layout_height="23dp"
+                    android:layout_height="29dp"
                     android:background="@drawable/field_bg"
                     android:contentDescription="@string/label_themes"
                     android:gravity="center_vertical"

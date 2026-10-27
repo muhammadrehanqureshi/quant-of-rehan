@@ -1747,12 +1747,18 @@ public class ThinkingOrb extends View {
             // revolving around the sun are coming out from their dots.
             // Make it not exceed those dots"): the v2.3.3 law let the
             // swing carry a filament's ends up to 30% BEYOND the dots it
-            // joins. The swing is inward-only now: this factor rides
-            // 0.70..1.00 over the wave, so the line shrinks toward its
-            // own midpoint and stretches back exactly to the dots that
-            // own it - and no end can ever leave the dot it is drawn
-            // from, whatever the wave is doing.
-            float breath = 1f - 0.15f * (1f - breathWave);
+            // joins. The swing is inward-only since v2.3.14: this factor
+            // rides the wave with its ends never past the dots that own
+            // it.
+            //
+            // Owner order 2026-10-27, twenty-first pass ("I don't like
+            // the LINES right now, increase the length of all the LINES
+            // by 20%"): the 20% lengthens the swing's floor, 0.70 * 1.2
+            // = 0.84, while the ceiling stays PINNED at the dots by the
+            // standing dot law above. The swing is 0.84..1.00 now, so
+            // every filament is 20% longer at its trough, longer on
+            // average, and still never leaves its dot.
+            float breath = 1f - 0.08f * (1f - breathWave);
             float ax = screenX[a];
             float ay = screenY[a];
             float bx = screenX[b];
