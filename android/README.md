@@ -1641,6 +1641,30 @@ to sixty seconds. The status tile therefore also carries the app's own
      the orphan law stands so every dot still wears a filament.
   5. The version bump is versionCode 82 / versionName 2.3.15.
 
+**Version 2.3.17, versionCode 84.**
+
+  Owner orders of 2026-10-27, twenty-first pass, on the v2.3.16 build:
+  "increase all the drop down and search box heights by 30% from
+  their current height", and "I don't like the LINES right now,
+  increase the length of all the LINES by 20%". Two answers:
+
+  1. THE THREE FIELD BOXES GROW 30%. The growth lands on the height
+     the boxes really wear, v2.3.16's one universal measure:
+     23 * 1.3 = 29.9, floored to EXACTLY 29dp. The custom scrips box,
+     the themes box and the search box all name that one height -
+     the same air (3dp above and below the line), the same 10dp
+     sides, the same centre_vertical centring - so all three field
+     boxes are one exact 29dp and no older measure (23dp, 35dp,
+     43dp) survives under its name.
+  2. EVERY LINE IS LONGER. The 20% lands on a filament's own swing
+     floor: the length factor that rode 0.70..1.00 of the distance
+     its two dots own now rides 0.84..1.00 (0.70 * 1.2 = 0.84), so
+     every line is 20% longer at its trough and longer on average.
+     The swing's ceiling stays PINNED at the dots by v2.3.14's
+     standing inward law: no end can ever leave the dot it is
+     drawn from, so the growth is the trough's alone.
+  3. The version bump is versionCode 84 / versionName 2.3.17.
+
 **Version 2.3.16, versionCode 83.**
 
   Owner orders of 2026-10-27, nineteenth pass, on the v2.3.15 build:
