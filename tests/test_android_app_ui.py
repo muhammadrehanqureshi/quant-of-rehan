@@ -3168,14 +3168,23 @@ class ThinkingOrbPlanTest(unittest.TestCase):
                       "+ 0.52f;", orb)
         self.assertIn("private static int sharpenChannel(int value, "
                       "int blurred) {", orb)
-        # The rim is read off his picture at build. v2.3.10 deleted the
-        # corona beside it with its bake: the bake's own edge-sampling
-        # numbers are gone with it.
+        # The rim is read off his picture at build. The corona beside it
+        # stands again at the owner's newest order (2026-10-26: "remove
+        # the entire feature then add it again"): the feature is the
+        # v2.3.8 build he named good, whose corona is the thin v2.3.6
+        # blend, gain 1.45 and reach 0.20 - NOT the 1.75 bulge of
+        # 2026-10-25, which was the thick orange outline he sent back.
+        # v2.3.11 pins that difference on its own value.
         self.assertIn("private void buildSunRing(int[] pixels, int w, int h) {",
                       orb)
         self.assertIn("float r = disc * RING_BANDS[b];", orb)
-        self.assertNotIn("clamp((lum - 0.12f) / 0.55f, 0f, 1f)", orb)
-        self.assertNotIn("float surplus = alpha - clipped;", orb)
+        self.assertIn("CORONA_GAIN = 1.45f", orb)
+        self.assertNotIn("CORONA_GAIN = 1.75f", orb)
+        # The bake's own edge sampling reads the photo: only its NUMBERS
+        # say the threshold (the same two numbers the prototype grid
+        # sat down on), and the white surplus lift stays the prototype's
+        # per-channel clamp, never a shader.
+        self.assertIn("float surplus = alpha - clipped;", orb)
         # A shader may not repaint his picture, and nothing may draw a ring.
         for retired in ("setShader", "PorterDuff", "GRANULES",
                         "SUN_LIMB_FLOOR", "SUN_EDGE_IN", "SUN_CROWN_INK",
