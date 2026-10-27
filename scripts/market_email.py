@@ -8,18 +8,13 @@ once per Karachi day however late or however double a fire arrives.
 
 The wording is the owner's own, and is never edited on the way through:
 
-- open and closed are the owner's 2026-10-08 sentences, fixed in
-  src/data/sessions.py (MSG_MARKET_OPEN, MSG_MARKET_CLOSED) and quoted
-  here from that law, never retyped.
-- break is the phone notification's 2026-10-11 sentence, mirrored from
-  cloud/worker.js's MSG_MARKET_BREAK and the app's strings.xml.
-- pre and post are the owner's sentences booked 2026-10-22; post follows
-  the same shape he typed for pre. Both name the window, which never
-  changes the exchange state (owner order 2026-10-21).
-- post-close is the owner's 2026-10-24 order ("post market closing"),
-  the mirror sentence of post: it names the END of the post-market
-  window (15:49 Mon-Thu, 16:49 Friday), the minute the quant goes back
-  to sleep.
+Owner order 2026-10-27 retypes every sentence his own way and adds one
+whole event - the morning 2-minute break (09:30 Mon-Thu, 09:15 Friday).
+All of them live in src/notify/market_watch.py as TEXT_* constants read
+through event_text(event, day), so both entry points say the same words
+by construction; the close names the day's post-market open (15:32,
+Friday 16:32) and the Friday break names 14:30, both taken from the
+session law rather than retyped.
 
 Owner order 2026-10-24 ("Make sure I receive the emails from github
 actions exactly on time"): a fire that arrives far past its own minute
@@ -44,14 +39,13 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from src.data.sessions import (  # noqa: E402
-    MSG_MARKET_CLOSED,
-    MSG_MARKET_OPEN,
     MarketPhase,
     MarketState,
     as_karachi,
     band_bounds,
     market_phase,
     market_state_at,
+    morning_break_window,
     now_karachi,
     post_market_window,
     pre_email_due,
@@ -59,19 +53,13 @@ from src.data.sessions import (  # noqa: E402
     session_bands,
 )
 from src.notify import owner_email  # noqa: E402
-from src.notify.market_watch import ledger_key  # noqa: E402 - the shared key law
+from src.notify.market_watch import (  # noqa: E402 - the shared key and text law
+    event_text,
+    ledger_key,
+)
 
-# Owner's exact sentences (SO-9). Do not reword, ever.
-EVENT_TEXTS = {
-    "pre": "The market is pre-opened. Quant is online now.",
-    "open": MSG_MARKET_OPEN,
-    "break": "Market is on a break. Quant is sleeping until the market reopens.",
-    "close": MSG_MARKET_CLOSED,
-    "post": "The market is post-opened. Quant is online now.",
-    "post-close": "The market is post-closed. Quant is offline now.",
-}
-
-EVENTS = tuple(EVENT_TEXTS)
+EVENTS = ("pre", "morning-break", "open", "break", "close", "post",
+          "post-close")
 
 
 def due(event: str, moment=None) -> bool:
@@ -92,6 +80,10 @@ def due(event: str, moment=None) -> bool:
         # opens, 09:15 PKT Monday to Thursday (the session helper names the
         # window; the state-only check used to email it at 09:00).
         return pre_email_due(k)
+    if event == "morning-break":
+        # Owner order 2026-10-27: the morning 2-minute break ahead of
+        # band 1's open is its own event (09:30 Mon-Thu, 09:15 Friday).
+        return sessions.morning_break_due(k)
     if event == "open":
         return market_phase(k) in (MarketPhase.WARMUP, MarketPhase.OPEN)
     if event == "break":
@@ -132,12 +124,16 @@ def event_roadmap(day: date) -> list[tuple[str, str, datetime]]:
     # Owner order 2026-10-26: the pre minute comes from the session
     # helper (09:15 Monday to Thursday, 09:00 Friday), so the roadmap,
     # the catch-up backstop and the loop's own passenger cannot drift
-    # apart about when the pre email is due.
+    # apart about when the pre email is due. Owner order 2026-10-27
+    # adds the morning break edge right after it, from the same law.
     open_h, open_m = pre_email_open_time(day)
     # A naive wall-time in the law's alone zone (SO-8).
     at = lambda hour, minute: as_karachi(
         datetime(day.year, day.month, day.day, hour, minute))
     roadmap = [("pre", "", at(open_h, open_m))]
+    morning = morning_break_window(day)
+    if morning is not None:
+        roadmap.append(("morning-break", "", at(*morning[0])))
     for index, band in enumerate(bands, start=1):
         opens, closes = band_bounds(day, band)
         label = "" if index == 1 else "reopen"
@@ -188,7 +184,7 @@ def catch_up(moment: datetime | None = None, sender=None,
     if sender is None:
         def sender(event: str, label: str, day: str) -> bool:
             return bool(owner_email.send(
-                EVENT_TEXTS[event], ledger_key(event, label, day)))
+                event_text(event, day), ledger_key(event, label, day)))
     if today_markers is None:
         today_markers = owner_email.sent_markers
     k = as_karachi(moment) if moment is not None else now_karachi()
@@ -259,7 +255,7 @@ def fire(event: str, label: str = "", moment=None) -> bool:
     key = f"market-{event}:{now.date().isoformat()}"
     if label:
         key = f"{key}:{label.strip()}"
-    return owner_email.send(EVENT_TEXTS[event], key)
+    return owner_email.send(event_text(event, now.date()), key)
 
 
 def main(argv: list[str] | None = None) -> int:
