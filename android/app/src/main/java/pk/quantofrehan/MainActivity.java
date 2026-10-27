@@ -2179,25 +2179,32 @@ public class MainActivity extends Activity {
             return;
         }
         boolean exactMatch = symbol.length() == q.length();
+
         row.setBackground(highlightPlate(exactMatch));
     }
 
-    /** One highlight plate, v2.3.9: the row lights in a LIFT of the
-     *  theme's OWN panel ink, never in an invented wash. The v2.3.8
-     *  gold plates were theme-blind: on the purple theme they read
-     *  ORANGE over the violet field (the owner's twelfth report today,
-     *  HUBC). The panel ink is the colour each theme is NAMED for, so
-     *  the purple theme lights violet, the green theme green, and so on;
-     *  a prefix match lifts the panel 26% toward white, and the exact
-     *  match 42% with a closing hairline in the theme's heading ink, so
-     *  the eye reads the exact match hardest while every row stays in
-     *  the theme's own family. Built per call, not cached: it is a
-     *  keystroke-time path. */
+    /** One highlight plate, v2.3.9 then v2.3.13: the row lights in a LIFT
+     *  of the theme's OWN panel ink, never in an invented wash. The
+     *  v2.3.8 gold plates were theme-blind: on the purple theme they
+     *  read ORANGE over the violet field (the owner's twelfth report
+     *  today, HUBC). The panel ink is the colour each theme is NAMED
+     *  for, so the purple theme lights violet, the green theme green,
+     *  and so on. v2.3.13 (owner order 2026-10-27: "on the purple theme,
+     *  the search box is highlighting the search results in white
+     *  colour, make them match the theme's color") has the WHITE part of
+     *  that lift as the culprit: the purple panel is near-black, so the
+     *  42% exact lift read as a white rectangle on the violet field. The
+     *  lift drops to 26% exact / 14% prefix, so the plate keeps its own
+     *  theme's hue on every theme - violet on purple, light green on
+     *  green, navy on navy, grey on black, pale orange on orange - with
+     *  a closing hairline in the theme's heading ink on the exact match
+     *  (hypocritical only in being an outline, never a fill). Built per
+     *  call, not cached: it is a keystroke-time path. */
     private GradientDrawable highlightPlate(boolean exact) {
         GradientDrawable plate = new GradientDrawable();
         plate.setCornerRadius(dp(8));
         plate.setColor(lighten(getColor(panelInkFor(themeIndex)),
-                exact ? 0.42f : 0.26f));
+                exact ? 0.26f : 0.14f));
         if (exact) {
             plate.setStroke(1, getColor(accentInkFor(themeIndex)));
         }

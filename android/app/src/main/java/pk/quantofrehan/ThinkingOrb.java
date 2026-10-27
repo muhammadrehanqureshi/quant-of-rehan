@@ -435,10 +435,16 @@ public class ThinkingOrb extends View {
     /**
      * Owner order 2026-10-24 (the sun must revolve) and 2026-10-24 (the
      * 10% speed cut), both kept: the surface TRAVELS limb to limb.
+     *
+     * Owner order 2026-10-27 ("reduce the SUN's revolving speed by 10%
+     * from its current speed", third pass on the feature): the cut is
+     * applied to the rate itself, the same place every earlier cut sat,
+     * and never to SUN_SLOWDOWN below: 0.2975 * 0.9 = 0.26775 rad/s.
      */
-    private static final float SUN_SPIN_RATE = 0.2975f;
+    private static final float SUN_SPIN_RATE = 0.26775f;
     // Owner order 2026-10-26: the 15% cut applied to the v2.3.8 rate
-    // itself, not to the older slowdown multiplier.
+    // itself, not to the older slowdown multiplier. The 2026-10-27 pass
+    // follows the same law - the rate alone carries the newer cuts.
     private static final float SUN_SLOWDOWN = 0.9f;
 
     /**

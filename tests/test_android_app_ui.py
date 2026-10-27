@@ -1692,11 +1692,14 @@ class VersionTest(unittest.TestCase):
         # folded through the photograph's own twelve quantiles, the fire
         # boils, the eruptions blow, the bloom bleeds and the filaments
         # breathe in width and ink as well as length.
-        # v2.3.12 is owner order 2026-10-27: the box hug retired with its
-        # clipping, the height alone down 5%, and the whole-frame law.
+        # v2.3.13 is owner order 2026-10-27, sixteenth pass: the sun 10%
+        # slower, every field on the one 32dp floor, and the theme's own
+        # highlight hue (the white read WAS the purple panel lifted 42%
+        # toward white). The animation renders whole frames and the
+        # theme's own inks are named again.
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="2.3.12"', manifest)
-        self.assertIn('android:versionCode="79"', manifest)
+        self.assertIn('android:versionName="2.3.13"', manifest)
+        self.assertIn('android:versionCode="80"', manifest)
         # The changelog entry ties these user-visible changes to the build.
         readme = (ROOT / "android" / "README.md").read_text(encoding="utf-8")
         self.assertIn("v1.7.9, owner order 2026-10-20", readme)
@@ -1760,9 +1763,14 @@ class VersionTest(unittest.TestCase):
         # with its clipping, the height alone down 5%, and the whole-frame
         # law, versionCode 79.
         self.assertIn("Version 2.3.12, versionCode 79", readme)
+        # v2.3.13 (owner order 2026-10-27, sixteenth pass): the sun 10%
+        # slower, every dropdown 15% shorter onto the one 32dp field
+        # floor the search box shares, and the purple theme's white
+        # highlight lift, versionCode 80.
+        self.assertIn("Version 2.3.13, versionCode 80", readme)
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionCode="79"', manifest)
-        self.assertIn('android:versionName="2.3.12"', manifest)
+        self.assertIn('android:versionCode="80"', manifest)
+        self.assertIn('android:versionName="2.3.13"', manifest)
         layout = LAYOUT.read_text(encoding="utf-8")
         strings = STRINGS.read_text(encoding="utf-8")
         main = MAIN.read_text(encoding="utf-8")
@@ -2103,7 +2111,16 @@ class SearchBoxGapTest(unittest.TestCase):
         self.assertEqual(self.box.get(f"{ANDROID_NS}includeFontPadding"), "false")
 
     def test_the_box_padding_stays_symmetric(self):
-        self.assertEqual(self.box.get(f"{ANDROID_NS}padding"), "10dp")
+        # v2.3.13 (owner order 2026-10-27: "make the same size for the
+        # search box on the search page"): the box carries the one 32dp
+        # field floor the dropdowns carry, so the air is symmetric at the
+        # smaller number - 7dp above and below the line, 10dp on the
+        # sides - and the floor is named on the box itself.
+        self.assertEqual(self.box.get(f"{ANDROID_NS}paddingTop"), "7dp")
+        self.assertEqual(self.box.get(f"{ANDROID_NS}paddingBottom"), "7dp")
+        self.assertEqual(self.box.get(f"{ANDROID_NS}paddingLeft"), "10dp")
+        self.assertEqual(self.box.get(f"{ANDROID_NS}paddingRight"), "10dp")
+        self.assertEqual(self.box.get(f"{ANDROID_NS}minHeight"), "32dp")
 
     def test_the_hidden_rows_start_hidden_in_the_layout(self):
         # An empty panel must not draw a 6dp or 8dp margin before its first
@@ -2609,9 +2626,16 @@ class SearchHighlightTest(unittest.TestCase):
         # getting highlighted in orange in purple theme"): the highlight
         # is a LIFT of the THEME'S OWN panel ink, never an invented wash.
         # The v2.3.8 gold plates were theme-blind and read orange over
-        # the violet field.
+        # the violet field. v2.3.13 (owner order 2026-10-27: "on the
+        # purple theme, the search box is highlighting the search results
+        # in white colour, make them match the theme's color") has the
+        # WHITE part of that lift as the culprit - the purple panel is
+        # near-black, so the 42% exact lift read as a white rectangle -
+        # and the lift drops to 26% exact / 14% prefix, which keeps every
+        # plate inside its own theme's colour family.
         self.assertIn("lighten(getColor(panelInkFor(themeIndex)),", block)
-        self.assertIn("exact ? 0.42f : 0.26f", block)
+        self.assertIn("exact ? 0.26f : 0.14f", block)
+        self.assertNotIn("0.42f", block)
         self.assertIn("if (exact) {", block)
         self.assertIn(
             "plate.setStroke(1, getColor(accentInkFor(themeIndex)));", block)
@@ -2940,9 +2964,11 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         self.assertIn("int row = mapRowInk[clampInt((int) v, 0, SUN_MAP_H - 1)];",
                       orb)
         # The revolve: one shared longitude shift, the owner's 10% cut
-        # kept - then his 2026-10-26 order cuts it a further 15%:
-        # 0.35 * 0.85 = 0.2975 rad/s.
-        self.assertIn("SUN_SPIN_RATE = 0.2975f", orb)
+        # kept, his 2026-10-26 order a further 15%, and his 2026-10-27
+        # order a further 10% - each cut on the rate itself, the place the
+        # earlier cuts sit:
+        # 0.35 * 0.85 * 0.9 = 0.26775 rad/s.
+        self.assertIn("SUN_SPIN_RATE = 0.26775f", orb)
         self.assertIn("SUN_SLOWDOWN = 0.9f", orb)
         self.assertIn("SUN_AXIS_TILT = 10f", orb)
         # v2.3.8 (owner order 2026-10-26: "the SUN is still
@@ -3097,14 +3123,20 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         spinner = element(layout, 'android:id="@+id/volume_split_spinner"')
         self.assertNotIn("android:popupBackground", spinner)
 
-    def test_v2_3_12_the_dropdown_boxes_fill_their_tile_at_5percent_less_height(self):
-        """Owner order 2026-10-27, on the v2.3.11 build: "you reduced the
-        width of drop down box, and some features are getting cut off
+    def test_v2_3_13_the_boxes_share_the_one_32dp_floor_and_fill_their_tile(self):
+        """Owner orders 2026-10-27, two passes: 2026-10-27 ("you reduced
+        the width of drop down box, and some features are getting cut off
         because of that, I told you to reduce the height of drop down box
-        by 5%, do it". The v2.3.11 text-hug width is RETIRED - both
-        closed boxes match their tile's width again, so nothing sitting
-        at their edge can clip - and the height alone steps down 5%, the
-        box's own 40dp floor to 38dp, the owner's own number.
+        by 5%, do it") then v2.3.13 ("make all drop down boxes' height
+        reduce by 15% from current height, make this changes across
+        everywhere on the app, and make the same size for the search box
+        on the search page"). The v2.3.11 text-hug width stays RETIRED -
+        both closed boxes match their tile's width, so nothing sitting
+        at their edge can clip - and the height carries both cuts: the
+        40dp floor stepped to 38dp on the first pass, then to 32dp
+        (38 * 0.85 = 32.3) across EVERY dropdown, and the search box
+        carries the same floor, so every field on the console is one
+        height now.
         """
         layout = LAYOUT.read_text(encoding="utf-8")
         for view_id in ("volume_split_spinner", "theme_spinner"):
@@ -3115,9 +3147,11 @@ class ThinkingOrbPlanTest(unittest.TestCase):
                 self.assertIn('android:layout_width="match_parent"',
                               holder)
                 self.assertIn('android:layout_width="match_parent"', box)
-                # The height alone steps down 5%: the box's 40dp floor to
-                # 38dp, never a width number again.
-                self.assertIn('android:minHeight="38dp"', box)
+                # The height alone carries both cuts: the box's 40dp floor
+                # stepped to 38dp (v2.3.12) and then to 32dp (v2.3.13),
+                # never a width number again.
+                self.assertIn('android:minHeight="32dp"', box)
+                self.assertNotIn('android:minHeight="38dp"', box)
                 self.assertNotIn('android:minHeight="40dp"', box)
 
     def test_v2_3_12_every_vsync_carries_a_whole_picture(self):
