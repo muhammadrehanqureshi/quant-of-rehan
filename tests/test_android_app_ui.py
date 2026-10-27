@@ -2393,7 +2393,10 @@ class MenuOrdersTest(unittest.TestCase):
         self.assertIn("rankedSplitSymbols(", self.main)
         self.assertIn("rankedSpeedSymbols(", self.main)
         self.assertIn("private void paintVolumeReveal()", self.main)
-        self.assertIn("volumeSplitChoice == 1", self.main)
+        # v2.3.11: row 0 is the SELECT CUSTOM SCRIPS placeholder, so the
+        # riser ranking moved to row 1 and the B/S split to row 2.
+        self.assertIn("volumeSplitChoice == 2", self.main)
+        self.assertIn("volumeSplitChoice < 1", self.main)
         # The tile is the scanner page's own content now: one boolean owns
         # its visibility, in the one scanner toggle, and the search toggle
         # no longer touches it.
