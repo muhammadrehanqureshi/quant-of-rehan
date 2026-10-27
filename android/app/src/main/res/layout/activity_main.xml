@@ -288,13 +288,16 @@
             <!-- Every dropdown keeps its state arrow beside it (2.0.0):
                  DOWN while closed, UP while open. -->
             <FrameLayout
-                android:layout_width="match_parent"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:layout_gravity="center_horizontal"
                 android:layout_marginTop="10dp">
 
+            <!-- v2.3.11 owner order: the closed dropdown box hugs the text
+                 inside it, not the tile's whole width. -->
             <pk.quantofrehan.Dropdown
                 android:id="@+id/volume_split_spinner"
-                android:layout_width="match_parent"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:background="@drawable/field_bg"
                 android:contentDescription="@string/label_volume"
@@ -616,14 +619,17 @@
                     android:gravity="center"
                     android:text="@string/label_themes"/>
 
-                <!-- The themes dropdown and its state arrow (2.0.0). -->
+                <!-- The themes dropdown and its state arrow (2.0.0).
+                     v2.3.11 owner order: the closed box hugs the text like
+                     the volume menu's own box, centred in the tile. -->
                 <FrameLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content">
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_horizontal">
 
                 <pk.quantofrehan.Dropdown
                     android:id="@+id/theme_spinner"
-                    android:layout_width="match_parent"
+                    android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="10dp"
                     android:background="@drawable/field_bg"

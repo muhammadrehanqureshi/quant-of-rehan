@@ -1533,6 +1533,33 @@ to sixty seconds. The status tile therefore also carries the app's own
      shift under the owner's own 10% cut.
   6. The version bump is versionCode 72 / versionName 2.3.5.
 
+**Version 2.3.11, versionCode 78.**
+
+  Owner order 2026-10-26, fourteenth pass, on the v2.3.10 build: "the
+  whole thing is still flickering and you ruined the sun again, 2.3.8
+  sun was good but you always ruin things", "the animation looks really
+  disgusting, and also flickering continuously, remove the entire
+  feature then add it again, and fix it", and the dropdowns: the custom
+  scrips menu's default cap is SELECT CUSTOM SCRIPS, picked from its own
+  open menu, and BOTH the custom scrips dropdown and the themes dropdown
+  hug the text inside them instead of filling the tile. Four answers:
+
+  1. THE ANIMATION IS REMOVED AND REBUILT FROM v2.3.8, the build he named
+     good. The v2.3.10 render is replaced wholesale by the v2.3.8 render,
+     and only three deltas reapply: the corona stays at the thin v2.3.6
+     gain of 1.45 (the eighth pass's 1.75 bulge is what he read as the
+     thick orange outline), the hard swap returns (v2.3.9's half-alpha
+     ghosting blend was the phasing he kept seeing), and
+  2. THE COMMITS ARE GATED. The render thread signs its back bitmap and
+     the handover swap runs under one shared monitor, so a torn half-pass
+     can never reach the picture even if the published frame is late.
+  3. THE VOLUME MENU OPENS ON A PLACEHOLDER. Row 0 is SELECT CUSTOM
+     SCRIPS: the closed box shows it until he taps and picks a ranking of
+     his own, and the two rankings' indices shift beneath it.
+  4. BOTH DROPDOWNS HUG THEIR TEXT. The closed box and its row are the
+     text of the selection, not the tile's width.
+  5. The version bump is versionCode 78 / versionName 2.3.11.
+
 **Version 2.3.10, versionCode 77.**
 
   Owner order 2026-10-26, thirteenth pass, on the v2.3.9 build: "you added
