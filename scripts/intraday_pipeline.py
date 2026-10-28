@@ -253,6 +253,146 @@ def relay_slot(slot: str) -> str:
     return f"{int(parts[0]):02d}:{int(parts[1]):02d}"
 
 
+def archive_signature(payload: dict) -> str:
+    """What the observation says, without any clock field.
+
+    The signature covers everything that could change a reader's answer:
+    status, reason, the quality counts, the market context, the ranked
+    candidates and the trade state. as_of and slot are excluded on purpose:
+    they move on every scan by construction, so including them would make
+    the signature never match and the archive would be re-POSTed every
+    second again (which is exactly the quota burn this dedupe exists to
+    stop: 2026-10-27 recorded only 09:52-11:31 of observations because the
+    relay refused the rest of the day).
+    """
+    quality = payload.get("data_quality") or {}
+    market = payload.get("market") or {}
+    candidate = payload.get("candidate") or {}
+    observed = payload.get("observed_candidate") or {}
+    state = payload.get("trade_state") or {}
+    essence = {
+        "date": payload.get("date"),
+        "status": payload.get("status"),
+        "reason": payload.get("reason"),
+        "delivered": payload.get("delivered"),
+        "coverage": quality.get("coverage"),
+        "with_bars": quality.get("symbols_with_bars"),
+        "expected": quality.get("symbols_expected"),
+        "rankables": quality.get("rankable_symbols"),
+        "fresh": quality.get("fresh_coverage"),
+        "market": (market.get("status"), market.get("breadth"),
+                   market.get("median_return")),
+        "ranked": [r.get("symbol") for r in (payload.get("ranked_top") or [])],
+        "candidate": (candidate.get("symbol") or observed.get("symbol"),
+                      candidate.get("score") or observed.get("score")),
+        "state": (state.get("state"), state.get("trades_today"),
+                  state.get("target_hit"), state.get("stop_hit")),
+        "gate_tally": {k: v for k, v in
+                       sorted((payload.get("gate_tally") or {}).items())},
+    }
+    return hashlib.sha256(
+        json.dumps(essence, sort_keys=True, default=str).encode("utf-8")
+    ).hexdigest()
+
+
+def slot_email(payload: dict) -> None:
+    """Email the owner the slot's full verdict, when this runner may.
+
+    Gated on EMAIL_SLOT_VERDICTS=1, which only the scheduled Actions slots set
+    (intraday-capture.yml). The one shared email channel
+    (src/notify/owner_email.py) keeps exactly-once per slot through its
+    comment ledger marker `slot-verdict:<day>:<HH:MM>`, so a second fire, a
+    band backstop or a replay cannot double-send the same slot.
+    """
+    if os.environ.get("EMAIL_SLOT_VERDICTS", "").strip() != "1":
+        return
+    try:
+        slot = relay_slot(payload.get("slot") or "10:00")
+        marker = f"slot-verdict:{payload.get('date')}:{slot}"
+    except ValueError:
+        print(f"slot email skipped: unusable slot {payload.get('slot')!r}")
+        return
+    email_signal(slot_verdict_text(payload), marker)
+
+
+def archive_verdict(state: SessionState, payload: dict, route: str,
+                    body: dict) -> bool:
+    """Archive the verdict once per DISTINCT answer, not once per scan.
+
+    When the essence of the verdict has not changed since the last POST (same
+    status, reason, counts and candidates), the archive already holds the
+    answer and nothing is sent. First scan of a minute, a candidate appearing,
+    coverage moving: each one is a change and is stored. The thousand-a-day
+    KV writes are for new answers, not for re-stating the old one.
+    """
+    snapshot = body.get("snapshot") if isinstance(body, dict) else None
+    signature = archive_signature(snapshot if snapshot is not None else body)
+    if not state.archive_is_new(signature):
+        print("research archive: verdict unchanged; not restated")
+        return False
+    ok = archive(route, body)
+    if ok:
+        state.note_archive(signature)
+        state.save()
+    return ok
+
+
+def slot_verdict_text(payload: dict) -> str:
+    """The full detail of one scan slot, exactly as the owner asked for it.
+
+    Everything a decision rested on, in one message: the verdict, why, the
+    data state, the market, the ranked candidates, and, on a NO TRADE, the
+    gate rejection counts that say why nothing passed.
+    """
+    quality = payload.get("data_quality") or {}
+    market = payload.get("market") or {}
+    state = payload.get("trade_state") or {}
+    delivery = payload.get("delivery") or {}
+    lines = [
+        f"SLOT VERDICT {payload.get('date')} {payload.get('slot')} PKT",
+        "",
+        f"Verdict: {payload.get('status')}",
+        f"Reason: {payload.get('reason')}",
+        f"KMIALL scanned: {quality.get('symbols_with_bars')}/{quality.get('symbols_expected')} "
+        f"({(quality.get('coverage') or 0) * 100:.1f}% of the universe, "
+        f"{quality.get('rankable_symbols')} rankable, "
+        f"{quality.get('leaders_fresh', 0)}/{quality.get('leader_symbols', 0)} "
+        "volume leaders fresh)",
+        "",
+        f"Market: {market.get('status', 'UNKNOWN')} "
+        f"(breadth {(market.get('breadth') or 0):.1%}, "
+        f"median {(market.get('median_return') or 0) * 100:+.2f}%)",
+        "",
+        f"Source: {quality.get('source', 'unknown')}. "
+        f"Bars seen {quality.get('duplicate_bars')} duplicate rows on the wire, "
+        f"malformed {quality.get('malformed_bars')}, "
+        f"volume {'available' if quality.get('volume_available') else 'NOT available'}",
+    ]
+    if payload.get("ranked_top"):
+        lines.append("")
+        lines.append("Ranked top candidates that DID pass every gate:")
+        for row in payload["ranked_top"][:8]:
+            price = (row.get("price") or {})
+            lines.append(
+                f"  {row.get('symbol')} score {row.get('score')} "
+                f"entry {price.get('last') if price else row.get('entry')} "
+                f"stop {row.get('stop_loss')} target {row.get('target')} "
+                f"net R/R {row.get('net_reward_risk')}")
+    tally = payload.get("gate_tally") or {}
+    if tally:
+        lines.append("")
+        lines.append("Every gate and how many symbols each one rejected:")
+        lines.extend(f"  {line}" for line in scanner.gate_tally_lines(tally, limit=12))
+    lines.extend([
+        "",
+        f"Trade state: {state.get('state')} (trades today: "
+        f"{state.get('trades_today')})",
+        f"Delivery: {payload.get('delivered') or 'none'} "
+        f"({delivery.get('state') or 'no delivery attempt this slot'})",
+    ])
+    return "\n".join(lines)
+
+
 def archive(route: str, payload: dict) -> bool:
     """Best-effort write to the relay's durable research archive.
 
@@ -497,8 +637,14 @@ def run_scan(slot: str, capture: Path | None = None,
         # the archived observations WITHOUT a Telegram op text every 30
         # seconds. Only ever a signal travels.
         push_card(card_text(day, slot, text, alert=False), state, signature=f"{day}|{text}")
-        archive("/research/observation",
-                {"date": day.isoformat(), "slot": slot, "snapshot": payload})
+        # Deduped on the verdict essence: an unchanged data state is not
+        # re-written into the relay's KV every cycle (the 2026-10-27 quota
+        # burn). A change in coverage, newest bar or reason is a change.
+        archive_verdict(state, payload, "/research/observation",
+                        {"date": day.isoformat(), "slot": slot,
+                         "snapshot": payload})
+        # Owner order 2026-10-28: email the slot's full verdict on schedule.
+        slot_email(payload)
         print(json.dumps(payload, indent=2, allow_nan=False))
         return payload
 
@@ -597,7 +743,8 @@ def run_scan(slot: str, capture: Path | None = None,
                            scanned=quality.symbols_with_bars,
                            expected=quality.symbols_expected)
             state.save()
-            no_trade_text = scanner.no_trade_message(quality, context)
+            no_trade_text = scanner.no_trade_message(quality, context,
+                                                     result.gate_tally)
             # Owner order 2026-10-15: a market NO TRADE is not a signal. The
             # verdict is written, archived and carded, never messaged.
             push_card(card_text(day, slot, no_trade_text, alert=False), state, signature=f"{day}|{no_trade_text}")
@@ -621,6 +768,8 @@ def run_scan(slot: str, capture: Path | None = None,
                                                 "setup", "stop_loss", "target",
                                                 "net_reward_risk")}
                        for row in result.ranked],
+        "gate_tally": {k: v for k, v in
+                       sorted(result.gate_tally.items())} if result else {},
         "eligible_count": len(result.ranked),
         "coverage_text": result.coverage_text,
         "trade_state": state.to_dict(),
@@ -631,8 +780,13 @@ def run_scan(slot: str, capture: Path | None = None,
         "config": config.config_snapshot(),
     }
     write_observation(payload)
-    archive("/research/observation",
-            {"date": day.isoformat(), "slot": slot, "snapshot": payload})
+    # Deduped on the verdict essence: re-stating an unchanged NO TRADE burns
+    # the relay's KV quota without adding a word (2026-10-27 archive stop).
+    archive_verdict(state, payload, "/research/observation",
+                    {"date": day.isoformat(), "slot": slot,
+                     "snapshot": payload})
+    # Owner order 2026-10-28: email the slot's full verdict on schedule.
+    slot_email(payload)
     print(json.dumps(payload, indent=2, allow_nan=False))
     return payload
 

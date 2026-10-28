@@ -72,9 +72,26 @@ KMIALL_ONLY = True
 LONG_ONLY = True
 
 # ---------------------------------------------------------------- data quality
-# Coverage floor for a real scan. Below it the scan is DATA_BLOCKED, never a
-# market verdict (owner spec section 8 and 29).
-MIN_COVERAGE_PCT = _number("MIN_COVERAGE_PCT", 0.80)
+# Coverage floor for a full-universe scan. Below it the scan is DATA_BLOCKED,
+# never a market verdict (owner order of 2026-10-19: record everything, and
+# rank the liquid names the feeder actually prints).
+#
+# The floor was 0.80 and it gagged the morning of the two fastest days on
+# record. Measured facts, 2026-10-27 capture (data/feed_capture on the relay):
+# 40,430 tape rows seen, 30,033 from symbols that had not printed yet, 36,688
+# rows duplicated after per-second ingest; realized coverage 237/317 = 74.8%
+# by 10:08. On 2026-10-26 the first hours of tape carried no price at all:
+# every scan that morning was DATA_BLOCKED before the universe had lit up.
+# On the full local 2026-10-23 session tape, realized coverage still only
+# reaches about 90% by the close; the quiet KMIALL tail (REWM, GEMBCEM, ...)
+# prints late or not at all, some days never. A universe floor above the
+# printable population's curve blocks every morning every day and hides whole
+# tradable sessions; the scanner reads what the feeder has actually printed
+# instead, already gated per-symbol by symbol staleness (STALENESS_MINUTES)
+# and the rankable-share minimum (MIN_RANKABLE_SHARE). 0.60 is the highest
+# floor that survives the measured 74.8% morning prints and lets a scan read
+# liquid names before they all print.
+MIN_COVERAGE_PCT = _number("MIN_COVERAGE_PCT", 0.60)
 # Retired as a blocking floor on 2026-10-15: measured 74.9% to 78.7% on the
 # real tapes, so a whole-universe freshness floor blocked every live scan (see
 # MIN_RANKABLE_SHARE). The number is still reported in every quality report and
