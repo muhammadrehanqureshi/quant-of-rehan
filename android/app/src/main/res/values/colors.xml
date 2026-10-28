@@ -104,6 +104,18 @@
     <color name="theme_orange_bg">#FF2F1307</color>
     <color name="theme_orange_panel">#FF3F1B0C</color>
     <color name="theme_orange_accent">#FFFFFFFF</color>
+    <!-- v2.3.19 (owner order 2026-10-28, "the drop down and search boxes
+         get so mixed with the colour theme that I can't even see the
+         separate tile for them"): the field boxes carry their own FIELD
+         ink per theme, one tone off the panel ink on every theme - the
+         same step the purple theme's own field_bg (#FF120A16) always
+         held below bg_panel. A closed dropdown box, the themes box and
+         the search box read as boxes standing on their tile, never as
+         part of it. -->
+    <color name="theme_black_field">#FF262626</color>
+    <color name="theme_green_field">#FF1F4A2E</color>
+    <color name="theme_navy_field">#FF1E2A55</color>
+    <color name="theme_orange_field">#FF592812</color>
     <!-- v2.2.5 (owner order 2026-10-24, fourth pass, "when I change
          the theme the theme changes but the drop down and the search
          boxes are still purple, make them match the app's current
