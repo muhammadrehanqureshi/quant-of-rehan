@@ -1738,8 +1738,8 @@ class VersionTest(unittest.TestCase):
         # one mesh remains, so no line can end at a dot no other thread
         # carries on from.
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="2.3.19"', manifest)
-        self.assertIn('android:versionCode="86"', manifest)
+        self.assertIn('android:versionName="2.3.20"', manifest)
+        self.assertIn('android:versionCode="87"', manifest)
         # The changelog entry ties these user-visible changes to the build.
         readme = (ROOT / "android" / "README.md").read_text(encoding="utf-8")
         self.assertIn("v1.7.9, owner order 2026-10-20", readme)
