@@ -22,7 +22,13 @@ Honesty rules enforced here:
   * a data failure is reported as SCAN BLOCKED with measured coverage and
     never as a market NO TRADE;
   * one trade per market day, persisted on disk, so a restart cannot reset it;
-  * live trading stays disabled; this script can only record paper outcomes.
+  * live trading stays disabled; this script can only record paper outcomes;
+  * the decision time is the time the CAPTURE can actually speak for: when the
+    capture holds no bar at or before a slot, the as_of the observation carries
+    is the tape's newest completed minute, not the nominal slot label
+    (owner defect 2026-10-28: GitHub delivered the 11:37 cron at ~11:50, the
+    tape started at ~11:50, slot label 11:30 predates its own tape by design,
+    so the scan read 0/317 and called it DATA BLOCKED).
 """
 from __future__ import annotations
 
@@ -43,7 +49,8 @@ from src import config  # noqa: E402
 from src.data import eligibility  # noqa: E402
 from src.data import tape_bars  # noqa: E402
 from src.data.sessions import (  # noqa: E402
-    KARACHI, close_time, is_scan_window, is_trading_day, now_karachi,
+    KARACHI, band_bounds, close_time, current_band, is_scan_window,
+    is_trading_day, now_karachi,
 )
 from src.signals import momentum_scanner as scanner  # noqa: E402
 from src.signals import trade_state  # noqa: E402
@@ -479,6 +486,55 @@ def session_legal(as_of: datetime) -> bool:
     return is_scan_window(as_of)
 
 
+def completed_through(session: scanner.SessionData, moment: datetime) -> datetime | None:
+    """The newest bar the capture holds that had fully completed by `moment`.
+
+    Bar timestamps denote minute OPEN, so a bar is complete when its minute has
+    passed. Returns None when nothing completed exists.
+    """
+    newest: datetime | None = None
+    for rows in session.bars.values():
+        for bar in rows:
+            stamp = bar.timestamp
+            if stamp + timedelta(minutes=1) <= moment and (
+                    newest is None or stamp > newest):
+                newest = stamp
+    return newest
+
+
+def decision_time(slot: str, day: date, session: scanner.SessionData,
+                  moment: datetime) -> tuple[datetime, str]:
+    """The honest decision time for a scan, and where it came from.
+
+    Normally a scan decides at its scheduled slot: that label is what makes a
+    replay deterministic and a slot email idempotent. But a cron that GitHub
+    delivered late may hold a capture whose first bar is AFTER that very slot,
+    and scanning "as of 11:30" with a tape that starts at 11:50 reads 0/317
+    and invents a data fault out of a scheduling fact. So when the capture
+    holds no bar at or before the scheduled time, the decision time becomes
+    the tape's newest completed minute instead, capped at the real clock. A
+    replay is never touched: a full-day replay tape has bars at every slot,
+    so this branch cannot fire on one.
+    """
+    scheduled = scheduled_as_of(slot, day)
+    for rows in session.bars.values():
+        for bar in rows:
+            if bar.timestamp <= scheduled:
+                return scheduled, "scheduled_slot"
+    newest = completed_through(session, moment)
+    if newest is None:
+        return scheduled, "scheduled_slot"
+    # Cap at the band close of the scheduled time, so a fire delivered after
+    # the close cannot dress a post-market scan up as an in-band verdict; the
+    # near-band-close entry gate then refuses anything entered that late.
+    cap = moment
+    scheduled_band = current_band(scheduled)
+    if scheduled_band is not None:
+        _, closes = band_bounds(day, scheduled_band)
+        cap = min(cap, closes)
+    return min(newest + timedelta(minutes=1), cap), "tape_newest_bar"
+
+
 def capture_path(day) -> Path:
     """The eClear OHLC servlet capture. The secondary source now.
 
@@ -594,6 +650,8 @@ def run_scan(slot: str, capture: Path | None = None,
     symbols = load_kmiall()
     path = capture or resolve_capture(day)
 
+    # The cheap gate stays cheap: an as_of the law already refuses never
+    # parses the capture at all.
     if not session_legal(as_of):
         print(f"{as_of:%Y-%m-%d %H:%M} PKT is outside the Karachi session: "
               f"the scanner does not run")
@@ -611,7 +669,21 @@ def run_scan(slot: str, capture: Path | None = None,
     # answer belongs in the record beside the delivery, not only in the log.
     claim_record: dict | None = None
 
+    # The tape first, the decision time second: a fire GitHub delivered late
+    # must decide from the tape it actually banked (owner defect 2026-10-28).
+    # The normal path is byte-for-byte the old one: load at the scheduled
+    # minute, scan it. Only when THAT load holds no bar at all - the tape's
+    # first print is after the very slot the label names - does the late-fire
+    # branch reload at the real clock and take the honest minute instead.
     session = scanner.load_session(path, symbols, as_of)
+    as_of_basis = "scheduled_slot"
+    if not any(session.bars.values()):
+        moment = now_karachi()
+        session = scanner.load_session(path, symbols, moment)
+        as_of, as_of_basis = decision_time(slot, day, session, moment)
+        session.as_of = as_of
+        print(f"late fire: deciding at {as_of:%H:%M} PKT from the tape actually "
+              f"held ({as_of_basis}); scheduled slot {slot} predates this tape")
     quality = scanner.assess_quality(session, symbols)
 
     if quality.status == scanner.DATA_BLOCKED:
@@ -622,6 +694,7 @@ def run_scan(slot: str, capture: Path | None = None,
         text = scanner.scan_blocked_message(quality)
         payload = {
             "date": day.isoformat(), "slot": slot, "as_of": as_of.isoformat(),
+            "as_of_basis": as_of_basis,
             "status": scanner.DATA_BLOCKED, "reason": quality.reason,
             "capture": capture_label(path, session),
             "data_quality": quality.as_dict(), "trade_state": state.to_dict(),
@@ -754,6 +827,7 @@ def run_scan(slot: str, capture: Path | None = None,
         "date": day.isoformat(),
         "slot": slot,
         "as_of": as_of.isoformat(),
+        "as_of_basis": as_of_basis,
         "status": status,
         "reason": reason,
         "delivered": delivered,
