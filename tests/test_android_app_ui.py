@@ -3219,9 +3219,13 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         are still purple, make them match the app's current theme"). One
         place (applyThemeToInputs) paints the closed dropdown rows, their
         popup plates and the search box from the theme's own plate, at
-        selection time AND on start. The theme spinner itself is exempt:
-        as the owner said on 2026-10-24, it already sits inside the plate
-        it is choosing."""
+        selection time AND on start. v2.3.19 (owner order 2026-10-28,
+        "even when i have selected another theme, it always shows purple
+        and yellow", and "the drop down and search boxes get so mixed
+        with the colour theme that I can't even see the separate tile
+        for them") lifts the v2.2.5 exemption: the theme spinner paints
+        its plate too, and every field box carries its own tone off
+        the tile so the box reads as a box on every theme."""
         main = MAIN.read_text(encoding="utf-8")
         # One place, all three paints.
         self.assertIn("private void applyThemeToInputs(int index) {", main)
@@ -3235,8 +3239,11 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         self.assertIn("applyTheme(index);", main)
         self.assertLess(main.index("applyThemeToInputs(themeIndex)"),
                         main.index("wireDropdownArrows();"))
-        # The theme box is exempt by the owner's own sentence.
-        self.assertIn("if (input == themeSpinner) continue;", main)
+        # The v2.2.5 exemption is retired with the purple leak it kept:
+        # no input is skipped, the theme box included.
+        self.assertNotIn("continue;", main[main.index(
+            "private void applyThemeToInputs("):main.index(
+            "private android.graphics.drawable.Drawable ")])
         # The two inline menus carry the theme's own popup plate.
         self.assertIn("volumeSplitMenu.setBackground(popupPlate(index));",
                       main)
@@ -3253,6 +3260,17 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         self.assertIn("private final GradientDrawable[] themeFieldPlates",
                       main)
         self.assertIn("cached.setCornerRadius(dp(12));", main)
+        # v2.3.19: every field box paints the theme's FIELD ink, one
+        # step off the tile, so the boxes are seen on every theme.
+        self.assertIn("private int fieldResourceFor(int index) {", main)
+        self.assertIn("R.color.theme_black_field", main)
+        self.assertIn("R.color.theme_green_field", main)
+        self.assertIn("R.color.theme_navy_field", main)
+        self.assertIn("R.color.theme_orange_field", main)
+        colors = COLORS.read_text(encoding="utf-8")
+        for name in ("theme_black_field", "theme_green_field",
+                     "theme_navy_field", "theme_orange_field"):
+            self.assertIn(f'<color name="{name}">', colors)
         # The search box rides the same pass.
         self.assertIn("themedInputs.add(searchInput);", main)
 
