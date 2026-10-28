@@ -1944,15 +1944,22 @@ class SearchPanelStabilityTest(unittest.TestCase):
     def test_the_pinned_line_is_restamped_in_the_colour_of_the_move(self):
         main = MAIN.read_text(encoding="utf-8")
         self.assertIn("private void paintSelectedLine() {", main)
-        marker = "String tail = quote.changePct == null"
-        first = main.index(marker)
-        tail = main[first:]
+        paint = main[main.index("private void paintSelectedLine() {"):
+                     main.index("private void paintSignalInk(")]
+        marker = 'String.format(Locale.US, " PKR %,.2f", quote.price)'
+        first = paint.index(marker)
+        tail = paint[first:]
+        # v2.3.19 (owner order 2026-10-28, "there should be up or down
+        # sign for percentage for search box"): the pinned line's move
+        # carries the UP and DOWN arrows, never a plus or a minus, and
+        # the number is the move's magnitude - the arrow IS the sign.
         self.assertIn("quote.changePct >= 0 ? R.color.green_hi : R.color.red", tail)
-        # A real sign, and only a real sign, colours the row (SO-3).
-        self.assertIn("? R.color.text_soft", tail)
-        self.assertIn("R.color.green_hi", tail)
-        self.assertIn("R.color.red", tail)
-        self.assertIn("R.color.text_soft", tail)
+        self.assertIn('"\\u25B2" : "\\u25BC"', tail)
+        self.assertIn("Math.abs(quote.changePct)", tail)
+        # A line with no move keeps the soft ink (SO-3: no fake arrow).
+        self.assertIn("R.color.text_soft", paint)
+        # The drawn sign is retired with its colour law.
+        self.assertNotIn("%+.2f%%", paint)
 
     def test_the_search_icon_lives_on_the_nav_tile(self):
         # Owner order 2026-10-23: the glass moved to the menu tile at the
@@ -1996,13 +2003,16 @@ class SearchPanelStabilityTest(unittest.TestCase):
         # Owner order 2026-10-21: the price and the percentage appear ONE
         # time in the search answer, in the colour of the move (green up,
         # red down), never in the neutral ink a second time.
-        # fetchStock no longer carries its own money line; the live restamp
-        # is the only PKR line the pinned answer shows.
+        # fetchStock no longer carries its own money line; the restamps
+        # are the ONLY PKR lines the pinned answer shows.
         self.assertNotIn('"\\nPKR %,.2f"', watcher)
-        # The paint pass still owns the one(true) money line.
-        marker = "String tail = quote.changePct == null"
-        first = main.index(marker)
-        self.assertIn("styled.append(tail);", main[first:main.index("private String latestSignalDisplay")])
+        self.assertLess(watcher.index("paintSelectedLine"),
+                        watcher.index("restamps the live quote"))
+        # The one money line lives in both restamps (v2.3.19's arrow law).
+        marker = 'String.format(Locale.US, " PKR %,.2f", quote.price)'
+        window = main[main.index("private void styleSearchRow("):
+                      main.index("private void paintSignalInk(")]
+        self.assertEqual(window.count(marker), 2, window.count(marker))
 
     def test_the_search_answer_prints_buy_green_and_sell_red(self):
         watcher = WATCHER.read_text(encoding="utf-8")
