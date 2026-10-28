@@ -1842,9 +1842,15 @@ class VersionTest(unittest.TestCase):
         # comma after B, the ampersand before T and the arrows, not
         # plus and minus, versionCode 86.
         self.assertIn("Version 2.3.19, versionCode 86", readme)
+        # v2.3.20 (owner order 2026-10-28, twenty-fourth pass): the
+        # relay status button joins the themed fields, the closed
+        # themes box restamps its label every pass, and both inline
+        # menus retire their bordered popup plate with the 2dp gap -
+        # an open menu is the box's own expansion now, versionCode 87.
+        self.assertIn("Version 2.3.20, versionCode 87", readme)
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionCode="86"', manifest)
-        self.assertIn('android:versionName="2.3.19"', manifest)
+        self.assertIn('android:versionCode="87"', manifest)
+        self.assertIn('android:versionName="2.3.20"', manifest)
         layout = LAYOUT.read_text(encoding="utf-8")
         strings = STRINGS.read_text(encoding="utf-8")
         main = MAIN.read_text(encoding="utf-8")

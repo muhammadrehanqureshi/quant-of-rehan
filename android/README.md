@@ -1641,6 +1641,37 @@ to sixty seconds. The status tile therefore also carries the app's own
      the orphan law stands so every dot still wears a filament.
   5. The version bump is versionCode 82 / versionName 2.3.15.
 
+**Version 2.3.20, versionCode 87.**
+
+  Owner orders of 2026-10-28, twenty-fourth pass, delivered along the
+  v2.3.19 phone report: "look at picture no. 1, When I selected another
+  theme, relay status box was still purple", "also when I have selected
+  another theme, the app always shows purple and yellow", and "look at
+  picture no. 2, when i tap on the drop down menu, another separate
+  window pops up, this is wrong, the drop down menu should actually
+  expand and then the drop down should show me options". Three answers:
+
+  1. RELAY STATUS IS A THEMED FIELD. The button was the one control
+     that kept its static lavender plate through theme passes, so a
+     black-and-white console wore the old look over it. It now joins
+     the themed fields: its plate is stamped by the theme each pass,
+     never a fixed colour.
+  2. THE THEMES LABEL STANDS ON ITS TRUTH. The closed themes box
+     could keep printed text from a previous theme after the look
+     changed around it, so the console read "purple & yellow" while
+     wearing another theme. The label is restamped at the end of
+     every theme pass, so the printed name is the look the app is
+     wearing that second - on a cold start with a remembered theme
+     too.
+  3. THE MENU IS THE BOX'S OWN EXPANSION. The opened menus still
+     carried their own bordered popup plate under a 2dp gap from the
+     box, so the tile read as two windows standing over each other.
+     The plate and the gap are gone: an open menu is drawn directly
+     under its box, wearing the same theme field plate the closed
+     box wears, so it can never read as a second window. The five
+     per-theme popup plates are retired with them.
+  4. The version bump is versionCode 87 / versionName 2.3.20.
+
 **Version 2.3.19, versionCode 86.**
 
   Owner orders of 2026-10-28, twenty-third pass, on the v2.3.18
