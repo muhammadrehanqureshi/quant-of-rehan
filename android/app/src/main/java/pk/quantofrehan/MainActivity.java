@@ -433,6 +433,16 @@ public class MainActivity extends Activity {
         if (themeSpinner != null) {
             themedInputs.add(themeSpinner);
         }
+        // v2.3.20 (owner order 2026-10-28, "when I selected another theme,
+        // relay status box was still purple"): the RELAY STATUS button is
+        // a themed field too. Its plate had stayed the static purple
+        // btn_bg on every theme, so the settings page showed the purple
+        // look no matter which theme was worn; the button now paints the
+        // field's own theme plate with the boxes.
+        View relayButton = findViewById(R.id.btn_open);
+        if (relayButton != null) {
+            themedInputs.add(relayButton);
+        }
         volumeReveal = (TextView) findViewById(R.id.volume_reveal);
         settingsPanel = findViewById(R.id.settings_panel);
         searchPanel = findViewById(R.id.search_panel);
@@ -740,24 +750,22 @@ public class MainActivity extends Activity {
             // the one that chooses the look, paints its plate.
             paintField(input, index);
         }
-        // v2.3.16: the two inline menus paint the same theme stamps the
-        // platform popup wore, now on the box's own flow (each theme's
-        // own plate id, from this one place).
+        // v2.3.20 (owner order 2026-10-28, "when i tap on the drop down
+        // menu, another separate window pops up, this is wrong, the drop
+        // down menu should actually expand and then the drop down should
+        // show me options"): the menus retire their own popup plate. A
+        // plate of its own (colour, corner, stroke) drew the open menu as
+        // a SECOND window standing over the tile, however far the v2.3.19
+        // scroll walked. The open menu is the box's OWN expansion now: it
+        // wears the same field plate the closed box wears, with no gap
+        // between them, so the group reads as one box pulled down to
+        // its rows and never as a separate surface.
         if (volumeSplitMenu != null) {
-            volumeSplitMenu.setBackground(popupPlate(index));
+            volumeSplitMenu.setBackground(fieldPlate(index));
         }
         if (themeMenu != null) {
-            themeMenu.setBackground(popupPlate(index));
+            themeMenu.setBackground(fieldPlate(index));
         }
-    }
-
-    /** One menu's plate per theme, the stamp hand's own table, resolved
-     *  once per pass (the platform popup's own fetch, moved inline). */
-    private android.graphics.drawable.Drawable popupPlate(int index) {
-        @SuppressWarnings("deprecation")
-        android.graphics.drawable.Drawable plate =
-                getResources().getDrawable(popupResourceFor(index));
-        return plate;
     }
 
     /** One field box: the field's own plate, and the hint ink rides the
@@ -823,17 +831,6 @@ public class MainActivity extends Activity {
             themeFieldPlates[index - 1] = cached;
         }
         return cached;
-    }
-
-    /** The POPUP mosaic each theme paints, the stamp hand's own table. */
-    private int popupResourceFor(int index) {
-        switch (index) {
-            case 1:  return R.drawable.dropdown_popup_black;
-            case 2:  return R.drawable.dropdown_popup_green;
-            case 3:  return R.drawable.dropdown_popup_navy;
-            case 4:  return R.drawable.dropdown_popup_orange;
-            default: return R.drawable.dropdown_popup;
-        }
     }
 
     /** The hint ink under each theme, the headings' own colour. */
@@ -935,6 +932,12 @@ public class MainActivity extends Activity {
         if (searchInput != null) {
             renderSearchResults(searchInput.getText().toString());
         }
+        // v2.3.20 (owner order 2026-10-28, "when I have selected another
+        // theme, the app always shows purple and yellow"): the closed
+        // THEMES box restamps its label with the theme this pass painted,
+        // so the label never lags the look the app is wearing - not on a
+        // cold start with a remembered theme, and not after a pick.
+        restampThemeText();
     }
 
     /** One rounded plate per theme, built once and reused (v1.9.13). */

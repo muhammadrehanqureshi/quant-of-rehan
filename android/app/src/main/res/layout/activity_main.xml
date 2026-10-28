@@ -411,13 +411,18 @@
                  "drop down menu should appear from the same box, not as
                  a completely separate window"): the rows stand directly
                  below the box, in the page's own scroll. GONE until the
-                 box or its arrow is tapped, exact like the reveal. -->
+                 box or its arrow is tapped, exact like the reveal.
+                 v2.3.20 owner order 2026-10-28 ("when i tap on the drop
+                 down menu, another separate window pops up, this is
+                 wrong"): the menu carries NO plate of its own and NO gap.
+                 Its plate is the field plate MainActivity stamps from
+                 the worn theme, the same one the closed box wears, so
+                 the open group reads as the box itself pulled down to
+                 its rows, never as a second window over the tile. -->
             <LinearLayout
                 android:id="@+id/volume_split_menu"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
-                android:background="@drawable/dropdown_popup"
                 android:orientation="vertical"
                 android:visibility="gone"/>
 
@@ -795,16 +800,19 @@
                     android:src="@drawable/dropdown_arrow"/>
                 </FrameLayout>
 
-                <!-- The themes dropdown's OWN menu, the volume menu's one
-                     law (v2.3.16): directly below the box, in the page's
-                     own scroll, its plate painted by the theme it opens
-                     the look with. -->
+                <!-- The themes dropdown's OWN menu, the volume menu's
+                     one law (v2.3.16): directly below the box, in the
+                     page's own scroll. v2.3.20 owner order 2026-10-28
+                     ("the drop down menu should actually expand and
+                     then the drop down should show me options"): no
+                     plate of its own and no gap, exactly like the
+                     volume menu - the open menu is the box's own
+                     expansion, its plate stamped by MainActivity from
+                     the theme the console wears. -->
                 <LinearLayout
                     android:id="@+id/theme_menu"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="2dp"
-                    android:background="@drawable/dropdown_popup"
                     android:orientation="vertical"
                     android:visibility="gone"/>
             </LinearLayout>

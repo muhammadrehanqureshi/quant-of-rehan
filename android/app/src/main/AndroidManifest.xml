@@ -293,11 +293,27 @@
      arrows; and every theme's field boxes and dropdowns carry their
      own field ink off the tile, including the theme box itself,
      which is no longer exempt from the repaint.
+
+     versionCode 87 / versionName 2.3.20 belong to the owner's orders
+     of 2026-10-28 delivered along the v2.3.19 phone report ("the
+     relay status box was still purple", "when I have selected
+     another theme, the app always shows purple and yellow", and
+     "when i tap on the drop down menu, another separate window pops
+     up, this is wrong, the drop down menu should actually expand and
+     then the drop down should show me options"): the RELAY STATUS
+     button joins the themed fields, so its plate wears the theme
+     instead of the static purple; the closed THEMES box restamps its
+     own label at the end of every theme pass, so the label never
+     lags the look the console wears; and both inline menus retire
+     their own bordered popup plate with the 2dp gap under the box -
+     an open menu is the box's own expansion now, wearing the same
+     theme field plate the closed box wears, so it can never read as
+     a second window standing over the tile.
      -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="pk.quantofrehan"
-    android:versionCode="86"
-    android:versionName="2.3.19">
+    android:versionCode="87"
+    android:versionName="2.3.20">
 
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="30"/>
 

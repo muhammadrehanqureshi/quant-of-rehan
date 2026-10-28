@@ -3227,45 +3227,39 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         """v2.2.5 (owner order 2026-10-24, fourth pass, "when I change the
         theme the theme changes but the drop down and the search boxes
         are still purple, make them match the app's current theme"). One
-        place (applyThemeToInputs) paints the closed dropdown rows, their
-        popup plates and the search box from the theme's own plate, at
-        selection time AND on start. v2.3.19 (owner order 2026-10-28,
-        "even when i have selected another theme, it always shows purple
-        and yellow", and "the drop down and search boxes get so mixed
-        with the colour theme that I can't even see the separate tile
-        for them") lifts the v2.2.5 exemption: the theme spinner paints
-        its plate too, and every field box carries its own tone off
-        the tile so the box reads as a box on every theme."""
+        place (applyThemeToInputs) paints the closed dropdown rows, the
+        menus and the search box from the theme's own plate, at selection
+        time AND on start. v2.3.19 (owner order 2026-10-28) lifts the
+        v2.2.5 exemption: the theme spinner paints its plate too. v2.3.20
+        (owner orders 2026-10-28, "when I selected another theme, relay
+        status box was still purple") paints the RELAY STATUS button
+        from the same pass, so the settings page carries the worn theme
+        end to end.
+        """
         main = MAIN.read_text(encoding="utf-8")
-        # One place, all three paints.
+        # One place, all the paints.
         self.assertIn("private void applyThemeToInputs(int index) {", main)
-        # v2.3.16: the popup plates moved onto the two inline menus, and
-        # the closed boxes paint their plates through paintField - the
-        # Spinner-only painting is retired with the popup window.
-        self.assertIn("private android.graphics.drawable.Drawable "
-                      "popupPlate(int index) {", main)
         self.assertIn("private void paintField(View field, int index) {", main)
         # On selection, and on the remembered theme at start.
         self.assertIn("applyTheme(index);", main)
         self.assertLess(main.index("applyThemeToInputs(themeIndex)"),
                         main.index("wireDropdownArrows();"))
-        # The v2.2.5 exemption is retired with the purple leak it kept:
-        # no input is skipped, the theme box included.
+        # No input is skipped, the theme box included.
         self.assertNotIn("continue;", main[main.index(
             "private void applyThemeToInputs("):main.index(
-            "private android.graphics.drawable.Drawable ")])
-        # The two inline menus carry the theme's own popup plate.
-        self.assertIn("volumeSplitMenu.setBackground(popupPlate(index));",
+            "private void paintField(View field, int index) {")])
+        # v2.3.20: the two inline menus wear the SAME field plate the
+        # closed box wears, stamped from the theme pass - no popup
+        # plate, no separate window's own mosaic.
+        self.assertIn("volumeSplitMenu.setBackground(fieldPlate(index));",
                       main)
-        self.assertIn("themeMenu.setBackground(popupPlate(index));", main)
-        # Each theme's popup is a plate of its own family, named once.
-        for suffix in ("black", "green", "navy", "orange"):
-            self.assertTrue((RES / "drawable"
-                             / f"dropdown_popup_{suffix}.xml").exists())
-        self.assertIn("R.drawable.dropdown_popup_black", main)
-        self.assertIn("R.drawable.dropdown_popup_green", main)
-        self.assertIn("R.drawable.dropdown_popup_navy", main)
-        self.assertIn("R.drawable.dropdown_popup_orange", main)
+        self.assertIn("themeMenu.setBackground(fieldPlate(index));", main)
+        self.assertNotIn("popupPlate", main)
+        self.assertNotIn("popupResourceFor", main)
+        # The per-theme popup plates and the base one retire with their
+        # last reader (SO-11): nothing in the res tree names them.
+        self.assertEqual(
+            [p.name for p in RES.glob("**/dropdown_popup*.xml")], [])
         # The field law's own corners travel with the theme, built once.
         self.assertIn("private final GradientDrawable[] themeFieldPlates",
                       main)
@@ -3283,6 +3277,10 @@ class ThinkingOrbPlanTest(unittest.TestCase):
             self.assertIn(f'<color name="{name}">', colors)
         # The search box rides the same pass.
         self.assertIn("themedInputs.add(searchInput);", main)
+        # v2.3.20: the RELAY STATUS button is a themed field too, so its
+        # plate follows the worn theme instead of the static purple.
+        self.assertIn("View relayButton = findViewById(R.id.btn_open);", main)
+        self.assertIn("themedInputs.add(relayButton);", main)
 
     def test_v2_2_5_no_purple_stencil_under_a_themed_input(self):
         """v2.2.5: the volume dropdown no longer carries a purple
@@ -3292,6 +3290,10 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         layout = LAYOUT.read_text(encoding="utf-8")
         spinner = element(layout, 'android:id="@+id/volume_split_spinner"')
         self.assertNotIn("android:popupBackground", spinner)
+        # v2.3.20: the retired popup plate is gone from the menus too -
+        # neither inline menu paints its own background in the layout
+        # any more; the theme pass stamps the field plate on both.
+        self.assertNotIn("@drawable/dropdown_popup", layout)
 
     def test_v2_3_18_all_three_boxes_carry_the_one_universal_height(self):
         """Owner orders 2026-10-27, twenty-first and twenty-second passes
@@ -3363,8 +3365,11 @@ class ThinkingOrbPlanTest(unittest.TestCase):
                 self.assertNotIn("extends Spinner", main)
                 # The menu stands DIRECTLY after the box's own holder,
                 # in the page's own flow, until the state opens it.
+                # v2.3.20: no top margin and no plate of its own any
+                # more - the open menu is the box's own expansion.
                 self.assertIn("<LinearLayout", menu)
-                self.assertIn('android:layout_marginTop="2dp"', menu)
+                self.assertNotIn("android:layout_marginTop", menu)
+                self.assertNotIn("android:background", menu)
                 self.assertIn('android:visibility="gone"', menu)
         # The engine: rows built by the app, open states drawn between
         # the menu's visibility, the arrow and the one-menu-at-a-time
@@ -3442,7 +3447,58 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         self.assertIn('android:paddingTop="3dp"', box)
         self.assertIn('android:paddingBottom="3dp"', box)
 
-    def test_v2_3_14_the_sun_is_ten_percent_slower_the_fourth_time(self):
+    def test_v2_3_20_the_dropdown_never_reads_as_a_second_window(self):
+        """Owner order 2026-10-28: "when i tap on the drop down menu,
+        another separate window pops up, this is wrong, the drop down
+        menu should actually expand and then the drop down should show
+        me options". The v2.3.19 scroll walk was not enough: the open
+        menu still drew its OWN bordered plate (a corner, a stroke, a
+        colour of its own), with a 2dp gap under the box, and THAT is
+        the "separate window" the owner kept seeing. The law now: the
+        menu carries no plate and no gap in the layout, and the theme
+        pass stamps the closed box's own field plate on both menu
+        panels, so an open dropdown is one box pulled down to its rows
+        - the same plate, no seam, no frame, on every theme.
+        """
+        layout = LAYOUT.read_text(encoding="utf-8")
+        main = MAIN.read_text(encoding="utf-8")
+        for menu_id in ("volume_split_menu", "theme_menu"):
+            with self.subTest(menu_id=menu_id):
+                menu = element(layout, f'android:id="@+id/{menu_id}"')
+                self.assertNotIn("android:background", menu)
+                self.assertNotIn("android:layout_marginTop", menu)
+        # Two sets on the menus from the theme pass, both named so a
+        # future pass cannot move one and leave the other behind.
+        self.assertGreaterEqual(
+            main.count("Menu.setBackground(fieldPlate(index));"), 2)
+        self.assertIn(
+            "separate window pops up, this is wrong", main)
+
+    def test_v2_3_20_the_theme_never_leaves_the_yellow_and_purple(self):
+        """Owner order 2026-10-28: "When I selected another theme,
+        relay status box was still purple" and "when I have selected
+        another theme, the app always shows purple and yellow". Two
+        static survivors of the theme pass, both renamed by one law:
+        the RELAY STATUS button sits in themedInputs (its plate is the
+        field plate per theme, never the static purple btn_bg again),
+        and applyTheme restamps the closed THEMES box's label at the
+        end of EVERY pass, so the label can never lag the look the
+        console wears - not on a cold start with a remembered theme,
+        and not after a pick.
+        """
+        main = MAIN.read_text(encoding="utf-8")
+        self.assertIn("View relayButton = findViewById(R.id.btn_open);", main)
+        self.assertIn("themedInputs.add(relayButton);", main)
+        # The restamp is the pass's own tail: inside applyTheme itself,
+        # after the search rows repaint, so no caller has to remember it.
+        apply_at = main.index("private void applyTheme(int index) {")
+        self.assertIn("restampThemeText();", main[apply_at:apply_at + 6000])
+        # The comment names the owner's own words, so the law's why
+        # survives with the code (SO-3).
+        self.assertIn(
+            "the app always shows purple and yellow", main)
+
+
         """Owner order 2026-10-27: "Decrease the sun's revolving speed by
         another 10%". The cut lands on SUN_SPIN_RATE itself, the place
         every earlier cut sat: 0.26775 * 0.9 = 0.240975 rad/s.
