@@ -90,6 +90,11 @@ class SessionState:
     # work or spamming the app card.
     last_tick_slot: str | None = None
     last_card_signature: str | None = None
+    # Same idempotence for the relay's research archive: a verdict that has not
+    # changed is not POSTed again, so a per-second cadence cannot burn the
+    # relay's daily KV write quota re-storing one identical snapshot (this is
+    # what stopped observation archival mid-session on 2026-10-27).
+    last_archive_signature: str | None = None
     finalized: bool = False
 
     # ------------------------------------------------------------- persistence
@@ -149,6 +154,13 @@ class SessionState:
 
     def note_card(self, text: str) -> None:
         self.last_card_signature = self.card_signature(text)
+
+    def archive_is_new(self, signature: str) -> bool:
+        """Has what would be archived actually changed since the last POST?"""
+        return signature != self.last_archive_signature
+
+    def note_archive(self, signature: str) -> None:
+        self.last_archive_signature = signature
 
     def claimed_slot(self, slot: str) -> bool:
         """Has this exact scan slot already been scanned today?

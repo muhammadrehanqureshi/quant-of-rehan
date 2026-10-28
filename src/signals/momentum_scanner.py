@@ -154,6 +154,12 @@ class ScanResult:
     candidate: dict | None = None
     ranked: list[dict] = field(default_factory=list)
     coverage_text: str = ""
+    # Why no candidate: the per-gate rejection counts summed across the whole
+    # universe during this scan (src/signals/smc.py fills it). A NO TRADE can
+    # now name the gates that ran and how many symbols each one rejected,
+    # instead of one undated blanket sentence. Empty dict on DATA_BLOCKED (the
+    # scan never reached the gate).
+    gate_tally: dict = field(default_factory=dict)
 
 
 # --------------------------------------------------------------- capture load
@@ -630,16 +636,24 @@ def _wilder_rsi(closes: list[float], period: int = 14) -> float | None:
     return 100.0 - 100.0 / (1.0 + relative_strength)
 
 
-def score_symbol(symbol: str, rows: list[MinuteBar], session: SessionData) -> dict | None:
+def score_symbol(symbol: str, rows: list[MinuteBar], session: SessionData,
+                 tally: dict | None = None) -> dict | None:
     """Historical API name, now evaluates only the ICT/SMC sequence."""
-    return smc.candidate(symbol, rows, session)
+    return smc.candidate(symbol, rows, session, tally)
 
 
 def rank_candidates(session: SessionData,
-                    ai_prior: dict[str, float] | None = None) -> list[dict]:
-    """Rank confirmed setups; the old daily-model prior has no entry authority."""
+                    ai_prior: dict[str, float] | None = None,
+                    tally: dict | None = None) -> list[dict]:
+    """Rank confirmed setups; the old daily-model prior has no entry authority.
+
+    When `tally` is a dict, it is filled with every gate rejection the whole
+    universe produced, so the caller can report WHY nothing or something
+    passed (SO-3: measured, never implied).
+    """
     ranked = [row for symbol in sorted(session.bars)
-              if (row := score_symbol(symbol, session.bars[symbol], session)) is not None]
+              if (row := score_symbol(symbol, session.bars[symbol], session,
+                                      tally)) is not None]
     return sorted(ranked, key=lambda row: (-row["score"], row["symbol"]))
 
 
@@ -652,21 +666,31 @@ def select_one(session: SessionData, quality: QualityReport,
         return ScanResult(DATA_BLOCKED, quality.reason, quality, {}, coverage_text=coverage)
     context = market_context(session)
     context["ai"] = {"active": False, "reason": "ICT/SMC rules do not use the daily momentum prior"}
-    ranked = rank_candidates(session)
+    tally: dict = {}
+    ranked = rank_candidates(session, tally=tally)
     # Broad panic is a risk veto; ordinary weak breadth is not a momentum
     # entry filter on this reversal strategy.
     if context.get("median_return") is None or context["median_return"] < config.MAX_MARKET_DROP:
         return ScanResult(NO_TRADE, "market not supportive: broad selloff or unknown context",
-                          quality, context, ranked=ranked, coverage_text=coverage)
+                          quality, context, ranked=ranked, coverage_text=coverage,
+                          gate_tally=dict(tally))
     if not ranked:
         return ScanResult(NO_TRADE, "no symbol passed the ICT/SMC sweep, MSS, FVG and retest gates",
-                          quality, context, ranked=[], coverage_text=coverage)
+                          quality, context, ranked=[], coverage_text=coverage,
+                          gate_tally=dict(tally))
     return ScanResult(TRADE, "confirmed sell-side sweep, bullish MSS, FVG retest in discount",
                       quality, context, candidate=ranked[0], ranked=ranked,
-                      coverage_text=coverage)
+                      coverage_text=coverage, gate_tally=dict(tally))
 
 
 # ------------------------------------------------------------------- messages
+
+def gate_tally_lines(tally: dict, limit: int = 8) -> list[str]:
+    """The gate rejection counts as readable lines, worst offender first.
+    """
+    ordered = sorted(tally.items(), key=lambda item: (-item[1], item[0]))
+    return [f"{key}: {count} symbol(s)" for key, count in ordered[:limit]]
+
 
 def target_price(entry: float) -> float:
     """The +2% target is always measured from the ACTUAL entry price."""
@@ -690,13 +714,21 @@ def signal_message(candidate: dict, market: dict, entry: float,
     )
 
 
-def no_trade_message(quality: QualityReport, market: dict) -> str:
-    return ("NO TRADE\n\n"
-            f"KMIALL scanned: {quality.symbols_with_bars}/{quality.symbols_expected}\n"
-            f"Market: {market.get('status', 'UNKNOWN')}\n"
-            f"Market context: {market.get('reason', 'unavailable')}\n"
-            "Reason: no actionable ICT/SMC setup with structural risk and 2% target room.\n"
-            f"Source: {quality.source}")
+def no_trade_message(quality: QualityReport, market: dict,
+                     gate_tally: dict | None = None) -> str:
+    lines = ("NO TRADE\n\n"
+             f"KMIALL scanned: {quality.symbols_with_bars}/{quality.symbols_expected} "
+             f"({quality.symbols_with_bars / max(quality.symbols_expected, 1):.1%})\n"
+             f"Rankable now: {quality.rankable_symbols} "
+             f"({quality.leaders_fresh}/{quality.leader_symbols} leaders fresh)\n"
+             f"Market: {market.get('status', 'UNKNOWN')}\n"
+             f"Market context: {market.get('reason', 'unavailable')}\n"
+             "Reason: no actionable ICT/SMC setup with structural risk and 2% target room.\n"
+             f"Source: {quality.source}")
+    if gate_tally:
+        lines += "\nWhy nothing passed, measured per gate:\n"
+        lines += "\n".join(f"  {line}" for line in gate_tally_lines(gate_tally))
+    return lines
 
 
 def scan_blocked_message(quality: QualityReport) -> str:

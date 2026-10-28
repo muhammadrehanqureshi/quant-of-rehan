@@ -36,6 +36,7 @@ from __future__ import annotations
 import contextlib
 import io
 import json
+import os
 import sys
 import tempfile
 import unittest
@@ -559,6 +560,81 @@ class PipelineCycleTest(unittest.TestCase):
         self.assertFalse(self.state_path.exists())
         self.assertEqual(self.relay.calls, [])
         self.assert_real_forward_untouched()
+
+    def test_the_slot_verdict_email_carries_the_full_detail_once(self):
+        """Owner order 2026-10-28: the scheduled slot emails the FULL verdict.
+
+        The email is the decision's whole ledger, not a headline: verdict,
+        reason, coverage, market, the ranked candidates and the per-gate
+        rejection counts that say why nothing or something passed. The slot
+        marker (slot-verdict:<day>:<slot>) keeps a second fire from sending
+        the same slot twice through the owner email channel's own ledger.
+        """
+        with contextlib.redirect_stdout(io.StringIO()):
+            payload = run_scan("10:00", self.capture)
+
+        self.assertTrue(payload.get("gate_tally"),
+                        "the payload named no gate rejections"
+                        " -- the why was not measured")
+        text = pipeline.slot_verdict_text(payload)
+        self.assertIn(f"SLOT VERDICT {FRIDAY.isoformat()} 10:00 PKT", text)
+        self.assertIn("Ranked top candidates that DID pass every gate", text)
+        self.assertIn("Every gate and how many symbols each one rejected", text)
+        self.assertIn("Trade state:", text)
+
+        with patch.dict(os.environ, {**os.environ,
+                                     "EMAIL_SLOT_VERDICTS": "1"}), \
+                patch.object(pipeline, "email_signal") as mail:
+            pipeline.slot_email(payload)
+        self.assertEqual(mail.call_count, 1)
+        marker = mail.call_args[0][1]
+        self.assertEqual(marker, f"slot-verdict:{FRIDAY.isoformat()}:10:00")
+
+    def test_the_slot_email_stays_silent_without_the_env(self):
+        """Only the scheduled Actions slots email; the PC and band loop do not."""
+        saved = os.environ.pop("EMAIL_SLOT_VERDICTS", None)
+        try:
+            with patch.object(pipeline, "email_signal") as mail:
+                pipeline.slot_email({"date": FRIDAY.isoformat(), "slot": "10:00"})
+            mail.assert_not_called()
+        finally:
+            if saved is not None:
+                os.environ["EMAIL_SLOT_VERDICTS"] = saved
+
+    def test_the_research_archive_only_receives_changed_verdicts(self):
+        """Restating one unchanged verdict spent the relay's KV daily quota.
+
+        On 2026-10-27 the per-cycle observation POSTs consumed the free plan's
+        writes and the day's archive stopped at 11:31 with the session live.
+        The verdict essence (status, reason, the measured counts, the ranked
+        list, the trade state) must change before anything is POSTed again;
+        the scan clock alone must never buy a write.
+        """
+        with contextlib.redirect_stdout(io.StringIO()):
+            first = run_scan("10:00", self.capture)      # TRADE: archived
+            second = run_scan("10:15", self.capture)     # target hit: changed
+
+        self.assertEqual(first["status"], scanner.TRADE)
+        self.assertEqual(second["trade_state"]["target_hit"], True)
+        posted = self.relay.routes().count("/research/observation")
+        self.assertGreaterEqual(posted, 2)
+
+        # 11:30 prices the day's last bars in once (the scanner measuring a
+        # settled session IS a data change, which the archive should store);
+        # 14:40 then sees the exact same session, the same done trade, the
+        # same ranked list and the same settled market as 11:30, so ONLY the
+        # clock moved and the archive must not be restated. (Friday's midday
+        # break runs 12:00-14:32, so 14:30 would be refused.)
+        with contextlib.redirect_stdout(io.StringIO()):
+            run_scan("11:30", self.capture)
+            settled = self.relay.routes().count("/research/observation")
+            self.assertGreaterEqual(
+                settled, posted,
+                "the settled scan never reached the archive at all")
+            run_scan("14:40", self.capture)
+        self.assertEqual(
+            self.relay.routes().count("/research/observation"), settled,
+            "an unchanged verdict was restated to the KV archive")
 
 
 class TapeBarCycleTest(PipelineCycleTest):
