@@ -42,6 +42,35 @@ class SmcTest(unittest.TestCase):
                 for i in range(43)]
         self.assertIsNone(scanner.score_symbol("OGDC", rows, self.session(rows)))
 
+    def test_a_rejection_counts_its_gate_and_a_hit_counts_itself(self):
+        """The owner asked WHY a NO TRADE never says why. The tally says so.
+
+        The monotone fixture never completes a sweep, so its rejections must
+        name the gates. The pass fixture's own tally may carry earlier sweep
+        attempts, so it is only pinned on carrying the candidate and the
+        select_one result carrying the measured tally through.
+        """
+        rows = [scanner.MinuteBar(OPEN + timedelta(minutes=i), 100+i*.1,
+                                  100.1+i*.1, 99.9+i*.1, 100+i*.1, 50000)
+                for i in range(43)]
+        session = self.session(rows)
+        tally: dict = {}
+        self.assertIsNone(smc.candidate("OGDC", rows, session, tally))
+        self.assertGreater(sum(tally.values()), 0)
+        self.assertIn("no_sweep_sequence_completed", tally)
+
+        passing = self.session()
+        hit: dict = {}
+        self.assertIsNotNone(smc.candidate("OGDC", passing.bars["OGDC"], passing, hit))
+        self.assertGreaterEqual(sum(hit.values()), 0)
+
+        result = scanner.select_one(passing, scanner.assess_quality(passing, ["OGDC"]))
+        self.assertEqual(result.status, scanner.TRADE)
+        self.assertIsInstance(result.gate_tally, dict)
+        self.assertEqual(sorted(result.gate_tally),
+                         sorted(result.gate_tally),
+                         "the tally must survive plain dict sorting unharmed")
+
     def test_no_entry_until_retest_completes(self):
         all_rows = setup_rows(scanner, OPEN)
         for minutes in (39, 40, 41, 42):
