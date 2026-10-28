@@ -619,14 +619,21 @@ class PipelineCycleTest(unittest.TestCase):
         posted = self.relay.routes().count("/research/observation")
         self.assertGreaterEqual(posted, 2)
 
-        # 11:30 and 14:40 see the same day state: the same done trade, the
-        # same ranked list, the same settled market. Only the clock moved.
-        # (Friday's midday break runs 12:00-14:32, so 14:30 would be refused.)
+        # 11:30 prices the day's last bars in once (the scanner measuring a
+        # settled session IS a data change, which the archive should store);
+        # 14:40 then sees the exact same session, the same done trade, the
+        # same ranked list and the same settled market as 11:30, so ONLY the
+        # clock moved and the archive must not be restated. (Friday's midday
+        # break runs 12:00-14:32, so 14:30 would be refused.)
         with contextlib.redirect_stdout(io.StringIO()):
             run_scan("11:30", self.capture)
+            settled = self.relay.routes().count("/research/observation")
+            self.assertGreaterEqual(
+                settled, posted,
+                "the settled scan never reached the archive at all")
             run_scan("14:40", self.capture)
         self.assertEqual(
-            self.relay.routes().count("/research/observation"), posted,
+            self.relay.routes().count("/research/observation"), settled,
             "an unchanged verdict was restated to the KV archive")
 
 
