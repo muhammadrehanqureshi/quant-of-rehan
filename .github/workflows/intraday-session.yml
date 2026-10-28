@@ -86,6 +86,13 @@ jobs:
       # scan_loop's passenger. github.token is the workflow's own
       # token; `issues: write` above is already granted.
       GITHUB_TOKEN: ${{ github.token }}
+      # Owner defect found 2026-10-28: the loop ran every cycle with "no relay
+      # URL configured": src/data/live_card.py (and every other strict
+      # resolver) refuses without RELAY_URL, neither a local fallback
+      # data/relay_url.txt nor an env var that ever exists on a fresh runner.
+      # The URL is public and hardcoded as RELAY_DEFAULT elsewhere; set it so
+      # the card, the signals and the research archive push from Actions.
+      RELAY_URL: "https://quant-of-rehan-relay.mrmrehanqureshi.workers.dev"
       # The market event emails are the loop's passenger now (owner order
       # 2026-10-23): the phase edges it already decides each second email
       # the owner through the watched issue, so a GitHub cron stall can

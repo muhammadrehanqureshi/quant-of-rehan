@@ -77,6 +77,11 @@ jobs:
     timeout-minutes: 10
     env:
       RELAY_ADMIN_TOKEN: ${{ secrets.RELAY_ADMIN_TOKEN }}
+      # Owner defect found 2026-10-28: the scheduled relay URL, for every
+      # module that resolves it strictly (src/data/live_card.py refuses
+      # without it, and scripts/intraday_pipeline.py's own fallback should
+      # not be the only reason pushes work). The URL is public.
+      RELAY_URL: "https://quant-of-rehan-relay.mrmrehanqureshi.workers.dev"
       # Band-state persistence (src/data/band_state.py): a captured tape and
       # the day's state survive the runner in R2 under the same two repo
       # secrets the relay deploy already uses.

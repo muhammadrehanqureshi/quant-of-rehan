@@ -210,6 +210,17 @@ def build_capture(path: Path, symbols: list[str], minutes: int = 60) -> Path:
 
 def build_tape(path: Path, symbols: list[str], minutes: int = 60) -> Path:
     """Four prints per minute reproduce real OHLC, not venue daily highs."""
+    return build_tape_window(path, symbols, OPEN_AT, minutes)
+
+
+def build_tape_window(path: Path, symbols: list[str], start: datetime,
+                      minutes: int) -> Path:
+    """The same tape shape, banked over an ARBITRARY minute window.
+
+    On-time captures start at the open; a fire GitHub delivered late banked
+    only its own late minutes, and that shape is what the late-fire tests are
+    about (owner defect 2026-10-28: slot label 11:30, tape starting 11:50).
+    """
     with path.open("w", encoding="utf-8") as handle:
         for symbol in symbols:
             total = 0
@@ -218,7 +229,7 @@ def build_tape(path: Path, symbols: list[str], minutes: int = 60) -> Path:
                                            else (100, 100.01, 99.99, 100, 5000))
                 for second, price in zip((0, 10, 20, 50), (op, hi, lo, close)):
                     total += volume // 4
-                    stamp = OPEN_AT + timedelta(minutes=minute, seconds=second)
+                    stamp = start + timedelta(minutes=minute, seconds=second)
                     handle.write(json.dumps({"kind": "MKT-FEED|SUB%", "ts": stamp.isoformat(),
                         "ticks": [{"scrip": f"{symbol}:REG", "last": str(price),
                                    "volume": str(total), "tick_time": stamp.strftime("%H:%M:%S"),
@@ -612,7 +623,7 @@ class PipelineCycleTest(unittest.TestCase):
         """
         with contextlib.redirect_stdout(io.StringIO()):
             first = run_scan("10:00", self.capture)      # TRADE: archived
-            second = run_scan("10:15", self.capture)     # target hit: changed
+            second = run_scan("10:15", self.capture)     # target hit: changed
 
         self.assertEqual(first["status"], scanner.TRADE)
         self.assertEqual(second["trade_state"]["target_hit"], True)
@@ -747,6 +758,162 @@ class ForwardGuardTest(unittest.TestCase):
     def test_an_unchanged_directory_passes(self):
         snapshot = {"observation.json": self.observation(self.LIVE, "10:40")}
         assert_forward_untouched(snapshot, dict(snapshot), self.SYNTHETIC)
+
+
+class DecisionTimeTest(unittest.TestCase):
+    """The decision time comes from the tape the capture actually holds.
+
+    Owner defect 2026-10-28: GitHub delivered the 11:37 cron at about 11:50,
+    the slot's own capture started at 11:50, and the scan read "as of 11:30"
+    - a time the tape knows nothing about - so it reported 0/317 DATA BLOCKED
+    out of a scheduling fact. These tests hold the rule in place: a scan
+    decides at its scheduled slot whenever the tape can speak for it (a
+    replay never changes), and only a capture whose first bar is AFTER the
+    slot takes the tape's newest completed minute instead.
+    """
+
+    FRIDAY = date(2026, 10, 9)
+
+    def _session(self, stamps: list[datetime]) -> scanner.SessionData:
+        return scanner.SessionData(
+            day=self.FRIDAY,
+            as_of=max(stamps) if stamps else datetime(2026, 10, 9, 12, 0,
+                                                      tzinfo=KARACHI),
+            bars={"OGDC": [scanner.MinuteBar(
+                timestamp=ts, open=100.0, high=100.01, low=99.99,
+                close=100.0, volume=500) for ts in stamps]},
+            volume_available=True, source="test",
+            notes=(), bars_seen=len(stamps), bars_rejected=0,
+            duplicate_bars=0,
+        )
+
+    def test_a_tape_that_knows_the_slot_decides_at_the_slot(self):
+        stamps = [datetime(2026, 10, 9, 11, m, tzinfo=KARACHI)
+                  for m in range(25, 30)]
+        moment = datetime(2026, 10, 9, 11, 31, tzinfo=KARACHI)
+        as_of, basis = pipeline.decision_time("11:30", self.FRIDAY,
+                                              self._session(stamps), moment)
+        self.assertEqual((as_of, basis),
+                         (datetime(2026, 10, 9, 11, 30, tzinfo=KARACHI),
+                          "scheduled_slot"))
+
+    def test_a_late_fire_takes_the_tape_newest_completed_minute(self):
+        # The tape starts at 11:50; the slot label 11:30 predates its own tape.
+        stamps = [datetime(2026, 10, 9, 11, m, tzinfo=KARACHI)
+                  for m in range(50, 56)]
+        moment = datetime(2026, 10, 9, 11, 56, tzinfo=KARACHI)
+        as_of, basis = pipeline.decision_time("11:30", self.FRIDAY,
+                                              self._session(stamps), moment)
+        # The 11:55 minute has completed by 11:56.
+        self.assertEqual((as_of, basis),
+                         (datetime(2026, 10, 9, 11, 56, tzinfo=KARACHI),
+                          "tape_newest_bar"))
+
+    def test_the_derived_minute_is_capped_at_the_real_clock(self):
+        # The 11:50 minute only completes at 11:51; before that the capture
+        # holds nothing completed, and the scan stays on its scheduled slot.
+        stamps = [datetime(2026, 10, 9, 11, 50, tzinfo=KARACHI)]
+        early = datetime(2026, 10, 9, 11, 50, 30, tzinfo=KARACHI)
+        as_of, basis = pipeline.decision_time("11:30", self.FRIDAY,
+                                              self._session(stamps), early)
+        self.assertEqual((as_of, basis),
+                         (datetime(2026, 10, 9, 11, 30, tzinfo=KARACHI),
+                          "scheduled_slot"))
+        moment = datetime(2026, 10, 9, 11, 51, tzinfo=KARACHI)
+        as_of, basis = pipeline.decision_time("11:30", self.FRIDAY,
+                                              self._session(stamps), moment)
+        self.assertEqual((as_of, basis), (moment, "tape_newest_bar"))
+
+    def test_the_derived_minute_is_capped_at_the_band_close(self):
+        # Friday band 1 closes at 12:00: a fire delivered after the close may
+        # not dress a post-market scan up as an in-band verdict. The tape
+        # still holds minutes past the close; the decision stays at the close.
+        stamps = [datetime(2026, 10, 9, 11, m, tzinfo=KARACHI)
+                  for m in range(50, 60)] + \
+                  [datetime(2026, 10, 9, 12, m, tzinfo=KARACHI) for m in range(4)]
+        moment = datetime(2026, 10, 9, 12, 10, tzinfo=KARACHI)
+        as_of, basis = pipeline.decision_time("11:30", self.FRIDAY,
+                                              self._session(stamps), moment)
+        self.assertEqual((as_of, basis),
+                         (datetime(2026, 10, 9, 12, 0, tzinfo=KARACHI),
+                          "tape_newest_bar"))
+
+    def test_an_empty_capture_stays_on_the_scheduled_slot(self):
+        moment = datetime(2026, 10, 9, 11, 31, tzinfo=KARACHI)
+        as_of, basis = pipeline.decision_time("11:30", self.FRIDAY,
+                                              self._session([]), moment)
+        self.assertEqual(basis, "scheduled_slot")
+
+
+class LateFireScanTest(unittest.TestCase):
+    """The scheduled 11:30 slot, delivered late, scans the tape it banked.
+
+    Yesterday's fix for this shape was DATA BLOCKED 0/317 because the slot
+    label existed before the tape; the honest scan reads the real minutes and
+    reports the verdict OFF THOSE MINUTES, with the slot label untouched (it
+    is the exactly-once email marker, not a data claim).
+    """
+
+    # A fixed late-fire instant: the 11:37 cron arrived at 11:56, the tape
+    # was banked 11:50-11:56 (27 bars), and the scan ran right after.
+    LATE_NOW = datetime(2026, 10, 9, 11, 56, tzinfo=KARACHI)
+
+    @staticmethod
+    def symbols() -> list[str]:
+        universe = json.loads((ROOT / "src" / "data" / "universe_kmiall.json")
+                              .read_text(encoding="utf-8"))
+        return [row["symbol"].strip().upper() for row in universe]
+
+    def setUp(self) -> None:
+        self._dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self._dir.cleanup)
+        root = Path(self._dir.name)
+        self.capture = build_tape_window(root / "late_tape.ndjson",
+                                         self.symbols(),
+                                         datetime(2026, 10, 9, 11, 50,
+                                                  tzinfo=KARACHI), 6)
+        state_patcher = patch.object(trade_state, "ROOT", root)
+        state_patcher.start()
+        self.addCleanup(state_patcher.stop)
+        relay_patcher = patch.object(pipeline, "relay_request", RelayRecorder())
+        relay_patcher.start()
+        self.addCleanup(relay_patcher.stop)
+        history_patcher = patch.object(
+            session_history, "_relay_records",
+            lambda timeout_s=20.0: ([], "stubbed: a unit test never dials "
+                                        "the relay archive"))
+        history_patcher.start()
+        self.addCleanup(history_patcher.stop)
+        clock_patcher = patch.object(pipeline, "now_karachi", lambda: self.LATE_NOW)
+        clock_patcher.start()
+        self.addCleanup(clock_patcher.stop)
+
+    def test_the_late_slot_scans_its_own_tape(self):
+        with contextlib.redirect_stdout(io.StringIO()):
+            payload = run_scan("11:30", self.capture)
+        quality = payload.get("data_quality") or {}
+        self.assertEqual(payload.get("as_of_basis"), "tape_newest_bar")
+        self.assertEqual(
+            payload.get("as_of"),
+            datetime(2026, 10, 9, 11, 56, tzinfo=KARACHI).isoformat(),
+            "as_of must be the tape's own newest completed minute")
+        self.assertGreater(quality.get("symbols_with_bars", 0), 0,
+                           "a late fire reads its tape; never 0/317 out of "
+                           "a scheduling fact")
+        self.assertEqual(payload.get("slot"), "11:30",
+                         "the slot label stays the exactly-once marker")
+
+    def test_the_on_time_slot_still_decides_at_the_scheduled_minute(self):
+        # The normal path is untouched: a tape that holds the slot's minutes
+        # decides AT the slot, exactly as a replay must.
+        capture = build_tape(Path(self._dir.name) / "on_time_tape.ndjson",
+                             self.symbols(), minutes=50)
+        with contextlib.redirect_stdout(io.StringIO()):
+            payload = run_scan("10:00", capture)
+        self.assertEqual(payload.get("as_of_basis"), "scheduled_slot")
+        self.assertEqual(
+            payload.get("as_of"),
+            datetime(2026, 10, 9, 10, 0, tzinfo=KARACHI).isoformat())
 
 
 if __name__ == "__main__":
