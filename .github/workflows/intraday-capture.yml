@@ -82,6 +82,11 @@ jobs:
       KMIALL_UNIVERSE_CONFIRMED: ${{ vars.KMIALL_UNIVERSE_CONFIRMED }}
       PAPER_TRADING_ENABLED: "true"
       LIVE_TRADING_ENABLED: "false"
+      # Owner order 2026-10-28: every scheduled slot emails the FULL verdict, on
+      # time, exactly once (src/notify/owner_email.py marks
+      # slot-verdict:<day>:<slot>; a second fire or a manual dispatch cannot
+      # double-send the same slot). Only this workflow sets it.
+      EMAIL_SLOT_VERDICTS: "1"
     steps:
       - uses: actions/checkout@v7
 
