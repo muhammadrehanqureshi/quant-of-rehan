@@ -1738,8 +1738,8 @@ class VersionTest(unittest.TestCase):
         # one mesh remains, so no line can end at a dot no other thread
         # carries on from.
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="2.3.18"', manifest)
-        self.assertIn('android:versionCode="85"', manifest)
+        self.assertIn('android:versionName="2.3.19"', manifest)
+        self.assertIn('android:versionCode="86"', manifest)
         # The changelog entry ties these user-visible changes to the build.
         readme = (ROOT / "android" / "README.md").read_text(encoding="utf-8")
         self.assertIn("v1.7.9, owner order 2026-10-20", readme)
@@ -1833,9 +1833,18 @@ class VersionTest(unittest.TestCase):
         # the cloud's mesh made whole by the shortest bridge across
         # every two parts, versionCode 85.
         self.assertIn("Version 2.3.18, versionCode 85", readme)
+        # v2.3.19 (owner order 2026-10-28, twenty-third pass): the sun
+        # drawn BETWEEN the cloud's two depth halves so the star stands
+        # inside the revolving lines, every orphan node tied into the
+        # one mesh so no filament ends at an unlinked dot, the menu
+        # reveal walks its page scroll to the opened menu (no window
+        # over the fold), and the search menus' quote tail carries the
+        # comma after B, the ampersand before T and the arrows, not
+        # plus and minus, versionCode 86.
+        self.assertIn("Version 2.3.19, versionCode 86", readme)
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionCode="85"', manifest)
-        self.assertIn('android:versionName="2.3.18"', manifest)
+        self.assertIn('android:versionCode="86"', manifest)
+        self.assertIn('android:versionName="2.3.19"', manifest)
         layout = LAYOUT.read_text(encoding="utf-8")
         strings = STRINGS.read_text(encoding="utf-8")
         main = MAIN.read_text(encoding="utf-8")
@@ -2955,17 +2964,26 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         self.assertIn("float toward = clamp((depth[n] - 1f) / 0.6f, 0f, 1f);",
                       orb)
         self.assertIn("int o = n * NODE_STRIDE;", orb)
-        # The cloud draws FIRST, the sun after it: the organism reads as
-        # circling its star. v2.2.3: the call order in drawScene is the
-        # pin - the photo sun's own build sits between these methods, so
-        # the definition order is no longer the draw order.
-        self.assertIn("drawCloud(canvas, seconds, wake);", orb)
+        # v2.3.19 (owner order 2026-10-28, "the SUN looks like it is
+        # outside those revolving LINES ... the SUN should be inside
+        # those LINES"): the cloud is drawn in TWO DEPTH HALVES around
+        # the sun - the pose projected ONCE, then the behind half, the
+        # sun, the front half - so the star stands inside the revolving
+        # lines, hiding the threads it holds, the front threads over it.
+        # v2.2.3: the call order in drawScene is the pin - the photo
+        # sun's own build sits between these methods, so the definition
+        # order is no longer the draw order.
+        self.assertIn("projectCloud(seconds);", orb)
+        self.assertIn("drawCloud(canvas, seconds, wake, true);", orb)
+        self.assertIn("drawCloud(canvas, seconds, wake, false);", orb)
         self.assertIn("drawSun(canvas, seconds, wake);", orb)
         scene_index = orb.index("private void drawScene(")
-        scene = orb[scene_index:scene_index + 700]
-        self.assertIn("drawCloud(canvas, seconds, wake);", scene)
-        self.assertLess(scene.index("drawCloud(canvas, seconds, wake);"),
-                        scene.index("drawSun(canvas, seconds, wake);"))
+        scene = orb[scene_index:scene_index + 900]
+        behind = scene.index("drawCloud(canvas, seconds, wake, true);")
+        sun = scene.index("drawSun(canvas, seconds, wake);")
+        front = scene.index("drawCloud(canvas, seconds, wake, false);")
+        self.assertLess(behind, sun)
+        self.assertLess(sun, front)
         # The wake ramp is the v1.8.9 number, so the organism grows out of
         # the dark instead of popping in.
         self.assertIn("WAKE_SECONDS = 4f", orb)
@@ -3464,6 +3482,19 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         self.assertIn("while (linkCount < linkBudget()) {", orb)
         # The bridge carries the mesh's own phase law, no two in step.
         self.assertIn("linkPhase[linkCount] = 2.39996f * linkCount;", orb)
+        # v2.3.19 (owner order 2026-10-28, "some of the dots are still not
+        # connected... the line is just ending with a dot"): the ONE mesh
+        # could still carry a leaf whose single filament ended there.
+        # The TWIN-FILAMENT law holds now: dots under degree 2 join their
+        # nearest thread-free neighbour until every dot wears two at
+        # least, so nothing ends at a dot.
+        self.assertIn("int[] degree = new int[NODES];", orb)
+        self.assertIn("if (degree[i] < 2) {", orb)
+        self.assertIn("break;                       // no dot ends a line dead.",
+                      orb)
+        # One mesh, one budget still: the twin joins run inside the same
+        # linkBudget() the four arrays were sized on.
+        self.assertIn("linkCount < linkBudget()", orb)
 
     def test_v2_3_15_the_anchors_walk_an_even_path_and_the_mesh_is_a_neighbourhood(self):
         """Owner order 2026-10-27, eighteenth pass, on the v2.3.14
@@ -3521,9 +3552,10 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         self.assertIn("linked[i * NODES + nearest] = true;", orb)
         self.assertIn("linked[nearest * NODES + i] = true;", orb)
         # The link budget the arrays are sized on is unchanged in law;
-        # v2.3.18's whole-mesh bridge pass rides inside the same budget
-        # (its own while guard is the added seventh read).
-        self.assertEqual(orb.count("linkBudget()"), 7)
+        # v2.3.18's whole-mesh bridge pass and v2.3.19's twin-filament
+        # pass both ride inside the same budget (their own guard reads
+        # are the seventh and eighth reads).
+        self.assertEqual(orb.count("linkBudget()"), 8)
         # The orphan law stands.
         self.assertIn("boolean[] joined = new boolean[NODES];", orb)
         self.assertIn("linkDist[linkCount] = nearestDist;", orb)
@@ -3684,13 +3716,16 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         self.assertIn("private static final int ERUPTIONS = 7;", orb)
         self.assertNotIn("drawErupt", orb)
         self.assertNotIn("eruptPaint", orb)
-        # One scene, two draws: the cloud, then its sun.
+        # One scene, v2.3.19's three draws: the behind half, the sun, and
+        # the front half - one pose projected once, nothing else. The
+        # four canvas reads are the signature and the three calls; the
+        # behind/sun/front ORDER is pinned by the depth-halves law above.
         scene = orb[orb.index("private void drawScene("):
                     orb.index("private void drawSun(")]
-        self.assertIn("drawCloud(canvas, seconds, wake);", scene)
-        self.assertIn("drawSun(canvas, seconds, wake);", scene)
-        self.assertEqual(scene.count("canvas"), 3,
-                         "drawScene draws the cloud and the sun, nothing else")
+        self.assertIn("projectCloud(seconds);", scene)
+        self.assertEqual(scene.count("canvas"), 4,
+                         "drawScene draws the cloud's halves and the sun, "
+                         "nothing else")
         # The cloud and its laws stand: the rays he exempted are these.
         self.assertIn("float linkAt = 0.42f;", orb)
         self.assertIn("private void drawCloud(", orb)
