@@ -895,16 +895,27 @@ public final class Watcher {
                     // price and percentage onto this same line every tick,
                     // so the copy that lived here was the second print of
                     // the same numbers and is retired.
-                    sb.append("  (B=");
+                    //
+                    // v2.3.19 owner order ("in the search box, there should
+                    // be , after B and & after S" and "In the search results
+                    // I think there are double spacing, so you remove
+                    // that"): the separators are the leaders card's own now.
+                    // One space after the symbol, a comma after the B digits,
+                    // an ampersand after the S digits, each group held by ONE
+                    // space - never the double spaces the line carried
+                    // before, which read as a broken bracket and printed the
+                    // search answer with gaps the card's own shape never
+                    // has.
+                    sb.append(" (B=");
                     int buyFrom = sb.length();
                     sb.append(String.format(java.util.Locale.US, "%,.0f", buy));
                     int buyTo = sb.length();
-                    sb.append("  S=");
+                    sb.append(", S=");
                     int sellFrom = sb.length();
                     sb.append(String.format(java.util.Locale.US, "%,.0f", sell));
                     int sellTo = sb.length();
                     if (total != null) {
-                        sb.append(String.format(java.util.Locale.US, "  T=%,.0f", total));
+                        sb.append(String.format(java.util.Locale.US, " & T=%,.0f", total));
                     }
                     sb.append(')');
                     styled = new android.text.SpannableString(sb);
@@ -913,7 +924,7 @@ public final class Watcher {
                     styled.setSpan(new android.text.style.ForegroundColorSpan(
                             c.getColor(R.color.red)), sellFrom, sellTo, 0);
                 } else if (total != null) {
-                    sb.append(String.format(java.util.Locale.US, "  (T=%,.0f)", total));
+                    sb.append(String.format(java.util.Locale.US, " (T=%,.0f)", total));
                     styled = new android.text.SpannableString(sb);
                 } else {
                     styled = new android.text.SpannableString(sb);

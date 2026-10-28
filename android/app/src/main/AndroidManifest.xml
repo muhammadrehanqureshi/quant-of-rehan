@@ -271,11 +271,33 @@
      joins, and the shortest pair across two parts joins until one
      mesh remains, so no filament can any longer end at a dot no
      other thread carries on from.
+
+     versionCode 86 / versionName 2.3.19 belong to the owner's orders
+     of 2026-10-28 ("Some of the dots are still not connected with
+     the other lines", "the SUN should be inside those LINES", "the
+     drop down should appear from that same box ... for custom scrips
+     of volume and for themes as well", "in the search box, there
+     should be , after B and & after S", "there should be up or down
+     sign for percentage for search box", "the drop down and search
+     boxes get so mixed with the colour theme that I can't even see
+     the separate tile for them", "the box and drop down stays
+     purple ... it always shows purple and yellow", and "In the
+     search results I think there are double spacing, so you remove
+     that"): every dot wears TWO filaments at least, so no line
+     visually ends at its dot; the cloud is drawn in two depth halves
+     around the sun - behind, sun, front - so the star stands INSIDE
+     the revolving lines; an opened menu walks the scroll to its box
+     so it reads as pulled from the box itself; the search answer
+     prints the leaders card's own (B=..., S=... & T=...), the row
+     tracking is one body line, and percentages carry the UP/DOWN
+     arrows; and every theme's field boxes and dropdowns carry their
+     own field ink off the tile, including the theme box itself,
+     which is no longer exempt from the repaint.
      -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="pk.quantofrehan"
-    android:versionCode="85"
-    android:versionName="2.3.18">
+    android:versionCode="86"
+    android:versionName="2.3.19">
 
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="30"/>
 

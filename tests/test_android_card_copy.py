@@ -155,11 +155,14 @@ class SearchPanelPaddingTest(unittest.TestCase):
 
 
     def test_the_price_and_percentage_keep_one_space(self):
-        # v1.8.5 (owner 14:51): the pinned answer's money tail has exactly
-        # one space between the price and the percentage, never two.
-        occurrences = self.main.count('" PKR %,.2f %+.2f%%"')
+        # v1.8.5 (owner 14:51): the pinned answer's money tail opens with
+        # ONE space before its price, never two. v2.3.19 (owner order
+        # 2026-10-28): the percentage itself moved onto the arrows, so
+        # the drawn sign is also retired from the format strings.
+        occurrences = self.main.count('" PKR %,.2f"')
         self.assertEqual(occurrences, 2, occurrences)
-        self.assertNotIn('" PKR %,.2f  %+.2f%%"', self.main)
+        self.assertNotIn('" PKR %,.2f  ', self.main)
+        self.assertNotIn("%+.2f%%", self.main)
 
 
 class LeaderLineTest(unittest.TestCase):

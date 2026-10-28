@@ -1641,6 +1641,62 @@ to sixty seconds. The status tile therefore also carries the app's own
      the orphan law stands so every dot still wears a filament.
   5. The version bump is versionCode 82 / versionName 2.3.15.
 
+**Version 2.3.19, versionCode 86.**
+
+  Owner orders of 2026-10-28, twenty-third pass, on the v2.3.18
+  build: "Some of the dots are still not connected with the other
+  lines. Meaning, the line is just ending with a dot, and that ending
+  dot just doesn't connect with another line. All of the dots and
+  lines should be interconnected.", "Also, the SUN looks like it is
+  outside those revolving LINES. Because when the LINES revolve, the
+  SUN gets in front, whereas the SUN should be inside those LINES.",
+  "when i tap on the drop down box, the drop down should appear from
+  that same box, fix this for custom scrips of volume and for themes
+  as well", "in the search box, there should be , after B and & after
+  S", "there should be up or down sign for percentage for search
+  box", and "In the search results I think there are double spacing,
+  so you remove that". Five answers:
+
+  1. EVERY DOT JOINED TO ANOTHER LINE. v2.3.18's one mesh could
+     still carry a DEAD END: a dot the web had joined on one side
+     only, so its filament ended at a dot no other thread carried
+     on from. Now the union-find remains in code and after the
+     one-mesh bridge, every dot that still wears a single link
+     takes the SHORTEST second link to any dot its one link does
+     not already reach, so no line begins or ends at a dot: ends
+     are now only where a thread meets another line, which is what
+     interconnected means.
+  2. THE SUN INSIDE THE LINES. drawScene drew the disc AFTER the
+     whole cloud, so when the lines revolved the sun was always in
+     front of them - outside the mesh to the owner's eye. Now the
+     pose is projected once and the cloud is drawn in TWO DEPTH
+     HALVES around the sun: the behind half, the sun, the front
+     half, so the star stands inside the revolving lines and hides
+     the threads it holds, while the front threads still skim over
+     it and the disc keeps its own breath.
+  3. THE DROPDOWN OPENS FROM ITS OWN BOX. The custom scrips box
+     and the themes box already open their menus INSIDE the page
+     (v2.3.16 retired the platform spinner and its popup window),
+     but a box below the fold drew the menu past the bottom edge,
+     and the fold sat there like a second window over the page.
+     Now every open walks the page's own scroll DOWN to the menu's
+     first row (requestRectangleOnScreen, the scroll's own law),
+     so the menu is never a window: it is the box's own pulled-down
+     face, always under the box that opened it.
+  4. THE SEARCH QUOTE'S OWN PUNCTUATION AND SIGNS. The menus'
+     quote tail reads "(B=1,234, S=567, & T=1,801)" now - the comma
+     after B and the ampersand after S are the owner's marks - and
+     the day move carries the UP and DOWN arrows the leaders card
+     carries, never a + or a - sign: the glyph face holds the
+     arrow, its colour is still the move's green or red.
+  5. THE SEARCH RESULTS' OWN AIR REMOVED. The double spacing in
+     the search rows was one leading space the rows carried plus
+     a second one the tail formatter added; the tail opens with
+     ONE space before the PKR label now, and the same one-space
+     law is pinned on both formatters so the list rows and the
+     pinned detail line cannot tear apart.
+  6. The version bump is versionCode 86 / versionName 2.3.19.
+
 **Version 2.3.18, versionCode 85.**
 
   Owner orders of 2026-10-27, twenty-second pass, on the v2.3.17

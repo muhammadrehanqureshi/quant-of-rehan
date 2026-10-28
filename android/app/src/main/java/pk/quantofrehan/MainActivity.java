@@ -732,10 +732,12 @@ public class MainActivity extends Activity {
      */
     private void applyThemeToInputs(int index) {
         for (View input : themedInputs) {
-            if (input == themeSpinner) continue;
-            // The theme spinner is exempt: as the owner said on
-            // 2026-10-24, it already sits inside the plate it is
-            // choosing. Every other textbox paints its plate.
+            // v2.3.19 (owner order 2026-10-28): the theme spinner is NOT
+            // exempt any more. The v2.2.5 exemption left the closed box
+            // in the purple field ink on every other theme, so the
+            // settings page read "stays purple" even after he chose
+            // black, green, navy or orange. Every field box, including
+            // the one that chooses the look, paints its plate.
             paintField(input, index);
         }
         // v2.3.16: the two inline menus paint the same theme stamps the
@@ -770,6 +772,18 @@ public class MainActivity extends Activity {
         }
     }
 
+    /** The FIELD plate each theme paints (mirrors applyTheme's switch;
+     *  one truth, two readers). */
+    private int fieldResourceFor(int index) {
+        switch (index) {
+            case 1:  return R.color.theme_black_field;
+            case 2:  return R.color.theme_green_field;
+            case 3:  return R.color.theme_navy_field;
+            case 4:  return R.color.theme_orange_field;
+            default: return R.color.field_bg;
+        }
+    }
+
     /** The tile plate each theme paints (mirrors applyTheme's switch;
      *  one truth, two readers). */
     private int panelResourceFor(int index) {
@@ -783,8 +797,14 @@ public class MainActivity extends Activity {
     }
 
     /** One rounded field plate per theme, built once and reused: the
-     *  field law's own corners, 12dp, on the theme's panel ink (the
-     *  plate the closed dropdown row and the search box both wear). */
+     *  field law's own corners, 12dp, on the theme's FIELD ink. v2.3.19
+     *  (owner order 2026-10-28, "the drop down and search boxes get so
+     *  mixed with the colour theme that I can't even see the separate
+     *  tile for them"): the plate is no longer the theme's TILE ink.
+     *  The field ink is its own tone - a step off the panel on every
+     *  theme, as the purple theme's own field_bg always was a step off
+     *  bg_panel - so the closed dropdown box, the themes box and the
+     *  search box read as boxes sitting on their tile, on every theme. */
     private final GradientDrawable[] themeFieldPlates = new GradientDrawable[4];
 
     private GradientDrawable fieldPlate(int index) {
@@ -797,7 +817,7 @@ public class MainActivity extends Activity {
         GradientDrawable cached = themeFieldPlates[index - 1];
         if (cached == null) {
             cached = new GradientDrawable();
-            cached.setColor(getColor(panelResourceFor(index)));
+            cached.setColor(getColor(fieldResourceFor(index)));
             cached.setCornerRadius(dp(12));
             cached.setStroke(1, getColor(R.color.bg_panel_edge));
             themeFieldPlates[index - 1] = cached;
@@ -1251,6 +1271,9 @@ public class MainActivity extends Activity {
         volumeMenuOpen = open;
         if (volumeSplitMenu != null) {
             volumeSplitMenu.setVisibility(open ? View.VISIBLE : View.GONE);
+            if (open) {
+                revealMenu(volumeSplitMenu);
+            }
         }
         rotateDropdownArrow(volumeSplitArrow, open);
         if (open) {
@@ -1263,11 +1286,38 @@ public class MainActivity extends Activity {
         themeMenuOpen = open;
         if (themeMenu != null) {
             themeMenu.setVisibility(open ? View.VISIBLE : View.GONE);
+            if (open) {
+                revealMenu(themeMenu);
+            }
         }
         rotateDropdownArrow(themeArrow, open);
         if (open) {
             showVolumeMenu(false);
         }
+    }
+
+    /**
+     * The menu comes WITH its box (v2.3.19, owner order 2026-10-28: "a
+     * new window/extra window pops up, which is wrong, when i tap on the
+     * drop down box, the drop down should appear from that same box").
+     * The menu already opens from the box, inside the page's own scroll -
+     * but a box near the fold opened its menu past the bottom of the
+     * screen, so the fold sat there as if a separate window had drawn.
+     * The scroll walks DOWN to the menu's first row on every open, so a
+     * box below the fold brings its menu with it and the menu shows as
+     * the box's own pulled-down face, never as an overlapping window.
+     * requestRectangleOnScreen is the scroll's own law: the padding and
+     * the rows already drawn decide the reveal, nothing guessed.
+     */
+    private void revealMenu(android.view.View menu) {
+        android.widget.ScrollView scroller =
+                (android.widget.ScrollView) findViewById(R.id.console_scroll);
+        if (scroller == null) {
+            return;
+        }
+        scroller.post(() -> menu.requestRectangleOnScreen(
+                new android.graphics.Rect(0, 0,
+                        menu.getWidth(), menu.getHeight()), true));
     }
 
     /** One arrow's pull: down while closed, up while open, one flip. */
@@ -2156,16 +2206,33 @@ public class MainActivity extends Activity {
             // A move the relay did not report prints no percentage and
             // takes no colour: only a real sign may turn a row green or
             // red (SO-3). A price without a move is neutral ink.
-            String tail = quote.changePct == null
-                    ? String.format(Locale.US, " PKR %,.2f", quote.price)
-                    : String.format(Locale.US, " PKR %,.2f %+.2f%%",
-                            quote.price, quote.changePct);
-            SpannableString styled = new SpannableString(symbol + tail);
-            styled.setSpan(new ForegroundColorSpan(getColor(quote.changePct == null
-                            ? R.color.text_soft
-                            : quote.changePct >= 0 ? R.color.green_hi : R.color.red)),
-                    symbol.length(), styled.length(), 0);
-            row.setText(styled);
+            //
+            // v2.3.19 (owner order 2026-10-28, "there should be up or
+            // down sign for percentage for search box, right now I see
+            // + & - signs"): the move carries the UP and DOWN arrows the
+            // leaders card and the volume reveal carry, never a + or a -
+            // sign: the glyph face holds the arrow, its colour is the
+            // move's own, and the percentage is the move's magnitude -
+            // the arrow IS the sign.
+            SpannableStringBuilder built = new SpannableStringBuilder(symbol);
+            int tailFrom = built.length();
+            built.append(String.format(Locale.US, " PKR %,.2f", quote.price));
+            int from = built.length();
+            if (quote.changePct != null) {
+                built.append(String.format(Locale.US, " %s %.2f%%",
+                        quote.changePct >= 0 ? "\u25B2" : "\u25BC",
+                        Math.abs(quote.changePct)));
+                built.setSpan(new ForegroundColorSpan(getColor(
+                                quote.changePct >= 0 ? R.color.green_hi
+                                : R.color.red)), from, built.length(), 0);
+                built.setSpan(new TypefaceSpan(ARROW_FACE), from + 1,
+                        from + 2, 0);
+            }
+            if (quote.changePct == null) {
+                built.setSpan(new ForegroundColorSpan(getColor(
+                        R.color.text_soft)), tailFrom, built.length(), 0);
+            }
+            row.setText(built);
         } else {
             row.setText(symbol);
         }
@@ -2173,9 +2240,12 @@ public class MainActivity extends Activity {
         // carries the same 13sp as every other non-heading line, the size the
         // signal tile's own sentence uses. Its tracking is its own, a list of
         // tickers rather than a sentence.
+        // v2.3.19 (owner order 2026-10-28, "In the search results I think
+        // there are double spacing, so you remove that"): the 0.12 letter
+        // spacing is gone - the row is one 13sp body line like every
+        // other line on the console, its symbols read as the body reads.
         row.setTextSize(13f);
         row.setTextColor(getColor(R.color.text_bright));
-        row.setLetterSpacing(0.12f);
         row.setPadding(dp(10), dp(9), dp(10), dp(9));
         // Owner order 2026-10-22 (the search highlight): every row whose
         // symbol STARTS with what is typed lights up while it matches.
@@ -2324,16 +2394,29 @@ public class MainActivity extends Activity {
         android.text.SpannableStringBuilder styled =
                 new android.text.SpannableStringBuilder(
                         selectedBase == null ? "" : selectedBase);
-        String tail = quote.changePct == null
-                ? String.format(Locale.US, " PKR %,.2f", quote.price)
-                : String.format(Locale.US, " PKR %,.2f %+.2f%%",
-                        quote.price, quote.changePct);
+        // v2.3.19 (owner order 2026-10-28, "there should be up or down
+        // sign for percentage for search box"): the pinned line's move
+        // carries the UP and DOWN arrows the leaders card carries, never
+        // a + or a - sign, and the number is the move's magnitude - the
+        // arrow IS the sign.
         int from = styled.length();
-        styled.append(tail);
-        styled.setSpan(new ForegroundColorSpan(getColor(quote.changePct == null
-                        ? R.color.text_soft
-                        : quote.changePct >= 0 ? R.color.green_hi : R.color.red)),
-                from, styled.length(), 0);
+        styled.append(String.format(Locale.US, " PKR %,.2f", quote.price));
+        if (quote.changePct != null) {
+            int moveFrom = styled.length();
+            styled.append(String.format(Locale.US, " %s %.2f%%",
+                    quote.changePct >= 0 ? "\u25B2" : "\u25BC",
+                    Math.abs(quote.changePct)));
+            styled.setSpan(new ForegroundColorSpan(getColor(
+                            quote.changePct >= 0 ? R.color.green_hi
+                            : R.color.red)),
+                    moveFrom, styled.length(), 0);
+            styled.setSpan(new TypefaceSpan(ARROW_FACE), moveFrom + 1,
+                    moveFrom + 2, 0);
+        }
+        if (quote.changePct == null) {
+            styled.setSpan(new ForegroundColorSpan(getColor(
+                    R.color.text_soft)), from, styled.length(), 0);
+        }
         searchStatus.setText(styled);
     }
 
