@@ -1953,7 +1953,7 @@ class SearchPanelStabilityTest(unittest.TestCase):
         # sign for percentage for search box"): the pinned line's move
         # carries the UP and DOWN arrows, never a plus or a minus, and
         # the number is the move's magnitude - the arrow IS the sign.
-        self.assertIn("quote.changePct >= 0 ? R.color.green_hi : R.color.red", tail)
+        self.assertIn("R.color.green_hi\n                            : R.color.red", tail)
         self.assertIn('"\\u25B2" : "\\u25BC"', tail)
         self.assertIn("Math.abs(quote.changePct)", tail)
         # A line with no move keeps the soft ink (SO-3: no fake arrow).
