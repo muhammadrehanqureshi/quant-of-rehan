@@ -833,6 +833,70 @@ public class ThinkingOrb extends View {
             linkPhase[linkCount] = 2.39996f * linkCount;
             linkCount++;
         }
+        // Owner order 2026-10-28, v2.3.19 ("Some of the dots are still not
+        // connected with the other lines. Meaning, the line is just ending
+        // with a dot, and that ending dot just doesn't connect with
+        // another line. All of the dots and lines should be
+        // interconnected"): a one-web mesh can still carry a DEAD END. A
+        // dot wearing only ONE filament is a leaf: the thread running
+        // into it visually stops at that dot, and no other line carries
+        // on from it. The TWIN-FILAMENT law now holds: any dot whose
+        // degree is under 2 joins its nearest thread-free neighbour,
+        // pairwise once, until every dot wears two at least - so at
+        // every dot at least two lines meet and nothing ends at a dot.
+        // The two runs are one example: a bridge joins islands without
+        // removing their leaves, and a leaf's own neighbourhood join
+        // spent the pairs it could have doubled. The bound holds: at
+        // most 105 twin joins beyond the passes above, still far under
+        // the 651 the arrays are sized on.
+        int[] degree = new int[NODES];
+        for (int l = 0; l < linkCount; l++) {
+            degree[linkA[l]]++;
+            degree[linkB[l]]++;
+        }
+        for (int pass = 0; pass <= NODES && linkCount < linkBudget();
+                pass++) {
+            int tip = -1;
+            for (int i = 0; i < NODES; i++) {
+                if (degree[i] < 2) {
+                    tip = i;
+                    break;
+                }
+            }
+            if (tip < 0) {
+                break;                       // no dot ends a line dead.
+            }
+            int mate = -1;
+            float mateDist = Float.MAX_VALUE;
+            for (int j = 0; j < NODES; j++) {
+                if (j == tip || linked[tip * NODES + j]) {
+                    continue;
+                }
+                float dx = cloud[tip * NODE_STRIDE]
+                        - cloud[j * NODE_STRIDE];
+                float dy = cloud[tip * NODE_STRIDE + 1]
+                        - cloud[j * NODE_STRIDE + 1];
+                float dz = cloud[tip * NODE_STRIDE + 2]
+                        - cloud[j * NODE_STRIDE + 2];
+                float dist = (float) Math.sqrt(dx * dx + dy * dy + dz * dz);
+                if (dist < mateDist) {
+                    mateDist = dist;
+                    mate = j;
+                }
+            }
+            if (mate < 0) {
+                break;                       // no thread-free pair left.
+            }
+            linked[tip * NODES + mate] = true;
+            linked[mate * NODES + tip] = true;
+            linkA[linkCount] = tip;
+            linkB[linkCount] = mate;
+            linkDist[linkCount] = mateDist;
+            linkPhase[linkCount] = 2.39996f * linkCount;
+            linkCount++;
+            degree[tip]++;
+            degree[mate]++;
+        }
     }
 
     /** The mesh's union-find root, path-halved on every walk, so the
@@ -900,10 +964,26 @@ public class ThinkingOrb extends View {
         postInvalidateOnAnimation();
     }
 
-    /** One full picture: the living cloud around its burning sun. */
+    /**
+     * One full picture: the living cloud around its burning sun.
+     *
+     * Owner order 2026-10-28, v2.3.19 ("the SUN looks like it is outside
+     * those revolving LINES ... when the LINES revolve, the SUN gets in
+     * front, whereas the SUN should be inside those LINES"): the sphere
+     * used to be painted AFTER the whole cloud, so every filament
+     * revolving on the far side of the ball crossed OVER the sun and the
+     * star read as pasted on top of the web. The picture is depth-true
+     * now: the pose is projected ONCE, each filament and each dot is
+     * named BEHIND or IN FRONT by its own depth against the sun's
+     * plane, and the frame draws back cloud, sun, front cloud - the
+     * star stands INSIDE the revolving lines, its own surface hiding
+     * the threads it holds, the threads in front of it drawn over it.
+     */
     private void drawScene(Canvas canvas, float seconds, float wake) {
-        drawCloud(canvas, seconds, wake);
+        projectCloud(seconds);
+        drawCloud(canvas, seconds, wake, true);    // the half behind the sun
         drawSun(canvas, seconds, wake);
+        drawCloud(canvas, seconds, wake, false);   // the half before the sun
     }
 
     /**
@@ -1756,10 +1836,16 @@ public class ThinkingOrb extends View {
     /**
      * The cloud, v1.8.9 kept: rigid yaw around the vertical plus a small
      * breathing pitch, projected with a perspective divide, links first
-     * (brighter as their ends come forward), nodes after. The sun draws
-     * after it, so the organism reads as circling its star.
+     * (brighter as their ends come forward), nodes after. v2.3.19: the
+     * cloud is drawn in TWO halves around the sun - the behind half
+     * first, the sun, the front half after - so the star stands inside
+     * its own revolving lines.
      */
-    private void drawCloud(Canvas canvas, float seconds, float wake) {
+    /** One pass of the pose (v2.3.19): every node is carried from its
+     *  seeded spot through the breathing cloud and the yaw/pitch turn to
+     *  its own screen point and depth, ONCE per frame - the two half
+     *  passes below read these arrays and never re-project. */
+    private void projectCloud(float seconds) {
         float yaw = seconds * 0.22f * MOTION_SCALE;
         float pitch = 0.16f * (float) Math.sin(seconds * 0.13 * MOTION_SCALE);
         float cosYaw = (float) Math.cos(yaw);
@@ -1785,10 +1871,21 @@ public class ThinkingOrb extends View {
             screenX[n] = cx + rx * orbRadius * persp;
             screenY[n] = cy + ry * orbRadius * persp;
         }
+    }
+
+    /** One half of the cloud (v2.3.19): the filaments and dots whose
+     *  midpoint depth sits behind the sun's centre plane (farHalf), or
+     *  in front of it - the same inks and breathes the whole cloud
+     *  always wore, drawn against the sun in the order the depth names. */
+    private void drawCloud(Canvas canvas, float seconds, float wake,
+            boolean farHalf) {
         for (int l = 0; l < linkCount; l++) {
             int a = linkA[l];
             int b = linkB[l];
             float midway = (depth[a] + depth[b]) / 2f;
+            if (farHalf != (midway <= 1f)) {
+                continue;
+            }
             // Perspective divide reading > 1 means this side is near the
             // viewer, so filaments brighten as their ends come forward.
             float toward = clamp((midway - 1f) / 0.6f, 0f, 1f)
@@ -1844,6 +1941,9 @@ public class ThinkingOrb extends View {
         }
         for (int n = 0; n < NODES; n++) {
             int o = n * NODE_STRIDE;
+            if (farHalf != (depth[n] <= 1f)) {
+                continue;
+            }
             float toward = clamp((depth[n] - 1f) / 0.6f, 0f, 1f);
             // v2.2.1: the 1.4Hz shimmer term is GONE - it read as flicker
             // on a real screen. The node keeps its depth scaling alone,
