@@ -61,6 +61,11 @@ on:
 permissions:
   actions: read
   contents: read
+  # The owner email rides GitHub's own notification mail: the transport posts
+  # each slot verdict as a comment on the watched owner email issue
+  # (src/notify/owner_email.py), and GitHub emails the comment out. Without
+  # issues: write the comment POST is refused and a delivered scan would
+  # silently never reach the inbox.
 
 concurrency:
   group: intraday-momentum
