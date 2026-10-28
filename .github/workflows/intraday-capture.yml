@@ -92,6 +92,10 @@ jobs:
       # slot-verdict:<day>:<slot>; a second fire or a manual dispatch cannot
       # double-send the same slot). Only this workflow sets it.
       EMAIL_SLOT_VERDICTS: "1"
+      # The owner email transport (src/notify/owner_email.py) reads its token
+      # from the environment; a job env without it raises before any comment
+      # POST can go out, and the delivered verdict would never be emailed.
+      GITHUB_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v7
 
