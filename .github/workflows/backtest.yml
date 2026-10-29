@@ -16,7 +16,7 @@ on:
       task:
         description: "what to run"
         type: choice
-        options: [both, smoke, build-dataset]
+        options: [both, smoke, build-dataset, ten-year]
         default: both
 
 permissions:
@@ -29,7 +29,10 @@ concurrency:
 jobs:
   backtest:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    # ten-year: the mkt_summary crawl walks ~2,600 weekday slots politely
+    # before any engine work starts, so this job may genuinely need the
+    # larger ceiling; the five-year option never comes close.
+    timeout-minutes: 150
     env:
       PYTHONUNBUFFERED: "1"
     steps:
@@ -75,5 +78,39 @@ jobs:
         with:
           name: backtest-${{ github.run_id }}
           path: data/backtest_smoke.json
+          if-no-files-found: error
+          retention-days: 30
+
+      # Ten-year proof base (owner order 2026-10-29): full OHLCV from the
+      # mkt_summary daily archive, scored by the SAME component weights the
+      # deployed scanner carries, simulated by the same engine the five
+      # year smoke uses. Manual dispatch only (SO-21): no schedule here.
+      - name: Build the ten-year dataset
+        if: inputs.task == 'ten-year'
+        run: |
+          mkdir -p data
+          python scripts/build_backtest_dataset.py \\
+            --universe src/data/universe_kmiall.json \\
+            --start 2016-10-29 \\
+            --out data/eod_dataset_10y.csv.gz \\
+            --cache-dir data/mkt_cache
+
+      - name: Run the ten-year backtest
+        if: inputs.task == 'ten-year'
+        run: |
+          python scripts/backtest_10y.py \\
+            --dataset data/eod_dataset_10y.csv.gz \\
+            --out data/backtest_10y_report.json
+          cat data/backtest_10y_report.json
+
+      - name: Keep the ten-year result
+        if: inputs.task == 'ten-year'
+        uses: actions/upload-artifact@v7
+        with:
+          name: backtest-ten-year-${{ github.run_id }}
+          path: |
+            data/backtest_10y_report.json
+            data/backtest_10y_report_trades.csv
+            data/eod_dataset_10y.summary
           if-no-files-found: error
           retention-days: 30
