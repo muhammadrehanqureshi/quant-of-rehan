@@ -585,6 +585,23 @@ public class MainActivity extends Activity {
         applyThemeToInputs(themeIndex);
         wireDropdownArrows();
 
+        // Owner order 2026-10-29 (v3.1.0): "move the menu bar tile 7%
+        // above from its current position". The tile keeps its v1.9.13
+        // law - outside the scroll, pinned, always on the screen - and
+        // the share it surrenders is 7% of the SCREEN's own height,
+        // taken from the display's own metrics: the bottom margin is
+        // exactly that air, so the tile rides the same 7% higher on
+        // every screen it runs on.
+        android.view.View navCarrier = findViewById(R.id.nav_carrier);
+        if (navCarrier != null) {
+            float screen = getResources().getDisplayMetrics().heightPixels;
+            android.widget.LinearLayout.LayoutParams lift =
+                    (android.widget.LinearLayout.LayoutParams)
+                            navCarrier.getLayoutParams();
+            lift.bottomMargin = (int) (screen * 0.07f);
+            navCarrier.setLayoutParams(lift);
+        }
+
         writeAppVersion();
 
         // v1.5.1's battery exemption ask retired with the watch window
@@ -788,6 +805,16 @@ public class MainActivity extends Activity {
             themeSpinner.setText(getString(THEME_LABELS[themeIndex]));
         }
     }
+
+    /** The standalone input views one theme pass repaints: the search
+     *  box and the RELAY STATUS button. The two closed dropdown boxes
+     *  are NOT here: since v2.3.21 their face is the group's own, and
+     *  the theme pass paints its one field plate on the group
+     *  (applyThemeToInputs), never a second plate under it. */
+    /** The closed volume box's own label, saved wherever it is stamped,
+     *  so the open window can empty the face and the roll-up can restore
+     *  it word for word (v3.1.0). */
+    private CharSequence volumeBoxLabel = "";
 
     /** The standalone input views one theme pass repaints: the search
      *  box and the RELAY STATUS button. The two closed dropdown boxes
@@ -1104,16 +1131,20 @@ public class MainActivity extends Activity {
             TextView row = menuRow(volumeChoices[index]);
             row.setOnClickListener(v -> {
                 volumeSplitChoice = index + 1;
-                volumeSplitSpinner.setText(
-                        dropdownLine(volumeChoices[index]));
+                // v3.1.0: the pick's label is saved beside its stamp, so
+                // the roll-up restores it word for word.
+                volumeBoxLabel = dropdownLine(volumeChoices[index]);
+                volumeSplitSpinner.setText(volumeBoxLabel);
                 showVolumeMenu(false);
                 paintVolumeReveal();
             });
             volumeSplitMenu.addView(row);
         }
-        // The closed box reads the placeholder until he picks one.
-        volumeSplitSpinner.setText(getString(
-                R.string.volume_placeholder_scrips));
+        // The closed box reads the placeholder until he picks one; the
+        // label is saved beside its stamp so the open window can empty
+        // the face and the roll-up can restore it word for word (v3.1.0).
+        volumeBoxLabel = getString(R.string.volume_placeholder_scrips);
+        volumeSplitSpinner.setText(volumeBoxLabel);
     }
 
     /**
@@ -1360,7 +1391,11 @@ public class MainActivity extends Activity {
         row.setTextColor(getColor(R.color.text_bright));
         row.setIncludeFontPadding(false);
         row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(dp(14), dp(7), dp(14), dp(7));
+        // v3.1.0 (owner order 2026-10-29, "not even aligned"): the rows'
+        // side air is the closed box's own 10dp column, so an open menu's
+        // lines stand in the same typing column the closed label prints
+        // in, instead of an indent of their own.
+        row.setPadding(dp(10), dp(7), dp(14), dp(7));
         row.setText(dropdownLine(line));
         return row;
     }
@@ -1392,8 +1427,18 @@ public class MainActivity extends Activity {
                 revealMenu(volumeSplitMenu);
             }
         }
+        // v3.1.0 owner order 2026-10-29 ("The drop down menu looking
+        // very bad and not even aligned"): the label still steps OUT of
+        // the open window (the v2.3.22 law stands), but the face itself
+        // no longer leaves. A GONE face collapsed the box strip down to
+        // the caret alone, the caret rode up to the plate's top edge and
+        // the rows drew detached below it - the misalignment both photos
+        // showed. The face keeps the closed box's own 43dp and empties
+        // its text, so the caret stays vertically centred on the box's
+        // own line exactly where it stood when the box was closed, and
+        // the option rows stand under that same anchored line.
         if (volumeSplitSpinner != null) {
-            volumeSplitSpinner.setVisibility(open ? View.GONE : View.VISIBLE);
+            volumeSplitSpinner.setText(open ? "" : volumeBoxLabel);
         }
         rotateDropdownArrow(volumeSplitArrow, open);
         if (open) {
@@ -1412,8 +1457,13 @@ public class MainActivity extends Activity {
                 revealMenu(themeMenu);
             }
         }
+        // v3.1.0 (owner order 2026-10-29, "not even aligned"): the volume
+        // window's own law - the label steps out, the face holds the
+        // line, and the caret keeps its anchored place while the rows
+        // stand under it.
         if (themeSpinner != null) {
-            themeSpinner.setVisibility(open ? View.GONE : View.VISIBLE);
+            themeSpinner.setText(open ? ""
+                    : getString(THEME_LABELS[themeIndex]));
         }
         rotateDropdownArrow(themeArrow, open);
         if (open) {

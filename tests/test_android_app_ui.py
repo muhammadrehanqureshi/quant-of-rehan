@@ -1738,8 +1738,8 @@ class VersionTest(unittest.TestCase):
         # one mesh remains, so no line can end at a dot no other thread
         # carries on from.
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="3.0.0"', manifest)
-        self.assertIn('android:versionCode="90"', manifest)
+        self.assertIn('android:versionName="3.1.0"', manifest)
+        self.assertIn('android:versionCode="91"', manifest)
         # The changelog entry ties these user-visible changes to the build.
         readme = (ROOT / "android" / "README.md").read_text(encoding="utf-8")
         self.assertIn("v1.7.9, owner order 2026-10-20", readme)
@@ -1864,9 +1864,14 @@ class VersionTest(unittest.TestCase):
         # version 3 for the app" - so this build is versionCode 90 /
         # versionName 3.0.0 and no 2.x number is stamped again.
         self.assertIn("Version 3.0.0, versionCode 90", readme)
+        # v3.1.0 (owner order 2026-10-29, twenty-eighth pass): the open
+        # menu keeps its anchored line and the rows type in the box's
+        # own column, and the menu tile rides 7% of the screen higher,
+        # versionCode 91.
+        self.assertIn("Version 3.1.0, versionCode 91", readme)
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionCode="90"', manifest)
-        self.assertIn('android:versionName="3.0.0"', manifest)
+        self.assertIn('android:versionCode="91"', manifest)
+        self.assertIn('android:versionName="3.1.0"', manifest)
         layout = LAYOUT.read_text(encoding="utf-8")
         strings = STRINGS.read_text(encoding="utf-8")
         main = MAIN.read_text(encoding="utf-8")
@@ -3533,26 +3538,62 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         would see customs scrips of volume again". The v2.3.21 open
         menu kept the closed box's own label row standing above the
         option rows, so the open window read as "still showing custom
-        scrips of volume". Now the face is GONE while the menu is open
-        exactly for the open window of the menu, and the arrow stays
-        with the box, so the dropdown icon is the roll-up.
+        scrips of volume".
+
+        v3.1.0 owner order 2026-10-29 ("The drop down menu looking very
+        bad and not even aligned"): the label still steps out - but the
+        FACE no longer leaves. A GONE face collapsed the strip down to
+        the caret alone and the rows drew detached below it; now the
+        face keeps its 43dp and empties its text, so the label steps
+        out and the caret keeps the box's own line.
         """
         main = MAIN.read_text(encoding="utf-8")
-        # Each open state hides its own closed box's face, and restores
-        # it on the roll-up, whatever open carried in. Exactly one
-        # setVisibility per spinner, so a second pass cannot thrash it.
-        for spinner in ("volumeSplitSpinner", "themeSpinner"):
-            with self.subTest(spinner=spinner):
-                self.assertIn(
-                    f"{spinner}.setVisibility("
-                    f"open ? View.GONE : View.VISIBLE);",
-                    main)
-                self.assertEqual(main.count(f"{spinner}.setVisibility("),
-                    1)
+        # Each open state EMPTIES its own closed box's face and restores
+        # the saved label on the roll-up; the face itself is never
+        # hidden, so the caret keeps its anchored line.
+        self.assertIn(
+            "volumeSplitSpinner.setText(open ? \"\" : volumeBoxLabel);",
+            main)
+        self.assertIn(
+            "themeSpinner.setText(open ? \"\""
+            "\n                    : getString(THEME_LABELS[themeIndex]));",
+            main)
+        # The saved label is stamped where the box is, so the roll-up
+        # restores it word for word.
+        self.assertIn("volumeBoxLabel = dropdownLine(volumeChoices[index]);",
+            main)
+        self.assertIn(
+            "volumeBoxLabel = getString(R.string.volume_placeholder_scrips);",
+            main)
+        # Every hiding channel is closed: no open state may withdraw the
+        # box face any more.
+        self.assertNotIn("volumeSplitSpinner.setVisibility(", main)
+        self.assertNotIn("themeSpinner.setVisibility(", main)
         # The arrows stay with the box the whole time: the dropdown icon
         # is the roll-up, so the open states may never hide an arrow.
         self.assertNotIn("volumeSplitArrow.setVisibility", main)
         self.assertNotIn("themeArrow.setVisibility", main)
+
+    def test_v3_1_0_the_open_menu_reads_aligned_and_the_tile_lifts(self):
+        """Owner order 2026-10-29: "The drop down menu looking very bad
+        and not even aligned, just look at these two photos. Fix all
+        these features. Also move the menu bar tile 7% above from its
+        current position". Both photos showed the open window with the
+        caret stranded at the plate's top edge and the rows detached
+        below it. The v3.1.0 law: the open face holds the closed box's
+        own line so the caret stays vertically centred where it stood
+        when the box was closed, the rows type in the box's own 10dp
+        column, and the pinned menu tile surrenders 7% of the screen's
+        own height as its bottom air.
+        """
+        main = MAIN.read_text(encoding="utf-8")
+        # The rows' side air is the closed box's own 10dp column - both
+        # faces type on one column, never an indent of their own.
+        self.assertIn("row.setPadding(dp(10), dp(7), dp(14), dp(7));", main)
+        # The tile's lift is the screen's own 7%, read from the display's
+        # own metrics on the carrier the tile rides.
+        self.assertIn("findViewById(R.id.nav_carrier)", main)
+        self.assertIn("lift.bottomMargin = (int) (screen * 0.07f);", main)
 
     def test_v2_3_20_the_dropdown_never_reads_as_a_second_window(self):
         """Owner order 2026-10-28: "when i tap on the drop down menu,
