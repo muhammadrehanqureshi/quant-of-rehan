@@ -252,6 +252,23 @@ public class MainActivity extends Activity {
      *  the arrow's angle, never read back from the views. */
     private boolean volumeMenuOpen;
     private boolean themeMenuOpen;
+    /**
+     * The two dropdown groups (v2.3.21, owner order 2026-10-28): the
+     * one surface each dropdown's closed box and open menu live in, so
+     * an open menu is the group's own expansion. The theme pass paints
+     * the field plate on the group, and the box face inside it wears
+     * nothing, so the seam between box and rows can never be drawn.
+     */
+    private View volumeFieldGroup;
+    private View themeFieldGroup;
+    /**
+     * The accent ink the worn theme paints (a colour int, not an id):
+     * the menu bar's icons and the dropdown arrows re-ink from it, and
+     * the plates' edge rides its low tone. The build's default is the
+     * purple theme's brand gold, and applyTheme sets it to the
+     * remembered theme's accent before the first repaint lands.
+     */
+    private int themeAccentInk = 0xFFD9A441;
     // The dropdown's state arrow (owner order 2026-10-23, 2.0.0):
     // DOWN while the menu is closed (the pull-down cue), UP while it is
     // open (the pull-up cue), declared beside it.
@@ -427,12 +444,17 @@ public class MainActivity extends Activity {
         themeMenu = (LinearLayout) findViewById(R.id.theme_menu);
         appVersion = (TextView) findViewById(R.id.app_version);
         volumeSplitSpinner = (TextView) findViewById(R.id.volume_split_spinner);
-        if (volumeSplitSpinner != null) {
-            themedInputs.add(volumeSplitSpinner);
-        }
-        if (themeSpinner != null) {
-            themedInputs.add(themeSpinner);
-        }
+        // v2.3.21 (owner order 2026-10-28, "the drop down menu is still
+        // opening another separate window"): the two closed boxes and
+        // their menus are ONE surface each now, their group. The box is
+        // the group's face and wears nothing of its own, the menu is the
+        // group pulled down, and the theme pass paints its ONE field
+        // plate on the group. The boxes are not themed fields any more:
+        // a plate stamped on the box under the group's plate would draw the
+        // seam again, the seam the owner keeps sending back as a second
+        // window.
+        volumeFieldGroup = findViewById(R.id.volume_field_group);
+        themeFieldGroup = findViewById(R.id.theme_field_group);
         // v2.3.20 (owner order 2026-10-28, "when I selected another theme,
         // relay status box was still purple"): the RELAY STATUS button is
         // a themed field too. Its plate had stayed the static purple
@@ -621,8 +643,46 @@ public class MainActivity extends Activity {
             return;
         }
         icon.setBackgroundResource(selected ? R.drawable.nav_circle : R.drawable.settings_ripple);
-        icon.setImageTintList(ColorStateList.valueOf(getColor(
-                selected ? R.color.gold_bright : R.color.gold)));
+        // v2.3.21 (owner order 2026-10-28, "Menu bar icons not changing
+        // according to the themes...": on the navy blue and white theme
+        // the menu icons should be WHITE): the icons ink from the worn
+        // theme's own accent pair. The purple build keeps its shipped
+        // gold pair; every theme's resting icon wears the theme's
+        // accent, the living one a brightened step toward white.
+        if (themeIndex == 0) {
+            icon.setImageTintList(ColorStateList.valueOf(getColor(
+                    selected ? R.color.gold_bright : R.color.gold)));
+        } else {
+            icon.setImageTintList(ColorStateList.valueOf(
+                    selected ? brighten(themeAccentInk) : themeAccentInk));
+        }
+    }
+
+    /** One accent's selected step: 45% of the way toward white, so the
+     *  gold pair's lift survives on the purple build and a white
+     *  theme's accent stays white. */
+    private static int brighten(int color) {
+        int r = android.graphics.Color.red(color);
+        int g = android.graphics.Color.green(color);
+        int b = android.graphics.Color.blue(color);
+        return android.graphics.Color.argb(255,
+                Math.min(255, Math.round(r + (255 - r) * 0.45f)),
+                Math.min(255, Math.round(g + (255 - g) * 0.45f)),
+                Math.min(255, Math.round(b + (255 - b) * 0.45f)));
+    }
+
+    /** The two dropdown arrows ink from the worn theme (v2.3.21), the
+     *  same law the menu bar's icons follow: on navy they are white
+     *  beside his white headings, not the old gold. */
+    private void repaintDropdownArrows() {
+        if (volumeSplitArrow != null) {
+            volumeSplitArrow.setImageTintList(
+                    ColorStateList.valueOf(themeAccentInk));
+        }
+        if (themeArrow != null) {
+            themeArrow.setImageTintList(
+                    ColorStateList.valueOf(themeAccentInk));
+        }
     }
 
     /**
@@ -729,8 +789,11 @@ public class MainActivity extends Activity {
         }
     }
 
-    /** The input views one theme pass repaints: the two spinners and
-     *  the four field boxes, gathered once. */
+    /** The standalone input views one theme pass repaints: the search
+     *  box and the RELAY STATUS button. The two closed dropdown boxes
+     *  are NOT here: since v2.3.21 their face is the group's own, and
+     *  the theme pass paints its one field plate on the group
+     *  (applyThemeToInputs), never a second plate under it. */
     private final List<View> themedInputs = new ArrayList<>();
 
     /**
@@ -750,22 +813,25 @@ public class MainActivity extends Activity {
             // the one that chooses the look, paints its plate.
             paintField(input, index);
         }
-        // v2.3.20 (owner order 2026-10-28, "when i tap on the drop down
-        // menu, another separate window pops up, this is wrong, the drop
-        // down menu should actually expand and then the drop down should
-        // show me options"): the menus retire their own popup plate. A
-        // plate of its own (colour, corner, stroke) drew the open menu as
-        // a SECOND window standing over the tile, however far the v2.3.19
-        // scroll walked. The open menu is the box's OWN expansion now: it
-        // wears the same field plate the closed box wears, with no gap
-        // between them, so the group reads as one box pulled down to
-        // its rows and never as a separate surface.
-        if (volumeSplitMenu != null) {
-            volumeSplitMenu.setBackground(fieldPlate(index));
+        // v2.3.21 (owner order 2026-10-28, "the drop down menu is
+        // still opening another separate window"; v2.3.20's own words
+        // before it, "when i tap on the drop down menu, another
+        // separate window pops up, this is wrong, the drop down menu
+        // should actually expand and then the drop down should show me
+        // options"): the closed box and its menu are ONE surface each
+        // now, the group.
+        // ONE field plate on the group: the box face and the pulled-down
+        // rows are inside the plate, so the box literally expands to
+        // reveal the rows and no second window can be drawn, on any
+        // theme, from any screen of the page's scroll. The two spinners
+        // left themedInputs in onCreate: their face is the group's own.
+        if (volumeFieldGroup != null) {
+            volumeFieldGroup.setBackground(fieldPlate(index));
         }
-        if (themeMenu != null) {
-            themeMenu.setBackground(fieldPlate(index));
+        if (themeFieldGroup != null) {
+            themeFieldGroup.setBackground(fieldPlate(index));
         }
+        repaintDropdownArrows();
     }
 
     /** One field box: the field's own plate, and the hint ink rides the
@@ -827,7 +893,7 @@ public class MainActivity extends Activity {
             cached = new GradientDrawable();
             cached.setColor(getColor(fieldResourceFor(index)));
             cached.setCornerRadius(dp(12));
-            cached.setStroke(1, getColor(R.color.bg_panel_edge));
+            cached.setStroke(Math.max(1, (int) dp(1)), edgeInk());
             themeFieldPlates[index - 1] = cached;
         }
         return cached;
@@ -890,6 +956,10 @@ public class MainActivity extends Activity {
                 accent = R.color.gold;
                 break;
         }
+        // v2.3.21: the ink lands before any plate is built, so the menu
+        // bar's icons, the dropdown arrows and the plates' edge all
+        // draw from the theme this pass names, never one pass late.
+        themeAccentInk = getColor(accent);
         int bgColor = getColor(bg);
         View root = findViewById(R.id.scroll_root);
         if (root != null) {
@@ -911,7 +981,7 @@ public class MainActivity extends Activity {
                 findViewById(R.id.nav_tile)};
         for (View plate : plates) {
             if (plate != null) {
-                plate.setBackground(themePlate(index, panel));
+                plate.setBackground(themePlate(index, panel, bg));
             }
         }
         int[] headingIds = {
@@ -938,19 +1008,46 @@ public class MainActivity extends Activity {
         // so the label never lags the look the app is wearing - not on a
         // cold start with a remembered theme, and not after a pick.
         restampThemeText();
+        // v2.3.21 (owner order 2026-10-28, "Menu bar icons not changing
+        // according to the themes"): a theme pick re-inks the menu bar's
+        // icons and the dropdown arrows in the same frame as the cover,
+        // never one theme late.
+        paintNavSelection();
     }
 
     /** One rounded plate per theme, built once and reused (v1.9.13). */
     private final GradientDrawable[] themePlates = new GradientDrawable[4];
 
+    /** One theme's own plate edge: the purple build keeps its shipped
+     *  edge colour, and every theme's edge is its own accent at a low
+     *  tone (26%), so the tiles read as tiles of the theme the console
+     *  wears instead of wearing the purple edge on every look - the
+     *  mis-shape the owner sent back with v2.3.20 (owner order
+     *  2026-10-28). */
+    private int edgeInk() {
+        if (themeIndex <= 0) {
+            return getColor(R.color.bg_panel_edge);
+        }
+        return (themeAccentInk & 0x00FFFFFF) | 0x42000000;
+    }
+
     /**
      * The plate a theme paints on every tile (owner order 2026-10-23):
      * index 0 is the app's own look, so the plate IS the shipped
      * panel drawable, its corners and gradient intact; the other four
-     * draw the same rounded shape in the theme's own panel ink, cached so
-     * a theme switch never rebuilds one.
+     * draw the same rounded shape from the theme's own panel ink,
+     * cached so a theme switch never rebuilds one.
+     *
+     * v2.3.21 (owner order 2026-10-28, "all of the tiles start looking
+     * really bad, and mis shapes"): the themed plates were one flat
+     * colour wearing the purple theme's dark edge, which is exactly
+     * what reads bad and mis-shaped on navy. The themed tile carries
+     * the same TWO-TONE depth the shipped plate carries: its panel ink
+     * over its own cover, its corners and its OWN edge line - the
+     * accent at a low tone - so a theme's tiles are the theme's shape.
      */
-    private GradientDrawable themePlate(int index, int panelColorId) {
+    private GradientDrawable themePlate(int index, int panelColorId,
+                                        int bgColorId) {
         if (index <= 0) {
             @SuppressWarnings("deprecation")
             GradientDrawable own =
@@ -960,10 +1057,11 @@ public class MainActivity extends Activity {
         }
         GradientDrawable cached = themePlates[index - 1];
         if (cached == null) {
-            cached = new GradientDrawable();
-            cached.setColor(getColor(panelColorId));
+            cached = new GradientDrawable(
+                    GradientDrawable.Orientation.TOP_BOTTOM,
+                    new int[]{getColor(panelColorId), getColor(bgColorId)});
             cached.setCornerRadius(dp(20));
-            cached.setStroke(1, getColor(R.color.bg_panel_edge));
+            cached.setStroke(Math.max(1, (int) dp(1)), edgeInk());
             themePlates[index - 1] = cached;
         }
         return cached;
@@ -1043,6 +1141,10 @@ public class MainActivity extends Activity {
             themeArrow.setOnClickListener(
                     v -> showThemeMenu(!themeMenuOpen));
         }
+        // v2.3.21: the arrows ink from the worn theme the first time
+        // they are found too, so a cold start on navy opens the page
+        // with white arrows beside its white headings.
+        repaintDropdownArrows();
     }
 
     private void renderVolumeSpinners() {
