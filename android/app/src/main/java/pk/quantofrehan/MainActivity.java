@@ -1393,8 +1393,7 @@ public class MainActivity extends Activity {
             }
         }
         if (volumeSplitSpinner != null) {
-            volumeSplitSpinner.setVisibility(open ? View.GONE
-                    : View.VISIBLE);
+            volumeSplitSpinner.setVisibility(open ? View.GONE : View.VISIBLE);
         }
         rotateDropdownArrow(volumeSplitArrow, open);
         if (open) {
