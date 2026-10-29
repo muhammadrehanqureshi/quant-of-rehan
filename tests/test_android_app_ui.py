@@ -1738,8 +1738,8 @@ class VersionTest(unittest.TestCase):
         # one mesh remains, so no line can end at a dot no other thread
         # carries on from.
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="2.3.20"', manifest)
-        self.assertIn('android:versionCode="87"', manifest)
+        self.assertIn('android:versionName="2.3.21"', manifest)
+        self.assertIn('android:versionCode="88"', manifest)
         # The changelog entry ties these user-visible changes to the build.
         readme = (ROOT / "android" / "README.md").read_text(encoding="utf-8")
         self.assertIn("v1.7.9, owner order 2026-10-20", readme)
@@ -1848,9 +1848,15 @@ class VersionTest(unittest.TestCase):
         # menus retire their bordered popup plate with the 2dp gap -
         # an open menu is the box's own expansion now, versionCode 87.
         self.assertIn("Version 2.3.20, versionCode 87", readme)
+        # v2.3.21 (owner order 2026-10-28, twenty-fifth pass): the drop
+        # down box expands itself (one group, one plate, no seam), the
+        # menu bar's icons and the dropdown arrows ink from the worn
+        # theme's accent, and the themed tiles carry the shipped plate's
+        # two-tone depth with the theme's OWN edge, versionCode 88.
+        self.assertIn("Version 2.3.21, versionCode 88", readme)
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionCode="87"', manifest)
-        self.assertIn('android:versionName="2.3.20"', manifest)
+        self.assertIn('android:versionCode="88"', manifest)
+        self.assertIn('android:versionName="2.3.21"', manifest)
         layout = LAYOUT.read_text(encoding="utf-8")
         strings = STRINGS.read_text(encoding="utf-8")
         main = MAIN.read_text(encoding="utf-8")
@@ -3254,12 +3260,27 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         self.assertNotIn("continue;", main[main.index(
             "private void applyThemeToInputs("):main.index(
             "private void paintField(View field, int index) {")])
-        # v2.3.20: the two inline menus wear the SAME field plate the
-        # closed box wears, stamped from the theme pass - no popup
-        # plate, no separate window's own mosaic.
-        self.assertIn("volumeSplitMenu.setBackground(fieldPlate(index));",
+        # v2.3.21: the two dropdowns' closed box and open menu are ONE
+        # surface (volume_field_group / theme_field_group): the theme
+        # pass stamps the field plate on the GROUP, the box face wears
+        # nothing, and the menu is the group pulled down - the box
+        # literally expands to reveal the rows, and no second window
+        # can ever be drawn. The spinners left themedInputs with v2.3.21:
+        # a plate stamped on the box under the group's plate would draw
+        # the seam the owner keeps sending back.
+        self.assertIn("volumeFieldGroup.setBackground(fieldPlate(index));",
                       main)
-        self.assertIn("themeMenu.setBackground(fieldPlate(index));", main)
+        self.assertIn("themeFieldGroup.setBackground(fieldPlate(index));",
+                      main)
+        self.assertNotIn("volumeSplitMenu.setBackground", main)
+        self.assertNotIn("themeMenu.setBackground", main)
+        self.assertNotIn("themedInputs.add(volumeSplitSpinner);", main)
+        self.assertNotIn("themedInputs.add(themeSpinner);", main)
+        self.assertIn(
+            "volumeFieldGroup = findViewById(R.id.volume_field_group);",
+            main)
+        self.assertIn(
+            "themeFieldGroup = findViewById(R.id.theme_field_group);", main)
         self.assertNotIn("popupPlate", main)
         self.assertNotIn("popupResourceFor", main)
         # The per-theme popup plates and the base one retire with their
@@ -3349,6 +3370,15 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         no popup window, no platform spinner, no adapter, anywhere.
         The theme menu carries the same exact setting, since the two
         dropdowns keep one law.
+
+        v2.3.21 (owner order 2026-10-28, "the drop down menu is still
+        opening another separate window... the drop down should
+        expand itself to reveal the drop down menu"): each box and
+        its menu are wrapped in ONE group (volume_field_group,
+        theme_field_group) that carries the field plate. The box face
+        inside it wears nothing and the menu is INSIDE the group, so
+        opening is the box's own expansion: one plate covers both
+        faces and no seam, gap or second surface can ever be drawn.
         """
         layout = LAYOUT.read_text(encoding="utf-8")
         main = MAIN.read_text(encoding="utf-8")
@@ -3357,9 +3387,10 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         self.assertFalse(
             (ROOT / "android" / "app" / "src" / "main" / "java"
              / "pk" / "quantofrehan" / "Dropdown.java").exists())
-        for view_id, menu_id in (("volume_split_spinner",
-                                  "volume_split_menu"),
-                                 ("theme_spinner", "theme_menu")):
+        for view_id, menu_id, group_id in (
+                ("volume_split_spinner", "volume_split_menu",
+                 "volume_field_group"),
+                ("theme_spinner", "theme_menu", "theme_field_group")):
             with self.subTest(view_id=view_id):
                 box = element(layout, f'android:id="@+id/{view_id}"')
                 menu = element(layout, f'android:id="@+id/{menu_id}"')
@@ -3369,14 +3400,30 @@ class ThinkingOrbPlanTest(unittest.TestCase):
                 self.assertNotIn("popupBackground", box)
                 self.assertNotIn("android:prompt", box)
                 self.assertNotIn("extends Spinner", main)
-                # The menu stands DIRECTLY after the box's own holder,
-                # in the page's own flow, until the state opens it.
-                # v2.3.20: no top margin and no plate of its own any
-                # more - the open menu is the box's own expansion.
+                # v2.3.21: the box face wears NOTHING - the plate is
+                # the group's own.
+                self.assertIn('android:background="@null"', box)
+                # The menu stands inside its box's group (the group is
+                # opened before the box, the menu sits inside it), in
+                # the page's own flow, until the state opens it
+                # (v2.3.20: no top margin and no plate of its own any
+                # more - the open menu is the box's own expansion).
                 self.assertIn("<LinearLayout", menu)
                 self.assertNotIn("android:layout_marginTop", menu)
                 self.assertNotIn("android:background", menu)
                 self.assertIn('android:visibility="gone"', menu)
+                group = element(layout, f'android:id="@+id/{group_id}"')
+                self.assertIn('android:background="@drawable/field_bg"',
+                              group)
+                self.assertIn('android:orientation="vertical"', group)
+                # ONE surface: the group's tag stands BEFORE its box,
+                # and nothing closes a container between the box and
+                # the menu - so box and menu live in one group by
+                # construction, and the open menu is that group grown.
+                self.assertLess(layout.index(f'android:id="@+id/{group_id}"'),
+                                layout.index(box))
+                between = layout[layout.index(box):layout.index(menu)]
+                self.assertNotIn("</LinearLayout>", between)
         # The engine: rows built by the app, open states drawn between
         # the menu's visibility, the arrow and the one-menu-at-a-time
         # law; the adapter machinery is retired with the popup window.
@@ -3411,21 +3458,33 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         INSIDE its holder, so the holder was 10dp taller than the box
         and the arrow's center_vertical aimed at the holder - the box's
         line sat low in its own frame and the arrow sat high beside it.
-        The margin moves onto the holder now, so the holder is exactly
-        the box and both arrows aim at the box's own centre by
-        construction.
+        The margin moved onto the holder then, and v2.3.21 moved it one
+        level further onto the dropdown's group (so the group's field
+        plate hugs the box exactly): the holder and the box are BOTH
+        exactly the box now, and both arrows aim at the box's own
+        centre by construction.
         """
         layout = LAYOUT.read_text(encoding="utf-8")
-        for view_id in ("volume_split_spinner", "theme_spinner"):
+        for view_id, group_id in (
+                ("volume_split_spinner", "volume_field_group"),
+                ("theme_spinner", "theme_field_group")):
             with self.subTest(view_id=view_id):
                 box = element(layout, f'android:id="@+id/{view_id}"')
                 start = layout.rindex("<FrameLayout", 0, layout.index(box))
                 holder = layout[start:layout.index("</FrameLayout>", start)]
-                # The box itself carries no top margin; the holder does,
-                # so the holder is exactly the box and the arrow's
-                # center_vertical aims at the box's own centre.
+                # The box itself carries no top margin; the holder is
+                # exactly the box and the arrow's center_vertical aims
+                # at the box's own centre.
                 self.assertNotIn('android:layout_marginTop', box)
-                self.assertIn('android:layout_marginTop="10dp"', holder)
+                self.assertNotIn('android:layout_marginTop', holder)
+                # The 10dp air sits on the GROUP now, outside the field
+                # plate it carries, so the plate starts at the box's
+                # own top edge (v2.3.21).
+                group_open = layout.rindex("<LinearLayout", 0,
+                                           layout.index(box))
+                group_tag = layout[group_open:layout.index(">", group_open)]
+                self.assertIn("@+id/" + group_id, group_tag)
+                self.assertIn('android:layout_marginTop="10dp"', group_tag)
         # Both arrows name a plain 20dp size, so the cue is visible
         # whatever a drawable's own intrinsic later says.
         for view_id in ("volume_split_arrow", "theme_arrow"):
@@ -3460,11 +3519,11 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         me options". The v2.3.19 scroll walk was not enough: the open
         menu still drew its OWN bordered plate (a corner, a stroke, a
         colour of its own), with a 2dp gap under the box, and THAT is
-        the "separate window" the owner kept seeing. The law now: the
-        menu carries no plate and no gap in the layout, and the theme
-        pass stamps the closed box's own field plate on both menu
-        panels, so an open dropdown is one box pulled down to its rows
-        - the same plate, no seam, no frame, on every theme.
+        the "separate window" the owner kept seeing. v2.3.21 made the
+        law structural: the box and its menu are ONE group, the theme
+        pass stamps the field plate on the GROUP, and nothing can ever
+        be drawn between the box face and its rows - no seam, no frame,
+        no second surface, on every theme.
         """
         layout = LAYOUT.read_text(encoding="utf-8")
         main = MAIN.read_text(encoding="utf-8")
@@ -3473,10 +3532,12 @@ class ThinkingOrbPlanTest(unittest.TestCase):
                 menu = element(layout, f'android:id="@+id/{menu_id}"')
                 self.assertNotIn("android:background", menu)
                 self.assertNotIn("android:layout_marginTop", menu)
-        # Two sets on the menus from the theme pass, both named so a
-        # future pass cannot move one and leave the other behind.
+        # Two sets on the GROUPS from the theme pass, both named so a
+        # future pass cannot move one and leave the other behind (and
+        # none on the menus themselves: their face is the group's own).
         self.assertGreaterEqual(
-            main.count("Menu.setBackground(fieldPlate(index));"), 2)
+            main.count("FieldGroup.setBackground(fieldPlate(index));"), 2)
+        self.assertNotIn("Menu.setBackground(fieldPlate(index));", main)
         self.assertIn(
             "separate window pops up, this is wrong", main)
 

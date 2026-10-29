@@ -1641,6 +1641,39 @@ to sixty seconds. The status tile therefore also carries the app's own
      the orphan law stands so every dot still wears a filament.
   5. The version bump is versionCode 82 / versionName 2.3.15.
 
+**Version 2.3.21, versionCode 88.**
+
+  Owner orders of 2026-10-28, twenty-fifth pass, on the v2.3.20 build
+  wearing the navy theme: "Menu bar icons not changing according to the
+  themes, menu icons should be white, when the theme is navy blue and
+  white", "the drop down menu, is still opening another separate
+  window, make it stop doing that, that shouldn't pop up a separate
+  window, the drop down should expand itself to reveal the drop down
+  menu", and "the tiles also looking really bad, when the theme
+  changes... when the theme changes, all of the tiles start looking
+  really bad, and mis shapes". Three answers:
+
+  1. THE BOX EXPANDS ITSELF. The closed box and its menu are one
+     surface now, a group: the field plate lives on the group (stamped
+     by MainActivity's theme pass), the box face inside it wears
+     nothing, and the two menu rows sit inside the same plate. Tapping
+     the box expands the box; no seam, gap or extra plate can ever be
+     drawn between the box and its rows, on any theme.
+  2. THE MENU BAR INKS FROM THE THEME. The resting icons wore the
+     constant gold on every theme, so a navy console showed gold icons
+     under white headings. The resting icon now wears the theme's own
+     accent, the living icon one brightened step toward white, and
+     both dropdown arrows follow the same law; the purple build keeps
+     its shipped gold pair exactly.
+  3. THE THEMED TILES CARRY THE SHIPPED PLATE'S OWN SHAPE. The themed
+     tiles were one flat panel colour under the purple theme's dark
+     edge line, which read bad and mis-shaped on every theme. A themed
+     tile now paints the two-tone depth the shipped plate carries: its
+     panel ink over its own cover, its 20dp corners, and its OWN edge
+     line - the accent at a low tone - so each theme's tiles are that
+     theme's shape; the field boxes' edge rides the same tone.
+  4. The version bump is versionCode 88 / versionName 2.3.21.
+
 **Version 2.3.20, versionCode 87.**
 
   Owner orders of 2026-10-28, twenty-fourth pass, delivered along the

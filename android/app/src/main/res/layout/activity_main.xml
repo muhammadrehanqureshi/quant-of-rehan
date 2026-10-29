@@ -376,16 +376,40 @@
                  (volume_split_menu below), in the page's own scroll -
                  no platform popup window of any kind. The theme box
                  carries the same exact setting right behind it. -->
-            <FrameLayout
+            <!-- v2.3.21 owner order 2026-10-28 ("Menu bar icons aside -
+                 the drop down menu is still opening another separate
+                 window; the dropdown should expand itself to reveal
+                 the dropdown menu"): the closed box and its menu are
+                 ONE surface now, this group. The field plate lives on
+                 the GROUP (stamped by MainActivity's theme pass), the
+                 box face inside it wears NOTHING of its own, and the
+                 menu is the group pulled down to its rows: tapping the
+                 box expands the box itself, the rows appear inside the
+                 same plate, and there is no second surface on any
+                 theme. The 10dp air above sits on the group, so the
+                 plate hugs the box exactly like the old closed box
+                 did.
+                 v2.3.16 owner order 2026-10-27: the dropdown is NOT a
+                 Spinner; the closed box is a TextView and the menu
+                 opens inside the tile, in the page's own scroll - no
+                 platform popup window of any kind. -->
+            <LinearLayout
+                android:id="@+id/volume_field_group"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="10dp">
+                android:layout_marginTop="10dp"
+                android:background="@drawable/field_bg"
+                android:orientation="vertical">
+
+            <FrameLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
 
             <TextView
                 android:id="@+id/volume_split_spinner"
                 android:layout_width="match_parent"
                 android:layout_height="43dp"
-                android:background="@drawable/field_bg"
+                android:background="@null"
                 android:contentDescription="@string/label_volume"
                 android:gravity="center_vertical"
                 android:includeFontPadding="false"
@@ -412,19 +436,18 @@
                  a completely separate window"): the rows stand directly
                  below the box, in the page's own scroll. GONE until the
                  box or its arrow is tapped, exact like the reveal.
-                 v2.3.20 owner order 2026-10-28 ("when i tap on the drop
-                 down menu, another separate window pops up, this is
-                 wrong"): the menu carries NO plate of its own and NO gap.
-                 Its plate is the field plate MainActivity stamps from
-                 the worn theme, the same one the closed box wears, so
-                 the open group reads as the box itself pulled down to
-                 its rows, never as a second window over the tile. -->
+                 v2.3.21 owner order 2026-10-28: the menu is INSIDE the
+                 group now, so its opening is the box's own expansion -
+                 the group's one field plate covers both faces, and no
+                 seam, gap or extra plate can ever be drawn between
+                 them. -->
             <LinearLayout
                 android:id="@+id/volume_split_menu"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
                 android:visibility="gone"/>
+            </LinearLayout>
 
             <!-- The reveal: the three scrips of the chosen ranking, one
                  line per scrip, the same quote lines the old dropdown rows
@@ -770,16 +793,30 @@
                      dropdown/search boxes heigh by another 50% from
                      their current height"): 29 * 1.5 = 43.5, floored to
                      43dp, the same exact setting once more. -->
-                <FrameLayout
+                <!-- v2.3.21 owner order 2026-10-28: the theme box and
+                     its menu are ONE surface too (theme_field_group),
+                     the volume group's exact law: one field plate on
+                     the group, the box face plateless inside it, the
+                     menu the group pulled down to its rows. The 10dp
+                     air above sits on the group so the plate hugs the
+                     box exactly. -->
+                <LinearLayout
+                    android:id="@+id/theme_field_group"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp">
+                    android:layout_marginTop="10dp"
+                    android:background="@drawable/field_bg"
+                    android:orientation="vertical">
+
+                <FrameLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content">
 
                 <TextView
                     android:id="@+id/theme_spinner"
                     android:layout_width="match_parent"
                     android:layout_height="43dp"
-                    android:background="@drawable/field_bg"
+                    android:background="@null"
                     android:contentDescription="@string/label_themes"
                     android:gravity="center_vertical"
                     android:includeFontPadding="false"
@@ -802,19 +839,20 @@
 
                 <!-- The themes dropdown's OWN menu, the volume menu's
                      one law (v2.3.16): directly below the box, in the
-                     page's own scroll. v2.3.20 owner order 2026-10-28
+                     page's own scroll. v2.3.21 owner order 2026-10-28
                      ("the drop down menu should actually expand and
-                     then the drop down should show me options"): no
-                     plate of its own and no gap, exactly like the
-                     volume menu - the open menu is the box's own
-                     expansion, its plate stamped by MainActivity from
-                     the theme the console wears. -->
+                     then the drop down should show me options"): the
+                     menu is INSIDE the group, so its opening is the
+                     box's own expansion - the group's one field plate
+                     covers both faces, and no seam, gap or extra plate
+                     can ever be drawn between them. -->
                 <LinearLayout
                     android:id="@+id/theme_menu"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
                     android:visibility="gone"/>
+                </LinearLayout>
             </LinearLayout>
 
             <!-- Owner order 2026-10-23 (v2.2.1): the tile's own closing
