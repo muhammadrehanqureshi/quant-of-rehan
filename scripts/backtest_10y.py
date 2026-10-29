@@ -30,7 +30,9 @@ import json
 import sys
 from pathlib import Path
 
-from src.ci.local_only import guard_cloud_backtest
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+from src.ci.local_only import guard_cloud_backtest  # noqa: E402
 
 import pandas as pd
 
