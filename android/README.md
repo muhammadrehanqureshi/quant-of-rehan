@@ -1641,6 +1641,16 @@ to sixty seconds. The status tile therefore also carries the app's own
      the orphan law stands so every dot still wears a filament.
   5. The version bump is versionCode 82 / versionName 2.3.15.
 
+**Version 3.0.0, versionCode 90.**
+
+  Owner order of 2026-10-29, standalone: "from now on make sure you
+  start with version 3 for the app". The version law moves to 3.x
+  from this build on: this build is versionCode 90 / versionName
+  3.0.0, the app and its every next change count from the 3 series,
+  and no 2.x number is stamped on the app again. The dropdown open
+  state's one law below travels with it unchanged, and the manifest's
+  own comment carries the order verbatim.
+
 **Version 2.3.22, versionCode 89.**
 
   Owner order of 2026-10-29, on the v2.3.21 build: "when I tap on
