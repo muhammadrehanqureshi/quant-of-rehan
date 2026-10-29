@@ -48,7 +48,7 @@ jobs:
       # KMIALL EOD over the five years the engine walks. One polite pass over
       # the 319 symbol universe, written to the gitignored data/ directory.
       - name: Build the dataset
-        if: inputs.task != 'smoke'
+        if: inputs.task == 'both'
         run: |
           mkdir -p data
           python -m src.data.psx_eod \
@@ -65,7 +65,7 @@ jobs:
           fi
 
       - name: Smoke the engine end to end
-        if: inputs.task != 'build-dataset'
+        if: inputs.task == 'both' || inputs.task == 'smoke'
         run: |
           python scripts/smoke_backtest.py \
             --dataset data/eod_dataset.csv.gz \
@@ -73,7 +73,7 @@ jobs:
           cat data/backtest_smoke.json
 
       - name: Keep the result
-        if: inputs.task != 'build-dataset'
+        if: inputs.task == 'both' || inputs.task == 'smoke'
         uses: actions/upload-artifact@v7
         with:
           name: backtest-${{ github.run_id }}
