@@ -150,7 +150,8 @@ def main(argv: list[str] | None = None) -> int:
         status = cache.get(key, {}).get("status")
         if status is not None:
             if status == "ok":
-                rows.extend(cache[key]["rows"])
+                rows.extend([{**r, "date": date_cls.fromisoformat(r["date"])}
+                             for r in cache[key]["rows"]])
             elif status == "missing":
                 missing.append(key)
             else:
@@ -165,10 +166,12 @@ def main(argv: list[str] | None = None) -> int:
             cache[key] = {"status": "missing"}
         else:
             rows.extend(result)
-            # Keep every session's raw rows in one side file so the main
-            # run passes over the cache as intact data instead of parsing
-            # archives again.
-            cache[key] = {"status": "ok", "rows": result}
+            # Keep every session's raw rows in the cache so a re-run passes
+            # over cached data instead of parsing archives again. Dates are
+            # stored ISO (JSON has no date type) and parsed back above.
+            cache[key] = {"status": "ok",
+                          "rows": [{**r, "date": r["date"].isoformat()}
+                                   for r in result]}
         if (i + 1) % 250 == 0:
             cache_file.write_text(json.dumps(cache), encoding="utf-8")
             print(f"  {i + 1}/{len(weekdays)} weekdays done", flush=True)
