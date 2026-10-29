@@ -106,9 +106,15 @@ def _payload(http: requests.Session, session: date_cls) -> list[dict]:
     if body is None:
         return None
     if body[:2] == b"PK":
-        return parse_closing_lis(zipfile.ZipFile(io.BytesIO(body))
-                                 .read("closing11.lis").decode("utf-8",
-                                                               "replace"))
+        zf = zipfile.ZipFile(io.BytesIO(body))
+        names = zf.namelist()
+        lis = [n for n in names if n.lower().endswith(".lis")]
+        if not lis:
+            # An archive without any .lis member is not a session's closing
+            # listing; the honest label is "missing", which keeps the
+            # coverage count exact instead of crashing the crawl on one file.
+            return []
+        return parse_closing_lis(zf.read(lis[0]).decode("utf-8", "replace"))
     return parse_closing_lis(gzip.decompress(body).decode("utf-8", "replace"))
 
 
