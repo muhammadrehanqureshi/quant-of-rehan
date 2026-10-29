@@ -1427,18 +1427,25 @@ public class MainActivity extends Activity {
                 revealMenu(volumeSplitMenu);
             }
         }
-        // v3.1.0 owner order 2026-10-29 ("The drop down menu looking
-        // very bad and not even aligned"): the label still steps OUT of
-        // the open window (the v2.3.22 law stands), but the face itself
-        // no longer leaves. A GONE face collapsed the box strip down to
-        // the caret alone, the caret rode up to the plate's top edge and
-        // the rows drew detached below it - the misalignment both photos
-        // showed. The face keeps the closed box's own 43dp and empties
-        // its text, so the caret stays vertically centred on the box's
-        // own line exactly where it stood when the box was closed, and
-        // the option rows stand under that same anchored line.
+        // v3.2.0 owner order 2026-10-29, the photo order ("look at this
+        // picture ... when I tap on the drop down menu, the two menu
+        // options should now move up, because you can see the space
+        // there that is empty ... and when I tap on the drop down again,
+        // then the default custom scrips of volume should appear. do the
+        // same for themes as well"): the v3.1.0 anchored 43dp strip is
+        // RETIRED. While the menu is open the closed face LEAVES the
+        // layout (GONE), so the empty strip the photo shows collapses
+        // and the option rows MOVE UP into the space the face vacated -
+        // the plate hugs the rows alone, with the caret keeping its
+        // top-right anchor above them, visibly tappable, so one tap on
+        // the dropdown icon rolls the window back up. The roll-up
+        // restores the face and its saved label word for word: the
+        // default custom scrips box exactly as it stood before the tap.
         if (volumeSplitSpinner != null) {
-            volumeSplitSpinner.setText(open ? "" : volumeBoxLabel);
+            volumeSplitSpinner.setVisibility(open ? View.GONE : View.VISIBLE);
+            if (!open) {
+                volumeSplitSpinner.setText(volumeBoxLabel);
+            }
         }
         rotateDropdownArrow(volumeSplitArrow, open);
         if (open) {
@@ -1457,13 +1464,16 @@ public class MainActivity extends Activity {
                 revealMenu(themeMenu);
             }
         }
-        // v3.1.0 (owner order 2026-10-29, "not even aligned"): the volume
-        // window's own law - the label steps out, the face holds the
-        // line, and the caret keeps its anchored place while the rows
-        // stand under it.
+        // v3.2.0 (owner order 2026-10-29, "do the same for themes as
+        // well"): the volume window's own law - the face leaves while
+        // the menu is open, the rows move up into the space it vacates,
+        // and the caret keeps its top-right anchor, still the roll-up
+        // tap. Closing restores the closed THEMES box and its label.
         if (themeSpinner != null) {
-            themeSpinner.setText(open ? ""
-                    : getString(THEME_LABELS[themeIndex]));
+            themeSpinner.setVisibility(open ? View.GONE : View.VISIBLE);
+            if (!open) {
+                themeSpinner.setText(getString(THEME_LABELS[themeIndex]));
+            }
         }
         rotateDropdownArrow(themeArrow, open);
         if (open) {
