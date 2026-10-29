@@ -1738,8 +1738,8 @@ class VersionTest(unittest.TestCase):
         # one mesh remains, so no line can end at a dot no other thread
         # carries on from.
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="2.3.21"', manifest)
-        self.assertIn('android:versionCode="88"', manifest)
+        self.assertIn('android:versionName="2.3.22"', manifest)
+        self.assertIn('android:versionCode="89"', manifest)
         # The changelog entry ties these user-visible changes to the build.
         readme = (ROOT / "android" / "README.md").read_text(encoding="utf-8")
         self.assertIn("v1.7.9, owner order 2026-10-20", readme)
@@ -1854,9 +1854,14 @@ class VersionTest(unittest.TestCase):
         # theme's accent, and the themed tiles carry the shipped plate's
         # two-tone depth with the theme's OWN edge, versionCode 88.
         self.assertIn("Version 2.3.21, versionCode 88", readme)
+        # v2.3.22 (owner order 2026-10-29, twenty-sixth pass): the open
+        # menu is its option rows alone - the closed box's own label
+        # steps out while the menu is open, the dropdown icon is the
+        # roll-up, the THEMES box carries the same law, versionCode 89.
+        self.assertIn("Version 2.3.22, versionCode 89", readme)
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionCode="88"', manifest)
-        self.assertIn('android:versionName="2.3.21"', manifest)
+        self.assertIn('android:versionCode="89"', manifest)
+        self.assertIn('android:versionName="2.3.22"', manifest)
         layout = LAYOUT.read_text(encoding="utf-8")
         strings = STRINGS.read_text(encoding="utf-8")
         main = MAIN.read_text(encoding="utf-8")
@@ -3511,6 +3516,38 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         self.assertNotIn('android:layout_height="35dp"', box)
         self.assertIn('android:paddingTop="3dp"', box)
         self.assertIn('android:paddingBottom="3dp"', box)
+
+    def test_v2_3_22_the_open_menu_hides_the_closed_boxs_label(self):
+        """Owner order 2026-10-29: "when I tap on custom scrips of
+        volume, the window is expanding, but then it shows custom
+        scrips of volume in the drop down as well, it should not show
+        custom scrips of volume written on that drop down once I tap on
+        that custom scrips of volume, it should only show prices rising
+        fast and more buyers and less sellers, then when I tap on the
+        drop down icon again, then the window will roll up again then I
+        would see customs scrips of volume again". The v2.3.21 open
+        menu kept the closed box's own label row standing above the
+        option rows, so the open window read as "still showing custom
+        scrips of volume". Now the face is GONE while the menu is open
+        exactly for the open window of the menu, and the arrow stays
+        with the box, so the dropdown icon is the roll-up.
+        """
+        main = MAIN.read_text(encoding="utf-8")
+        # Each open state hides its own closed box's face, and restores
+        # it on the roll-up, whatever open carried in. Exactly one
+        # setVisibility per spinner, so a second pass cannot thrash it.
+        for spinner in ("volumeSplitSpinner", "themeSpinner"):
+            with self.subTest(spinner=spinner):
+                self.assertIn(
+                    f"{spinner}.setVisibility("
+                    f"open ? View.GONE : View.VISIBLE);",
+                    main)
+                self.assertEqual(main.count(f"{spinner}.setVisibility("),
+                    1)
+        # The arrows stay with the box the whole time: the dropdown icon
+        # is the roll-up, so the open states may never hide an arrow.
+        self.assertNotIn("volumeSplitArrow.setVisibility", main)
+        self.assertNotIn("themeArrow.setVisibility", main)
 
     def test_v2_3_20_the_dropdown_never_reads_as_a_second_window(self):
         """Owner order 2026-10-28: "when i tap on the drop down menu,
