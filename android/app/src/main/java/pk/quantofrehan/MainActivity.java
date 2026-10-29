@@ -1413,8 +1413,7 @@ public class MainActivity extends Activity {
             }
         }
         if (themeSpinner != null) {
-            themeSpinner.setVisibility(
-                    open ? View.GONE : View.VISIBLE);
+            themeSpinner.setVisibility(open ? View.GONE : View.VISIBLE);
         }
         rotateDropdownArrow(themeArrow, open);
         if (open) {

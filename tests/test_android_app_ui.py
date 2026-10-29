@@ -1738,8 +1738,8 @@ class VersionTest(unittest.TestCase):
         # one mesh remains, so no line can end at a dot no other thread
         # carries on from.
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="2.3.21"', manifest)
-        self.assertIn('android:versionCode="88"', manifest)
+        self.assertIn('android:versionName="2.3.22"', manifest)
+        self.assertIn('android:versionCode="89"', manifest)
         # The changelog entry ties these user-visible changes to the build.
         readme = (ROOT / "android" / "README.md").read_text(encoding="utf-8")
         self.assertIn("v1.7.9, owner order 2026-10-20", readme)
@@ -1854,9 +1854,14 @@ class VersionTest(unittest.TestCase):
         # theme's accent, and the themed tiles carry the shipped plate's
         # two-tone depth with the theme's OWN edge, versionCode 88.
         self.assertIn("Version 2.3.21, versionCode 88", readme)
+        # v2.3.22 (owner order 2026-10-29, twenty-sixth pass): the open
+        # menu is its option rows alone - the closed box's own label
+        # steps out while the menu is open, the dropdown icon is the
+        # roll-up, the THEMES box carries the same law, versionCode 89.
+        self.assertIn("Version 2.3.22, versionCode 89", readme)
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionCode="88"', manifest)
-        self.assertIn('android:versionName="2.3.21"', manifest)
+        self.assertIn('android:versionCode="89"', manifest)
+        self.assertIn('android:versionName="2.3.22"', manifest)
         layout = LAYOUT.read_text(encoding="utf-8")
         strings = STRINGS.read_text(encoding="utf-8")
         main = MAIN.read_text(encoding="utf-8")
