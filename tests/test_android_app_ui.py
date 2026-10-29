@@ -1738,8 +1738,8 @@ class VersionTest(unittest.TestCase):
         # one mesh remains, so no line can end at a dot no other thread
         # carries on from.
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="3.1.0"', manifest)
-        self.assertIn('android:versionCode="91"', manifest)
+        self.assertIn('android:versionName="3.2.0"', manifest)
+        self.assertIn('android:versionCode="92"', manifest)
         # The changelog entry ties these user-visible changes to the build.
         readme = (ROOT / "android" / "README.md").read_text(encoding="utf-8")
         self.assertIn("v1.7.9, owner order 2026-10-20", readme)
@@ -1869,9 +1869,13 @@ class VersionTest(unittest.TestCase):
         # own column, and the menu tile rides 7% of the screen higher,
         # versionCode 91.
         self.assertIn("Version 3.1.0, versionCode 91", readme)
+        # v3.2.0 (owner order 2026-10-29, the photo order): the open menu's
+        # rows move up into the closed face's empty strip, both dropdowns,
+        # versionCode 92.
+        self.assertIn("Version 3.2.0, versionCode 92", readme)
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionCode="91"', manifest)
-        self.assertIn('android:versionName="3.1.0"', manifest)
+        self.assertIn('android:versionCode="92"', manifest)
+        self.assertIn('android:versionName="3.2.0"', manifest)
         layout = LAYOUT.read_text(encoding="utf-8")
         strings = STRINGS.read_text(encoding="utf-8")
         main = MAIN.read_text(encoding="utf-8")
@@ -3546,17 +3550,22 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         the caret alone and the rows drew detached below it; now the
         face keeps its 43dp and empties its text, so the label steps
         out and the caret keeps the box's own line.
+
+        v3.2.0 owner order 2026-10-29, the photo order, SUPERSEDES the
+        anchored line: "the two menu options should now move up, because
+        you can see the space there that is empty". The open state now
+        WITHDRAWS the face itself and the plate hugs the rows alone; the
+        caret keeps its top-right anchor as the roll-up tap.
         """
         main = MAIN.read_text(encoding="utf-8")
-        # Each open state EMPTIES its own closed box's face and restores
-        # the saved label on the roll-up; the face itself is never
-        # hidden, so the caret keeps its anchored line.
+        # v3.2.0: each open state withdraws its own closed box's face, so
+        # the option rows move up into the space the face vacated; the
+        # roll-up restores the saved label word for word.
         self.assertIn(
-            "volumeSplitSpinner.setText(open ? \"\" : volumeBoxLabel);",
+            "volumeSplitSpinner.setVisibility(open ? View.GONE : View.VISIBLE);",
             main)
         self.assertIn(
-            "themeSpinner.setText(open ? \"\""
-            "\n                    : getString(THEME_LABELS[themeIndex]));",
+            "themeSpinner.setVisibility(open ? View.GONE : View.VISIBLE);",
             main)
         # The saved label is stamped where the box is, so the roll-up
         # restores it word for word.
@@ -3565,12 +3574,45 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         self.assertIn(
             "volumeBoxLabel = getString(R.string.volume_placeholder_scrips);",
             main)
-        # Every hiding channel is closed: no open state may withdraw the
-        # box face any more.
-        self.assertNotIn("volumeSplitSpinner.setVisibility(", main)
-        self.assertNotIn("themeSpinner.setVisibility(", main)
+        # The empty-text v3.1.0 law is gone with its strip: no open state
+        # blanks a face any more, it hides it.
+        self.assertNotIn('volumeSplitSpinner.setText(open ?', main)
+        self.assertNotIn('themeSpinner.setText(open ?', main)
         # The arrows stay with the box the whole time: the dropdown icon
         # is the roll-up, so the open states may never hide an arrow.
+        self.assertNotIn("volumeSplitArrow.setVisibility", main)
+        self.assertNotIn("themeArrow.setVisibility", main)
+
+    def test_v3_2_0_the_open_menus_rows_move_up_into_the_face_space(self):
+        """Owner order 2026-10-29, the photo order: "look at this picture,
+        custom scrips of volume, when I tap on the drop down menu, the
+        two menu options should now move up, because you can see the
+        space there that is empty, so move that up when I tap on the
+        drop down, and when I tap on the drop down again, then the
+        default custom scrips of volume should appear. you get me? do
+        the same for themes as well". The v3.1.0 anchored 43dp strip is
+        the empty space the photo points at: the open state withdraws
+        the closed face (GONE), the plate hugs the option rows alone so
+        they hold the face's ground, and the caret stands at the
+        top-right of the open window, visibly tappable - one tap on the
+        dropdown icon rolls the window back up and the DEFAULT face
+        (SELECT CUSTOM SCRIPS, or the closed THEMES box's label) comes
+        back word for word.
+        """
+        main = MAIN.read_text(encoding="utf-8")
+        # Both open states withdraw their own face, and both roll-ups
+        # restore the saved label.
+        self.assertIn(
+            "volumeSplitSpinner.setVisibility(open ? View.GONE : View.VISIBLE);",
+            main)
+        self.assertIn(
+            "themeSpinner.setVisibility(open ? View.GONE : View.VISIBLE);",
+            main)
+        self.assertIn("volumeSplitSpinner.setText(volumeBoxLabel);", main)
+        self.assertGreaterEqual(
+            main.count("themeSpinner.setText(getString(THEME_LABELS[themeIndex]));"),
+            2)   # the roll-up restore plus applyTheme's restamp
+        # The caret is the roll-up: no open state ever hides an arrow.
         self.assertNotIn("volumeSplitArrow.setVisibility", main)
         self.assertNotIn("themeArrow.setVisibility", main)
 

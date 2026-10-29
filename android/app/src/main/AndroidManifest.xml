@@ -360,14 +360,18 @@
      you start with version 3 for the app". The app's version line
      moves to 3.x from this build on: the app and its number are
      version 3, versionCode 90 / versionName 3.0.0 are the first of
-     them, and every order after this one counts from 3.x. The
-     settings page's own APP VERSION line reads the manifest, so the
-     installed app shows the version the moment this build lands.
+     them, and every order of 2026-10-29 after this one counts from 3.x:
+     v3.2.0 (versionCode 92) is the owner's own photo order, the open
+     dropdown's rows moved up into the closed face's empty strip, both
+     the CUSTOM SCRIPS OF VOL. and the THEMES boxes, and the roll-up
+     brings the default face back. The settings page's own APP VERSION
+     line reads the manifest, so the installed app shows the version the
+     moment this build lands.
      -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="pk.quantofrehan"
-    android:versionCode="91"
-    android:versionName="3.1.0">
+    android:versionCode="92"
+    android:versionName="3.2.0">
 
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="30"/>
 
