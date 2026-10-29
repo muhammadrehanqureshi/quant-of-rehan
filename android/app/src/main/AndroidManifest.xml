@@ -309,11 +309,29 @@
      an open menu is the box's own expansion now, wearing the same
      theme field plate the closed box wears, so it can never read as
      a second window standing over the tile.
+
+     versionCode 88 / versionName 2.3.21 belong to the owner's orders
+     of 2026-10-28, sent back with three screenshots of the v2.3.20
+     build wearing the navy theme ("Menu bar icons not changing
+     according to the themes... the menu icons should be white, when
+     the theme is navy blue and white", "the drop down menu, is still
+     opening another separate window... the drop down should expand
+     itself to reveal the drop down menu", and "when the theme
+     changes, all of the tiles start looking really bad, and mis
+     shapes"): the closed box and its menu are ONE surface each now,
+     a group that carries the field plate the theme pass stamps, so
+     the box literally expands to reveal the rows and no second
+     window can be drawn; the menu bar's icons and both dropdown
+     arrows ink from the worn theme's own accent, so navy opens the
+     bar white and purple keeps its shipped gold pair; and the themed
+     tiles paint the shipped plate's own two-tone depth from the
+     theme's panel and cover with the theme's OWN edge line, instead
+     of flat ink under the purple edge that read bad and mis-shaped.
      -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="pk.quantofrehan"
-    android:versionCode="87"
-    android:versionName="2.3.20">
+    android:versionCode="88"
+    android:versionName="2.3.21">
 
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="30"/>
 
