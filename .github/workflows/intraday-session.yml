@@ -93,6 +93,13 @@ jobs:
       # The URL is public and hardcoded as RELAY_DEFAULT elsewhere; set it so
       # the card, the signals and the research archive push from Actions.
       RELAY_URL: "https://quant-of-rehan-relay.mrmrehanqureshi.workers.dev"
+      # Owner order 2026-10-29 ("start sending me signals"): every scan whose
+      # rank table is non-empty but whose strict entry law stayed unmatched
+      # (or was vetoed by the market) is DELIVERED as an unvalidated CALL
+      # WATCH alongside the verdict, instead of an empty channel. The laws
+      # are untouched: no position opens, no one-trade claim is taken
+      # (src/config.py OWNER_ORDERED_CALLS).
+      OWNER_ORDERED_CALLS: "1"
       # The market event emails are the loop's passenger now (owner order
       # 2026-10-23): the phase edges it already decides each second email
       # the owner through the watched issue, so a GitHub cron stall can

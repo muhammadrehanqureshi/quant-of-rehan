@@ -792,6 +792,30 @@ def run_scan(slot: str, capture: Path | None = None,
                           f"accept the notification")
                 state.last_reason = reason
                 state.save()
+    elif result.status == scanner.CALL_WATCH and not state.trade_taken:
+        # Owner order 2026-10-29: a scan whose rank table is non-empty is
+        # DELIVERED end-to-end even when the market veto kept it from being
+        # a paper entry. The watch is NOT a trade: no paper position opens,
+        # no ONE TRADE claim is taken, and a later fully confirmed entry can
+        # still open the same day. What is delivered is the ranked top with
+        # its measured setup and the veto that explains why it is a watch.
+        status = result.status
+        reason = result.reason
+        watch_text = scanner.call_watch_message(result, quality, context,
+                                                as_of)
+        sent = deliver(watch_text, "signals")
+        delivery = {"channel": "relay:/notify", "kind": "signals",
+                    "ok": sent,
+                    "state": ("relay_accepted" if sent
+                              else "refused_by_relay")}
+        push_card(card_text(day, slot, watch_text, alert=True), state,
+                  signature=f"{day}|{watch_text}")
+        # One watch email per day (the marker dedupes), best effort like
+        # every other channel; the verdict itself never depends on it.
+        email_signal(watch_text, f"signal-callwatch:{day.isoformat()}")
+        state.last_reason = f"call watch delivered instead of entry: {reason}"
+        state.save()
+        delivered = "CALL_WATCH" if sent else "CALL_WATCH_UNDELIVERED"
     elif state.trade_taken:
         # The day already has its one trade. A taken trade is NEVER reported as
         # NO TRADE, and a second candidate is never presented as actionable.

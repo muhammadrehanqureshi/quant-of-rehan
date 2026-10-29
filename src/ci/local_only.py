@@ -83,6 +83,9 @@ BACKTEST_SCRIPTS = {
     "scripts/research_phase2a.py": "phase 2a research",
     "scripts/research_phase2b.py": "phase 2b research",
     "scripts/build_eod_history.py": "the 5-year EOD history crawl",
+    "scripts/build_backtest_dataset.py":
+        "the ten-year mkt_summary OHLCV crawl",
+    "scripts/backtest_10y.py": "the ten-year whole-panel backtest",
 }
 
 REFUSAL = (

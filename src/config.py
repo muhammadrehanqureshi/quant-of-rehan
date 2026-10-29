@@ -67,6 +67,21 @@ MAX_TRADES_PER_DAY = 1
 # closed (no entry, reported), and an owner who wants paper observation to
 # continue without the relay can turn the requirement off deliberately.
 SIGNAL_CLAIM_REQUIRED = _flag("SIGNAL_CLAIM_REQUIRED", True)
+# Owner order 2026-10-29: the engine has delivered almost nothing in any
+# medium since QuantOfRehan began because calls only open through the strict
+# ICT/SMC sequence, and the market veto on top has kept nearly every session
+# in the unconfirmed instead. DAS TREET is the example: the owner saw a good
+# session there and the cloud produced no call at all. The fix is to open
+# up the flow of PROCEDURAL calls without destroying the strict law: when
+# this flag is set, a scan whose rank table is non-empty but whose strict
+# sequence (or market veto) kept the top name from being a legal entry opens
+# an open CALL WATCH - the ranked top names, each labelled ENGINE CALL,
+# UNVALIDATED (SO-3: no implied certainty), and carrying the paper law's own
+# target/stop math so the call includes its measured plan. Honesty laws are
+# untouched: no broker order ever exists (SO-1), and the paper one-trade
+# claim law is untouched (a watch never seizes the day's one trade, so a
+# real proprietary ICT/SMC entry may still open the same day).
+OWNER_ORDERED_CALLS = _flag("OWNER_ORDERED_CALLS", False)
 TARGET_PCT = _number("TARGET_PCT", 2.0) / 100.0
 KMIALL_ONLY = True
 LONG_ONLY = True
@@ -532,6 +547,7 @@ def config_snapshot() -> dict:
         "scan_interval_seconds": SCAN_INTERVAL_SECONDS,
         "tick_stall_seconds": TICK_STALL_SECONDS,
         "signal_claim_required": SIGNAL_CLAIM_REQUIRED,
+        "owner_ordered_calls": OWNER_ORDERED_CALLS,
         "kmiall_only": KMIALL_ONLY,
         "long_only": LONG_ONLY,
         "data_confirmations": data_confirmations(),
