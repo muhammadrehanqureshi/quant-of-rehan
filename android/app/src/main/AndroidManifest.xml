@@ -344,11 +344,19 @@
      tapping the dropdown icon again rolls the menu up and the closed
      box and its label return exactly as they were. The THEMES box
      carries the same one law, so the two boxes behave as one.
+
+     THE VERSION LAW (owner order 2026-10-29): "from now on make sure
+     you start with version 3 for the app". The app's version line
+     moves to 3.x from this build on: the app and its number are
+     version 3, versionCode 90 / versionName 3.0.0 are the first of
+     them, and every order after this one counts from 3.x. The
+     settings page's own APP VERSION line reads the manifest, so the
+     installed app shows 3.0.0 the moment this build lands.
      -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="pk.quantofrehan"
-    android:versionCode="89"
-    android:versionName="2.3.22">
+    android:versionCode="90"
+    android:versionName="3.0.0">
 
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="30"/>
 

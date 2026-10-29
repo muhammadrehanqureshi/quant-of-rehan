@@ -1738,8 +1738,8 @@ class VersionTest(unittest.TestCase):
         # one mesh remains, so no line can end at a dot no other thread
         # carries on from.
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="2.3.22"', manifest)
-        self.assertIn('android:versionCode="89"', manifest)
+        self.assertIn('android:versionName="3.0.0"', manifest)
+        self.assertIn('android:versionCode="90"', manifest)
         # The changelog entry ties these user-visible changes to the build.
         readme = (ROOT / "android" / "README.md").read_text(encoding="utf-8")
         self.assertIn("v1.7.9, owner order 2026-10-20", readme)
@@ -1859,9 +1859,14 @@ class VersionTest(unittest.TestCase):
         # steps out while the menu is open, the dropdown icon is the
         # roll-up, the THEMES box carries the same law, versionCode 89.
         self.assertIn("Version 2.3.22, versionCode 89", readme)
+        # v3.0.0 (owner order 2026-10-29): the app's version law itself
+        # moves to the 3 series - "from now on make sure you start with
+        # version 3 for the app" - so this build is versionCode 90 /
+        # versionName 3.0.0 and no 2.x number is stamped again.
+        self.assertIn("Version 3.0.0, versionCode 90", readme)
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionCode="89"', manifest)
-        self.assertIn('android:versionName="2.3.22"', manifest)
+        self.assertIn('android:versionCode="90"', manifest)
+        self.assertIn('android:versionName="3.0.0"', manifest)
         layout = LAYOUT.read_text(encoding="utf-8")
         strings = STRINGS.read_text(encoding="utf-8")
         main = MAIN.read_text(encoding="utf-8")
