@@ -1641,6 +1641,36 @@ to sixty seconds. The status tile therefore also carries the app's own
      the orphan law stands so every dot still wears a filament.
   5. The version bump is versionCode 82 / versionName 2.3.15.
 
+**Version 3.1.0, versionCode 91.**
+
+  Owner order of 2026-10-29, two sentences: "The drop down menu looking
+  very bad and not even aligned, just look at these two photos. Fix all
+  these features. Also move the menu bar tile 7% above from its current
+  position."
+
+  1. THE OPEN WINDOW KEEPS ITS ANCHOR LINE. The cause of the
+     misalignment the photos showed: the v2.3.22 open state sent the
+     closed box's FACE away with its label, so the box strip collapsed
+     down to the caret alone, the caret rode to the plate's top edge
+     and the option rows drew below it with nothing to line up on. The
+     label still steps out of the open window (the v2.3.22 law
+     stands), but the face keeps the closed box's own 43dp and empties
+     its text: the caret stays vertically centred on the box's own
+     line exactly where it stood when the box was closed, and the
+     option rows stand under that same anchored line. The roll-up
+     restores the label word for word, from the label saved beside
+     every stamp.
+  2. THE ROWS TYPE IN THE BOX'S OWN COLUMN. The menu rows' 14dp left
+     air was an indent of their own; the rows now print on the closed
+     box's own 10dp column, so opening and closing never shifts a
+     text column.
+  3. THE MENU TILE RIDES 7% HIGHER. The tile's pinned law (v1.9.13:
+     outside the scroll, always on the screen) stands, and its bottom
+     edge surrenders 7% of the screen's own height as bottom air,
+     taken from the display's own metrics, so the same 7% is the lift
+     on every screen it runs on.
+  4. The version bump is versionCode 91 / versionName 3.1.0.
+
 **Version 3.0.0, versionCode 90.**
 
   Owner order of 2026-10-29, standalone: "from now on make sure you
