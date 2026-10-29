@@ -24,6 +24,13 @@ from src.signals import smc
 DATA_BLOCKED = "DATA_BLOCKED"
 NO_TRADE = "NO_TRADE"
 TRADE = "TRADE"
+# A ranked-but-not-proprietary call the owner ordered delivered anyway
+# (config.OWNER_ORDERED_CALLS): the strict ICT/SMC sequence never confirmed,
+# but the market still showed the winner and the owner refuses to keep
+# getting an empty channel. The candidate it carries is the same row shape
+# a TRADE carries, so downstream recorders can log it unchanged; the
+# sequence itself still never opens a paper position without confirming.
+CALL_WATCH = "CALL_WATCH"
 
 # Statuses of the source-level honesty registry, reported with every scan.
 SOURCE_NAME = "eClear GetOHLCData public read tier (OHLC only, no volume)"
@@ -671,10 +678,24 @@ def select_one(session: SessionData, quality: QualityReport,
     # Broad panic is a risk veto; ordinary weak breadth is not a momentum
     # entry filter on this reversal strategy.
     if context.get("median_return") is None or context["median_return"] < config.MAX_MARKET_DROP:
+        if config.OWNER_ORDERED_CALLS and ranked:
+            # Owner order 2026-10-29: the veto still stands where it should -
+            # no confirmed entry ever opens into a broad selloff - but a
+            # full-universe scan that RANKED names delivers to the owner as a
+            # CALL WATCH, unvalidated, alongside the veto text that explains
+            # why it is a watch and not a signal.
+            return ScanResult(CALL_WATCH, "market veto stands: broad selloff; ranked top carried as an unvalidated watch",
+                              quality, context, candidate=ranked[0], ranked=ranked,
+                              coverage_text=coverage, gate_tally=dict(tally))
         return ScanResult(NO_TRADE, "market not supportive: broad selloff or unknown context",
                           quality, context, ranked=ranked, coverage_text=coverage,
                           gate_tally=dict(tally))
     if not ranked:
+        # The rank table is empty: every symbol the feeder printed was
+        # rejected by the strict gates, and the gate_tally names which ones.
+        # This stays a NO TRADE under every owner order: there is no setup
+        # to carry, and naming a symbol with none would be a fabricated
+        # signal (SO-3), not a watch. The strict law is untouched.
         return ScanResult(NO_TRADE, "no symbol passed the ICT/SMC sweep, MSS, FVG and retest gates",
                           quality, context, ranked=[], coverage_text=coverage,
                           gate_tally=dict(tally))
@@ -712,6 +733,51 @@ def signal_message(candidate: dict, market: dict, entry: float,
         "Entry is the completed retest close, not a confirmed executable fill.\n"
         "ONE TRADE ONLY. Target is not a guaranteed return."
     )
+
+
+def call_watch_message(result, quality, market: dict, as_of) -> str:
+    """Owner order 2026-10-29: the CALL WATCH text.
+
+    Sent everywhere a signal travels. It is NEVER worded as a confirmed
+    ICT/SMC entry: the unvalidated verdict is stated first, the watch rows
+    carry their own measured setup from this session's bars (SO-3: nothing
+    interpolated, nothing forward-filled), and the strict law's own
+    refusal is named in the same message so nobody reads a watch as a
+    paper position.
+    """
+    ranked = result.ranked[:3]
+    median = market.get("median_return")
+    lines = [
+        "ENGINE CALLS - WATCH, UNVALIDATED",
+        "",
+        f"Market veto in force: {result.status} - {result.reason}",
+        ("Market: median session drift "
+         f"{(median or 0.0) * 100:+.2f}% (MAX_MARKET_DROP "
+         f"{config.MAX_MARKET_DROP * 100:+.2f}%)"),
+        f"Coverage: {result.coverage_text} of {config.SCANNER_VERSION}",
+        "",
+        "WATCH ROWS (ranked top, score for the day; measured on this",
+        "session's bars; entry/target/stop are the paper law's own math,",
+        "given for reference only, never a confirmed entry):",
+        "",
+    ]
+    for row in ranked:
+        price = (row.get("price") or {}).get("last")
+        ref = f" | ref entry {price:.4f}" if price is not None else ""
+        stop = row.get("stop_loss")
+        target = row.get("target")
+        rr = row.get("net_reward_risk")
+        lines.append(
+            f"- {row['symbol']}  score {row.get('score'):.4f} | strategy "
+            f"{row.get('strategy')}{ref} | ref target "
+            f"{target:.4f} | ref stop {stop:.4f} | net R/R {rr:.2f}")
+    lines += [
+        "",
+        "These are WATCH rows, not paper entries: the market veto stands,",
+        "no position opens, and the day's one confirmed paper trade slot",
+        "stays free. The strict ICT/SMC law is untouched.",
+    ]
+    return "\n".join(lines)
 
 
 def no_trade_message(quality: QualityReport, market: dict,

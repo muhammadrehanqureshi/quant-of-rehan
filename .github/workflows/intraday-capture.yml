@@ -97,6 +97,12 @@ jobs:
       # slot-verdict:<day>:<slot>; a second fire or a manual dispatch cannot
       # double-send the same slot). Only this workflow sets it.
       EMAIL_SLOT_VERDICTS: "1"
+      # Owner order 2026-10-29 ("start sending me signals"): the scheduled
+      # backstop slots deliver the same CALL WATCH the session loop delivers
+      # (src/config.py OWNER_ORDERED_CALLS), so a band the session loop
+      # cannot cover never leaves the owner without a call. No position, no
+      # claim; the strict one-trade law is untouched.
+      OWNER_ORDERED_CALLS: "1"
       # The owner email transport (src/notify/owner_email.py) reads its token
       # from the environment; a job env without it raises before any comment
       # POST can go out, and the delivered verdict would never be emailed.
