@@ -1641,6 +1641,33 @@ to sixty seconds. The status tile therefore also carries the app's own
      the orphan law stands so every dot still wears a filament.
   5. The version bump is versionCode 82 / versionName 2.3.15.
 
+**Version 2.3.22, versionCode 89.**
+
+  Owner order of 2026-10-29, on the v2.3.21 build: "when I tap on
+  custom scrips of volume, the window is expanding, but then it shows
+  custom scrips of volume in the drop down as well, it should not show
+  custom scrips of volume written on that drop down once I tap on that
+  custom scrips of volume, it should only show prices rising fast and
+  more buyers and less sellers, then when I tap on the drop down icon
+  again, then the window will roll up again then I would see customs
+  scrips of volume again".
+
+  1. THE OPEN MENU IS ITS OPTION ROWS ALONE. While a dropdown's menu is
+     open, the closed box's own label (SELECT CUSTOM SCRIPS, or the
+     worn theme's name) steps out of the menu, and only the option rows
+     stand inside the plate. Tapping the box opened the rows directly
+     under it in v2.3.21; the label row kept standing above them and
+     read as part of the menu. Now the face is GONE for exactly the
+     open window of the menu.
+  2. THE DROPDOWN ICON IS THE ROLL-UP. The arrow never leaves the box,
+     so while the rows are open the icon is still there to tap; a tap
+     on it rolls the menu up, and the closed box comes back with its
+     own label exactly as it read before the tap. Picking a row closes
+     the menu the same way it always did.
+  3. ONE LAW FOR BOTH BOXES. The THEMES box carries the same steps
+     as the volume box, so the two dropdowns behave as one.
+  4. The version bump is versionCode 89 / versionName 2.3.22.
+
 **Version 2.3.21, versionCode 88.**
 
   Owner orders of 2026-10-28, twenty-fifth pass, on the v2.3.20 build

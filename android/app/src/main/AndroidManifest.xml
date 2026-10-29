@@ -327,11 +327,28 @@
      tiles paint the shipped plate's own two-tone depth from the
      theme's panel and cover with the theme's OWN edge line, instead
      of flat ink under the purple edge that read bad and mis-shaped.
+
+     The dropdown's open state is the option rows alone (below).
+
+     versionCode 89 / versionName 2.3.22 belong to the owner's order
+     of 2026-10-29 ("when I tap on custom scrips of volume, the window
+     is expanding, but then it shows custom scrips of volume in the
+     drop down as well, it should not show custom scrips of volume
+     written on that drop down once I tap on that custom scrips of
+     volume, it should only show prices rising fast and more buyers and
+     less sellers, then when I tap on the drop down icon again, then
+     the window will roll up again then I would see customs scrips of
+     volume again"): while a dropdown's menu is open, the closed box's
+     own label steps out of the menu and only the option rows stand
+     inside the plate; the arrow stays with the box the whole time, so
+     tapping the dropdown icon again rolls the menu up and the closed
+     box and its label return exactly as they were. The THEMES box
+     carries the same one law, so the two boxes behave as one.
      -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="pk.quantofrehan"
-    android:versionCode="88"
-    android:versionName="2.3.21">
+    android:versionCode="89"
+    android:versionName="2.3.22">
 
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="30"/>
 

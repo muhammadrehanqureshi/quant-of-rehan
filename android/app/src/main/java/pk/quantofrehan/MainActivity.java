@@ -1371,6 +1371,18 @@ public class MainActivity extends Activity {
      * the same law the pages follow. The state is the boolean; the menu's
      * visibility and the arrow's angle are drawn from it, never read
      * back, so a repeated tap cannot thrash the view tree.
+     *
+     * v2.3.22 (owner order 2026-10-29, "when I tap on custom scrips of
+     * volume, the window is expanding, but then it shows custom scrips
+     * of volume in the drop down as well... it should only show prices
+     * rising fast and more buyers and less sellers, then when I tap on
+     * the drop down icon again, then the window will roll up again then
+     * I would see customs scrips of volume again"): while the menu is
+     * open the closed box's own label is NOT part of the open menu - the
+     * face steps aside (GONE) and only the option rows stand inside the
+     * plate. The arrow stays with the box the whole time, so tapping the
+     * dropdown icon again closes the menu; rolling it up brings the
+     * closed box and its label back exactly as they were.
      */
     private void showVolumeMenu(boolean open) {
         volumeMenuOpen = open;
@@ -1380,13 +1392,19 @@ public class MainActivity extends Activity {
                 revealMenu(volumeSplitMenu);
             }
         }
+        if (volumeSplitSpinner != null) {
+            volumeSplitSpinner.setVisibility(open ? View.GONE
+                    : View.VISIBLE);
+        }
         rotateDropdownArrow(volumeSplitArrow, open);
         if (open) {
             showThemeMenu(false);
         }
     }
 
-    /** The themes menu's own open state, the volume menu's one law. */
+    /** The themes menu's own open state, the volume menu's one law -
+     *  v2.3.22: its closed box's own label steps aside while the menu
+     *  is open too, the same way, so the two boxes behave as one. */
     private void showThemeMenu(boolean open) {
         themeMenuOpen = open;
         if (themeMenu != null) {
@@ -1394,6 +1412,10 @@ public class MainActivity extends Activity {
             if (open) {
                 revealMenu(themeMenu);
             }
+        }
+        if (themeSpinner != null) {
+            themeSpinner.setVisibility(
+                    open ? View.GONE : View.VISIBLE);
         }
         rotateDropdownArrow(themeArrow, open);
         if (open) {
