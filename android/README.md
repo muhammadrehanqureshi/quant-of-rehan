@@ -1641,6 +1641,31 @@ to sixty seconds. The status tile therefore also carries the app's own
      the orphan law stands so every dot still wears a filament.
   5. The version bump is versionCode 82 / versionName 2.3.15.
 
+**Version 3.2.0, versionCode 92.**
+
+  Owner order of 2026-10-29, with the photo: "look at this picture, custom
+  scrips of volume, when I tap on the drop down menu, the two menu options
+  should now move up, because you can see the space there that is empty, so
+  move that up when I tap on the drop down, and when I tap on the drop down
+  again, then the default custom scrips of volume should appear, you get me?
+  do the same for themes as well."
+
+  1. THE ROWS MOVE UP INTO THE FACE'S SPACE. The v3.1.0 anchored 43dp
+     strip is the empty space the photo points at. Retired: while the
+     menu is open the closed face LEAVES the layout (GONE), the plate
+     hugs the option rows alone, and the two option rows (PRICES RISING
+     FAST, MORE BUYERS & LESS SELLERS) stand where the empty strip used
+     to be, right under the caret.
+  2. THE CARET STAYS THE ROLL-UP. The caret keeps its top-right anchor
+     above the rows, visibly tappable, and one tap on it rolls the
+     window back up: the default custom scrips face (SELECT CUSTOM
+     SCRIPS) and the closed THEMES box come back word for word.
+  3. SAME LAW FOR THEMES. The THEMES box carries the volume box's
+     open law exactly: its closed label leaves while its five theme
+     pairs are showing, leaving its own caret in their top-right, and
+     the roll-up restores it.
+  4. The version bump is versionCode 92 / versionName 3.2.0.
+
 **Version 3.1.0, versionCode 91.**
 
   Owner order of 2026-10-29, two sentences: "The drop down menu looking
