@@ -345,18 +345,29 @@
      box and its label return exactly as they were. The THEMES box
      carries the same one law, so the two boxes behave as one.
 
+     versionCode 91 / versionName 3.1.0 belong to the owner order
+     2026-10-29 ("The drop down menu looking very bad and not even
+     aligned... Also move the menu bar tile 7% above from its current
+     position"): while a dropdown's menu is open the label still steps
+     out (the v2.3.22 law stands) but the face keeps the closed box's
+     own line, so the caret stays vertically centred exactly where it
+     stood when the box was closed and the option rows stand under that
+     same anchored line on the box's own 10dp column; and the pinned
+     menu tile surrenders 7% of the screen's own height as its bottom
+     air, riding that share higher on every screen it runs on.
+
      THE VERSION LAW (owner order 2026-10-29): "from now on make sure
      you start with version 3 for the app". The app's version line
      moves to 3.x from this build on: the app and its number are
      version 3, versionCode 90 / versionName 3.0.0 are the first of
      them, and every order after this one counts from 3.x. The
      settings page's own APP VERSION line reads the manifest, so the
-     installed app shows 3.0.0 the moment this build lands.
+     installed app shows the version the moment this build lands.
      -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="pk.quantofrehan"
-    android:versionCode="90"
-    android:versionName="3.0.0">
+    android:versionCode="91"
+    android:versionName="3.1.0">
 
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="30"/>
 
