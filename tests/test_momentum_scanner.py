@@ -355,5 +355,72 @@ class TestMessages(unittest.TestCase):
         self.assertIn("KMIALL scanned: 1/2", text)
 
 
+class TestOwnerOrderedCallWatch(unittest.TestCase):
+    """Owner order 2026-10-29 ("start sending me signals").
+
+    The strict ICT/SMC law and the market veto keep every authority they
+    ever had over the PAPER position. What changes with the owner flag is
+    only the DELIVERY: a full-universe scan that ranked a real confirmed
+    setup but was vetoed is delivered as an explicitly UNVALIDATED call
+    watch, instead of another empty day. An empty rank table stays a NO
+    TRADE in every mode - naming a symbol with no confirmed setup would be
+    a fabricated signal (SO-3), not a watch.
+    """
+
+    def setUp(self):
+        self._flag = config.OWNER_ORDERED_CALLS
+        self._market_context = scanner.market_context
+
+    def tearDown(self):
+        config.OWNER_ORDERED_CALLS = self._flag
+        scanner.market_context = self._market_context
+
+    def test_veto_over_a_ranked_setup_delivers_a_watch(self):
+        from tests.smc_fixture import setup_rows
+        bars = {"OGDC": setup_rows(scanner, SESSION_OPEN)}
+        session = session_of(bars, 43)
+        quality = scanner.assess_quality(session, ["OGDC"])
+        assert quality.status != scanner.DATA_BLOCKED, quality.reason
+        scanner.market_context = lambda s: {
+            "median_return": -0.05, "info_score": 1.0}
+
+        config.OWNER_ORDERED_CALLS = True
+        watch = scanner.select_one(session, quality)
+        config.OWNER_ORDERED_CALLS = False
+        plain = scanner.select_one(session, quality)
+
+        self.assertEqual(watch.status, scanner.CALL_WATCH)
+        self.assertTrue(watch.ranked)
+        self.assertEqual(watch.candidate, watch.ranked[0])
+        self.assertIn("veto", watch.reason)
+        # Switched off, the same session is exactly what it always was.
+        self.assertEqual(plain.status, scanner.NO_TRADE)
+
+    def test_watch_message_prefixes_the_unvalidated_verdict(self):
+        from src.signals.momentum_scanner import ScanResult
+        result = ScanResult(
+            scanner.CALL_WATCH,
+            "market veto stands: broad selloff; ranked top carried as an "
+            "unvalidated watch",
+            quality=scanner.assess_quality(session_of({}, 40), ["OGDC"]),
+            market={"median_return": -0.05, "info_score": 1.0},
+            candidate={"symbol": "OGDC", "score": 0.8123,
+                       "strategy": "test", "price": {"last": 100.0},
+                       "stop_loss": 99.0, "target": 102.0,
+                       "net_reward_risk": 1.9},
+            ranked=[{"symbol": "OGDC", "score": 0.8123,
+                     "strategy": "test", "price": {"last": 100.0},
+                     "stop_loss": 99.0, "target": 102.0,
+                     "net_reward_risk": 1.9}],
+            coverage_text="1/1 (100.0%)",
+        )
+        text = scanner.call_watch_message(result, result.quality,
+                                          result.market, SESSION_OPEN)
+
+        for needle in ("ENGINE CALLS", "UNVALIDATED", "veto stands",
+                       "OGDC", "not paper entries", "stays free"):
+            self.assertIn(needle, text)
+
+
 if __name__ == "__main__":
     unittest.main()
