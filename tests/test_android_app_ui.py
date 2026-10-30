@@ -473,8 +473,11 @@ class SettingsControlTest(unittest.TestCase):
                     other)
                 self.assertIn('android:tint="@color/gold"', other)
         # The state machine is the one helper MainActivity calls with the
-        # page's truth, never a view's own state.
-        self.assertIn("? R.drawable.nav_circle : R.drawable.settings_ripple",
+        # page's truth, never a view's own state. v3.4.0: the disc is the
+        # worn theme's own law (navDisc); the unselected face is still
+        # the ripple.
+        self.assertIn("icon.setBackground(navDisc());", self.main)
+        self.assertIn("setBackgroundResource(R.drawable.settings_ripple);",
                       self.main)
         self.assertIn("selected ? R.color.gold_bright : R.color.gold",
                       self.main)
@@ -1738,8 +1741,8 @@ class VersionTest(unittest.TestCase):
         # one mesh remains, so no line can end at a dot no other thread
         # carries on from.
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="3.3.0"', manifest)
-        self.assertIn('android:versionCode="93"', manifest)
+        self.assertIn('android:versionName="3.4.0"', manifest)
+        self.assertIn('android:versionCode="94"', manifest)
         # The changelog entry ties these user-visible changes to the build.
         readme = (ROOT / "android" / "README.md").read_text(encoding="utf-8")
         self.assertIn("v1.7.9, owner order 2026-10-20", readme)
@@ -1874,6 +1877,12 @@ class VersionTest(unittest.TestCase):
         # release stamps its heading into the running changelog, so every
         # shipped heading keeps its own pin (SO-3).
         self.assertIn("Version 3.3.0, versionCode 93", readme)
+        # v3.4.0 (owner order 2026-10-30): the caret keeps the mount's
+        # own top station, the open menu's rows carry the 43dp field
+        # law, the theme highlight is its own ring (white on navy, black
+        # and orange), and the icons tile's height is a law of 74dp;
+        # versionCode 94.
+        self.assertIn("Version 3.4.0, versionCode 94", readme)
         # v3.1.0 (owner order 2026-10-29, twenty-eighth pass): the open
         # menu keeps its anchored line and the rows type in the box's
         # own column, and the menu tile rides 7% of the screen higher.
@@ -1882,9 +1891,9 @@ class VersionTest(unittest.TestCase):
         # rows move up into the closed face's empty strip, both dropdowns.
         self.assertIn("Version 3.2.0, versionCode 92", readme)
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionCode="93"', manifest)
-        self.assertIn('android:versionName="3.3.0"', manifest)
-        self.assertNotIn('android:versionName="3.2.0"', manifest)
+        self.assertIn('android:versionCode="94"', manifest)
+        self.assertIn('android:versionName="3.4.0"', manifest)
+        self.assertNotIn('android:versionName="3.3.0"', manifest)
         layout = LAYOUT.read_text(encoding="utf-8")
         strings = STRINGS.read_text(encoding="utf-8")
         main = MAIN.read_text(encoding="utf-8")
@@ -2501,9 +2510,14 @@ class MenuOrdersTest(unittest.TestCase):
         for view_id in ("volume_split_arrow", "theme_arrow"):
             with self.subTest(arrow=view_id):
                 arrow = element(self.layout, f'android:id="@+id/{view_id}"')
-                # Beside the field, at its right edge, facing down.
-                self.assertIn('android:layout_gravity="end|center_vertical"',
+                # v3.4.0 (owner order 2026-10-30, "the drop down/drop up
+                # icon gets on the middle, it should be on the top"): the
+                # caret anchors the mount's own TOP-RIGHT, the closed
+                # 43dp face's own 11dp station, and the open rows' first
+                # line while the menu stands.
+                self.assertIn('android:layout_gravity="end|top"',
                               arrow)
+                self.assertIn('android:layout_marginTop="11dp"', arrow)
                 self.assertIn('android:src="@drawable/dropdown_arrow"', arrow)
         self.assertIn("(ImageView) findViewById(R.id.volume_split_arrow);",
                       self.main)
@@ -3489,8 +3503,11 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         The margin moved onto the holder then, and v2.3.21 moved it one
         level further onto the dropdown's group (so the group's field
         plate hugs the box exactly): the holder and the box are BOTH
-        exactly the box now, and both arrows aim at the box's own
-        centre by construction.
+        exactly the box now. v3.4.0 (owner order 2026-10-30) re-aims
+        the arrows onto the mount's own TOP-RIGHT station, 11dp of top
+        air, so with the open rows standing the caret rides their first
+        line and stays the roll-up tap; the box and holder carry no top
+        margin still.
         """
         layout = LAYOUT.read_text(encoding="utf-8")
         for view_id, group_id in (
@@ -3624,6 +3641,58 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         # The caret is the roll-up: no open state ever hides an arrow.
         self.assertNotIn("volumeSplitArrow.setVisibility", main)
         self.assertNotIn("themeArrow.setVisibility", main)
+
+    def test_v3_4_0_the_caret_leads_the_mount_and_the_rows_stay_thick(self):
+        """Owner order 2026-10-30, v3.4.0: "when i tap on the drop down
+        menu, on custom scrips of volume and on themes page, the drop
+        down menu got thinner and the drop down/drop up icon gets on
+        the middle, it should be on the top. also when I change the
+        theme the menu icons tile get so large that it goes so down the
+        screen and doesn't even end, also when I changed the theme to
+        navy blue and white, the icons on the menu tile changed but the
+        highlighted stayed as yellow which is wrong, it should have
+        highlighted in white for navy blue and white theme".
+
+        Three laws land:
+
+        * both caret anchors: the mount's own TOP-RIGHT (11dp of top
+          air, the closed 43dp face's own station), never the centre of
+          whatever the mount holds;
+        * every menu row stands at the closed box's own field height
+          law, the one universal 43dp, so an open menu reads as thick
+          as the face it opened from;
+        * the selected highlight disc is the worn theme's own accent
+          pair (white on navy, black and orange, the shipped gold on
+          purple), and the icons tile's height is a LAW of 74dp - the
+          42dp icon + 16dp air + 16dp air - so no theme pass can ever
+          stretch the pinned bar past the screen again.
+        """
+        layout = LAYOUT.read_text(encoding="utf-8")
+        main = MAIN.read_text(encoding="utf-8")
+        for view_id in ("volume_split_arrow", "theme_arrow"):
+            with self.subTest(arrow=view_id):
+                arrow = element(layout, f'android:id="@+id/{view_id}"')
+                self.assertIn('android:layout_gravity="end|top"', arrow)
+                self.assertIn('android:layout_marginTop="11dp"', arrow)
+        # The rows' own thickness: inside menuRow, once, at the field's
+        # one height law.
+        row = main.index("private TextView menuRow(String line) {")
+        self.assertEqual(main.count("row.setMinimumHeight(dp(43));"), 1)
+        self.assertIn("row.setMinimumHeight(dp(43));",
+                      main[row:row + 900])
+        # The per-theme disc: built once per theme, the same oval law
+        # nav_circle keeps, the worn accent's fill and its brightened
+        # ring; the purple build still gets the shipped XML drawable.
+        self.assertIn(
+            "private android.graphics.drawable.Drawable navDisc() {", main)
+        self.assertIn("cached.setShape(GradientDrawable.OVAL);", main)
+        self.assertIn("(themeAccentInk & 0x00FFFFFF) | 0x4D000000", main)
+        self.assertIn("navDiscs[themeIndex - 1] = cached;", main)
+        self.assertIn("getResources().getDrawable(R.drawable.nav_circle)", main)
+        # And the pinned tile's own law: 74dp exactly, requested at the
+        # app's own start.
+        self.assertIn("navTile.getLayoutParams().height = (int) dp(74);", main)
+        self.assertIn("navTile.requestLayout();", main)
 
     def test_v3_1_0_the_open_menu_reads_aligned_and_the_tile_lifts(self):
         """Owner order 2026-10-29: "The drop down menu looking very bad
@@ -4204,8 +4273,12 @@ class V19SecondOrderTest(unittest.TestCase):
         self.assertNotIn("icon.setForeground(", self.main)
         self.assertNotIn("icon.setScaleX(", self.main)
         self.assertNotIn("icon.setScaleY(", self.main)
-        self.assertIn("selected ? R.drawable.nav_circle : R.drawable.settings_ripple",
-                      self.main)
+        # v3.4.0: the selected disc is the worn theme's own accent pair
+        # (navDisc), so navy's highlight is white and purple's the
+        # shipped gold; the old theme-blind gold ternary is retired.
+        self.assertNotIn("selected ? R.drawable.nav_circle",
+                         self.main)
+        self.assertIn("icon.setBackground(navDisc());", self.main)
         self.assertIn("icon.setImageTintList(ColorStateList.valueOf(getColor(",
                       self.main)
         self.assertIn("selected ? R.color.gold_bright : R.color.gold)));",
