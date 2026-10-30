@@ -1631,10 +1631,10 @@ export default {
     return json({ ok: false, error: "not found" }, 404);
   },
 
-  // Cron handler: fires the owner's two texts at EVERY PKT band edge, so a
-  // Friday break produces the exact pair of texts the owner already knows:
-  // "Market is closed. Quant is sleeping now." at 12:00 and "Market is open.
-  // Quant is online now." at 14:32.
+  // Cron handler: the edge's job is DISPATCH and CARD STATE, not sending.
+  // Since owner order 2026-10-29 the owner's texts travel by owner email on
+  // GitHub, sent from the Actions jobs; this wake dispatches the band workflow
+  // and keeps the app card's market state current.
   async scheduled(controller, env, ctx) {
     const now = new Date();
     const k = karachiView(now.getTime());
