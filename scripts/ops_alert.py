@@ -4,9 +4,9 @@
 Owner order 2026-10-08: GitHub failure emails per run are unwanted. The
 scheduled workflows therefore stay GREEN and report through this channel
 instead. Owner order 2026-10-22 made the owner email issue the channel;
-owner order 2026-10-29 removed the retired chat account entirely, so the
-relay's /notify primary leg is retired and this script speaks owner email
-only (src/notify/owner_email.py), one comment per marker, i.e. one email
+owner order 2026-10-29 removed the retired chat account entirely, so this
+script speaks owner email only (src.notify.owner_email), one comment
+per marker, i.e. one email
 per day no matter how many failing slots arrive.
 
 Also implements the capture-health check: when the intraday capture pass
@@ -92,8 +92,8 @@ def capture_health_message() -> str:
 def send(text: str) -> bool:
     """Deliver one deduped ops alert (owner email only, 2026-10-29).
 
-    The relay's /notify hop is retired along with the chat channel, so
-    the transport is the watched owner email issue, one email per marker
+    The retired relay hop went with the chat channel, so the transport is
+    the watched owner email issue, one email per marker
     (ops-alert:<date>), wherever the caller runs and however often it
     fires. A transport failure returns False and nothing is claimed as
     delivered.

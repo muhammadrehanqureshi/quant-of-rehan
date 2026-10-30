@@ -236,17 +236,24 @@ class TestScheduleRunner(unittest.TestCase):
 
     ISSUE = "42"
 
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+
     def _deliver(self, issue="42", sent=True, raises=None):
         issue = self.ISSUE if issue == "42" else issue
         from src.notify import schedule_runner as sr
-        with mock.patch.object(sr, "NOTIFY_LOG",
-                               Path(self._tmp.name) / "notify_log.jsonl"), \
+        # Hold the patched path in a local: inside the ``with`` the module
+        # attribute is replaced, after it the real constant returns, and
+        # the assertions below must read what the send wrote.
+        log = Path(self._tmp.name) / "notify_log.jsonl"
+        with mock.patch.object(sr, "NOTIFY_LOG", log), \
              mock.patch.object(sr, "owner_email_issue",
                                return_value=issue), \
              mock.patch.object(sr, "send_owner_email",
                                return_value=sent, side_effect=raises) as send:
             ok = sr.deliver(MSG_MARKET_OPEN, "market-open")
-        return ok, send, sr.NOTIFY_LOG
+        return ok, send, log
 
     def test_deliver_claims_one_issue_comment(self):
         ok, send, log = self._deliver()
@@ -262,15 +269,15 @@ class TestScheduleRunner(unittest.TestCase):
 
     def test_a_send_that_raised_fails_closed_and_sends_no_marker_record(self):
         from src.notify import schedule_runner as sr
-        with mock.patch.object(sr, "NOTIFY_LOG",
-                               Path(self._tmp.name) / "notify_log.jsonl"), \
+        log = Path(self._tmp.name) / "notify_log.jsonl"
+        with mock.patch.object(sr, "NOTIFY_LOG", log), \
              mock.patch.object(sr, "owner_email_issue",
                                return_value=self.ISSUE):
             with mock.patch.object(sr, "send_owner_email",
                                    side_effect=RuntimeError("boom")):
                 ok = sr.deliver(MSG_MARKET_OPEN, "market-open")
         self.assertFalse(ok)
-        self.assertFalse(sr.NOTIFY_LOG.read_text(encoding="utf-8").strip(),
+        self.assertFalse(log.exists() and log.read_text(encoding="utf-8").strip(),
                          "an unproven send claims nothing")
 
     def test_an_already_sent_marker_is_deduped_never_duplicated(self):
@@ -286,13 +293,13 @@ class TestScheduleRunner(unittest.TestCase):
 
     def test_a_missing_issue_is_degraded_never_silent_sent(self):
         from src.notify import schedule_runner as sr
-        with mock.patch.object(sr, "NOTIFY_LOG",
-                               Path(self._tmp.name) / "notify_log.jsonl"), \
+        log = Path(self._tmp.name) / "notify_log.jsonl"
+        with mock.patch.object(sr, "NOTIFY_LOG", log), \
              mock.patch.object(sr, "owner_email_issue",
                                side_effect=RuntimeError("gone")):
             ok = sr.deliver(MSG_MARKET_OPEN, "market-open")
         self.assertFalse(ok)
-        self.assertFalse(sr.NOTIFY_LOG.read_text(encoding="utf-8").strip())
+        self.assertFalse(log.exists() and log.read_text(encoding="utf-8").strip())
 
     def test_a_text_without_an_event_key_is_ambiguous_and_is_a_no_op(self):
         from src.notify import schedule_runner as sr
