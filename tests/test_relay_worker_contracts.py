@@ -96,9 +96,10 @@ class RelayWorkerContractTest(unittest.TestCase):
         pair = (ROOT / "cloud" / "pair.py").read_text(encoding="utf-8")
         self.assertNotIn('"kv_namespace"', pair,
                          "a manual deploy still uploads a KV binding")
-        # The retry path stays uncached on purpose: a stale pending frame could
-        # otherwise be re-delivered after it was consumed.
-        self.assertIn("relayRead(env, MARKET_PENDING_KEY)", self.source)
+        # The transition ledger is the only stateful read left after the
+        # delivery-retry path was retired: it reads the confirmed state
+        # through the memo helper rather than the helpers' KV names.
+        self.assertIn("kvGet(env, MARKET_STATE_KEY)", self.source)
 
     def test_health_names_the_commit_the_edge_is_running(self):
         """`ok: true` proved only that SOMETHING answered.
