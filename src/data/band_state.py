@@ -268,6 +268,36 @@ def restore(day: date = None) -> dict:
     return {"ok": True, "restored": restored, "reason": "; ".join(notes)[:400]}
 
 
+def fetch_capture(day: date) -> dict:
+    """Download ONLY the day's tape from the store, when it is absent locally.
+
+    The research jobs (the Kalman grid fit) need the captured tape, and a
+    fresh GitHub runner holds none: the store is the only copy between the
+    session that wrote it and the next job that reads it. Unlike restore(),
+    this touches exactly one key, so a research job never writes a past day's
+    session state over its own. Never invents a file (SO-3): a 404 is a
+    named absence, not an empty capture.
+    """
+    creds = _credential()
+    if creds is None:
+        return {"ok": False, "reason": "no CF_API_TOKEN/CF_ACCOUNT_ID credential"}
+    local = capture_path(day)
+    if local.is_file() and local.stat().st_size > 0:
+        return {"ok": True, "reason": f"local exists: {local.name}", "present": True}
+    key = f"day={day.isoformat()}/capture.ndjson.gz"
+    url = bucket_url() + "/" + quote(key, safe="")
+    result = _call(method="GET", url=url, headers=_headers(creds[0]), timeout=600)
+    if result.get("status") == 404:
+        return {"ok": False, "reason": f"nothing stored for {day.isoformat()}", "present": False}
+    if not result["ok"]:
+        return {"ok": False, "reason": f"HTTP {result.get('status')}", "present": False}
+    payload = gzip.decompress(result["body"])
+    local.parent.mkdir(parents=True, exist_ok=True)
+    local.write_bytes(payload)
+    return {"ok": True, "reason": f"restored {local.name} ({len(payload)} bytes)",
+            "present": True}
+
+
 def prune(creds: tuple[str, str] | None = None, days: int = RETENTION_DAYS) -> dict:
     """DELETE every object in the bucket older than `days` days."""
     creds = creds or _credential()
