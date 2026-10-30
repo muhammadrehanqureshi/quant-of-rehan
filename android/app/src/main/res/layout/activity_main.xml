@@ -450,11 +450,20 @@
                 android:orientation="vertical"
                 android:visibility="gone"/>
 
+            <!-- v3.4.0 owner order 2026-10-30 ("the drop down/drop up icon
+                 gets on the middle, it should be on the top"): the caret
+                 anchors the mount's own TOP-RIGHT, no longer the centre of
+                 whatever the mount holds. Its 11dp top air keeps the closed
+                 box's own station (the 43dp face centres the 20dp caret at
+                 the same place), and with the face away -- the open rows --
+                 the caret stands over the rows' first line, exactly where
+                 the roll-up tap lives. -->
             <ImageView
                 android:id="@+id/volume_split_arrow"
                 android:layout_width="20dp"
                 android:layout_height="20dp"
-                android:layout_gravity="end|center_vertical"
+                android:layout_gravity="end|top"
+                android:layout_marginTop="11dp"
                 android:layout_marginEnd="14dp"
                 android:contentDescription="@string/cd_dropdown"
                 android:src="@drawable/dropdown_arrow"/>
@@ -860,11 +869,16 @@
                     android:orientation="vertical"
                     android:visibility="gone"/>
 
+                <!-- v3.4.0: the volume caret's one law, the same: the
+                     theme caret anchors the mount's TOP-RIGHT too, the
+                     closed 43dp face's own station, the open rows' own
+                     roll-up tap. -->
                 <ImageView
                     android:id="@+id/theme_arrow"
                     android:layout_width="20dp"
                     android:layout_height="20dp"
-                    android:layout_gravity="end|center_vertical"
+                    android:layout_gravity="end|top"
+                    android:layout_marginTop="11dp"
                     android:layout_marginEnd="14dp"
                     android:contentDescription="@string/cd_dropdown"
                     android:src="@drawable/dropdown_arrow"/>

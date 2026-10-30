@@ -605,6 +605,20 @@ public class MainActivity extends Activity {
             navCarrier.setLayoutParams(lift);
         }
 
+        // v3.4.0 (owner order 2026-10-30, "the menu icons tile get so
+        // large that it goes so down the screen and doesn't even end"):
+        // the tile's height is a LAW, not a measure any repaint can
+        // negotiate: exactly its own icon law, the 42dp icon + 16dp air
+        // + 16dp air = 74dp the four icons and the plate actually
+        // stand in. The bottom air is the carrier's 3% screen share
+        // above, so the tile ends, always, on the screen it is pinned
+        // to - no theme pass can ever stretch it past its edge again.
+        android.view.View navTile = findViewById(R.id.nav_tile);
+        if (navTile != null) {
+            navTile.getLayoutParams().height = (int) dp(74);
+            navTile.requestLayout();
+        }
+
         writeAppVersion();
 
         // v1.5.1's battery exemption ask retired with the watch window
@@ -662,7 +676,20 @@ public class MainActivity extends Activity {
         if (icon == null) {
             return;
         }
-        icon.setBackgroundResource(selected ? R.drawable.nav_circle : R.drawable.settings_ripple);
+        // v3.4.0 (owner order 2026-10-30, "when I changed the theme to
+        // navy blue and white, the icons on the menu tile changed but
+        // the highlighted stayed as yellow which is wrong, it should
+        // have highlighted in white for navy blue and white theme"): the
+        // selected disc is the worn theme's own law, never the purple
+        // build's shipped gold. The gold pair keeps its shipped
+        // nav_circle; every other theme's disc is the SAME oval from its
+        // own accent pair, so navy's highlight is white, black's and
+        // orange's white too, green's the gold its headings keep.
+        if (selected) {
+            icon.setBackground(navDisc());
+        } else {
+            icon.setBackgroundResource(R.drawable.settings_ripple);
+        }
         // v2.3.21 (owner order 2026-10-28, "Menu bar icons not changing
         // according to the themes...": on the navy blue and white theme
         // the menu icons should be WHITE): the icons ink from the worn
@@ -689,6 +716,34 @@ public class MainActivity extends Activity {
                 Math.min(255, Math.round(r + (255 - r) * 0.45f)),
                 Math.min(255, Math.round(g + (255 - g) * 0.45f)),
                 Math.min(255, Math.round(b + (255 - b) * 0.45f)));
+    }
+
+    /** One selected disc per theme, built once and reused (v3.4.0).
+     *  The disc's shape is nav_circle's own law in the worn theme's
+     *  inks: the translucent fill the shipped disc's 0x4D tone and the
+     *  2dp ring in the brightened step the selected icon's ink rides,
+     *  so the highlight's ring and the icon inside it read as one
+     *  lifted face. The purple theme's own disc stays the shipped XML
+     *  drawable, so its law is unchanged byte for byte. */
+    private final GradientDrawable[] navDiscs = new GradientDrawable[4];
+
+    private android.graphics.drawable.Drawable navDisc() {
+        if (themeIndex <= 0) {
+            @SuppressWarnings("deprecation")
+            android.graphics.drawable.Drawable own =
+                    getResources().getDrawable(R.drawable.nav_circle);
+            return own;
+        }
+        GradientDrawable cached = navDiscs[themeIndex - 1];
+        if (cached == null) {
+            cached = new GradientDrawable();
+            cached.setShape(GradientDrawable.OVAL);
+            cached.setColor((themeAccentInk & 0x00FFFFFF) | 0x4D000000);
+            cached.setStroke(Math.max(1, (int) dp(2)),
+                    brighten(themeAccentInk));
+            navDiscs[themeIndex - 1] = cached;
+        }
+        return cached;
     }
 
     /** The two dropdown arrows ink from the worn theme (v2.3.21), the
@@ -1399,6 +1454,14 @@ public class MainActivity extends Activity {
         // lines stand in the same typing column the closed label prints
         // in, instead of an indent of their own.
         row.setPadding(dp(10), dp(7), dp(14), dp(7));
+        // v3.4.0 (owner order 2026-10-30, "the drop down menu got
+        // thinner and the drop down/drop up icon gets on the middle,
+        // it should be on the top"): a menu row stands at the closed
+        // box's own field height law, the one 43dp every field box
+        // wears (v2.3.18's 29 * 1.5 = 43.5, floored to 43), so an open
+        // menu reads as thick as the box it opened from and never as
+        // one thinner list of lines beside its own caret.
+        row.setMinimumHeight(dp(43));
         row.setText(dropdownLine(line));
         return row;
     }
