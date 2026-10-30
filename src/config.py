@@ -270,7 +270,10 @@ KALMAN_SETUP_BARS = 40          # a signal's upward flip may be at most this old
 # is measured by the Actions grid fit, never bolted on as a per-scan veto.
 # The MAXIMUM below still refuses a stop absurdly far away.
 KALMAN_MAX_RISK_PCT = _number("KALMAN_MAX_RISK_PCT", 0.012)
-KALMAN_TICK_SIZE = 0.01
+# The owner's TP/SL law (owner answer 2026-10-30: "I only one call a day
+# with 2% TP and -1% SL"). The stop is a FIXED percent under the entry,
+# not a chart level, so it is the same honest number for every name.
+KALMAN_STOP_PCT = 0.01
 KALMAN_MAX_SIGNAL_AGE_SECONDS = 60
 KALMAN_LAST_ENTRY_MINUTES = 30
 # Legacy momentum constants above are retained only by historical daily-bar

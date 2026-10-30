@@ -8,9 +8,10 @@ signals. Owner-confirmed scope:
     scanner already loads (src/data/tape_bars.py);
   * parameters: grid-fit in GitHub Actions (scripts/kalman_grid_fit.py),
     never on the owner's PC;
-  * rules: NEW simpler rules - the Kalman defines entry, stop and exit
-    from the flip alone (no sweep, no structure shift, no FVG, no retest,
-    no ceiling);
+  * rules: NEW simpler rules - the Kalman's flip is the entry, and the
+    TP/SL come from the owner's law for every name (+2% target, -1%
+    stop, one call a day; no sweep, no structure shift, no FVG, no
+    retest, no ceiling);
   * delivery: unchanged - the same relay, cadence and emails.
 
 One filter per symbol, causal, nothing looks ahead:
@@ -23,14 +24,15 @@ One filter per symbol, causal, nothing looks ahead:
   the state only moves off its previous sign when the slope crosses the
   threshold, so one noisy print cannot flip the view.
 
-The flip is the whole strategy:
+The flip is the entry; the owner's TP/SL law is the whole plan:
   entry  - the bar the trend flips UP (and only while the flip is fresh,
            KALMAN_SETUP_BARS bars old at most);
-  stop   - the flip bar's own low minus one tick: if price falls through
-           the level the flip itself happened at, the trend's claim is
-           dead;
-  exit   - the target (owner's +TARGET_PCT) or the trend flipping back
-           DOWN, whichever comes first.
+  stop   - entry minus the owner's fixed -1% (owner answer 2026-10-30:
+           "I only one call a day with 2% TP and -1% SL"), the same
+           number for every name;
+  exit   - the target (owner's +TARGET_PCT) or the stop, whichever the
+           tape touches first. The one-call-a-day lock and the paper
+           state machine already carry it (src/signals/trade_state.py).
 
 There is no reward-risk floor gate on a flip entry: the owner's TP/SL law
 (TP +TARGET_PCT, the flip's own stop) is the plan, the round-trip cost of
@@ -174,10 +176,9 @@ def candidate(symbol: str, rows: list, session,
         return None
     entry = last.close
     flip_bar = rows[flip_index]
-    stop = round(flip_bar.low - config.KALMAN_TICK_SIZE, 4)
-    if any(b.low <= stop for b in rows[flip_index + 1:]):
-        _bump(tally, "stop_already_breached")
-        return None
+    # The owner's fixed -1% stop under the entry, the same number for
+    # every name (owner answer 2026-10-30, 2% TP / -1% SL).
+    stop = round(entry * (1 - config.KALMAN_STOP_PCT), 4)
     if entry <= stop or entry <= 0:
         _bump(tally, "stop_not_below_entry")
         return None
@@ -206,7 +207,6 @@ def candidate(symbol: str, rows: list, session,
             "slope_per_minute_log": slope,
             "flip_at": flip_bar.timestamp.isoformat(),
             "flip_close": flip_bar.close,
-            "flip_low": flip_bar.low,
             "trend_age_bars": age,
             "hysteresis_log_per_minute": config.KALMAN_FLIP_THRESHOLD,
             "process_noise_q": config.KALMAN_Q,
