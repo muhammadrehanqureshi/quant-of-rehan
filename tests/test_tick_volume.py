@@ -341,14 +341,22 @@ class MeasuredSplitTest(unittest.TestCase):
         return [{"symbol": "OGDC", "volume": 1000, "price": 95.0},
                 {"symbol": "PSO", "volume": 900, "price": 96.0}]
 
-    def attach(self, rows=None) -> tuple[list[dict], str]:
+    def attach(self, rows=None, quotes=None) -> tuple[list[dict], str]:
         rows = self.leaders() if rows is None else rows
         flows = tick_volume.session_flow(tick_volume.capture_path(DAY),
                                         [row["symbol"] for row in rows])
-        basis = volume_split.attach_splits(rows, quotes={}, flows=flows)
+        basis = volume_split.attach_splits(rows, quotes=quotes or {},
+                                           flows=flows)
         return rows, basis
 
-    def test_a_tape_that_covers_the_day_is_labelled_measured(self):
+    def test_a_tape_never_answers_a_card_row_without_its_own_frame(self):
+        """Owner order 2026-10-30: one law for every stock.
+
+        A whole-day tape's measured pair no longer stands on the card: the
+        range rows need the row's own published frame, and without it the
+        row carries explicit nulls and the stated reason, like every other
+        unavailable answer (SO-3).
+        """
         write_capture(tick_volume.capture_path(DAY), [
             {"kind": "MKT-FEED", "ticks": [
                 row("OGDC", bid="100.00", ask="100.50", last="100.50",
@@ -360,21 +368,25 @@ class MeasuredSplitTest(unittest.TestCase):
             ]},
         ])
         rows, basis = self.attach()
-        self.assertEqual(rows[0]["buy_volume"], 600)
-        self.assertEqual(rows[0]["sell_volume"], 400)
-        self.assertEqual(rows[0]["split_method"], volume_split.METHOD_MEASURED)
-        self.assertIn("measured", basis)
-        # a leader with no tape rows carries no numbers at all
-        self.assertIsNone(rows[1]["buy_volume"])
-        self.assertIsNone(rows[1]["sell_volume"])
-        self.assertIn("(1 of 2)", basis)
+        self.assertIsNone(rows[0]["buy_volume"])
+        self.assertIsNone(rows[0]["sell_volume"])
+        self.assertEqual(rows[0]["split_method"], volume_split.METHOD_NONE)
+        self.assertIn("no published session range", rows[0]["split_source"])
+        self.assertEqual(basis, "B/S unavailable for the leaders right now")
+        for row_ in rows:
+            self.assertTrue(row_["split_source"])
 
-    def test_a_partial_tape_is_projected_and_labelled_an_estimate(self):
-        """The tape saw part of the day: its sides are used, and labelled.
+    def test_a_partial_tape_counts_never_split_the_row_the_frame_does(self):
+        """The tape saw part of the day: its counts are no longer the card's.
 
         Six windows, four of them buys, 3000 attributed shares against a
-        running total of 4000 (75 percent coverage), so the tape's two to
-        one buy flow is projected onto the day's 1000 shares.
+        running total of 4000 (75 percent coverage). The verbatim pair's sum
+        is the tape's own window, deliberately not the venue total printed
+        beside T on the same row, which is exactly the two answers for one
+        stock the owner measured on 2026-10-29. The row's own frame answers
+        instead: price 100 sits at the day's high of 100, so the range split
+        puts the whole session on the buy side, and B + S is the row's T,
+        exactly.
         """
         ticks = [row("OGDC", bid="100.00", ask="100.50", last="100.00",
                      total="1000", when="10:00")]
@@ -391,17 +403,17 @@ class MeasuredSplitTest(unittest.TestCase):
                              total=str(total), when=f"10:{index:02d}"))
         write_capture(tick_volume.capture_path(DAY),
                       [{"kind": "MKT-FEED", "ticks": ticks}])
-        rows, basis = self.attach()
-        # Owner order 2026-10-15: the feed's own counts, verbatim. The tape
-        # attributed 3000 shares here (2000 buys, 1000 sells); none of them
-        # is scaled onto the venue's total for the same row.
+        rows, basis = self.attach(quotes={"OGDC": {"high": 100.0,
+                                                   "low": 90.0,
+                                                   "volume": 1000}})
         self.assertEqual((rows[0]["buy_volume"], rows[0]["sell_volume"]),
-                         (2000, 1000))
+                         (1000, 0))
         self.assertEqual(rows[0]["buy_volume"] + rows[0]["sell_volume"],
-                         rows[0]["split_volume"])
+                         rows[0]["volume"])
         self.assertEqual(rows[0]["split_method"],
-                         volume_split.METHOD_TAPE_COUNTS)
-        self.assertIn("part of the session", basis)
+                         volume_split.METHOD_RANGE)
+        self.assertEqual(
+            basis, volume_split.METHOD_LABELS[volume_split.METHOD_RANGE])
 
     def test_a_capture_without_tape_rows_cannot_split_a_row(self):
         """A stats frame is not a trade: the row stays without numbers."""

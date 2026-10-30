@@ -421,16 +421,6 @@
                 android:textColor="@color/text_bright"
                 android:textSize="13sp"/>
 
-            <ImageView
-                android:id="@+id/volume_split_arrow"
-                android:layout_width="20dp"
-                android:layout_height="20dp"
-                android:layout_gravity="end|center_vertical"
-                android:layout_marginEnd="14dp"
-                android:contentDescription="@string/cd_dropdown"
-                android:src="@drawable/dropdown_arrow"/>
-            </FrameLayout>
-
             <!-- The volume dropdown's OWN menu (v2.3.16 owner order
                  "drop down menu should appear from the same box, not as
                  a completely separate window"): the rows stand directly
@@ -440,13 +430,35 @@
                  group now, so its opening is the box's own expansion -
                  the group's one field plate covers both faces, and no
                  seam, gap or extra plate can ever be drawn between
-                 them. -->
+                 them.
+                 v3.3.0 owner order 2026-10-30 ("the drop down menu is
+                 getting pushed down, which is wrong, it should move
+                 above when I tap on the drop down"): the rows stand
+                 INSIDE the box's own mount frame, as the mount's top
+                 face while the closed box is gone. While the menu is
+                 open the face leaves the layout, so the mount is the
+                 rows alone from the plate's top edge - the empty strip
+                 the caret used to own above the rows is retired, and
+                 the rows move UP into the box's own space. The caret
+                 keeps its anchor at the mount's right edge (it overlays
+                 the open rows and stays the roll-up tap), and closing
+                 brings the closed box back exactly as it stood. -->
             <LinearLayout
                 android:id="@+id/volume_split_menu"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
                 android:visibility="gone"/>
+
+            <ImageView
+                android:id="@+id/volume_split_arrow"
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:layout_gravity="end|center_vertical"
+                android:layout_marginEnd="14dp"
+                android:contentDescription="@string/cd_dropdown"
+                android:src="@drawable/dropdown_arrow"/>
+            </FrameLayout>
             </LinearLayout>
 
             <!-- The reveal: the three scrips of the chosen ranking, one
@@ -827,6 +839,27 @@
                     android:textColor="@color/text_bright"
                     android:textSize="13sp"/>
 
+                <!-- The themes dropdown's OWN menu, the volume menu's
+                     one law (v2.3.16): directly below the box, in the
+                     page's own scroll. v2.3.21 owner order 2026-10-28
+                     ("the drop down menu should actually expand and
+                     then the drop down should show me options"): the
+                     menu is INSIDE the group, so its opening is the
+                     box's own expansion - the group's one field plate
+                     covers both faces, and no seam, gap or extra plate
+                     can ever be drawn between them.
+                     v3.3.0 owner order 2026-10-30: the volume menu's
+                     newest law, moved up it stands INSIDE the box's
+                     mount frame, first face of the open mount, so the
+                     rows move UP into the box's own space and the
+                     caret overlays them as the roll-up tap. -->
+                <LinearLayout
+                    android:id="@+id/theme_menu"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:visibility="gone"/>
+
                 <ImageView
                     android:id="@+id/theme_arrow"
                     android:layout_width="20dp"
@@ -836,22 +869,6 @@
                     android:contentDescription="@string/cd_dropdown"
                     android:src="@drawable/dropdown_arrow"/>
                 </FrameLayout>
-
-                <!-- The themes dropdown's OWN menu, the volume menu's
-                     one law (v2.3.16): directly below the box, in the
-                     page's own scroll. v2.3.21 owner order 2026-10-28
-                     ("the drop down menu should actually expand and
-                     then the drop down should show me options"): the
-                     menu is INSIDE the group, so its opening is the
-                     box's own expansion - the group's one field plate
-                     covers both faces, and no seam, gap or extra plate
-                     can ever be drawn between them. -->
-                <LinearLayout
-                    android:id="@+id/theme_menu"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:visibility="gone"/>
                 </LinearLayout>
             </LinearLayout>
 

@@ -122,7 +122,12 @@ class SplitCalculationTest(unittest.TestCase):
 
 
 class SplitSourceHierarchyTest(unittest.TestCase):
-    """Measured tape first, labelled estimate second, nothing third."""
+    """Owner order 2026-10-30: one law for every stock.
+
+    The row's own published frame answers, with the same range-position
+    split the app's search box ranks from; a banked tape, whole-day or
+    partial, never stands on the card again.
+    """
 
     def setUp(self) -> None:
         self._dir = tempfile.TemporaryDirectory()
@@ -145,8 +150,11 @@ class SplitSourceHierarchyTest(unittest.TestCase):
                 handle.write(json.dumps(record) + "\n")
         return tick_volume.session_flow(path, [symbol])
 
-    def test_a_reconciled_tape_beats_the_estimate(self):
-        """The tape ran from the open, so its own numbers are the split."""
+    def test_a_whole_day_tape_never_beats_the_rows_own_frame(self):
+        """The tape ran from the open and reconciles, and the frame still
+        answers: the card's B/S must be the pair the search box shows for
+        the same row, so the tape's measured numbers stand retired.
+        """
         flows = self.flow("OGDC", [{"kind": "MKT-FEED", "ticks": [
             {"scrip": "OGDC", "bid": "100.00", "ask": "100.50",
              "last": "100.50", "volume": "0", "tick_time": "09:32"},
@@ -160,18 +168,18 @@ class SplitSourceHierarchyTest(unittest.TestCase):
         split, reason = volume_split.split_for(row, quotes={"OGDC": quote},
                                                flows=flows)
         self.assertEqual(reason, "")
-        self.assertEqual((split.buy, split.sell), (600, 400))
-        self.assertEqual(split.method, volume_split.METHOD_MEASURED)
-        self.assertIn("measured", volume_split.METHOD_LABELS[split.method])
+        self.assertEqual((split.buy, split.sell), (500, 500))
+        self.assertEqual(split.method, volume_split.METHOD_RANGE)
+        self.assertIn("estimated", volume_split.METHOD_LABELS[split.method])
 
-    def test_a_partial_tape_carries_the_feeds_own_counts_verbatim(self):
-        """3000 attributed shares, 2000 of them buys, printed as they are.
+    def test_a_partial_tape_counts_never_stand_on_the_card(self):
+        """The verbatim counts cannot stand beside the row's own T.
 
-        Owner order 2026-10-15: the quantity fields show the exact numbers
-        the broker feed produced, so the tape's own integers ride through
-        unchanged. Nothing is scaled onto the venue's session total (1000
-        here), which is why B + S is 3000 and not that total, and the note
-        carries what the counts cover.
+        The tape attributed 3000 shares here (2000 buys, 1000 sells) and the
+        venue total on the same row is 1000, which is exactly the two
+        answers for one stock the owner measured on 2026-10-29. The row's
+        own frame answers instead: price 100 at the day's high of 100 puts
+        the whole session on the buy side, and B + S is the row's T.
         """
         ticks = [{"scrip": "OGDC", "bid": "100.00", "ask": "100.50",
                   "last": "100.00", "volume": "1000", "tick_time": "10:00"}]
@@ -193,25 +201,21 @@ class SplitSourceHierarchyTest(unittest.TestCase):
         split, reason = volume_split.split_for(row, quotes={"OGDC": quote},
                                                flows=flows)
         self.assertEqual(reason, "")
-        self.assertEqual(split.method, volume_split.METHOD_TAPE_COUNTS)
-        self.assertEqual((split.buy, split.sell), (2000, 1000))
+        self.assertEqual(split.method, volume_split.METHOD_RANGE)
+        self.assertEqual((split.buy, split.sell), (1000, 0))
         self.assertEqual(split.buy + split.sell, split.volume)
-        # The venue's own total for the same symbol is NOT the tape's window,
-        # and the card prints both: T= stays the exchange's figure.
-        self.assertNotEqual(split.volume, 1000)
-        self.assertIn("3,000", split.note)
-        self.assertIn("4,000", split.note)
+        # The card prints one T and one B/S pair for the stock: the pair
+        # always sums to the same T the row prints and /prices answers with.
+        self.assertEqual(split.volume, 1000)
+        self.assertEqual(split.buy + split.sell, row["volume"])
         label = volume_split.METHOD_LABELS[split.method]
-        self.assertIn("session's own trade tape", label)
-        self.assertIn("part of the session", label)
+        self.assertIn("estimated", label)
+        self.assertIn("not order flow", label)
 
-    def test_a_too_thin_tape_slice_is_refused_and_the_range_answers(self):
-        """A slice this small is one window's direction, not the day's flow.
-
-        Measured 2026-10-12: a mid-session capture covered 0.1 percent of
-        SLGL's day, and one window's direction would have printed as 100
-        percent buying. Below the floor the labelled range estimate answers
-        instead.
+    def test_a_too_thin_tape_slice_changes_nothing_the_frame_answers(self):
+        """A slice this small was one window's direction, and it is not
+        even consulted now: the frame's range estimate answers, whatever
+        the tape saw.
         """
         flows = self.flow("OGDC", [{"kind": "MKT-FEED", "ticks": [
             {"scrip": "OGDC", "bid": "100.00", "ask": "100.50",
@@ -238,8 +242,10 @@ class SplitSourceHierarchyTest(unittest.TestCase):
         self.assertIsNone(split)
         self.assertIn("no published session range", reason)
 
-    def test_no_tape_counts_falls_back_to_the_range_estimate(self):
-        """No tape at all: the day's range answers, and says so."""
+    def test_the_tape_answers_nothing_alone_and_the_range_answers(self):
+        """A tape with no published frame for the row is refused (the
+        reason is the frame's, not the tape's), and the day's range
+        answers whenever the frame exists."""
         flows = self.flow("OGDC", [{"kind": "MKT-FEED", "ticks": [
             {"scrip": "OGDC", "bid": "100.00", "ask": "100.50",
              "last": "100.00", "volume": "1000", "tick_time": "10:00"},

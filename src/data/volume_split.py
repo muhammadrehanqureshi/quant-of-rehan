@@ -30,26 +30,36 @@ What genuinely exists, checked against the venue's own pages on 2026-10-11
 
 So every row is answered in this order:
 
-  1. MEASURED. A banked tape covers the symbol from (near) the session start
-     and its classified buy and sell volumes reconcile with the venue's own
-     cumulative session total. The measured numbers are used and labelled as
-     measured.
-  2. TAPE COUNTS. A tape covered part of the symbol's day. The sides it
-     attributed are the broker feed's own counted prints, and they are
-     carried verbatim (owner order 2026-10-15: the card's quantity fields
-     show the exact numbers the feed produced, never a projection of them).
-     No share is scaled or rounded to make B + S reach the session total on
-     the same row, because that total includes prints the tape never saw;
-     the note and the card's label carry what the counts cover. This is the
-     split the card shows whenever the tape is running.
-  3. RANGE ESTIMATE. No tape flow at all: the split is the money flow
-     multiplier position of the close inside the day's published high low
-     range, applied to the same total. SO-3 allows an OHLCV derived proxy in
-     this system only when it is explicitly labelled as degraded, so the
-     label travels with the number and the app prints it. It is never
-     presented as observed order flow.
-  4. UNAVAILABLE. When the venue's own fields are missing or contradictory
+  1. RANGE ESTIMATE. The split is the money flow multiplier position of the
+     close inside the day's published high low range, applied to the row's
+     own session total. SO-3 allows an OHLCV derived proxy in this system
+     only when it is explicitly labelled as degraded, so the label travels
+     with the number and the app prints it. It is never presented as
+     observed order flow.
+  2. UNAVAILABLE. When the venue's own fields are missing or contradictory
      the row carries no numbers at all and a short reason.
+
+Owner order 2026-10-30: ONE law for every stock. "Have the same/correct
+Data for each stock. Which one was correct?" The report that started this
+file measured the owner seeing two different B/S pairs for the same PRL on
+the same minute: the card's top row carried a tape/measured split whose
+sum was the capture's own window, not the venue total printed beside it as
+T, while the search box showed the range split that sums to that T. The
+tape answers stand retired from the card: whether measured or verbatim
+counts, a tape-derived pair only ever names the prints the tape saw, so it
+can never agree with the T the row prints or with the /prices answer the
+app's search ranks from. Every producer now answers with the row's own
+frame split, the same computation cloud/worker.js recomputes for /prices
+and the merged live card.
+
+The tape functions below (measured_split, tape_counts_split) stand only as
+documented reference of what used to answer; split_for no longer calls
+them, and they are kept for the tick_volume reconciliation story.
+
+Invariants, all covered by tests/test_volume_split.py:
+
+  * buy + sell == volume, exactly, for every produced split, and `volume`
+    is always the venue session total the row prints beside it as T
 
 Invariants, all covered by tests/test_volume_split.py:
 
@@ -239,7 +249,11 @@ def range_position_split(high, low, close, volume) -> Split | None:
 
 
 def measured_split(flow: "tick_volume.SymbolFlow") -> Split | None:
-    """A split from a banked tape, accepted only if it reconciles.
+    """A banked tape's reconciled split. Retired from the card 2026-10-30:
+    split_for no longer calls this, because a pair that reconciles only
+    within tolerance can still disagree with the T the row prints and with
+    the /prices answer the app's search ranks from (see the module
+    docstring's owner order 2026-10-30).
 
     The tape is the one genuine source of a traded-side split, but a
     partial capture understates it. A measured split is therefore accepted
@@ -259,7 +273,11 @@ def measured_split(flow: "tick_volume.SymbolFlow") -> Split | None:
 
 
 def tape_counts_split(flow: "tick_volume.SymbolFlow") -> Split | None:
-    """The session's own tape counts, verbatim, for a day it only partly saw.
+    """The tape's own counted sides, verbatim. Retired from the card
+    2026-10-30: split_for no longer calls this, because the verbatim pair's
+    B + S is deliberately not the T printed on the same row, which is the
+    exact divergence the owner measured on 2026-10-29 (see the module
+    docstring's owner order 2026-10-30).
 
     Owner order 2026-10-15: the card's quantity fields show the exact, raw
     numbers the broker feed produced. The capture did not cover the whole
@@ -303,20 +321,14 @@ def split_for(row: Mapping, *, quotes: Mapping | None = None,
     (high, low, volume) and `flows` maps a symbol to a
     `tick_volume.SymbolFlow` from a banked tape. Either may be absent, in
     which case that source simply cannot answer.
+
+    `flows` is accepted for call compatibility and IGNORED since owner order
+    2026-10-30: the card's one-truth law answers every row with the same
+    range-position split the search box shows, computed from the row's own
+    frame, so a stock can never carry two different pairs.
     """
     symbol = str(row.get("symbol", "")).strip().upper()
     table_volume = _number(row.get("volume"))
-    flow = (flows or {}).get(symbol)
-    measured = measured_split(flow)
-    if measured is not None:
-        return measured, ""
-    # The tape's own counted sides, verbatim (owner order 2026-10-15). It is
-    # the strongest evidence available after a whole-day reconciliation, and
-    # it does not need the company page: the numbers are the broker feed's
-    # own prints even when this snapshot's quote is missing.
-    counted = tape_counts_split(flow)
-    if counted is not None:
-        return counted, ""
     quote = (quotes or {}).get(symbol)
     if quote is None:
         return None, "no published session range for this symbol"
