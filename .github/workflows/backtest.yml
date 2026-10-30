@@ -117,8 +117,12 @@ jobs:
 
   # Mean-reversion (RSI(2) snapback) study under the MeanRevParams exit
   # law, scored and simulated against the same ten-year mkt_summary
-  # panel the 'ten-year' task uses. Manual dispatch only (SO-21).
+  # panel the 'ten-year' task uses. Manual dispatch only (SO-21), and only
+  # when that task is the one asked for: before this guard every dispatch
+  # (including the Kalman grid) also started this ten-year crawl, which is
+  # a runner-minute burn nobody asked for.
   mean-reversion:
+    if: inputs.task == 'mean-reversion'
     runs-on: ubuntu-latest
     timeout-minutes: 150
     env:
@@ -169,6 +173,7 @@ jobs:
   # script exits 1 rather than invent evidence (SO-3). Manual dispatch only
   # (SO-21).
   kalman-grid:
+    if: inputs.task == 'kalman-grid'
     runs-on: ubuntu-latest
     timeout-minutes: 150
     env:
