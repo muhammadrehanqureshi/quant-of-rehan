@@ -1,20 +1,20 @@
 # Quant of Rehan: the complete project report
 
-Written 2026-10-09 at 12:45 PKT (Asia/Karachi, UTC+5, SO-8).
-Repository state: `master` at `69c9c59` (merge of PR #56). 121 commits, 48 merges.
-Every figure below was read from the repository, the local `data/` directory, the
-Cloudflare relay, or the GitHub API at that time. Test-artifact numbers are labelled
-as such.
+First written 2026-10-09; brought current on 2026-10-30, version 3.4.0, master
+`dfa7c0f`, 1,395 tests, merge of PR #173. Every figure below was read from the
+repository, the local `data/` directory, the Cloudflare relay, or the GitHub API
+at that time. Test-artifact numbers are labelled as such.
 
 ---
 
 ## 1. What this project is
 
 A private, signal-only quantitative research platform for the **PSX KMIALL Shariah
-universe** (Karachi Stock Exchange, all-share Shariah index). It decides, from
-momentum plus volume expansion, whether exactly one stock is a buy today, records
-that as a paper trade, watches a +2% target, and reports to the owner's phone and
-email inbox. It never places an order. It is owned and authored solely by Rehan
+universe** (Karachi Stock Exchange, all-share Shariah index). It decides, from the
+Kalman Trend law (position versus its own trend, volume expansion, market
+breadth), whether exactly one stock is a buy today, and, since owner order
+2026-10-30, may deliver a runner-up full-universe rank as a clearly unvalidated
+call watch when the market veto stands. It never places an order. It is owned and authored solely by Rehan
 (muhammadrehanqureshi); the agent (Buffy / the QUANT) executes and never widens its
 own scope.
 
@@ -28,78 +28,66 @@ Size of the thing:
 |---|---|
 | Tracked files | 329 (215 of them quarantined under `legacy/`) |
 | Python lines, tracked, excluding `legacy/` | 13,047 |
-| Tests | 185 test methods across 15 files, all passing |
+| Tests | 1,395 test methods, all passing in the Actions suite |
 | GitHub Actions workflows | 3 (governance guard, intraday scan, daily signal push) |
 | Cloudflare Workers | 1 relay (`quant-of-rehan-relay`) with 4 crons and 10 KV keys |
-| Android app | versionCode 12 / versionName 1.5.0, APK 436,793 bytes, built without Gradle |
+| Android app | versionCode 94 / versionName 3.4.0, APK built in GitHub Actions, not on this PC |
 | Research documents | 6 (`DATA_SOURCING`, `INTRADAY_FORWARD_SYSTEM`, `RESEARCH_AUDIT`, `RESEARCH_FINAL_AUDIT`, `RESEARCH_PHASE1`, `RESEARCH_PHASE2A`, `RESEARCH_PHASE2B`) |
 
 ---
 
 ## 2. The strategy, exactly
 
-One scanner, one score, one trade a day, one target.
+One law, one trade a day, one target. Since 2026-10-30 (owner order on the
+numbers order, PRs #171 and #172) the law is the Kalman Trend engine:
+`src/signals/kalman_trend.py`, selected by `src/signals/momentum_scanner.py`,
+with the engine's own score being the whole decision.
 
-**Universe**: the tracked snapshot `src/data/universe_kmiall.json` (319 symbols, all
-Shariah, all listed in KMIALLSHR). The scanner loads it, filters on
-`isShariahCompliant == true` and `KMIALLSHR in listedIn`, and records a SHA-256
-fingerprint of the sorted list in every observation so a membership change is
-visible in the record.
+**Universe**: the tracked snapshot `src/data/universe_kmiall.json` (KMIALL
+Shariah symbols). The scanner loads it, filters on
+`isShariahCompliant == true` and `KMIALLSHR in listedIn`, and records a
+SHA-256 fingerprint of the sorted list in every observation so a membership
+change is visible in the record.
 
-**Bars**: one-minute bars. Five-minute buckets are built only from five consecutive
-completed minutes and only from bars strictly before the decision time.
+**Bars**: one-minute bars from the band capture.
 
-**Score** (`src/signals/momentum_scanner.py`), each component normalized to 0..1 by a
-saturating half-credit scale `sat(x, k) = max(x,0) / (max(x,0) + k)`:
+**Score** (`kalman_trend.scan_symbol`), each call at one event minute:
 
-| Component | Formula | Weight | Half-credit `k` |
-|---|---|---|---|
-| momentum | `sat(ret_5m)` | 0.32 | 0.004 (0.40%) |
-| acceleration | `sat(ret_5m - ret_prev_5m)` | 0.24 | 0.002 (0.20%) |
-| relative volume | `sat(rel_vol - 1)` | 0.20 | 1.0 |
-| volume acceleration | `sat(bucket_ratio - 1)` | 0.14 | 1.0 |
-| liquidity | `sat(session traded value)` | 0.10 | 20,000,000 PKR |
+| Component | Formula |
+|---|---|
+| Kalman trend z-score | `z = (last_close - level) / sigma` on the state updated that minute |
+| volume expansion | `vol_norm = last_bucket_vol / median_bucket_vol`, entered only if vol_norm >= 1.2 |
+| trend agreement | closes hold above the level, slope >= 0, last close > last open |
+| momentum | emission risk over the lookback, weighed against soft turnover |
 
-`score = 100 * sum(weight * component)`, then multiplied by two decay factors.
+Hard gates (a symbol is eligible only if all pass): a usable session open;
+at least two consecutive z-up closes of the level; volume expansion confirmed
+by the 20 youngest completed buckets; positive slope; volume actually present.
+The scanner rank (`select_one`) takes the highest scorer among candidates that
+pass both the symbol gates and the market gate below, and requires a minimum
+raw score of 55.0, the same threshold the earlier scanner had.
 
-How the two volume terms are built: the session's completed five-minute buckets are
-collected, relative volume is the latest bucket against the median of all earlier
-buckets, and volume acceleration is the latest bucket against the one immediately
-before it. Momentum windows are anchored on the last completed bar rather than on the
-scan clock, so the fast leg and the leg before it always span the same number of
-minutes and the acceleration comparison is like for like.
+**Market gate**: the whole captured cross-section must be supportive, meaning
+breadth (advancing share) at or above 35% and the median return not below
+-1%. If not, no trade, and the reason names the market, because a trending
+strategy must not fight a broad selloff.
 
-* **extension factor**: 1.0 up to a 6% session move, then `1/(1+excess/cap)`, so a
-  move that has already run cannot win on raw momentum;
-* **weakness factor**: same shape for distance below the session high, capped at 1%.
+**Selection**: rank all eligible symbols by score, take the highest, and
+require it to be at or above **55.0**. Otherwise the day is NO TRADE. Under
+owner order 2026-10-30 the day's allowance can still deliver as a CALL WATCH
+when the market veto stands but the full-universe rank carries a real
+confirmed top candidate, the watch being the ranked leader and the text
+saying UNVALIDATED, never a paper entry (SO-3).
 
-**Hard gates** (a symbol is eligible only if all pass): at least 20 bars; at least three
-completed volume buckets; a usable session open; positive 5-minute momentum; positive
-acceleration; positive session return; relative volume at or above 1.5; volume still
-accelerating (`volume_accel_ratio >= 1.0`); session traded value at or above 5,000,000
-PKR (`sum(close * volume)` over the session); last bar inside the 5-minute staleness
-limit; price at or above 1.0. Extension and weakness are deliberately **not** hard
-gates: they are the multiplicative decay described above, so a stock that has already
-run can still be scored but loses points for being late.
+**Target law**: `target = actual_entry_price * 1.02`. One trade per day,
+hard locked.
 
-**Market gate**: the whole captured cross-section must be supportive, meaning breadth
-(advancing share) at or above 35% and the median return not below -1%. If not, no
-trade, and the reason names the market, because a momentum strategy must not fight a
-broad selloff.
-
-**Selection**: rank all eligible symbols by score, take the highest, and require it to
-be at or above **55.0**. Otherwise the day is NO TRADE.
-
-**Target law**: `target = actual_entry_price * 1.02`. One trade per day, hard locked.
-
-**Data honesty gates** (checked before any market logic): universe non-empty; trading
-day; coverage at or above 80%; fresh coverage at or above 80%; newest bar no older
-than 5 minutes; malformed share no more than 1%; and **volume present at all**. Any
-failure returns `DATA_BLOCKED` with the measured numbers, never a market verdict. The
-blocked message ends with "No trade issued. This is a DATA failure, not a market
-decision."
-
----
+**Data honesty gates** (checked before any market logic): universe non-empty;
+trading day; coverage at or above 80%; fresh coverage at or above 80%; newest
+bar no older than 5 minutes; malformed share no more than 1%; and volume
+present at all. Any failure returns `DATA_BLOCKED` with the measured numbers,
+never a market verdict. The blocked message ends with "No trade issued. This
+is a DATA failure, not a market decision."
 
 ## 3. The runtime, piece by piece
 
@@ -151,26 +139,41 @@ liveness flags: STOPPED, STALE, UNKNOWN, RUNNING, derived from heartbeat age and
 
 ### 3.3 The scanner
 
-`src/signals/momentum_scanner.py` (687 lines) is the only place in the repository that
-decides whether a stock is a candidate. Its pipeline is: load capture, assess quality,
-build market context, score every symbol, rank, select one. It returns a `ScanResult`
-with `DATA_BLOCKED`, `NO_TRADE` or `TRADE`, the full `QualityReport` (coverage, fresh
-coverage, missing and stale symbols, duplicates, malformed, impossible OHLC, zero-volume
-bars, newest and oldest bar, data age, source name, scanner version), the top ten ranked
-candidates, and a coverage string. Message builders live in the same module so the
-email text and the app text can never drift: `signal_message`, `no_trade_message`,
-`scan_blocked_message`, `target_hit_message`.
+`src/signals/momentum_scanner.py` is the only place in the repository that
+decides whether a stock is a candidate. Since PRs #171 and #172 its signal
+law is `src/signals/kalman_trend.py`, which holds every symbol's Kalman
+state (level, slope, observation variance) and updates it one closed bar at
+a time, so the state the decision is read from never contains the bar the
+decision is inside. The market gate reading comes from the same capture the
+bars do, and `momentum_scanner.market_context` can be replaced by a stub in
+tests, which is how the veto path is exercised without any market dome. The
+test suite refuses any momentum-era law and any naive market mode
+(`tests/test_momentum_scanner.py`, `tests/test_governance_scan_order.py`):
+the engine's only intraday scanner is the Kalman Trend one, ranked and
+selected by `momentum_scanner.select_one`, with the owner-ordered call watch
+unlocked only by `config.OWNER_ORDERED_CALLS`.
 
-Two older engines remain in the tree and are not on the intraday trading path. The
-opening-range engine `src/signals/intraday_engine.py` is read by exactly one live
-consumer, the frozen research gate (`src/research/forward_validation.py`, which takes
-its candidate rules and TP/SL constants), and its own test is retired to
+Its pipeline is: load capture, assess quality, build market context, score
+every symbol, rank, select one. It returns a `ScanResult` with
+`DATA_BLOCKED`, `NO_TRADE`, `TRADE` or `CALL_WATCH`, the full `QualityReport`
+(coverage, fresh coverage, missing and stale symbols, duplicates, malformed,
+impossible OHLC, zero-volume bars, newest and oldest bar, data age, source
+name, scanner version), the top ten ranked candidates, and a coverage
+string. Message builders live in the same module so the email text and the
+app text can never drift: `signal_message`, `no_trade_message`,
+`scan_blocked_message`, `target_hit_message` and, since owner order
+2026-10-30, `call_watch_message`, whose first word is UNVALIDATED and whose
+text says the day stays paper-free.
+
+Two older engines remain in the tree and are not on the intraday trading
+path. The opening-range engine `src/signals/intraday_engine.py` is read by
+exactly one live consumer, the frozen research gate
+(`src/research/forward_validation.py`, which takes its candidate rules and
+TP/SL constants), and its own test is retired to
 `legacy/retired_scanners/test_intraday_engine_retired.py`. The daily engine
-`src/signals/engine.py` is still genuinely used, by the post-close daily push
-(`src/signals/signal_push.py`) and by the trade-matrix builder
-(`scripts/build_trade_matrix.py`), so it is research and status machinery rather than
-dead code. `tests/test_rebuild_schedule.py` asserts that the orchestrator never
-mentions the retired intraday engine.
+`src/signals/engine.py` is still genuinely used, by the post-close daily
+push (`src/signals/signal_push.py`) and by the trade-matrix builder, so it
+is research and status machinery rather than dead code.
 
 ### 3.4 The daily state machine
 
