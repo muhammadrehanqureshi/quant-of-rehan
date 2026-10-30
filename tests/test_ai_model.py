@@ -186,14 +186,40 @@ class RoutingTest(unittest.TestCase):
         self.assertIn("outside", note)
 
     def test_prior_never_invents_a_candidate(self):
-        """The Kalman flip rules ignore the old momentum prior, annotations too."""
+        """No legal flip, no candidate: the momentum prior and its
+        annotation can never conjure a row. A falling session has no
+        upward flip at all, so the sole strategy and the prior agree on
+        an empty roster (owner order 2026-10-30, Kalman sole strategy).
+        """
+        falling = one_session(
+            datetime(2026, 10, 8, 10, 0, tzinfo=KARACHI),
+            [100 - index * 0.05 for index in range(40)])
+        plain = scanner.rank_candidates(falling)
+        annotated = scanner.rank_candidates(falling, {"AAA": 0.9})
+        self.assertEqual(plain, [])
+        self.assertEqual(annotated, [])
+
+    def test_annotation_adds_nothing_the_flip_rules_do_not_allow(self):
+        """An attached prior annotates; it never rewrites the roster.
+
+        On a session whose flip is strategy-legal, ranking with and
+        without the momentum prior must return the identical rows: the
+        prior's weight moves no name past a gate and adds no column of
+        its own left behind by the flip rules (under the owner's fixed
+        +2%/-1% TP/SL law the linear climb's own fresh flip is legal, so
+        both modes carry the same candidate).
+        """
         session = one_session(
             datetime(2026, 10, 8, 10, 0, tzinfo=KARACHI),
             [100 + index * 0.05 for index in range(40)])
         plain = scanner.rank_candidates(session)
         annotated = scanner.rank_candidates(session, {"AAA": 0.9})
         self.assertEqual(plain, annotated)
-        self.assertEqual(annotated, [])
+        self.assertTrue(plain, "the fixture's fresh flip stayed legal")
+        for row in annotated:
+            self.assertFalse(
+                "ai_probability" in row or "ai_percentile" in row,
+                "the prior leaked its own annotation into the ranked rows")
 
     def test_attach_marks_unscored_symbols_as_unavailable(self):
         rows = [{"symbol": "AAA"}, {"symbol": "BBB"}]
