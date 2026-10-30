@@ -4,11 +4,13 @@ The owner chose the parameters by answer 2: grid-fit in GitHub Actions,
 never on his PC (the machine law). Input: archived capture files (tape or
 poller ndjson), one session more per file. For every parameter triple
 (q, r, hysteresis threshold) the script replays the ONE strategy the
-system trades - the Kalman Trend's flip, entry/stop/exit from the flip
+system trades - the Kalman Trend's flip entry with the owner's TP/SL law
 alone (src/signals/kalman_trend.py) - over every symbol of every session,
 with:
 
   * strictly causal replays: each flip is seen only after its bar closes;
+  * the owner's fixed law for every name: +2% target, -1% stop under the
+    entry, one call a day (src/config.py is the single source);
   * cost-inclusive accounting (src.config.net_return, CGT applied on
     positive results), the same one the paper engine uses;
   * a fixed chronological 80/20 split: the newest sessions are the
@@ -53,9 +55,9 @@ def replay_symbol(scenario: dict, q: float, r: float, threshold: float) -> list:
     """Every flip trade this symbol made under one parameter triple.
 
     One trade per upward flip: entry at the flip bar's completed close,
-    stop just under the flip bar's low, exit at the target, the stop, or
-    the next downward flip close, whichever first. Returns net-return rows
-    with their exit reason.
+    stop at the owner's fixed -1% under the entry, exit at the target,
+    the stop, or the next downward flip close, whichever first. Returns
+    net-return rows with their exit reason.
     """
     from src import config
 
@@ -68,7 +70,7 @@ def replay_symbol(scenario: dict, q: float, r: float, threshold: float) -> list:
             flips.append(-1)
             continue
         entry = closes[index]
-        stop = lows[index] - config.KALMAN_TICK_SIZE
+        stop = entry * (1 - config.KALMAN_STOP_PCT)
         target = entry * (1 + config.TARGET_PCT)
         gross = None
         reason = None
@@ -195,7 +197,7 @@ def main(argv=None) -> int:
                     chosen = row
     report = {
         "generated": datetime.now(KARACHI).isoformat(),
-        "strategy": "kalman_trend_flip_v1 (entry/stop/exit from the flip alone)",
+        "strategy": "kalman_trend_flip_v1 (flip entry, +2% TP / -1% SL)",
         "sessions": ordered,
         "split": {"share": TRAIN_SHARE, "train": train_days, "holdout": holdout_days},
         "grid": list(Q_GRID), "r_grid": list(R_GRID), "threshold_grid": list(TH_GRID),
