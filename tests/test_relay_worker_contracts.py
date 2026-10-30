@@ -229,7 +229,7 @@ class RelayWorkerContractTest(unittest.TestCase):
         self.assertNotIn("retryPending", self.source)
         self.assertIn("previous.identity === identity", self.source,
                       "the transition ledger no longer dedupes a day:state")
-        self.assertIn('evidence: "session_schedule"', self.source)
+        self.assertIn('let evidence = "session_schedule";', self.source)
 
     # ------------------------------------------------------- market alerts (text law moved)
 

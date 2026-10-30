@@ -106,10 +106,6 @@ def load_relay_admin_token() -> str:
     )
 
 
-def clear_token_cache() -> None:
-    """Retained as no-op for callers that still call it: nothing caches."""
-
-
 def _resolve_email_issue() -> str | None:
     """The watched issue's number; None when it is unreachable.
 
