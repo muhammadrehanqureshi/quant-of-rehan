@@ -1,12 +1,14 @@
 # Intraday Forward Validation System
 
-## Active strategy, 2026-10-20 (Karachi)
+## Active strategy, 2026-10-30 (Karachi)
 
-The active intraday rule is now `ict_smc_sweep_mss_fvg_retest_v1`.
-See [ICT/SMC rules and accounting](docs/ICT_SMC_STRATEGY.md) for the authoritative
-entry, structural stop, 2% gross target, first-retest and cloud replay contracts.
-Momentum/RSI gates and daily-model routing no longer decide entries. Historical
-opening-range and momentum results never count as evidence for the new rule.
+The active intraday rule is now `kalman_trend_flip_v1`, the owner's sole
+strategy (owner order 2026-10-30: the ICT/SMC strategy is removed outright).
+See src/signals/kalman_trend.py for the authoritative contract: entry, stop
+and exit from the flip alone on the intraday band feed, the owner's +2%
+target, parameters grid-fit in GitHub Actions. Momentum/RSI gates and
+daily-model routing no longer decide entries. Historical opening-range and
+momentum results never count as evidence for the new rule.
 The frozen chronological evidence gate and source-confirmation checks remain.
 All tests, backtests and builds run in GitHub Actions, never on the owner's PC.
 The scheduled session loop requests one-second cycles and preserves one shared

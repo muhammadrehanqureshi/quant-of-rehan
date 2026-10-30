@@ -186,7 +186,7 @@ class RoutingTest(unittest.TestCase):
         self.assertIn("outside", note)
 
     def test_prior_never_invents_a_candidate(self):
-        """ICT/SMC ignores the old momentum prior, including annotations."""
+        """The Kalman flip rules ignore the old momentum prior, annotations too."""
         session = one_session(
             datetime(2026, 10, 8, 10, 0, tzinfo=KARACHI),
             [100 + index * 0.05 for index in range(40)])

@@ -376,7 +376,7 @@ class TestOwnerOrderedCallWatch(unittest.TestCase):
         scanner.market_context = self._market_context
 
     def test_veto_over_a_ranked_setup_delivers_a_watch(self):
-        from tests.smc_fixture import setup_rows
+        from tests.kalman_fixture import setup_rows
         bars = {"OGDC": setup_rows(scanner, SESSION_OPEN)}
         session = session_of(bars, 43)
         quality = scanner.assess_quality(session, ["OGDC"])

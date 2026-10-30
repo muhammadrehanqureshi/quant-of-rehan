@@ -16,7 +16,7 @@ on:
       task:
         description: "what to run"
         type: choice
-        options: [both, smoke, build-dataset, ten-year, mean-reversion]
+        options: [both, smoke, build-dataset, ten-year, mean-reversion, kalman-grid]
         default: both
 
 permissions:
@@ -159,3 +159,47 @@ jobs:
             data/eod_dataset_10y.summary
           if-no-files-found: error
           retention-days: 30
+
+  # The Kalman Trend's parameter grid (owner order 2026-10-30): the owner's
+  # answer 2 - the numbers are chosen by a grid-fit in Actions, never on
+  # his PC. Input: this repository's own captured tape sessions in the
+  # gitignored data/ directory; without them the script exits 1 rather
+  # than invent evidence (SO-3). Manual dispatch only (SO-21).
+  kalman-grid:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    env:
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt --retries 5 --timeout 60
+
+      - name: Refuse to run without captured tape sessions
+        run: |
+          count=$(ls data/feed_capture/capture_*.ndjson 2>/dev/null | wc -l)
+          echo "captured tape sessions available: $count"
+          if [ "$count" -lt 2 ]; then
+            echo "::error::need at least 2 captured tape sessions under data/feed_capture/capture_*.ndjson to fit a chronological split; captures are produced by the session workflows onto this repo's artifact store, not committed here."
+            exit 1
+          fi
+
+      - name: Fit the Kalman grid
+        run: |
+          python scripts/kalman_grid_fit.py \
+            --input 'data/feed_capture/capture_*.ndjson' \
+            --out data/research/kalman_grid.json
+          cat data/research/kalman_grid.json
+
+      - name: Keep the grid result
+        uses: actions/upload-artifact@v7
+        with:
+          name: kalman-grid-${{ github.run_id }}
+          path: data/research/kalman_grid.json
+          if-no-files-found: error
+          retention-days: 90
