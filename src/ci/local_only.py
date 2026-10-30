@@ -86,6 +86,8 @@ BACKTEST_SCRIPTS = {
     "scripts/build_backtest_dataset.py":
         "the ten-year mkt_summary OHLCV crawl",
     "scripts/backtest_10y.py": "the ten-year whole-panel backtest",
+    "scripts/backtest_mean_reversion.py":
+        "the ten-year mean-reversion (snapback) backtest",
 }
 
 REFUSAL = (
