@@ -1878,7 +1878,7 @@ class VersionTest(unittest.TestCase):
         # versionCode 92.
         self.assertIn("Version 3.2.0, versionCode 92", readme)
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionCode="92"', manifest)
+        self.assertIn('android:versionCode="93"', manifest)
         self.assertIn('android:versionName="3.2.0"', manifest)
         layout = LAYOUT.read_text(encoding="utf-8")
         strings = STRINGS.read_text(encoding="utf-8")
