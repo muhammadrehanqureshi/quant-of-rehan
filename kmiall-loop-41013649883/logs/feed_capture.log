@@ -1,0 +1,499 @@
+2026-10-30 11:22:22 KST feed capture starting: 317 KMIALL symbols
+11:22:22 connected to nxg1.eclear.com.pk:8484
+11:22:23 banner: b'Welcome*%'
+11:22:44 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:22:44 reconnecting in 2s
+11:22:46 connected to nxg1.eclear.com.pk:8484
+11:22:47 banner: b'Welcome*%'
+11:23:08 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:23:08 reconnecting in 2s
+11:23:10 connected to nxg1.eclear.com.pk:8484
+11:23:11 banner: b'Welcome*%'
+11:23:32 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:23:32 reconnecting in 2s
+11:23:34 connected to nxg1.eclear.com.pk:8484
+11:23:35 banner: b'Welcome*%'
+11:23:56 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:23:56 reconnecting in 2s
+11:23:58 connected to nxg1.eclear.com.pk:8484
+11:23:59 banner: b'Welcome*%'
+11:24:20 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:24:20 reconnecting in 2s
+11:24:22 connected to nxg1.eclear.com.pk:8484
+11:24:23 banner: b'Welcome*%'
+11:24:44 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:24:44 reconnecting in 2s
+11:24:46 connected to nxg1.eclear.com.pk:8484
+11:24:47 banner: b'Welcome*%'
+11:25:08 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:25:08 reconnecting in 2s
+11:25:10 connected to nxg1.eclear.com.pk:8484
+11:25:11 banner: b'Welcome*%'
+11:25:32 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:25:32 reconnecting in 2s
+11:25:34 connected to nxg1.eclear.com.pk:8484
+11:25:35 banner: b'Welcome*%'
+11:25:56 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:25:56 reconnecting in 2s
+11:25:58 connected to nxg1.eclear.com.pk:8484
+11:25:59 banner: b'Welcome*%'
+11:26:20 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:26:20 reconnecting in 2s
+11:26:22 connected to nxg1.eclear.com.pk:8484
+11:26:23 banner: b'Welcome*%'
+11:26:44 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:26:44 reconnecting in 2s
+11:26:46 connected to nxg1.eclear.com.pk:8484
+11:26:47 banner: b'Welcome*%'
+11:27:08 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:27:08 reconnecting in 2s
+11:27:10 connected to nxg1.eclear.com.pk:8484
+11:27:11 banner: b'Welcome*%'
+11:27:32 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:27:32 reconnecting in 2s
+11:27:34 connected to nxg1.eclear.com.pk:8484
+11:27:35 banner: b'Welcome*%'
+11:27:56 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:27:56 reconnecting in 2s
+11:27:58 connected to nxg1.eclear.com.pk:8484
+11:27:59 banner: b'Welcome*%'
+11:28:20 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:28:20 reconnecting in 2s
+11:28:22 connected to nxg1.eclear.com.pk:8484
+11:28:23 banner: b'Welcome*%'
+11:28:44 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:28:44 reconnecting in 2s
+11:28:46 connected to nxg1.eclear.com.pk:8484
+11:28:47 banner: b'Welcome*%'
+11:29:08 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:29:08 reconnecting in 2s
+11:29:10 connected to nxg1.eclear.com.pk:8484
+11:29:11 banner: b'Welcome*%'
+11:29:32 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:29:32 reconnecting in 2s
+11:29:34 connected to nxg1.eclear.com.pk:8484
+11:29:35 banner: b'Welcome*%'
+11:29:56 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:29:56 reconnecting in 2s
+11:29:58 connected to nxg1.eclear.com.pk:8484
+11:29:59 banner: b'Welcome*%'
+11:30:20 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:30:20 reconnecting in 2s
+11:30:22 connected to nxg1.eclear.com.pk:8484
+11:30:23 banner: b'Welcome*%'
+11:30:44 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:30:44 reconnecting in 2s
+11:30:46 connected to nxg1.eclear.com.pk:8484
+11:30:47 banner: b'Welcome*%'
+11:31:08 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:31:08 reconnecting in 2s
+11:31:10 connected to nxg1.eclear.com.pk:8484
+11:31:11 banner: b'Welcome*%'
+11:31:32 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:31:32 reconnecting in 2s
+11:31:34 connected to nxg1.eclear.com.pk:8484
+11:31:35 banner: b'Welcome*%'
+11:31:56 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:31:56 reconnecting in 2s
+11:31:58 connected to nxg1.eclear.com.pk:8484
+11:31:59 banner: b'Welcome*%'
+11:32:20 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:32:20 reconnecting in 2s
+11:32:22 connected to nxg1.eclear.com.pk:8484
+11:32:23 banner: b'Welcome*%'
+11:32:44 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:32:44 reconnecting in 2s
+11:32:46 connected to nxg1.eclear.com.pk:8484
+11:32:47 banner: b'Welcome*%'
+11:33:08 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:33:08 reconnecting in 2s
+11:33:10 connected to nxg1.eclear.com.pk:8484
+11:33:10 banner: b'Welcome*%'
+11:33:32 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:33:32 reconnecting in 2s
+11:33:34 connected to nxg1.eclear.com.pk:8484
+11:33:34 banner: b'Welcome*%'
+11:33:56 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:33:56 reconnecting in 2s
+11:33:58 connected to nxg1.eclear.com.pk:8484
+11:33:58 banner: b'Welcome*%'
+11:34:20 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:34:20 reconnecting in 2s
+11:34:22 connected to nxg1.eclear.com.pk:8484
+11:34:22 banner: b'Welcome*%'
+11:34:44 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:34:44 reconnecting in 2s
+11:34:46 connected to nxg1.eclear.com.pk:8484
+11:34:46 banner: b'Welcome*%'
+11:35:08 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:35:08 reconnecting in 2s
+11:35:10 connected to nxg1.eclear.com.pk:8484
+11:35:10 banner: b'Welcome*%'
+11:35:32 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:35:32 reconnecting in 2s
+11:35:34 connected to nxg1.eclear.com.pk:8484
+11:35:34 banner: b'Welcome*%'
+11:35:56 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:35:56 reconnecting in 2s
+11:35:58 connected to nxg1.eclear.com.pk:8484
+11:35:58 banner: b'Welcome*%'
+11:36:20 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:36:20 reconnecting in 2s
+11:36:22 connected to nxg1.eclear.com.pk:8484
+11:36:22 banner: b'Welcome*%'
+11:36:44 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:36:44 reconnecting in 2s
+11:36:46 connected to nxg1.eclear.com.pk:8484
+11:36:46 banner: b'Welcome*%'
+11:37:08 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:37:08 reconnecting in 2s
+11:37:10 connected to nxg1.eclear.com.pk:8484
+11:37:10 banner: b'Welcome*%'
+11:37:32 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:37:32 reconnecting in 2s
+11:37:34 connected to nxg1.eclear.com.pk:8484
+11:37:34 banner: b'Welcome*%'
+11:37:56 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:37:56 reconnecting in 2s
+11:37:58 connected to nxg1.eclear.com.pk:8484
+11:37:58 banner: b'Welcome*%'
+11:38:20 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:38:20 reconnecting in 2s
+11:38:22 connected to nxg1.eclear.com.pk:8484
+11:38:22 banner: b'Welcome*%'
+11:38:43 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:38:43 reconnecting in 2s
+11:38:46 connected to nxg1.eclear.com.pk:8484
+11:38:46 banner: b'Welcome*%'
+11:39:07 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:39:07 reconnecting in 2s
+11:39:10 connected to nxg1.eclear.com.pk:8484
+11:39:10 banner: b'Welcome*%'
+11:39:31 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:39:31 reconnecting in 2s
+11:39:34 connected to nxg1.eclear.com.pk:8484
+11:39:34 banner: b'Welcome*%'
+11:39:55 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:39:55 reconnecting in 2s
+11:39:58 connected to nxg1.eclear.com.pk:8484
+11:39:58 banner: b'Welcome*%'
+11:40:19 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:40:19 reconnecting in 2s
+11:40:22 connected to nxg1.eclear.com.pk:8484
+11:40:22 banner: b'Welcome*%'
+11:40:43 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:40:43 reconnecting in 2s
+11:40:46 connected to nxg1.eclear.com.pk:8484
+11:40:46 banner: b'Welcome*%'
+11:41:07 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:41:07 reconnecting in 2s
+11:41:10 connected to nxg1.eclear.com.pk:8484
+11:41:10 banner: b'Welcome*%'
+11:41:31 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:41:31 reconnecting in 2s
+11:41:34 connected to nxg1.eclear.com.pk:8484
+11:41:34 banner: b'Welcome*%'
+11:41:55 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:41:55 reconnecting in 2s
+11:41:58 connected to nxg1.eclear.com.pk:8484
+11:41:58 banner: b'Welcome*%'
+11:42:19 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:42:19 reconnecting in 2s
+11:42:22 connected to nxg1.eclear.com.pk:8484
+11:42:22 banner: b'Welcome*%'
+11:42:43 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:42:43 reconnecting in 2s
+11:42:46 connected to nxg1.eclear.com.pk:8484
+11:42:46 banner: b'Welcome*%'
+11:43:07 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:43:07 reconnecting in 2s
+11:43:10 connected to nxg1.eclear.com.pk:8484
+11:43:10 banner: b'Welcome*%'
+11:43:31 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:43:31 reconnecting in 2s
+11:43:34 connected to nxg1.eclear.com.pk:8484
+11:43:34 banner: b'Welcome*%'
+11:43:55 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:43:55 reconnecting in 2s
+11:43:58 connected to nxg1.eclear.com.pk:8484
+11:43:58 banner: b'Welcome*%'
+11:44:19 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:44:19 reconnecting in 2s
+11:44:22 connected to nxg1.eclear.com.pk:8484
+11:44:22 banner: b'Welcome*%'
+11:44:43 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:44:43 reconnecting in 2s
+11:44:46 connected to nxg1.eclear.com.pk:8484
+11:44:46 banner: b'Welcome*%'
+11:45:07 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:45:07 reconnecting in 2s
+11:45:09 connected to nxg1.eclear.com.pk:8484
+11:45:10 banner: b'Welcome*%'
+11:45:31 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:45:31 reconnecting in 2s
+11:45:33 connected to nxg1.eclear.com.pk:8484
+11:45:34 banner: b'Welcome*%'
+11:45:55 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:45:55 reconnecting in 2s
+11:45:57 connected to nxg1.eclear.com.pk:8484
+11:45:58 banner: b'Welcome*%'
+11:46:19 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:46:19 reconnecting in 2s
+11:46:22 connected to nxg1.eclear.com.pk:8484
+11:46:22 banner: b'Welcome*%'
+11:46:43 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:46:43 reconnecting in 2s
+11:46:46 connected to nxg1.eclear.com.pk:8484
+11:46:46 banner: b'Welcome*%'
+11:47:07 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:47:07 reconnecting in 2s
+11:47:10 connected to nxg1.eclear.com.pk:8484
+11:47:10 banner: b'Welcome*%'
+11:47:31 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:47:31 reconnecting in 2s
+11:47:34 connected to nxg1.eclear.com.pk:8484
+11:47:34 banner: b'Welcome*%'
+11:47:55 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:47:55 reconnecting in 2s
+11:47:58 connected to nxg1.eclear.com.pk:8484
+11:47:58 banner: b'Welcome*%'
+11:48:19 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:48:19 reconnecting in 2s
+11:48:22 connected to nxg1.eclear.com.pk:8484
+11:48:22 banner: b'Welcome*%'
+11:48:43 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:48:43 reconnecting in 2s
+11:48:46 connected to nxg1.eclear.com.pk:8484
+11:48:46 banner: b'Welcome*%'
+11:49:07 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:49:07 reconnecting in 2s
+11:49:10 connected to nxg1.eclear.com.pk:8484
+11:49:10 banner: b'Welcome*%'
+11:49:31 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:49:31 reconnecting in 2s
+11:49:34 connected to nxg1.eclear.com.pk:8484
+11:49:34 banner: b'Welcome*%'
+11:49:55 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:49:55 reconnecting in 2s
+11:49:58 connected to nxg1.eclear.com.pk:8484
+11:49:58 banner: b'Welcome*%'
+11:50:19 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:50:19 reconnecting in 2s
+11:50:22 connected to nxg1.eclear.com.pk:8484
+11:50:22 banner: b'Welcome*%'
+11:50:43 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:50:43 reconnecting in 2s
+11:50:46 connected to nxg1.eclear.com.pk:8484
+11:50:46 banner: b'Welcome*%'
+11:51:07 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:51:07 reconnecting in 2s
+11:51:10 connected to nxg1.eclear.com.pk:8484
+11:51:10 banner: b'Welcome*%'
+11:51:32 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:51:32 reconnecting in 2s
+11:51:34 connected to nxg1.eclear.com.pk:8484
+11:51:34 banner: b'Welcome*%'
+11:51:56 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:51:56 reconnecting in 2s
+11:51:58 connected to nxg1.eclear.com.pk:8484
+11:51:58 banner: b'Welcome*%'
+11:52:20 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:52:20 reconnecting in 2s
+11:52:22 connected to nxg1.eclear.com.pk:8484
+11:52:22 banner: b'Welcome*%'
+11:52:44 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:52:44 reconnecting in 2s
+11:52:46 connected to nxg1.eclear.com.pk:8484
+11:52:46 banner: b'Welcome*%'
+11:53:08 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:53:08 reconnecting in 2s
+11:53:10 connected to nxg1.eclear.com.pk:8484
+11:53:10 banner: b'Welcome*%'
+11:53:32 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:53:32 reconnecting in 2s
+11:53:34 connected to nxg1.eclear.com.pk:8484
+11:53:34 banner: b'Welcome*%'
+11:53:56 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:53:56 reconnecting in 2s
+11:53:58 connected to nxg1.eclear.com.pk:8484
+11:53:59 banner: b'Welcome*%'
+11:54:20 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:54:20 reconnecting in 2s
+11:54:22 connected to nxg1.eclear.com.pk:8484
+11:54:22 banner: b'Welcome*%'
+11:54:44 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:54:44 reconnecting in 2s
+11:54:46 connected to nxg1.eclear.com.pk:8484
+11:54:46 banner: b'Welcome*%'
+11:55:08 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:55:08 reconnecting in 2s
+11:55:10 connected to nxg1.eclear.com.pk:8484
+11:55:10 banner: b'Welcome*%'
+11:55:32 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:55:32 reconnecting in 2s
+11:55:34 connected to nxg1.eclear.com.pk:8484
+11:55:34 banner: b'Welcome*%'
+11:55:56 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:55:56 reconnecting in 2s
+11:55:58 connected to nxg1.eclear.com.pk:8484
+11:55:58 banner: b'Welcome*%'
+11:56:20 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:56:20 reconnecting in 2s
+11:56:22 connected to nxg1.eclear.com.pk:8484
+11:56:22 banner: b'Welcome*%'
+11:56:44 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:56:44 reconnecting in 2s
+11:56:46 connected to nxg1.eclear.com.pk:8484
+11:56:46 banner: b'Welcome*%'
+11:57:08 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:57:08 reconnecting in 2s
+11:57:10 connected to nxg1.eclear.com.pk:8484
+11:57:10 banner: b'Welcome*%'
+11:57:32 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:57:32 reconnecting in 2s
+11:57:34 connected to nxg1.eclear.com.pk:8484
+11:57:34 banner: b'Welcome*%'
+11:57:56 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:57:56 reconnecting in 2s
+11:57:58 connected to nxg1.eclear.com.pk:8484
+11:57:58 banner: b'Welcome*%'
+11:58:20 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:58:20 reconnecting in 2s
+11:58:22 connected to nxg1.eclear.com.pk:8484
+11:58:22 banner: b'Welcome*%'
+11:58:43 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:58:43 reconnecting in 2s
+11:58:46 connected to nxg1.eclear.com.pk:8484
+11:58:46 banner: b'Welcome*%'
+11:59:08 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:59:08 reconnecting in 2s
+11:59:10 connected to nxg1.eclear.com.pk:8484
+11:59:10 banner: b'Welcome*%'
+11:59:32 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:59:32 reconnecting in 2s
+11:59:34 connected to nxg1.eclear.com.pk:8484
+11:59:34 banner: b'Welcome*%'
+11:59:56 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+11:59:56 reconnecting in 2s
+11:59:58 connected to nxg1.eclear.com.pk:8484
+11:59:58 banner: b'Welcome*%'
+12:00:20 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+12:00:20 reconnecting in 2s
+12:00:22 connected to nxg1.eclear.com.pk:8484
+12:00:22 banner: b'Welcome*%'
+12:00:43 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+12:00:43 reconnecting in 2s
+12:00:46 connected to nxg1.eclear.com.pk:8484
+12:00:46 banner: b'Welcome*%'
+12:01:07 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+12:01:07 reconnecting in 2s
+12:01:10 connected to nxg1.eclear.com.pk:8484
+12:01:10 banner: b'Welcome*%'
+12:01:31 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+12:01:31 reconnecting in 2s
+12:01:34 connected to nxg1.eclear.com.pk:8484
+12:01:34 banner: b'Welcome*%'
+12:01:55 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+12:01:55 reconnecting in 2s
+12:01:58 connected to nxg1.eclear.com.pk:8484
+12:01:58 banner: b'Welcome*%'
+12:02:20 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+12:02:20 reconnecting in 2s
+12:02:22 connected to nxg1.eclear.com.pk:8484
+12:02:22 banner: b'Welcome*%'
+12:02:44 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+12:02:44 reconnecting in 2s
+12:02:46 connected to nxg1.eclear.com.pk:8484
+12:02:46 banner: b'Welcome*%'
+12:03:08 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+12:03:08 reconnecting in 2s
+12:03:10 connected to nxg1.eclear.com.pk:8484
+12:03:10 banner: b'Welcome*%'
+12:03:32 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+12:03:32 reconnecting in 2s
+12:03:34 connected to nxg1.eclear.com.pk:8484
+12:03:34 banner: b'Welcome*%'
+12:03:55 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+12:03:55 reconnecting in 2s
+12:03:58 connected to nxg1.eclear.com.pk:8484
+12:03:58 banner: b'Welcome*%'
+12:04:19 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+12:04:19 reconnecting in 2s
+12:04:22 connected to nxg1.eclear.com.pk:8484
+12:04:22 banner: b'Welcome*%'
+12:04:44 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+12:04:44 reconnecting in 2s
+12:04:46 connected to nxg1.eclear.com.pk:8484
+12:04:46 banner: b'Welcome*%'
+12:05:08 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+12:05:08 reconnecting in 2s
+12:05:10 connected to nxg1.eclear.com.pk:8484
+12:05:10 banner: b'Welcome*%'
+12:05:32 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+12:05:32 reconnecting in 2s
+12:05:34 connected to nxg1.eclear.com.pk:8484
+12:05:34 banner: b'Welcome*%'
+12:05:56 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+12:05:56 reconnecting in 2s
+12:05:58 connected to nxg1.eclear.com.pk:8484
+12:05:58 banner: b'Welcome*%'
+12:06:20 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+12:06:20 reconnecting in 2s
+12:06:22 connected to nxg1.eclear.com.pk:8484
+12:06:22 banner: b'Welcome*%'
+12:06:44 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+12:06:44 reconnecting in 2s
+12:06:46 connected to nxg1.eclear.com.pk:8484
+12:06:46 banner: b'Welcome*%'
+12:07:08 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+12:07:08 reconnecting in 2s
+12:07:10 connected to nxg1.eclear.com.pk:8484
+12:07:10 banner: b'Welcome*%'
+12:07:32 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+12:07:32 reconnecting in 2s
+12:07:34 connected to nxg1.eclear.com.pk:8484
+12:07:34 banner: b'Welcome*%'
+12:07:55 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+12:07:55 reconnecting in 2s
+12:07:58 connected to nxg1.eclear.com.pk:8484
+12:07:58 banner: b'Welcome*%'
+12:08:19 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+12:08:19 reconnecting in 2s
+12:08:22 connected to nxg1.eclear.com.pk:8484
+12:08:22 banner: b'Welcome*%'
+12:08:43 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+12:08:43 reconnecting in 2s
+12:08:46 connected to nxg1.eclear.com.pk:8484
+12:08:46 banner: b'Welcome*%'
+12:09:07 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+12:09:07 reconnecting in 2s
+12:09:10 connected to nxg1.eclear.com.pk:8484
+12:09:10 banner: b'Welcome*%'
+12:09:31 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+12:09:31 reconnecting in 2s
+12:09:34 connected to nxg1.eclear.com.pk:8484
+12:09:34 banner: b'Welcome*%'
+12:09:55 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+12:09:55 reconnecting in 2s
+12:09:58 connected to nxg1.eclear.com.pk:8484
+12:09:58 banner: b'Welcome*%'
+12:10:19 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+12:10:19 reconnecting in 2s
+12:10:22 connected to nxg1.eclear.com.pk:8484
+12:10:22 banner: b'Welcome*%'
+12:10:43 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+12:10:43 reconnecting in 2s
+12:10:46 connected to nxg1.eclear.com.pk:8484
+12:10:46 banner: b'Welcome*%'
+12:11:07 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+12:11:07 reconnecting in 2s
+12:11:10 connected to nxg1.eclear.com.pk:8484
+12:11:10 banner: b'Welcome*%'
+12:11:31 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+12:11:31 reconnecting in 2s
+12:11:34 connected to nxg1.eclear.com.pk:8484
+12:11:34 banner: b'Welcome*%'
+12:11:55 feed error: ConnectionError: the venue pushed no market data for 20s (limit 20s); reconnecting for a fresh sweep
+12:11:55 reconnecting in 2s
+12:11:58 connected to nxg1.eclear.com.pk:8484
+12:11:58 banner: b'Welcome*%'

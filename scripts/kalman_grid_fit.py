@@ -33,7 +33,7 @@ import json
 import statistics
 import sys
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -121,20 +121,62 @@ def _day_from_path(path: Path):
     return None
 
 
+def collect_from_store(days: int) -> dict:
+    """Fetch up to `days` recent captured sessions from the band store.
+
+    A GitHub runner checks out code, not data: `data/` is gitignored, so the
+    tapes this fit replays live only in the R2 band store the session jobs
+    push to (`band_state.fetch_capture`). Weekends are skipped; a 404 for a
+    holiday or a day with no session is a named absence and is not counted.
+    Returns the measured outcome, never a padded session list (SO-3).
+    """
+    from src.data import band_state
+    from src.data.sessions import now_karachi
+
+    today = now_karachi().date()
+    fetched, absent = [], []
+    # A session that pushed nothing is normal (holidays, quiet days); scan a
+    # generous calendar window and stop when the target count is reached.
+    for offset in range(days * 3 + 7):
+        if len(fetched) >= days:
+            break
+        day = today - timedelta(days=offset)
+        if day.weekday() >= 5:
+            continue
+        result = band_state.fetch_capture(day)
+        if result.get("present"):
+            fetched.append(day.isoformat())
+        else:
+            absent.append(f"{day.isoformat()}: {result.get('reason')}")
+    return {"fetched": fetched, "absent": absent}
+
+
 def main(argv=None) -> int:
     guard_cloud_backtest("scripts/kalman_grid_fit.py")
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--input", type=Path, required=True,
                         help="Capture files, glob ('data/feed_capture/capture_*.ndjson')")
     parser.add_argument("--out", type=Path, required=True)
+    parser.add_argument("--from-store", type=int, default=0, metavar="DAYS",
+                        help="fetch up to DAYS recent captures from the R2 band "
+                             "store before fitting (0 = files already on disk)")
     args = parser.parse_args(argv)
+
+    if args.from_store > 0:
+        collected = collect_from_store(args.from_store)
+        print(f"band store: fetched {len(collected['fetched'])} session(s) "
+              f"{collected['fetched']}")
+        for line in collected["absent"][:6]:
+            print(f"band store: absent {line}")
 
     parent = args.input.parent
     paths = [Path(p) for p in sorted(parent.glob(args.input.name))
              if Path(p).is_file()]
     if not paths:
         print("No capture files found for "
-              f"{args.input}. No data, no grid (SO-3): build captures first.")
+              f"{args.input}. No data, no grid (SO-3). The sessions live in "
+              "the R2 band store: dispatch with --from-store N inside "
+              "Actions, or keep the tapes on the machine that captured them.")
         return 1
 
     from scripts.intraday_pipeline import load_kmiall
