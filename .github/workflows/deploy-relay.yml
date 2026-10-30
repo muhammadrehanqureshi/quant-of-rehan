@@ -1,4 +1,4 @@
-name: Deploy the Telegram relay worker
+name: Deploy the relay worker
 
 # The relay is one Worker plus one Durable Object, deployed from cloud/ with
 # wrangler. Nothing in a runner is secret beyond the deploy token, so the

@@ -236,7 +236,6 @@ async function endpoints() {{
       list: async () => ({{ keys: [] }}),
     }},
     RELAY_ADMIN_TOKEN: "test-token",
-    TELEGRAM_BOT_TOKEN: "",
   }};
   const handler = new Function(WORKER_SRC.replace("export default {{", "return {{")
     .replace(/^export class /gm, "class "))();
@@ -383,6 +382,19 @@ async function endpoints() {{
       EXCEPT_KEYS.filter((k) => !(k in outage)).join(",") || "all keys");
   window.fetch = stub;
   globalThis.fetch = stub;
+
+  // Owner order 2026-10-29: chat is gone from the worker. The retired
+  // route must answer a refusal (so a straggling sender cannot claim a
+  // delivery), and the source must carry no chat-API call at all.
+  const notify = await handler.fetch(new Request("https://relay.test/notify", {{
+    method: "POST",
+    headers: {{ "content-type": "application/json", "x-admin-token": "test-token" }},
+    body: JSON.stringify({{ text: "test", kind: "signals" }}),
+  }}), env);
+  say(notify.status === 410, "POST /notify is the retired no-op (410)",
+      "status " + notify.status);
+  say(!/api\.telegram\.org/.test(WORKER_SRC),
+      "the worker carries no chat-API call");
 
   const missing = await handler.fetch(new Request("https://relay.test/nope"), env);
   say(missing.status === 404, "unknown paths still 404", "status " + missing.status);

@@ -1,14 +1,15 @@
-# cloud/ : the quant-of-rehan Telegram relay
+# cloud/ : the quant-of-rehan relay
 
-Telegram is blocked for direct connections inside Pakistan (SO-9), so the
-worker here is the only thing in the system that talks to api.telegram.org.
-It runs on the Cloudflare edge, outside that block. Your PC never touches
-Telegram; you read the messages on your phone over your VPN as usual.
+Owner order 2026-10-29: the owner removed his chat account and bot, so
+the relay carries no chat call at all. Notifications are
+carried by owner email (src/notify/owner_email.py) from the GitHub Actions
+jobs. What remains here is the app's card, market state, snapshot and
+status surface, on the Cloudflare edge off your PC.
 
 ## What it does
 
 - `GET /health`: liveness, current Karachi wall clock, next band edge,
-  pairing state, `market_open`, and `market_state` with the phase
+  `market_open`, and `market_state` with the phase
   (`OPEN`, `BREAK`, `CLOSED`, `PRE_OPEN`, `POST_CLOSE`), the live band and the
   day's bands per the owner's session law (the app shows ONLINE only while the
   phase is OPEN)
@@ -21,20 +22,13 @@ Telegram; you read the messages on your phone over your VPN as usual.
   five minutes. The edge cannot split volume (the exchange table has one
   volume column), so the split fields are null there and the local runner
   fills them from the broker tick capture (`src/data/tick_volume.py`).
-- `POST /pair/start` (admin token): finds the chat that last messaged the
-  bot, stores a 4-digit code in the Durable Object, and sends that code to
-  the chat
-- `POST /pair/confirm` (admin token): `{code}` binds the chat; the bot
-  confirms in the chat
-- `POST /notify` (admin token): `{text, kind}` forwarded to your chat; this
-  is the local runner's delivery path
+- `POST /notify` (admin token): retired, answers 410 with a reason. The
+  chat channel is gone; senders use the owner email issue
+  (src/notify/owner_email.py) from the Actions jobs instead.
 - `GET /signals` (admin token): the app's signal feed; `POST /signals`
   stores new signal lines from the local runner
-- `GET /updates` (admin token): raw getUpdates proxy for local debugging
-- Cron triggers fire the daily texts from the edge even if your PC is off.
-  Friday is TWO sessions with the exchange's midday break between them, so
-  there are six edges, and Workers Free allows five triggers per account, so
-  the two Friday midday edges share one expression:
+- Cron triggers do scan dispatch and card upkeep only; the market open and
+  close texts travel by owner email, and no cron sends a chat message.
 
 | Event | Mon-Thu | Friday | Trigger (UTC) |
 |---|---|---|---|
@@ -154,34 +148,29 @@ so a runner with no configuration at all still checks a real URL.
 ## Secrets (SO-5)
 
 Worker bindings, set only by cloud/pair.py from the owner's PC:
-`TELEGRAM_BOT_TOKEN` and `RELAY_ADMIN_TOKEN`. Every value the relay keeps
-(the card, the market snapshot, the session state, the paired chat id,
-the pending pairing code, the research log) lives in the `QuoteHub`
-Durable Object. There is no KV namespace: owner order 2026-10-20 removed
-the last quota-limited product from the path, and a binding to a
-namespace that had been deleted was failing every deploy. Nothing secret
-is stored in this repo.
+`RELAY_ADMIN_TOKEN` (and, when the punctual dispatch is on, the
+`GH_DISPATCH_TOKEN` secret above). Every value the relay keeps
+(the card, the market snapshot, the session state, the research log) lives
+in the `QuoteHub` Durable Object. There is no KV namespace: owner order
+2026-10-20 removed the last quota-limited product from the path, and a
+binding to a namespace that had been deleted was failing every deploy.
+Nothing secret is stored in this repo.
 
 ## Setup (owner's PC, already completed on 2026-10-05)
 
 ```bash
 python cloud/pair.py deploy     # upload worker, set crons, save relay url
-# ... message the new bot once from your phone (VPN on) ...
-python cloud/pair.py discover   # bot sends a 4-digit code; type it back
-python cloud/pair.py test       # full-path test message
 python cloud/pair.py health     # live status from the edge
 ```
 
-Pairing state lives in the Durable Object; re-running discover re-pairs
-safely.
-
 ## Local scheduler (retired, owner order 2026-10-14)
 
-The edge crons deliver even with your PC off, which is why the local runner is
-no longer needed. It used to be started at every login and kept a process
-resident all day for two texts the relay already sends, so SO-12 parks it:
-`python -m src.notify.schedule_runner` now refuses to start on the owner's PC,
-the Startup entry that launched it is gone, and `scripts/install_scheduler.py`
-refuses to register a logon task again. The cloud crons above are the delivery
-path, and the runner's helpers (`load_relay_url`, `load_relay_admin_token`)
-stay in place as imports for the daily push and the ops alert.
+The owner email jobs deliver even with your PC off, which is why the local
+runner is no longer needed. It used to be started at every login and kept a
+process resident all day for two texts the market jobs already send, so
+SO-12 parks it: `python -m src.notify.schedule_runner` now refuses to start
+on the owner's PC unless the owner asks for it by name, the Startup entry
+that launched it is gone, and `scripts/install_scheduler.py` refuses to
+register a logon task again. Its delivery leg now publishes on the owner
+email ledger, its helpers (`load_relay_url`, `load_relay_admin_token`) stay
+in place as imports for the daily push and the research routes.

@@ -455,8 +455,8 @@ class PipelineCycleTest(unittest.TestCase):
 
         routes = self.relay.routes()
         self.assertIn("/research/claim", routes)
-        self.assertLess(routes.index("/research/claim"), routes.index("/notify"),
-                        "the shared lock was asked AFTER the notification")
+        self.assertLess(routes.index("/research/claim"), routes.index("/signals"),
+                        "the shared lock was asked AFTER the delivery (card push)")
         slot = self.relay.payload_for("/research/claim")["slot"]
         self.assertRegex(slot, r"^\d{2}:\d{2}$")
         self.assertRegex(
@@ -468,7 +468,8 @@ class PipelineCycleTest(unittest.TestCase):
         """A second runner arriving on the same day is refused, and says so."""
         self.relay.claims = False
         with contextlib.redirect_stdout(io.StringIO()):
-            result = run_scan("10:00", self.capture)
+            with patch.object(pipeline, "email_signal") as mail:
+                result = run_scan("10:00", self.capture)
 
         self.assertEqual(result["status"], State.DAILY_LOCKED)
         self.assertEqual(result["delivered"], "LOCKED")
@@ -477,8 +478,10 @@ class PipelineCycleTest(unittest.TestCase):
         self.assertFalse(result["claim"]["ok"])
         self.assertIn("already claimed", result["reason"])
         self.assertIn(WINNER, result["reason"])
-        self.assertNotIn("/notify", self.relay.routes(),
-                         "a refused claim still reached the notification path")
+        # The notification seam is owner email now: a refused claim must
+        # reach no delivery at all, and the retired chat hop is not called.
+        mail.assert_not_called()
+        self.assertNotIn("/notify", self.relay.routes())
 
     def test_a_relay_that_cannot_answer_the_claim_fails_closed(self):
         """No answer, no entry: an unverifiable lock cannot promise one trade."""
@@ -518,13 +521,13 @@ class PipelineCycleTest(unittest.TestCase):
 
         The candidate is genuine and the paper position is real either way.
         What must not survive is the claim that the owner was told about a
-        trade the relay never accepted: the verdict reads TRADE_UNDELIVERED,
-        the delivery block carries the relay's own refusal, and the reason
-        says so.
+        trade the owner email never confirmed: the verdict reads
+        TRADE_UNDELIVERED, the delivery block carries the email seam's
+        refusal, and the reason says so.
         """
-        self.relay.refuse = ("/notify",)
         with contextlib.redirect_stdout(io.StringIO()):
-            result = run_scan("10:00", self.capture)
+            with patch.object(pipeline, "email_signal", return_value=False):
+                result = run_scan("10:00", self.capture)
 
         self.assertEqual(result["status"], scanner.TRADE)
         self.assertEqual(result["trade_state"]["trades_today"], 1)
@@ -532,8 +535,9 @@ class PipelineCycleTest(unittest.TestCase):
         self.assertEqual(result["delivered"], "TRADE_UNDELIVERED")
         self.assertIsNotNone(result["delivery"])
         self.assertFalse(result["delivery"]["ok"])
-        self.assertEqual(result["delivery"]["kind"], "signals")
-        self.assertIn("did NOT accept the notification", result["reason"])
+        self.assertEqual(result["delivery"]["kind"], "signal-buy")
+        self.assertIn("refused_by_owner_email", result["delivery"]["state"])
+        self.assertIn("did NOT confirm the delivery", result["reason"])
 
         self.assert_real_forward_untouched()
 
@@ -549,8 +553,9 @@ class PipelineCycleTest(unittest.TestCase):
         self.assertIn("coverage 0/317", result["reason"])
 
         # Owner order 2026-10-15: a blocked scan NEVER textes. The card, the
-        # archived observation and the printed payload carry the state; the
-        # Telegram op channel stays silent for a background cadence.
+        # archived observation and the printed payload carry the state; no
+        # op alert rides a background cadence on the owner email seam
+        # either, and the retired chat hop is not called.
         self.assertNotIn("/notify", self.relay.routes())
 
         # a blocked verdict is still shown on the card, dated, but not as an ALERT

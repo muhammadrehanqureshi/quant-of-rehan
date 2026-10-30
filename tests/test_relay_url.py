@@ -2,7 +2,7 @@
 
 Owner bug report 2026-10-11: the scheduled daily push went red with a
 traceback, `data/relay_url.txt missing`, and that traceback was the reason
-line in the Telegram alert he received. The file is gitignored, so a fresh
+line in the alert he received. The file is gitignored, so a fresh
 GitHub Actions runner never has it, and the preflight read it before the job
 wrote it. These tests hold the resolution order, hold the preflight to
 returning a sentence instead of raising, and hold the write-then-preflight
@@ -95,7 +95,7 @@ class TestPipelineCredentialResolution(unittest.TestCase):
         from src.notify import schedule_runner as sr
         from scripts import intraday_pipeline as pipeline
         env_file = Path(self._tmp.name) / ".env"
-        env_file.write_text("TELEGRAM_BOT_TOKEN=irrelevant\n"
+        env_file.write_text("UNRELATED_TOKEN=irrelevant\n"
                             "RELAY_ADMIN_TOKEN=token-from-the-env-file\n",
                             encoding="utf-8")
         with mock.patch.object(sr, "ENV_FILE", env_file), \

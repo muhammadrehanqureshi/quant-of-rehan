@@ -27,7 +27,7 @@ STAGED = subprocess.run(
 
 SHAPES = {
     "github_token": re.compile(r"(?:gh[psou]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{30,})"),
-    "telegram_bot": re.compile(r"\b\d{8,10}:AA[A-Za-z0-9_-]{30,}"),
+    "chat_bot": re.compile(r"\b\d{8,10}:AA[A-Za-z0-9_-]{30,}"),
     "jwt": re.compile(r"eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{5,}"),
     "cloudflare_account_hex32": re.compile(r"\b[a-f0-9]{32}\b"),
     "url_embedded_creds": re.compile(r"[a-z][a-z0-9+.-]*://[^\s/:@]{1,60}:[^\s:@]{4,}@[^\s]+"),

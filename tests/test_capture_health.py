@@ -282,7 +282,7 @@ class TestTheRelayHasOneSendSeam(unittest.TestCase):
 class TestTheFallbackReachesTheOwnerEmail(unittest.TestCase):
     """A relay refusal is not the end of the alert (owner order 2026-10-22).
 
-    Telegram is no longer an owner channel, so the text the relay path
+    The chat hop is gone (owner order 2026-10-29), so the text the relay path
     cannot carry must land through the owner email issue: the same
     transport the market broadcasts already use, deduped by marker to
     exactly one email per day. The seam is owner_email.send, so the
