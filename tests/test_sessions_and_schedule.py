@@ -236,7 +236,8 @@ class TestScheduleRunner(unittest.TestCase):
 
     ISSUE = "42"
 
-    def _deliver(self, issue=self.ISSUE, sent=True, raises=None):
+    def _deliver(self, issue="42", sent=True, raises=None):
+        issue = self.ISSUE if issue == "42" else issue
         from src.notify import schedule_runner as sr
         with mock.patch.object(sr, "NOTIFY_LOG",
                                Path(self._tmp.name) / "notify_log.jsonl"), \
