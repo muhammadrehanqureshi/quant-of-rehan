@@ -209,28 +209,36 @@ class SplitSummaryTest(unittest.TestCase):
         return [{"symbol": f"S{i}", "split_method": method}
                 for i, method in enumerate(methods)]
 
-    def test_all_measured(self):
+    def test_the_framed_card_says_one_law_for_all_leaders(self):
+        """Owner order 2026-10-30: the row's own frame is the only source."""
+        text = live_card.split_summary({"top_volume": self.rows(
+            ["range_position"] * 3)})
+        self.assertEqual(
+            text,
+            "B/S from the row's own published frame, the same law the "
+            "search box shows, for all 3 leaders")
+
+    def test_a_legacy_tape_card_is_named_not_claimed_as_measurement(self):
+        """If a legacy tape method ever stands on a row again, the sentence
+        names the tape rather than calling the card measured."""
         text = live_card.split_summary({"top_volume": self.rows(
             ["measured_tape"] * 3)})
-        self.assertEqual(text, "B/S measured from the session tape for all 3 leaders")
-
-    def test_all_tape_counts_name_the_window_they_cover(self):
-        """The feed's own counts are not an estimate; say what they cover."""
-        text = live_card.split_summary({"top_volume": self.rows(
+        self.assertIn("split from the session tape", text)
+        counted = live_card.split_summary({"top_volume": self.rows(
             ["tape_counts"] * 3)})
-        self.assertIn("session's own tape", text)
-        self.assertIn("covering part of the session", text)
-        self.assertNotIn("estimated", text)
+        self.assertIn("split from the session tape", counted)
+        self.assertNotIn("for all", counted)
+        self.assertNotIn("for all 3 leaders measured", counted)
 
     def test_a_mixed_card_names_both_methods(self):
         text = live_card.split_summary({"top_volume": self.rows(
             ["measured_tape", "range_position", "range_position"])})
         self.assertIn("1 of 3 leaders split from the session tape", text)
-        self.assertIn("estimated from the day's range", text)
+        self.assertIn("estimated from the row's own frame", text)
         counted = live_card.split_summary({"top_volume": self.rows(
             ["tape_counts", "tape_counts", "range_position"])})
         self.assertIn("2 of 3 leaders split from the session tape", counted)
-        self.assertIn("estimated from the day's range", counted)
+        self.assertIn("estimated from the row's own frame", counted)
 
     def test_nothing_available_is_stated_not_hidden(self):
         text = live_card.split_summary({"top_volume": self.rows(
@@ -262,7 +270,7 @@ class PublishCardTest(unittest.TestCase):
                                   return_value={"ok": True}):
             result = live_card.publish_card(NOW)
         self.assertTrue(result["ok"])
-        self.assertIn("measured from the session tape", result["split"])
+        self.assertIn("split from the session tape", result["split"])
 
     def test_a_refusing_relay_is_reported_not_raised(self):
         with mock.patch.object(market_snapshot, "build_snapshot",
@@ -293,7 +301,7 @@ class PublishCardTest(unittest.TestCase):
             result = live_card.publish_card(NOW)
         self.assertFalse(result["ok"])
         self.assertIn("RELAY_ADMIN_TOKEN missing", result["detail"])
-        self.assertIn("estimated from the day's range", result["split"])
+        self.assertIn("the same law the search box shows", result["split"])
 
 
 class RunOnceTest(unittest.TestCase):

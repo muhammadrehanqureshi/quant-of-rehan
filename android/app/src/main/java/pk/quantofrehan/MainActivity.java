@@ -586,19 +586,22 @@ public class MainActivity extends Activity {
         wireDropdownArrows();
 
         // Owner order 2026-10-29 (v3.1.0): "move the menu bar tile 7%
-        // above from its current position". The tile keeps its v1.9.13
-        // law - outside the scroll, pinned, always on the screen - and
-        // the share it surrenders is 7% of the SCREEN's own height,
-        // taken from the display's own metrics: the bottom margin is
-        // exactly that air, so the tile rides the same 7% higher on
-        // every screen it runs on.
+        // above from its current position". Owner order 2026-10-30
+        // (v3.3.0): "move the menu tile where all four icons are 4% to
+        // down side". The tile keeps its v1.9.13 law - outside the
+        // scroll, pinned, always on the screen - and the air it lifts
+        // with is a share of the SCREEN's own height, taken from the
+        // display's own metrics: the bottom margin is exactly that air,
+        // so the rides the same share higher on every screen it runs
+        // on. The 30th's order lowers the lift by the four points it
+        // names, onto 3% of the screen.
         android.view.View navCarrier = findViewById(R.id.nav_carrier);
         if (navCarrier != null) {
             float screen = getResources().getDisplayMetrics().heightPixels;
             android.widget.LinearLayout.LayoutParams lift =
                     (android.widget.LinearLayout.LayoutParams)
                             navCarrier.getLayoutParams();
-            lift.bottomMargin = (int) (screen * 0.07f);
+            lift.bottomMargin = (int) (screen * 0.03f);
             navCarrier.setLayoutParams(lift);
         }
 
