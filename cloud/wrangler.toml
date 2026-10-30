@@ -1,5 +1,6 @@
-# Wrangler config for the quant-of-rehan Telegram relay.
-# Deploy: npx wrangler deploy (then: npx wrangler secret put TELEGRAM_BOT_TOKEN)
+# Wrangler config for the quant-of-rehan relay.
+# Deploy: npx wrangler deploy (the RELAY_ADMIN_TOKEN binding is managed by
+# cloud/pair.py; the chat binding is retired, owner order 2026-10-29)
 
 name = "quant-of-rehan-relay"
 main = "worker.js"

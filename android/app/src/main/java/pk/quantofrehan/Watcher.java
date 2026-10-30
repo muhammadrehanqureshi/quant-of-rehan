@@ -30,7 +30,8 @@ import java.util.concurrent.TimeUnit;
 /**
  * Talks to the relay on the Cloudflare edge, posts notifications, and keeps
  * the watchdog armed. All system questions are answered by the relay; this
- * app never talks to Telegram, the broker or the exchange (SO-1, SO-9).
+ * app never talks to a broker or the exchange and has no chat channel
+ * at all (SO-1, SO-9).
  */
 public final class Watcher {
 

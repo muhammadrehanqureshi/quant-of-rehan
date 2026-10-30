@@ -588,7 +588,7 @@ def main(argv: list[str] | None = None) -> int:
         # Owner order 2026-10-08: a thin capture must NOT turn the scheduled
         # run red (GitHub failure emails per run are unwanted). The run
         # stays green; the flag file tells the alert step to send ONE
-        # deduped Telegram notice for the day. Data quality stays honest:
+        # deduped owner-email notice for the day. Data quality stays honest:
         # the scan step still sees the thin capture and reports it.
         LOW_COVERAGE_FLAG.parent.mkdir(parents=True, exist_ok=True)
         LOW_COVERAGE_FLAG.write_text(json.dumps({

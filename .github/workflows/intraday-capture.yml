@@ -196,7 +196,7 @@ jobs:
           #
           # Owner order 2026-10-08, applied here exactly as it already is in
           # the daily push: a scheduled run stays GREEN and a failure raises
-          # ONE deduped Telegram ops alert carrying the reason, instead of a
+          # ONE deduped owner-email ops alert carrying the reason, instead of a
           # GitHub failure email for every fire. Nothing is hidden: the reason
           # is printed, written to the run summary (readable even when the
           # relay itself is what is broken) and sent to the owner's phone.

@@ -1,8 +1,8 @@
 """Owner email over the GitHub Actions channel (owner order 2026-10-22).
 
 The owner decided today that notifications land as email on his GitHub
-connected address (mrmrehanqureshi@gmail.com) and that Telegram is no
-longer one of his channels. GitHub Actions cannot reach an inbox by
+connected address (mrmrehanqureshi@gmail.com) and that the chat channel is
+retired. GitHub Actions cannot reach an inbox by
 itself, so the emails are carried by GitHub's own notification mail: the
 transport writes each notification as a comment on the watched owner
 email issue, and GitHub emails the owner the moment the comment lands.

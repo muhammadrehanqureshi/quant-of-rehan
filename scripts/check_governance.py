@@ -91,7 +91,7 @@ SECRET_PATTERNS = [
     (re.compile(r"ghp_[A-Za-z0-9]{20,}"), "GitHub token (ghp_…)"),
     (re.compile(r"github_pat_[A-Za-z0-9_]{20,}"), "GitHub fine-grained token"),
     (re.compile(r"cfut_[A-Za-z0-9]{20,}"), "Cloudflare token (cfut_…)"),
-    (re.compile(r"\b\d{8,10}:AA[A-Za-z0-9_-]{30,}"), "Telegram bot token"),
+    (re.compile(r"\b\d{8,10}:AA[A-Za-z0-9_-]{30,}"), "retired chat bot token"),
     (re.compile(r"RehanTSHDPS\d"), "Broker password"),
     (re.compile(r"AKIA[0-9A-Z]{16}"), "AWS access key"),
     (re.compile(r"-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----"), "Private key"),

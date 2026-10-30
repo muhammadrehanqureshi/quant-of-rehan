@@ -3,7 +3,7 @@
 A small, logo-branded Android app for the owner's phone. It answers two
 questions at a glance: is the quant working, and what are the latest
 signals. Signal-only by construction (SO-1): the app talks only to the
-Cloudflare relay, never to Telegram, never to a broker.
+Cloudflare relay, never to the retired chat channel, never to a broker.
 
 ## What it shows
 

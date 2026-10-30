@@ -132,7 +132,7 @@ src/data/live_card.py             the live card the relay serves to the app
 src/data/market_snapshot.py       KSE100 and the KMIALL volume leaders
 src/ci/local_only.py              the guards that keep runtime work in the cloud
 src/ci/budget.py                  adaptive Actions budget for a cycle
-src/notify/telegram.py            env-driven notifier (fails closed)
+src/notify/owner_email.py         owner email over GitHub notification mail
 scripts/intraday_pipeline.py      the orchestrator (scan, finalize, card, archive)
 scripts/scan_loop.py              supervised interval scan loop (cloud runner)
 scripts/land.sh                   stage, validate and land one change through a PR

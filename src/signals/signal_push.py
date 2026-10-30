@@ -1,10 +1,14 @@
-"""Push the daily fail-closed signal status to the relay (app + Telegram).
+"""Push the daily fail-closed signal status to the relay (app card).
 
 GITHUB ACTIONS (SO-21). Reads the 5-year dataset and the relay URL/admin
-token, which arrive as workflow secrets (SO-5). Delivery path (SO-9):
+token, which arrive as workflow secrets (SO-5). Delivery path:
 
     POST {relay}/signals  {signals: text}   -> phone app card (x-admin-token)
-    POST {relay}/notify   {text, kind}      -> Telegram via the worker
+
+Owner order 2026-10-29: the retired chat channel is gone entirely;
+intraday notifications travel as owner email from the Actions jobs
+(src/notify/owner_email.py), and the daily push carries the app card
+only.
 
 READINESS: no rule has demonstrated positive net expectancy under a valid
 one-winner evaluation. Candidate delivery is disabled; the live payload
@@ -77,7 +81,7 @@ def _hint_for(status: int, body: dict) -> str:
     """Turn a relay refusal into a sentence the owner can act on.
 
     Owner bug report, 2026-10-10: the scheduled job reported only "the daily
-    signal push failed" through Telegram, with no cause. The relay answers
+    signal push failed" through the alert channel, with no cause. The relay answers
     with a specific status and message, and each one has exactly one fix, so
     the fix is named here instead of being buried in a GitHub log nobody
     reads.
@@ -86,14 +90,7 @@ def _hint_for(status: int, body: dict) -> str:
     if status == 403:
         return ("the relay refused the admin token (HTTP 403). The GitHub "
                 "secret RELAY_ADMIN_TOKEN no longer matches the worker "
-                "binding; re-pair or rotate both from the same value")
-    if status == 409:
-        return ("the relay is not paired with the owner's chat (HTTP 409). "
-                "Run cloud/pair.py discover then confirm")
-    if status == 502:
-        return (f"the relay reached Telegram and Telegram refused the send "
-                f"(HTTP 502: {detail or 'no description'}). Check the bot "
-                f"token binding and that the paired chat still exists")
+                "binding; rotate both from the same value")
     if status == 503:
         return "the relay is up but its backing store is unavailable (HTTP 503)"
     return f"the relay refused {detail or 'the request'} (HTTP {status})"
@@ -148,9 +145,6 @@ def relay_preflight(url: str, token: str, timeout_s: float = 15.0) -> str:
         return f"the relay did not answer /health ({type(exc).__name__})"
     if not health.get("ok"):
         return "the relay answered /health with a fault"
-    if not health.get("paired"):
-        return ("the relay is not paired with the owner's Telegram chat; "
-                "run cloud/pair.py discover then confirm")
     try:
         r = requests.get(url + "/signals", timeout=timeout_s,
                          headers={"x-admin-token": token})
@@ -275,14 +269,14 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     # Owner order 2026-10-08: a day without signals is a quiet day. The
-    # "No signal today" notice is retired: no relay card rewrite, no
-    # Telegram push, no phone buzz. Silence IS the no-signal verdict.
+    # "No signal today" notice is retired: no relay card rewrite, no phone
+    # buzz, no email. Silence IS the no-signal verdict.
     if not today_signals:
         journal(f"push {signal_date_label}", True,
                 "0 signal(s); quiet day, nothing pushed (owner order "
                 "2026-10-08)")
         print(f"quiet day: 0 signals for {signal_date_label}; "
-              f"nothing pushed (app and Telegram stay silent).")
+              f"nothing pushed (the app card stays silent).")
         return 0
 
     token = read_admin_token()
@@ -303,14 +297,13 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     try:
         post_json(url, "/signals", {"signals": text}, token)
-        post_json(url, "/notify", {"text": text, "kind": "signals"}, token)
     except RuntimeError as exc:
         journal(f"push {signal_date_label}", False, str(exc))
         print(f"FAILED: {exc}\nsignal NOT lost: rerun the command to retry.")
         return 1
     journal(f"push {signal_date_label}", True,
-            f"{len(today_signals)} signal(s), app+telegram")
-    print(f"delivered: {len(today_signals)} signal(s) -> app + Telegram.")
+            f"{len(today_signals)} signal(s), app card")
+    print(f"delivered: {len(today_signals)} signal(s) -> app card.")
     return 0
 
 

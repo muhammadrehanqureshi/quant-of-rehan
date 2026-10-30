@@ -6,7 +6,8 @@ orchestrator only:
 
     scan  ->  src/signals/momentum_scanner.py (the ONE scanner)
           ->  src/signals/trade_state.py      (the ONE daily trade state)
-          ->  Cloudflare relay                (signals, notify, research log)
+          ->  owner email + Cloudflare relay  (exactly-once signal emails,
+                                              the app's card, the research log)
 
 Modes:
 
@@ -160,45 +161,50 @@ def relay_request(method: str, route: str, payload: dict | None = None):
 
 
 def deliver(text: str, kind: str) -> bool:
-    """Hand one message to the relay. True ONLY when it accepted it.
+    """Email one notification to the owner, exactly once per (kind, day).
 
-    Acceptance is not delivery, and the two are kept apart on purpose. The
-    relay answers as soon as it has taken the message and sends it to Telegram
-    in the background (measured 2026-10-16: Telegram took 42.2 seconds to
-    answer, far past any sender's budget), so Telegram's own outcome is
-    recorded at the relay and reported by /status as ``last_delivery`` rather
-    than guessed here. What this function still refuses to do is call a
-    refusal a delivery: the caller used to discard this return value and
-    record ``delivered: TRADE`` either way.
+    Owner order 2026-10-29: the chat channel is retired and its bot is gone,
+    so the relay's /notify hop is retired. Every notification now travels
+    through the watched owner email issue (src/notify/owner_email.py), whose
+    comment ledger keeps one email per marker no matter how often a fire
+    repeats: GitHub cron runs, band loop and backstop slots land on the same
+    day and the second send is refused, not duplicated. The signal branches
+    do NOT call this: they email their verdicts directly with a
+    signal-*:<date> marker (email_signal below), so an event never travels
+    twice. `deliver` remains for the operational senders (capture alerts,
+    agent rotation warnings), which dedupe on their own kind marker.
 
-    The reason is named in the log so the cause is readable without a
-    dashboard; no credential is ever part of it (SO-5).
+    Fail closed for the delivery record: True when the email is on the
+    ledger, False when the transport refused, and the reason is named in the
+    log so a failure is readable without a dashboard; no credential is ever
+    part of it (SO-5).
     """
-    try:
-        relay_request("POST", "/notify", {"text": text, "kind": kind})
-        return True
-    except (requests.RequestException, RuntimeError, ValueError) as exc:
-        print(f"delivery failed ({kind}): {type(exc).__name__}: {exc}")
-        return False
+    return email_signal(text, f"{kind}:{date.today().isoformat()}")
 
 
-def email_signal(text: str, marker: str) -> None:
+def email_signal(text: str, marker: str) -> bool:
     """Email the owner the actual call, from Actions (owner order 2026-10-22).
 
-    The consumer does not have Telegram any more; a notification now lands
-    as email through the watched owner email issue (src/notify/
-    owner_email.py), whose comment ledger keeps one email per marker. The
-    text is the exact body the scanner issued, never reworded, and the
-    call is best effort: a mail failure never changes a verdict, the card
-    or the relay's own delivery record.
+    The consumer does not use a chat app any more; a notification lands as
+    email through the watched owner email issue (src/notify/owner_email.py),
+    whose comment ledger keeps one email per marker. The text is the exact
+    body the scanner issued, never reworded, and the call is best effort for
+    the verdict itself: a mail failure never changes a verdict, the card or
+    the archived session record. The RETURN value is the delivery record:
+    True when the email is on the ledger (a fresh send, or this exact marker
+    already went out today, which for a repeated fire of the same event is a
+    delivery), False when the transport failed, which the caller records as
+    an undelivered notification rather than a refusal of the candidate.
     """
     from src.notify.owner_email import send
 
     try:
         if send(text, marker):
             print(f"owner email sent ({marker})")
+        return True
     except Exception as exc:  # noqa: BLE001 - an email is best effort
         print(f"owner email failed ({marker}): {type(exc).__name__}")
+        return False
 
 
 def push_card(text: str, state: SessionState | None = None,
@@ -207,7 +213,7 @@ def push_card(text: str, state: SessionState | None = None,
 
     The card must show what the scan decided TODAY. Without this the app kept
     a stale multi-day-old line, because scan verdicts only travelled to
-    Telegram through /notify. Best-effort: a card failure never changes a
+    the retired chat hop through /notify. Best-effort: a card failure never changes a
     verdict, and the local observation file remains the record of truth.
 
     When a session state is supplied the push is IDEMPOTENT, and what counts
@@ -707,7 +713,7 @@ def run_scan(slot: str, capture: Path | None = None,
         write_observation(payload)
         # Owner order 2026-10-15: the scan cadence is background. A blocked
         # scan is a data state, not a market event, so it updates the card and
-        # the archived observations WITHOUT a Telegram op text every 30
+        # the archived observations WITHOUT a chat op text every 30
         # seconds. Only ever a signal travels.
         push_card(card_text(day, slot, text, alert=False), state, signature=f"{day}|{text}")
         # Deduped on the verdict essence: an unchanged data state is not
@@ -735,13 +741,12 @@ def run_scan(slot: str, capture: Path | None = None,
                     if state.target_hit else
                     f"STOP HIT\nSymbol: {state.symbol}\nExit reference: {price:.4f}\n"
                     f"Stop Loss: {state.stop_loss:.4f}\nDaily lock remains engaged.")
-            accepted = deliver(text, "signals")
-            delivery = {"channel": "relay:/notify", "kind": "signals",
+            accepted = email_signal(text, f"signal-exit:{day.isoformat()}")
+            delivery = {"channel": "owner-email", "kind": "signal-exit",
                         "ok": accepted,
-                        "state": ("relay_accepted" if accepted
-                                  else "refused_by_relay")}
+                        "state": ("delivered" if accepted
+                                  else "refused_by_owner_email")}
             push_card(card_text(day, slot, text, alert=True), state, signature=f"{day}|{text}")
-            email_signal(text, f"signal-exit:{day.isoformat()}")
             print(text)
         else:
             state.last_reason = "position open, monitoring the target"
@@ -772,14 +777,13 @@ def run_scan(slot: str, capture: Path | None = None,
                         stop_loss=result.candidate.get("stop_loss"))
             state.save()
             text = scanner.signal_message(result.candidate, context, entry, as_of)
-            sent = deliver(text, "signals")
+            sent = email_signal(text, f"signal-buy:{day.isoformat()}")
             push_card(card_text(day, slot, text, alert=True), state, signature=f"{day}|{text}")
-            email_signal(text, f"signal-buy:{day.isoformat()}")
-            delivery = {"channel": "relay:/notify", "kind": "signals",
+            delivery = {"channel": "owner-email", "kind": "signal-buy",
                         "ok": sent,
-                        "state": ("relay_accepted" if sent
-                                  else "refused_by_relay")}
-            # A candidate that the relay refused is NEVER reported as a delivered
+                        "state": ("delivered" if sent
+                                  else "refused_by_owner_email")}
+            # A candidate the owner never received is NEVER reported as a delivered
             # trade. The trade itself still stands in the session state (the paper
             # position is real and is valued at the close either way); what is
             # corrected here is the claim that the owner was told about it.
@@ -788,8 +792,8 @@ def run_scan(slot: str, capture: Path | None = None,
             status = result.status
             reason = result.reason
             if not sent:
-                reason = (f"{reason}; the signal was entered and the relay did NOT "
-                          f"accept the notification")
+                reason = (f"{reason}; the signal was entered and the owner email "
+                          f"did NOT confirm the delivery")
                 state.last_reason = reason
                 state.save()
     elif result.status == scanner.CALL_WATCH and not state.trade_taken:
@@ -803,16 +807,13 @@ def run_scan(slot: str, capture: Path | None = None,
         reason = result.reason
         watch_text = scanner.call_watch_message(result, quality, context,
                                                 as_of)
-        sent = deliver(watch_text, "signals")
-        delivery = {"channel": "relay:/notify", "kind": "signals",
+        sent = email_signal(watch_text, f"signal-callwatch:{day.isoformat()}")
+        delivery = {"channel": "owner-email", "kind": "signal-callwatch",
                     "ok": sent,
-                    "state": ("relay_accepted" if sent
-                              else "refused_by_relay")}
+                    "state": ("delivered" if sent
+                              else "refused_by_owner_email")}
         push_card(card_text(day, slot, watch_text, alert=True), state,
                   signature=f"{day}|{watch_text}")
-        # One watch email per day (the marker dedupes), best effort like
-        # every other channel; the verdict itself never depends on it.
-        email_signal(watch_text, f"signal-callwatch:{day.isoformat()}")
         state.last_reason = f"call watch delivered instead of entry: {reason}"
         state.save()
         delivered = "CALL_WATCH" if sent else "CALL_WATCH_UNDELIVERED"
