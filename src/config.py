@@ -68,19 +68,19 @@ MAX_TRADES_PER_DAY = 1
 # continue without the relay can turn the requirement off deliberately.
 SIGNAL_CLAIM_REQUIRED = _flag("SIGNAL_CLAIM_REQUIRED", True)
 # Owner order 2026-10-29: the engine has delivered almost nothing in any
-# medium since QuantOfRehan began because calls only open through the strict
-# ICT/SMC sequence, and the market veto on top has kept nearly every session
-# in the unconfirmed instead. DAS TREET is the example: the owner saw a good
-# session there and the cloud produced no call at all. The fix is to open
-# up the flow of PROCEDURAL calls without destroying the strict law: when
-# this flag is set, a scan whose rank table is non-empty but whose strict
-# sequence (or market veto) kept the top name from being a legal entry opens
-# an open CALL WATCH - the ranked top names, each labelled ENGINE CALL,
-# UNVALIDATED (SO-3: no implied certainty), and carrying the paper law's own
-# target/stop math so the call includes its measured plan. Honesty laws are
-# untouched: no broker order ever exists (SO-1), and the paper one-trade
-# claim law is untouched (a watch never seizes the day's one trade, so a
-# real proprietary ICT/SMC entry may still open the same day).
+# medium since QuantOfRehan began because calls were being kept back by the
+# entry law and the market veto. DAS TREET is the example: the owner saw a
+# good session there and the cloud produced no call at all (that law is
+# since replaced outright: the Kalman Trend is the sole strategy, owner
+# order 2026-10-30). The fix opens the flow of PROCEDURAL calls without
+# destroying the flip law: when this flag is set, a scan whose rank table
+# is non-empty but whose market veto kept the top name from being a legal
+# entry opens an open CALL WATCH - the ranked top names, each labelled
+# ENGINE CALL, UNVALIDATED (SO-3: no implied certainty), and carrying the
+# paper law's own target/stop math so the call includes its measured plan.
+# Honesty laws are untouched: no broker order ever exists (SO-1), and the
+# paper one-trade claim law is untouched (a watch never seizes the day's
+# one trade, so a real confirmed flip entry may still open the same day).
 OWNER_ORDERED_CALLS = _flag("OWNER_ORDERED_CALLS", False)
 TARGET_PCT = _number("TARGET_PCT", 2.0) / 100.0
 KMIALL_ONLY = True
@@ -254,26 +254,25 @@ def is_etf_symbol(symbol: str) -> bool:
 
     return eligibility.is_etf(symbol)
 
-SCANNER_VERSION = "ict_smc_sweep_mss_fvg_retest_v1"
+SCANNER_VERSION = "kalman_trend_flip_v1"
 
-# Fixed, pre-registered price-action hypothesis. No parameter search uses OOS.
-SMC_SWING_BARS = 2
-SMC_ATR_BARS = 14
-SMC_SETUP_BARS = 30
-SMC_SHIFT_BARS = 4
-SMC_RETEST_BARS = 5
-SMC_DISPLACEMENT_ATR = 1.0
-SMC_DISPLACEMENT_CLOSE_FRACTION = 0.75
-SMC_DEALING_RANGE_BARS = 60
-SMC_MIN_DISPLACEMENT_VOLUME = 1.5
-SMC_MIN_GAP_PCT = 0.0001
-SMC_MAX_CHASE_PCT = 0.001
-SMC_MIN_RISK_PCT = 0.001
-SMC_MAX_RISK_PCT = 0.012
-SMC_MIN_NET_RR = 1.0
-SMC_TICK_SIZE = 0.01
-SMC_MAX_SIGNAL_AGE_SECONDS = 60
-SMC_LAST_ENTRY_MINUTES = 30
+# The Kalman Trend, the owner's sole intraday strategy (owner order
+# 2026-10-30). The filter numbers below are the starting pair; the tuned
+# pair is swept in GitHub Actions by scripts/kalman_grid_fit.py and lands
+# here only through a pull request with its own evidence (never on the
+# owner's PC). All noises are dimensionless log-price variances.
+KALMAN_Q = _number("KALMAN_Q", 2e-08)          # per-bar process noise on the slope
+KALMAN_R = _number("KALMAN_R", 1e-06)          # per-bar observation noise on the level
+KALMAN_FLIP_THRESHOLD = _number("KALMAN_FLIP_THRESHOLD", 1e-05)  # hysteresis band, log slope
+KALMAN_SETUP_BARS = 40          # a signal's upward flip may be at most this old
+# No minimum-risk or reward-risk floor gate: the flip's own stop distance is
+# the honest trend answer, the owner's TP/SL law is the plan, and expectancy
+# is measured by the Actions grid fit, never bolted on as a per-scan veto.
+# The MAXIMUM below still refuses a stop absurdly far away.
+KALMAN_MAX_RISK_PCT = _number("KALMAN_MAX_RISK_PCT", 0.012)
+KALMAN_TICK_SIZE = 0.01
+KALMAN_MAX_SIGNAL_AGE_SECONDS = 60
+KALMAN_LAST_ENTRY_MINUTES = 30
 # Legacy momentum constants above are retained only by historical daily-bar
 # research. They have no decision path in the intraday scanner.
 
@@ -509,14 +508,14 @@ def config_snapshot() -> dict:
         "target_pct": round(TARGET_PCT * 100, 4),
         "max_trades_per_day": MAX_TRADES_PER_DAY,
         "min_coverage_pct": MIN_COVERAGE_PCT,
-        "min_signal_score": None,  # retired momentum threshold, not an SMC gate
+        "min_signal_score": None,  # retired momentum threshold, not a gate
         "secondary_confirmation": {"rule": SCANNER_VERSION},
-        "smc": {name: value for name, value in globals().items()
-                if name.startswith("SMC_")},
+        "kalman": {name: value for name, value in globals().items()
+                   if name.startswith("KALMAN_")},
         "min_relative_volume": MIN_RELATIVE_VOLUME,
         "min_session_traded_value": MIN_SESSION_TRADED_VALUE,
         "score_weights": dict(SCORE_WEIGHTS),  # historical research only
-        "score_basis": "ICT/SMC displacement, volume and cost-inclusive reward/risk",
+        "score_basis": "Kalman trend quality, volume and cost-inclusive reward/risk",
         "scanner_version": SCANNER_VERSION,
         "ai_signal_enabled": False,
         "ai_tie_break_enabled": False,

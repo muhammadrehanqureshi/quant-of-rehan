@@ -191,7 +191,7 @@ class RelayRecorder:
         return None
 
 
-from smc_fixture import setup_values
+from kalman_fixture import setup_values
 
 
 def build_capture(path: Path, symbols: list[str], minutes: int = 60) -> Path:
