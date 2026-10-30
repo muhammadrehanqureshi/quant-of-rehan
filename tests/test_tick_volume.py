@@ -413,8 +413,13 @@ class MeasuredSplitTest(unittest.TestCase):
                          rows[0]["volume"])
         self.assertEqual(rows[0]["split_method"],
                          volume_split.METHOD_RANGE)
+        # One truth (owner order 2026-10-30): the frame's range answers
+        # the row even when the tape saw only a part of the day, so the
+        # note is the range basis the card counts rows with - one split
+        # row of the two in this frame.
         self.assertEqual(
-            basis, volume_split.METHOD_LABELS[volume_split.METHOD_RANGE])
+            basis, volume_split.METHOD_LABELS[volume_split.METHOD_RANGE]
+                   + " (1 of 2)")
 
     def test_a_capture_without_tape_rows_cannot_split_a_row(self):
         """A stats frame is not a trade: the row stays without numbers."""

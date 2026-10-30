@@ -1868,18 +1868,23 @@ class VersionTest(unittest.TestCase):
         # version 3 for the app" - so this build is versionCode 90 /
         # versionName 3.0.0 and no 2.x number is stamped again.
         self.assertIn("Version 3.0.0, versionCode 90", readme)
+        # v3.3.0 (owner order 2026-10-30, the numbers order): the dropdowns
+        # open above the boxes, the icon tile rides 4% down, and every row
+        # of the card prints ONE truth from one frame, versionCode 93. Each
+        # release stamps its heading into the running changelog, so every
+        # shipped heading keeps its own pin (SO-3).
+        self.assertIn("Version 3.3.0, versionCode 93", readme)
         # v3.1.0 (owner order 2026-10-29, twenty-eighth pass): the open
         # menu keeps its anchored line and the rows type in the box's
-        # own column, and the menu tile rides 7% of the screen higher,
-        # versionCode 91.
+        # own column, and the menu tile rides 7% of the screen higher.
         self.assertIn("Version 3.1.0, versionCode 91", readme)
         # v3.2.0 (owner order 2026-10-29, the photo order): the open menu's
-        # rows move up into the closed face's empty strip, both dropdowns,
-        # versionCode 92.
+        # rows move up into the closed face's empty strip, both dropdowns.
         self.assertIn("Version 3.2.0, versionCode 92", readme)
         manifest = MANIFEST.read_text(encoding="utf-8")
         self.assertIn('android:versionCode="93"', manifest)
-        self.assertIn('android:versionName="3.2.0"', manifest)
+        self.assertIn('android:versionName="3.3.0"', manifest)
+        self.assertNotIn('android:versionName="3.2.0"', manifest)
         layout = LAYOUT.read_text(encoding="utf-8")
         strings = STRINGS.read_text(encoding="utf-8")
         main = MAIN.read_text(encoding="utf-8")
