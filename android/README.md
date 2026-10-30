@@ -1641,6 +1641,38 @@ to sixty seconds. The status tile therefore also carries the app's own
      the orphan law stands so every dot still wears a filament.
   5. The version bump is versionCode 82 / versionName 2.3.15.
 
+**Version 3.4.0, versionCode 94.**
+
+  Owner order of 2026-10-30, with two photos: "when i tap on the drop down
+  menu, on custom scrips of volume and on themes page, the drop down menu
+  got thinner and the drop down/drop up icon gets on the middle, it should
+  be on the top. also when I change the theme the menu icons tile get so
+  large that it goes so down the screen and doesn't even end, also when I
+  changed the theme to navy blue and white, the icons on the menu tile
+  changed but the highlighted stayed as yellow which is wrong, it should
+  have highlighted in white for navy blue and white theme."
+
+  1. THE CARET LEADS THE MOUNT. The v3.2.0 open state left the caret
+     vertically centred on whatever the mount held, so with the open rows
+     standing it sat in their middle. Both carets anchor the mount's own
+     TOP-RIGHT now, under 11dp of top air - the closed 43dp face's exact
+     station while the menu is closed, the first row's own side line
+     while it is open - and one tap on the caret still rolls the menu up.
+  2. THE OPEN MENU IS NOT THINNER. Both menus' option rows carry the
+     closed box's own field height law, the one universal 43dp
+     (v2.3.18's 29 * 1.5 = 43.5, floored to 43), so an open menu reads
+     as thick as the face it opened from, row for row.
+  3. THE HIGHLIGHT IS THE THEME'S OWN RING. The selected disc was the
+     shipped gold on every theme. It is the worn theme's own accent pair
+     now - navy's disc is white, black's and orange's white too, green's
+     the gold its headings keep, purple keeps the shipped nav_circle
+     byte for byte - built once per theme and reused.
+  4. THE ICONS TILE'S HEIGHT IS A LAW. The pinned bar's height is exactly
+     its own icon law, the 42dp icon + 16dp air + 16dp air = 74dp, set
+     at the app's own start, so no theme pass can ever stretch the tile
+     past its own edge: it ends, always, on the screen it is pinned to.
+  5. The version bump is versionCode 94 / versionName 3.4.0.
+
 **Version 3.3.0, versionCode 93.**
 
   Owner order of 2026-10-30, four orders, the data first: "I am seeing two
