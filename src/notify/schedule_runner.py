@@ -6,10 +6,10 @@ clear line per attempt, returns whether the send landed, and never
 changes the caller's wording (SO-3: text travels as given).
 
 The channel is the owner's Gmail through GitHub's own notification mail
-(owner order 2026-10-22, after the chat channel was retired): each notification
-is a comment on the watched "Quant of Rehan - owner email" issue, and
-GitHub emails the owner the moment the comment lands. Nothing on this
-machine talks to a mail server.
+(owner order 2026-10-22, after the chat channel was retired): each
+notification is a comment on the watched "Quant of Rehan - owner email"
+issue, and GitHub emails the owner the moment the comment lands. Nothing
+on this machine talks to a mail server.
 
 The exactly-once ledger lives in GitHub, not on a PC: one marker line
 per event per day, for example ``market-open:2026-10-22``. A marker
@@ -19,10 +19,10 @@ double-fire. If the send raised, the state is unknown, the marker was
 never proven committed, and the next fire simply claims it again -
 fail-closed toward exactly one send, not zero.
 
-The transport still needs the relay credentials only where a caller
-also uses them for works the relay app itself; this module carries no
-secrets and keeps none: it either holds the watched issue (from the
-environment, then a title search) or it is degraded.
+The relay URL and RELAY_ADMIN_TOKEN resolvers stay in this module because
+they are the one resolver the whole notification path shares (the scan
+pipeline, the card push, the research log); the retired chat hop is gone,
+so delivery itself needs neither.
 """
 
 from __future__ import annotations
@@ -43,62 +43,71 @@ from src.notify.owner_email import (  # noqa: E402,F401
 
 ENV_FILE = REPO_ROOT / ".env"
 RELAY_URL_FILE = REPO_ROOT / "data" / "relay_url.txt"
-RELAY_DEFAULT = "https://quant-of-rehan.mrsrehan.workers.dev"
 NOTIFY_LOG = REPO_ROOT / "data" / "notify_log.jsonl"
 
-_TOKEN_CACHE: dict[str, str] = {}
 _EMAIL_ISSUE_CACHE: str | None = None
 
 MARKER_RE = re.compile(r"[a-z0-9_-]+:\d{4}-\d{2}-\d{2}")
 
 
-def _read_env_file_token() -> str:
-    """The token out of the repo's gitignored .env, when it exists."""
-    if not ENV_FILE.exists():
-        return ""
-    for raw in ENV_FILE.read_text(encoding="utf-8").splitlines():
-        line = raw.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, value = line.split("=", 1)
-        if key.strip() == "RELAY_ADMIN_TOKEN":
-            token = value.strip()
-            if token:
-                return token
-    return ""
+
+def load_relay_url() -> str:
+    """Resolve the worker relay URL, or fail closed.
+
+    Order: the RELAY_URL environment variable, then data/relay_url.txt
+    (gitignored, written by cloud/pair.py and scripts/signal_daily.py),
+    with a trailing slash stripped so the resolved value is joinable.
+
+    Still fail closed with nothing configured: the card push, the research
+    log and the daily push all need the deployed worker's URL, and a
+    delivery must never travel to a guessed address. The owner email is a
+    different transport and never reads this.
+    """
+    configured = os.environ.get("RELAY_URL", "").strip()
+    if configured:
+        return configured.rstrip("/")
+    if RELAY_URL_FILE.is_file():
+        url = RELAY_URL_FILE.read_text(encoding="utf-8").strip()
+        if url:
+            return url.rstrip("/")
+    raise RuntimeError(
+        "no relay URL configured: set RELAY_URL or write "
+        "data/relay_url.txt with the deployed worker's URL "
+        "(see cloud/README.md)"
+    )
 
 
 def load_relay_admin_token() -> str:
-    """Resolve RELAY_ADMIN_TOKEN: the environment, then the repo .env.
+    """RELAY_ADMIN_TOKEN: the environment, then the repo .env, or fail.
 
-    Scan-path callers (the local tick, the workflow job) hold the env in
-    place; a manual call may have only the .env. Nothing resolves from
-    anywhere: no token means no relay work, and the caller raises.
+    One resolver for the whole notification path. Owner bug report,
+    2026-10-10: the daily-push failure alert was the one thing that could
+    explain a failure, and it read the environment only, so on the owner's
+    PC it quietly printed "relay admin token is missing" and sent nothing
+    while every other module happily found the token in .env. Resolved per
+    call, never cached: a caller that fixes its environment mid-process
+    may cure itself, and tests patch ENV_FILE per test. The token is never
+    printed, logged or embedded in an exception (SO-5).
     """
-    if "RELAY_ADMIN_TOKEN" not in _TOKEN_CACHE:
-        _TOKEN_CACHE["RELAY_ADMIN_TOKEN"] = (
-            os.environ.get("RELAY_ADMIN_TOKEN", "").strip()
-            or _read_env_file_token()
-        )
-    return _TOKEN_CACHE["RELAY_ADMIN_TOKEN"]
+    token = os.environ.get("RELAY_ADMIN_TOKEN", "").strip()
+    if token:
+        return token
+    if ENV_FILE.is_file():
+        for line in ENV_FILE.read_text(encoding="utf-8").splitlines():
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#") or "=" not in stripped:
+                continue
+            key, value = stripped.split("=", 1)
+            if key.strip() == "RELAY_ADMIN_TOKEN" and value.strip():
+                return value.strip()
+    raise RuntimeError(
+        "RELAY_ADMIN_TOKEN missing (set the environment variable or add it "
+        "to the gitignored repo .env)"
+    )
 
 
 def clear_token_cache() -> None:
-    """Test hook: the cache must not survive a different environment."""
-    _TOKEN_CACHE.pop("RELAY_ADMIN_TOKEN", None)
-
-
-def load_relay_url() -> str:
-    """The relay URL: the environment first, then the file, then the
-    deployed default. Both a fresh Actions runner (no file) and a local
-    inspection run resolve somewhere real, never a placeholder."""
-    if os.environ.get("RELAY_URL", "").strip():
-        return os.environ["RELAY_URL"].strip()
-    if RELAY_URL_FILE.exists():
-        text = RELAY_URL_FILE.read_text(encoding="utf-8").strip()
-        if text:
-            return text
-    return RELAY_DEFAULT
+    """Retained as no-op for callers that still call it: nothing caches."""
 
 
 def _resolve_email_issue() -> str | None:

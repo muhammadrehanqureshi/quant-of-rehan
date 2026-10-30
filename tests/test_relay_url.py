@@ -20,7 +20,6 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from src.data.sessions import MSG_MARKET_OPEN  # noqa: E402
 
 
 def _relay_env(url: str):
@@ -40,18 +39,13 @@ class TestRelayUrlResolution(unittest.TestCase):
         self.addCleanup(self._tmp.cleanup)
 
     def test_the_env_url_is_used_before_the_file(self):
+        """RELAY_URL wins over the file, and both end joinable."""
         from src.notify import schedule_runner as sr
         with mock.patch.object(sr, "RELAY_URL_FILE",
                                Path(self._tmp.name) / "relay_url.txt"), \
-             mock.patch.object(sr, "NOTIFY_LOG",
-                               Path(self._tmp.name) / "notify_log.jsonl"):
+             _relay_env("https://relay-env.example/"):
             sr.RELAY_URL_FILE.write_text("https://relay-file.example/\n")
-            with _relay_env("https://relay-env.example/"):
-                with mock.patch.object(sr, "send_via_relay",
-                                       return_value=True) as send:
-                    sr.deliver("OPEN", "open", MSG_MARKET_OPEN)
-                self.assertEqual(send.call_args.args[0],
-                                 "https://relay-env.example")
+            self.assertEqual(sr.load_relay_url(), "https://relay-env.example")
 
     def test_the_file_is_used_when_the_env_is_empty(self):
         from src.notify import schedule_runner as sr

@@ -615,12 +615,13 @@ class PushDiagnosticsTest(unittest.TestCase):
         self.assertIn("|| true", text)
         self.assertNotIn("exit $STATUS", text)
 
-    def test_ops_alert_resolves_the_token_like_everyone_else(self):
-        from src.notify.schedule_runner import load_relay_admin_token
+    def test_ops_alert_notifies_on_the_owner_email_channel(self):
+        """Owner order 2026-10-29: no chat hop is left, deduped to email."""
         import scripts.ops_alert as ops_alert
+        from src.notify import owner_email
 
-        self.assertTrue(callable(load_relay_admin_token))
-        self.assertIs(ops_alert.load_relay_admin_token, load_relay_admin_token)
+        self.assertIs(ops_alert.owner_email, owner_email,
+                      "ops alerts share the ONE owner email seam")
 
     def test_signal_push_has_a_preflight_and_hints(self):
         text = (ROOT / "src" / "signals" / "signal_push.py").read_text(

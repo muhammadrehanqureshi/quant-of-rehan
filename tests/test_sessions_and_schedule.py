@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import json
-import os
 import sys
 import tempfile
 import unittest
@@ -228,58 +226,81 @@ class TestOwnerTexts(unittest.TestCase):
 
 
 class TestScheduleRunner(unittest.TestCase):
-    def setUp(self):
-        self._tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(self._tmp.cleanup)
+    """The owner-email notification seam (the resident runner is retired).
 
-    def test_deliver_journals_and_uses_relay(self):
-        from src.notify import schedule_runner as sr
-        with mock.patch.object(sr, "RELAY_URL_FILE",
-                               Path(self._tmp.name) / "relay_url.txt"), \
-             mock.patch.object(sr, "NOTIFY_LOG",
-                               Path(self._tmp.name) / "notify_log.jsonl"):
-            sr.RELAY_URL_FILE.write_text("https://relay.example/\n")
-            with mock.patch.object(sr, "send_via_relay",
-                                   return_value=True) as send:
-                ok = sr.deliver("OPEN", "open", MSG_MARKET_OPEN)
-            self.assertTrue(ok)
-            self.assertEqual(send.call_args.args[1], MSG_MARKET_OPEN)
-            rec = json.loads(
-                sr.NOTIFY_LOG.read_text(encoding="utf-8").splitlines()[-1])
-            self.assertTrue(rec["ok"])
-            self.assertEqual(rec["event"], "OPEN")
-
-    def test_missing_relay_url_fails_closed(self):
-        from src.notify import schedule_runner as sr
-        with mock.patch.object(sr, "RELAY_URL_FILE",
-                               Path(self._tmp.name) / "absent.txt"), \
-             mock.patch.object(sr, "NOTIFY_LOG",
-                               Path(self._tmp.name) / "notify_log.jsonl"), \
-             _no_relay_env():
-            ok = sr.deliver("CLOSE", "close", MSG_MARKET_CLOSED)
-        self.assertFalse(ok)
-
-    def test_relay_failure_fails_closed(self):
-        from src.notify import schedule_runner as sr
-        with mock.patch.object(sr, "RELAY_URL_FILE",
-                               Path(self._tmp.name) / "relay_url.txt"), \
-             mock.patch.object(sr, "NOTIFY_LOG",
-                               Path(self._tmp.name) / "notify_log.jsonl"):
-            sr.RELAY_URL_FILE.write_text("https://relay.example/\n")
-            with mock.patch.object(sr, "send_via_relay", return_value=False):
-                ok = sr.deliver("OPEN", "open", MSG_MARKET_OPEN)
-        self.assertFalse(ok)
-
-
-def _no_relay_env():
-    """An environment with RELAY_URL absent, so the file alone decides.
-
-    The notification path reads the relay URL from the environment first, so
-    a test that means to exercise the file path has to say so out loud
-    instead of inheriting whatever the shell happens to export.
+    Owner order 2026-10-29 removed the chat account: schedule_runner no
+    longer posts /notify and no longer sleeps on a PC. Delivery is one
+    owner email per event per day, claimed on the watched issue's marker
+    ledger, journaled locally, and honest about every outcome.
     """
-    env = {k: v for k, v in os.environ.items() if k != "RELAY_URL"}
-    return mock.patch.dict(os.environ, env, clear=True)
+
+    ISSUE = "42"
+
+    def _deliver(self, issue=self.ISSUE, sent=True, raises=None):
+        from src.notify import schedule_runner as sr
+        with mock.patch.object(sr, "NOTIFY_LOG",
+                               Path(self._tmp.name) / "notify_log.jsonl"), \
+             mock.patch.object(sr, "owner_email_issue",
+                               return_value=issue), \
+             mock.patch.object(sr, "send_owner_email",
+                               return_value=sent, side_effect=raises) as send:
+            ok = sr.deliver(MSG_MARKET_OPEN, "market-open")
+        return ok, send, sr.NOTIFY_LOG
+
+    def test_deliver_claims_one_issue_comment(self):
+        ok, send, log = self._deliver()
+        self.assertTrue(ok)
+        self.assertEqual(send.call_args.args[0], MSG_MARKET_OPEN,
+                         "the text travels exactly as given, never reworded")
+        marker = send.call_args.args[1]
+        self.assertTrue(marker.startswith("market-open:"), marker)
+        self.assertEqual(marker.count(":"), 1)
+        last = log.read_text(encoding="utf-8").splitlines()[-1]
+        self.assertIn("EMAIL DELIVERED", last)
+        self.assertIn(marker, last)
+
+    def test_a_send_that_raised_fails_closed_and_sends_no_marker_record(self):
+        from src.notify import schedule_runner as sr
+        with mock.patch.object(sr, "NOTIFY_LOG",
+                               Path(self._tmp.name) / "notify_log.jsonl"), \
+             mock.patch.object(sr, "owner_email_issue",
+                               return_value=self.ISSUE):
+            with mock.patch.object(sr, "send_owner_email",
+                                   side_effect=RuntimeError("boom")):
+                ok = sr.deliver(MSG_MARKET_OPEN, "market-open")
+        self.assertFalse(ok)
+        self.assertFalse(sr.NOTIFY_LOG.read_text(encoding="utf-8").strip(),
+                         "an unproven send claims nothing")
+
+    def test_an_already_sent_marker_is_deduped_never_duplicated(self):
+        from src.notify import schedule_runner as sr
+        with mock.patch.object(sr, "NOTIFY_LOG",
+                               Path(self._tmp.name) / "notify_log.jsonl"), \
+             mock.patch.object(sr, "owner_email_issue",
+                               return_value=self.ISSUE):
+            with mock.patch.object(sr, "send_owner_email", return_value=False):
+                ok = sr.deliver(MSG_MARKET_OPEN, "market-open")
+        self.assertFalse(ok,
+                         "the marker was already on the ledger: no resend")
+
+    def test_a_missing_issue_is_degraded_never_silent_sent(self):
+        from src.notify import schedule_runner as sr
+        with mock.patch.object(sr, "NOTIFY_LOG",
+                               Path(self._tmp.name) / "notify_log.jsonl"), \
+             mock.patch.object(sr, "owner_email_issue",
+                               side_effect=RuntimeError("gone")):
+            ok = sr.deliver(MSG_MARKET_OPEN, "market-open")
+        self.assertFalse(ok)
+        self.assertFalse(sr.NOTIFY_LOG.read_text(encoding="utf-8").strip())
+
+    def test_a_text_without_an_event_key_is_ambiguous_and_is_a_no_op(self):
+        from src.notify import schedule_runner as sr
+        with mock.patch.object(sr, "NOTIFY_LOG",
+                               Path(self._tmp.name) / "notify_log.jsonl"):
+            ok = sr.deliver(MSG_MARKET_CLOSED, "")
+        self.assertFalse(ok,
+                         "text alone cannot claim a marker: refuse, never "
+                         "fire an unbounded duplicate")
 
 
 if __name__ == "__main__":
