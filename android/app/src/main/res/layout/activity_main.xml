@@ -455,9 +455,9 @@
                  anchors the mount's own TOP-RIGHT, no longer the centre of
                  whatever the mount holds. Its 11dp top air keeps the closed
                  box's own station (the 43dp face centres the 20dp caret at
-                 the same place), and with the face away -- the open rows --
-                 the caret stands over the rows' first line, exactly where
-                 the roll-up tap lives. -->
+                 the same place), and with the face away the caret stands
+                 over the open rows' first line, exactly where the roll-up
+                 tap lives. -->
             <ImageView
                 android:id="@+id/volume_split_arrow"
                 android:layout_width="20dp"

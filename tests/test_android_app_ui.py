@@ -3517,11 +3517,15 @@ class ThinkingOrbPlanTest(unittest.TestCase):
                 box = element(layout, f'android:id="@+id/{view_id}"')
                 start = layout.rindex("<FrameLayout", 0, layout.index(box))
                 holder = layout[start:layout.index("</FrameLayout>", start)]
-                # The box itself carries no top margin; the holder is
-                # exactly the box and the arrow's center_vertical aims
-                # at the box's own centre.
+                # The box itself carries no top margin. v3.4.0: the mount's
+                # only top air is the caret's own 11dp station (the arrow's
+                # law, never the box's) - the closed 43dp face's own height
+                # law puts the 20dp caret at the same station the old
+                # centre put it, and with the open rows standing the caret
+                # rides their first line as the roll-up tap.
                 self.assertNotIn('android:layout_marginTop', box)
-                self.assertNotIn('android:layout_marginTop', holder)
+                self.assertEqual(
+                    1, holder.count('android:layout_marginTop="11dp"'))
                 # The 10dp air sits on the GROUP now, outside the field
                 # plate it carries, so the plate starts at the box's
                 # own top edge (v2.3.21).
@@ -3677,9 +3681,10 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         # The rows' own thickness: inside menuRow, once, at the field's
         # one height law.
         row = main.index("private TextView menuRow(String line) {")
+        menu_end = main.index("private void showVolumeMenu", row)
+        window = main[row:menu_end]
         self.assertEqual(main.count("row.setMinimumHeight(dp(43));"), 1)
-        self.assertIn("row.setMinimumHeight(dp(43));",
-                      main[row:row + 900])
+        self.assertIn("row.setMinimumHeight(dp(43));", window)
         # The per-theme disc: built once per theme, the same oval law
         # nav_circle keeps, the worn accent's fill and its brightened
         # ring; the purple build still gets the shipped XML drawable.
