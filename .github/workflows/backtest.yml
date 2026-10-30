@@ -16,7 +16,7 @@ on:
       task:
         description: "what to run"
         type: choice
-        options: [both, smoke, build-dataset, ten-year]
+        options: [both, smoke, build-dataset, ten-year, mean-reversion]
         default: both
 
 permissions:
@@ -111,6 +111,51 @@ jobs:
           path: |
             data/backtest_10y_report.json
             data/backtest_10y_report_trades.csv
+            data/eod_dataset_10y.summary
+          if-no-files-found: error
+          retention-days: 30
+
+  # Mean-reversion (RSI(2) snapback) study under the MeanRevParams exit
+  # law, scored and simulated against the same ten-year mkt_summary
+  # panel the 'ten-year' task uses. Manual dispatch only (SO-21).
+  mean-reversion:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    env:
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt --retries 5 --timeout 60
+
+      - name: Build the ten-year dataset
+        run: |
+          mkdir -p data
+          python scripts/build_backtest_dataset.py \
+            --universe src/data/universe_kmiall.json \
+            --start 2016-10-29 \
+            --out data/eod_dataset_10y.csv.gz \
+            --cache-dir data/mkt_cache
+
+      - name: Run the mean-reversion backtest
+        run: |
+          python scripts/backtest_mean_reversion.py \
+            --dataset data/eod_dataset_10y.csv.gz \
+            --out data/backtest_mean_reversion_report.json
+          cat data/backtest_mean_reversion_report.json
+
+      - name: Keep the mean-reversion result
+        uses: actions/upload-artifact@v7
+        with:
+          name: backtest-mean-reversion-${{ github.run_id }}
+          path: |
+            data/backtest_mean_reversion_report.json
+            data/backtest_mean_reversion_report_trades.csv
             data/eod_dataset_10y.summary
           if-no-files-found: error
           retention-days: 30
