@@ -1738,8 +1738,8 @@ class VersionTest(unittest.TestCase):
         # one mesh remains, so no line can end at a dot no other thread
         # carries on from.
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="3.2.0"', manifest)
-        self.assertIn('android:versionCode="92"', manifest)
+        self.assertIn('android:versionName="3.3.0"', manifest)
+        self.assertIn('android:versionCode="93"', manifest)
         # The changelog entry ties these user-visible changes to the build.
         readme = (ROOT / "android" / "README.md").read_text(encoding="utf-8")
         self.assertIn("v1.7.9, owner order 2026-10-20", readme)
@@ -1795,6 +1795,10 @@ class VersionTest(unittest.TestCase):
         # v2.3.10 (owner order 2026-10-26, thirteenth pass): the corona
         # deletion and the commit gate, versionCode 77.
         self.assertIn("Version 2.3.10, versionCode 77", readme)
+        # v3.3.0 (owner order 2026-10-30): one feed / one truth, the tick
+        # never stalls, the dropdown rows move up into the mount, the
+        # four-icon tile 4% down, versionCode 93.
+        self.assertIn("Version 3.3.0, versionCode 93", readme)
         # v2.3.11 (owner order 2026-10-26, fourteenth pass): the animation
         # removed and rebuilt from v2.3.8, the placeholder cap, and the
         # snug dropdown boxes, versionCode 78.
@@ -1864,18 +1868,23 @@ class VersionTest(unittest.TestCase):
         # version 3 for the app" - so this build is versionCode 90 /
         # versionName 3.0.0 and no 2.x number is stamped again.
         self.assertIn("Version 3.0.0, versionCode 90", readme)
+        # v3.3.0 (owner order 2026-10-30, the numbers order): the dropdowns
+        # open above the boxes, the icon tile rides 4% down, and every row
+        # of the card prints ONE truth from one frame, versionCode 93. Each
+        # release stamps its heading into the running changelog, so every
+        # shipped heading keeps its own pin (SO-3).
+        self.assertIn("Version 3.3.0, versionCode 93", readme)
         # v3.1.0 (owner order 2026-10-29, twenty-eighth pass): the open
         # menu keeps its anchored line and the rows type in the box's
-        # own column, and the menu tile rides 7% of the screen higher,
-        # versionCode 91.
+        # own column, and the menu tile rides 7% of the screen higher.
         self.assertIn("Version 3.1.0, versionCode 91", readme)
         # v3.2.0 (owner order 2026-10-29, the photo order): the open menu's
-        # rows move up into the closed face's empty strip, both dropdowns,
-        # versionCode 92.
+        # rows move up into the closed face's empty strip, both dropdowns.
         self.assertIn("Version 3.2.0, versionCode 92", readme)
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionCode="92"', manifest)
-        self.assertIn('android:versionName="3.2.0"', manifest)
+        self.assertIn('android:versionCode="93"', manifest)
+        self.assertIn('android:versionName="3.3.0"', manifest)
+        self.assertNotIn('android:versionName="3.2.0"', manifest)
         layout = LAYOUT.read_text(encoding="utf-8")
         strings = STRINGS.read_text(encoding="utf-8")
         main = MAIN.read_text(encoding="utf-8")
@@ -3626,16 +3635,21 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         own line so the caret stays vertically centred where it stood
         when the box was closed, the rows type in the box's own 10dp
         column, and the pinned menu tile surrenders 7% of the screen's
-        own height as its bottom air.
+        own height as its bottom air. Owner order 2026-10-30 (v3.3.0)
+        lowers that lift 4 points: "move the menu tile where all four
+        icons are 4% to down side" - the tile's bottom air is 3% of the
+        screen now, and the pin below is the arithmetic that reads it
+        as 4% DOWN from the 7% it was.
         """
         main = MAIN.read_text(encoding="utf-8")
         # The rows' side air is the closed box's own 10dp column - both
         # faces type on one column, never an indent of their own.
         self.assertIn("row.setPadding(dp(10), dp(7), dp(14), dp(7));", main)
-        # The tile's lift is the screen's own 7%, read from the display's
-        # own metrics on the carrier the tile rides.
+        # The tile's lift is the screen's own share, read from the
+        # display's own metrics on the carrier the tile rides: 3% now,
+        # which is the ordered 4% below the v3.1.0 law's 7%.
         self.assertIn("findViewById(R.id.nav_carrier)", main)
-        self.assertIn("lift.bottomMargin = (int) (screen * 0.07f);", main)
+        self.assertIn("lift.bottomMargin = (int) (screen * 0.03f);", main)
 
     def test_v2_3_20_the_dropdown_never_reads_as_a_second_window(self):
         """Owner order 2026-10-28: "when i tap on the drop down menu,

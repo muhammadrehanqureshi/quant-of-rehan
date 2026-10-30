@@ -370,8 +370,8 @@
      -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="pk.quantofrehan"
-    android:versionCode="92"
-    android:versionName="3.2.0">
+    android:versionCode="93"
+    android:versionName="3.3.0">
 
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="30"/>
 

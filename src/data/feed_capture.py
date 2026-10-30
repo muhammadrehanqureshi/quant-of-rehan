@@ -351,7 +351,16 @@ class RelayQuotePublisher:
     """Coalesce broker frames and push snapshots from cloud runners only."""
 
     MIN_PUBLISH_SECONDS = 1.0
-    MAX_RETRY_SECONDS = 30.0
+    # Owner order 2026-10-30: the phone's numbers must move at the broker's
+    # own one-second cadence, so one failed push may never retire the feed
+    # for half a minute. The old 30s cap let a single 4xx from the edge mute
+    # a live session for up to 30 seconds of backoff on top of the 4-6
+    # second round trips behind it, which is the "the numbers are stuck"
+    # the card showed (each retry also re-posted every pending row, so a
+    # stalled session got whole minutes behind). The retry still doubles
+    # from its 1s floor; it just stops at 5, so the worst gap between two
+    # successful pushes stays inside the card's own freshness window.
+    MAX_RETRY_SECONDS = 5.0
 
     def __init__(self) -> None:
         self._token = ""

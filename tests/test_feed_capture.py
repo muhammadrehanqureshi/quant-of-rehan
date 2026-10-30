@@ -31,6 +31,21 @@ from scripts.intraday_pipeline import load_kmiall  # noqa: E402
 from src.data import feed_capture  # noqa: E402
 
 
+class PublisherRetryCapTest(unittest.TestCase):
+    """Owner order 2026-10-30: the phone's numbers must move at the
+    broker's own one-second cadence, so one failed quote push may not
+    retire the feed for half a minute. The backoff doubles from 1s but
+    stops at the 5s cap, and a success handback resets it to the floor."""
+
+    def test_the_retry_cap_is_a_five_second_wall_not_thirty(self):
+        self.assertEqual(feed_capture.RelayQuotePublisher.MAX_RETRY_SECONDS,
+                         5.0)
+
+    def test_a_success_resets_the_floor_below_the_cap(self):
+        self.assertLess(feed_capture.RelayQuotePublisher.MIN_PUBLISH_SECONDS,
+                        feed_capture.RelayQuotePublisher.MAX_RETRY_SECONDS)
+
+
 class DefaultUniverseTest(unittest.TestCase):
     def test_the_default_universe_is_tracked_not_local_only(self):
         """A fresh checkout must have the file, so it lives under src/."""
