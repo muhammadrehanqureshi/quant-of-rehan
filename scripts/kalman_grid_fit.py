@@ -252,3 +252,7 @@ def main(argv=None) -> int:
     print(json.dumps({"chosen": chosen, "rows": len(grid_results),
                       "replay_seconds": report["replay_seconds"]}, indent=2))
     return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
