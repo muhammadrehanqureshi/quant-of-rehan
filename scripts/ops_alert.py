@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
-"""Ops alerts to the owner's channels, deduped to one per day.
+"""Ops alerts to the owner, deduped to one email per day.
 
 Owner order 2026-10-08: GitHub failure emails per run are unwanted. The
 scheduled workflows therefore stay GREEN and report through this channel
-instead; the relay's /notify with kind "ops" dedupes on (UTC date, text),
-so repeated failing slots cost at most ONE message per day. Owner order
-2026-10-22: Telegram is no longer an owner channel, so a relay refusal
-falls through to the owner email issue (one email per day as well).
+instead. Owner order 2026-10-22 made the owner email issue the channel;
+owner order 2026-10-29 removed the retired chat account entirely, so this
+script speaks owner email only (src.notify.owner_email), one comment
+per marker, i.e. one email
+per day no matter how many failing slots arrive.
 
 Also implements the capture-health check: when the intraday capture pass
 cannot substantiate coverage, ohlc_poller leaves
@@ -33,19 +34,7 @@ sys.path.insert(0, str(ROOT))
 
 from src.data.sessions import now_karachi  # noqa: E402
 from src.notify import owner_email  # noqa: E402
-from src.notify.schedule_runner import load_relay_admin_token  # noqa: E402
 FLAG = ROOT / "data" / "feed_capture" / "ohlc_low_coverage.flag"
-DEFAULT_RELAY = "https://quant-of-rehan-relay.mrmrehanqureshi.workers.dev"
-
-
-def relay_url() -> str:
-    configured = os.environ.get("RELAY_URL", "").strip()
-    if configured:
-        return configured.rstrip("/")
-    path = ROOT / "data" / "relay_url.txt"
-    if path.is_file():
-        return path.read_text(encoding="utf-8").strip().rstrip("/")
-    return DEFAULT_RELAY
 
 
 def run_url() -> str:
@@ -100,52 +89,25 @@ def capture_health_message() -> str:
 # symbols by their own names, so the fallback is a pure shell.
 
 
-def _email_fallback(text: str) -> bool:
-    """Last leg of send(): owner_email, exactly once per day (2026-10-22)."""
+def send(text: str) -> bool:
+    """Deliver one deduped ops alert (owner email only, 2026-10-29).
+
+    The retired relay hop went with the chat channel, so the transport is
+    the watched owner email issue, one email per marker
+    (ops-alert:<date>), wherever the caller runs and however often it
+    fires. A transport failure returns False and nothing is claimed as
+    delivered.
+    """
     marker = f"ops-alert:{now_karachi().date().isoformat()}"
     try:
-        return bool(owner_email.send(text, marker))
+        if owner_email.send(text, marker):
+            print("ops alert delivered")
+        else:
+            print("ops alert deduped (already sent today)")
+        return True
     except (RuntimeError, requests.RequestException) as exc:
-        print(f"ops alert email fallback failed: {exc}")
+        print(f"ops alert delivery failed: {type(exc).__name__}: {exc}")
         return False
-
-
-def send(text: str) -> bool:
-    """Deliver one deduped ops alert through the best available channel.
-
-    Order 2026-10-22: Telegram is no longer an owner channel. The relay's
-    /notify with kind "ops" stays the primary path (it still dedupes on
-    UTC date + text), and any refusal it gives falls through to the owner
-    email issue, which is the transport the market broadcasts themselves
-    already use. Both legs are deduped per day, so a day with a bad relay
-    cannot fan out into a day of duplicate messages.
-    """
-    # One resolver with the rest of the notification path (env, then repo
-    # .env). This script is the one that reports failures, so it must not be
-    # the one that silently cannot speak.
-    try:
-        token = load_relay_admin_token()
-    except RuntimeError as exc:
-        print(f"ops relay path refused: {exc}")
-        return _email_fallback(text)
-    try:
-        response = requests.post(
-            relay_url() + "/notify",
-            json={"kind": "ops", "text": text},
-            headers={"x-admin-token": token},
-            timeout=20,
-        )
-        if response.status_code == 200 and response.json().get("ok"):
-            if response.json().get("deduped"):
-                print("ops alert deduped (already sent today)")
-            else:
-                print("ops alert delivered")
-            return True
-        print(f"ops alert delivery failed: HTTP {response.status_code}")
-        return _email_fallback(text)
-    except (requests.RequestException, ValueError) as exc:
-        print(f"ops alert delivery failed: {exc}")
-        return _email_fallback(text)
 
 
 def main(argv: list[str] | None = None) -> int:

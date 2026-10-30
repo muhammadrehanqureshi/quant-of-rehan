@@ -595,7 +595,7 @@ class MarketCardExampleTest(unittest.TestCase):
 class PushDiagnosticsTest(unittest.TestCase):
     """The scheduled job must be able to explain its own failure.
 
-    Owner bug report, 2026-10-10: Telegram said only "the daily signal push
+    Owner bug report, 2026-10-10: the alert said only "the daily signal push
     failed", with the cause buried in a GitHub log. These assertions pin the
     fix: the reason travels with the alert, the run summary, and the job
     output, and the token resolver agrees with the rest of the code.
@@ -615,19 +615,20 @@ class PushDiagnosticsTest(unittest.TestCase):
         self.assertIn("|| true", text)
         self.assertNotIn("exit $STATUS", text)
 
-    def test_ops_alert_resolves_the_token_like_everyone_else(self):
-        from src.notify.schedule_runner import load_relay_admin_token
+    def test_ops_alert_notifies_on_the_owner_email_channel(self):
+        """Owner order 2026-10-29: no chat hop is left, deduped to email."""
         import scripts.ops_alert as ops_alert
+        from src.notify import owner_email
 
-        self.assertTrue(callable(load_relay_admin_token))
-        self.assertIs(ops_alert.load_relay_admin_token, load_relay_admin_token)
+        self.assertIs(ops_alert.owner_email, owner_email,
+                      "ops alerts share the ONE owner email seam")
 
     def test_signal_push_has_a_preflight_and_hints(self):
         text = (ROOT / "src" / "signals" / "signal_push.py").read_text(
             encoding="utf-8")
         self.assertIn("def relay_preflight", text)
         self.assertIn("RELAY_ADMIN_TOKEN no longer matches", text)
-        self.assertIn("Telegram refused the send", text)
+        self.assertIn("the relay refused /signals with HTTP", text)
         self.assertIn("unreachable after", text)
 
 

@@ -1,65 +1,68 @@
-"""Local scheduler for the owner's two daily notifications (SO-9).
+"""Email notifications to the owner, exactly once per event per day.
 
-Runs on the owner's PC only (SO-4: never in Actions). It sleeps until the
-next schedule event computed by src/data/sessions.py (Karachi pinned),
-then delivers the owner's exact text through the quant-of-rehan Cloudflare
-Worker relay. Direct calls to api.telegram.org from this machine are
-forbidden (Telegram is blocked inside Pakistan; SO-9).
+Intraday schedulers just want a message body to claim for delivery and
+a boolean back. This module is the shared seam for that: it prints one
+clear line per attempt, returns whether the send landed, and never
+changes the caller's wording (SO-3: text travels as given).
 
-Delivery is honest by construction: every attempt is journaled to
-data/notify_log.jsonl and retried on the next loop pass if the relay could
-not be reached. The runner never invents a success.
+The channel is the owner's Gmail through GitHub's own notification mail
+(owner order 2026-10-22, after the chat channel was retired): each
+notification is a comment on the watched "Quant of Rehan - owner email"
+issue, and GitHub emails the owner the moment the comment lands. Nothing
+on this machine talks to a mail server.
 
-Usage (owner's PC, from the repo root):
-    python -m src.notify.schedule_runner
+The exactly-once ledger lives in GitHub, not on a PC: one marker line
+per event per day, for example ``market-open:2026-10-22``. A marker
+already committed on the issue means the notification went out and the
+call is a no-op; late arrivals and catch-up backstops therefore cannot
+double-fire. If the send raised, the state is unknown, the marker was
+never proven committed, and the next fire simply claims it again -
+fail-closed toward exactly one send, not zero.
+
+The relay URL and RELAY_ADMIN_TOKEN resolvers stay in this module because
+they are the one resolver the whole notification path shares (the scan
+pipeline, the card push, the research log); the retired chat hop is gone,
+so delivery itself needs neither.
 """
 
 from __future__ import annotations
 
-import json
+import os
+import re
 import sys
-import time
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT))
+REPO_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(REPO_ROOT))
 
-from src.ci.local_only import guard_owner_requested  # noqa: E402
-from src.data.sessions import (  # noqa: E402
-    MSG_MARKET_CLOSED,
-    MSG_MARKET_OPEN,
-    ms_until,
-    next_event,
-    now_karachi,
+from src.notify.owner_email import (  # noqa: E402,F401
+    ENV_DOCS_ISSUE as OWNER_EMAIL_ISSUE_ENV,
+    owner_email_issue,
+    send as send_owner_email,
 )
 
-RELAY_URL_FILE = ROOT / "data" / "relay_url.txt"
-ENV_FILE = ROOT / ".env"
-NOTIFY_LOG = ROOT / "data" / "notify_log.jsonl"
-MAX_DELAY_MS = 10 * 60 * 1000   # wake at least every 10 min to re-check
-RETRY_AFTER_FAIL_S = 120        # retry a failed send after 2 minutes
+ENV_FILE = REPO_ROOT / ".env"
+RELAY_URL_FILE = REPO_ROOT / "data" / "relay_url.txt"
+NOTIFY_LOG = REPO_ROOT / "data" / "notify_log.jsonl"
+
+_EMAIL_ISSUE_CACHE: str | None = None
+
+MARKER_RE = re.compile(r"[a-z0-9_-]+:\d{4}-\d{2}-\d{2}")
+
 
 
 def load_relay_url() -> str:
     """Resolve the worker relay URL, or fail closed.
 
     Order: the RELAY_URL environment variable, then data/relay_url.txt
-    (gitignored, written by cloud/pair.py and scripts/signal_daily.py).
+    (gitignored, written by cloud/pair.py and scripts/signal_daily.py),
+    with a trailing slash stripped so the resolved value is joinable.
 
-    Owner bug report, 2026-10-11: the scheduled daily push went red with
-    this RuntimeError's traceback, because a fresh runner (GitHub Actions)
-    has no data/relay_url.txt -- the file cannot be committed. Two things
-    changed: scripts/signal_daily.py now writes the file before it
-    preflights, and the public URL may be supplied through RELAY_URL (the
-    same order scripts/intraday_pipeline.py, scripts/ops_alert.py and
-    cloud/pair.py already use, so the preflight and the send can no longer
-    read two different URLs). The URL is public; it is never a secret.
-
-    Still fail closed with nothing configured: a notification must never
-    travel to a guessed address.
+    Still fail closed with nothing configured: the card push, the research
+    log and the daily push all need the deployed worker's URL, and a
+    delivery must never travel to a guessed address. The owner email is a
+    different transport and never reads this.
     """
-    import os
-
     configured = os.environ.get("RELAY_URL", "").strip()
     if configured:
         return configured.rstrip("/")
@@ -75,17 +78,17 @@ def load_relay_url() -> str:
 
 
 def load_relay_admin_token() -> str:
-    """Resolve RELAY_ADMIN_TOKEN: environment first, then the repo .env.
+    """RELAY_ADMIN_TOKEN: the environment, then the repo .env, or fail.
 
     One resolver for the whole notification path. Owner bug report,
     2026-10-10: the daily-push failure alert was the one thing that could
     explain a failure, and it read the environment only, so on the owner's
     PC it quietly printed "relay admin token is missing" and sent nothing
-    while every other module happily found the token in .env. The token is
-    never printed, logged or embedded in an exception (SO-5).
+    while every other module happily found the token in .env. Resolved per
+    call, never cached: a caller that fixes its environment mid-process
+    may cure itself, and tests patch ENV_FILE per test. The token is never
+    printed, logged or embedded in an exception (SO-5).
     """
-    import os
-
     token = os.environ.get("RELAY_ADMIN_TOKEN", "").strip()
     if token:
         return token
@@ -103,91 +106,89 @@ def load_relay_admin_token() -> str:
     )
 
 
-def send_via_relay(url: str, text: str, kind: str,
-                   timeout_s: float = 30.0) -> bool:
-    """POST one message to the worker relay. True only on relay ok."""
-    import requests
+def _resolve_email_issue() -> str | None:
+    """The watched issue's number; None when it is unreachable.
 
-    payload = {"kind": kind, "text": text}
-    try:
-        r = requests.post(url + "/notify", json=payload, timeout=timeout_s)
-        if r.status_code == 200:
-            body = r.json()
-            return bool(body.get("ok"))
-        print(f"relay {url}: HTTP {r.status_code}: {r.text[:120]}")
-        return False
-    except requests.RequestException as e:
-        print(f"relay unreachable ({type(e).__name__}); will retry")
-        return False
-
-
-def journal(event: str, kind: str, text: str, ok: bool, detail: str) -> None:
-    """Append one delivery record. Local data only, never committed."""
-    NOTIFY_LOG.parent.mkdir(parents=True, exist_ok=True)
-    rec = {
-        "ts": now_karachi().isoformat(timespec="seconds"),
-        "event": event,
-        "kind": kind,
-        "ok": ok,
-        "detail": detail,
-    }
-    with NOTIFY_LOG.open("a", encoding="utf-8") as f:
-        f.write(json.dumps(rec, ensure_ascii=False) + "\n")
-
-
-def deliver(event: str, kind: str, text: str) -> bool:
-    """One delivery attempt with journaling. Never raises, never fakes."""
-    try:
-        url = load_relay_url()
-    except RuntimeError as e:
-        journal(event, kind, text, False, str(e))
-        print(f"[{now_karachi():%Y-%m-%d %H:%M:%S}] {event}: {e}")
-        return False
-    ok = send_via_relay(url, text, kind)
-    detail = "delivered" if ok else "relay refused or unreachable"
-    journal(event, kind, text, ok, detail)
-    stamp = now_karachi().strftime("%Y-%m-%d %H:%M:%S")
-    print(f"[{stamp}] {event}: {'sent' if ok else 'FAILED'} ({detail})")
-    return ok
-
-
-def run_forever(poll_interval_s: float = 30.0) -> None:
-    """Fire OPEN at the open instant and CLOSE at the close instant.
-
-    Exactly-once per event per Karachi day: the fired set keeps
-    (event, date) keys in memory. If the PC was off at the moment, the
-    event is simply missed for that day (honest: no fake catch-up sends).
+    OWNER_EMAIL_ISSUE pins it for the whole job (no per-call look-up,
+    no second API list). Without the pin, the owner_email module does a
+    the repo's own title search, which is correct but costs one API
+    call, so the first resolution is cached - after that, only when the
+    module's own connective test would find the same issue twice.
     """
-    fired: set[tuple[str, str]] = set()
-    print(f"schedule runner up at {now_karachi():%Y-%m-%d %H:%M:%S} "
-          f"(Asia/Karachi, UTC+5, SO-8)")
-    while True:
-        now = now_karachi()
-        event, when = next_event(now)
-        key = (event, when.date().isoformat())
-        if key not in fired and now >= when:
-            text = MSG_MARKET_OPEN if event == "OPEN" else MSG_MARKET_CLOSED
-            ok = deliver(event, kind="open" if event == "OPEN" else "close",
-                         text=text)
-            if ok:
-                fired.add(key)
-            else:
-                # stay un-fired so the loop retries after the backoff
-                time.sleep(RETRY_AFTER_FAIL_S)
-                continue
-        delay = min(ms_until(when, now), MAX_DELAY_MS)
-        time.sleep(max(delay / 1000.0, poll_interval_s))
-
-
-if __name__ == "__main__":
-    # SO-12 (owner order 2026-10-14): the Cloudflare relay's own cron already
-    # fires the owner's open and close texts, so this resident runner is a
-    # second path, not a needed one. It no longer starts on the owner's PC
-    # unless he asks for it by name; the imported helpers above stay callable
-    # for the daily push and the ops alert.
-    guard_owner_requested("src/notify/schedule_runner.py")
+    global _EMAIL_ISSUE_CACHE
+    named = os.environ.get(OWNER_EMAIL_ISSUE_ENV, "").strip()
+    if named:
+        _EMAIL_ISSUE_CACHE = named
+        return named
+    if _EMAIL_ISSUE_CACHE is not None:
+        return _EMAIL_ISSUE_CACHE
     try:
-        run_forever()
-    except KeyboardInterrupt:
-        print("schedule runner stopped by owner")
-        sys.exit(0)
+        _EMAIL_ISSUE_CACHE = owner_email_issue()
+        return _EMAIL_ISSUE_CACHE
+    except Exception as exc:  # the ledger being unreachable is degraded
+        print(f"owner email: watched issue unreachable: {exc}", flush=True)
+        return None
+
+
+def deliver(text: str, event_key: str = "") -> bool:
+    """Email the owner one notification, exactly once.
+
+    ``event_key`` is the daily dedup key (``market-open``); this module
+    turns it into the full marker (``market-open:2026-10-22``). When the
+    key is empty no claim can be formed, so text alone is ambiguous
+    between fires: the call is a no-op, never an extra mail.
+
+    Returns True when this call landed the send, False when it is a no
+    fire, and False (with a reason in the logs) when the transport is
+    unreachable - never mixed text, never hidden state.
+    """
+    marker = _marker(event_key)
+    if marker is None:
+        print("owner email: no event key, no send", flush=True)
+        return False
+
+    issue = _resolve_email_issue()
+    if issue is None:
+        return False
+    try:
+        sent = send_owner_email(text, marker)
+    except Exception as exc:
+        print(f"owner email: {event_key}: send failed: {exc}", flush=True)
+        return False
+    if not sent:
+        print(f"owner email: '{marker}' already delivered; not resent",
+              flush=True)
+        return False
+    _log(marker, issue)
+    return True
+
+
+def _marker(event_key: str) -> str | None:
+    """The full daily marker; None whenever the key is not a claim."""
+    text = event_key.strip()
+    if not text or "\n" in text or len(text.split()) != 1:
+        return None
+    if re.fullmatch(MARKER_RE, text):
+        return text
+    if ":" in text:
+        return None  # something else has a colon: refuse, never guess
+    return f"{text}:{_today()}"
+
+
+def _today() -> str:
+    """The Karachi date (SO-8): the day the notification claims."""
+    from datetime import datetime, timedelta, timezone
+    now = datetime.now(timezone(timedelta(hours=5)))
+    return now.strftime("%Y-%m-%d")
+
+
+def _log(marker: str, issue: str) -> None:
+    """One line in the job log and one line in the gitignored ledger."""
+    line = f"EMAIL DELIVERED {marker} issue={issue}"
+    print(line, flush=True)
+    try:
+        NOTIFY_LOG.parent.mkdir(parents=True, exist_ok=True)
+        with NOTIFY_LOG.open("a", encoding="utf-8") as handle:
+            handle.write(line + "\n")
+    except Exception:
+        pass  # the ledger is best-effort; the send itself already landed

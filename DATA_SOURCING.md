@@ -184,7 +184,7 @@ served. The registry entry `session_snapshot` holds that state, and
   2025-10-20 onward, with a known 2026-06-22 to 2026-06-29 coverage gap. No
   pyPSX key is configured in this project. Its terms assign the user
   responsibility for redistribution rights from original sources. Therefore
-  this route is not connected to Cloudflare, Telegram, or the production gate.
+  this route is not connected to Cloudflare, any chat channel, or the production gate.
 - The 90-day workflow artifacts must be downloaded and consolidated for
   local research before they expire. No historical bars are inferred from
   daily data, and no local background capture process is required.
@@ -216,8 +216,7 @@ in the two GitHub Actions variables described above.
 
 | Name | Used by | Lives in |
 |---|---|---|
-| `TELEGRAM_BOT_TOKEN` | [src/notify/telegram.py](src/notify/telegram.py): env first, then gitignored `.env` | Owner's Desktop credentials.txt (canonical) + local `.env`. **NEW quant-of-rehan bot token** (2026-10-05); the sentinel's old token is retired and never reused |
-| `TELEGRAM_CHAT_ID` | same | Owner sends the bot one message, then the id goes into local `.env` |
+| `RELAY_ADMIN_TOKEN` | [src/notify/schedule_runner.py](src/notify/schedule_runner.py) and [src/signals/signal_push.py](src/signals/signal_push.py): env first, then gitignored `.env` | GitHub repo secret (canonical for Actions) + local `.env`. Rotated from the same value as the worker binding |
 | `GITHUB_TOKEN` | Automation | GitHub-internal (Actions), not readable |
 | Broker creds | **Nothing in this repo** (SO-1/SO-6) | Owner's Desktop only |
 

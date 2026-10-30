@@ -14,7 +14,7 @@ A private, signal-only quantitative research platform for the **PSX KMIALL Shari
 universe** (Karachi Stock Exchange, all-share Shariah index). It decides, from
 momentum plus volume expansion, whether exactly one stock is a buy today, records
 that as a paper trade, watches a +2% target, and reports to the owner's phone and
-Telegram. It never places an order. It is owned and authored solely by Rehan
+email inbox. It never places an order. It is owned and authored solely by Rehan
 (muhammadrehanqureshi); the agent (Buffy / the QUANT) executes and never widens its
 own scope.
 
@@ -158,7 +158,7 @@ with `DATA_BLOCKED`, `NO_TRADE` or `TRADE`, the full `QualityReport` (coverage, 
 coverage, missing and stale symbols, duplicates, malformed, impossible OHLC, zero-volume
 bars, newest and oldest bar, data age, source name, scanner version), the top ten ranked
 candidates, and a coverage string. Message builders live in the same module so the
-Telegram text and the app text can never drift: `signal_message`, `no_trade_message`,
+email text and the app text can never drift: `signal_message`, `no_trade_message`,
 `scan_blocked_message`, `target_hit_message`.
 
 Two older engines remain in the tree and are not on the intraday trading path. The
@@ -240,44 +240,38 @@ Current gate (live, read from the relay at 12:41 PKT): `RESEARCH_INSUFFICIENT_DA
 
 ### 3.7 Notifications
 
-Two delivery paths, both through the relay (Telegram is blocked inside Pakistan, SO-9).
+One delivery path: the owner email issue (src/notify/owner_email.py) from
+the GitHub Actions jobs, deduped per marker (owner order 2026-10-29 closed
+the chat channel for good; a chat relay leg is no longer part of this
+system).
 
-**Edge crons** (in the worker, independent of the PC): the owner's fixed texts at
-09:32 / 15:30 Monday to Thursday and 09:17 / 16:30 Friday. Texts are exact:
-"Market is open. Quant is online now." and "Market is closed. Quant is sleeping now."
-The worker re-derives Karachi time from a fixed UTC+5 offset and re-checks the schedule
-edge within a two-minute window, so a one-minute cron drift still sends exactly once.
+**Band loop emails** (the loop is alive at every event minute, so it sends
+the session texts): the owner's exact sentences come from
+`src/notify/market_watch.py` (`TEXT_*`), built from the session law
+(`event_text()`), and the ledger keeps every marker exactly once per day.
 
-**Local scheduler** (`src/notify/schedule_runner.py`, owner's PC only, SO-4): sleeps
-until the next event from `src/data/sessions.py`, delivers through the relay, journals
-every attempt to `data/notify_log.jsonl`, retries after two minutes on failure, and
-never invents a success. A missed moment is simply missed, not faked.
+**Straight signal emails** (`scripts/intraday_pipeline.py`): a traded,
+watched or exited verdict emails its text directly with a `signal-*:<date>`
+marker; `scripts/ops_alert.py` turns a low-coverage flag or a failed push
+into exactly **one** deduped ops email per day, which is how the scheduled
+jobs stay green instead of mailing GitHub failures.
 
-`src/notify/telegram.py` is the direct notifier for local use (env or `.env` token,
-three retries, fail closed, token masked). `scripts/ops_alert.py` turns a low-coverage
-flag or a failed push into exactly **one** deduped Telegram message per day (the relay
-dedupes `kind: "ops"` on UTC date plus a text digest), which is how the scheduled jobs
-stay green instead of mailing GitHub failures.
-
-### 3.8 The relay worker (`cloud/worker.js`, 617 lines)
+### 3.8 The relay worker (`cloud/worker.js`)
 
 | Route | Gate | Purpose |
 |---|---|---|
-| `GET /health` | public | liveness, Karachi clock, next event, pairing state, `market_open` |
+| `GET /health` (also `/status`) | public | liveness, Karachi clock, next event, `market_state`, `market_open` |
 | `GET /market` | public | KSE100 points/percentage plus the top three KMIALL stocks by current session volume, five-minute cache |
 | `POST /market` | admin | stores a snapshot built by `python -m src.data.market_snapshot --push` |
-| `POST /pair/start`, `POST /pair/confirm` | admin | two-step Telegram pairing with a 4-digit code in KV |
-| `POST /notify` | admin | delivers to the paired chat; `kind: "ops"` is deduped per day |
-| `GET /signals`, `POST /signals` | admin | the phone app's signal card |
-| `GET /updates` | admin | raw `getUpdates` proxy for debugging |
+| `POST /notify` | admin | retired: answers 410 `retired: "email"`; notifications travel on the owner email issue from the Actions jobs |
+| `GET /signals` (public read), `POST /signals` (admin) | admin write | the phone app's signal card |
 | `POST/GET /research/observation`, `/research/outcome`, `/research/history`, `/research/claim`, `GET/POST /research/gate` | admin | the frozen research archive (write-once keys, two-year retention) |
+| `/quotes`, `/quotes/stream`, `/dashboard`, `/stock`, `/prices` | public reads, admin write | the broker-feed card the app polls |
 
-KV keys in use: `PAIRED_CHAT_ID`, `PENDING_CODE`, `PENDING_CHAT`, `SIGNALS`, `MARKET`,
-`ALERT:<utc-date>:<digest>`, `RESEARCH:OBS:<date>:<slot>`, `RESEARCH:OUTCOME:<date>`,
+Keys (held in the QuoteHub Durable Object, no KV namespace):
+`SIGNALS`, `MARKET`, `MARKET:LAST_CONFIRMED_STATE`,
+`RESEARCH:OBS:<date>:<slot>`, `RESEARCH:OUTCOME:<date>`,
 `RESEARCH:SENT:<date>`, `RESEARCH:PRODUCTION_GATE`.
-
-Crons (UTC): 04:32 Monday to Thursday and 04:17 Friday open; 10:30 Monday to Thursday
-and 11:30 Friday close.
 
 `/market` parses two PSX Data Portal pages server-side. The KSE100 panel
 (`data-close`, the signed change line, the `change__text--pos/neg` class, `data-date`),
@@ -331,14 +325,14 @@ month, inside the 2,000-minute ceiling.
 **signal-push.yml** ("daily signal push"): crons 13:45 UTC Monday to Thursday, 14:45
 Friday, and 03:45 UTC Tuesday to Saturday (08:45 PKT safety net). It fetches a bounded
 100-day EOD window (never a full crawl, enforced in `build_eod_history.py`), filters it
-to the universe, and pushes the fail-closed verdict to the app card and Telegram;
+to the universe, and pushes the fail-closed verdict to the app card and to owner email;
 a failure raises one deduped ops alert instead of a GitHub failure mail, and the next
 slot retries. Combined scheduled ceiling claimed: 1,840 minutes a month.
 
 ### 3.11 How governance is enforced mechanically
 
 `scripts/check_governance.py` (246 lines) runs on every PR and checks: secret-shaped
-strings (`gho_`, `ghp_`, `github_pat_`, Cloudflare `cfut_`, Telegram bot tokens, broker
+strings (`gho_`, `ghp_`, `github_pat_`, Cloudflare `cfut_`, chat bot tokens, broker
 passwords) in changed files; the footprint honesty statement; the presence of the
 standing orders in `GOVERNANCE.md` and CI; banned dash characters in files and commit
 messages; owner-only commit identity with no bot or co-author trailers; and the SO-8
@@ -397,11 +391,11 @@ state and resolves the defects listed below.)*
 Governance and its guard; the 185-test suite; the Karachi clock and schedule law with
 its boundary tests; the momentum scanner and its blocked-versus-verdict separation; the
 persisted daily lock including restart survival; the orchestrator's two modes; the relay
-worker (all ten routes with their gates intact) and its four crons; Telegram pairing and
-delivery; the deduped ops alerting; the phone app, its build, its badge rule and its new
-market card; the PSX Daily Downloads EOD fetcher, its 5-year crawl and the backtest
-engine with conservative fills, cost schedule and corporate-action screens; the frozen
-research gate; the stock/TP grid, entry-metrics and phase studies.
+worker and its edge crons; owner email delivery with its per-marker ledger; the deduped
+ops alerting; the phone app, its build, its badge rule and its new market card; the PSX
+Daily Downloads EOD fetcher, its 5-year crawl and the backtest engine with conservative
+fills, cost schedule and corporate-action screens; the frozen research gate; the
+stock/TP grid, entry-metrics and phase studies.
 
 ## 7. What is blocked, and by what
 
@@ -720,7 +714,7 @@ plus 15% CGT on the positive result.
 
 - **Suite:** 233 tests and 62 subtests pass, exit 0, under both
   `python -m pytest tests -q` and `python -m unittest discover -s tests`. The
-  run is offline; the Telegram and relay lines that appear after the summary are
+  run is offline; the send-seam lines that appear after the summary are
   mocked failures flushed late from buffered stdout, not network calls.
 - **Governance:** `python scripts/check_governance.py` passes (secrets, style,
   identity, SO-8 pin).

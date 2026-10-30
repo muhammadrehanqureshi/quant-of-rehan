@@ -236,10 +236,13 @@ class TestCloudOnlyEntryPoints(unittest.TestCase):
                 )
 
     def test_the_guards_sit_before_the_work_they_gate(self):
+        # src/notify/schedule_runner.py is out of this list since 2026-10-29:
+        # its rewrite made it a library seam over the owner email issue, with
+        # no resident loop a scheduler could start, so there is no bootstrap
+        # to guard any more.
         bootstraps = (
             ("scripts/kmiall_tick.py", "raise SystemExit(main())"),
             ("scripts/scan_loop.py", "raise SystemExit(main())"),
-            ("src/notify/schedule_runner.py", "run_forever()"),
         )
         for rel, call in bootstraps:
             with self.subTest(entry_point=rel):

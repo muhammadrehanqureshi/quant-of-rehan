@@ -1,24 +1,23 @@
-"""Deploy and pair the quant-of-rehan Telegram relay (owner's PC only).
+"""Deploy the quant-of-rehan relay worker (owner's PC only).
 
-Telegram is blocked inside Pakistan (SO-9), so this machine never talks to
-api.telegram.org. It talks to Cloudflare instead, which talks to Telegram.
+Owner order 2026-10-29: the owner closed his chat account for good, so
+the relay no longer pairs a chat, no longer stores a chat token, and the
+whole chat hop is retired. What this script still does
+idempotently is deploy the worker itself:
 
-What this script does, idempotently:
-    1. reads the Cloudflare and Telegram tokens from Desktop credentials.txt
-    2. uploads cloud/worker.js as worker "quant-of-rehan-relay" with secret
-       bindings (bot token, an admin token it generates and stores in .env)
-    3. asks the worker which chat last messaged the bot (you send it a
-       message from your phone), then writes PAIRED_CHAT_ID as a binding
-    4. sets the six cron triggers on the SO-8 schedule (Friday is two
-       sessions, so it has four edges: 09:17, 12:00, 14:32, 16:30 PKT)
-    5. enables the workers.dev URL, writes data/relay_url.txt
-    6. sends one test message through the full relay path
+    1. reads the Cloudflare token and account id from Desktop credentials.txt
+    2. uploads cloud/worker.js as worker "quant-of-rehan-relay" with the
+       admin token it generates and stores in .env as a secret binding
+    3. sets the cron triggers on the SO-8 schedule (Friday is two sessions,
+       so it has four edges: 09:17, 12:00, 14:32, 16:30 PKT)
+    4. enables the workers.dev URL, writes data/relay_url.txt
+
+Notifications are carried by owner email (src/notify/owner_email.py) from
+the GitHub Actions jobs; nothing automated sends from this machine.
 
 Usage:
-    python cloud/pair.py deploy      # steps 1, 2, 4, 5
-    python cloud/pair.py discover    # step 3 (message the bot first)
-    python cloud/pair.py test        # step 6 (needs pairing)
-    python cloud/pair.py all         # deploy, discover, test
+    python cloud/pair.py deploy     # steps 1, 2, 3, 4
+    python cloud/pair.py health     # live status from the edge
 """
 
 from __future__ import annotations
@@ -67,15 +66,14 @@ CRONS = [
 ]
 
 
-def read_creds() -> tuple[str, str, str]:
-    """(cf_token, cf_account_id, telegram_token) from the Desktop sheet."""
+def read_creds() -> tuple[str, str]:
+    """(cf_token, cf_account_id) from the Desktop sheet."""
     txt = CRED.read_text(encoding="utf-8", errors="replace")
     cf = re.findall(r"\b(cfu[a-z]_[A-Za-z0-9]{30,})\b", txt)
     acct = re.findall(r"\b([a-f0-9]{32})\b", txt)
-    tg = re.findall(r"\b(\d{8,12}:[A-Za-z0-9_-]{30,})\b", txt)
-    if not (cf and acct and tg):
+    if not (cf and acct):
         raise SystemExit("credentials.txt missing a needed token (masked read)")
-    return cf[-1], acct[-1], tg[-1]
+    return cf[-1], acct[-1]
 
 
 def env_get(key: str) -> str:
@@ -194,16 +192,15 @@ def cf_upload(cf_token: str, acct: str, bindings: list[dict]) -> None:
 
 
 def cf_headers() -> tuple[str, str, dict]:
-    cf_token, acct, _ = read_creds()
+    cf_token, acct = read_creds()
     return cf_token, acct, {"Authorization": f"Bearer {cf_token}"}
 
 
 def deploy() -> None:
-    cf_token, acct, tg_token = read_creds()
+    cf_token, acct = read_creds()
     admin = env_get("RELAY_ADMIN_TOKEN") or secrets.token_urlsafe(24)
     env_set("RELAY_ADMIN_TOKEN", admin)
     bindings = [
-        {"type": "secret_text", "name": "TELEGRAM_BOT_TOKEN", "text": tg_token},
         {"type": "secret_text", "name": "RELAY_ADMIN_TOKEN", "text": admin},
     ]
     cf_upload(cf_token, acct, bindings)
@@ -220,62 +217,16 @@ def deploy() -> None:
     print("relay url saved to data/relay_url.txt")
 
 
-def discover() -> None:
-    """Two-step pairing: start (bot sends the owner a code), then confirm."""
-    admin = env_get("RELAY_ADMIN_TOKEN")
-    if not admin:
-        raise SystemExit("no admin token; run deploy first")
-    H = {"x-admin-token": admin}
-    r = requests.post(f"{relay_url()}/pair/start", headers=H, json={}, timeout=60)
-    d = r.json()
-    if not d.get("ok"):
-        print(f"pair/start failed: {d.get('error')}")
-        print("send the bot a message on Telegram from your phone, then rerun")
-        sys.exit(2)
-    print(f"pairing code sent to chat ({d.get('chat_kind')} "
-          f"{d.get('chat_name') or 'unnamed'}); check the bot chat")
-    code = input("enter the 4-digit code: ").strip()
-    r = requests.post(f"{relay_url()}/pair/confirm", headers=H,
-                      json={"code": code}, timeout=60)
-    d = r.json()
-    if not d.get("ok"):
-        print(f"pair/confirm failed: {d.get('error')}")
-        sys.exit(3)
-    print(f"paired with chat {d['paired_chat'][:4]}...{d['paired_chat'][-3:]}; "
-          f"confirmation message sent by the bot")
-
-
-def test() -> None:
-    admin = env_get("RELAY_ADMIN_TOKEN")
-    if not admin:
-        raise SystemExit("no admin token; run deploy first")
-    r = requests.post(f"{relay_url()}/notify",
-                      headers={"x-admin-token": admin},
-                      json={"kind": "open",
-                            "text": "quant-of-rehan relay test: delivery works."},
-                      timeout=60)
-    d = r.json()
-    print("test send:", "DELIVERED" if d.get("ok") else f"FAILED: {d.get('error')}")
-
-
 def health() -> None:
     r = requests.get(relay_url() + "/health", timeout=30)
     print(json.dumps(r.json(), indent=2))
 
 
 if __name__ == "__main__":
-    cmd = sys.argv[1] if len(sys.argv) > 1 else "all"
+    cmd = sys.argv[1] if len(sys.argv) > 1 else "deploy"
     if cmd == "deploy":
         deploy()
-    elif cmd == "discover":
-        discover()
-    elif cmd == "test":
-        test()
     elif cmd == "health":
         health()
-    elif cmd == "all":
-        deploy()
-        discover()
-        test()
     else:
         print(__doc__)
