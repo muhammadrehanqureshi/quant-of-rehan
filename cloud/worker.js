@@ -1188,6 +1188,29 @@ async function healthPayload(env) {
   } catch (_) {
     marketFeed = null;
   }
+  // The punctual band dispatch is a backup path that fails SILENTLY by
+  // design: a bad or read-only token answers 401/403 inside a cron and no
+  // workflow is created, so a dead dispatch looks exactly like a scheduler
+  // that never fired (measured 2026-10-30, both Friday wakes left no run).
+  // The note was already recorded; put it on /health so the owner, the app
+  // and an agent can see WHY the backup did not start a band. Safe fields
+  // only: the record holds no token.
+  let lastDispatch = null;
+  try {
+    const raw = await kvGet(env, "SCAN:DISPATCH:LAST");
+    if (raw) {
+      const note = JSON.parse(raw);
+      lastDispatch = {
+        at: note.at || null,
+        band: note.band || null,
+        ok: Boolean(note.ok),
+        status: note.status || 0,
+        detail: String(note.detail || "").slice(0, 200),
+      };
+    }
+  } catch (_) {
+    lastDispatch = null;
+  }
   return {
     ok: true,
     service: "quant-of-rehan-relay",
@@ -1207,6 +1230,7 @@ async function healthPayload(env) {
     // Separately sourced from a fresh REG market-wide MKT-STATS frame in the
     // latest card push; null/unknown never means the session clock is halted.
     market_feed: refreshMarketFeed({ market_feed: marketFeed }, now).market_feed,
+    last_dispatch: lastDispatch,
     next_event: next.event
       ? { event: next.event, at_pk: `${dayStamp(karachiView(next.at.getTime()))} ${hhmm(karachiView(next.at.getTime()))}` }
       : null,
