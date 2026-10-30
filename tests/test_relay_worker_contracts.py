@@ -260,7 +260,9 @@ class RelayWorkerContractTest(unittest.TestCase):
         self.assertIn("const SCAN_WORKFLOW_FILE = \"intraday-session.yml\";",
                       self.source)
         self.assertIn("const SCAN_DISPATCH_GRACE_MINUTES = 3;", self.source)
-        self.assertIn("async function dispatchBandScan(env, now)", self.source)
+        self.assertIn(
+            "async function dispatchBandScan(env, now, band = null, "
+            "source = \"cron\")", self.source)
         self.assertIn('const token = String(env.GH_DISPATCH_TOKEN || "").trim();',
                       self.source)
         self.assertIn('if (!token) {', self.source)
@@ -291,6 +293,38 @@ class RelayWorkerContractTest(unittest.TestCase):
         # The consumer that would have silently frozen the afternoon must be
         # named here, so a future edit cannot quietly swap windows for bands.
         self.assertNotIn("for (const band of bandsFor(k))\n", self.source)
+
+    def test_an_app_poll_starts_a_missed_band(self):
+        """Measured 2026-10-30: GitHub delivered no scheduled fire all day
+        (four workflows, zero runs) and the Worker's own crons left no dispatch
+        note either, so both bands existed only because a human dispatched
+        them. The phone polls /signals every few seconds, so that poll is the
+        third entry point: a band whose open is at most ten minutes old and
+        that nothing has claimed is started once, after the answer is sent.
+
+        The claim key is the cron's own runnable-window key, so the two paths
+        can never both start the same band; a failed attempt leaves a
+        cooldown and the next poll may retry.
+        """
+        self.assertIn("const BAND_START_POLL_WINDOW_MINUTES = 10;", self.source)
+        self.assertIn("async function ensureBandStart(env, now)", self.source)
+        self.assertIn(
+            "ctx.waitUntil(ensureBandStart(env, now).catch(() => {}));",
+            self.source)
+        # The poll path must not wait on the dispatch: the answer is already
+        # sent when it runs, so a slow GitHub API can never hold a poll open.
+        self.assertIn("if (ctx && typeof ctx.waitUntil === \"function\") {",
+                      self.source)
+        self.assertIn('return await dispatchBandScan(env, now, window, "poll");',
+                      self.source)
+        self.assertIn("SCAN:DISPATCH:TRY:", self.source)
+        self.assertIn("const window = dispatchWindowsFor(k).find((w) => {",
+                      self.source)
+        # The health answer says why the backup did or did not start a band,
+        # and the note it quotes carries no token (SO-5).
+        self.assertIn("last_dispatch: lastDispatch,", self.source)
+        self.assertIn('const raw = await kvGet(env, "SCAN:DISPATCH:LAST");',
+                      self.source)
 
     def test_session_edges_and_broker_halt_are_not_scanner_schedule_changes(self):
         for text in ("09:32", "15:30", "09:17", "12:00", "14:32", "16:30"):

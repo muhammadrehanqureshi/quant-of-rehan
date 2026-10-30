@@ -310,12 +310,23 @@ async function ensureBandStart(env, now) {
   const mins = minutesOf(k);
   for (const band of bandsFor(k)) {
     const open = band[0][0] * 60 + band[0][1];
+    const close = band[1][0] * 60 + band[1][1];
     if (mins <= open || mins - open > BAND_START_POLL_WINDOW_MINUTES) continue;
-    const claimed = `SCAN:DISPATCH:${dayStamp(k)}:${hmText(band[0])}`;
+    if (mins >= close - 2) continue;
+    // The claim key must be the one a cron would write, so a band started by
+    // a poll and a band started by the edge can never run twice. The cron
+    // names the RUNNABLE window (Mon-Thu 08:55-12:30, 12:30-15:30), which on
+    // the morning band opens before the band itself.
+    const window = dispatchWindowsFor(k).find((w) => {
+      const wOpen = w[0][0] * 60 + w[0][1];
+      const wClose = w[1][0] * 60 + w[1][1];
+      return wOpen <= open && open < wClose;
+    }) || band;
+    const claimed = `SCAN:DISPATCH:${dayStamp(k)}:${hmText(window[0])}`;
     if (await relayRead(env, claimed)) {
       return { dispatched: false, reason: "already dispatched" };
     }
-    const cooldown = `SCAN:DISPATCH:TRY:${dayStamp(k)}:${hmText(band[0])}`;
+    const cooldown = `SCAN:DISPATCH:TRY:${dayStamp(k)}:${hmText(window[0])}`;
     if (await relayRead(env, cooldown)) {
       return { dispatched: false, reason: "cooldown" };
     }
@@ -325,7 +336,7 @@ async function ensureBandStart(env, now) {
     } catch (_) {
       // The cooldown is a courtesy; a failed write must not block a band.
     }
-    return await dispatchBandScan(env, now, band, "poll");
+    return await dispatchBandScan(env, now, window, "poll");
   }
   return { dispatched: false, reason: "no band open" };
 }
