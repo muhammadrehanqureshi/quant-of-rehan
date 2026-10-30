@@ -162,14 +162,19 @@ jobs:
 
   # The Kalman Trend's parameter grid (owner order 2026-10-30): the owner's
   # answer 2 - the numbers are chosen by a grid-fit in Actions, never on
-  # his PC. Input: this repository's own captured tape sessions in the
-  # gitignored data/ directory; without them the script exits 1 rather
-  # than invent evidence (SO-3). Manual dispatch only (SO-21).
+  # his PC. Input: this repository's own captured tape sessions, which are
+  # gitignored and therefore never in a checkout: the job fetches them from
+  # the R2 band store the session jobs push to (the same two repo secrets
+  # the session workflow already carries). With no session in the store the
+  # script exits 1 rather than invent evidence (SO-3). Manual dispatch only
+  # (SO-21).
   kalman-grid:
     runs-on: ubuntu-latest
     timeout-minutes: 150
     env:
       PYTHONUNBUFFERED: "1"
+      CF_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CF_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
     steps:
       - uses: actions/checkout@v7
 
@@ -180,19 +185,11 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt --retries 5 --timeout 60
 
-      - name: Refuse to run without captured tape sessions
-        run: |
-          count=$(ls data/feed_capture/capture_*.ndjson 2>/dev/null | wc -l)
-          echo "captured tape sessions available: $count"
-          if [ "$count" -lt 2 ]; then
-            echo "::error::need at least 2 captured tape sessions under data/feed_capture/capture_*.ndjson to fit a chronological split; captures are produced by the session workflows onto this repo's artifact store, not committed here."
-            exit 1
-          fi
-
-      - name: Fit the Kalman grid
+      - name: Collect the band store sessions and fit the Kalman grid
         run: |
           python scripts/kalman_grid_fit.py \
             --input 'data/feed_capture/capture_*.ndjson' \
+            --from-store 20 \
             --out data/research/kalman_grid.json
           cat data/research/kalman_grid.json
 
