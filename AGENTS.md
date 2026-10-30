@@ -110,7 +110,7 @@ sentence: the agent is never the clock.
 
 The declared cloud-only entry points are `scripts/install_kmiall_tick.py`,
 `scripts/install_scheduler.py`, `scripts/kmiall_tick.py`,
-`scripts/scan_loop.py` and `src/notify/schedule_runner.py`. Each one calls
+`scripts/scan_loop.py`. Each one calls
 `guard_owner_requested("<its own path>")` where the process becomes real: an
 installer's `install()`, or a runner's `if __name__ == "__main__"` bootstrap.
 Inside GitHub Actions the guard passes straight through, because the cloud is

@@ -137,8 +137,11 @@ CLOUD_ONLY_DAEMONS = {
         "the logon task that keeps the notification runner resident",
     "scripts/kmiall_tick.py": "the 4-minute KMIALL scanner tick",
     "scripts/scan_loop.py": "the supervised always-on scan loop",
-    "src/notify/schedule_runner.py":
-        "the resident open and close notification runner",
+    # src/notify/schedule_runner.py was removed here (owner order 2026-10-29,
+    # the chat channel close): its rewrite made it a plain library seam over
+    # the owner email issue. No resident loop, no __main__ bootstrap, no
+    # process a scheduler could start on this PC, so there is nothing for the
+    # guard to stand in front of any more.
 }
 
 #: The owner's own written instruction is the only thing that re-enables one
