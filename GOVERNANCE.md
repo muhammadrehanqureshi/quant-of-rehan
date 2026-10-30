@@ -111,7 +111,7 @@ The rest of SO-1 stands unchanged for everything outside this exception.
 - Runtime secrets come from environment variables or GitHub Secrets, with the
   canonical names documented in `DATA_SOURCING.md` § Secrets.
 - `scripts/check_governance.py` scans every changed file for secret-shaped
-  strings (`gho_`, `cfut_`, Telegram bot-token pattern, broker password) and
+  strings (`gho_`, `cfut_`, retired chat bot-token pattern, broker password) and
   fails the PR if any appear.
 
 ## SO-6 · The agent merges
@@ -183,18 +183,20 @@ nothing else about SO-7 moves.
 
 ## SO-9 · Notifications reach the owner reliably (owner order, 2026-10-05)
 
-- Telegram is blocked for direct connections inside Pakistan. The system
-  therefore never calls api.telegram.org from the owner's PC. Delivery goes
-  through the quant-of-rehan Cloudflare Worker relay, which runs on the
-  Cloudflare edge outside that block. The owner reads messages on his phone
-  over his VPN as he always has.
+- The chat channel is retired (owner order 2026-10-29): the account and the
+  bot are gone, and no code in this repository talks to a chat API. Delivery
+  goes to the owner's email: each notification is a comment on the watched
+  "Quant of Rehan - owner email" issue, and GitHub's own notification mail
+  carries it to mrmrehanqureshi@gmail.com the moment the comment lands.
+  Scheduled jobs run on GitHub Actions and the Cloudflare edge, never on the
+  owner's PC, so the PC is not part of the delivery path either.
 - The owner receives, every trading day: "Quant is online now." at open,
   and "Quant is sleeping now." at close, per the SO-8 schedule (owner order
   2026-10-07 reworded the texts from the market/system phrasing). These
   texts are fixed by the owner.
-- The local scheduler retries through the relay and fails closed with a
-  clear log line when delivery is impossible. No signal is ever silently
-  dropped and none is ever fabricated.
+- Delivery is exactly once per event per day through the comment ledger's
+  markers, and it fails closed with a clear log line when the send is
+  impossible. No signal is ever silently dropped and none is ever fabricated.
 
 ## Standing orders index
 

@@ -15,10 +15,11 @@ style preference:
     labels its slots HH:MM:SS, so every observation the loop sent was answered
     400 "invalid observation" and never archived (GET /research/observations
     returned 0 rows for 2026-10-13, 2026-10-15 and 2026-10-16);
-  * /notify waited for Telegram inside the request, and Telegram took 42.2
-    seconds to answer, so every send was recorded as a failure;
   * the ops dedupe key was written BEFORE the send, so a failed alert was
-    suppressed by its own attempt and never retried.
+    suppressed by its own attempt and never retried;
+  * the chat hop finally answered {"ok": true} while the message went
+    nowhere, and on 2026-10-29 the owner's chat channel was closed for good,
+    so the route is retired and nothing on the edge sends a message.
 """
 
 from __future__ import annotations
@@ -53,12 +54,11 @@ class RelayWorkerContractTest(unittest.TestCase):
         self.assertEqual(self.source.count("async function healthPayload(env)"), 1,
                          "the two names must come from one function, not two")
 
-    def test_health_reports_the_last_telegram_outcome(self):
-        """Acceptance and delivery are different facts, and both are reported."""
-        self.assertIn('await kvGet(env, "DELIVERY:LAST")', self.source,
-                      "the relay does not record what Telegram answered")
-        self.assertIn("last_delivery: lastDelivery", self.source,
-                      "the recorded outcome never reaches a client")
+    def test_health_carries_no_retired_delivery_ledger(self):
+        """The chat link is gone, so no delivery ledger may be served."""
+        self.assertNotIn("DELIVERY:LAST", self.source,
+                         "the retired send still has a ledger on the edge")
+        self.assertNotIn("last_delivery", self.source)
 
     def test_the_relay_lives_without_a_kv_namespace(self):
         """Owner order 2026-10-20: no product that mails a quota warning.
@@ -96,9 +96,10 @@ class RelayWorkerContractTest(unittest.TestCase):
         pair = (ROOT / "cloud" / "pair.py").read_text(encoding="utf-8")
         self.assertNotIn('"kv_namespace"', pair,
                          "a manual deploy still uploads a KV binding")
-        # The retry path stays uncached on purpose: a stale pending frame could
-        # otherwise be re-delivered after it was consumed.
-        self.assertIn("relayRead(env, MARKET_PENDING_KEY)", self.source)
+        # The transition ledger is the only stateful read left after the
+        # delivery-retry path was retired: it reads the confirmed state
+        # through the memo helper rather than the helpers' KV names.
+        self.assertIn("kvGet(env, MARKET_STATE_KEY)", self.source)
 
     def test_health_names_the_commit_the_edge_is_running(self):
         """`ok: true` proved only that SOMETHING answered.
@@ -134,84 +135,52 @@ class RelayWorkerContractTest(unittest.TestCase):
 
     # ------------------------------------------------------------ /notify
 
-    def test_notify_does_not_wait_for_telegram(self):
-        """A send nobody waits for runs in the background and is recorded.
+    def test_notify_is_retired_and_never_fakes_a_delivery(self):
+        """Owner order 2026-10-29: the chat channel is gone.
 
-        Since the 2026-10-20 third note only the signal branch sends at all, so
-        the deferred send that remains is the signal one and the ops send is
-        gone from the route rather than deduped.
+        The route answers 410 so a straggling sender records the delivery it
+        did NOT get, instead of an "accepted" message that never arrived
+        anywhere. Notifications travel on the owner email issue
+        (src/notify/owner_email.py) from the Actions jobs.
         """
-        self.assertIn("ctx.waitUntil(sendAndRecord(env, paired, text, \"signals\", null))",
-                      self.source)
-        self.assertNotIn("sendAndRecord(env, paired, text, \"ops\", alertKey)",
-                         self.source)
-        self.assertIn("async fetch(request, env, ctx)", self.source,
-                      "the handler cannot defer work without ctx")
-        self.assertIn('json({ ok: true, accepted: true, delivery: "pending" })',
-                      self.source,
-                      "an accepted message must not claim a completed delivery")
-
-    def test_a_timed_out_send_reports_the_budget_it_actually_used(self):
-        """The failure text must name the deadline that expired (measured
-        2026-10-19). tgCall fell back to TELEGRAM_TIMEOUT_MS in its message
-        even when a caller passed TELEGRAM_SEND_TIMEOUT_MS, so a 45 second
-        send reported "did not answer within 10s"."""
-        body = self.source[self.source.index("async function tgCall"):]
-        body = body[:body.index("return r.json()")]
-        self.assertIn("const budget = timeoutMs || TELEGRAM_TIMEOUT_MS;", body)
-        self.assertIn("telegram did not answer within ${budget / 1000}s", body)
-        self.assertNotIn("${TELEGRAM_TIMEOUT_MS / 1000}s", body)
-
-    def test_the_background_send_outlasts_telegram(self):
-        """The background budget is the one that has to hold a slow answer."""
-        bs = chr(92)
-        digits = "(" + bs + "d+)"
-        sync_budget = int(re.search("TELEGRAM_TIMEOUT_MS = " + digits + ";",
-                                    self.source).group(1))
-        async_budget = int(re.search("TELEGRAM_SEND_TIMEOUT_MS = " + digits + ";",
-                                     self.source).group(1))
-        self.assertGreater(async_budget, sync_budget)
-        # Telegram's own answer took 42.2 seconds on 2026-10-16, and the client
-        # budget in the Python senders is 30 seconds, so the background send
-        # gets more than Telegram needed on the day it was measured.
-        self.assertGreater(async_budget, 42200)
-        self.assertIn("AbortSignal.timeout(timeoutMs || TELEGRAM_TIMEOUT_MS)",
-                      self.source,
-                      "the per-call budget is not wired into the fetch")
-
-    def test_operational_alerts_are_retired(self):
-        """Owner order 2026-10-20: only market state and signals may ring.
-
-        The ops route used to send capture-degraded and retry notices, and it
-        spent a dedupe key on them. The route now answers without sending, and
-        says so instead of pretending the message travelled.
-        """
-        route = self.source.index('if (kind === "ops")')
-        body = self.source[route:route + 700]
-        self.assertIn('accepted: false, retired: "ops"', body)
-        self.assertNotIn("sendAndRecord(env, paired, text, \"ops\"", body,
-                         "an ops alert still reaches the sender")
-        self.assertNotIn("alertKey", body,
-                         "a retired alert must not spend a dedupe key")
+        route = self.source[self.source.index('path === "/notify"'):]
+        route = route[:route.index('if (request.method === "OPTIONS"')]
+        self.assertIn("if (!adminOk(request, env)) {", route,
+                      "the retired route must keep its admin gate")
+        self.assertIn('ok: false, retired: "email",', route)
+        self.assertIn("}, 410);", route,
+                      "a retired route must answer a completion nobody got")
+        self.assertNotIn("waitUntil", route,
+                         "a retired route must not queue a background send")
+        # No send helper may exist anywhere: the route is the only chat
+        # entry point and it sends nothing.
+        for gone in ("sendAndRecord", "tgCall", "api.telegram.org",
+                     "TELEGRAM_TIMEOUT_MS", "MARKET_PENDING_KEY"):
+            self.assertNotIn(gone, self.source)
 
     # --------------------------------------------------------- market alerts
 
-    def test_market_messages_are_exact_and_separate_states(self):
-        # Owner order 2026-10-20 (second note): online, offline and break are
-        # the three market sentences. HALTED is still detected and drawn on the
-        # card, but it is not one of the four notification events, so it is
-        # silent rather than borrowing the closed sentence.
-        for state, message in (
-            ("OPEN", "Market is open. Quant is online now."),
-            ("CLOSED", "Market is closed. Quant is sleeping now."),
-            ("BREAK", "Market is on a break. Quant is sleeping until the market reopens."),
-        ):
-            with self.subTest(state=state):
-                self.assertIn(f'if (state === "{state}") return {"MSG_MARKET_" + state};',
-                              self.source)
-                self.assertIn(f'const MSG_MARKET_{state} = "{message}";', self.source)
-        self.assertNotIn("MSG_MARKET_HALTED", self.source)
-        self.assertNotIn('state === "HALTED") return', self.source)
+    def test_market_texts_live_on_the_email_channel_not_the_worker(self):
+        """Owner order 2026-10-29: the worker sends no market message.
+
+        The owner's exact sentences are owned by the Python side (the band
+        edges in src/data/sessions.py, the session texts in
+        src/notify/market_watch.py) and travel by owner email from the
+        Actions jobs. The worker carries only the app card's own condition
+        strings, which must not borrow the notification wording.
+        """
+        for retired in ("MSG_MARKET", "Market is open. Quant is online now.",
+                        "Market is closed. Quant is sleeping now."):
+            self.assertNotIn(retired, self.source)
+        watch = (ROOT / "src" / "notify" / "market_watch.py").read_text(
+            encoding="utf-8")
+        sessions_source = (ROOT / "src" / "data" / "sessions.py").read_text(
+            encoding="utf-8")
+        # The two living copies of the owner's exact open sentences: the
+        # session texts on the email channel (market_watch) and the band
+        # edge texts the loop delivers (sessions). SO-9: never reworded.
+        self.assertIn("PSX is now open and the Quant will be scanning the market", watch)
+        self.assertIn("Market is open. Quant is online now.", sessions_source)
 
     def test_market_transition_requires_fresh_market_wide_reg_evidence(self):
         self.assertIn("const MARKET_STATUS_MAX_AGE_MS = 90 * 1000;", self.source)
@@ -245,15 +214,25 @@ class RelayWorkerContractTest(unittest.TestCase):
         hub = self.source[self.source.index('export class QuoteHub'):]
         self.assertIn('market_feed: current.market_feed', hub)
 
-    def test_market_transition_dedupes_and_retries_failed_delivery(self):
-        self.assertIn('const MARKET_PENDING_KEY = "MARKET:NOTIFICATION_PENDING";',
-                      self.source)
+    def test_market_transitions_are_recorded_never_delivered_from_the_edge(self):
+        """Owner order 2026-10-29: the edge confirms state, owner email sends.
+
+        A transition still records its confirmed state so the dedupe law
+        answers honestly, but no notification is queued, retried or
+        delivered from the relay.
+        """
         self.assertIn('const MARKET_STATE_KEY = "MARKET:LAST_CONFIRMED_STATE";',
                       self.source)
-        self.assertIn("retry_after_ms = Date.now() + MARKET_TRANSITION_RETRY_MS", self.source)
-        self.assertIn("current.identity !== identity", self.source)
-        self.assertIn("retryPending ||", self.source)
-        self.assertIn("ctx.waitUntil(deliverMarketTransition", self.source)
+        self.assertNotIn("MARKET_PENDING_KEY", self.source,
+                         "a pending-retry delivery survived the retirement")
+        self.assertNotIn("deliverMarketTransition", self.source)
+        self.assertNotIn("MARKET_TRANSITION_RETRY_MS", self.source)
+        self.assertNotIn("retryPending", self.source)
+        self.assertIn("previous.identity === identity", self.source,
+                      "the transition ledger no longer dedupes a day:state")
+        self.assertIn('let evidence = "session_schedule";', self.source)
+
+    # ------------------------------------------------------- market alerts (text law moved)
 
     def test_friday_break_and_reopen_follow_the_session_boundaries(self):
         self.assertIn('edge.condition === "BREAK"', self.source)
@@ -266,9 +245,6 @@ class RelayWorkerContractTest(unittest.TestCase):
         self.assertIn("now.getTime() - openAt <= MARKET_OPEN_GRACE_MS", self.source)
         self.assertIn("async scheduled(controller, env, ctx)", self.source)
         self.assertIn("await trackMarketTransitions(env, snapshot, now, ctx);", self.source)
-        # Scheduled notifications have no direct hard-coded Telegram call.
-        scheduled = self.source[self.source.index("async scheduled(controller, env, ctx)"):]
-        self.assertNotIn('tgCall(env, "sendMessage"', scheduled)
 
     def test_a_band_open_dispatches_the_scan_workflow_punctually(self):
         """Owner audit 2026-10-19: GitHub cron arrives hours late, so the
@@ -354,7 +330,7 @@ class RelayWorkerContractTest(unittest.TestCase):
 
         module = "export default { fetch() { return new Response('ok'); } };\r\n"
         meta = pair.upload_metadata([
-            {"type": "secret_text", "name": "TELEGRAM_BOT_TOKEN", "text": "t"},
+            {"type": "secret_text", "name": "RELAY_ADMIN_TOKEN", "text": "t"},
         ])
         body, boundary = pair.build_upload_body(meta, meta["main_module"], module)
 

@@ -1,19 +1,19 @@
-// quant-of-rehan Telegram relay, deployed on the Cloudflare edge.
+// quant-of-rehan relay, deployed on the Cloudflare edge.
 //
-// Why this exists (SO-9): Telegram is blocked for direct connections inside
-// Pakistan, so the owner's PC never calls api.telegram.org. This worker runs
-// on Cloudflare's network outside that block and forwards to Telegram. The
-// owner reads messages on his phone over his VPN, exactly as he always has.
+// Owner order 2026-10-29: the owner removed his chat account and bot, so
+// no chat app is a channel of this system. Notifications travel as
+// owner email (src/notify/owner_email.py) from the GitHub Actions jobs, and
+// every chat route, binding and send call is removed from this worker.
+// What remains here is the app's card, market state, snapshot and status
+// surface.
 //
 // SO-8: the daily open/close schedule here is computed from a fixed UTC+5
 // offset (Karachi has had no daylight saving since 1971). It never uses the
 // container clock zone and never any other timezone.
 //
-// SO-5: secrets live in worker bindings only (set by cloud/pair.py from the
-// owner's PC), never in this file, never in the repo:
-//   TELEGRAM_BOT_TOKEN  the new quant-of-rehan bot token
-//   RELAY_ADMIN_TOKEN   gates /pair and /notify against strangers
-//   PAIRED_CHAT_ID      the owner's chat, set by the pairing script
+// SO-5: secrets live in worker bindings only, never in this file, never in
+// the repo:
+//   RELAY_ADMIN_TOKEN   gates the write routes against strangers
 //
 // Endpoints:
 //   GET  /health        liveness, current Karachi clock, next scheduled event,
@@ -25,13 +25,10 @@
 //   POST /market        admin only: store a snapshot built by the local runner
 //                       (src/data/market_snapshot.py), which takes precedence
 //                       over the edge's own cache for five minutes
-//   POST /pair/start    admin only: find the chat that just messaged the bot,
-//                       store a pairing code in KV and send the code to it
-//   POST /pair/confirm  admin only: {code} -> sets the paired chat id
-//   POST /notify        admin only: {text, kind} forwarded to the paired chat
-//   GET  /updates       admin only: raw getUpdates proxy for local debugging
+//   POST /notify        retired: answers 410. Notifications travel as owner
+//                       email from the Actions jobs.
 //
-// Cron triggers (UTC, set by cloud/pair.py). Friday is TWO sessions with
+// Cron triggers (UTC, set from cloud/). Friday is TWO sessions with
 // the exchange's midday break between them, so it has four edges:
 //   04:32 Mon-Thu = 09:32 PKT open  | 10:30 Mon-Thu = 15:30 PKT close
 //   04:17 Fri     = 09:17 PKT open  | 07:00 Fri     = 12:00 PKT close
@@ -168,25 +165,14 @@ const QUOTE_HUB_SOCKET_TAG = "live-quotes";
 function quoteHubBinding(env) {
   return env.QUOTE_HUB || null;
 }
-// Owner order 2026-10-08: name the market event first, then the quant
-// state (SO-9).
-const MSG_OPEN = "Market is open. Quant is online now.";
-const MSG_CLOSED = "Market is closed. Quant is sleeping now.";
-
 // Owner's exact condition texts (order of 2026-10-11), mirroring
 // src/data/sessions.py. The break sentence is for the exchange's own Friday
 // midday break and nothing else.
 const CONDITION_BREAK = "Market is on a break right now.";
 const CONDITION_CLOSED = "Market is closed right now.";
-const MSG_MARKET_OPEN = "Market is open. Quant is online now.";
-const MSG_MARKET_CLOSED = "Market is closed. Quant is sleeping now.";
-const MSG_MARKET_BREAK = "Market is on a break. Quant is sleeping until the market reopens.";
 const MARKET_STATUS_MAX_AGE_MS = 90 * 1000;
 const MARKET_OPEN_GRACE_MS = 5 * 60 * 1000;
-const MARKET_TRANSITION_RETRY_MS = 5 * 60 * 1000;
 const MARKET_STATE_KEY = "MARKET:LAST_CONFIRMED_STATE";
-const MARKET_PENDING_KEY = "MARKET:NOTIFICATION_PENDING";
-const MARKET_DELIVERY_KEY = "MARKET:LAST_NOTIFICATION";
 // Owner report 2026-10-20 (14:07 PKT): quotes older than half a minute
 // read as "numbers frozen" on the phone, so a per-second publisher makes a
 // 30 second window honest and a stale row a real degradation signal.
@@ -901,63 +887,6 @@ function normalizeQuoteSnapshot(raw) {
   return snapshot;
 }
 
-// Owner order 2026-10-20 (second note): four notifications exist, market
-// online, market offline, market break and a signal. HALTED is still DETECTED
-// and still shown on the card, but it is not one of the four, so it returns no
-// text and the transition stays silent.
-function marketNotificationText(state) {
-  if (state === "OPEN") return MSG_MARKET_OPEN;
-  if (state === "BREAK") return MSG_MARKET_BREAK;
-  if (state === "CLOSED") return MSG_MARKET_CLOSED;
-  return null;
-}
-
-async function deliverMarketTransition(env, chatId, state, identity, evidence, now) {
-  const text = marketNotificationText(state);
-  const currentRaw = await relayRead(env, MARKET_PENDING_KEY);
-  let current = null;
-
-  try {
-    current = currentRaw ? JSON.parse(currentRaw) : null;
-  } catch (_) {
-    current = null;
-  }
-  // A superseding feed observation may have replaced this pending transition.
-  if (!text || !current || current.identity !== identity) return;
-
-  const record = await sendAndRecord(env, chatId, text, "market", null);
-  if (!record.ok) {
-    const latestRaw = await relayRead(env, MARKET_PENDING_KEY);
-    try {
-      const latest = latestRaw ? JSON.parse(latestRaw) : null;
-      if (latest && latest.identity === identity) {
-        latest.retry_after_ms = Date.now() + MARKET_TRANSITION_RETRY_MS;
-        latest.error = record.description;
-        await kvPut(env, MARKET_PENDING_KEY, JSON.stringify(latest),
-                               { expirationTtl: 3600 });
-      }
-    } catch (_) {
-      // A malformed retry marker cannot turn a failed send into a success.
-    }
-    return;
-  }
-
-  const latestRaw = await relayRead(env, MARKET_PENDING_KEY);
-  try {
-    const latest = latestRaw ? JSON.parse(latestRaw) : null;
-    if (!latest || latest.identity !== identity) return;
-  } catch (_) {
-    return;
-  }
-  await kvPut(env, MARKET_STATE_KEY, JSON.stringify({
-    state, identity, confirmed_at_ms: Date.now(), evidence,
-  }), { expirationTtl: 604800 });
-  await kvPut(env, MARKET_DELIVERY_KEY, JSON.stringify({
-    state, text, at: new Date().toISOString(), evidence,
-  }), { expirationTtl: 604800 });
-  await kvDelete(env, MARKET_PENDING_KEY);
-}
-
 async function readQuoteSnapshot(env) {
   try {
     const namespace = quoteHubBinding(env);
@@ -1128,32 +1057,17 @@ async function trackMarketTransitions(env, snapshot, now, ctx) {
     state = "CLOSED";
   } else {
     return { state: null, evidence: "no_session_transition", delivered: false };
-  }
-
-  const day = edge.date;
+  }  const day = edge.date;
   const identity = `${day}:${state}`;
   let previous = null;
-  let pending = null;
-  const [raw, waiting] = await Promise.all([
-    kvGet(env, MARKET_STATE_KEY),
-    relayRead(env, MARKET_PENDING_KEY),
-  ]);
+  const raw = await kvGet(env, MARKET_STATE_KEY);
   try {
     previous = raw ? JSON.parse(raw) : null;
   } catch (_) {
     previous = null;
   }
-  try {
-    pending = waiting ? JSON.parse(waiting) : null;
-  } catch (_) {
-    pending = null;
-  }
   if (previous && previous.identity === identity) {
     return { state, evidence, delivered: false, duplicate: true };
-  }
-  if (pending && pending.identity === identity &&
-      now.getTime() < Number(pending.retry_after_ms || 0)) {
-    return { state, evidence, delivered: false, pending: true };
   }
 
   const oldState = previous && previous.state;
@@ -1163,16 +1077,13 @@ async function trackMarketTransitions(env, snapshot, now, ctx) {
   const openAt = bandOpen ? Date.parse(`${day}T${bandOpen}:00+05:00`) : NaN;
   const withinOpeningGrace = Number.isFinite(openAt) &&
     now.getTime() >= openAt && now.getTime() - openAt <= MARKET_OPEN_GRACE_MS;
-  const retryPending = pending && pending.identity === identity &&
-    now.getTime() >= Number(pending.retry_after_ms || 0);
-  const shouldNotify = retryPending || (state === "BREAK" || state === "CLOSED"
+  const shouldNotify = (state === "BREAK" || state === "CLOSED"
     ? oldState !== state || (!previous && evidence === "session_schedule" &&
       (state === "BREAK" ||
        (Number.isFinite(openAt) && now.getTime() - openAt <= MARKET_OPEN_GRACE_MS)))
     : state === "HALTED"
       // Owner order 2026-10-20 (third note): a halt is drawn on the card but
-      // is not one of the four notification events, so it reserves no send
-      // and leaves no pending frame behind.
+      // is not one of the four notification events.
       ? false
       : oldState === "HALTED" || oldState === "BREAK" || oldState === "CLOSED" ||
         (oldDay !== "" && oldDay !== day) || (!previous && withinOpeningGrace));
@@ -1186,17 +1097,15 @@ async function trackMarketTransitions(env, snapshot, now, ctx) {
     }
     return { state, evidence, delivered: false, baseline: true };
   }
-  const paired = (await kvGet(env, "PAIRED_CHAT_ID")) || env.PAIRED_CHAT_ID;
-  if (!paired) return { state, evidence, delivered: false, reason: "not paired" };
-
-  // Reserve the identity before scheduling I/O: overlapping one-second app
-  // reads and 30-second feed pushes cannot queue duplicate Telegram messages.
-  await kvPut(env, MARKET_PENDING_KEY, JSON.stringify({
-    state, identity, evidence, at: now.toISOString(),
-    retry_after_ms: now.getTime() + 60000,
-  }), { expirationTtl: 3600 });
-  ctx.waitUntil(deliverMarketTransition(env, paired, state, identity, evidence, now));
-  return { state, evidence, delivered: false, delivery: "pending" };
+  // Owner order 2026-10-29: no chat send exists any more. A transition
+  // still records its confirmed state so the baseline logic answers
+  // honestly, but nothing is queued or delivered here; the owner's market
+  // open/close texts travel by owner email from the Actions jobs
+  // (src/notify/market_watch.py), exactly-once per marker.
+  await kvPut(env, MARKET_STATE_KEY, JSON.stringify({
+    state, identity, confirmed_at_ms: now.getTime(), evidence,
+  }), { expirationTtl: 604800 });
+  return { state, evidence, delivered: false, retired: "email" };
 }
 
 // A pushed snapshot must carry the two fields the card renders, so an agent
@@ -1265,44 +1174,10 @@ function adminOk(request, env) {
   return env.RELAY_ADMIN_TOKEN && got === env.RELAY_ADMIN_TOKEN;
 }
 
-//: The last send's outcome, kept in KV so /status can report it.
-//
-// The owner asked for four different facts to stay four different facts: a
-// candidate was generated, a notification was attempted, the relay accepted
-// it, and Telegram delivered it. Only the relay can see the last of those, so
-// it records it here instead of letting a fast sender guess.
-async function sendAndRecord(env, chatId, text, kind, dedupeKey) {
-  const sent = await tgCall(env, "sendMessage", { chat_id: chatId, text },
-                            TELEGRAM_SEND_TIMEOUT_MS);
-  const record = {
-    at: new Date().toISOString(),
-    kind: String(kind || "signals"),
-    ok: Boolean(sent.ok),
-    description: String(sent.description || (sent.ok ? "ok" : "unknown"))
-        .slice(0, 200),
-  };
-  try {
-    await kvPut(env, "DELIVERY:LAST", JSON.stringify(record),
-                            { expirationTtl: 604800 });
-    // The ops dedupe key is written ONLY after Telegram accepted the message.
-    // It used to be written before the send, so a failed alert was suppressed
-    // by its own attempt and never retried (measured 2026-10-16: a labelled
-    // test alert was deduped away while Telegram answered nothing).
-    if (sent.ok && dedupeKey) {
-      await kvPut(env, dedupeKey, "1", { expirationTtl: 172800 });
-    }
-  } catch (_) {
-    // The record is best effort: the send itself has already happened, and a
-    // missing record must never turn a delivered message into a claimed one.
-  }
-  return record;
-}
-
 async function healthPayload(env) {
   const now = new Date();
   const k = karachiView(now.getTime());
   const next = nextEvent(now);
-  let lastDelivery = null;
   let marketFeed = null;
   try {
     const cachedMarket = await kvGet(env, "MARKET");
@@ -1313,19 +1188,13 @@ async function healthPayload(env) {
   } catch (_) {
     marketFeed = null;
   }
-  try {
-    const raw = await kvGet(env, "DELIVERY:LAST");
-    lastDelivery = raw ? JSON.parse(raw) : null;
-  } catch (_) {
-    lastDelivery = null;
-  }
   return {
     ok: true,
     service: "quant-of-rehan-relay",
     // The commit this script was built from. The deploy workflow sets it from
     // GITHUB_SHA and then asks /health for it, so a deploy that uploaded
     // nothing (or uploaded to another account) cannot pass as a success.
-    // Empty when the worker was uploaded outside CI (cloud/pair.py).
+    // Empty when the worker was uploaded outside CI.
     version: env.WORKER_VERSION || null,
     karachi_now: `${dayStamp(k)} ${hhmm(k)} PKT`,
     // The app shows ONLINE only while a session is live, so the state is
@@ -1338,81 +1207,11 @@ async function healthPayload(env) {
     // Separately sourced from a fresh REG market-wide MKT-STATS frame in the
     // latest card push; null/unknown never means the session clock is halted.
     market_feed: refreshMarketFeed({ market_feed: marketFeed }, now).market_feed,
-    paired: Boolean((await kvGet(env, "PAIRED_CHAT_ID")) || env.PAIRED_CHAT_ID),
-    // What the last Telegram send actually did, as the relay saw it. Null
-    // means no send has been recorded yet, which is not the same as a
-    // successful one.
-    last_delivery: lastDelivery,
     next_event: next.event
       ? { event: next.event, at_pk: `${dayStamp(karachiView(next.at.getTime()))} ${hhmm(karachiView(next.at.getTime()))}` }
       : null,
   };
-}
-
-async function latestChat(env) {
-  const updates = await tgCall(env, "getUpdates", { limit: 50 });
-  if (!updates.ok) return { error: updates.description || "getUpdates refused" };
-  let best = null;
-  for (const u of updates.result || []) {
-    const m = u.message || u.channel_post || {};
-    if (!m.chat || m.chat.id === undefined) continue;
-    if (!best || (m.date || 0) > (best.date || 0)) best = m;
-  }
-  if (!best) return { error: "no chat has messaged this bot recently" };
-  return { chat: best.chat, date: best.date || 0 };
-}
-
-//: Telegram's own deadline, in milliseconds.
-//
-// Measured live 2026-10-16: an unbounded sendMessage took 42.2 seconds to
-// answer, while every client of this relay (scripts/intraday_pipeline.py,
-// scripts/ops_alert.py, src/signals/signal_push.py) gives up at 30. A sender
-// that times out cannot tell a refusal from a slow yes, so the message would
-// arrive on the phone and the sender would still record a failure. Ten
-// seconds is far above Telegram's normal latency and comfortably inside the
-// client's budget, so a deadline here is reported as the failure it is
-// instead of becoming a phantom undelivered signal.
-const TELEGRAM_TIMEOUT_MS = 10000;
-
-//: The deadline for a send nobody is waiting on, in milliseconds.
-//
-// A signal is not allowed to be decided by this deadline the way it was: the
-// 10 second synchronous budget above is shorter than Telegram's own measured
-// answer time (42.2 seconds on 2026-10-16), so /notify recorded every signal
-// as a delivery failure while Telegram would have delivered it late. Measured
-// again on 2026-10-16 11:47 PKT from the relay: /notify and /updates both
-// answered "telegram did not answer within 10s (TimeoutError)". A send whose
-// answer nobody is waiting for may wait, so it gets Telegram's real latency
-// plus room, and its outcome is written to KV for /status to report.
-const TELEGRAM_SEND_TIMEOUT_MS = 45000;
-
-async function tgCall(env, method, params, timeoutMs) {
-  let r;
-  try {
-    r = await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/${method}`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(params),
-      signal: AbortSignal.timeout(timeoutMs || TELEGRAM_TIMEOUT_MS),
-    });
-  } catch (e) {
-    // Reported, never swallowed: the caller turns this into a 502 with the
-    // reason in it, so a delivery failure is visible and not guessed at.
-    //
-    // The budget quoted is the one this call actually used. It used to print
-    // TELEGRAM_TIMEOUT_MS (10s) even when the caller had passed the 45 second
-    // send budget, so a timed out signal reported a deadline sixteen times
-    // shorter than the one that expired. A diagnostic that misstates its own
-    // deadline sends the reader looking for the wrong fault.
-    const why = e && e.name ? e.name : "error";
-    const budget = timeoutMs || TELEGRAM_TIMEOUT_MS;
-    return { ok: false,
-             description: `telegram did not answer within ${budget / 1000}s (${why})` };
-  }
-  return r.json().catch(() => ({}));
-}
-
-function json(obj, status = 200, extraHeaders = {}) {
+}function json(obj, status = 200, extraHeaders = {}) {
   return new Response(JSON.stringify(obj, null, 2), {
     status,
     headers: { "content-type": "application/json", ...extraHeaders },
@@ -1434,88 +1233,20 @@ export default {
       return json(await healthPayload(env));
     }
 
-    if (request.method === "POST" && path === "/pair/start") {
-      if (!adminOk(request, env)) {
-        return json({ ok: false, error: "admin token required" }, 403);
-      }
-      const found = await latestChat(env);
-      if (found.error) {
-        return json({ ok: false, error: found.error }, 404);
-      }
-      const code = String(Math.floor(1000 + Math.random() * 9000));
-      await kvPut(env, "PENDING_CODE", code, { expirationTtl: 3600 });
-      await kvPut(env, "PENDING_CHAT", String(found.chat.id), { expirationTtl: 3600 });
-      const name = found.chat.title || found.chat.username || found.chat.first_name || "";
-      await tgCall(env, "sendMessage", {
-        chat_id: found.chat.id,
-        text: `Pairing code for quant-of-rehan: ${code}\nIf you did not request this, ignore it.`,
-      });
-      return json({ ok: true, chat_kind: found.chat.type, chat_name: name });
-    }
-
-    if (request.method === "POST" && path === "/pair/confirm") {
-      if (!adminOk(request, env)) {
-        return json({ ok: false, error: "admin token required" }, 403);
-      }
-      const body = await request.json().catch(() => ({}));
-      const code = String(body.code || "").trim();
-      const pending = (await relayRead(env, "PENDING_CODE")) || "";
-      const chat = (await relayRead(env, "PENDING_CHAT")) || "";
-      if (!pending || !chat) {
-        return json({ ok: false, error: "no pending pairing; run pair/start" }, 409);
-      }
-      if (code !== pending) {
-        return json({ ok: false, error: "wrong code" }, 403);
-      }
-      await kvPut(env, "PAIRED_CHAT_ID", chat);
-      await kvDelete(env, "PENDING_CODE");
-      await kvDelete(env, "PENDING_CHAT");
-      await tgCall(env, "sendMessage", {
-        chat_id: chat,
-        text: "quant-of-rehan relay paired with this chat. Daily open and close notifications and trading signals will arrive here.",
-      });
-      return json({ ok: true, paired_chat: chat });
-    }
-
     if (request.method === "POST" && path === "/notify") {
+      // Owner order 2026-10-29: the chat channel is retired (the owner's
+      // account and bot no longer exist). The route answers 410 so a
+      // straggling sender records the delivery it did NOT get, instead of an
+      // "accepted" message that never arrived anywhere. Every notification
+      // now travels on the owner email channel (src/notify/owner_email.py)
+      // from the Actions jobs, which dedupe per marker in the issue ledger.
       if (!adminOk(request, env)) {
         return json({ ok: false, error: "admin token required" }, 403);
       }
-      const paired = (await kvGet(env, "PAIRED_CHAT_ID")) || env.PAIRED_CHAT_ID;
-      if (!paired) {
-        return json({ ok: false, error: "not paired; run cloud/pair.py start then confirm" }, 409);
-      }
-      const body = await request.json().catch(() => ({}));
-      const text = String(body.text || "");
-      const kind = String(body.kind || "signals");
-      if (!text) {
-        return json({ ok: false, error: "empty text" }, 400);
-      }
-      // Owner order 2026-10-20 (third note): four events may reach the phone,
-      // market online, market offline, market break and a real signal. The
-      // operational kinds (capture degraded, push retry pending) are retired
-      // here rather than deduped: they used to cost at most one message a day,
-      // and the owner asked for that channel to be silent entirely. A sender
-      // still gets an honest answer, accepted: false, instead of a delivery
-      // that never happened.
-      //
-      // The signal send runs in the background, and the answer separates two
-      // facts: this relay ACCEPTED the message (ok: true), and Telegram's own
-      // answer is recorded in DELIVERY:LAST for /status to report. Waiting for
-      // Telegram inside the request is what broke delivery: a sender with a
-      // 30 second budget cannot hold a call Telegram answers in 42, and a
-      // scan cycle must not be held hostage to it either.
-      if (kind === "ops") {
-        // Owner order 2026-10-20 (second note): only market open, market close,
-        // break and signals may reach the phone. Operational alerts (capture
-        // degraded, retry pending) are recorded by their producers and stay
-        // out of the notification channel; the card and /status still carry
-        // the same facts for anyone who looks.
-        return json({ ok: true, accepted: false, retired: "ops",
-          detail: "operational alerts are not sent; only market state and signals" });
-      }
-      ctx.waitUntil(sendAndRecord(env, paired, text, "signals", null));
-      return json({ ok: true, accepted: true, delivery: "pending" });
+      return json({
+        ok: false, retired: "email",
+        error: "notifications are carried by the owner email issue from the Actions jobs; this route sends nothing",
+      }, 410);
     }
 
     if (request.method === "OPTIONS" &&
@@ -1866,13 +1597,6 @@ export default {
       return json({ ok: true });
     }
 
-    if (request.method === "GET" && path === "/updates") {
-      if (!adminOk(request, env)) {
-        return json({ ok: false, error: "admin token required" }, 403);
-      }
-      const updates = await tgCall(env, "getUpdates", { limit: 20 });
-      return json(updates);
-    }
 
     if (request.method === "GET" && path === "/signals") {
       // Companion app poll. Owner order 2026-10-19 retired the token field
@@ -1907,10 +1631,10 @@ export default {
     return json({ ok: false, error: "not found" }, 404);
   },
 
-  // Cron handler: fires the owner's two texts at EVERY PKT band edge, so a
-  // Friday break produces the exact pair of texts the owner already knows:
-  // "Market is closed. Quant is sleeping now." at 12:00 and "Market is open.
-  // Quant is online now." at 14:32.
+  // Cron handler: the edge's job is DISPATCH and CARD STATE, not sending.
+  // Since owner order 2026-10-29 the owner's texts travel by owner email on
+  // GitHub, sent from the Actions jobs; this wake dispatches the band workflow
+  // and keeps the app card's market state current.
   async scheduled(controller, env, ctx) {
     const now = new Date();
     const k = karachiView(now.getTime());

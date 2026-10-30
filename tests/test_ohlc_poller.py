@@ -631,7 +631,7 @@ class TestTheStatusNamesTheCause(unittest.TestCase):
 class TestDiagnosticRunNeverPagesTheOwner(unittest.TestCase):
     """A --limit smoke test must not raise the market-wide degraded alert.
 
-    Owner report 2026-10-12: a Telegram alert arrived reading "capture
+    Owner report 2026-10-12: an alert arrived reading "capture
     degraded (coverage 0.0%, 0/5 symbols)". The universal half of that was
     true, the source really was serving no bars, but "0/5" was not: it was the
     five symbol slice of a diagnostic run (this module documents `--limit 5`

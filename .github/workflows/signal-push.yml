@@ -2,7 +2,7 @@
 #
 # Runs the cloud-hosted daily status job so the PC never needs to be on:
 # fetch a bounded trailing EOD window from the PSX portal and deliver the
-# fail-closed NO TRADE ENGINE READY status to the app and Telegram. Signal
+# fail-closed NO TRADE ENGINE READY status to the app card. Signal
 # candidates remain disabled until a strategy passes economic validation.
 # Failures fail closed; the per-session journal prevents duplicate sends.
 #
@@ -63,7 +63,7 @@ jobs:
           ARGS=""
           if [ "${{ inputs.dry_run }}" = "true" ]; then ARGS="--dry-run"; fi
           # Owner order 2026-10-08: keep the scheduled run green; a failed
-          # push raises ONE deduped Telegram ops alert instead of a GitHub
+          # push raises ONE deduped owner-email ops alert instead of a GitHub
           # failure email. The next cron slot retries automatically (the
           # per-session journal prevents double sends).
           #
@@ -72,7 +72,7 @@ jobs:
           # never opens. The job output is now captured, the reason travels
           # with the alert, and the same reason is written to the run summary
           # (which is readable even when the relay itself is the thing that
-          # is broken and no Telegram message can be delivered).
+          # is broken and not even the push itself can report it).
           set +e
           python scripts/signal_daily.py $ARGS > /tmp/signal_push.log 2>&1
           STATUS=$?
