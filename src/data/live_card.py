@@ -208,11 +208,12 @@ def ensure_tape(now: datetime | None = None) -> tuple[bool, str]:
 def split_summary(snapshot: dict) -> str:
     """One honest sentence about the split the snapshot actually carries.
 
-    Three sources are possible per row: measured (the tape covered the
-    whole day), the tape's own counted window (the feed's numbers, covering
-    part of the session), and the range estimate (no tape at all). The
-    sentence names the weakest one used, so the tick log never calls an
-    estimate a measurement.
+    Owner order 2026-10-30 (one law for every stock): the card's rows
+    answer with the row's own frame split, the same range-position pair the
+    app's search box ranks from, so the normal sentence is the range one.
+    The tape's own methods remain counted in case a legacy pushed card is
+    still in the relay, and the sentence names whichever produced a number,
+    so the tick log never calls an estimate a measurement.
     """
     rows = snapshot.get("top_volume") or []
     measured = sum(1 for row in rows
@@ -223,15 +224,14 @@ def split_summary(snapshot: dict) -> str:
                     if row.get("split_method") == "range_position")
     if not rows:
         return "no volume ranking to split"
-    if measured == len(rows):
-        return f"B/S measured from the session tape for all {measured} leaders"
-    if counted and not estimated and not measured:
-        return (f"B/S as counted by the session's own tape for all "
-                f"{counted} leaders, covering part of the session")
-    if measured or counted or estimated:
-        return (f"{measured + counted} of {len(rows)} leaders split from "
-                f"the session tape, {estimated} estimated from the day's "
-                f"range and marked as an estimate on the card")
+    tape = measured + counted
+    if tape == 0 and estimated == len(rows):
+        return (f"B/S from the row's own published frame, the same law the "
+                f"search box shows, for all {estimated} leaders")
+    if tape or estimated:
+        return (f"{tape} of {len(rows)} leaders split from the session "
+                f"tape, {estimated} estimated from the row's own frame, "
+                f"the same law the search box shows")
     return f"no split for any of the {len(rows)} leaders yet"
 
 

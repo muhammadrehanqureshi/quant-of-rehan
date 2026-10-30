@@ -1641,6 +1641,42 @@ to sixty seconds. The status tile therefore also carries the app's own
      the orphan law stands so every dot still wears a filament.
   5. The version bump is versionCode 82 / versionName 2.3.15.
 
+**Version 3.3.0, versionCode 93.**
+
+  Owner order of 2026-10-30, four orders, the data first: "I am seeing two
+  different data for the same stock, look at PRL, on top 3 scrips of volume,
+  the data is completely different, and on the search box, it's completely
+  different. Have the same/correct data for each stock. ... fix the data feed
+  across the app, I want to see the most reliable/correct data on my app from
+  my broker's feed. ... getting the message on the app that there is no live
+  relay for the data ... make sure the APP's data from the broker's feed is
+  getting updated each second in real time, WHEN THE APP IS OPEN ... because
+  right now, the app is opened on my screen but the numbers of the volume
+  don't even move at all, like they are stuck." Plus two UI orders: the
+  dropdown rows that still push down, and the four-icon tile 4% down.
+
+  1. ONE FEED, ONE TRUTH. The two faces of one scrip drew two feeds: the
+     top-volume rows painted the capture's own snapshot, the search box
+     painted the relay's quote overlay, and a capture fallback, a stale
+     card or a portal-only row made the two disagree (PRL was the proof).
+     The card's snapshot now carries every scrip's live quote with it, the
+     render paints a row only from its OWN row's quote, the search box and
+     the rows read the same field, and a row whose quote is missing keeps
+     its capture numbers and says so rather than mixing two feeds.
+  2. THE TICK NEVER STALLS. The console's own poll could go quiet when
+     an answer failed: the watch loop now keeps its one-second cadence on
+     failure, repaints every tick it is given, and the render gate treats
+     a field that stopped moving as stale rather than resting.
+  3. THE ROWS MOVE UP, NOT DOWN, AGAIN. The v3.2.0 law was in the layout
+     but the mount the code touched still held the old shape, so the
+     screen kept pushing the rows down. Both menus' open state now moves
+     the option rows ABOVE into the box's own freed space, under the
+     caret, and the roll-up gives the closed face back.
+  4. THE FOUR-ICON TILE SITS 4% LOWER. The nav tile's pinned law stands,
+     its bottom air grows by 4% of the screen's own height from the
+     display's metrics, so the lift is the same 4% on every screen.
+  5. The version bump is versionCode 93 / versionName 3.3.0.
+
 **Version 3.2.0, versionCode 92.**
 
   Owner order of 2026-10-29, with the photo: "look at this picture, custom
