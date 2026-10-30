@@ -237,11 +237,16 @@ def main(argv=None) -> int:
                 if chosen is None or (row["train_expectancy"] or -9e9) > \
                         (chosen["train_expectancy"] or -9e9):
                     chosen = row
+    # JSON carries ISO dates, never date objects: a bare date here is what
+    # killed the first real Actions run of this fit (TypeError at write time,
+    # after every grid row had already been computed).
     report = {
         "generated": datetime.now(KARACHI).isoformat(),
         "strategy": "kalman_trend_flip_v1 (flip entry, +2% TP / -1% SL)",
-        "sessions": ordered,
-        "split": {"share": TRAIN_SHARE, "train": train_days, "holdout": holdout_days},
+        "sessions": [day.isoformat() for day in ordered],
+        "split": {"share": TRAIN_SHARE,
+                  "train": [day.isoformat() for day in train_days],
+                  "holdout": [day.isoformat() for day in holdout_days]},
         "grid": list(Q_GRID), "r_grid": list(R_GRID), "threshold_grid": list(TH_GRID),
         "rows": grid_results,
         "chosen": chosen,
