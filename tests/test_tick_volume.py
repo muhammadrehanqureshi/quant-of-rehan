@@ -405,6 +405,7 @@ class MeasuredSplitTest(unittest.TestCase):
                       [{"kind": "MKT-FEED", "ticks": ticks}])
         rows, basis = self.attach(quotes={"OGDC": {"high": 100.0,
                                                    "low": 90.0,
+                                                   "close": 100.0,
                                                    "volume": 1000}})
         self.assertEqual((rows[0]["buy_volume"], rows[0]["sell_volume"]),
                          (1000, 0))
