@@ -704,7 +704,7 @@ def run_scan(slot: str, capture: Path | None = None,
             "status": scanner.DATA_BLOCKED, "reason": quality.reason,
             "capture": capture_label(path, session),
             "data_quality": quality.as_dict(), "trade_state": state.to_dict(),
-            "ai": {"active": False, "reason": "ICT/SMC has no daily-model routing"},
+            "ai": {"active": False, "reason": "Kalman flip rules have no daily-model routing"},
             "universe_size": len(symbols),
             "universe_sha256": universe_fingerprint(symbols),
             "scanner_version": config.SCANNER_VERSION,
@@ -727,7 +727,7 @@ def run_scan(slot: str, capture: Path | None = None,
         print(json.dumps(payload, indent=2, allow_nan=False))
         return payload
 
-    ai_status = {"active": False, "reason": "ICT/SMC has no daily-model routing"}
+    ai_status = {"active": False, "reason": "Kalman flip rules have no daily-model routing"}
     result = scanner.select_one(session, quality)
     context = result.market
 
@@ -1007,7 +1007,7 @@ def run_finalize(capture: Path | None = None) -> dict:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="KMIALL long-only ICT/SMC scan")
+    parser = argparse.ArgumentParser(description="KMIALL long-only Kalman Trend scan")
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--scan", action="store_true")
     mode.add_argument("--finalize", action="store_true")

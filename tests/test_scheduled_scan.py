@@ -78,7 +78,7 @@ def _universe() -> list[str]:
     return [row["symbol"].strip().upper() for row in universe]
 
 
-from smc_fixture import setup_values
+from kalman_fixture import setup_values
 
 
 class GrowingTape:

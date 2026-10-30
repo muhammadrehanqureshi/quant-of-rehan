@@ -1,8 +1,10 @@
-"""Authoritative ICT/SMC intraday scanner (historical import path retained).
+"""The authoritative intraday scanner: the Kalman Trend, sole strategy.
 
-The momentum strategy is removed from the decision path. Capture validation
-and the public SessionData/ScanResult contracts stay stable for all runners.
-Only causal sweep -> structure shift -> FVG -> retest candidates can enter.
+Owner order 2026-10-30: the ICT/SMC strategy is removed and the Kalman
+Trend is the only strategy the intraday signals run on. The capture
+validation and the public SessionData/ScanResult contracts stay stable
+for all runners. Only a fresh confirmed upward trend flip (computed by
+src/signals/kalman_trend.py's causal level+slope filter) can enter.
 The old RSI diagnostic remains solely for reproducing the HCAR postmortem.
 Asia/Karachi, UTC+5. Signal-only, no broker orders and no assured returns.
 """
@@ -19,13 +21,13 @@ from statistics import median
 from src import config
 from src.data import tape_bars
 from src.data.sessions import KARACHI, is_trading_day, open_time
-from src.signals import smc
+from src.signals import kalman_trend
 
 DATA_BLOCKED = "DATA_BLOCKED"
 NO_TRADE = "NO_TRADE"
 TRADE = "TRADE"
 # A ranked-but-not-proprietary call the owner ordered delivered anyway
-# (config.OWNER_ORDERED_CALLS): the strict ICT/SMC sequence never confirmed,
+# (config.OWNER_ORDERED_CALLS): a Kalman flip that never confirmed,
 # but the market still showed the winner and the owner refuses to keep
 # getting an empty channel. The candidate it carries is the same row shape
 # a TRADE carries, so downstream recorders can log it unchanged; the
@@ -162,7 +164,8 @@ class ScanResult:
     ranked: list[dict] = field(default_factory=list)
     coverage_text: str = ""
     # Why no candidate: the per-gate rejection counts summed across the whole
-    # universe during this scan (src/signals/smc.py fills it). A NO TRADE can
+    # universe during this scan (src/signals/kalman_trend.py fills it). A NO
+    # TRADE can
     # now name the gates that ran and how many symbols each one rejected,
     # instead of one undated blanket sentence. Empty dict on DATA_BLOCKED (the
     # scan never reached the gate).
@@ -645,8 +648,8 @@ def _wilder_rsi(closes: list[float], period: int = 14) -> float | None:
 
 def score_symbol(symbol: str, rows: list[MinuteBar], session: SessionData,
                  tally: dict | None = None) -> dict | None:
-    """Historical API name, now evaluates only the ICT/SMC sequence."""
-    return smc.candidate(symbol, rows, session, tally)
+    """The scanner's one strategy: a candidate only on a fresh upward flip."""
+    return kalman_trend.candidate(symbol, rows, session, tally)
 
 
 def rank_candidates(session: SessionData,
@@ -672,7 +675,7 @@ def select_one(session: SessionData, quality: QualityReport,
     if quality.status == DATA_BLOCKED:
         return ScanResult(DATA_BLOCKED, quality.reason, quality, {}, coverage_text=coverage)
     context = market_context(session)
-    context["ai"] = {"active": False, "reason": "ICT/SMC rules do not use the daily momentum prior"}
+    context["ai"] = {"active": False, "reason": "Kalman flip rules do not use the daily momentum prior"}
     tally: dict = {}
     ranked = rank_candidates(session, tally=tally)
     # Broad panic is a risk veto; ordinary weak breadth is not a momentum
@@ -696,10 +699,10 @@ def select_one(session: SessionData, quality: QualityReport,
         # This stays a NO TRADE under every owner order: there is no setup
         # to carry, and naming a symbol with none would be a fabricated
         # signal (SO-3), not a watch. The strict law is untouched.
-        return ScanResult(NO_TRADE, "no symbol passed the ICT/SMC sweep, MSS, FVG and retest gates",
+        return ScanResult(NO_TRADE, "no symbol passed the Kalman flip gates",
                           quality, context, ranked=[], coverage_text=coverage,
                           gate_tally=dict(tally))
-    return ScanResult(TRADE, "confirmed sell-side sweep, bullish MSS, FVG retest in discount",
+    return ScanResult(TRADE, "confirmed upward Kalman trend flip, fresh",
                       quality, context, candidate=ranked[0], ranked=ranked,
                       coverage_text=coverage, gate_tally=dict(tally))
 
@@ -727,7 +730,7 @@ def signal_message(candidate: dict, market: dict, entry: float,
         f"Entry price: {entry:.4f}\n"
         f"Target: {target_price(entry):.4f} (+{config.TARGET_PCT * 100:.1f}% gross)\n"
         f"Stop Loss: {stop:.4f}\n"
-        "Reason: sell-side sweep, bullish structure shift, FVG first retest in discount\n"
+        "Reason: upward Kalman trend flip on the intraday band feed\n"
         f"Strategy: {config.SCANNER_VERSION}\n"
         f"Entry time: {entry_time:%H:%M:%S} PKT\n"
         "Entry is the completed retest close, not a confirmed executable fill.\n"
@@ -739,7 +742,7 @@ def call_watch_message(result, quality, market: dict, as_of) -> str:
     """Owner order 2026-10-29: the CALL WATCH text.
 
     Sent everywhere a signal travels. It is NEVER worded as a confirmed
-    ICT/SMC entry: the unvalidated verdict is stated first, the watch rows
+    entry: the unvalidated verdict is stated first, the watch rows
     carry their own measured setup from this session's bars (SO-3: nothing
     interpolated, nothing forward-filled), and the strict law's own
     refusal is named in the same message so nobody reads a watch as a
@@ -775,7 +778,7 @@ def call_watch_message(result, quality, market: dict, as_of) -> str:
         "",
         "These are WATCH rows, not paper entries: the market veto stands,",
         "no position opens, and the day's one confirmed paper trade slot",
-        "stays free. The strict ICT/SMC law is untouched.",
+        "stays free. The Kalman flip law is untouched.",
     ]
     return "\n".join(lines)
 
@@ -789,7 +792,7 @@ def no_trade_message(quality: QualityReport, market: dict,
              f"({quality.leaders_fresh}/{quality.leader_symbols} leaders fresh)\n"
              f"Market: {market.get('status', 'UNKNOWN')}\n"
              f"Market context: {market.get('reason', 'unavailable')}\n"
-             "Reason: no actionable ICT/SMC setup with structural risk and 2% target room.\n"
+             "Reason: no actionable upward Kalman flip with the 2% target room.\n"
              f"Source: {quality.source}")
     if gate_tally:
         lines += "\nWhy nothing passed, measured per gate:\n"
