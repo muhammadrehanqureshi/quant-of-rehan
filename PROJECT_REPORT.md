@@ -38,56 +38,65 @@ Size of the thing:
 
 ## 2. The strategy, exactly
 
-One law, one trade a day, one target. Since 2026-10-30 (owner order on the
-numbers order, PRs #171 and #172) the law is the Kalman Trend engine:
-`src/signals/kalman_trend.py`, selected by `src/signals/momentum_scanner.py`,
-with the engine's own score being the whole decision.
+One law, one trade a day, one target. Since 2026-10-30 (owner order, PRs
+#171 and #172) the law is the Kalman Trend engine
+(`src/signals/kalman_trend.py`), and `src/signals/momentum_scanner.py`
+delegates its scoring to it. The strategy is the flip and only the flip,
+never a probability of winning (SO-3).
 
-**Universe**: the tracked snapshot `src/data/universe_kmiall.json` (KMIALL
-Shariah symbols). The scanner loads it, filters on
-`isShariahCompliant == true` and `KMIALLSHR in listedIn`, and records a
-SHA-256 fingerprint of the sorted list in every observation so a membership
-change is visible in the record.
+**Universe**: the captured tape bars (`src/data/tape_bars.py`) for the
+session's symbols, exchange-traded funds excluded, the universe and the
+bars as the honesty registry lands them.
 
-**Bars**: one-minute bars from the band capture.
+**Per-symbol filter** (`kalman_trend.filter_series`, one causal local-level
+plus slope Kalman in log space per symbol, one scalar update per completed
+close, no look-ahead):
 
-**Score** (`kalman_trend.scan_symbol`), each call at one event minute:
+1. predict: level rolls by the slope, Q = diag(0, KALMAN_Q = 2e-08) on the
+   slope;
+2. update: innovation = log(close) - level, the scalar gain splits
+   between level and slope with observation noise KALMAN_R = 1e-06;
+3. hysteresis: the state is +1 above KALMAN_FLIP_THRESHOLD = 1e-05 log
+   slope, -1 below minus it, and stays otherwise, so one noisy print
+   cannot flip the view; an upward flip is the state's move to +1 from
+   anything else.
 
-| Component | Formula |
-|---|---|
-| Kalman trend z-score | `z = (last_close - level) / sigma` on the state updated that minute |
-| volume expansion | `vol_norm = last_bucket_vol / median_bucket_vol`, entered only if vol_norm >= 1.2 |
-| trend agreement | closes hold above the level, slope >= 0, last close > last open |
-| momentum | emission risk over the lookback, weighed against soft turnover |
+**Hard gates** (a symbol is eligible only if all pass, each rejection
+counted by key so the tell is readable): etf_or_naive_tz; no_market_band;
+near_band_close (KALMAN_LAST_ENTRY_MINUTES off the close); bars under the
+strategy minimum (MIN_BARS_PER_SYMBOL = 20 completed bars, the chain cut
+back to the last continuity gap first); stale print beyond the
+KALMAN_MAX_SIGNAL_AGE_SECONDS limit; impossible rows (OHLC shape or
+volume); too short after the gap or under the MIN_PRICE floor; session
+turnover under MIN_SESSION_TRADED_VALUE = 5,000,000 PKR; no upward flip
+yet; flip not fresh (older than KALMAN_SETUP_BARS = 40 bars); trend not
+currently up; stop not below entry; risk outside the band
+(KALMAN_MAX_RISK_PCT = 1.2%), the owner stop being fixed at 1% below the
+entry, the same number for every name, and the target 2% above it, both
+delivered at the observed last completed close, a paper reference marked
+entry_basis, never a fill (SO-1).
 
-Hard gates (a symbol is eligible only if all pass): a usable session open;
-at least two consecutive z-up closes of the level; volume expansion confirmed
-by the 20 youngest completed buckets; positive slope; volume actually present.
-The scanner rank (`select_one`) takes the highest scorer among candidates that
-pass both the symbol gates and the market gate below, and requires a minimum
-raw score of 55.0, the same threshold the earlier scanner had.
+**Scoring for the rank**, setup quality only, never a probability of
+winning: 50 plus up to 20 for the slope's size against the day's median
+absolute slope, plus up to 15 for how long the up-state has held, plus up
+to 15 for net reward over risk, capped at 100. The rank takes the highest
+scorer; there is no minimum-score gate.
 
-**Market gate**: the whole captured cross-section must be supportive, meaning
-breadth (advancing share) at or above 35% and the median return not below
--1%. If not, no trade, and the reason names the market, because a trending
-strategy must not fight a broad selloff.
+**Market veto**: a broad selloff is the risk veto, measured as the
+session's median return below MAX_MARKET_DROP = -1%. Ordinary weak
+breadth is deliberately not a filter on this flip law. Under the veto no
+entry is valid; under owner order 2026-10-29 a vetoed scan whose full
+universe rank still holds a confirmed top name delivers as a CALL WATCH
+(the ranked leader, UNVALIDATED, not a paper entry), and an empty rank
+table stays NO TRADE in every mode (SO-3).
 
-**Selection**: rank all eligible symbols by score, take the highest, and
-require it to be at or above **55.0**. Otherwise the day is NO TRADE. Under
-owner order 2026-10-30 the day's allowance can still deliver as a CALL WATCH
-when the market veto stands but the full-universe rank carries a real
-confirmed top candidate, the watch being the ranked leader and the text
-saying UNVALIDATED, never a paper entry (SO-3).
-
-**Target law**: `target = actual_entry_price * 1.02`. One trade per day,
-hard locked.
-
-**Data honesty gates** (checked before any market logic): universe non-empty;
-trading day; coverage at or above 80%; fresh coverage at or above 80%; newest
-bar no older than 5 minutes; malformed share no more than 1%; and volume
-present at all. Any failure returns `DATA_BLOCKED` with the measured numbers,
-never a market verdict. The blocked message ends with "No trade issued. This
-is a DATA failure, not a market decision."
+**Data honesty gates** (checked before any market logic, in the quality
+report): coverage at or above 80%; fresh coverage at or above 80%; newest
+bar no older than the staleness limit; malformed share bounded; volume
+present at all; universe non-empty; trading day. Any failure returns
+`DATA_BLOCKED` with the measured numbers, never a market verdict. The
+blocked message ends with "No trade issued. This is a DATA failure, not a
+market decision."
 
 ## 3. The runtime, piece by piece
 
@@ -158,7 +167,7 @@ every symbol, rank, select one. It returns a `ScanResult` with
 `DATA_BLOCKED`, `NO_TRADE`, `TRADE` or `CALL_WATCH`, the full `QualityReport`
 (coverage, fresh coverage, missing and stale symbols, duplicates, malformed,
 impossible OHLC, zero-volume bars, newest and oldest bar, data age, source
-name, scanner version), the top ten ranked candidates, and a coverage
+name, scanner version), the ranked candidates, and a coverage
 string. Message builders live in the same module so the email text and the
 app text can never drift: `signal_message`, `no_trade_message`,
 `scan_blocked_message`, `target_hit_message` and, since owner order
