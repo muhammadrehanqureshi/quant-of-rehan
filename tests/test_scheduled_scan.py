@@ -61,6 +61,7 @@ from src.data.scan_scheduler import (  # noqa: E402
 from src.data.sessions import KARACHI, open_time  # noqa: E402
 from src.signals import momentum_scanner as scanner  # noqa: E402
 from src.signals import trade_state  # noqa: E402
+from src.signals.trade_state import State  # noqa: E402
 from scripts import intraday_pipeline as pipeline  # noqa: E402
 
 # A Monday: one band, 09:32 to 15:30, so the schedule has a single open to
@@ -302,12 +303,19 @@ class ScheduledScanTest(unittest.IsolatedAsyncioTestCase):
 
         # The scan resumes by itself once the bars exist: after the 20 bars
         # MIN_BARS_PER_SYMBOL needs, the pipeline renders a market verdict
-        # rather than another block.
+        # rather than another block. With the sole strategy's flip the entry
+        # can legitimately happen on one of the earliest full fires, so the
+        # observation is either a market verdict or the paper position's own
+        # monitoring/locked verdict (owner order 2026-10-30, Kalman sole
+        # strategy; only a DATA BLOCK remains a young-tape fault).
         self.assertGreaterEqual(self.clock.now,
                                 OPEN_AT + timedelta(minutes=20))
         observation = json.loads((self.forward / "observation.json")
                                  .read_text(encoding="utf-8"))
-        self.assertIn(observation["status"], (scanner.TRADE, scanner.NO_TRADE))
+        self.assertIn(observation["status"],
+                      (scanner.TRADE, scanner.NO_TRADE,
+                       State.TARGET_MONITORING, State.DAILY_LOCKED),
+                      observation["status"])
         self.assertFalse(observation["data_quality"]["warming_up"])
 
         # The owner's own forward files were never touched by this run.
