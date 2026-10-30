@@ -295,6 +295,52 @@ function bandOpenAt(k) {
   return null;
 }
 
+// The pillow under BOTH schedulers. Measured 2026-10-30: GitHub dropped
+// every scheduled workflow that day and the Worker's own crons left no
+// dispatch note either, so both bands depended on a human dispatch. The app
+// polls /signals every few seconds while the owner watches, and the Watcher
+// polls in the background, so that poll becomes the third entry point: if a
+// band opened in the last ten minutes and nothing has claimed it, one poll
+// starts the band. Responses never wait on it (waitUntil), and the claim /
+// cooldown keys mean a band is attempted once per ten minutes at most.
+const BAND_START_POLL_WINDOW_MINUTES = 10;
+
+async function ensureBandStart(env, now) {
+  const k = karachiView(now.getTime());
+  const mins = minutesOf(k);
+  for (const band of bandsFor(k)) {
+    const open = band[0][0] * 60 + band[0][1];
+    const close = band[1][0] * 60 + band[1][1];
+    if (mins <= open || mins - open > BAND_START_POLL_WINDOW_MINUTES) continue;
+    if (mins >= close - 2) continue;
+    // The claim key must be the one a cron would write, so a band started by
+    // a poll and a band started by the edge can never run twice. The cron
+    // names the RUNNABLE window (Mon-Thu 08:55-12:30, 12:30-15:30), which on
+    // the morning band opens before the band itself.
+    const window = dispatchWindowsFor(k).find((w) => {
+      const wOpen = w[0][0] * 60 + w[0][1];
+      const wClose = w[1][0] * 60 + w[1][1];
+      return wOpen <= open && open < wClose;
+    }) || band;
+    const claimed = `SCAN:DISPATCH:${dayStamp(k)}:${hmText(window[0])}`;
+    if (await relayRead(env, claimed)) {
+      return { dispatched: false, reason: "already dispatched" };
+    }
+    const cooldown = `SCAN:DISPATCH:TRY:${dayStamp(k)}:${hmText(window[0])}`;
+    if (await relayRead(env, cooldown)) {
+      return { dispatched: false, reason: "cooldown" };
+    }
+    try {
+      await kvPut(env, cooldown, String(now.getTime()),
+        { expirationTtl: BAND_START_POLL_WINDOW_MINUTES * 60 });
+    } catch (_) {
+      // The cooldown is a courtesy; a failed write must not block a band.
+    }
+    return await dispatchBandScan(env, now, window, "poll");
+  }
+  return { dispatched: false, reason: "no band open" };
+}
+
 async function recordDispatch(env, note) {
   try {
     await kvPut(env, "SCAN:DISPATCH:LAST", JSON.stringify(note),
@@ -304,9 +350,9 @@ async function recordDispatch(env, note) {
   }
 }
 
-async function dispatchBandScan(env, now) {
+async function dispatchBandScan(env, now, band = null, source = "cron") {
   const k = karachiView(now.getTime());
-  const band = bandOpenAt(k);
+  band = band || bandOpenAt(k);
   if (!band) return { dispatched: false, reason: "not a band open" };
 
   const token = String(env.GH_DISPATCH_TOKEN || "").trim();
@@ -325,7 +371,7 @@ async function dispatchBandScan(env, now) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), SCAN_DISPATCH_TIMEOUT_MS);
   const note = { at: new Date().toISOString(), band: hmText(band[0]),
-    repo, seconds, ok: false, status: 0, detail: "" };
+    source, repo, seconds, ok: false, status: 0, detail: "" };
   try {
     const response = await fetch(
       `https://api.github.com/repos/${repo}/actions/workflows/`
@@ -1203,6 +1249,7 @@ async function healthPayload(env) {
       lastDispatch = {
         at: note.at || null,
         band: note.band || null,
+        source: note.source || "cron",
         ok: Boolean(note.ok),
         status: note.status || 0,
         detail: String(note.detail || "").slice(0, 200),
@@ -1628,6 +1675,13 @@ export default {
       // own runner already sent his phone, and the write route below stays
       // admin gated. Nothing here can change state.
       const now = new Date();
+      // A poll is also a wake-up: this is what starts a band when both the
+      // GitHub schedule and the Worker cron failed to. It runs after the
+      // answer is sent, so a poll can never wait on, or fail because of, a
+      // dispatch attempt.
+      if (ctx && typeof ctx.waitUntil === "function") {
+        ctx.waitUntil(ensureBandStart(env, now).catch(() => {}));
+      }
       const k = karachiView(now.getTime());
       const next = nextEvent(now);
       const signals = (await kvGet(env, "SIGNALS")) || "";
