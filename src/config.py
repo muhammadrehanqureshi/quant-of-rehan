@@ -302,9 +302,34 @@ ADAPTIVE_DECAY_PER_DAY = _number("ADAPTIVE_DECAY_PER_DAY", 0.85)
 # (6 hours) and a Friday band (2h43 and 2h) file on the one law (SO-8).
 ADAPTIVE_BUCKET_FRACTIONS = (0.25, 0.6)
 ADAPTIVE_BUCKET_NAMES = ("first quarter of the band", "middle of the band",
-                         "final quarter of the band")
-# The runner's own cache TTL for the history reads, in seconds.
+                         "final quarter of the band")# The runner's own cache TTL for the history reads, in seconds.
 ADAPTIVE_REFRESH_SECONDS = _number("ADAPTIVE_REFRESH_SECONDS", 900)
+
+# ------------------------------------------------- self-improvement engine
+# Owner order (self-improvement mission): everything new ships behind a flag
+# that is OFF by default, and promotion to live goes only through the gate.
+# While SELF_IMPROVE_ARM is False the engine only measures, registers
+# experiments and updates its report files; the live scanner's laws are
+# untouched and no signal path reads a single self-improvement constant.
+SELF_IMPROVE_ARM = _flag("SELF_IMPROVE_ARM", False)
+# The nested walk-forward calendar, Karachi dates. Discovery tunes, the
+# validation window judges, and the locked slice after it is never scored
+# during selection, so an evaluation that has seen a candidate family is
+# spent and the locked slice stays fresh (the mission's integrity rule).
+SELF_IMPROVE_DISCOVERY_END = "2024-06-30"
+SELF_IMPROVE_VALIDATION_END = "2025-12-31"
+SELF_IMPROVE_TEST_START = "2026-01-01"
+# Pre-registered kill conditions (the mission's pre-registration rule):
+# a variant that cannot clear these on discovery is killed BEFORE it ever
+# sees validation, and the kill is recorded in the registry.
+SELF_IMPROVE_MIN_DISCOVERY_TRADES = int(
+    _number("SELF_IMPROVE_MIN_DISCOVERY_TRADES", 50))
+SELF_IMPROVE_DISCOVERY_WIN_FLOOR = _number("SELF_IMPROVE_DISCOVERY_WIN_FLOOR", 0.60)
+SELF_IMPROVE_DISCOVERY_NET_FLOOR = _number("SELF_IMPROVE_DISCOVERY_NET_FLOOR", 0.0)
+# The bootstrap and the Wilson Z the reports carry (95 percent band).
+SELF_IMPROVE_SEED = int(_number("SELF_IMPROVE_SEED", 20261031))
+SELF_IMPROVE_BOOTSTRAP_RESAMPLES = int(
+    _number("SELF_IMPROVE_BOOTSTRAP_RESAMPLES", 2000))
 
 # ---------------------------------------------------------------- volatility
 # Session volatility regime, measured from the captured bars

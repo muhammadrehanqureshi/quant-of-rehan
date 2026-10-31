@@ -1,6 +1,6 @@
 # Quant of Rehan: the complete project report
 
-First written 2026-10-09; brought current on 2026-10-30, version 3.4.0, master
+First written 2026-10-09; brought current on 2026-10-31, version 3.6.1, master
 `dfa7c0f`, 1,395 tests, merge of PR #173. Every figure below was read from the
 repository, the local `data/` directory, the Cloudflare relay, or the GitHub API
 at that time. Test-artifact numbers are labelled as such.
@@ -1788,3 +1788,58 @@ Added: `tests/test_scheduled_scan.py`. Changed: `src/config.py`,
 `tests/test_tape_bars.py`, `tests/test_momentum_scanner.py`,
 `tests/test_contracts.py`, `tests/test_scan_loop.py`, `README.md`,
 `MARKET_SCHEDULING.md`, `DATA_SOURCING.md`, this report.
+
+## 12. Session report, 2026-10-31: the app's air and the W/L ledger
+
+**The Android app's four orders, landed in version 3.6.1 (versionCode 97,
+PR #184, all checks green).** Every dropdown menu now gives its first and
+its last option the same 14 dp of air the middle options carry, by framing
+them around the divider gap instead of leaving only the plate edge: both
+the theme menu and the volume menu build their rows through
+`menuRow(line, first, last)`. The theme pass no longer stretches the nav
+tile past the screen bottom (owner's orange-and-white screenshot):
+`pinNavTile()` pins the carrier's bottom lift and a fixed 74 dp tile height
+and is called from both `onCreate` and `applyTheme`, and the layout pins
+the height too. The LATEST SIGNAL tile no longer lands on the QUANT STATUS
+tile in that theme, by the same pin. And a new home tile stands between
+QUANT STATUS and LATEST SIGNAL, headed exactly "W/L = W/L RATE", reading
+one relay ledger: the green W count, the red L count, and the losing rate
+in red (100% today), with NO CLOSED SIGNAL RIGHT NOW while the archive is
+empty.
+
+**The tile answered 0/0 at first, and the report says why.** The archive
+holds one finalized trade (PRL hit its stop on 2026-10-30), but the tile
+counted nothing: PR #185 (merge f8c7cee) found the ledger's field is
+`outcome` (TARGET HIT / STOP HIT / STOP AMBIGUOUS / CLOSED AT SESSION END,
+named by `src/signals/trade_state.py` and the pipeline's own `run_finalize`),
+not the research labeler's `label` the first cut counted. The relay's
+`/market` now answers exactly what the tile prints:
+`{"wins": 0, "losses": 1, "closed": 1, "rate_pct": 100}`
+(computed_at 2026-10-31T06:32:57Z), verified live.
+
+**The self-improvement engine's two failures are fixed offline from the
+law, and its Actions route is wired.** `label_summary` counted NO_ENTRY
+rows inside n and then read a `net_ret` those rows do not carry; it now
+counts CLOSED PAPER TRADES only and names the no-entry bucket separately
+(the all-NO_ENTRY KeyError is gone by construction). The gap-through-stop
+test's own fixture carries the entry bar that never reaches the target
+(`high = 101.0`), so the fill law is what is being tested, not an accident
+of the fixture. And `backtest.yml` gains a manual `self-improve` dispatch
+task that builds the ten-year dataset on the runner and runs
+`python scripts/self_improve.py` there (SO-21): the PC is never the run.
+
+**The reviewer pass, honestly recorded.** The fresh reviewer agent step
+was attempted against four agent names on the session's roster
+(code-reviewer-multi-prompt, opus-agent, gpt-5-agent, code-searcher) and
+every one was unavailable to spawn, so the review ran in-session: the four
+mission files and the workflow were read end to end against the mission's
+laws (one command, write-once registry, pre-registered kill before
+validation, Holm over the registry's count, report-only promotion while
+SELF_IMPROVE_ARM is False). No local test was run (SO-21); the proof is
+this PR's own CI run.
+
+Added: the `self-improve` dispatch task in `.github/workflows/backtest.yml`.
+Changed: `src/research/outcome_labeler.py`, `cloud/worker.js` (PR #185),
+`tests/test_relay_worker_contracts.py`, this report. Landed earlier the
+same day: PR #184's app version 3.6.1 (MainActivity, Watcher,
+activity_main.xml, strings.xml, tests).

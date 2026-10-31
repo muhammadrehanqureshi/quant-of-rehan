@@ -16,7 +16,7 @@ on:
       task:
         description: "what to run"
         type: choice
-        options: [both, smoke, build-dataset, ten-year, mean-reversion, kalman-grid]
+        options: [both, smoke, build-dataset, ten-year, mean-reversion, kalman-grid, self-improve]
         default: both
 
 permissions:
@@ -204,4 +204,52 @@ jobs:
           name: kalman-grid-${{ github.run_id }}
           path: data/research/kalman_grid.json
           if-no-files-found: error
+          retention-days: 90
+
+  # The self-improvement mission's ONE command (owner order): the
+  # pre-registered search over the ten-year mkt_summary panel, the
+  # champion read back through the registry as the same code hash that
+  # produced it, and the live outcomes' demotion check, which degrades
+  # to a stated error when no archive is reachable (SO-3). Manual
+  # dispatch only (SO-21): the engine never runs on the owner's PC.
+  self-improve:
+    if: inputs.task == 'self-improve'
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    env:
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt --retries 5 --timeout 60
+
+      - name: Build the ten-year dataset
+        run: |
+          mkdir -p data
+          python scripts/build_backtest_dataset.py \
+            --universe src/data/universe_kmiall.json \
+            --start 2016-10-29 \
+            --out data/eod_dataset_10y.csv.gz \
+            --cache-dir data/mkt_cache
+
+      - name: Run the self-improvement engine
+        run: |
+          python scripts/self_improve.py \
+            --dataset data/eod_dataset_10y.csv.gz \
+            --out data/research/self_improve_report.json
+          cat data/research/self_improve_report.json
+
+      - name: Keep the search result
+        uses: actions/upload-artifact@v7
+        with:
+          name: self-improve-${{ github.run_id }}
+          path: |
+            data/research/self_improve_report.json
+            data/research/experiments/
+          if-no-files-found: warn
           retention-days: 90
