@@ -218,6 +218,11 @@ jobs:
     timeout-minutes: 150
     env:
       PYTHONUNBUFFERED: "1"
+      # The same relay archive every forward job reaches: the STATUS
+      # measure and the demotion check read the finalized sessions
+      # through it (SO-5: the token travels as a secret, never a file).
+      RELAY_URL: "https://quant-of-rehan-relay.mrmrehanqureshi.workers.dev"
+      RELAY_ADMIN_TOKEN: ${{ secrets.RELAY_ADMIN_TOKEN }}
     steps:
       - uses: actions/checkout@v7
 
