@@ -96,16 +96,21 @@ class FromRowsTests(unittest.TestCase):
         self.assertIsNone(memory.entry_veto("PRL", band_open("2026-11-02")))
 
     def test_symbol_streak_counts_only_that_symbol(self):
+        # The three entries ride DIFFERENT hour buckets on purpose: a
+        # single bucket's own losing record vetoes on its own minimum
+        # (the law above), and this test is about the symbol streak.
         rows = [
             trade_row("2026-10-29", "PRL", "SL_FIRST", -0.010,
-                      band_open("2026-10-29")),
+                      band_open("2026-10-29") + timedelta(minutes=4)),
             trade_row("2026-10-29", "KEL", "SL_FIRST", -0.010,
-                      band_open("2026-10-29")),
+                      band_open("2026-10-29") + timedelta(minutes=150)),
             trade_row("2026-10-30", "OTHER", "SL_FIRST", -0.010,
-                      band_open("2026-10-30")),
+                      band_open("2026-10-30") + timedelta(minutes=330)),
         ]
         memory = adaptive_memory.AdaptiveMemory.from_rows(rows)
         self.assertEqual(memory.symbol_streaks.get("PRL"), 1)
+        self.assertEqual(memory.symbol_streaks.get("KEL"), 1)
+        self.assertNotIn("OTHER", memory.symbol_streaks)
         self.assertIsNone(memory.entry_veto("PRL", band_open("2026-11-02")))
 
     def test_bucket_veto_needs_the_measured_minimum(self):
