@@ -405,11 +405,26 @@
      re-pinned inside every theme pass, so no theme can stretch the tile
      past the screen's edge or press the tiles above onto each other;
      and the new tile names the closed-signal ledger the relay serves.
+
+     Version 3.6.2, versionCode 98 (owner's orders of 2026-11-01:
+     "have the drop down/up icon at the middle, look at the top sub
+     menu option, right now, the arrow is little to the up side. Make
+     it at the exact center, across the app"; "between quant status and
+     W/L tile, there should be diamond line feature"; "change the W/L
+     tile heading, instead of = sign, have & sign"; and "only show the
+     Winning & losing number like this, 0/1 & 100%"): both carets stand
+     at the exact vertical middle of their mount's top face in both
+     states, the centre read after the layout pass and written once
+     (onCreate and onResume land it too); the W/L tile carries its own
+     diamond rule at the seam above it; its heading is exactly
+     "W/L & W/L RATE"; and its one line is "0/1 & 100%" with the win
+     digit green, the loss digit red, and the rate in the colour of the
+     side that is ahead.
      -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="pk.quantofrehan"
-    android:versionCode="97"
-    android:versionName="3.6.1">
+    android:versionCode="98"
+    android:versionName="3.6.2">
 
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="30"/>
 
