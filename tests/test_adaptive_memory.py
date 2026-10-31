@@ -108,9 +108,11 @@ class FromRowsTests(unittest.TestCase):
                       band_open("2026-10-30") + timedelta(minutes=330)),
         ]
         memory = adaptive_memory.AdaptiveMemory.from_rows(rows)
-        self.assertEqual(memory.symbol_streaks.get("PRL"), 1)
-        self.assertEqual(memory.symbol_streaks.get("KEL"), 1)
-        self.assertNotIn("OTHER", memory.symbol_streaks)
+        # Every symbol's own last entries are stops, so every symbol's
+        # own streak is 1: PRL's number is ITS OWN stops, never the
+        # neighbours' (that is the whole test).
+        self.assertEqual(memory.symbol_streaks,
+                         {"PRL": 1, "KEL": 1, "OTHER": 1})
         self.assertIsNone(memory.entry_veto("PRL", band_open("2026-11-02")))
 
     def test_bucket_veto_needs_the_measured_minimum(self):

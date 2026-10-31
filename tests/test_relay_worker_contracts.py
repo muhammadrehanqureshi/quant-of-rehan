@@ -308,8 +308,10 @@ class RelayWorkerContractTest(unittest.TestCase):
                       f"law is not inside its first 2000 characters")
         # An older total never moves the acknowledged row backwards.
         hub = self.source[self.source.index("export class QuoteHub")]
-        self.assertGreaterEqual(
-            hub.index("previous.volume) >= parsed.volume"), 0)
+        self.assertIn(
+            "Math.round(Number(previous.volume) || 0) >= parsed.volume",
+            hub,
+            "the durable object no longer refuses an acknowledged older total")
 
     # ------------------------------------------------------- market alerts (text law moved)
 
