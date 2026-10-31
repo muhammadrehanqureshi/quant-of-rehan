@@ -200,6 +200,36 @@ class RelayWorkerContractTest(unittest.TestCase):
         # A symbol-level suspension must not be elevated to a global halt.
         self.assertIn("// never become a market-wide transition.", self.source)
 
+    def test_the_market_answer_carries_the_wl_ledger(self):
+        """Owner order 2026-10-31: the W/L = W/L RATE tile reads ONE ledger.
+
+        The phone re-asks GET /market every second, so the finalized
+        signal outcomes are counted once into a five-minute cache row
+        (RESEARCH:WINLOSS), never re-listed per second, and a cold or
+        failing store leaves win_loss out of that one answer instead of
+        fabricating a rate (SO-3). The rate is the losing share of the
+        CLOSED trades only, and both-zero answers a null rate.
+        """
+        self.assertIn("const TRADE_OUTCOME_LABELS = new Set([", self.source,
+                      "only closed trade labels count")
+        self.assertIn('"TP_FIRST", "SL_FIRST", "SL_AMBIG", "TIMEOUT",',
+                      self.source)
+        self.assertIn("function winLossFromSessions(sessions) {", self.source)
+        self.assertIn("if (net > 0) wins += 1; else losses += 1;", self.source)
+        self.assertIn("const WINLOSS_CACHE_SECONDS = 300;", self.source)
+        self.assertIn('relayList(env, "RESEARCH:OUTCOME:", 1000)', self.source)
+        self.assertIn('kvPut(env, "RESEARCH:WINLOSS"', self.source)
+        # The rate is computed from the closed total; both zero answers null.
+        self.assertIn("rate_pct: total > 0 ? Math.round((losses / total) * 100) : null,",
+                      self.source)
+        # The market route grafts the block in, best effort: a failing
+        # research store never fails the card.
+        route = self.source[self.source.index(
+            'if (request.method === "GET" && path === "/market")'):]
+        route = route[:route.index('if (request.method === "POST" && path === "/market")')]
+        self.assertIn("marketWinLoss(env)", route)
+        self.assertIn("win_loss: winLoss,", route)
+
     def test_live_quote_hub_has_bounded_validation_and_a_public_read_contract(self):
         self.assertIn('const QUOTE_MAX_SYMBOLS = 600;', self.source)
         self.assertIn('const QUOTE_MAX_BODY_BYTES = 256 * 1024;', self.source)

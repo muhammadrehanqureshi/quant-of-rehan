@@ -161,6 +161,86 @@ async function kvDelete(env, key) {
   kvMemo.delete(key);
 }
 
+// -- Owner order 2026-10-31: a new home tile, "W/L = W/L RATE",
+// reads from ONE authority the relay already stores: the finalized signal
+// outcomes the research archive labels (RESEARCH:OUTCOME:<date>). One
+// finalized signal (PRL, 2026-10-30) landed net negative, so the answer is
+// today 0/1 = 100%. The tile asks ONE question, so the relay answers it as
+// ONE object, shaped once, in one place:
+//   wins   = finalized trades that landed net POSITIVE
+//   losses = finalized trades that landed net zero or negative
+//   closed = wins + losses (both zero means the rate is not computable)
+//   rate_pct = losing share of the CLOSED total, rounded
+// A rate is computed only from CLOSED trades (label in the trade set with
+// a finite net_return), never from a pending or partial one (SO-3).
+const TRADE_OUTCOME_LABELS = new Set([
+  "TP_FIRST", "SL_FIRST", "SL_AMBIG", "TIMEOUT",
+]);
+
+function winLossFromSessions(sessions) {
+  let wins = 0, losses = 0;
+  for (const session of sessions) {
+    const label = String((session && session.label) || "").toUpperCase();
+    if (!TRADE_OUTCOME_LABELS.has(label)) continue;
+    const net = Number(session.net_return);
+    if (!Number.isFinite(net)) continue;
+    if (net > 0) wins += 1; else losses += 1;
+  }
+  return { wins, losses };
+}
+
+// The phone re-asks /market every second, so the ledger is read out of a
+// 5-minute cache row (RESEARCH:WINLOSS) and only recomputed when that row
+// is absent or expired. A cold or failing store never fabricates a rate:
+// it answers zeros with a null rate and no closed rows (SO-3).
+const WINLOSS_CACHE_SECONDS = 300;
+
+async function winLossSnapshot(env) {
+  const cached = await relayRead(env, "RESEARCH:WINLOSS");
+  if (cached) {
+    try {
+      const row = JSON.parse(cached);
+      const at = Date.parse(String(row.computed_at || ""));
+      if (Number.isFinite(at) &&
+          Date.now() - at < WINLOSS_CACHE_SECONDS * 1000) {
+        return row;
+      }
+    } catch (_) { /* stale row: recompute */ }
+  }
+  const listed = await relayList(env, "RESEARCH:OUTCOME:", 1000);
+  const sessions = [];
+  for (const item of listed.keys) {
+    if (!item.value || typeof item.value !== "string") continue;
+    try {
+      const row = JSON.parse(item.value);
+      if (Array.isArray(row && row.sessions)) sessions.push(...row.sessions);
+    } catch (_) { /* unreadable row: never counted */ }
+  }
+  const { wins, losses } = winLossFromSessions(sessions);
+  const total = wins + losses;
+  const row = {
+    computed_at: new Date().toISOString(),
+    wins,
+    losses,
+    closed: total,
+    rate_pct: total > 0 ? Math.round((losses / total) * 100) : null,
+  };
+  await kvPut(env, "RESEARCH:WINLOSS", JSON.stringify(row),
+    { expirationTtl: WINLOSS_CACHE_SECONDS * 2 });
+  return row;
+}
+
+// The /market answer grafts the W/L block in, best effort: a research store
+// that is cold or mid-refresh never fails the market card; it just leaves
+// win_loss out of that one answer so the app falls back to its waiting text.
+async function marketWinLoss(env) {
+  try {
+    return await winLossSnapshot(env);
+  } catch (_) {
+    return null;
+  }
+}
+
 const QUOTE_HUB_SOCKET_TAG = "live-quotes";
 function quoteHubBinding(env) {
   return env.QUOTE_HUB || null;
@@ -1836,8 +1916,10 @@ export default {
       const k = karachiView(now.getTime());
       const edgeState = marketState(now);
       const transitions = await trackMarketTransitions(env, snapshot, now, ctx);
+      const winLoss = await marketWinLoss(env);
       return json({ ok: true, karachi_now: `${dayStamp(k)} ${hhmm(k)} PKT`,
         ...snapshot,
+        win_loss: winLoss,
         market_transition: transitions,
         // The relay is the authority on the SESSION, so its own phase is
         // applied last and wins over a snapshot pushed by the owner's PC.

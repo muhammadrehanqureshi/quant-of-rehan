@@ -1742,13 +1742,13 @@ class VersionTest(unittest.TestCase):
         # union-find, the shortest pair across two parts joined until
         # one mesh remains, so no line can end at a dot no other thread
         # carries on from.
-        # v3.6.0 (owner order 2026-10-31): one acknowledged frame per stock
-        # across the whole app, the B/S pair that can only move forward in
-        # the day, and the build of that truth, versionCode 96.
+        # v3.6.1 (owner's orders of 2026-10-31): the dropdowns' balanced
+        # air, the nav tile's re-pinned size laws in the theme pass, the
+        # new W/L = W/L RATE tile opened at 0/1 = 100%, versionCode 97.
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="3.6.0"', manifest)
-        self.assertIn('android:versionCode="96"', manifest)
-        self.assertNotIn('android:versionName="3.5.0"', manifest)
+        self.assertIn('android:versionName="3.6.1"', manifest)
+        self.assertIn('android:versionCode="97"', manifest)
+        self.assertNotIn('android:versionName="3.6.0"', manifest)
         # The changelog entry ties these user-visible changes to the build.
         readme = (ROOT / "android" / "README.md").read_text(encoding="utf-8")
         self.assertIn("v1.7.9, owner order 2026-10-20", readme)
@@ -1897,6 +1897,11 @@ class VersionTest(unittest.TestCase):
         # acknowledged frame per stock across the app, the B/S pair that
         # can never decrease in the day, versionCode 96.
         self.assertIn("Version 3.6.0, versionCode 96", readme)
+        # v3.6.1 (owner's orders of 2026-10-31): the balanced edge air in
+        # both dropdown menus, the nav tile's re-pinned size laws, and the
+        # W/L = W/L RATE tile between the quant status and latest signal
+        # tiles, versionCode 97.
+        self.assertIn("Version 3.6.1, versionCode 97", readme)
         # v3.1.0 (owner order 2026-10-29, twenty-eighth pass): the open
         # menu keeps its anchored line and the rows type in the box's
         # own column, and the menu tile rides 7% of the screen higher.
@@ -1905,8 +1910,9 @@ class VersionTest(unittest.TestCase):
         # rows move up into the closed face's empty strip, both dropdowns.
         self.assertIn("Version 3.2.0, versionCode 92", readme)
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionCode="96"', manifest)
-        self.assertIn('android:versionName="3.6.0"', manifest)
+        self.assertIn('android:versionCode="97"', manifest)
+        self.assertIn('android:versionName="3.6.1"', manifest)
+        self.assertNotIn('android:versionName="3.6.0"', manifest)
         self.assertNotIn('android:versionName="3.5.0"', manifest)
         self.assertNotIn('android:versionName="3.3.0"', manifest)
         layout = LAYOUT.read_text(encoding="utf-8")
@@ -2549,6 +2555,97 @@ class MenuOrdersTest(unittest.TestCase):
         self.assertIn("arrow.animate()", self.main)
         self.assertIn("showVolumeMenu(!volumeMenuOpen)", self.main)
         self.assertIn("showThemeMenu(!themeMenuOpen)", self.main)
+
+    def test_the_menu_rows_stand_at_one_displacement_each(self):
+        """Owner order 2026-10-31 ("the top option and the bottom option
+        are not balanced, the other options they all are exactly in the
+        middle except for the top and the bottom option, have the same
+        displacement for each option on every drop down menu, same goes
+        for custom scrips of volume"): an interior option stands 14dp
+        from the line above it and 14dp from the one below it, so the
+        EDGE options carry the whole 14dp themselves - 14dp of top air on
+        the FIRST option and 14dp of bottom air on the LAST - in both
+        menus, so every option's text floats at one and the same
+        distance from its nearest line above and below it.
+        """
+        self.assertIn("private TextView menuRow(String line, "
+                      "boolean first, boolean last) {", self.main)
+        self.assertIn("first ? dp(14) : dp(7), dp(14),", self.main)
+        self.assertIn("last ? dp(14) : dp(7));", self.main)
+        # Both builders pass the row's edge position: the first option is
+        # row 0 and the last is the final row of its own menu.
+        for builder, count in (("buildThemeMenu",
+                                "THEME_LABELS.length - 1"),
+                               ("buildVolumeMenu",
+                                "volumeChoices.length - 1")):
+            with self.subTest(menu=builder):
+                start = self.main.index(f"private void {builder}() {{")
+                block = self.main[start:start + 2500]
+                self.assertIn("i == 0, i == " + count + ");", block, builder)
+
+    def test_the_wl_tile_reads_one_relay_ledger(self):
+        """Owner order 2026-10-31 ("a new tile on the home page between
+        quant status tile and latest signal tile, that tile's heading
+        would be W/L = W/L RATE"): the tile sits between the two, its
+        heading is exactly that string, its one line is the owner's own
+        digits W 0 / L 1 = 100% (PRL's first Kalman Trend call hit its
+        stop on 2026-10-30), W green, L red, the losing rate's own ink
+        red, and the ledger is the relay's answer, never a local guess
+        with nothing reported yet (SO-3).
+        """
+        self.assertIn('android:text="@string/label_winloss"', self.layout)
+        self.assertIn('android:id="@+id/tile_winloss"', self.layout)
+        # Between the two tiles: tile_status, then the W/L tile, then the
+        # rule and then the latest signal tile.
+        self.assertLess(
+            self.layout.index('android:id="@+id/tile_status"'),
+            self.layout.index('android:id="@+id/tile_winloss"'))
+        self.assertLess(
+            self.layout.index('android:id="@+id/tile_winloss"'),
+            self.layout.index('android:id="@+id/rule_status_signal"'))
+        self.assertLess(
+            self.layout.index('android:id="@+id/rule_status_signal"'),
+            self.layout.index('android:id="@+id/tile_signal"'))
+        self.assertIn('<string name="label_winloss">W/L = W/L RATE</string>',
+                      self.strings)
+        self.assertIn(">NO CLOSED SIGNAL RIGHT NOW<", self.strings)
+        self.assertIn("private TextView winlossValue;", self.main)
+        self.assertIn("winlossValue = findViewById(R.id.winloss_value);",
+                      self.main)
+        self.assertIn("renderWinLoss(market);", self.main)
+        self.assertIn('String.format(Locale.US, "W %d / L %d = %d%%",',
+                      self.main)
+        self.assertIn("market.losses > 0 ? R.color.red : R.color.green;",
+                      self.main)
+        # And the tile is a console citizen: it hides with the group and
+        # wears the theme's own plate.
+        self.assertIn("findViewById(R.id.tile_winloss),", self.main)
+        # The relay carries the ledger in the market answer.
+        self.assertIn("body.optJSONObject(\"win_loss\")", self.watcher)
+        self.assertIn("market.loseRatePct = winLoss.optInt", self.watcher)
+
+    def test_the_nav_tile_holds_its_laws_in_every_theme_pass(self):
+        """Owner order 2026-10-31, on orange and white ("the nav tile gets
+        stretched to the bottom, and I can't even see it end" and "latest
+        signal tile gets on the quant status tile"): the tile's 74dp
+        height and the carrier's 3% screen-share lift are pinned in ONE
+        helper, called from onCreate AND from applyTheme, so a theme's
+        repaint can never walk the tile past the screen's bottom edge or
+        press the tiles above onto each other. The layout itself pins the
+        74dp too.
+        """
+        self.assertIn("private void pinNavTile() {", self.main)
+        self.assertIn("lift.bottomMargin = Math.max(0, "
+                      "(int) (screen * 0.03f));", self.main)
+        self.assertIn("navTile.getLayoutParams().height = (int) dp(74);",
+                      self.main)
+        # Both passes call the one helper.
+        self.assertIn("pinNavTile();", self.main)
+        self.assertGreaterEqual(self.main.count("pinNavTile();"), 2,
+                                "onCreate AND the theme pass both pin it")
+        # The layout pins the same law, so even the first measure holds it.
+        nav_tile = element(self.layout, 'android:id="@+id/nav_tile"')
+        self.assertIn('android:layout_height="74dp"', nav_tile)
 
     def test_the_open_menus_carry_a_divider_with_equal_air(self):
         """Owner order 2026-10-31 ("when I tap on the drop down menus,
