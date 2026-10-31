@@ -61,7 +61,7 @@ import pandas as pd  # noqa: E402
 from src import config  # noqa: E402
 from src.research import experiment_registry as registry  # noqa: E402
 from src.research.outcome_labeler import (  # noqa: E402
-    LabelParams, label_candidates, label_summary, net_after_costs)
+    LabelParams, label_candidates, label_summary)
 
 DEFAULT_DATASET = Path("data/eod_dataset_10y.csv.gz")
 DEFAULT_OUT = Path("data/research/self_improve_report.json")
