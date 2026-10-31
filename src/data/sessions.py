@@ -112,15 +112,6 @@ Band = tuple[tuple[int, int], tuple[int, int]]
 PRE_MARKET_OPEN = (9, 0)
 PRE_MARKET_CLOSE = (9, 15)
 
-# Owner order 2026-10-26: the PRE-MARKET EMAIL opens at 09:15 on Monday to
-# Thursday (his words: "I got pre market email ... at 09:00, even though the
-# pre market opens on Monday at 09:15"). The scanner's own PRE_MARKET state
-# window (09:00 to 09:15, the 2026-10-11 law) is unchanged, so the scanning
-# still happens exactly as the 2026-10-21 scanning order says; only the email
-# the owner receives moves to the 09:15 edge he named. Friday's shape is not
-# named in the order, so it keeps its 09:00 email where the owner's earlier
-# orders left it.
-MONDAY_THURSDAY_PRE_EMAIL_OPEN = (9, 15)
 POST_MARKET_OPEN = (15, 32)
 POST_MARKET_CLOSE = (15, 49)
 FRIDAY_POST_MARKET_OPEN = (16, 32)
@@ -359,74 +350,10 @@ def pre_market_window(d: date) -> tuple[tuple[int, int], tuple[int, int]] | None
     return (PRE_MARKET_OPEN, PRE_MARKET_CLOSE)
 
 
-def pre_email_open_time(d: date) -> tuple[int, int]:
-    """The minute the owner's pre-market email fires (owner order 2026-10-26).
-
-    Monday to Thursday: 09:15 PKT, the minute the owner named. Friday keeps
-    the 09:00 PKT minute every earlier order gave it.
-    """
-    if not is_trading_day(d):
-        return PRE_MARKET_OPEN
-    if d.weekday() <= 3:
-        return MONDAY_THURSDAY_PRE_EMAIL_OPEN
-    return PRE_MARKET_OPEN
-
-
-def pre_email_due(moment: datetime | None = None) -> bool:
-    """True when this instant is inside the window the pre email names.
-
-    Monday to Thursday: from the 09:15 PKT edge the owner set (order
-    2026-10-26) until the band 1 open (09:32), the moment between the
-    pre-market window and the live session; Friday: inside the pre-market
-    state window as the law already laid it out (09:00 to 09:15).
-    """
-    k = as_karachi(moment)
-    if not is_trading_day(k.date()):
-        return False
-    if k.date().weekday() <= 3:
-        bands = session_bands(k.date())
-        if not bands:
-            return False
-        first_open = _at(k.date(), bands[0][0])
-        return _at(k.date(), MONDAY_THURSDAY_PRE_EMAIL_OPEN) <= k < first_open
-    return market_state_at(k) is MarketState.PRE_MARKET
-
-
-#: The owner's morning 2-minute break (order 2026-10-27): the strict gap
-#: the law puts between the pre-market edge and band 1's own open, exactly
-#: two minutes of it, on every trading day. Monday to Thursday it runs
-#: 09:30 to 09:32 ahead of the 09:32 open; Friday it is 09:15 to 09:17
-#: ahead of the 09:17 open.
-MORNING_BREAK_MINUTES = 2
-
-
-def morning_break_window(d: date) -> tuple[tuple[int, int], tuple[int, int]] | None:
-    """((start_hm, band_open_hm)) for the morning break on Karachi date d.
-
-    The window ENDS at band 1's own open (09:32 Monday to Thursday, 09:17
-    Friday) and opens MORNING_BREAK_MINUTES before it, so both edges are
-    taken from the band table itself and can never drift from it.
-    """
-    bands = session_bands(d)
-    if not bands:
-        return None
-    opens = bands[0][0]
-    start_total = opens[0] * 60 + opens[1] - MORNING_BREAK_MINUTES
-    return ((start_total // 60, start_total % 60), opens)
-
-
-def morning_break_due(moment: datetime | None = None) -> bool:
-    """True when this instant sits inside today's morning break.
-
-    Monday to Thursday [09:30, 09:32); Friday [09:15, 09:17); every other
-    instant, including the weekend and the holidays, is not.
-    """
-    k = as_karachi(moment)
-    window = morning_break_window(k.date())
-    if window is None:
-        return False
-    start_hm, open_hm = window
-    return _at(k.date(), start_hm) <= k < _at(k.date(), open_hm)
+#: The morning between the pre-market edge and band 1's open is the
+#: scanning law's WARMUP minute, and it lives in market_phase, not in any
+#: email: the market's open/close/break emails were retired on
+#: 2026-10-31 (owner order), and their session helpers went with them.
 
 
 def post_market_window(d: date) -> tuple[tuple[int, int], tuple[int, int]] | None:

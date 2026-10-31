@@ -518,6 +518,189 @@ function quoteIsFromToday(quote) {
          isTradingDay(karachiView(at.getTime()));
 }
 
+// Owner order 2026-10-31, "data has to be same/correct across the entire
+// app": the answer to "what did PRL do today" is the REGULAR session's
+// numbers, never the post-market tail. Measured on the live relay on
+// 2026-10-30 (Friday): the store's last PRL frame carried a 16:46 PKT tick
+// with the post-market fill price 96.28, while the exchange's own regular
+// session page answered 96.96 with its 25,437,791 total, and the one phone
+// asked one question through two routes and saw two different stocks.
+// The eClear REG feed keeps publishing after the band close, so the store
+// must know which session a frame's own tick belongs to and keep the
+// post-market tail out of the store whose rows the app answers from.
+// SO-8: the tick is read as Karachi wall clock against bandsFor's own
+// table, the same law the phase and the bands already speak.
+const REGULAR_SESSION_GRACE_MS = 5 * 60 * 1000;
+
+function tickInstantInDay(karachiDay, tickText, fallbackInstantMs) {
+  const at = karachiDay.getTime();
+  if (typeof tickText === "string" && /^[0-9]{2}:[0-9]{2}:[0-9]{2}$/.test(tickText)) {
+    const parsed = Date.parse(
+      `${dayStamp(karachiDay)}T${tickText}+05:00`,
+    );
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return Number.isFinite(fallbackInstantMs) ? fallbackInstantMs : null;
+}
+
+// Which regular band of its own Karachi day does this frame's tick
+// belong to (1 based), or 0 when the frame names none. Friday has two
+// bands, so a frame knows which band its counter belongs to; the bands
+// are disjoint, so a tick inside either answers at once.
+function regularBandIndexOf(quote) {
+  const at = Date.parse(quote && quote.observed_at ? quote.observed_at : "");
+  if (!Number.isFinite(at)) return null;
+  const k = karachiView(at);
+  const day = dayStamp(k);
+  const tickAt = tickInstantInDay(k, quote.source_tick_time, at);
+  if (tickAt === null) return null;
+  const bands = bandsFor(k);
+  for (let i = 0; i < bands.length; i++) {
+    const openAt = Date.parse(`${day}T${hmText(bands[i][0])}:00+05:00`);
+    const closeAt = Date.parse(`${day}T${hmText(bands[i][1])}:00+05:00`);
+    if (tickAt >= openAt && tickAt <= closeAt + REGULAR_SESSION_GRACE_MS) {
+      return i + 1;
+    }
+  }
+  return 0;
+}
+
+// Store law (owner order 2026-10-31): a frame enters the quote store
+// only when its own tick sits inside its own day's regular bands (with
+// the grace the last band-close prints need to land). The post-market
+// loop's frames keep their own feed alive but no longer overwrite the
+// REGULAR session's number the app answers with.
+function frameIsRegularSession(quote) {
+  return regularBandIndexOf(quote) !== null && regularBandIndexOf(quote) > 0;
+}
+
+// One symbol's acknowledged frame for one Karachi day, in relay_state's
+// own key space. The acknowledged frame is the newer evidence of the same
+// venue counter: per (day, band, symbol), a candidates whose volume
+// advances the stored one replaces it, and its split is CLAMPED so the
+// printed B and S can only move (owner order 2026-10-31, "how could the
+// buying and selling volume decrease? The volume can only increase").
+// It is NOT monotone across the Friday midday break on purpose: the
+// exchange's own counter is the DAY's cumulative total (measured on the
+// live 2026-10-30 store, whose post-break frame still carried the 25.4M
+// band-1 total), so the acknowledged frame is keyed day and band together
+// and the day's answer is the newest session's rows.
+const ACK_TTL_SECONDS = 2 * 86400;
+
+const ACK_SYMBOL_RE = /^[A-Z0-9]{1,12}$/;
+
+function clampPair(candidate, previous) {
+  const volume = Math.round(candidate.volume);
+  if (!Number.isFinite(volume) || volume <= 0) return null;
+  let buy = Math.round(candidate.buy_volume);
+  let sell = Math.round(candidate.sell_volume);
+  if (!Number.isFinite(buy) || !Number.isFinite(sell) ||
+      buy < 0 || sell < 0 || buy + sell !== volume) {
+    return null;
+  }
+  if (previous) {
+    // Monotone law: B can only stand at or above its own floor, S can
+    // only stand at or above its own floor, and the two must still sum
+    // to the row's total. buy is bounded by [prevBuy, volume - prevSell].
+    buy = Math.min(Math.max(buy, previous.buy_volume),
+      volume - previous.sell_volume);
+    sell = volume - buy;
+  }
+  return { buy, sell, volume };
+}
+
+function ackCandidateFrame(row, day) {
+  if (!day) return null;
+  const symbol = String(row.symbol || "").toUpperCase();
+  if (!ACK_SYMBOL_RE.test(symbol)) return null;
+  const volume = Number(row.volume);
+  const buy = Number(row.buy_volume);
+  const sell = Number(row.sell_volume);
+  if (!Number.isFinite(buy) || !Number.isFinite(sell)) return null;
+  if (Math.round(buy) < 0 || Math.round(sell) < 0) return null;
+  if (Math.round(buy) + Math.round(sell) !== Math.round(volume)) return null;
+  const band = regularBandIndexOf(row);
+  if (band === null || band < 1) return null;
+  return {
+    symbol,
+    day,
+    band,
+    price: Number.isFinite(Number(row.price)) ? Number(row.price) : null,
+    change_pct: Number.isFinite(Number(row.change_pct))
+      ? Number(row.change_pct) : null,
+    volume: Math.round(volume),
+    buy_volume: Math.round(buy),
+    sell_volume: Math.round(sell),
+    split_method: row.split_method || "range_position",
+    split_source: row.split_source || null,
+    observed_at: row.observed_at || row.feed_as_of || null,
+    source: row.quote_source || row.source || null,
+    quote_fresh: Boolean(row.quote_fresh),
+  };
+}
+
+// The acknowledged rows for one KMIALL trading day, as a map keyed by
+// symbol: for each symbol the newest session's acknowledged frame. A
+// missing hub (the local worker harness) answers null, and every caller
+// falls back to its own paths unchanged.
+async function ackRowsForDay(env, day) {
+  if (!day) return null;
+  try {
+    const answer = await stateCall(env, "/ack-splits?day="
+      + encodeURIComponent(day));
+    return answer && answer.ok ? answer.rows : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+// Acknowledge display rows and return the stored answer for the symbols
+// that were candidates. Any failure degrades to null and the callers keep
+// their own rows (SO-3: degrading keeps what was already shown, it never
+// invents).
+async function ackUpsert(env, frames) {
+  if (!frames.length) return null;
+  try {
+    const answer = await stateCall(env, "/ack-upsert", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ frames }),
+    });
+    return answer && answer.ok ? answer.rows : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+// One display row meets its acknowledged store row. The stored frame IS
+// the newer evidence of the same venue counter, so its total wins, and
+// its coherent clamped pair rides with it. Nothing is aged forward: a
+// stored frame without its own price keeps the candidate's values.
+function applyStoredFrame(row, stored) {
+  if (!stored || stored.symbol !== row.symbol) return row;
+  if (Number.isFinite(Number(stored.volume))) {
+    row.volume = Math.round(Number(stored.volume));
+    row.split_volume = row.volume;
+  }
+  if (Number.isFinite(Number(stored.price)) && Number(stored.price) > 0) {
+    row.price = Number(stored.price);
+  }
+  if (Number.isFinite(Number(stored.change_pct))) {
+    row.change_pct = Number(stored.change_pct);
+  }
+  if (Number.isFinite(Number(stored.buy_volume)) &&
+      Number.isFinite(Number(stored.sell_volume))) {
+    row.buy_volume = Math.round(Number(stored.buy_volume));
+    row.sell_volume = Math.round(Number(stored.sell_volume));
+    row.split_volume = row.buy_volume + row.sell_volume;
+  }
+  row.split_method = "range_position";
+  row.split_source = stored.split_source
+    ? stored.split_source : row.split_source || null;
+  row.ack_band = stored.band;
+  return row;
+}
+
 // The change text is printed signed on a falling day ("-5.15") and the
 // direction is ALSO carried by the change__text--pos/neg class, so the sign
 // comes from the class and the magnitude from the text. The percentage is
@@ -978,7 +1161,7 @@ function splitFields(split, quote) {
   };
 }
 
-function applyLiveQuotes(snapshot, quotes, now) {
+async function applyLiveQuotes(env, snapshot, quotes, now, ackDay) {
   if (!quotes) return refreshMarketFeed(snapshot, now);
   const freshQuotes = quotes.quotes.filter((row) => row.fresh &&
     Number.isFinite(row.price) && row.price > 0);
@@ -998,6 +1181,8 @@ function applyLiveQuotes(snapshot, quotes, now) {
         ...splitFields(split, quote),
         feed_as_of: quote.observed_at,
         feed_age_seconds: quote.age_seconds,
+        observed_at: quote.observed_at,
+        source_tick_time: quote.source_tick_time,
         quote_fresh: true,
         quote_source: quote.source,
       };
@@ -1033,9 +1218,40 @@ function applyLiveQuotes(snapshot, quotes, now) {
       ? `current session volume, top ${snapshot.top_volume.length} from fresh REG feed`
       : snapshot.top_volume_basis;
   } else if (snapshot.top_volume) {
-    snapshot.top_volume = snapshot.top_volume.map((row) => ({
-      ...row, quote_fresh: false,
-    }));
+    // Owner order 2026-10-31: with no fresh frames, the card answers from
+    // the hub's own LAST PUBLISHED REGULAR-session frames of today, the
+    // same frames /stock and /prices answer from, instead of the portal
+    // cache's separate copy. One frame, one answer, every surface.
+    const todayFrames = (quotes.quotes || []).filter((row) =>
+      quoteIsFromToday(row) && Number.isFinite(row.price) && row.price > 0 &&
+      Number.isFinite(row.volume) && row.volume > 0);
+    if (todayFrames.length) {
+      snapshot.top_volume = todayFrames.map((row) => {
+        const split = rangePositionSplit(row.high, row.low, row.price,
+          row.volume);
+        return {
+          symbol: row.symbol,
+          volume: Math.round(row.volume),
+          price: row.price,
+          change_pct: Number.isFinite(row.change_pct) ? row.change_pct : null,
+          ...splitFields(split, row),
+          basis: row.fresh
+            ? "current session volume (fresh eClear REG quote)"
+            : "the symbol's last published regular-session frame",
+          feed_as_of: row.observed_at,
+          feed_age_seconds: row.age_seconds,
+          observed_at: row.observed_at,
+          source_tick_time: row.source_tick_time,
+          quote_fresh: Boolean(row.fresh),
+          quote_source: row.source,
+        };
+      })
+        .sort((a, b) => (b.volume - a.volume) || a.symbol.localeCompare(b.symbol))
+        .slice(0, MARKET_TOP_N);
+      snapshot.top_volume_basis = snapshot.top_volume.length
+        ? `the last published regular-session frames, top ${snapshot.top_volume.length}`
+        : snapshot.top_volume_basis;
+    }
   }
   if (quotes.index && quotes.index.fresh) {
     snapshot.index = quotes.index;
@@ -1045,10 +1261,30 @@ function applyLiveQuotes(snapshot, quotes, now) {
   }
   snapshot.quote_snapshot_updated_at = quotes.updated_at;
   snapshot.quote_snapshot_stale = quotes.stale;
+  // The acknowledged store: the card's own top rows are candidates, and
+  // every answered row then reads the SAME stored pair /stock reads, so
+  // the two surfaces can never disagree and the printed B and S only
+  // move as the day's own volume grows (owner order 2026-10-31).
+  if (snapshot.top_volume && snapshot.top_volume.length && ackDay) {
+    const frames = snapshot.top_volume
+      .map((row) => ackCandidateFrame(row, ackDay))
+      .filter(Boolean);
+    const storedRows = await ackUpsert(env, frames);
+    if (storedRows) {
+      snapshot.top_volume = snapshot.top_volume.map(
+          (row) => applyStoredFrame(row, storedRows[row.symbol]))
+        .filter((row) => Number.isFinite(row.volume) && row.volume > 0)
+        .sort((a, b) => (b.volume - a.volume) ||
+          a.symbol.localeCompare(b.symbol))
+        .slice(0, MARKET_TOP_N);
+    }
+  }
   return refreshMarketFeed(snapshot, now);
 }
 
 async function marketResponseSnapshot(env, now) {
+  const k = karachiView(now.getTime());
+  const ackDay = isTradingDay(k) ? dayStamp(k) : null;
   let snapshot;
   try {
     snapshot = await marketSnapshot(env, now);
@@ -1060,7 +1296,8 @@ async function marketResponseSnapshot(env, now) {
     snapshot.market_open = marketOpenNow(now);
     snapshot.market_state = marketState(now);
   }
-  return applyLiveQuotes(snapshot, await readQuoteSnapshot(env), now);
+  return applyLiveQuotes(env, snapshot, await readQuoteSnapshot(env), now,
+    ackDay);
 }
 
 async function trackMarketTransitions(env, snapshot, now, ctx) {
@@ -1143,11 +1380,10 @@ async function trackMarketTransitions(env, snapshot, now, ctx) {
     }
     return { state, evidence, delivered: false, baseline: true };
   }
-  // Owner order 2026-10-29: no chat send exists any more. A transition
-  // still records its confirmed state so the baseline logic answers
-  // honestly, but nothing is queued or delivered here; the owner's market
-  // open/close texts travel by owner email from the Actions jobs
-  // (src/notify/market_watch.py), exactly-once per marker.
+  // Owner order 2026-10-29: no chat send exists any more. Owner order
+  // 2026-10-31: the market open/close/break emails are retired entirely,
+  // so a transition records only its confirmed state and delivers
+  // nothing anywhere.
   await kvPut(env, MARKET_STATE_KEY, JSON.stringify({
     state, identity, confirmed_at_ms: now.getTime(), evidence,
   }), { expirationTtl: 604800 });
@@ -1469,6 +1705,8 @@ export default {
         sell_volume: null,
         split_method: "unavailable",
         split_source: "the frame's range is incomplete",
+        observed_at: quote.observed_at || null,
+        source_tick_time: quote.source_tick_time || null,
       };
       const split = rangePositionSplit(quote.high, quote.low,
                                        quote.price, quote.volume);
@@ -1478,6 +1716,25 @@ export default {
         stock.split_source = quote.fresh
           ? "B/S estimated from the day's range, not order flow"
           : "B/S estimated from the symbol's last published frame; the market is closed";
+      }
+      // Owner order 2026-10-31: the answer also reads and advances the
+      // SAME acknowledged frame every surface reads, so the search's B, S
+      // and T can never disagree with the card's row for this symbol, and
+      // the pair only moves as the day's own volume grows. A stored frame
+      // with newer evidence (the card's portal row) answers as itself.
+      const kNow = karachiView(Date.now());
+      const ackDay = isTradingDay(kNow) ? dayStamp(kNow) : null;
+      const frame = ackCandidateFrame(stock, ackDay);
+      if (frame) {
+        const storedRows = await ackUpsert(env, [frame]);
+        const stored = storedRows ? storedRows[symbol] : null;
+        if (stored) {
+          applyStoredFrame(stock, stored);
+          if (stored.observed_at) stock.quote_as_of = stored.observed_at;
+          stock.split_source = quote.fresh
+            ? "B/S estimated from the day's range, not order flow"
+            : "B/S estimated from the symbol's last published frame; the market is closed";
+        }
       }
       return json({ ok: true, stock });
     }
@@ -1498,7 +1755,15 @@ export default {
       // trading day in progress (SO-8), so a pre-open list is honestly
       // empty and the first published bar of the new session fills it.
       const snapshot = await readQuoteSnapshot(env);
+      const kNow = karachiView(Date.now());
+      const ackDay = isTradingDay(kNow) ? dayStamp(kNow) : null;
+      // Owner order 2026-10-31: every row is the acknowledged frame the
+      // card and /stock answer with, so the search's rows, the dropdown
+      // rankings and the card hold ONE B/S pair per stock. The stored map
+      // is one read; the busiest symbols acknowledge their own rows.
+      const storedAll = ackDay ? await ackRowsForDay(env, ackDay) : null;
       const prices = [];
+      const rowsBuilt = [];
       for (const quote of (snapshot && snapshot.quotes) || []) {
         if (!quote || !quoteIsFromToday(quote) ||
             !Number.isFinite(quote.price) || quote.price <= 0) continue;
@@ -1510,12 +1775,47 @@ export default {
         // five, and indexes beyond three stay null.
         const split = rangePositionSplit(quote.high, quote.low,
                                          quote.price, quote.volume);
+        rowsBuilt.push({
+          symbol: String(quote.symbol || ""),
+          price: quote.price,
+          change_pct: Number.isFinite(quote.change_pct) ? quote.change_pct : null,
+          volume: Number.isFinite(quote.volume) ? Math.round(quote.volume) : null,
+          buy_volume: split ? split.buy_volume : null,
+          sell_volume: split ? split.sell_volume : null,
+          split_method: split ? "range_position" : "unavailable",
+          split_source: split ? "B/S estimated from the day's range, not order flow" : null,
+          observed_at: quote.observed_at || null,
+          source: quote.source || null,
+        });
+      }
+      if (ackDay && rowsBuilt.length) {
+        // The day's busiest symbols acknowledge their rows (bounded: six
+        // frames), which is enough for every dropdown ranking the phone
+        // prints and for the card's own top three.
+        const top = rowsBuilt
+          .filter((row) => Number.isFinite(row.volume) && row.volume > 0)
+          .sort((a, b) => b.volume - a.volume)
+          .slice(0, 6)
+          .map((row) => ackCandidateFrame(row, ackDay))
+          .filter(Boolean);
+        const storedTop = await ackUpsert(env, top);
+        if (storedAll === null && storedTop) {
+          // no prefix at all, but the upsert answered: use its map
+          for (const row of rowsBuilt) applyStoredFrame(row, storedTop[row.symbol]);
+        } else if (storedAll || storedTop) {
+          for (const row of rowsBuilt) {
+            applyStoredFrame(row, (storedAll || {})[row.symbol] ||
+              (storedTop || {})[row.symbol] || null);
+          }
+        }
+      }
+      for (const row of rowsBuilt) {
         prices.push([
-          String(quote.symbol || ""),
-          quote.price,
-          Number.isFinite(quote.change_pct) ? quote.change_pct : null,
-          split ? split.buy_volume : null,
-          split ? split.sell_volume : null,
+          row.symbol,
+          row.price,
+          row.change_pct,
+          row.buy_volume,
+          row.sell_volume,
         ]);
       }
       return json({ ok: true, prices });
@@ -1813,6 +2113,26 @@ export class QuoteHub {
       list_complete: rows.length < limit };
   }
 
+  // One acknowledged-frame candidate, validated. Anything malformed or
+  // incoherent is refused, never normalised into a guess (SO-3).
+  ackCandidate(frame) {
+    if (!frame || typeof frame !== "object") return null;
+    const symbol = String(frame.symbol || "").toUpperCase();
+    const day = String(frame.day || "");
+    const band = Number(frame.band);
+    const volume = Math.round(Number(frame.volume));
+    const buy = Math.round(Number(frame.buy_volume));
+    const sell = Math.round(Number(frame.sell_volume));
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return null;
+    if (!/^[A-Z0-9]{1,12}$/.test(symbol)) return null;
+    if (!Number.isInteger(band) || band < 1 || band > 4) return null;
+    if (!Number.isFinite(volume) || volume <= 0) return null;
+    if (!Number.isFinite(buy) || !Number.isFinite(sell) ||
+        buy < 0 || sell < 0 || buy + sell !== volume) return null;
+    return { ...frame, symbol, day, band, volume,
+      buy_volume: buy, sell_volume: sell };
+  }
+
   async fetch(request) {
     const url = new URL(request.url);
     // The relay's key value store, served by this object instead of KV.
@@ -1846,6 +2166,66 @@ export class QuoteHub {
       const asked = Number(url.searchParams.get("limit"));
       const limit = Math.max(1, Math.min(1000, Number.isFinite(asked) ? asked : 100));
       return json(await this.stateList(prefix, limit));
+    }
+    // The acknowledged-frame store (owner order 2026-10-31): per
+    // (Karachi day, regular-session band, symbol), the newer evidence of
+    // the same venue counter, with its split clamped so the printed B and
+    // S can only move as the day's volume grows. Keys live in this
+    // object's own relay_state table under the ACK: prefix, two day TTL.
+    if (url.pathname === "/ack-upsert" && request.method === "POST") {
+      await this.ready;
+      const body = await request.json().catch(() => null);
+      if (!body || !Array.isArray(body.frames) || !body.frames.length ||
+          body.frames.length > 20) {
+        return json({ ok: false, error: "frames array (max 20) required" }, 400);
+      }
+      const rows = {};
+      for (const frame of body.frames) {
+        const parsed = this.ackCandidate(frame);
+        if (!parsed) continue;
+        const key = `ACK:${parsed.day}:${parsed.band}:${parsed.symbol}`;
+        const storedRaw = await this.stateGet(key);
+        let previous = null;
+        if (storedRaw) {
+          try { previous = JSON.parse(storedRaw); } catch (_) { previous = null; }
+        }
+        if (previous && previous.symbol === parsed.symbol &&
+            Math.round(Number(previous.volume) || 0) >= parsed.volume) {
+          // Older or equal evidence never moves the acknowledged row.
+          rows[parsed.symbol] = previous;
+          continue;
+        }
+        const pair = clampPair(parsed, previous &&
+          previous.symbol === parsed.symbol ? previous : null);
+        if (!pair) continue;
+        const stored = { ...parsed, ...pair };
+        await this.statePut(key, JSON.stringify(stored),
+          Date.now() + ACK_TTL_SECONDS * 1000);
+        rows[parsed.symbol] = stored;
+      }
+      return json({ ok: true, rows });
+    }
+
+    if (url.pathname === "/ack-splits" && request.method === "GET") {
+      await this.ready;
+      const day = String(url.searchParams.get("day") || "");
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) {
+        return json({ ok: false, error: "day required" }, 400);
+      }
+      const listed = await this.stateList(`ACK:${day}:`, 2000);
+      const ackRows = {};
+      for (const item of listed.keys || []) {
+        let frame = null;
+        try { frame = JSON.parse(item.value); } catch (_) { frame = null; }
+        const symbolFromKey = item.name.slice(1 + item.name.lastIndexOf(":"));
+        if (!frame || frame.symbol !== symbolFromKey) continue;
+        const band = Number(frame.band) || 0;
+        const known = ackRows[frame.symbol];
+        if (!known || band >= Number(known.band || 0)) {
+          ackRows[frame.symbol] = frame;
+        }
+      }
+      return json({ ok: true, rows: ackRows });
     }
 
     if (request.method === "GET" && url.pathname === "/snapshot") {
@@ -1887,7 +2267,15 @@ export class QuoteHub {
       }
       const quotes = new Map((previous && Array.isArray(previous.quotes)
         ? previous.quotes : []).map((quote) => [quote.symbol, quote]));
-      for (const quote of body.quotes) {
+      // Owner order 2026-10-31: the store serves the REGULAR session's
+      // answers. A frame whose own tick sits outside its day's bands (the
+      // post-market tail keeps publishing after the close) never enters,
+      // so the last frame one symbol answers with is the regular-session
+      // close that the card, /stock and /prices all agree on.
+      const accepted = body.quotes.filter((quote) =>
+        quote && typeof quote.symbol === "string" && quote.symbol &&
+        frameIsRegularSession(quote));
+      for (const quote of accepted) {
         const old = quotes.get(quote.symbol);
         if (!old || Date.parse(quote.observed_at) >= Date.parse(old.observed_at)) {
           quotes.set(quote.symbol, quote);
@@ -1921,7 +2309,8 @@ export class QuoteHub {
         serialized,
       );
       const current = await this.snapshot();
-      const answer = { ok: true, stored: true, quotes: body.quotes.length,
+      const answer = { ok: true, stored: true, quotes: accepted.length,
+        refused_post_session: body.quotes.length - accepted.length,
         updated_at: snapshot.updated_at, market_feed: current.market_feed };
       for (const socket of this.ctx.getWebSockets(QUOTE_HUB_SOCKET_TAG)) {
         const tags = this.ctx.getTags(socket);

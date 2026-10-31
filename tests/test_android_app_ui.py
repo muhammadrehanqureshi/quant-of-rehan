@@ -1340,7 +1340,9 @@ class StatusPulseTest(unittest.TestCase):
         self.assertIn('get(base + "/quotes", null)', watcher)
         self.assertIn("if (index != null && index.optBoolean(\"fresh\", false))", watcher)
         self.assertIn("!quote.optBoolean(\"fresh\", false)", watcher)
-        self.assertIn("function applyLiveQuotes(snapshot, quotes, now)", worker)
+        self.assertIn(
+            "async function applyLiveQuotes(env, snapshot, quotes, now, "
+            "ackDay)", worker)
         full = watcher[watcher.index("static void fetchStatus("):][:1200]
         self.assertIn("applyLiveQuotes(market, base);", full)
         live = watcher[watcher.index("static void fetchLive("):]
@@ -1740,9 +1742,12 @@ class VersionTest(unittest.TestCase):
         # union-find, the shortest pair across two parts joined until
         # one mesh remains, so no line can end at a dot no other thread
         # carries on from.
+        # v3.5.0 (owner order 2026-10-31): the open menus' divider line
+        # between adjacent sub menu options, equal air above and below,
+        # versionCode 95.
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="3.4.0"', manifest)
-        self.assertIn('android:versionCode="94"', manifest)
+        self.assertIn('android:versionName="3.5.0"', manifest)
+        self.assertIn('android:versionCode="95"', manifest)
         # The changelog entry ties these user-visible changes to the build.
         readme = (ROOT / "android" / "README.md").read_text(encoding="utf-8")
         self.assertIn("v1.7.9, owner order 2026-10-20", readme)
@@ -1883,6 +1888,10 @@ class VersionTest(unittest.TestCase):
         # and orange), and the icons tile's height is a law of 74dp;
         # versionCode 94.
         self.assertIn("Version 3.4.0, versionCode 94", readme)
+        # v3.5.0 (owner order 2026-10-31): a divider line between two
+        # adjacent sub menu options, equal air above and below it, in
+        # both open menus; versionCode 95.
+        self.assertIn("Version 3.5.0, versionCode 95", readme)
         # v3.1.0 (owner order 2026-10-29, twenty-eighth pass): the open
         # menu keeps its anchored line and the rows type in the box's
         # own column, and the menu tile rides 7% of the screen higher.
@@ -1891,8 +1900,9 @@ class VersionTest(unittest.TestCase):
         # rows move up into the closed face's empty strip, both dropdowns.
         self.assertIn("Version 3.2.0, versionCode 92", readme)
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionCode="94"', manifest)
-        self.assertIn('android:versionName="3.4.0"', manifest)
+        self.assertIn('android:versionCode="95"', manifest)
+        self.assertIn('android:versionName="3.5.0"', manifest)
+        self.assertNotIn('android:versionName="3.4.0"', manifest)
         self.assertNotIn('android:versionName="3.3.0"', manifest)
         layout = LAYOUT.read_text(encoding="utf-8")
         strings = STRINGS.read_text(encoding="utf-8")
@@ -2534,6 +2544,43 @@ class MenuOrdersTest(unittest.TestCase):
         self.assertIn("arrow.animate()", self.main)
         self.assertIn("showVolumeMenu(!volumeMenuOpen)", self.main)
         self.assertIn("showThemeMenu(!themeMenuOpen)", self.main)
+
+    def test_the_open_menus_carry_a_divider_with_equal_air(self):
+        """Owner order 2026-10-31 ("when I tap on the drop down menus,
+        make sure you have a line between 2 separate sub menu options,
+        the difference between the line and all the sub menus should be
+        exactly the same"): BOTH open menus draw one 1dp line between
+        each pair of adjacent options, and the line's top and bottom
+        air are equal, so the gap above it is exactly the gap below it.
+        No line above the first option and none under the last: the
+        list's own edges already bound it.
+        """
+        self.assertIn("private View menuDivider() {", self.main)
+        self.assertIn("LinearLayout.LayoutParams.MATCH_PARENT, dp(1));",
+                      self.main)
+        self.assertIn("params.setMargins(dp(10), dp(7), dp(14), dp(7));",
+                      self.main,
+                      "the line's own air: 7dp above and below, the same")
+        # A row's own padding is the matching 7dp top and bottom, so the
+        # line-to-option distance is the same 14dp on both sides.
+        self.assertIn("row.setPadding(dp(10), dp(7), dp(14), dp(7));",
+                      self.main)
+        # Both menus obey one law: every option with an option above it
+        # gains the line first.
+        for builder, menu in (("buildThemeMenu", "themeMenu"),
+                              ("buildVolumeMenu", "volumeSplitMenu")):
+            start = self.main.index(f"private void {builder}() {{")
+            block = self.main[start:start + 2500]
+            block = block[:block.index("\n    /**") if "\n    /**" in block[:2500]
+                    else 2500]
+            self.assertIn("addView(menuDivider());", block, builder)
+            self.assertIn("if (i > 0) {", block, builder)
+            self.assertIn(f"{menu}.addView(row);", block, builder)
+            self.assertIn("menuDividers.clear();", block, builder)
+        # The divider list is one surface piece: a theme pass re-inks it.
+        self.assertIn("private final List<View> menuDividers", self.main)
+        self.assertIn("private void repaintMenuDividers() {", self.main)
+        self.assertIn("repaintMenuDividers();", self.main)
 
     def test_the_volume_tile_is_the_scanner_page(self):
         """Owner order 2026-10-24 ("move the custom scrips of volume in
