@@ -1742,12 +1742,13 @@ class VersionTest(unittest.TestCase):
         # union-find, the shortest pair across two parts joined until
         # one mesh remains, so no line can end at a dot no other thread
         # carries on from.
-        # v3.5.0 (owner order 2026-10-31): the open menus' divider line
-        # between adjacent sub menu options, equal air above and below,
-        # versionCode 95.
+        # v3.6.0 (owner order 2026-10-31): one acknowledged frame per stock
+        # across the whole app, the B/S pair that can only move forward in
+        # the day, and the build of that truth, versionCode 96.
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="3.5.0"', manifest)
-        self.assertIn('android:versionCode="95"', manifest)
+        self.assertIn('android:versionName="3.6.0"', manifest)
+        self.assertIn('android:versionCode="96"', manifest)
+        self.assertNotIn('android:versionName="3.5.0"', manifest)
         # The changelog entry ties these user-visible changes to the build.
         readme = (ROOT / "android" / "README.md").read_text(encoding="utf-8")
         self.assertIn("v1.7.9, owner order 2026-10-20", readme)
@@ -1892,6 +1893,10 @@ class VersionTest(unittest.TestCase):
         # adjacent sub menu options, equal air above and below it, in
         # both open menus; versionCode 95.
         self.assertIn("Version 3.5.0, versionCode 95", readme)
+        # v3.6.0 (owner order 2026-10-31, the data's own build): one
+        # acknowledged frame per stock across the app, the B/S pair that
+        # can never decrease in the day, versionCode 96.
+        self.assertIn("Version 3.6.0, versionCode 96", readme)
         # v3.1.0 (owner order 2026-10-29, twenty-eighth pass): the open
         # menu keeps its anchored line and the rows type in the box's
         # own column, and the menu tile rides 7% of the screen higher.
@@ -1900,9 +1905,9 @@ class VersionTest(unittest.TestCase):
         # rows move up into the closed face's empty strip, both dropdowns.
         self.assertIn("Version 3.2.0, versionCode 92", readme)
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionCode="95"', manifest)
-        self.assertIn('android:versionName="3.5.0"', manifest)
-        self.assertNotIn('android:versionName="3.4.0"', manifest)
+        self.assertIn('android:versionCode="96"', manifest)
+        self.assertIn('android:versionName="3.6.0"', manifest)
+        self.assertNotIn('android:versionName="3.5.0"', manifest)
         self.assertNotIn('android:versionName="3.3.0"', manifest)
         layout = LAYOUT.read_text(encoding="utf-8")
         strings = STRINGS.read_text(encoding="utf-8")
