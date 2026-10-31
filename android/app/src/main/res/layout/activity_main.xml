@@ -442,7 +442,13 @@
                  the rows move UP into the box's own space. The caret
                  keeps its anchor at the mount's right edge (it overlays
                  the open rows and stays the roll-up tap), and closing
-                 brings the closed box back exactly as it stood. -->
+                 brings the closed box back exactly as it stood.
+                 v3.6.2 owner order 2026-11-01 ("make it at the exact
+                 center"): the caret's TOP margin is written in code now
+                 (centerDropdownCaret), so it stands at the exact vertical
+                 middle of the closed face while closed and of the first
+                 option row while open; the 11dp here is only the first
+                 layout's own starting point, never the standing law. -->
             <LinearLayout
                 android:id="@+id/volume_split_menu"
                 android:layout_width="match_parent"
@@ -623,16 +629,32 @@
 
         </LinearLayout>
 
-        <!-- ══════════ W/L = W/L RATE card ══════════
+        <!-- Owner order 2026-11-01 ("between quant status and W/L tile,
+             there should be diamond line feature"): the same brand rule
+             the other four carry, between the quant status and the W/L
+             tiles. The same qor_rule include, so the diamond is the
+             logo's and is defined once; it belongs to the console and
+             leaves with it on the settings and search pages. -->
+        <include
+            android:id="@+id/rule_status_winloss"
+            layout="@layout/qor_rule"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"/>
+
+        <!-- ══════════ W/L & W/L RATE card ══════════
              Owner order 2026-10-31: a new tile between the quant status
-             tile and the latest signal tile, with the heading exactly
-             "W/L = W/L RATE". The numbers are the relay's own ledger of
-             finalized signals (the first, PRL's Kalman Trend call of
-             2026-10-30, hit its stop), so the tile opens the age at an
-             honest 0/1 = 100%: W counts green, L red, and the losing
-             rate's own ink red too. The number is one value line the
-             MainActivity colors in spans; the tile hides with the other
-             console tiles on the settings and search pages. -->
+             tile and the latest signal tile, with the heading the owner
+             fixed (on 2026-11-01 the "=" sign stepped aside for "&",
+             exactly "W/L & W/L RATE"), and a diamond rule of its own
+             above. The numbers are the relay's own ledger of finalized
+             signals (the first, PRL's Kalman Trend call of 2026-10-30,
+             hit its stop), so the tile opens the age at an honest
+             0/1 & 100%: the win count green, the loss count red, and the
+             rate in the colour of the side that is ahead. The number is
+             one value line the MainActivity colors in spans; the tile
+             hides with the other console tiles on the settings and
+             search pages. -->
         <LinearLayout
             android:id="@+id/tile_winloss"
             style="@style/QorPanel"
@@ -648,11 +670,12 @@
                 android:gravity="center"
                 android:text="@string/label_winloss"/>
 
-            <!-- The owner's one line: "W 0 / L 1 = 100%". The digit
-                 after the W is green (the win count), the segment after
-                 the slash red (the loss count), and the rate tail red
-                 while it is a losing rate (green only when every closed
-                 signal won). -->
+            <!-- The owner's one line: "0/1 & 100%" (2026-11-01, the
+                 W and L words stepped aside for the digits alone). The
+                 win count's digit is green, the loss count's digit red,
+                 and the rate tail wears the colour of the side that is
+                 ahead: red while the losses lead, green once the wins
+                 strictly lead. -->
             <TextView
                 android:id="@+id/winloss_value"
                 style="@style/QorValue"
@@ -912,7 +935,10 @@
                 <!-- v3.4.0: the volume caret's one law, the same: the
                      theme caret anchors the mount's TOP-RIGHT too, the
                      closed 43dp face's own station, the open rows' own
-                     roll-up tap. -->
+                     roll-up tap. v3.6.2 owner order 2026-11-01: the
+                     standing margin is written in code per
+                     centerDropdownCaret, exact middles in both states;
+                     the margin below is only the first layout's floor. -->
                 <ImageView
                     android:id="@+id/theme_arrow"
                     android:layout_width="20dp"
