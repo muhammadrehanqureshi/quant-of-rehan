@@ -1641,6 +1641,21 @@ to sixty seconds. The status tile therefore also carries the app's own
      the orphan law stands so every dot still wears a filament.
   5. The version bump is versionCode 82 / versionName 2.3.15.
 
+**Version 3.6.0, versionCode 96.**
+
+  Owner order of 2026-10-31: "make sure across the app, the data is same and
+  correct data from my own broker's feed, I don't want to see any kind of
+  conflict with my data or my app, quant of Rehan and the app as well should
+  have the latest and correct form of data, buy and sell volume can only
+  increase, they can never decrease during the day." The whole app reads ONE
+  acknowledged frame per stock, band and Karachi day, stored by the relay
+  after it refuses every post-market frame, so the card, the search page and
+  the dropdown rankings cannot disagree with each other or with the broker's
+  own feed; the buy and sell volumes those rows print can only move forward
+  in the day (a bigger value or an unchanged one, never a decrease), and the
+  searches / prices / card surfaces verify each of them against the same
+  stored pair they are read from.
+
 **Version 3.5.0, versionCode 95.**
 
   Owner order of 2026-10-31: "when I tap on the drop down menus, make
