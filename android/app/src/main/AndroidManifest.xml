@@ -377,11 +377,22 @@
      the gap between the line and the option below it, for every pair
      and both menus, and the line re-inks with the worn theme in the
      same frame the plates re-ink.
+     versionCode 96 / versionName 3.6.0 belong to the owner order
+     2026-10-31 ("make sure across the app, the data is same and correct
+     data from my own broker's feed... buy and sell volume can only
+     increase, they can never decrease during the day... build the
+     latest apk under 3.6.0"): the whole app answers ONE frame per
+     stock, the acknowledged regular-session frame the relay stores
+     after refusing every post-market tail, so the card, the search
+     page and the rankings cannot disagree; the buy and sell volumes
+     they print can only move forward in the day (an increase or an
+     unchanged value, never a decrease), and every app surface's own
+     data law stays the lookup table which already met that truth.
      -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="pk.quantofrehan"
-    android:versionCode="95"
-    android:versionName="3.5.0">
+    android:versionCode="96"
+    android:versionName="3.6.0">
 
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="30"/>
 
