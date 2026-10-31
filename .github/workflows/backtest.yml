@@ -255,6 +255,6 @@ jobs:
           name: self-improve-${{ github.run_id }}
           path: |
             data/research/self_improve_report.json
-            data/research/experiments/
+            data/research/experiments.jsonl
           if-no-files-found: warn
           retention-days: 90
