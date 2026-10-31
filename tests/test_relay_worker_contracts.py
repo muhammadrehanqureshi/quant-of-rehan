@@ -211,11 +211,14 @@ class RelayWorkerContractTest(unittest.TestCase):
         CLOSED trades only, and both-zero answers a null rate.
         """
         self.assertIn("const TRADE_OUTCOME_LABELS = new Set([", self.source,
-                      "only closed trade labels count")
-        self.assertIn('"TP_FIRST", "SL_FIRST", "SL_AMBIG", "TIMEOUT",',
-                      self.source)
-        self.assertIn("function winLossFromSessions(sessions) {", self.source)
-        self.assertIn("if (net > 0) wins += 1; else losses += 1;", self.source)
+                      "only closed trade outcomes count")
+        # The archive's own field is `outcome`, named by
+        # src/signals/trade_state.py and scripts/intraday_pipeline.py's
+        # run_finalize; its closed-trade values are the four exits the
+        # paper trade can reach.
+        self.assertIn('"TARGET_HIT", "STOP_HIT", "STOP_AMBIGUOUS", '
+                      '"CLOSED_AT_SESSION_END",', self.source)
+        self.assertIn("session.outcome", self.source)
         self.assertIn("const WINLOSS_CACHE_SECONDS = 300;", self.source)
         self.assertIn('relayList(env, "RESEARCH:OUTCOME:", 1000)', self.source)
         self.assertIn('kvPut(env, "RESEARCH:WINLOSS"', self.source)
