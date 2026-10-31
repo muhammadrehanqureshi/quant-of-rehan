@@ -239,6 +239,17 @@ def run_search(panel: pd.DataFrame, data_hash: str, seed: int,
             "decision": decision,
         })
         rows.append(row)
+        # Every trial counts and every trial is READ (SO-3): the row is
+        # echoed to the run's own log, because a runner's filesystem dies
+        # with the runner - the first search's 13 rows were recorded in
+        # the registry and carried nowhere else, so their per-variant
+        # discovery numbers could only be described, never shown.
+        print(f"[engine] {name}: {decision} "
+              f"n={discovery_summary.get('n')} "
+              f"win_rate={discovery_summary.get('win_rate')} "
+              f"net_expectancy={discovery_summary.get('net_expectancy')} "
+              f"no_entry={discovery_summary.get('no_entry')} "
+              f"kill={why}", flush=True)
         if killed:
             continue
         validation_labels = _in_split(labels, splits["validation"])
