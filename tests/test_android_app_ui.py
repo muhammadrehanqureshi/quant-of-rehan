@@ -3887,9 +3887,12 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         self.assertIn("row.setPadding(dp(10), dp(7), dp(14), dp(7));", main)
         # The tile's lift is the screen's own share, read from the
         # display's own metrics on the carrier the tile rides: 3% now,
-        # which is the ordered 4% below the v3.1.0 law's 7%.
+        # which is the ordered 4% below the v3.1.0 law's 7%. v3.6.1
+        # (owner order 2026-10-31): the lift is never negative - Math.max
+        # floors it at zero - and the same line lives in pinNavTile(),
+        # which the theme pass calls too, so no look can unpin it.
         self.assertIn("findViewById(R.id.nav_carrier)", main)
-        self.assertIn("lift.bottomMargin = (int) (screen * 0.03f);", main)
+        self.assertIn("Math.max(0, (int) (screen * 0.03f));", main)
 
     def test_v2_3_20_the_dropdown_never_reads_as_a_second_window(self):
         """Owner order 2026-10-28: "when i tap on the drop down menu,
