@@ -1340,8 +1340,9 @@ class StatusPulseTest(unittest.TestCase):
         self.assertIn('get(base + "/quotes", null)', watcher)
         self.assertIn("if (index != null && index.optBoolean(\"fresh\", false))", watcher)
         self.assertIn("!quote.optBoolean(\"fresh\", false)", watcher)
-        self.assertIn("function applyLiveQuotes(snapshot, quotes, now, env)",
-                      worker)
+        self.assertIn(
+            "async function applyLiveQuotes(env, snapshot, quotes, now, "
+            "ackDay)", worker)
         full = watcher[watcher.index("static void fetchStatus("):][:1200]
         self.assertIn("applyLiveQuotes(market, base);", full)
         live = watcher[watcher.index("static void fetchLive("):]
