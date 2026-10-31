@@ -835,6 +835,9 @@ public class MainActivity extends Activity {
             return;
         }
         themeMenu.removeAllViews();
+        // The rebuilt menu owns its rows again, so its divider list
+        // starts empty; one law with buildVolumeMenu's own rebuild.
+        menuDividers.clear();
         for (int i = 0; i < THEME_LABELS.length; i++) {
             final int index = i;
             TextView row = menuRow(getString(THEME_LABELS[index]));
@@ -849,6 +852,13 @@ public class MainActivity extends Activity {
                     applyThemeToInputs(index);
                 }
             });
+            // Owner order 2026-10-31: a line between two adjacent sub
+            // menu options, before every row that has one above it. No
+            // line above the first option and none under the last: the
+            // menu's own edges already bound the list.
+            if (i > 0) {
+                themeMenu.addView(menuDivider());
+            }
             themeMenu.addView(row);
         }
         themeIndex = Math.max(0, Math.min(themeIndex,
@@ -1098,6 +1108,9 @@ public class MainActivity extends Activity {
         // icons and the dropdown arrows in the same frame as the cover,
         // never one theme late.
         paintNavSelection();
+        // Owner order 2026-10-31: the dropdown menus' divider lines are
+        // part of the same surface, re-inked in the same frame.
+        repaintMenuDividers();
     }
 
     /** One rounded plate per theme, built once and reused (v1.9.13). */
@@ -1178,6 +1191,9 @@ public class MainActivity extends Activity {
             return;
         }
         volumeSplitMenu.removeAllViews();
+        // The rebuilt menu owns its rows again, so its divider list
+        // starts empty: one law with buildThemeMenu's own rebuild.
+        menuDividers.clear();
         // The rows are the captions, in v2.2.5's own order (the rising
         // prices first); the index to ranking mapping lives at
         // paintVolumeReveal alone: row i is volumeSplitChoice i + 1.
@@ -1196,6 +1212,12 @@ public class MainActivity extends Activity {
                 showVolumeMenu(false);
                 paintVolumeReveal();
             });
+            // Owner order 2026-10-31: the line between the two sub menu
+            // options, the same spacing law buildThemeMenu's rows obey
+            // (one law, two menus).
+            if (i > 0) {
+                volumeSplitMenu.addView(menuDivider());
+            }
             volumeSplitMenu.addView(row);
         }
         // The closed box reads the placeholder until he picks one; the
@@ -1464,6 +1486,42 @@ public class MainActivity extends Activity {
         row.setMinimumHeight(dp(43));
         row.setText(dropdownLine(line));
         return row;
+    }
+
+    /** The open menus' own divider between two adjacent sub menu
+     *  options (owner order 2026-10-31, "when I tap on the drop down
+     *  menus, make sure you have a line between 2 separate sub menu
+     *  options, the difference between the line and all the sub menus
+     *  should be exactly the same"). The line is ONE dp tall, its own
+     *  left air the row's 10dp column and its right air the row's
+     *  14dp, so the line spans exactly the typing column the options
+     *  print in. Each row's own 7dp top/bottom padding meets the
+     *  line's own 7dp top/bottom air, so the distance above the line
+     *  and below it is the same 14dp, for EVERY pair of adjacent
+     *  options, in BOTH menus. The ink rides the theme's edge and is
+     *  re-inked by one theme pass (menuDividers).
+     */
+    private final List<View> menuDividers = new ArrayList<>();
+
+    private View menuDivider() {
+        View line = new View(this);
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(1));
+        params.setMargins(dp(10), dp(7), dp(14), dp(7));
+        line.setLayoutParams(params);
+        line.setBackgroundColor(edgeInk());
+        menuDividers.add(line);
+        return line;
+    }
+
+    /** One theme pass re-inks every open menu's divider (edgeInk is
+     *  the same ink the tiles' edge draws from), so a picked theme
+     *  never leaves the previous look's line behind (v2.3.21's law). */
+    private void repaintMenuDividers() {
+        int ink = edgeInk();
+        for (View line : menuDividers) {
+            line.setBackgroundColor(ink);
+        }
     }
 
     /**

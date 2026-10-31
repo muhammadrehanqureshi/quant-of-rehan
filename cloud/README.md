@@ -27,8 +27,13 @@ status surface, on the Cloudflare edge off your PC.
   (src/notify/owner_email.py) from the Actions jobs instead.
 - `GET /signals` (admin token): the app's signal feed; `POST /signals`
   stores new signal lines from the local runner
-- Cron triggers do scan dispatch and card upkeep only; the market open and
-  close texts travel by owner email, and no cron sends a chat message.
+- `GET /stock`, `GET /prices`: the app's search answers; both draw from the
+  relay's acknowledged-frame store (owner order 2026-10-31), which keeps
+  one regular-session frame per Karachi day, band and symbol, clamped so
+  the B/S pair only moves as the day's own volume grows.
+- Cron triggers do scan dispatch and card upkeep only; owner order
+  2026-10-31 retires the market open/close/break emails entirely, and no
+  cron sends a chat message.
 
 | Event | Mon-Thu | Friday | Trigger (UTC) |
 |---|---|---|---|

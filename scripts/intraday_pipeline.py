@@ -55,6 +55,7 @@ from src.data.sessions import (  # noqa: E402
 )
 from src.signals import momentum_scanner as scanner  # noqa: E402
 from src.signals import trade_state  # noqa: E402
+from src.signals import adaptive_memory  # noqa: E402
 from src.signals.trade_state import SessionState, State  # noqa: E402
 from src.research import session_history  # noqa: E402
 from src.research.forward_validation import evaluate_gate  # noqa: E402
@@ -308,26 +309,6 @@ def archive_signature(payload: dict) -> str:
     ).hexdigest()
 
 
-def slot_email(payload: dict) -> None:
-    """Email the owner the slot's full verdict, when this runner may.
-
-    Gated on EMAIL_SLOT_VERDICTS=1, which only the scheduled Actions slots set
-    (intraday-capture.yml). The one shared email channel
-    (src/notify/owner_email.py) keeps exactly-once per slot through its
-    comment ledger marker `slot-verdict:<day>:<HH:MM>`, so a second fire, a
-    band backstop or a replay cannot double-send the same slot.
-    """
-    if os.environ.get("EMAIL_SLOT_VERDICTS", "").strip() != "1":
-        return
-    try:
-        slot = relay_slot(payload.get("slot") or "10:00")
-        marker = f"slot-verdict:{payload.get('date')}:{slot}"
-    except ValueError:
-        print(f"slot email skipped: unusable slot {payload.get('slot')!r}")
-        return
-    email_signal(slot_verdict_text(payload), marker)
-
-
 def archive_verdict(state: SessionState, payload: dict, route: str,
                     body: dict) -> bool:
     """Archive the verdict once per DISTINCT answer, not once per scan.
@@ -348,62 +329,6 @@ def archive_verdict(state: SessionState, payload: dict, route: str,
         state.note_archive(signature)
         state.save()
     return ok
-
-
-def slot_verdict_text(payload: dict) -> str:
-    """The full detail of one scan slot, exactly as the owner asked for it.
-
-    Everything a decision rested on, in one message: the verdict, why, the
-    data state, the market, the ranked candidates, and, on a NO TRADE, the
-    gate rejection counts that say why nothing passed.
-    """
-    quality = payload.get("data_quality") or {}
-    market = payload.get("market") or {}
-    state = payload.get("trade_state") or {}
-    delivery = payload.get("delivery") or {}
-    lines = [
-        f"SLOT VERDICT {payload.get('date')} {payload.get('slot')} PKT",
-        "",
-        f"Verdict: {payload.get('status')}",
-        f"Reason: {payload.get('reason')}",
-        f"KMIALL scanned: {quality.get('symbols_with_bars')}/{quality.get('symbols_expected')} "
-        f"({(quality.get('coverage') or 0) * 100:.1f}% of the universe, "
-        f"{quality.get('rankable_symbols')} rankable, "
-        f"{quality.get('leaders_fresh', 0)}/{quality.get('leader_symbols', 0)} "
-        "volume leaders fresh)",
-        "",
-        f"Market: {market.get('status', 'UNKNOWN')} "
-        f"(breadth {(market.get('breadth') or 0):.1%}, "
-        f"median {(market.get('median_return') or 0) * 100:+.2f}%)",
-        "",
-        f"Source: {quality.get('source', 'unknown')}. "
-        f"Bars seen {quality.get('duplicate_bars')} duplicate rows on the wire, "
-        f"malformed {quality.get('malformed_bars')}, "
-        f"volume {'available' if quality.get('volume_available') else 'NOT available'}",
-    ]
-    if payload.get("ranked_top"):
-        lines.append("")
-        lines.append("Ranked top candidates that DID pass every gate:")
-        for row in payload["ranked_top"][:8]:
-            price = (row.get("price") or {})
-            lines.append(
-                f"  {row.get('symbol')} score {row.get('score')} "
-                f"entry {price.get('last') if price else row.get('entry')} "
-                f"stop {row.get('stop_loss')} target {row.get('target')} "
-                f"net R/R {row.get('net_reward_risk')}")
-    tally = payload.get("gate_tally") or {}
-    if tally:
-        lines.append("")
-        lines.append("Every gate and how many symbols each one rejected:")
-        lines.extend(f"  {line}" for line in scanner.gate_tally_lines(tally, limit=12))
-    lines.extend([
-        "",
-        f"Trade state: {state.get('state')} (trades today: "
-        f"{state.get('trades_today')})",
-        f"Delivery: {payload.get('delivered') or 'none'} "
-        f"({delivery.get('state') or 'no delivery attempt this slot'})",
-    ])
-    return "\n".join(lines)
 
 
 def archive(route: str, payload: dict) -> bool:
@@ -722,14 +647,57 @@ def run_scan(slot: str, capture: Path | None = None,
         archive_verdict(state, payload, "/research/observation",
                         {"date": day.isoformat(), "slot": slot,
                          "snapshot": payload})
-        # Owner order 2026-10-28: email the slot's full verdict on schedule.
-        slot_email(payload)
         print(json.dumps(payload, indent=2, allow_nan=False))
         return payload
 
     ai_status = {"active": False, "reason": "Kalman flip rules have no daily-model routing"}
     result = scanner.select_one(session, quality)
     context = result.market
+
+    # Owner order 2026-10-31 ("ML engine/concept that will be self learning.
+    # Like an actual pro trader. Learn from your mistakes. Be with the
+    # market. Don't go against the market."): the ONE orchestrator consults
+    # the measured memory before anything is delivered, so both the
+    # one-second band loop and the scheduled slots learn from the closed
+    # trades the research archive banks. The strict Kalman flip law is
+    # untouched; the memory only refuses what its own record says failed.
+    adaptive_note: dict = {"memory": None, "veto": None,
+                           "error": None}
+    try:
+        memory = adaptive_memory.load_cached()
+        adaptive_note["memory"] = memory.as_dict()
+        if result.status == scanner.TRADE and result.candidate \
+                and not state.trade_taken:
+            learned_veto = memory.entry_veto(
+                result.candidate.get("symbol"), as_of)
+            if not learned_veto:
+                learned_veto = memory.market_veto(context.get("median_return"))
+            if learned_veto:
+                adaptive_note["veto"] = learned_veto
+                if config.OWNER_ORDERED_CALLS:
+                    result = scanner.ScanResult(
+                        scanner.CALL_WATCH,
+                        f"adaptive memory veto stands ({learned_veto}); "
+                        "ranked top carried as an unvalidated watch",
+                        quality, context, candidate=result.candidate,
+                        ranked=result.ranked,
+                        coverage_text=f"{quality.symbols_with_bars}/"
+                                      f"{quality.symbols_expected} "
+                                      f"({quality.coverage:.1%})",
+                        gate_tally=dict(result.gate_tally or {}))
+                else:
+                    result = scanner.ScanResult(
+                        scanner.NO_TRADE,
+                        f"adaptive memory veto stands ({learned_veto}); "
+                        "the strict entry laws are untouched",
+                        quality, context, candidate=result.candidate,
+                        ranked=result.ranked,
+                        coverage_text=f"{quality.symbols_with_bars}/"
+                                      f"{quality.symbols_expected} "
+                                      f"({quality.coverage:.1%})",
+                        gate_tally=dict(result.gate_tally or {}))
+    except Exception as exc:  # noqa: BLE001 - the scan outlives the memory
+        adaptive_note["error"] = f"{type(exc).__name__}: {exc}"
 
     if state.in_position():
         exit_event = monitor_exit(state, session)
@@ -873,6 +841,7 @@ def run_scan(slot: str, capture: Path | None = None,
         "coverage_text": result.coverage_text,
         "trade_state": state.to_dict(),
         "ai": ai_status,
+        "adaptive": adaptive_note,
         "universe_size": len(symbols),
         "universe_sha256": universe_fingerprint(symbols),
         "scanner_version": config.SCANNER_VERSION,
@@ -884,8 +853,6 @@ def run_scan(slot: str, capture: Path | None = None,
     archive_verdict(state, payload, "/research/observation",
                     {"date": day.isoformat(), "slot": slot,
                      "snapshot": payload})
-    # Owner order 2026-10-28: email the slot's full verdict on schedule.
-    slot_email(payload)
     print(json.dumps(payload, indent=2, allow_nan=False))
     return payload
 
@@ -965,11 +932,16 @@ def run_finalize(capture: Path | None = None) -> dict:
     state.append_journal(record)
     state.save()
 
+    # Owner order 2026-10-31: the closed trade this record banks is read
+    # back THROUGH the memory before the outcome is written, so the next
+    # session's scanner trades against the learned state.
+    adaptive_snapshot = adaptive_memory.load_cached(extra=[record]).as_dict()
     outcome = {
         "date": day.isoformat(),
         "scanner_version": config.SCANNER_VERSION,
         "outcomes_by_rule": {config.SCANNER_VERSION: record},
         "data_quality": quality.as_dict(),
+        "adaptive": adaptive_snapshot,
     }
     # Owner defect found 2026-10-16: this was evaluate_gate([]). The gate was
     # asked to score an empty list on every finalize, so sessions_collected

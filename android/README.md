@@ -1641,6 +1641,22 @@ to sixty seconds. The status tile therefore also carries the app's own
      the orphan law stands so every dot still wears a filament.
   5. The version bump is versionCode 82 / versionName 2.3.15.
 
+**Version 3.5.0, versionCode 95.**
+
+  Owner order of 2026-10-31: "when I tap on the drop down menus, make
+  sure you have a line between 2 separate sub menu options, the
+  difference between the line and all the sub menus should be exactly
+  the same." Both open menus (THEMES and CUSTOM SCRIPS OF VOL.) draw
+  one 1dp line between each pair of adjacent options now; the line's
+  top and bottom air are each 7dp, meeting the row's own 7dp pads, so
+  the gap between the line and the option above it is exactly the gap
+  between the line and the option below it, 14dp, for every pair and
+  both menus. No line above the first option and none under the last:
+  the menu's own edges already bound the list. The line rides the
+  theme's edge ink and is re-inked by the theme pass in the same frame
+  the plates re-ink, so a picked theme never leaves the previous
+  look's line behind.
+
 **Version 3.4.0, versionCode 94.**
 
   Owner order of 2026-10-30, with two photos: "when i tap on the drop down
