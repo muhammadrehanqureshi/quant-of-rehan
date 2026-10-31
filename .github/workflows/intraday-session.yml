@@ -33,8 +33,9 @@ name: KMIALL session scan loop
 #   10:32 UTC = 15:32 PKT  Mon-Thu post-market (15:32 to 15:52)
 #   04:17 UTC = 09:17 PKT  Friday band 1 (09:17 to 12:00, midday break after)
 #   09:32 UTC = 14:32 PKT  Friday band 2 (14:32 to 16:30)
-#   11:32 UTC = 16:32 PKT  Friday post-market (16:32 to 16:52; owner order
-#                          2026-10-24, emails the post and post-close edges)
+#   11:32 UTC = 16:32 PKT  Friday post-market (16:32 to 16:52; owner
+#                          order 2026-10-31: the loop emails nothing here,
+#                          the market event emails are retired)
 #
 # Minutes: GitHub Actions is free on a public repository, and this repository
 # is public as of the owner's 2026-10-14 order, so the 2,000-minute private
@@ -52,10 +53,10 @@ on:
     - cron: "32 9 * * 5"       # 14:32 PKT, Friday session 2
     # Owner order 2026-10-24: Friday's post-market window (16:32 to 16:49)
     # had no loop at all - the band-2 job ends on the 16:30 close's
-    # finalize - so the 16:32 post and 16:49 post-close emails depended
-    # on GitHub crons that had just staged a mass drop. The same
-    # 20-minute post-market window Monday-Thursday already has is
-    # mirrored here.
+    # finalize - so the day's post-market banking depended on GitHub crons
+    # that had just staged a mass drop. The same 20-minute post-market
+    # window Monday-Thursday already has is mirrored here. (Owner order
+    # 2026-10-31: the window emails nothing; signals only.)
     - cron: "32 11 * * 5"     # 16:32 PKT, Friday post-market
   workflow_dispatch:
     inputs:
@@ -79,12 +80,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 190
     env:
-      # Owner order 2026-10-24: the token was missing from this job, so
-      # the passenger's every send raised (403 permission denied) and
-      # the loop emailed NOTHING on the day the events went missing -
-      # pre, open, break, reopen, close all silently failed inside
-      # scan_loop's passenger. github.token is the workflow's own
-      # token; `issues: write` above is already granted.
+      # The journal token: actual intraday signals (and deduped ops
+      # alerts) still email the owner through the watched issue (owner
+      # order 2026-10-22). Owner order 2026-10-31: the market event
+      # emails (pre, open, break, reopen, close, post) are retired
+      # entirely; the ONLY emails from Actions are intraday signals.
       GITHUB_TOKEN: ${{ github.token }}
       # Owner defect found 2026-10-28: the loop ran every cycle with "no relay
       # URL configured": src/data/live_card.py (and every other strict
@@ -100,10 +100,6 @@ jobs:
       # are untouched: no position opens, no one-trade claim is taken
       # (src/config.py OWNER_ORDERED_CALLS).
       OWNER_ORDERED_CALLS: "1"
-      # The market event emails are the loop's passenger now (owner order
-      # 2026-10-23): the phase edges it already decides each second email
-      # the owner through the watched issue, so a GitHub cron stall can
-      # no longer silence a break, a close or an open.
       OWNER_EMAIL_ISSUE: "81"
       RELAY_ADMIN_TOKEN: ${{ secrets.RELAY_ADMIN_TOKEN }}
       # Band-state persistence (src/data/band_state.py): the day's tape and

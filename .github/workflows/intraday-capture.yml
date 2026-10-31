@@ -92,11 +92,12 @@ jobs:
       KMIALL_UNIVERSE_CONFIRMED: ${{ vars.KMIALL_UNIVERSE_CONFIRMED }}
       PAPER_TRADING_ENABLED: "true"
       LIVE_TRADING_ENABLED: "false"
-      # Owner order 2026-10-28: every scheduled slot emails the FULL verdict, on
-      # time, exactly once (src/notify/owner_email.py marks
-      # slot-verdict:<day>:<slot>; a second fire or a manual dispatch cannot
-      # double-send the same slot). Only this workflow sets it.
-      EMAIL_SLOT_VERDICTS: "1"
+      # Owner order 2026-10-31: slot verdict emails are retired. The
+      # ONLY owner emails from Actions during a market day are the
+      # actual intraday signals (the trade entry and the call watch,
+      # both already sent from this pipeline) and the deduped ops
+      # alerts. The NO TRADE slot verdicts stay on the app card and the
+      # run summary only.
       # Owner order 2026-10-29 ("start sending me signals"): the scheduled
       # backstop slots deliver the same CALL WATCH the session loop delivers
       # (src/config.py OWNER_ORDERED_CALLS), so a band the session loop

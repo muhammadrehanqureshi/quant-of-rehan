@@ -577,14 +577,27 @@ class PipelineCycleTest(unittest.TestCase):
         self.assertEqual(self.relay.calls, [])
         self.assert_real_forward_untouched()
 
-    def test_the_slot_verdict_email_carries_the_full_detail_once(self):
-        """Owner order 2026-10-28: the scheduled slot emails the FULL verdict.
+    def test_no_slot_verdict_email_exists_any_more(self):
+        """Owner order 2026-10-31: only intraday signals email the owner.
 
-        The email is the decision's whole ledger, not a headline: verdict,
-        reason, coverage, market, the ranked candidates and the per-gate
-        rejection counts that say why nothing or something passed. The slot
-        marker (slot-verdict:<day>:<slot>) keeps a second fire from sending
-        the same slot twice through the owner email channel's own ledger.
+        The NO TRADE slot verdicts stay on the app card, the archived
+        observation and the run summary; the slot email function and its
+        env gate are gone entirely, so nothing can re-introduce them from
+        this pipeline. Every decision's detail still lives in the payload
+        the gate_tally carries.
+        """
+        source = (ROOT / "scripts" / "intraday_pipeline.py").read_text(
+            encoding="utf-8")
+        self.assertNotIn("slot_verdict_text", source)
+        self.assertNotIn("EMAIL_SLOT_VERDICTS", source)
+        self.assertNotIn("slot-verdict:", source)
+
+    def test_the_scan_still_carries_the_whole_verdict_in_its_payload(self):
+        """The detail the retired email carried is the payload's own now.
+
+        Verdict, reason, the measured gate counts: one scan's full answer
+        is still written with everything a later reader needs, only on the
+        app card and in the archive instead of the inbox.
         """
         with contextlib.redirect_stdout(io.StringIO()):
             payload = run_scan("10:00", self.capture)
@@ -592,30 +605,9 @@ class PipelineCycleTest(unittest.TestCase):
         self.assertTrue(payload.get("gate_tally"),
                         "the payload named no gate rejections"
                         " -- the why was not measured")
-        text = pipeline.slot_verdict_text(payload)
-        self.assertIn(f"SLOT VERDICT {FRIDAY.isoformat()} 10:00 PKT", text)
-        self.assertIn("Ranked top candidates that DID pass every gate", text)
-        self.assertIn("Every gate and how many symbols each one rejected", text)
-        self.assertIn("Trade state:", text)
-
-        with patch.dict(os.environ, {**os.environ,
-                                     "EMAIL_SLOT_VERDICTS": "1"}), \
-                patch.object(pipeline, "email_signal") as mail:
-            pipeline.slot_email(payload)
-        self.assertEqual(mail.call_count, 1)
-        marker = mail.call_args[0][1]
-        self.assertEqual(marker, f"slot-verdict:{FRIDAY.isoformat()}:10:00")
-
-    def test_the_slot_email_stays_silent_without_the_env(self):
-        """Only the scheduled Actions slots email; the PC and band loop do not."""
-        saved = os.environ.pop("EMAIL_SLOT_VERDICTS", None)
-        try:
-            with patch.object(pipeline, "email_signal") as mail:
-                pipeline.slot_email({"date": FRIDAY.isoformat(), "slot": "10:00"})
-            mail.assert_not_called()
-        finally:
-            if saved is not None:
-                os.environ["EMAIL_SLOT_VERDICTS"] = saved
+        self.assertIn("status", payload)
+        self.assertIn("reason", payload)
+        self.assertIn("data_quality", payload)
 
     def test_the_research_archive_only_receives_changed_verdicts(self):
         """Restating one unchanged verdict spent the relay's KV daily quota.

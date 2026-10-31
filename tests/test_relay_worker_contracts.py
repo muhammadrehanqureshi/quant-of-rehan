@@ -160,26 +160,35 @@ class RelayWorkerContractTest(unittest.TestCase):
 
     # --------------------------------------------------------- market alerts
 
-    def test_market_texts_live_on_the_email_channel_not_the_worker(self):
-        """Owner order 2026-10-29: the worker sends no market message.
+    def test_market_event_emails_are_gone(self):
+        """Owner order 2026-10-31: no market event emails exist at all.
 
-        The owner's exact sentences are owned by the Python side (the band
-        edges in src/data/sessions.py, the session texts in
-        src/notify/market_watch.py) and travel by owner email from the
-        Actions jobs. The worker carries only the app card's own condition
-        strings, which must not borrow the notification wording.
+        The open, the close and the break no longer email the owner from
+        ANY path: the dedicated market-email workflow and its script are
+        deleted, the band loop's market_watch passenger is deleted, and
+        the only owner emails an Actions job may send are the actual
+        intraday signals (the trade entry and the call watch) and the
+        deduped ops alerts. The worker carries only the app card's own
+        condition strings, which must not borrow the notification
+        wording.
         """
         for retired in ("MSG_MARKET", "Market is open. Quant is online now.",
                         "Market is closed. Quant is sleeping now."):
             self.assertNotIn(retired, self.source)
-        watch = (ROOT / "src" / "notify" / "market_watch.py").read_text(
+        for gone in (".github/workflows/market-email.yml",
+                     "scripts/market_email.py",
+                     "src/notify/market_watch.py",):
+            self.assertFalse((ROOT / gone).exists(),
+                             f"the retired market email path must be gone: {gone}")
+        loop_source = (ROOT / "scripts" / "scan_loop.py").read_text(
             encoding="utf-8")
+        self.assertNotIn("MarketEventWatcher", loop_source)
+        self.assertNotIn("market_events", loop_source)
+        self.assertNotIn("EMAIL_SLOT_VERDICTS",
+                         (ROOT / ".github" / "workflows" /
+                          "intraday-capture.yml").read_text(encoding="utf-8"))
         sessions_source = (ROOT / "src" / "data" / "sessions.py").read_text(
             encoding="utf-8")
-        # The two living copies of the owner's exact open sentences: the
-        # session texts on the email channel (market_watch) and the band
-        # edge texts the loop delivers (sessions). SO-9: never reworded.
-        self.assertIn("PSX is now open and the Quant will be scanning the market", watch)
         self.assertIn("Market is open. Quant is online now.", sessions_source)
 
     def test_market_transition_requires_fresh_market_wide_reg_evidence(self):
@@ -231,6 +240,62 @@ class RelayWorkerContractTest(unittest.TestCase):
         self.assertIn("previous.identity === identity", self.source,
                       "the transition ledger no longer dedupes a day:state")
         self.assertIn('let evidence = "session_schedule";', self.source)
+
+    def test_one_truth_per_stock_per_day(self):
+        """Owner order 2026-10-31: the app cannot answer one stock twice.
+
+        Three laws are pinned from the worker's sources:
+
+          * a frame whose own tick sits outside its day's regular bands
+            never enters the quote store, so the search can never answer
+            with the post-market tail the card's regular session never
+            saw;
+          * every display path (the merged card, /stock, /prices) reads
+            and advances ONE acknowledged frame per Karachi day, band
+            and symbol, stored in the durable object;
+          * the acknowledged pair is clamped, so the printed B and S can
+            never decrease within a day: volume increases, or it does
+            not print.
+        """
+        self.assertIn("function frameIsRegularSession(quote)", self.source)
+        self.assertIn("function regularBandIndexOf(quote)", self.source)
+        self.assertIn("REGULAR_SESSION_GRACE_MS", self.source)
+        # Store law: the post-market tail is refused at the DO's own
+        # update route, before any row can be merged.
+        update_route = self.source[self.source.index(
+            'if (request.method === "POST" && url.pathname === "/update")')]
+        update_route = update_route[:update_route.index(
+            "const newer = (current, incoming, stamp)")]
+        self.assertIn("frameIsRegularSession(quote)", update_route)
+        self.assertIn("refused_post_session", update_route)
+        # The acknowledged store lives in the durable object.
+        hub = self.source[self.source.index("export class QuoteHub")]
+        self.assertIn("/ack-upsert", hub)
+        self.assertIn("/ack-splits", hub)
+        self.assertIn("ackCandidate(frame)", hub)
+        self.assertIn("clampPair(parsed", hub)
+        # And every answer path reads the SAME stored pair.
+        self.assertIn("applyStoredFrame(row, storedRows[row.symbol])", self.source)
+        self.assertIn("applyStoredFrame(stock, stored)", self.source)
+        self.assertIn("ackRowsForDay(env, ackDay)", self.source)
+
+    def test_the_acknowledged_pair_can_only_move_forward(self):
+        """Owner order 2026-10-31: volume decreases are impossible prints.
+
+        The clamp's arithmetic is pinned: buy stays at or above its own
+        previous value and below the volume minus the previous sell, so
+        BOTH sides are monotone while their sum stays exactly the row's
+        own total.
+        """
+        clamp = self.source[self.source.index("function clampPair(candidate")]
+        clamp = clamp[:clamp.index("\nfunction", 10)]
+        self.assertIn("Math.max(buy, previous.buy_volume)", clamp)
+        self.assertIn("volume - previous.sell_volume", clamp)
+        self.assertIn("sell = volume - buy", clamp)
+        # An older total never moves the acknowledged row backwards.
+        hub = self.source[self.source.index("export class QuoteHub")]
+        self.assertGreaterEqual(
+            hub.index("previous.volume) >= parsed.volume"), 0)
 
     # ------------------------------------------------------- market alerts (text law moved)
 
