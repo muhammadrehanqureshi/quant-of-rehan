@@ -367,11 +367,21 @@
      brings the default face back. The settings page's own APP VERSION
      line reads the manifest, so the installed app shows the version the
      moment this build lands.
+     versionCode 95 / versionName 3.5.0 belong to the owner order
+     2026-10-31 ("when I tap on the drop down menus, make sure you have
+     a line between 2 separate sub menu options, the difference between
+     the line and all the sub menus should be exactly the same"): both
+     open menus (THEMES and CUSTOM SCRIPS OF VOL.) draw one 1dp line
+     between each pair of adjacent options, its top and bottom air each
+     7dp, so the gap between the line and the option above it is exactly
+     the gap between the line and the option below it, for every pair
+     and both menus, and the line re-inks with the worn theme in the
+     same frame the plates re-ink.
      -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="pk.quantofrehan"
-    android:versionCode="94"
-    android:versionName="3.4.0">
+    android:versionCode="95"
+    android:versionName="3.5.0">
 
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="30"/>
 

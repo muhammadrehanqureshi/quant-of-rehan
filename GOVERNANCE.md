@@ -190,13 +190,42 @@ nothing else about SO-7 moves.
   carries it to mrmrehanqureshi@gmail.com the moment the comment lands.
   Scheduled jobs run on GitHub Actions and the Cloudflare edge, never on the
   owner's PC, so the PC is not part of the delivery path either.
-- The owner receives, every trading day: "Quant is online now." at open,
-  and "Quant is sleeping now." at close, per the SO-8 schedule (owner order
-  2026-10-07 reworded the texts from the market/system phrasing). These
-  texts are fixed by the owner.
+- Owner order 2026-10-31, "remove the PSX market open/close/break emails
+  from github actions. I only want to receive intraday signals from
+  github actions during market days from now on": the market event
+  emails (pre, open, morning break, midday break, close, post, post close)
+  are retired entirely. The ONLY owner emails an Actions job may send are
+  the actual intraday signals (the trade entry and the call watch) and
+  the deduped ops alerts. The market phases still ride the app card, the
+  phone's own notifications and the run summaries.
 - Delivery is exactly once per event per day through the comment ledger's
   markers, and it fails closed with a clear log line when the send is
   impossible. No signal is ever silently dropped and none is ever fabricated.
+
+## Owner orders of 2026-10-31
+
+- "The app is still showing two different data for PRL... Data has to be
+  same/correct across the entire app including quant of Rehan intraday.":
+  ONE truth per stock. Every surface that answers "what did this stock
+  do today" (the card's leaders, the search box's answer and its rows,
+  the dropdown rankings, the intraday scanner) draws from the same
+  acknowledged frame the relay's store keeps, and the frame's own tick
+  time must sit inside the regular session (the post-market tail never
+  replaces a session answer).
+- "How could the buying and selling volume decrease? The volume can only
+  increase.": within one stock's one Karachi day, the printed B and S
+  only move as the day's own volume grows. The relay clamps every
+  answered pair against the day's acknowledged pair.
+- Dropdown menus carry a line between two adjacent sub menu options,
+  with EXACTLY the same gap between the line and the options above and
+  below it, in every dropdown.
+- "You need to have a ML engine/concept that will be self learning. Like
+  an actual pro trader. Learn from your mistakes. Be with the market.
+  Don't go against the market.": the quant's measured memory of its own
+  closed trades (src/signals/adaptive_memory.py) refuses a fresh setup
+  that its own record already failed: a losing hour bucket, a symbol on
+  a stop-out streak, and any confirmed entry against the market's own
+  direction. Nothing is learned that is not measured.
 
 ## Standing orders index
 

@@ -279,6 +279,33 @@ KALMAN_LAST_ENTRY_MINUTES = 30
 # Legacy momentum constants above are retained only by historical daily-bar
 # research. They have no decision path in the intraday scanner.
 
+# ------------------------------------------------------- adaptive memory
+# The quant's self-learning memory of its own closed trades (owner order
+# 2026-10-31: "ML engine/concept that will be self learning. Like an actual
+# pro trader. Learn from your mistakes. Be with the market. Don't go
+# against the market."). The memory reads the ONE session history the
+# pipeline banks (src/research/session_history.py) and vetoes a fresh
+# entry only where its OWN measured record says the setup failed before:
+# an hour bucket whose closed entries averaged worse than the floor over
+# at least the minimum, a symbol whose most recent entries each stopped
+# out, and any confirmed entry into a tape whose median is below the
+# floor. MINIMUMS are deliberately small-sample safe: a law with fewer
+# closed trades behind it says nothing rather than vetoing (SO-3).
+ADAPTIVE_MIN_BUCKET_TRADES = _number("ADAPTIVE_MIN_BUCKET_TRADES", 3)
+ADAPTIVE_MIN_BUCKET_NET = _number("ADAPTIVE_MIN_BUCKET_NET", -0.004)
+ADAPTIVE_SYMBOL_STOP_STREAK = _number("ADAPTIVE_SYMBOL_STOP_STREAK", 2)
+# An entry into a falling tape is a bet against the day's own direction.
+ADAPTIVE_MARKET_TREND_FLOOR = _number("ADAPTIVE_MARKET_TREND_FLOOR", 0.0)
+# Recency: a trade from yesterday weighs this much of one from today.
+ADAPTIVE_DECAY_PER_DAY = _number("ADAPTIVE_DECAY_PER_DAY", 0.85)
+# The hour buckets are fractions of the band's own span, so a Monday band
+# (6 hours) and a Friday band (2h43 and 2h) file on the one law (SO-8).
+ADAPTIVE_BUCKET_FRACTIONS = (0.25, 0.6)
+ADAPTIVE_BUCKET_NAMES = ("first quarter of the band", "middle of the band",
+                         "final quarter of the band")
+# The runner's own cache TTL for the history reads, in seconds.
+ADAPTIVE_REFRESH_SECONDS = _number("ADAPTIVE_REFRESH_SECONDS", 900)
+
 # ---------------------------------------------------------------- volatility
 # Session volatility regime, measured from the captured bars
 # (src/signals/volatility.py). The regime is REPORTED with every scan. The two
