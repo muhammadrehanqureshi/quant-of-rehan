@@ -388,11 +388,28 @@
      they print can only move forward in the day (an increase or an
      unchanged value, never a decrease), and every app surface's own
      data law stays the lookup table which already met that truth.
+     versionCode 97 / versionName 3.6.1 belong to the owner's orders of
+     2026-10-31 (the balance report: "the top option and the bottom
+     option are not balanced... have the same displacement for each
+     option on every drop down menu, same goes for custom scrips of
+     volume"; the orange and white report: "the nav tile gets stretched
+     to the bottom, and I can't even see it end" and "latest signal tile
+     gets on the quant status tile"; and the new tile: "a new tile on the
+     home page between quant status tile and latest signal tile, that
+     tile's heading would be W/L = W/L RATE", opened at W 0 / L 1 = 100%
+     because PRL's first Kalman Trend call hit its stop on 2026-10-30):
+     every dropdown option now stands at one and the same displacement
+     from its nearest line (the first option carries the whole 14dp to
+     the plate's top edge and the last to its bottom edge, in both
+     menus); the nav tile's 74dp height and its carrier's 3% lift are
+     re-pinned inside every theme pass, so no theme can stretch the tile
+     past the screen's edge or press the tiles above onto each other;
+     and the new tile names the closed-signal ledger the relay serves.
      -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="pk.quantofrehan"
-    android:versionCode="96"
-    android:versionName="3.6.0">
+    android:versionCode="97"
+    android:versionName="3.6.1">
 
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="30"/>
 

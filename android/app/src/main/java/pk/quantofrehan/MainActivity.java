@@ -211,6 +211,10 @@ public class MainActivity extends Activity {
     private TextView statusWord;
     private TextView statusDetail, signalList;
     private TextView marketIndex, marketLeaders;
+    /** W/L tile (owner order 2026-10-31): the win count, the loss count
+     *  and the losing rate, each drawn from the relay's ledger - never
+     *  from a local guess. */
+    private TextView winlossValue;
     /** The console's greeting above the QUANT STATUS tile (owner order
      *  2026-10-23). Its sentence flips at noon in Karachi (SO-8). */
     private TextView greeting;
@@ -430,6 +434,7 @@ public class MainActivity extends Activity {
         signalList = findViewById(R.id.signal_list);
         marketIndex = findViewById(R.id.market_index);
         marketLeaders = findViewById(R.id.market_leaders);
+        winlossValue = findViewById(R.id.winloss_value);
         thinkingOrb = (ThinkingOrb) findViewById(R.id.thinking_orb);
         // Owner order 2026-10-23 (v1.9.13): the six feature views were
         // declared but never assigned, so their features silently no-op'd
@@ -540,6 +545,7 @@ public class MainActivity extends Activity {
                 // The greeting is a home-page line, so it hides with the group.
         findViewById(R.id.greeting),
         findViewById(R.id.tile_status),
+        findViewById(R.id.tile_winloss),
                 findViewById(R.id.rule_status_signal),
                 findViewById(R.id.tile_signal),
                 findViewById(R.id.rule_after_signal),
@@ -594,30 +600,11 @@ public class MainActivity extends Activity {
         // display's own metrics: the bottom margin is exactly that air,
         // so the rides the same share higher on every screen it runs
         // on. The 30th's order lowers the lift by the four points it
-        // names, onto 3% of the screen.
-        android.view.View navCarrier = findViewById(R.id.nav_carrier);
-        if (navCarrier != null) {
-            float screen = getResources().getDisplayMetrics().heightPixels;
-            android.widget.LinearLayout.LayoutParams lift =
-                    (android.widget.LinearLayout.LayoutParams)
-                            navCarrier.getLayoutParams();
-            lift.bottomMargin = (int) (screen * 0.03f);
-            navCarrier.setLayoutParams(lift);
-        }
-
-        // v3.4.0 (owner order 2026-10-30, "the menu icons tile get so
-        // large that it goes so down the screen and doesn't even end"):
-        // the tile's height is a LAW, not a measure any repaint can
-        // negotiate: exactly its own icon law, the 42dp icon + 16dp air
-        // + 16dp air = 74dp the four icons and the plate actually
-        // stand in. The bottom air is the carrier's 3% screen share
-        // above, so the tile ends, always, on the screen it is pinned
-        // to - no theme pass can ever stretch it past its edge again.
-        android.view.View navTile = findViewById(R.id.nav_tile);
-        if (navTile != null) {
-            navTile.getLayoutParams().height = (int) dp(74);
-            navTile.requestLayout();
-        }
+        // names, onto 3% of the screen. The tile's 74dp icon law is
+        // v3.4.0's (owner order 2026-10-30): the tile ends, always.
+        // Both truths now live in pinNavTile(), so the theme pass can
+        // re-pin them too (owner order 2026-10-31).
+        pinNavTile();
 
         writeAppVersion();
 
@@ -840,7 +827,8 @@ public class MainActivity extends Activity {
         menuDividers.clear();
         for (int i = 0; i < THEME_LABELS.length; i++) {
             final int index = i;
-            TextView row = menuRow(getString(THEME_LABELS[index]));
+            TextView row = menuRow(getString(THEME_LABELS[index]),
+                    i == 0, i == THEME_LABELS.length - 1);
             row.setOnClickListener(v -> {
                 showThemeMenu(false);
                 if (index != themeIndex) {
@@ -1069,6 +1057,7 @@ public class MainActivity extends Activity {
         // cached one rounded drawable per theme and reused.
         View[] plates = {
                 findViewById(R.id.tile_status),
+                findViewById(R.id.tile_winloss),
                 findViewById(R.id.tile_signal),
                 findViewById(R.id.tile_market),
                 settingsPanel, searchPanel, tileVolume,
@@ -1081,7 +1070,7 @@ public class MainActivity extends Activity {
         }
         int[] headingIds = {
                 R.id.brand_title, R.id.status_label, R.id.signal_label,
-                R.id.search_heading, R.id.settings_heading,
+                R.id.winloss_label, R.id.search_heading, R.id.settings_heading,
                 R.id.market_heading, R.id.volume_heading,
                 R.id.themes_heading};
         for (int id : headingIds) {
@@ -1109,8 +1098,13 @@ public class MainActivity extends Activity {
         // never one theme late.
         paintNavSelection();
         // Owner order 2026-10-31: the dropdown menus' divider lines are
-        // part of the same surface, re-inked in the same frame.
+        // part of the same surface, re-inked in the same frame. And the
+        // nav tile's own size truths are re-pinned in the same pass too,
+        // so a theme's repaint can never stretch the tile past the
+        // screen's bottom edge or the W/L tile off its neighbour below
+        // (the orange and white report of 2026-10-31).
         repaintMenuDividers();
+        pinNavTile();
     }
 
     /** One rounded plate per theme, built once and reused (v1.9.13). */
@@ -1127,6 +1121,35 @@ public class MainActivity extends Activity {
             return getColor(R.color.bg_panel_edge);
         }
         return (themeAccentInk & 0x00FFFFFF) | 0x42000000;
+    }
+
+    /**
+     * The nav tile's size law, pinned in ONE place. The card's lift is
+     * the carrier's own 3% screen-share bottom margin, and the tile's
+     * height is the 74dp icon law (the 42dp icon + 16dp air + 16dp air
+     * the icons and the plate stand in). Measured against the owner's
+     * order of 2026-10-31 (orange and white): a theme pass repaints
+     * every plate, which walks a whole measure pass, and a measure can
+     * help the tile grow past its own law, so BOTH size truths are now
+     * re-pinned inside the theme pass too. No theme, no page and no
+     * repaint order can ever leave the tile stretched past the
+     * screen's own bottom edge again.
+     */
+    private void pinNavTile() {
+        android.view.View navCarrier = findViewById(R.id.nav_carrier);
+        if (navCarrier != null) {
+            float screen = getResources().getDisplayMetrics().heightPixels;
+            android.widget.LinearLayout.LayoutParams lift =
+                    (android.widget.LinearLayout.LayoutParams)
+                            navCarrier.getLayoutParams();
+            lift.bottomMargin = Math.max(0, (int) (screen * 0.03f));
+            navCarrier.setLayoutParams(lift);
+        }
+        android.view.View navTile = findViewById(R.id.nav_tile);
+        if (navTile != null) {
+            navTile.getLayoutParams().height = (int) dp(74);
+            navTile.requestLayout();
+        }
     }
 
     /**
@@ -1202,7 +1225,8 @@ public class MainActivity extends Activity {
                 getString(R.string.volume_split_caption)};
         for (int i = 0; i < volumeChoices.length; i++) {
             final int index = i;
-            TextView row = menuRow(volumeChoices[index]);
+            TextView row = menuRow(volumeChoices[index],
+                    i == 0, i == volumeChoices.length - 1);
             row.setOnClickListener(v -> {
                 volumeSplitChoice = index + 1;
                 // v3.1.0: the pick's label is saved beside its stamp, so
@@ -1522,6 +1546,25 @@ public class MainActivity extends Activity {
         for (View line : menuDividers) {
             line.setBackgroundColor(ink);
         }
+    }
+
+    // Owner order 2026-10-31 (balance report, BOTH menus): the middle
+    // options were vertically balanced and the first and last were not.
+    // Measured: an interior row stands 14dp from the line above it and
+    // 14dp from the one below - its own 7dp air plus the line's own 7dp
+    // air, at each corner - while the first row stood only 7dp from the
+    // plate's top edge and the last only 7dp from the bottom, because an
+    // edge has no line to share the air with. The fix keeps EVERY
+    // option's same displacement (owner's words): the edge rows carry
+    // the whole 14dp themselves - top air 14 on the FIRST and bottom air
+    // 14 on the LAST - so the plate's edge takes the divider's place and
+    // every option's own text now floats at one and the same distance
+    // from its nearest line above and below, in BOTH menus.
+    private TextView menuRow(String line, boolean first, boolean last) {
+        TextView row = menuRow(line);
+        row.setPadding(dp(10), first ? dp(14) : dp(7), dp(14),
+                last ? dp(14) : dp(7));
+        return row;
     }
 
     /**
@@ -2260,6 +2303,53 @@ public class MainActivity extends Activity {
             // its source timestamp keeps unchanged feed data honest.
             renderMarket(market);
         }
+        // The W/L tile rides the same card pass as the rest of the console:
+        // one repaint, one truth, never a second clock.
+        renderWinLoss(market);
+    }
+
+    /** The W/L tile (owner order 2026-10-31, "W/L = W/L RATE"): W green,
+     *  L red, and the rate red while the losing share is non-zero - since
+     *  the rate is the losing share, a rate of 0 prints green (the win
+     *  side's ink) instead of wearing the loss's red. The first reading
+     *  the ledger serves is 0/1 = 100%: the Kalman Trend call on PRL hit
+     *  its stop on 2026-10-30. The tile never fabricates: with the relay
+     *  reporting nothing yet, it stands at its waiting words (SO-3). */
+    private void renderWinLoss(Watcher.Market market) {
+        if (winlossValue == null) {
+            return;
+        }
+        if (market == null || market.wins == null || market.losses == null) {
+            winlossValue.setText(getString(R.string.winloss_waiting));
+            return;
+        }
+        // The whole answer is one line: "W 0 / L 1 = 100%", the owner's
+        // own digits, with the survivors' inks pinned from inside out:
+        // W green, L red, and the rate's ink red while the losing share
+        // is above zero, green exactly when it is not.
+        int loseRate = market.loseRatePct != null ? market.loseRatePct : 0;
+        String line = String.format(Locale.US, "W %d / L %d = %d%%",
+                market.wins, market.losses, loseRate);
+        SpannableString sp = new SpannableString(line);
+        int at = 0;
+        sp.setSpan(new ForegroundColorSpan(getColor(R.color.green)), at, at + 1, 0);
+        int slash = line.indexOf("/");
+        if (slash > 0) {
+            // The L numeral is the single digit before the " = " sign; the
+            // count can be multi digit, so the L segment runs from after
+            // the slash to the sign.
+            int eq = line.indexOf("=");
+            if (eq > slash + 1) {
+                sp.setSpan(new ForegroundColorSpan(getColor(R.color.red)),
+                        slash + 1, eq, 0);
+            }
+            // The rate tail: red while it is a losing rate (losses above
+            // zero), green when every closed trade won.
+            int losing = market.losses > 0 ? R.color.red : R.color.green;
+            sp.setSpan(new ForegroundColorSpan(getColor(losing)),
+                    eq + 1, line.length(), 0);
+        }
+        winlossValue.setText(sp);
     }
 
     /**
