@@ -202,6 +202,15 @@ public final class Watcher {
         String splitBasis = "";
         String note = "";
         int cacheAgeSeconds = -1;
+        /** W/L tile (owner order 2026-10-31): the relay's own finalized
+         *  signal ledger, or null when it reported none - the tile stays
+         *  at its waiting words instead of guessing a zero (SO-3). */
+        Integer wins;
+        Integer losses;
+        Integer closed;
+        /** The LOSING share of the closed trades in whole percent, or null
+         *  when no trade is closed yet. */
+        Integer loseRatePct;
 
         /** True only when the index and both of its movements are known. */
         boolean hasIndex() {
@@ -384,6 +393,15 @@ public final class Watcher {
                     leader.sell = integerOrNull(row, "sell_volume");
                     leader.splitMethod = row.optString("split_method", "");
                     market.leaders.add(leader);
+                }
+            }
+            JSONObject winLoss = body.optJSONObject("win_loss");
+            if (winLoss != null && winLoss.has("wins") && winLoss.has("losses")) {
+                market.wins = winLoss.has("wins") ? winLoss.optInt("wins", 0) : null;
+                market.losses = winLoss.has("losses") ? winLoss.optInt("losses", 0) : null;
+                market.closed = winLoss.has("closed") ? winLoss.optInt("closed", 0) : null;
+                if (winLoss.has("rate_pct") && !winLoss.isNull("rate_pct")) {
+                    market.loseRatePct = winLoss.optInt("rate_pct", 0);
                 }
             }
             JSONArray notes = body.optJSONArray("notes");

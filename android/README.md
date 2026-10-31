@@ -1641,6 +1641,40 @@ to sixty seconds. The status tile therefore also carries the app's own
      the orphan law stands so every dot still wears a filament.
   5. The version bump is versionCode 82 / versionName 2.3.15.
 
+**Version 3.6.1, versionCode 97.**
+
+  Owner's orders of 2026-10-31, the balance and the new tile. First: "the top
+  option and the bottom option are not balanced... the other options they all
+  are exactly in the middle except for the top and the bottom option, have the
+  same displacement for each option on every drop down menu, same goes for
+  custom scrips of volume." Measured: an interior option stands 14dp from the
+  line above it and 14dp from the line below it (its own 7dp air plus the
+  line's own 7dp air), while the first and the last option stood only 7dp from
+  the plate's own edge, because an edge has no line to share the air with. The
+  fix keeps every option's displacement the same: the edge rows now carry the
+  whole 14dp themselves (14dp of top air on the first option and 14dp of bottom
+  air on the last, in BOTH menus), so the plate's edge takes the divider's
+  place and every option's own text floats at one and the same distance from
+  its nearest line above and below it. Second, on the orange and white theme:
+  "the nav tile gets stretched to the bottom, and I can't even see it end" and
+  "latest signal tile gets on the quant status tile". A theme pass repaints
+  every plate, which walks a whole measure pass, and a measure can help the
+  nav tile grow past its own law - so the tile's 74dp height law and its
+  carrier's 3% screen-share lift are now re-pinned inside every theme pass
+  (pinNavTile, called from onCreate and from applyTheme alike) and the layout
+  itself pins the 74dp, so no theme, page or repaint order can ever stretch
+  the tile past the screen's bottom edge again, and the tiles above it, set in
+  their own wrap_content laws, can never press onto each other. Third: "a new
+  tile on the home page between quant status tile and latest signal tile,
+  that tile's heading would be 'W/L = W/L RATE'", opened at 0/1 = 100% because
+  PRL's first Kalman Trend call hit its stop on 2026-10-30. The numbers are
+  the relay's own ledger of finalized signals, served with the market card as
+  win_loss (wins, losses, closed and the losing rate), cached at the edge for
+  five minutes and never invents a rate with no closed signal (SO-3); W is
+  green, L is red, and the rate tail wears the losing rate's red (green only
+  when every closed signal won). The version bump is versionCode 97 /
+  versionName 3.6.1.
+
 **Version 3.6.0, versionCode 96.**
 
   Owner order of 2026-10-31: "make sure across the app, the data is same and
