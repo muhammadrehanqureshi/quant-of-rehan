@@ -162,25 +162,29 @@ async function kvDelete(env, key) {
 }
 
 // -- Owner order 2026-10-31: a new home tile, "W/L = W/L RATE",
-// reads from ONE authority the relay already stores: the finalized signal
-// outcomes the research archive labels (RESEARCH:OUTCOME:<date>). One
-// finalized signal (PRL, 2026-10-30) landed net negative, so the answer is
-// today 0/1 = 100%. The tile asks ONE question, so the relay answers it as
-// ONE object, shaped once, in one place:
+// reads from ONE authority the relay already stores: the finalized
+// session records the capture pipeline banks (RESEARCH:OUTCOME:<date>,
+// POST /research/outcome). The record's field is `outcome`, named by
+// src/signals/trade_state.py and scripts/intraday_pipeline.py's own
+// run_finalize, and its closed-trade values are TARGET_HIT, STOP_HIT,
+// STOP_AMBIGUOUS and CLOSED_AT_SESSION_END; NO_CANDIDATE, UNVERIFIABLE
+// and a pending record carry no finite net_return and count nothing.
+// One finalized trade exists today (PRL, 2026-10-30, STOP_HIT with a
+// net return of -0.01648), so the answer is 0/1 = 100%. The tile asks
+// ONE question, so the relay answers it as ONE object, shaped once, in
+// one place:
 //   wins   = finalized trades that landed net POSITIVE
 //   losses = finalized trades that landed net zero or negative
 //   closed = wins + losses (both zero means the rate is not computable)
 //   rate_pct = losing share of the CLOSED total, rounded
-// A rate is computed only from CLOSED trades (label in the trade set with
-// a finite net_return), never from a pending or partial one (SO-3).
 const TRADE_OUTCOME_LABELS = new Set([
-  "TP_FIRST", "SL_FIRST", "SL_AMBIG", "TIMEOUT",
+  "TARGET_HIT", "STOP_HIT", "STOP_AMBIGUOUS", "CLOSED_AT_SESSION_END",
 ]);
 
 function winLossFromSessions(sessions) {
   let wins = 0, losses = 0;
   for (const session of sessions) {
-    const label = String((session && session.label) || "").toUpperCase();
+    const label = String((session && session.outcome) || "").toUpperCase();
     if (!TRADE_OUTCOME_LABELS.has(label)) continue;
     const net = Number(session.net_return);
     if (!Number.isFinite(net)) continue;
