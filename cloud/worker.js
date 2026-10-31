@@ -1786,7 +1786,6 @@ export default {
           split_source: split ? "B/S estimated from the day's range, not order flow" : null,
           observed_at: quote.observed_at || null,
           source: quote.source || null,
-          quote_fresh: Boolean(quote.fresh),
         });
       }
       if (ackDay && rowsBuilt.length) {

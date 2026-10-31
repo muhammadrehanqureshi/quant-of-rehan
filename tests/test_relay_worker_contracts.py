@@ -275,7 +275,7 @@ class RelayWorkerContractTest(unittest.TestCase):
                       f"the /update anchor sits at {probe_at}; the refusal "
                       f"count is not inside the route's own first 8000 chars")
         # The acknowledged store lives in the durable object.
-        hub = self.source[self.source.index("export class QuoteHub")]
+        hub = self.source[self.source.index("export class QuoteHub"):]  # the class to the end of the file
         self.assertIn("/ack-upsert", hub)
         self.assertIn("/ack-splits", hub)
         self.assertIn("ackCandidate(frame)", hub)
@@ -307,7 +307,7 @@ class RelayWorkerContractTest(unittest.TestCase):
                       f"the clamp anchor sits at {clamp_at}; its own sum "
                       f"law is not inside its first 2000 characters")
         # An older total never moves the acknowledged row backwards.
-        hub = self.source[self.source.index("export class QuoteHub")]
+        hub = self.source[self.source.index("export class QuoteHub"):]  # the class to the end of the file
         self.assertIn(
             "Math.round(Number(previous.volume) || 0) >= parsed.volume",
             hub,
