@@ -261,13 +261,19 @@ class RelayWorkerContractTest(unittest.TestCase):
         self.assertIn("function regularBandIndexOf(quote)", self.source)
         self.assertIn("REGULAR_SESSION_GRACE_MS", self.source)
         # Store law: the post-market tail is refused at the DO's own
-        # update route, before any row can be merged.
-        update_route = self.source[self.source.index(
-            'if (request.method === "POST" && url.pathname === "/update")')]
-        update_route = update_route[:update_route.index(
-            "const newer = (current, incoming, stamp)")]
-        self.assertIn("frameIsRegularSession(quote)", update_route)
-        self.assertIn("refused_post_session", update_route)
+        # update route, before any row can be merged. The probe is
+        # bounded from the route's own anchor, and its message carries
+        # the offsets so a CI failure can be read on its own (SO-3).
+        probe_at = self.source.find('url.pathname === "/update"')
+        self.assertGreaterEqual(
+            probe_at, 0, "the durable object's POST /update route is gone")
+        update_route = self.source[probe_at:probe_at + 8000]
+        self.assertIn("frameIsRegularSession(quote)", update_route,
+                      f"the /update anchor sits at {probe_at}; the store law "
+                      f"is not inside the route's own first 8000 characters")
+        self.assertIn("refused_post_session", update_route,
+                      f"the /update anchor sits at {probe_at}; the refusal "
+                      f"count is not inside the route's own first 8000 chars")
         # The acknowledged store lives in the durable object.
         hub = self.source[self.source.index("export class QuoteHub")]
         self.assertIn("/ack-upsert", hub)
@@ -287,11 +293,19 @@ class RelayWorkerContractTest(unittest.TestCase):
         BOTH sides are monotone while their sum stays exactly the row's
         own total.
         """
-        clamp = self.source[self.source.index("function clampPair(candidate")]
-        clamp = clamp[:clamp.index("\nfunction", 10)]
-        self.assertIn("Math.max(buy, previous.buy_volume)", clamp)
-        self.assertIn("volume - previous.sell_volume", clamp)
-        self.assertIn("sell = volume - buy", clamp)
+        clamp_at = self.source.find("function clampPair(candidate")
+        self.assertGreaterEqual(
+            clamp_at, 0, "the acknowledged pair's clamp function is gone")
+        clamp = self.source[clamp_at:clamp_at + 2000]
+        self.assertIn("Math.max(buy, previous.buy_volume)", clamp,
+                      f"the clamp anchor sits at {clamp_at}; its monotone "
+                      f"buy floor is not inside its own first 2000 characters")
+        self.assertIn("volume - previous.sell_volume", clamp,
+                      f"the clamp anchor sits at {clamp_at}; its monotone "
+                      f"sell ceiling is not inside its own first 2000 chars")
+        self.assertIn("sell = volume - buy", clamp,
+                      f"the clamp anchor sits at {clamp_at}; its own sum "
+                      f"law is not inside its first 2000 characters")
         # An older total never moves the acknowledged row backwards.
         hub = self.source[self.source.index("export class QuoteHub")]
         self.assertGreaterEqual(
