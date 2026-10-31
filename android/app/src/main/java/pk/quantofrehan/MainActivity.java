@@ -545,6 +545,7 @@ public class MainActivity extends Activity {
                 // The greeting is a home-page line, so it hides with the group.
         findViewById(R.id.greeting),
         findViewById(R.id.tile_status),
+        findViewById(R.id.rule_status_winloss),
         findViewById(R.id.tile_winloss),
                 findViewById(R.id.rule_status_signal),
                 findViewById(R.id.tile_signal),
@@ -590,6 +591,10 @@ public class MainActivity extends Activity {
         // non-default theme is remembered.
         applyThemeToInputs(themeIndex);
         wireDropdownArrows();
+        // Owner order 2026-11-01: the carets' first exact centre lands
+        // right after the first layout pass carries the anchors' heights
+        // (each centerDropdownCaret reads its numbers on its own post).
+        centerDropdownCarets();
 
         // Owner order 2026-10-29 (v3.1.0): "move the menu bar tile 7%
         // above from its current position". Owner order 2026-10-30
@@ -1615,6 +1620,11 @@ public class MainActivity extends Activity {
             }
         }
         rotateDropdownArrow(volumeSplitArrow, open);
+        // Owner order 2026-11-01: the caret re-centres on its anchor each
+        // time the state lands - the first option row when open, the
+        // closed box's own face when closed - never a guessed margin.
+        centerDropdownCaret(volumeSplitArrow, volumeSplitSpinner,
+                volumeSplitMenu);
         if (open) {
             showThemeMenu(false);
         }
@@ -1643,6 +1653,8 @@ public class MainActivity extends Activity {
             }
         }
         rotateDropdownArrow(themeArrow, open);
+        // The same re-centre the volume caret lands on (2026-11-01).
+        centerDropdownCaret(themeArrow, themeSpinner, themeMenu);
         if (open) {
             showVolumeMenu(false);
         }
@@ -1681,6 +1693,71 @@ public class MainActivity extends Activity {
                 .rotation(open ? 180f : 0f)
                 .setDuration(150L)
                 .start();
+    }
+
+    /** Owner order 2026-11-01 ("have the drop down/up icon at the middle
+     *  ... right now, the arrow is little to the up side. Make it at the
+     *  exact center"): the caret stands at the exact vertical middle of
+     *  the mount's TOP FACE in both states - the closed box's own 43dp
+     *  face while closed, the first option row while open - instead of
+     *  the fixed 11dp that survived neither the face's own air nor the
+     *  v3.6.1 option rows' taller first/last padding. The centre is read
+     *  after the layout pass settles, and the caret's one top margin is
+     *  written from it, so the anchor can grow or shrink on any theme and
+     *  the caret re-centres itself the same way. */
+    private void centerDropdownCaret(ImageView arrow, TextView face,
+            LinearLayout menu) {
+        if (arrow == null) {
+            return;
+        }
+        android.view.ViewGroup mount =
+                (android.view.ViewGroup) arrow.getParent();
+        if (!(mount instanceof android.widget.FrameLayout)) {
+            return;
+        }
+        arrow.post(() -> {
+            if (arrow.getParent() != mount || mount.getWidth() == 0) {
+                return;
+            }
+            // v2.3.22's own law decided out again: the face is the anchor
+            // while it stands (closed), and the first option row while the
+            // menu holds the mount (the face has stepped aside).
+            android.view.View anchor =
+                    face.getVisibility() == View.VISIBLE
+                    ? face
+                    : (menu != null && menu.getVisibility() == View.VISIBLE
+                       && menu.getChildCount() > 0
+                       ? menu.getChildAt(0) : null);
+            if (anchor == null || anchor.getHeight() == 0
+                    || arrow.getHeight() == 0) {
+                return;
+            }
+            int top = 0;
+            android.view.View host = anchor;
+            while (host != mount && host.getParent() != null) {
+                top += host.getTop();
+                host = (android.view.View) host.getParent();
+            }
+            if (host != mount) {
+                return;
+            }
+            int centre = top + anchor.getHeight() / 2;
+            android.widget.FrameLayout.LayoutParams lp =
+                    (android.widget.FrameLayout.LayoutParams)
+                            arrow.getLayoutParams();
+            int wanted = Math.max(0, centre - arrow.getHeight() / 2);
+            if (lp.topMargin != wanted) {
+                lp.topMargin = wanted;
+                arrow.setLayoutParams(lp);
+            }
+        });
+    }
+
+    /** Both carets re-centre: the one call each state land on. */
+    private void centerDropdownCarets() {
+        centerDropdownCaret(volumeSplitArrow, volumeSplitSpinner,
+                volumeSplitMenu);
+        centerDropdownCaret(themeArrow, themeSpinner, themeMenu);
     }
 
     /**
@@ -2055,6 +2132,10 @@ public class MainActivity extends Activity {
         renderGate.reset();
         refresh();
         refreshGreeting();
+        // Owner order 2026-11-01: the carets re-centre on resume too, so
+        // a return from the background lands them back on exact middles
+        // even when the theme's own font grew in between.
+        centerDropdownCarets();
         // Owner order 2026-10-22: the console works only while it is on
         // screen, like every other animation here; onPause ends the cycle
         // and onResume starts it again.
@@ -2323,31 +2404,28 @@ public class MainActivity extends Activity {
             winlossValue.setText(getString(R.string.winloss_waiting));
             return;
         }
-        // The whole answer is one line: "W 0 / L 1 = 100%", the owner's
-        // own digits, with the survivors' inks pinned from inside out:
-        // W green, L red, and the rate's ink red while the losing share
-        // is above zero, green exactly when it is not.
+        // The whole answer is one line: "0/1 & 100%", the owner's own
+        // digits and signs (2026-11-01 order, "only show the Winning &
+        // losing number like this, 0/1 & 100%"): the win count's digit
+        // green, the loss count's digit red, the " & " in the body ink,
+        // and the rate tail in the colour of the side that is AHEAD -
+        // red while losses lead the closed trades, green once wins
+        // strictly lead them. A tie stays red: the rate printed is the
+        // losing share, and nobody is winning that match.
         int loseRate = market.loseRatePct != null ? market.loseRatePct : 0;
-        String line = String.format(Locale.US, "W %d / L %d = %d%%",
+        String line = String.format(Locale.US, "%d/%d & %d%%",
                 market.wins, market.losses, loseRate);
         SpannableString sp = new SpannableString(line);
-        int at = 0;
-        sp.setSpan(new ForegroundColorSpan(getColor(R.color.green)), at, at + 1, 0);
         int slash = line.indexOf("/");
-        if (slash > 0) {
-            // The L numeral is the single digit before the " = " sign; the
-            // count can be multi digit, so the L segment runs from after
-            // the slash to the sign.
-            int eq = line.indexOf("=");
-            if (eq > slash + 1) {
-                sp.setSpan(new ForegroundColorSpan(getColor(R.color.red)),
-                        slash + 1, eq, 0);
-            }
-            // The rate tail: red while it is a losing rate (losses above
-            // zero), green when every closed trade won.
-            int losing = market.losses > 0 ? R.color.red : R.color.green;
-            sp.setSpan(new ForegroundColorSpan(getColor(losing)),
-                    eq + 1, line.length(), 0);
+        int amp = line.indexOf("&");
+        if (slash > 0 && amp > slash + 1) {
+            sp.setSpan(new ForegroundColorSpan(getColor(R.color.green)),
+                    0, slash, 0);
+            sp.setSpan(new ForegroundColorSpan(getColor(R.color.red)),
+                    slash + 1, amp - 1, 0);
+            int ahead = market.wins > market.losses ? R.color.green : R.color.red;
+            sp.setSpan(new ForegroundColorSpan(getColor(ahead)),
+                    amp + 1, line.length(), 0);
         }
         winlossValue.setText(sp);
     }
