@@ -824,7 +824,8 @@ public class MainActivity extends Activity {
         themeMenu.removeAllViews();
         // The rebuilt menu owns its rows again, so its divider list
         // starts empty; one law with buildVolumeMenu's own rebuild.
-        menuDividers.clear();            for (int i = 0; i < THEME_LABELS.length; i++) {
+        menuDividers.clear();
+        for (int i = 0; i < THEME_LABELS.length; i++) {
             final int index = i;
             TextView row = menuRow(getString(THEME_LABELS[index]),
                     i == 0, i == THEME_LABELS.length - 1);
@@ -1535,6 +1536,16 @@ public class MainActivity extends Activity {
         line.setBackgroundColor(edgeInk());
         menuDividers.add(line);
         return line;
+    }
+
+    /** One theme pass re-inks every open menu's divider (edgeInk is
+     *  the same ink the tiles' edge draws from), so a picked theme
+     *  never leaves the previous look's line behind (v2.3.21's law). */
+    private void repaintMenuDividers() {
+        int ink = edgeInk();
+        for (View line : menuDividers) {
+            line.setBackgroundColor(ink);
+        }
     }
 
     // Owner order 2026-10-31 (balance report, BOTH menus): the middle

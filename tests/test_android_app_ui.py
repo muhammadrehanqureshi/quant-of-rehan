@@ -693,19 +693,33 @@ class BrandRuleTest(unittest.TestCase):
     def test_the_rules_stand_between_the_tiles_and_never_inside_them(self):
         root = layout_root()
 
-        def rule_after(view_id: str):
+        def rule_after(view_id: str, through=None):
             view = find_view(root, view_id)
             following = siblings_after(root, parent_of(root, view))
             self.assertTrue(following, f"nothing follows the {view_id} tile")
             first = following[0]
+            if through:
+                # Owner order 2026-10-31: the W/L = W/L RATE tile sits
+                # between two tiles, so the change of subject reaches the
+                # rule THROUGH it - the named view stands first and the
+                # rule stands after it, and nothing else intervenes.
+                self.assertEqual(first.tag, "LinearLayout", f"{view_id}: *")
+                self.assertEqual(first.get(ANDROID_NS + "id"),
+                                 "@+id/" + through,
+                                 f"{view_id}: no tile before the rule")
+                rest = following[1:]
+                self.assertTrue(rest, f"{view_id}: the rule is missing")
+                first = rest[0]
             self.assertEqual(first.tag, "include", f"{view_id}: no rule after")
             self.assertEqual(first.get("layout"), "@layout/qor_rule")
 
         # Every tile is closed by the rule, and the third one from outside.
         # Owner order 2026-10-13 (third note): the card's last view is the
         # ranking itself now, because the cadence sentence it used to carry
-        # has moved below the fourth rule.
-        rule_after("@+id/status_pill")
+        # has moved below the fourth rule. Owner order 2026-10-31: the
+        # status tile now closes with the new W/L = W/L RATE tile before
+        # that rule, so the rule is reached through the named tile.
+        rule_after("@+id/status_pill", through="tile_winloss")
         rule_after("@+id/signal_list")
         rule_after("@+id/market_leaders")
 
@@ -2621,8 +2635,11 @@ class MenuOrdersTest(unittest.TestCase):
         # wears the theme's own plate.
         self.assertIn("findViewById(R.id.tile_winloss),", self.main)
         # The relay carries the ledger in the market answer.
-        self.assertIn("body.optJSONObject(\"win_loss\")", self.watcher)
-        self.assertIn("market.loseRatePct = winLoss.optInt", self.watcher)
+        watcher = (ROOT / "android" / "app" / "src" / "main" / "java"
+                   / "pk" / "quantofrehan" / "Watcher.java").read_text(
+                       encoding="utf-8")
+        self.assertIn("body.optJSONObject(\"win_loss\")", watcher)
+        self.assertIn("market.loseRatePct = winLoss.optInt", watcher)
 
     def test_the_nav_tile_holds_its_laws_in_every_theme_pass(self):
         """Owner order 2026-10-31, on orange and white ("the nav tile gets
