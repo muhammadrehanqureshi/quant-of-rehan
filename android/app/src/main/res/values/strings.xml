@@ -106,7 +106,7 @@
          the first call (PRL's Kalman Trend, 2026-10-30) hit its stop, so the
          tile opens at W 0 / L 1 = 100%, the losing rate's red. The waiting
          words stand only while the relay has reported no ledger at all. -->
-    <string name="label_winloss">W/L = W/L RATE</string>
+    <string name="label_winloss">W/L &amp; W/L RATE</string>
     <string name="winloss_waiting">NO CLOSED SIGNAL RIGHT NOW</string>
     <string name="label_signal">LATEST SIGNAL</string>
     <string name="label_settings">SETTINGS</string>

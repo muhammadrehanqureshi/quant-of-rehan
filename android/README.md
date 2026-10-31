@@ -1641,6 +1641,35 @@ to sixty seconds. The status tile therefore also carries the app's own
      the orphan law stands so every dot still wears a filament.
   5. The version bump is versionCode 82 / versionName 2.3.15.
 
+**Version 3.6.2, versionCode 98.**
+
+  Owner's orders of 2026-11-01. First: "have the drop down/up icon at the
+  middle, look at the top sub menu option, right now, the arrow is little to
+  the up side. Make it at the exact center, across the app." The carets stood
+  on a fixed 11dp top margin from v3.4.0, exact against the closed face it was
+  cut for but high against the taller first option row the open state shows,
+  and no longer exact even closed now that the faces grew their own air. The
+  standing law is centerDropdownCaret: after every layout pass the caret reads
+  its anchor's centre (the closed box's own 43dp face while closed, the first
+  option row while open) and writes its one top margin from it - exact middle
+  in BOTH states, on BOTH dropdowns, landed from onCreate and onResume as well
+  as every open and close tap, so a theme's taller air can never leave the
+  arrow high again. Second: "between quant status and W/L tile, there should
+  be diamond line feature." The W/L tile carried its closing diamond rule only;
+  a second include (rule_status_winloss) now stands in the seam above it - same
+  qor_rule, defined once, hidden with the console. Third and fourth: "change
+  the W/L tile heading, instead of = sign, have & sign" and "only show the
+  Winning & losing number like this, 0/1 & 100%, have winning numbers in green
+  and losing number is red, and the percentage in whatever number is higher.
+  For more losing trades it would be red, for more winning trades it would be
+  green." The heading is exactly "W/L & W/L RATE", and the one line is now the
+  digits alone "0/1 & 100%": the win count's digit green, the loss count's
+  digit red, the " & " in the body ink, and the rate tail in the colour of the
+  side that is ahead - red while losses lead the closed trades (today's honest
+  0/1 & 100%), green once wins strictly lead them; a tie stays red, because
+  the rate printed is the losing share and nobody is winning that match. The
+  version bump is versionCode 98 / versionName 3.6.2.
+
 **Version 3.6.1, versionCode 97.**
 
   Owner's orders of 2026-10-31, the balance and the new tile. First: "the top

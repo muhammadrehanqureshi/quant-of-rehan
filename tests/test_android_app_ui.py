@@ -688,7 +688,10 @@ class BrandRuleTest(unittest.TestCase):
         # division, never two, is the standing law the themes bracket
         # honours: there the owner ASKED for the bracket, and so does
         # the search-volume pair's own.
-        self.assertEqual(self.layout.count('layout="@layout/qor_rule"'), 8)
+        # Owner order 2026-11-01: the QUANT STATUS and W/L tiles gained
+        # their own diamond rule between them, so the console now carries
+        # nine of the one include.
+        self.assertEqual(self.layout.count('layout="@layout/qor_rule"'), 9)
 
     def test_the_rules_stand_between_the_tiles_and_never_inside_them(self):
         root = layout_root()
@@ -716,10 +719,24 @@ class BrandRuleTest(unittest.TestCase):
         # Every tile is closed by the rule, and the third one from outside.
         # Owner order 2026-10-13 (third note): the card's last view is the
         # ranking itself now, because the cadence sentence it used to carry
-        # has moved below the fourth rule. Owner order 2026-10-31: the
-        # status tile now closes with the new W/L = W/L RATE tile before
-        # that rule, so the rule is reached through the named tile.
-        rule_after("@+id/status_pill", through="tile_winloss")
+        # has moved below the fourth rule. Owner order 2026-11-01: the
+        # seam between QUANT STATUS and the W/L tile carries a diamond
+        # rule of its own, so that third seam reads rule, tile, rule:
+        # both edges of the new tile are marked, nothing else intervenes.
+        after_status = siblings_after(
+            root, parent_of(root, find_view(root, "@+id/status_pill")))
+        self.assertEqual(after_status[0].tag, "include",
+                         "status: no rule between status and W/L")
+        self.assertEqual(after_status[0].get("layout"), "@layout/qor_rule")
+        self.assertEqual(after_status[0].get(ANDROID_NS + "id"),
+                         "@+id/rule_status_winloss")
+        self.assertEqual(after_status[1].tag, "LinearLayout",
+                         "status: no W/L tile after its rule")
+        self.assertEqual(after_status[1].get(ANDROID_NS + "id"),
+                         "@+id/tile_winloss")
+        self.assertEqual(after_status[2].tag, "include",
+                         "status: no rule after the W/L tile")
+        self.assertEqual(after_status[2].get("layout"), "@layout/qor_rule")
         rule_after("@+id/signal_list")
         rule_after("@+id/market_leaders")
 
@@ -929,12 +946,10 @@ class CadencePlacementTest(unittest.TestCase):
         # menu bar were cancelled as the owner's clutter order. v2.2.1
         # then framed the THEMES tile the owner ordered for its
         # "separate diamond and 2 lines around it", and v2.2.3 put the
-        # search page's own rule back above the search tile. v2.2.4:
-        # eight rules now - the single brand rule under the header, the
-        # three the home tiles carry, the two that frame the THEMES tile
-        # above and below, the search page's own diamond, and the
-        # division between the search tile and the volume tile.
-        self.assertEqual(len(rules), 8)
+        # search page's own rule back above the search tile. v2.2.4
+        # made eight; owner order 2026-11-01 makes NINE - the same four
+        # and the W/L tile's own seam rule above it.
+        self.assertEqual(len(rules), 9)
         market_rule = next(
             rule for rule in rules
             if rule.get(f"{ANDROID_NS}id") == "@+id/rule_after_market")
@@ -1404,7 +1419,10 @@ class StatusPulseTest(unittest.TestCase):
         menu takes the space the console gave up (no hole to scroll past) and
         a screen reader announces the menu alone.
         """
-        for name in ("tile_status", "rule_status_signal", "tile_signal",
+        # Owner order 2026-11-01: the W/L tile's own rule hides with the
+        # console too (a fourth seam of the same group).
+        for name in ("tile_status", "rule_status_winloss",
+                     "rule_status_signal", "tile_signal",
                      "rule_after_signal", "tile_market", "rule_after_market",
                      "scan_cadence"):
             with self.subTest(view=name):
@@ -1756,13 +1774,15 @@ class VersionTest(unittest.TestCase):
         # union-find, the shortest pair across two parts joined until
         # one mesh remains, so no line can end at a dot no other thread
         # carries on from.
-        # v3.6.1 (owner's orders of 2026-10-31): the dropdowns' balanced
-        # air, the nav tile's re-pinned size laws in the theme pass, the
-        # new W/L = W/L RATE tile opened at 0/1 = 100%, versionCode 97.
+        # v3.6.2 (owner's orders of 2026-11-01): the carets stand at the
+        # exact vertical middle of their faces in both dropdowns, the W/L
+        # tile gains its own diamond rule plus the "&" heading and the
+        # digits-only "0/1 & 100%" line coloured by the leading side,
+        # versionCode 98.
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="3.6.1"', manifest)
-        self.assertIn('android:versionCode="97"', manifest)
-        self.assertNotIn('android:versionName="3.6.0"', manifest)
+        self.assertIn('android:versionName="3.6.2"', manifest)
+        self.assertIn('android:versionCode="98"', manifest)
+        self.assertNotIn('android:versionName="3.6.1"', manifest)
         # The changelog entry ties these user-visible changes to the build.
         readme = (ROOT / "android" / "README.md").read_text(encoding="utf-8")
         self.assertIn("v1.7.9, owner order 2026-10-20", readme)
@@ -1916,6 +1936,11 @@ class VersionTest(unittest.TestCase):
         # W/L = W/L RATE tile between the quant status and latest signal
         # tiles, versionCode 97.
         self.assertIn("Version 3.6.1, versionCode 97", readme)
+        # v3.6.2 (owner's orders of 2026-11-01): the caret at the exact
+        # vertical middle of its face in both dropdowns, the W/L tile's
+        # own diamond rule, the "&" heading and the digits-only
+        # "0/1 & 100%" line coloured by the leading side, versionCode 98.
+        self.assertIn("Version 3.6.2, versionCode 98", readme)
         # v3.1.0 (owner order 2026-10-29, twenty-eighth pass): the open
         # menu keeps its anchored line and the rows type in the box's
         # own column, and the menu tile rides 7% of the screen higher.
@@ -1924,9 +1949,9 @@ class VersionTest(unittest.TestCase):
         # rows move up into the closed face's empty strip, both dropdowns.
         self.assertIn("Version 3.2.0, versionCode 92", readme)
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionCode="97"', manifest)
-        self.assertIn('android:versionName="3.6.1"', manifest)
-        self.assertNotIn('android:versionName="3.6.0"', manifest)
+        self.assertIn('android:versionCode="98"', manifest)
+        self.assertIn('android:versionName="3.6.2"', manifest)
+        self.assertNotIn('android:versionName="3.6.1"', manifest)
         self.assertNotIn('android:versionName="3.5.0"', manifest)
         self.assertNotIn('android:versionName="3.3.0"', manifest)
         layout = LAYOUT.read_text(encoding="utf-8")
@@ -2599,20 +2624,28 @@ class MenuOrdersTest(unittest.TestCase):
 
     def test_the_wl_tile_reads_one_relay_ledger(self):
         """Owner order 2026-10-31 ("a new tile on the home page between
-        quant status tile and latest signal tile, that tile's heading
-        would be W/L = W/L RATE"): the tile sits between the two, its
-        heading is exactly that string, its one line is the owner's own
-        digits W 0 / L 1 = 100% (PRL's first Kalman Trend call hit its
-        stop on 2026-10-30), W green, L red, the losing rate's own ink
-        red, and the ledger is the relay's answer, never a local guess
-        with nothing reported yet (SO-3).
+        quant status tile and latest signal tile"), sharpened 2026-11-01
+        ("change the W/L tile heading, instead of = sign, have & sign. "
+        "Also, only show the Winning & losing number like this, 0/1 &
+        100%"): the tile sits between the two, its heading is exactly
+        "W/L & W/L RATE", its one line is the owner's own digits 0/1 &
+        100% (PRL's first Kalman Trend call hit its stop on
+        2026-10-30), the win digit green, the loss digit red, and the
+        rate in the colour of whatever side is higher, and the ledger is
+        the relay's answer, never a local guess with nothing reported
+        yet (SO-3).
         """
         self.assertIn('android:text="@string/label_winloss"', self.layout)
         self.assertIn('android:id="@+id/tile_winloss"', self.layout)
-        # Between the two tiles: tile_status, then the W/L tile, then the
-        # rule and then the latest signal tile.
+        # Between the two tiles: tile_status, the W/L tile's own rule,
+        # the W/L tile, the rule and then the latest signal tile
+        # (2026-11-01: the diamond line the owner ordered between
+        # quant status and this tile stands in the first seam).
         self.assertLess(
             self.layout.index('android:id="@+id/tile_status"'),
+            self.layout.index('android:id="@+id/rule_status_winloss"'))
+        self.assertLess(
+            self.layout.index('android:id="@+id/rule_status_winloss"'),
             self.layout.index('android:id="@+id/tile_winloss"'))
         self.assertLess(
             self.layout.index('android:id="@+id/tile_winloss"'),
@@ -2620,20 +2653,24 @@ class MenuOrdersTest(unittest.TestCase):
         self.assertLess(
             self.layout.index('android:id="@+id/rule_status_signal"'),
             self.layout.index('android:id="@+id/tile_signal"'))
-        self.assertIn('<string name="label_winloss">W/L = W/L RATE</string>',
-                      self.strings)
+        self.assertIn(
+            '<string name="label_winloss">W/L &amp; W/L RATE</string>',
+            self.strings)
         self.assertIn(">NO CLOSED SIGNAL RIGHT NOW<", self.strings)
         self.assertIn("private TextView winlossValue;", self.main)
         self.assertIn("winlossValue = findViewById(R.id.winloss_value);",
                       self.main)
         self.assertIn("renderWinLoss(market);", self.main)
-        self.assertIn('String.format(Locale.US, "W %d / L %d = %d%%",',
+        self.assertIn('String.format(Locale.US, "%d/%d & %d%%",',
                       self.main)
-        self.assertIn("market.losses > 0 ? R.color.red : R.color.green;",
-                      self.main)
+        # The rate's own ink is the ahead side's: green exactly while the
+        # wins strictly lead the losses, red every other close.
+        self.assertIn("market.wins > market.losses"
+                      " ? R.color.green : R.color.red;", self.main)
         # And the tile is a console citizen: it hides with the group and
         # wears the theme's own plate.
         self.assertIn("findViewById(R.id.tile_winloss),", self.main)
+        self.assertIn("findViewById(R.id.rule_status_winloss),", self.main)
         # The relay carries the ledger in the market answer.
         watcher = (ROOT / "android" / "app" / "src" / "main" / "java"
                    / "pk" / "quantofrehan" / "Watcher.java").read_text(
@@ -2664,7 +2701,40 @@ class MenuOrdersTest(unittest.TestCase):
         nav_tile = element(self.layout, 'android:id="@+id/nav_tile"')
         self.assertIn('android:layout_height="74dp"', nav_tile)
 
-    def test_the_open_menus_carry_a_divider_with_equal_air(self):
+    def test_the_dropdown_caret_stands_at_its_face_middle(self):
+        """Owner order 2026-11-01 ("have the drop down/up icon at the
+        middle, look at the top sub menu option, right now, the arrow is
+        little to the up side. Make it at the exact center"): the caret
+        re-centres in code onto its mount's TOP FACE in both states, the
+        closed box's own face while closed and the first option row while
+        open, read after the layout pass and never a fixed 11dp margin
+        carried by hand; the same law lands from onCreate and onResume,
+        so a theme's taller air can never leave the arrow high again.
+        """
+        self.assertIn(
+            "private void centerDropdownCaret(ImageView arrow, TextView face,",
+            self.main)
+        self.assertIn("private void centerDropdownCarets() {", self.main)
+        # Both dropdowns stand in the one call's own two lines.
+        self.assertIn(
+            "centerDropdownCaret(volumeSplitArrow, volumeSplitSpinner,\n"
+            "                volumeSplitMenu);", self.main)
+        self.assertIn("centerDropdownCaret(themeArrow, themeSpinner, themeMenu);",
+                      self.main)
+        # Both state toggles land their caret too, after the rotation.
+        self.assertIn("rotateDropdownArrow(volumeSplitArrow, open);\n"
+                      "        // Owner order 2026-11-01", self.main)
+        self.assertIn(
+            "rotateDropdownArrow(themeArrow, open);\n"
+            "        // The same re-centre the volume caret lands on",
+            self.main)
+        # The centre is read after the layout pass, on the view's own post.
+        self.assertIn("arrow.post(() -> {", self.main)
+        self.assertIn("arrow.getLayoutParams()", self.main)
+        # Landed from onCreate after the menus build, and from onResume
+        # too: count == 2 exactly, no third site has grown in.
+        self.assertEqual(self.main.count("centerDropdownCarets();"), 2,
+                         "onCreate AND onResume, and no site besides")
         """Owner order 2026-10-31 ("when I tap on the drop down menus,
         make sure you have a line between 2 separate sub menu options,
         the difference between the line and all the sub menus should be
@@ -4360,10 +4430,11 @@ class UniversalRuleGapTest(unittest.TestCase):
         # owner ordered for its "separate diamond and 2 lines around it",
         # and v2.2.3 put the search page's own rule back above the search
         # tile. v2.2.4 adds the pair's own division between the search
-        # tile and the custom scrips of volume tile: EIGHT rules - four
-        # on the home path, the THEMES tile's two, the search page's own
-        # diamond, and the volume pair's own.
-        self.assertEqual(len(rules), 8)
+        # tile and the custom scrips of volume tile; owner 2026-11-01
+        # adds the W/L tile's own seam above itself: NINE rules now
+        # (five on the home path, the THEMES tile's two, the search
+        # page's own diamond, and the volume pair's own).
+        self.assertEqual(len(rules), 9)
         for rule in rules:
             with self.subTest(rule=rule.get(f"{ANDROID_NS}id")):
                 self.assertEqual(rule.get(f"{ANDROID_NS}layout_marginTop"),
