@@ -24,8 +24,10 @@ import json
 import math
 import subprocess
 import sys
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
+
+from src.data.sessions import KARACHI
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -41,15 +43,11 @@ REQUIRED_FIELDS = (
 )
 
 
-def _utc_now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
-
-
 def _karachi_stamp() -> str:
-    """The same instant as SO-8 Karachi wall clock (UTC+5), for the report."""
-    now = _utc_now_iso()
-    stamp = datetime.fromisoformat(now)
-    return stamp.isoformat(timespec="seconds").replace("+00:00", "+05:00")
+    """The run's stamp in SO-8's own clock (fixed UTC+5), pinned by the one
+    Karachi tzinfo src/data.sessions declares, never a relabelled UTC
+    instant."""
+    return datetime.now(KARACHI).isoformat(timespec="seconds")
 
 
 def code_hash(repo_root: Path | None = None) -> str:
