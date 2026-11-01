@@ -435,6 +435,18 @@
      search answer, B, S and T included, is rebuilt from the live quote
      on every tick.
 
+     Version 3.7.1, versionCode 101 (owner order 2026-11-01, after the
+     3.7.0 build and its screenshot of the open CUSTOM SCRIPS OF VOL.
+     menu: "you got it at the middle of all the options, which is wrong,
+     you should have it in front of the first option but it should be
+     exactly in the middle/center of the first option's wording, do the
+     same thing for themes selection"): both carets lead the first option
+     at the plate's 10dp column, the wording column steps to 38dp so the
+     closed faces, the option rows and the divider lines still share one
+     column, and the caret's vertical station is the first option's own
+     text line (closed: the closed face's line), never the middle of the
+     whole plate.
+
      Version 3.7.0, versionCode 100 (owner order 2026-11-01, the day's
      closing build): the app's own laws are unchanged from 3.6.3; the
      version marks the build made after the self-improvement engine's
@@ -443,8 +455,8 @@
      -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="pk.quantofrehan"
-    android:versionCode="100"
-    android:versionName="3.7.0">
+    android:versionCode="101"
+    android:versionName="3.7.1">
 
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="30"/>
 

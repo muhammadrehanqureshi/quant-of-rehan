@@ -1641,6 +1641,21 @@ to sixty seconds. The status tile therefore also carries the app's own
      the orphan law stands so every dot still wears a filament.
   5. The version bump is versionCode 82 / versionName 2.3.15.
 
+**Version 3.7.1, versionCode 101.**
+
+  Owner order 2026-11-01, after the 3.7.0 build and its screenshot of the
+  open CUSTOM SCRIPS OF VOL. menu: "you got it at the middle of all the
+  options, which is wrong, you should have it in front of the first option
+  but it should be exactly in the middle/center of the first option's
+  wording, do the same thing for themes selection." Both carets now stand
+  at the plate's leading edge, 10dp in, and the wording column moves to
+  38dp behind them. The closed face's label, the open option rows and the
+  divider lines all share that one column, so the caret reads as the first
+  option's own leading mark and no line runs under it. Vertically the
+  caret reads the first option's TEXT centre, padding included, instead of
+  the middle of the whole plate; closed, it reads the closed face's own
+  line. The version bump is versionCode 101 / versionName 3.7.1.
+
 **Version 3.7.0, versionCode 100.**
 
   Owner order 2026-11-01, the day's closing build. The app's own laws are
