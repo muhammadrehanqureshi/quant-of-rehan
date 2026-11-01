@@ -1641,6 +1641,21 @@ to sixty seconds. The status tile therefore also carries the app's own
      the orphan law stands so every dot still wears a filament.
   5. The version bump is versionCode 82 / versionName 2.3.15.
 
+**Version 3.7.0, versionCode 100.**
+
+  Owner order 2026-11-01, the day's closing build. The app's own laws are
+  unchanged from 3.6.3: the greeting's diamond rule, the drop-up caret at
+  the exact middle of the whole open plate in both dropdowns, one newest
+  frame per symbol across the card, /stock and /prices, and the pinned
+  search answer rebuilt from the live quote on every tick. This build is
+  the latest APK the owner asked for after the self-improvement engine's
+  reviewer defects were fixed (Holm's family, the gap-through both-touch
+  fill, the unarmed champion guard, the split embargo) and its kill gate
+  was made payoff-aware: each shape is now judged against its own
+  break-even win rate, never one flat floor. That engine work is cloud
+  side and is recorded in PROJECT_REPORT.md. The version bump is
+  versionCode 100 / versionName 3.7.0.
+
 **Version 3.6.3, versionCode 99.**
 
   Owner's orders of 2026-11-01, the rest of the day. First: "I want you to

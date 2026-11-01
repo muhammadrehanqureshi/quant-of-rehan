@@ -1785,16 +1785,14 @@ class VersionTest(unittest.TestCase):
         # union-find, the shortest pair across two parts joined until
         # one mesh remains, so no line can end at a dot no other thread
         # carries on from.
-        # v3.6.3 (owner's orders of 2026-11-01, second and third notes):
-        # the diamond rule between the greeting and QUANT STATUS, the
-        # drop-up caret at the exact middle of the WHOLE open plate, one
-        # newest frame per symbol across card, search and prices, the
-        # acknowledged total on the phone's rows, and the pinned answer
-        # rebuilt from the live quote every tick, versionCode 99.
+        # v3.7.0 (owner order 2026-11-01, the day's closing build): the
+        # app's laws are unchanged from 3.6.3; the version marks the build
+        # made after the engine fixes and the payoff-aware kill gate,
+        # versionCode 100.
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="3.6.3"', manifest)
-        self.assertIn('android:versionCode="99"', manifest)
-        self.assertNotIn('android:versionName="3.6.2"', manifest)
+        self.assertIn('android:versionName="3.7.0"', manifest)
+        self.assertIn('android:versionCode="100"', manifest)
+        self.assertNotIn('android:versionName="3.6.3"', manifest)
         # The changelog entry ties these user-visible changes to the build.
         readme = (ROOT / "android" / "README.md").read_text(encoding="utf-8")
         self.assertIn("v1.7.9, owner order 2026-10-20", readme)
@@ -1959,6 +1957,9 @@ class VersionTest(unittest.TestCase):
         # surface, and the pinned answer rebuilt from the live quote,
         # versionCode 99.
         self.assertIn("Version 3.6.3, versionCode 99", readme)
+        # v3.7.0 (owner order 2026-11-01, the day's closing build): the
+        # latest APK, versionCode 100.
+        self.assertIn("Version 3.7.0, versionCode 100", readme)
         # v3.1.0 (owner order 2026-10-29, twenty-eighth pass): the open
         # menu keeps its anchored line and the rows type in the box's
         # own column, and the menu tile rides 7% of the screen higher.
@@ -1967,9 +1968,9 @@ class VersionTest(unittest.TestCase):
         # rows move up into the closed face's empty strip, both dropdowns.
         self.assertIn("Version 3.2.0, versionCode 92", readme)
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionCode="99"', manifest)
-        self.assertIn('android:versionName="3.6.3"', manifest)
-        self.assertNotIn('android:versionName="3.6.2"', manifest)
+        self.assertIn('android:versionCode="100"', manifest)
+        self.assertIn('android:versionName="3.7.0"', manifest)
+        self.assertNotIn('android:versionName="3.6.3"', manifest)
         self.assertNotIn('android:versionName="3.5.0"', manifest)
         self.assertNotIn('android:versionName="3.3.0"', manifest)
         layout = LAYOUT.read_text(encoding="utf-8")
