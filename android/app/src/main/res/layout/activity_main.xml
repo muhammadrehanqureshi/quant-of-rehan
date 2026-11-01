@@ -533,6 +533,19 @@
             android:text="@string/greeting_morning"
             android:textSize="26.1sp"/>
 
+        <!-- Owner order 2026-11-01: the greeting and the QUANT STATUS tile
+             are divided by the same diamond rule every other change of
+             subject on the console carries, so the seam where the page
+             stops greeting him and starts reporting is marked like the
+             rest. One rule per division, never two, and it hides with
+             the home group because the greeting it follows does. -->
+        <include
+            android:id="@+id/rule_greeting"
+            layout="@layout/qor_rule"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"/>
+
         <!-- ══════════ system status card ══════════
              Owner order 2026-10-16: the console's three tiles carry ids so
              one state can hide them together. The settings menu must be the
