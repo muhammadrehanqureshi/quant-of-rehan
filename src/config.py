@@ -335,6 +335,11 @@ SELF_IMPROVE_DISCOVERY_NET_FLOOR = _number("SELF_IMPROVE_DISCOVERY_NET_FLOOR", 0
 # target cannot satisfy both, so it is refused as incoherent; an observed
 # edge is killed only when it sits below that break-even.
 SELF_IMPROVE_TARGET_WIN_RATE = _number("SELF_IMPROVE_TARGET_WIN_RATE", 0.90)
+# The multiplicity family is the WHOLE search program, not one cloud run:
+# a runner starts from an empty registry, so the trials already spent are
+# carried here, set at dispatch. Default 0 is a fresh program.
+SELF_IMPROVE_PRIOR_TRIALS = int(
+    _number("SELF_IMPROVE_PRIOR_TRIALS", 0))
 SELF_IMPROVE_HOLM_ALPHA = _number("SELF_IMPROVE_HOLM_ALPHA", 0.05)
 # The bootstrap and the Wilson Z the reports carry (95 percent band).
 SELF_IMPROVE_SEED = int(_number("SELF_IMPROVE_SEED", 20261031))

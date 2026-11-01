@@ -18,6 +18,10 @@ on:
         type: choice
         options: [both, smoke, build-dataset, ten-year, mean-reversion, kalman-grid, self-improve]
         default: both
+      prior_trials:
+        description: "trials already spent in this search program"
+        type: string
+        default: "0"
 
 permissions:
   contents: read
@@ -218,6 +222,7 @@ jobs:
     timeout-minutes: 150
     env:
       PYTHONUNBUFFERED: "1"
+      SELF_IMPROVE_PRIOR_TRIALS: ${{ inputs.prior_trials || '0' }}
       # The same relay archive every forward job reaches: the STATUS
       # measure and the demotion check read the finalized sessions
       # through it (SO-5: the token travels as a secret, never a file).

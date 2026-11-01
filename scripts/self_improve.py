@@ -169,6 +169,15 @@ def pre_registered_variants() -> list[dict]:
         ("inverse-1.5x3-hold10", base, 0.015, 0.03, 10),
         ("sym-1x2-hold3", base, 0.010, 0.02, 3),
         ("mid-1.2x2.5-hold3", base, 0.012, 0.025, 3),
+        # Owner mission 2026-11-01, after the third search: the 90 percent
+        # target needs high-hit shapes whose break-even stays under it. A
+        # 2 percent target against a 5, 6 or 8 percent stop, and 1.5 against
+        # 4, all break even between 83.1 and 88.3 percent after the mission's
+        # own costs, so a 90 percent rate can still be profitable.
+        ("wide-2x5-hold3", base, 0.02, 0.05, 3),
+        ("wide-2x6-hold3", base, 0.02, 0.06, 3),
+        ("wide-1.5x4-hold3", base, 0.015, 0.04, 3),
+        ("wide-2x8-hold3", base, 0.02, 0.08, 3),
     ]
     grids = []
     for name, w, tp, sl, hold in variants:
@@ -309,12 +318,17 @@ def run_search(panel: pd.DataFrame, data_hash: str, seed: int,
         validation_summary["bounds"] = [str(b) for b in splits["validation"]]
         validation_summary["embargo_dropped"] = int(
             len(validation_all) - len(validation_labels))
+        validation_summary["break_even_win_rate"] = break_even
         survivors.append((variant, validation_summary))
-    # The multiplicity correction over the survivors that reached a test of
-    # their win rate (the registry count is the honest family size).
-    family = registry_obj.count()
+    # The multiplicity correction over every trial in the search program,
+    # not only this run's registry: a cloud runner starts empty, so the
+    # trials already spent arrive through SELF_IMPROVE_PRIOR_TRIALS. The
+    # null is each shape's OWN break-even, never a coin flip.
+    family = registry_obj.count() + config.SELF_IMPROVE_PRIOR_TRIALS
     p_values = {name_from_summary(v, i): registry.one_sided_p(
-        s["win_rate"] or 0.0, s["n"]) for i, (v, s) in enumerate(survivors)}
+        s["win_rate"] or 0.0, s["n"],
+        null=s.get("break_even_win_rate", 0.5))
+        for i, (v, s) in enumerate(survivors)}
     adjusted = registry.holm_adjusted(p_values, family_size=family)
     for i, (variant, validation_summary) in enumerate(survivors):
         name = name_from_summary(variant, i)
@@ -363,7 +377,9 @@ def run_search(panel: pd.DataFrame, data_hash: str, seed: int,
         "splits": {k: [str(b) for b in v] for k, v in splits.items()},
         "variants_tried": len(rows),
         "registry_total": registry_obj.count(),
-        "holm": {"family_size": family, "alpha": alpha},
+        "holm": {"family_size": family,
+                 "prior_trials": config.SELF_IMPROVE_PRIOR_TRIALS,
+                 "alpha": alpha},
         "survivors": [
             {"name": name_from_summary(v, i), "validation": s}
             for i, (v, s) in enumerate(survivors)],
