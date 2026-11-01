@@ -1641,6 +1641,16 @@ to sixty seconds. The status tile therefore also carries the app's own
      the orphan law stands so every dot still wears a filament.
   5. The version bump is versionCode 82 / versionName 2.3.15.
 
+**Version 3.7.3, versionCode 103.**
+
+  Owner order 2026-11-01, after the 3.7.2 build: the dropdown's colour
+  follows the theme's second colour. Both carets re-ink inside the theme
+  pass itself, so they are gold on PURPLE & YELLOW and GREEN & YELLOW, and
+  white on BLACK & WHITE, NAVY BLUE & WHITE and ORANGE & WHITE. The same
+  themeAccentInk already inks the menu bar's icons, so the carets and the
+  icons always wear one colour. The version bump is versionCode 103 /
+  versionName 3.7.3.
+
 **Version 3.7.2, versionCode 102.**
 
   Owner order 2026-11-01, after the 3.7.1 build: "you gotta have it on the

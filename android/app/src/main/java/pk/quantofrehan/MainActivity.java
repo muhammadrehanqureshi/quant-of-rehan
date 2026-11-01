@@ -1112,7 +1112,12 @@ public class MainActivity extends Activity {
         // so a theme's repaint can never stretch the tile past the
         // screen's bottom edge or the W/L tile off its neighbour below
         // (the orange and white report of 2026-10-31).
+        // Owner order 2026-11-01: the two dropdown carets wear the
+        // theme's second colour (gold on purple and green, white on
+        // black, navy and orange), re-inked in this same pass, so no
+        // theme can leave the previous look's caret behind.
         repaintMenuDividers();
+        repaintDropdownArrows();
         pinNavTile();
     }
 
