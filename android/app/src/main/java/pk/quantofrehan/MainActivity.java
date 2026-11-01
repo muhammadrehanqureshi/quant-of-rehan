@@ -1504,11 +1504,11 @@ public class MainActivity extends Activity {
         row.setTextColor(getColor(R.color.text_bright));
         row.setIncludeFontPadding(false);
         row.setGravity(Gravity.CENTER_VERTICAL);
-        // v3.1.0 (owner order 2026-10-29, "not even aligned"): the rows'
-        // side air is the closed box's own 10dp column, so an open menu's
-        // lines stand in the same typing column the closed label prints
-        // in, instead of an indent of their own.
-        row.setPadding(dp(10), dp(7), dp(14), dp(7));
+        // v3.7.1 (owner order 2026-11-01): the leading air is the caret's
+        // own 38dp column - its 10dp station, 20dp width and 8dp gap - so
+        // an open row's wording stands exactly where the closed face's
+        // label prints, behind the first option's leading mark.
+        row.setPadding(dp(38), dp(7), dp(14), dp(7));
         // v3.4.0 (owner order 2026-10-30, "the drop down menu got
         // thinner and the drop down/drop up icon gets on the middle,
         // it should be on the top"): a menu row stands at the closed
@@ -1526,7 +1526,7 @@ public class MainActivity extends Activity {
      *  menus, make sure you have a line between 2 separate sub menu
      *  options, the difference between the line and all the sub menus
      *  should be exactly the same"). The line is ONE dp tall, its own
-     *  left air the row's 10dp column and its right air the row's
+     *  left air the wording's 38dp column and its right air the row's
      *  14dp, so the line spans exactly the typing column the options
      *  print in. Each row's own 7dp top/bottom padding meets the
      *  line's own 7dp top/bottom air, so the distance above the line
@@ -1540,7 +1540,7 @@ public class MainActivity extends Activity {
         View line = new View(this);
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, dp(1));
-        params.setMargins(dp(10), dp(7), dp(14), dp(7));
+        params.setMargins(dp(38), dp(7), dp(14), dp(7));
         line.setLayoutParams(params);
         line.setBackgroundColor(edgeInk());
         menuDividers.add(line);
@@ -1571,7 +1571,7 @@ public class MainActivity extends Activity {
     // from its nearest line above and below, in BOTH menus.
     private TextView menuRow(String line, boolean first, boolean last) {
         TextView row = menuRow(line);
-        row.setPadding(dp(10), first ? dp(14) : dp(7), dp(14),
+        row.setPadding(dp(38), first ? dp(14) : dp(7), dp(14),
                 last ? dp(14) : dp(7));
         return row;
     }
@@ -1613,7 +1613,7 @@ public class MainActivity extends Activity {
         // layout (GONE), so the empty strip the photo shows collapses
         // and the option rows MOVE UP into the space the face vacated -
         // the plate hugs the rows alone, with the caret keeping its
-        // top-right anchor above them, visibly tappable, so one tap on
+        // leading anchor beside the first option, visibly tappable, so one tap on
         // the dropdown icon rolls the window back up. The roll-up
         // restores the face and its saved label word for word: the
         // default custom scrips box exactly as it stood before the tap.
@@ -1624,9 +1624,10 @@ public class MainActivity extends Activity {
             }
         }
         rotateDropdownArrow(volumeSplitArrow, open);
-        // Owner order 2026-11-01: the caret re-centres on its anchor each
-        // time the state lands - the whole open plate's own middle when
-        // open, the closed box's own face when closed - never a guess.
+        // Owner order 2026-11-01, after the 3.7.0 build: the caret
+        // re-centres on the first option's own text line each time the
+        // state lands, and on the closed box's own face while closed,
+        // never a guess and never the middle of the plate.
         centerDropdownCaret(volumeSplitArrow, volumeSplitSpinner,
                 volumeSplitMenu);
         if (open) {
@@ -1648,7 +1649,7 @@ public class MainActivity extends Activity {
         // v3.2.0 (owner order 2026-10-29, "do the same for themes as
         // well"): the volume window's own law - the face leaves while
         // the menu is open, the rows move up into the space it vacates,
-        // and the caret keeps its top-right anchor, still the roll-up
+        // and the caret keeps its leading anchor beside the first option, still the roll-up
         // tap. Closing restores the closed THEMES box and its label.
         if (themeSpinner != null) {
             themeSpinner.setVisibility(open ? View.GONE : View.VISIBLE);
@@ -1699,16 +1700,18 @@ public class MainActivity extends Activity {
                 .start();
     }
 
-    /** Owner order 2026-11-01 ("have the drop down/up icon at the middle
-     *  ... right now, the arrow is little to the up side. Make it at the
-     *  exact center"): the caret stands at the exact vertical middle of
-     *  the mount's TOP FACE in both states - the closed box's own 43dp
-     *  face while closed, the WHOLE open plate while open - instead of
-     *  the fixed 11dp that survived neither the face's own air nor the
-     *  v3.6.1 option rows' taller first/last padding. The centre is read
-     *  after the layout pass settles, and the caret's one top margin is
-     *  written from it, so the anchor can grow or shrink on any theme and
-     *  the caret re-centres itself the same way. */
+    /** Owner order 2026-11-01, after the 3.7.0 build ("you got it at the
+     *  middle of all the options, which is wrong, you should have it in
+     *  front of the first option but it should be exactly in the middle/
+     *  center of the first option's wording, do the same thing for themes
+     *  selection"): the caret is the first option's LEADING mark now. It
+     *  stands in the plate's 10dp column, the wording column behind it is
+     *  38dp in both menus and on both closed faces, and the caret's one
+     *  vertical station is the centre of the first option's own TEXT line,
+     *  padding included, so the first row's 14dp top air cannot lift it
+     *  off the wording. Closed, the anchor is the closed face's own line.
+     *  The whole plate is never an anchor again: that is exactly what put
+     *  the caret between the options. */
     private void centerDropdownCaret(ImageView arrow, TextView face,
             LinearLayout menu) {
         if (arrow == null) {
@@ -1723,19 +1726,14 @@ public class MainActivity extends Activity {
             if (arrow.getParent() != mount || mount.getWidth() == 0) {
                 return;
             }
-            // Owner order 2026-11-01 ("the drop up icon is little to the
-            // up side when the sub menu is tapped down ... have the drop
-            // up icon in the exact center"): while the menu holds the
-            // mount, the anchor is the WHOLE open plate, not its first
-            // row. Anchoring to row one put the caret at that row's
-            // middle, which is above the middle of a two-row plate, so
-            // the arrow read high exactly as he described. The face is
-            // still the anchor while it stands (closed).
+            // The first option is the menu's child zero: the builders add
+            // the row first and a divider only after it, never before it.
             android.view.View anchor =
                     face.getVisibility() == View.VISIBLE
                     ? face
                     : (menu != null && menu.getVisibility() == View.VISIBLE
-                       ? menu : null);
+                       && menu.getChildCount() > 0
+                       ? menu.getChildAt(0) : null);
             if (anchor == null || anchor.getHeight() == 0
                     || arrow.getHeight() == 0) {
                 return;
@@ -1749,7 +1747,12 @@ public class MainActivity extends Activity {
             if (host != mount) {
                 return;
             }
-            int centre = top + anchor.getHeight() / 2;
+            // The text line, not the row's box: gravity centres the line
+            // inside the content area, so the padding above and below it
+            // is taken out before the middle is read.
+            int content = anchor.getHeight() - anchor.getPaddingTop()
+                    - anchor.getPaddingBottom();
+            int centre = top + anchor.getPaddingTop() + content / 2;
             android.widget.FrameLayout.LayoutParams lp =
                     (android.widget.FrameLayout.LayoutParams)
                             arrow.getLayoutParams();
