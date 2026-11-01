@@ -129,7 +129,13 @@ def label_candidates(panel: pd.DataFrame,
             touched_tp = high >= tp_price
             if touched_sl and touched_tp:
                 # Stop first, always: the pessimistic order is the law.
-                exit_price = sl_price
+                # A bar that OPENED below the stop fills at that open,
+                # never at the better stop price (owner order 2026-11-01:
+                # the reviewer caught this branch booking sl_price while
+                # the single-touch branch already filled the gap).
+                open_price = float(group.at[i, "open"]) if have_hl else \
+                    float(group.at[i, "close"])
+                exit_price = open_price if open_price < sl_price else sl_price
                 outcome, exit_date, exit_idx = "SL", group.at[i, "date"], i
                 break
             if touched_tp:

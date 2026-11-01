@@ -326,6 +326,13 @@ SELF_IMPROVE_MIN_DISCOVERY_TRADES = int(
     _number("SELF_IMPROVE_MIN_DISCOVERY_TRADES", 50))
 SELF_IMPROVE_DISCOVERY_WIN_FLOOR = _number("SELF_IMPROVE_DISCOVERY_WIN_FLOOR", 0.60)
 SELF_IMPROVE_DISCOVERY_NET_FLOOR = _number("SELF_IMPROVE_DISCOVERY_NET_FLOOR", 0.0)
+# Owner order 2026-11-01 (the reviewer's finding): the kill gate reads each
+# shape's own break-even, not one flat floor that killed every asymmetric
+# exit by construction. A shape whose break-even is at or above the mission
+# target cannot satisfy both, so it is refused as incoherent; an observed
+# edge is killed only when it sits below that break-even.
+SELF_IMPROVE_TARGET_WIN_RATE = _number("SELF_IMPROVE_TARGET_WIN_RATE", 0.90)
+SELF_IMPROVE_HOLM_ALPHA = _number("SELF_IMPROVE_HOLM_ALPHA", 0.05)
 # The bootstrap and the Wilson Z the reports carry (95 percent band).
 SELF_IMPROVE_SEED = int(_number("SELF_IMPROVE_SEED", 20261031))
 SELF_IMPROVE_BOOTSTRAP_RESAMPLES = int(
