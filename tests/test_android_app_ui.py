@@ -1785,12 +1785,13 @@ class VersionTest(unittest.TestCase):
         # union-find, the shortest pair across two parts joined until
         # one mesh remains, so no line can end at a dot no other thread
         # carries on from.
-        # v3.7.2 (owner order 2026-11-01, after the 3.7.1 build): the
-        # caret is back at the trailing edge and the wording back at the
-        # 10dp column, versionCode 102.
+        # v3.7.3 (owner order 2026-11-01, after the 3.7.2 build): both
+        # dropdown carets re-ink in the theme pass and wear the theme's
+        # second colour, versionCode 103.
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="3.7.2"', manifest)
-        self.assertIn('android:versionCode="102"', manifest)
+        self.assertIn('android:versionName="3.7.3"', manifest)
+        self.assertIn('android:versionCode="103"', manifest)
+        self.assertNotIn('android:versionName="3.7.2"', manifest)
         self.assertNotIn('android:versionName="3.7.1"', manifest)
         self.assertNotIn('android:versionName="3.6.3"', manifest)
         # The changelog entry ties these user-visible changes to the build.
@@ -1963,9 +1964,12 @@ class VersionTest(unittest.TestCase):
         # v3.7.1 (owner order 2026-11-01, after the 3.7.0 build): the
         # carets centred on the first option's wording, versionCode 101.
         self.assertIn("Version 3.7.1, versionCode 101", readme)
-        # v3.7.2 (owner order 2026-11-01, after the 3.7.1 build): the
-        # caret returns to the right edge and the wording to 10dp,
-        # versionCode 102.
+        # v3.7.3 (owner order 2026-11-01, after the 3.7.2 build): both
+        # dropdown carets re-ink in the theme pass and wear the theme's
+        # second colour, versionCode 103.
+        # v3.7.3 (owner order 2026-11-01, after the 3.7.2 build): the
+        # carets wear the theme's second colour.
+        self.assertIn("Version 3.7.3, versionCode 103", readme)
         self.assertIn("Version 3.7.2, versionCode 102", readme)
         # v3.1.0 (owner order 2026-10-29, twenty-eighth pass): the open
         # menu keeps its anchored line and the rows type in the box's
@@ -1975,8 +1979,9 @@ class VersionTest(unittest.TestCase):
         # rows move up into the closed face's empty strip, both dropdowns.
         self.assertIn("Version 3.2.0, versionCode 92", readme)
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionCode="102"', manifest)
-        self.assertIn('android:versionName="3.7.2"', manifest)
+        self.assertIn('android:versionCode="103"', manifest)
+        self.assertIn('android:versionName="3.7.3"', manifest)
+        self.assertNotIn('android:versionName="3.7.2"', manifest)
         self.assertNotIn('android:versionName="3.7.1"', manifest)
         self.assertNotIn('android:versionName="3.6.3"', manifest)
         self.assertNotIn('android:versionName="3.5.0"', manifest)
@@ -2624,6 +2629,35 @@ class MenuOrdersTest(unittest.TestCase):
         self.assertIn("arrow.animate()", self.main)
         self.assertIn("showVolumeMenu(!volumeMenuOpen)", self.main)
         self.assertIn("showThemeMenu(!themeMenuOpen)", self.main)
+
+    def test_both_dropdown_carets_wear_the_themes_second_colour(self):
+        """Owner order 2026-11-01: the dropdown's colour follows the
+        theme's second colour. Purple and yellow and green and yellow
+        keep the brand gold; black and white, navy and white and orange
+        and white wear white. Both carets re-ink in the theme pass."""
+        start = self.main.index("private void repaintDropdownArrows() {")
+        block = self.main[start:start + 800]
+        self.assertEqual(
+            block.count("ColorStateList.valueOf(themeAccentInk)"), 2)
+        self.assertIn("volumeSplitArrow.setImageTintList", block)
+        self.assertIn("themeArrow.setImageTintList", block)
+        theme_pass = self.main[self.main.index(
+            "private void applyTheme(int index) {"):]
+        theme_pass = theme_pass[:theme_pass.index(
+            "private final GradientDrawable[] themePlates")]
+        self.assertIn("repaintDropdownArrows();", theme_pass)
+        inputs = self.main[self.main.index(
+            "private void applyThemeToInputs(int index) {"):]
+        inputs = inputs[:inputs.index("private void paintField")]
+        self.assertIn("repaintDropdownArrows();", inputs)
+        for pair in (
+            '<color name="gold">#FFD9A441</color>',
+            '<color name="theme_black_accent">#FFFFFFFF</color>',
+            '<color name="theme_green_accent">#FFD9A441</color>',
+            '<color name="theme_navy_accent">#FFFFFFFF</color>',
+            '<color name="theme_orange_accent">#FFFFFFFF</color>',
+        ):
+            self.assertIn(pair, self.colors)
 
     def test_the_menu_rows_stand_at_one_displacement_each(self):
         """Owner order 2026-10-31 ("the top option and the bottom option
