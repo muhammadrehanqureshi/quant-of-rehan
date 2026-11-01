@@ -324,7 +324,10 @@ SELF_IMPROVE_TEST_START = "2026-01-01"
 # sees validation, and the kill is recorded in the registry.
 SELF_IMPROVE_MIN_DISCOVERY_TRADES = int(
     _number("SELF_IMPROVE_MIN_DISCOVERY_TRADES", 50))
-SELF_IMPROVE_DISCOVERY_WIN_FLOOR = _number("SELF_IMPROVE_DISCOVERY_WIN_FLOOR", 0.60)
+# The flat discovery win floor is RETIRED (owner order 2026-11-01): it
+# killed every shape whose own payoff implied a higher break-even, so the
+# gate reads break_even_win_rate instead. The name is gone rather than left
+# as a dead knob that a later session could tune to no effect.
 SELF_IMPROVE_DISCOVERY_NET_FLOOR = _number("SELF_IMPROVE_DISCOVERY_NET_FLOOR", 0.0)
 # Owner order 2026-11-01 (the reviewer's finding): the kill gate reads each
 # shape's own break-even, not one flat floor that killed every asymmetric

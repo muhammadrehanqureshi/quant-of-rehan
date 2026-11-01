@@ -91,7 +91,7 @@ def data_hash(path: Path) -> str:
 
 
 class Registry:
-    """Append-only exper idgement ledger over one JSON Lines file."""
+    """Append-only experiment ledger over one JSON Lines file."""
 
     def __init__(self, path: Path | None = None) -> None:
         self.path = Path(path) if path is not None else ROOT / REGISTRY_PATH
