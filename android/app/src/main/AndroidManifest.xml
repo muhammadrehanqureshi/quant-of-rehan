@@ -434,11 +434,17 @@
      acknowledged total rides /prices' sixth column; and the pinned
      search answer, B, S and T included, is rebuilt from the live quote
      on every tick.
+
+     Version 3.7.0, versionCode 100 (owner order 2026-11-01, the day's
+     closing build): the app's own laws are unchanged from 3.6.3; the
+     version marks the build made after the self-improvement engine's
+     reviewer defects were fixed and its kill gate was made payoff-aware,
+     as recorded in PROJECT_REPORT.md.
      -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="pk.quantofrehan"
-    android:versionCode="99"
-    android:versionName="3.6.3">
+    android:versionCode="100"
+    android:versionName="3.7.0">
 
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="30"/>
 
