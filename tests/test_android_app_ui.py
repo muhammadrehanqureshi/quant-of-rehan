@@ -1785,13 +1785,13 @@ class VersionTest(unittest.TestCase):
         # union-find, the shortest pair across two parts joined until
         # one mesh remains, so no line can end at a dot no other thread
         # carries on from.
-        # v3.7.0 (owner order 2026-11-01, the day's closing build): the
-        # app's laws are unchanged from 3.6.3; the version marks the build
-        # made after the engine fixes and the payoff-aware kill gate,
-        # versionCode 100.
+        # v3.7.1 (owner order 2026-11-01, after the 3.7.0 build): the
+        # caret leads the first option and centres on that option's own
+        # wording in both dropdowns, versionCode 101.
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="3.7.0"', manifest)
-        self.assertIn('android:versionCode="100"', manifest)
+        self.assertIn('android:versionName="3.7.1"', manifest)
+        self.assertIn('android:versionCode="101"', manifest)
+        self.assertNotIn('android:versionName="3.7.0"', manifest)
         self.assertNotIn('android:versionName="3.6.3"', manifest)
         # The changelog entry ties these user-visible changes to the build.
         readme = (ROOT / "android" / "README.md").read_text(encoding="utf-8")
@@ -1958,8 +1958,12 @@ class VersionTest(unittest.TestCase):
         # versionCode 99.
         self.assertIn("Version 3.6.3, versionCode 99", readme)
         # v3.7.0 (owner order 2026-11-01, the day's closing build): the
-        # latest APK, versionCode 100.
+        # APK that followed the engine fixes, versionCode 100.
         self.assertIn("Version 3.7.0, versionCode 100", readme)
+        # v3.7.1 (owner order 2026-11-01, after the 3.7.0 build): the
+        # carets lead the first option and centre on its wording, in both
+        # dropdowns, versionCode 101.
+        self.assertIn("Version 3.7.1, versionCode 101", readme)
         # v3.1.0 (owner order 2026-10-29, twenty-eighth pass): the open
         # menu keeps its anchored line and the rows type in the box's
         # own column, and the menu tile rides 7% of the screen higher.
@@ -1968,8 +1972,9 @@ class VersionTest(unittest.TestCase):
         # rows move up into the closed face's empty strip, both dropdowns.
         self.assertIn("Version 3.2.0, versionCode 92", readme)
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionCode="100"', manifest)
-        self.assertIn('android:versionName="3.7.0"', manifest)
+        self.assertIn('android:versionCode="101"', manifest)
+        self.assertIn('android:versionName="3.7.1"', manifest)
+        self.assertNotIn('android:versionName="3.7.0"', manifest)
         self.assertNotIn('android:versionName="3.6.3"', manifest)
         self.assertNotIn('android:versionName="3.5.0"', manifest)
         self.assertNotIn('android:versionName="3.3.0"', manifest)
@@ -2592,14 +2597,15 @@ class MenuOrdersTest(unittest.TestCase):
         for view_id in ("volume_split_arrow", "theme_arrow"):
             with self.subTest(arrow=view_id):
                 arrow = element(self.layout, f'android:id="@+id/{view_id}"')
-                # v3.4.0 (owner order 2026-10-30, "the drop down/drop up
-                # icon gets on the middle, it should be on the top"): the
-                # caret anchors the mount's own TOP-RIGHT, the closed
-                # 43dp face's own 11dp station, and the open rows' first
-                # line while the menu stands.
-                self.assertIn('android:layout_gravity="end|top"',
+                # v3.7.1 (owner order 2026-11-01): the caret leads the
+                # first option at the plate's 10dp column, so the wording
+                # column behind it is 38dp in the layout (the faces) and
+                # in menuRow (the open rows).
+                self.assertIn('android:layout_gravity="start|top"',
                               arrow)
+                self.assertIn('android:layout_marginStart="10dp"', arrow)
                 self.assertIn('android:layout_marginTop="11dp"', arrow)
+                self.assertNotIn("android:layout_marginEnd", arrow)
                 self.assertIn('android:src="@drawable/dropdown_arrow"', arrow)
         self.assertIn("(ImageView) findViewById(R.id.volume_split_arrow);",
                       self.main)
@@ -2778,15 +2784,16 @@ class MenuOrdersTest(unittest.TestCase):
         # The centre is read after the layout pass, on the view's own post.
         self.assertIn("arrow.post(() -> {", self.main)
         self.assertIn("arrow.getLayoutParams()", self.main)
-        # Owner order 2026-11-01, second note ("the drop up icon is little
-        # to the up side when the sub menu is tapped down... have the drop
-        # up icon in the exact center"): the open state's anchor is the
-        # WHOLE plate, not its first row, so the arrow stands at the middle
-        # of the box the eye sees and not above it.
-        self.assertIn("? menu : null);", self.main)
+        # Owner order 2026-11-01, after the 3.7.0 build: the open state's
+        # anchor is the FIRST option row, and its vertical station is that
+        # row's text line (the padding above and below the line is taken
+        # out before the middle is read), never the middle of the plate.
+        self.assertIn("menu.getChildAt(0) : null);", self.main)
+        self.assertIn("anchor.getHeight() - anchor.getPaddingTop()",
+                      self.main)
         centre = self.main.index("private void centerDropdownCaret(")
-        self.assertNotIn("menu.getChildAt(0)",
-                         self.main[centre:centre + 2600])
+        self.assertIn("anchor.getPaddingTop() + content / 2",
+                      self.main[centre:centre + 2600])
         # Landed from onCreate after the menus build, and from onResume
         # too: count == 2 exactly, no third site has grown in.
         self.assertEqual(self.main.count("centerDropdownCarets();"), 2,
@@ -2803,12 +2810,12 @@ class MenuOrdersTest(unittest.TestCase):
         self.assertIn("private View menuDivider() {", self.main)
         self.assertIn("LinearLayout.LayoutParams.MATCH_PARENT, dp(1));",
                       self.main)
-        self.assertIn("params.setMargins(dp(10), dp(7), dp(14), dp(7));",
+        self.assertIn("params.setMargins(dp(38), dp(7), dp(14), dp(7));",
                       self.main,
-                      "the line's own air: 7dp above and below, the same")
+                      "the line starts at the 38dp wording column, same air")
         # A row's own padding is the matching 7dp top and bottom, so the
         # line-to-option distance is the same 14dp on both sides.
-        self.assertIn("row.setPadding(dp(10), dp(7), dp(14), dp(7));",
+        self.assertIn("row.setPadding(dp(38), dp(7), dp(14), dp(7));",
                       self.main)
         # Both menus obey one law: every option with an option above it
         # gains the line first.
@@ -3666,7 +3673,9 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         29 * 1.5 = 43.5 floored to EXACTLY 43dp, and all three field
         boxes (the two closed dropdown boxes and the search box) are BY
         that one height - one exact 43dp measure, the 3dp air above and
-        below the line, the 10dp sides, one centre_vertical gravity,
+        below the line, the leading 38dp column on the two dropdown
+        faces, the 10dp sides on the search box, one centre_vertical
+        gravity,
         the font's own padding out of the measure. No floor is named
         again: the box names its height in one place, layout_height,
         and the retired 23dp/32dp/38dp/40dp/35dp measures stay retired
@@ -3679,13 +3688,17 @@ class ThinkingOrbPlanTest(unittest.TestCase):
             with self.subTest(view_id=view_id):
                 box = element(layout, f'android:id="@+id/{view_id}"')
                 # Tile's width, one exact height, the universal numbers,
-                # the same law three times.
+                # the same law three times. v3.7.1 moves only the two
+                # dropdown faces' leading column to 38dp (the caret's 10dp
+                # station, 20dp width and 8dp gap); the search box keeps
+                # its 10dp sides.
+                left = "38dp" if view_id != "search_input" else "10dp"
                 self.assertIn('android:layout_width="match_parent"', box)
                 self.assertIn('android:layout_height="43dp"', box)
                 self.assertNotIn("minHeight", box)
                 self.assertIn('android:paddingTop="3dp"', box)
                 self.assertIn('android:paddingBottom="3dp"', box)
-                self.assertIn('android:paddingLeft="10dp"', box)
+                self.assertIn(f'android:paddingLeft="{left}"', box)
                 self.assertIn('android:paddingRight="10dp"', box)
                 self.assertIn('android:gravity="center_vertical"', box)
                 self.assertIn('android:includeFontPadding="false"', box)
@@ -3951,9 +3964,9 @@ class ThinkingOrbPlanTest(unittest.TestCase):
 
         Three laws land:
 
-        * both caret anchors: the mount's own TOP-RIGHT (11dp of top
-          air, the closed 43dp face's own station), never the centre of
-          whatever the mount holds;
+        * both caret anchors: the plate's leading 10dp column (11dp of
+          top air as the first layout's floor), aimed at the first
+          option's own text line, never the middle of the plate;
         * every menu row stands at the closed box's own field height
           law, the one universal 43dp, so an open menu reads as thick
           as the face it opened from;
@@ -3968,8 +3981,10 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         for view_id in ("volume_split_arrow", "theme_arrow"):
             with self.subTest(arrow=view_id):
                 arrow = element(layout, f'android:id="@+id/{view_id}"')
-                self.assertIn('android:layout_gravity="end|top"', arrow)
+                self.assertIn('android:layout_gravity="start|top"', arrow)
+                self.assertIn('android:layout_marginStart="10dp"', arrow)
                 self.assertIn('android:layout_marginTop="11dp"', arrow)
+                self.assertNotIn("android:layout_marginEnd", arrow)
         # The rows' own thickness: inside menuRow, once, at the field's
         # one height law.
         row = main.index("private TextView menuRow(String line) {")
@@ -4008,9 +4023,9 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         as 4% DOWN from the 7% it was.
         """
         main = MAIN.read_text(encoding="utf-8")
-        # The rows' side air is the closed box's own 10dp column - both
-        # faces type on one column, never an indent of their own.
-        self.assertIn("row.setPadding(dp(10), dp(7), dp(14), dp(7));", main)
+        # The rows' leading air is the caret's 38dp column, the closed
+        # faces' own column since v3.7.1, so both faces type on one column.
+        self.assertIn("row.setPadding(dp(38), dp(7), dp(14), dp(7));", main)
         # The tile's lift is the screen's own share, read from the
         # display's own metrics on the carrier the tile rides: 3% now,
         # which is the ordered 4% below the v3.1.0 law's 7%. v3.6.1
