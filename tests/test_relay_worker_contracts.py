@@ -626,6 +626,18 @@ class RelayWorkerContractTest(unittest.TestCase):
         self.assertIn("row.volume,", prices)
         self.assertIn("newestQuoteRows(freshQuotes)", self.source)
         self.assertIn("newestQuoteRows(quotes.quotes).values()", self.source)
+        # Owner order 2026-11-01, the same day's second data note: on a
+        # non-trading day both reading routes answer with the last
+        # session's frames, stamped, so a Saturday's card and search list
+        # carry the same scrips instead of three rows against none. On a
+        # trading day the today-only law still stands.
+        self.assertIn("const stockTradingToday = isTradingDay(karachiView(Date.now()));",
+                      stock)
+        self.assertIn("if (!quote || (!quoteIsFromToday(quote) && stockTradingToday)) {",
+                      stock)
+        self.assertIn("const tradingToday = isTradingDay(kNow);", prices)
+        self.assertIn("if (!quoteIsFromToday(quote) && tradingToday) continue;",
+                      prices)
 
 
 if __name__ == "__main__":
