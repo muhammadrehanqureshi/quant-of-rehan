@@ -133,18 +133,25 @@ class Registry:
         return row
 
 
-def one_sided_p(win_rate: float, n: int) -> float | None:
-    """One-sided binomial p that the TRUE win rate is at most 0.5.
+def one_sided_p(win_rate: float, n: int,
+                null: float = 0.5) -> float | None:
+    """One-sided binomial p that the TRUE win rate is at most *null*.
 
     Normal approximation with continuity correction; good enough for the
     registry's record and computed without a dependency. Returns None when
-    there is nothing to test.
+    there is nothing to test. The null is the shape's own break-even when
+    the claim is "this variant beats the payoff it was born with"; 0.5 is
+    only the bare "better than a coin" test and is never the right null
+    for a payoff-differentiated search (reviewer finding, 2026-11-01).
     """
     if n <= 0 or win_rate is None:
         return None
-    mean, sd = 0.5 * n, 0.5 * math.sqrt(n)
+    if not 0.0 < null < 1.0:
+        null = 0.5
+    mean = null * n
+    sd = math.sqrt(n * null * (1.0 - null))
     if sd <= 0:
-        return 0.0 if win_rate > 0.5 else 1.0
+        return 0.0 if win_rate > null else 1.0
     z = (float(n) * win_rate - mean - 0.5) / sd
     return 0.5 * math.erfc(z / math.sqrt(2.0))
 

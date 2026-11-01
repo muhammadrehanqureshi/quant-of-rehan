@@ -1962,3 +1962,119 @@ Desktop as QuantOfRehan-v3.6.2.apk.
    that wait.
 
 NOT MET
+
+## 14. Mission delivery, 2026-11-01: the payoff-aware gate, 39 trials, NOT MET
+
+This section continues section 13 under the same mission and the same
+admissibility bar: at least 100 locked out-of-sample or forward paper trades,
+net of 22.4 bps cost and 10 bps slippage per side and 15 percent CGT on gains,
+mean net positive, bootstrap lower bound above zero, and the Wilson interval
+beside the rate. The target stays 90 percent. Every number below comes from a
+merged PR's CI, the Actions artifact of run 41273110941, or the live relay.
+
+**The reviewer defects from section 13 are fixed (PRs #193, #194).** The
+multiplicity family is the registry's total, and Holm's result now gates
+promotion; the both-touched branch fills a gap-through stop at the open; an
+unarmed run can only write challenger.json and is printed as a shadow; labels
+whose exit crosses a split end are purged. The follow-up removed the dead flat
+floor knob, corrected the demotion docstring, named the two no-entry counts
+apart, and printed the shadow challenger on the one screen. The kill gate now
+reads each shape's own break-even: KILL_FEW_TRADES, KILL_INCOHERENT when the
+break-even is at or above 0.90, and KILL_NEGATIVE_EDGE when the observed rate
+is below it.
+
+**The second search, run 41184604164 (2026-11-01, before the gate fix).**
+Thirteen variants, all KILL at the old flat 0.60 floor. Discovery win rates ran
+0.2768 to 0.5851 and every net expectancy was negative, from the baseline's
+-0.008954 to inverse-1.5x3-hold10's -0.011253. That is the run that showed the
+old floor killed the asymmetric shapes by construction rather than by evidence.
+
+**The third search, run 41273110941 (2026-11-01, 13 variants, head a4cfa50,
+success).** The pre-registered family and splits are unchanged (discovery
+2016-10-31 to 2024-06-30, validation 2024-07-01 to 2025-12-31, test 2026-01-01
+to 2026-10-30 locked, seed 20261031). Every row is now killed for the reason
+the shape itself implies:
+
+| variant | n | win rate | break-even | net expectancy | decision |
+|---|---|---|---|---|---|
+| baseline-deployed-law | 18,405 | 0.2769 | 0.5892 | -0.008998 | KILL_NEGATIVE_EDGE |
+| inverse-1.5x3-hold3 | 18,403 | 0.5511 | 0.8344 | -0.011131 | KILL_NEGATIVE_EDGE |
+| inverse-1.5x3-hold5 | 18,403 | 0.5739 | 0.8344 | -0.011215 | KILL_NEGATIVE_EDGE |
+| inverse-1.5x3-hold10 | 18,400 | 0.5851 | 0.8344 | -0.011288 | KILL_NEGATIVE_EDGE |
+| sym-1x2-hold3 | 18,408 | 0.4993 | 0.8985 | -0.011747 | KILL_NEGATIVE_EDGE |
+| mid-1.2x2.5-hold3 | 18,408 | 0.5423 | 0.8703 | -0.011437 | KILL_NEGATIVE_EDGE |
+| inverse-1.5x3-hold3-relvol2 | 13,818 | 0.5446 | 0.8344 | -0.011409 | KILL_NEGATIVE_EDGE |
+| inverse-1.5x3-hold3-relvol2.5 | 10,723 | 0.5428 | 0.8344 | -0.011567 | KILL_NEGATIVE_EDGE |
+| inverse-1.5x3-hold3-score70 | 13,423 | 0.5504 | 0.8344 | -0.011336 | KILL_NEGATIVE_EDGE |
+| inverse-1.5x3-hold3-score80 | 6,489 | 0.5457 | 0.8344 | -0.011680 | KILL_NEGATIVE_EDGE |
+| inverse-1.5x3-hold3-ext04 | 13,859 | 0.5518 | 0.8344 | -0.010757 | KILL_NEGATIVE_EDGE |
+| inverse-1.5x3-hold3-price20 | 14,503 | 0.5521 | 0.8344 | -0.010952 | KILL_NEGATIVE_EDGE |
+| inverse-1.5x3-hold3-mom5 | 18,403 | 0.5511 | 0.8344 | -0.011131 | KILL_NEGATIVE_EDGE |
+
+No survivor reached validation, and the locked test was never scored. Total
+variants tried across the three searches: 39.
+
+**Final win rate, net expectancy, trade count, share of days traded.** The
+locked set has 0 closed trades because no variant earned the right to see it.
+The live and forward ledger holds exactly one closed signal, PRL's Kalman
+Trend call of 2026-10-30, which hit its stop: win rate 0 of 1, 0 percent,
+Wilson 95 percent interval 0.0 to 79.3 percent, net expectancy negative (no
+CGT on a loss), trade count 1. Share of days traded: 1 of 9 archived sessions,
+11.1 percent. The mission's 100-trade bar is short by 99, so there is no
+admissible win rate to compare with 90 percent.
+
+**The fresh reviewer.** The required independent reviewer was spawned with no
+prior knowledge of the work and given the 13 artifact rows directly, because
+Actions artifacts are not public. Verdict: PROBLEM. It reproduced the
+break-even arithmetic exactly for all four shapes tested: 2.0/1.0 gives
+0.5892, 1.5/3.0 gives 0.8344, 1.0/2.0 gives 0.8984 and 1.2/2.5 gives 0.8703,
+with 64.8 bps round trip and 15 percent CGT on net gains. It found every
+KILL_NEGATIVE_EDGE internally consistent with its own win rate and expectancy,
+no row that should have been KILL_FEW_TRADES, and no leakage, look-ahead,
+unreachable fill, dropped loser or cherry-picking in the labeler, the split
+embargo or the registry. Two findings were real and are fixed with this
+section's PR:
+
+1. The Holm family was the per-run registry count (13), not the program's 39
+   trials, and the p-value null was 50 percent rather than the shape's
+   break-even. Neither could rescue a killed row, because the kill happens on
+   discovery before Holm, but a future survivor could have cleared a coin-flip
+   null while sitting below its own payoff. `SELF_IMPROVE_PRIOR_TRIALS` now
+   carries the earlier trials, the family is prior plus registry count, and
+   `one_sided_p` is called with the shape's break-even as its null. The next
+   dispatch must set prior_trials to 39.
+2. The reviewer flagged the gap-up both-touch fill as better than the open.
+   The mission's stop-first law governs that branch, and it books a stop loss
+   at the stop price, which is the pessimistic fill for a long position, not
+   an optimistic one. No change is made; the negative result does not depend
+   on it. The baseline's NEGATIVE_EDGE label rather than NO_EXPECTANCY is the
+   gate order working as written, and is cosmetic.
+
+**What this means.** The 13 shapes are not marginal. sym-1x2, the closest to
+the target, needs 89.85 percent and observed 49.93 percent, forty points below
+its own payoff; the best observed rate, 58.51 percent, still sits 25 points
+under its shape's 83.44 percent. The gate is honest and the search family is
+the problem: it tests one momentum family with filters, no model selection, no
+abstention beyond score floors, and no wide-stop high-win shapes. Tuning this
+family cannot reach 90 percent. This delivery also pre-registers four
+wide-stop, small-target shapes: 2 percent against 5, 6 and 8 percent stops, and
+1.5 against 4 percent, break-evens 83.1 to 88.3 percent. Run 4 dispatches those
+four with prior_trials=39, so its family counts all 56 registered trials; its
+results will be section 15. A model-class selection stage (logistic and gradient
+boosting) remains the next lever after that.
+
+**The three biggest remaining risks.**
+
+1. Search family and multiplicity: 39 trials have been spent on a family whose
+   payoffs cannot support 90 percent. The corrected family now counts all of
+   them, but a wider family needs a genuinely different hypothesis, not more
+   filters on the same one.
+2. The data path still cannot count blocked sessions: nine archived sessions
+   are NO_CANDIDATE 8 and SL_FIRST 1, and the archive carries no DATA BLOCKED
+   reason, so blocked days produce neither a signal nor a label. The share of
+   blocked sessions remains unmeasured in the engine's own dataset.
+3. A forward sample one trade deep: the 90 percent claim needs 100 net locked
+   or forward trades, which at 1 traded day in 9 is months. Any future survivor
+   must be shadowed, never promoted, until that bar is met.
+
+NOT MET

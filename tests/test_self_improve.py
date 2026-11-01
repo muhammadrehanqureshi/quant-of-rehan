@@ -63,6 +63,11 @@ class RegistryTests(unittest.TestCase):
         wide = registry.holm_adjusted({"a": 0.002, "b": 0.02}, family_size=10)
         self.assertAlmostEqual(wide["a"], 0.02, places=9)
         self.assertAlmostEqual(wide["b"], 0.18, places=9)
+        # Reviewer finding 2026-11-01: the null is the shape's break-even,
+        # not a coin. 55 percent beats 50 decisively and loses to 83.44.
+        self.assertLess(registry.one_sided_p(0.55, 18003), 1e-6)
+        self.assertGreater(
+            registry.one_sided_p(0.55, 18003, null=0.8344), 0.99)
 
     def test_code_and_data_hash_name_what_the_run_saw(self):
         digest = registry.code_hash(ROOT)
@@ -248,6 +253,17 @@ class SearchEngineTests(unittest.TestCase):
         self.assertGreaterEqual(len(names), 12)
         self.assertEqual(len(names), len(set(names)))
         self.assertIn("baseline-deployed-law", names)
+        self.assertIn("wide-2x5-hold3", names)
+
+    def test_the_holm_family_carries_every_trial_in_the_program(self):
+        source = (ROOT / "scripts" / "self_improve.py").read_text(
+            encoding="utf-8")
+        self.assertIn(
+            "family = registry_obj.count() + config.SELF_IMPROVE_PRIOR_TRIALS",
+            source)
+        self.assertIn('null=s.get("break_even_win_rate", 0.5)', source)
+        import src.config as config
+        self.assertEqual(config.SELF_IMPROVE_PRIOR_TRIALS, 0)
 
     def test_no_variant_touches_the_live_scanner_module(self):
         source = (ROOT / "scripts" / "self_improve.py").read_text(
