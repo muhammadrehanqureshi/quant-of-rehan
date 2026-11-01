@@ -61,11 +61,16 @@ import pandas as pd  # noqa: E402
 from src import config  # noqa: E402
 from src.research import experiment_registry as registry  # noqa: E402
 from src.research.outcome_labeler import (  # noqa: E402
-    LabelParams, label_candidates, label_summary)
+    LabelParams, label_candidates, label_summary, net_after_costs)
 
 DEFAULT_DATASET = Path("data/eod_dataset_10y.csv.gz")
 DEFAULT_OUT = Path("data/research/self_improve_report.json")
 CHAMPION_PATH = Path("data/research/champion.json")
+#: An unarmed run's would-be winner is recorded here, never in the champion
+#: file (owner order 2026-11-01: an unarmed run overwrote the champion and
+#: printed CHALLENGER PROMOTED, a state a later session could trust by
+#: mistake).
+CHALLENGER_PATH = Path("data/research/challenger.json")
 
 #: The window the mission fixed for the data-path measure.
 STATUS_SINCE = "2026-10-15"
@@ -95,6 +100,26 @@ def bootstrap_lower_bound(net: pd.Series, resamples: int, seed: int) -> float:
     return float(np.percentile(means, 2.5))
 
 
+def break_even_win_rate(params: LabelParams) -> float:
+    """The win rate a target/stop shape needs just to break even net.
+
+    Owner order 2026-11-01 (the reviewer's finding): a flat discovery floor
+    cannot judge shapes with different payoffs. Nine of the first search's
+    thirteen variants were a 1.5% target against a 3% stop, a shape whose
+    break-even after the mission's costs is about 83%, so a 60% floor killed
+    them by construction and the kills measured the gate, not the market.
+    This arithmetic is the gate now: win and loss are both net of round-trip
+    costs, the win also net of CGT, and break-even is the win rate where the
+    expectation crosses zero.
+    """
+    win_net = net_after_costs(params.tp, params)
+    loss_net = net_after_costs(-params.sl, params)
+    span = win_net - loss_net
+    if span <= 0.0:
+        return 1.0
+    return round(max(0.0, min(1.0, -loss_net / span)), 4)
+
+
 def _split_dates(dates: pd.Series) -> dict[str, tuple[pd.Timestamp, pd.Timestamp]]:
     """The nested split, Karachi calendar dates, from config."""
     discovery_end = pd.Timestamp(config.SELF_IMPROVE_DISCOVERY_END)
@@ -108,9 +133,24 @@ def _split_dates(dates: pd.Series) -> dict[str, tuple[pd.Timestamp, pd.Timestamp
     }
 
 
-def _in_split(frame: pd.DataFrame, bounds) -> pd.DataFrame:
+def _in_split(frame: pd.DataFrame, bounds,
+              embargo: bool = True) -> pd.DataFrame:
+    """Rows whose SIGNAL sits in the split, with the label embargo on.
+
+    Owner order 2026-11-01 (the reviewer's finding): a signal near the seam
+    could exit after it, so a trade selected on discovery would be judged on
+    validation's bars and a locked-set trade could finish in the future.
+    With embargo on, any trade whose own exit_date falls beyond the split's
+    end is dropped before scoring; the caller records how many were dropped.
+    NO_ENTRY rows carry no exit_date and stay in the accounting.
+    """
     dates = pd.to_datetime(frame["signal_date"])
-    return frame.loc[(dates >= bounds[0]) & (dates <= bounds[1])]
+    inside = (dates >= bounds[0]) & (dates <= bounds[1])
+    if not embargo or "exit_date" not in frame.columns:
+        return frame.loc[inside]
+    exits = pd.to_datetime(frame["exit_date"], errors="coerce")
+    crosses = exits.notna() & (exits > bounds[1])
+    return frame.loc[inside & ~crosses]
 
 
 # ------------------------------------------------------------ the variants
@@ -214,28 +254,32 @@ def run_search(panel: pd.DataFrame, data_hash: str, seed: int,
         variant_label_params = LabelParams(
             tp=variant["tp"], sl=variant["sl"], max_hold=variant["max_hold"])
         labels, book = evaluate_variant(panel, variant, variant_label_params)
+        break_even = break_even_win_rate(variant_label_params)
+        discovery_all = _in_split(labels, splits["discovery"], embargo=False)
         discovery = _in_split(labels, splits["discovery"])
+        book["embargo_dropped_discovery"] = int(
+            len(discovery_all) - len(discovery))
         discovery_summary = label_summary(discovery)
         discovery_summary["bounds"] = [str(b) for b in splits["discovery"]]
+        discovery_summary["break_even_win_rate"] = break_even
         # Pre-registered kill: BEFORE validation, recorded either way.
-        killed, why = _kill(decision_inputs=discovery_summary, name=name)
-        decision = "KILL" if killed else "KEEP_DISCOVERY"
+        killed, why = _kill(decision_inputs=discovery_summary, name=name,
+                            break_even=break_even)
+        decision = why.split(":", 1)[0] if killed else "KEEP_DISCOVERY"
         row = registry_obj.append({
             "hypothesis": f"{name}: {variant['hypothesis_kind']}; predict a "
-                          f"discovery win rate at or above "
-                          f"{config.SELF_IMPROVE_DISCOVERY_WIN_FLOOR:.0%} "
-                          "with positive net expectancy under the mission's "
-                          "own costs",
+                          f"discovery win rate above the shape's own "
+                          f"break-even {break_even:.1%} with positive net "
+                          "expectancy under the mission's own costs",
             "code_hash": code_hash, "data_hash": data_hash,
             "params": params_for_variant,
             "seed": seed,
             "split": "discovery",
             "results": {**discovery_summary, "book": book},
-            "pred": f"discovery win rate >= "
-                    f"{config.SELF_IMPROVE_DISCOVERY_WIN_FLOOR:.0%}, "
+            "pred": f"discovery win rate above break-even {break_even:.1%}, "
                     "positive expectancy",
-            "kill": why or ("win_rate_floor, net_floor, and minimum trades "
-                            "all cleared"),
+            "kill": why or ("break-even, net-expectancy, and minimum-trades "
+                            "gates all cleared"),
             "decision": decision,
         })
         rows.append(row)
@@ -252,24 +296,34 @@ def run_search(panel: pd.DataFrame, data_hash: str, seed: int,
               f"kill={why}", flush=True)
         if killed:
             continue
+        validation_all = _in_split(labels, splits["validation"], embargo=False)
         validation_labels = _in_split(labels, splits["validation"])
         validation_summary = label_summary(validation_labels)
         validation_summary["bounds"] = [str(b) for b in splits["validation"]]
+        validation_summary["embargo_dropped"] = int(
+            len(validation_all) - len(validation_labels))
         survivors.append((variant, validation_summary))
     # The multiplicity correction over the survivors that reached a test of
     # their win rate (the registry count is the honest family size).
+    family = registry_obj.count()
     p_values = {name_from_summary(v, i): registry.one_sided_p(
         s["win_rate"] or 0.0, s["n"]) for i, (v, s) in enumerate(survivors)}
-    adjusted = registry.holm_adjusted(p_values)
-    best = None
+    adjusted = registry.holm_adjusted(p_values, family_size=family)
     for i, (variant, validation_summary) in enumerate(survivors):
         name = name_from_summary(variant, i)
         validation_summary["holm_p"] = adjusted.get(name)
-    if survivors:
-        best = max(survivors, key=lambda pair: (
-            pair[1]["win_rate"] or 0.0, pair[1]["net_expectancy"] or 0.0))
+    alpha = config.SELF_IMPROVE_HOLM_ALPHA
+    qualified = [(v, s) for v, s in survivors
+                 if s.get("holm_p") is not None and s["holm_p"] <= alpha]
+    best = (max(qualified, key=lambda pair: (
+        pair[1]["win_rate"] or 0.0, pair[1]["net_expectancy"] or 0.0))
+        if qualified else None)
     test_summary = None
-    promotion = "none (no survivor cleared the validation stage)"
+    if survivors and not qualified:
+        promotion = (f"none (no variant cleared Holm at alpha {alpha} over "
+                     f"{family} registered trials)")
+    else:
+        promotion = "none (no survivor cleared the validation stage)"
     if best is not None:
         variant, validation_summary = best
         test_labels = _in_split(
@@ -302,6 +356,7 @@ def run_search(panel: pd.DataFrame, data_hash: str, seed: int,
         "splits": {k: [str(b) for b in v] for k, v in splits.items()},
         "variants_tried": len(rows),
         "registry_total": registry_obj.count(),
+        "holm": {"family_size": family, "alpha": alpha},
         "survivors": [
             {"name": name_from_summary(v, i), "validation": s}
             for i, (v, s) in enumerate(survivors)],
@@ -321,20 +376,36 @@ def name_from_summary(variant, _index: int) -> str:
     return variant["name"] if isinstance(variant, dict) else str(variant)
 
 
-def _kill(decision_inputs: dict, name: str) -> tuple[bool, str]:
-    """The pre-registered kill rule (config's own numbers)."""
+def _kill(decision_inputs: dict, name: str,
+          break_even: float | None = None) -> tuple[bool, str]:
+    """The pre-registered kill rule, judged on the shape's own economics.
+
+    Owner order 2026-11-01 (the reviewer's finding): a flat 60% floor killed
+    nine 1.5%-target / 3%-stop variants whose break-even after costs is about
+    83%, so their kills measured the floor, not the market. The gate now
+    reads the variant's own break-even and refuses shapes whose break-even
+    sits at or above the mission's 90% target (no win rate could satisfy
+    both), then kills an observed edge only when it is below break-even or
+    carries non-positive net expectancy. Every kill names its gate so the
+    report can separate a sample-size kill from a real negative edge.
+    """
     n = decision_inputs.get("n") or 0
     win_rate = decision_inputs.get("win_rate")
     expect = decision_inputs.get("net_expectancy")
+    target = config.SELF_IMPROVE_TARGET_WIN_RATE
     if n < config.SELF_IMPROVE_MIN_DISCOVERY_TRADES:
-        return True, (f"discovery trades {n} below the floor "
+        return True, (f"KILL_FEW_TRADES: discovery trades {n} below the floor "
                       f"{config.SELF_IMPROVE_MIN_DISCOVERY_TRADES}")
-    if win_rate is None or win_rate < config.SELF_IMPROVE_DISCOVERY_WIN_FLOOR:
-        return True, (f"discovery win rate {win_rate} below the floor "
-                      f"{config.SELF_IMPROVE_DISCOVERY_WIN_FLOOR}")
+    if break_even is not None and break_even >= target:
+        return True, (f"KILL_INCOHERENT: this shape's break-even win rate "
+                      f"{break_even:.1%} is at or above the {target:.0%} "
+                      "target, so no win rate can satisfy both")
+    if win_rate is None or (break_even is not None and win_rate < break_even):
+        return True, (f"KILL_NEGATIVE_EDGE: discovery win rate {win_rate} "
+                      f"is below the shape's break-even {break_even:.1%}")
     if expect is None or expect <= config.SELF_IMPROVE_DISCOVERY_NET_FLOOR:
-        return True, (f"discovery net expectancy {expect} at or below "
-                      f"{config.SELF_IMPROVE_DISCOVERY_NET_FLOOR}")
+        return True, (f"KILL_NO_EXPECTANCY: discovery net expectancy {expect} "
+                      f"at or below {config.SELF_IMPROVE_DISCOVERY_NET_FLOOR}")
     return False, None
 
 
@@ -349,11 +420,17 @@ def _load_champion() -> dict | None:
 
 
 def _challenge_champion(champion: dict | None, variant: dict,
-                        test_summary: dict) -> str:
+                        test_summary: dict, *, root: Path | None = None) -> str:
     """The challenger replaces the champion only on validation AND fresh (the
-    locked slice above has just served as the fresh check); the champion
-    state file records the verdict, and nothing is promoted to the live
-    path while config.SELF_IMPROVE_ARM is False."""
+    locked slice above has just served as the fresh check).
+
+    Owner order 2026-11-01 (the reviewer's finding): while
+    config.SELF_IMPROVE_ARM is False this is a SHADOW, so it records
+    data/research/challenger.json and never touches champion.json. The old
+    code overwrote the champion and printed CHALLENGER PROMOTED on an
+    unarmed run, a state a later session could trust by mistake. Only an
+    armed run writes the champion file.
+    """
     if test_summary.get("n", 0) < 100 or not test_summary.get("win_rate") or \
             not (test_summary.get("net_expectancy") or 0) > 0 or \
             not (test_summary.get("bootstrap_lower") or 0) > 0:
@@ -377,10 +454,20 @@ def _challenge_champion(champion: dict | None, variant: dict,
         "note": "REPORT ONLY: the live signal path is untouched while "
                 "SELF_IMPROVE_ARM is False (the gate decides promotion).",
     }
-    (ROOT / CHAMPION_PATH).parent.mkdir(parents=True, exist_ok=True)
-    (ROOT / CHAMPION_PATH).write_text(json.dumps(record, indent=2),
-                                      encoding="utf-8")
-    return "CHALLENGER PROMOTED (report only, live path untouched)"
+    base = Path(root) if root is not None else ROOT
+    armed = bool(config.SELF_IMPROVE_ARM)
+    record["note"] = ("ARMED: the champion file records the verdict; the "
+                      "gate still owns live promotion."
+                      if armed else
+                      "SHADOW: recorded as data/research/challenger.json; "
+                      "champion.json is untouched while the flag is OFF.")
+    target = base / (CHAMPION_PATH if armed else CHALLENGER_PATH)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(json.dumps(record, indent=2), encoding="utf-8")
+    if armed:
+        return "CHALLENGER PROMOTED (armed; promotion still through the gate)"
+    return ("SHADOW CHALLENGER RECORDED: champion.json untouched while "
+            "SELF_IMPROVE_ARM is False")
 
 
 # ------------------------------------------------------------ the demotion
