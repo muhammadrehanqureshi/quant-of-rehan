@@ -739,7 +739,18 @@ public class MainActivity extends Activity {
                     brighten(themeAccentInk));
             navDiscs[themeIndex - 1] = cached;
         }
-        return cached;
+        return freshPlate(cached);
+    }
+
+    /** A fresh copy of a cached themed plate (owner order 2026-11-01):
+     *  one shared GradientDrawable across several tiles lets one view's
+     *  bounds and callback clip or stretch another, so every view gets
+     *  its own instance. */
+    private static GradientDrawable freshPlate(GradientDrawable cached) {
+        GradientDrawable copy =
+                (GradientDrawable) cached.getConstantState().newDrawable();
+        copy.mutate();
+        return copy;
     }
 
     /** The two dropdown arrows ink from the worn theme (v2.3.21), the
@@ -753,6 +764,30 @@ public class MainActivity extends Activity {
         if (themeArrow != null) {
             themeArrow.setImageTintList(
                     ColorStateList.valueOf(themeAccentInk));
+        }
+    }
+
+    /** Owner order 2026-11-01: every diamond rule wears the theme's
+     *  second colour across the whole app, both hairlines and the
+     *  diamond. The qor_rule include is one layout, so the walk reads
+     *  its tags and inks every copy, visible or hidden, in one pass. */
+    private void repaintRules(View view) {
+        if (view == null) {
+            return;
+        }
+        Object tag = view.getTag();
+        if ("qor_rule_line".equals(tag) && view instanceof ImageView) {
+            ((ImageView) view).setImageTintList(
+                    ColorStateList.valueOf(themeAccentInk));
+        } else if ("qor_rule_diamond".equals(tag)
+                && view instanceof TextView) {
+            ((TextView) view).setTextColor(themeAccentInk);
+        }
+        if (view instanceof android.view.ViewGroup) {
+            android.view.ViewGroup group = (android.view.ViewGroup) view;
+            for (int i = 0; i < group.getChildCount(); i++) {
+                repaintRules(group.getChildAt(i));
+            }
         }
     }
 
@@ -988,7 +1023,7 @@ public class MainActivity extends Activity {
             cached.setStroke(Math.max(1, (int) dp(1)), edgeInk());
             themeFieldPlates[index - 1] = cached;
         }
-        return cached;
+        return freshPlate(cached);
     }
 
     /** The hint ink under each theme, the headings' own colour. */
@@ -1012,9 +1047,10 @@ public class MainActivity extends Activity {
      * plates, and the headings' own ink. The purple theme IS the app's
      * declared palette, so its legibility is a property of the app
      * rather than of code, and no other ink CHANGES: the body lines,
-     * the search highlight plates, the badge gradients and the diamond
-     * rules all keep the inks of their own laws, so a theme can never
-     * restyle a state that means something else.
+     * the search highlight plates and the badge gradients keep the inks
+     * of their own laws, so a theme can never restyle a state that means
+     * something else. The diamond rules are the theme's own: both
+     * hairlines and the diamond wear the pair's second colour.
      */
     private void applyTheme(int index) {
         prefs.edit().putInt("theme", index).apply();
@@ -1116,6 +1152,7 @@ public class MainActivity extends Activity {
         // theme's second colour (gold on purple and green, white on
         // black, navy and orange), re-inked in this same pass, so no
         // theme can leave the previous look's caret behind.
+        repaintRules(findViewById(R.id.scroll_root));
         repaintMenuDividers();
         repaintDropdownArrows();
         pinNavTile();
@@ -1199,7 +1236,7 @@ public class MainActivity extends Activity {
             cached.setStroke(Math.max(1, (int) dp(1)), edgeInk());
             themePlates[index - 1] = cached;
         }
-        return cached;
+        return freshPlate(cached);
     }
 
     /**
