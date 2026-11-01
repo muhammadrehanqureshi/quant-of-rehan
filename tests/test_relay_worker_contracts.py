@@ -604,5 +604,29 @@ class RelayWorkerContractTest(unittest.TestCase):
         self.assertIn("split ? split.sell_volume : null,", prices)
 
 
+    def test_one_newest_frame_answers_every_surface(self):
+        """Owner order 2026-11-01: the card, /stock and /prices agree.
+
+        The three reading routes used to pick their own row: the card took
+        the first fresh hub row it met, /stock the first row in array order
+        whatever its stamp, and /prices walked every row, which is how the
+        same scrip printed two prices at once. One helper now keeps the
+        newest frame per symbol by its own observed_at, all three routes
+        read it, and the acknowledged total travels to the phone as
+        /prices' sixth column so its answer moves with the card.
+        """
+        self.assertIn("function newestQuoteRows(quotes) {", self.source)
+        stock = self.source[self.source.index('path === "/stock"'):]
+        stock = stock[:stock.index('path === "/prices"')]
+        self.assertIn("newestQuoteRows(quotes).get(symbol)", stock)
+        prices = self.source[self.source.index('path === "/prices"'):]
+        prices = prices[:prices.index('path === "/market"')]
+        self.assertIn("newestQuoteRows(snapshot && snapshot.quotes).values()",
+                      prices)
+        self.assertIn("row.volume,", prices)
+        self.assertIn("newestQuoteRows(freshQuotes)", self.source)
+        self.assertIn("newestQuoteRows(quotes.quotes).values()", self.source)
+
+
 if __name__ == "__main__":
     unittest.main()

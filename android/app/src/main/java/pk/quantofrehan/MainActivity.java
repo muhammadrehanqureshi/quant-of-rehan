@@ -544,6 +544,10 @@ public class MainActivity extends Activity {
         consoleViews = new View[]{
                 // The greeting is a home-page line, so it hides with the group.
         findViewById(R.id.greeting),
+        // Owner order 2026-11-01: the diamond rule between the greeting
+        // and QUANT STATUS belongs to the page it divides, so it leaves
+        // and returns with them rather than staying behind as a bare line.
+        findViewById(R.id.rule_greeting),
         findViewById(R.id.tile_status),
         findViewById(R.id.rule_status_winloss),
         findViewById(R.id.tile_winloss),
@@ -1621,8 +1625,8 @@ public class MainActivity extends Activity {
         }
         rotateDropdownArrow(volumeSplitArrow, open);
         // Owner order 2026-11-01: the caret re-centres on its anchor each
-        // time the state lands - the first option row when open, the
-        // closed box's own face when closed - never a guessed margin.
+        // time the state lands - the whole open plate's own middle when
+        // open, the closed box's own face when closed - never a guess.
         centerDropdownCaret(volumeSplitArrow, volumeSplitSpinner,
                 volumeSplitMenu);
         if (open) {
@@ -1699,7 +1703,7 @@ public class MainActivity extends Activity {
      *  ... right now, the arrow is little to the up side. Make it at the
      *  exact center"): the caret stands at the exact vertical middle of
      *  the mount's TOP FACE in both states - the closed box's own 43dp
-     *  face while closed, the first option row while open - instead of
+     *  face while closed, the WHOLE open plate while open - instead of
      *  the fixed 11dp that survived neither the face's own air nor the
      *  v3.6.1 option rows' taller first/last padding. The centre is read
      *  after the layout pass settles, and the caret's one top margin is
@@ -1719,15 +1723,19 @@ public class MainActivity extends Activity {
             if (arrow.getParent() != mount || mount.getWidth() == 0) {
                 return;
             }
-            // v2.3.22's own law decided out again: the face is the anchor
-            // while it stands (closed), and the first option row while the
-            // menu holds the mount (the face has stepped aside).
+            // Owner order 2026-11-01 ("the drop up icon is little to the
+            // up side when the sub menu is tapped down ... have the drop
+            // up icon in the exact center"): while the menu holds the
+            // mount, the anchor is the WHOLE open plate, not its first
+            // row. Anchoring to row one put the caret at that row's
+            // middle, which is above the middle of a two-row plate, so
+            // the arrow read high exactly as he described. The face is
+            // still the anchor while it stands (closed).
             android.view.View anchor =
                     face.getVisibility() == View.VISIBLE
                     ? face
                     : (menu != null && menu.getVisibility() == View.VISIBLE
-                       && menu.getChildCount() > 0
-                       ? menu.getChildAt(0) : null);
+                       ? menu : null);
             if (anchor == null || anchor.getHeight() == 0
                     || arrow.getHeight() == 0) {
                 return;
@@ -2851,6 +2859,12 @@ public class MainActivity extends Activity {
      * the green B and the red S from the fetch, so the live tail is
      * appended to it rather than rebuilding the line from plain text,
      * which would have dropped both colours on every tick.
+     *
+     * Owner order 2026-11-01 ("I am not seeing the volume moving in real
+     * time in my app"): when the live frame carries the pair or the total,
+     * the WHOLE line is rebuilt from it every tick (liveSelectedLine) -
+     * the fetched base is the fallback for a frame with no split, not the
+     * skeleton that froze B, S and T at the tap's numbers.
      */
     private void paintSelectedLine() {
         if (selectedSymbol == null || searchStatus == null) {
@@ -2866,6 +2880,14 @@ public class MainActivity extends Activity {
             if (selectedBase != null && selectedBase.length() > 0) {
                 searchStatus.setText(selectedBase);
             }
+            return;
+        }
+        // Owner order 2026-11-01: the live frame's pair and total are the
+        // relay's acknowledged numbers, so the pinned answer is rebuilt
+        // from them on every one-second tick instead of keeping the
+        // fetch-time copy while the card's rows move.
+        if (quote.buy != null || quote.sell != null || quote.volume != null) {
+            searchStatus.setText(liveSelectedLine(quote));
             return;
         }
         android.text.SpannableStringBuilder styled =
@@ -2897,7 +2919,69 @@ public class MainActivity extends Activity {
         searchStatus.setText(styled);
     }
 
-
+    /** The pinned symbol's whole line from the live quote alone.
+     *
+     * Owner order 2026-11-01 ("I am not seeing the volume moving in real
+     * time in my app"): the fetched /stock answer used to be the line's
+     * skeleton, so B, S and T stood at the numbers they had when the row
+     * was tapped while the card's own rows moved every second. The quote's
+     * pair and total are the relay's own acknowledged frame, the same one
+     * the card and the search rows print, so rebuilding the whole line
+     * from it every tick makes every surface move together. The pair
+     * carries the card's inks and the total is the exchange's own counter,
+     * never a second sum computed here.
+     */
+    private CharSequence liveSelectedLine(Watcher.Quote quote) {
+        StringBuilder sb = new StringBuilder(
+                selectedSymbol == null ? "" : selectedSymbol);
+        int buyFrom = -1;
+        int buyTo = -1;
+        int sellFrom = -1;
+        int sellTo = -1;
+        if (quote.buy != null && quote.sell != null) {
+            sb.append(" (B=");
+            buyFrom = sb.length();
+            sb.append(String.format(Locale.US, "%,d", quote.buy));
+            buyTo = sb.length();
+            sb.append(", S=");
+            sellFrom = sb.length();
+            sb.append(String.format(Locale.US, "%,d", quote.sell));
+            sellTo = sb.length();
+            if (quote.volume != null) {
+                sb.append(String.format(Locale.US, " & T=%,d", quote.volume));
+            }
+            sb.append(')');
+        } else if (quote.volume != null) {
+            sb.append(String.format(Locale.US, " (T=%,d)", quote.volume));
+        }
+        int tailFrom = sb.length();
+        sb.append(String.format(Locale.US, " PKR %,.2f", quote.price));
+        int moveFrom = -1;
+        if (quote.changePct != null) {
+            moveFrom = sb.length();
+            sb.append(String.format(Locale.US, " %s %.2f%%",
+                    quote.changePct >= 0 ? "\u25B2" : "\u25BC",
+                    Math.abs(quote.changePct)));
+        }
+        SpannableString sp = new SpannableString(sb.toString());
+        if (buyFrom >= 0) {
+            sp.setSpan(new ForegroundColorSpan(getColor(R.color.green)),
+                    buyFrom, buyTo, 0);
+            sp.setSpan(new ForegroundColorSpan(getColor(R.color.red)),
+                    sellFrom, sellTo, 0);
+        }
+        if (moveFrom >= 0) {
+            sp.setSpan(new ForegroundColorSpan(getColor(
+                    quote.changePct >= 0 ? R.color.green : R.color.red)),
+                    moveFrom, sb.length(), 0);
+            sp.setSpan(new TypefaceSpan(ARROW_FACE), moveFrom + 1,
+                    moveFrom + 2, 0);
+        } else {
+            sp.setSpan(new ForegroundColorSpan(getColor(R.color.text_soft)),
+                    tailFrom, sb.length(), 0);
+        }
+        return sp;
+    }
 
     /**
      * Owner order 2026-10-21 (15:35): the placeholder is body ink.

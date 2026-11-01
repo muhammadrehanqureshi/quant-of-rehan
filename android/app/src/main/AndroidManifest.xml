@@ -420,11 +420,25 @@
      "W/L & W/L RATE"; and its one line is "0/1 & 100%" with the win
      digit green, the loss digit red, and the rate in the colour of the
      side that is ahead.
+
+     Version 3.6.3, versionCode 99 (owner's orders of 2026-11-01, second
+     and third notes: "between the greeting message and quant status
+     tile, have a diamond line feature"; "the drop up icon is little to
+     the up side when the sub menu is tapped down. Have the drop up icon
+     in the exact center ... for themes drop down and custom scrips of
+     volume"; "make sure that the data is correct always ... 2 different
+     sets of data for stocks ... I am not seeing the volume moving in
+     real time in my app"): the greeting is closed by its own diamond
+     rule; the open caret centres on the WHOLE open plate; one newest
+     frame per symbol answers the card, /stock and /prices; the
+     acknowledged total rides /prices' sixth column; and the pinned
+     search answer, B, S and T included, is rebuilt from the live quote
+     on every tick.
      -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="pk.quantofrehan"
-    android:versionCode="98"
-    android:versionName="3.6.2">
+    android:versionCode="99"
+    android:versionName="3.6.3">
 
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="30"/>
 

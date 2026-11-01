@@ -1641,6 +1641,36 @@ to sixty seconds. The status tile therefore also carries the app's own
      the orphan law stands so every dot still wears a filament.
   5. The version bump is versionCode 82 / versionName 2.3.15.
 
+**Version 3.6.3, versionCode 99.**
+
+  Owner's orders of 2026-11-01, the rest of the day. First: "I want you to
+  have a diamond line feature between the greeting message and quant status
+  tile." A ninth qor_rule include (rule_greeting) now closes the greeting
+  before QUANT STATUS, with the same 12dp of air every rule carries, and it
+  hides with the home group because the greeting it follows does. Second:
+  "the drop up icon is little to the up side when the sub menu is tapped
+  down. Have the drop up icon in the exact center. Do this for themes drop
+  down and custom scrips of volume." The v3.6.2 caret anchored the OPEN
+  state on the first option row, whose middle sits above the middle of a
+  two-row plate, so the arrow still read high exactly as he described. The
+  open anchor is now the WHOLE open plate (the menu itself), the closed
+  anchor is still the 43dp face, and the one top margin is still read after
+  the layout pass on both dropdowns. Third: "make sure that the data is
+  correct always, because for the past few days I have been seeing 2
+  different sets of data for stocks, top 3 scrips of volume showed
+  different and search box showed different data." The cause was three
+  routes, three selections: the card took the first fresh hub row it met,
+  /stock took the first row in array order whatever its stamp, and /prices
+  walked every row. The relay now has ONE law, newestQuoteRows, which keeps
+  the newest frame per symbol by its own observed_at, and the card, /stock
+  and /prices all read it; the acknowledged pair is still the one store all
+  three apply. Fourth: "I am not seeing the volume moving in real time in
+  my app." /prices now carries the acknowledged total as its sixth column,
+  Watcher keeps it in Quote.volume, and the pinned search answer is rebuilt
+  from the live quote on every tick instead of keeping the B, S and T it
+  had when the row was tapped. The version bump is versionCode 99 /
+  versionName 3.6.3.
+
 **Version 3.6.2, versionCode 98.**
 
   Owner's orders of 2026-11-01. First: "have the drop down/up icon at the

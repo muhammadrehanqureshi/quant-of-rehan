@@ -1843,3 +1843,122 @@ Changed: `src/research/outcome_labeler.py`, `cloud/worker.js` (PR #185),
 `tests/test_relay_worker_contracts.py`, this report. Landed earlier the
 same day: PR #184's app version 3.6.1 (MainActivity, Watcher,
 activity_main.xml, strings.xml, tests).
+
+## 13. Mission delivery, 2026-10-31: the self-improvement engine, its first search, and an honest NOT MET
+
+This is the mission's dated delivery. Owner order: turn QoR into a bot that
+wins at least 90 percent of its daily signals, measured net of all costs on
+locked out-of-sample and forward paper sessions over at least 100 trades,
+with mean net return positive and a bootstrap lower bound above zero, and
+the Wilson interval reported beside it. The deliverable asked for every
+experiment including failures, the final win rate, net expectancy, trade
+count, share of days traded, the reviewer's findings, the three biggest
+remaining risks, and one closing line of MET or NOT MET. Every number below
+comes from a merged PR's CI, an Actions run, or the live relay. None is
+estimated.
+
+**The engine is built and landed (PRs #186, #187, #190).** `scripts/self_improve.py`
+is the single command (SO: one screen). It measures the data path, runs the
+pre-registered variant search on the ten-year KMIALL daily panel with the
+splits below, registers every trial append-only (`src/research/experiment_registry.py`:
+id, hypothesis, code hash, data hash, parameters, seed, split, results,
+decision), kills before validation can be seen, applies Holm to the survivors,
+and can hold a champion and demote it (the demotion path reads the relay's
+archived session outcomes via `RELAY_URL`, wired in PR #187 because the first
+clean run could not reach its own archive). `src/research/outcome_labeler.py`
+labels every ranked candidate, traded or not, under the same costs and the
+stop-first rule. The live signal path is untouched while
+`SELF_IMPROVE_ARM` is False, which it is, by design and by test. PR #190
+fixed a delivery defect this delivery itself exposed: the first search's 13
+registry rows lived only on a runner that then died, so every row is now
+echoed into the Actions log and the registry jsonl is an artifact.
+
+**The data path, measured (2026-10-15 to 2026-10-31).** Nine archived
+sessions: NO_CANDIDATE 8, SL_FIRST 1. Share of days traded 1 of 9, 11.1
+percent. DATA BLOCKED is not yet a category the archive carries (the labeling
+hook that would archive the blocked reason is named as open work below), so
+the blocked share is measurable only from the operations records, not from
+the engine's own dataset.
+
+**The first search, run 41180953260 (2026-10-31, 43m50s, success on GitHub
+Actions).** Thirteen variants pre-registered and tried, seed 20261031.
+Splits: discovery 2016-10-29 to 2024-06-30, validation 2024-07-01 to
+2025-12-31, test 2026-01-01 to 2026-10-30 (locked). Kill floors, fixed in
+config before the run: 50 discovery trades minimum, 0.60 discovery net win
+rate minimum, 0.0 net expectancy floor. Result, verbatim from the one screen:
+`experiments registered: 13 ({"KILL": 13})`, `champion: none installed yet`,
+`decision: none (no survivor cleared the validation stage)`. Total variants
+tried: 13. Survivors: 0. Champion: none. No variant ever saw validation or
+the locked set, because every one died at discovery.
+
+**The final win rate, net expectancy, trade count, and share of days traded.**
+On the locked set: 0 closed paper trades (no variant reached it). On the live
+and forward ledger there is exactly one closed signal, PRL's Kalman Trend call
+of 2026-10-30, which hit its stop: net expectancy negative (the stop is about
+-3 percent gross, minus 64.8 bps round-trip cost at 32.4 bps per side, with
+no CGT charged on a loss), win rate 0 of 1, 0 percent, Wilson 95 percent
+interval 0.0 to 79.3 percent. The mission's admissibility bar of 100 trades is
+short by 99. Share of days traded: 1 of 9 archived sessions, 11.1 percent.
+There is no admissible win rate to report against 90 percent, and no honest
+way to dress one trade as one.
+
+**The reviewer pass, and it is the most valuable thing this mission produced.**
+The in-session reviewer roster was exhausted on 2026-10-31 (four agent names
+unavailable); the fresh reviewer required by the integrity rules was then
+spawned with no prior knowledge of this work and read the public repo end to
+end. Verdict: PROBLEM. It confirmed the leakage defences (features trailing
+only, entry strictly at the next bar's open in all three code paths, stop
+first on a both-touched bar, costs of 64.8 bps round trip plus 15 percent CGT
+flowing into both the win label and net expectancy) and then found these:
+
+1. Holm's family size is `len(survivors)`, not the registry's total count,
+   so the multiplicity correction collapses exactly when the search is
+   widest, and `holm_p` is computed but never gates promotion.
+2. The labeler's both-touched branch books the stop price even when the bar
+   gapped below it, which is more optimistic than `engine.py`'s own
+   pessimistic fill on the bars that matter most to a win-rate gate.
+3. An unarmed run still overwrites `champion.json` and prints CHALLENGER
+   PROMOTED, and the split seam has no purge or embargo of `max_hold` bars.
+4. The arithmetic that reframes the 13 of 13 kill: nine variants were
+   pre-registered at a 1.5 percent target against a 3 percent stop, a payoff
+   whose break-even win rate after costs is about 0.83, so a flat 0.60 floor
+   could not pass them no matter what the market did. Only
+   `baseline-deployed-law` (break-even about 0.589) was killed by evidence a
+   reader should trust. The search was therefore largely a test of its own
+   floor, not of the market.
+
+**Repo hygiene, done as ordered.** The full git history was scanned with
+gitleaks 8.24.3 (run 41181206598, workflow_dispatch, full history forced):
+about 11.05 MB scanned, no leaks found, nothing to rotate. No signal, token
+or tape row is printed into a public issue or an Actions log; the relay's
+research routes stay admin gated and the scanner itself never publishes a
+position.
+
+**The app state under the same orders.** Version 3.6.2 (versionCode 98, PR
+#189, all checks green, built on Actions, artifact verified) carries the
+four orders delivered with this mission: the dropdown carets at the exact
+vertical middle of their faces in both menus and both states, the diamond
+rule in the seam above the W/L tile, the heading W/L & W/L RATE, and the
+digits-only line 0/1 & 100% with the win digit green, the loss digit red,
+and the rate in the colour of the side ahead. The APK stands on the owner's
+Desktop as QuantOfRehan-v3.6.2.apk.
+
+**The three biggest remaining risks.**
+
+1. Measurement error before market truth: a flat 0.60 kill floor against
+   payoff-differentiated variants makes the engine kill what it cannot see,
+   so a negative result today says little about whether an edge exists. The
+   floor must be derived from each variant's own break-even win rate, and the
+   registry must separate KILL_FEW_TRADES from KILL_WEAK_EDGE.
+2. A broken multiplicity gate and a mutable champion while unarmed: the
+   correction collapses to nothing when the search is widest and the state
+   file can be overwritten by a run that is not permitted to promote. Left
+   alone, a later session could mistake an artifact of the search for a
+   champion.
+3. A forward ledger one trade deep and an archive that does not carry blocked
+   sessions: the 90 percent claim needs at least 100 net, locked, forward
+   trades, which at one traded day in nine is months of accumulation, and the
+   blocked-day reason is the one thing that could either shorten or lengthen
+   that wait.
+
+NOT MET
