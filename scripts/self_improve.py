@@ -24,8 +24,10 @@ The cycle:
      scored. Everything, failures included, is appended to the registry.
   3. CHAMPION automanagement: the existing demotion rules (the last 20
      production outcomes: non-positive net expectancy, drawdown above 10%,
-     a losing streak of 8+) are evaluated from the archive and the champion
-     state file records the verdict. While config.SELF_IMPROVE_ARM is False
+     a losing streak of 8+) are evaluated from the archive and the verdict
+     is reported. The champion file is written ONLY by an armed promotion
+     (owner order 2026-11-01: an unarmed run must never leave a state a
+     later session could trust). While config.SELF_IMPROVE_ARM is False
      (the default) NOTHING is promoted to the live signal path: promotion
      goes only through the gate, and this script only writes the report.
 
@@ -232,6 +234,11 @@ def evaluate_variant(panel: pd.DataFrame, variant: dict,
         else paths[["symbol", "signal_date"]],
         params)
     book = {"n_gate_signals": int(mask.sum()), "n_skipped_no_next_bar": skipped,
+            # Two independent measurements of the same gap are named apart
+            # (owner order 2026-11-01): the path builder's count and the
+            # labeler's own NO_ENTRY rows. They must be read as two names
+            # for one fact, never silently added together.
+            "n_no_entry_labels": int((labels["label"] == "NO_ENTRY").sum()),
             "n_labeled": int(len(labels))}
     return labels, book
 
@@ -419,6 +426,17 @@ def _load_champion() -> dict | None:
         return {"error": "champion file unreadable"}
 
 
+def _load_challenger() -> dict | None:
+    """The unarmed run's shadow record, if one exists."""
+    path = ROOT / CHALLENGER_PATH
+    if not path.is_file():
+        return None
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except ValueError:
+        return {"error": "challenger file unreadable"}
+
+
 def _challenge_champion(champion: dict | None, variant: dict,
                         test_summary: dict, *, root: Path | None = None) -> str:
     """The challenger replaces the champion only on validation AND fresh (the
@@ -559,6 +577,11 @@ def one_screen(status: dict, report: dict | None) -> str:
                      f"{champion.get('armed')}")
     else:
         lines.append("champion: none installed yet")
+    shadow = _load_challenger()
+    if shadow:
+        lines.append(f"shadow challenger: {shadow.get('variant')} "
+                     f"win {shadow.get('test_win_rate')} "
+                     f"n={shadow.get('test_n')} (champion file untouched)")
     if report:
         best = report.get("best")
         if best:
@@ -574,7 +597,7 @@ def one_screen(status: dict, report: dict | None) -> str:
     lines.append("(report file: data/research/self_improve_report.json; "
                  "the live signal path is untouched while "
                  "SELF_IMPROVE_ARM is False)")
-    return "\n".join(lines[:14])
+    return "\n".join(lines[:16])
 
 
 def main(argv: list[str] | None = None) -> int:
