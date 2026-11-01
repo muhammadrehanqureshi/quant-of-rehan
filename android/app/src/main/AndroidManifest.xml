@@ -435,6 +435,13 @@
      search answer, B, S and T included, is rebuilt from the live quote
      on every tick.
 
+     Version 3.7.3, versionCode 103 (owner order 2026-11-01, after the
+     3.7.2 build: the dropdown's colour follows the theme's second
+     colour): both carets re-ink inside the theme pass itself, so the
+     closed and open state arrows are gold on PURPLE & YELLOW and GREEN &
+     YELLOW, and white on BLACK & WHITE, NAVY BLUE & WHITE and ORANGE &
+     WHITE. The same themeAccentInk already inks the menu bar's icons.
+
      Version 3.7.2, versionCode 102 (owner order 2026-11-01, after the
      3.7.1 build: "you gotta have it on the other side ... on the right
      side, right now you have it on the left side"): the caret returns to
@@ -463,8 +470,8 @@
      -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="pk.quantofrehan"
-    android:versionCode="102"
-    android:versionName="3.7.2">
+    android:versionCode="103"
+    android:versionName="3.7.3">
 
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="30"/>
 
