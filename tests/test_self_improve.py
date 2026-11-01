@@ -57,6 +57,12 @@ class RegistryTests(unittest.TestCase):
         self.assertAlmostEqual(adjusted["b"], 0.004, places=9)
         self.assertAlmostEqual(adjusted["a"], 0.02, places=9)
         self.assertGreaterEqual(adjusted["a"], adjusted["b"])
+        # Owner order 2026-11-01: the family is the registry's total trial
+        # count, so the correction strengthens as the search widens instead
+        # of collapsing to the survivor count.
+        wide = registry.holm_adjusted({"a": 0.002, "b": 0.02}, family_size=10)
+        self.assertAlmostEqual(wide["a"], 0.02, places=9)
+        self.assertAlmostEqual(wide["b"], 0.18, places=9)
 
     def test_code_and_data_hash_name_what_the_run_saw(self):
         digest = registry.code_hash(ROOT)
@@ -100,6 +106,22 @@ class LabelerTests(unittest.TestCase):
         self.assertEqual(labels.loc[0, "outcome"], "SL")
         self.assertAlmostEqual(labels.loc[0, "exit"], 99.0, places=6)
         self.assertEqual(labels.loc[0, "bars_held"], 1)
+
+    def test_a_both_touch_bar_that_gapped_below_the_stop_fills_at_the_open(self):
+        # Owner order 2026-11-01 (the reviewer's finding): a bar that touches
+        # BOTH levels AND opens below the stop books the stop FIRST at that
+        # open, never at the better sl_price the old both-touch branch kept.
+        panel = pd.concat([self.panel, pd.DataFrame([
+            {"symbol": "ABC", "date": pd.Timestamp("2026-01-03"),
+             "open": 98.5, "high": 103.0, "low": 97.0, "close": 99.0,
+             "volume": 1600},
+        ])], ignore_index=True)
+        panel.loc[1, "low"] = 100.0   # the entry bar touches neither level
+        panel.loc[1, "high"] = 101.0
+        labels = label_candidates(panel, self._candidates(), self.params)
+        self.assertEqual(labels.loc[0, "outcome"], "SL")
+        self.assertAlmostEqual(labels.loc[0, "exit"], 98.5, places=6)
+        self.assertAlmostEqual(labels.loc[0, "gross_ret"], -0.015, places=6)
 
     def test_gap_through_stop_fills_at_the_open(self):
         # Entry 100 at the 01-02 open (stop 99, target 102); the NEXT bar
@@ -168,16 +190,57 @@ class SearchEngineTests(unittest.TestCase):
         self.assertEqual(str(test_start.date()).replace("-", ""),
                          config.SELF_IMPROVE_TEST_START.replace("-", ""))
 
+    def test_a_label_that_crosses_the_split_seam_is_purged(self):
+        # Owner order 2026-11-01 (the reviewer's finding): a discovery signal
+        # whose exit lands in validation is dropped before scoring; a label
+        # that closes inside its own split stands.
+        import scripts.self_improve as si
+        frame = pd.DataFrame([
+            {"symbol": "A", "signal_date": pd.Timestamp("2024-06-28"),
+             "exit_date": "2024-07-03", "label": "WIN"},
+            {"symbol": "B", "signal_date": pd.Timestamp("2024-06-27"),
+             "exit_date": "2024-06-28", "label": "WIN"},
+        ])
+        bounds = (pd.Timestamp("2024-01-01"), pd.Timestamp("2024-06-30"))
+        kept = si._in_split(frame, bounds)
+        self.assertEqual(list(kept["symbol"]), ["B"])
+        self.assertEqual(len(si._in_split(frame, bounds, embargo=False)), 2)
+
     def test_the_kill_rule_runs_before_validation(self):
         import scripts.self_improve as si
         killed, why = si._kill({"n": 10, "win_rate": 0.9,
                                 "net_expectancy": 0.01}, "tiny")
         self.assertTrue(killed)
-        self.assertIn("trades", why)
+        self.assertIn("KILL_FEW_TRADES", why)
+        # Owner order 2026-11-01: the gate reads the shape's own break-even.
         killed, why = si._kill({"n": 500, "win_rate": 0.40,
-                                "net_expectancy": 0.01}, "weak")
+                                "net_expectancy": 0.01}, "weak",
+                               break_even=0.60)
         self.assertTrue(killed)
-        self.assertIn("win rate", why)
+        self.assertIn("break-even", why)
+        # A shape whose break-even is at or above the 90% target is refused
+        # whatever its observed rate says: no win rate can satisfy both.
+        killed, why = si._kill({"n": 500, "win_rate": 0.90,
+                                "net_expectancy": 0.01}, "impossible",
+                               break_even=0.92)
+        self.assertTrue(killed)
+        self.assertIn("KILL_INCOHERENT", why)
+        # And a coherent shape with a positive edge survives its discovery.
+        killed, _ = si._kill({"n": 500, "win_rate": 0.65,
+                              "net_expectancy": 0.002}, "fine",
+                             break_even=0.60)
+        self.assertFalse(killed)
+
+    def test_break_even_reads_the_shape_and_the_mission_costs(self):
+        import scripts.self_improve as si
+        # The family that died by construction: 1.5% target, 3% stop.
+        from src.research.outcome_labeler import LabelParams
+        be = si.break_even_win_rate(LabelParams(tp=0.015, sl=0.03))
+        self.assertGreater(be, 0.80)
+        self.assertLess(be, 0.86)
+        # The deployed shape needs less because its stop is tighter.
+        self.assertLess(si.break_even_win_rate(LabelParams(tp=0.02, sl=0.01)),
+                        0.65)
 
     def test_the_grid_pre_registers_every_variant(self):
         import scripts.self_improve as si
@@ -192,6 +255,50 @@ class SearchEngineTests(unittest.TestCase):
         self.assertNotIn("momentum_scanner", source)
         self.assertNotIn("kalman_trend", source)
         self.assertNotIn("KALMAN_FLIP", source)
+
+
+class ChampionGuardTests(unittest.TestCase):
+    """Owner order 2026-11-01: an unarmed run is a shadow, never a champion."""
+
+    def setUp(self) -> None:
+        import tempfile
+        self.dir = tempfile.TemporaryDirectory()
+        self.root = Path(self.dir.name)
+        self.champion = self.root / "data" / "research" / "champion.json"
+        self.champion.parent.mkdir(parents=True)
+        self.champion.write_text('{"variant": "old", "test_win_rate": 0.50}',
+                                 encoding="utf-8")
+        self.test_summary = {"n": 150, "win_rate": 0.91,
+                             "net_expectancy": 0.004,
+                             "bootstrap_lower": 0.001,
+                             "wilson": [0.85, 0.95]}
+        self.variant = {"name": "v", "params": {}, "tp": 0.01,
+                        "sl": 0.01, "max_hold": 3}
+
+    def tearDown(self) -> None:
+        self.dir.cleanup()
+
+    def test_an_unarmed_run_never_touches_the_champion_file(self):
+        import scripts.self_improve as si
+        msg = si._challenge_champion(
+            {"variant": "old", "test_win_rate": 0.50}, self.variant,
+            self.test_summary, root=self.root)
+        self.assertIn("SHADOW", msg)
+        self.assertEqual(json.loads(self.champion.read_text())["variant"],
+                         "old")
+        shadow = self.root / "data" / "research" / "challenger.json"
+        self.assertTrue(shadow.is_file())
+        self.assertEqual(json.loads(shadow.read_text())["variant"], "v")
+
+    def test_an_armed_run_records_the_champion(self):
+        import scripts.self_improve as si
+        from unittest import mock
+        with mock.patch.object(si.config, "SELF_IMPROVE_ARM", True):
+            msg = si._challenge_champion(
+                {"variant": "old", "test_win_rate": 0.50}, self.variant,
+                self.test_summary, root=self.root)
+        self.assertIn("PROMOTED", msg)
+        self.assertEqual(json.loads(self.champion.read_text())["variant"], "v")
 
 
 class FlagAndHygieneTests(unittest.TestCase):

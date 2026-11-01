@@ -149,19 +149,24 @@ def one_sided_p(win_rate: float, n: int) -> float | None:
     return 0.5 * math.erfc(z / math.sqrt(2.0))
 
 
-def holm_adjusted(p_values: dict[str, float]) -> dict[str, float]:
+def holm_adjusted(p_values: dict[str, float],
+                  family_size: int | None = None) -> dict[str, float]:
     """Holm's step-down adjustment over the search's reported p-values.
 
-    The family is every p-value handed in; the REGISTRY's total count is the
-    honest family size and is reported separately by the caller, because the
-    correction needs one usable p per variant that reached a test.
+    Owner order 2026-11-01 (the reviewer's finding): the family is the
+    REGISTRY's total trial count, not the handful of survivors that reached
+    a test. Multiplying by the survivor count made the correction collapse
+    exactly when the search was widest, which is the opposite of what a
+    multiplicity correction is for. The caller passes the total count; the
+    default keeps the old meaning for a caller that has only the p-values.
     """
     items = sorted(((name, p) for name, p in p_values.items() if p is not None),
                    key=lambda pair: pair[1])
+    family = max(len(items), int(family_size or 0))
     adjusted: dict[str, float] = {}
     running = 0.0
     for rank, (name, p) in enumerate(items, start=1):
-        running = max(running, min(1.0, (len(items) - rank + 1) * p))
+        running = max(running, min(1.0, (family - rank + 1) * p))
         adjusted[name] = running
     return adjusted
 
