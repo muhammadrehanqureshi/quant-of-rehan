@@ -1641,6 +1641,23 @@ to sixty seconds. The status tile therefore also carries the app's own
      the orphan law stands so every dot still wears a filament.
   5. The version bump is versionCode 82 / versionName 2.3.15.
 
+**Version 3.7.4, versionCode 104.**
+
+  Owner order 2026-11-01, after the 3.7.3 screenshot of BLACK & WHITE.
+  Two faults, one pass:
+
+  1. The tiles shared one cached GradientDrawable per theme, so switching
+     theme handed the same mutable plate to several views and one view's
+     bounds clipped or stretched another. Every tile, field and nav disc
+     now receives its own copy, so a plate cannot mix with or grow past
+     its tile, and an open dropdown stays inside its own plate.
+  2. The diamond rules were never repainted. Both hairlines and the
+     diamond now wear the theme's second colour across the whole app:
+     gold on PURPLE & YELLOW and GREEN & YELLOW, white on BLACK & WHITE,
+     NAVY BLUE & WHITE and ORANGE & WHITE.
+
+  The version bump is versionCode 104 / versionName 3.7.4.
+
 **Version 3.7.3, versionCode 103.**
 
   Owner order 2026-11-01, after the 3.7.2 build: the dropdown's colour

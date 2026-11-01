@@ -435,6 +435,15 @@
      search answer, B, S and T included, is rebuilt from the live quote
      on every tick.
 
+     Version 3.7.4, versionCode 104 (owner order 2026-11-01, after the
+     3.7.3 screenshot of BLACK & WHITE): every themed tile, field and
+     nav disc now takes its own copy of the cached plate instead of
+     sharing one drawable, so a theme switch can no longer clip, stretch
+     or mix the tiles or let a dropdown leave its plate; and the diamond
+     rules, both hairlines and diamond, now wear the theme's second
+     colour across the app (gold on PURPLE & YELLOW and GREEN & YELLOW,
+     white on BLACK & WHITE, NAVY BLUE & WHITE and ORANGE & WHITE).
+
      Version 3.7.3, versionCode 103 (owner order 2026-11-01, after the
      3.7.2 build: the dropdown's colour follows the theme's second
      colour): both carets re-ink inside the theme pass itself, so the
@@ -470,8 +479,8 @@
      -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="pk.quantofrehan"
-    android:versionCode="103"
-    android:versionName="3.7.3">
+    android:versionCode="104"
+    android:versionName="3.7.4">
 
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="30"/>
 
