@@ -1810,7 +1810,13 @@ export default {
       const snapshot = await readQuoteSnapshot(env);
       const quotes = snapshot && Array.isArray(snapshot.quotes) ? snapshot.quotes : [];
       const quote = newestQuoteRows(quotes).get(symbol) || null;
-      if (!quote || !quoteIsFromToday(quote)) {
+      // Owner order 2026-11-01: on a non-trading day the last session's
+      // frame IS the answer - the card already shows those scrips - and
+      // refusing it here left the search box empty while the top three
+      // printed Friday's numbers, the two datasets the owner reported.
+      // On a trading day the 2026-10-26 law stands: today's frames only.
+      const stockTradingToday = isTradingDay(karachiView(Date.now()));
+      if (!quote || (!quoteIsFromToday(quote) && stockTradingToday)) {
         return json({ ok: false, error: "symbol not in the live snapshot" }, 404);
       }
       const stock = {
@@ -1875,7 +1881,8 @@ export default {
       // empty and the first published bar of the new session fills it.
       const snapshot = await readQuoteSnapshot(env);
       const kNow = karachiView(Date.now());
-      const ackDay = isTradingDay(kNow) ? dayStamp(kNow) : null;
+      const tradingToday = isTradingDay(kNow);
+      const ackDay = tradingToday ? dayStamp(kNow) : null;
       // Owner order 2026-10-31: every row is the acknowledged frame the
       // card and /stock answer with, so the search's rows, the dropdown
       // rankings and the card hold ONE B/S pair per stock. The stored map
@@ -1884,8 +1891,13 @@ export default {
       const prices = [];
       const rowsBuilt = [];
       for (const quote of newestQuoteRows(snapshot && snapshot.quotes).values()) {
-        if (!quote || !quoteIsFromToday(quote) ||
-            !Number.isFinite(quote.price) || quote.price <= 0) continue;
+        if (!quote || !Number.isFinite(quote.price) || quote.price <= 0) continue;
+        // Owner order 2026-11-01: on a non-trading day every surface answers
+        // with the last session's frames, stamped by their own observed_at,
+        // so a Saturday's search list and the card's top three carry the
+        // same scrips. On a trading day the 2026-10-26 law stands:
+        // yesterday's frames are not today's list.
+        if (!quoteIsFromToday(quote) && tradingToday) continue;
         // The volume dropdowns (owner order 2026-10-23) rank scrips by their
         // published split, so each row carries the same B/S pair the /stock
         // route computes: the day's range is the frame it is split from, and
