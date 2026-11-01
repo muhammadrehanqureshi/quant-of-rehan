@@ -769,12 +769,17 @@ public final class Watcher {
         final Long buy;
         /** null: the relay's frame had no complete range for the split. */
         final Long sell;
+        /** null: the frame carried no total. The exchange's own counter,
+         *  so it grows with the tape; the selected answer and the card's
+         *  rows both restamp it from this one number (2026-11-01). */
+        final Long volume;
 
-        Quote(double price, Double changePct, Long buy, Long sell) {
+        Quote(double price, Double changePct, Long buy, Long sell, Long volume) {
             this.price = price;
             this.changePct = changePct;
             this.buy = buy;
             this.sell = sell;
+            this.volume = volume;
         }
     }
 
@@ -836,15 +841,19 @@ public final class Watcher {
                         Long sell = null;
                         Object buyVal = row.opt(3);
                         Object sellVal = row.opt(4);
+                        Object volumeVal = row.opt(5);
                         if (buyVal instanceof Number) {
                             buy = ((Number) buyVal).longValue();
                         }
                         if (sellVal instanceof Number) {
                             sell = ((Number) sellVal).longValue();
                         }
+                        Long volume = volumeVal instanceof Number
+                                ? ((Number) volumeVal).longValue() : null;
                     if (!symbol.isEmpty() && !Double.isNaN(price) && price > 0) {
                         map.put(symbol, new Quote(price,
-                                Double.isNaN(pct) ? null : pct, buy, sell));
+                                Double.isNaN(pct) ? null : pct, buy, sell,
+                                volume));
                     }
                 }
             }

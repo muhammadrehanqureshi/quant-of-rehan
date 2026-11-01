@@ -159,8 +159,10 @@ class SearchPanelPaddingTest(unittest.TestCase):
         # ONE space before its price, never two. v2.3.19 (owner order
         # 2026-10-28): the percentage itself moved onto the arrows, so
         # the drawn sign is also retired from the format strings.
+        # Owner order 2026-11-01 adds the live selected line: the row,
+        # the restamped base and the live rebuild, each with one space.
         occurrences = self.main.count('" PKR %,.2f"')
-        self.assertEqual(occurrences, 2, occurrences)
+        self.assertEqual(occurrences, 3, occurrences)
         self.assertNotIn('" PKR %,.2f  ', self.main)
         self.assertNotIn("%+.2f%%", self.main)
 
