@@ -413,7 +413,7 @@
                 android:contentDescription="@string/label_volume"
                 android:gravity="center_vertical"
                 android:includeFontPadding="false"
-                android:paddingLeft="38dp"
+                android:paddingLeft="10dp"
                 android:paddingRight="10dp"
                 android:paddingTop="3dp"
                 android:paddingBottom="3dp"
@@ -449,10 +449,10 @@
                  middle of the closed face while closed and of the first
                  option row while open; the 11dp here is only the first
                  layout's own starting point, never the standing law.
-                 v3.7.1 owner order 2026-11-01: the caret leads the first
-                 option at the plate's 10dp column, the wording column
-                 steps to 38dp behind it, and its vertical station is the
-                 first option's own text line. -->
+                 v3.7.2 owner order 2026-11-01: the vertical law stands
+                 (the caret reads the first option's own text line), but
+                 the caret belongs at the RIGHT edge, 14dp in, and the
+                 wording returns to the plate's own 10dp column. -->
             <LinearLayout
                 android:id="@+id/volume_split_menu"
                 android:layout_width="match_parent"
@@ -472,9 +472,9 @@
                 android:id="@+id/volume_split_arrow"
                 android:layout_width="20dp"
                 android:layout_height="20dp"
-                android:layout_gravity="start|top"
+                android:layout_gravity="end|top"
                 android:layout_marginTop="11dp"
-                android:layout_marginStart="10dp"
+                android:layout_marginEnd="14dp"
                 android:contentDescription="@string/cd_dropdown"
                 android:src="@drawable/dropdown_arrow"/>
             </FrameLayout>
@@ -921,7 +921,7 @@
                     android:contentDescription="@string/label_themes"
                     android:gravity="center_vertical"
                     android:includeFontPadding="false"
-                    android:paddingLeft="38dp"
+                    android:paddingLeft="10dp"
                     android:paddingRight="10dp"
                     android:paddingTop="3dp"
                     android:paddingBottom="3dp"
@@ -949,20 +949,20 @@
                     android:orientation="vertical"
                     android:visibility="gone"/>
 
-                <!-- v3.7.1 owner order 2026-11-01: the volume caret's
-                     leading law, the same for themes: the caret stands in
-                     the plate's 10dp column, the wording column behind it
-                     is 38dp, and its vertical station is the first
-                     option's own text line. The 11dp below is only the
-                     first layout's floor; centerDropdownCaret writes the
-                     standing margin. -->
+                <!-- v3.7.2 owner order 2026-11-01: the volume caret's
+                     right-edge law, the same for themes: the caret stands
+                     at the mount's trailing edge, 14dp in, the wording
+                     returns to the plate's own 10dp column, and its
+                     vertical station is the first option's own text line.
+                     The 11dp below is only the first layout's floor;
+                     centerDropdownCaret writes the standing margin. -->
                 <ImageView
                     android:id="@+id/theme_arrow"
                     android:layout_width="20dp"
                     android:layout_height="20dp"
-                    android:layout_gravity="start|top"
+                    android:layout_gravity="end|top"
                     android:layout_marginTop="11dp"
-                    android:layout_marginStart="10dp"
+                    android:layout_marginEnd="14dp"
                     android:contentDescription="@string/cd_dropdown"
                     android:src="@drawable/dropdown_arrow"/>
                 </FrameLayout>
