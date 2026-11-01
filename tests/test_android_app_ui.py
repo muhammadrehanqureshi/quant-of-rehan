@@ -1785,12 +1785,13 @@ class VersionTest(unittest.TestCase):
         # union-find, the shortest pair across two parts joined until
         # one mesh remains, so no line can end at a dot no other thread
         # carries on from.
-        # v3.7.3 (owner order 2026-11-01, after the 3.7.2 build): both
-        # dropdown carets re-ink in the theme pass and wear the theme's
-        # second colour, versionCode 103.
+        # v3.7.4 (owner order 2026-11-01, after the 3.7.3 screenshot of
+        # BLACK & WHITE): each themed plate is copied per view, the
+        # diamond rules wear the second colour, versionCode 104.
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="3.7.3"', manifest)
-        self.assertIn('android:versionCode="103"', manifest)
+        self.assertIn('android:versionName="3.7.4"', manifest)
+        self.assertIn('android:versionCode="104"', manifest)
+        self.assertNotIn('android:versionName="3.7.3"', manifest)
         self.assertNotIn('android:versionName="3.7.2"', manifest)
         self.assertNotIn('android:versionName="3.7.1"', manifest)
         self.assertNotIn('android:versionName="3.6.3"', manifest)
@@ -1964,11 +1965,10 @@ class VersionTest(unittest.TestCase):
         # v3.7.1 (owner order 2026-11-01, after the 3.7.0 build): the
         # carets centred on the first option's wording, versionCode 101.
         self.assertIn("Version 3.7.1, versionCode 101", readme)
-        # v3.7.3 (owner order 2026-11-01, after the 3.7.2 build): both
-        # dropdown carets re-ink in the theme pass and wear the theme's
-        # second colour, versionCode 103.
-        # v3.7.3 (owner order 2026-11-01, after the 3.7.2 build): the
-        # carets wear the theme's second colour.
+        # v3.7.4 (owner order 2026-11-01, after the 3.7.3 screenshot of
+        # BLACK & WHITE): the tiles stop sharing one plate and the rules
+        # wear the second colour, versionCode 104.
+        self.assertIn("Version 3.7.4, versionCode 104", readme)
         self.assertIn("Version 3.7.3, versionCode 103", readme)
         self.assertIn("Version 3.7.2, versionCode 102", readme)
         # v3.1.0 (owner order 2026-10-29, twenty-eighth pass): the open
@@ -1979,8 +1979,9 @@ class VersionTest(unittest.TestCase):
         # rows move up into the closed face's empty strip, both dropdowns.
         self.assertIn("Version 3.2.0, versionCode 92", readme)
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionCode="103"', manifest)
-        self.assertIn('android:versionName="3.7.3"', manifest)
+        self.assertIn('android:versionCode="104"', manifest)
+        self.assertIn('android:versionName="3.7.4"', manifest)
+        self.assertNotIn('android:versionName="3.7.3"', manifest)
         self.assertNotIn('android:versionName="3.7.2"', manifest)
         self.assertNotIn('android:versionName="3.7.1"', manifest)
         self.assertNotIn('android:versionName="3.6.3"', manifest)
@@ -2658,6 +2659,48 @@ class MenuOrdersTest(unittest.TestCase):
             '<color name="theme_orange_accent">#FFFFFFFF</color>',
         ):
             self.assertIn(pair, self.colors)
+
+    def test_every_cached_plate_is_copied_per_view(self):
+        """Owner order 2026-11-01, after the black and white screenshot:
+        one cached GradientDrawable shared by every tile and field lets
+        one view's bounds and callback clip or stretch another, which is
+        what mixed and enlarged the plates. Each caller gets a copy."""
+        for signature in (
+            "private GradientDrawable themePlate(int index, int panelColorId,",
+            "private GradientDrawable fieldPlate(int index) {",
+            "private android.graphics.drawable.Drawable navDisc() {",
+        ):
+            start = self.main.index(signature)
+            self.assertIn("return freshPlate(cached);",
+                          self.main[start:start + 1200])
+        helper = self.main[self.main.index(
+            "private static GradientDrawable freshPlate("):]
+        helper = helper[:500]
+        self.assertIn("cached.getConstantState().newDrawable()", helper)
+        self.assertIn("copy.mutate();", helper)
+
+    def test_every_diamond_rule_wears_the_themes_second_colour(self):
+        """Owner order 2026-11-01: the diamond line feature follows the
+        theme's second colour across the entire app, both hairlines and
+        the diamond. Purple and green keep gold; black, navy and orange
+        wear white."""
+        rule = RULE.read_text(encoding="utf-8")
+        self.assertIn('android:tag="qor_rule"', rule)
+        self.assertEqual(rule.count('android:tag="qor_rule_line"'), 2)
+        self.assertIn('android:tag="qor_rule_diamond"', rule)
+        theme_pass = self.main[self.main.index(
+            "private void applyTheme(int index) {"):]
+        theme_pass = theme_pass[:theme_pass.index(
+            "private final GradientDrawable[] themePlates")]
+        self.assertIn("repaintRules(findViewById(R.id.scroll_root));",
+                      theme_pass)
+        helper = self.main[self.main.index(
+            "private void repaintRules(View view) {"):]
+        helper = helper[:900]
+        self.assertIn('"qor_rule_line".equals(tag)', helper)
+        self.assertIn('"qor_rule_diamond".equals(tag)', helper)
+        self.assertIn("ColorStateList.valueOf(themeAccentInk)", helper)
+        self.assertIn("setTextColor(themeAccentInk)", helper)
 
     def test_the_menu_rows_stand_at_one_displacement_each(self):
         """Owner order 2026-10-31 ("the top option and the bottom option
