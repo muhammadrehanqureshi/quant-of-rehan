@@ -689,9 +689,10 @@ class BrandRuleTest(unittest.TestCase):
         # honours: there the owner ASKED for the bracket, and so does
         # the search-volume pair's own.
         # Owner order 2026-11-01: the QUANT STATUS and W/L tiles gained
-        # their own diamond rule between them, so the console now carries
-        # nine of the one include.
-        self.assertEqual(self.layout.count('layout="@layout/qor_rule"'), 9)
+        # their own diamond rule between them, and the greeting gained
+        # one before QUANT STATUS, so the console now carries ten of the
+        # one include.
+        self.assertEqual(self.layout.count('layout="@layout/qor_rule"'), 10)
 
     def test_the_rules_stand_between_the_tiles_and_never_inside_them(self):
         root = layout_root()
@@ -737,6 +738,16 @@ class BrandRuleTest(unittest.TestCase):
         self.assertEqual(after_status[2].tag, "include",
                          "status: no rule after the W/L tile")
         self.assertEqual(after_status[2].get("layout"), "@layout/qor_rule")
+        # Owner order 2026-11-01: the greeting is closed by the same rule
+        # before the QUANT STATUS tile, so the page's first change of
+        # subject is marked like every other one.
+        greeting = siblings_after(root, find_view(root, "@+id/greeting"))
+        self.assertEqual(greeting[0].tag, "include",
+                         "greeting: no rule before QUANT STATUS")
+        self.assertEqual(greeting[0].get(ANDROID_NS + "id"),
+                         "@+id/rule_greeting")
+        self.assertEqual(greeting[1].get(ANDROID_NS + "id"),
+                         "@+id/tile_status")
         rule_after("@+id/signal_list")
         rule_after("@+id/market_leaders")
 
@@ -949,7 +960,7 @@ class CadencePlacementTest(unittest.TestCase):
         # search page's own rule back above the search tile. v2.2.4
         # made eight; owner order 2026-11-01 makes NINE - the same four
         # and the W/L tile's own seam rule above it.
-        self.assertEqual(len(rules), 9)
+        self.assertEqual(len(rules), 10)
         market_rule = next(
             rule for rule in rules
             if rule.get(f"{ANDROID_NS}id") == "@+id/rule_after_market")
@@ -1421,7 +1432,7 @@ class StatusPulseTest(unittest.TestCase):
         """
         # Owner order 2026-11-01: the W/L tile's own rule hides with the
         # console too (a fourth seam of the same group).
-        for name in ("tile_status", "rule_status_winloss",
+        for name in ("rule_greeting", "tile_status", "rule_status_winloss",
                      "rule_status_signal", "tile_signal",
                      "rule_after_signal", "tile_market", "rule_after_market",
                      "scan_cadence"):
@@ -1774,15 +1785,16 @@ class VersionTest(unittest.TestCase):
         # union-find, the shortest pair across two parts joined until
         # one mesh remains, so no line can end at a dot no other thread
         # carries on from.
-        # v3.6.2 (owner's orders of 2026-11-01): the carets stand at the
-        # exact vertical middle of their faces in both dropdowns, the W/L
-        # tile gains its own diamond rule plus the "&" heading and the
-        # digits-only "0/1 & 100%" line coloured by the leading side,
-        # versionCode 98.
+        # v3.6.3 (owner's orders of 2026-11-01, second and third notes):
+        # the diamond rule between the greeting and QUANT STATUS, the
+        # drop-up caret at the exact middle of the WHOLE open plate, one
+        # newest frame per symbol across card, search and prices, the
+        # acknowledged total on the phone's rows, and the pinned answer
+        # rebuilt from the live quote every tick, versionCode 99.
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="3.6.2"', manifest)
-        self.assertIn('android:versionCode="98"', manifest)
-        self.assertNotIn('android:versionName="3.6.1"', manifest)
+        self.assertIn('android:versionName="3.6.3"', manifest)
+        self.assertIn('android:versionCode="99"', manifest)
+        self.assertNotIn('android:versionName="3.6.2"', manifest)
         # The changelog entry ties these user-visible changes to the build.
         readme = (ROOT / "android" / "README.md").read_text(encoding="utf-8")
         self.assertIn("v1.7.9, owner order 2026-10-20", readme)
@@ -1941,6 +1953,12 @@ class VersionTest(unittest.TestCase):
         # own diamond rule, the "&" heading and the digits-only
         # "0/1 & 100%" line coloured by the leading side, versionCode 98.
         self.assertIn("Version 3.6.2, versionCode 98", readme)
+        # v3.6.3 (owner's orders of 2026-11-01, later that day): the
+        # greeting's own diamond rule, the open caret at the exact centre
+        # of the whole plate, one newest frame per symbol on every
+        # surface, and the pinned answer rebuilt from the live quote,
+        # versionCode 99.
+        self.assertIn("Version 3.6.3, versionCode 99", readme)
         # v3.1.0 (owner order 2026-10-29, twenty-eighth pass): the open
         # menu keeps its anchored line and the rows type in the box's
         # own column, and the menu tile rides 7% of the screen higher.
@@ -1949,9 +1967,9 @@ class VersionTest(unittest.TestCase):
         # rows move up into the closed face's empty strip, both dropdowns.
         self.assertIn("Version 3.2.0, versionCode 92", readme)
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionCode="98"', manifest)
-        self.assertIn('android:versionName="3.6.2"', manifest)
-        self.assertNotIn('android:versionName="3.6.1"', manifest)
+        self.assertIn('android:versionCode="99"', manifest)
+        self.assertIn('android:versionName="3.6.3"', manifest)
+        self.assertNotIn('android:versionName="3.6.2"', manifest)
         self.assertNotIn('android:versionName="3.5.0"', manifest)
         self.assertNotIn('android:versionName="3.3.0"', manifest)
         layout = LAYOUT.read_text(encoding="utf-8")
@@ -2121,7 +2139,10 @@ class SearchPanelStabilityTest(unittest.TestCase):
         marker = 'String.format(Locale.US, " PKR %,.2f", quote.price)'
         window = main[main.index("private void styleSearchRow("):
                       main.index("private void paintSignalInk(")]
-        self.assertEqual(window.count(marker), 2, window.count(marker))
+        # Owner order 2026-11-01 adds the third site: the live selected
+        # line (row, restamped base, live rebuild), each printing the
+        # price once.
+        self.assertEqual(window.count(marker), 3, window.count(marker))
 
     def test_the_search_answer_prints_buy_green_and_sell_red(self):
         watcher = WATCHER.read_text(encoding="utf-8")
@@ -2701,15 +2722,40 @@ class MenuOrdersTest(unittest.TestCase):
         nav_tile = element(self.layout, 'android:id="@+id/nav_tile"')
         self.assertIn('android:layout_height="74dp"', nav_tile)
 
+    def test_the_selected_answer_moves_with_the_tape(self):
+        """Owner order 2026-11-01 ("I am not seeing the volume moving in
+        real time in my app"): the pinned answer is rebuilt from the LIVE
+        quote on every tick, pair and total included, so B, S and T move
+        with the card's own rows instead of freezing at the tap's numbers.
+        The relay's /prices row carries the acknowledged total as its sixth
+        column, and Watcher keeps it in Quote.volume so no second sum is
+        computed on the phone.
+        """
+        watcher = WATCHER.read_text(encoding="utf-8")
+        main = MAIN.read_text(encoding="utf-8")
+        self.assertIn("Object volumeVal = row.opt(5);", watcher)
+        self.assertIn("final Long volume;", watcher)
+        self.assertIn("Double.isNaN(pct) ? null : pct, buy, sell,", watcher)
+        self.assertIn("private CharSequence liveSelectedLine(Watcher.Quote quote) {",
+                      main)
+        self.assertIn("searchStatus.setText(liveSelectedLine(quote));", main)
+        live = main[main.index("private CharSequence liveSelectedLine("):
+                    main.index("private void paintSignalInk(")]
+        self.assertIn("R.color.green", live)
+        self.assertIn("R.color.red", live)
+        self.assertIn('" & T=%,d"', live)
+        self.assertNotIn("quote.buy + quote.sell", live)
+
     def test_the_dropdown_caret_stands_at_its_face_middle(self):
         """Owner order 2026-11-01 ("have the drop down/up icon at the
-        middle, look at the top sub menu option, right now, the arrow is
-        little to the up side. Make it at the exact center"): the caret
-        re-centres in code onto its mount's TOP FACE in both states, the
-        closed box's own face while closed and the first option row while
-        open, read after the layout pass and never a fixed 11dp margin
-        carried by hand; the same law lands from onCreate and onResume,
-        so a theme's taller air can never leave the arrow high again.
+        middle... Make it at the exact center", then "the drop up icon is
+        little to the up side when the sub menu is tapped down. Have the
+        drop up icon in the exact center"): the caret re-centres in code
+        onto its mount's TOP FACE in both states - the closed box's own
+        face while closed and the WHOLE open plate while open - read after
+        the layout pass and never a fixed 11dp margin carried by hand; the
+        same law lands from onCreate and onResume, so a theme's taller air
+        can never leave the arrow high again.
         """
         self.assertIn(
             "private void centerDropdownCaret(ImageView arrow, TextView face,",
@@ -2731,6 +2777,15 @@ class MenuOrdersTest(unittest.TestCase):
         # The centre is read after the layout pass, on the view's own post.
         self.assertIn("arrow.post(() -> {", self.main)
         self.assertIn("arrow.getLayoutParams()", self.main)
+        # Owner order 2026-11-01, second note ("the drop up icon is little
+        # to the up side when the sub menu is tapped down... have the drop
+        # up icon in the exact center"): the open state's anchor is the
+        # WHOLE plate, not its first row, so the arrow stands at the middle
+        # of the box the eye sees and not above it.
+        self.assertIn("? menu : null);", self.main)
+        centre = self.main.index("private void centerDropdownCaret(")
+        self.assertNotIn("menu.getChildAt(0)",
+                         self.main[centre:centre + 2600])
         # Landed from onCreate after the menus build, and from onResume
         # too: count == 2 exactly, no third site has grown in.
         self.assertEqual(self.main.count("centerDropdownCarets();"), 2,
@@ -4431,10 +4486,11 @@ class UniversalRuleGapTest(unittest.TestCase):
         # and v2.2.3 put the search page's own rule back above the search
         # tile. v2.2.4 adds the pair's own division between the search
         # tile and the custom scrips of volume tile; owner 2026-11-01
-        # adds the W/L tile's own seam above itself: NINE rules now
-        # (five on the home path, the THEMES tile's two, the search
-        # page's own diamond, and the volume pair's own).
-        self.assertEqual(len(rules), 9)
+        # adds the W/L tile's own seam above itself and the greeting's
+        # seam before QUANT STATUS: TEN rules now (six on the home path,
+        # the THEMES tile's two, the search page's own diamond, and the
+        # volume pair's own).
+        self.assertEqual(len(rules), 10)
         for rule in rules:
             with self.subTest(rule=rule.get(f"{ANDROID_NS}id")):
                 self.assertEqual(rule.get(f"{ANDROID_NS}layout_marginTop"),

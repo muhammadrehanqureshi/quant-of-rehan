@@ -785,6 +785,38 @@ function applyStoredFrame(row, stored) {
   return row;
 }
 
+// Owner order 2026-11-01 ("make sure that the data is correct always ...
+// for the past few days I have been seeing 2 different sets of data for
+// stocks, top 3 scrips of volume showed different and search box showed
+// different data"): one symbol, ONE frame. The hub can carry more than one
+// row for a symbol (a retried push, a frame restored beside a live one), and
+// the three reading routes each picked their own: the card took the first
+// fresh row it met, /stock took the first row in array order whatever its
+// stamp, and /prices walked every row. That is how the same scrip printed
+// two prices at once. Every route now asks this one function, which keeps
+// the NEWEST frame by its own observed_at for each symbol; ties fall to the
+// later row in the snapshot, and a row without a stamp never displaces a
+// stamped one.
+function newestQuoteRows(quotes) {
+  const best = new Map();
+  for (const row of Array.isArray(quotes) ? quotes : []) {
+    if (!row || typeof row !== "object") continue;
+    const symbol = String(row.symbol || "").toUpperCase();
+    if (!symbol) continue;
+    const prev = best.get(symbol);
+    if (!prev) {
+      best.set(symbol, row);
+      continue;
+    }
+    const prevAt = Date.parse(prev.observed_at || "");
+    const rowAt = Date.parse(row.observed_at || "");
+    if (Number.isFinite(rowAt) && (!Number.isFinite(prevAt) || rowAt >= prevAt)) {
+      best.set(symbol, row);
+    }
+  }
+  return best;
+}
+
 // The change text is printed signed on a falling day ("-5.15") and the
 // direction is ALSO carried by the change__text--pos/neg class, so the sign
 // comes from the class and the magnitude from the text. The percentage is
@@ -1250,7 +1282,10 @@ async function applyLiveQuotes(env, snapshot, quotes, now, ackDay) {
   const freshQuotes = quotes.quotes.filter((row) => row.fresh &&
     Number.isFinite(row.price) && row.price > 0);
   if (freshQuotes.length) {
-    const liveBySymbol = new Map(freshQuotes.map((row) => [row.symbol, row]));
+    // One frame per symbol, the newest the hub holds (owner order
+    // 2026-11-01): a retried push can never answer the card with an older
+    // price than /stock and /prices read for the same scrip.
+    const liveBySymbol = newestQuoteRows(freshQuotes);
     const merged = (snapshot.top_volume || []).map((row) => {
       const quote = liveBySymbol.get(row.symbol);
       if (!quote) return { ...row, quote_fresh: false };
@@ -1306,7 +1341,8 @@ async function applyLiveQuotes(env, snapshot, quotes, now, ackDay) {
     // the hub's own LAST PUBLISHED REGULAR-session frames of today, the
     // same frames /stock and /prices answer from, instead of the portal
     // cache's separate copy. One frame, one answer, every surface.
-    const todayFrames = (quotes.quotes || []).filter((row) =>
+    const todayFrames = Array.from(newestQuoteRows(quotes.quotes).values())
+      .filter((row) =>
       quoteIsFromToday(row) && Number.isFinite(row.price) && row.price > 0 &&
       Number.isFinite(row.volume) && row.volume > 0);
     if (todayFrames.length) {
@@ -1773,9 +1809,8 @@ export default {
       }
       const snapshot = await readQuoteSnapshot(env);
       const quotes = snapshot && Array.isArray(snapshot.quotes) ? snapshot.quotes : [];
-      const quote = quotes.find((q) => q && q.symbol === symbol &&
-                                  quoteIsFromToday(q)) || null;
-      if (!quote) {
+      const quote = newestQuoteRows(quotes).get(symbol) || null;
+      if (!quote || !quoteIsFromToday(quote)) {
         return json({ ok: false, error: "symbol not in the live snapshot" }, 404);
       }
       const stock = {
@@ -1848,15 +1883,16 @@ export default {
       const storedAll = ackDay ? await ackRowsForDay(env, ackDay) : null;
       const prices = [];
       const rowsBuilt = [];
-      for (const quote of (snapshot && snapshot.quotes) || []) {
+      for (const quote of newestQuoteRows(snapshot && snapshot.quotes).values()) {
         if (!quote || !quoteIsFromToday(quote) ||
             !Number.isFinite(quote.price) || quote.price <= 0) continue;
         // The volume dropdowns (owner order 2026-10-23) rank scrips by their
         // published split, so each row carries the same B/S pair the /stock
         // route computes: the day's range is the frame it is split from, and
         // a frame whose range is incomplete ships nulls instead of guessing
-        // (SO-3). The exclusion row stays the row: the phone reads a row of
-        // five, and indexes beyond three stay null.
+        // (SO-3). The row is six long now (owner order 2026-11-01): the
+        // acknowledged total rides beside the pair so the phone's pinned
+        // answer moves with the card instead of a frozen copy.
         const split = rangePositionSplit(quote.high, quote.low,
                                          quote.price, quote.volume);
         rowsBuilt.push({
@@ -1900,6 +1936,11 @@ export default {
           row.change_pct,
           row.buy_volume,
           row.sell_volume,
+          // Owner order 2026-11-01 ("I am not seeing the volume moving in
+          // real time in my app"): the acknowledged total rides with the
+          // pair, so the search answer and the selected line print the
+          // same moving counter the card's row carries.
+          row.volume,
         ]);
       }
       return json({ ok: true, prices });
