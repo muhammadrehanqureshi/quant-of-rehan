@@ -1641,6 +1641,17 @@ to sixty seconds. The status tile therefore also carries the app's own
      the orphan law stands so every dot still wears a filament.
   5. The version bump is versionCode 82 / versionName 2.3.15.
 
+**Version 3.7.2, versionCode 102.**
+
+  Owner order 2026-11-01, after the 3.7.1 build: "you gotta have it on the
+  other side, you should have it on the right side, right now you have it
+  on the left side." The caret returns to the mount's trailing edge, 14dp
+  in, and the wording returns to the plate's own 10dp column, so the box
+  reads as it did before the 3.7.1 experiment. The 3.7.1 vertical law
+  stays: open, the caret reads the first option's own text line, padding
+  included; closed, it reads the closed face's line. The version bump is
+  versionCode 102 / versionName 3.7.2.
+
 **Version 3.7.1, versionCode 101.**
 
   Owner order 2026-11-01, after the 3.7.0 build and its screenshot of the

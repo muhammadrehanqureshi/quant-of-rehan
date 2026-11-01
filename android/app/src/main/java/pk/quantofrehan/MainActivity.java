@@ -1504,11 +1504,10 @@ public class MainActivity extends Activity {
         row.setTextColor(getColor(R.color.text_bright));
         row.setIncludeFontPadding(false);
         row.setGravity(Gravity.CENTER_VERTICAL);
-        // v3.7.1 (owner order 2026-11-01): the leading air is the caret's
-        // own 38dp column - its 10dp station, 20dp width and 8dp gap - so
-        // an open row's wording stands exactly where the closed face's
-        // label prints, behind the first option's leading mark.
-        row.setPadding(dp(38), dp(7), dp(14), dp(7));
+        // v3.7.2 (owner order 2026-11-01): the caret is back at the
+        // trailing edge, so the wording returns to the closed box's own
+        // 10dp column. The row's right air is the caret's 14dp station.
+        row.setPadding(dp(10), dp(7), dp(14), dp(7));
         // v3.4.0 (owner order 2026-10-30, "the drop down menu got
         // thinner and the drop down/drop up icon gets on the middle,
         // it should be on the top"): a menu row stands at the closed
@@ -1526,7 +1525,7 @@ public class MainActivity extends Activity {
      *  menus, make sure you have a line between 2 separate sub menu
      *  options, the difference between the line and all the sub menus
      *  should be exactly the same"). The line is ONE dp tall, its own
-     *  left air the wording's 38dp column and its right air the row's
+     *  left air the row's own 10dp column and its right air the row's
      *  14dp, so the line spans exactly the typing column the options
      *  print in. Each row's own 7dp top/bottom padding meets the
      *  line's own 7dp top/bottom air, so the distance above the line
@@ -1540,7 +1539,7 @@ public class MainActivity extends Activity {
         View line = new View(this);
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, dp(1));
-        params.setMargins(dp(38), dp(7), dp(14), dp(7));
+        params.setMargins(dp(10), dp(7), dp(14), dp(7));
         line.setLayoutParams(params);
         line.setBackgroundColor(edgeInk());
         menuDividers.add(line);
@@ -1571,7 +1570,7 @@ public class MainActivity extends Activity {
     // from its nearest line above and below, in BOTH menus.
     private TextView menuRow(String line, boolean first, boolean last) {
         TextView row = menuRow(line);
-        row.setPadding(dp(38), first ? dp(14) : dp(7), dp(14),
+        row.setPadding(dp(10), first ? dp(14) : dp(7), dp(14),
                 last ? dp(14) : dp(7));
         return row;
     }
@@ -1613,7 +1612,7 @@ public class MainActivity extends Activity {
         // layout (GONE), so the empty strip the photo shows collapses
         // and the option rows MOVE UP into the space the face vacated -
         // the plate hugs the rows alone, with the caret keeping its
-        // leading anchor beside the first option, visibly tappable, so one tap on
+        // trailing anchor beside the first option, visibly tappable, so one tap on
         // the dropdown icon rolls the window back up. The roll-up
         // restores the face and its saved label word for word: the
         // default custom scrips box exactly as it stood before the tap.
@@ -1649,7 +1648,7 @@ public class MainActivity extends Activity {
         // v3.2.0 (owner order 2026-10-29, "do the same for themes as
         // well"): the volume window's own law - the face leaves while
         // the menu is open, the rows move up into the space it vacates,
-        // and the caret keeps its leading anchor beside the first option, still the roll-up
+        // and the caret keeps its trailing anchor beside the first option, still the roll-up
         // tap. Closing restores the closed THEMES box and its label.
         if (themeSpinner != null) {
             themeSpinner.setVisibility(open ? View.GONE : View.VISIBLE);
@@ -1700,18 +1699,16 @@ public class MainActivity extends Activity {
                 .start();
     }
 
-    /** Owner order 2026-11-01, after the 3.7.0 build ("you got it at the
-     *  middle of all the options, which is wrong, you should have it in
-     *  front of the first option but it should be exactly in the middle/
-     *  center of the first option's wording, do the same thing for themes
-     *  selection"): the caret is the first option's LEADING mark now. It
-     *  stands in the plate's 10dp column, the wording column behind it is
-     *  38dp in both menus and on both closed faces, and the caret's one
-     *  vertical station is the centre of the first option's own TEXT line,
-     *  padding included, so the first row's 14dp top air cannot lift it
-     *  off the wording. Closed, the anchor is the closed face's own line.
-     *  The whole plate is never an anchor again: that is exactly what put
-     *  the caret between the options. */
+    /** Owner order 2026-11-01, after the 3.7.1 build ("you gotta have it
+     *  on the other side ... on the right side"): the caret's TRAILING
+     *  station is the law now. It stands at the mount's right edge, 14dp
+     *  in, while the wording returns to the plate's own 10dp column, and
+     *  the vertical station the 3.7.1 build got right stays: the centre of
+     *  the first option's own TEXT line, padding included, so the first
+     *  row's 14dp top air cannot lift it off the wording. Closed, the
+     *  anchor is the closed face's own line; open, the first option row.
+     *  The whole plate is never an anchor: that is what put the caret
+     *  between the options. */
     private void centerDropdownCaret(ImageView arrow, TextView face,
             LinearLayout menu) {
         if (arrow == null) {

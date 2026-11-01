@@ -435,6 +435,14 @@
      search answer, B, S and T included, is rebuilt from the live quote
      on every tick.
 
+     Version 3.7.2, versionCode 102 (owner order 2026-11-01, after the
+     3.7.1 build: "you gotta have it on the other side ... on the right
+     side, right now you have it on the left side"): the caret returns to
+     the mount's trailing edge, 14dp in, and the wording returns to the
+     plate's own 10dp column; the 3.7.1 vertical station stays, so the
+     caret still reads the centre of the first option's own text line in
+     both menus.
+
      Version 3.7.1, versionCode 101 (owner order 2026-11-01, after the
      3.7.0 build and its screenshot of the open CUSTOM SCRIPS OF VOL.
      menu: "you got it at the middle of all the options, which is wrong,
@@ -455,8 +463,8 @@
      -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="pk.quantofrehan"
-    android:versionCode="101"
-    android:versionName="3.7.1">
+    android:versionCode="102"
+    android:versionName="3.7.2">
 
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="30"/>
 
