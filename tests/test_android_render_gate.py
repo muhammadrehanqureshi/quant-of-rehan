@@ -80,11 +80,9 @@ class RenderGateSourceTest(unittest.TestCase):
         render = render[:render.index("private void paint(")]
         self.assertIn("paint(online, d, s, market);", render)
         self.assertNotIn("renderGate.changed(", render)
-        # The cadence is still re-decided on EVERY answer, painted or not:
-        # skipping the paint must never skip the scheduling point.
-        self.assertLess(render.index("paint(online, d, s, market);"),
-                        render.index("scheduleNext();"))
-        self.assertIn("scheduleNext();", render)
+        # The tick owns the cadence now: a response that lands inside the
+        # one-second window must not push the next poll another second out.
+        self.assertNotIn("scheduleNext();", render)
 
     def test_a_resumed_console_repaints(self):
         """onPause stops the breath; a skipped paint on resume would freeze it."""

@@ -27,10 +27,11 @@ public final class SignalTextProbe {
         noTradeCard();
         missingCard();
         summaryTargetIsNotAPrice();
+        rememberedEntryTime();
         metadataNeverLeaks();
 
         if (failures.isEmpty()) {
-            System.out.println("PASS SignalText: 6 cases");
+            System.out.println("PASS SignalText: 7 cases");
             return;
         }
         for (String failure : failures) {
@@ -51,7 +52,7 @@ public final class SignalTextProbe {
         String out = SignalText.compact(card);
         check("the field card keeps its ticker, entry time and three prices",
                 out.equals("HCAR\nEntry Time: 09:41:07\nEntry Price: 203.0\n"
-                        + "Exit Price: 207.06\nStop Loss: 199.5"));
+                        + "Target Price: 207.06\nStop Loss: 199.5"));
     }
 
     /** The sentence form the daily-locked path writes. */
@@ -63,7 +64,7 @@ public final class SignalTextProbe {
         String out = SignalText.compact(card);
         check("the sentence card yields the ticker, time and three prices",
                 out.equals("HCAR\nEntry Time: 09:41:07\nEntry Price: 203.0\n"
-                        + "Exit Price: 207.06\nStop Loss: 199.5"));
+                        + "Target Price: 207.06\nStop Loss: 199.5"));
     }
 
     /** A market where the rules refused every candidate is one word. */
@@ -95,8 +96,25 @@ public final class SignalTextProbe {
         String out = SignalText.compact(card);
         check("a prose target does not become an exit price",
                 out.equals("Entry Time: Not reported\nEntry Price: 203.0\n"
-                        + "Exit Price: Not reported\nStop Loss: Not reported"));
+                        + "Target Price: Not reported\nStop Loss: Not reported"));
         check("the prose itself is not echoed", !out.contains("momentum"));
+    }
+
+    /** A later daily-lock card inherits the stamp its session already showed. */
+    private static void rememberedEntryTime() {
+        String card = "QoR intraday 2026-11-02 | 12:10:00 PKT\n"
+                + "Symbol: HCAR\n"
+                + "Entry price: 203.0\n"
+                + "Target: 207.06\n"
+                + "Stop Loss: 199.5";
+        String out = SignalText.compact(card, "09:41:07");
+        check("a remembered entry time fills a later card",
+                out.contains("Entry Time: 09:41:07"));
+        String explicit = card.replace("Entry price: 203.0\n",
+                "Entry price: 203.0\nEntry time: 10:00:00 PKT\n");
+        check("an explicit entry time wins over the remembered one",
+                SignalText.compact(explicit, "09:41:07")
+                        .contains("Entry Time: 10:00:00"));
     }
 
     /** The owner's order: no header, no date, no header clock, no narration. */

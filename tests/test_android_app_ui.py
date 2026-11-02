@@ -1266,21 +1266,18 @@ class StatusPulseTest(unittest.TestCase):
         whole idle round had completed, which is what the owner saw as "it
         never refreshes every second".
 
-        The fix keeps the single scheduling point and calls it from render as
-        well, the moment the answer lands: the interval now changes with the
-        market rather than one idle interval later. scheduleNext removes the
-        one runnable before re-posting it, so the extra call cannot stack a
-        second loop.
+        The fix keeps one scheduling point in the tick itself. A response
+        that lands inside the second does not push the next poll out, and
+        scheduleNext removes the runnable before re-posting it.
         """
         render = self.main[self.main.index("private void render(boolean online"):]
         render = render[:render.index("private String latestSignalDisplay(")]
-        # The answer is painted BEFORE the cadence is re-decided: the order
-        # of these two calls is the fix's shape, kept through v2.2.1.
-        self.assertLess(render.index("paint(online, d, s, market);"),
-                        render.index("scheduleNext();"))
+        # The tick owns the cadence: a response that lands inside the
+        # one-second window must not push the next poll another second out.
+        self.assertNotIn("scheduleNext();", render)
         self.assertIn("cadence.removeCallbacks(tick);", self.main)
-        self.assertEqual(self.main.count("scheduleNext();"), 3,
-                         "onResume, the tick and the answer: one method")
+        self.assertEqual(self.main.count("scheduleNext();"), 2,
+                         "onResume and the tick: one scheduling point")
 
     def test_system_tile_has_quant_title_without_polling_status_copy(self):
         """The status tile reports relay data, not local polling cadence."""
@@ -1789,8 +1786,8 @@ class VersionTest(unittest.TestCase):
         # BLACK & WHITE): each themed plate is copied per view, the
         # diamond rules wear the second colour, versionCode 104.
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="3.7.6"', manifest)
-        self.assertIn('android:versionCode="106"', manifest)
+        self.assertIn('android:versionName="3.7.7"', manifest)
+        self.assertIn('android:versionCode="107"', manifest)
         self.assertNotIn('android:versionName="3.7.5"', manifest)
         self.assertNotIn('android:versionName="3.7.4"', manifest)
         self.assertNotIn('android:versionName="3.7.3"', manifest)
@@ -1967,6 +1964,10 @@ class VersionTest(unittest.TestCase):
         # v3.7.1 (owner order 2026-11-01, after the 3.7.0 build): the
         # carets centred on the first option's wording, versionCode 101.
         self.assertIn("Version 3.7.1, versionCode 101", readme)
+        # v3.7.7 (owner order 2026-11-02, after 3.7.6): the relay quote store
+        # is monotone for total volume and the B/S pair, the signal tile
+        # says Target Price, and the tick owns the one-second cadence.
+        self.assertIn("Version 3.7.7, versionCode 107", readme)
         # v3.7.6 (owner order 2026-11-02, on the active CNERGY signal):
         # the ticker, its real entry time and three prices, with Exit
         # green and Stop Loss red, versionCode 106.
@@ -1983,8 +1984,8 @@ class VersionTest(unittest.TestCase):
         # rows move up into the closed face's empty strip, both dropdowns.
         self.assertIn("Version 3.2.0, versionCode 92", readme)
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionCode="106"', manifest)
-        self.assertIn('android:versionName="3.7.6"', manifest)
+        self.assertIn('android:versionCode="107"', manifest)
+        self.assertIn('android:versionName="3.7.7"', manifest)
         self.assertNotIn('android:versionName="3.7.5"', manifest)
         self.assertNotIn('android:versionName="3.7.4"', manifest)
         self.assertNotIn('android:versionName="3.7.3"', manifest)
@@ -2013,14 +2014,16 @@ class VersionTest(unittest.TestCase):
         # SignalText, and the console only maps its two word states onto
         # resources.
         signal_text = SIGNAL_TEXT.read_text(encoding="utf-8")
-        self.assertIn("String text = SignalText.compact(raw);", main)
+        self.assertIn("String text = SignalText.compact(raw, remembered);", main)
+        self.assertIn("SignalText.entryTime(raw)", main)
+        self.assertIn("signal_entry_time_", main)
         self.assertIn("SignalText.NO_TRADE.equals(text)", main)
         self.assertIn("SignalText.UNAVAILABLE.equals(text)", main)
         self.assertIn("Entry Time: ", signal_text)
         self.assertLess(signal_text.index('"Entry Time: "'),
                         signal_text.index('"Entry Price: "'))
         self.assertIn("Entry Price: ", signal_text)
-        self.assertIn("Exit Price: ", signal_text)
+        self.assertIn("Target Price: ", signal_text)
         self.assertIn("Stop Loss: ", signal_text)
         self.assertIn('return value == null ? NOT_REPORTED : value;', signal_text)
         self.assertIn('afterLabel(line, "Target:")', signal_text)
@@ -2415,7 +2418,7 @@ class SignalPlaceholderInkTest(unittest.TestCase):
 
 class SignalTradeInkTest(unittest.TestCase):
     """Owner order 2026-11-02, on the active CNERGY signal: the entry
-    time stands between the ticker and the entry price, Exit Price is
+    time stands between the ticker and the entry price, Target Price is
     green and Stop Loss is red, and an unreported field keeps body ink."""
 
     def test_exit_is_green_and_stop_is_red(self):
@@ -2423,7 +2426,7 @@ class SignalTradeInkTest(unittest.TestCase):
         block = main[main.index(
             "private CharSequence signalInk(String display) {"):]
         block = block[:block.index("private void paintSignalInk")]
-        self.assertIn('paintSignalLine(styled, "Exit Price: ", R.color.green);',
+        self.assertIn('paintSignalLine(styled, "Target Price: ", R.color.green);',
                       block)
         self.assertIn('paintSignalLine(styled, "Stop Loss: ", R.color.red);',
                       block)
