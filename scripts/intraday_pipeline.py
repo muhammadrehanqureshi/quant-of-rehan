@@ -839,18 +839,29 @@ def run_scan(slot: str, capture: Path | None = None,
             state.last_reason = reason
             state.save()
         delivered = "LOCKED"
-        entry_clock = ""
-        if state.entry_time:
-            try:
-                entry_clock = (f"Entry time: "
-                               f"{datetime.fromisoformat(state.entry_time):%H:%M:%S}. ")
-            except ValueError:
-                entry_clock = ""
-        card_body = (f"One trade already taken today: {state.symbol} entered at "
-                     f"{state.entry_price}, target {state.target_price}, "
-                     f"stop loss {state.stop_loss}. {entry_clock}"
-                     f"{state.last_reason or 'position being monitored'}.")
-        push_card(card_text(day, slot, card_body, alert=state.target_hit), state, signature=f"{day}|{card_body}")
+        # A closed trade is NEVER republished as the entry card. The branch
+        # above already published the terminal STOP or TARGET card on the
+        # scan that detected the exit. This branch runs on that same scan and
+        # on every later one, and it used to overwrite the terminal card with
+        # the entry sentence. Observed 2026-11-02: CNERGY's app card still
+        # showed the 09:52 entry after the 10:11 stop email had gone out.
+        if not (state.stop_hit or state.target_hit):
+            entry_clock = ""
+            if state.entry_time:
+                try:
+                    entry_clock = (
+                        f"Entry time: "
+                        f"{datetime.fromisoformat(state.entry_time):%H:%M:%S}. ")
+                except ValueError:
+                    entry_clock = ""
+            card_body = (
+                f"One trade already taken today: {state.symbol} entered at "
+                f"{state.entry_price}, target {state.target_price}, "
+                f"stop loss {state.stop_loss}. {entry_clock}"
+                f"{state.last_reason or 'position being monitored'}.")
+            push_card(card_text(day, slot, card_body,
+                                alert=state.target_hit), state,
+                      signature=f"{day}|{card_body}")
     else:
         status = result.status
         reason = result.reason
