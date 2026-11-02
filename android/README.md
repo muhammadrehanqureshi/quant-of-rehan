@@ -1641,6 +1641,18 @@ to sixty seconds. The status tile therefore also carries the app's own
      the orphan law stands so every dot still wears a filament.
   5. The version bump is versionCode 82 / versionName 2.3.15.
 
+**Version 3.9.0, versionCode 108.**
+
+  Owner order 2026-11-02, after 3.7.7. The W/L tile now counts a closed
+  trade at the moment its stop or target is hit. The runner banks a
+  hit-time close record as soon as the paper position closes, the relay
+  merges that ledger with the finalized daily outcomes by date, and the
+  W/L cache is invalidated so the next market answer moves the tile. The
+  repo's two consecutive stop losses, PRL and CNERGY, therefore read
+  0/2 once the hit is banked, not only after the close.
+
+  The version bump is versionCode 108 / versionName 3.9.0.
+
 **Version 3.7.7, versionCode 107.**
 
   Owner order 2026-11-02, after 3.7.6. The relay quote store now refuses
