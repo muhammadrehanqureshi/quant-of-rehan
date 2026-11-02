@@ -143,6 +143,18 @@ jobs:
         if: steps.gate.outputs.should_run == 'true'
         run: pip install -r requirements.txt --retries 5 --timeout 60
 
+      - name: Restore the day state and tape from R2
+        if: steps.gate.outputs.should_run == 'true'
+        run: |
+          # The scheduled finalize on a fresh runner used to see only its
+          # seven minute post-market capture. The full day's tape and the
+          # paper state died with the session job, and a closed PRL day was
+          # rewritten as NO_CANDIDATE (owner defect 2026-11-02). The band
+          # store already holds both, so restore them before the capture
+          # appends its own minutes. A missing object is reported and does not
+          # invent a session.
+          python -m src.data.band_state --restore
+
       - name: Bank the session tape, inside a budget this job can afford
         if: steps.gate.outputs.should_run == 'true'
         run: |

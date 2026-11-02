@@ -43,6 +43,8 @@ Honesty rules (SO-3), all of them enforced here rather than trusted downstream:
         UNVERIFIABLE           -> UNVERIFIED (and net_return is None, so the
                                               row contributes no trade)
         NO_CANDIDATE           -> no candidate, so no trade
+        DATA_BLOCKED           -> blocked data, no trade, and never
+                                  allowed to look like a quiet day
   * a record that cannot be read is dropped and reported. Nothing is guessed.
 
 The rolling ``candidate`` field is what ``_metrics`` reads for symbol
@@ -68,6 +70,7 @@ LABEL_BY_OUTCOME = {
     "STOP_AMBIGUOUS": "SL_AMBIG",
     "CLOSED_AT_SESSION_END": "TIMEOUT",
     "UNVERIFIABLE": "UNVERIFIED",
+    "DATA_BLOCKED": "DATA_BLOCKED",
 }
 
 #: The scanner's own data-quality status -> the gate's quality vocabulary.
@@ -137,6 +140,7 @@ def _normalise(record: dict) -> dict | None:
         "gross_return": record.get("gross_return"),
         "net_return": record.get("net_return"),
         "minutes_held": record.get("minutes_held"),
+        "blocked_reason": record.get("blocked_reason"),
         "symbol": symbol,
         "entry": entry,
         "entry_time": record.get("entry_time"),
