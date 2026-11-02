@@ -602,7 +602,7 @@ class RelayWorkerContractTest(unittest.TestCase):
         stock = self.source[self.source.index('path === "/stock"') :]
         stock = stock[:stock.index('path === "/prices"')]
         self.assertNotIn("if (quote.fresh) {", stock)
-        self.assertIn("rangePositionSplit(quote.high, quote.low", stock)
+        self.assertIn("const split = splitFromQuote(quote);", stock)
         self.assertIn("the market is closed", stock)
         self.assertIn("quote_fresh: Boolean(quote.fresh),", stock)
 
@@ -617,9 +617,7 @@ class RelayWorkerContractTest(unittest.TestCase):
         """
         prices = self.source[self.source.index('path === "/prices"'):]
         prices = prices[:prices.index('path === "/market"')]
-        self.assertIn("const split = rangePositionSplit(quote.high, quote.low,",
-                      prices)
-        self.assertIn("quote.price, quote.volume);", prices)
+        self.assertIn("const split = splitFromQuote(quote);", prices)
         self.assertIn("split ? split.buy_volume : null,", prices)
         self.assertIn("split ? split.sell_volume : null,", prices)
 

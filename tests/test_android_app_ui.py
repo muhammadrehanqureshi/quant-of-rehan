@@ -1389,7 +1389,7 @@ class StatusPulseTest(unittest.TestCase):
         # wait, not two stacked ones.
         self.assertIn("marketJob = CARD_POOL.submit(() -> fetchMarket(c, base));",
                       live)
-        self.assertIn("Market market = marketJob.get(20, TimeUnit.SECONDS);", live)
+        self.assertIn("Market market = marketJob.get(9, TimeUnit.SECONDS);", live)
         self.assertNotIn("applyLiveQuotes(market, base);", live)
 
     def test_the_market_card_is_read_on_each_live_display_refresh(self):
@@ -2439,7 +2439,8 @@ class SignalTradeInkTest(unittest.TestCase):
         source = SIGNAL_TEXT.read_text(encoding="utf-8")
         self.assertLess(source.index('"Entry Time: "'),
                         source.index('"Entry Price: "'))
-        self.assertIn("Matcher when = ENTRY_TIME.matcher(text);", source)
+        self.assertIn("Matcher when = ENTRY_TIME.matcher(raw);", source)
+        self.assertIn("entryStamp = entryTime(text);", source)
         self.assertIn("symbolName(value)", source)
 
 
