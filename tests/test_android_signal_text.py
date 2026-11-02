@@ -59,7 +59,10 @@ class SignalTextSourceTest(unittest.TestCase):
         self.assertIn("final class SignalText", self.reader)
 
     def test_the_console_renders_through_the_reader(self):
-        self.assertIn("String text = SignalText.compact(raw);", self.console)
+        self.assertIn("String text = SignalText.compact(raw, remembered);",
+                      self.console)
+        self.assertIn("SignalText.entryTime(raw)", self.console)
+        self.assertIn("signal_entry_time_", self.console)
         self.assertIn("signalList.setText(signalInk(latestSignalDisplay("
                       "actualSignals)))", self.console)
         self.assertIn("SignalText.NO_TRADE.equals(text)", self.console)

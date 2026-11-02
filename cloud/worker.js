@@ -161,6 +161,29 @@ async function kvDelete(env, key) {
   kvMemo.delete(key);
 }
 
+// The signal card is the one place the entry stamp is written, and a later
+// daily-lock card can be stored without it. Remember the stamp beside the
+// card, keyed by the card's own session date, so every read of that day's
+// card can put it back even after the phone restarts.
+function signalDay(text) {
+  const match = String(text || "").match(/\b(\d{4}-\d{2}-\d{2})\b/);
+  return match ? match[1] : null;
+}
+
+function signalEntryClock(text) {
+  const match = String(text || "").match(
+    /\bentry\s*time\s*:\s*(\d{1,2}:\d{2}(?::\d{2})?)/i,
+  );
+  return match ? match[1] : null;
+}
+
+function withRememberedEntry(text, entry) {
+  if (!text || !entry || signalEntryClock(text)) return text;
+  const trimmed = text.replace(/\s+$/, "");
+  const stop = /[.!?]$/.test(trimmed) ? "" : ".";
+  return `${trimmed}${stop} Entry time: ${entry} PKT.`;
+}
+
 // -- Owner order 2026-10-31: a new home tile, "W/L = W/L RATE",
 // reads from ONE authority the relay already stores: the finalized
 // session records the capture pipeline banks (RESEARCH:OUTCOME:<date>,
@@ -949,6 +972,32 @@ function rangePositionSplit(high, low, close, volume) {
   return { buy_volume: buy, sell_volume: total - buy, split_volume: total };
 }
 
+// One answer for a quote's B/S pair. The durable quote store writes the pair
+// on every accepted frame, so every route reads that pair instead of
+// recomputing a fresh range estimate and getting a different answer. Old rows
+// written before the pair was stored fall back to the same range law.
+function splitFromQuote(quote) {
+  if (!quote || typeof quote !== "object") return null;
+  const volume = Math.round(Number(quote.volume));
+  const buy = Math.round(Number(quote.buy_volume));
+  const sell = Math.round(Number(quote.sell_volume));
+  if (Number.isFinite(volume) && volume > 0 &&
+      Number.isFinite(buy) && Number.isFinite(sell) &&
+      buy >= 0 && sell >= 0 && buy + sell === volume) {
+    return { buy_volume: buy, sell_volume: sell, split_volume: volume };
+  }
+  return rangePositionSplit(quote.high, quote.low, quote.price, quote.volume);
+}
+
+// The trading day a quote belongs to. The venue's cumulative counters reset
+// once per trading day and run continuously across the Friday lunch break,
+// so the afternoon's first frame must still carry the morning's total.
+function quoteSessionKey(quote) {
+  const at = Date.parse(quote && quote.observed_at ? quote.observed_at : "");
+  if (!Number.isFinite(at)) return null;
+  return { day: dayStamp(karachiView(at)) };
+}
+
 // Fetch each leader's published range and fill its split, one bounded fetch
 // per leader. A symbol that cannot be read keeps nulls and a stated reason.
 async function attachSplits(rows) {
@@ -1291,7 +1340,8 @@ async function applyLiveQuotes(env, snapshot, quotes, now, ackDay) {
       if (!quote) return { ...row, quote_fresh: false };
       liveBySymbol.delete(row.symbol);
       const volume = quote.volume ?? row.volume;
-      const split = rangePositionSplit(quote.high, quote.low, quote.price, volume);
+      const split = splitFromQuote(quote)
+        || rangePositionSplit(quote.high, quote.low, quote.price, volume);
       return {
         ...row,
         price: quote.price,
@@ -1310,8 +1360,8 @@ async function applyLiveQuotes(env, snapshot, quotes, now, ackDay) {
       if (Number.isFinite(row.volume) && row.volume > 0) {
         merged.push({
           ...row,
-          ...splitFields(rangePositionSplit(row.high, row.low, row.price,
-            row.volume), row),
+          ...splitFields(splitFromQuote(row)
+            || rangePositionSplit(row.high, row.low, row.price, row.volume), row),
           basis: "current session volume (fresh eClear REG quote)",
           quote_fresh: true,
           quote_source: row.source,
@@ -1347,8 +1397,8 @@ async function applyLiveQuotes(env, snapshot, quotes, now, ackDay) {
       Number.isFinite(row.volume) && row.volume > 0);
     if (todayFrames.length) {
       snapshot.top_volume = todayFrames.map((row) => {
-        const split = rangePositionSplit(row.high, row.low, row.price,
-          row.volume);
+        const split = splitFromQuote(row)
+          || rangePositionSplit(row.high, row.low, row.price, row.volume);
         return {
           symbol: row.symbol,
           volume: Math.round(row.volume),
@@ -1641,7 +1691,8 @@ async function healthPayload(env) {
 }function json(obj, status = 200, extraHeaders = {}) {
   return new Response(JSON.stringify(obj, null, 2), {
     status,
-    headers: { "content-type": "application/json", ...extraHeaders },
+    headers: { "content-type": "application/json",
+      "cache-control": "no-store", ...extraHeaders },
   });
 }
 
@@ -1833,8 +1884,7 @@ export default {
         observed_at: quote.observed_at || null,
         source_tick_time: quote.source_tick_time || null,
       };
-      const split = rangePositionSplit(quote.high, quote.low,
-                                       quote.price, quote.volume);
+      const split = splitFromQuote(quote);
       if (split) {
         Object.assign(stock, split);
         stock.split_method = "range_position";
@@ -1905,8 +1955,7 @@ export default {
         // (SO-3). The row is six long now (owner order 2026-11-01): the
         // acknowledged total rides beside the pair so the phone's pinned
         // answer moves with the card instead of a frozen copy.
-        const split = rangePositionSplit(quote.high, quote.low,
-                                         quote.price, quote.volume);
+        const split = splitFromQuote(quote);
         rowsBuilt.push({
           symbol: String(quote.symbol || ""),
           price: quote.price,
@@ -2123,7 +2172,12 @@ export default {
       }
       const k = karachiView(now.getTime());
       const next = nextEvent(now);
-      const signals = (await kvGet(env, "SIGNALS")) || "";
+      let signals = (await kvGet(env, "SIGNALS")) || "";
+      if (signals && !signalEntryClock(signals)) {
+        const day = signalDay(signals);
+        const remembered = day ? await kvGet(env, `SIGNAL:ENTRY:${day}`) : null;
+        if (remembered) signals = withRememberedEntry(signals, remembered);
+      }
       return json({
         ok: true,
         signals,
@@ -2142,6 +2196,12 @@ export default {
       const body = await request.json().catch(() => ({}));
       const text = String(body.signals || "").slice(0, 4000);
       await kvPut(env, "SIGNALS", text);
+      const day = signalDay(text);
+      const entry = signalEntryClock(text);
+      if (day && entry) {
+        await kvPut(env, `SIGNAL:ENTRY:${day}`, entry,
+          { expirationTtl: 2 * 86400 });
+      }
       return json({ ok: true, stored: text.length });
     }
 
@@ -2416,9 +2476,49 @@ export class QuoteHub {
         frameIsRegularSession(quote));
       for (const quote of accepted) {
         const old = quotes.get(quote.symbol);
-        if (!old || Date.parse(quote.observed_at) >= Date.parse(old.observed_at)) {
-          quotes.set(quote.symbol, quote);
+        if (old && !(Date.parse(quote.observed_at) >= Date.parse(old.observed_at))) {
+          continue;
         }
+        const oldKey = old ? quoteSessionKey(old) : null;
+        const newKey = quoteSessionKey(quote);
+        const oldVolume = Math.round(Number(old && old.volume));
+        const newVolume = Math.round(Number(quote.volume));
+        if (old && oldKey && newKey &&
+            oldKey.day === newKey.day &&
+            Number.isFinite(oldVolume) && Number.isFinite(newVolume) &&
+            newVolume < oldVolume) {
+          // Cumulative volume can never move backwards inside one trading
+          // day. Keep the higher frame; the next real print carries a total
+          // at or above it.
+          continue;
+        }
+        const split = splitFromQuote(quote);
+        if (split) {
+          let pair = { volume: split.split_volume,
+                       buy_volume: split.buy_volume,
+                       sell_volume: split.sell_volume };
+          const previous = old ? splitFromQuote(old) : null;
+          if (previous && oldKey && newKey &&
+              oldKey.day === newKey.day) {
+            const clamped = clampPair(pair, previous);
+            if (clamped) {
+              pair = { volume: clamped.volume, buy_volume: clamped.buy,
+                       sell_volume: clamped.sell };
+            }
+          }
+          quote.buy_volume = pair.buy_volume;
+          quote.sell_volume = pair.sell_volume;
+          quote.split_volume = pair.volume;
+          quote.split_method = "range_position";
+          quote.split_source = "B/S estimated from the day's range, not order flow";
+        } else {
+          quote.buy_volume = null;
+          quote.sell_volume = null;
+          quote.split_volume = null;
+          quote.split_method = "unavailable";
+          quote.split_source = "the frame's range is incomplete";
+        }
+        quotes.set(quote.symbol, quote);
       }
       const newer = (current, incoming, stamp) => {
         if (!incoming) return current || null;

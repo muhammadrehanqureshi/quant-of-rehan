@@ -1641,6 +1641,18 @@ to sixty seconds. The status tile therefore also carries the app's own
      the orphan law stands so every dot still wears a filament.
   5. The version bump is versionCode 82 / versionName 2.3.15.
 
+**Version 3.7.7, versionCode 107.**
+
+  Owner order 2026-11-02, after 3.7.6. The relay quote store now refuses
+  a lower cumulative volume and clamps the B/S pair, so neither can move
+  backwards inside a trading day, including the Friday lunch break; the
+  quote publisher reuses one HTTP
+  connection and the console tick owns the one-second cadence. The signal
+  tile says Target Price, and a later card inherits the session's
+  remembered entry time.
+
+  The version bump is versionCode 107 / versionName 3.7.7.
+
 **Version 3.7.6, versionCode 106.**
 
   Owner order 2026-11-02, on the active CNERGY signal. The latest signal

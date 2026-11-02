@@ -443,6 +443,12 @@ class RelayQuotePublisher:
     def _run(self) -> None:
         import requests
 
+        # One pooled HTTP session for the whole run. A fresh requests.post
+        # paid a TCP and TLS handshake to Cloudflare for every quote batch;
+        # from a GitHub runner that handshake was the 4-6 second round trip
+        # behind the phone's 10-12 second lag. Keep-alive removes it, and
+        # MIN_PUBLISH_SECONDS still holds the cadence at one batch a second.
+        session = requests.Session()
         while True:
             self._wake.wait()
             self._wake.clear()
@@ -459,7 +465,7 @@ class RelayQuotePublisher:
                 continue
             self._last_attempt = time.monotonic()
             try:
-                response = requests.post(
+                response = session.post(
                     self._url + "/quotes", json=update,
                     headers={"x-admin-token": self._token}, timeout=(1.0, 2.0))
                 response.raise_for_status()

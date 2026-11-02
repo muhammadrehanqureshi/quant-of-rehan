@@ -45,6 +45,11 @@ class PublisherRetryCapTest(unittest.TestCase):
         self.assertLess(feed_capture.RelayQuotePublisher.MIN_PUBLISH_SECONDS,
                         feed_capture.RelayQuotePublisher.MAX_RETRY_SECONDS)
 
+    def test_the_publisher_reuses_one_http_connection(self):
+        source = Path(feed_capture.__file__).read_text(encoding="utf-8")
+        self.assertIn("session = requests.Session()", source)
+        self.assertIn("session.post(", source)
+
 
 class DefaultUniverseTest(unittest.TestCase):
     def test_the_default_universe_is_tracked_not_local_only(self):

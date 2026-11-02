@@ -2424,13 +2424,11 @@ public class MainActivity extends Activity {
         }
         // Always repaint every foreground tick, every second while the market is live, so the index and the leaders move exactly like the digits on a clock: a frame, even when it is byte-identical to the one before, is what keeps the eye reading motion rather than a paused screen. The live poll already runs on that one-second cadence (scheduleNext), so this is the same loop twice over nothing.
         paint(online, d, s, market);
-        // Owner order 2026-10-16 (fourth note): the cadence is re-decided as
-        // soon as the relay's answer lands, not at the end of the tick that
-        // carried it, and it is re-decided on EVERY answer, painted or not:
-        // skipping a repaint must never skip the scheduling point. scheduleNext
-        // removes and re-posts the one runnable, so this call cannot stack a
-        // second loop.
-        scheduleNext();
+        // The tick owns the cadence. A round that finishes in 200ms must not
+        // move the next poll 1.2s after the previous one, because the phone
+        // then reads like a slow clock even when the relay is current. The
+        // runnable schedules the next tick one second after it started, and
+        // the in-flight guard skips a round that has not finished yet.
     }
 
     /**
@@ -3102,14 +3100,14 @@ public class MainActivity extends Activity {
     }
 
     /** The signal's exit and stop take the move colours (owner order
-     *  2026-11-02): Exit Price is green and Stop Loss is red, labels and
+     *  2026-11-02): Target Price is green and Stop Loss is red, labels and
      *  values together, while the ticker, entry time and entry price stay
      *  in the theme's body ink. A field the relay did not report keeps the
      *  body ink instead of wearing a success or loss colour it did not
      *  earn. */
     private CharSequence signalInk(String display) {
         SpannableString styled = new SpannableString(display);
-        paintSignalLine(styled, "Exit Price: ", R.color.green);
+        paintSignalLine(styled, "Target Price: ", R.color.green);
         paintSignalLine(styled, "Stop Loss: ", R.color.red);
         return styled;
     }
@@ -3158,7 +3156,21 @@ public class MainActivity extends Activity {
         if (!stamp.isEmpty() && !relayDate.isEmpty() && !stamp.equals(relayDate)) {
             return getString(R.string.signal_no_call);
         }
-        String text = SignalText.compact(raw);
+        // Owner order 2026-11-02: a daily-lock card may omit the explicit
+        // entry stamp. Remember the stamp the session's own card carried,
+        // keyed by the card date, so later cards for the same day cannot
+        // turn a known entry time back into "Not reported".
+        String remembered = "";
+        if (!stamp.isEmpty()) {
+            String key = "signal_entry_time_" + stamp;
+            String actual = SignalText.entryTime(raw);
+            if (actual != null) {
+                Watcher.prefs(this).edit().putString(key, actual).apply();
+            } else {
+                remembered = Watcher.prefs(this).getString(key, "");
+            }
+        }
+        String text = SignalText.compact(raw, remembered);
         // The two states are words, not numbers, so they come from resources:
         // one place for the copy and one place for the accessible sentence.
         if (SignalText.NO_TRADE.equals(text)) {
