@@ -1,8 +1,10 @@
-"""The latest signal tile: three execution numbers, no metadata.
+"""The latest signal tile: ticker, entry time and three execution numbers.
 
 Owner order 2026-10-19: the tile used to repeat the relay's whole card, header,
-Karachi clock, rule narration and all. It now shows the ticker and the three
-prices of the signal, and one word for every state that has no signal.
+Karachi clock, rule narration and all. It now shows the ticker, the trade's
+real entry time and the three prices of the signal, and one word for every
+state that has no signal. The card header's date and slot remain outside the
+tile.
 
 The reader lives in SignalText.java, plain Java with no Android imports, so
 the interesting half of this file compiles it with the toolchain's javac and
@@ -58,6 +60,8 @@ class SignalTextSourceTest(unittest.TestCase):
 
     def test_the_console_renders_through_the_reader(self):
         self.assertIn("String text = SignalText.compact(raw);", self.console)
+        self.assertIn("signalList.setText(signalInk(latestSignalDisplay("
+                      "actualSignals)))", self.console)
         self.assertIn("SignalText.NO_TRADE.equals(text)", self.console)
         self.assertIn("SignalText.UNAVAILABLE.equals(text)", self.console)
         # The old inline parser is gone, so there is one place the rules live.
@@ -73,10 +77,11 @@ class SignalTextSourceTest(unittest.TestCase):
         self.assertIn('name="signal_none"', strings)
         self.assertIn('name="signal_unavailable"', strings)
 
-    def test_the_tile_carries_no_metadata(self):
-        """No date, no clock and no rule narration, in the code that ships."""
+    def test_the_tile_carries_the_entry_time_but_no_header(self):
+        """The real entry stamp is allowed; the card header is not."""
         after_doc = self.reader.split("*/", 1)[1]
-        for banned in ("QoR intraday", "PKT", "formatDate", "DateTime"):
+        self.assertIn("Entry Time: ", after_doc)
+        for banned in ("QoR intraday", "formatDate", "DateTime"):
             with self.subTest(banned=banned):
                 self.assertNotIn(banned, after_doc)
 

@@ -1789,8 +1789,9 @@ class VersionTest(unittest.TestCase):
         # BLACK & WHITE): each themed plate is copied per view, the
         # diamond rules wear the second colour, versionCode 104.
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="3.7.5"', manifest)
-        self.assertIn('android:versionCode="105"', manifest)
+        self.assertIn('android:versionName="3.7.6"', manifest)
+        self.assertIn('android:versionCode="106"', manifest)
+        self.assertNotIn('android:versionName="3.7.5"', manifest)
         self.assertNotIn('android:versionName="3.7.4"', manifest)
         self.assertNotIn('android:versionName="3.7.3"', manifest)
         self.assertNotIn('android:versionName="3.7.2"', manifest)
@@ -1966,9 +1967,10 @@ class VersionTest(unittest.TestCase):
         # v3.7.1 (owner order 2026-11-01, after the 3.7.0 build): the
         # carets centred on the first option's wording, versionCode 101.
         self.assertIn("Version 3.7.1, versionCode 101", readme)
-        # v3.7.4 (owner order 2026-11-01, after the 3.7.3 screenshot of
-        # BLACK & WHITE): the tiles stop sharing one plate and the rules
-        # wear the second colour, versionCode 104.
+        # v3.7.6 (owner order 2026-11-02, on the active CNERGY signal):
+        # the ticker, its real entry time and three prices, with Exit
+        # green and Stop Loss red, versionCode 106.
+        self.assertIn("Version 3.7.6, versionCode 106", readme)
         self.assertIn("Version 3.7.5, versionCode 105", readme)
         self.assertIn("Version 3.7.4, versionCode 104", readme)
         self.assertIn("Version 3.7.3, versionCode 103", readme)
@@ -1981,8 +1983,9 @@ class VersionTest(unittest.TestCase):
         # rows move up into the closed face's empty strip, both dropdowns.
         self.assertIn("Version 3.2.0, versionCode 92", readme)
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionCode="105"', manifest)
-        self.assertIn('android:versionName="3.7.5"', manifest)
+        self.assertIn('android:versionCode="106"', manifest)
+        self.assertIn('android:versionName="3.7.6"', manifest)
+        self.assertNotIn('android:versionName="3.7.5"', manifest)
         self.assertNotIn('android:versionName="3.7.4"', manifest)
         self.assertNotIn('android:versionName="3.7.3"', manifest)
         self.assertNotIn('android:versionName="3.7.2"', manifest)
@@ -1998,20 +2001,24 @@ class VersionTest(unittest.TestCase):
         self.assertNotIn('name="market_feed_unknown"', strings)
         self.assertNotIn('name="market_feed_halted"', strings)
         # v1.7.6: the feed-status line is gone and the card shows the broker
-        # stamp instead; the signal tile keeps three numbers and no metadata.
+        # stamp instead; the signal tile keeps the ticker, entry time and
+        # three prices, with no header metadata.
         self.assertNotIn("renderMarketFeedStatus", main)
         # v1.7.9 (owner order 2026-10-20, third note): the index line carries
         # no clock at all, so the stamp reader is gone with it.
         self.assertNotIn("brokerClock", main)
         self.assertIn("latestSignalBackground = s;", main)
-        self.assertIn("signalList.setText(latestSignalDisplay(actualSignals));", main)
-        # v1.7.7: the three numbers and the ticker live in SignalText, and the
-        # console only maps its two word states onto resources.
+        self.assertIn("signalList.setText(signalInk(latestSignalDisplay(actualSignals)));", main)
+        # v1.7.7: the three numbers, the entry time and the ticker live in
+        # SignalText, and the console only maps its two word states onto
+        # resources.
         signal_text = SIGNAL_TEXT.read_text(encoding="utf-8")
         self.assertIn("String text = SignalText.compact(raw);", main)
         self.assertIn("SignalText.NO_TRADE.equals(text)", main)
         self.assertIn("SignalText.UNAVAILABLE.equals(text)", main)
-        self.assertNotIn("Entry Time: ", main + signal_text)
+        self.assertIn("Entry Time: ", signal_text)
+        self.assertLess(signal_text.index('"Entry Time: "'),
+                        signal_text.index('"Entry Price: "'))
         self.assertIn("Entry Price: ", signal_text)
         self.assertIn("Exit Price: ", signal_text)
         self.assertIn("Stop Loss: ", signal_text)
@@ -2021,7 +2028,8 @@ class VersionTest(unittest.TestCase):
         self.assertIn("String numeric = leadingPrice(value);", signal_text)
         self.assertIn('price > 0.0 && !Double.isNaN(price)', signal_text)
         self.assertIn("if (numeric != null) {", signal_text)
-        # The tile is the numbers alone: no header, no date, no rule prose.
+        # The tile is the ticker, time and numbers: no header, no date, no
+        # rule prose.
         self.assertNotIn("QoR intraday", signal_text.split("*/", 1)[1])
         self.assertNotIn("app_live", strings)
         self.assertNotIn("polling every", strings.lower())
@@ -2403,6 +2411,33 @@ class SignalPlaceholderInkTest(unittest.TestCase):
         styles = STYLES.read_text(encoding="utf-8")
         body = styles[styles.index('name="QorBody"'):]
         self.assertIn("@color/text_soft", body[:body.index("</style>")])
+
+
+class SignalTradeInkTest(unittest.TestCase):
+    """Owner order 2026-11-02, on the active CNERGY signal: the entry
+    time stands between the ticker and the entry price, Exit Price is
+    green and Stop Loss is red, and an unreported field keeps body ink."""
+
+    def test_exit_is_green_and_stop_is_red(self):
+        main = MAIN.read_text(encoding="utf-8")
+        block = main[main.index(
+            "private CharSequence signalInk(String display) {"):]
+        block = block[:block.index("private void paintSignalInk")]
+        self.assertIn('paintSignalLine(styled, "Exit Price: ", R.color.green);',
+                      block)
+        self.assertIn('paintSignalLine(styled, "Stop Loss: ", R.color.red);',
+                      block)
+        self.assertIn("SignalText.NOT_REPORTED", block)
+        self.assertIn(
+            "signalList.setText(signalInk(latestSignalDisplay(actualSignals)));",
+            main)
+
+    def test_entry_time_stands_before_the_entry_price(self):
+        source = SIGNAL_TEXT.read_text(encoding="utf-8")
+        self.assertLess(source.index('"Entry Time: "'),
+                        source.index('"Entry Price: "'))
+        self.assertIn("Matcher when = ENTRY_TIME.matcher(text);", source)
+        self.assertIn("symbolName(value)", source)
 
 
 class LeaderRowFitsAtBodySizeTest(unittest.TestCase):

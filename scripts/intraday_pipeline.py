@@ -796,9 +796,16 @@ def run_scan(slot: str, capture: Path | None = None,
             state.last_reason = reason
             state.save()
         delivered = "LOCKED"
+        entry_clock = ""
+        if state.entry_time:
+            try:
+                entry_clock = (f"Entry time: "
+                               f"{datetime.fromisoformat(state.entry_time):%H:%M:%S}. ")
+            except ValueError:
+                entry_clock = ""
         card_body = (f"One trade already taken today: {state.symbol} entered at "
                      f"{state.entry_price}, target {state.target_price}, "
-                     f"stop loss {state.stop_loss}. "
+                     f"stop loss {state.stop_loss}. {entry_clock}"
                      f"{state.last_reason or 'position being monitored'}.")
         push_card(card_text(day, slot, card_body, alert=state.target_hit), state, signature=f"{day}|{card_body}")
     else:
