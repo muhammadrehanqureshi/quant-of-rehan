@@ -1969,7 +1969,7 @@ class VersionTest(unittest.TestCase):
         # v3.7.4 (owner order 2026-11-01, after the 3.7.3 screenshot of
         # BLACK & WHITE): the tiles stop sharing one plate and the rules
         # wear the second colour, versionCode 104.
-                self.assertIn("Version 3.7.5, versionCode 105", readme)
+        self.assertIn("Version 3.7.5, versionCode 105", readme)
         self.assertIn("Version 3.7.4, versionCode 104", readme)
         self.assertIn("Version 3.7.3, versionCode 103", readme)
         self.assertIn("Version 3.7.2, versionCode 102", readme)
