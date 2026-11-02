@@ -1,0 +1,41 @@
+name: forensics
+on:
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "Karachi date to report (YYYY-MM-DD)."
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: forensics-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  forensic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: pip install -r requirements.txt --retries 5 --timeout 60
+      - name: Forensic line for the day
+        run: |
+          set -euo pipefail
+          mkdir -p data/research
+          python scripts/forensic_evidence.py --date "${{ inputs.date }}" \
+            > data/research/forensics.json
+          cp data/research/forensics.json \
+             data/research/forensics_$(date -u -d '+5 hours' +%Y%m%d).json
+      - name: Upload the forensic evidence block
+        uses: actions/upload-artifact@v7
+        with:
+          name: forensics-${{ inputs.date }}
+          path: data/research/forensics.json
+          if-no-files-found: error
+          retention-days: 90
