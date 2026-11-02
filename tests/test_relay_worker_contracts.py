@@ -203,12 +203,14 @@ class RelayWorkerContractTest(unittest.TestCase):
     def test_the_market_answer_carries_the_wl_ledger(self):
         """Owner order 2026-10-31: the W/L = W/L RATE tile reads ONE ledger.
 
-        The phone re-asks GET /market every second, so the finalized
-        signal outcomes are counted once into a five-minute cache row
+        The phone re-asks GET /market every second, so the closed-trade
+        rows are counted once into a five-minute cache row
         (RESEARCH:WINLOSS), never re-listed per second, and a cold or
         failing store leaves win_loss out of that one answer instead of
-        fabricating a rate (SO-3). The rate is the losing share of the
-        CLOSED trades only, and both-zero answers a null rate.
+        fabricating a rate (SO-3). The hit-time close ledger and the
+        finalized outcome overlap by design; the date key counts the trade
+        once. The rate is the losing share of the CLOSED trades only, and
+        both-zero answers a null rate.
         """
         self.assertIn("const TRADE_OUTCOME_LABELS = new Set([", self.source,
                       "only closed trade outcomes count")
@@ -221,6 +223,10 @@ class RelayWorkerContractTest(unittest.TestCase):
         self.assertIn("session.outcome", self.source)
         self.assertIn("const WINLOSS_CACHE_SECONDS = 300;", self.source)
         self.assertIn('relayList(env, "RESEARCH:OUTCOME:", 1000)', self.source)
+        self.assertIn('relayList(env, "RESEARCH:CLOSE:", 1000)', self.source)
+        self.assertIn('path === "/research/close"', self.source)
+        self.assertIn('kvDelete(env, "RESEARCH:WINLOSS")', self.source)
+        self.assertIn("byDate", self.source)
         self.assertIn('kvPut(env, "RESEARCH:WINLOSS"', self.source)
         # The rate is computed from the closed total; both zero answers null.
         self.assertIn("rate_pct: total > 0 ? Math.round((losses / total) * 100) : null,",

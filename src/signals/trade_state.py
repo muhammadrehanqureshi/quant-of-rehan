@@ -96,6 +96,10 @@ class SessionState:
     # what stopped observation archival mid-session on 2026-10-27).
     last_archive_signature: str | None = None
     finalized: bool = False
+    # True once the hit-time close ledger has been banked to the relay. The
+    # full daily outcome still posts at the finalize; this flag keeps the
+    # one-second scan from re-POSTing the same close.
+    exit_close_sent: bool = False
 
     # ------------------------------------------------------------- persistence
     @classmethod

@@ -527,6 +527,45 @@ def monitor_exit(state: SessionState, session: scanner.SessionData) -> tuple | N
     return None
 
 
+def archive_exit_close(state: SessionState) -> bool:
+    """Bank a hit-time close so W/L does not wait for the post-close finalize.
+
+    The trade is already closed in the session state when this runs. The
+    record is deliberately separate from the full daily outcome: the relay
+    merges both ledgers by date, so the finalized research record still
+    carries the session's own quality and capture fields.
+    """
+    if not (state.stop_hit or state.target_hit) or state.exit_close_sent:
+        return False
+    gross = state.return_pct
+    if state.exit_reason is None or gross is None:
+        return False
+    minutes_held = None
+    if state.entry_time and state.exit_time:
+        minutes_held = int(
+            (datetime.fromisoformat(state.exit_time)
+             - datetime.fromisoformat(state.entry_time)).total_seconds() // 60
+        )
+    record = {
+        **state.session_record(),
+        "gross_return": gross,
+        "net_return": config.net_return(gross),
+        "cost_model": {
+            "cost_side_bps": config.COST_SIDE_BPS,
+            "slippage_side_bps": config.SLIPPAGE_SIDE_BPS,
+            "cgt_rate": config.CGT_RATE,
+        },
+        "minutes_held": minutes_held,
+        "outcome": state.exit_reason,
+        "scanner_version": config.SCANNER_VERSION,
+    }
+    if archive("/research/close", {"date": state.day, "sessions": [record]}):
+        state.exit_close_sent = True
+        state.save()
+        return True
+    return False
+
+
 def session_close_price(session: scanner.SessionData, symbol: str | None) -> float | None:
     """Value only the actual last session minute, never another stock's freshness."""
     hour, minute = close_time(session.day)
@@ -591,6 +630,9 @@ def run_scan(slot: str, capture: Path | None = None,
     state = SessionState.load(day)
     state.begin_session()
     state.begin_scan()
+    # A stop or target detected by an earlier scan is banked here, before a
+    # fresh tape is even read, so a restored hit cannot wait for the close.
+    archive_exit_close(state)
 
     # Whether a notification was actually accepted, and by what. None means
     # no message was owed on this scan; a dict means one was attempted, and
@@ -704,6 +746,7 @@ def run_scan(slot: str, capture: Path | None = None,
         if exit_event is not None:
             _, price, stamp = exit_event
             state.save()
+            archive_exit_close(state)
             text = (scanner.target_hit_message(state.symbol or "", state.entry_price or 0.0,
                                                state.target_price or 0.0, price, stamp)
                     if state.target_hit else
@@ -883,6 +926,7 @@ def run_finalize(capture: Path | None = None) -> dict:
     gross_return = net_return = None
     minutes_held = None
     monitor_exit(state, session)
+    archive_exit_close(state)
     if state.stop_hit:
         outcome_label = state.exit_reason
         gross_return = state.return_pct

@@ -435,6 +435,12 @@
      search answer, B, S and T included, is rebuilt from the live quote
      on every tick.
 
+     Version 3.9.0, versionCode 108 (owner order 2026-11-02, after 3.7.7):
+     the W/L tile counts a closed trade as soon as its stop or target is
+     hit. The runner banks a hit-time close ledger, the relay merges it
+     with the finalized daily outcomes by date, and invalidates the W/L
+     cache so the next market answer moves the tile.
+
      Version 3.7.7, versionCode 107 (owner order 2026-11-02, after 3.7.6):
      the relay quote store refuses a lower cumulative volume and clamps
      the B/S pair, so neither can move backwards inside a trading day,
@@ -506,8 +512,8 @@
      -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="pk.quantofrehan"
-    android:versionCode="107"
-    android:versionName="3.7.7">
+    android:versionCode="108"
+    android:versionName="3.9.0">
 
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="30"/>
 
