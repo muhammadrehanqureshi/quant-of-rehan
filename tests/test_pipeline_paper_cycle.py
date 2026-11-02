@@ -389,6 +389,11 @@ class PipelineCycleTest(unittest.TestCase):
         # the target was touched, so the paper position is closed and still online
         self.assertTrue(second["trade_state"]["target_hit"])
         self.assertGreaterEqual(second["trade_state"]["return_pct"], config.TARGET_PCT)
+        closes = [payload for _, route, payload in self.relay.calls
+                  if route == "/research/close"]
+        self.assertTrue(closes, "the target hit was not banked immediately")
+        self.assertEqual(closes[-1]["sessions"][0]["outcome"], "TARGET_HIT")
+        self.assertTrue(second["trade_state"]["exit_close_sent"])
 
         with contextlib.redirect_stdout(io.StringIO()):
             final = run_finalize(self.capture)
@@ -437,6 +442,35 @@ class PipelineCycleTest(unittest.TestCase):
             self.relay.payload_for("/research/outcome")["date"], FRIDAY.isoformat())
 
         self.assert_real_forward_untouched()
+
+    def test_a_restored_hit_is_banked_before_a_new_bar(self):
+        """A stop already in the saved state reaches W/L on the next scan.
+
+        The live CNERGY stop is already closed in the stored state, so the
+        runner cannot rely on seeing the exit event again. It must bank the
+        stored close before it reads a fresh tape, and only once.
+        """
+        self.scan("10:00")
+        state = trade_state.SessionState.load(FRIDAY, path=self.state_path)
+        self.assertTrue(state.in_position())
+        state.mark_stop_hit(state.entry_price * 0.99, FIXED_NOW)
+        state.save(self.state_path)
+
+        with contextlib.redirect_stdout(io.StringIO()):
+            run_scan("10:15", self.capture)
+        closes = [payload for _, route, payload in self.relay.calls
+                  if route == "/research/close"]
+        self.assertTrue(closes, "the stored stop never reached the close ledger")
+        self.assertEqual(closes[-1]["sessions"][0]["outcome"], "STOP_HIT")
+        reloaded = trade_state.SessionState.load(FRIDAY, path=self.state_path)
+        self.assertTrue(reloaded.exit_close_sent)
+
+        with contextlib.redirect_stdout(io.StringIO()):
+            run_scan("10:16", self.capture)
+        self.assertEqual(
+            len([1 for _, route, _ in self.relay.calls
+                 if route == "/research/close"]), 1,
+            "the same stored stop was banked twice")
 
     def test_the_days_one_signal_is_claimed_before_any_entry(self):
         """Owner order 2026-10-16: one accepted BUY per Karachi day.

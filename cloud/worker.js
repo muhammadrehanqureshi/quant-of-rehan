@@ -184,20 +184,24 @@ function withRememberedEntry(text, entry) {
   return `${trimmed}${stop} Entry time: ${entry} PKT.`;
 }
 
-// -- Owner order 2026-10-31: a new home tile, "W/L = W/L RATE",
-// reads from ONE authority the relay already stores: the finalized
-// session records the capture pipeline banks (RESEARCH:OUTCOME:<date>,
-// POST /research/outcome). The record's field is `outcome`, named by
-// src/signals/trade_state.py and scripts/intraday_pipeline.py's own
-// run_finalize, and its closed-trade values are TARGET_HIT, STOP_HIT,
-// STOP_AMBIGUOUS and CLOSED_AT_SESSION_END; NO_CANDIDATE, UNVERIFIABLE
-// and a pending record carry no finite net_return and count nothing.
-// One finalized trade exists today (PRL, 2026-10-30, STOP_HIT with a
-// net return of -0.01648), so the answer is 0/1 = 100%. The tile asks
-// ONE question, so the relay answers it as ONE object, shaped once, in
-// one place:
-//   wins   = finalized trades that landed net POSITIVE
-//   losses = finalized trades that landed net zero or negative
+// -- Owner order 2026-10-31, extended 2026-11-02: a new home tile,
+// "W/L = W/L RATE", reads from TWO authorities the relay already
+// stores: the finalized session records the capture pipeline banks
+// (RESEARCH:OUTCOME:<date>, POST /research/outcome) and the hit-time
+// close ledger the runner banks the moment a stop or target closes the
+// paper trade (RESEARCH:CLOSE:<date>, POST /research/close). The field
+// is `outcome`, named by src/signals/trade_state.py and
+// scripts/intraday_pipeline.py's own run_finalize, and its closed-trade
+// values are TARGET_HIT, STOP_HIT, STOP_AMBIGUOUS and
+// CLOSED_AT_SESSION_END; NO_CANDIDATE, UNVERIFIABLE and a pending
+// record carry no finite net_return and count nothing. The ledgers
+// overlap by date, so winLossFromSessions keys by date and the
+// finalized record wins. PRL 2026-10-30 is finalized STOP_HIT and
+// CNERGY 2026-11-02 closed at its stop, so the answer is 0/2 = 100%.
+// The tile asks ONE question, so the relay answers it as ONE object,
+// shaped once, in one place:
+//   wins   = closed trades that landed net POSITIVE
+//   losses = closed trades that landed net zero or negative
 //   closed = wins + losses (both zero means the rate is not computable)
 //   rate_pct = losing share of the CLOSED total, rounded
 const TRADE_OUTCOME_LABELS = new Set([
@@ -205,13 +209,19 @@ const TRADE_OUTCOME_LABELS = new Set([
 ]);
 
 function winLossFromSessions(sessions) {
-  let wins = 0, losses = 0;
+  const byDate = new Map();
   for (const session of sessions) {
     const label = String((session && session.outcome) || "").toUpperCase();
     if (!TRADE_OUTCOME_LABELS.has(label)) continue;
     const net = Number(session.net_return);
     if (!Number.isFinite(net)) continue;
-    if (net > 0) wins += 1; else losses += 1;
+    const day = String((session && (session.date || session.day)) || "");
+    const key = day || `${(session && session.symbol) || ""}|${label}|${net}`;
+    byDate.set(key, net > 0 ? "win" : "loss");
+  }
+  let wins = 0, losses = 0;
+  for (const result of byDate.values()) {
+    if (result === "win") wins += 1; else losses += 1;
   }
   return { wins, losses };
 }
@@ -235,13 +245,16 @@ async function winLossSnapshot(env) {
     } catch (_) { /* stale row: recompute */ }
   }
   const listed = await relayList(env, "RESEARCH:OUTCOME:", 1000);
+  const closed = await relayList(env, "RESEARCH:CLOSE:", 1000);
   const sessions = [];
-  for (const item of listed.keys) {
-    if (!item.value || typeof item.value !== "string") continue;
-    try {
-      const row = JSON.parse(item.value);
-      if (Array.isArray(row && row.sessions)) sessions.push(...row.sessions);
-    } catch (_) { /* unreadable row: never counted */ }
+  for (const source of [closed, listed]) {
+    for (const item of source.keys) {
+      if (!item.value || typeof item.value !== "string") continue;
+      try {
+        const row = JSON.parse(item.value);
+        if (Array.isArray(row && row.sessions)) sessions.push(...row.sessions);
+      } catch (_) { /* unreadable row: never counted */ }
+    }
   }
   const { wins, losses } = winLossFromSessions(sessions);
   const total = wins + losses;
@@ -2098,6 +2111,35 @@ export default {
       return json({ ok: true, observations });
     }
 
+    if (request.method === "POST" && path === "/research/close") {
+      // The hit-time close ledger: the runner banks this the moment a stop
+      // or target closes the paper trade, so W/L does not wait for the
+      // post-close finalize. The full RESEARCH:OUTCOME record still posts
+      // later; the W/L reader merges both by date and counts the trade once.
+      const body = await request.json().catch(() => null);
+      const date = String((body && body.date) || "");
+      const sessions = body && body.sessions;
+      const session = Array.isArray(sessions) && sessions.length === 1
+        ? sessions[0] : null;
+      const outcome = String((session && session.outcome) || "").toUpperCase();
+      if (!body || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !session ||
+          !TRADE_OUTCOME_LABELS.has(outcome) ||
+          String(session.date || "") !== date ||
+          !Number.isFinite(Number(session.net_return))) {
+        return json({ ok: false, error: "invalid closed trade" }, 400);
+      }
+      const key = `RESEARCH:CLOSE:${date}`;
+      const existing = await relayRead(env, key);
+      if (existing) {
+        await kvDelete(env, "RESEARCH:WINLOSS");
+        return json({ ok: true, stored: false, immutable: true });
+      }
+      await kvPut(env, key, JSON.stringify(body),
+        { expirationTtl: 63072000 });
+      await kvDelete(env, "RESEARCH:WINLOSS");
+      return json({ ok: true, stored: true });
+    }
+
     if (request.method === "POST" && path === "/research/outcome") {
       const body = await request.json().catch(() => null);
       if (!body || !/^\d{4}-\d{2}-\d{2}$/.test(String(body.date || "")) ||
@@ -2106,9 +2148,13 @@ export default {
       }
       const key = `RESEARCH:OUTCOME:${body.date}`;
       const existing = await relayRead(env, key);
-      if (existing) return json({ ok: true, stored: false, immutable: true });
+      if (existing) {
+        await kvDelete(env, "RESEARCH:WINLOSS");
+        return json({ ok: true, stored: false, immutable: true });
+      }
       await kvPut(env, key, JSON.stringify(body),
         { expirationTtl: 63072000 });
+      await kvDelete(env, "RESEARCH:WINLOSS");
       return json({ ok: true, stored: true });
     }
 

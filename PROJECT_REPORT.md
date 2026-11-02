@@ -277,12 +277,13 @@ jobs stay green instead of mailing GitHub failures.
 | `POST /market` | admin | stores a snapshot built by `python -m src.data.market_snapshot --push` |
 | `POST /notify` | admin | retired: answers 410 `retired: "email"`; notifications travel on the owner email issue from the Actions jobs |
 | `GET /signals` (public read), `POST /signals` (admin) | admin write | the phone app's signal card |
-| `POST/GET /research/observation`, `/research/outcome`, `/research/history`, `/research/claim`, `GET/POST /research/gate` | admin | the frozen research archive (write-once keys, two-year retention) |
+| `POST/GET /research/observation`, `POST /research/close`, `/research/outcome`, `/research/history`, `/research/claim`, `GET/POST /research/gate` | admin | the frozen research archive (write-once keys, two-year retention) |
 | `/quotes`, `/quotes/stream`, `/dashboard`, `/stock`, `/prices` | public reads, admin write | the broker-feed card the app polls |
 
 Keys (held in the QuoteHub Durable Object, no KV namespace):
 `SIGNALS`, `MARKET`, `MARKET:LAST_CONFIRMED_STATE`,
 `RESEARCH:OBS:<date>:<slot>`, `RESEARCH:OUTCOME:<date>`,
+`RESEARCH:CLOSE:<date>`, `RESEARCH:WINLOSS`,
 `RESEARCH:SENT:<date>`, `RESEARCH:PRODUCTION_GATE`.
 
 `/market` parses two PSX Data Portal pages server-side. The KSE100 panel
