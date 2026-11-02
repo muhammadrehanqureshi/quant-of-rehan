@@ -955,6 +955,14 @@ def run_finalize(capture: Path | None = None) -> dict:
             outcome_label = "CLOSED_AT_SESSION_END"
         else:
             outcome_label = "UNVERIFIABLE"
+    elif quality.status == scanner.DATA_BLOCKED:
+        # A blocked session with no paper entry is NOT a quiet NO_CANDIDATE
+        # day. It keeps its own label and reason so the dataset counts it
+        # (owner order 2026-11-02), while a session with an entry stays
+        # UNVERIFIABLE above and is never given a fabricated return.
+        outcome_label = "DATA_BLOCKED"
+        if state.blocked_reason is None:
+            state.blocked_reason = quality.reason
     if state.entry_time and gross_return is not None:
         end_at = datetime.fromisoformat(state.exit_time) if state.exit_time else as_of
         minutes_held = int((end_at - datetime.fromisoformat(state.entry_time))

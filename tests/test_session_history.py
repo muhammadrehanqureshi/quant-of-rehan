@@ -211,6 +211,26 @@ class SessionHistoryTest(unittest.TestCase):
             forward_validation._rule_rows([row], config.SCANNER_VERSION))
         self.assertEqual(metrics["trades"], 0)
 
+    def test_a_blocked_outcome_keeps_its_blocked_label_and_reason(self):
+        """A blocked session is visible in the dataset and spends no trade."""
+        record = session_record(
+            "2026-10-14", symbol=None, outcome="DATA_BLOCKED",
+            gross_return=None, net_return=None, minutes_held=None,
+            blocked_reason="KMIALL coverage 0/317 (0.0%)",
+            data_quality={"status": "DATA_BLOCKED",
+                          "reason": "KMIALL coverage 0/317 (0.0%)",
+                          "coverage": 0.0})
+        self.write_outcome(record)
+
+        row = session_history.session_rows()[0]
+        self.assertEqual(row["label"], "DATA_BLOCKED")
+        self.assertEqual(row["blocked_reason"],
+                         "KMIALL coverage 0/317 (0.0%)")
+        self.assertEqual(row["data_quality"]["quality"], "unverified")
+        metrics = forward_validation._metrics(
+            forward_validation._rule_rows([row], config.SCANNER_VERSION))
+        self.assertEqual(metrics["trades"], 0)
+
     def test_a_row_is_scored_under_its_own_scanner_version(self):
         """A momentum outcome can never be counted as an opening-range one."""
         self.write_outcome(session_record("2026-10-13"))
