@@ -273,6 +273,10 @@ public class MainActivity extends Activity {
      * remembered theme's accent before the first repaint lands.
      */
     private int themeAccentInk = 0xFFD9A441;
+    /** The worn theme's FIRST colour in its light body step (owner order
+     *  2026-11-01): every 13sp body line takes it. Red and green spans
+     *  still override it, and headings keep their accent ink. */
+    private int themeBodyInk = 0xFFB9A6C2;
     // The dropdown's state arrow (owner order 2026-10-23, 2.0.0):
     // DOWN while the menu is closed (the pull-down cue), UP while it is
     // open (the pull-up cue), declared beside it.
@@ -791,6 +795,39 @@ public class MainActivity extends Activity {
         }
     }
 
+    /** Owner order 2026-11-01: every body line, the one 13sp line,
+     *  wears the worn theme's FIRST colour in its light step. The title,
+     *  its tagline, the tile headings and the status word are not body
+     *  lines: the first two and the word are skipped by id, the headings
+     *  by their larger own size, and the diamond by its 10sp size. The
+     *  red and green spans keep their meaning; this only sets the base
+     *  ink under them. */
+    private void paintBodyInk(View view) {
+        if (view == null) {
+            return;
+        }
+        if (view instanceof TextView) {
+            TextView text = (TextView) view;
+            int id = view.getId();
+            boolean own = id == R.id.brand_title
+                    || id == R.id.brand_tagline
+                    || id == R.id.status_word;
+            float body = android.util.TypedValue.applyDimension(
+                    android.util.TypedValue.COMPLEX_UNIT_SP, 13f,
+                    getResources().getDisplayMetrics());
+            float size = text.getTextSize();
+            if (!own && size >= body * 0.96f && size <= body * 1.04f) {
+                text.setTextColor(themeBodyInk);
+            }
+        }
+        if (view instanceof android.view.ViewGroup) {
+            android.view.ViewGroup group = (android.view.ViewGroup) view;
+            for (int i = 0; i < group.getChildCount(); i++) {
+                paintBodyInk(group.getChildAt(i));
+            }
+        }
+    }
+
     /**
      * The greeting above the QUANT STATUS tile (owner order 2026-10-23).
      *
@@ -969,7 +1006,7 @@ public class MainActivity extends Activity {
         field.setBackground(fieldPlate(index));
         if (field instanceof TextView) {
             ((TextView) field).setHintTextColor(getColor(
-                    hintInkFor(index)));
+                    bodyInkFor(index)));
         }
     }
 
@@ -1037,6 +1074,19 @@ public class MainActivity extends Activity {
         }
     }
 
+    /** The light body ink of each theme's FIRST colour (owner order
+     *  2026-11-01): purple keeps its light violet; the other four tint
+     *  the pair's first colour until the 13sp wording clears its panel. */
+    private int bodyInkFor(int index) {
+        switch (index) {
+            case 1:  return R.color.theme_black_body;
+            case 2:  return R.color.theme_green_body;
+            case 3:  return R.color.theme_navy_body;
+            case 4:  return R.color.theme_orange_body;
+            default: return R.color.text_soft;
+        }
+    }
+
     /** The input plate marker: a scrip with a day move at or past this
      *  mark is already capped for the SPEED menu (see the v2.2.5 law
      *  on rankedSpeedSymbols). */
@@ -1046,48 +1096,56 @@ public class MainActivity extends Activity {
      * heading ink) triple: the scroll root behind everything, the tiles'
      * plates, and the headings' own ink. The purple theme IS the app's
      * declared palette, so its legibility is a property of the app
-     * rather than of code, and no other ink CHANGES: the body lines,
-     * the search highlight plates and the badge gradients keep the inks
-     * of their own laws, so a theme can never restyle a state that means
-     * something else. The diamond rules are the theme's own: both
-     * hairlines and the diamond wear the pair's second colour.
+     * rather than of code. The body's 13sp lines take the pair's FIRST
+     * colour in its light step (themeBodyInk); the search highlight
+     * plates and the badge gradients keep the inks of their own laws,
+     * and the red and green spans keep their meanings. The diamond rules
+     * are the theme's own: both hairlines and the diamond wear the
+     * pair's second colour.
      */
     private void applyTheme(int index) {
         prefs.edit().putInt("theme", index).apply();
         int bg;
         int panel;
         int accent;
+        int body;
         switch (index) {
             case 1:
                 bg = R.color.theme_black_bg;
                 panel = R.color.theme_black_panel;
                 accent = R.color.theme_black_accent;
+                body = R.color.theme_black_body;
                 break;
             case 2:
                 bg = R.color.theme_green_bg;
                 panel = R.color.theme_green_panel;
                 accent = R.color.theme_green_accent;
+                body = R.color.theme_green_body;
                 break;
             case 3:
                 bg = R.color.theme_navy_bg;
                 panel = R.color.theme_navy_panel;
                 accent = R.color.theme_navy_accent;
+                body = R.color.theme_navy_body;
                 break;
             case 4:
                 bg = R.color.theme_orange_bg;
                 panel = R.color.theme_orange_panel;
                 accent = R.color.theme_orange_accent;
+                body = R.color.theme_orange_body;
                 break;
             default:
                 bg = R.color.bg_deep;
                 panel = R.color.bg_panel;
                 accent = R.color.gold;
+                body = R.color.text_soft;
                 break;
         }
         // v2.3.21: the ink lands before any plate is built, so the menu
         // bar's icons, the dropdown arrows and the plates' edge all
         // draw from the theme this pass names, never one pass late.
         themeAccentInk = getColor(accent);
+        themeBodyInk = getColor(body);
         int bgColor = getColor(bg);
         View root = findViewById(R.id.scroll_root);
         if (root != null) {
@@ -1153,6 +1211,10 @@ public class MainActivity extends Activity {
         // black, navy and orange), re-inked in this same pass, so no
         // theme can leave the previous look's caret behind.
         repaintRules(findViewById(R.id.scroll_root));
+        paintBodyInk(findViewById(R.id.scroll_root));
+        if (greeting != null) {
+            greeting.setTextColor(themeBodyInk);
+        }
         repaintMenuDividers();
         repaintDropdownArrows();
         pinNavTile();
@@ -1509,8 +1571,12 @@ public class MainActivity extends Activity {
             // the symbol's presence in the menu is the price's presence on
             // the card; changePct stays boxed, its null a real "no move".
             sb.append('\n');
+            int priceFrom = sb.length();
             sb.append(String.format(Locale.US, "PKR %,.2f", quote.price));
             if (quote.changePct != null) {
+                sb.setSpan(new ForegroundColorSpan(getColor(
+                                quote.changePct >= 0 ? R.color.green : R.color.red)),
+                        priceFrom, sb.length(), 0);
                 sb.append(' ');
                 int from = sb.length();
                 sb.append(String.format(Locale.US, "%s %.2f%%",
@@ -1543,7 +1609,7 @@ public class MainActivity extends Activity {
     private TextView menuRow(String line) {
         TextView row = new TextView(this);
         row.setTextSize(13f);
-        row.setTextColor(getColor(R.color.text_bright));
+        row.setTextColor(themeBodyInk);
         row.setIncludeFontPadding(false);
         row.setGravity(Gravity.CENTER_VERTICAL);
         // v3.7.2 (owner order 2026-11-01): the caret is back at the
@@ -2742,10 +2808,13 @@ public class MainActivity extends Activity {
             // move's own, and the percentage is the move's magnitude -
             // the arrow IS the sign.
             SpannableStringBuilder built = new SpannableStringBuilder(symbol);
-            int tailFrom = built.length();
+            int priceFrom = built.length();
             built.append(String.format(Locale.US, " PKR %,.2f", quote.price));
             int from = built.length();
             if (quote.changePct != null) {
+                built.setSpan(new ForegroundColorSpan(getColor(
+                                quote.changePct >= 0 ? R.color.green_hi
+                                : R.color.red)), priceFrom, from, 0);
                 built.append(String.format(Locale.US, " %s %.2f%%",
                         quote.changePct >= 0 ? "\u25B2" : "\u25BC",
                         Math.abs(quote.changePct)));
@@ -2756,8 +2825,8 @@ public class MainActivity extends Activity {
                         from + 2, 0);
             }
             if (quote.changePct == null) {
-                built.setSpan(new ForegroundColorSpan(getColor(
-                        R.color.text_soft)), tailFrom, built.length(), 0);
+                built.setSpan(new ForegroundColorSpan(themeBodyInk),
+                        priceFrom, from, 0);
             }
             row.setText(built);
         } else {
@@ -2772,7 +2841,7 @@ public class MainActivity extends Activity {
         // spacing is gone - the row is one 13sp body line like every
         // other line on the console, its symbols read as the body reads.
         row.setTextSize(13f);
-        row.setTextColor(getColor(R.color.text_bright));
+        row.setTextColor(themeBodyInk);
         row.setPadding(dp(10), dp(9), dp(10), dp(9));
         // Owner order 2026-10-22 (the search highlight): every row whose
         // symbol STARTS with what is typed lights up while it matches.
@@ -2944,6 +3013,9 @@ public class MainActivity extends Activity {
         styled.append(String.format(Locale.US, " PKR %,.2f", quote.price));
         if (quote.changePct != null) {
             int moveFrom = styled.length();
+            styled.setSpan(new ForegroundColorSpan(getColor(
+                            quote.changePct >= 0 ? R.color.green_hi
+                            : R.color.red)), from, moveFrom, 0);
             styled.append(String.format(Locale.US, " %s %.2f%%",
                     quote.changePct >= 0 ? "\u25B2" : "\u25BC",
                     Math.abs(quote.changePct)));
@@ -2955,8 +3027,8 @@ public class MainActivity extends Activity {
                     moveFrom + 2, 0);
         }
         if (quote.changePct == null) {
-            styled.setSpan(new ForegroundColorSpan(getColor(
-                    R.color.text_soft)), from, styled.length(), 0);
+            styled.setSpan(new ForegroundColorSpan(themeBodyInk),
+                    from, styled.length(), 0);
         }
         searchStatus.setText(styled);
     }
@@ -3015,11 +3087,14 @@ public class MainActivity extends Activity {
         if (moveFrom >= 0) {
             sp.setSpan(new ForegroundColorSpan(getColor(
                     quote.changePct >= 0 ? R.color.green : R.color.red)),
+                    tailFrom, moveFrom, 0);
+            sp.setSpan(new ForegroundColorSpan(getColor(
+                    quote.changePct >= 0 ? R.color.green : R.color.red)),
                     moveFrom, sb.length(), 0);
             sp.setSpan(new TypefaceSpan(ARROW_FACE), moveFrom + 1,
                     moveFrom + 2, 0);
         } else {
-            sp.setSpan(new ForegroundColorSpan(getColor(R.color.text_soft)),
+            sp.setSpan(new ForegroundColorSpan(themeBodyInk),
                     tailFrom, sb.length(), 0);
         }
         return sp;
@@ -3038,8 +3113,8 @@ public class MainActivity extends Activity {
      */
     private void paintSignalInk(String display) {
         boolean noCall = display.contentEquals(getString(R.string.signal_no_call));
-        signalList.setTextColor(getColor(noCall
-                ? R.color.text_soft : R.color.text_bright));
+        signalList.setTextColor(noCall
+                ? themeBodyInk : brighten(themeBodyInk));
         signalList.setAlpha(1.0f);
     }
 
@@ -3117,7 +3192,8 @@ public class MainActivity extends Activity {
                     ? R.color.green : R.color.red);
             int from = line.indexOf(market.indexChange >= 0 ? "\u25B2" : "\u25BC");
             if (from >= 0) {
-                sp.setSpan(new ForegroundColorSpan(color), from, line.length(), 0);
+                sp.setSpan(new ForegroundColorSpan(color),
+                        "KSE100  ".length(), line.length(), 0);
                 // One character only: the arrow, never the number after it.
                 sp.setSpan(new TypefaceSpan(ARROW_FACE), from, from + 1, 0);
             }
@@ -3230,7 +3306,12 @@ public class MainActivity extends Activity {
                 sb.append('\n');
             }
             if (row.price != null) {
+                int priceFrom = sb.length();
                 sb.append(String.format(Locale.US, "PKR %,.2f", row.price));
+                if (row.changePct != null) {
+                    spans.add(new int[]{priceFrom, sb.length(),
+                            row.changePct >= 0 ? R.color.green : R.color.red});
+                }
             }
             if (row.changePct != null) {
                 if (row.price != null) {

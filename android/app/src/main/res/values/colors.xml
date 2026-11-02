@@ -104,6 +104,14 @@
     <color name="theme_orange_bg">#FF2F1307</color>
     <color name="theme_orange_panel">#FF3F1B0C</color>
     <color name="theme_orange_accent">#FFFFFFFF</color>
+    <!-- v3.7.5: each pair's FIRST colour in the light body step its
+         wording reads in. Purple keeps text_soft, the light violet the
+         app has always printed; the other four are a light tint of black,
+         green, navy and orange. -->
+    <color name="theme_black_body">#FFD6D6D6</color>
+    <color name="theme_green_body">#FFBFE8CC</color>
+    <color name="theme_navy_body">#FFBCCBF2</color>
+    <color name="theme_orange_body">#FFF6C9AD</color>
     <!-- v2.3.19 (owner order 2026-10-28, "the drop down and search boxes
          get so mixed with the colour theme that I can't even see the
          separate tile for them"): the field boxes carry their own FIELD
