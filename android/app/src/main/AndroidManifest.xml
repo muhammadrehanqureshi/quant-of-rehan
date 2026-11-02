@@ -435,6 +435,17 @@
      search answer, B, S and T included, is rebuilt from the live quote
      on every tick.
 
+     Version 3.7.5, versionCode 105 (owner order 2026-11-01, after the
+     3.7.4 build): every 13sp body line now wears the worn theme's FIRST
+     colour in a light step (light violet on PURPLE & YELLOW, light grey
+     on BLACK & WHITE, light green on GREEN & YELLOW, light navy on NAVY
+     BLUE & WHITE, light orange on ORANGE & WHITE), while the title, the
+     PSX's KMIALL INDEX tagline, every tile heading and every red or green
+     state keep their own ink. The current price, both the PKR label and
+     the number, now wears the move's green or red on the index, the top
+     three volume leaders, the custom scrips reveal and the search rows
+     and pinned answer.
+
      Version 3.7.4, versionCode 104 (owner order 2026-11-01, after the
      3.7.3 screenshot of BLACK & WHITE): every themed tile, field and
      nav disc now takes its own copy of the cached plate instead of
@@ -479,8 +490,8 @@
      -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="pk.quantofrehan"
-    android:versionCode="104"
-    android:versionName="3.7.4">
+    android:versionCode="105"
+    android:versionName="3.7.5">
 
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="30"/>
 
