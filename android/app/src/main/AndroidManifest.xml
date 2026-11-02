@@ -435,6 +435,14 @@
      search answer, B, S and T included, is rebuilt from the live quote
      on every tick.
 
+     Version 3.7.6, versionCode 106 (owner order 2026-11-02, on the active
+     CNERGY signal): the latest signal tile now prints the trade's real
+     entry time between the ticker and the entry price, reads Exit Price
+     in green and Stop Loss in red, and keeps an unreported field in the
+     theme's body ink. The relay's daily-locked card carries the session's
+     own entry stamp, so the card header's slot is never misread as the
+     entry time.
+
      Version 3.7.5, versionCode 105 (owner order 2026-11-01, after the
      3.7.4 build): every 13sp body line now wears the worn theme's FIRST
      colour in a light step (light violet on PURPLE & YELLOW, light grey
@@ -490,8 +498,8 @@
      -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="pk.quantofrehan"
-    android:versionCode="105"
-    android:versionName="3.7.5">
+    android:versionCode="106"
+    android:versionName="3.7.6">
 
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="30"/>
 

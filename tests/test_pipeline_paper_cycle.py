@@ -369,7 +369,9 @@ class PipelineCycleTest(unittest.TestCase):
         self.assertEqual(state["state"], State.TARGET_MONITORING)
 
         # a trade verdict reaches the app card as an ALERT and is archived
-        card = self.relay.payload_for("/signals")
+        cards = [payload for _, route, payload in self.relay.calls
+                 if route == "/signals"]
+        card = cards[-1]
         self.assertIsNotNone(card, "the verdict never reached the app card")
         self.assertIn("INTRADAY ALERT", card["signals"])
         self.assertIn(WINNER, card["signals"])

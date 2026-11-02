@@ -2488,7 +2488,7 @@ public class MainActivity extends Activity {
         if (actualSignals.isEmpty()) {
             signalList.setText(getString(R.string.signal_no_call));
         } else {
-            signalList.setText(latestSignalDisplay(actualSignals));
+            signalList.setText(signalInk(latestSignalDisplay(actualSignals)));
         }
         // The ink follows the sentence that is actually on screen, because a
         // card the tile cannot show (another session's stamp) also lands here
@@ -2639,7 +2639,8 @@ public class MainActivity extends Activity {
      * The relay carries a full text card: a "QoR intraday <date>" header, the
      * session's rule paragraphs, and on a no-trade day a note explaining why
      * nothing was taken. Those are the workings, not the signal, so the tile
-     * renders the ticker and three execution numbers and nothing else, and
+     * renders the ticker, the entry time and three execution numbers and
+     * nothing else, and
      * collapses every other state to one word. The parsing lives in
      * SignalText (plain Java, no Android imports) so tests/test_android_signal_text.py
      * runs it on the JVM against the shapes the relay actually serves.
@@ -3098,6 +3099,36 @@ public class MainActivity extends Activity {
                     tailFrom, sb.length(), 0);
         }
         return sp;
+    }
+
+    /** The signal's exit and stop take the move colours (owner order
+     *  2026-11-02): Exit Price is green and Stop Loss is red, labels and
+     *  values together, while the ticker, entry time and entry price stay
+     *  in the theme's body ink. A field the relay did not report keeps the
+     *  body ink instead of wearing a success or loss colour it did not
+     *  earn. */
+    private CharSequence signalInk(String display) {
+        SpannableString styled = new SpannableString(display);
+        paintSignalLine(styled, "Exit Price: ", R.color.green);
+        paintSignalLine(styled, "Stop Loss: ", R.color.red);
+        return styled;
+    }
+
+    private void paintSignalLine(SpannableString styled, String label,
+                                 int color) {
+        String text = styled.toString();
+        int start = text.indexOf(label);
+        if (start < 0
+                || text.startsWith(SignalText.NOT_REPORTED,
+                        start + label.length())) {
+            return;
+        }
+        int end = text.indexOf('\n', start);
+        if (end < 0) {
+            end = text.length();
+        }
+        styled.setSpan(new ForegroundColorSpan(getColor(color)),
+                start, end, 0);
     }
 
     /**

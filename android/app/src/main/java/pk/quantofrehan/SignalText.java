@@ -9,13 +9,13 @@ import java.util.regex.Pattern;
  * The relay's card is a text block written for a person: a
  * "QoR intraday <date> · <time> PKT" header, then either labelled fields or a
  * sentence, then the rule narration ("one trade already taken today; no
- * further entry is possible; ..."). The owner asked for the numbers only, so
- * this class reads the two shapes the runner actually produces and returns
- * either three labelled prices or one state word:
+ * further entry is possible; ..."). The tile carries the ticker, the entry
+ * time and three labelled prices, or one state word:
  *
  *   QoR intraday 2026-10-16 · 16:29:30 PKT
  *   One trade already taken today: HCAR entered at 203.0, target 207.06.
  *
+ *   Entry time: 09:41:07 PKT
  *   Entry price: 203.0
  *   Exit price: 207.06
  *   Stop Loss: 199.5
@@ -40,12 +40,18 @@ final class SignalText {
      *
      * A card opens with the session it was written for, so the first
      * yyyy-MM-dd in the text is that session. Reading a date is not printing
-     * one: the tile still shows three numbers and a ticker, and this parser
+     * one: the tile still shows the ticker, the entry time and three prices,
+     * and this parser
      * names no header wording of its own, so the copy can change without
      * leaving a second spelling of it in the code.
      */
     private static final Pattern CARD_DATE =
             Pattern.compile("\\b(\\d{4}-\\d{2}-\\d{2})\\b");
+    /** The stamp of the trade itself, never the card header's slot. */
+    private static final Pattern ENTRY_TIME =
+            Pattern.compile("\\bentry\\s*time\\s*:\\s*"
+                    + "([0-9]{1,2}:[0-9]{2}(?::[0-9]{2})?)",
+                    Pattern.CASE_INSENSITIVE);
     private static final Pattern TARGET =
             Pattern.compile("\\btarget\\s+(-?[0-9]+(?:\\.[0-9]+)?)",
                     Pattern.CASE_INSENSITIVE);
@@ -69,7 +75,7 @@ final class SignalText {
         return m.find() ? m.group(1) : "";
     }
 
-    /** The three prices when a trade exists, else one state word. */
+    /** The ticker, entry time and three prices, else one state word. */
     static String compact(String raw) {
         if (raw == null) {
             return UNAVAILABLE;
@@ -80,12 +86,15 @@ final class SignalText {
         }
 
         String symbol = null;
+        String entryTime = null;
         String entry = null;
         String exit = null;
         String stop = null;
         for (String line : text.split("\\r?\\n")) {
             String value;
-            if ((value = afterLabel(line, "Entry price:")) != null) {
+            if ((value = afterLabel(line, "Symbol:")) != null) {
+                symbol = symbolName(value);
+            } else if ((value = afterLabel(line, "Entry price:")) != null) {
                 entry = value;
             } else if ((value = afterLabel(line, "Exit price:")) != null) {
                 exit = value;
@@ -105,6 +114,10 @@ final class SignalText {
                     exit = numeric;
                 }
             }
+        }
+        Matcher when = ENTRY_TIME.matcher(text);
+        if (when.find()) {
+            entryTime = when.group(1);
         }
         if (entry == null && exit == null && stop == null) {
             // The sentence form the runner writes for a taken trade.
@@ -130,7 +143,8 @@ final class SignalText {
         if (symbol != null) {
             out.append(symbol).append('\n');
         }
-        out.append("Entry Price: ").append(orNotReported(entry))
+        out.append("Entry Time: ").append(orNotReported(entryTime))
+                .append('\n').append("Entry Price: ").append(orNotReported(entry))
                 .append('\n').append("Exit Price: ").append(orNotReported(exit))
                 .append('\n').append("Stop Loss: ").append(orNotReported(stop));
         return out.toString();
@@ -162,6 +176,14 @@ final class SignalText {
         } catch (NumberFormatException invalid) {
             return null;
         }
+    }
+
+    /** A labelled ticker is a ticker, never the whole descriptive line. */
+    private static String symbolName(String value) {
+        String known = known(value);
+        if (known == null) return null;
+        String first = known.split("\\s+", 2)[0].toUpperCase(java.util.Locale.US);
+        return first.matches("[A-Z0-9]{2,12}") ? first : null;
     }
 
     private static String orNotReported(String value) {
