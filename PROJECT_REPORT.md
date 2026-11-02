@@ -2079,3 +2079,16 @@ boosting) remains the next lever after that.
    must be shadowed, never promoted, until that bar is met.
 
 NOT MET
+
+## 15. 2026-11-02: the forensic review of the last two signals
+
+A dedicated record, reports/2026-11-02.md, now carries the full forensic
+table for the two closed calls of the deployed Kalman law: PRL on
+2026-10-30 and CNERGY on 2026-11-02, each with its entry-pass top five and
+the run-rate line read side by side, 0 wins of 2 closed calls against the
+deployed 2.0/1.0 law's own break-even of 0.5892 and a Wilson 95 percent
+interval of 0.0 to 0.6575. Every figure there is read from the relay's
+research archive, the Actions artifacts of runs 41032043625 and
+41097151815, and the public /market W/L block; nothing is estimated. The
+finalize-pending piece is named in the report and lands with the
+2026-11-02 post-close artifact.
