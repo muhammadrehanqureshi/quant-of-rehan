@@ -283,9 +283,9 @@ class PipelineCycleTest(unittest.TestCase):
                               .read_text(encoding="utf-8"))
         return [row["symbol"].strip().upper() for row in universe]
 
-    def scan(self, slot: str) -> dict:
+    def scan(self, slot: str, capture: Path | None = None) -> dict:
         with contextlib.redirect_stdout(io.StringIO()):
-            return run_scan(slot, self.capture)
+            return run_scan(slot, capture or self.capture)
 
     def assert_real_forward_untouched(self) -> None:
         """See assert_forward_untouched: the live tick's own writes are fine."""
@@ -441,6 +441,47 @@ class PipelineCycleTest(unittest.TestCase):
         self.assertEqual(
             self.relay.payload_for("/research/outcome")["date"], FRIDAY.isoformat())
 
+        self.assert_real_forward_untouched()
+
+    def test_a_terminal_stop_card_is_not_overwritten_by_the_locked_card(self):
+        """The stop card must be the last thing the phone is told.
+
+        Owner defect 2026-11-02: CNERGY stopped at 10:11 and the stop email
+        went out, but the scan that detected the exit then fell through to
+        the state.trade_taken branch and republished the 09:52 entry card.
+        The terminal card was overwritten on the same scan, and every later
+        scan repeated it. The closed trade must leave the relay card on the
+        stop or target sentence, never on the entry sentence.
+        """
+        with patch.object(pipeline, "email_signal", return_value=True):
+            first = self.scan("10:00")
+            self.assertEqual(first["status"], scanner.TRADE)
+            entry = first["candidate"]["price"]["last"]
+            stop = round(entry * (1 - config.KALMAN_STOP_PCT), 4)
+
+            stop_capture = Path(self._dir.name) / "stop.ndjson"
+            build_capture(stop_capture, self.symbols(), 60)
+            rows = []
+            for line in stop_capture.read_text(encoding="utf-8").splitlines():
+                row = json.loads(line)
+                if row["symbol"] == WINNER:
+                    for bar in row["bars"]:
+                        if bar["t"] == "10:00":
+                            bar.update(o=entry,
+                                       h=round(entry * 1.005, 4),
+                                       l=round(entry * 0.98, 4),
+                                       c=round(entry * 0.985, 4))
+                rows.append(json.dumps(row))
+            stop_capture.write_text("\n".join(rows) + "\n", encoding="utf-8")
+            second = self.scan("10:02", stop_capture)
+
+        self.assertEqual(second["trade_state"]["exit_reason"], "STOP_HIT")
+        cards = [payload["signals"] for _, route, payload in self.relay.calls
+                 if route == "/signals"]
+        self.assertTrue(cards, "the stop never reached the app card")
+        self.assertIn("STOP HIT", cards[-1])
+        self.assertIn(f"{stop:.4f}", cards[-1])
+        self.assertNotIn("One trade already taken today", cards[-1])
         self.assert_real_forward_untouched()
 
     def test_a_restored_hit_is_banked_before_a_new_bar(self):
