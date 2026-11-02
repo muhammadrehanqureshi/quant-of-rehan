@@ -1789,8 +1789,9 @@ class VersionTest(unittest.TestCase):
         # BLACK & WHITE): each themed plate is copied per view, the
         # diamond rules wear the second colour, versionCode 104.
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="3.7.4"', manifest)
-        self.assertIn('android:versionCode="104"', manifest)
+        self.assertIn('android:versionName="3.7.5"', manifest)
+        self.assertIn('android:versionCode="105"', manifest)
+        self.assertNotIn('android:versionName="3.7.4"', manifest)
         self.assertNotIn('android:versionName="3.7.3"', manifest)
         self.assertNotIn('android:versionName="3.7.2"', manifest)
         self.assertNotIn('android:versionName="3.7.1"', manifest)
@@ -1968,6 +1969,7 @@ class VersionTest(unittest.TestCase):
         # v3.7.4 (owner order 2026-11-01, after the 3.7.3 screenshot of
         # BLACK & WHITE): the tiles stop sharing one plate and the rules
         # wear the second colour, versionCode 104.
+                self.assertIn("Version 3.7.5, versionCode 105", readme)
         self.assertIn("Version 3.7.4, versionCode 104", readme)
         self.assertIn("Version 3.7.3, versionCode 103", readme)
         self.assertIn("Version 3.7.2, versionCode 102", readme)
@@ -1979,8 +1981,9 @@ class VersionTest(unittest.TestCase):
         # rows move up into the closed face's empty strip, both dropdowns.
         self.assertIn("Version 3.2.0, versionCode 92", readme)
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionCode="104"', manifest)
-        self.assertIn('android:versionName="3.7.4"', manifest)
+        self.assertIn('android:versionCode="105"', manifest)
+        self.assertIn('android:versionName="3.7.5"', manifest)
+        self.assertNotIn('android:versionName="3.7.4"', manifest)
         self.assertNotIn('android:versionName="3.7.3"', manifest)
         self.assertNotIn('android:versionName="3.7.2"', manifest)
         self.assertNotIn('android:versionName="3.7.1"', manifest)
@@ -2099,7 +2102,7 @@ class SearchPanelStabilityTest(unittest.TestCase):
         self.assertIn('"\\u25B2" : "\\u25BC"', tail)
         self.assertIn("Math.abs(quote.changePct)", tail)
         # A line with no move keeps the soft ink (SO-3: no fake arrow).
-        self.assertIn("R.color.text_soft", paint)
+        self.assertIn("themeBodyInk", paint)
         # The drawn sign is retired with its colour law.
         self.assertNotIn("%+.2f%%", paint)
 
@@ -2390,7 +2393,7 @@ class SignalPlaceholderInkTest(unittest.TestCase):
         self.assertIn("private void paintSignalInk(String display) {", self.main)
         block = self.main[self.main.index("private void paintSignalInk"):]
         block = block[:block.index("private String latestSignalDisplay")]
-        self.assertIn("R.color.text_soft : R.color.text_bright", block)
+        self.assertIn("themeBodyInk : brighten(themeBodyInk)", block)
         self.assertIn("signalList.setAlpha(1.0f);", block)
 
     def test_no_dimmed_placeholder_survives(self):
@@ -2701,6 +2704,63 @@ class MenuOrdersTest(unittest.TestCase):
         self.assertIn('"qor_rule_diamond".equals(tag)', helper)
         self.assertIn("ColorStateList.valueOf(themeAccentInk)", helper)
         self.assertIn("setTextColor(themeAccentInk)", helper)
+
+    def test_body_wording_wears_the_themes_first_colour(self):
+        """Owner order 2026-11-01: the purple wording follows the worn
+        theme's FIRST colour, while the title, the PSX header, headings
+        and every red or green state keep their own ink."""
+        for theme in ("black", "green", "navy", "orange"):
+            self.assertIn(f'<color name="theme_{theme}_body">', self.colors)
+            self.assertIn(f"R.color.theme_{theme}_body", self.main)
+        self.assertIn("private int themeBodyInk", self.main)
+        self.assertIn("themeBodyInk = getColor(body);", self.main)
+        theme_pass = self.main[self.main.index(
+            "private void applyTheme(int index) {"):]
+        theme_pass = theme_pass[:theme_pass.index(
+            "private final GradientDrawable[] themePlates")]
+        self.assertIn("paintBodyInk(findViewById(R.id.scroll_root));",
+                      theme_pass)
+        block = self.main[self.main.index(
+            "private void paintBodyInk(View view) {"):]
+        block = block[:1200]
+        for own in ("R.id.brand_title", "R.id.brand_tagline",
+                    "R.id.status_word"):
+            self.assertIn(own, block)
+        self.assertIn("COMPLEX_UNIT_SP, 13f", block)
+        self.assertIn("body * 0.96f", block)
+        self.assertNotIn("R.color.green", block)
+        self.assertNotIn("R.color.red", block)
+        self.assertIn("bodyInkFor(index)", self.main)
+
+    def test_every_price_wears_the_moves_colour(self):
+        """Owner order 2026-11-01: the current price is green in profit
+        and red in loss, both the PKR label and the number, on the index,
+        the leaders, the custom scrips reveal and the search rows and
+        pinned answer. A price with no percentage stays body ink."""
+        search = self.main[self.main.index("private void styleSearchRow("):]
+        search = search[:search.index("private GradientDrawable highlightPlate")]
+        self.assertIn("priceFrom, from, 0", search)
+        pinned = self.main[self.main.index("private void paintSelectedLine() {"):]
+        pinned = pinned[:pinned.index("private CharSequence liveSelectedLine")]
+        self.assertIn("from, moveFrom, 0", pinned)
+        live = self.main[self.main.index(
+            "private CharSequence liveSelectedLine("):]
+        live = live[:live.index("private void paintSignalInk")]
+        self.assertIn("tailFrom, moveFrom, 0", live)
+        volume = self.main[self.main.index(
+            "private SpannableStringBuilder volumeRevealText("):]
+        volume = volume[:volume.index("private void colorQuantity")]
+        self.assertIn("priceFrom, sb.length(), 0", volume)
+        leaders = self.main[self.main.index(
+            "private SpannableString leadersText("):]
+        leaders = leaders[:leaders.index("private void toast")]
+        self.assertIn("spans.add(new int[]{priceFrom, sb.length(),", leaders)
+        market = self.main[self.main.index("private void renderMarket("):]
+        market = market[:market.index("private SpannableString leadersText")]
+        self.assertIn('"KSE100  ".length(), line.length(), 0', market)
+        for source in (search, pinned, live, volume, leaders, market):
+            self.assertIn("R.color.green", source)
+            self.assertIn("R.color.red", source)
 
     def test_the_menu_rows_stand_at_one_displacement_each(self):
         """Owner order 2026-10-31 ("the top option and the bottom option

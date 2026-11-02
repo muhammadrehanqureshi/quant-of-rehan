@@ -1641,6 +1641,23 @@ to sixty seconds. The status tile therefore also carries the app's own
      the orphan law stands so every dot still wears a filament.
   5. The version bump is versionCode 82 / versionName 2.3.15.
 
+**Version 3.7.5, versionCode 105.**
+
+  Owner order 2026-11-01, after the 3.7.4 build. The wording now follows
+  the worn theme's FIRST colour in its light step: light violet on
+  PURPLE & YELLOW (the existing text_soft), light grey on BLACK & WHITE,
+  light green on GREEN & YELLOW, light navy on NAVY BLUE & WHITE and
+  light orange on ORANGE & WHITE. The app title, the PSX's KMIALL INDEX
+  header, all tile headings and every red or green state (including the
+  QUANT STATUS date and time) are unchanged.
+
+  The current price now wears the move's colour: both PKR and the number
+  are green above zero and red below it, on the index, the top three
+  volume leaders, the custom scrips reveal and the search rows and
+  pinned answer. A quote with no reported percentage keeps the body ink.
+
+  The version bump is versionCode 105 / versionName 3.7.5.
+
 **Version 3.7.4, versionCode 104.**
 
   Owner order 2026-11-01, after the 3.7.3 screenshot of BLACK & WHITE.
