@@ -1786,8 +1786,8 @@ class VersionTest(unittest.TestCase):
         # BLACK & WHITE): each themed plate is copied per view, the
         # diamond rules wear the second colour, versionCode 104.
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="3.7.7"', manifest)
-        self.assertIn('android:versionCode="107"', manifest)
+        self.assertIn('android:versionName="3.9.0"', manifest)
+        self.assertIn('android:versionCode="108"', manifest)
         self.assertNotIn('android:versionName="3.7.5"', manifest)
         self.assertNotIn('android:versionName="3.7.4"', manifest)
         self.assertNotIn('android:versionName="3.7.3"', manifest)
@@ -1964,6 +1964,9 @@ class VersionTest(unittest.TestCase):
         # v3.7.1 (owner order 2026-11-01, after the 3.7.0 build): the
         # carets centred on the first option's wording, versionCode 101.
         self.assertIn("Version 3.7.1, versionCode 101", readme)
+        # v3.9.0 (owner order 2026-11-02): W/L counts a stop or target hit
+        # immediately, versionCode 108.
+        self.assertIn("Version 3.9.0, versionCode 108", readme)
         # v3.7.7 (owner order 2026-11-02, after 3.7.6): the relay quote store
         # is monotone for total volume and the B/S pair, the signal tile
         # says Target Price, and the tick owns the one-second cadence.
@@ -1984,8 +1987,8 @@ class VersionTest(unittest.TestCase):
         # rows move up into the closed face's empty strip, both dropdowns.
         self.assertIn("Version 3.2.0, versionCode 92", readme)
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionCode="107"', manifest)
-        self.assertIn('android:versionName="3.7.7"', manifest)
+        self.assertIn('android:versionCode="108"', manifest)
+        self.assertIn('android:versionName="3.9.0"', manifest)
         self.assertNotIn('android:versionName="3.7.5"', manifest)
         self.assertNotIn('android:versionName="3.7.4"', manifest)
         self.assertNotIn('android:versionName="3.7.3"', manifest)
