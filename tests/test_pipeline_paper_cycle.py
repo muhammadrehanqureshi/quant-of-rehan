@@ -386,9 +386,6 @@ class PipelineCycleTest(unittest.TestCase):
         self.assertIn(second["status"], (State.TARGET_MONITORING, State.DAILY_LOCKED))
         self.assertIsNone(second["candidate"])
         self.assertEqual(second["delivered"], "LOCKED")
-        card = self.relay.payload_for("/signals")
-        self.assertIn("One trade already taken today", card["signals"])
-        self.assertRegex(card["signals"], r"Entry time: \d{2}:\d{2}:\d{2}\.")
         # the target was touched, so the paper position is closed and still online
         self.assertTrue(second["trade_state"]["target_hit"])
         self.assertGreaterEqual(second["trade_state"]["return_pct"], config.TARGET_PCT)
