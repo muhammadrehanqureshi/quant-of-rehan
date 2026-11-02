@@ -484,6 +484,27 @@ class PipelineCycleTest(unittest.TestCase):
         self.assertNotIn("One trade already taken today", cards[-1])
         self.assert_real_forward_untouched()
 
+    def test_a_blocked_finalize_is_recorded_as_data_blocked(self):
+        """A blocked day is evidence of a bad feed, not a quiet market day.
+
+        The 2026-10-30 post-close finalize ran on a fresh runner with only a
+        short post-market tape and no paper state. It wrote NO_CANDIDATE even
+        though the relay already held PRL's stop. A blocked finalize with no
+        entry must keep its own DATA_BLOCKED outcome and reason.
+        """
+        missing = Path(self._dir.name) / "missing.ndjson"
+        with contextlib.redirect_stdout(io.StringIO()):
+            final = run_finalize(missing)
+
+        record = list(final["outcome"]["outcomes_by_rule"].values())[0]
+        self.assertEqual(record["outcome"], "DATA_BLOCKED")
+        self.assertIsNone(record["gross_return"])
+        self.assertIsNone(record["net_return"])
+        self.assertEqual(final["outcome"]["data_quality"]["status"],
+                         "DATA_BLOCKED")
+        self.assertIn("coverage 0/317", record["blocked_reason"])
+        self.assert_real_forward_untouched()
+
     def test_a_restored_hit_is_banked_before_a_new_bar(self):
         """A stop already in the saved state reaches W/L on the next scan.
 
