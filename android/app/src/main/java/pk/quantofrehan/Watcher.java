@@ -83,6 +83,12 @@ public final class Watcher {
      */
     private static final int MAX_BODY_CHARS = 512 * 1024;
 
+    /** A stalled relay read must never hold the one-second screen for the
+     *  old 12 second ceiling. The relay answers a small JSON card in well
+     *  under a second; a request that cannot do that is retried next tick. */
+    private static final int CONNECT_TIMEOUT_MS = 4000;
+    private static final int READ_TIMEOUT_MS = 5000;
+
     private static final ExecutorService POOL = Executors.newSingleThreadExecutor();
     /**
      * The health and the card halves of an on-screen tick, raced against each
@@ -304,8 +310,10 @@ public final class Watcher {
      */
     private static JSONObject get(String url, String admin) throws Exception {
         HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
-        conn.setConnectTimeout(8000);
-        conn.setReadTimeout(12000);
+        conn.setConnectTimeout(CONNECT_TIMEOUT_MS);
+        conn.setReadTimeout(READ_TIMEOUT_MS);
+        conn.setRequestProperty("Connection", "keep-alive");
+        conn.setRequestProperty("Cache-Control", "no-cache");
         if (admin != null && !admin.isEmpty()) {
             conn.setRequestProperty("x-admin-token", admin);
         }
@@ -328,7 +336,7 @@ public final class Watcher {
             } catch (Exception e) {
                 last = e;
                 try {
-                    Thread.sleep(1500);
+                    Thread.sleep(200);
                 } catch (InterruptedException ie) {
                     Thread.currentThread().interrupt();
                     throw ie;
@@ -579,8 +587,8 @@ public final class Watcher {
                 // The health read is now RACED against this one rather than
                 // queued behind it, so a tick costs one round trip, not two
                 // stacked ones.
-                Head head = headJob.get(20, TimeUnit.SECONDS);
-                Market market = marketJob.get(20, TimeUnit.SECONDS);
+                Head head = headJob.get(9, TimeUnit.SECONDS);
+                Market market = marketJob.get(9, TimeUnit.SECONDS);
                 cb.done(head.online(), head.reachable, head.detail,
                         head.signals, market);
             } catch (Exception e) {

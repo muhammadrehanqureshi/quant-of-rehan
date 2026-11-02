@@ -17,7 +17,7 @@ import java.util.regex.Pattern;
  *
  *   Entry time: 09:41:07 PKT
  *   Entry price: 203.0
- *   Exit price: 207.06
+ *   Target price: 207.06
  *   Stop Loss: 199.5
  *
  * No Android imports: the parsing is exercised on the JVM by
@@ -77,6 +77,18 @@ final class SignalText {
 
     /** The ticker, entry time and three prices, else one state word. */
     static String compact(String raw) {
+        return compact(raw, null);
+    }
+
+    /**
+     * The same card, with the session's remembered entry time as a fallback.
+     *
+     * A daily-lock card can be written without the explicit stamp even
+     * though its entry card carried one. The console remembers the stamp
+     * for the session date and passes it here, so a later card cannot turn a
+     * known entry time back into "Not reported".
+     */
+    static String compact(String raw, String rememberedEntryTime) {
         if (raw == null) {
             return UNAVAILABLE;
         }
@@ -86,7 +98,7 @@ final class SignalText {
         }
 
         String symbol = null;
-        String entryTime = null;
+        String entryStamp = null;
         String entry = null;
         String exit = null;
         String stop = null;
@@ -115,9 +127,9 @@ final class SignalText {
                 }
             }
         }
-        Matcher when = ENTRY_TIME.matcher(text);
-        if (when.find()) {
-            entryTime = when.group(1);
+        entryStamp = entryTime(text);
+        if (entryStamp == null) {
+            entryStamp = known(rememberedEntryTime);
         }
         if (entry == null && exit == null && stop == null) {
             // The sentence form the runner writes for a taken trade.
@@ -143,11 +155,20 @@ final class SignalText {
         if (symbol != null) {
             out.append(symbol).append('\n');
         }
-        out.append("Entry Time: ").append(orNotReported(entryTime))
+        out.append("Entry Time: ").append(orNotReported(entryStamp))
                 .append('\n').append("Entry Price: ").append(orNotReported(entry))
-                .append('\n').append("Exit Price: ").append(orNotReported(exit))
+                .append('\n').append("Target Price: ").append(orNotReported(exit))
                 .append('\n').append("Stop Loss: ").append(orNotReported(stop));
         return out.toString();
+    }
+
+    /** The trade's own entry stamp, or null when the card carries none. */
+    static String entryTime(String raw) {
+        if (raw == null) {
+            return null;
+        }
+        Matcher when = ENTRY_TIME.matcher(raw);
+        return when.find() ? when.group(1) : null;
     }
 
     private static String afterLabel(String line, String label) {

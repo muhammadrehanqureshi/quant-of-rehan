@@ -346,6 +346,26 @@ class RelayWorkerContractTest(unittest.TestCase):
             hub,
             "the durable object no longer refuses an acknowledged older total")
 
+    def test_the_quote_store_is_monotone_for_every_symbol(self):
+        """Owner order 2026-11-02: volume and B/S never go backward."""
+        self.assertIn("function splitFromQuote(quote)", self.source)
+        self.assertIn("function quoteSessionKey(quote)", self.source)
+        update_at = self.source.find('url.pathname === "/update"')
+        self.assertGreaterEqual(update_at, 0)
+        update = self.source[update_at:update_at + 9000]
+        self.assertIn("newVolume < oldVolume", update)
+        self.assertIn("oldKey.day === newKey.day", update)
+        self.assertNotIn("oldKey.band", update)
+        self.assertIn("splitFromQuote(quote)", update)
+        self.assertIn("clampPair(pair, previous)", update)
+        self.assertIn('"cache-control": "no-store"', self.source)
+
+    def test_the_relay_remembers_the_days_entry_stamp(self):
+        """A later card cannot lose the entry time the first card carried."""
+        self.assertIn("function signalEntryClock(text)", self.source)
+        self.assertIn("SIGNAL:ENTRY:", self.source)
+        self.assertIn("withRememberedEntry(signals, remembered)", self.source)
+
     # ------------------------------------------------------- market alerts (text law moved)
 
     def test_friday_break_and_reopen_follow_the_session_boundaries(self):
