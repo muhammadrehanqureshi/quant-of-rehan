@@ -1641,6 +1641,17 @@ to sixty seconds. The status tile therefore also carries the app's own
      the orphan law stands so every dot still wears a filament.
   5. The version bump is versionCode 82 / versionName 2.3.15.
 
+**Version 3.7.6, versionCode 106.**
+
+  Owner order 2026-11-02, on the active CNERGY signal. The latest signal
+  tile now prints the trade's real entry time between the ticker and the
+  entry price, reads Exit Price in green and Stop Loss in red, and keeps
+  an unreported field in the theme's body ink. The relay's daily-locked
+  card now carries the session's own entry stamp, so the card header's
+  slot is never mistaken for the entry time.
+
+  The version bump is versionCode 106 / versionName 3.7.6.
+
 **Version 3.7.5, versionCode 105.**
 
   Owner order 2026-11-01, after the 3.7.4 build. The wording now follows

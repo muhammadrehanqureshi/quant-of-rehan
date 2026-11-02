@@ -7,10 +7,10 @@ import java.util.List;
  * Runs SignalText on the JVM against the cards the runner actually writes.
  *
  * The Android source tests can only read Java as text, which cannot tell a
- * parser that returns the three prices from one that returns the header. This
- * probe compiles the real class and checks both card shapes, the no-trade
- * state, and the absences the owner ordered: no date, no clock, no rule
- * narration and no session header in the tile.
+ * parser that returns the trade's own entry time from one that returns the
+ * header. This probe compiles the real class and checks both card shapes, the
+ * no-trade state, and the absences the owner ordered: no header date, no
+ * header slot and no rule narration in the tile.
  *
  * Exit code 0 when every case passes, 1 with the failing case named otherwise.
  */
@@ -42,25 +42,28 @@ public final class SignalTextProbe {
     /** The labelled form the relay serves once a trade exists. */
     private static void fieldCard() {
         String card = "QoR intraday 2026-10-19 \u00b7 11:14:02 PKT\n"
-                + "HCAR\n"
+                + "Symbol: HCAR\n"
                 + "Entry price: 203.0\n"
                 + "Exit price: 207.06\n"
                 + "Stop Loss: 199.5\n"
+                + "Entry time: 09:41:07 PKT\n"
                 + "One trade already taken today; no further entry is possible.";
         String out = SignalText.compact(card);
-        check("the field card keeps its three prices",
-                out.equals("Entry Price: 203.0\nExit Price: 207.06\nStop Loss: 199.5"));
+        check("the field card keeps its ticker, entry time and three prices",
+                out.equals("HCAR\nEntry Time: 09:41:07\nEntry Price: 203.0\n"
+                        + "Exit Price: 207.06\nStop Loss: 199.5"));
     }
 
     /** The sentence form the daily-locked path writes. */
     private static void sentenceCard() {
         String card = "QoR intraday 2026-10-16 \u00b7 16:29:30 PKT\n"
                 + "One trade already taken today: HCAR entered at 203.0, "
-                + "target 207.06. position being monitored.";
+                + "target 207.06, stop loss 199.5. Entry time: 09:41:07 PKT. "
+                + "position being monitored.";
         String out = SignalText.compact(card);
-        check("the sentence card yields the ticker and both prices",
-                out.equals("HCAR\nEntry Price: 203.0\nExit Price: 207.06\n"
-                        + "Stop Loss: Not reported"));
+        check("the sentence card yields the ticker, time and three prices",
+                out.equals("HCAR\nEntry Time: 09:41:07\nEntry Price: 203.0\n"
+                        + "Exit Price: 207.06\nStop Loss: 199.5"));
     }
 
     /** A market where the rules refused every candidate is one word. */
@@ -91,12 +94,12 @@ public final class SignalTextProbe {
                 + "Target: the momentum rule needs three closes above the gate";
         String out = SignalText.compact(card);
         check("a prose target does not become an exit price",
-                out.equals("Entry Price: 203.0\nExit Price: Not reported\n"
-                        + "Stop Loss: Not reported"));
+                out.equals("Entry Time: Not reported\nEntry Price: 203.0\n"
+                        + "Exit Price: Not reported\nStop Loss: Not reported"));
         check("the prose itself is not echoed", !out.contains("momentum"));
     }
 
-    /** The owner's order: no header, no date, no clock, no narration. */
+    /** The owner's order: no header, no date, no header clock, no narration. */
     private static void metadataNeverLeaks() {
         String card = "QoR intraday 2026-10-19 \u00b7 11:14:02 PKT\n"
                 + "Entry price: 203.0\n"
@@ -107,6 +110,8 @@ public final class SignalTextProbe {
             check("metadata \"" + banned + "\" is not on the tile",
                     !out.contains(banned));
         }
+        check("the header time is never invented as the entry time",
+                out.contains("Entry Time: Not reported"));
     }
 
     private static void check(String what, boolean ok) {
