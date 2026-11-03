@@ -250,6 +250,12 @@ class SplitSummaryTest(unittest.TestCase):
 
 
 class PublishCardTest(unittest.TestCase):
+    def setUp(self) -> None:
+        # Each test starts with no pushed card: the throttle ledger is per
+        # process and the test process is shared across these classes.
+        live_card.CARD_PUSH_STATE["signature"] = None
+        live_card.CARD_PUSH_STATE["epoch"] = 0.0
+
     def snapshot(self, methods) -> dict:
         return {"top_volume": [{"symbol": "OGDC", "split_method": method}
                                for method in methods]}
@@ -305,6 +311,10 @@ class PublishCardTest(unittest.TestCase):
 
 
 class RunOnceTest(unittest.TestCase):
+    def setUp(self) -> None:
+        live_card.CARD_PUSH_STATE["signature"] = None
+        live_card.CARD_PUSH_STATE["epoch"] = 0.0
+
     def test_both_halves_appear_in_one_log_line(self):
         """One line for the tick log, naming the tape and the card."""
         with mock.patch.object(live_card, "tape_state",
@@ -330,6 +340,143 @@ class RunOnceTest(unittest.TestCase):
         self.assertFalse(result["tape_ok"])
         self.assertTrue(result["card_ok"])
         self.assertTrue(result["ok"])
+
+
+class CardPushThrottleTest(unittest.TestCase):
+    """Owner order 2026-11-03: the card push never burns the request cap.
+
+    On 2026-11-02 Cloudflare emailed the daily request limit to the owner
+    twice: the Workers free plan grants 100,000 requests a day and alerts
+    at 80% and 100%, and a day with overlapping loop runners pushed the
+    card once a second, about 21,600 requests per loop per session. The
+    edge serves a pushed card for five minutes, so these laws are pinned:
+
+      * the first card of a fresh process is always pushed;
+      * a card whose content matches the last push is never sent again,
+        and clock labels alone are not card content;
+      * a changed card is sent at most once per minute, and the tick log
+        says the pushed card stands;
+      * a refused push never claims an interval: the next cycle retries
+        immediately instead of waiting out the throttle.
+    """
+
+    def snapshot(self, volume: int = 10, as_of: str = "11:00:00") -> dict:
+        return {
+            "as_of": f"2026-10-12T{as_of}+05:00",
+            "top_volume": [{"symbol": "OGDC", "volume": volume,
+                            "split_method": "range_position"}],
+        }
+
+    def reset(self) -> None:
+        live_card.CARD_PUSH_STATE["signature"] = None
+        live_card.CARD_PUSH_STATE["epoch"] = 0.0
+
+    def setUp(self) -> None:
+        self.reset()
+
+    def tearDown(self) -> None:
+        self.reset()
+
+    def test_the_first_card_of_a_fresh_process_is_pushed(self):
+        calls: list[dict] = []
+
+        def push(snapshot: dict) -> dict:
+            calls.append(snapshot)
+            return {"ok": True}
+
+        with mock.patch.object(market_snapshot, "build_snapshot",
+                               return_value=self.snapshot()),                 mock.patch.object(market_snapshot, "push_snapshot", push):
+            result = live_card.publish_card(NOW)
+        self.assertTrue(result["ok"])
+        self.assertEqual(len(calls), 1)
+        self.assertIn("card published to the relay", result["detail"])
+
+    def test_an_identical_card_is_never_pushed_twice(self):
+        calls: list[dict] = []
+
+        def push(snapshot: dict) -> dict:
+            calls.append(snapshot)
+            return {"ok": True}
+
+        with mock.patch.object(market_snapshot, "build_snapshot",
+                               return_value=self.snapshot()),                 mock.patch.object(market_snapshot, "push_snapshot", push):
+            live_card.publish_card(NOW)
+            later = NOW + timedelta(seconds=120)
+            again = live_card.publish_card(later)
+        self.assertTrue(again["ok"])
+        self.assertEqual(len(calls), 1)
+        self.assertIn("card unchanged since the last push", again["detail"])
+
+    def test_clock_labels_alone_are_not_card_content(self):
+        calls: list[dict] = []
+
+        def push(snapshot: dict) -> dict:
+            calls.append(snapshot)
+            return {"ok": True}
+
+        builds = iter([self.snapshot(as_of="11:00:00"),
+                       self.snapshot(as_of="11:00:01")])
+        with mock.patch.object(market_snapshot, "build_snapshot",
+                               side_effect=lambda: next(builds)),                 mock.patch.object(market_snapshot, "push_snapshot", push):
+            live_card.publish_card(NOW)
+            later = NOW + timedelta(seconds=2)
+            again = live_card.publish_card(later)
+        self.assertEqual(len(calls), 1)
+        self.assertIn("card unchanged since the last push", again["detail"])
+
+    def test_a_changed_card_inside_the_interval_waits(self):
+        calls: list[dict] = []
+
+        def push(snapshot: dict) -> dict:
+            calls.append(snapshot)
+            return {"ok": True}
+
+        builds = iter([self.snapshot(volume=10), self.snapshot(volume=11)])
+        with mock.patch.object(market_snapshot, "build_snapshot",
+                               side_effect=lambda: next(builds)),                 mock.patch.object(market_snapshot, "push_snapshot", push):
+            live_card.publish_card(NOW)
+            later = NOW + timedelta(seconds=5)
+            again = live_card.publish_card(later)
+        self.assertTrue(again["ok"])
+        self.assertEqual(len(calls), 1)
+        self.assertIn("push interval", again["detail"])
+
+    def test_a_changed_card_after_the_interval_pushes(self):
+        calls: list[dict] = []
+
+        def push(snapshot: dict) -> dict:
+            calls.append(snapshot)
+            return {"ok": True}
+
+        builds = iter([self.snapshot(volume=10), self.snapshot(volume=11)])
+        with mock.patch.object(market_snapshot, "build_snapshot",
+                               side_effect=lambda: next(builds)),                 mock.patch.object(market_snapshot, "push_snapshot", push):
+            live_card.publish_card(NOW)
+            later = NOW + timedelta(
+                seconds=live_card.CARD_PUSH_MIN_INTERVAL_SECONDS + 1)
+            again = live_card.publish_card(later)
+        self.assertEqual(len(calls), 2)
+        self.assertIn("card published to the relay", again["detail"])
+
+    def test_a_refused_push_never_opens_the_interval(self):
+        calls: list[dict] = []
+        answers = iter([{"ok": False, "error": "no KV"},
+                        {"ok": True}])
+
+        def push(snapshot: dict) -> dict:
+            calls.append(snapshot)
+            return next(answers)
+
+        builds = iter([self.snapshot(volume=10), self.snapshot(volume=11)])
+        with mock.patch.object(market_snapshot, "build_snapshot",
+                               side_effect=lambda: next(builds)),                 mock.patch.object(market_snapshot, "push_snapshot", push):
+            refused = live_card.publish_card(NOW)
+            later = NOW + timedelta(seconds=5)
+            retry = live_card.publish_card(later)
+        self.assertFalse(refused["ok"])
+        self.assertEqual(len(calls), 2)
+        self.assertTrue(retry["ok"])
+        self.assertIn("card published to the relay", retry["detail"])
 
 
 if __name__ == "__main__":
