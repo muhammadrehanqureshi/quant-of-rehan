@@ -38,6 +38,7 @@ import hashlib
 import json
 import os
 import sys
+from dataclasses import replace
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
@@ -47,6 +48,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from src import config  # noqa: E402
+from src.data import daily_history  # noqa: E402
 from src.data import eligibility  # noqa: E402
 from src.data import tape_bars  # noqa: E402
 from src.data.sessions import (  # noqa: E402
@@ -619,6 +621,13 @@ def run_scan(slot: str, capture: Path | None = None,
     as_of = scheduled_as_of(slot, day)
     symbols = load_kmiall()
     path = capture or resolve_capture(day)
+    # The 1 day frame's own history, completed sessions only. When the live
+    # requirement is on, an empty read is a real absence and is turned into
+    # DATA BLOCKED below rather than letting the four frame law silently
+    # degrade to three. When it is off (offline tests, replays), no daily
+    # context is passed at all, so the one minute law is not half-gated.
+    daily = daily_history.load(day=day)
+    mtf_daily = daily if config.MTF_REQUIRE_DAILY else None
 
     # The cheap gate stays cheap: an as_of the law already refuses never
     # parses the capture at all.
@@ -658,6 +667,13 @@ def run_scan(slot: str, capture: Path | None = None,
         print(f"late fire: deciding at {as_of:%H:%M} PKT from the tape actually "
               f"held ({as_of_basis}); scheduled slot {slot} predates this tape")
     quality = scanner.assess_quality(session, symbols)
+    if config.MTF_ENABLED and config.MTF_REQUIRE_DAILY and not mtf_daily:
+        quality = replace(
+            quality, status=scanner.DATA_BLOCKED,
+            reason=(f"multi-timeframe daily history is missing or empty at "
+                    f"{config.MTF_DAILY_FILE}: the 1 day frame cannot be read, "
+                    f"so no intraday signal is legal. This is DATA BLOCKED, "
+                    f"not a market NO TRADE."))
 
     if quality.status == scanner.DATA_BLOCKED:
         state.block(quality.reason, coverage=quality.coverage,
@@ -693,7 +709,7 @@ def run_scan(slot: str, capture: Path | None = None,
         return payload
 
     ai_status = {"active": False, "reason": "Kalman flip rules have no daily-model routing"}
-    result = scanner.select_one(session, quality)
+    result = scanner.select_one(session, quality, daily=mtf_daily)
     context = result.market
 
     # Owner order 2026-10-31 ("ML engine/concept that will be self learning.
