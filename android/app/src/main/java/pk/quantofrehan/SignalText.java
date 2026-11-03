@@ -10,7 +10,7 @@ import java.util.regex.Pattern;
  * "QoR intraday <date> · <time> PKT" header, then either labelled fields or a
  * sentence, then the rule narration ("one trade already taken today; no
  * further entry is possible; ..."). The tile carries the ticker, the entry
- * time and three labelled prices, or one state word:
+ * time, three labelled prices and the cloud MTF line, or one state word:
  *
  *   QoR intraday 2026-10-16 · 16:29:30 PKT
  *   One trade already taken today: HCAR entered at 203.0, target 207.06.
@@ -19,6 +19,7 @@ import java.util.regex.Pattern;
  *   Entry price: 203.0
  *   Target price: 207.06
  *   Stop Loss: 199.5
+ *   MTF 5m +1 above VWAP | 15m +1 above VWAP | 1h +1 above VWAP | 1D +1 above VWAP
  *
  * No Android imports: the parsing is exercised on the JVM by
  * tests/test_android_signal_text.py against those exact inputs, so a new card
@@ -58,6 +59,9 @@ final class SignalText {
     private static final Pattern STOP =
             Pattern.compile("\\b(?:stop\\s*loss|stop|sl)\\b\\s*(?:at\\s+)?"
                     + "(-?[0-9]+(?:\\.[0-9]+)?)", Pattern.CASE_INSENSITIVE);
+    /** The cloud's four-frame line, kept verbatim and never reinterpreted. */
+    private static final Pattern MTF =
+            Pattern.compile("(?m)^(MTF .*)$");
 
     private SignalText() {
     }
@@ -96,6 +100,7 @@ final class SignalText {
         if (text.isEmpty()) {
             return UNAVAILABLE;
         }
+        String mtf = mtfLine(text);
 
         String symbol = null;
         String entryStamp = null;
@@ -159,7 +164,16 @@ final class SignalText {
                 .append('\n').append("Entry Price: ").append(orNotReported(entry))
                 .append('\n').append("Target Price: ").append(orNotReported(exit))
                 .append('\n').append("Stop Loss: ").append(orNotReported(stop));
+        if (mtf != null) {
+            out.append('\n').append(mtf);
+        }
         return out.toString();
+    }
+
+    /** The four frame line the cloud sent, or null when it sent none. */
+    private static String mtfLine(String raw) {
+        Matcher m = MTF.matcher(raw);
+        return m.find() ? m.group(1).trim() : null;
     }
 
     /** The trade's own entry stamp, or null when the card carries none. */
