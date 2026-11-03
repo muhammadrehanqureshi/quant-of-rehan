@@ -66,7 +66,21 @@ reads as the same HUD the owner runs on the phone and the console:
   top-of-book row per symbol every ~24 seconds, and a new print reaches
   it a median 8.6 s and 95th percentile 22.5 s after the exchange clock.
   No terminal can see a print before the broker's own sampler publishes
-  it, and adding subscriptions was forbidden.
+  it, and adding subscriptions was forbidden. The System Health page
+  measures the live number every fifteen seconds (`bridge.wire_lag`):
+  median, p95, worst print lag and the newest frame's age, straight from
+  the newest banked frame's own print clocks.
+- The market phase shown anywhere comes from the session law, never from
+  the engine's record file. The LATEST SIGNAL card shows the engine's
+  own vocabulary; a market marker such as MARKET_CLOSED written before
+  the open prints as NO TRADE TODAY, with the record's state and the
+  time it was written beside it (`bridge.session_record`), so an old
+  record can never read as the live market state.
+- The home flow board is the top three scrips by the venue's running
+  volume, not by any estimate, and the BUYING NOW board ranks measured
+  buying volume. A scrip with volume but no attributable window yet
+  shows a dash for B and S rather than a false zero, and the footnote
+  counts the unattributed shares.
 - Every page fills from the banked tape on open (`bridge.quote_rows`),
   before the live feed says anything; the live session then overrides
   each symbol it reports.
