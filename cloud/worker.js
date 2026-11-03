@@ -2365,6 +2365,12 @@ export class QuoteHub {
   constructor(ctx, env) {
     this.ctx = ctx;
     this.env = env;
+    // Flow state is authoritative in memory between flushes. Persisting it
+    // on every push cost one SQL row per symbol per push and exhausted the
+    // Durable Objects daily write budget; five minutes is 312 rows at a
+    // time, not 312 rows every second.
+    this.flowStates = null;
+    this.lastFlowFlush = 0;
     this.ready = ctx.blockConcurrencyWhile(async () => {
       ctx.storage.sql.exec(
         "CREATE TABLE IF NOT EXISTS quote_snapshot (id INTEGER PRIMARY KEY CHECK (id = 1), payload TEXT NOT NULL)",
@@ -2411,10 +2417,8 @@ export class QuoteHub {
     const price = Number(quote.price);
     const bid = Number(quote.bid);
     const ask = Number(quote.ask);
-    const stored = this.ctx.storage.sql.exec(
-      "SELECT day, volume, buy, sell, baseline, bid, ask, last, side, rules " +
-      "FROM quote_flow WHERE symbol = ?", symbol,
-    ).toArray()[0];
+    if (!this.flowStates) this.loadFlowStates();
+    const stored = this.flowStates[symbol];
     let state;
     if (stored && String(stored.day) === day) {
       let rules = {};
@@ -2481,20 +2485,57 @@ export class QuoteHub {
       }
       state.volume = total;
     }
-    this.ctx.storage.sql.exec(
-      "INSERT INTO quote_flow (symbol, day, volume, buy, sell, baseline, bid, ask, last, side, rules, updated_at) " +
-      "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) " +
-      "ON CONFLICT(symbol) DO UPDATE SET day = excluded.day, volume = excluded.volume, " +
-      "buy = excluded.buy, sell = excluded.sell, baseline = excluded.baseline, " +
-      "bid = excluded.bid, ask = excluded.ask, last = excluded.last, " +
-      "side = excluded.side, rules = excluded.rules, updated_at = excluded.updated_at",
-      symbol, state.day, state.volume, state.buy, state.sell, state.baseline,
-      state.bid, state.ask, state.last, state.side,
-      JSON.stringify(state.rules), Date.now(),
-    );
+    this.flowStates[symbol] = state;
+    const flushed = Date.now();
+    if (flushed - this.lastFlowFlush >= 5 * 60 * 1000) {
+      this.persistFlowStates();
+      this.lastFlowFlush = flushed;
+    }
     if (state.buy + state.sell + state.baseline !== total) return null;
     return { buy_volume: state.buy, sell_volume: state.sell,
       baseline: state.baseline, total };
+  }
+
+  loadFlowStates() {
+    const states = {};
+    try {
+      const rows = this.ctx.storage.sql.exec(
+        "SELECT symbol, day, volume, buy, sell, baseline, bid, ask, last, side, rules FROM quote_flow",
+      ).toArray();
+      for (const row of rows) {
+        let rules = {};
+        try { rules = JSON.parse(String(row.rules || "{}")) || {}; }
+        catch (_) { rules = {}; }
+        states[String(row.symbol)] = {
+          day: String(row.day), volume: Number(row.volume),
+          buy: Number(row.buy), sell: Number(row.sell),
+          baseline: Number(row.baseline),
+          bid: Number(row.bid) || 0, ask: Number(row.ask) || 0,
+          last: Number(row.last) || 0, side: String(row.side || ""), rules,
+        };
+      }
+    } catch (_) { /* a first run has no rows; the next flush creates them */ }
+    this.flowStates = states;
+  }
+
+  persistFlowStates() {
+    const states = this.flowStates || {};
+    try {
+      for (const symbol of Object.keys(states)) {
+        const state = states[symbol];
+        this.ctx.storage.sql.exec(
+          "INSERT INTO quote_flow (symbol, day, volume, buy, sell, baseline, bid, ask, last, side, rules, updated_at) " +
+          "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) " +
+          "ON CONFLICT(symbol) DO UPDATE SET day = excluded.day, volume = excluded.volume, " +
+          "buy = excluded.buy, sell = excluded.sell, baseline = excluded.baseline, " +
+          "bid = excluded.bid, ask = excluded.ask, last = excluded.last, " +
+          "side = excluded.side, rules = excluded.rules, updated_at = excluded.updated_at",
+          symbol, state.day, state.volume, state.buy, state.sell, state.baseline,
+          state.bid, state.ask, state.last, state.side,
+          JSON.stringify(state.rules), Date.now(),
+        );
+      }
+    } catch (_) { /* budget exhausted: memory keeps advancing until the cap resets */ }
   }
 
   async snapshot() {

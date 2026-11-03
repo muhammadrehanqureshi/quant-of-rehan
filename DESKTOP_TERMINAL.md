@@ -1,9 +1,9 @@
 # Quant of Rehan desktop terminal (Windows 11)
 
-The shipped desk is the console terminal: it opens in its own terminal
-window, draws the HUD in text and reads the relay the cloud keeps fed. The
-Qt window in `src/desktop/app.py` remains in the repository, but the
-shortcut on the Desktop points at the console build.
+The desk runs from source as the console terminal: it opens in its own
+terminal window, draws the HUD in text and reads the relay the cloud keeps
+fed. The Qt window in `src/desktop/app.py` remains in the repository. No
+packaged Windows build is produced.
 
 ## The console desk (`src/desktop/tui.py`)
 
@@ -98,14 +98,8 @@ The phase is always the session law's. The engine record on disk is shown
 with the day it names and how old its file is, so an eight-day-old record
 reads as eight days old rather than as today's signal.
 
-Run it from source with `python -m src.desktop.tui`, or build it:
-
-```powershell
-python -m PyInstaller --noconfirm packaging/quant_of_rehan_console.spec
-```
-
-That writes `dist\QuantOfRehanConsole\QuantOfRehan.exe`, a console
-application of about 19 MB on disk that needs no Qt and no local feed.
+Run it from source with `python -m src.desktop.tui`. There is no packaged
+Windows build.
 
 ## The Qt window (`src/desktop/app.py`)
 
@@ -199,14 +193,13 @@ reads as the same HUD the owner runs on the phone and the console:
   wait), a feed thread that dies while the market is open is restarted,
   capped at 24 restarts per session. The watchdog never overrides
   `--no-feed` or `--smoke`: those runs touch no socket.
-- The window icon and the EXE icon are the same flat gold-and-green
-  candlestick tile drawn in `assets/quant-of-rehan.ico`.
+- The window icon is the flat gold-and-green candlestick tile drawn in
+  `assets/quant-of-rehan.ico`.
 
-Two real bugs the rework fixed: while frozen, the heartbeat reader still
-looked at the repository's capture root instead of
-`%APPDATA%\QuantOfRehan\data\feed_capture`, so a running feed could
-report DEAD; and the first watchdog draft violated the `--smoke`/
-`--no-feed` contract by reopening the socket. Both are closed.
+Two real bugs the rework fixed: the heartbeat reader now looks at the same
+capture root the feed writes, so a running feed cannot report DEAD; and
+the first watchdog draft violated the `--smoke`/`--no-feed` contract by
+reopening the socket. Both are closed.
 
 ## Run from source
 
@@ -216,53 +209,19 @@ python -m src.desktop.app
 ```
 
 Flags: `--no-feed` opens the window without the socket, `--smoke` builds
-the whole window offscreen, ticks its clock once and exits (packaging and
-CI use this).
+the whole window offscreen, ticks its clock once and exits.
 
-## Build the executable
+## No packaged Windows build
 
-```powershell
-python -m pip install -r requirements.txt -r requirements-desktop.txt
-python -m PyInstaller --noconfirm packaging/quant_of_rehan.spec
-```
-
-That writes `dist\QuantOfRehan\QuantOfRehan.exe` (one-dir, so launch stays
-fast and nothing is unpacked into `%TEMP%` on every start). The same build
-runs on GitHub Actions through `.github/workflows/desktop-windows.yml`,
-which publishes the zip as an artifact; the runner does the packaging so
-the owner's PC does not.
-
-## Measured, not estimated
-
-Built and measured on the owner's PC on 2026-11-03 with PyInstaller and
-PySide6 6.12:
-
-| Measure | Value |
-|---|---|
-| `dist\QuantOfRehan` on disk | 152 MB |
-| `QuantOfRehan.exe` | 6.76 MB |
-| release zip | 63.9 MB |
-| launch wall time | 1.83 s including the 1.2 s smoke timer, so about 0.6 s to the window |
-| peak working set, smoke run | 70 MB |
-| CPU, smoke run | 0.38 s |
-| smoke exit code | 0 |
-
-Remeasured after the 2026-11-03 HUD rework (cyan boards, B/S/T money
-flow, dotted charts, watchdog) on the same machine; earlier numbers
-belonged to superseded builds.
-
-The smoke run is a short launch, not a claim about a full session. The live
-feed itself is the same `CaptureSession` the cloud recorder runs; opening
-the terminal during a session samples the wire at the wire's own cadence
-(about 24 s per symbol), it does not add subscriptions.
+The Windows executable build, its PyInstaller specs and its GitHub Actions
+workflow were removed on 2026-11-03. Run the terminal from source with the
+command above if it is needed; the cloud relay and the phone are the
+delivery surfaces.
 
 ## Where it writes
 
 - Settings: `%APPDATA%\QuantOfRehan\settings.json`
-- Frozen build's capture, status and tape: `%APPDATA%\QuantOfRehan\data\feed_capture`
-- Source runs use the repository's own `data/feed_capture`
-
-The frozen build deliberately does not write inside its install directory.
+- Capture, status and tape: the repository's own `data/feed_capture`
 
 ## What the terminal will not do
 
