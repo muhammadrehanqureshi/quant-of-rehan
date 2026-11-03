@@ -814,7 +814,7 @@ function applyStoredFrame(row, stored) {
     row.sell_volume = Math.round(Number(stored.sell_volume));
     row.split_volume = row.buy_volume + row.sell_volume;
   }
-  row.split_method = "range_position";
+  row.split_method = stored.split_method || "range_position";
   row.split_source = stored.split_source
     ? stored.split_source : row.split_source || null;
   row.ack_band = stored.band;
@@ -1056,7 +1056,9 @@ async function attachSplits(rows) {
 function splitLabel(rows) {
   const available = rows.filter((r) => Number.isFinite(r.buy_volume));
   if (!available.length) return "B/S unavailable for the leaders right now";
-  const measured = available.filter((r) => r.split_method === "measured_tape").length;
+  const measured = available.filter((r) =>
+    r.split_method === "measured_tape" ||
+    r.split_method === "quote_rule").length;
   let text = measured === available.length
     ? "B/S measured from the session tape"
     : "B/S estimated from the day's range, not order flow";
@@ -1900,10 +1902,14 @@ export default {
       const split = splitFromQuote(quote);
       if (split) {
         Object.assign(stock, split);
-        stock.split_method = "range_position";
-        stock.split_source = quote.fresh
-          ? "B/S estimated from the day's range, not order flow"
-          : "B/S estimated from the symbol's last published frame; the market is closed";
+        stock.split_method = quote.split_method === "quote_rule"
+          ? "quote_rule" : "range_position";
+        stock.split_source = quote.split_method === "quote_rule"
+          ? (quote.split_source ||
+             "every volume increment sided by the wire's own bid/ask")
+          : quote.fresh
+            ? "B/S estimated from the day's range, not order flow"
+            : "B/S estimated from the symbol's last published frame; the market is closed";
       }
       // Owner order 2026-10-31: the answer also reads and advances the
       // SAME acknowledged frame every surface reads, so the search's B, S
@@ -1976,8 +1982,16 @@ export default {
           volume: Number.isFinite(quote.volume) ? Math.round(quote.volume) : null,
           buy_volume: split ? split.buy_volume : null,
           sell_volume: split ? split.sell_volume : null,
-          split_method: split ? "range_position" : "unavailable",
-          split_source: split ? "B/S estimated from the day's range, not order flow" : null,
+          split_method: split
+            ? (quote.split_method === "quote_rule" ? "quote_rule"
+               : "range_position")
+            : "unavailable",
+          split_source: split
+            ? (quote.split_method === "quote_rule"
+               ? (quote.split_source ||
+                  "every volume increment sided by the wire's own bid/ask")
+               : "B/S estimated from the day's range, not order flow")
+            : null,
           observed_at: quote.observed_at || null,
           source: quote.source || null,
         });
@@ -2552,11 +2566,22 @@ export class QuoteHub {
                        sell_volume: clamped.sell };
             }
           }
+          // Owner order 2026-11-03: when the capture sided every increment
+          // of the venue's own counter at the wire (quote_rule), that is a
+          // measured pair, and the range sentence would be a lie about it.
+          // The declared method travels with the numbers; only a frame that
+          // declares nothing is labelled as the range estimate.
+          const declared = quote.split_method === "quote_rule"
+            ? "quote_rule" : "range_position";
+          const declaredSource = declared === "quote_rule"
+            ? (quote.split_source ||
+               "every volume increment sided by the wire's own bid/ask")
+            : "B/S estimated from the day's range, not order flow";
           quote.buy_volume = pair.buy_volume;
           quote.sell_volume = pair.sell_volume;
           quote.split_volume = pair.volume;
-          quote.split_method = "range_position";
-          quote.split_source = "B/S estimated from the day's range, not order flow";
+          quote.split_method = declared;
+          quote.split_source = declaredSource;
         } else {
           quote.buy_volume = null;
           quote.sell_volume = null;

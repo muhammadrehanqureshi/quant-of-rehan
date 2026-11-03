@@ -116,6 +116,7 @@ from src.data.capture_health import status_view
 
 from src import config  # noqa: E402
 from src.data import eligibility  # noqa: E402
+from src.data.quote_flow import QuoteFlow  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
@@ -363,6 +364,11 @@ class RelayQuotePublisher:
     MAX_RETRY_SECONDS = 5.0
 
     def __init__(self) -> None:
+        # Owner order 2026-11-03: buying and selling are separated at the
+        # wire, by the quote standing when each increment of the venue's own
+        # counter arrives, and that decision is never retracted. The law
+        # lives in src/data/quote_flow.py; this publisher just carries it.
+        self._flow = QuoteFlow()
         self._token = ""
         self._url = ""
         self._pending_quotes: dict[str, dict] = {}
@@ -395,6 +401,7 @@ class RelayQuotePublisher:
         if self._thread is None:
             return
         update = relay_quote_updates(record)
+        self._flow.observe_many(update["quotes"])
         with self._lock:
             if (self._latest_captured_at is None or
                     update["captured_at"] > self._latest_captured_at):
