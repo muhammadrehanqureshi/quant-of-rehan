@@ -47,6 +47,25 @@ jobs:
               )
               raise SystemExit(0)
 
+          quotes_url = "https://quant-of-rehan-relay.mrmrehanqureshi.workers.dev/quotes"
+          try:
+              with urllib.request.urlopen(quotes_url, timeout=30) as response:
+                  quotes = json.load(response)
+          except Exception as exc:
+              print(
+                  "Quant of Rehan relay feed check could not read /quotes: "
+                  f"{type(exc).__name__}. This alert repeats at most once per day."
+              )
+              raise SystemExit(0)
+          if health.get("market_open") and (
+                  not (quotes.get("quotes") or []) or quotes.get("stale")):
+              print(
+                  "Quant of Rehan relay feed is empty or stale while the market is open. "
+                  "The relay cap or the publisher needs attention. This alert repeats "
+                  "at most once per day."
+              )
+              raise SystemExit(0)
+
           budget = health.get("flow_budget") or {}
           rows = budget.get("rows_written_today")
           limit = budget.get("row_budget")
