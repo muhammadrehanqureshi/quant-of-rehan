@@ -576,6 +576,19 @@ def _orb(market_open: bool, phase: int = 0) -> list[str]:
     centre_y = (height - 1) / 2.0
     centre_x = (width - 1) / 2.0
     angle = (phase * 30.0) % 360.0
+    ring = []
+    for y, line in enumerate(art):
+        for x, char in enumerate(line):
+            if char == " ":
+                continue
+            dx = (x - centre_x) / (width / 2.0)
+            dy = (y - centre_y) / (height / 2.0)
+            if abs(dx) + abs(dy) < 0.35:
+                continue
+            cell_angle = (math.degrees(math.atan2(dy, dx)) + 360.0) % 360.0
+            delta = abs((cell_angle - angle + 180.0) % 360.0 - 180.0)
+            ring.append((y, x, char, delta))
+    head = min(ring, key=lambda cell: cell[3]) if ring else None
     out = []
     for y, line in enumerate(art):
         cells = []
@@ -583,16 +596,13 @@ def _orb(market_open: bool, phase: int = 0) -> list[str]:
             if char == " ":
                 cells.append(" ")
                 continue
-            dx = (x - centre_x) / (width / 2.0)
-            dy = (y - centre_y) / (height / 2.0)
-            if abs(dx) + abs(dy) < 0.35:
+            cell = next((item for item in ring
+                         if item[0] == y and item[1] == x), None)
+            if cell is None:
                 cells.append(paint(char, FAINT))
-                continue
-            cell_angle = (math.degrees(math.atan2(dy, dx)) + 360.0) % 360.0
-            delta = abs((cell_angle - angle + 180.0) % 360.0 - 180.0)
-            if delta < 7:
+            elif head is not None and (y, x) == (head[0], head[1]):
                 cells.append(paint("\u25c6", WHITE, True))
-            elif delta < 65:
+            elif cell[3] < 65:
                 cells.append(paint(char, CYAN, True))
             else:
                 cells.append(paint(char, FAINT))
