@@ -225,3 +225,25 @@ def evaluate(rows: list, session, daily: list,
         "frames": frames,
         "entry_clock": "1m flip and last completed 1m close",
     }, "ok"
+
+
+def summary(view: dict | None) -> str:
+    """One ASCII line naming all four frame states, or empty when incomplete.
+
+    The line is the display contract for the cloud card and the owner email.
+    It never invents a frame: a missing frame returns empty rather than a
+    partial claim, because a reader must not see three states and assume the
+    fourth agreed.
+    """
+    frames = (view or {}).get("frames") or {}
+    parts = []
+    for key, label in (("5m", "5m"), ("15m", "15m"),
+                       ("60m", "1h"), ("1d", "1D")):
+        frame = frames.get(key)
+        if not isinstance(frame, dict):
+            return ""
+        state = frame.get("kalman_state")
+        state_text = f"{state:+d}" if isinstance(state, int) else "?"
+        side = "above VWAP" if frame.get("above_vwap") else "below VWAP"
+        parts.append(f"{label} {state_text} {side}")
+    return "MTF " + " | ".join(parts)

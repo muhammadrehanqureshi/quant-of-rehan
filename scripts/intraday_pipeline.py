@@ -385,6 +385,13 @@ def claim_signal(day, slot: str) -> tuple[bool, str]:
                    "runner; no further entry is possible")
 
 
+def mtf_summary(candidate: dict | None) -> str:
+    """The four cloud frame states as one card and email line, or empty."""
+    from src.signals import mtf_vwap
+
+    return mtf_vwap.summary(((candidate or {}).get("setup") or {}).get("mtf"))
+
+
 def card_text(day, slot: str, body: str, alert: bool) -> str:
     """Dated card header so the app never shows an undated verdict, and a
     trade alert carries the INTRADAY ALERT marker the daily push looks for
@@ -688,6 +695,7 @@ def run_scan(slot: str, capture: Path | None = None,
             "capture": capture_label(path, session),
             "data_quality": quality.as_dict(), "trade_state": state.to_dict(),
             "ai": {"active": False, "reason": "Kalman flip rules have no daily-model routing"},
+            "mtf": None,
             "universe_size": len(symbols),
             "universe_sha256": universe_fingerprint(symbols),
             "scanner_version": config.SCANNER_VERSION,
@@ -804,6 +812,9 @@ def run_scan(slot: str, capture: Path | None = None,
                         stop_loss=result.candidate.get("stop_loss"))
             state.save()
             text = scanner.signal_message(result.candidate, context, entry, as_of)
+            mtf_text = mtf_summary(result.candidate)
+            if mtf_text:
+                text = f"{text}\n{mtf_text}"
             sent = email_signal(text, f"signal-buy:{day.isoformat()}")
             push_card(card_text(day, slot, text, alert=True), state, signature=f"{day}|{text}")
             delivery = {"channel": "owner-email", "kind": "signal-buy",
@@ -834,6 +845,9 @@ def run_scan(slot: str, capture: Path | None = None,
         reason = result.reason
         watch_text = scanner.call_watch_message(result, quality, context,
                                                 as_of)
+        mtf_text = mtf_summary(result.candidate)
+        if mtf_text:
+            watch_text = f"{watch_text}\n{mtf_text}"
         sent = email_signal(watch_text, f"signal-callwatch:{day.isoformat()}")
         delivery = {"channel": "owner-email", "kind": "signal-callwatch",
                     "ok": sent,
@@ -875,6 +889,9 @@ def run_scan(slot: str, capture: Path | None = None,
                 f"{state.entry_price}, target {state.target_price}, "
                 f"stop loss {state.stop_loss}. {entry_clock}"
                 f"{state.last_reason or 'position being monitored'}.")
+            mtf_text = mtf_summary(observed)
+            if mtf_text:
+                card_body = f"{card_body}\n{mtf_text}"
             push_card(card_text(day, slot, card_body,
                                 alert=state.target_hit), state,
                       signature=f"{day}|{card_body}")
@@ -908,6 +925,7 @@ def run_scan(slot: str, capture: Path | None = None,
         "market": context,
         "candidate": entered,
         "observed_candidate": None if entered else observed,
+        "mtf": (((entered or observed) or {}).get("setup") or {}).get("mtf"),
         "ranked_top": [{k: row.get(k) for k in ("symbol", "score", "strategy",
                                                 "setup", "stop_loss", "target",
                                                 "net_reward_risk")}
