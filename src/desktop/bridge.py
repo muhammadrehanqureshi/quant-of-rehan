@@ -230,7 +230,10 @@ def feed_health(status_path: Path | None = None,
     """
     from src.data import live_card
 
-    path = status_path or (ROOT / "data" / "feed_capture" / "status.json")
+    # The recorder's heartbeat lives in the capture root, which the frozen
+    # build redirects to %APPDATA% (app.py). Reading the repo default here
+    # made a running feed report DEAD; the capture root is the one truth.
+    path = status_path or (CAPTURE_ROOT / "status.json")
     moment = _now(now)
     if not path.is_file():
         return {"state": "DEAD", "detail": "no recorder heartbeat yet",
