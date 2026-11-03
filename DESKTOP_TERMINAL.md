@@ -15,7 +15,7 @@ number says so next to itself.
 
 | Page | What it shows | Source |
 |---|---|---|
-| Overview | session arc gauge, KSE100, market phase and next event, top volume, today's decision | session law, live feed, `trade_state` |
+| Overview | KSE100 tile, session phase and next event, feed state, today's record, top volume table | session law, banked tape, live feed, `trade_state` |
 | Live Market | newest quote per symbol: last, change, bid, ask, spread, volume, age; symbol filter | `feed_capture` capture |
 | Order Flow | OBI top-1, inferred CVD, inferred buy and sell, session VWAP, spread; measured from the day's tape | `src/data/order_flow.py` |
 | Signals | the real session record, plus one local scan on demand | `src/signals/trade_state.py`, `scripts/intraday_pipeline.py` |
@@ -25,6 +25,34 @@ number says so next to itself.
 Every page above is real. Pages that exist only as ideas (watchlist,
 historical browse, performance analytics) are deliberately absent rather
 than shown empty.
+
+## How it looks and behaves (reworked 2026-11-03 after owner review)
+
+The first build read as a toy: hollow pages, a cartoon arc gauge, rounded
+pills, and nothing on screen until the live feed filled it. That build was
+replaced. The terminal now reads as a trading desk:
+
+- Flat charcoal surfaces, one-pixel hairlines, monospaced data columns.
+  No rounded pills, no arc gauge, no dead space.
+- A compact top bar carries the phase chip, the feed chip, the KSE100
+  chip and the Karachi clock, over a thin gold session-progress bar.
+- Every page fills from the banked tape on open (`bridge.quote_rows`),
+  before the live feed says anything; the live session then overrides
+  each symbol it reports. An empty page is no longer possible while a
+  bank exists.
+- Live tables are right-aligned and colour-coded: green up, red down,
+  and a dimmed age once a quote is more than two minutes old.
+- The feed watchdog: on the one-second clock (a state check, never a
+  wait), a feed thread that dies while the market is open is restarted,
+  capped at 24 restarts per session.
+- The window icon and the EXE icon are the same flat gold-and-green
+  candlestick tile drawn in `assets/quant-of-rehan.ico`.
+
+The first build also had a real bug this rework fixed: while frozen, the
+heartbeat reader still looked at the repository's capture root instead of
+`%APPDATA%\QuantOfRehan\data\feed_capture`, so a running feed could report
+DEAD. Both the window and the health page now read the capture root that
+the recorder itself writes (`bridge.CAPTURE_ROOT`).
 
 ## Run from source
 
@@ -58,12 +86,16 @@ PySide6 6.12:
 | Measure | Value |
 |---|---|
 | `dist\QuantOfRehan` on disk | 152 MB |
-| `QuantOfRehan.exe` | 6.76 MB |
-| release zip | 63.8 MB |
-| launch wall time | 1.84 s including the 1.2 s smoke timer, so about 0.6 s to the window |
-| peak working set, smoke run | 66 MB |
-| CPU, smoke run | 0.36 s |
+| `QuantOfRehan.exe` | 6.75 MB |
+| release zip | 63.9 MB |
+| launch wall time | 1.76 s including the 1.2 s smoke timer, so about 0.6 s to the window |
+| peak working set, smoke run | 72 MB |
+| CPU, smoke run | 0.39 s |
 | smoke exit code | 0 |
+
+Remeasured after the 2026-11-03 rework (flat desk theme, banked-tape
+seeding, watchdog) on the same machine; the earlier numbers (1.84 s,
+66 MB, 0.36 s) belonged to the first build and are superseded.
 
 The smoke run is a short launch, not a claim about a full session. The live
 feed itself is the same `CaptureSession` the cloud recorder runs; opening

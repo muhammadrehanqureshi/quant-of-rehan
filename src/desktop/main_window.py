@@ -1,9 +1,11 @@
-"""The terminal window: restrained HUD, live tables, one-second clock.
+"""The terminal window: a dense trading desk, live from the banked tape.
 
-Design laws from the owner's order (2026-11-03): charcoal field, hairline
-panels, green up and red risk, thin arc gauges, compact type. Every screen
-shown here is backed by `src.desktop.bridge`, which reads the real backend;
-a value the backend does not carry prints as a dash, never as a zero.
+Design laws from the owner's order (2026-11-03, reworked after review): flat
+panels, monospaced data columns, a compact top bar with a thin session bar,
+and every page filled from the banked capture before the live feed says a
+word. A value the backend does not carry prints as a dash, never as a zero.
+Every screen shown here is backed by `src.desktop.bridge`, which reads the
+real backend; the order-flow page carries its registry basis on itself.
 """
 
 from __future__ import annotations
@@ -12,17 +14,19 @@ import base64
 from datetime import datetime
 
 from PySide6.QtCore import Qt, QThread, QTimer, Signal
-from PySide6.QtGui import QColor, QPainter, QPen
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
     QFrame,
+    QGridLayout,
     QHBoxLayout,
     QHeaderView,
     QLabel,
     QLineEdit,
     QListWidget,
     QMainWindow,
+    QProgressBar,
     QPushButton,
     QSpinBox,
     QStackedWidget,
@@ -42,6 +46,14 @@ LIVE_COLUMNS = ("SYMBOL", "LAST", "CHG %", "BID", "ASK", "SPREAD",
                 "VOLUME", "AGE")
 FLOW_COLUMNS = ("SYMBOL", "OBI", "CVD", "BUY", "SELL", "VWAP",
                 "SPREAD", "WINDOWS")
+TOP_COLUMNS = ("SYMBOL", "LAST", "CHG %", "VOLUME")
+
+#: right-aligned columns by index, per table shape
+LIVE_RIGHT = (1, 2, 3, 4, 5, 6, 7)
+FLOW_RIGHT = (1, 2, 3, 4, 5, 6, 7)
+TOP_RIGHT = (1, 2, 3)
+
+FEED_RESTART_CAP = 24
 
 
 def _dash(value, digits: int = 2) -> str:
@@ -54,59 +66,23 @@ def _dash(value, digits: int = 2) -> str:
     return str(value)
 
 
-class ArcGauge(QWidget):
-    """A thin 270 degree arc: the only drawn decoration in the terminal.
+def _pct(value) -> str:
+    if not isinstance(value, (int, float)):
+        return "-"
+    sign = "+" if value >= 0 else ""
+    return f"{sign}{value:.2f}%"
 
-    Values are pushed in, never polled; the widget repaints only when its
-    value or label changes, so a live market costs no per-frame animation.
-    """
 
-    def __init__(self, caption: str, parent=None) -> None:
-        super().__init__(parent)
-        self._value = 0.0
-        self._label = "-"
-        self._caption = caption
-        self.setMinimumSize(132, 138)
+def _volume(value) -> str:
+    if value is None:
+        return "-"
+    return f"{int(value):,}"
 
-    def set_value(self, value: float, label: str) -> None:
-        if abs(value - self._value) < 0.001 and label == self._label:
-            return
-        self._value = max(0.0, min(1.0, value))
-        self._label = label
-        self.update()
 
-    # Qt calls paintEvent by framework convention; Python never does.
-    def paintEvent(self, event) -> None:  # noqa: N802 - Qt override
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        rect = self.rect().adjusted(10, 6, -10, -22)
-        span = -270 * 16
-        track = QPen(QColor(PALETTE["panel_edge"]))
-        track.setWidth(7)
-        track.setCapStyle(Qt.PenCapStyle.RoundCap)
-        painter.setPen(track)
-        painter.drawArc(rect, 225 * 16, span)
-        colour = PALETTE["green"] if self._value < 1.0 else PALETTE["amber"]
-        active = QPen(QColor(colour))
-        active.setWidth(7)
-        active.setCapStyle(Qt.PenCapStyle.RoundCap)
-        painter.setPen(active)
-        painter.drawArc(rect, 225 * 16, int(span * self._value))
-        painter.setPen(QColor(PALETTE["ink"]))
-        font = painter.font()
-        font.setPointSize(11)
-        font.setBold(True)
-        painter.setFont(font)
-        painter.drawText(rect, Qt.AlignmentFlag.AlignCenter,
-                         f"{self._value * 100:.0f}%")
-        painter.setPen(QColor(PALETTE["faint"]))
-        font.setPointSize(8)
-        font.setBold(False)
-        painter.setFont(font)
-        painter.drawText(self.rect().adjusted(0, self.height() - 30, 0, 0),
-                         Qt.AlignmentFlag.AlignHCenter, self._caption)
-        painter.drawText(self.rect().adjusted(0, self.height() - 17, 0, 0),
-                         Qt.AlignmentFlag.AlignHCenter, self._label)
+def _age(value) -> str:
+    if value is None:
+        return "-"
+    return f"{int(value)}s"
 
 
 class TaskThread(QThread):
@@ -126,8 +102,27 @@ class TaskThread(QThread):
             self.failed.emit(f"{type(exc).__name__}: {exc}")
 
 
+def _tile(title: str) -> tuple[QFrame, QGridLayout]:
+    """A raised stat tile: small gold caption over one or two lines of data."""
+    frame = QFrame(objectName="panel")
+    layout = QGridLayout(frame)
+    layout.setContentsMargins(14, 10, 14, 10)
+    layout.setSpacing(2)
+    layout.addWidget(QLabel(title, objectName="sectionLabel"), 0, 0)
+    return frame, layout
+
+
+def _panel(title: str) -> tuple[QFrame, QVBoxLayout]:
+    frame = QFrame(objectName="panel")
+    layout = QVBoxLayout(frame)
+    layout.setContentsMargins(14, 10, 14, 12)
+    layout.setSpacing(4)
+    layout.addWidget(QLabel(title, objectName="sectionLabel"))
+    return frame, layout
+
+
 class MainWindow(QMainWindow):
-    """The terminal: header, navigation, six real pages, one clock."""
+    """The terminal: top bar, navigation, six real pages, one clock."""
 
     PAGES = ("OVERVIEW", "LIVE MARKET", "ORDER FLOW", "SIGNALS",
              "SYSTEM HEALTH", "SETTINGS")
@@ -135,7 +130,7 @@ class MainWindow(QMainWindow):
     def __init__(self, start_feed: bool = True) -> None:
         super().__init__()
         self.setWindowTitle("Quant of Rehan")
-        self.resize(1280, 780)
+        self.resize(1280, 800)
         self.setStyleSheet(stylesheet())
         self.settings = bridge.load_settings()
         self._live: dict[str, bridge.QuoteRow] = {}
@@ -143,33 +138,45 @@ class MainWindow(QMainWindow):
         self._tasks: set[TaskThread] = set()
         self._index: dict = {}
         self._market: dict = {}
+        self._feed_restarts = 0
 
         root = QWidget(objectName="root")
         self.setCentralWidget(root)
-        outer = QHBoxLayout(root)
+        outer = QVBoxLayout(root)
         outer.setContentsMargins(0, 0, 0, 0)
         outer.setSpacing(0)
 
+        self.topbar = self._build_topbar()
+        outer.addWidget(self.topbar)
+        self.sessionbar = QProgressBar(objectName="sessionbar")
+        self.sessionbar.setTextVisible(False)
+        self.sessionbar.setRange(0, 1000)
+        outer.addWidget(self.sessionbar)
+
+        payload = QHBoxLayout()
+        payload.setContentsMargins(0, 0, 0, 0)
+        payload.setSpacing(0)
+
         self.nav = QListWidget(objectName="nav")
         self.nav.addItems(self.PAGES)
-        self.nav.setFixedWidth(180)
+        self.nav.setFixedWidth(170)
         self.nav.currentRowChanged.connect(self._show_page)
-        outer.addWidget(self.nav)
+        payload.addWidget(self.nav)
 
-        body = QVBoxLayout()
-        body.setContentsMargins(20, 14, 20, 10)
-        body.setSpacing(12)
-        outer.addLayout(body, 1)
-
-        body.addLayout(self._build_header())
+        body = QWidget()
+        bodybox = QVBoxLayout(body)
+        bodybox.setContentsMargins(16, 10, 16, 8)
+        bodybox.setSpacing(10)
         self.stack = QStackedWidget()
-        body.addWidget(self.stack, 1)
+        bodybox.addWidget(self.stack, 1)
         self.stack.addWidget(self._build_overview())
         self.stack.addWidget(self._build_live_market())
         self.stack.addWidget(self._build_order_flow())
         self.stack.addWidget(self._build_signals())
         self.stack.addWidget(self._build_health())
         self.stack.addWidget(self._build_settings())
+        payload.addWidget(body, 1)
+        outer.addLayout(payload, 1)
 
         self.setStatusBar(QStatusBar())
         self.nav.setCurrentRow(0)
@@ -180,93 +187,141 @@ class MainWindow(QMainWindow):
         self._clock.start()
         self._tick()
 
+        self._seed_banked()
         if start_feed:
             self.start_feed()
 
-    # ------------------------------------------------------------- chrome
-    def _build_header(self) -> QHBoxLayout:
-        row = QHBoxLayout()
-        row.setSpacing(12)
+    # --------------------------------------------------------------- chrome
+    def _build_topbar(self) -> QWidget:
+        bar = QFrame(objectName="topbar")
+        row = QHBoxLayout(bar)
+        row.setContentsMargins(14, 6, 14, 6)
+        row.setSpacing(14)
         brand = QVBoxLayout()
         brand.setSpacing(0)
-        title = QLabel("QUANT OF REHAN", objectName="brand")
-        tag = QLabel("PSX KMIALL TERMINAL / SIGNAL ONLY", objectName="brandSub")
-        brand.addWidget(title)
-        brand.addWidget(tag)
+        brand.addWidget(QLabel("QUANT OF REHAN", objectName="brand"))
+        brand.addWidget(QLabel("SIGNAL ONLY. NO ORDERS LEAVE THIS MACHINE.",
+                               objectName="brandSub"))
         row.addLayout(brand)
         row.addStretch(1)
-        self.market_pill = QLabel("-", objectName="pill")
-        self.feed_pill = QLabel("FEED -", objectName="pill")
-        self.clock = QLabel("-", objectName="dim")
-        row.addWidget(self.market_pill)
-        row.addWidget(self.feed_pill)
+        self.market_chip = QLabel("-", objectName="chip")
+        self.feed_chip = QLabel("FEED -", objectName="chip")
+        self.index_chip = QLabel("", objectName="valueMono")
+        row.addWidget(self.index_chip)
+        row.addStretch(1)
+        row.addWidget(self.market_chip)
+        row.addWidget(self.feed_chip)
+        self.clock = QLabel("-", objectName="clock")
         row.addWidget(self.clock)
-        line = QFrame(objectName="hairline")
-        wrapper = QHBoxLayout()
-        wrapper.addWidget(line)
-        outer = QVBoxLayout()
-        outer.setSpacing(8)
-        outer.addLayout(row)
-        outer.addLayout(wrapper)
-        return outer
+        return bar
 
-    def _panel(self, title: str) -> tuple[QFrame, QVBoxLayout]:
-        frame = QFrame(objectName="panel")
-        layout = QVBoxLayout(frame)
-        layout.setContentsMargins(14, 12, 14, 12)
-        layout.setSpacing(6)
-        label = QLabel(title, objectName="sectionLabel")
-        layout.addWidget(label)
-        return frame, layout
+    # ------------------------------------------------------ table plumbing
+    @staticmethod
+    def _style_table(table: QTableWidget, widths: tuple[int, ...],
+                     stretch_column: int) -> None:
+        header = table.horizontalHeader()
+        table.verticalHeader().setVisible(False)
+        table.setAlternatingRowColors(True)
+        table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        table.setSelectionBehavior(
+            QAbstractItemView.SelectionBehavior.SelectRows)
+        table.verticalHeader().setDefaultSectionSize(26)
+        table.setShowGrid(True)
+        if widths:
+            for column, width in enumerate(widths):
+                header.setSectionResizeMode(
+                    column, QHeaderView.ResizeMode.Interactive)
+                if width:
+                    table.setColumnWidth(column, width)
+            header.setSectionResizeMode(
+                stretch_column, QHeaderView.ResizeMode.Stretch)
+        else:
+            header.setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+
+    @staticmethod
+    def _cell(table: QTableWidget, row: int, column: int, text: str,
+              *, align_right: bool = False, colour: str | None = None,
+              ) -> None:
+        item = table.item(row, column)
+        if item is None:
+            item = QTableWidgetItem()
+            table.setItem(row, column, item)
+        if item.text() != text:
+            item.setText(text)
+        flags = Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter \
+            if align_right else Qt.AlignmentFlag.AlignLeft | \
+            Qt.AlignmentFlag.AlignVCenter
+        item.setTextAlignment(flags)
+        if colour is not None:
+            item.setForeground(QColor(colour))
+
+    def _fill_table(self, table: QTableWidget, rows: list[tuple],
+                    right: tuple[int, ...]) -> None:
+        table.setRowCount(len(rows))
+        for row_index, values in enumerate(rows):
+            for column, text in enumerate(values):
+                self._cell(table, row_index, column, text,
+                           align_right=column in right)
 
     # ------------------------------------------------------------ overview
     def _build_overview(self) -> QWidget:
         page = QWidget()
         layout = QVBoxLayout(page)
-        layout.setSpacing(12)
-        layout.addWidget(QLabel("OVERVIEW", objectName="pageTitle"))
+        layout.setSpacing(10)
+        head = QHBoxLayout()
+        head.addWidget(QLabel("OVERVIEW", objectName="pageTitle"))
+        head.addStretch(1)
+        layout.addLayout(head)
 
-        cards = QHBoxLayout()
-        cards.setSpacing(12)
+        tiles = QHBoxLayout()
+        tiles.setSpacing(10)
 
-        gauge_panel, gauge_layout = self._panel("SESSION")
-        self.session_gauge = ArcGauge("BAND ELAPSED")
-        gauge_layout.addWidget(self.session_gauge)
-        cards.addWidget(gauge_panel, 1)
+        index_tile, index_layout = _tile("KSE100")
+        self.index_stat = QLabel("-", objectName="stat")
+        self.index_sub = QLabel("index value on the EXS-FEED wire",
+                                objectName="note")
+        index_layout.addWidget(self.index_stat, 1, 0)
+        index_layout.addWidget(self.index_sub, 2, 0)
+        tiles.addWidget(index_tile, 3)
 
-        index_panel, index_layout = self._panel("KSE100")
-        self.index_value = QLabel("-", objectName="value")
-        self.index_change = QLabel("-", objectName="dim")
-        index_layout.addWidget(self.index_value)
-        index_layout.addWidget(self.index_change)
-        index_layout.addStretch(1)
-        cards.addWidget(index_panel, 2)
+        session_tile, session_layout = _tile("SESSION")
+        self.session_stat = QLabel("-", objectName="stat")
+        self.session_sub = QLabel("-", objectName="note")
+        self.session_sub.setWordWrap(True)
+        session_layout.addWidget(self.session_stat, 1, 0)
+        session_layout.addWidget(self.session_sub, 2, 0)
+        tiles.addWidget(session_tile, 3)
 
-        state_panel, state_layout = self._panel("MARKET LAW")
-        self.state_phase = QLabel("-", objectName="value")
-        self.state_detail = QLabel("-", objectName="dim")
-        self.state_detail.setWordWrap(True)
-        state_layout.addWidget(self.state_phase)
-        state_layout.addWidget(self.state_detail)
-        state_layout.addStretch(1)
-        cards.addWidget(state_panel, 2)
-        layout.addLayout(cards)
+        feed_tile, feed_layout = _tile("FEED")
+        self.feed_stat = QLabel("-", objectName="stat")
+        self.feed_sub = QLabel("-", objectName="note")
+        self.feed_sub.setWordWrap(True)
+        feed_layout.addWidget(self.feed_stat, 1, 0)
+        feed_layout.addWidget(self.feed_sub, 2, 0)
+        tiles.addWidget(feed_tile, 3)
 
-        leaders, leaders_layout = self._panel("TOP VOLUME NOW")
-        self.leader_rows = []
-        for _ in range(3):
-            label = QLabel("-", objectName="dim")
-            leaders_layout.addWidget(label)
-            self.leader_rows.append(label)
-        layout.addWidget(leaders)
+        decision_tile, decision_layout = _tile("TODAY'S RECORD")
+        self.decision_stat = QLabel("-", objectName="stat")
+        self.decision_sub = QLabel("-", objectName="note")
+        self.decision_sub.setWordWrap(True)
+        decision_layout.addWidget(self.decision_stat, 1, 0)
+        decision_layout.addWidget(self.decision_sub, 2, 0)
+        tiles.addWidget(decision_tile, 3)
+        layout.addLayout(tiles)
 
-        decision, decision_layout = self._panel("TODAY'S DECISION (LOCAL RECORD)")
-        self.decision_label = QLabel("-", objectName="value")
-        self.decision_detail = QLabel("-", objectName="dim")
-        self.decision_detail.setWordWrap(True)
-        decision_layout.addWidget(self.decision_label)
-        decision_layout.addWidget(self.decision_detail)
-        layout.addWidget(decision)
+        top_panel, top_layout = _panel("TOP VOLUME  -  BANKED AND LIVE")
+        self.top_table = QTableWidget(0, len(TOP_COLUMNS))
+        self.top_table.setHorizontalHeaderLabels(TOP_COLUMNS)
+        self._style_table(self.top_table, (120, 110, 90, 0), 3)
+        self.top_table.setFixedHeight(31 + 5 * 26)
+        top_layout.addWidget(self.top_table)
+        top_layout.addStretch(1)
+        layout.addWidget(top_panel)
+
+        detail = QLabel("-", objectName="note")
+        detail.setWordWrap(True)
+        self.overview_detail = detail
+        layout.addWidget(detail)
         layout.addStretch(1)
         return page
 
@@ -278,6 +333,8 @@ class MainWindow(QMainWindow):
         head = QHBoxLayout()
         head.addWidget(QLabel("LIVE MARKET", objectName="pageTitle"))
         head.addStretch(1)
+        self.live_count = QLabel("-", objectName="note")
+        head.addWidget(self.live_count)
         self.filter = QLineEdit()
         self.filter.setPlaceholderText("filter symbol")
         self.filter.setFixedWidth(200)
@@ -286,16 +343,13 @@ class MainWindow(QMainWindow):
         layout.addLayout(head)
         self.table = QTableWidget(0, len(LIVE_COLUMNS))
         self.table.setHorizontalHeaderLabels(LIVE_COLUMNS)
-        self.table.verticalHeader().setVisible(False)
-        self.table.setAlternatingRowColors(True)
-        self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        header = self.table.horizontalHeader()
-        header.setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self._style_table(
+            self.table, (110, 110, 90, 110, 110, 90, 130, 80), 6)
         layout.addWidget(self.table, 1)
         self.live_note = QLabel(
-            "read-only Eclear snapshot wire; sides are inferred where shown",
-            objectName="dim")
+            "read-only Eclear snapshot wire. sides are not carried by the "
+            "wire; anything inferred is labelled where it is shown.",
+            objectName="note")
         layout.addWidget(self.live_note)
         return page
 
@@ -313,19 +367,16 @@ class MainWindow(QMainWindow):
         layout.addLayout(head)
         self.flow_table = QTableWidget(0, len(FLOW_COLUMNS))
         self.flow_table.setHorizontalHeaderLabels(FLOW_COLUMNS)
-        self.flow_table.verticalHeader().setVisible(False)
-        self.flow_table.setAlternatingRowColors(True)
-        self.flow_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        self.flow_table.horizontalHeader().setSectionResizeMode(
-            QHeaderView.ResizeMode.Stretch)
+        self._style_table(self.flow_table, (110, 90, 110, 110, 110, 100,
+                                            90, 0), 7)
         layout.addWidget(self.flow_table, 1)
         depth = str(getattr(REGISTRY["footprint"].availability, "value",
                             "UNAVAILABLE")).upper()
         self.flow_note = QLabel(
-            "measured from the banked tape. Sides are INFERRED (print at the "
-            "ask or bid, then the tick rule). Depth is top of book only; "
-            f"the registry records Level-2 as {depth}.",
-            objectName="dim")
+            "measured from the banked tape. sides are INFERRED (print at "
+            "the ask or bid, then the tick rule). depth is top of book "
+            f"only; the registry records Level-2 as {depth}.",
+            objectName="note")
         self.flow_note.setWordWrap(True)
         layout.addWidget(self.flow_note)
         return page
@@ -335,27 +386,31 @@ class MainWindow(QMainWindow):
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setSpacing(10)
-        layout.addWidget(QLabel("SIGNALS", objectName="pageTitle"))
-        panel, panel_layout = self._panel("LOCAL ENGINE RECORD")
-        self.signal_state = QLabel("-", objectName="value")
-        self.signal_line = QLabel("-", objectName="dim")
+        head = QHBoxLayout()
+        head.addWidget(QLabel("SIGNALS", objectName="pageTitle"))
+        head.addStretch(1)
+        layout.addLayout(head)
+        panel, panel_layout = _panel("LOCAL ENGINE RECORD")
+        self.signal_state = QLabel("-", objectName="levelState")
+        self.signal_line = QLabel("-", objectName="valueMono")
         self.signal_line.setWordWrap(True)
-        self.signal_extra = QLabel("-", objectName="dim")
+        self.signal_extra = QLabel("-", objectName="note")
         self.signal_extra.setWordWrap(True)
         panel_layout.addWidget(self.signal_state)
         panel_layout.addWidget(self.signal_line)
         panel_layout.addWidget(self.signal_extra)
         layout.addWidget(panel)
-        run_panel, run_layout = self._panel("RUN ONE LOCAL SCAN")
-        note = QLabel("Runs the existing engine once on the day's banked "
-                      "tape. The cloud session loop remains the authority; "
-                      "NO TRADE is a valid answer.", objectName="dim")
+        run_panel, run_layout = _panel("RUN ONE LOCAL SCAN")
+        note = QLabel(
+            "Runs the existing engine once on the day's banked tape. The "
+            "cloud session loop remains the authority; NO TRADE is a valid "
+            "answer.", objectName="note")
         note.setWordWrap(True)
         run_layout.addWidget(note)
         self.scan_button = QPushButton("RUN ONE SCAN")
         self.scan_button.clicked.connect(self._run_scan)
         run_layout.addWidget(self.scan_button)
-        self.scan_result = QLabel("-", objectName="dim")
+        self.scan_result = QLabel("-", objectName="valueMono")
         self.scan_result.setWordWrap(True)
         run_layout.addWidget(self.scan_result)
         layout.addWidget(run_panel)
@@ -367,21 +422,27 @@ class MainWindow(QMainWindow):
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setSpacing(10)
-        layout.addWidget(QLabel("SYSTEM HEALTH", objectName="pageTitle"))
-        panel, panel_layout = self._panel("FEED")
-        self.health_state = QLabel("-", objectName="value")
-        self.health_detail = QLabel("-", objectName="dim")
+        head = QHBoxLayout()
+        head.addWidget(QLabel("SYSTEM HEALTH", objectName="pageTitle"))
+        head.addStretch(1)
+        layout.addLayout(head)
+        panel, panel_layout = _panel("READ-ONLY FEED")
+        self.health_state = QLabel("-", objectName="levelState")
+        self.health_detail = QLabel("-", objectName="valueMono")
         self.health_detail.setWordWrap(True)
-        self.health_counters = QLabel("-", objectName="dim")
-        self.health_counters.setWordWrap(True)
         panel_layout.addWidget(self.health_state)
         panel_layout.addWidget(self.health_detail)
+        self.health_counters = QLabel("-", objectName="note")
+        self.health_counters.setWordWrap(True)
         panel_layout.addWidget(self.health_counters)
         layout.addWidget(panel)
-        panel2, layout2 = self._panel("RECORDER")
-        self.recorder_label = QLabel("-", objectName="dim")
+        panel2, layout2 = _panel("RECORDER")
+        self.recorder_label = QLabel("-", objectName="valueMono")
         self.recorder_label.setWordWrap(True)
         layout2.addWidget(self.recorder_label)
+        self.recorder_path = QLabel("-", objectName="note")
+        self.recorder_path.setWordWrap(True)
+        layout2.addWidget(self.recorder_path)
         layout.addWidget(panel2)
         layout.addStretch(1)
         return page
@@ -391,13 +452,18 @@ class MainWindow(QMainWindow):
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setSpacing(10)
-        layout.addWidget(QLabel("SETTINGS", objectName="pageTitle"))
-        panel, panel_layout = self._panel("TERMINAL")
-        self.auto_feed = QCheckBox("start the read-only feed when the window opens")
-        self.auto_feed.setChecked(bool(self.settings.get("auto_start_feed", True)))
+        head = QHBoxLayout()
+        head.addWidget(QLabel("SETTINGS", objectName="pageTitle"))
+        head.addStretch(1)
+        layout.addLayout(head)
+        panel, panel_layout = _panel("TERMINAL")
+        self.auto_feed = QCheckBox(
+            "start the read-only feed when the window opens")
+        self.auto_feed.setChecked(bool(self.settings.get("auto_start_feed",
+                                                         True)))
         panel_layout.addWidget(self.auto_feed)
         row = QHBoxLayout()
-        row.addWidget(QLabel("symbols in the live table", objectName="dim"))
+        row.addWidget(QLabel("symbols in the live table", objectName="note"))
         self.max_symbols = QSpinBox()
         self.max_symbols.setRange(5, 400)
         self.max_symbols.setValue(int(self.settings.get("max_symbols", 80)))
@@ -407,7 +473,8 @@ class MainWindow(QMainWindow):
         save = QPushButton("SAVE SETTINGS")
         save.clicked.connect(self._save_settings)
         panel_layout.addWidget(save)
-        path = QLabel(f"settings file: {bridge.settings_path()}", objectName="dim")
+        path = QLabel(f"settings file: {bridge.settings_path()}",
+                      objectName="note")
         path.setWordWrap(True)
         panel_layout.addWidget(path)
         layout.addWidget(panel)
@@ -418,6 +485,32 @@ class MainWindow(QMainWindow):
     def _show_page(self, index: int) -> None:
         if 0 <= index < self.stack.count():
             self.stack.setCurrentIndex(index)
+
+    def _seed_banked(self) -> None:
+        """Fill the tables from the banked tape before the live feed speaks.
+
+        The live session overrides any symbol it reports; the bank only
+        supplies the symbols the live frame has not carried yet, so the
+        overview and live market are real data from the first second.
+        """
+        if self._live:
+            return
+        task = TaskThread(lambda: bridge.quote_rows(limit=400), self)
+        task.done.connect(self._seed_done)
+        task.failed.connect(self._task_failed)
+        self._tasks.add(task)
+        task.start()
+        task2 = TaskThread(lambda: bridge.order_flow_rows(limit=12), self)
+        task2.done.connect(self._render_order_flow)
+        task2.failed.connect(self._task_failed)
+        self._tasks.add(task2)
+        task2.start()
+
+    def _seed_done(self, rows: list) -> None:
+        for row in rows:
+            if row.symbol and row.symbol not in self._live:
+                self._live[row.symbol] = row
+        self._render_live()
 
     def start_feed(self) -> None:
         if self._feed is not None:
@@ -433,7 +526,8 @@ class MainWindow(QMainWindow):
             f"feed failed: {text}", 15000))
         self._feed.start()
         self.statusBar().showMessage(
-            f"read-only feed started for {len(symbols)} KMIALL symbols", 8000)
+            f"read-only feed started for {len(symbols)} KMIALL symbols",
+            8000)
 
     def stop_feed(self) -> None:
         feed, self._feed = self._feed, None
@@ -454,59 +548,90 @@ class MainWindow(QMainWindow):
     def _on_market(self, payload: dict) -> None:
         self._market = payload
 
+    # -------------------------------------------------------------- renders
     def _render_index(self) -> None:
         value = self._index.get("value")
         change = self._index.get("change")
         pct = self._index.get("change_pct")
-        self.index_value.setText(f"{value:,.2f}" if isinstance(value, (int, float)) else "-")
-        if isinstance(change, (int, float)):
-            colour = PALETTE["green"] if change >= 0 else PALETTE["red"]
-            sign = "+" if change >= 0 else ""
-            self.index_change.setText(
-                f'<span style="color:{colour}">{sign}{change:,.2f} '
-                f'({sign}{pct:.2f}%)</span>' if isinstance(pct, (int, float))
-                else f'<span style="color:{colour}">{sign}{change:,.2f}</span>')
+        if isinstance(value, (int, float)):
+            self.index_stat.setText(f"{value:,.2f}")
+            text = "-"
+            if isinstance(change, (int, float)):
+                sign = "+" if change >= 0 else ""
+                colour = (PALETTE["green"] if change >= 0
+                          else PALETTE["red"])
+                text = f"{sign}{change:,.2f}"
+                if isinstance(pct, (int, float)):
+                    text += f"  ({sign}{pct:.2f}%)"
+                self.index_sub.setStyleSheet(
+                    f"color: {colour}; font-weight: 600;")
         else:
-            self.index_change.setText("-")
+            self.index_stat.setText("-")
+            text = "index on the EXS-FEED wire"
+            self.index_sub.setStyleSheet("")
+        self.index_sub.setText(text)
+        chip = self.index_chip
+        if isinstance(change, (int, float)):
+            sign = "+" if change >= 0 else ""
+            colour = (PALETTE["green"] if change >= 0 else PALETTE["red"])
+            chip.setText(f"KSE100 {value:,.2f}  {sign}{change:,.2f}")
+            chip.setStyleSheet(f"color: {colour}; font-family: 'Cascadia "
+                               "Mono', Consolas, monospace; font-size: 14px;"
+                               " font-weight: 600;")
+        elif isinstance(value, (int, float)):
+            chip.setText(f"KSE100 {value:,.2f}")
+            chip.setStyleSheet("color: %s; font-family: 'Cascadia Mono',"
+                               " Consolas, monospace; font-size: 14px;"
+                               % PALETTE["bright"] + "; font-weight: 600;")
+        else:
+            chip.setText("")
 
     def _render_live(self) -> None:
         limit = int(self.settings.get("max_symbols", 80))
         rows = sorted(self._live.values(),
                       key=lambda row: (-(row.volume or 0), row.symbol))[:limit]
-        self.table.setRowCount(len(rows))
+        table = self.table
+        table.setRowCount(len(rows))
         for index, row in enumerate(rows):
             values = (
-                row.symbol, _dash(row.last), _dash(row.change_pct),
+                row.symbol, _dash(row.last), _pct(row.change_pct),
                 _dash(row.bid), _dash(row.ask), _dash(row.spread, 2),
-                _dash(row.volume, 0), _dash(row.age_seconds, 0),
+                _volume(row.volume), _age(row.age_seconds),
             )
-            for column, text in enumerate(values):
-                item = self.table.item(index, column)
-                if item is None:
-                    item = QTableWidgetItem()
-                    self.table.setItem(index, column, item)
-                if item.text() != text:
-                    item.setText(text)
-                if column == 2 and isinstance(row.change_pct, (int, float)):
-                    item.setForeground(QColor(
-                        PALETTE["green"] if row.change_pct >= 0 else PALETTE["red"]))
+            change_colour = None
+            if isinstance(row.change_pct, (int, float)):
+                change_colour = (PALETTE["green"] if row.change_pct >= 0
+                                 else PALETTE["red"])
+            age_colour = None
+            if isinstance(row.age_seconds, (int, float)) and \
+                    row.age_seconds > 120:
+                age_colour = PALETTE["faint"]
+            self._cell(table, index, 0, values[0])
+            self._cell(table, index, 1, values[1], align_right=True,
+                       colour=PALETTE["bright"])
+            self._cell(table, index, 2, values[2], align_right=True,
+                       colour=change_colour)
+            self._cell(table, index, 3, values[3], align_right=True)
+            self._cell(table, index, 4, values[4], align_right=True)
+            self._cell(table, index, 5, values[5], align_right=True)
+            self._cell(table, index, 6, values[6], align_right=True)
+            self._cell(table, index, 7, values[7], align_right=True,
+                       colour=age_colour)
+        self.live_count.setText(f"{len(self._live)} symbols banked today")
         self._apply_filter(self.filter.text())
 
     def _apply_filter(self, text: str) -> None:
         needle = text.strip().upper()
         for index in range(self.table.rowCount()):
             item = self.table.item(index, 0)
-            visible = not needle or (item is not None and needle in item.text())
+            visible = not needle or (item is not None
+                                     and needle in item.text())
             self.table.setRowHidden(index, not visible)
 
     def _refresh_order_flow(self) -> None:
         self.flow_button.setEnabled(False)
         self.statusBar().showMessage("recomputing order flow from the tape...")
-        limit = int(self.settings.get("max_symbols", 80))
-        leaders = [row.symbol for row in sorted(
-            self._live.values(), key=lambda r: -(r.volume or 0))[:12]]
-        task = TaskThread(lambda: bridge.order_flow_rows(
-            symbols=leaders or None, limit=12), self)
+        task = TaskThread(lambda: bridge.order_flow_rows(limit=12), self)
         task.done.connect(self._render_order_flow)
         task.failed.connect(self._task_failed)
         task.finished.connect(lambda: self.flow_button.setEnabled(True))
@@ -514,25 +639,35 @@ class MainWindow(QMainWindow):
         task.start()
 
     def _render_order_flow(self, rows: list) -> None:
-        self.flow_table.setRowCount(len(rows))
-        for index, row in enumerate(rows):
-            values = (
-                row.get("symbol", "-"),
+        rows = rows or []
+        values_rows = []
+        for row in rows:
+            cvd = row.get("cvd_inferred")
+            buy = row.get("buy_volume_inferred")
+            sell = row.get("sell_volume_inferred")
+            values_rows.append((
+                str(row.get("symbol", "-")),
                 _dash(row.get("obi_top1")),
-                _dash(row.get("cvd_inferred"), 0),
-                _dash(row.get("buy_volume_inferred"), 0),
-                _dash(row.get("sell_volume_inferred"), 0),
+                _dash(cvd, 0),
+                _dash(buy, 0),
+                _dash(sell, 0),
                 _dash(row.get("session_vwap")),
                 _dash(row.get("spread")),
                 _dash(row.get("windows"), 0),
-            )
-            for column, text in enumerate(values):
-                item = self.flow_table.item(index, column)
-                if item is None:
-                    item = QTableWidgetItem()
-                    self.flow_table.setItem(index, column, item)
-                item.setText(text)
-        self.statusBar().showMessage(f"order flow: {len(rows)} symbols", 6000)
+            ))
+        self._fill_table(self.flow_table, values_rows, FLOW_RIGHT)
+        for index, row in enumerate(rows):
+            colour = (PALETTE["green"] if (row.get("volume_delta") or 0) >= 0
+                      else PALETTE["red"])
+            self._cell(self.flow_table, index, 2,
+                       self.flow_table.item(index, 2).text(),
+                       align_right=True, colour=colour)
+        self.flow_button.setEnabled(True)
+        if rows:
+            self.statusBar().showMessage(
+                f"order flow: {len(rows)} symbols, inferred sides, "
+                "registry basis attached", 6000)
+        return None
 
     def _run_scan(self) -> None:
         self.scan_button.setEnabled(False)
@@ -580,78 +715,177 @@ class MainWindow(QMainWindow):
         state = bridge.session_status(moment)
         phase = state.get("phase", "-")
         live = bool(state.get("market_open"))
-        self.market_pill.setText(f"{phase} / {'ONLINE' if live else 'OFFLINE'}")
-        self.market_pill.setObjectName("pillLive" if live else "pill")
-        self.market_pill.style().unpolish(self.market_pill)
-        self.market_pill.style().polish(self.market_pill)
+        self.market_chip.setText(f"{phase} {'ONLINE' if live else 'CLOSED'}")
+        self.market_chip.setObjectName("chipLive" if live else "chip")
+        self.market_chip.style().unpolish(self.market_chip)
+        self.market_chip.style().polish(self.market_chip)
+
         fraction, label = bridge.session_progress(moment)
-        self.session_gauge.set_value(fraction, label)
-        self.clock.setText(moment.strftime("%Y-%m-%d  %H:%M:%S PKT"))
-        self.state_phase.setText(phase)
-        detail = state.get("condition_text") or ""
-        if state.get("next_event"):
-            event = state["next_event"]
-            detail = f"{detail} {event.get('event', '')} {event.get('at_pk', '')}".strip()
-        self.state_detail.setText(detail or "-")
-        health = bridge.feed_health()
-        self.feed_pill.setText(f"FEED {health['state']}")
-        self.feed_pill.setObjectName(
-            "pillLive" if health["state"] == "FRESH" else
-            "pillRisk" if health["state"] in ("DEAD", "STALE") else "pill")
-        self.feed_pill.style().unpolish(self.feed_pill)
-        self.feed_pill.style().polish(self.feed_pill)
-        self.health_state.setText(health["state"])
-        self.health_detail.setText(health["detail"])
-        counters = health.get("counters") or {}
-        self.health_counters.setText(
-            f"messages {counters.get('messages', 0):,} | ticks "
-            f"{counters.get('ticks', 0):,} | reconnects "
-            f"{counters.get('reconnects', 0)} | errors "
-            f"{counters.get('errors', 0)} | universe "
-            f"{health.get('universe_size') or '-'}")
-        self.recorder_label.setText(
-            f"last frame {health.get('last_frame_at') or '-'} | "
-            f"executor {health.get('last_error') or 'clean'}")
+        self.sessionbar.setValue(int(fraction * 1000))
+        self.sessionbar.setToolTip(label)
+
+        self.clock.setText(f"{moment:%Y-%m-%d  %H:%M:%S} PKT")
+
+        self.session_stat.setText(phase)
+        event_bits = []
+        condition = state.get("condition_text") or ""
+        if condition:
+            event_bits.append(condition)
+        event = state.get("next_event")
+        if event:
+            event_bits.append(
+                f"{event.get('event', '')} at {event.get('at_pk', '')}")
+        self.session_sub.setText(" | ".join(event_bits) or "-")
+
+        self._watchdog_feed(state)
+        self._render_feed_health(state)
+
         self._render_index()
         self._render_leaders()
         self._render_decision()
+        self._render_overview_detail(state)
+        self._seed_banked()
+
+    def _watchdog_feed(self, state: dict) -> None:
+        """Restart a feed that died while the market is open, with a cap.
+
+        This is a state check on the one second clock, not a wait: if the
+        thread exited and the session is live, one bounded restart per gap.
+        """
+        if not state.get("market_open"):
+            return
+        if self._feed is not None and self._feed.isRunning():
+            return
+        if self._feed is not None:
+            dead, self._feed = self._feed, None
+            dead.stop()
+        if not self.settings.get("auto_start_feed", True):
+            return
+        if self._feed_restarts >= FEED_RESTART_CAP:
+            return
+        self._feed_restarts += 1
+        self.start_feed()
+        self.statusBar().showMessage(
+            f"feed watchdog: restart {self._feed_restarts}/"
+            f"{FEED_RESTART_CAP}", 10000)
+
+    def _render_feed_health(self, state: dict) -> None:
+        health = bridge.feed_health()
+        label = str(health["state"])
+        self.feed_chip.setText(f"FEED {label}")
+        states = {"FRESH": "chipLive", "CONNECTED": "chip",
+                  "STALE": "chipRisk", "DEAD": "chipRisk",
+                  "COVERAGE": "chipRisk", "UNKNOWN": "chip"}
+        self.feed_chip.setObjectName(states.get(label, "chip"))
+        self.feed_chip.style().unpolish(self.feed_chip)
+        self.feed_chip.style().polish(self.feed_chip)
+
+        self.feed_stat.setText(label)
+        self.feed_stat.setStyleSheet(
+            "color: %s;" % (PALETTE["green"] if label == "FRESH"
+                            else PALETTE["red"] if label in ("DEAD", "STALE")
+                            else PALETTE["gold"]))
+        counters = health.get("counters") or {}
+        if isinstance(health.get("age_seconds"), (int, float)):
+            self.feed_sub.setText(
+                f"{health['detail']} | messages "
+                f"{counters.get('messages', 0):,} | ticks "
+                f"{counters.get('ticks', 0):,} | reconnects "
+                f"{counters.get('reconnects', 0)} | errors "
+                f"{counters.get('errors', 0)}")
+        else:
+            self.feed_sub.setText(str(health.get("detail") or "-"))
+
+        self.health_state.setText(label)
+        self.health_state.setStyleSheet(
+            "color: %s; letter-spacing: 2px;" % (
+                PALETTE["green"] if label == "FRESH"
+                else PALETTE["red"] if label in ("DEAD", "STALE")
+                else PALETTE["gold"]))
+        self.health_detail.setText(str(health.get("detail") or "-"))
+        self.health_counters.setText(
+            f"messages {counters.get('messages', 0):,}   ticks "
+            f"{counters.get('ticks', 0):,}   reconnects "
+            f"{counters.get('reconnects', 0)}   errors "
+            f"{counters.get('errors', 0)}   universe "
+            f"{health.get('universe_size') or '-'}")
+        self.recorder_label.setText(
+            f"last frame {health.get('last_frame_at') or '-'}   executor "
+            f"{health.get('last_error') or 'clean'}")
+        self.recorder_path.setText(f"capture root: {bridge.CAPTURE_ROOT}")
 
     def _render_leaders(self) -> None:
         leaders = sorted(self._live.values(),
-                         key=lambda row: -(row.volume or 0))[:3]
-        for index, label in enumerate(self.leader_rows):
+                         key=lambda row: -(row.volume or 0))[:5]
+        rows = []
+        for row in leaders:
+            colour = None
+            if isinstance(row.change_pct, (int, float)):
+                colour = (PALETTE["green"] if row.change_pct >= 0
+                          else PALETTE["red"])
+            rows.append(colour)
+        self.top_table.setRowCount(5)
+        for index in range(5):
             if index < len(leaders):
                 row = leaders[index]
-                colour = (PALETTE["green"] if (row.change_pct or 0) >= 0
-                          else PALETTE["red"])
-                label.setText(
-                    f"{index + 1}.  {row.symbol}   {_dash(row.last)}   "
-                    f"{_dash(row.volume, 0)}   {_dash(row.change_pct)}%")
-                label.setStyleSheet(f"color: {colour};")
+                self._cell(self.top_table, index, 0, row.symbol)
+                self._cell(self.top_table, index, 1, _dash(row.last),
+                           align_right=True, colour=PALETTE["bright"])
+                self._cell(self.top_table, index, 2, _pct(row.change_pct),
+                           align_right=True, colour=rows[index])
+                self._cell(self.top_table, index, 3, _volume(row.volume),
+                           align_right=True)
             else:
-                label.setText("-")
+                self._cell(self.top_table, index, 0, "-")
+                self._cell(self.top_table, index, 1, "-", align_right=True)
+                self._cell(self.top_table, index, 2, "-", align_right=True)
+                self._cell(self.top_table, index, 3, "-", align_right=True)
 
     def _render_decision(self) -> None:
         record = bridge.trade_decision()
         state = str(record.get("state") or "-")
-        self.decision_label.setText(state)
+        self.decision_stat.setText(state)
+        self.decision_stat.setStyleSheet(
+            "color: %s;" % (PALETTE["green"] if state.upper().startswith(
+                ("TARGET", "EXITED")
+            ) else PALETTE["gold"] if state.upper() == "HOLDING"
+            else PALETTE["bright"]))
         bits = []
         if record.get("symbol"):
-            bits.append(f"{record['symbol']} entry {_dash(record.get('entry_price'))}")
+            bits.append(f"{record['symbol']} entry "
+                        f"{_dash(record.get('entry_price'))}")
         if record.get("target_price") is not None:
             bits.append(f"target {_dash(record.get('target_price'))}")
         if record.get("stop_loss") is not None:
             bits.append(f"stop {_dash(record.get('stop_loss'))}")
         if record.get("exit_reason"):
             bits.append(str(record["exit_reason"]))
-        self.decision_detail.setText(" | ".join(bits) or
-                                     (record.get("last_reason") or "-"))
+        self.decision_sub.setText(" | ".join(bits)
+                                  or (record.get("last_reason") or "-"))
         self.signal_state.setText(state)
+        self.signal_state.setStyleSheet(
+            "color: %s; letter-spacing: 2px;" % (
+                PALETTE["green"] if state.upper().startswith(
+                    ("TARGET", "EXITED")
+                ) else PALETTE["gold"] if state.upper() == "HOLDING"
+                else PALETTE["bright"]))
         self.signal_line.setText(" | ".join(bits) or "-")
         self.signal_extra.setText(
-            f"day {record.get('day')} | trades today {record.get('trades_today')} "
-            f"| scans {record.get('scans')} | finalized "
-            f"{'yes' if record.get('finalized') else 'no'}")
+            f"day {record.get('day')}   trades today "
+            f"{record.get('trades_today')}   scans {record.get('scans')}   "
+            f"finalized {'yes' if record.get('finalized') else 'no'}")
+
+    def _render_overview_detail(self, state: dict) -> None:
+        health = bridge.feed_health()
+        bits = []
+        if state.get("next_event"):
+            event = state["next_event"]
+            bits.append(f"next: {event.get('event', '')} at "
+                        f"{event.get('at_pk', '')}")
+        if self._live:
+            bits.append(f"{len(self._live)} symbols on the tape today")
+        bits.append(str(health.get("detail") or "-"))
+        self.overview_detail.setText(" | ".join(bits))
 
     # -------------------------------------------------------------- window
     def closeEvent(self, event) -> None:  # noqa: N802 - Qt override

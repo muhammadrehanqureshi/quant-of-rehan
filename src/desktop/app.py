@@ -17,6 +17,19 @@ import sys
 from pathlib import Path
 
 
+def window_icon_path() -> Path | None:
+    """The bundled ico, wherever the runtime is running from."""
+    from pathlib import Path as _Path
+
+    if getattr(sys, "frozen", False):
+        candidate = _Path(getattr(sys, "_MEIPASS", "") or "") / "assets" \
+            / "quant-of-rehan.ico"
+    else:
+        candidate = _Path(__file__).resolve().parents[2] / "assets" \
+            / "quant-of-rehan.ico"
+    return candidate if candidate.is_file() else None
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Quant of Rehan terminal")
     parser.add_argument("--smoke", action="store_true",
@@ -38,6 +51,7 @@ def main(argv: list[str] | None = None) -> int:
         data_dir.mkdir(parents=True, exist_ok=True)
 
     from PySide6.QtCore import QTimer
+    from PySide6.QtGui import QIcon
     from PySide6.QtWidgets import QApplication
 
     if getattr(sys, "frozen", False):
@@ -53,6 +67,9 @@ def main(argv: list[str] | None = None) -> int:
     application = QApplication.instance() or QApplication(sys.argv[:1])
     application.setApplicationName("Quant of Rehan")
     application.setOrganizationName("QuantOfRehan")
+    icon = window_icon_path()
+    if icon is not None:
+        application.setWindowIcon(QIcon(str(icon)))
     window = MainWindow(start_feed=not (args.no_feed or args.smoke))
     window.show()
 
