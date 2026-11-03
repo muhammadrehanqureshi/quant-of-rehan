@@ -167,6 +167,13 @@ def spark(values) -> str:
                    for v in clean)
 
 
+def _whole(value):
+    try:
+        return int(float(value))
+    except (TypeError, ValueError):
+        return None
+
+
 def _range_split(price, volume, high, low):
     """The same range-position estimate the relay publishes, for rows that
     arrive without a split pair. Never a tape claim, only the estimate."""
@@ -231,7 +238,12 @@ class FlowTracker:
                 "high": high, "low": low, "series": [price],
                 "baseline": bool(volume),
                 "method": quote.get("split_method") or "range_position",
-                "mbuy": 0, "msell": 0, "since": now,
+                "mbuy": _whole(quote.get("measured_buy")) or 0,
+                "msell": _whole(quote.get("measured_sell")) or 0,
+                "mbase": _whole(quote.get("flow_baseline")) or 0,
+                "msrc": ("hub" if _whole(quote.get("measured_buy")) is not None
+                         else "desk"),
+                "since": now,
             }
             self.window[symbol] = deque()
             return
@@ -244,6 +256,15 @@ class FlowTracker:
         declared = quote.get("split_method")
         if declared:
             state["method"] = declared
+        # The hub's whole-day separation is the one that covers the session
+        # from its first observed print; when it is present it replaces the
+        # desk's own since-open count instead of being added to it.
+        measured_buy = _whole(quote.get("measured_buy"))
+        measured_sell = _whole(quote.get("measured_sell"))
+        if measured_buy is not None and measured_sell is not None:
+            state["mbuy"], state["msell"] = measured_buy, measured_sell
+            state["mbase"] = _whole(quote.get("flow_baseline")) or 0
+            state["msrc"] = "hub"
         if not isinstance(buy_relay, (int, float)) or \
                 not isinstance(sell_relay, (int, float)):
             buy_relay, sell_relay = _range_split(
@@ -274,10 +295,11 @@ class FlowTracker:
             value = delta * price
             # the same decision also accumulates the whole session this desk
             # has watched, so the measured pair is the sum of sided deltas
-            if state["side"] == "B":
-                state["mbuy"] += delta
-            else:
-                state["msell"] += delta
+            if state["msrc"] != "hub":
+                if state["side"] == "B":
+                    state["mbuy"] += delta
+                else:
+                    state["msell"] += delta
             self.window[symbol].append(
                 (now, delta, value if state["side"] == "B" else 0.0,
                  value if state["side"] == "S" else 0.0))
@@ -312,6 +334,8 @@ class FlowTracker:
                 "split_method": state.get("method"),
                 "measured_buy": state["mbuy"],
                 "measured_sell": state["msell"],
+                "measured_baseline": state["mbase"],
+                "measured_source": state["msrc"],
                 "measured_since": state["since"],
                 "bought": state["buy"] * state["price"],
                 "sold": state["sell"] * state["price"],
@@ -405,6 +429,13 @@ def load_record(path: Path | None = None) -> dict:
     return saved
 
 
+def _hhmm(stamp) -> str:
+    text = str(stamp or "")
+    if "T" in text:
+        text = text.split("T", 1)[1]
+    return text[:5]
+
+
 def human_age(seconds) -> str:
     if not isinstance(seconds, (int, float)):
         return ""
@@ -481,7 +512,7 @@ def render(desk: Desk, page: int, sort: int, size, now: datetime) -> list[str]:
         f"{paint('LINK', FAINT)}  {paint(f'{desk.link_ms:.0f} ms' if desk.link_ms else '-', WHITE)}",
         f"{paint('FEED', FAINT)}  {paint(state + '  ' + lag_text, state_colour)}",
         f"{paint('PHASE', FAINT)} {paint(str(phase.get('phase') or '-'), WHITE)}",
-        f"{paint('NEXT', FAINT)}  {paint(str((phase.get('next_event') or {}).get('event') or '-') + ' ' + str((phase.get('next_event') or {}).get('at_pk') or '')[-5:], DIM)}",
+        f"{paint('NEXT', FAINT)}  {paint(str((phase.get('next_event') or {}).get('event') or '-') + ' ' + _hhmm((phase.get('next_event') or {}).get('at_pk')), DIM)}",
         f"{paint('SCAN', FAINT)}  {paint('1S LIVE' if market_open else 'OFF-SESSION', WHITE)}",
         f"{paint('FLOW', FAINT)}  {paint('ON', GREEN)} {len(desk.flow.day)} scrips",
         f"{paint('REQ', FAINT)}   {paint(f'{fresh}/{len(desk.quotes)} fresh', DIM)}",
@@ -650,7 +681,7 @@ def _home_page(desk: Desk, width: int, now: datetime) -> list[str]:
         if series:
             board.append("   " + paint(spark(series), GREEN))
     board.append("")
-    measured = any(row.get("split_method") == "quote_rule"
+    measured = any(row.get("measured_source") == "hub"
                    for row in _top_by_volume(desk, now))
     board.append(paint("B/S measured at the wire, every volume increment "
                        "sided by the broker's bid/ask"
@@ -715,10 +746,10 @@ def _scanner_page(desk: Desk, sort: int, width: int, now: datetime) -> list[str]
 def _flow_page(desk: Desk, width: int, now: datetime) -> list[str]:
     lines = [paint("\u25c6 ORDER FLOW  -  DAY MONEY FLOW BY VOLUME",
                    WHITE, True), ""]
-    header = (pad("SCRIP", 9) + pad("PRICE", 9, "right") +
-              pad("BUY", 11, "right") + pad("SELL", 11, "right") +
-              pad("TOTAL", 12, "right") + pad("CHG", 9, "right") +
-              pad("MB", 7, "right") + pad("MS", 7, "right"))
+    header = (pad("SCRIP", 8) + pad("PRICE", 8, "right") +
+              pad("BUY", 10, "right") + pad("SELL", 10, "right") +
+              pad("TOTAL", 11, "right") + pad("CHG", 8, "right") +
+              pad("MB", 10, "right") + pad("MS", 10, "right"))
     lines.append(paint(header, FAINT))
     rows = desk.flow.rows(now=now)
     since = None
@@ -726,22 +757,29 @@ def _flow_page(desk: Desk, width: int, now: datetime) -> list[str]:
         arrow, _colour = pct_text(row["change_pct"])
         since = since or row.get("measured_since")
         lines.append(
-            pad(row["symbol"], 9) +
-            pad(f"{row['price']:.2f}", 9, "right") +
-            pad(count(row["buy_volume"]), 11, "right") +
-            pad(count(row["sell_volume"]), 11, "right") +
-            pad(count(row["volume"]), 12, "right") +
-            pad(arrow, 9, "right") +
-            pad(count(row.get("measured_buy")), 7, "right") +
-            pad(count(row.get("measured_sell")), 7, "right"))
+            pad(row["symbol"], 8) +
+            pad(f"{row['price']:.2f}", 8, "right") +
+            pad(count(row["buy_volume"]), 10, "right") +
+            pad(count(row["sell_volume"]), 10, "right") +
+            pad(count(row["volume"]), 11, "right") +
+            pad(arrow, 8, "right") +
+            pad(count(row.get("measured_buy")), 10, "right") +
+            pad(count(row.get("measured_sell")), 10, "right"))
     lines.append("")
-    window = (f"MB/MS: this desk's own strict flow since "
-              f"{since:%H:%M}, every increment sided by the broker's "
-              f"bid/ask; BUY/SELL: the relay's day pair"
-              if since else "MB/MS: the desk's own strict flow")
-    lines.append(paint(window, FAINT))
-    lines.append(paint(split_basis() + "; each side is held at its "
-                       "high-water mark so neither can fall", FAINT))
+    if any(row.get("measured_source") == "hub" for row in rows[:14]):
+        baseline = max((row.get("measured_baseline") or 0) for row in rows[:14])
+        lines.append(paint("MB/MS: the whole day, measured at the relay, "
+                           "sided by the broker's bid/ask", FAINT))
+        lines.append(paint(
+            (f"{baseline:,} shares before the hub's first observation are "
+             f"unclassified" if baseline else
+             "the hub saw the day from its first print"), FAINT))
+    elif since:
+        lines.append(paint(
+            f"MB/MS: this desk's own strict flow since {since:%H:%M}, "
+            f"sided by the broker's bid/ask", FAINT))
+    lines.append(paint("day pair: " + split_basis() + "; each side is "
+                       "held at its high-water mark", FAINT))
     return lines
 
 
