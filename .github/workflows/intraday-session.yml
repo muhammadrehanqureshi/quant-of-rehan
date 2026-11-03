@@ -168,7 +168,12 @@ jobs:
           # A cron changes only when the runner wakes, never what the loop is
           # allowed to see; the loop itself ends at the band's own close.
           case "${{ github.event.schedule }}" in
-            "55 3 * * 1-4") seconds=10860 ;;   # 181 min, ends 12:31
+            # 08:55 + 216 min = 12:31, and 12:30 + 181 min = 15:31. Band 1
+            # used to be 181 min, which ended its loop at 11:56 and left the
+            # relay unpushed from 11:56 until the 12:30 band: the owner saw
+            # that as "the data is delayed by many seconds". The length must
+            # reach the next band's start, not stop short of it.
+            "55 3 * * 1-4") seconds=12960 ;;   # 216 min, ends 12:31
             "30 7 * * 1-4") seconds=10860 ;;   # 181 min, ends 15:31
             "32 10 * * 1-4") seconds=1200 ;;   # 20 min, post-market to 15:52
             "17 4 * * 5")   seconds=9900  ;;   # 165 min, midday break after
