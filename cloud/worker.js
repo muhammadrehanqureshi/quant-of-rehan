@@ -1726,10 +1726,18 @@ async function healthPayload(env) {
   } catch (_) {
     flowError = null;
   }
+  let flowBudget = null;
+  try {
+    const rawFlowBudget = await kvGet(env, "FLOW:STATS");
+    if (rawFlowBudget) flowBudget = JSON.parse(rawFlowBudget);
+  } catch (_) {
+    flowBudget = null;
+  }
   return {
     ok: true,
     service: "quant-of-rehan-relay",
     flow_last_error: flowError,
+    flow_budget: flowBudget,
     // The commit this script was built from. The deploy workflow sets it from
     // GITHUB_SHA and then asks /health for it, so a deploy that uploaded
     // nothing (or uploaded to another account) cannot pass as a success.
@@ -2356,6 +2364,9 @@ export default {
   },
 };
 
+const FLOW_FLUSH_MS = 10 * 60 * 1000;
+const FLOW_ROWS_PER_DAY = 40000;
+
 // One SQLite-backed object holds the latest broker frame set. Producer
 // requests are coalesced to at most once per second by the cloud capture;
 // connected browsers receive server-pushed changes without one DO request per
@@ -2371,6 +2382,9 @@ export class QuoteHub {
     // time, not 312 rows every second.
     this.flowStates = null;
     this.lastFlowFlush = 0;
+    this.flowRowsDay = "";
+    this.flowRowsToday = 0;
+    this.flowStatsLoaded = false;
     this.ready = ctx.blockConcurrencyWhile(async () => {
       ctx.storage.sql.exec(
         "CREATE TABLE IF NOT EXISTS quote_snapshot (id INTEGER PRIMARY KEY CHECK (id = 1), payload TEXT NOT NULL)",
@@ -2414,6 +2428,7 @@ export class QuoteHub {
     if (!/^[A-Z0-9]{1,12}$/.test(symbol)) return null;
     if (!Number.isFinite(at) || !Number.isFinite(total) || total < 0) return null;
     const day = dayStamp(karachiView(at));
+    await this.loadFlowStats();
     const price = Number(quote.price);
     const bid = Number(quote.bid);
     const ask = Number(quote.ask);
@@ -2487,13 +2502,44 @@ export class QuoteHub {
     }
     this.flowStates[symbol] = state;
     const flushed = Date.now();
-    if (flushed - this.lastFlowFlush >= 5 * 60 * 1000) {
-      this.persistFlowStates();
+    if (flushed - this.lastFlowFlush >= FLOW_FLUSH_MS) {
+      if (this.flowRowsDay !== day) {
+        this.flowRowsDay = day;
+        this.flowRowsToday = 0;
+      }
+      const rows = Object.keys(this.flowStates).length;
+      if (this.flowRowsToday + rows <= FLOW_ROWS_PER_DAY &&
+          this.persistFlowStates()) {
+        this.flowRowsToday += rows;
+      }
       this.lastFlowFlush = flushed;
+      try {
+        await this.statePut("FLOW:STATS", JSON.stringify({
+          day: this.flowRowsDay,
+          rows_written_today: this.flowRowsToday,
+          row_budget: FLOW_ROWS_PER_DAY,
+          flush_minutes: FLOW_FLUSH_MS / 60000,
+          symbols: rows,
+          last_flush: new Date(flushed).toISOString(),
+          exhausted: this.flowRowsToday >= FLOW_ROWS_PER_DAY,
+        }), 0);
+      } catch (_) { /* stats are best effort */ }
     }
     if (state.buy + state.sell + state.baseline !== total) return null;
     return { buy_volume: state.buy, sell_volume: state.sell,
       baseline: state.baseline, total };
+  }
+
+  async loadFlowStats() {
+    if (this.flowStatsLoaded) return;
+    this.flowStatsLoaded = true;
+    try {
+      const raw = await this.stateGet("FLOW:STATS");
+      if (!raw) return;
+      const stats = JSON.parse(raw);
+      this.flowRowsDay = String(stats.day || "");
+      this.flowRowsToday = Math.max(0, Number(stats.rows_written_today) || 0);
+    } catch (_) { /* first run has no stats yet */ }
   }
 
   loadFlowStates() {
@@ -2535,7 +2581,10 @@ export class QuoteHub {
           JSON.stringify(state.rules), Date.now(),
         );
       }
-    } catch (_) { /* budget exhausted: memory keeps advancing until the cap resets */ }
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   async snapshot() {
