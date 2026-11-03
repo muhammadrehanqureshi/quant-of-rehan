@@ -196,9 +196,15 @@ class QuoteFlow:
                     sell = int(float(row.get("sell_volume")))
                 except (TypeError, ValueError):
                     buy = sell = -1
-                if buy >= 0 and sell >= 0 and buy + sell == volume:
+                # The stored pair may cover only the shares after an earlier
+                # baseline. Adopt it whenever the three parts are coherent,
+                # not only when the baseline is zero: a restart that rejected
+                # a mid-day pair would re-baseline and the day's sides would
+                # restart from zero, which is exactly the decrease the owner
+                # forbids.
+                if buy >= 0 and sell >= 0 and buy + sell <= volume:
                     flow.buy, flow.sell = buy, sell
-                    flow.baseline = 0
+                    flow.baseline = volume - buy - sell
                     adopted += 1
             self.symbols[symbol] = flow
         return adopted
