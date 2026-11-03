@@ -54,3 +54,7 @@ web/dist/
 
 # --- Local tool output (worker_check.py harness) ---
 /tmp/
+
+# Desktop terminal build output (PyInstaller)
+/dist/
+/build/
