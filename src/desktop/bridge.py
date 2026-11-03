@@ -1,0 +1,337 @@
+"""The desktop terminal's data core: Qt free, so CI tests it without PySide6.
+
+Every function here reads the same backend the cloud runs, through the same
+modules, and returns plain dataclasses and dicts:
+
+  * live quotes from today's banked capture (`quote_rows`) or from one frame
+    just banked by the capture thread (`quote_from_update`);
+  * the market session law (`session_status`, `session_progress`);
+  * feed health from the recorder's own heartbeat (`feed_health`), which is
+    what keeps a connected socket from being shown as a healthy feed;
+  * the local session record (`trade_decision`);
+  * measured order flow for the leaders (`order_flow_rows`), with the
+    inferred basis carried in the payload. The registry at
+    src/data/registry.py is the authority on what may be claimed.
+
+Nothing here invents a number: a missing field is None and the UI prints a
+dash. No function places an order or talks to a broker.
+"""
+
+from __future__ import annotations
+
+from src.data.registry import REGISTRY  # SO-3: the data dependency
+
+import json
+import os
+from dataclasses import asdict, dataclass
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+KARACHI = timezone(timedelta(hours=5))   # SO-8
+
+APP_DIR = (Path(os.environ.get("APPDATA") or str(Path.home()))
+           / "QuantOfRehan")
+CAPTURE_ROOT = Path(os.environ.get("QOR_CAPTURE_DIR")
+                     or (ROOT / "data" / "feed_capture"))
+SETTINGS_NAME = "settings.json"
+
+DEFAULT_SETTINGS = {
+    "window_geometry": "",
+    "window_state": "",
+    "auto_start_feed": True,
+    "max_symbols": 80,
+}
+
+
+def settings_path(directory: Path | None = None) -> Path:
+    return (directory or APP_DIR) / SETTINGS_NAME
+
+
+def load_settings(directory: Path | None = None) -> dict:
+    """Settings merged over the defaults; an unreadable file is ignored."""
+    settings = dict(DEFAULT_SETTINGS)
+    path = settings_path(directory)
+    try:
+        saved = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return settings
+    if isinstance(saved, dict):
+        for key in DEFAULT_SETTINGS:
+            if key in saved:
+                settings[key] = saved[key]
+        for key, value in saved.items():
+            settings.setdefault(key, value)
+    return settings
+
+
+def save_settings(settings: dict, directory: Path | None = None) -> Path:
+    """Atomic write: a crash mid-save never leaves half a settings file."""
+    path = settings_path(directory)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(json.dumps(settings, indent=1), encoding="utf-8")
+    tmp.replace(path)
+    return path
+
+
+@dataclass(frozen=True)
+class QuoteRow:
+    """One symbol's latest observation, ready for the live table."""
+
+    symbol: str
+    last: float | None
+    change_pct: float | None
+    volume: int | None
+    bid: float | None
+    ask: float | None
+    spread: float | None
+    age_seconds: float | None
+    status: str
+
+    def as_dict(self) -> dict:
+        return asdict(self)
+
+
+def _now(now: datetime | None) -> datetime:
+    moment = now or datetime.now(KARACHI)
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=KARACHI)
+    return moment.astimezone(KARACHI)
+
+
+def quote_from_update(quote: dict, now: datetime | None = None) -> QuoteRow:
+    """One live quote (feed_capture.relay_quote_updates shape) as a row."""
+    bid = quote.get("bid")
+    ask = quote.get("ask")
+    spread = (round(ask - bid, 4)
+              if isinstance(bid, (int, float)) and isinstance(ask, (int, float))
+              and ask >= bid else None)
+    observed = quote.get("observed_at")
+    age = None
+    if observed:
+        try:
+            stamp = datetime.fromisoformat(str(observed))
+            if stamp.tzinfo is None:
+                stamp = stamp.replace(tzinfo=KARACHI)
+            age = max(0.0, (_now(now) - stamp).total_seconds())
+        except ValueError:
+            age = None
+    volume = quote.get("volume")
+    return QuoteRow(
+        symbol=str(quote.get("symbol", "")).upper(),
+        last=quote.get("price"),
+        change_pct=quote.get("change_pct"),
+        volume=int(volume) if isinstance(volume, (int, float)) else None,
+        bid=bid, ask=ask, spread=spread, age_seconds=age,
+        status=str(quote.get("status") or "UNKNOWN"),
+    )
+
+
+def capture_for(day: datetime | None, capture_root: Path | None = None) -> Path:
+    moment = _now(day)
+    root = capture_root or CAPTURE_ROOT
+    return root / f"capture_{moment:%Y%m%d}.ndjson"
+
+
+def quote_rows(capture: Path | None = None, now: datetime | None = None,
+               limit: int | None = None, max_age_seconds: float = 900.0
+               ) -> list[QuoteRow]:
+    """Latest observation per REG symbol from a banked capture, newest first.
+
+    Reads backwards only, stopping once the tail is older than the window,
+    so a 90 MB session file costs a bounded read rather than a full parse.
+    A symbol whose newest row is older than the window is left out: a stale
+    quote dressed as a live one is the failure this table exists to avoid.
+    """
+    from src.data import broker_market
+
+    moment = _now(now)
+    path = capture or capture_for(moment)
+    if not path.is_file():
+        return []
+    latest: dict[str, QuoteRow] = {}
+    for record in broker_market._newest_records(path):
+        if not isinstance(record, dict):
+            continue
+        kind = str(record.get("kind", ""))
+        if not kind.startswith("MKT-FEED"):
+            continue
+        try:
+            stamp = datetime.fromisoformat(str(record.get("ts", "")))
+        except ValueError:
+            continue
+        if stamp.tzinfo is None:
+            stamp = stamp.replace(tzinfo=KARACHI)
+        age = (moment - stamp.astimezone(KARACHI)).total_seconds()
+        if age > max_age_seconds:
+            break
+        for tick in broker_market._tick_rows(record):
+            symbol = str(tick.get("scrip", "")).strip().upper().split(":", 1)[0]
+            if (not symbol or symbol in latest
+                    or str(tick.get("market", "")).strip().upper() != "REG"):
+                continue
+            price = broker_market._number(tick.get("last"))
+            close = broker_market._number(tick.get("close"))
+            volume = broker_market._number(tick.get("volume"))
+            bid = broker_market._number(tick.get("bid"))
+            ask = broker_market._number(tick.get("ask"))
+            latest[symbol] = QuoteRow(
+                symbol=symbol,
+                last=price if price and price > 0 else None,
+                change_pct=((price - close) / close * 100.0
+                            if price and close and close > 0 else None),
+                volume=int(volume) if volume is not None and volume >= 0 else None,
+                bid=bid, ask=ask,
+                spread=(round(ask - bid, 4)
+                        if bid and ask and ask >= bid else None),
+                age_seconds=round(age, 1),
+                status=broker_market._symbol_status(tick.get("status")),
+            )
+    rows = sorted(latest.values(),
+                  key=lambda row: (-(row.volume or 0), row.symbol))
+    return rows[:limit] if limit else rows
+
+
+def session_status(now: datetime | None = None) -> dict:
+    """The one session law's answer, as the relay and the phone read it."""
+    from src.data import sessions
+
+    return sessions.market_state(now)
+
+
+def session_progress(now: datetime | None = None) -> tuple[float, str]:
+    """(fraction of the live band elapsed, band label) for the HUD gauge."""
+    state = session_status(now)
+    band = state.get("live_band")
+    if not band:
+        return 0.0, str(state.get("phase") or "CLOSED")
+    moment = _now(now)
+    def minutes(text: str) -> int:
+        hour, minute = (int(part) for part in str(text).split(":", 1))
+        return hour * 60 + minute
+    start, end = minutes(band["open"]), minutes(band["close"])
+    current = moment.hour * 60 + moment.minute + moment.second / 60.0
+    if end <= start:
+        return 0.0, f"{band['open']}-{band['close']}"
+    fraction = (current - start) / (end - start)
+    return max(0.0, min(1.0, fraction)), f"{band['open']}-{band['close']}"
+
+
+def feed_health(status_path: Path | None = None,
+                now: datetime | None = None) -> dict:
+    """Classify the feed in the owner's four steps, never from a socket alone.
+
+    CONNECTED (the recorder says it is running), RECEIVING (its last frame is
+    inside the heartbeat staleness bound), FRESH (a frame inside 90 seconds)
+    and COVERAGE (how many symbols its universe asks for). A file that is
+    missing or stale reports DEAD, which is what the System Health page must
+    be able to say.
+    """
+    from src.data import live_card
+
+    path = status_path or (ROOT / "data" / "feed_capture" / "status.json")
+    moment = _now(now)
+    if not path.is_file():
+        return {"state": "DEAD", "detail": "no recorder heartbeat yet",
+                "counters": {}, "age_seconds": None, "universe_size": None}
+    try:
+        saved = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        return {"state": "DEAD", "detail": f"heartbeat unreadable: {type(exc).__name__}",
+                "counters": {}, "age_seconds": None, "universe_size": None}
+    stamp = None
+    try:
+        stamp = datetime.fromisoformat(str(saved.get("updated_at", "")))
+    except ValueError:
+        pass
+    age = None
+    if stamp is not None:
+        if stamp.tzinfo is None:
+            stamp = stamp.replace(tzinfo=KARACHI)
+        age = max(0.0, (moment - stamp.astimezone(KARACHI)).total_seconds())
+    counters = saved.get("counters") or {}
+    if not saved.get("running"):
+        state = "DEAD"
+        detail = "the recorder is not running"
+    elif age is None:
+        state = "UNKNOWN"
+        detail = "the heartbeat carries no readable time"
+    elif age > live_card.TAPE_STALE_SECONDS * 4:
+        state = "DEAD"
+        detail = f"no heartbeat for {age:.0f}s"
+    elif age > 90:
+        state = "STALE"
+        detail = f"last frame {age:.0f}s ago"
+    else:
+        state = "FRESH"
+        detail = f"last frame {age:.0f}s ago, {counters.get('messages', 0)} messages banked"
+    return {"state": state, "detail": detail, "counters": counters,
+            "age_seconds": None if age is None else round(age, 1),
+            "universe_size": saved.get("universe_size"),
+            "last_frame_at": saved.get("last_frame_at"),
+            "last_error": saved.get("last_error")}
+
+
+def trade_decision(day=None, state=None) -> dict:
+    """The local engine's record for the day, as the Signals page shows it."""
+    if state is None:
+        from src.signals.trade_state import SessionState
+
+        state = SessionState.load(day)
+    return {
+        "day": state.day,
+        "state": state.state,
+        "symbol": state.symbol,
+        "entry_price": state.entry_price,
+        "entry_time": state.entry_time,
+        "target_price": state.target_price,
+        "stop_loss": state.stop_loss,
+        "exit_price": state.exit_price,
+        "exit_time": state.exit_time,
+        "return_pct": state.return_pct,
+        "target_hit": state.target_hit,
+        "stop_hit": state.stop_hit,
+        "exit_reason": state.exit_reason,
+        "trades_today": state.trades_today,
+        "finalized": state.finalized,
+        "last_reason": state.last_reason,
+        "scans": state.scans,
+    }
+
+
+def footprint_availability() -> str:
+    """The registry's own verdict on depth data, spelled the way it is shown."""
+    source = REGISTRY["footprint"]
+    label = getattr(source.availability, "value", "UNAVAILABLE")
+    return str(label).upper()
+
+
+def order_flow_rows(capture: Path | None = None, symbols=None,
+                    limit: int = 12) -> list[dict]:
+    """Measured flow for the leaders, every number carrying its basis.
+
+    Missing inputs are None, never zero. The side split and CVD come from
+    inferred side evidence on a snapshot wire and are labelled as inferred;
+    the registry's footprint status travels in the payload (SO-3).
+    """
+    from src.data import order_flow as flow
+
+    path = capture or capture_for(None)
+    if not path.is_file():
+        return []
+    wanted = list(symbols) if symbols is not None else None
+    if wanted is None:
+        wanted = [row.symbol for row in quote_rows(path, limit=limit)]
+    flows = flow.symbol_flow(path, wanted)
+    rows = []
+    for symbol, measured in flows.items():
+        payload = measured.as_dict()
+        payload["basis"] = {
+            "sides": "inferred (print at the ask or bid, then the tick rule)",
+            "footprint_registry": footprint_availability(),
+            "depth": "top of book only",
+        }
+        rows.append(payload)
+    rows.sort(key=lambda row: (-(row.get("volume_delta") or 0), row["symbol"]))
+    return rows[:limit]
