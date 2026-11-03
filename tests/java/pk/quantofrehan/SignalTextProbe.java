@@ -24,6 +24,7 @@ public final class SignalTextProbe {
     public static void main(String[] args) {
         fieldCard();
         sentenceCard();
+        mtfCard();
         noTradeCard();
         missingCard();
         summaryTargetIsNotAPrice();
@@ -31,7 +32,7 @@ public final class SignalTextProbe {
         metadataNeverLeaks();
 
         if (failures.isEmpty()) {
-            System.out.println("PASS SignalText: 7 cases");
+            System.out.println("PASS SignalText: 8 cases");
             return;
         }
         for (String failure : failures) {
@@ -65,6 +66,22 @@ public final class SignalTextProbe {
         check("the sentence card yields the ticker, time and three prices",
                 out.equals("HCAR\nEntry Time: 09:41:07\nEntry Price: 203.0\n"
                         + "Target Price: 207.06\nStop Loss: 199.5"));
+    }
+
+    /** The cloud's four frame line survives the compact tile unchanged. */
+    private static void mtfCard() {
+        String card = "QoR intraday 2026-11-03 | 14:30:00 PKT\n"
+                + "Symbol: HCAR\n"
+                + "Entry price: 203.0\n"
+                + "Exit price: 207.06\n"
+                + "Stop Loss: 199.5\n"
+                + "Entry time: 09:41:07 PKT\n"
+                + "MTF 5m +1 above VWAP | 15m +1 above VWAP | "
+                + "1h +1 above VWAP | 1D +1 above VWAP";
+        String out = SignalText.compact(card);
+        check("the cloud MTF line stays on the tile",
+                out.endsWith("\nMTF 5m +1 above VWAP | 15m +1 above VWAP | "
+                        + "1h +1 above VWAP | 1D +1 above VWAP"));
     }
 
     /** A market where the rules refused every candidate is one word. */
