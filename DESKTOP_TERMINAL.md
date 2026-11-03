@@ -15,7 +15,7 @@ number says so next to itself.
 
 | Page | What it shows | Source |
 |---|---|---|
-| Overview | KSE100 tile, session phase and next event, feed state, today's record, top volume table | session law, banked tape, live feed, `trade_state` |
+| Home | Quant status chip and greeting, the local session record's latest signal, the index and top volume scrips with price, change and the B/S/T money flow per scrip, a buying-now board and a dotted chart each, telemetry | session law, banked tape, live feed, `trade_state`, `volume_split` |
 | Live Market | newest quote per symbol: last, change, bid, ask, spread, volume, age; symbol filter | `feed_capture` capture |
 | Order Flow | OBI top-1, inferred CVD, inferred buy and sell, session VWAP, spread; measured from the day's tape | `src/data/order_flow.py` |
 | Signals | the real session record, plus one local scan on demand | `src/signals/trade_state.py`, `scripts/intraday_pipeline.py` |
@@ -28,31 +28,43 @@ than shown empty.
 
 ## How it looks and behaves (reworked 2026-11-03 after owner review)
 
-The first build read as a toy: hollow pages, a cartoon arc gauge, rounded
-pills, and nothing on screen until the live feed filled it. That build was
-replaced. The terminal now reads as a trading desk:
+The first two builds were replaced after owner review. The terminal now
+reads as the same HUD the owner runs on the phone and the console:
 
-- Flat charcoal surfaces, one-pixel hairlines, monospaced data columns.
-  No rounded pills, no arc gauge, no dead space.
-- A compact top bar carries the phase chip, the feed chip, the KSE100
-  chip and the Karachi clock, over a thin gold session-progress bar.
+- Near-black field, cyan bracket boards, gold brand. Status chips at the
+  top: link state with live age (LIVE, LAGGING, OFFLINE), market phase,
+  KSE100 chip and Karachi clock, over a thin cyan session bar.
+- Home carries the Quant Core status, a buying-now board, telemetry
+  (link, feed, phase, next event, scan cadence, flow), the latest
+  signal from the local record, and the index plus top scrips of volume
+  with a dotted chart each.
+- Separated buying and selling volume: the B/S/T rows on Home come from
+  `bridge.leader_flow`, the repository's range-position split over the
+  REG frame's own high, low, last and running volume. That is the same
+  labelled estimate the phone card and the old console print; a basis
+  sentence travels with the board (B/S is an estimate, not order flow).
+  Sides per print remain on the Order Flow page, INFERRED by the tick
+  rule, with the Level-2 registry verdict attached.
+- Charts (`bridge.spark_series`) read only the tape's tail for the last
+  configured 45 minutes, downsampled to a bounded point count and
+  refreshed every 30 seconds off the UI thread.
 - Every page fills from the banked tape on open (`bridge.quote_rows`),
   before the live feed says anything; the live session then overrides
-  each symbol it reports. An empty page is no longer possible while a
-  bank exists.
+  each symbol it reports.
 - Live tables are right-aligned and colour-coded: green up, red down,
   and a dimmed age once a quote is more than two minutes old.
 - The feed watchdog: on the one-second clock (a state check, never a
   wait), a feed thread that dies while the market is open is restarted,
-  capped at 24 restarts per session.
+  capped at 24 restarts per session. The watchdog never overrides
+  `--no-feed` or `--smoke`: those runs touch no socket.
 - The window icon and the EXE icon are the same flat gold-and-green
   candlestick tile drawn in `assets/quant-of-rehan.ico`.
 
-The first build also had a real bug this rework fixed: while frozen, the
-heartbeat reader still looked at the repository's capture root instead of
-`%APPDATA%\QuantOfRehan\data\feed_capture`, so a running feed could report
-DEAD. Both the window and the health page now read the capture root that
-the recorder itself writes (`bridge.CAPTURE_ROOT`).
+Two real bugs the rework fixed: while frozen, the heartbeat reader still
+looked at the repository's capture root instead of
+`%APPDATA%\QuantOfRehan\data\feed_capture`, so a running feed could
+report DEAD; and the first watchdog draft violated the `--smoke`/
+`--no-feed` contract by reopening the socket. Both are closed.
 
 ## Run from source
 
@@ -86,16 +98,16 @@ PySide6 6.12:
 | Measure | Value |
 |---|---|
 | `dist\QuantOfRehan` on disk | 152 MB |
-| `QuantOfRehan.exe` | 6.75 MB |
+| `QuantOfRehan.exe` | 6.76 MB |
 | release zip | 63.9 MB |
-| launch wall time | 1.76 s including the 1.2 s smoke timer, so about 0.6 s to the window |
-| peak working set, smoke run | 72 MB |
-| CPU, smoke run | 0.39 s |
+| launch wall time | 1.83 s including the 1.2 s smoke timer, so about 0.6 s to the window |
+| peak working set, smoke run | 70 MB |
+| CPU, smoke run | 0.38 s |
 | smoke exit code | 0 |
 
-Remeasured after the 2026-11-03 rework (flat desk theme, banked-tape
-seeding, watchdog) on the same machine; the earlier numbers (1.84 s,
-66 MB, 0.36 s) belonged to the first build and are superseded.
+Remeasured after the 2026-11-03 HUD rework (cyan boards, B/S/T money
+flow, dotted charts, watchdog) on the same machine; earlier numbers
+belonged to superseded builds.
 
 The smoke run is a short launch, not a claim about a full session. The live
 feed itself is the same `CaptureSession` the cloud recorder runs; opening
