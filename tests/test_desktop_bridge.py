@@ -20,7 +20,7 @@ import json
 import sys
 import tempfile
 import unittest
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -219,6 +219,42 @@ class OrderFlowRowsTest(BridgeTestBase):
         self.assertEqual(row["buy_volume_inferred"], 60)
         self.assertIn("inferred", row["basis"]["sides"])
         self.assertEqual(row["basis"]["footprint_registry"], "UNAVAILABLE")
+
+
+class WireLagTest(BridgeTestBase):
+    def test_print_lag_is_measured_from_the_newest_frame(self):
+        self.write([
+            record("2026-10-22T09:59:40+05:00", [
+                tick("AAA", 100, "10.00", "9.99", "10.01",
+                     tick_time="09:59:10"),
+                tick("BBB", 500, "20.00", "19.99", "20.01",
+                     tick_time="09:59:20"),
+            ]),
+        ])
+        lag = bridge.wire_lag(self.path, now=NOW)
+        self.assertEqual(lag["prints"], 2)
+        self.assertEqual(lag["median"], 25.0)
+        self.assertEqual(lag["max"], 30.0)
+        self.assertIsNotNone(lag["newest_age"])
+
+    def test_missing_capture_reports_nothing(self):
+        lag = bridge.wire_lag(Path(self.dir.name) / "capture_19990101.ndjson",
+                              now=NOW)
+        self.assertIsNone(lag["median"])
+
+
+class SessionRecordTest(BridgeTestBase):
+    def test_the_record_carries_its_own_written_time(self):
+        state_path = Path(self.dir.name) / "session_state.json"
+        state_path.write_text(json.dumps({
+            "day": "2026-10-22", "state": "MARKET_CLOSED", "scans": 3,
+        }), encoding="utf-8")
+        record = bridge.session_record(day=date(2026, 10, 22),
+                                       path=state_path)
+        self.assertEqual(record["state"], "MARKET_CLOSED")
+        self.assertEqual(record["scans"], 3)
+        self.assertIsNotNone(record["record_age_seconds"])
+        self.assertIsNotNone(record["recorded_at"])
 
 
 class FlowMemoryTest(unittest.TestCase):

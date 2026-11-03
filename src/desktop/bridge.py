@@ -609,6 +609,92 @@ def spark_series(symbols=None, capture: Path | None = None,
     return trimmed, list(reversed(index_values[-points:])), note
 
 
+def session_record(day=None, path: Path | None = None) -> dict:
+    """The engine's session record, with the moment its file was written.
+
+    The record's own state vocabulary includes market markers, so a
+    MARKET_CLOSED written before the open must never be presented as the
+    live phase: the file's mtime travels with the record as its age, and
+    the window says plainly when the record is stale.
+    """
+    from src.signals.trade_state import SessionState
+
+    target = path or SessionState.path()
+    record = trade_decision(day, SessionState.load(day, target))
+    recorded = None
+    age = None
+    if target.is_file():
+        try:
+            recorded = datetime.fromtimestamp(target.stat().st_mtime, KARACHI)
+            age = max(0.0, (_now(None) - recorded).total_seconds())
+        except OSError:
+            recorded = None
+    record["recorded_at"] = (recorded.isoformat(timespec="seconds")
+                             if recorded is not None else None)
+    record["record_age_seconds"] = (round(age, 1)
+                                    if age is not None else None)
+    return record
+
+
+def wire_lag(capture: Path | None = None,
+             now: datetime | None = None) -> dict:
+    """Measured print lag on the newest banked frame, in seconds.
+
+    Every REG row carries the exchange's own print clock and the record
+    carries the moment the recorder banked it; the difference is the
+    wire's lag. Reported as measured (median, p95, worst, frame age), not
+    as an opinion about the feed.
+    """
+    from src.data import broker_market
+
+    path = _capture_file(capture, now)
+    out = {"median": None, "p95": None, "max": None,
+           "newest_age": None, "prints": 0}
+    if not path.is_file():
+        return out
+    moment = _now(now)
+    for record in broker_market._newest_records(path):
+        if not isinstance(record, dict):
+            continue
+        if not str(record.get("kind", "")).startswith("MKT-FEED"):
+            continue
+        stamp = _parse_stamp(record.get("ts"))
+        if stamp is None:
+            continue
+        lags = []
+        for tick in broker_market._tick_rows(record):
+            clock = str(tick.get("tick_time") or "").strip()
+            if not clock:
+                continue
+            try:
+                printed = datetime.strptime(clock, "%H:%M:%S").replace(
+                    year=stamp.year, month=stamp.month, day=stamp.day,
+                    tzinfo=KARACHI)
+            except ValueError:
+                continue
+            lag = (stamp - printed).total_seconds()
+            if -5.0 <= lag <= 3600.0:
+                lags.append(lag)
+        if not lags:
+            continue
+        lags.sort()
+
+        def at(fraction: float) -> float:
+            index = min(len(lags) - 1, int(round(fraction * (len(lags) - 1))))
+            return lags[index]
+
+        middle = len(lags) // 2
+        median = (lags[middle] if len(lags) % 2
+                  else (lags[middle - 1] + lags[middle]) / 2.0)
+        out = {"median": round(median, 1), "p95": round(at(0.95), 1),
+               "max": round(lags[-1], 1),
+               "newest_age": round(max(0.0, (moment - stamp).total_seconds()),
+                                   1),
+               "prints": len(lags)}
+        return out
+    return out
+
+
 def footprint_availability() -> str:
     """The registry's own verdict on depth data, spelled the way it is shown."""
     source = REGISTRY["footprint"]
