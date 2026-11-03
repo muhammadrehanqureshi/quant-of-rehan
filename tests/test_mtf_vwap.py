@@ -114,6 +114,17 @@ class LawTest(unittest.TestCase):
             self.assertEqual(frame["kalman_state"], 1)
             self.assertTrue(frame["above_vwap"])
 
+    def test_the_card_line_names_all_four_states(self):
+        rows = minute_rows(130)
+        view, reason = mtf_vwap.evaluate(rows, session_of(rows), daily_rows())
+        self.assertEqual(reason, "ok")
+        self.assertEqual(
+            mtf_vwap.summary(view),
+            "MTF 5m +1 above VWAP | 15m +1 above VWAP | "
+            "1h +1 above VWAP | 1D +1 above VWAP")
+        self.assertEqual(mtf_vwap.summary(None), "")
+        self.assertEqual(mtf_vwap.summary({"frames": {"5m": {}}}), "")
+
     def test_the_one_hour_frame_needs_two_completed_hours(self):
         rows = minute_rows(50)
         view, reason = mtf_vwap.evaluate(rows, session_of(rows), daily_rows())

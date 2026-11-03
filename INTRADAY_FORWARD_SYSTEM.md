@@ -28,6 +28,12 @@ completed hours, so the first legal intraday minute is after 11:32 on a
 Monday-Thursday session. The +2% target, the -1% stop, the one call a day
 and every data-honesty gate are unchanged.
 
+The cloud card and the owner email carry the four states as one ASCII line,
+for example `MTF 5m +1 above VWAP | 15m +1 above VWAP | 1h +1 above VWAP |
+1D +1 above VWAP`. `src/signals/mtf_vwap.py` builds the line and
+`scripts/intraday_pipeline.py` appends it to the delivered signal. The
+desktop HUD is not part of the signal path and is not required to read it.
+
 ## Historical design, not the running entry rule
 
 The following is the retained 2026-10-08 design record. Its strategy, schedules,
