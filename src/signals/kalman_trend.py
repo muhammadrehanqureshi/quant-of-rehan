@@ -106,7 +106,8 @@ def filter_series(closes: list[float], q: float, r: float,
 
 
 def candidate(symbol: str, rows: list, session,
-              tally: dict | None = None) -> dict | None:
+              tally: dict | None = None,
+              daily: list | None = None) -> dict | None:
     """Return a candidate only on a fresh upward trend flip.
 
     Same call shape the scanner and its tests always used. The gates below
@@ -114,10 +115,22 @@ def candidate(symbol: str, rows: list, session,
     band clock, completed bars, positive prices, a real tape volume, the
     price and turnover floors); the STRATEGY itself is the flip and only
     the flip.
+
+    Owner order 2026-11-03: when `daily` is supplied (the symbol's completed
+    daily bars), the flip must also agree with the 5 minute, 15 minute, 1
+    hour and 1 day VWAP and Kalman frames (src/signals/mtf_vwap.py). None
+    means the caller is a replay or a unit test that has no daily history
+    and asked for the one minute law alone; the live pipeline always passes
+    a mapping, and an empty list for the symbol fails closed at the 1 day
+    frame.
     """
     if config.is_etf_symbol(symbol) or session.as_of.tzinfo is None:
         _bump(tally, "etf_or_naive_tz")
         return None
+    # Keep the whole session for the 1 hour frame before the current band's
+    # own rows are trimmed below: a Friday afternoon band must still see the
+    # morning's hourly bars across the exchange's midday break.
+    mtf_rows = list(rows)
     band = current_band(session.as_of)
     if band is None:
         _bump(tally, "no_market_band")
@@ -174,6 +187,15 @@ def candidate(symbol: str, rows: list, session,
     if trace[-1]["state"] != 1:
         _bump(tally, "trend_not_currently_up")
         return None
+    view = None
+    if config.MTF_ENABLED and daily is not None:
+        from src.signals import mtf_vwap
+
+        view, mtf_reason = mtf_vwap.evaluate(rows, session, daily,
+                                            hourly_rows=mtf_rows)
+        if view is None:
+            _bump(tally, mtf_reason)
+            return None
     entry = last.close
     flip_bar = rows[flip_index]
     # The owner's fixed -1% stop under the entry, the same number for
@@ -211,6 +233,7 @@ def candidate(symbol: str, rows: list, session,
             "hysteresis_log_per_minute": config.KALMAN_FLIP_THRESHOLD,
             "process_noise_q": config.KALMAN_Q,
             "observation_noise_r": config.KALMAN_R,
+            "mtf": view,
         },
         "volume": {"traded_value_estimate": turnover,
                    "volume_source": "captured bar volume"},

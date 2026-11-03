@@ -276,6 +276,31 @@ KALMAN_MAX_RISK_PCT = _number("KALMAN_MAX_RISK_PCT", 0.012)
 KALMAN_STOP_PCT = 0.01
 KALMAN_MAX_SIGNAL_AGE_SECONDS = 60
 KALMAN_LAST_ENTRY_MINUTES = 30
+
+# ------------------------------------------------- multi-timeframe VWAP
+# Owner order 2026-11-03: VWAP joins the Kalman Trend, and the intraday
+# signal is read on the 5 minute, 15 minute, 1 hour and 1 day charts. The
+# one minute flip stays the execution trigger; these four frames are the
+# regime the flip must agree with, each by its own VWAP and Kalman state
+# (src/signals/mtf_vwap.py).
+#
+# The daily frame needs a history the one session tape cannot hold. The
+# session workflows restore data/mtf_daily.csv.gz from the Actions cache
+# and build it once per day with scripts/prepare_mtf_daily.py. When that
+# file is missing the scanner reports DATA BLOCKED rather than quietly
+# dropping the 1 day gate: a four frame law with three frames is not this
+# law.
+MTF_ENABLED = _flag("MTF_ENABLED", True)
+# The daily gate is on in the live session workflows, which set this to 1.
+# It defaults off so an offline unit test or a replay that has no daily file
+# runs the one minute law it was written to test instead of blocking on a
+# file only the live cache provides. The live pipeline passes no daily
+# context when this is off, so the four frame law is never half-applied.
+MTF_REQUIRE_DAILY = _flag("MTF_REQUIRE_DAILY", False)
+MTF_DAILY_FILE = "data/mtf_daily.csv.gz"
+MTF_TIMEFRAMES = (5, 15, 60, 1440)
+MTF_VWAP_LOOKBACK = {5: 12, 15: 12, 60: 12, 1440: 20}
+MTF_MIN_BARS = {5: 3, 15: 2, 60: 2, 1440: 40}
 # Legacy momentum constants above are retained only by historical daily-bar
 # research. They have no decision path in the intraday scanner.
 
@@ -582,6 +607,14 @@ def config_snapshot() -> dict:
         "secondary_confirmation": {"rule": SCANNER_VERSION},
         "kalman": {name: value for name, value in globals().items()
                    if name.startswith("KALMAN_")},
+        "mtf": {
+            "enabled": MTF_ENABLED,
+            "require_daily": MTF_REQUIRE_DAILY,
+            "daily_file": MTF_DAILY_FILE,
+            "timeframes_minutes": list(MTF_TIMEFRAMES),
+            "vwap_lookback": {str(k): v for k, v in MTF_VWAP_LOOKBACK.items()},
+            "min_bars": {str(k): v for k, v in MTF_MIN_BARS.items()},
+        },
         "min_relative_volume": MIN_RELATIVE_VOLUME,
         "min_session_traded_value": MIN_SESSION_TRADED_VALUE,
         "score_weights": dict(SCORE_WEIGHTS),  # historical research only
