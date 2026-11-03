@@ -202,6 +202,19 @@ class FrameTest(unittest.TestCase):
                             now=NOW + timedelta(seconds=3))
         self.assertNotEqual(first[3:14], later[3:14])
 
+    def test_the_hub_pair_replaces_the_desks_own_count(self):
+        row = quote()
+        row.update({"measured_buy": 12_000_000, "measured_sell": 5_000_000,
+                    "flow_baseline": 250_000, "flow_method": "quote_rule"})
+        desk = desk_with([row])
+        saved = desk.flow.rows(now=NOW)[0]
+        self.assertEqual(saved["measured_buy"], 12_000_000)
+        self.assertEqual(saved["measured_sell"], 5_000_000)
+        self.assertEqual(saved["measured_source"], "hub")
+        frame = "\n".join(plain_frame(desk, page=2))
+        self.assertIn("whole day, measured at the relay", frame)
+        self.assertIn("250,000 shares before the hub's first observation", frame)
+
     def test_the_split_basis_names_the_registry_verdict(self):
         self.assertIn("UNAVAILABLE", tui.split_basis())
 

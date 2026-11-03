@@ -76,9 +76,18 @@ The day's change sign is never consulted; it is the sign of the change, not
 the side of a trade. The invariant is that every observed share is sided
 exactly once: buy plus sell equals the total since the first observation, a
 falling total is treated as a reset and re-baselined rather than sold, and
-the row reports which rules fired. The desk's Order Flow page shows this
-measured pair (MB, MS) beside the relay's day pair, and says from what time
-it has been measuring.
+the row reports which rules fired.
+
+The law also runs inside the relay's Durable Object (`advanceFlow` in
+`cloud/worker.js`), which sees every push for the whole session and survives
+restarts, so its pair covers the day from the first print the hub saw. That
+pair travels under its own names (`measured_buy`, `measured_sell`,
+`flow_baseline`, `flow_method`) beside the day pair, never instead of it, so
+nothing that requires buy plus sell to equal the total is handed a pair that
+does not. The desk's Order Flow page prints this as MB and MS next to the
+relay's day pair, and says how many shares preceded the baseline when there
+were any. On a normal day the hub observes the session from before the first
+print, the baseline is zero, and the pair covers the entire day.
 
 One cause of stale numbers was outside the terminal: band 1's loop ran 181
 minutes from 08:55, so it stopped at 11:56 and the relay had no publisher
