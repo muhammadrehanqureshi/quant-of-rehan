@@ -1439,6 +1439,7 @@ async function applyLiveQuotes(env, snapshot, quotes, now, ackDay) {
     snapshot.top_volume_basis = snapshot.top_volume.length
       ? `current session volume, top ${snapshot.top_volume.length} from fresh REG feed`
       : snapshot.top_volume_basis;
+    snapshot.volume_split_basis = splitLabel(snapshot.top_volume || []);
   } else if (snapshot.top_volume) {
     // Owner order 2026-10-31: with no fresh frames, the card answers from
     // the hub's own LAST PUBLISHED REGULAR-session frames of today, the
@@ -1474,6 +1475,7 @@ async function applyLiveQuotes(env, snapshot, quotes, now, ackDay) {
       snapshot.top_volume_basis = snapshot.top_volume.length
         ? `the last published regular-session frames, top ${snapshot.top_volume.length}`
         : snapshot.top_volume_basis;
+      snapshot.volume_split_basis = splitLabel(snapshot.top_volume || []);
     }
   }
   if (quotes.index && quotes.index.fresh) {
@@ -1822,6 +1824,16 @@ export default {
     if (request.method === "GET" && path === "/quotes") {
 
       const snapshot = await readQuoteSnapshot(env);
+      if (snapshot) {
+        // This is the whole-feed view a phone can poll without the card. It
+        // must carry the same buy/sell pair the card serves, not just the raw
+        // quote, or a reader of this route alone sees no order flow at all.
+        snapshot.quotes = (Array.isArray(snapshot.quotes) ? snapshot.quotes : [])
+          .map((row) => ({
+            ...row,
+            ...splitFields(splitFromQuote(row), row),
+          }));
+      }
       const symbol = String(url.searchParams.get("symbol") || "").trim().toUpperCase();
       if (snapshot && symbol) {
         snapshot.quotes = snapshot.quotes.filter((row) => row.symbol === symbol);
