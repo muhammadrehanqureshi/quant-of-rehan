@@ -484,6 +484,9 @@ def render(desk: Desk, page: int, sort: int, size, now: datetime) -> list[str]:
 
     keys = (" 1 HOME  2 SCANNER  3 ORDER FLOW  4 SIGNALS  5 HEALTH  "
             "6 SETTINGS   R refresh   Q quit ")
+    if page == 1:
+        keys = (" UP/DOWN sort   S next sort   1 HOME  2 SCANNER  "
+                "3 ORDER FLOW  4 SIGNALS  5 HEALTH  Q quit ")
     out.append(paint(rule(columns, "\u2550"), FAINT))
     out.append(paint(pad(keys, columns), FAINT))
     return out
@@ -605,7 +608,7 @@ def _home_page(desk: Desk, width: int, now: datetime) -> list[str]:
 
 def _scanner_page(desk: Desk, sort: int, width: int, now: datetime) -> list[str]:
     lines = [paint("\u25c6 CUSTOM SCRIPS OF VOL.", WHITE, True),
-             paint("SELECT A SORT: UP/DOWN + ENTER, OR CLICK.", DIM), ""]
+             paint("SELECT A SORT: UP/DOWN CHOOSES IT; S CYCLES.", DIM), ""]
     for number, name in enumerate(SORTS):
         marker = paint("\u25b8 ", GREEN) if number == sort else "  "
         body = paint(name, WHITE if number == sort else CYAN, number == sort)
@@ -613,10 +616,10 @@ def _scanner_page(desk: Desk, sort: int, width: int, now: datetime) -> list[str]
     lines.append("")
     chosen = SORTS[sort]
     windowed = chosen == "BIG BUYING NOW (LIVE FLOW)"
-    lines.append(paint(chosen, CYAN, True))
-    lines.append(paint("last 60 s, executed buying by poll delta"
-                       if windowed else "day split, rangeposition estimate",
-                       FAINT))
+    heading = pad(paint(chosen, CYAN, True), max(10, width - 32))
+    lines.append(heading + pad(paint(
+        "last 60 s, executed buying" if windowed else "day split, estimate",
+        FAINT), 32, "right"))
     lines.append("")
     rows = desk.flow.rows(chosen, now)
     if windowed:
@@ -630,24 +633,26 @@ def _scanner_page(desk: Desk, sort: int, width: int, now: datetime) -> list[str]
                            if windowed
                            else "waiting for the relay's next poll", DIM))
         return lines
-    for number, row in enumerate(rows, start=1):
+    flow = [(row,
+             row["bought_60"] if windowed else row["bought"],
+             row["sold_60"] if windowed else row["sold"],
+             row["shares_60"] if windowed else row["volume"])
+            for row in rows]
+    scale = max(1, min(36, width - 44))
+    for number, (row, bought, sold, moved) in enumerate(flow, start=1):
         arrow, colour = pct_text(row["change_pct"])
-        window = windowed
-        bought = row["bought_60"] if window else row["bought"]
-        sold = row["sold_60"] if window else row["sold"]
-        moved = row["shares_60"] if window else row["volume"]
         total = bought + sold
-        share = int(round(100 * bought / total)) if total > 0 else 0
-        bar = "\u2501" * max(1, int(share / 4)) if share else ""
+        percent = int(round(100 * bought / total)) if total > 0 else 0
+        filled = int(round(scale * percent / 100))
+        bar = "\u2501" * filled
         price = paint(f"PKR {row['price']:.2f} {arrow}", colour, True)
-        lines.append(
-            f"{number}. {paint(row['symbol'], WHITE, True)}" +
-            pad(price, max(8, width - len(f"{number}. {row['symbol']}")),
-                "right"))
-        flow_line = (f"   BOUGHT {paint(money(bought), GREEN)}   "
-                     f"SOLD {paint(money(sold), RED)}   {shares(moved)}")
-        lines.append(flow_line)
-        lines.append(f"   {paint(bar, GREEN)} {share}%")
+        head = f"{number}. {paint(row['symbol'], WHITE, True)}"
+        lines.append(head + pad(price, max(8, width - width_of(head)),
+                                "right"))
+        lines.append(f"   BOUGHT {paint(money(bought), GREEN)}"
+                     f"  SOLD {paint(money(sold), RED)}  {shares(moved)}")
+        lines.append("   " + paint(bar, GREEN) +
+                     " " * max(0, scale - filled) + f" {percent:>3}%")
     return lines
 
 
