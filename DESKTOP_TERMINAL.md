@@ -1,5 +1,68 @@
 # Quant of Rehan desktop terminal (Windows 11)
 
+The shipped desk is the console terminal: it opens in its own terminal
+window, draws the HUD in text and reads the relay the cloud keeps fed. The
+Qt window in `src/desktop/app.py` remains in the repository, but the
+shortcut on the Desktop points at the console build.
+
+## The console desk (`src/desktop/tui.py`)
+
+Owner order 2026-11-03: the desk must look and open like the console he
+already runs, and it must not disagree with it. The old window read only
+the capture file next to it, and that file exists only while the window is
+open, so every number on screen was thin or stale. The console reads the
+same public relay surface his console reads, once a second, and adds
+nothing of its own:
+
+| Page | Key | What it shows |
+|---|---|---|
+| Home | 1 | greeting, market status from the session law, the latest engine record with the time and age it was written, KSE100, and the top three scrips by running volume with B, S, T and a spark |
+| Scanner | 2 | CUSTOM SCRIPS OF VOL: prices rising fast, more buyers and less sellers, or big buying now, from the last sixty seconds of executed buying |
+| Order Flow | 3 | the day's money flow by volume: price, buy shares, sell shares, total and change |
+| Signals | 4 | the local engine record, its day, trades, scans and the time of its last write |
+| Health | 5 | relay address, link milliseconds, rows and fresh rows, feed age, market feed status, phase, next event, index |
+| Settings | 6 | relay, poll cadence and keys |
+
+Keys: `1` to `6` pages, up and down select a sort on the scanner, `s`
+cycles the sort, `r` refreshes, `q` quits. `python -m src.desktop.tui
+--once` prints one frame and exits, which is how a frame is checked
+without a terminal.
+
+### Where the numbers come from
+
+- `/quotes` every second: price, volume, high, low and the relay's own
+  `buy_volume` and `sell_volume`. These are the same rows the console
+  reads, so PRL's volume and split match it instead of the local capture.
+- `/market` every five seconds: KSE100 and the volume leaders.
+- `/health` every fifteen seconds: the session law, the market feed's
+  status and age, and the next event.
+- The sixty second board is computed from each poll: a positive
+  increment of the running volume is sided by the price move against the
+  previous poll (or keeps the last side when the price held) and valued at
+  the print price. The first sight of a scrip is its baseline, never a
+  trade.
+- Day buying and selling hold each side at its session high-water mark, so
+  neither can fall inside a session, and the board says in words that the
+  pair is the relay's range estimate and not order flow. A row the relay
+  sends without a split gets the same range estimate locally.
+- A quote whose running total goes backwards is never attributed, and one
+  bad row never stops a poll.
+
+The phase is always the session law's. The engine record on disk is shown
+with the day it names and how old its file is, so an eight-day-old record
+reads as eight days old rather than as today's signal.
+
+Run it from source with `python -m src.desktop.tui`, or build it:
+
+```powershell
+python -m PyInstaller --noconfirm packaging/quant_of_rehan_console.spec
+```
+
+That writes `dist\QuantOfRehanConsole\QuantOfRehan.exe`, a console
+application of about 19 MB on disk that needs no Qt and no local feed.
+
+## The Qt window (`src/desktop/app.py`)
+
 A stand-alone Windows client for the same backend this repository already
 runs: the read-only Eclear feed capture, the market session law, the
 order-flow layer and the local session record. It holds no broker
@@ -169,6 +232,14 @@ The frozen build deliberately does not write inside its install directory.
   cloud.
 
 ## Tests
+
+`tests/test_desktop_tui.py` covers the console without a terminal: the
+relay's split is used as given and held monotone, a rebalanced split cannot
+pull either side down, the sixty second flow sides by poll delta and keeps
+the last side on a held price, a backwards total is ignored, the window
+empties after sixty seconds, the top three are the volume leaders, every
+page renders inside the terminal's size, and missing quotes still draw a
+frame.
 
 `tests/test_desktop_bridge.py` covers the data core without PySide6, so the
 normal CI install stays lean: newest quote per symbol, stale tails refused,
