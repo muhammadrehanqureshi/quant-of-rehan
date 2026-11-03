@@ -172,6 +172,7 @@ jobs:
 
       - name: Save the multi-timeframe daily history
         if: steps.gate.outputs.should_run == 'true' && steps.mtf_daily.outputs.cache-hit != 'true'
+        continue-on-error: true
         uses: actions/cache/save@v4
         with:
           path: data/mtf_daily.csv.gz
