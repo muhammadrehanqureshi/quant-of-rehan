@@ -303,6 +303,142 @@ def trade_decision(day=None, state=None) -> dict:
     }
 
 
+def _capture_file(capture: Path | None = None,
+                  now: datetime | None = None) -> Path:
+    return capture or capture_for(_now(now))
+
+
+def leader_flow(capture: Path | None = None, now: datetime | None = None,
+                limit: int = 3) -> tuple[list[dict], str]:
+    """The volume leaders with the card's B/S split, plus the basis sentence.
+
+    The leaders come from the newest banked REG frame, which carries every
+    symbol at once. The B/S pair is the repository's range-position split
+    over that frame's own high, low, last price and running volume: the
+    same estimate the phone card and the old console print, labelled as an
+    estimate and not order flow (SO-3; the truth source is volume_split).
+    """
+    from src.data import broker_market, volume_split
+
+    path = _capture_file(capture, now)
+    if not path.is_file():
+        return [], "no banked tape for today"
+    moment = _now(now)
+    latest: dict[str, dict] = {}
+    for record in broker_market._newest_records(path):
+        if not isinstance(record, dict):
+            continue
+        kind = str(record.get("kind", ""))
+        if not kind.startswith("MKT-FEED"):
+            continue
+        try:
+            stamp = datetime.fromisoformat(str(record.get("ts", "")))
+        except ValueError:
+            continue
+        if stamp.tzinfo is None:
+            stamp = stamp.replace(tzinfo=KARACHI)
+        if (moment - stamp.astimezone(KARACHI)).total_seconds() > 3 * 3600:
+            break
+        for tick in broker_market._tick_rows(record):
+            symbol = str(tick.get("scrip", "")).strip().upper().split(":", 1)[0]
+            volume = broker_market._number(tick.get("volume"))
+            if not symbol or volume is None or volume <= 0:
+                continue
+            if symbol in latest:
+                continue  # walking backwards: the first sight is the newest
+            price = broker_market._number(tick.get("last"))
+            close = broker_market._number(tick.get("close"))
+            latest[symbol] = {
+                "symbol": symbol,
+                "price": price if price and price > 0 else None,
+                "change_pct": ((price - close) / close * 100.0
+                               if price and close and close > 0 else None),
+                "volume": int(volume),
+                "high": broker_market._number(tick.get("high")),
+                "low": broker_market._number(tick.get("low")),
+            }
+        if len(latest) >= 25:
+            break  # one fresh frame carries the whole universe
+    ranked = sorted(latest.values(), key=lambda row: -row["volume"])[:limit]
+    rows = []
+    for row in ranked:
+        split = volume_split.range_position_split(
+            row["high"], row["low"], row["price"], row["volume"])
+        rows.append({
+            "symbol": row["symbol"],
+            "price": row["price"],
+            "change_pct": row["change_pct"],
+            "volume": row["volume"],
+            "buy_volume": split.buy if split is not None else None,
+            "sell_volume": split.sell if split is not None else None,
+            "buy_share": (round(split.fraction, 3)
+                          if split is not None else None),
+            "split_note": (split.note or "" if split is not None else
+                           "the frame's session range is incomplete"),
+        })
+    note = ("B/S is the range-position split of the session volume: an "
+            "estimate, not order flow. Sides per print live on the order "
+            "flow page.")
+    return rows, note
+
+
+def spark_series(symbols=None, capture: Path | None = None,
+                 minutes: int = 45, points: int = 32,
+                 now: datetime | None = None) -> tuple[dict,
+                                                       list, str]:
+    """Recent last-price series per symbol and the index series for charts.
+
+    Reads only the tape's tail bounded by the minutes window, then
+    downsamples to at most `points` per series, so a chart costs a bounded
+    read and never the day's full parse.
+    """
+    from src.data import broker_market
+
+    path = _capture_file(capture, now)
+    if not path.is_file():
+        return {}, [], "no banked tape for today"
+    moment = _now(now)
+    wanted = ([str(s).strip().upper() for s in symbols]
+              if symbols is not None else [])
+    series: dict[str, list] = {symbol: [] for symbol in wanted}
+    index_values: list = []
+    for record in broker_market._newest_records(path):
+        try:
+            stamp = datetime.fromisoformat(str(record.get("ts", "")))
+        except ValueError:
+            continue
+        if stamp.tzinfo is None:
+            stamp = stamp.replace(tzinfo=KARACHI)
+        if (moment - stamp.astimezone(KARACHI)).total_seconds() > minutes * 60:
+            break
+        kind = str(record.get("kind", ""))
+        if kind.startswith("EXS-FEED"):
+            index = broker_market.parse_index_frame(str(record.get("raw", "")))
+            if index is not None and index.get("value") is not None:
+                index_values.append(float(index["value"]))
+            continue
+        if not kind.startswith("MKT-FEED"):
+            continue
+        ticks = broker_market._tick_rows(record)
+        by_symbol: dict[str, float | None] = {}
+        for tick in ticks:
+            symbol = str(tick.get("scrip", "")).strip().upper().split(":", 1)[0]
+            if symbol in series and symbol not in by_symbol:
+                price = broker_market._number(tick.get("last"))
+                if price is not None and price > 0:
+                    by_symbol[symbol] = price
+        for symbol, price in by_symbol.items():
+            series[symbol].append(price)
+        if (all(len(series[s]) >= points for s in wanted)
+                and len(index_values) >= points):
+            break
+    trimmed = {symbol: list(reversed(values[-points:]))
+               for symbol, values in series.items()}
+    note = (f"charts cover the last {minutes} minutes of the banked tape"
+            if trimmed or index_values else "the tape's tail is empty")
+    return trimmed, list(reversed(index_values[-points:])), note
+
+
 def footprint_availability() -> str:
     """The registry's own verdict on depth data, spelled the way it is shown."""
     source = REGISTRY["footprint"]
