@@ -27,9 +27,10 @@ class WholeDayFlowContractTest(unittest.TestCase):
 
     def test_a_failure_in_the_law_never_breaks_a_push(self):
         start = self.source.index("await this.advanceFlow(quote)")
-        block = self.source[start - 400:start + 900]
+        block = self.source[start - 400:start + 1600]
         self.assertIn("try {", block)
-        self.assertIn("catch (_)", block)
+        self.assertIn("catch (", block)
+        self.assertIn("FLOW:LAST_ERROR", block)
 
     def test_the_pair_is_served_beside_the_total_not_instead_of_it(self):
         self.assertIn("quote.measured_buy", self.source)
