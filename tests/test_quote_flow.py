@@ -100,7 +100,7 @@ class QuoteFlowTest(unittest.TestCase):
              "split_method": "quote_rule"},
         ])
         self.assertEqual(adopted, 1)
-        quote = seeded.observe(row(86.0, 85.9, 86.0, 1100))
+        quote = seeded.observe(row(86.0, 85.9, 86.0, 1100, symbol="OGDC"))
         self.assertEqual(quote["buy_volume"], 700)
         self.assertEqual(quote["sell_volume"], 150)
         self.assertEqual(quote["flow_baseline"], 250)
