@@ -238,9 +238,15 @@ jobs:
             --duration "${{ steps.window.outputs.seconds }}" \
             > logs/feed_capture_daemon.log 2>&1 &
           feed_pid=$!
+          # Do NOT skip the capture check: the loop's own ensure_tape is
+          # what restarts a recorder that died mid-band. The old flag trusted
+          # the background daemon for three hours; when it stopped at 12:05
+          # the loop kept reading that stale tape and the card froze. The
+          # check is cheap when the recorder is alive (a heartbeat read), and
+          # it is the difference between a stale card and a recovered band.
           timeout --signal=TERM \
             "${{ steps.window.outputs.seconds }}" \
-            python scripts/scan_loop.py --loop --interval 1 --skip-capture \
+            python scripts/scan_loop.py --loop --interval 1 \
             > /tmp/kmi_session.log 2>&1
           status=$?
           kill "$feed_pid" 2>/dev/null || true
@@ -287,5 +293,6 @@ jobs:
             data/forward/session_journal.jsonl
             logs/scan_loop.log
             logs/feed_capture.log
+            logs/feed_capture_daemon.log
           if-no-files-found: warn
           retention-days: 90
