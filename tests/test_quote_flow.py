@@ -92,6 +92,21 @@ class QuoteFlowTest(unittest.TestCase):
         self.assertEqual(other["buy_volume"], 20)
         self.assertEqual(other["flow_baseline"], 500)
 
+    def test_seed_adopts_a_pair_with_its_own_baseline(self):
+        seeded = quote_flow.QuoteFlow()
+        adopted = seeded.seed([
+            {"symbol": "OGDC", "volume": 1000, "buy_volume": 600,
+             "sell_volume": 150, "flow_baseline": 250,
+             "split_method": "quote_rule"},
+        ])
+        self.assertEqual(adopted, 1)
+        quote = seeded.observe(row(86.0, 85.9, 86.0, 1100, symbol="OGDC"))
+        self.assertEqual(quote["buy_volume"], 700)
+        self.assertEqual(quote["sell_volume"], 150)
+        self.assertEqual(quote["flow_baseline"], 250)
+        self.assertEqual(quote["buy_volume"] + quote["sell_volume"]
+                         + quote["flow_baseline"], 1100)
+
 
 if __name__ == "__main__":
     unittest.main()
