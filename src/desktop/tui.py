@@ -805,6 +805,7 @@ def main(argv: list[str] | None = None) -> int:
         msvcrt = None
 
     sys.stdout.write("\x1b[?1049h\x1b[?25l")
+    next_tick = time.monotonic()
     try:
         while True:
             now = datetime.now(KARACHI)
@@ -851,7 +852,14 @@ def main(argv: list[str] | None = None) -> int:
                         sort = (sort + 1) % len(SORTS)
                 elif key in ("s", "S"):
                     sort = (sort + 1) % len(SORTS)
-            time.sleep(1.0)
+            # keep the one second cadence even when a poll was slow, so the
+            # poll itself never stretches the refresh into a visible lag
+            next_tick += 1.0
+            pause = next_tick - time.monotonic()
+            if pause > 0:
+                time.sleep(pause)
+            else:
+                next_tick = time.monotonic()
     finally:
         sys.stdout.write("\x1b[?25h\x1b[?1049l")
         sys.stdout.flush()
