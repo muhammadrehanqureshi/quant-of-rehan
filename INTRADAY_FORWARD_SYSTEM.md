@@ -14,6 +14,20 @@ All tests, backtests and builds run in GitHub Actions, never on the owner's PC.
 The scheduled session loop requests one-second cycles and preserves one shared
 daily entry claim. No broker orders are transmitted.
 
+## Multi-timeframe VWAP, owner order 2026-11-03 (Karachi)
+
+VWAP now sits beside the Kalman Trend. The one minute flip remains the
+execution trigger and the entry print, and the signal must also agree with
+the 5 minute, 15 minute, 1 hour and 1 day frames: on every frame the last
+completed close is above that frame's rolling VWAP and the Kalman state on
+that frame is +1. The 1 day frame reads `data/mtf_daily.csv.gz`, built once
+per Karachi day by `scripts/prepare_mtf_daily.py` and restored by the session
+workflows from the Actions cache. When that file is absent the scan is
+DATA BLOCKED, never a three-frame signal. The 1 hour frame needs two
+completed hours, so the first legal intraday minute is after 11:32 on a
+Monday-Thursday session. The +2% target, the -1% stop, the one call a day
+and every data-honesty gate are unchanged.
+
 ## Historical design, not the running entry rule
 
 The following is the retained 2026-10-08 design record. Its strategy, schedules,

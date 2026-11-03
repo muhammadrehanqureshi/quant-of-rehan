@@ -647,14 +647,22 @@ def _wilder_rsi(closes: list[float], period: int = 14) -> float | None:
 
 
 def score_symbol(symbol: str, rows: list[MinuteBar], session: SessionData,
-                 tally: dict | None = None) -> dict | None:
-    """The scanner's one strategy: a candidate only on a fresh upward flip."""
-    return kalman_trend.candidate(symbol, rows, session, tally)
+                 tally: dict | None = None,
+                 daily: dict | None = None) -> dict | None:
+    """The scanner's one strategy: a candidate only on a fresh upward flip.
+
+    `daily` is the per-symbol completed daily history the 1 day frame reads
+    (src/data/daily_history.py). None keeps the replay and unit-test path on
+    the one minute law; the live pipeline always passes a mapping.
+    """
+    daily_rows = None if daily is None else list(daily.get(symbol, []))
+    return kalman_trend.candidate(symbol, rows, session, tally, daily=daily_rows)
 
 
 def rank_candidates(session: SessionData,
                     ai_prior: dict[str, float] | None = None,
-                    tally: dict | None = None) -> list[dict]:
+                    tally: dict | None = None,
+                    daily: dict | None = None) -> list[dict]:
     """Rank confirmed setups; the old daily-model prior has no entry authority.
 
     When `tally` is a dict, it is filled with every gate rejection the whole
@@ -663,13 +671,14 @@ def rank_candidates(session: SessionData,
     """
     ranked = [row for symbol in sorted(session.bars)
               if (row := score_symbol(symbol, session.bars[symbol], session,
-                                      tally)) is not None]
+                                      tally, daily=daily)) is not None]
     return sorted(ranked, key=lambda row: (-row["score"], row["symbol"]))
 
 
 def select_one(session: SessionData, quality: QualityReport,
                ai_prior: dict[str, float] | None = None,
-               ai_status: dict | None = None) -> ScanResult:
+               ai_status: dict | None = None,
+               daily: dict | None = None) -> ScanResult:
     """At most one fully confirmed long, never a momentum/RSI fallback."""
     coverage = f"{quality.symbols_with_bars}/{quality.symbols_expected} ({quality.coverage:.1%})"
     if quality.status == DATA_BLOCKED:
@@ -677,7 +686,7 @@ def select_one(session: SessionData, quality: QualityReport,
     context = market_context(session)
     context["ai"] = {"active": False, "reason": "Kalman flip rules do not use the daily momentum prior"}
     tally: dict = {}
-    ranked = rank_candidates(session, tally=tally)
+    ranked = rank_candidates(session, tally=tally, daily=daily)
     # Broad panic is a risk veto; ordinary weak breadth is not a momentum
     # entry filter on this reversal strategy.
     if context.get("median_return") is None or context["median_return"] < config.MAX_MARKET_DROP:
