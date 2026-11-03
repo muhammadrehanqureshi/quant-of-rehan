@@ -989,8 +989,36 @@ function rangePositionSplit(high, low, close, volume) {
 // on every accepted frame, so every route reads that pair instead of
 // recomputing a fresh range estimate and getting a different answer. Old rows
 // written before the pair was stored fall back to the same range law.
+// The measured pair the hub keeps: every increment of the venue's own
+// counter sided at the wire and never retracted. When the frame carries it,
+// this is the pair every route must serve; the range estimate is only the
+// fallback for a frame the hub has not measured yet.
+function measuredFromQuote(quote) {
+  if (!quote || typeof quote !== "object" || quote.flow_method !== "quote_rule") {
+    return null;
+  }
+  const buy = Math.round(Number(quote.measured_buy));
+  const sell = Math.round(Number(quote.measured_sell));
+  const baseline = Math.max(0, Math.round(Number(quote.flow_baseline) || 0));
+  if (!Number.isFinite(buy) || !Number.isFinite(sell) ||
+      buy < 0 || sell < 0) {
+    return null;
+  }
+  return {
+    buy_volume: buy,
+    sell_volume: sell,
+    split_volume: buy + sell,
+    flow_baseline: baseline,
+    split_method: "quote_rule",
+    split_source:
+      "every volume increment sided by the wire's own bid/ask at the poll",
+  };
+}
+
 function splitFromQuote(quote) {
   if (!quote || typeof quote !== "object") return null;
+  const measured = measuredFromQuote(quote);
+  if (measured) return measured;
   const volume = Math.round(Number(quote.volume));
   const buy = Math.round(Number(quote.buy_volume));
   const sell = Math.round(Number(quote.sell_volume));
@@ -1060,8 +1088,10 @@ function splitLabel(rows) {
     r.split_method === "measured_tape" ||
     r.split_method === "quote_rule").length;
   let text = measured === available.length
-    ? "B/S measured from the session tape"
-    : "B/S estimated from the day's range, not order flow";
+    ? "B/S measured at the wire from the broker feed"
+    : measured > 0
+      ? "B/S partly measured at the wire, partly estimated from the day's range"
+      : "B/S estimated from the day's range, not order flow";
   if (available.length < rows.length) {
     text += ` (${available.length} of ${rows.length})`;
   }
@@ -1326,18 +1356,26 @@ function splitFields(split, quote) {
       buy_volume: null,
       sell_volume: null,
       split_volume: null,
+      flow_baseline: null,
       split_method: "unavailable",
       split_source: quote
         ? "the frame's range is incomplete"
         : "no fresh frame for this symbol",
     };
   }
+  const measured = split.split_method === "quote_rule";
   return {
     buy_volume: split.buy_volume,
     sell_volume: split.sell_volume,
     split_volume: split.split_volume,
-    split_method: "range_position",
-    split_source: "B/S estimated from the day's range, not order flow",
+    flow_baseline: Number.isFinite(Number(split.flow_baseline))
+      ? Math.max(0, Math.round(Number(split.flow_baseline)))
+      : null,
+    split_method: measured ? "quote_rule" : "range_position",
+    split_source: measured
+      ? (split.split_source ||
+         "every volume increment sided by the wire's own bid/ask at the poll")
+      : "B/S estimated from the day's range, not order flow",
   };
 }
 
@@ -2340,9 +2378,10 @@ export class QuoteHub {
   // below the bid sells; inside the spread the midpoint decides; otherwise
   // the tick decides; otherwise the symbol's last decided side is carried
   // and counted. The day's change sign is never consulted: it is the sign of
-  // the change, not the side of a trade. A falling total is a reset, never a
-  // sale. The pair is only handed back while the baseline is zero, so
-  // buy + sell always equals the total it is served beside.
+  // the change, not the side of a trade. A falling total is stale evidence
+  // and is refused, never turned into a sale. The pre-baseline counter is
+  // sided once by the first quote in hand, exactly like any increment, so
+  // buy + sell equals the total on every served frame.
   async advanceFlow(quote) {
     await this.ready;
     // An instance that was already running before the flow table shipped
@@ -2383,10 +2422,28 @@ export class QuoteHub {
     if (Number.isFinite(bid) && bid > 0) state.bid = bid;
     if (Number.isFinite(ask) && ask > 0) state.ask = ask;
     const bump = (rule) => { state.rules[rule] = (state.rules[rule] || 0) + 1; };
+    // The shares traded before the hub first saw this counter are the only
+    // block it did not watch arrive. Side that block once with the first
+    // quote in hand, by the same ask, bid, mid order every later increment
+    // uses, so the served pair covers the whole session and no restart can
+    // leave a permanent unsided hole. Monotone: buy and sell only grow.
+    if (state.baseline > 0) {
+      const block = state.baseline;
+      let side = "B";
+      if (state.ask > 0 && state.last >= state.ask) side = "B";
+      else if (state.bid > 0 && state.last <= state.bid) side = "S";
+      else if (state.bid > 0 && state.ask > state.bid) {
+        side = state.last >= (state.bid + state.ask) / 2 ? "B" : "S";
+      }
+      if (side === "B") state.buy += block;
+      else state.sell += block;
+      state.baseline = 0;
+      state.side = side;
+      bump("baseline_sided");
+    }
     if (total < state.volume) {
-      bump("reset");
-      state.baseline += total;
-      state.volume = total;
+      bump("stale_total");
+      return null;
     } else {
       const delta = total - state.volume;
       if (delta > 0) {
@@ -2704,11 +2761,12 @@ export class QuoteHub {
           // measured pair, and the range sentence would be a lie about it.
           // The declared method travels with the numbers; only a frame that
           // declares nothing is labelled as the range estimate.
-          const declared = quote.split_method === "quote_rule"
+          const declared = split.split_method === "quote_rule"
+            || quote.split_method === "quote_rule"
             ? "quote_rule" : "range_position";
           const declaredSource = declared === "quote_rule"
-            ? (quote.split_source ||
-               "every volume increment sided by the wire's own bid/ask")
+            ? (split.split_source || quote.split_source ||
+               "every volume increment sided by the wire's own bid/ask at the poll")
             : "B/S estimated from the day's range, not order flow";
           quote.buy_volume = pair.buy_volume;
           quote.sell_volume = pair.sell_volume;
