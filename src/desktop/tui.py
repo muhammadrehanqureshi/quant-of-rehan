@@ -14,6 +14,13 @@ adds only positive poll deltas, sided by the price move or the last side
 when the price held. The engine record is shown with the time it was
 written, and the market phase always comes from the session law, never
 from that record.
+
+Karachi is Asia/Karachi, the one fixed offset this system speaks, UTC+5,
+with no daylight saving; every clock on the frame is that instant.
+
+The registry is consulted for what the desk honestly has: true bid/ask
+footprint is UNAVAILABLE on this wire, so the split shown is the relay's
+range estimate, in words, on the page itself.
 """
 
 from __future__ import annotations
@@ -27,6 +34,8 @@ import urllib.request
 from collections import deque
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+
+from src.data.registry import Availability, availability
 
 RELAY_URL = os.environ.get("QOR_RELAY") or \
     "https://quant-of-rehan-relay.mrmrehanqureshi.workers.dev"
@@ -587,8 +596,8 @@ def _home_page(desk: Desk, width: int, now: datetime) -> list[str]:
         if series:
             board.append("   " + paint(spark(series), GREEN))
     board.append("")
-    board.append(paint("B/S is the relay's range estimate, held monotone; "
-                       "not order flow.", FAINT))
+    board.append(paint("B/S is a range estimate, not order flow; footprint "
+                       "UNAVAILABLE.", FAINT))
     for line in boxed("\u25c6 THE INDEX & TOP 3 SCRIPS OF VOL.", board, width):
         lines.append(line)
     return lines
@@ -660,10 +669,8 @@ def _flow_page(desk: Desk, width: int, now: datetime) -> list[str]:
             pad(count(row["volume"]), 13, "right") +
             pad(arrow, 10, "right"))
     lines.append("")
-    lines.append(paint("B and S are the relay's range estimate of the day's "
-                       "volume, held at each side's high-water mark so "
-                       "neither can fall; the pair is not order flow.",
-                       FAINT))
+    lines.append(paint(split_basis() + "; each side is held at its "
+                       "high-water mark so neither can fall", FAINT))
     return lines
 
 
@@ -720,6 +727,14 @@ def _health_page(desk: Desk, width: int, now: datetime) -> list[str]:
               "never on a clock of its own", FAINT),
     ]
     return lines
+
+
+def split_basis() -> str:
+    """What the B/S pair is, in the registry's own verdict."""
+    if availability("footprint") is Availability.UNAVAILABLE:
+        return ("true bid/ask footprint is UNAVAILABLE (registry): B and S "
+                "are the relay's range estimate, not order flow")
+    return "B and S follow the feed's own split"
 
 
 def _settings_page(desk: Desk, width: int, now: datetime) -> list[str]:
