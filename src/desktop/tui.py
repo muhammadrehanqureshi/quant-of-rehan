@@ -430,10 +430,12 @@ def load_record(path: Path | None = None) -> dict:
 
 
 def _hhmm(stamp) -> str:
-    text = str(stamp or "")
-    if "T" in text:
-        text = text.split("T", 1)[1]
-    return text[:5]
+    text = str(stamp or "").strip()
+    for mark in ("T", " "):
+        if mark in text:
+            text = text.split(mark, 1)[1]
+            break
+    return text[:5] if ":" in text else text
 
 
 def human_age(seconds) -> str:
@@ -488,9 +490,7 @@ def render(desk: Desk, page: int, sort: int, size, now: datetime) -> list[str]:
     title = paint("\u25c6  Q U A N T  O F  R E H A N  \u25c6", GOLD, True)
     right_header = paint(f"KARACHI {now:%H:%M:%S} UTC+5", DIM, True)
     out.append(_three(left_header, title, right_header, columns))
-    out.append(_three(paint(f"{now:%Y-%m-%d}", DIM),
-                      paint("PSX'S KMIALL INDEX", CYAN),
-                      paint("", CYAN), columns))
+    out.append(pad(paint("PSX'S KMIALL INDEX", CYAN), columns, "center"))
     out.append(paint(rule(columns, "\u2550"), FAINT))
 
     left: list[str] = []
@@ -590,9 +590,9 @@ def _orb(market_open: bool, phase: int = 0) -> list[str]:
                 continue
             cell_angle = (math.degrees(math.atan2(dy, dx)) + 360.0) % 360.0
             delta = abs((cell_angle - angle + 180.0) % 360.0 - 180.0)
-            if delta < 18:
-                cells.append(paint("\u2588", WHITE, True))
-            elif delta < 70:
+            if delta < 7:
+                cells.append(paint("\u25c6", WHITE, True))
+            elif delta < 65:
                 cells.append(paint(char, CYAN, True))
             else:
                 cells.append(paint(char, FAINT))
@@ -668,26 +668,34 @@ def _home_page(desk: Desk, width: int, now: datetime) -> list[str]:
             f"{arrow} {change:+,.2f}", GREEN if change >= 0 else RED)
     board.append(index_line)
     board.append("")
-    for number, row in enumerate(_top_by_volume(desk, now), start=1):
+    tops = _top_by_volume(desk, now)
+    for number, row in enumerate(tops, start=1):
         arrow, colour = pct_text(row["change_pct"])
         board.append(
             f"{number}. {paint(row['symbol'], WHITE, True)}  "
             f"PKR {row['price']:.2f}  {paint(arrow, colour)}")
-        board.append(
-            f"   B={paint(count(row['buy_volume']), GREEN)}  "
-            f"S={paint(count(row['sell_volume']), RED)}  "
-            f"T={count(row['volume'])}")
-        series = row.get("series") or []
-        if series:
-            board.append("   " + paint(spark(series), GREEN))
-    board.append("")
-    measured = any(row.get("measured_source") == "hub"
-                   for row in _top_by_volume(desk, now))
-    board.append(paint("B/S measured at the wire, every volume increment "
-                       "sided by the broker's bid/ask"
-                       if measured else
-                       "B/S is a range estimate, not order flow; footprint "
-                       "UNAVAILABLE.", FAINT))
+        if row.get("measured_source") == "hub":
+            board.append(
+                f"   MB={paint(count(row['measured_buy']), GREEN)}  "
+                f"MS={paint(count(row['measured_sell']), RED)}  "
+                f"T={count(row['volume'])}")
+        else:
+            board.append(
+                f"   B={paint(count(row['buy_volume']), GREEN)}  "
+                f"S={paint(count(row['sell_volume']), RED)}  "
+                f"T={count(row['volume'])}")
+        board.append("")
+    if any(row.get("measured_source") == "hub" for row in tops):
+        baseline = max((row.get("measured_baseline") or 0) for row in tops)
+        note = ("MB/MS measured at the relay's wire, every increment sided "
+                "by the broker's bid/ask")
+        if baseline:
+            note += (f"; {baseline:,} shares before its first observation "
+                     f"are unclassified")
+        board.append(paint(note, FAINT))
+    else:
+        board.append(paint("B/S is a range estimate, not order flow; "
+                           "footprint UNAVAILABLE.", FAINT))
     for line in boxed("\u25c6 THE INDEX & TOP 3 SCRIPS OF VOL.", board, width):
         lines.append(line)
     return lines
