@@ -1679,9 +1679,17 @@ async function healthPayload(env) {
   } catch (_) {
     lastDispatch = null;
   }
+  let flowError = null;
+  try {
+    const rawFlowError = await kvGet(env, "FLOW:LAST_ERROR");
+    if (rawFlowError) flowError = JSON.parse(rawFlowError);
+  } catch (_) {
+    flowError = null;
+  }
   return {
     ok: true,
     service: "quant-of-rehan-relay",
+    flow_last_error: flowError,
     // The commit this script was built from. The deploy workflow sets it from
     // GITHUB_SHA and then asks /health for it, so a deploy that uploaded
     // nothing (or uploaded to another account) cannot pass as a success.
@@ -2337,6 +2345,12 @@ export class QuoteHub {
   // buy + sell always equals the total it is served beside.
   async advanceFlow(quote) {
     await this.ready;
+    // An instance that was already running before the flow table shipped
+    // never re-ran the constructor, so the table is created here too. The
+    // statement is idempotent and the table is tiny.
+    this.ctx.storage.sql.exec(
+      "CREATE TABLE IF NOT EXISTS quote_flow (symbol TEXT PRIMARY KEY, day TEXT NOT NULL, volume INTEGER NOT NULL, buy INTEGER NOT NULL, sell INTEGER NOT NULL, baseline INTEGER NOT NULL, bid REAL NOT NULL DEFAULT 0, ask REAL NOT NULL DEFAULT 0, last REAL NOT NULL DEFAULT 0, side TEXT NOT NULL DEFAULT '', rules TEXT NOT NULL DEFAULT '{}', updated_at INTEGER NOT NULL DEFAULT 0)",
+    );
     const symbol = String((quote && quote.symbol) || "").toUpperCase();
     const at = Date.parse(quote && quote.observed_at ? quote.observed_at : "");
     const total = Math.round(Number(quote && quote.volume));
@@ -2661,7 +2675,16 @@ export class QuoteHub {
             quote.flow_method = "quote_rule";
             quote.flow_source = "whole-day measured at the hub: every volume increment sided by the wire's own bid/ask";
           }
-        } catch (_) { /* the range pair still answers */ }
+        } catch (error) {
+          // The range pair still answers. The reason is kept for /health so
+          // a silent failure can never hide for long.
+          try {
+            await this.statePut("FLOW:LAST_ERROR", JSON.stringify({
+              at: new Date().toISOString(),
+              message: String((error && error.message) || error).slice(0, 200),
+            }), Date.now() + 86400 * 1000);
+          } catch (ignored) { /* diagnostics never break a push */ }
+        }
         const split = splitFromQuote(quote);
         if (split) {
           let pair = { volume: split.split_volume,
