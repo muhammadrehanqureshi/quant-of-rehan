@@ -28,6 +28,12 @@ cycles the sort, `r` refreshes, `q` quits. `python -m src.desktop.tui
 --once` prints one frame and exits, which is how a frame is checked
 without a terminal.
 
+The Core ring is animated, not a still picture: a bright sweep head turns
+once every twelve seconds, trailing cyan behind it, and the SCANNING label
+steps with it. The icon is drawn from scratch at every size (a cyan ring
+with a gold momentum arrow on a dark plate), so nothing is a stretched
+bitmap.
+
 ### Where the numbers come from
 
 - `/quotes` every second: price, volume, high, low and the relay's own
@@ -47,6 +53,37 @@ without a terminal.
   sends without a split gets the same range estimate locally.
 - A quote whose running total goes backwards is never attributed, and one
   bad row never stops a poll.
+
+### The strict separation law (`src/data/quote_flow.py`)
+
+The broker wire is a per-symbol snapshot cycle, not a trade tape: it carries
+bid, ask, last and the venue's running session total, and no aggressor flag
+anywhere in its twenty fields. `src/data/feed_capture.py` now sides every
+increment of that counter at the moment it arrives, through one module, and
+keeps the decision for the session:
+
+| Rule, first match wins | Side |
+|---|---|
+| last is at or above the ask | buy |
+| last is at or below the bid | sell |
+| last is inside the spread, above its midpoint | buy |
+| last is inside the spread, below its midpoint | sell |
+| last rose from the previous row | buy |
+| last fell from the previous row | sell |
+| none of the above | the symbol's last decided side, counted |
+
+The day's change sign is never consulted; it is the sign of the change, not
+the side of a trade. The invariant is that every observed share is sided
+exactly once: buy plus sell equals the total since the first observation, a
+falling total is treated as a reset and re-baselined rather than sold, and
+the row reports which rules fired. The desk's Order Flow page shows this
+measured pair (MB, MS) beside the relay's day pair, and says from what time
+it has been measuring.
+
+One cause of stale numbers was outside the terminal: band 1's loop ran 181
+minutes from 08:55, so it stopped at 11:56 and the relay had no publisher
+until the 12:30 band. The workflow now runs 216 minutes, to 12:31, so the
+feed is pushed for the whole morning session.
 
 The phase is always the session law's. The engine record on disk is shown
 with the day it names and how old its file is, so an eight-day-old record

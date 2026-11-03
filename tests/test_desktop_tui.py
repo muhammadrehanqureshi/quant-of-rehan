@@ -195,6 +195,13 @@ class FrameTest(unittest.TestCase):
         self.assertIn("QUANT CORE", "\n".join(lines))
         self.assertEqual(len(lines), 34)
 
+    def test_the_core_ring_animates(self):
+        desk = desk_with([quote()])
+        first = plain_frame(desk, page=1, now=NOW)
+        later = plain_frame(desk, page=1,
+                            now=NOW + timedelta(seconds=3))
+        self.assertNotEqual(first[3:14], later[3:14])
+
     def test_the_split_basis_names_the_registry_verdict(self):
         self.assertIn("UNAVAILABLE", tui.split_basis())
 

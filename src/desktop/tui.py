@@ -26,6 +26,7 @@ range estimate, in words, on the page itself.
 from __future__ import annotations
 
 import json
+import math
 import os
 import re
 import sys
@@ -229,6 +230,8 @@ class FlowTracker:
                 "change_pct": quote.get("change_pct"), "side": "B",
                 "high": high, "low": low, "series": [price],
                 "baseline": bool(volume),
+                "method": quote.get("split_method") or "range_position",
+                "mbuy": 0, "msell": 0, "since": now,
             }
             self.window[symbol] = deque()
             return
@@ -238,6 +241,9 @@ class FlowTracker:
             state["high"] = high
         if isinstance(low, (int, float)):
             state["low"] = low
+        declared = quote.get("split_method")
+        if declared:
+            state["method"] = declared
         if not isinstance(buy_relay, (int, float)) or \
                 not isinstance(sell_relay, (int, float)):
             buy_relay, sell_relay = _range_split(
@@ -266,6 +272,12 @@ class FlowTracker:
             elif price < previous_price:
                 state["side"] = "S"
             value = delta * price
+            # the same decision also accumulates the whole session this desk
+            # has watched, so the measured pair is the sum of sided deltas
+            if state["side"] == "B":
+                state["mbuy"] += delta
+            else:
+                state["msell"] += delta
             self.window[symbol].append(
                 (now, delta, value if state["side"] == "B" else 0.0,
                  value if state["side"] == "S" else 0.0))
@@ -297,6 +309,10 @@ class FlowTracker:
                 "change_pct": state["change_pct"], "volume": state["volume"],
                 "buy_volume": state["buy"], "sell_volume": state["sell"],
                 "high": state.get("high"), "low": state.get("low"),
+                "split_method": state.get("method"),
+                "measured_buy": state["mbuy"],
+                "measured_sell": state["msell"],
+                "measured_since": state["since"],
                 "bought": state["buy"] * state["price"],
                 "sold": state["sell"] * state["price"],
                 "bought_60": bought, "sold_60": sold, "shares_60": moved,
@@ -451,11 +467,12 @@ def render(desk: Desk, page: int, sort: int, size, now: datetime) -> list[str]:
     left.append(paint("\u250c\u2500 ", CYAN) + paint(core_title, CYAN, True) +
                 paint(" " + rule(left_w - 5 - width_of(core_title), "\u2500") +
                       "\u2510", CYAN))
-    for line in _orb(market_open):
+    for line in _orb(market_open, int(now.timestamp()) % 12):
         left.append(paint("\u2502 ", CYAN) + pad(line, left_w - 4) +
                     paint(" \u2502", CYAN))
+    sweep = "\u25c6" * (1 + int(now.timestamp()) % 3)
     status = paint("\u25c6 ONLINE", GREEN, True) + "  " + paint(
-        "\u25c6 SCANNING" if market_open else "\u25c6 STANDBY", CYAN)
+        (sweep + " SCANNING") if market_open else "\u25c6 STANDBY", CYAN)
     left.append(paint("\u2502 ", CYAN) + pad(status, left_w - 4) +
                 paint(" \u2502", CYAN))
     left.append(paint("\u2514" + rule(left_w - 2) + "\u2518", CYAN))
@@ -503,19 +520,53 @@ def _three(left: str, centre: str, right: str, columns: int) -> str:
     return pad(left, start) + centre + pad("", gap) + right
 
 
-def _orb(market_open: bool) -> list[str]:
+def _orb(market_open: bool, phase: int = 0) -> list[str]:
+    """A breathing JARVIS ring: the sweep turns once every twelve seconds.
+
+    Same five cells every frame, three brightness bands: the sweep head is
+    white, the trailing arc cyan, the rest dim, so the ring visibly scans
+    instead of sitting as a still picture.
+    """
     art = [
-        "       .:::::::::.",
-        "    .:::::'. .':::::.",
-        "   ::::'         '::::",
-        "  :::::           :::::",
-        "  :::::   :::::   :::::",
-        "   ::::   :::::   ::::",
-        "    ':::::. . .:::::'",
-        "       ':::::::::'",
+        "        .:::::::::.        ",
+        "    .:::::':.':::::::.     ",
+        "   ::::'    .    ':::::    ",
+        "  :::::    ':'    ::::::   ",
+        "  :::::    :::    ::::::   ",
+        "  ::::     ':'     :::::   ",
+        "   ::::.          .:::::   ",
+        "    ':::::::. .:::::::'    ",
+        "        ':::::::::'        ",
     ]
-    colour = CYAN if market_open else FAINT
-    return [paint(line, colour) for line in art]
+    if not market_open:
+        return [paint(line, FAINT) for line in art]
+    height = len(art)
+    width = max(len(line) for line in art)
+    centre_y = (height - 1) / 2.0
+    centre_x = (width - 1) / 2.0
+    angle = (phase * 30.0) % 360.0
+    out = []
+    for y, line in enumerate(art):
+        cells = []
+        for x, char in enumerate(line):
+            if char == " ":
+                cells.append(" ")
+                continue
+            dx = (x - centre_x) / (width / 2.0)
+            dy = (y - centre_y) / (height / 2.0)
+            if abs(dx) + abs(dy) < 0.35:
+                cells.append(paint(char, FAINT))
+                continue
+            cell_angle = (math.degrees(math.atan2(dy, dx)) + 360.0) % 360.0
+            delta = abs((cell_angle - angle + 180.0) % 360.0 - 180.0)
+            if delta < 18:
+                cells.append(paint("\u2588", WHITE, True))
+            elif delta < 70:
+                cells.append(paint(char, CYAN, True))
+            else:
+                cells.append(paint(char, FAINT))
+        out.append("".join(cells))
+    return out
 
 
 def _page_lines(desk: Desk, page: int, sort: int, width: int,
@@ -599,7 +650,12 @@ def _home_page(desk: Desk, width: int, now: datetime) -> list[str]:
         if series:
             board.append("   " + paint(spark(series), GREEN))
     board.append("")
-    board.append(paint("B/S is a range estimate, not order flow; footprint "
+    measured = any(row.get("split_method") == "quote_rule"
+                   for row in _top_by_volume(desk, now))
+    board.append(paint("B/S measured at the wire, every volume increment "
+                       "sided by the broker's bid/ask"
+                       if measured else
+                       "B/S is a range estimate, not order flow; footprint "
                        "UNAVAILABLE.", FAINT))
     for line in boxed("\u25c6 THE INDEX & TOP 3 SCRIPS OF VOL.", board, width):
         lines.append(line)
@@ -659,21 +715,31 @@ def _scanner_page(desk: Desk, sort: int, width: int, now: datetime) -> list[str]
 def _flow_page(desk: Desk, width: int, now: datetime) -> list[str]:
     lines = [paint("\u25c6 ORDER FLOW  -  DAY MONEY FLOW BY VOLUME",
                    WHITE, True), ""]
-    header = (pad("SCRIP", 10) + pad("PRICE", 10, "right") +
-              pad("BUY", 13, "right") + pad("SELL", 13, "right") +
-              pad("TOTAL", 13, "right") + pad("CHG", 10, "right"))
+    header = (pad("SCRIP", 9) + pad("PRICE", 9, "right") +
+              pad("BUY", 11, "right") + pad("SELL", 11, "right") +
+              pad("TOTAL", 12, "right") + pad("CHG", 9, "right") +
+              pad("MB", 7, "right") + pad("MS", 7, "right"))
     lines.append(paint(header, FAINT))
     rows = desk.flow.rows(now=now)
+    since = None
     for row in rows[:14]:
         arrow, _colour = pct_text(row["change_pct"])
+        since = since or row.get("measured_since")
         lines.append(
-            pad(row["symbol"], 10) +
-            pad(f"{row['price']:.2f}", 10, "right") +
-            pad(count(row["buy_volume"]), 13, "right") +
-            pad(count(row["sell_volume"]), 13, "right") +
-            pad(count(row["volume"]), 13, "right") +
-            pad(arrow, 10, "right"))
+            pad(row["symbol"], 9) +
+            pad(f"{row['price']:.2f}", 9, "right") +
+            pad(count(row["buy_volume"]), 11, "right") +
+            pad(count(row["sell_volume"]), 11, "right") +
+            pad(count(row["volume"]), 12, "right") +
+            pad(arrow, 9, "right") +
+            pad(count(row.get("measured_buy")), 7, "right") +
+            pad(count(row.get("measured_sell")), 7, "right"))
     lines.append("")
+    window = (f"MB/MS: this desk's own strict flow since "
+              f"{since:%H:%M}, every increment sided by the broker's "
+              f"bid/ask; BUY/SELL: the relay's day pair"
+              if since else "MB/MS: the desk's own strict flow")
+    lines.append(paint(window, FAINT))
     lines.append(paint(split_basis() + "; each side is held at its "
                        "high-water mark so neither can fall", FAINT))
     return lines
@@ -727,6 +793,7 @@ def _health_page(desk: Desk, width: int, now: datetime) -> list[str]:
         f"{paint('index ', FAINT)} "
         f"{index.get('value') if isinstance(index.get('value'), (int, float)) else '-'}"
         f"   split {index.get('source') or '-'}",
+        f"{paint('flow  ', FAINT)} {split_basis()}",
         "",
         paint("each poll reads /quotes; the terminal waits on the relay, "
               "never on a clock of its own", FAINT),
