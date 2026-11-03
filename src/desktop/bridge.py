@@ -308,78 +308,248 @@ def _capture_file(capture: Path | None = None,
     return capture or capture_for(_now(now))
 
 
-def leader_flow(capture: Path | None = None, now: datetime | None = None,
-                limit: int = 3) -> tuple[list[dict], str]:
-    """The volume leaders with the card's B/S split, plus the basis sentence.
+def _finite(value) -> float | None:
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if number == number else None
 
-    The leaders come from the newest banked REG frame, which carries every
-    symbol at once. The B/S pair is the repository's range-position split
-    over that frame's own high, low, last price and running volume: the
-    same estimate the phone card and the old console print, labelled as an
-    estimate and not order flow (SO-3; the truth source is volume_split).
+
+def _parse_stamp(value) -> datetime | None:
+    if not value:
+        return None
+    try:
+        stamp = datetime.fromisoformat(str(value))
+    except ValueError:
+        return None
+    if stamp.tzinfo is None:
+        stamp = stamp.replace(tzinfo=KARACHI)
+    return stamp
+
+
+class FlowMemory:
+    """Session-cumulative, monotonic buy/sell attribution from live frames.
+
+    The owner's law (PRL report, 2026-11-03): a scrip's buying volume,
+    selling volume and total volume can only grow during a session; a
+    figure that drops is a bug, and a method that re-attributes the day
+    by the price's position in the range is the bug he caught. The window
+    rules here are the repository's own, from src/data/tick_volume.py:
+    each positive increment of the venue's running total is one window,
+    attributed by print evidence (at the ask, at the bid, else the tick
+    rule). A window without evidence, one spanning a gap of more than
+    MAX_WALL_SECONDS of tape, or shares counted before the terminal
+    started are reported as unclassified rather than guessed. A running
+    total that goes backwards is reported, never attributed. Nothing in
+    this class ever subtracts from buy, sell or total.
     """
-    from src.data import broker_market, volume_split
 
-    path = _capture_file(capture, now)
-    if not path.is_file():
-        return [], "no banked tape for today"
-    moment = _now(now)
-    latest: dict[str, dict] = {}
-    for record in broker_market._newest_records(path):
-        if not isinstance(record, dict):
-            continue
-        kind = str(record.get("kind", ""))
-        if not kind.startswith("MKT-FEED"):
-            continue
-        try:
-            stamp = datetime.fromisoformat(str(record.get("ts", "")))
-        except ValueError:
-            continue
-        if stamp.tzinfo is None:
-            stamp = stamp.replace(tzinfo=KARACHI)
-        if (moment - stamp.astimezone(KARACHI)).total_seconds() > 3 * 3600:
-            break
-        for tick in broker_market._tick_rows(record):
-            symbol = str(tick.get("scrip", "")).strip().upper().split(":", 1)[0]
-            volume = broker_market._number(tick.get("volume"))
-            if not symbol or volume is None or volume <= 0:
+    def __init__(self) -> None:
+        self._day = None
+        self._state: dict[str, dict] = {}
+        self._index: list[float] = []
+
+    def observe(self, quotes) -> None:
+        """Feed one live batch (feed_capture.relay_quote_updates shape)."""
+        for quote in quotes or []:
+            try:
+                self._observe_one(quote)
+            except Exception:  # noqa: BLE001 - one bad quote never stops it
                 continue
-            if symbol in latest:
-                continue  # walking backwards: the first sight is the newest
-            price = broker_market._number(tick.get("last"))
-            close = broker_market._number(tick.get("close"))
-            latest[symbol] = {
+
+    def observe_index(self, value) -> None:
+        number = _finite(value)
+        if number is None or number <= 0:
+            return
+        if not self._index or self._index[-1] != number:
+            self._index.append(number)
+        if len(self._index) > 240:
+            del self._index[:120]
+
+    def seed(self, rows, flows, series=None, index_values=None) -> int:
+        """Day-cumulative state from today's banked tape, before the feed.
+
+        rows are the newest QuoteRows (volume and print per symbol), flows
+        are tick_volume.SymbolFlow measured over the whole day, and the
+        series pair seed the charts. A symbol the live feed already
+        observed keeps its own counts: seeding never lowers anything.
+        """
+        seeded = 0
+        for row in rows:
+            symbol = str(row.symbol).upper()
+            if symbol in self._state:
+                continue
+            flow = (flows or {}).get(symbol)
+            self._state[symbol] = {
                 "symbol": symbol,
-                "price": price if price and price > 0 else None,
-                "change_pct": ((price - close) / close * 100.0
-                               if price and close and close > 0 else None),
-                "volume": int(volume),
-                "high": broker_market._number(tick.get("high")),
-                "low": broker_market._number(tick.get("low")),
+                "volume": row.volume,
+                "price": row.last,
+                "bid": row.bid,
+                "ask": row.ask,
+                "buy": int(flow.buy_volume or 0) if flow else 0,
+                "sell": int(flow.sell_volume or 0) if flow else 0,
+                "unclassified": (int(getattr(flow, "unclassified_volume", 0)
+                                     or 0) if flow else 0),
+                "gaps": 0,
+                "backward": 0,
+                "observed": None,
+                "series": list((series or {}).get(symbol) or [])[-240:],
             }
-        if len(latest) >= 25:
-            break  # one fresh frame carries the whole universe
-    ranked = sorted(latest.values(), key=lambda row: -row["volume"])[:limit]
-    rows = []
-    for row in ranked:
-        split = volume_split.range_position_split(
-            row["high"], row["low"], row["price"], row["volume"])
-        rows.append({
-            "symbol": row["symbol"],
-            "price": row["price"],
-            "change_pct": row["change_pct"],
-            "volume": row["volume"],
-            "buy_volume": split.buy if split is not None else None,
-            "sell_volume": split.sell if split is not None else None,
-            "buy_share": (round(split.fraction, 3)
-                          if split is not None else None),
-            "split_note": (split.note or "" if split is not None else
-                           "the frame's session range is incomplete"),
-        })
-    note = ("B/S is the range-position split of the session volume: an "
-            "estimate, not order flow. Sides per print live on the order "
-            "flow page.")
-    return rows, note
+            seeded += 1
+        if index_values:
+            self._index = list(index_values)[-240:]
+        return seeded
+
+    def row_count(self) -> int:
+        return len(self._state)
+
+    def rows(self, limit: int | None = None) -> list[dict]:
+        """The session's scrips, venue total first; monotonic by law."""
+        ordered = sorted(self._state.values(),
+                         key=lambda state: (-(state["volume"] or 0),
+                                            state["symbol"]))
+        selected = ordered[:limit] if limit else ordered
+        out = []
+        for state in selected:
+            buy, sell = state["buy"], state["sell"]
+            total = state["volume"]
+            share = (buy / (buy + sell)) if (buy + sell) > 0 else None
+            out.append({
+                "symbol": state["symbol"],
+                "price": state["price"],
+                "volume": total,
+                "buy_volume": buy,
+                "sell_volume": sell,
+                "buy_share": round(share, 3) if share is not None else None,
+                "unclassified": state["unclassified"],
+                "gaps": state["gaps"],
+                "backward": state["backward"],
+                "basis": "tape-measured window attribution",
+            })
+        return out
+
+    def chart_series(self, limit: int = 8, points: int = 24) -> dict:
+        """Downsampled price series for the top scrips' dotted charts."""
+        rows = self.rows(limit)
+        out = {}
+        for row in rows:
+            values = self._state[row["symbol"]]["series"]
+            if len(values) <= points:
+                out[row["symbol"]] = list(values)
+                continue
+            step = len(values) / points
+            out[row["symbol"]] = [values[int(index * step)]
+                                  for index in range(points)]
+        return out
+
+    def index_series(self, points: int = 24) -> list[float]:
+        values = self._index
+        if len(values) <= points:
+            return list(values)
+        step = len(values) / points
+        return [values[int(index * step)] for index in range(points)]
+
+    def basis_note(self) -> str:
+        unclassified = sum(state["unclassified"]
+                           for state in self._state.values())
+        backward = sum(state["backward"] for state in self._state.values())
+        note = ("B and S are measured window attribution from the banked "
+                "tape (print at the ask, at the bid, else the tick rule); "
+                "T is the venue's running total. Buy, sell and total only "
+                "grow during a session.")
+        if unclassified:
+            note += (f" {unclassified:,} shares are counted as "
+                     "unattributed (outages and no-evidence windows), "
+                     "never split by guess.")
+        if backward:
+            note += (f" {backward} running totals went backwards and were "
+                     "reported, not attributed.")
+        return note
+
+    def _observe_one(self, quote) -> None:
+        symbol = str(quote.get("symbol") or "").strip().upper()
+        if not symbol:
+            return
+        observed = _parse_stamp(quote.get("observed_at"))
+        volume = _finite(quote.get("volume"))
+        price = _finite(quote.get("price"))
+        bid = _finite(quote.get("bid"))
+        ask = _finite(quote.get("ask"))
+        day = observed.date() if observed else self._day
+        if day is not None and self._day is not None and day != self._day:
+            self._state.clear()   # a new session restarts every counter
+            self._index.clear()
+        if day is not None:
+            self._day = day
+        state = self._state.get(symbol)
+        if state is None:
+            # First sight of the symbol: the running total becomes the
+            # baseline, so the venue total shows at once while every share
+            # before now stays unattributed rather than guessed.
+            self._state[symbol] = {
+                "symbol": symbol, "volume": volume, "price": price,
+                "bid": bid, "ask": ask, "buy": 0, "sell": 0,
+                "unclassified": 0, "gaps": 0, "backward": 0,
+                "observed": observed, "series":
+                ([price] if price is not None else []),
+            }
+            return
+        prev_observed = state["observed"]
+        prev_price = state["price"]
+        got_total = volume is not None and volume > 0
+        if not got_total:
+            # The row carries no running total: no window of its own, but
+            # it is still the newest print evidence.
+            state["price"], state["bid"], state["ask"] = price, bid, ask
+            state["observed"] = observed or state["observed"]
+            return
+        previous_volume = state["volume"]
+        state["price"], state["bid"], state["ask"] = price, bid, ask
+        state["observed"] = observed or state["observed"]
+        if previous_volume is None:
+            state["volume"] = volume
+            return
+        delta = int(volume) - int(previous_volume)
+        if delta < 0:
+            # A running total that went backwards cannot be split, and the
+            # displayed total must never fall: report it, keep the high
+            # water mark, and measure later windows from it.
+            state["backward"] += 1
+            return
+        state["volume"] = volume
+        if delta == 0:
+            return   # the feed repeats whole snapshots; one change is one
+        from src.data import tick_volume
+
+        gap = None
+        if observed is not None and prev_observed is not None:
+            gap = max(0.0, (observed - prev_observed).total_seconds())
+        if gap is not None and gap > tick_volume.MAX_WINDOW_SECONDS:
+            state["gaps"] += 1
+            state["unclassified"] += delta   # an outage is not a side
+        else:
+            from src.data import tick_volume
+
+            side, _how = tick_volume._trade_side(
+                {"last": price, "bid": bid, "ask": ask},
+                {"last": prev_price})
+            if side == "B":
+                state["buy"] += delta
+            elif side == "S":
+                state["sell"] += delta
+            else:
+                state["unclassified"] += delta
+        if price is not None:
+            series = state["series"]
+            if not series or series[-1] != price:
+                series.append(price)
+            if len(series) > 240:
+                del series[:120]
+
+
 
 
 def spark_series(symbols=None, capture: Path | None = None,
