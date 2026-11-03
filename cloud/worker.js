@@ -2365,8 +2365,6 @@ export class QuoteHub {
   constructor(ctx, env) {
     this.ctx = ctx;
     this.env = env;
-    this.flows = null;
-    this.flowsDirty = false;
     this.ready = ctx.blockConcurrencyWhile(async () => {
       ctx.storage.sql.exec(
         "CREATE TABLE IF NOT EXISTS quote_snapshot (id INTEGER PRIMARY KEY CHECK (id = 1), payload TEXT NOT NULL)",
@@ -2384,62 +2382,7 @@ export class QuoteHub {
       ctx.storage.sql.exec(
         "CREATE TABLE IF NOT EXISTS quote_flow (symbol TEXT PRIMARY KEY, day TEXT NOT NULL, volume INTEGER NOT NULL, buy INTEGER NOT NULL, sell INTEGER NOT NULL, baseline INTEGER NOT NULL, bid REAL NOT NULL DEFAULT 0, ask REAL NOT NULL DEFAULT 0, last REAL NOT NULL DEFAULT 0, side TEXT NOT NULL DEFAULT '', rules TEXT NOT NULL DEFAULT '{}', updated_at INTEGER NOT NULL DEFAULT 0)",
       );
-      await this.loadFlows();
     });
-  }
-
-  // The whole day's flow is one JSON row, not one row per symbol. The old
-  // shape wrote 312 rows on every accepted push and reached 90 percent of the
-  // Durable Objects daily write allowance in minutes (Cloudflare warning,
-  // 2026-11-03). The values are unchanged; only the storage shape is.
-  async loadFlows() {
-    const row = this.ctx.storage.sql.exec(
-      "SELECT value FROM relay_state WHERE key = ?", "FLOW:STATE",
-    ).toArray()[0];
-    if (row) {
-      try {
-        const parsed = JSON.parse(String(row.value));
-        if (parsed && parsed.symbols && typeof parsed.symbols === "object") {
-          this.flows = parsed;
-          this.flowsDirty = false;
-          return;
-        }
-      } catch (_) { /* rebuild from the legacy per-symbol rows */ }
-    }
-    const legacy = this.ctx.storage.sql.exec(
-      "SELECT symbol, day, volume, buy, sell, baseline, bid, ask, last, side, rules FROM quote_flow",
-    ).toArray();
-    const symbols = {};
-    for (const r of legacy) {
-      let rules = {};
-      try { rules = JSON.parse(String(r.rules || "{}")) || {}; }
-      catch (_) { rules = {}; }
-      symbols[String(r.symbol)] = {
-        day: String(r.day), volume: Number(r.volume), buy: Number(r.buy),
-        sell: Number(r.sell), baseline: Number(r.baseline),
-        bid: Number(r.bid) || 0, ask: Number(r.ask) || 0,
-        last: Number(r.last) || 0, side: String(r.side || ""), rules,
-      };
-    }
-    this.flows = { symbols };
-    this.flowsDirty = legacy.length > 0;
-    this.persistFlows();
-  }
-
-  persistFlows() {
-    if (!this.flows || !this.flowsDirty) return;
-    try {
-      this.ctx.storage.sql.exec(
-        "INSERT INTO relay_state (key, value, expires_at) VALUES (?, ?, 0) " +
-        "ON CONFLICT(key) DO UPDATE SET value = excluded.value, " +
-        "expires_at = excluded.expires_at",
-        "FLOW:STATE", JSON.stringify(this.flows),
-      );
-      this.flowsDirty = false;
-    } catch (_) {
-      // A write-cap refusal must not stop the live answer. The in-memory
-      // copy still serves this instance and the next push retries once.
-    }
   }
 
   // Every increment of the venue's own running total, sided once, for the
@@ -2453,7 +2396,12 @@ export class QuoteHub {
   // buy + sell equals the total on every served frame.
   async advanceFlow(quote) {
     await this.ready;
-    if (!this.flows) await this.loadFlows();
+    // An instance that was already running before the flow table shipped
+    // never re-ran the constructor, so the table is created here too. The
+    // statement is idempotent and the table is tiny.
+    this.ctx.storage.sql.exec(
+      "CREATE TABLE IF NOT EXISTS quote_flow (symbol TEXT PRIMARY KEY, day TEXT NOT NULL, volume INTEGER NOT NULL, buy INTEGER NOT NULL, sell INTEGER NOT NULL, baseline INTEGER NOT NULL, bid REAL NOT NULL DEFAULT 0, ask REAL NOT NULL DEFAULT 0, last REAL NOT NULL DEFAULT 0, side TEXT NOT NULL DEFAULT '', rules TEXT NOT NULL DEFAULT '{}', updated_at INTEGER NOT NULL DEFAULT 0)",
+    );
     const symbol = String((quote && quote.symbol) || "").toUpperCase();
     const at = Date.parse(quote && quote.observed_at ? quote.observed_at : "");
     const total = Math.round(Number(quote && quote.volume));
@@ -2463,16 +2411,15 @@ export class QuoteHub {
     const price = Number(quote.price);
     const bid = Number(quote.bid);
     const ask = Number(quote.ask);
-    const stored = this.flows.symbols[symbol];
+    const stored = this.ctx.storage.sql.exec(
+      "SELECT day, volume, buy, sell, baseline, bid, ask, last, side, rules " +
+      "FROM quote_flow WHERE symbol = ?", symbol,
+    ).toArray()[0];
     let state;
     if (stored && String(stored.day) === day) {
       let rules = {};
-      if (stored.rules && typeof stored.rules === "object") {
-        rules = stored.rules;
-      } else {
-        try { rules = JSON.parse(String(stored.rules || "{}")) || {}; }
-        catch (_) { rules = {}; }
-      }
+      try { rules = JSON.parse(String(stored.rules || "{}")) || {}; }
+      catch (_) { rules = {}; }
       state = { day, volume: Number(stored.volume), buy: Number(stored.buy),
         sell: Number(stored.sell), baseline: Number(stored.baseline),
         bid: Number(stored.bid) || 0, ask: Number(stored.ask) || 0,
@@ -2534,8 +2481,17 @@ export class QuoteHub {
       }
       state.volume = total;
     }
-    this.flows.symbols[symbol] = state;
-    this.flowsDirty = true;
+    this.ctx.storage.sql.exec(
+      "INSERT INTO quote_flow (symbol, day, volume, buy, sell, baseline, bid, ask, last, side, rules, updated_at) " +
+      "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) " +
+      "ON CONFLICT(symbol) DO UPDATE SET day = excluded.day, volume = excluded.volume, " +
+      "buy = excluded.buy, sell = excluded.sell, baseline = excluded.baseline, " +
+      "bid = excluded.bid, ask = excluded.ask, last = excluded.last, " +
+      "side = excluded.side, rules = excluded.rules, updated_at = excluded.updated_at",
+      symbol, state.day, state.volume, state.buy, state.sell, state.baseline,
+      state.bid, state.ask, state.last, state.side,
+      JSON.stringify(state.rules), Date.now(),
+    );
     if (state.buy + state.sell + state.baseline !== total) return null;
     return { buy_volume: state.buy, sell_volume: state.sell,
       baseline: state.baseline, total };
@@ -2838,7 +2794,6 @@ export class QuoteHub {
         }
         quotes.set(quote.symbol, quote);
       }
-      this.persistFlows();
       const newer = (current, incoming, stamp) => {
         if (!incoming) return current || null;
         return !current || Date.parse(incoming[stamp]) >= Date.parse(current[stamp])
