@@ -104,6 +104,9 @@ jobs:
       # cannot cover never leaves the owner without a call. No position, no
       # claim; the strict one-trade law is untouched.
       OWNER_ORDERED_CALLS: "1"
+      # Owner order 2026-11-03: the intraday signal must agree with the 1 day
+      # frame, and the file that frame reads is restored or built below.
+      MTF_REQUIRE_DAILY: "1"
       # The owner email transport (src/notify/owner_email.py) reads its token
       # from the environment; a job env without it raises before any comment
       # POST can go out, and the delivered verdict would never be emailed.
@@ -142,6 +145,37 @@ jobs:
       - name: Install dependencies
         if: steps.gate.outputs.should_run == 'true'
         run: pip install -r requirements.txt --retries 5 --timeout 60
+
+      # The 1 day frame of the intraday law (owner order 2026-11-03). One
+      # build per Karachi day, restored by every later scheduled slot. The
+      # cache key carries the day, so a stale file is never read as today's
+      # history; a miss builds it here, and a failure leaves the scanner in
+      # DATA BLOCKED rather than dropping the 1 day gate.
+      - name: Resolve the multi-timeframe daily key
+        id: mtf_day
+        if: steps.gate.outputs.should_run == 'true'
+        run: echo "day=$(TZ=Asia/Karachi date +%F)" >> "$GITHUB_OUTPUT"
+
+      - name: Restore the multi-timeframe daily history
+        id: mtf_daily
+        if: steps.gate.outputs.should_run == 'true'
+        uses: actions/cache/restore@v4
+        with:
+          path: data/mtf_daily.csv.gz
+          key: mtf-daily-${{ steps.mtf_day.outputs.day }}
+          restore-keys: |
+            mtf-daily-
+
+      - name: Build the multi-timeframe daily history on a cache miss
+        if: steps.gate.outputs.should_run == 'true' && steps.mtf_daily.outputs.cache-hit != 'true'
+        run: python scripts/prepare_mtf_daily.py --sessions 50
+
+      - name: Save the multi-timeframe daily history
+        if: steps.gate.outputs.should_run == 'true' && steps.mtf_daily.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: data/mtf_daily.csv.gz
+          key: mtf-daily-${{ steps.mtf_day.outputs.day }}
 
       - name: Restore the day state and tape from R2
         if: steps.gate.outputs.should_run == 'true'
