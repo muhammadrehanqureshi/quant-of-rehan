@@ -47,8 +47,8 @@ or 2026-11-02. Replaying the archived tape is an Actions job and no such job
 exists yet, so those cells are NOT MEASURED rather than filled from memory.
 
 What can be said from the record: PRL's stop filled at the stop level itself
-(97.218) and CNERGY's exited at 12.37, 0.005 below its 12.375 stop, which is
-one tick through it at a one paisa tick.
+(97.218) and CNERGY's exited at 12.37, 0.005 below its 12.375 stop, a fill
+within a fraction of a percent of the stop rather than far through it.
 
 ## 2. Break-even arithmetic and how much information 0 for 3 carries
 
@@ -97,11 +97,13 @@ not the candidate count, is the honest denominator for question 2.
 
 Local tapes present: 2026-10-18 (2.5 MB), 2026-10-21 (135.8 MB), 2026-10-23
 (93.8 MB), 2026-11-03 (0.5 MB, partial). The two sessions with documented
-trades have no local tape. The last 25 Actions runs contain the console work
-and two backtests (41273110941 and 41278455054, both successful), not the four
-wide stop shapes the brief says were dispatched in section 14. Section 14 of
-this repository's `PROJECT_REPORT.md` is an October incident record, not a run
-registry, so the four shapes cannot be traced from it. Their trial count is
+trades have no local tape. The last 25 Actions runs are console work. Two
+earlier backtest runs, 41273110941 (the ten year panel) and 41278455054, both
+succeeded, but neither is the four shape stop run, and the four wide stop
+shapes the brief says were dispatched in section 14 do not appear anywhere in
+this clone's run record. Section 14 of this repository's `PROJECT_REPORT.md`
+covers the Friday and band record, not a run registry, so the four shapes
+cannot be traced from it. Their trial count is
 still carried below, per the brief, and the record gap is reported rather
 than papered over.
 
@@ -149,8 +151,8 @@ percent floor.
 
 ## 5. The six families: data inventory and status
 
-The common panel is the 10 year KMIALL daily panel used by runs 41273110941
-and 41278455054, with the locked splits: discovery 2016-10-29 to 2024-06-30,
+The common panel is the 10 year KMIALL daily panel used by run 41273110941,
+with the locked splits: discovery 2016-10-29 to 2024-06-30,
 validation 2024-07-01 to 2025-12-31, test 2026-01-01 to 2026-10-30. Entry at
 the next bar's open, stop first when one bar touches both levels, repo costs
 and CGT. The primary metric is mean net return per trade with a day clustered
