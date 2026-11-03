@@ -192,11 +192,23 @@ jobs:
           # deduped ops alert, exactly like the scheduled scans, so a band that
           # dies does not become a GitHub failure email per fire.
           set +e
+          mkdir -p logs
+          # One continuous read-only socket for the whole band. The old shape
+          # started a short capture inside every scan cycle, so the relay was
+          # only pushed a few seconds in every cycle and the phone and the
+          # desk read rows 8 to 24 seconds old. The daemon writes the same
+          # tape the scanner reads, and pushes every frame it receives.
+          python -m src.data.feed_capture \
+            --duration "${{ steps.window.outputs.seconds }}" \
+            > logs/feed_capture_daemon.log 2>&1 &
+          feed_pid=$!
           timeout --signal=TERM \
             "${{ steps.window.outputs.seconds }}" \
-            python scripts/scan_loop.py --loop --interval 1 \
+            python scripts/scan_loop.py --loop --interval 1 --skip-capture \
             > /tmp/kmi_session.log 2>&1
           status=$?
+          kill "$feed_pid" 2>/dev/null || true
+          wait "$feed_pid" 2>/dev/null || true
           set -e
           tail -n 40 /tmp/kmi_session.log
           {
