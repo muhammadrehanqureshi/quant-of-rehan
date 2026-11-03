@@ -14,7 +14,8 @@ analysis = Analysis(
     [str(ROOT / "src" / "desktop" / "app.py")],
     pathex=[str(ROOT)],
     binaries=[],
-    datas=[(str(ROOT / "src" / "data" / "universe_kmiall.json"), "src/data")],
+    datas=[(str(ROOT / "src" / "data" / "universe_kmiall.json"), "src/data"),
+           (str(ICON), "assets")],
     hiddenimports=[
         "src.data.feed_capture",
         "src.data.broker_market",
