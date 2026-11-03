@@ -72,6 +72,61 @@ TAPE_STALE_SECONDS = 70.0
 #: cycles blamed the tape for bars a dead recorder never wrote.
 START_PROBE_SECONDS = 2.0
 
+# Owner order 2026-11-03, after Cloudflare emailed the daily request limit
+# to the owner twice on 2026-11-02: the card POST is the loop's largest
+# draw on the relay. The Workers free plan grants 100,000 requests a day
+# and emails the owner at 80% and 100%; one loop at the 2026-10-19 one
+# second cadence alone spends about 21,600 of them on POST /market in a
+# session, and two overlapping loops (one live, one queued behind it)
+# multiply a bad day past the cap. The pushes are also largely wasted: the
+# edge keeps a pushed card for five minutes (cloud/worker.js POST /market)
+# and /market grafts the frames the durable store already holds, so a
+# push faster than the interval only refreshes a copy the edge is still
+# serving. The two laws below are the small change that removes the burn;
+# the SCAN cadence itself stays one second, owner order untouched.
+#
+#   CONTENT  a card whose snapshot is identical to the last one pushed is
+#            not sent again (the exchange's own answers move every cycle,
+#            so quiet stretches collapse into zero requests);
+#   INTERVAL a card that differs is sent at most once per minute, so even
+#            a market in constant motion spends about 360 requests a
+#            session where one push a second spent 21,600.
+CARD_PUSH_MIN_INTERVAL_SECONDS = 60.0
+
+#: Snapshot keys that travel with every cycle without carrying card
+#: content: the clock labels. Everything else (the index, the leaders,
+#: their volumes and buy/sell split, the notes) decides whether the edge
+#: should hold a different card at all.
+CARD_PUSH_VOLATILE_KEYS = ("as_of", "age_seconds")
+
+#: The last card this process pushed. The band loop is one long-lived
+#: process, so this in-memory ledger is the state the throttle needs;
+#: a fresh process always publishes its first card.
+CARD_PUSH_STATE: dict = {"signature": None, "epoch": 0.0}
+
+
+def card_signature(snapshot: dict) -> str:
+    """Fingerprint the card content the edge can actually tell apart."""
+    volatile = set(CARD_PUSH_VOLATILE_KEYS)
+
+    def strip(value):
+        if isinstance(value, dict):
+            return {key: strip(item) for key, item in value.items()
+                    if key not in volatile}
+        if isinstance(value, list):
+            return [strip(item) for item in value]
+        return value
+
+    return json.dumps(strip(snapshot), sort_keys=True, separators=(",", ":"),
+                      default=str)
+
+
+def _card_epoch(now: datetime | None) -> float:
+    """The push clock: the caller's own moment when it carries a zone."""
+    if now is not None and now.tzinfo is not None:
+        return now.timestamp()
+    return time.time()
+
 
 def _parse_stamp(text: str) -> datetime | None:
     try:
@@ -241,6 +296,14 @@ def publish_card(now: datetime | None = None, dry_run: bool = False) -> dict:
     Returns a small result dict: ``ok``, a one line ``detail`` for the tick
     log, and the split sentence. A failure names its own cause; nothing here
     invents a success, and nothing here can stop a scan.
+
+    The push itself is throttled (owner order 2026-11-03): a card whose
+    content is identical to the last one pushed is never sent again, and a
+    card that differs is sent at most once per minute, because the edge
+    serves a pushed card for five minutes anyway and every relay request
+    counts against the Workers free plan. A skipped push still reports
+    ``ok``: the card the phone reads already shows what this snapshot
+    describes.
     """
     try:
         snapshot = market_snapshot.build_snapshot()
@@ -252,6 +315,24 @@ def publish_card(now: datetime | None = None, dry_run: bool = False) -> dict:
         return {"ok": True, "dry_run": True,
                 "detail": "card built (dry run, not pushed)", "split": split,
                 "snapshot": snapshot}
+    signature = card_signature(snapshot)
+    if signature == CARD_PUSH_STATE["signature"]:
+        # The edge is already serving exactly this card byte for byte, so
+        # repeating it spends a request the cap will eventually bill for
+        # nothing the phone could see (owner order 2026-11-03).
+        return {"ok": True,
+                "detail": ("card unchanged since the last push; the edge "
+                           "still holds it (no relay request)"),
+                "split": split, "snapshot": snapshot}
+    epoch = _card_epoch(now)
+    last_epoch = float(CARD_PUSH_STATE["epoch"] or 0.0)
+    if last_epoch > 0.0 and epoch - last_epoch < CARD_PUSH_MIN_INTERVAL_SECONDS:
+        return {"ok": True,
+                "detail": (f"card changed {epoch - last_epoch:.0f}s after "
+                           f"the last push, inside the "
+                           f"{CARD_PUSH_MIN_INTERVAL_SECONDS:.0f}s push "
+                           "interval; the pushed card stands"),
+                "split": split, "snapshot": snapshot}
     try:
         reply = market_snapshot.push_snapshot(snapshot)
     except SystemExit as exc:  # missing credential: a configuration fact
@@ -264,6 +345,8 @@ def publish_card(now: datetime | None = None, dry_run: bool = False) -> dict:
         return {"ok": False,
                 "detail": f"the relay refused the card: {reply.get('error')}",
                 "split": split}
+    CARD_PUSH_STATE["signature"] = signature
+    CARD_PUSH_STATE["epoch"] = epoch
     return {"ok": True, "detail": "card published to the relay", "split": split,
             "snapshot": snapshot}
 
