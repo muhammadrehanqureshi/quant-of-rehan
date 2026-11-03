@@ -221,38 +221,99 @@ class OrderFlowRowsTest(BridgeTestBase):
         self.assertEqual(row["basis"]["footprint_registry"], "UNAVAILABLE")
 
 
-class LeaderFlowTest(BridgeTestBase):
-    """The home page's B/S split: the card's labelled range estimate."""
+class FlowMemoryTest(unittest.TestCase):
+    """The PRL regression: buy, sell and total can only grow in a session."""
 
-    def test_leaders_carry_buy_sell_volume_and_basis(self):
-        self.write([
-            record("2026-10-22T09:59:40+05:00", [
-                tick("AAA", 1_000_000, "20.00", "19.99", "20.01",
-                     high="21.00", low="19.00"),
-                tick("BBB", 400_000, "52.00", "51.99", "52.01",
-                     high="52.00", low="51.00"),
-            ]),
+    @staticmethod
+    def quote(symbol, price, volume, bid, ask, at):
+        return {"symbol": symbol, "price": price, "volume": volume,
+                "bid": bid, "ask": ask, "observed_at": at}
+
+    def test_a_print_at_the_ask_never_erases_selling(self):
+        memory = bridge.FlowMemory()
+        memory.observe([
+            self.quote("PRL", 85.00, 5_000_000, 84.99, 85.01,
+                       "2026-11-03T10:00:00+05:00"),
         ])
-        rows, note = bridge.leader_flow(self.path, now=NOW, limit=2)
-        self.assertEqual(len(rows), 2)
-        top = rows[0]
-        self.assertEqual(top["symbol"], "AAA")
-        # close sits at the middle of 19..21, so the split is even
-        self.assertEqual(top["buy_volume"], 500_000)
-        self.assertEqual(top["sell_volume"], 500_000)
-        self.assertEqual(
-            top["buy_volume"] + top["sell_volume"], top["volume"])
-        bbb = rows[1]
-        # close at the top of 51..52 attributes the session to buying
-        self.assertEqual(bbb["buy_volume"], 400_000)
-        self.assertEqual(bbb["sell_volume"], 0)
-        self.assertIn("estimate", note)
+        # three falling windows: each print traded through the previous one
+        for index, price in enumerate((84.90, 84.80, 84.70), start=1):
+            memory.observe([
+                self.quote("PRL", price, 5_000_000 + index * 1_000_000,
+                           price - 0.01, price + 0.01,
+                           f"2026-11-03T10:{index:02d}:24+05:00"),
+            ])
+        row = memory.rows()[0]
+        self.assertEqual(row["sell_volume"], 3_000_000)
+        self.assertEqual(row["buy_volume"], 0)
+        # the stock lifts to its day high: the retired estimator printed S=0
+        memory.observe([
+            self.quote("PRL", 85.70, 9_000_000, 85.69, 85.70,
+                       "2026-11-03T10:04:24+05:00"),
+        ])
+        row = memory.rows()[0]
+        self.assertEqual(row["sell_volume"], 3_000_000)
+        self.assertEqual(row["buy_volume"], 1_000_000)
+        self.assertEqual(row["volume"], 9_000_000)
 
-    def test_missing_tape_reports_it_instead_of_zeroes(self):
-        rows, note = bridge.leader_flow(
-            Path(self.dir.name) / "capture_19990101.ndjson", now=NOW)
-        self.assertEqual(rows, [])
-        self.assertIn("no banked tape", note)
+    def test_every_series_only_grows(self):
+        memory = bridge.FlowMemory()
+        prices = [100, 101, 100.5, 102, 101.9, 103, 102.4, 104]
+        previous = {"buy_volume": 0, "sell_volume": 0, "volume": 0}
+        for index, price in enumerate(prices, start=1):
+            memory.observe([
+                self.quote("AAA", price, index * 10_000,
+                           price - 0.01, price + 0.01,
+                           f"2026-11-03T10:{index:02d}:00+05:00"),
+            ])
+            row = memory.rows()[0]
+            for key, was in previous.items():
+                self.assertGreaterEqual(row[key], was)
+            previous = {key: row[key] for key in previous}
+
+    def test_a_backwards_total_is_reported_not_attributed(self):
+        memory = bridge.FlowMemory()
+        memory.observe([self.quote("AAA", 10.0, 1_000_000, 9.99, 10.01,
+                                   "2026-11-03T10:00:00+05:00")])
+        memory.observe([self.quote("AAA", 10.0, 900_000, 9.99, 10.01,
+                                   "2026-11-03T10:01:00+05:00")])
+        row = memory.rows()[0]
+        self.assertEqual(row["backward"], 1)
+        self.assertEqual(row["buy_volume"], 0)
+        self.assertEqual(row["sell_volume"], 0)
+        # the displayed total holds its high water mark, never falls to 900k
+        self.assertEqual(row["volume"], 1_000_000)
+        self.assertIn("backwards", memory.basis_note())
+
+    def test_a_long_gap_is_unclassified_not_a_side(self):
+        memory = bridge.FlowMemory()
+        memory.observe([self.quote("AAA", 10.0, 1_000_000, 9.99, 10.01,
+                                   "2026-11-03T10:00:00+05:00")])
+        memory.observe([self.quote("AAA", 10.20, 1_500_000, 10.19, 10.21,
+                                   "2026-11-03T10:30:00+05:00")])
+        row = memory.rows()[0]
+        self.assertEqual(row["gaps"], 1)
+        self.assertEqual(row["buy_volume"], 0)
+        self.assertEqual(row["sell_volume"], 0)
+        self.assertEqual(row["volume"], 1_500_000)
+        self.assertIn("unattributed", memory.basis_note())
+
+    def test_a_new_day_restarts_the_counters(self):
+        memory = bridge.FlowMemory()
+        memory.observe([self.quote("AAA", 10.0, 1_000_000, 9.99, 10.01,
+                                   "2026-11-03T10:00:00+05:00")])
+        memory.observe([self.quote("AAA", 9.9, 2_000_000, 9.89, 9.91,
+                                   "2026-11-04T10:00:00+05:00")])
+        row = memory.rows()[0]
+        self.assertEqual(row["volume"], 2_000_000)
+        self.assertEqual(row["buy_volume"], 0)
+        self.assertEqual(row["sell_volume"], 0)
+
+    def test_seeding_never_lowers_observed_state(self):
+        memory = bridge.FlowMemory()
+        memory.observe([self.quote("AAA", 10.0, 5_000_000, 9.99, 10.01,
+                                   "2026-11-03T10:00:00+05:00")])
+        self.assertEqual(memory.seed([], {}), 0)
+        self.assertEqual(memory.rows()[0]["volume"], 5_000_000)
 
 
 class SparkSeriesTest(BridgeTestBase):

@@ -52,7 +52,6 @@ LIVE_RIGHT = (1, 2, 3, 4, 5, 6, 7)
 FLOW_RIGHT = (1, 2, 3, 4, 5, 6, 7)
 
 FEED_RESTART_CAP = 24
-FLOW_REFRESH_TICKS = 30
 
 
 def _dash(value, digits: int = 2) -> str:
@@ -201,10 +200,7 @@ class MainWindow(QMainWindow):
         self._feed_restarts = 0
         self._start_feed_allowed = start_feed
         self._tick_count = 0
-        self._flow_rows: list = []
-        self._flow_note: str = ""
-        self._spark: dict = {}
-        self._index_spark: list = []
+        self._flow = bridge.FlowMemory()
         self._last_health: dict | None = None
 
         root = QWidget(objectName="root")
@@ -253,7 +249,7 @@ class MainWindow(QMainWindow):
         self._clock.start()
         self._tick()
 
-        self._refresh_flow()
+        self._seed_flow()
         self._seed_banked()
         if start_feed:
             self.start_feed()
@@ -350,7 +346,7 @@ class MainWindow(QMainWindow):
         core.addWidget(self.core_scan)
         core.addStretch(1)
 
-        self.buying_frame, buying = _tile("\u25c6 BUYING NOW  (RANGE ESTIMATE)")
+        self.buying_frame, buying = _tile("\u25c6 BUYING NOW  (TAPE MEASURED)")
         self.buying_rows = []
         for _ in range(3):
             line = QLabel("-", objectName="valueMono")
@@ -617,30 +613,37 @@ class MainWindow(QMainWindow):
                 self._live[row.symbol] = row
         self._render_live()
 
-    def _refresh_flow(self) -> None:
-        """One background refresh of the money flow and the charts."""
+    def _seed_flow(self) -> None:
+        """Day-cumulative state and charts from today's tape, once.
+
+        After this returns, the live batch stream owns every number: the
+        board renders per tick from the monotonic memory, so the flow data
+        is never older than the newest banked frame.
+        """
 
         def run():
-            leaders, note = bridge.leader_flow(limit=12)
-            symbols = []
-            if leaders:
-                symbols = [row["symbol"] for row in leaders[:8]]
-            series, index_values, chart_note = bridge.spark_series(symbols)
-            return {"leaders": leaders, "note": note,
-                    "series": series, "index": index_values,
-                    "chart_note": chart_note}
+            from src.data import tick_volume
+
+            rows = bridge.quote_rows(limit=400)
+            capture = bridge.capture_for(None)
+            flows = (tick_volume.session_flow(capture)
+                     if capture.is_file() else {})
+            symbols = [row.symbol for row in rows[:8]]
+            series, index_values, _note = bridge.spark_series(symbols)
+            return {"rows": rows, "flows": flows, "series": series,
+                    "index": index_values}
 
         task = TaskThread(run, self)
-        task.done.connect(self._flow_done)
+        task.done.connect(self._seed_flow_done)
         task.failed.connect(self._task_failed)
         self._tasks.add(task)
         task.start()
 
-    def _flow_done(self, payload: dict) -> None:
-        self._flow_rows = payload.get("leaders") or []
-        self._flow_note = str(payload.get("note") or "")
-        self._spark = payload.get("series") or {}
-        self._index_spark = payload.get("index") or []
+    def _seed_flow_done(self, payload: dict) -> None:
+        self._flow.seed(payload.get("rows") or [],
+                        payload.get("flows") or {},
+                        series=payload.get("series") or {},
+                        index_values=payload.get("index") or [])
         self._render_flow()
 
     def start_feed(self) -> None:
@@ -666,14 +669,17 @@ class MainWindow(QMainWindow):
             feed.stop()
 
     def _on_quotes(self, quotes: list) -> None:
+        self._flow.observe(quotes)
         for quote in quotes:
             row = bridge.quote_from_update(quote)
             if row.symbol:
                 self._live[row.symbol] = row
         self._render_live()
+        self._render_flow()
 
     def _on_index(self, payload: dict) -> None:
         self._index = payload
+        self._flow.observe_index(payload.get("value"))
         self._render_index()
 
     def _on_market(self, payload: dict) -> None:
@@ -873,18 +879,16 @@ class MainWindow(QMainWindow):
             f"{event.get('event', '')} {event.get('at_pk', '')}".strip()
             if event else "-")
         self.tele["SCAN"].setText("1S LIVE" if live else "OFF-SESSION")
+        scrips = self._flow.row_count()
         self.tele["FLOW"].setText(
-            f"{'ON' if self._flow_rows else 'WAITING'}   "
-            f"{len(self._flow_rows)} scrips")
+            f"{'ON' if scrips else 'WAITING'}   {scrips} scrips")
         record = self._get_count()
         self.status_count.setText(
             f"TODAY {record.get('trades_today') or 0}/"
             f"{record.get('scans') or 0}")
         self._render_decision()
+        self._render_flow()
 
-        if self._tick_count % FLOW_REFRESH_TICKS == 0 or \
-                not self._flow_rows:
-            self._refresh_flow()
         if not self._live:
             self._seed_banked()
 
@@ -945,63 +949,53 @@ class MainWindow(QMainWindow):
 
     def _render_flow(self) -> None:
         """The index and top scrips of volume, and the buying-now board."""
-        rows = self._flow_rows or []
+        rows = self._flow.rows(limit=12)
+        charts = self._flow.chart_series(limit=8)
         top = rows[:3]
         for index, (text, chart) in enumerate(self.leader_rows):
             if index < len(top):
                 row = top[index]
-                change = row.get("change_pct")
-                if isinstance(change, (int, float)):
-                    colour = (PALETTE["green"] if change >= 0
-                              else PALETTE["red"])
-                    arrow = "\u25b2" if change >= 0 else "\u25bc"
-                    change_html = (
-                        f"<span style='color:{colour}'>{arrow} "
-                        f"{abs(change):.2f}%</span>")
-                else:
-                    change_html = "-"
                 text.setText(
                     f"{index + 1}.  <b>{row['symbol']}</b>   "
-                    f"PKR {_dash(row.get('price'))}   "
-                    f"{change_html}<br>"
+                    f"PKR {_dash(row.get('price'))}<br>"
                     f"B=<span style='color:{PALETTE['green']}'>"
                     f"{_volume(row.get('buy_volume'))}</span>   "
                     f"S=<span style='color:{PALETTE['red']}'>"
                     f"{_volume(row.get('sell_volume'))}</span>   "
                     f"T={_volume(row.get('volume'))}")
-                series = self._spark.get(row["symbol"]) or []
+                series = charts.get(row["symbol"]) or []
                 chart.set_series(
                     series, rising=len(series) > 1
                     and series[-1] >= series[0])
             else:
                 text.setText(f"{index + 1}.  -")
                 chart.set_series([], rising=True)
+        index_series = self._flow.index_series()
         self.index_spark.set_series(
-            self._index_spark, rising=self._index_spark_rising())
+            index_series,
+            rising=len(index_series) > 1
+            and index_series[-1] >= index_series[0])
         buying = [row for row in rows
-                  if isinstance(row.get("buy_share"), (int, float))]
-        buying.sort(key=lambda row: -row["buy_share"])
+                  if isinstance(row.get("buy_share"), (int, float))
+                  and (row.get("buy_volume") or 0) > 0]
+        buying.sort(key=lambda row: -(row.get("buy_volume") or 0))
         for index, line in enumerate(self.buying_rows):
-            if index < len(buying) and buying[index].get("buy_volume"):
+            if index < len(buying):
                 row = buying[index]
                 line.setText(
                     f"{row['symbol']}   "
                     f"<span style='color:{PALETTE['green']}'>"
                     f"{_millions(row.get('buy_volume'))}</span>   "
-                    f"{_share(row.get('buy_share'))} buying")
+                    f"{_share(row.get('buy_share'))} bought")
             else:
                 line.setText("-")
         self.buying_note.setText(
-            "the share of session volume attributed to buying by the "
-            "range-position estimate" if rows else "-")
+            "measured buying volume this session, largest first"
+            if rows else "waiting for the tape")
         last_frame = ((self._last_health or {}).get("last_frame_at")
                       or "-")
         self.flow_note.setText(
-            f"{self._flow_note or '-'}   last frame {last_frame}")
-
-    def _index_spark_rising(self) -> bool:
-        values = self._index_spark
-        return len(values) > 1 and values[-1] >= values[0]
+            f"{self._flow.basis_note()}   last frame {last_frame}")
 
     def _render_decision(self) -> None:
         record = self._get_count()

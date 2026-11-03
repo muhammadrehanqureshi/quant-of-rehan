@@ -38,16 +38,35 @@ reads as the same HUD the owner runs on the phone and the console:
   (link, feed, phase, next event, scan cadence, flow), the latest
   signal from the local record, and the index plus top scrips of volume
   with a dotted chart each.
-- Separated buying and selling volume: the B/S/T rows on Home come from
-  `bridge.leader_flow`, the repository's range-position split over the
-  REG frame's own high, low, last and running volume. That is the same
-  labelled estimate the phone card and the old console print; a basis
-  sentence travels with the board (B/S is an estimate, not order flow).
-  Sides per print remain on the Order Flow page, INFERRED by the tick
-  rule, with the Level-2 registry verdict attached.
-- Charts (`bridge.spark_series`) read only the tape's tail for the last
-  configured 45 minutes, downsampled to a bounded point count and
-  refreshed every 30 seconds off the UI thread.
+- Separated buying and selling volume, measured and monotonic: the
+  B/S/T rows on Home come from `bridge.FlowMemory`, which classifies
+  every positive increment of the venue's running total with the
+  repository's own window rules (`src/data/tick_volume.py`: print at the
+  ask, print at the bid, else the tick rule) and accumulates. The owner's
+  law of 2026-11-03 came from a real bug: the retired range-position
+  estimate re-attributed the whole day's volume by where the price sat
+  in the day's range, so a scrip printing at its high showed sell volume
+  0 and one at its low showed buy volume 0, wiping real volume. The
+  memory here can only add: buy, sell and the venue total never fall
+  inside a session. Windows without evidence, outages longer than ten
+  minutes, shares counted before the terminal started, and running totals
+  that go backwards are reported as unattributed rather than split by
+  guess, and the board carries that basis sentence. Sides per print
+  remain on the Order Flow page, INFERRED by the tick rule, with the
+  Level-2 registry verdict attached.
+- Charts read the tape's tail for the last configured 45 minutes once
+  at start (`bridge.spark_series`), then grow from the live print stream
+  in memory, downsampled to a bounded point count.
+- About the feed delay: the recorder banks every frame the instant the
+  broker socket pushes it, and the window renders each batch as it
+  arrives; the terminal adds no wait and no polling interval to the
+  panel any more (the flow board used to be recomputed every 30
+  seconds). The remaining few seconds are the subscription itself, as
+  measured in the 2026-11-03 forensic audit: the wire publishes a new
+  top-of-book row per symbol every ~24 seconds, and a new print reaches
+  it a median 8.6 s and 95th percentile 22.5 s after the exchange clock.
+  No terminal can see a print before the broker's own sampler publishes
+  it, and adding subscriptions was forbidden.
 - Every page fills from the banked tape on open (`bridge.quote_rows`),
   before the live feed says anything; the live session then overrides
   each symbol it reports.
