@@ -43,6 +43,14 @@ class WholeDayFlowContractTest(unittest.TestCase):
         self.assertIn("state.buy += delta", self.source)
         self.assertIn("state.sell += delta", self.source)
 
+    def test_the_measured_pair_is_served_before_the_range(self):
+        self.assertIn("function measuredFromQuote(quote)", self.source)
+        self.assertIn("const measured = measuredFromQuote(quote);", self.source)
+        self.assertIn(
+            'split_method: measured ? "quote_rule" : "range_position"',
+            self.source)
+        self.assertIn('bump("baseline_sided")', self.source)
+
     def test_the_law_never_reads_the_days_change_sign(self):
         law = self.source[self.source.index("async advanceFlow(quote)"):
                           self.source.index("async advanceFlow(quote)") + 6000]
