@@ -32,12 +32,17 @@ NOW = datetime.fromisoformat("2026-10-22T10:00:00+05:00")
 
 
 def tick(symbol, volume, last, bid, ask, tick_time="09:59:00",
-         close="10.00", trades=2, market="REG") -> dict:
-    return {"scrip": symbol, "market": market, "status": "OPN",
-            "bid": bid, "ask": ask, "last": last, "close": close,
-            "volume": str(volume), "trades": str(trades),
-            "tick_time": tick_time, "bid_size": "100", "ask_size": "100",
-            "avg": "10.00"}
+         close="10.00", trades=2, market="REG", high=None, low=None) -> dict:
+    row = {"scrip": symbol, "market": market, "status": "OPN",
+           "bid": bid, "ask": ask, "last": last, "close": close,
+           "volume": str(volume), "trades": str(trades),
+           "tick_time": tick_time, "bid_size": "100", "ask_size": "100",
+           "avg": "10.00"}
+    if high is not None:
+        row["high"] = high
+    if low is not None:
+        row["low"] = low
+    return row
 
 
 def record(at, ticks) -> dict:
@@ -214,6 +219,76 @@ class OrderFlowRowsTest(BridgeTestBase):
         self.assertEqual(row["buy_volume_inferred"], 60)
         self.assertIn("inferred", row["basis"]["sides"])
         self.assertEqual(row["basis"]["footprint_registry"], "UNAVAILABLE")
+
+
+class LeaderFlowTest(BridgeTestBase):
+    """The home page's B/S split: the card's labelled range estimate."""
+
+    def test_leaders_carry_buy_sell_volume_and_basis(self):
+        self.write([
+            record("2026-10-22T09:59:40+05:00", [
+                tick("AAA", 1_000_000, "20.00", "19.99", "20.01",
+                     high="21.00", low="19.00"),
+                tick("BBB", 400_000, "52.00", "51.99", "52.01",
+                     high="52.00", low="51.00"),
+            ]),
+        ])
+        rows, note = bridge.leader_flow(self.path, now=NOW, limit=2)
+        self.assertEqual(len(rows), 2)
+        top = rows[0]
+        self.assertEqual(top["symbol"], "AAA")
+        # close sits at the middle of 19..21, so the split is even
+        self.assertEqual(top["buy_volume"], 500_000)
+        self.assertEqual(top["sell_volume"], 500_000)
+        self.assertEqual(
+            top["buy_volume"] + top["sell_volume"], top["volume"])
+        bbb = rows[1]
+        # close at the top of 51..52 attributes the session to buying
+        self.assertEqual(bbb["buy_volume"], 400_000)
+        self.assertEqual(bbb["sell_volume"], 0)
+        self.assertIn("estimate", note)
+
+    def test_missing_tape_reports_it_instead_of_zeroes(self):
+        rows, note = bridge.leader_flow(
+            Path(self.dir.name) / "capture_19990101.ndjson", now=NOW)
+        self.assertEqual(rows, [])
+        self.assertIn("no banked tape", note)
+
+
+class SparkSeriesTest(BridgeTestBase):
+    def test_series_are_chronological_and_bounded(self):
+        self.write([
+            record("2026-10-22T09:58:00+05:00", [
+                tick("AAA", 100_000, "10.00", "9.99", "10.01"),
+            ]),
+            {"kind": "EXS-FEED", "raw": ("EXS-FEED*11/03/2026 10:01:00 AM^"
+                                         "KSE100;168000.0;1000.0"), "ts":
+             "2026-10-22T09:58:30+05:00"},
+            record("2026-10-22T09:59:00+05:00", [
+                tick("AAA", 150_000, "10.10", "10.09", "10.11"),
+                tick("BBB", 300_000, "52.50", "52.49", "52.51"),
+            ]),
+            {"kind": "EXS-FEED", "raw": ("EXS-FEED*11/03/2026 10:02:00 AM^"
+                                         "KSE100;168100.0;1100.0"), "ts":
+             "2026-10-22T09:59:30+05:00"},
+            record("2026-10-22T09:59:50+05:00", [
+                tick("AAA", 200_000, "10.20", "10.19", "10.21"),
+            ]),
+        ])
+        series, index_values, note = bridge.spark_series(
+            ["AAA", "BBB"], self.path, now=NOW, minutes=60)
+        self.assertEqual(series["AAA"], [10.00, 10.10, 10.20])
+        self.assertEqual(len(series["BBB"]), 1)
+        self.assertEqual(len(index_values), 2)
+        self.assertGreater(series["AAA"][-1], series["AAA"][0])
+        self.assertIn("minutes", note)
+
+    def test_missing_tape_yields_empty_series(self):
+        series, index_values, note = bridge.spark_series(
+            ["AAA"], Path(self.dir.name) / "capture_19990101.ndjson",
+            now=NOW)
+        self.assertEqual(series, {})
+        self.assertEqual(index_values, [])
 
 
 if __name__ == "__main__":
