@@ -2316,7 +2316,102 @@ export class QuoteHub {
       ctx.storage.sql.exec(
         "CREATE TABLE IF NOT EXISTS relay_state (key TEXT PRIMARY KEY, value TEXT NOT NULL, expires_at INTEGER NOT NULL DEFAULT 0)",
       );
+      // Owner order 2026-11-03: the day's order flow, sided at the hub. The
+      // capture pushes snapshots; this object sees every push for the whole
+      // session and survives restarts, so it is the one place a pair can
+      // cover the day from its first print. The law is the one
+      // src/data/quote_flow.py documents and tests.
+      ctx.storage.sql.exec(
+        "CREATE TABLE IF NOT EXISTS quote_flow (symbol TEXT PRIMARY KEY, day TEXT NOT NULL, volume INTEGER NOT NULL, buy INTEGER NOT NULL, sell INTEGER NOT NULL, baseline INTEGER NOT NULL, bid REAL NOT NULL DEFAULT 0, ask REAL NOT NULL DEFAULT 0, last REAL NOT NULL DEFAULT 0, side TEXT NOT NULL DEFAULT '', rules TEXT NOT NULL DEFAULT '{}', updated_at INTEGER NOT NULL DEFAULT 0)",
+      );
     });
+  }
+
+  // Every increment of the venue's own running total, sided once, for the
+  // whole day. Rules, first match wins: last at or above the ask buys; at or
+  // below the bid sells; inside the spread the midpoint decides; otherwise
+  // the tick decides; otherwise the symbol's last decided side is carried
+  // and counted. The day's change sign is never consulted: it is the sign of
+  // the change, not the side of a trade. A falling total is a reset, never a
+  // sale. The pair is only handed back while the baseline is zero, so
+  // buy + sell always equals the total it is served beside.
+  async advanceFlow(quote) {
+    await this.ready;
+    const symbol = String((quote && quote.symbol) || "").toUpperCase();
+    const at = Date.parse(quote && quote.observed_at ? quote.observed_at : "");
+    const total = Math.round(Number(quote && quote.volume));
+    if (!/^[A-Z0-9]{1,12}$/.test(symbol)) return null;
+    if (!Number.isFinite(at) || !Number.isFinite(total) || total < 0) return null;
+    const day = dayStamp(karachiView(at));
+    const price = Number(quote.price);
+    const bid = Number(quote.bid);
+    const ask = Number(quote.ask);
+    const stored = this.ctx.storage.sql.exec(
+      "SELECT day, volume, buy, sell, baseline, bid, ask, last, side, rules " +
+      "FROM quote_flow WHERE symbol = ?", symbol,
+    ).toArray()[0];
+    let state;
+    if (stored && String(stored.day) === day) {
+      let rules = {};
+      try { rules = JSON.parse(String(stored.rules || "{}")) || {}; }
+      catch (_) { rules = {}; }
+      state = { day, volume: Number(stored.volume), buy: Number(stored.buy),
+        sell: Number(stored.sell), baseline: Number(stored.baseline),
+        bid: Number(stored.bid) || 0, ask: Number(stored.ask) || 0,
+        last: Number(stored.last) || 0, side: String(stored.side || ""),
+        rules };
+    } else {
+      state = { day, volume: total, buy: 0, sell: 0, baseline: total,
+        bid: 0, ask: 0, last: 0, side: "", rules: {} };
+    }
+    const previousLast = state.last;
+    if (Number.isFinite(price) && price > 0) state.last = price;
+    if (Number.isFinite(bid) && bid > 0) state.bid = bid;
+    if (Number.isFinite(ask) && ask > 0) state.ask = ask;
+    const bump = (rule) => { state.rules[rule] = (state.rules[rule] || 0) + 1; };
+    if (total < state.volume) {
+      bump("reset");
+      state.baseline += total;
+      state.volume = total;
+    } else {
+      const delta = total - state.volume;
+      if (delta > 0) {
+        let rule = "carried";
+        let side = state.side === "S" ? "S" : "B";
+        if (state.ask > 0 && state.last >= state.ask) {
+          rule = "at_ask"; side = "B";
+        } else if (state.bid > 0 && state.last <= state.bid) {
+          rule = "at_bid"; side = "S";
+        } else if (state.bid > 0 && state.ask > state.bid) {
+          const mid = (state.bid + state.ask) / 2;
+          if (state.last > mid) { rule = "above_mid"; side = "B"; }
+          else if (state.last < mid) { rule = "below_mid"; side = "S"; }
+        }
+        if (rule === "carried" && Number.isFinite(previousLast) && previousLast > 0) {
+          if (state.last > previousLast) { rule = "tick_up"; side = "B"; }
+          else if (state.last < previousLast) { rule = "tick_down"; side = "S"; }
+        }
+        if (side === "B") state.buy += delta;
+        else state.sell += delta;
+        state.side = side;
+        bump(rule);
+      }
+      state.volume = total;
+    }
+    this.ctx.storage.sql.exec(
+      "INSERT INTO quote_flow (symbol, day, volume, buy, sell, baseline, bid, ask, last, side, rules, updated_at) " +
+      "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) " +
+      "ON CONFLICT(symbol) DO UPDATE SET day = excluded.day, volume = excluded.volume, " +
+      "buy = excluded.buy, sell = excluded.sell, baseline = excluded.baseline, " +
+      "bid = excluded.bid, ask = excluded.ask, last = excluded.last, " +
+      "side = excluded.side, rules = excluded.rules, updated_at = excluded.updated_at",
+      symbol, state.day, state.volume, state.buy, state.sell, state.baseline,
+      state.bid, state.ask, state.last, state.side,
+      JSON.stringify(state.rules), Date.now(),
+    );
+    if (state.buy + state.sell + state.baseline !== total) return null;
+    return { buy_volume: state.buy, sell_volume: state.sell,
+      baseline: state.baseline, total };
   }
 
   async snapshot() {
@@ -2552,6 +2647,21 @@ export class QuoteHub {
           // at or above it.
           continue;
         }
+        // The hub's own whole-day separation rides beside the pair, under
+        // its own names, so no consumer that requires buy + sell to equal
+        // the total is ever handed a pair that does not. The desk reads
+        // these fields and says how many shares preceded its baseline. A
+        // throw here never breaks the push.
+        try {
+          const measured = await this.advanceFlow(quote);
+          if (measured) {
+            quote.measured_buy = measured.buy_volume;
+            quote.measured_sell = measured.sell_volume;
+            quote.flow_baseline = measured.baseline;
+            quote.flow_method = "quote_rule";
+            quote.flow_source = "whole-day measured at the hub: every volume increment sided by the wire's own bid/ask";
+          }
+        } catch (_) { /* the range pair still answers */ }
         const split = splitFromQuote(quote);
         if (split) {
           let pair = { volume: split.split_volume,
