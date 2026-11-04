@@ -21,6 +21,16 @@ class QuoteFlowTest(unittest.TestCase):
         self.assertEqual(quote["flow_baseline"], 1000)
         self.assertEqual(quote["split_method"], "quote_rule")
 
+    def test_the_capture_stamps_the_hubs_own_names_too(self):
+        """A newly started hub can adopt the capture's observed pair."""
+        quote = self.flow.observe(row(86.0, 85.9, 86.0, 1000))
+        quote = self.flow.observe(row(86.0, 85.9, 86.0, 1300))
+        self.assertEqual(quote["flow_method"], "quote_rule")
+        self.assertEqual(quote["measured_buy"], 300)
+        self.assertEqual(quote["measured_sell"], 0)
+        self.assertEqual(quote["measured_buy"] + quote["measured_sell"]
+                         + quote["flow_baseline"], quote["volume"])
+
     def test_a_print_at_the_ask_is_buying(self):
         self.flow.observe(row(86.0, 85.9, 86.0, 1000))
         quote = self.flow.observe(row(86.0, 85.9, 86.0, 1400))
