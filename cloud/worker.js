@@ -661,6 +661,13 @@ const MARKET_TTL_MS = 5 * 60 * 1000;
 const LARGE_PRINT_PKR = 1_000_000;
 const LARGE_PRINT_MAX = 200;
 
+// The KMIALL universe the session captures (319 names today). The live
+// snapshot only carries symbols that published a frame, so the complete
+// answer names the rest as missing instead of shrinking the universe to
+// whatever happened to trade. tests/test_flow_endpoint_contract.py fails if
+// this list drifts from src/data/universe_kmiall.json.
+const KMIALL_UNIVERSE = ["AASM","ABOT","ACPL","ADAMS","AGIL","AGP","AGTL","AHTM","AIRLINK","AKGL","ALNRS","ANL","ANTM","ARCTM","ARPL","ASC","ASHT","ASL","ASTM","ATBA","ATRL","AVN","AWTX","BAFS","BATA","BBFL","BCL","BECO","BERG","BFAGRO","BFBIO","BFMOD","BHAT","BIFO","BIPL","BLUEX","BNL","BNWM","BPL","BRRG","BTL","BUXL","BWHL","CCM","CEPB","CFL","CHAS","CHCC","CLOV","CNERGY","COLG","CPHL","CPPL","CRTM","CSAP","DAAG","DADX","DBSL","DCL","DCR","DFSM","DGKC","DINT","DMC","DNCC","DOL","DSL","DWSM","DYNO","ECOP","EFERT","ELCM","ELSM","EMCO","ENGROH","EPCL","EPQL","EXIDE","FABL","FANM","FASM","FATIMA","FCCL","FCEPL","FCL","FECM","FECTC","FEM","FEROZ","FFC","FFL","FFLM","FHAM","FIBLM","FIL","FIMM","FLYNG","FML","FNBM","FPJM","FPRM","FRCL","FRSM","FTMM","FTSM","FZCM","GADT","GAL","GATI","GATM","GCIL","GCWL","GDL","GEMBCEM","GEMMEL","GEMPACRA","GEMPAPL","GFIL","GGGL","GGL","GHGL","GHNI","GIL","GLAXO","GOC","GTYR","GVGL","GWLC","HAEL","HAFL","HALEON","HATM","HCAR","HINO","HINOON","HPL","HRPL","HTL","HUBC","IBFL","IBLHL","ICCI","ICL","IDRT","IDSM","ILP","IMAGE","INIL","INKL","IPAK","IREIT","ISIL","ISL","ITANZ","ITTEFAQ","JATM","JDMT","JDWS","JSML","JUBS","JVDC","KCL","KEL","KHYT","KOHC","KOHE","KOHTM","KPUS","KSBP","KSTM","KTML","LCI","LEUL","LIVEN","LOADS","LOTCHEM","LPGL","LUCK","MACFL","MACTER","MARI","MEBL","MEHT","MERIT","MFFL","MFL","MIIETF","MIRKS","MLCF","MQTM","MRNS","MSCL","MTL","MUBT","MUGHAL","MWMP","MZNPETF","NATM","NCML","NESTLE","NETSOL","NML","NONS","NRL","NRSL","NSRM","OCTOPUS","OGDC","OLPM","OML","ORM","OTSU","PAEL","PAKD","PAKOXY","PAKQATAR","PIBTL","PICT","PIM","PIOC","PKGS","PMRS","POML","POWER","PPL","PPP","PQGTL","PREMA","PRL","PSEL","PSO","PSYL","PTL","QTECH","QUET","QUICE","RCML","REDCO","REWM","RMPL","RPL","RUBY","RUPL","SANSM","SAPT","SARC","SASML","SAZEW","SCL","SEARL","SEL","SELECT","SERT","SGABL","SGF","SGPL","SGPLR","SHCM","SHDT","SHFA","SHSML","SIEM","SINDM","SITC","SKRS","SLGL","SLM","SMCPL","SML","SNAI","SNGP","SOYASUP","SPEL","SPL","SPSL","SRR","SRVI","SSGC","SSML","SSOM","STCL","STJT","STL","STLR","STML","STYLERS","SUHJ","SURC","SWL","SYM","SYS","SZTM","TATM","TCORP","TELE","TGL","THCCL","TICL","TISL","TOMCL","TOWL","TPLRF1","TREET","TRSM","TSIL","UBDL","UDLI","UDPL","UNITY","UPFL","WAFI","WAHDAT","WAHN","WASL","WAVES","ZAHID","ZAL","ZIL","ZTL"];
+
 function largePrintFrom(quote, measured) {
   if (!quote || !measured || !Number.isFinite(measured.delta) ||
       measured.delta <= 0) return null;
@@ -1555,6 +1562,8 @@ async function flowAnswer(env, now) {
   // a trading day it is the last session the hub holds, never a made-up day.
   const day = tradingToday ? today
     : (snapshot.flow_day || quoteDay((snapshot.quotes || [])[0]) || null);
+  const universe = new Set(KMIALL_UNIVERSE);
+  const seenSymbols = new Set();
   const allRows = Array.from(newestQuoteRows(snapshot.quotes).values());
   const largePrints = Array.isArray(snapshot.large_prints)
     ? snapshot.large_prints : [];
@@ -1566,11 +1575,13 @@ async function flowAnswer(env, now) {
   let volumeTotal = 0;
   let unclassifiedTotal = 0;
   for (const quote of allRows) {
+    const symbol = String(quote && quote.symbol || "").toUpperCase();
+    if (symbol) seenSymbols.add(symbol);
     if (!quote || !Number.isFinite(Number(quote.price)) ||
         Number(quote.price) <= 0) continue;
     if (day && quoteDay(quote) !== day) {
       missing.push({
-        symbol: String(quote.symbol || ""),
+        symbol,
         last_observed_at: quote.observed_at || null,
         last_day: quoteDay(quote),
         reason: "no observed regular-session frame for this day",
@@ -1641,6 +1652,15 @@ async function flowAnswer(env, now) {
     if (sell !== null) sellTotal += sell;
     if (unclassified !== null) unclassifiedTotal += unclassified;
   }
+  for (const symbol of universe) {
+    if (seenSymbols.has(symbol)) continue;
+    missing.push({
+      symbol,
+      last_observed_at: null,
+      last_day: null,
+      reason: "no quote frame for this day",
+    });
+  }
   rows.sort((a, b) => (b.volume - a.volume) || a.symbol.localeCompare(b.symbol));
   const dayPrints = largePrints
     .filter((print) => print && print.day === day)
@@ -1667,7 +1687,7 @@ async function flowAnswer(env, now) {
     day,
     as_of: newest || snapshot.updated_at || null,
     counts: {
-      universe: allRows.length,
+      universe: universe.size,
       included: rows.length,
       missing: missing.length,
       fresh: rows.filter((row) => row.fresh).length,
