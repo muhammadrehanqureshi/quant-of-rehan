@@ -192,9 +192,12 @@ class TestFridayMiddayBreak(unittest.TestCase):
                                      MarketPhase.CLOSED)
                     self.assertFalse(is_market_open(at(day, hour, 0)))
 
-    def test_the_scanner_refuses_inside_the_break(self):
+    def test_the_scanner_refuses_the_break_but_scans_the_second_pre_open(self):
         self.assertFalse(session_legal(at(FRIDAY, 13, 7)))
-        self.assertFalse(session_legal(at(FRIDAY, 14, 23)))
+        self.assertFalse(session_legal(at(FRIDAY, 14, 10)))
+        # The exchange's second pre-open window is 14:15 to 14:30.
+        self.assertTrue(session_legal(at(FRIDAY, 14, 23)))
+        self.assertFalse(session_legal(at(FRIDAY, 14, 31)))
         self.assertTrue(session_legal(at(FRIDAY, 14, 37)))
 
     def test_both_local_runners_use_this_one_law(self):
