@@ -208,11 +208,14 @@ class RelayWorkerContractTest(unittest.TestCase):
         first app poll after expiry wait for the portal. The cached copy is now
         answered immediately and one shared background task refreshes it.
         """
+        helper = self.source[self.source.index(
+            "async function refreshMarketSnapshot(env, now)"):]
+        helper = helper[:helper.index("// A cold cache still answers immediately.")]
+        self.assertIn("if (marketRefreshInFlight) return marketRefreshInFlight;",
+                      helper)
         block = self.source[self.source.index(
             "async function marketSnapshot(env, now, ctx)"):]
         block = block[:block.index("function pktInstant(")]
-        self.assertIn("if (marketRefreshInFlight) return marketRefreshInFlight;",
-                      block)
         self.assertIn("ctx.waitUntil(refreshMarketSnapshot(env, now));", block)
         self.assertIn("return normalizeMarket(cached);", block)
         self.assertIn("return normalizeMarket(blankMarketSnapshot(now));", block)
