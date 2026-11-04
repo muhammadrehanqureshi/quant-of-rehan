@@ -2017,8 +2017,10 @@ class VersionTest(unittest.TestCase):
         # rows move up into the closed face's empty strip, both dropdowns.
         self.assertIn("Version 3.2.0, versionCode 92", readme)
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionCode="108"', manifest)
-        self.assertIn('android:versionName="3.9.0"', manifest)
+        # v4.0.0 (owner order 2026-11-04): the ORDER FLOW page, four part
+        # volume and the PKR 10,000,000 big print.
+        self.assertIn('android:versionCode="109"', manifest)
+        self.assertIn('android:versionName="4.0.0"', manifest)
         self.assertNotIn('android:versionName="3.7.5"', manifest)
         self.assertNotIn('android:versionName="3.7.4"', manifest)
         self.assertNotIn('android:versionName="3.7.3"', manifest)
