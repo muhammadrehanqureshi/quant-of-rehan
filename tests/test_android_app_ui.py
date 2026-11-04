@@ -1353,7 +1353,11 @@ class StatusPulseTest(unittest.TestCase):
         loop instead of freezing the console.
         """
         poll = self.main.index("private void pollOnce()")
-        self.assertIn("if (!liveInFlight) {", self.main[poll:poll + 1200])
+        # Owner order 2026-11-04: the guard is unchanged, and it now sits
+        # behind the one-request-a-tick page rule, so a page that already
+        # asked for its own numbers never spends the card read as well.
+        self.assertIn("if (!pageOwnsTheTick && !liveInFlight) {",
+                      self.main[poll:poll + 1600])
         self.assertEqual(self.main.count("liveInFlight = true;"), 2)
         self.assertEqual(self.main.count("liveInFlight = false;"), 2)
         # Owner order 2026-10-19: neither round carries a credential, because
@@ -1449,7 +1453,9 @@ class StatusPulseTest(unittest.TestCase):
                       live_body)
         self.assertIn("head.signals, market);", live_body)
         poll = self.main.index("private void pollOnce()")
-        self.assertIn("refreshLive();", self.main[poll:poll + 1200])
+        # Owner order 2026-11-04: still one card read a tick on the deck,
+        # skipped only when another page owns that tick's single request.
+        self.assertIn("refreshLive();", self.main[poll:poll + 1600])
         self.assertIn("The card route is read from the relay's latest pushed broker snapshot",
                       self.main)
 
