@@ -722,9 +722,11 @@ class BrandRuleTest(unittest.TestCase):
         # the search-volume pair's own.
         # Owner order 2026-11-01: the QUANT STATUS and W/L tiles gained
         # their own diamond rule between them, and the greeting gained
-        # one before QUANT STATUS, so the console now carries ten of the
-        # one include.
-        self.assertEqual(self.layout.count('layout="@layout/qor_rule"'), 10)
+        # one before QUANT STATUS, so the console carried ten of the one
+        # include. Owner order 2026-11-04 (second pass): the ORDER FLOW
+        # page owns a division of its own, bracketed above and below, so
+        # the console carries twelve.
+        self.assertEqual(self.layout.count('layout="@layout/qor_rule"'), 12)
 
     def test_the_rules_stand_between_the_tiles_and_never_inside_them(self):
         root = layout_root()
@@ -991,8 +993,10 @@ class CadencePlacementTest(unittest.TestCase):
         # "separate diamond and 2 lines around it", and v2.2.3 put the
         # search page's own rule back above the search tile. v2.2.4
         # made eight; owner order 2026-11-01 makes NINE - the same four
-        # and the W/L tile's own seam rule above it.
-        self.assertEqual(len(rules), 10)
+        # and the W/L tile's own seam rule above it. Owner order
+        # 2026-11-04 (second pass) makes TWELVE: the ORDER FLOW page is a
+        # division of its own, bracketed above and below.
+        self.assertEqual(len(rules), 12)
         market_rule = next(
             rule for rule in rules
             if rule.get(f"{ANDROID_NS}id") == "@+id/rule_after_market")
@@ -4719,10 +4723,12 @@ class UniversalRuleGapTest(unittest.TestCase):
         # tile. v2.2.4 adds the pair's own division between the search
         # tile and the custom scrips of volume tile; owner 2026-11-01
         # adds the W/L tile's own seam above itself and the greeting's
-        # seam before QUANT STATUS: TEN rules now (six on the home path,
-        # the THEMES tile's two, the search page's own diamond, and the
-        # volume pair's own).
-        self.assertEqual(len(rules), 10)
+        # seam before QUANT STATUS; owner order 2026-11-04 (second pass)
+        # gives the ORDER FLOW page a division of its own: TWELVE rules
+        # now (seven on the home path, the THEMES tile's two, the search
+        # page's own diamond, the ORDER FLOW page's bracket of two, and
+        # the volume pair's own).
+        self.assertEqual(len(rules), 12)
         for rule in rules:
             with self.subTest(rule=rule.get(f"{ANDROID_NS}id")):
                 self.assertEqual(rule.get(f"{ANDROID_NS}layout_marginTop"),
