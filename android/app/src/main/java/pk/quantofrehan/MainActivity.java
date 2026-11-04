@@ -187,6 +187,8 @@ public class MainActivity extends Activity {
      * thread, so the frames cost this thread nothing.
      */
     private static final long BREATH_MS = 2200L;
+    /** How many stocks the ORDER FLOW page lists before it stops. */
+    private static final int ORDER_FLOW_ROWS = 25;
 
     /**
      * The dim end of the breath, as a fraction of full opacity. It never
@@ -319,6 +321,15 @@ public class MainActivity extends Activity {
     private ImageView navScanner;
     private ImageView navSearch;
     private ImageView navSettings;
+    /** Owner order 2026-11-04: the ORDER FLOW page's own nav slot, between
+     *  the scanner and the search glass. */
+    private ImageView navFlow;
+    private View orderFlowPanel;
+    private TextView orderFlowList;
+    private TextView orderFlowStatus;
+    /** True while the ORDER FLOW page replaces the console, under the same
+     *  one-page-at-a-time law the search and scanner pages keep. */
+    private boolean orderFlowOpen;
     private View settingsPanel;
     private View searchPanel;
     private EditText searchInput;
@@ -499,6 +510,10 @@ public class MainActivity extends Activity {
         navScanner = findViewById(R.id.btn_nav_scanner);
         navSearch = findViewById(R.id.btn_nav_search);
         navSettings = findViewById(R.id.btn_nav_settings);
+        navFlow = findViewById(R.id.btn_nav_flow);
+        orderFlowPanel = findViewById(R.id.order_flow_panel);
+        orderFlowList = findViewById(R.id.order_flow_list);
+        orderFlowStatus = findViewById(R.id.order_flow_status);
         // Owner order 2026-10-24: four pages now. Home closes every page
         // that is open, and search, scanner and settings never share the
         // screen: each toggle enforces the one-page law itself.
@@ -506,7 +521,11 @@ public class MainActivity extends Activity {
             setSearchOpen(false);
             setSettingsOpen(false);
             setScannerOpen(false);
+            setOrderFlowOpen(false);
         });
+        // Owner order 2026-11-04: one tap opens ORDER FLOW, one tap on the
+        // same icon closes it, exactly like the scanner and search slots.
+        navFlow.setOnClickListener(v -> setOrderFlowOpen(true));
         navScanner.setOnClickListener(v -> setScannerOpen(true));
         navSearch.setOnClickListener(v -> setSearchOpen(true));
 
@@ -647,8 +666,10 @@ public class MainActivity extends Activity {
      * it and no other place has to remember it.
      */
     private void paintNavSelection() {
-        setNavPage(navHome, !searchOpen && !settingsOpen && !scannerOpen);
+        setNavPage(navHome, !searchOpen && !settingsOpen && !scannerOpen
+                && !orderFlowOpen);
         setNavPage(navScanner, scannerOpen);
+        setNavPage(navFlow, orderFlowOpen);
         setNavPage(navSearch, searchOpen);
         setNavPage(navSettings, settingsOpen);
         if (appVersion != null) {
@@ -1562,9 +1583,17 @@ public class MainActivity extends Activity {
                 colorQuantity(sb, quote.buy, R.color.green);
                 sb.append(",\u00A0S=");
                 colorQuantity(sb, quote.sell, R.color.red);
+                // Owner order 2026-11-04: four parts, never three. U is
+                // the total minus the two sided halves and stands on its
+                // own, never folded into B or S. T is the venue's total,
+                // so B + S + U = T on the line as printed.
+                long total = quote.volume != null
+                        ? quote.volume : quote.buy + quote.sell;
+                long unclassified = Math.max(0L,
+                        total - (quote.buy + quote.sell));
+                sb.append(String.format(Locale.US, ",\u00A0U=%,d", unclassified));
                 sb.append("\u00A0&\u00A0T=");
-                sb.append(String.format(Locale.US, "%,d",
-                        quote.buy + quote.sell));
+                sb.append(String.format(Locale.US, "%,d", total));
                 sb.append(')');
             }
             // The map only ever carries a live price (Watcher's law), so
@@ -1958,6 +1987,9 @@ public class MainActivity extends Activity {
      * instead of stopping dead.
      */
     private void setSettingsOpen(boolean open) {
+        if (open && orderFlowOpen) {
+            setOrderFlowOpen(false); // one page at a time (2026-11-04)
+        }
         if (open && searchOpen) {
             setSearchOpen(false);   // one menu at a time
         }
@@ -2020,6 +2052,9 @@ public class MainActivity extends Activity {
      * moved: its plate, heading, dropdown and reveal are the build's own.
      */
     private void setScannerOpen(boolean open) {
+        if (open && orderFlowOpen) {
+            setOrderFlowOpen(false); // one page at a time (2026-11-04)
+        }
         if (open && searchOpen) {
             setSearchOpen(false);   // one page at a time
         }
@@ -2649,11 +2684,175 @@ public class MainActivity extends Activity {
      * A prefix query only, because a KMIALL script is what the owner types:
      * "F" lists every symbol that starts with F, "FF" narrows to FFC and FFL.
      */
+    /**
+     * The ORDER FLOW page (owner order 2026-11-04).
+     *
+     * One page at a time, the law every other toggle here keeps: opening it
+     * closes the search, scanner and settings pages, and their own toggles
+     * close this one when they open. The console leaves while it is open, the
+     * same reply the search page gives.
+     */
+    private void setOrderFlowOpen(boolean open) {
+        if (open == orderFlowOpen) {
+            if (open) {
+                refreshOrderFlow();
+            }
+            return;
+        }
+        orderFlowOpen = open;
+        if (open) {
+            if (settingsOpen) {
+                setSettingsOpen(false);
+            }
+            if (scannerOpen) {
+                setScannerOpen(false);
+            }
+            if (searchOpen) {
+                setSearchOpen(false);
+            }
+        }
+        if (consoleViews != null) {
+            for (View view : consoleViews) {
+                view.setVisibility(open ? View.GONE : View.VISIBLE);
+            }
+        }
+        if (searchPanel != null) {
+            searchPanel.setVisibility(open ? View.GONE
+                    : searchPanel.getVisibility());
+        }
+        if (settingsPanel != null) {
+            settingsPanel.setVisibility(open ? View.GONE
+                    : settingsPanel.getVisibility());
+        }
+        if (themesHolder != null) {
+            themesHolder.setVisibility(open ? View.GONE
+                    : themesHolder.getVisibility());
+        }
+        if (ruleSearch != null) {
+            ruleSearch.setVisibility(open ? View.GONE
+                    : ruleSearch.getVisibility());
+        }
+        if (orderFlowPanel != null) {
+            orderFlowPanel.setVisibility(open ? View.VISIBLE : View.GONE);
+        }
+        paintNavSelection();
+        if (open) {
+            refreshOrderFlow();
+        }
+    }
+
+    /** Ask the relay for today's order flow, then redraw the page. */
+    private void refreshOrderFlow() {
+        Watcher.fetchFlow(this, (rows, status) -> runOnUiThread(() -> {
+            if (orderFlowList != null) {
+                orderFlowList.setText(orderFlowText(rows));
+            }
+            if (orderFlowStatus != null) {
+                String basis = getString(R.string.order_flow_basis);
+                orderFlowStatus.setText(status == null || status.isEmpty()
+                        ? basis : basis + "\n" + status);
+            }
+        }));
+    }
+
+    /**
+     * The page's list: every stock's volume in four parts, then its big
+     * prints.
+     *
+     * The owner's own sentence shape is kept, B, S, U and T, with U standing
+     * on its own and never added to B or S. A stock whose frame carries no
+     * split prints its total alone rather than four zeros (SO-3).
+     */
+    private SpannableStringBuilder orderFlowText(
+            List<Watcher.FlowRow> rows) {
+        SpannableStringBuilder sb = new SpannableStringBuilder();
+        if (rows == null || rows.isEmpty()) {
+            sb.append(getString(R.string.order_flow_empty));
+            return sb;
+        }
+        List<Watcher.FlowRow> ordered = new ArrayList<>(rows);
+        ordered.sort((a, b) -> Long.compare(
+                b.volume == null ? 0L : b.volume,
+                a.volume == null ? 0L : a.volume));
+        int shown = 0;
+        for (Watcher.FlowRow row : ordered) {
+            if (shown >= ORDER_FLOW_ROWS) {
+                break;
+            }
+            if (row.volume == null || row.volume <= 0) {
+                continue;
+            }
+            if (shown > 0) {
+                sb.append('\n');
+            }
+            shown++;
+            sb.append(String.format(Locale.US, "%d. %s", shown, row.symbol));
+            if (row.price != null) {
+                sb.append(String.format(Locale.US, "  PKR %,.2f", row.price));
+            }
+            sb.append('\n');
+            if (row.buy != null && row.sell != null) {
+                sb.append("B=");
+                int from = sb.length();
+                sb.append(String.format(Locale.US, "%,d", row.buy));
+                sb.setSpan(new ForegroundColorSpan(getColor(R.color.green)),
+                        from, sb.length(), 0);
+                sb.append("  S=");
+                from = sb.length();
+                sb.append(String.format(Locale.US, "%,d", row.sell));
+                sb.setSpan(new ForegroundColorSpan(getColor(R.color.red)),
+                        from, sb.length(), 0);
+                // U stands alone, in its own colour, because it is the
+                // volume the split could not side. It is never folded into
+                // B or S (owner order 2026-11-04).
+                sb.append("  U=");
+                if (row.unclassified != null) {
+                    sb.append(String.format(Locale.US, "%,d", row.unclassified));
+                } else {
+                    sb.append("n/a");
+                }
+                sb.append(String.format(Locale.US, "  & T=%,d", row.volume));
+            } else {
+                sb.append(String.format(Locale.US, "T=%,d", row.volume));
+            }
+            if (row.largeBuyValue > 0 || row.largeSellValue > 0) {
+                sb.append('\n');
+                sb.append("BIG ");
+                if (row.largeBuyValue > 0) {
+                    sb.append(String.format(Locale.US, "B=PKR %,d",
+                            row.largeBuyValue));
+                    if (row.largeBuyCount > 0) {
+                        sb.append(String.format(Locale.US, " (%d)",
+                                row.largeBuyCount));
+                    }
+                }
+                if (row.largeSellValue > 0) {
+                    if (row.largeBuyValue > 0) {
+                        sb.append("   ");
+                    }
+                    sb.append(String.format(Locale.US, "S=PKR %,d",
+                            row.largeSellValue));
+                    if (row.largeSellCount > 0) {
+                        sb.append(String.format(Locale.US, " (%d)",
+                                row.largeSellCount));
+                    }
+                }
+            }
+        }
+        return sb;
+    }
+
     private void setSearchOpen(boolean open) {
         if (open == searchOpen) {
             return;
         }
         searchOpen = open;
+        if (open && orderFlowOpen) {
+            setOrderFlowOpen(false);
+        }
+        // One page at a time (owner order 2026-11-04): the ORDER FLOW page
+        // leaves when the scanner or the settings page opens, exactly as
+        // the search page leaves for them.
         if (open && settingsOpen) {
             setSettingsOpen(false);
         }
@@ -3061,6 +3260,10 @@ public class MainActivity extends Activity {
             sb.append(String.format(Locale.US, "%,d", quote.sell));
             sellTo = sb.length();
             if (quote.volume != null) {
+                // Owner order 2026-11-04: four parts, never three. U stands
+                // on its own and is never folded into B or S.
+                sb.append(String.format(Locale.US, ", U=%,d",
+                        Math.max(0L, quote.volume - (quote.buy + quote.sell))));
                 sb.append(String.format(Locale.US, " & T=%,d", quote.volume));
             }
             sb.append(')');
@@ -3334,6 +3537,15 @@ public class MainActivity extends Activity {
                 sb.append(String.format(Locale.US, "%,d", row.sell));
                 spans.add(new int[]{sellFrom, sb.length(), R.color.red});
                 if (row.hasVolume()) {
+                    // Owner order 2026-11-04: the volume is read in four
+                    // parts, never three. U is the venue total minus the
+                    // two sided halves, and it is printed on its own line
+                    // item. It is NEVER added to B or S, so the bracket
+                    // always reads B, S, U and T, and B + S + U = T.
+                    long unclassified = Math.max(0L,
+                            row.volume - (row.buy + row.sell));
+                    sb.append(String.format(Locale.US,
+                            ",\u00A0U=%,d", unclassified));
                     sb.append(String.format(Locale.US, "\u00A0&\u00A0T=%,d)", row.volume));
                 } else {
                     // The quantities stand without the exchange's total.
