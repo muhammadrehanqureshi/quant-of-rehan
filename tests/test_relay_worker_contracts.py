@@ -356,6 +356,26 @@ class RelayWorkerContractTest(unittest.TestCase):
         self.assertIn("applyStoredFrame(stock, stored)", self.source)
         self.assertIn("ackRowsForDay(env, ackDay)", self.source)
 
+    def test_prices_does_not_scan_every_ack_row_on_each_poll(self):
+        """The phone reads /prices once per tick; that must not list 319 rows.
+
+        The free Durable Objects plan allows 5,000,000 SQL rows reads a day.
+        Listing the day's ACK rows for every /prices poll exhausted it on
+        2026-11-04 and stopped the relay. The QuoteHub already sees every ACK
+        write, so it keeps the day's map in memory and only loads SQL on a
+        fresh instance or a new Karachi day.
+        """
+        hub = self.source[self.source.index("export class QuoteHub"):]
+        self.assertIn("this.ackRowsBySymbol", hub)
+        self.assertIn("this.ackRowsLoaded", hub)
+        self.assertIn("rememberAckFrame(parsed.day, stored)", hub)
+        splits = hub[hub.index('url.pathname === "/ack-splits"'):]
+        splits = splits[:splits.index('url.pathname === "/snapshot"')]
+        self.assertIn(
+            "if (this.ackRowsLoaded && this.ackRowsDay === day &&", splits,
+            "the ACK day map must be served from memory before SQL")
+        self.assertIn("this.ackRowsBySymbol = ackRows", splits)
+
     def test_the_acknowledged_pair_can_only_move_forward(self):
         """Owner order 2026-10-31: volume decreases are impossible prints.
 
@@ -413,7 +433,7 @@ class RelayWorkerContractTest(unittest.TestCase):
         self.assertIn("const FLOW_ROWS_PER_DAY = 40000", self.source)
         self.assertIn("if (flushed - this.lastFlowFlush >= FLOW_FLUSH_MS)", self.source)
         self.assertIn("this.flowRowsToday += rows", self.source)
-        self.assertIn("ACK_WRITE_MIN_MS", self.source)
+        self.assertIn("const ACK_WRITE_MIN_MS = 30 * 1000;", self.source)
         self.assertIn("this.lastAckWrites.get(key)", self.source)
         self.assertIn("nowMs - lastAckWrite < ACK_WRITE_MIN_MS", self.source)
         # A newer live frame is not silently replaced by an older mirror.
