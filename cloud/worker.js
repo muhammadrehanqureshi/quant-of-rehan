@@ -58,11 +58,42 @@ const KARACHI_OFFSET_MIN = 5 * 60; // SO-8: UTC+5, fixed forever
 const KV_MEMO_TTL_MS = 10000;
 const kvMemo = new Map();
 const STATE_HUB_NAME = "psx-live-quotes";
+// The quote view and the relay's key-value state used to share one Durable
+// Object instance. A deployed class change does not restart an instance that
+// the one-second feed never lets go idle, so the quote view moved to its own
+// instance name on 2026-11-04. The new instance adopts the capture's observed
+// full-day pair on its first push; the state hub keeps the existing card,
+// signals and ACK rows untouched.
+const QUOTE_HUB_NAME = "psx-live-quotes-v2";
 
 function stateHub(env) {
   const namespace = env.QUOTE_HUB;
   if (!namespace || typeof namespace.idFromName !== "function") return null;
   return namespace.get(namespace.idFromName(STATE_HUB_NAME));
+}
+
+function quoteHub(env) {
+  const namespace = env.QUOTE_HUB;
+  if (!namespace || typeof namespace.idFromName !== "function") return null;
+  return namespace.get(namespace.idFromName(QUOTE_HUB_NAME));
+}
+
+async function quoteHubCall(env, path, init) {
+  const hub = quoteHub(env);
+  if (!hub) return null;
+  const response = await hub.fetch("https://quote-hub" + path, init);
+  if (!response.ok) throw new Error("quote hub answered " + response.status);
+  return response.json();
+}
+
+async function quoteHubValue(env, key) {
+  try {
+    const answer = await quoteHubCall(env,
+      "/state?key=" + encodeURIComponent(key));
+    return answer && answer.ok ? answer.value : null;
+  } catch (_) {
+    return null;
+  }
 }
 
 // A KV binding, when one happens to be present, is only a fallback: the local
@@ -282,9 +313,6 @@ async function marketWinLoss(env) {
 }
 
 const QUOTE_HUB_SOCKET_TAG = "live-quotes";
-function quoteHubBinding(env) {
-  return env.QUOTE_HUB || null;
-}
 // Owner's exact condition texts (order of 2026-10-11), mirroring
 // src/data/sessions.py. The break sentence is for the exchange's own Friday
 // midday break and nothing else.
@@ -1396,9 +1424,8 @@ function normalizeQuoteSnapshot(raw) {
 
 async function readQuoteSnapshot(env) {
   try {
-    const namespace = quoteHubBinding(env);
-    const id = namespace.idFromName("psx-live-quotes");
-    const stub = namespace.get(id);
+    const stub = quoteHub(env);
+    if (!stub) return null;
     const response = await stub.fetch("https://quote-hub/snapshot");
     if (!response.ok) return null;
     const body = await response.json();
@@ -2050,14 +2077,14 @@ async function healthPayload(env) {
   }
   let flowError = null;
   try {
-    const rawFlowError = await kvGet(env, "FLOW:LAST_ERROR");
+    const rawFlowError = await quoteHubValue(env, "FLOW:LAST_ERROR");
     if (rawFlowError) flowError = JSON.parse(rawFlowError);
   } catch (_) {
     flowError = null;
   }
   let flowBudget = null;
   try {
-    const rawFlowBudget = await kvGet(env, "FLOW:STATS");
+    const rawFlowBudget = await quoteHubValue(env, "FLOW:STATS");
     if (rawFlowBudget) flowBudget = JSON.parse(rawFlowBudget);
   } catch (_) {
     flowBudget = null;
@@ -2145,8 +2172,8 @@ export default {
           return json({ ok: false, error: "invalid symbol" }, 400);
         }
       }
-      const namespace = quoteHubBinding(env);
-      const hub = namespace.get(namespace.idFromName("psx-live-quotes"));
+      const hub = quoteHub(env);
+      if (!hub) return json({ ok: false, error: "quote hub not configured" }, 503);
       const response = await hub.fetch(new Request("https://quote-hub/stream", request));
       if (response.status === 101) return response;
       return new Response(response.body, {
@@ -2214,9 +2241,8 @@ export default {
       }
       const shapeError = quoteSnapshotShapeError(body);
       if (shapeError) return json({ ok: false, error: shapeError }, 400);
-      const namespace = quoteHubBinding(env);
-      const hubId = namespace.idFromName("psx-live-quotes");
-      const hub = namespace.get(hubId);
+      const hub = quoteHub(env);
+      if (!hub) return json({ ok: false, error: "quote hub not configured" }, 503);
       const response = await hub.fetch("https://quote-hub/update", {
         method: "POST",
         headers: { "content-type": "application/json" },
