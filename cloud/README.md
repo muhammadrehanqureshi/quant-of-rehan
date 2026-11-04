@@ -31,9 +31,83 @@ status surface, on the Cloudflare edge off your PC.
   relay's acknowledged-frame store (owner order 2026-10-31), which keeps
   one regular-session frame per Karachi day, band and symbol, clamped so
   the B/S pair only moves as the day's own volume grows.
+- `GET /flow` (also `/orderflow`): the complete KMIALL order-flow answer.
+  One row per symbol with last, bid, ask, change, volume, buy, sell, the
+  unclassified remainder, the split method, freshness and the day's large
+  prints. It is a pure read of the durable quote snapshot: no portal fetch
+  and no ACK write, so a desktop poll cannot spend the Durable Objects
+  write budget.
 - Cron triggers do scan dispatch and card upkeep only; owner order
   2026-10-31 retires the market open/close/break emails entirely, and no
   cron sends a chat message.
+
+## The complete order flow (`GET /flow`)
+
+Owner order 2026-11-04: the owner's own Windows build reads the cloud, so
+the relay owns the full answer. `GET /flow` (and its alias
+`GET /orderflow`) returns one JSON body. The route is public and read-only.
+The numbers in the shape below are illustrative, not a live claim.
+
+```json
+{
+  "ok": true,
+  "day": "2026-11-04",
+  "as_of": "2026-11-04T10:31:02.218+05:00",
+  "counts": {"universe": 312, "included": 276, "missing": 36, "fresh": 276},
+  "totals": {"volume": 68372298, "buy": 35560858, "sell": 32811440, "unclassified": 0},
+  "rows": [
+    {
+      "symbol": "CNERGY", "price": 11.86, "bid": 11.85, "ask": 11.87,
+      "spread": 0.02, "change_pct": 1.2, "high": 12.1, "low": 11.4,
+      "volume": 37942931, "buy_volume": 21800000, "sell_volume": 16142931,
+      "classified_volume": 37942931, "unclassified_volume": 0,
+      "flow_complete": true, "buy_share_pct": 57.46, "sell_share_pct": 42.54,
+      "split_method": "quote_rule", "split_source": "every volume increment sided by the wire's own bid/ask at the poll",
+      "observed_at": "2026-11-04T10:31:02.218+05:00", "age_seconds": 1,
+      "fresh": true, "status": "OPEN", "source_tick_time": "10:31:02",
+      "flow_rules": {"at_ask": 1200, "at_bid": 1180},
+      "large_buy_count": 2, "large_buy_shares": 180000, "large_buy_value_pkr": 2134800,
+      "large_sell_count": 1, "large_sell_shares": 90000, "large_sell_value_pkr": 1067400,
+      "largest_buy_pkr": 1186000, "largest_sell_pkr": 1067400,
+      "last_large_at": "2026-11-04T10:30:55.000+05:00"
+    }
+  ],
+  "missing": [
+    {"symbol": "SGPL", "last_observed_at": "2026-10-22T20:48:37.469+05:00", "last_day": "2026-10-22", "reason": "no observed regular-session frame for this day"}
+  ],
+  "large": {
+    "threshold_pkr": 1000000,
+    "total": 3, "shown": 3, "truncated": false,
+    "prints": [
+      {"symbol": "CNERGY", "side": "BUY", "shares": 90000, "price": 11.86, "value_pkr": 1067400,
+       "at": "2026-11-04T10:30:55.000+05:00", "tick": "10:30:55", "rule": "at_ask"}
+    ],
+    "stocks": [
+      {"symbol": "CNERGY", "buy_count": 2, "buy_shares": 180000, "buy_value_pkr": 2134800,
+       "sell_count": 1, "sell_shares": 90000, "sell_value_pkr": 1067400,
+       "largest_buy_pkr": 1186000, "largest_sell_pkr": 1067400,
+       "last_at": "2026-11-04T10:30:55.000+05:00", "total_value_pkr": 3202200}
+    ]
+  },
+  "basis": {
+    "split": "quote_rule: every observed increment of the venue counter is sided once by the bid/ask of the frame that carried it; buy and sell never decrease",
+    "unclassified": "shares traded before the capture or hub first observed the symbol; they are reported separately and never guessed into buy or sell",
+    "large": "one relay update carrying at least PKR 1,000,000 on one side; the broker wire has no individual order id, so this is a large observed increment, not a claimed order ticket"
+  }
+}
+```
+
+The split law is the one in `src/data/quote_flow.py`, running inside the
+`QuoteHub` Durable Object. The capture starts before the open and stamps its
+own observed pair on every quote, so a hub that starts later adopts that pair
+instead of assigning shares it never saw. If the capture itself started late,
+the missed shares stay in `unclassified_volume`; they are never called buy or
+sell.
+
+`large` is deliberately named as a large observed increment, not an order
+ticket. The MKT-FEED wire carries a per-symbol snapshot with a cumulative
+volume, bid and ask, and no individual order id. One relay update of at least
+PKR 1,000,000 on one side is the smallest honest unit this data can support.
 
 | Event | Mon-Thu | Friday | Trigger (UTC) |
 |---|---|---|---|

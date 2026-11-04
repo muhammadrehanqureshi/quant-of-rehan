@@ -132,12 +132,20 @@ class SymbolFlow:
         self.rules[rule] = self.rules.get(rule, 0) + 1
 
     def payload(self) -> dict:
+        # The same pair travels under both names. The desk's original names
+        # are buy_volume/sell_volume; the relay's whole-day names are
+        # measured_buy/measured_sell. Sending both means a newly started hub
+        # can adopt the capture's own observed pair instead of inventing a
+        # baseline for shares the hub did not see.
         return {
             "buy_volume": int(self.buy),
             "sell_volume": int(self.sell),
             "split_volume": int(self.buy + self.sell),
             "split_method": METHOD_QUOTE_RULE,
             "split_source": SOURCE_QUOTE_RULE,
+            "flow_method": METHOD_QUOTE_RULE,
+            "measured_buy": int(self.buy),
+            "measured_sell": int(self.sell),
             "flow_baseline": int(self.baseline),
             "flow_rules": dict(sorted(self.rules.items())),
         }

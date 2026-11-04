@@ -625,6 +625,36 @@ const MARKET_MEMBERSHIP = "KMIALLSHR";
 const MARKET_TOP_N = 3;
 const MARKET_TTL_MS = 5 * 60 * 1000;
 
+// Owner order 2026-11-04: show the stocks receiving a large buy or sell.
+// The wire is a snapshot cycle with no order id, so the smallest honest
+// unit is one relay update: an increase of at least this much value in the
+// venue counter, sided by the quote that arrived with it. The label on the
+// answer says exactly that; it never claims an individual broker order.
+const LARGE_PRINT_PKR = 1_000_000;
+const LARGE_PRINT_MAX = 200;
+
+function largePrintFrom(quote, measured) {
+  if (!quote || !measured || !Number.isFinite(measured.delta) ||
+      measured.delta <= 0) return null;
+  const price = Number(quote.price);
+  if (!Number.isFinite(price) || price <= 0) return null;
+  const value = Math.round(measured.delta * price);
+  if (value < LARGE_PRINT_PKR) return null;
+  const at = Date.parse(quote.observed_at || "");
+  if (!Number.isFinite(at)) return null;
+  return {
+    symbol: String(quote.symbol || "").toUpperCase(),
+    day: dayStamp(karachiView(at)),
+    side: measured.side === "S" ? "S" : "B",
+    shares: measured.delta,
+    price,
+    value_pkr: value,
+    at: quote.observed_at,
+    tick: quote.source_tick_time || null,
+    rule: measured.rule || null,
+  };
+}
+
 // Owner order 2026-10-26: "show it only if the market is open today".
 // Yesterday's frames must not answer a today question. A quote is from
 // today when its own stamp carries the SAME Karachi trading day the
@@ -1042,6 +1072,20 @@ function splitFromQuote(quote) {
   return rangePositionSplit(quote.high, quote.low, quote.price, quote.volume);
 }
 
+// The capture's own pair, when it carries one. The feed daemon starts before
+// the open and sees every frame from the day's first print, so a hub that
+// starts later can adopt that observed pair instead of re-baselining the
+// shares that were already traded. Only a coherent quote_rule pair is
+// accepted; anything else leaves the total unclassified, which is honest.
+function measuredFlowSeed(quote, total) {
+  if (!quote || quote.flow_method !== "quote_rule") return null;
+  const buy = Math.round(Number(quote.measured_buy));
+  const sell = Math.round(Number(quote.measured_sell));
+  if (!Number.isFinite(buy) || !Number.isFinite(sell) ||
+      buy < 0 || sell < 0 || buy + sell > total) return null;
+  return { buy, sell, baseline: total - buy - sell };
+}
+
 // The trading day a quote belongs to. The venue's cumulative counters reset
 // once per trading day and run continuously across the Friday lunch break,
 // so the afternoon's first frame must still carry the morning's total.
@@ -1304,12 +1348,24 @@ function normalizeQuoteSnapshot(raw) {
   const quotes = (Array.isArray(raw.quotes) ? raw.quotes : [])
     .filter((row) => row && typeof row === "object")
     .map((row) => ({ ...row }));
+  const largePrints = (Array.isArray(raw.large_prints) ? raw.large_prints : [])
+    .filter((row) => row && typeof row === "object" &&
+      typeof row.symbol === "string" &&
+      (row.side === "B" || row.side === "S") &&
+      Number.isFinite(Number(row.value_pkr)))
+    .slice(-LARGE_PRINT_MAX)
+    .map((row) => ({ ...row }));
   const snapshot = {
     quotes,
     index: raw.index && typeof raw.index === "object" ? { ...raw.index } : null,
     market_feed: raw.market_feed && typeof raw.market_feed === "object"
       ? { ...raw.market_feed } : null,
     updated_at: raw.updated_at || raw.captured_at || null,
+    flow_day: typeof raw.flow_day === "string" ? raw.flow_day : null,
+    large_prints: largePrints,
+    large_prints_total: Number.isFinite(Number(raw.large_prints_total))
+      ? Math.max(0, Math.round(Number(raw.large_prints_total)))
+      : largePrints.length,
   };
   const now = Date.now();
   snapshot.quotes = snapshot.quotes.map((row) => {
@@ -1368,6 +1424,9 @@ function splitFields(split, quote) {
       buy_volume: null,
       sell_volume: null,
       split_volume: null,
+      classified_volume: null,
+      unclassified_volume: null,
+      flow_complete: null,
       flow_baseline: null,
       split_method: "unavailable",
       split_source: quote
@@ -1376,10 +1435,17 @@ function splitFields(split, quote) {
     };
   }
   const measured = split.split_method === "quote_rule";
+  const total = Number(quote && quote.volume);
+  const classified = Number(split.buy_volume) + Number(split.sell_volume);
+  const unclassified = Number.isFinite(total)
+    ? Math.max(0, Math.round(total) - Math.round(classified)) : null;
   return {
     buy_volume: split.buy_volume,
     sell_volume: split.sell_volume,
     split_volume: split.split_volume,
+    classified_volume: Math.round(classified),
+    unclassified_volume: unclassified,
+    flow_complete: unclassified === null ? null : unclassified === 0,
     flow_baseline: Number.isFinite(Number(split.flow_baseline))
       ? Math.max(0, Math.round(Number(split.flow_baseline)))
       : null,
@@ -1388,6 +1454,211 @@ function splitFields(split, quote) {
       ? (split.split_source ||
          "every volume increment sided by the wire's own bid/ask at the poll")
       : "B/S estimated from the day's range, not order flow",
+  };
+}
+
+function quoteDay(quote) {
+  const at = Date.parse(quote && quote.observed_at ? quote.observed_at : "");
+  return Number.isFinite(at) ? dayStamp(karachiView(at)) : null;
+}
+
+function largeStatsBySymbol(prints, day) {
+  const stats = new Map();
+  for (const print of Array.isArray(prints) ? prints : []) {
+    if (!print || print.day !== day) continue;
+    const symbol = String(print.symbol || "").toUpperCase();
+    if (!symbol) continue;
+    const current = stats.get(symbol) || {
+      symbol, buy_count: 0, buy_shares: 0, buy_value_pkr: 0,
+      sell_count: 0, sell_shares: 0, sell_value_pkr: 0,
+      largest_buy_pkr: 0, largest_sell_pkr: 0, last_at: null,
+    };
+    const shares = Math.max(0, Math.round(Number(print.shares) || 0));
+    const value = Math.max(0, Math.round(Number(print.value_pkr) || 0));
+    if (print.side === "S") {
+      current.sell_count += 1;
+      current.sell_shares += shares;
+      current.sell_value_pkr += value;
+      current.largest_sell_pkr = Math.max(current.largest_sell_pkr, value);
+    } else {
+      current.buy_count += 1;
+      current.buy_shares += shares;
+      current.buy_value_pkr += value;
+      current.largest_buy_pkr = Math.max(current.largest_buy_pkr, value);
+    }
+    const at = String(print.at || "");
+    if (at && (!current.last_at || at > current.last_at)) current.last_at = at;
+    stats.set(symbol, current);
+  }
+  return stats;
+}
+
+// The complete KMIALL order-flow answer. This is a pure read of the durable
+// snapshot: no portal fetch, no ACK write, no app poll can spend the day's
+// Durable Objects write budget by asking for the whole table.
+async function flowAnswer(env, now) {
+  const snapshot = await readQuoteSnapshot(env);
+  const k = karachiView(now.getTime());
+  const tradingToday = isTradingDay(k);
+  const today = dayStamp(k);
+  if (!snapshot) {
+    return {
+      ok: true, day: tradingToday ? today : null, as_of: null,
+      counts: { universe: 0, included: 0, missing: 0, fresh: 0 },
+      totals: { volume: 0, buy: 0, sell: 0, unclassified: 0 },
+      rows: [], missing: [],
+      large: { threshold_pkr: LARGE_PRINT_PKR, total: 0, shown: 0,
+        truncated: false, prints: [], stocks: [] },
+      basis: {
+        split: "no quote snapshot yet",
+        unclassified: "nothing observed yet",
+        large: "no quote snapshot yet",
+      },
+    };
+  }
+  // On a trading day the answer is today's regular-session frames. Outside
+  // a trading day it is the last session the hub holds, never a made-up day.
+  const day = tradingToday ? today
+    : (snapshot.flow_day || quoteDay((snapshot.quotes || [])[0]) || null);
+  const allRows = Array.from(newestQuoteRows(snapshot.quotes).values());
+  const largePrints = Array.isArray(snapshot.large_prints)
+    ? snapshot.large_prints : [];
+  const largeStats = largeStatsBySymbol(largePrints, day);
+  const rows = [];
+  const missing = [];
+  let buyTotal = 0;
+  let sellTotal = 0;
+  let volumeTotal = 0;
+  let unclassifiedTotal = 0;
+  for (const quote of allRows) {
+    if (!quote || !Number.isFinite(Number(quote.price)) ||
+        Number(quote.price) <= 0) continue;
+    if (day && quoteDay(quote) !== day) {
+      missing.push({
+        symbol: String(quote.symbol || ""),
+        last_observed_at: quote.observed_at || null,
+        last_day: quoteDay(quote),
+        reason: "no observed regular-session frame for this day",
+      });
+      continue;
+    }
+    const volume = Number.isFinite(Number(quote.volume))
+      ? Math.max(0, Math.round(Number(quote.volume))) : null;
+    const split = splitFromQuote(quote);
+    const buy = split ? Math.max(0, Math.round(Number(split.buy_volume))) : null;
+    const sell = split ? Math.max(0, Math.round(Number(split.sell_volume))) : null;
+    const classified = buy !== null && sell !== null ? buy + sell : null;
+    const unclassified = volume !== null && classified !== null
+      ? Math.max(0, volume - classified) : null;
+    const buyShare = classified && buy !== null
+      ? Math.round((10000 * buy) / classified) / 100 : null;
+    const sellShare = classified && sell !== null
+      ? Math.round((10000 * sell) / classified) / 100 : null;
+    const bid = Number.isFinite(Number(quote.bid)) ? Number(quote.bid) : null;
+    const ask = Number.isFinite(Number(quote.ask)) ? Number(quote.ask) : null;
+    const large = largeStats.get(String(quote.symbol || "").toUpperCase()) || {};
+    rows.push({
+      symbol: String(quote.symbol || "").toUpperCase(),
+      price: Number(quote.price),
+      bid,
+      ask,
+      spread: bid !== null && ask !== null && ask >= bid
+        ? Math.round((ask - bid) * 10000) / 10000 : null,
+      change_pct: Number.isFinite(Number(quote.change_pct))
+        ? Number(quote.change_pct) : null,
+      high: Number.isFinite(Number(quote.high)) ? Number(quote.high) : null,
+      low: Number.isFinite(Number(quote.low)) ? Number(quote.low) : null,
+      volume,
+      buy_volume: buy,
+      sell_volume: sell,
+      classified_volume: classified,
+      unclassified_volume: unclassified,
+      buy_share_pct: buyShare,
+      sell_share_pct: sellShare,
+      flow_complete: unclassified === null ? null : unclassified === 0,
+      split_method: split && split.split_method === "quote_rule"
+        ? "quote_rule" : (split ? "range_position" : "unavailable"),
+      split_source: split
+        ? (split.split_source || (split.split_method === "quote_rule"
+          ? "every volume increment sided by the wire's own bid/ask"
+          : "B/S estimated from the day's range, not order flow"))
+        : "the frame's range is incomplete",
+      observed_at: quote.observed_at || null,
+      age_seconds: Number.isFinite(Number(quote.age_seconds))
+        ? Math.max(0, Math.round(Number(quote.age_seconds))) : null,
+      fresh: Boolean(quote.fresh),
+      status: quote.status || null,
+      source_tick_time: quote.source_tick_time || null,
+      flow_rules: quote.flow_rules && typeof quote.flow_rules === "object"
+        ? quote.flow_rules : null,
+      large_buy_count: large.buy_count || 0,
+      large_buy_shares: large.buy_shares || 0,
+      large_buy_value_pkr: large.buy_value_pkr || 0,
+      large_sell_count: large.sell_count || 0,
+      large_sell_shares: large.sell_shares || 0,
+      large_sell_value_pkr: large.sell_value_pkr || 0,
+      largest_buy_pkr: large.largest_buy_pkr || 0,
+      largest_sell_pkr: large.largest_sell_pkr || 0,
+      last_large_at: large.last_at || null,
+    });
+    if (volume !== null) volumeTotal += volume;
+    if (buy !== null) buyTotal += buy;
+    if (sell !== null) sellTotal += sell;
+    if (unclassified !== null) unclassifiedTotal += unclassified;
+  }
+  rows.sort((a, b) => (b.volume - a.volume) || a.symbol.localeCompare(b.symbol));
+  const dayPrints = largePrints
+    .filter((print) => print && print.day === day)
+    .sort((a, b) => String(b.at || "").localeCompare(String(a.at || "")));
+  const prints = dayPrints.map((print) => ({
+    symbol: print.symbol,
+    side: print.side === "S" ? "SELL" : "BUY",
+    shares: Math.round(Number(print.shares) || 0),
+    price: Number(print.price),
+    value_pkr: Math.round(Number(print.value_pkr) || 0),
+    at: print.at || null,
+    tick: print.tick || null,
+    rule: print.rule || null,
+  }));
+  const stocks = Array.from(largeStats.values())
+    .map((row) => ({ ...row,
+      total_value_pkr: row.buy_value_pkr + row.sell_value_pkr,
+    }))
+    .sort((a, b) => (b.total_value_pkr - a.total_value_pkr) ||
+      a.symbol.localeCompare(b.symbol));
+  const newest = rows.map((row) => row.observed_at).filter(Boolean).sort().pop();
+  return {
+    ok: true,
+    day,
+    as_of: newest || snapshot.updated_at || null,
+    counts: {
+      universe: allRows.length,
+      included: rows.length,
+      missing: missing.length,
+      fresh: rows.filter((row) => row.fresh).length,
+    },
+    totals: {
+      volume: volumeTotal,
+      buy: buyTotal,
+      sell: sellTotal,
+      unclassified: unclassifiedTotal,
+    },
+    rows,
+    missing,
+    large: {
+      threshold_pkr: LARGE_PRINT_PKR,
+      total: Number(snapshot.large_prints_total) || dayPrints.length,
+      shown: prints.length,
+      truncated: (Number(snapshot.large_prints_total) || dayPrints.length) > prints.length,
+      prints,
+      stocks,
+    },
+    basis: {
+      split: "quote_rule: every observed increment of the venue counter is sided once by the bid/ask of the frame that carried it; buy and sell never decrease",
+      coverage: "regular-session frames for the named Karachi day; a symbol with no frame that day appears in missing, never with an invented number",
+      unclassified: "shares traded before the capture or hub first observed the symbol; they are reported separately and never guessed into buy or sell",
+      large: "one relay update carrying at least PKR 1,000,000 on one side; the broker wire has no individual order id, so this is a large observed increment, not a claimed order ticket",
+    },
   };
 }
 
@@ -1857,7 +2128,8 @@ export default {
     }
 
     if (request.method === "OPTIONS" &&
-        (path === "/quotes" || path === "/quotes/stream")) {
+        (path === "/quotes" || path === "/quotes/stream" ||
+         path === "/flow" || path === "/orderflow")) {
       return new Response(null, { status: 204, headers: {
         "access-control-allow-origin": "*",
         "access-control-allow-methods": "GET, OPTIONS",
@@ -1884,6 +2156,19 @@ export default {
           "access-control-allow-origin": "*",
           "cache-control": "no-store",
         },
+      });
+    }
+
+    if (request.method === "GET" &&
+        (path === "/flow" || path === "/orderflow")) {
+      // Owner order 2026-11-04: the complete KMIALL order flow and the
+      // large-print board live on the relay. The owner's own desktop build
+      // reads this answer; the phone does not need a new screen. This is a
+      // pure read of the durable snapshot, so polling it can never spend
+      // the Durable Objects write budget.
+      return json(await flowAnswer(env, new Date()), 200, {
+        "access-control-allow-origin": "*",
+        "cache-control": "no-store",
       });
     }
 
@@ -2026,6 +2311,14 @@ export default {
       const split = splitFromQuote(quote);
       if (split) {
         Object.assign(stock, split);
+        const classified = Math.round(Number(split.buy_volume) +
+          Number(split.sell_volume));
+        const unclassified = Number.isFinite(Number(stock.volume))
+          ? Math.max(0, Math.round(Number(stock.volume)) - classified) : null;
+        stock.classified_volume = classified;
+        stock.unclassified_volume = unclassified;
+        stock.flow_complete = unclassified === null
+          ? null : unclassified === 0;
         stock.split_method = quote.split_method === "quote_rule"
           ? "quote_rule" : "range_position";
         stock.split_source = quote.split_method === "quote_rule"
@@ -2504,33 +2797,31 @@ export class QuoteHub {
         last: Number(stored.last) || 0, side: String(stored.side || ""),
         rules };
     } else {
-      state = { day, volume: total, buy: 0, sell: 0, baseline: total,
-        bid: 0, ask: 0, last: 0, side: "", rules: {} };
+      // A fresh day, or a hub that has no stored state for this day. Adopt
+      // the capture's observed pair when the frame carries it; otherwise
+      // every share already traded is unclassified. It is never assigned to
+      // one side, because that would manufacture a buy or a sell the wire
+      // never showed us.
+      const seed = measuredFlowSeed(quote, total);
+      state = seed
+        ? { day, volume: total, buy: seed.buy, sell: seed.sell,
+            baseline: seed.baseline, bid: 0, ask: 0, last: 0, side: "",
+            rules: {} }
+        : { day, volume: total, buy: 0, sell: 0, baseline: total,
+            bid: 0, ask: 0, last: 0, side: "", rules: {} };
     }
     const previousLast = state.last;
     if (Number.isFinite(price) && price > 0) state.last = price;
     if (Number.isFinite(bid) && bid > 0) state.bid = bid;
     if (Number.isFinite(ask) && ask > 0) state.ask = ask;
     const bump = (rule) => { state.rules[rule] = (state.rules[rule] || 0) + 1; };
-    // The shares traded before the hub first saw this counter are the only
-    // block it did not watch arrive. Side that block once with the first
-    // quote in hand, by the same ask, bid, mid order every later increment
-    // uses, so the served pair covers the whole session and no restart can
-    // leave a permanent unsided hole. Monotone: buy and sell only grow.
-    if (state.baseline > 0) {
-      const block = state.baseline;
-      let side = "B";
-      if (state.ask > 0 && state.last >= state.ask) side = "B";
-      else if (state.bid > 0 && state.last <= state.bid) side = "S";
-      else if (state.bid > 0 && state.ask > state.bid) {
-        side = state.last >= (state.bid + state.ask) / 2 ? "B" : "S";
-      }
-      if (side === "B") state.buy += block;
-      else state.sell += block;
-      state.baseline = 0;
-      state.side = side;
-      bump("baseline_sided");
-    }
+    // Shares the hub did not see stay in state.baseline. They are reported
+    // as unclassified and are never sided by a guess. On a normal session
+    // the capture starts before the open and the seed is zero, so there is
+    // nothing to hide; after a genuine late start the number is visible.
+    let attributed = 0;
+    let attributedRule = null;
+    let attributedSide = null;
     if (total < state.volume) {
       bump("stale_total");
       return null;
@@ -2555,6 +2846,9 @@ export class QuoteHub {
         if (side === "B") state.buy += delta;
         else state.sell += delta;
         state.side = side;
+        attributed = delta;
+        attributedRule = rule;
+        attributedSide = side;
         bump(rule);
       }
       state.volume = total;
@@ -2586,7 +2880,8 @@ export class QuoteHub {
     }
     if (state.buy + state.sell + state.baseline !== total) return null;
     return { buy_volume: state.buy, sell_volume: state.sell,
-      baseline: state.baseline, total };
+      baseline: state.baseline, total, delta: attributed,
+      side: attributedSide, rule: attributedRule, rules: state.rules };
   }
 
   async loadFlowStats() {
@@ -2863,6 +3158,14 @@ export class QuoteHub {
       if (row) {
         try { previous = JSON.parse(row.payload); } catch (_) { previous = null; }
       }
+    const flowDay = dayStamp(karachiView(Date.now()));
+    let largePrints = previous && previous.flow_day === flowDay &&
+      Array.isArray(previous.large_prints)
+      ? previous.large_prints.slice() : [];
+    let largePrintsTotal = previous && previous.flow_day === flowDay &&
+      Number.isFinite(Number(previous.large_prints_total))
+      ? Math.max(0, Number(previous.large_prints_total))
+      : largePrints.length;
       const quotes = new Map((previous && Array.isArray(previous.quotes)
         ? previous.quotes : []).map((quote) => [quote.symbol, quote]));
       // Owner order 2026-10-31: the store serves the REGULAR session's
@@ -2904,6 +3207,12 @@ export class QuoteHub {
             quote.flow_baseline = measured.baseline;
             quote.flow_method = "quote_rule";
             quote.flow_source = "whole-day measured at the hub: every volume increment sided by the wire's own bid/ask";
+            quote.flow_rules = measured.rules || {};
+            const large = largePrintFrom(quote, measured);
+            if (large && large.day === flowDay) {
+              largePrints.push(large);
+              largePrintsTotal += 1;
+            }
           }
         } catch (error) {
           // The range pair still answers. The reason is kept for /health so
@@ -2975,6 +3284,9 @@ export class QuoteHub {
           );
           return latestAt ? new Date(latestAt).toISOString() : null;
         })(),
+        flow_day: flowDay,
+        large_prints: largePrints.slice(-LARGE_PRINT_MAX),
+        large_prints_total: largePrintsTotal,
       };
       const serialized = JSON.stringify(snapshot);
       this.ctx.storage.sql.exec(
