@@ -866,15 +866,37 @@ public final class Watcher {
     /** The last order flow the relay served. Empty until the first read. */
     private static volatile List<FlowRow> FLOW =
             java.util.Collections.emptyList();
+    /** The last big prints the relay served, largest first. */
+    private static volatile List<BigPrint> FLOW_PRINTS =
+            java.util.Collections.emptyList();
 
-    interface FlowCallback {
-        void onFlow(List<FlowRow> rows, String status);
+    /** One big print: a single transaction the relay saw at the threshold. */
+    static final class BigPrint {
+        String symbol = "";
+        /** "S" for a sale, anything else is a buy (the relay's own law). */
+        String side = "";
+        long shares;
+        long value;
+        String at = "";
     }
 
+    interface FlowCallback {
+        void onFlow(List<FlowRow> rows, List<BigPrint> prints);
+    }
+
+    /**
+     * The day's order flow, as the relay's /orderflow answers it.
+     *
+     * Owner order 2026-11-04 (second pass): the page is a search and an
+     * answer, plus the session's big prints. So this reads two things and
+     * nothing else: every stock's four part volume, and the big prints
+     * themselves, each one a real transaction with its own shares and
+     * price. No explanation text is fetched, because none is shown.
+     */
     static void fetchFlow(final Context c, final FlowCallback cb) {
         POOL.execute(() -> {
             List<FlowRow> rows = new ArrayList<>();
-            String status = "";
+            List<BigPrint> prints = new ArrayList<>();
             try {
                 JSONObject body = get(relayUrl(c) + "/orderflow", null);
                 JSONArray list = body.optJSONArray("rows");
@@ -901,23 +923,41 @@ public final class Watcher {
                         rows.add(out);
                     }
                 }
-                String asOf = body.optString("as_of", "");
-                status = body.optString("day", "")
-                        + (asOf.isEmpty() ? "" : "  " + asOf);
+                JSONObject large = body.optJSONObject("large");
+                JSONArray feed = large == null ? null : large.optJSONArray("prints");
+                if (feed != null) {
+                    for (int i = 0; i < feed.length(); i++) {
+                        JSONObject print = feed.optJSONObject(i);
+                        if (print == null) continue;
+                        BigPrint out = new BigPrint();
+                        out.symbol = print.optString("symbol", "").trim();
+                        out.side = print.optString("side", "");
+                        out.shares = amount(print, "shares");
+                        out.value = amount(print, "value_pkr");
+                        out.at = print.optString("at", "");
+                        if (out.symbol.isEmpty() || out.shares <= 0 || out.value <= 0) {
+                            continue;
+                        }
+                        prints.add(out);
+                    }
+                }
+                // The newest and largest first: the tile is the session's
+                // big buying and selling, so the biggest print leads it.
+                prints.sort((a, b) -> Long.compare(b.value, a.value));
             } catch (Exception e) {
-                // The page keeps the rows it already has, and says so rather
-                // than drawing an empty market (SO-3).
-                if (FLOW.isEmpty()) {
-                    cb.onFlow(FLOW, "order flow unavailable: "
-                            + e.getClass().getSimpleName());
+                // Keep what is on screen and say nothing false about it: an
+                // empty read never becomes an invented print.
+                if (!FLOW.isEmpty()) {
+                    cb.onFlow(FLOW, FLOW_PRINTS);
                     return;
                 }
-                cb.onFlow(FLOW, "order flow not refreshed: "
-                        + e.getClass().getSimpleName());
+                cb.onFlow(java.util.Collections.emptyList(),
+                        java.util.Collections.emptyList());
                 return;
             }
             FLOW = java.util.Collections.unmodifiableList(rows);
-            cb.onFlow(FLOW, status);
+            FLOW_PRINTS = java.util.Collections.unmodifiableList(prints);
+            cb.onFlow(FLOW, FLOW_PRINTS);
         });
     }
 

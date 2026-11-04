@@ -455,12 +455,15 @@ class SettingsControlTest(unittest.TestCase):
         self.assertEqual(ids, ["@+id/btn_nav_home", "@+id/btn_nav_scanner",
                                "@+id/btn_nav_flow", "@+id/btn_nav_search",
                                "@+id/btn_nav_settings"])
+        # Owner order 2026-11-04 (second pass): the owner's own drawing, a
+        # raster, not a redrawn vector. It is his icon as he sent it.
         button = element(self.layout, 'android:id="@+id/btn_nav_flow"')
-        self.assertIn('android:src="@drawable/ic_nav_flow"', button)
+        self.assertIn('android:src="@drawable/orderflow"', button)
         self.assertIn('android:tint="@color/gold"', button)
         self.assertIn('android:contentDescription="@string/cd_order_flow"',
                       button)
-        self.assertTrue((RES / "drawable" / "ic_nav_flow.xml").is_file())
+        self.assertTrue((RES / "drawable-nodpi" / "orderflow.png").is_file())
+        self.assertFalse((RES / "drawable" / "ic_nav_flow.xml").is_file())
 
     def test_the_four_icons_are_the_owners_own_pngs(self):
         """Owner order 2026-10-24: the scanner page's icon (his own
@@ -1816,8 +1819,8 @@ class VersionTest(unittest.TestCase):
         # diamond rules wear the second colour, versionCode 104.
         manifest = MANIFEST.read_text(encoding="utf-8")
         # Owner order 2026-11-04: v4.0.0, the ORDER FLOW page.
-        self.assertIn('android:versionName="4.0.0"', manifest)
-        self.assertIn('android:versionCode="109"', manifest)
+        self.assertIn('android:versionName="4.0.1"', manifest)
+        self.assertIn('android:versionCode="110"', manifest)
         self.assertNotIn('android:versionName="3.7.5"', manifest)
         self.assertNotIn('android:versionName="3.7.4"', manifest)
         self.assertNotIn('android:versionName="3.7.3"', manifest)
@@ -2017,10 +2020,10 @@ class VersionTest(unittest.TestCase):
         # rows move up into the closed face's empty strip, both dropdowns.
         self.assertIn("Version 3.2.0, versionCode 92", readme)
         manifest = MANIFEST.read_text(encoding="utf-8")
-        # v4.0.0 (owner order 2026-11-04): the ORDER FLOW page, four part
-        # volume and the PKR 10,000,000 big print.
-        self.assertIn('android:versionCode="109"', manifest)
-        self.assertIn('android:versionName="4.0.0"', manifest)
+        # v4.0.1 (owner order 2026-11-04, second pass): the ORDER FLOW page
+        # rebuilt as a scrip search plus the big buying and selling tile.
+        self.assertIn('android:versionCode="110"', manifest)
+        self.assertIn('android:versionName="4.0.1"', manifest)
         self.assertNotIn('android:versionName="3.7.5"', manifest)
         self.assertNotIn('android:versionName="3.7.4"', manifest)
         self.assertNotIn('android:versionName="3.7.3"', manifest)
@@ -2568,7 +2571,7 @@ class HeadingGrowthTest(unittest.TestCase):
         # Owner order 2026-11-04: the tile names the index it follows by its
         # own name, KSE100, in place of the generic word THE INDEX.
         self.assertIn(
-            'name="label_market">KSE100 &amp; THE TOP 3 SCRIPS OF VOL.<',
+            'name="label_market">KSE100 INDEX &amp; THE TOP 3 SCRIPS OF VOL.<',
             strings)
 
     def test_the_existing_headings_keep_their_words(self):
@@ -4758,7 +4761,7 @@ class MarketHeadingWordTest(unittest.TestCase):
         # Owner order 2026-11-04: the tile names the index it follows by its
         # own name, KSE100, in place of the generic word THE INDEX.
         self.assertIn(
-            'name="label_market">KSE100 &amp; THE TOP 3 SCRIPS OF VOL.<',
+            'name="label_market">KSE100 INDEX &amp; THE TOP 3 SCRIPS OF VOL.<',
             strings)
         self.assertNotIn('INDEX &amp; TOP 3 SCRIPS', strings)
 

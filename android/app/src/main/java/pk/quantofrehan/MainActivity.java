@@ -188,7 +188,10 @@ public class MainActivity extends Activity {
      */
     private static final long BREATH_MS = 2200L;
     /** How many stocks the ORDER FLOW page lists before it stops. */
-    private static final int ORDER_FLOW_ROWS = 25;
+    /** How many big prints the tile lists, largest first. */
+    private static final int BIG_PRINTS_SHOWN = 20;
+    /** How many scrips the search shows at once. */
+    private static final int FLOW_RESULTS_SHOWN = 8;
 
     /**
      * The dim end of the breath, as a fraction of full opacity. It never
@@ -325,8 +328,14 @@ public class MainActivity extends Activity {
      *  the scanner and the search glass. */
     private ImageView navFlow;
     private View orderFlowPanel;
-    private TextView orderFlowList;
-    private TextView orderFlowStatus;
+    private View orderFlowRule;
+    private EditText orderFlowInput;
+    private LinearLayout orderFlowResults;
+    private TextView orderFlowSelected;
+    private View bigPrintsPanel;
+    private TextView bigPrintsList;
+    /** The day's order flow, kept so a keystroke filters without a fetch. */
+    private List<Watcher.FlowRow> flowRows = new ArrayList<>();
     /** True while the ORDER FLOW page replaces the console, under the same
      *  one-page-at-a-time law the search and scanner pages keep. */
     private boolean orderFlowOpen;
@@ -512,8 +521,30 @@ public class MainActivity extends Activity {
         navSettings = findViewById(R.id.btn_nav_settings);
         navFlow = findViewById(R.id.btn_nav_flow);
         orderFlowPanel = findViewById(R.id.order_flow_panel);
-        orderFlowList = findViewById(R.id.order_flow_list);
-        orderFlowStatus = findViewById(R.id.order_flow_status);
+        orderFlowRule = findViewById(R.id.rule_order_flow);
+        orderFlowInput = findViewById(R.id.order_flow_input);
+        orderFlowResults = findViewById(R.id.order_flow_results);
+        orderFlowSelected = findViewById(R.id.order_flow_selected);
+        bigPrintsPanel = findViewById(R.id.big_prints_panel);
+        bigPrintsList = findViewById(R.id.big_prints_list);
+        // Owner order 2026-11-04: he types a scrip and reads its flow, so
+        // the list filters on every keystroke, the search page's own law.
+        if (orderFlowInput != null) {
+            orderFlowInput.addTextChangedListener(new android.text.TextWatcher() {
+                @Override
+                public void beforeTextChanged(CharSequence s, int a, int b, int c) {
+                }
+
+                @Override
+                public void onTextChanged(CharSequence s, int a, int b, int c) {
+                }
+
+                @Override
+                public void afterTextChanged(android.text.Editable s) {
+                    renderFlowResults(s.toString().trim().toUpperCase(Locale.US));
+                }
+            });
+        }
         // Owner order 2026-10-24: four pages now. Home closes every page
         // that is open, and search, scanner and settings never share the
         // screen: each toggle enforces the one-page law itself.
@@ -2685,12 +2716,13 @@ public class MainActivity extends Activity {
      * "F" lists every symbol that starts with F, "FF" narrows to FFC and FFL.
      */
     /**
-     * The ORDER FLOW page (owner order 2026-11-04).
+     * The ORDER FLOW page (owner order 2026-11-04, second pass).
      *
-     * One page at a time, the law every other toggle here keeps: opening it
-     * closes the search, scanner and settings pages, and their own toggles
-     * close this one when they open. The console leaves while it is open, the
-     * same reply the search page gives.
+     * One page at a time, the law every other toggle here keeps. The page is
+     * a search box and an answer: type a scrip, tap it, read that scrip's
+     * four part volume. Under it, its own tile carries the session's big
+     * buying and selling. The paragraph that used to fill this page is gone,
+     * on the owner's order.
      */
     private void setOrderFlowOpen(boolean open) {
         if (open == orderFlowOpen) {
@@ -2732,114 +2764,157 @@ public class MainActivity extends Activity {
             ruleSearch.setVisibility(open ? View.GONE
                     : ruleSearch.getVisibility());
         }
+        if (orderFlowRule != null) {
+            orderFlowRule.setVisibility(open ? View.VISIBLE : View.GONE);
+        }
         if (orderFlowPanel != null) {
             orderFlowPanel.setVisibility(open ? View.VISIBLE : View.GONE);
         }
+        if (bigPrintsPanel != null) {
+            bigPrintsPanel.setVisibility(open ? View.VISIBLE : View.GONE);
+        }
         paintNavSelection();
         if (open) {
+            if (orderFlowInput != null) {
+                orderFlowInput.setText("");
+            }
+            if (orderFlowSelected != null) {
+                orderFlowSelected.setText(R.string.order_flow_pick);
+            }
+            if (orderFlowResults != null) {
+                orderFlowResults.setVisibility(View.GONE);
+            }
             refreshOrderFlow();
         }
     }
 
-    /** Ask the relay for today's order flow, then redraw the page. */
+    /** Ask the relay for today's order flow and its big prints. */
     private void refreshOrderFlow() {
-        Watcher.fetchFlow(this, (rows, status) -> runOnUiThread(() -> {
-            if (orderFlowList != null) {
-                orderFlowList.setText(orderFlowText(rows));
-            }
-            if (orderFlowStatus != null) {
-                String basis = getString(R.string.order_flow_basis);
-                orderFlowStatus.setText(status == null || status.isEmpty()
-                        ? basis : basis + "\n" + status);
+        Watcher.fetchFlow(this, (rows, prints) -> runOnUiThread(() -> {
+            flowRows = rows == null ? new ArrayList<>() : new ArrayList<>(rows);
+            flowRows.sort((a, b) -> a.symbol.compareTo(b.symbol));
+            renderBigPrints(prints);
+            if (orderFlowInput != null) {
+                renderFlowResults(orderFlowInput.getText().toString().trim()
+                        .toUpperCase(Locale.US));
             }
         }));
     }
 
     /**
-     * The page's list: every stock's volume in four parts, then its big
-     * prints.
-     *
-     * The owner's own sentence shape is kept, B, S, U and T, with U standing
-     * on its own and never added to B or S. A stock whose frame carries no
-     * split prints its total alone rather than four zeros (SO-3).
+     * The session's big buying and selling, one real print a line, in the
+     * owner's own sentence shape: "100,000 shares of FFC were bought at PKR
+     * 580". A buy takes the brand green, a sale the brand red.
      */
-    private SpannableStringBuilder orderFlowText(
-            List<Watcher.FlowRow> rows) {
-        SpannableStringBuilder sb = new SpannableStringBuilder();
-        if (rows == null || rows.isEmpty()) {
-            sb.append(getString(R.string.order_flow_empty));
-            return sb;
+    private void renderBigPrints(List<Watcher.BigPrint> prints) {
+        if (bigPrintsList == null) {
+            return;
         }
-        List<Watcher.FlowRow> ordered = new ArrayList<>(rows);
-        ordered.sort((a, b) -> Long.compare(
-                b.volume == null ? 0L : b.volume,
-                a.volume == null ? 0L : a.volume));
+        if (prints == null || prints.isEmpty()) {
+            bigPrintsList.setText(R.string.big_prints_none);
+            return;
+        }
+        SpannableStringBuilder sb = new SpannableStringBuilder();
         int shown = 0;
-        for (Watcher.FlowRow row : ordered) {
-            if (shown >= ORDER_FLOW_ROWS) {
+        for (Watcher.BigPrint print : prints) {
+            if (shown >= BIG_PRINTS_SHOWN) {
                 break;
-            }
-            if (row.volume == null || row.volume <= 0) {
-                continue;
             }
             if (shown > 0) {
                 sb.append('\n');
             }
             shown++;
-            sb.append(String.format(Locale.US, "%d. %s", shown, row.symbol));
-            if (row.price != null) {
-                sb.append(String.format(Locale.US, "  PKR %,.2f", row.price));
+            boolean sale = "S".equalsIgnoreCase(print.side);
+            double price = print.shares > 0
+                    ? (double) print.value / print.shares : 0d;
+            sb.append(String.format(Locale.US, "%,d shares of ",
+                    print.shares));
+            int from = sb.length();
+            sb.append(String.format(Locale.US, "%s were %s at PKR %,.2f",
+                    print.symbol, sale ? "sold" : "bought", price));
+            sb.setSpan(new ForegroundColorSpan(
+                            getColor(sale ? R.color.red : R.color.green)),
+                    from, sb.length(), 0);
+        }
+        bigPrintsList.setText(sb);
+    }
+
+    /** The stocks whose ticker starts with what he typed, as tappable rows. */
+    private void renderFlowResults(String query) {
+        if (orderFlowResults == null) {
+            return;
+        }
+        orderFlowResults.removeAllViews();
+        if (query.isEmpty()) {
+            orderFlowResults.setVisibility(View.GONE);
+            return;
+        }
+        int shown = 0;
+        for (Watcher.FlowRow row : flowRows) {
+            if (!row.symbol.startsWith(query)) {
+                continue;
             }
-            sb.append('\n');
-            if (row.buy != null && row.sell != null) {
-                sb.append("B=");
-                int from = sb.length();
-                sb.append(String.format(Locale.US, "%,d", row.buy));
-                sb.setSpan(new ForegroundColorSpan(getColor(R.color.green)),
-                        from, sb.length(), 0);
-                sb.append("  S=");
-                from = sb.length();
-                sb.append(String.format(Locale.US, "%,d", row.sell));
-                sb.setSpan(new ForegroundColorSpan(getColor(R.color.red)),
-                        from, sb.length(), 0);
-                // U stands alone, in its own colour, because it is the
-                // volume the split could not side. It is never folded into
-                // B or S (owner order 2026-11-04).
-                sb.append("  U=");
-                if (row.unclassified != null) {
-                    sb.append(String.format(Locale.US, "%,d", row.unclassified));
-                } else {
-                    sb.append("n/a");
-                }
-                sb.append(String.format(Locale.US, "  & T=%,d", row.volume));
-            } else {
-                sb.append(String.format(Locale.US, "T=%,d", row.volume));
-            }
-            if (row.largeBuyValue > 0 || row.largeSellValue > 0) {
-                sb.append('\n');
-                sb.append("BIG ");
-                if (row.largeBuyValue > 0) {
-                    sb.append(String.format(Locale.US, "B=PKR %,d",
-                            row.largeBuyValue));
-                    if (row.largeBuyCount > 0) {
-                        sb.append(String.format(Locale.US, " (%d)",
-                                row.largeBuyCount));
-                    }
-                }
-                if (row.largeSellValue > 0) {
-                    if (row.largeBuyValue > 0) {
-                        sb.append("   ");
-                    }
-                    sb.append(String.format(Locale.US, "S=PKR %,d",
-                            row.largeSellValue));
-                    if (row.largeSellCount > 0) {
-                        sb.append(String.format(Locale.US, " (%d)",
-                                row.largeSellCount));
-                    }
-                }
+            TextView line = new TextView(this);
+            styleSearchRow(line, row.symbol, query);
+            line.setOnClickListener(v -> selectFlow(row.symbol));
+            orderFlowResults.addView(line);
+            if (++shown >= FLOW_RESULTS_SHOWN) {
+                break;
             }
         }
-        return sb;
+        orderFlowResults.setVisibility(shown > 0 ? View.VISIBLE : View.GONE);
+    }
+
+    /** One scrip's own four part volume, the point of the whole page. */
+    private void selectFlow(String symbol) {
+        if (orderFlowSelected == null) {
+            return;
+        }
+        Watcher.FlowRow found = null;
+        for (Watcher.FlowRow row : flowRows) {
+            if (row.symbol.equals(symbol)) {
+                found = row;
+                break;
+            }
+        }
+        if (found == null) {
+            orderFlowSelected.setText(R.string.order_flow_pick);
+            return;
+        }
+        SpannableStringBuilder sb = new SpannableStringBuilder();
+        sb.append(found.symbol);
+        if (found.price != null) {
+            sb.append(String.format(Locale.US, "  PKR %,.2f", found.price));
+        }
+        sb.append('\n');
+        if (found.buy != null && found.sell != null && found.volume != null) {
+            sb.append("B=");
+            int from = sb.length();
+            sb.append(String.format(Locale.US, "%,d", found.buy));
+            sb.setSpan(new ForegroundColorSpan(getColor(R.color.green)),
+                    from, sb.length(), 0);
+            sb.append("  S=");
+            from = sb.length();
+            sb.append(String.format(Locale.US, "%,d", found.sell));
+            sb.setSpan(new ForegroundColorSpan(getColor(R.color.red)),
+                    from, sb.length(), 0);
+            sb.append("  U=");
+            if (found.unclassified != null) {
+                sb.append(String.format(Locale.US, "%,d", found.unclassified));
+            } else {
+                sb.append("n/a");
+            }
+            sb.append(String.format(Locale.US, "  & T=%,d", found.volume));
+        } else if (found.volume != null) {
+            sb.append(String.format(Locale.US, "T=%,d", found.volume));
+        } else {
+            sb.append(String.format(Locale.US,
+                    "no volume reported for %s yet", found.symbol));
+        }
+        if (orderFlowResults != null) {
+            orderFlowResults.setVisibility(View.GONE);
+        }
+        orderFlowSelected.setText(sb);
     }
 
     private void setSearchOpen(boolean open) {
