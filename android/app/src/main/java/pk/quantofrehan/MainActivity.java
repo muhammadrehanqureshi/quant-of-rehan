@@ -2408,7 +2408,13 @@ public class MainActivity extends Activity {
         if (searchOpen || scannerOpen) {
             refreshPrices();
         }
-        if (!liveInFlight) {
+        // Owner order 2026-11-04: the phone never spends two relay requests
+        // on one tick. The card is not on the screen when another page is
+        // open, so a page that already asks for its own numbers answers for
+        // the whole tick and the deck stays at one request a second.
+        boolean pageOwnsTheTick = searchOpen || scannerOpen || orderFlowOpen
+                || settingsOpen;
+        if (!pageOwnsTheTick && !liveInFlight) {
             refreshLive();
         }
     }
