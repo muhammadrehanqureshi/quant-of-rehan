@@ -245,7 +245,7 @@ class ScanWindowTest(TickTestCase):
     the live broker feed; the morning gap and CLOSED stay asleep."""
 
     def test_pre_market_scans_on_the_live_broker_feed(self):
-        self.fake_clock(at(MONDAY, 9, 5))
+        self.fake_clock(at(MONDAY, 9, 20))
         with patch.object(kmiall_tick, "run_capture", return_value=(True, "ok")), \
                 patch.object(pipeline, "run_scan",
                              return_value={"status": "NO_TRADE"}) as scan:
@@ -255,7 +255,7 @@ class ScanWindowTest(TickTestCase):
         self.assertIn("PRE_MARKET", log)
 
     def test_the_gap_between_pre_market_and_the_open_never_scans(self):
-        self.fake_clock(at(MONDAY, 9, 20))
+        self.fake_clock(at(MONDAY, 9, 31))
         with patch.object(pipeline, "run_scan") as scan:
             self.assertEqual(kmiall_tick.main([]), 0)
         scan.assert_not_called()
@@ -283,7 +283,7 @@ class ScanWindowTest(TickTestCase):
 
     def test_the_state_is_reported_in_the_log(self):
         self.assertEqual(kmiall_tick.state_of(at(MONDAY, 11, 0)), "MARKET")
-        self.assertEqual(kmiall_tick.state_of(at(MONDAY, 9, 5)), "PRE_MARKET")
+        self.assertEqual(kmiall_tick.state_of(at(MONDAY, 9, 20)), "PRE_MARKET")
         self.assertEqual(kmiall_tick.state_of(at(MONDAY, 15, 40)),
                          "POST_MARKET")
 
@@ -422,14 +422,19 @@ class SessionTriggerTest(unittest.TestCase):
                 self.assertEqual(start + trigger["duration_minutes"],
                                  match[0][1], trigger)
 
-    def test_nothing_fires_in_the_pre_market_window(self):
-        pre_open = self._minute("09:00")
-        pre_close = self._minute("09:15")
+    def test_nothing_fires_in_a_pre_open_window(self):
         for trigger in self.triggers:
             for day, minute in self.fires(trigger):
-                self.assertFalse(pre_open <= minute < pre_close,
-                                 f"{trigger['name']} fires inside the "
-                                 f"pre-market window on {day}")
+                if day in self.MON_THU:
+                    windows = ((self._minute("09:15"), self._minute("09:30")),)
+                else:
+                    windows = ((self._minute("09:00"), self._minute("09:15")),
+                               (self._minute("14:15"),
+                                self._minute("14:30")))
+                self.assertFalse(
+                    any(opens <= minute < closes for opens, closes in windows),
+                    f"{trigger['name']} fires inside the exchange's "
+                    f"pre-open window on {day}")
 
     def test_nothing_fires_in_the_friday_midday_break(self):
         break_open = self._minute("12:00")

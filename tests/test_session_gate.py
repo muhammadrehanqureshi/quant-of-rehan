@@ -73,17 +73,18 @@ class TestIdleStates(unittest.TestCase):
             at_karachi(2026, 8, 14, 11, 0), "not a PSX trading day")
 
     def test_pre_market_scan_window_runs_without_network(self):
-        # Owner order 2026-10-21 (superseding 2026-10-11): 09:00-09:15
-        # scans on the live broker feed, without a portal probe.
-        decision = gate.session_gate(at_karachi(2026, 10, 12, 9, 0))
+        # Owner order 2026-10-21 (superseding 2026-10-11): the exchange's
+        # published 09:15-09:30 pre-open window scans on the live broker feed,
+        # without a portal probe.
+        decision = gate.session_gate(at_karachi(2026, 10, 12, 9, 20))
         self.assertTrue(decision.should_run)
         self.assertIn("PRE_MARKET", decision.reason)
         self.assertIn("2026-10-21", decision.reason)
 
     def test_between_pre_market_and_the_open_is_idle(self):
-        # 09:15-09:32 belongs to neither window.
+        # 09:30-09:32 is the exchange's order-matching break.
         self.assert_sleeps_without_network(
-            at_karachi(2026, 10, 12, 9, 20), "PRE_OPEN")
+            at_karachi(2026, 10, 12, 9, 31), "PRE_OPEN")
 
     def test_friday_midday_break_is_idle(self):
         # Friday is two bands; 13:00 PKT is inside the exchange's break.
@@ -123,7 +124,7 @@ class TestOwnerScanWindowOrder(unittest.TestCase):
     """
 
     def test_pre_market_scan_runs_and_names_the_order(self):
-        decision = gate.session_gate(at_karachi(2026, 10, 12, 9, 5))
+        decision = gate.session_gate(at_karachi(2026, 10, 12, 9, 20))
         self.assertTrue(decision.should_run)
         self.assertIn("PRE_MARKET", decision.reason)
         self.assertIn("2026-10-21", decision.reason)
@@ -265,10 +266,10 @@ class TestWeekendToOpenTransition(unittest.TestCase):
         (at_karachi(2026, 10, 10, 16, 0), False),   # Saturday, after hours
         (at_karachi(2026, 10, 11, 10, 0), False),   # Sunday
         (at_karachi(2026, 10, 11, 15, 0), False),   # Sunday
-        (at_karachi(2026, 10, 12, 9, 0), True),     # the pre-market window
-                                                    # opens and scans (2026-10-21)
-        (at_karachi(2026, 10, 12, 9, 5), True),     # pre-market scans (2026-10-21)
-        (at_karachi(2026, 10, 12, 9, 31), False),   # the law's morning gap sleeps
+        (at_karachi(2026, 10, 12, 9, 0), False),    # 08:55-09:15 is warm-up,
+                                                    # not a pre-market session
+        (at_karachi(2026, 10, 12, 9, 20), True),    # published pre-open scans
+        (at_karachi(2026, 10, 12, 9, 31), False),   # the order-matching break
         (at_karachi(2026, 10, 12, 9, 32), True),    # THE 09:32 OPEN
         (at_karachi(2026, 10, 12, 10, 0), True),    # inside the session
         (at_karachi(2026, 10, 12, 15, 29), True),   # one minute before close

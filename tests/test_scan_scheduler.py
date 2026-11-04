@@ -100,7 +100,7 @@ class SchedulerTest(unittest.IsolatedAsyncioTestCase):
         return report, stop
 
     async def test_it_fires_on_the_four_minute_grid_through_a_live_session(self):
-        clock = VirtualClock(at(MONDAY, 9, 10))
+        clock = VirtualClock(at(MONDAY, 9, 16))
         rec = Recorder()
         stop = asyncio.Event()
 
@@ -111,24 +111,21 @@ class SchedulerTest(unittest.IsolatedAsyncioTestCase):
         report, _ = await self.run_schedule(rec, clock, stop=stop,
                                             hook=stop_after_ten)
 
-        # pre-market slots (scans since 2026-10-21), then warmup, then the
-        # session's slots on the 4-min grid. The 09:10 start is inside the
-        # law's PRE_MARKET window, so the grid fires there too; the 09:15 to
-        # 09:32 morning gap is still a wait.
+        # The exchange's 09:15 to 09:30 pre-open window scans (owner order
+        # 2026-10-21), then the 09:30 to 09:32 order-matching break waits,
+        # then the band's warm-up waits, then the session's slots scan.
         self.assertEqual(rec.slots(),
-                         ["09:08", "09:12", "09:52", "09:56", "10:00", "10:04",
-                          "10:08"])
+                         ["09:16", "09:20", "09:24", "09:28", "09:52",
+                          "09:56", "10:00", "10:04", "10:08"])
         self.assertTrue(all(act == "scan" for act, _, _ in rec.calls))
-        self.assertEqual(report.scans, 7)
-        self.assertEqual(report.pauses, 6)   # 09:12 gap + 5 warmup slots
-        self.assertEqual(report.cycles, 13)
+        self.assertEqual(report.scans, 9)
+        self.assertEqual(report.pauses, 5)   # the five warm-up slots
+        self.assertEqual(report.cycles, 14)
         self.assertEqual(report.failures, 0)
         self.assertEqual(report.exit_code, 0)
-        # 09:10 to 09:12 are PRE_MARKET scans; the CLOSED band gap that
-        # follows wakes on the grid until the band's first warmup slot at
-        # 09:52 (one 960s hinge), every later sleep one slot of 240s.
-        self.assertEqual(clock.sleeps[0], 120.0)   # 09:10 -> 09:12 next slot
-        self.assertEqual({round(s) for s in clock.sleeps[1:]}, {240, 960})
+        # Every step here is one four-minute slot: the pre-open window and
+        # the band are close enough that no long hinge is needed.
+        self.assertEqual({round(s) for s in clock.sleeps}, {240})
         # every fire carries the one true zone and its own slot label
         for _, slot, moment in rec.calls:
             self.assertEqual(moment.utcoffset(), timedelta(hours=5))

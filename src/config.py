@@ -400,12 +400,13 @@ TARGET_MULTIPLIER_BY_REGIME = {
 # scanning before the strategy's own minimum bar and volume-bucket requirements
 # can be met (MIN_BARS_PER_SYMBOL is 20 and VOLUME_WINDOW is 5).
 #
-# Owner order 2026-10-11: scan the whole KMIALL universe every 4 minutes,
-# forever until further notice, and never in the pre-market (09:00-09:15) or
-# post-market (15:32-15:49, Friday 16:32-16:49) windows. The 4 is the default
-# here, so a rebuilt task or a fresh clone runs at 4 minutes without any
-# environment change; the tick itself refuses to scan outside MARKET
-# (src/data/sessions.py, is_scan_window).
+# Owner order 2026-10-11, amended 2026-10-21: scan the whole KMIALL universe
+# every 4 minutes, forever until further notice, including the exchange's
+# pre-open windows (Mon-Thu 09:15-09:30; Friday 09:00-09:15 and 14:15-14:30)
+# and the post-market windows (15:32-15:49, Friday 16:32-16:49). The 4 is the
+# default here, so a rebuilt task or a fresh clone runs at 4 minutes without
+# any environment change; the tick itself decides with is_scan_window
+# (src/data/sessions.py), never with a second copy of the table.
 TICK_INTERVAL_MINUTES = _number("TICK_INTERVAL_MINUTES", 4)
 TICK_WARMUP_MINUTES = _number("TICK_WARMUP_MINUTES", 20)
 
@@ -442,10 +443,16 @@ TICK_STALE_LOCK_MINUTES = _number("TICK_STALE_LOCK_MINUTES", 15)
 # NOT restore the stream (probe: 32 frames after the first subscribe, 0 frames
 # in the 60 seconds after re-subscribing), but a NEW connection is answered
 # with a fresh sweep every time. The 2026-10-13 session tape never went a
-# single minute below 31 frames, so a twenty second silence is not a quiet
+# single minute below 31 frames, so a five second silence is not a quiet
 # market, it is a stalled push: the recorder now stops waiting rather than
 # letting the tape age out and block every later scan as stale.
-TICK_STALL_SECONDS = _number("TICK_STALL_SECONDS", 20.0)
+#
+# Owner report 2026-11-04: the desk build showed 14 to 15 seconds of lag while
+# /quotes showed every row stamped at one instant and already 12 seconds old.
+# A 20 second wait before reconnecting was the whole visible delay. Five
+# seconds is longer than the normal inter-frame gap and short enough that the
+# fresh sweep arrives before the desk's own stale threshold.
+TICK_STALL_SECONDS = _number("TICK_STALL_SECONDS", 5.0)
 
 # The bar capture is ONE polite, sequential pass over the universe
 # (src/data/ohlc_poller.py). The 319 symbol KMIALL universe needs about seven

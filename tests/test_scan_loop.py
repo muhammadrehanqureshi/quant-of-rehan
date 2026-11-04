@@ -202,8 +202,8 @@ class TapeCaptureTest(unittest.TestCase):
     def _loop(self) -> ScanLoop:
         # An injected clock at a MARKET moment: the zero-tape and thin-tape
         # answers must not depend on the wall time the suite happens to
-        # execute at (a real 09:00 to 09:15 PKT Monday is the pre band's
-        # own quiet now, owner order 2026-10-26).
+        # execute at (the exchange's 09:15 to 09:30 PKT Monday pre-open
+        # window is the pre band's own quiet now, owner order 2026-10-26).
         return ScanLoop(LoopConfig(dry_run=True),
                         clock=lambda: at(MONDAY, 10, 5))
 
@@ -370,8 +370,8 @@ class PreMarketQuietTapeTest(unittest.TestCase):
 
     def test_a_premarket_zero_tape_raises_the_wait_not_the_fault(self):
         loop = ScanLoop(LoopConfig(dry_run=True), health_path=self.health,
-                        clock=lambda: at(MONDAY, 9, 5))
-        with self._mocks(at(MONDAY, 9, 5)):
+                        clock=lambda: at(MONDAY, 9, 20))
+        with self._mocks(at(MONDAY, 9, 20)):
             with self.assertRaises(ScanFault) as ctx:
                 loop._capture()
         self.assertIsInstance(ctx.exception, QuietTape)
@@ -391,8 +391,8 @@ class PreMarketQuietTapeTest(unittest.TestCase):
         # as one pause (never a fault), the health is published and the
         # loop is ready for its next cycle.
         loop = ScanLoop(LoopConfig(), health_path=self.health,
-                        clock=lambda: at(MONDAY, 9, 5))
-        with self._mocks(at(MONDAY, 9, 5)), \
+                        clock=lambda: at(MONDAY, 9, 20))
+        with self._mocks(at(MONDAY, 9, 20)), \
                 patch.object(pipeline, "run_scan") as scan:
             action, outcome = loop.run_cycle()
         self.assertEqual(action, "scan")
@@ -533,8 +533,8 @@ class DecisionTest(unittest.TestCase):
     def test_pre_market_scans_live(self):
         # Owner order 2026-10-21 (superseding 2026-10-11): the pre-market
         # window scans, on the live broker feed.
-        loop = self.loop(at(MONDAY, 9, 5))
-        action, detail = loop.decide(at(MONDAY, 9, 5))
+        loop = self.loop(at(MONDAY, 9, 20))
+        action, detail = loop.decide(at(MONDAY, 9, 20))
         self.assertEqual(action, "scan")
         self.assertIn("PRE_MARKET", detail)
         self.assertIn("2026-10-21", detail)

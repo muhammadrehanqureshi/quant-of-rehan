@@ -33,8 +33,9 @@ status surface, on the Cloudflare edge off your PC.
   the B/S pair only moves as the day's own volume grows.
 - `GET /flow` (also `/orderflow`): the complete KMIALL order-flow answer.
   One row per symbol with last, bid, ask, change, volume, buy, sell, the
-  unclassified remainder, the split method, freshness and the day's large
-  prints. It is a pure read of the durable quote snapshot: no portal fetch
+  unclassified remainder, the split method, feed freshness, last-trade age
+  and the day's large prints. It is a pure read of the durable quote
+  snapshot: no portal fetch
   and no ACK write, so a desktop poll cannot spend the Durable Objects
   write budget.
 - Cron triggers do scan dispatch and card upkeep only; owner order
@@ -67,6 +68,7 @@ shrinks the universe to only the symbols that happened to trade.
       "flow_complete": true, "buy_share_pct": 57.46, "sell_share_pct": 42.54,
       "split_method": "quote_rule", "split_source": "every volume increment sided by the wire's own bid/ask at the poll",
       "observed_at": "2026-11-04T10:31:02.218+05:00", "age_seconds": 1,
+      "tick_age_seconds": 3,
       "fresh": true, "status": "OPEN", "source_tick_time": "10:31:02",
       "flow_rules": {"at_ask": 1200, "at_bid": 1180},
       "large_buy_count": 2, "large_buy_shares": 180000, "large_buy_value_pkr": 2134800,
@@ -106,6 +108,14 @@ own observed pair on every quote, so a hub that starts later adopts that pair
 instead of assigning shares it never saw. If the capture itself started late,
 the missed shares stay in `unclassified_volume`; they are never called buy or
 sell.
+
+`age_seconds` is the age of the frame the relay holds, so it answers "is the
+feed pushing now". `tick_age_seconds` is the age of the exchange's last print
+for that symbol, so it answers "when did this stock last trade". They are
+different numbers: a quiet stock can have an old tick on a fresh frame. A
+reader that paints `tick_age_seconds` as feed lag will show a stall that is
+not there, while a real push stall moves both numbers. Treat `age_seconds` as
+the feed freshness and `tick_age_seconds` as the stock's last-trade age.
 
 The live quote view uses its own Durable Object instance name,
 `psx-live-quotes-v3`, because a deployed class change does not restart an

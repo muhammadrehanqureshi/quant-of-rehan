@@ -651,9 +651,12 @@ class CaptureSession:
                     # ages out and every later scan blocks on stale leaders.
                     # Reconnecting is the one lever that works (measured
                     # 2026-10-16: a fresh connection is answered with a full
-                    # sweep every time, re-subscribing is not). This is
-                    # checked OUTSIDE the frame loop on purpose: a venue that
-                    # sends nothing at all would never enter that loop.
+                    # sweep every time, re-subscribing is not). The limit is
+                    # the config's five seconds (owner report 2026-11-04: a
+                    # twenty second wait showed up as 14 to 15 seconds of lag
+                    # on the desk). This is checked OUTSIDE the frame loop on
+                    # purpose: a venue that sends nothing at all would never
+                    # enter that loop.
                     # Raised as a connection fault so the existing backoff owns
                     # the retry rate and a venue that is truly down is not
                     # hammered.
