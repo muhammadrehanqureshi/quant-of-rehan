@@ -273,13 +273,23 @@
                 android:visibility="gone"/>
         </LinearLayout>
 
-        <!-- Owner order 2026-11-04: the ORDER FLOW page, opened by the nav
-             icon that sits between the scanner and the search glass. It is
-             one page of its own, so it follows the same one-page-at-a-time
-             law the other four keep, and the console leaves while it is
-             open, exactly as the search page's own reply does. The list is
-             one TextView rendered by MainActivity, the way the leaders card
-             is, so a wide row can never reflow the tile. -->
+        <!-- Owner order 2026-11-04: the ORDER FLOW page. One page at a
+             time, under the same law the search page keeps. Its diamond
+             rule now stands ABOVE the tile as well as below it, which is
+             what every other divided tile on this console does and what
+             the owner asked for by name.
+             Owner order 2026-11-04 (second pass): the page carries NO
+             explanation. He searches a scrip, and the answer is that
+             scrip's own order flow. The words left the screen with the
+             paragraph that used to sit here. -->
+        <include
+            android:id="@+id/rule_order_flow"
+            layout="@layout/qor_rule"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:visibility="gone"/>
+
         <LinearLayout
             android:id="@+id/order_flow_panel"
             style="@style/QorPanel"
@@ -298,22 +308,70 @@
                 android:layout_marginBottom="10dp"
                 android:text="@string/label_order_flow"/>
 
-            <TextView
-                android:id="@+id/order_flow_list"
-                style="@style/QorValue"
+            <EditText
+                android:id="@+id/order_flow_input"
+                android:layout_width="match_parent"
+                android:layout_height="43dp"
+                android:background="@drawable/field_bg"
+                android:gravity="center_vertical"
+                android:hint="@string/order_flow_hint"
+                android:imeOptions="actionSearch"
+                android:includeFontPadding="false"
+                android:inputType="textCapCharacters"
+                android:maxLines="1"
+                android:paddingLeft="10dp"
+                android:paddingRight="10dp"
+                android:paddingTop="3dp"
+                android:paddingBottom="3dp"
+                android:textColor="@color/text_bright"
+                android:textColorHint="@color/text_soft"
+                android:textSize="13sp"/>
+
+            <LinearLayout
+                android:id="@+id/order_flow_results"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:lineSpacingExtra="3dp"
-                android:text="@string/order_flow_empty"/>
+                android:layout_marginTop="6dp"
+                android:orientation="vertical"
+                android:visibility="gone"/>
 
             <TextView
-                android:id="@+id/order_flow_status"
+                android:id="@+id/order_flow_selected"
                 style="@style/QorValue"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="10dp"
-                android:textColor="@color/text_soft"
-                android:text="@string/order_flow_basis"/>
+                android:text="@string/order_flow_pick"/>
+        </LinearLayout>
+
+        <!-- Owner order 2026-11-04: the page's second tile, the session's
+             big buying and selling across KMIALL, each row a real print:
+             the shares, the scrip, the side and the price. -->
+        <LinearLayout
+            android:id="@+id/big_prints_panel"
+            style="@style/QorPanel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/big_prints_heading"
+                style="@style/QorLabel"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:layout_marginBottom="10dp"
+                android:text="@string/label_big_prints"/>
+
+            <TextView
+                android:id="@+id/big_prints_list"
+                style="@style/QorValue"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:lineSpacingExtra="3dp"
+                android:text="@string/big_prints_none"/>
         </LinearLayout>
 
         <!-- Owner order 2026-10-24, third pass ("there should be diamond
@@ -1319,7 +1377,7 @@
                 android:contentDescription="@string/cd_order_flow"
                 android:padding="8dp"
                 android:scaleType="fitCenter"
-                android:src="@drawable/ic_nav_flow"
+                android:src="@drawable/orderflow"
                 android:tint="@color/gold"/>
         </FrameLayout>
 
