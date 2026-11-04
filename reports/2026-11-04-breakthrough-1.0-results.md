@@ -35,9 +35,35 @@ The 2026-11-03 row comes from the artifact of run 41596775833
 | 2026-10-30 | PRL | 98.20 | 15:12:04 | 88.21 | 26 | not recorded | 97.218 | 97.218 | 16:20:00 | 67 | STOP_HIT | -1.00% | -1.648% |
 | 2026-11-02 | CNERGY | 12.50 | 09:52:00 | 89.10 | 6 | not recorded | 12.375 | 12.37 | 10:11:00 | 19 | STOP_HIT | -1.04% | recorded at the post-close finalize |
 | 2026-11-03 | FECTC | 95.50 | 09:52:00 | 89.10 | 290 | 91.48% of 317 | 94.545 | 92.52 | 09:53:00 | 1 | STOP_HIT | -3.1204% | -3.7684% |
+| 2026-11-04 | GLAXO | 325.00 | 11:32:04 | 80.38 | 287 | 90.54% of 317 | 321.75 | open | open | open | OPEN | not closed | not closed |
 
-Ledger: 3 trades, 0 wins. Cost model on every row: 22.4 bps a side plus 10 bps
-slippage a side, 64.8 bps round trip, 15 percent CGT on gains.
+Ledger: 3 closed trades, 0 wins, and a fourth still open. Cost model on every
+closed row: 22.4 bps a side plus 10 bps slippage a side, 64.8 bps round trip,
+15 percent CGT on gains.
+
+### The fourth call, GLAXO, 2026-11-04
+
+Read from `data/forward/session_state.json` in the artifact of run 41770047561,
+not from memory and not from the brief:
+
+* entry 325.00 at 11:32:04 PKT, target 331.50, stop 321.75, entry score 80.38;
+* coverage 90.54 percent, 287 of 317 symbols; market SUPPORTIVE at 61.0 percent
+  advancing and a median move of +0.54 percent;
+* state TARGET_MONITORING at 11:40 PKT with no exit yet.
+
+The outcome is **not** written here as a loss, because at the time of writing it
+is an open position and a number that does not exist yet is not a number. The
+owner's own expectation, stated to the agent, is that it exits at the close or
+at the stop rather than at target. That expectation is recorded as the owner's,
+labelled as such, and it is not a measurement. The finalize at the close writes
+the real row, and the ledger below is the place it lands.
+
+What is measurable right now is this: GLAXO's entry score of 80.38 is the lowest
+of the four entries (88.21, 89.10, 89.10, 80.38), and it is 8.7 points below the
+next lowest. Four trades cannot tell anyone whether that means anything, and
+this report does not pretend otherwise. It is written down because the
+abstention study in part 1E is exactly the place a score floor would be tested,
+and a fact noticed after the fact belongs in the record, not in a decision.
 
 ### The finding that matters
 
@@ -76,6 +102,64 @@ guessed:
 | trailing 30 minute realised volatility at entry | NOT MEASURED |
 | 5, 10 and 20 minute best and worst excursion after entry | NOT MEASURED: needs the tape replay of part 1B |
 | stop filled at the stop or through it | MEASURED: PRL and CNERGY filled at the stop; FECTC filled 2.14 percent through it |
+
+## 2a. The law as it now runs
+
+The owner's order of 2026-11-03 put VWAP beside the Kalman Trend, and the
+intraday signal is now read on four timeframes at once. The one minute flip is
+still the execution trigger; the 5 minute, 15 minute, 1 hour and 1 day frames
+are the regime the flip has to agree with, and each frame carries its own VWAP
+and its own Kalman state (`src/signals/mtf_vwap.py`, `MTF_ENABLED` in
+`src/config.py`). A frame holds a veto, so a one minute flip against the higher
+frames is not a call.
+
+The daily frame needs a history a single session tape cannot hold, and the live
+session workflow restores `data/mtf_daily.csv.gz` from the Actions cache and
+builds it once a day. When that file is missing the scanner reports DATA
+BLOCKED rather than quietly running three frames and calling it four, because a
+four frame law with three frames is not this law.
+
+One thing this report will not do is attribute the ledger above to the four
+frame law. Two of the four rows (PRL on 2026-10-30 and CNERGY on 2026-11-02)
+were taken before the order of 2026-11-03, so the ledger spans a law change and
+the records do not carry a per trade marker saying which version took which
+trade. Treating those rows as evidence about the current law would be exactly
+the kind of invented attribution this project forbids.
+
+## 2b. Why the calls are losing
+
+The owner asked the direct question, so it gets a direct answer, and the answer
+is not bad luck.
+
+1. **Nothing in this system has ever been shown to have an edge.** The Kalman
+grid fit that was supposed to tune Q, R and the flip threshold has never
+produced a committed result, so the deployed numbers are still the starting
+pair. A starting pair is a guess, and a guess is not an edge.
+2. **The bar is high and the rule has never cleared it.** A 2 percent target
+against a 1 percent stop, after 64.8 bps round trip and 15 percent CGT, needs a
+58.92 percent hit rate merely to break even. That is a demanding rule for any
+intraday signal, and it was never demonstrated that this one reaches it.
+3. **The ranking carries an unmeasured amount of information.** Questions 1 to 3
+of this report are not measured, so nobody knows whether rank 1 beats a random
+eligible pick at the same minute. The one call a day is chosen by that ranking.
+4. **The stop is not always the stop.** FECTC lost 3.12 times its own band in
+one minute. Every expectancy calculation in this project assumes a -1 percent
+loss when the stop takes a trade, and that assumption is optimistic on thin
+names.
+5. **Four trades prove nothing either way, and that is the point.** At a true
+50 percent hit rate the chance of 0 wins in 4 is 6.25 percent, which is
+uncommon but entirely ordinary. The ledger is therefore not evidence of a bad
+rule. The absence of any demonstrated edge before the first trade is, and that
+is the real answer to the question.
+
+The honest summary: the calls are not bad luck and they are not yet a proven
+failure. They come from a rule that has never been validated, judged against a
+break-even it was never shown to clear, in a sample far too small to settle it.
+The fix is measurement, which is why parts 1B to 1E exist.
+
+What the agent will not do is retune the law because four trades lost. The
+brief forbids it, the owner's own order forbids it, and four losses are not a
+reason to change a rule any more than four wins would be.
 
 ## 3. Part 1B to 1E: why there is no number yet
 
@@ -141,7 +225,7 @@ then landed as one document rather than two.
 | # | question | answer | verdict |
 |---|---|---|---|
 | 1 | Does the rank 1 pick hit +2 percent before -1 percent more often than a random eligible pick at the same minute? | NOT MEASURED. Part 1B is blocked on tape, section 3. Nothing is substituted for it. | NOT MET |
-| 2 | Is the rank 1 hit rate above 58.92 percent, and if not by how many points is it below? | NOT MEASURED for the same reason. The live ledger's own rate is 0 of 3, which is a fact about three trades and not a hit rate. | NOT MET |
+| 2 | Is the rank 1 hit rate above 58.92 percent, and if not by how many points is it below? | NOT MEASURED for the same reason. The live ledger's own rate is 0 of 3 closed trades, with a fourth (GLAXO) open, which is a fact about three trades and not a hit rate. | NOT MET |
 | 3 | Does the hit rate change with time of day or price tier enough to justify a no trade zone? | NOT MEASURED. Part 1C needs the same labelled candidates. | NOT MET |
 | 4 | Under the volatility scaled bracket, what are the break-even and the observed rate? | NOT MEASURED. Part 1D is registered as F4 (stops at 1.0, 1.5 and 2.0 times 30 minute realised volatility) and cannot be scored without tape. | NOT MET |
 | 5 | How many labelled sessions are needed before question 2 can be answered at 95 percent, and how many does the ledger have today? | MEASURED, arithmetic in section 7: 381 sessions to resolve a 65 percent rate against the 58.92 percent break-even at 80 percent power, 1,536 for 62 percent, 12,722 for 60 percent. The ledger holds 3. | MET |
@@ -231,13 +315,21 @@ seen.
 
 ## 10. What was measured and what was not
 
-Measured: the three trades of the live ledger, including the third one, which is
-FECTC and which lost 3.12 times its own stop band; the fact that the stop filled
-2.14 percent through its price on that trade in one minute; the sample size
-question 2 actually needs, which is 381 sessions at the most generous assumption
-the brief allows and 12,722 at a one point edge; and the relay's own write
-budget, which was spending the whole free plan day by 12:10 PKT and is fixed as
-of `c7fe30c`.
+Measured: the three closed trades of the live ledger, including the third one,
+which is FECTC and which lost 3.12 times its own stop band; the fourth call,
+GLAXO, entered at 325.00 on 2026-11-04 with a 321.75 stop and recorded as open
+rather than guessed; the fact that the stop filled 2.14 percent through its price
+on FECTC in one minute; the sample size question 2 actually needs, which is 381
+sessions at the most generous assumption the brief allows and 12,722 at a one
+point edge; and the relay's own write budget, which was spending the whole free
+plan day by 12:10 PKT and is fixed as of `c7fe30c`.
+
+The answer to why the calls are losing is in part 2b, and it is not luck and not
+yet proven failure: this rule has never been validated, the 58.92 percent
+break-even it must clear was never shown to be reachable, the ranking's
+information content is unmeasured, and the 1 percent stop can and did fill 2.14
+percent through its band. Four trades cannot settle any of that, which is why
+the measurement in parts 1B to 1E is the work that matters.
 
 Not measured, and not guessed: whether the rank 1 pick beats a random eligible
 pick; the rank 1 hit rate against 58.92 percent; any time of day or price tier
