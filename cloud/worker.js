@@ -777,9 +777,25 @@ function frameIsRegularSession(quote) {
 // and the day's answer is the newest session's rows.
 const ACK_TTL_SECONDS = 2 * 86400;
 // Owner order 2026-11-03: the ACK mirror is written at most once per live
-// symbol per 30 seconds. The constant is also the gate in /ack-upsert; a
+// symbol per window. The constant is also the gate in /ack-upsert; a
 // missing definition there is a ReferenceError, not a throttle.
-const ACK_WRITE_MIN_MS = 30 * 1000;
+//
+// Owner incident 2026-11-04: the window was 30 seconds, and one row per live
+// symbol per 30 seconds is 319 x 720 = 229,680 rows in a six hour session
+// against Cloudflare's free plan cap of 100,000 rows written PER ACCOUNT per
+// day (00:00 UTC reset). The mirror alone spent the whole day's budget about
+// two and a half hours into the band, and every write after that failed: the
+// card went empty while the market was open. A window of five minutes is
+// 319 x 72 = 22,968 rows, and the reading side still prefers a newer live
+// frame over the mirrored one, so no surface waits five minutes for its own
+// price. A new Worker would not have helped here: the cap belongs to the
+// account, not to the Worker or its Durable Object namespace.
+const ACK_WRITE_MIN_MS = 5 * 60 * 1000;
+// The hard ceiling for the mirror, so a future change to the window cannot
+// quietly spend the day again. Flow's own backup holds 40,000 and the quote
+// snapshot is one row per coalesced push, so 25,000 here keeps the whole
+// relay inside the free plan's 100,000 rows written a day.
+const ACK_ROWS_PER_DAY = 25000;
 
 const ACK_SYMBOL_RE = /^[A-Z0-9]{1,12}$/;
 
@@ -2818,6 +2834,11 @@ export class QuoteHub {
     this.flowStates = null;
     this.lastFlowFlush = 0;
     this.lastAckWrites = new Map();
+    // The mirror's own day ledger, so ACK_ROWS_PER_DAY is a measured ceiling
+    // and not a promise. It is in-memory like the flow counters: an instance
+    // that restarts re-counts from zero, which can only make it stricter.
+    this.ackWritesDay = "";
+    this.ackWritesToday = 0;
     // /prices is polled by the phone once per foreground tick. Listing its
     // acknowledged rows from SQL on every read spent the free Durable Objects
     // rows-read budget (5,000,000/day) and stopped the relay on 2026-11-04.
@@ -3167,6 +3188,10 @@ export class QuoteHub {
         const parsed = this.ackCandidate(frame);
         if (!parsed) continue;
         const nowMs = Date.now();
+        if (this.ackWritesDay !== parsed.day) {
+          this.ackWritesDay = parsed.day;
+          this.ackWritesToday = 0;
+        }
         const key = `ACK:${parsed.day}:${parsed.band}:${parsed.symbol}`;
         const cachedPrevious = (this.ackRowsLoaded &&
           this.ackRowsDay === parsed.day && this.ackRowsBySymbol)
@@ -3194,12 +3219,24 @@ export class QuoteHub {
           this.rememberAckFrame(parsed.day, previous);
           continue;
         }
+        if (this.ackWritesToday >= ACK_ROWS_PER_DAY) {
+          // The day's mirror budget is spent. The mirror stops writing and
+          // the reading side keeps its own live frame, so the card is not
+          // served a stale row and the day's remaining writes stay with the
+          // snapshot the app actually reads.
+          if (previous && previous.symbol === parsed.symbol) {
+            rows[parsed.symbol] = previous;
+            this.rememberAckFrame(parsed.day, previous);
+          }
+          continue;
+        }
         const pair = clampPair(parsed, previous &&
           previous.symbol === parsed.symbol ? previous : null);
         if (!pair) continue;
         const stored = { ...parsed, ...pair };
         await this.statePut(key, JSON.stringify(stored),
           nowMs + ACK_TTL_SECONDS * 1000);
+        this.ackWritesToday += 1;
         this.lastAckWrites.set(key, nowMs);
         rows[parsed.symbol] = stored;
         this.rememberAckFrame(parsed.day, stored);
