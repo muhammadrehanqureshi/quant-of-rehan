@@ -663,7 +663,10 @@ const MARKET_TTL_MS = 5 * 60 * 1000;
 // unit is one relay update: an increase of at least this much value in the
 // venue counter, sided by the quote that arrived with it. The label on the
 // answer says exactly that; it never claims an individual broker order.
-const LARGE_PRINT_PKR = 1_000_000;
+// Owner order 2026-11-04: a big print is at least PKR 10,000,000 spent in a
+// SINGLE transaction, buying or selling. It was 1,000,000, which the owner
+// read as ordinary size, not a big trade.
+const LARGE_PRINT_PKR = 10_000_000;
 const LARGE_PRINT_MAX = 200;
 
 // The KMIALL universe the session captures (319 names today). The live

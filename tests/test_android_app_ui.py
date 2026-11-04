@@ -392,7 +392,9 @@ class SettingsControlTest(unittest.TestCase):
         root = layout_root()
         nav = find_view(root, "@+id/nav_tile")
         cells = [node for node in nav if node.tag == "FrameLayout"]
-        self.assertEqual(len(cells), 4)
+        # Owner order 2026-11-04: ORDER FLOW is the fifth slot, between the
+        # scanner and the search glass.
+        self.assertEqual(len(cells), 5)
         for cell in cells:
             self.assertEqual(cell.get(f"{ANDROID_NS}layout_width"), "0dp")
             self.assertEqual(cell.get(f"{ANDROID_NS}layout_weight"), "1")
@@ -438,6 +440,28 @@ class SettingsControlTest(unittest.TestCase):
             [node.get(f"{ANDROID_NS}id") for node in following],
             [], "no footer follows the carrier any more", )
 
+    def test_the_order_flow_slot_sits_between_scanner_and_search(self):
+        """Owner order 2026-11-04: the new page's slot is the third in the
+        row, after the scanner and before the search glass, and it draws the
+        owner's icon.
+
+        The icon is a vector here rather than a png, because it is stroke
+        art the nav tints, and a bitmap would need one file per state.
+        """
+        nav = find_view(layout_root(), "@+id/nav_tile")
+        ids = [node.get(f"{ANDROID_NS}id") for cell in nav
+               if cell.tag == "FrameLayout" for node in cell
+               if node.tag == "ImageView"]
+        self.assertEqual(ids, ["@+id/btn_nav_home", "@+id/btn_nav_scanner",
+                               "@+id/btn_nav_flow", "@+id/btn_nav_search",
+                               "@+id/btn_nav_settings"])
+        button = element(self.layout, 'android:id="@+id/btn_nav_flow"')
+        self.assertIn('android:src="@drawable/ic_nav_flow"', button)
+        self.assertIn('android:tint="@color/gold"', button)
+        self.assertIn('android:contentDescription="@string/cd_order_flow"',
+                      button)
+        self.assertTrue((RES / "drawable" / "ic_nav_flow.xml").is_file())
+
     def test_the_four_icons_are_the_owners_own_pngs(self):
         """Owner order 2026-10-24: the scanner page's icon (his own
         scanner.png from the Desktop) joins the bar beside home."""
@@ -464,9 +488,10 @@ class SettingsControlTest(unittest.TestCase):
         scanner = element(self.layout, 'android:id="@+id/btn_nav_scanner"')
         search = element(self.layout, 'android:id="@+id/btn_nav_search"')
         settings = element(self.layout, 'android:id="@+id/btn_nav_settings"')
+        flow = element(self.layout, 'android:id="@+id/btn_nav_flow"')
         self.assertIn('android:background="@drawable/nav_circle"', home)
         self.assertIn('android:tint="@color/gold_bright"', home)
-        for other in (scanner, search, settings):
+        for other in (scanner, flow, search, settings):
             with self.subTest(other=other[:other.index("/>")]):
                 self.assertIn(
                     'android:background="@drawable/settings_ripple"',
@@ -484,9 +509,13 @@ class SettingsControlTest(unittest.TestCase):
         # Owner order 2026-10-24: home is the console's page only when all
         # three menus are closed, and the scanner page paints like the
         # rest of them.
-        self.assertIn("setNavPage(navHome, !searchOpen && !settingsOpen && !scannerOpen);",
+        # Owner order 2026-11-04: the ORDER FLOW page is the fifth page, so
+        # home is the console only when it is closed as well.
+        self.assertIn("setNavPage(navHome, !searchOpen && !settingsOpen && !scannerOpen",
                       self.main)
+        self.assertIn("&& !orderFlowOpen);", self.main)
         self.assertIn("setNavPage(navScanner, scannerOpen);", self.main)
+        self.assertIn("setNavPage(navFlow, orderFlowOpen);", self.main)
         self.assertIn("setNavPage(navSearch, searchOpen);", self.main)
         self.assertIn("setNavPage(navSettings, settingsOpen);", self.main)
 
@@ -1786,8 +1815,9 @@ class VersionTest(unittest.TestCase):
         # BLACK & WHITE): each themed plate is copied per view, the
         # diamond rules wear the second colour, versionCode 104.
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionName="3.9.0"', manifest)
-        self.assertIn('android:versionCode="108"', manifest)
+        # Owner order 2026-11-04: v4.0.0, the ORDER FLOW page.
+        self.assertIn('android:versionName="4.0.0"', manifest)
+        self.assertIn('android:versionCode="109"', manifest)
         self.assertNotIn('android:versionName="3.7.5"', manifest)
         self.assertNotIn('android:versionName="3.7.4"', manifest)
         self.assertNotIn('android:versionName="3.7.3"', manifest)
@@ -1987,8 +2017,10 @@ class VersionTest(unittest.TestCase):
         # rows move up into the closed face's empty strip, both dropdowns.
         self.assertIn("Version 3.2.0, versionCode 92", readme)
         manifest = MANIFEST.read_text(encoding="utf-8")
-        self.assertIn('android:versionCode="108"', manifest)
-        self.assertIn('android:versionName="3.9.0"', manifest)
+        # v4.0.0 (owner order 2026-11-04): the ORDER FLOW page, four part
+        # volume and the PKR 10,000,000 big print.
+        self.assertIn('android:versionCode="109"', manifest)
+        self.assertIn('android:versionName="4.0.0"', manifest)
         self.assertNotIn('android:versionName="3.7.5"', manifest)
         self.assertNotIn('android:versionName="3.7.4"', manifest)
         self.assertNotIn('android:versionName="3.7.3"', manifest)
@@ -2533,8 +2565,10 @@ class HeadingGrowthTest(unittest.TestCase):
         block = layout[head:layout.index("/>", head)]
         self.assertIn('android:text="@string/label_market"', block)
         self.assertIn('style="@style/QorLabel"', block)
+        # Owner order 2026-11-04: the tile names the index it follows by its
+        # own name, KSE100, in place of the generic word THE INDEX.
         self.assertIn(
-            'name="label_market">THE INDEX &amp; THE TOP 3 SCRIPS OF VOL.<',
+            'name="label_market">KSE100 &amp; THE TOP 3 SCRIPS OF VOL.<',
             strings)
 
     def test_the_existing_headings_keep_their_words(self):
@@ -4721,8 +4755,10 @@ class MarketHeadingWordTest(unittest.TestCase):
 
     def test_the_words_are_exactly_the_owners(self):
         strings = STRINGS.read_text(encoding="utf-8")
+        # Owner order 2026-11-04: the tile names the index it follows by its
+        # own name, KSE100, in place of the generic word THE INDEX.
         self.assertIn(
-            'name="label_market">THE INDEX &amp; THE TOP 3 SCRIPS OF VOL.<',
+            'name="label_market">KSE100 &amp; THE TOP 3 SCRIPS OF VOL.<',
             strings)
         self.assertNotIn('INDEX &amp; TOP 3 SCRIPS', strings)
 

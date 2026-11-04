@@ -832,6 +832,115 @@ public final class Watcher {
      * fetchStock. The relay's freshness field also stays in /stock, so a
      * reader of the JSON still knows (SO-3).
      */
+    /**
+     * One stock's order flow, exactly as the relay's /orderflow answers it.
+     *
+     * Owner order 2026-11-04: the phone gets an ORDER FLOW page, and its law
+     * is that the volume is read in FOUR parts and never three. buying and
+     * selling are the sided increments, unclassified is the volume the split
+     * could not side, and total is the venue's own counter. Unclassified is
+     * therefore never folded into buying or selling, here or anywhere else:
+     * buy + sell + unclassified == total on every row this app prints.
+     *
+     * The big-print fields are the relay's own large-print board at its
+     * threshold (PKR 10,000,000 a single transaction since 2026-11-04), so a
+     * BIG number the page shows is a transaction the relay actually saw, not
+     * an average of one.
+     */
+    static final class FlowRow {
+        String symbol = "";
+        Double price;
+        Long volume;
+        Long buy;
+        Long sell;
+        Long unclassified;
+        long largeBuyValue;
+        long largeSellValue;
+        long largeBuyCount;
+        long largeSellCount;
+        long largestBuy;
+        long largestSell;
+        String splitMethod = "";
+    }
+
+    /** The last order flow the relay served. Empty until the first read. */
+    private static volatile List<FlowRow> FLOW =
+            java.util.Collections.emptyList();
+
+    interface FlowCallback {
+        void onFlow(List<FlowRow> rows, String status);
+    }
+
+    static void fetchFlow(final Context c, final FlowCallback cb) {
+        POOL.execute(() -> {
+            List<FlowRow> rows = new ArrayList<>();
+            String status = "";
+            try {
+                JSONObject body = get(relayUrl(c) + "/orderflow", null);
+                JSONArray list = body.optJSONArray("rows");
+                if (list != null) {
+                    for (int i = 0; i < list.length(); i++) {
+                        JSONObject row = list.optJSONObject(i);
+                        if (row == null) continue;
+                        String symbol = row.optString("symbol", "").trim();
+                        if (symbol.isEmpty()) continue;
+                        FlowRow out = new FlowRow();
+                        out.symbol = symbol;
+                        out.price = number(row, "price");
+                        out.volume = whole(row, "volume");
+                        out.buy = whole(row, "buy_volume");
+                        out.sell = whole(row, "sell_volume");
+                        out.unclassified = whole(row, "unclassified_volume");
+                        out.largeBuyValue = amount(row, "large_buy_value_pkr");
+                        out.largeSellValue = amount(row, "large_sell_value_pkr");
+                        out.largeBuyCount = amount(row, "large_buy_count");
+                        out.largeSellCount = amount(row, "large_sell_count");
+                        out.largestBuy = amount(row, "largest_buy_pkr");
+                        out.largestSell = amount(row, "largest_sell_pkr");
+                        out.splitMethod = row.optString("split_method", "");
+                        rows.add(out);
+                    }
+                }
+                String asOf = body.optString("as_of", "");
+                status = body.optString("day", "")
+                        + (asOf.isEmpty() ? "" : "  " + asOf);
+            } catch (Exception e) {
+                // The page keeps the rows it already has, and says so rather
+                // than drawing an empty market (SO-3).
+                if (FLOW.isEmpty()) {
+                    cb.onFlow(FLOW, "order flow unavailable: "
+                            + e.getClass().getSimpleName());
+                    return;
+                }
+                cb.onFlow(FLOW, "order flow not refreshed: "
+                        + e.getClass().getSimpleName());
+                return;
+            }
+            FLOW = java.util.Collections.unmodifiableList(rows);
+            cb.onFlow(FLOW, status);
+        });
+    }
+
+    /** A JSON number field, or null when the relay did not report one. */
+    private static Double number(JSONObject row, String key) {
+        if (!row.has(key) || row.isNull(key)) return null;
+        double value = row.optDouble(key, Double.NaN);
+        return Double.isNaN(value) ? null : value;
+    }
+
+    /** A JSON count field as a whole number, or null when it is missing. */
+    private static Long whole(JSONObject row, String key) {
+        if (!row.has(key) || row.isNull(key)) return null;
+        double value = row.optDouble(key, Double.NaN);
+        return Double.isNaN(value) ? null : Math.round(value);
+    }
+
+    /** A JSON money field as a whole rupee amount; a missing one is zero. */
+    private static long amount(JSONObject row, String key) {
+        double value = row.optDouble(key, 0d);
+        return Double.isNaN(value) || value < 0 ? 0L : Math.round(value);
+    }
+
     static void fetchPrices(final Context c, final PricesCallback cb) {
         POOL.execute(() -> {
             try {
@@ -951,6 +1060,11 @@ public final class Watcher {
                     sb.append(String.format(java.util.Locale.US, "%,.0f", sell));
                     int sellTo = sb.length();
                     if (total != null) {
+                        // Owner order 2026-11-04: four parts, never three.
+                        // U is the venue total minus the two sided halves
+                        // and is never folded into B or S.
+                        sb.append(String.format(java.util.Locale.US,
+                                ", U=%,.0f", Math.max(0d, total - buy - sell)));
                         sb.append(String.format(java.util.Locale.US, " & T=%,.0f", total));
                     }
                     sb.append(')');
