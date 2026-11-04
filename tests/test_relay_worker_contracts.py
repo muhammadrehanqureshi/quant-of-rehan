@@ -200,6 +200,38 @@ class RelayWorkerContractTest(unittest.TestCase):
         # A symbol-level suspension must not be elevated to a global halt.
         self.assertIn("// never become a market-wide transition.", self.source)
 
+    def test_market_polls_never_wait_for_a_portal_rebuild(self):
+        """A slow exchange page must not delay the live card by twenty seconds.
+
+        The portal snapshot has a five minute cache, and both of its fetches
+        carry a nine second timeout. Rebuilding it inside GET /market made the
+        first app poll after expiry wait for the portal. The cached copy is now
+        answered immediately and one shared background task refreshes it.
+        """
+        helper = self.source[self.source.index(
+            "async function refreshMarketSnapshot(env, now)"):]
+        helper = helper[:helper.index("// A cold cache still answers immediately.")]
+        self.assertIn("if (marketRefreshInFlight) return marketRefreshInFlight;",
+                      helper)
+        block = self.source[self.source.index(
+            "async function marketSnapshot(env, now, ctx)"):]
+        block = block[:block.index("function pktInstant(")]
+        self.assertIn("ctx.waitUntil(refreshMarketSnapshot(env, now));", block)
+        self.assertIn("return normalizeMarket(cached);", block)
+        self.assertIn("return normalizeMarket(blankMarketSnapshot(now));", block)
+        self.assertNotIn("await buildMarketSnapshot(now)", block,
+                         "a client poll must not wait for the portal build")
+        self.assertIn("marketResponseSnapshot(env, now, ctx)", self.source)
+
+    def test_live_card_ranking_comes_only_from_fresh_quotes(self):
+        """A stale portal leader cannot sit beside fresh one-second quotes."""
+        block = self.source[self.source.index(
+            "async function applyLiveQuotes("):]
+        block = block[:block.index("async function marketResponseSnapshot(")]
+        self.assertIn("for (const quote of liveBySymbol.values()) {", block)
+        self.assertNotIn("(snapshot.top_volume || []).map", block)
+        self.assertIn("snapshot.stale = false;", block)
+
     def test_the_market_answer_carries_the_wl_ledger(self):
         """Owner order 2026-10-31: the W/L = W/L RATE tile reads ONE ledger.
 

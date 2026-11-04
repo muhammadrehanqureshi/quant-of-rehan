@@ -1400,18 +1400,20 @@ async function applyLiveQuotes(env, snapshot, quotes, now, ackDay) {
     // 2026-11-01): a retried push can never answer the card with an older
     // price than /stock and /prices read for the same scrip.
     const liveBySymbol = newestQuoteRows(freshQuotes);
-    const merged = (snapshot.top_volume || []).map((row) => {
-      const quote = liveBySymbol.get(row.symbol);
-      if (!quote) return { ...row, quote_fresh: false };
-      liveBySymbol.delete(row.symbol);
-      const volume = quote.volume ?? row.volume;
+    // The card answers the live ranking as one set. A cached portal leader
+    // must not sit beside fresh quote rows: when the base card is a few
+    // minutes old, that produced the visible twenty second lag (fresh prices
+    // moving while one leader stayed on its old stamp). If a symbol has no
+    // fresh quote it is not a current leader and waits for its next frame.
+    const merged = [];
+    for (const quote of liveBySymbol.values()) {
+      if (!Number.isFinite(quote.volume) || quote.volume <= 0) continue;
+      const volume = quote.volume;
       const split = splitFromQuote(quote)
         || rangePositionSplit(quote.high, quote.low, quote.price, volume);
-      return {
-        ...row,
-        price: quote.price,
+      merged.push({
+        ...quote,
         volume,
-        change_pct: quote.change_pct ?? row.change_pct,
         ...splitFields(split, quote),
         feed_as_of: quote.observed_at,
         feed_age_seconds: quote.age_seconds,
@@ -1419,19 +1421,8 @@ async function applyLiveQuotes(env, snapshot, quotes, now, ackDay) {
         source_tick_time: quote.source_tick_time,
         quote_fresh: true,
         quote_source: quote.source,
-      };
-    });
-    for (const row of liveBySymbol.values()) {
-      if (Number.isFinite(row.volume) && row.volume > 0) {
-        merged.push({
-          ...row,
-          ...splitFields(splitFromQuote(row)
-            || rangePositionSplit(row.high, row.low, row.price, row.volume), row),
-          basis: "current session volume (fresh eClear REG quote)",
-          quote_fresh: true,
-          quote_source: row.source,
-        });
-      }
+        basis: "current session volume (fresh eClear REG quote)",
+      });
     }
     // The card's as_of is the clock a reader sees, so it is the newest frame
     // in this answer, never the build time of the pushed body: a body built
@@ -1452,6 +1443,9 @@ async function applyLiveQuotes(env, snapshot, quotes, now, ackDay) {
       ? `current session volume, top ${snapshot.top_volume.length} from fresh REG feed`
       : snapshot.top_volume_basis;
     snapshot.volume_split_basis = splitLabel(snapshot.top_volume || []);
+    // Every displayed value has now come from a live frame, so the older
+    // portal cache must not mark the answer stale.
+    snapshot.stale = false;
   } else if (snapshot.top_volume) {
     // Owner order 2026-10-31: with no fresh frames, the card answers from
     // the hub's own LAST PUBLISHED REGULAR-session frames of today, the
@@ -1519,12 +1513,12 @@ async function applyLiveQuotes(env, snapshot, quotes, now, ackDay) {
   return refreshMarketFeed(snapshot, now);
 }
 
-async function marketResponseSnapshot(env, now) {
+async function marketResponseSnapshot(env, now, ctx) {
   const k = karachiView(now.getTime());
   const ackDay = isTradingDay(k) ? dayStamp(k) : null;
   let snapshot;
   try {
-    snapshot = await marketSnapshot(env, now);
+    snapshot = await marketSnapshot(env, now, ctx);
   } catch (e) {
     const fallback = await kvGet(env, "MARKET");
     if (!fallback) throw e;
@@ -1642,9 +1636,53 @@ function snapshotShapeError(body) {
   return null;
 }
 
-// Cached copy, refreshed at most once per five minutes. `force` is used by the
-// runner's own push path, never by an app poll.
-async function marketSnapshot(env, now) {
+// The portal snapshot is rebuilt behind the response, never in front of it.
+// The portal fetches can each spend nine seconds waiting for an exchange site
+// that is slow or unreachable. Doing that synchronously when the five minute
+// cache expires made an app poll arrive almost twenty seconds late. The cached
+// copy is answered at once; the next build is a single shared background task.
+let marketRefreshInFlight = null;
+
+async function refreshMarketSnapshot(env, now) {
+  if (marketRefreshInFlight) return marketRefreshInFlight;
+  marketRefreshInFlight = (async () => {
+    try {
+      const fresh = normalizeMarket(await buildMarketSnapshot(now));
+      fresh.built_at = now.toISOString();
+      fresh.cache_age_seconds = 0;
+      await kvPut(env, "MARKET", JSON.stringify(fresh), { expirationTtl: 3600 });
+      return fresh;
+    } catch (_) {
+      return null;
+    } finally {
+      marketRefreshInFlight = null;
+    }
+  })();
+  return marketRefreshInFlight;
+}
+
+// A cold cache still answers immediately. Live quote rows from the durable hub
+// fill the card while this portal ranking rebuilds in the background.
+function blankMarketSnapshot(now) {
+  const k = karachiView(now.getTime());
+  return {
+    as_of: `${dayStamp(k)}T${hhmm(k)}:00+05:00`,
+    date: dayStamp(k),
+    timezone: "Asia/Karachi",
+    market_open: marketOpenNow(now),
+    market_state: marketState(now),
+    index: null,
+    kmiall_members: 0,
+    top_volume: null,
+    top_volume_basis: "the ranking is rebuilding from the exchange portal; live quotes are served from the broker feed",
+    volume_split_basis: "no portal ranking yet",
+    notes: ["the ranking is rebuilding from the exchange portal"],
+    market_feed: { status: "UNKNOWN", raw_status: null, as_of: null,
+      age_seconds: null, source: "eClear REG market feed", fresh: false },
+  };
+}
+
+async function marketSnapshot(env, now, ctx) {
   const cachedRaw = await kvGet(env, "MARKET");
   if (cachedRaw) {
     try {
@@ -1658,15 +1696,23 @@ async function marketSnapshot(env, now) {
         // came back before the app sees it.
         return normalizeMarket(cached);
       }
+      cached.market_open = marketOpenNow(now);
+      cached.market_state = marketState(now);
+      cached.cache_age_seconds = Number.isFinite(built)
+        ? Math.round((now.getTime() - built) / 1000) : null;
+      cached.stale = true;
+      if (ctx && typeof ctx.waitUntil === "function") {
+        ctx.waitUntil(refreshMarketSnapshot(env, now));
+      }
+      return normalizeMarket(cached);
     } catch (_) {
-      // malformed cache: fall through and rebuild
+      // malformed cache: schedule a rebuild and answer from live quotes now
     }
   }
-  const fresh = normalizeMarket(await buildMarketSnapshot(now));
-  fresh.built_at = now.toISOString();
-  fresh.cache_age_seconds = 0;
-  await kvPut(env, "MARKET", JSON.stringify(fresh), { expirationTtl: 3600 });
-  return fresh;
+  if (ctx && typeof ctx.waitUntil === "function") {
+    ctx.waitUntil(refreshMarketSnapshot(env, now));
+  }
+  return normalizeMarket(blankMarketSnapshot(now));
 }
 
 function pktInstant(k, hm) {
@@ -1916,7 +1962,7 @@ export default {
       const now = new Date();
       let snapshot;
       try {
-        snapshot = await marketResponseSnapshot(env, now);
+        snapshot = await marketResponseSnapshot(env, now, ctx);
       } catch (_) {
         snapshot = { index: null, top_volume: null, market_feed: null,
           notes: ["market data unavailable"], market_open: marketOpenNow(now),
@@ -2119,7 +2165,7 @@ export default {
       const now = new Date();
       let snapshot;
       try {
-        snapshot = await marketResponseSnapshot(env, now);
+        snapshot = await marketResponseSnapshot(env, now, ctx);
       } catch (_) {
         return json({ ok: false, error: "market data unavailable",
           market_open: marketOpenNow(now), market_state: marketState(now) }, 503);
