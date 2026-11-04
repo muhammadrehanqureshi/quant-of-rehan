@@ -61,11 +61,11 @@ exchange's own, from psx.com.pk/psx/exchange/general/trading-hours.
 |---|---|---|---|
 | `PRE_MARKET` | 09:15 to 09:30 | 09:00 to 09:15 and 14:15 to 14:30 | **yes, every second in the cloud (owner order 2026-10-21, live broker feed)** |
 | `MARKET` | 09:32 to 15:30 | 09:17 to 12:00 and 14:32 to 16:30 | **yes, every second in the cloud (owner order 2026-10-19, amending SO-13); every 4 minutes on the local tick** |
-| `POST_MARKET` | 15:32 to 15:49 | 16:32 to 16:49 | **yes, every second in the cloud (owner order 2026-10-21); finalize also runs here** |
-| `CLOSED` | everything else, including 09:30 to 09:32 and 15:30 to 15:32 | everything else, including 09:15 to 09:17, 14:30 to 14:32 and 16:30 to 16:32 | no |
+| `POST_MARKET` | 15:35 to 15:50 | 16:35 to 16:50 | **yes, every second in the cloud (owner order 2026-10-21); finalize also runs here** |
+| `CLOSED` | everything else, including 09:30 to 09:32 and 15:30 to 15:35 | everything else, including 09:15 to 09:17, 14:30 to 14:32 and 16:30 to 16:35 | no |
 
 The 2-minute gaps after each close are `CLOSED` on purpose: 15:30:00 itself is
-no longer the market, and post-market does not begin until 15:32:00.
+no longer the market, and post-market does not begin until 15:35:00.
 
 The cloud's scan cadence is `config.SCAN_INTERVAL_SECONDS = 1` (owner order
 2026-10-19, amending SO-13): `intraday-session.yml` runs
@@ -134,7 +134,7 @@ post-market scanning:
 5. `scripts/intraday_pipeline.py::session_legal` asks `is_scan_window`, so a
    hand-run `--scan` outside `MARKET` is refused too.
 6. `tests/test_sessions_and_schedule.py::TestMarketStateLaw` pins every edge,
-   including 09:15:00, 15:30:00, 15:31:59, 15:32:00 and 15:48:59;
+   including 09:15:00, 15:30:00, 15:34:59, 15:35:00 and 15:49:59;
    `tests/test_kmiall_tick.py::ScanWindowTest` and
    `tests/test_session_gate.py::TestOwnerScanWindowOrder` pin the refusals.
 

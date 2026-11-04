@@ -28,12 +28,11 @@ compatibility_date = "2026-10-01"
 #   wake the afternoon had no publisher and the phone's numbers froze,
 #   measured 2026-10-20. Not a notification edge; the dispatch's own
 #   dedupe key separates it from the morning loop).
-# 10:33 UTC = 15:33 PKT (Mon-Thu post-market window wake: 2 minutes after
-#   the 15:31 window open, inside the dispatcher's 3 minute grace, and 3
-#   minutes after the 15:30 close edge, outside the 2 minute window that
-#   would duplicate the close notification)
+# 10:35 UTC = 15:35 PKT (Mon-Thu post-close window wake: the exchange's
+#   published Post-Close Session opens at 15:35 and closes at 15:50)
 # 07:00 UTC = 12:00 PKT (Friday session 1 close, midday break begins)
 # 09:32 UTC = 14:32 PKT (Friday session 2 open, trading resumes)
+# 11:35 UTC = 16:35 PKT (Friday post-close window wake: 16:35 to 16:50)
 # packed edge list fires at the 12:00 PKT Friday close, the 15:30 Mon-Thu
 # close and the 16:30 PKT Friday close plus harmless extras the worker
 # discards; a six entry list is rejected (Cloudflare error 10072).
@@ -43,7 +42,7 @@ crons = [
   "30 7 * * 1-4",
   "17 4 * * 5",
   "32 9 * * 5",
-  "0,30,33 7,10,11 * * 1-5",
+  "0,30,35 7,10,11 * * 1-5",
 ]
 
 # No KV namespace, on purpose. Owner order 2026-10-20: no product that
