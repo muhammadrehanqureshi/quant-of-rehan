@@ -154,6 +154,11 @@ class StallWatchdogTest(unittest.TestCase):
             stall.stop()
         return session, made
 
+    def test_the_stall_limit_is_five_seconds(self):
+        # Owner report 2026-11-04: the old 20 second wait showed up as 14 to
+        # 15 seconds of lag on the desk before the fresh sweep arrived.
+        self.assertEqual(feed_capture.config.TICK_STALL_SECONDS, 5.0)
+
     def test_a_silent_venue_reconnects_and_names_the_stall(self):
         session, made = self.run_session([self.BANNER, self.SWEEP])
         self.assertGreaterEqual(session.counters["ticks"], 1,

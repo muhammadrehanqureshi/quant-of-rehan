@@ -109,14 +109,21 @@ class FridayBreakTest(unittest.TestCase):
         self.assertEqual(market_condition_at(at(FRIDAY, "19:00")),
                          MarketCondition.CLOSED)
 
-    def test_the_scanner_runs_only_in_the_operational_condition(self):
-        for clock in ("09:16", "09:17", "11:59:59", "12:00:00", "14:23",
-                      "14:31:59", "14:32:00", "16:29:59", "16:30:00"):
+    def test_the_scanner_never_scans_a_pure_break(self):
+        # Friday 14:15 to 14:30 is the exchange's second pre-open window, so it
+        # scans even though the owner-facing condition still says BREAK. The
+        # pure break slots are 12:00 to 14:15 and 14:30 to 14:32.
+        for clock in ("09:16", "09:17", "11:59:59", "12:00:00", "13:00",
+                      "14:10", "14:31:59", "14:32:00", "16:29:59",
+                      "16:30:00"):
             moment = at(FRIDAY, clock)
             with self.subTest(clock=clock):
                 self.assertEqual(is_scan_window(moment),
                                  market_condition_at(moment)
                                  is MarketCondition.OPERATIONAL)
+        self.assertTrue(is_scan_window(at(FRIDAY, "14:23")))
+        self.assertEqual(market_condition_at(at(FRIDAY, "14:23")),
+                         MarketCondition.BREAK)
 
 
 class OtherDaysTest(unittest.TestCase):

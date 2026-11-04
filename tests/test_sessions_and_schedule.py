@@ -24,6 +24,7 @@ from src.data.sessions import (  # noqa: E402
     next_event,
     post_market_window,
     pre_market_window,
+    pre_market_windows,
     session_bounds,
 )
 
@@ -126,10 +127,14 @@ class TestMarketStateLaw(unittest.TestCase):
     def test_monday_to_thursday_timeline(self):
         d = self.MONDAY
         self.assertIs(self.state(d, 8, 59, 59), MarketState.CLOSED)
-        self.assertIs(self.state(d, 9, 0), MarketState.PRE_MARKET)
-        self.assertIs(self.state(d, 9, 14, 59), MarketState.PRE_MARKET)
-        # Exactly 09:15:00: pre-market has ended, the market has not opened.
-        self.assertIs(self.state(d, 9, 15), MarketState.CLOSED)
+        # 08:55 to 09:15 is the recorder's warm-up, never a pre-market state.
+        self.assertIs(self.state(d, 9, 0), MarketState.CLOSED)
+        self.assertIs(self.state(d, 9, 14, 59), MarketState.CLOSED)
+        # Exactly 09:15:00: the exchange's own pre-open window starts.
+        self.assertIs(self.state(d, 9, 15), MarketState.PRE_MARKET)
+        self.assertIs(self.state(d, 9, 29, 59), MarketState.PRE_MARKET)
+        # 09:30 to 09:32 is the order-matching break.
+        self.assertIs(self.state(d, 9, 30), MarketState.CLOSED)
         self.assertIs(self.state(d, 9, 31, 59), MarketState.CLOSED)
         self.assertIs(self.state(d, 9, 32), MarketState.MARKET)
         self.assertIs(self.state(d, 15, 29, 59), MarketState.MARKET)
@@ -149,6 +154,10 @@ class TestMarketStateLaw(unittest.TestCase):
         self.assertIs(self.state(d, 9, 17), MarketState.MARKET)
         self.assertIs(self.state(d, 11, 59, 59), MarketState.MARKET)
         self.assertIs(self.state(d, 12, 0), MarketState.CLOSED)
+        self.assertIs(self.state(d, 14, 14, 59), MarketState.CLOSED)
+        self.assertIs(self.state(d, 14, 15), MarketState.PRE_MARKET)
+        self.assertIs(self.state(d, 14, 29, 59), MarketState.PRE_MARKET)
+        self.assertIs(self.state(d, 14, 30), MarketState.CLOSED)
         self.assertIs(self.state(d, 14, 31, 59), MarketState.CLOSED)
         self.assertIs(self.state(d, 14, 32), MarketState.MARKET)
         self.assertIs(self.state(d, 16, 29, 59), MarketState.MARKET)
@@ -172,11 +181,13 @@ class TestMarketStateLaw(unittest.TestCase):
         # OWNER 2026-10-21: MARKET scans always; the pre and post windows
         # scan too (live broker feed), and the gaps plus the weekend never do.
         self.assertTrue(is_scan_window(at_karachi(2026, 10, 12, 11, 0)))
-        for moment in (at_karachi(2026, 10, 12, 9, 5),
+        for moment in (at_karachi(2026, 10, 12, 9, 20),
                        at_karachi(2026, 10, 12, 15, 40),
+                       at_karachi(2026, 10, 9, 9, 5),
                        at_karachi(2026, 10, 9, 16, 40)):
             self.assertTrue(is_scan_window(moment), moment)
-        for moment in (at_karachi(2026, 10, 12, 9, 20),
+        for moment in (at_karachi(2026, 10, 12, 9, 5),
+                       at_karachi(2026, 10, 12, 9, 31),
                        at_karachi(2026, 10, 12, 15, 31),
                        at_karachi(2026, 10, 12, 15, 50),
                        at_karachi(2026, 10, 10, 11, 0)):
@@ -186,9 +197,13 @@ class TestMarketStateLaw(unittest.TestCase):
         self.assertTrue(MarketState.POST_MARKET.is_scan_window)
         self.assertFalse(MarketState.CLOSED.is_scan_window)
 
-    def test_windows_are_the_owner_windows(self):
-        self.assertEqual(pre_market_window(self.MONDAY), ((9, 0), (9, 15)))
+    def test_windows_are_the_published_exchange_windows(self):
+        self.assertEqual(pre_market_window(self.MONDAY), ((9, 15), (9, 30)))
         self.assertEqual(pre_market_window(self.FRIDAY), ((9, 0), (9, 15)))
+        self.assertEqual(pre_market_windows(self.FRIDAY),
+                         (((9, 0), (9, 15)), ((14, 15), (14, 30))))
+        self.assertEqual(pre_market_windows(self.MONDAY),
+                         (((9, 15), (9, 30)),))
         self.assertEqual(post_market_window(self.MONDAY), ((15, 32), (15, 49)))
         self.assertEqual(post_market_window(self.FRIDAY), ((16, 32), (16, 49)))
 

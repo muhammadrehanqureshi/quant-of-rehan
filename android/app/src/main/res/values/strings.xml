@@ -166,8 +166,9 @@
          Friday 09:17-12:00 and 14:32-16:30), which the sentence states.
          Owner wording 2026-10-12 kept: "when the market is open". Owner
          order 2026-10-21 (superseding the 2026-10-11 watch-only rule): the
-         quant also scans the market's own pre-market (09:00-09:15) and
-         post-market (Mon-Thu 15:32-15:49, Friday 16:32-16:49) windows on
+         quant also scans the exchange's pre-open windows (Mon-Thu
+         09:15-09:30; Friday 09:00-09:15 and 14:15-14:30) and post-market
+         (Mon-Thu 15:32-15:49, Friday 16:32-16:49) windows on
          the live broker feed, so the sentence names them; v1.8.2. Owner
          order 2026-10-21 (13:08 message): exact replacement wording, caps
          as written: LIVE/POST/PRE. Owner order 2026-10-21 (14:19 message):

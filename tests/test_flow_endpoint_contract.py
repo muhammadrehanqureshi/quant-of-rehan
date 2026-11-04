@@ -62,7 +62,8 @@ class FlowEndpointContractTest(unittest.TestCase):
         for field in ("buy_volume", "sell_volume", "classified_volume",
                       "unclassified_volume", "flow_complete",
                       "buy_share_pct", "sell_share_pct", "bid", "ask",
-                      "spread", "observed_at", "fresh"):
+                      "spread", "observed_at", "age_seconds",
+                      "tick_age_seconds", "fresh"):
             self.assertIn(field + ":", self.source, field)
         self.assertIn("Math.max(0, volume - classified)", self.source)
 
