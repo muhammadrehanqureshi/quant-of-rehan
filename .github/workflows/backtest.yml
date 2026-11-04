@@ -284,7 +284,20 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt --retries 5 --timeout 60
 
+      # The panel build is the whole cost of this job: 43 minutes on
+      # 2026-11-01 and 46 on 2026-11-04, and the 2026-11-04 run threw that
+      # away when one family later raised. The key carries the universe hash
+      # and a dated version, so a retry reuses the same measured panel and a
+      # deliberate refresh is one word in the key, never a silent drift.
+      - name: Restore the ten-year panel
+        id: panel
+        uses: actions/cache/restore@v4
+        with:
+          path: data/eod_dataset_10y.csv.gz
+          key: eod-10y-${{ hashFiles('src/data/universe_kmiall.json') }}-2016-10-29-v1
+
       - name: Build the ten-year dataset
+        if: steps.panel.outputs.cache-hit != 'true'
         run: |
           mkdir -p data
           python scripts/build_backtest_dataset.py \
@@ -292,6 +305,13 @@ jobs:
             --start 2016-10-29 \
             --out data/eod_dataset_10y.csv.gz \
             --cache-dir data/mkt_cache
+
+      - name: Save the ten-year panel
+        if: steps.panel.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: data/eod_dataset_10y.csv.gz
+          key: eod-10y-${{ hashFiles('src/data/universe_kmiall.json') }}-2016-10-29-v1
 
       - name: Pre-register the Breakthrough rows
         run: |
@@ -306,6 +326,9 @@ jobs:
           cat data/research/breakthrough_families.json
 
       - name: Keep the Breakthrough result
+        # always(): a family that raises still leaves the shapes that scored,
+        # and the registry rows, in the artifact beside the failure.
+        if: always()
         uses: actions/upload-artifact@v7
         with:
           name: breakthrough-families-${{ github.run_id }}
