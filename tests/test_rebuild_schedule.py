@@ -303,7 +303,7 @@ class TestOutsideSessionGuard(unittest.TestCase):
         self.assertTrue(session_legal(at(WEDNESDAY, 10, 0)))
         self.assertTrue(session_legal(at(FRIDAY, 16, 0)))
         self.assertTrue(session_legal(at(WEDNESDAY, 9, 20)))
-        # Post-market: 15:32 to 15:49 on Mon-Thu (16:32 to 16:49 Friday).
+        # Post-close: 15:35 to 15:50 on Mon-Thu (16:35 to 16:50 Friday).
         self.assertTrue(session_legal(at(WEDNESDAY, 15, 45)))
         self.assertFalse(session_legal(at(WEDNESDAY, 16, 0)))
         self.assertTrue(session_legal(at(FRIDAY, 16, 40)))
@@ -323,10 +323,10 @@ class TestTheOneSecondSessionWorkflow(unittest.TestCase):
 
     def test_each_band_starts_a_loop_inside_a_real_window(self):
         """One window per band, both post-market windows included (owner
-        order 2026-10-24: Friday's post-market window at 16:32 is the
+        order 2026-10-24: Friday's post-close window at 16:35 is the
         sixth runnable window; the five-window law of 2026-10-21 never
-        woke the Friday post-market loop at all, which is why Friday's
-        16:32 and 16:49 emails never reached the owner). The Mon-Thu
+        woke the Friday post-close loop at all, which is why Friday's
+        16:35 and 16:50 emails never reached the owner). The Mon-Thu
         morning job wakes at 08:55, before
         the band, on purpose: the loop's own session gate holds it asleep
         through the pre-band minutes, so the seconds after the 09:32 open
@@ -336,8 +336,8 @@ class TestTheOneSecondSessionWorkflow(unittest.TestCase):
         self.assertEqual(len(crons), 6,
                          "one window per band plus the post-market windows:\n"
                          "Mon-Thu band 1, band 2 and post-market, plus Friday's "
-                         "band 1, band 2 and the Friday post-market window at "
-                         "16:32 (owner order 2026-10-24)")
+                         "band 1, band 2 and the Friday post-close window at "
+                         "16:35 (owner order 2026-10-24)")
         for expression in crons:
             minute, hour, mask = parse_cron(expression)
             for weekday in weekdays_of(mask):
@@ -547,7 +547,7 @@ class TestCloudflareSchedule(unittest.TestCase):
         self.assertTrue(pair_crons, "cloud/pair.py must declare a CRONS list")
         self.assertEqual(
             sorted(pair_crons),
-            ["0,30,33 7,10,11 * * 1-5",
+            ["0,30,35 7,10,11 * * 1-5",
              "17 4 * * 5",
              "30 7 * * 1-4",
              "32 9 * * 5",
@@ -574,9 +574,9 @@ class TestCloudflareSchedule(unittest.TestCase):
                 windows.append(((hour + 5) % 24, minute, frozenset(weekdays)))
         # Owner order 2026-10-24: six runnable windows per week. The 08:55
         # Mon-Thu window covers pre-market and band 1; the post-close
-        # window at 15:32 covers the law's Mon-Thu post-market window exactly,
-        # and the 16:32 Friday window covers Friday's own post-market window
-        # (16:32 to 16:49), which the five-window law of 2026-10-21 left
+        # window at 15:35 covers the exchange's Mon-Thu Post-Close Session,
+        # and the 16:35 Friday window covers Friday's own Post-Close Session
+        # (16:35 to 16:50), which the five-window law of 2026-10-21 left
         # unwoken - the Friday emails that never arrived.
         self.assertEqual(
             sorted(windows),
@@ -584,11 +584,11 @@ class TestCloudflareSchedule(unittest.TestCase):
              (9, 17, frozenset({5})),
              (12, 30, frozenset({1, 2, 3, 4})),
              (14, 32, frozenset({5})),
-             (15, 32, frozenset({1, 2, 3, 4})),
-             (16, 32, frozenset({5}))],
+             (15, 35, frozenset({1, 2, 3, 4})),
+             (16, 35, frozenset({5}))],
             "the session loop must offer exactly the six runnable windows: "
-            "Mon-Thu pre/band1, band 2 and post-market, Friday band 1 and "
-            "band 2, and Friday's own post-market window at 16:32 "
+            "Mon-Thu pre/band1, band 2 and post-close, Friday band 1 and "
+            "band 2, and Friday's own post-close window at 16:35 "
             "(owner order 2026-10-24)")
 
         # The worker's dispatcher table must carry the same window list, and

@@ -139,11 +139,11 @@ class TestMarketStateLaw(unittest.TestCase):
         self.assertIs(self.state(d, 9, 32), MarketState.MARKET)
         self.assertIs(self.state(d, 15, 29, 59), MarketState.MARKET)
         self.assertIs(self.state(d, 15, 30), MarketState.CLOSED)
-        self.assertIs(self.state(d, 15, 31, 59), MarketState.CLOSED)
-        self.assertIs(self.state(d, 15, 32), MarketState.POST_MARKET)
-        self.assertIs(self.state(d, 15, 48, 59), MarketState.POST_MARKET)
-        self.assertIs(self.state(d, 15, 49), MarketState.CLOSED)
-        self.assertIs(self.state(d, 15, 49, 0, 1), MarketState.CLOSED)
+        self.assertIs(self.state(d, 15, 34, 59), MarketState.CLOSED)
+        self.assertIs(self.state(d, 15, 35), MarketState.POST_MARKET)
+        self.assertIs(self.state(d, 15, 49, 59), MarketState.POST_MARKET)
+        self.assertIs(self.state(d, 15, 50), MarketState.CLOSED)
+        self.assertIs(self.state(d, 15, 50, 0, 1), MarketState.CLOSED)
         self.assertIs(self.state(d, 23, 59, 59), MarketState.CLOSED)
 
     def test_friday_has_two_market_windows_and_a_later_post_market(self):
@@ -162,10 +162,10 @@ class TestMarketStateLaw(unittest.TestCase):
         self.assertIs(self.state(d, 14, 32), MarketState.MARKET)
         self.assertIs(self.state(d, 16, 29, 59), MarketState.MARKET)
         self.assertIs(self.state(d, 16, 30), MarketState.CLOSED)
-        self.assertIs(self.state(d, 16, 31, 59), MarketState.CLOSED)
-        self.assertIs(self.state(d, 16, 32), MarketState.POST_MARKET)
-        self.assertIs(self.state(d, 16, 48, 59), MarketState.POST_MARKET)
-        self.assertIs(self.state(d, 16, 49), MarketState.CLOSED)
+        self.assertIs(self.state(d, 16, 34, 59), MarketState.CLOSED)
+        self.assertIs(self.state(d, 16, 35), MarketState.POST_MARKET)
+        self.assertIs(self.state(d, 16, 49, 59), MarketState.POST_MARKET)
+        self.assertIs(self.state(d, 16, 50), MarketState.CLOSED)
 
     def test_weekend_and_holiday_are_closed_all_day(self):
         for d in (date(2026, 10, 10), date(2026, 10, 11)):
@@ -204,8 +204,8 @@ class TestMarketStateLaw(unittest.TestCase):
                          (((9, 0), (9, 15)), ((14, 15), (14, 30))))
         self.assertEqual(pre_market_windows(self.MONDAY),
                          (((9, 15), (9, 30)),))
-        self.assertEqual(post_market_window(self.MONDAY), ((15, 32), (15, 49)))
-        self.assertEqual(post_market_window(self.FRIDAY), ((16, 32), (16, 49)))
+        self.assertEqual(post_market_window(self.MONDAY), ((15, 35), (15, 50)))
+        self.assertEqual(post_market_window(self.FRIDAY), ((16, 35), (16, 50)))
 
     def test_another_zone_is_converted_before_the_decision(self):
         # 04:32 UTC is 09:32 PKT: the Monday open.

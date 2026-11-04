@@ -56,10 +56,10 @@ TASK = "quant-of-rehan-kmiall-tick"
 TICK_SCRIPT = ROOT / "scripts" / "kmiall_tick.py"
 XML_FILE = ROOT / "data" / "task-kmiall-tick.xml"
 
-#: The finalize fires a couple of minutes before its post-market window closes
-#: (15:49 Monday to Thursday, 16:49 on Friday), which is where the GitHub
+#: The finalize fires three minutes before its post-close window closes
+#: (15:50 Monday to Thursday, 16:50 on Friday), which is where the GitHub
 #: Actions crons put it too: 15:47 and 16:47 PKT.
-FINALIZE_MARGIN_MINUTES = 2
+FINALIZE_MARGIN_MINUTES = 3
 
 WEEKDAY_NAMES = ("Monday", "Tuesday", "Wednesday", "Thursday")
 FRIDAY_NAME = "Friday"
