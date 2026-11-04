@@ -2838,9 +2838,12 @@ public class MainActivity extends Activity {
                 sb.append('\n');
             }
             shown++;
-            boolean sale = "S".equalsIgnoreCase(print.side);
-            double price = print.shares > 0
-                    ? (double) print.value / print.shares : 0d;
+            // The relay words the side "SELL" or "BUY"; a side that opens
+            // with S is the sale, so both spellings read right.
+            boolean sale = print.side != null
+                    && print.side.trim().toUpperCase(Locale.US).startsWith("S");
+            double price = print.price > 0 ? print.price
+                    : (print.shares > 0 ? (double) print.value / print.shares : 0d);
             sb.append(String.format(Locale.US, "%,d shares of ",
                     print.shares));
             int from = sb.length();

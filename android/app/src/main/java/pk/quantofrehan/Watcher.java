@@ -873,9 +873,15 @@ public final class Watcher {
     /** One big print: a single transaction the relay saw at the threshold. */
     static final class BigPrint {
         String symbol = "";
-        /** "S" for a sale, anything else is a buy (the relay's own law). */
+        /**
+         * The relay words the side itself: "SELL" or "BUY". A side that
+         * starts with S is a sale, which holds for both of those and for a
+         * bare "S", so the reader never has to guess the spelling twice.
+         */
         String side = "";
         long shares;
+        /** The transaction's own price per share, as the relay served it. */
+        double price;
         long value;
         String at = "";
     }
@@ -933,6 +939,7 @@ public final class Watcher {
                         out.symbol = print.optString("symbol", "").trim();
                         out.side = print.optString("side", "");
                         out.shares = amount(print, "shares");
+                        out.price = print.optDouble("price", 0d);
                         out.value = amount(print, "value_pkr");
                         out.at = print.optString("at", "");
                         if (out.symbol.isEmpty() || out.shares <= 0 || out.value <= 0) {
