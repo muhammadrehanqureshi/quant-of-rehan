@@ -381,6 +381,7 @@ class RelayQuotePublisher:
         self._stopping = False
         self._last_attempt = 0.0
         self._retry_seconds = 1.0
+        self._last_refusal_log = 0.0
         self._thread: threading.Thread | None = None
 
         # The owner's PC is never a publisher. Only a cloud session runner
@@ -447,6 +448,19 @@ class RelayQuotePublisher:
                         or self._pending_market_feed or
                         self._latest_captured_at != self._sent_captured_at)
 
+    def _note_refusal(self, exc: BaseException) -> None:
+        """Say, at most once a minute, what the relay answered."""
+        now = time.monotonic()
+        if now - self._last_refusal_log < 60.0:
+            return
+        self._last_refusal_log = now
+        response = getattr(exc, "response", None)
+        if response is not None:
+            detail = f"{response.status_code} {response.text[:200]}"
+        else:
+            detail = str(exc) or exc.__class__.__name__
+        print(f"relay quote push refused: {detail}", file=sys.stderr, flush=True)
+
     def _run(self) -> None:
         import requests
 
@@ -484,6 +498,11 @@ class RelayQuotePublisher:
                 if pending:
                     self._wake.set()
             except (requests.RequestException, ValueError) as exc:
+                # Owner defect 2026-11-04: a refusal was invisible. The same
+                # answer came back every second, the job said nothing, and
+                # the only place it showed was an empty card on the phone.
+                # One line a minute names it in the runner's own log.
+                self._note_refusal(exc)
                 # Keep the latest failed values for a bounded retry. A newer
                 # observation already queued for a symbol always wins.
                 with self._lock:
