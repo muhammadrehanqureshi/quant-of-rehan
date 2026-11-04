@@ -16,7 +16,7 @@ on:
       task:
         description: "what to run"
         type: choice
-        options: [both, smoke, build-dataset, ten-year, mean-reversion, kalman-grid, self-improve]
+        options: [both, smoke, build-dataset, ten-year, mean-reversion, kalman-grid, self-improve, breakthrough]
         default: both
       prior_trials:
         description: "trials already spent in this search program"
@@ -262,4 +262,55 @@ jobs:
             data/research/self_improve_report.json
             data/research/experiments.jsonl
           if-no-files-found: warn
+          retention-days: 90
+
+  # Breakthrough 1.0 families 1 and 3, plus the median-only market gate.
+  # Research only: no live-law change and no promotion. The panel is built
+  # here because `data/` is gitignored; the pre-registration rows are written
+  # BEFORE the family runner scores anything. Manual dispatch only (SO-21).
+  breakthrough:
+    if: inputs.task == 'breakthrough'
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    env:
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt --retries 5 --timeout 60
+
+      - name: Build the ten-year dataset
+        run: |
+          mkdir -p data
+          python scripts/build_backtest_dataset.py \
+            --universe src/data/universe_kmiall.json \
+            --start 2016-10-29 \
+            --out data/eod_dataset_10y.csv.gz \
+            --cache-dir data/mkt_cache
+
+      - name: Pre-register the Breakthrough rows
+        run: |
+          python scripts/preregister_breakthrough.py
+          wc -l data/research/experiments.jsonl
+
+      - name: Run the Breakthrough families
+        run: |
+          python scripts/breakthrough_families.py \
+            --dataset data/eod_dataset_10y.csv.gz \
+            --out data/research/breakthrough_families.json
+          cat data/research/breakthrough_families.json
+
+      - name: Keep the Breakthrough result
+        uses: actions/upload-artifact@v7
+        with:
+          name: breakthrough-families-${{ github.run_id }}
+          path: |
+            data/research/breakthrough_families.json
+            data/research/experiments.jsonl
+          if-no-files-found: error
           retention-days: 90
