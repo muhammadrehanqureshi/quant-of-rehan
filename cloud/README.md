@@ -104,6 +104,12 @@ instead of assigning shares it never saw. If the capture itself started late,
 the missed shares stay in `unclassified_volume`; they are never called buy or
 sell.
 
+The live quote view uses its own Durable Object instance name,
+`psx-live-quotes-v2`, because a deployed class change does not restart an
+object that the one-second feed never lets go idle. The new instance adopts
+the capture's observed pair on its first push. The original state instance
+keeps the market card, signals and acknowledged rows untouched.
+
 `large` is deliberately named as a large observed increment, not an order
 ticket. The MKT-FEED wire carries a per-symbol snapshot with a cumulative
 volume, bid and ask, and no individual order id. One relay update of at least

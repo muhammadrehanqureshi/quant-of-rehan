@@ -25,6 +25,20 @@ class FlowEndpointContractTest(unittest.TestCase):
         self.assertIn("await flowAnswer(env, new Date())", self.source)
         self.assertIn('"access-control-allow-origin": "*"', self.source)
 
+    def test_the_quote_view_runs_on_its_own_fresh_hub_instance(self):
+        """A deployed class change does not restart a never-idle object.
+
+        The feed pushes every second, so the old quote object would keep its
+        pre-deploy class forever. The quote view therefore has its own
+        instance name; the state hub keeps the card, signals and ACK rows.
+        """
+        self.assertIn('const QUOTE_HUB_NAME = "psx-live-quotes-v2";',
+                      self.source)
+        self.assertIn("namespace.idFromName(QUOTE_HUB_NAME)", self.source)
+        self.assertIn("const stub = quoteHub(env);", self.source)
+        self.assertIn("const hub = quoteHub(env);", self.source)
+        self.assertIn('const STATE_HUB_NAME = "psx-live-quotes";', self.source)
+
     def test_the_flow_answer_is_a_pure_snapshot_read(self):
         start = self.source.index("async function flowAnswer(env, now)")
         end = self.source.index("async function applyLiveQuotes", start)
