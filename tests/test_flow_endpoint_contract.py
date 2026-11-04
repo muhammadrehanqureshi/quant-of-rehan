@@ -7,6 +7,8 @@ full split and its unclassified remainder; a large print is one relay update
 of at least PKR 1,000,000, labelled for exactly that limitation.
 """
 
+import json
+import re
 import unittest
 from pathlib import Path
 
@@ -68,6 +70,17 @@ class FlowEndpointContractTest(unittest.TestCase):
         self.assertIn("counts: {", self.source)
         self.assertIn("missing,", self.source)
         self.assertIn("a symbol with no frame that day", self.source)
+
+    def test_the_universe_is_the_full_kmiall_file(self):
+        start = self.source.index("const KMIALL_UNIVERSE = [")
+        end = self.source.index("];", start)
+        embedded = set(re.findall(r'"([A-Z0-9]+)"', self.source[start:end]))
+        rows = json.loads((ROOT / "src" / "data" / "universe_kmiall.json")
+                          .read_text(encoding="utf-8"))
+        expected = {str(row["symbol"]).strip().upper() for row in rows
+                    if row.get("symbol")}
+        self.assertEqual(embedded, expected)
+        self.assertIn("counts: {\n      universe: universe.size,", self.source)
 
     def test_large_prints_are_one_million_rupees_and_labelled_honestly(self):
         self.assertIn("const LARGE_PRINT_PKR = 1_000_000;", self.source)
