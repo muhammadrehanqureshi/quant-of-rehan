@@ -149,7 +149,12 @@ def split_masks(dates: pd.Series) -> dict[str, pd.Series]:
         "test": (d >= pd.Timestamp(config.SELF_IMPROVE_TEST_START)) &
                 (d <= pd.Timestamp("2026-10-30")),
     }
-    return {name: pd.Series(values, index=index)
+    # Positional, never label aligned. The values above were computed on a
+    # reset index, so handing them to pd.Series with the caller's index lets
+    # pandas REALIGN them. On a filtered frame, which is what family 2 hands
+    # in, that produced NaN in the mask and cost the 2026-11-04 run 46
+    # minutes with "Cannot mask with non-boolean array containing NA".
+    return {name: pd.Series(values.to_numpy(dtype=bool), index=index)
             for name, values in masks.items()}
 
 
@@ -303,6 +308,31 @@ def f3_trades(df: pd.DataFrame, drop_pct: float) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def record(variants: list, name: str, family: str, trades: pd.DataFrame,
+           **kwargs) -> None:
+    """Score one variant, and keep the run alive when one of them breaks.
+
+    The 2026-11-04 run scored family 1 and family 3 and then died in family 2
+    on an index alignment bug, and because the JSON is written once at the
+    end, 21 finished variants were thrown away with it. A broken variant is now
+    recorded as ERROR beside its neighbours and the run still writes its file,
+    then exits non-zero so the failure is not hidden.
+    """
+    try:
+        variants.append(run_variant(name, family, trades, **kwargs))
+    except Exception as exc:  # noqa: BLE001 - one bad shape must not sink the run
+        variants.append({
+            "name": name,
+            "family": family,
+            "params": kwargs.get("params", {}),
+            "discovery": None,
+            "validation": None,
+            "test": None,
+            "decision": "ERROR",
+            "error": f"{type(exc).__name__}: {exc}",
+        })
+
+
 def run_variant(name: str, family: str, trades: pd.DataFrame, *,
                 bracket: bool, tp: float, sl: float,
                 params: dict) -> dict:
@@ -377,13 +407,14 @@ def main(argv: list[str] | None = None) -> int:
                 if trades is None:
                     trades = f1_trades(panel, proximity, hold, bracket)
                     f1_cache[key] = trades
-                variants.append(run_variant(
+                record(
+                    variants,
                     f"F1 52w high {proximity:g}pct, hold {hold}, "
                     f"bracket {bracket or 'none'}",
                     "F1", trades, bracket=bracket == "2/1", tp=0.02, sl=0.01,
                     params={"proximity_pct": proximity, "hold_closes": hold,
                             "bracket": bracket or "none",
-                            "top_n": TOP_N, "volume_multiple": VOLUME_MULTIPLE}))
+                            "top_n": TOP_N, "volume_multiple": VOLUME_MULTIPLE})
 
     f3_cache: dict[float, pd.DataFrame] = {}
     for drop in F3_DROPS:
@@ -391,12 +422,13 @@ def main(argv: list[str] | None = None) -> int:
         if trades is None:
             trades = f3_trades(panel, drop)
             f3_cache[drop] = trades
-        variants.append(run_variant(
+        record(
+            variants,
             f"F3 pullback drop {drop:g}pct",
             "F3", trades, bracket=False, tp=0.0, sl=0.0,
             params={"drop_pct": drop, "drop_days": 3,
                     "bounce_pct": F3_BOUNCE * 100, "hold_closes": F3_HOLD,
-                    "top_n": TOP_N}))
+                    "top_n": TOP_N})
 
     # Family 2: the brief's fallback, because this panel has no KSE100.
     gate_note = ("KSE100 legs NOT MEASURED: the daily panel has no index "
@@ -415,12 +447,13 @@ def main(argv: list[str] | None = None) -> int:
         gated = base_trades.copy()
         gated["signal_date"] = pd.to_datetime(gated["signal_date"])
         gated = gated[gated["signal_date"].map(gate).fillna(False)]
-        variants.append(run_variant(
+        record(
+            variants,
             f"F2 median-only gate on {base_name}", "F2", gated,
             bracket=bracket, tp=tp, sl=sl,
             params={"gate": "median KMIALL close above SMA50",
                     "kse100": "NOT MEASURED", "base": base_name,
-                    "note": gate_note}))
+                    "note": gate_note})
 
     report = {
         "generated": datetime.now().astimezone().isoformat(timespec="seconds"),
@@ -445,13 +478,20 @@ def main(argv: list[str] | None = None) -> int:
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(report, indent=2, default=str),
                         encoding="utf-8")
+    errors = [v for v in variants if v["decision"] == "ERROR"]
     print(json.dumps({
         "variants": len(variants),
+        "errors": [{"name": v["name"], "error": v["error"]} for v in errors],
         "survivors": [v["name"] for v in variants
                       if v["decision"] == "SURVIVED_TO_TEST"],
+        "kept_at_discovery": [v["name"] for v in variants
+                              if v["decision"] != "ERROR" and
+                              str(v["decision"]).startswith("KEEP")],
         "out": str(args.out),
     }, indent=2))
-    return 0
+    # The file is written either way. A failed variant is a failure of the run,
+    # not a reason to lose the shapes that did score.
+    return 1 if errors else 0
 
 
 if __name__ == "__main__":
