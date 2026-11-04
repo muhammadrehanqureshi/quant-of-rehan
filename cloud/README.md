@@ -47,13 +47,16 @@ Owner order 2026-11-04: the owner's own Windows build reads the cloud, so
 the relay owns the full answer. `GET /flow` (and its alias
 `GET /orderflow`) returns one JSON body. The route is public and read-only.
 The numbers in the shape below are illustrative, not a live claim.
+`counts.universe` is the 319-name KMIALL file; `missing` names every
+universe symbol with no regular-session frame that day, so the answer never
+shrinks the universe to only the symbols that happened to trade.
 
 ```json
 {
   "ok": true,
   "day": "2026-11-04",
   "as_of": "2026-11-04T10:31:02.218+05:00",
-  "counts": {"universe": 312, "included": 276, "missing": 36, "fresh": 276},
+  "counts": {"universe": 319, "included": 282, "missing": 37, "fresh": 282},
   "totals": {"volume": 68372298, "buy": 35560858, "sell": 32811440, "unclassified": 0},
   "rows": [
     {
