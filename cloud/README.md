@@ -105,9 +105,10 @@ the missed shares stay in `unclassified_volume`; they are never called buy or
 sell.
 
 The live quote view uses its own Durable Object instance name,
-`psx-live-quotes-v2`, because a deployed class change does not restart an
+`psx-live-quotes-v3`, because a deployed class change does not restart an
 object that the one-second feed never lets go idle. The new instance adopts
-the capture's observed pair on its first push. The original state instance
+the capture's observed pair on its first push, under either the measured_*
+names or the original `buy_volume`/`sell_volume` pair. The original state instance
 keeps the market card, signals and acknowledged rows untouched.
 
 `large` is deliberately named as a large observed increment, not an order

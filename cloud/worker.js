@@ -64,7 +64,7 @@ const STATE_HUB_NAME = "psx-live-quotes";
 // instance name on 2026-11-04. The new instance adopts the capture's observed
 // full-day pair on its first push; the state hub keeps the existing card,
 // signals and ACK rows untouched.
-const QUOTE_HUB_NAME = "psx-live-quotes-v2";
+const QUOTE_HUB_NAME = "psx-live-quotes-v3";
 
 function stateHub(env) {
   const namespace = env.QUOTE_HUB;
@@ -1106,9 +1106,17 @@ function splitFromQuote(quote) {
 // shares that were already traded. Only a coherent quote_rule pair is
 // accepted; anything else leaves the total unclassified, which is honest.
 function measuredFlowSeed(quote, total) {
-  if (!quote || quote.flow_method !== "quote_rule") return null;
-  const buy = Math.round(Number(quote.measured_buy));
-  const sell = Math.round(Number(quote.measured_sell));
+  if (!quote) return null;
+  // The running capture may predate the measured_* names. Its raw pair has
+  // carried the same quote_rule separation under buy_volume/sell_volume since
+  // the original flow law, so accept that pair too instead of masking it
+  // with an all-unclassified baseline.
+  const measured = quote.flow_method === "quote_rule";
+  if (!measured && quote.split_method !== "quote_rule") return null;
+  const buy = Math.round(Number(measured ? quote.measured_buy
+    : quote.buy_volume));
+  const sell = Math.round(Number(measured ? quote.measured_sell
+    : quote.sell_volume));
   if (!Number.isFinite(buy) || !Number.isFinite(sell) ||
       buy < 0 || sell < 0 || buy + sell > total) return null;
   return { buy, sell, baseline: total - buy - sell };
