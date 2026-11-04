@@ -709,6 +709,12 @@ const ACK_TTL_SECONDS = 2 * 86400;
 
 const ACK_SYMBOL_RE = /^[A-Z0-9]{1,12}$/;
 
+// Owner order 2026-11-03: the ACK store is a mirror, not a second feed. If
+// every display poll wrote the mirror, a shopping phone could spend the
+// relay's whole Durable Objects day budget. The mirror is written at most
+// once per live symbol per 30 seconds; a newer live frame still wins on the
+// reading side, so the phone does not open with a stale card or search row.
+
 function clampPair(candidate, previous) {
   const volume = Math.round(candidate.volume);
   if (!Number.isFinite(volume) || volume <= 0) return null;
@@ -798,6 +804,12 @@ async function ackUpsert(env, frames) {
 // stored frame without its own price keeps the candidate's values.
 function applyStoredFrame(row, stored) {
   if (!stored || stored.symbol !== row.symbol) return row;
+  const rowAt = Date.parse(row.observed_at || "");
+  const storedAt = Date.parse(stored.observed_at || "");
+  // The ACK store may be throttled, but the reading side is not. A newer
+  // live frame is not silently replaced by an older stored frame.
+  if (Number.isFinite(rowAt) &&
+      (!Number.isFinite(storedAt) || storedAt < rowAt)) return row;
   if (Number.isFinite(Number(stored.volume))) {
     row.volume = Math.round(Number(stored.volume));
     row.split_volume = row.volume;
@@ -2382,6 +2394,7 @@ export class QuoteHub {
     // time, not 312 rows every second.
     this.flowStates = null;
     this.lastFlowFlush = 0;
+    this.lastAckWrites = new Map();
     this.flowRowsDay = "";
     this.flowRowsToday = 0;
     this.flowStatsLoaded = false;
@@ -2710,11 +2723,22 @@ export class QuoteHub {
       for (const frame of body.frames) {
         const parsed = this.ackCandidate(frame);
         if (!parsed) continue;
+        const nowMs = Date.now();
         const key = `ACK:${parsed.day}:${parsed.band}:${parsed.symbol}`;
         const storedRaw = await this.stateGet(key);
         let previous = null;
         if (storedRaw) {
           try { previous = JSON.parse(storedRaw); } catch (_) { previous = null; }
+        }
+        const lastAckWrite = this.lastAckWrites.get(key) || 0;
+        // The mirror write is time budgeted. If the ACK row already exists
+        // and was written inside the window, it is returned unchanged even
+        // when the newer candidate has grown; the reading routes then use
+        // applyStoredFrame's newer-frame rule, so no surface is left stale.
+        if (previous && previous.symbol === parsed.symbol &&
+            nowMs - lastAckWrite < ACK_WRITE_MIN_MS) {
+          rows[parsed.symbol] = previous;
+          continue;
         }
         if (previous && previous.symbol === parsed.symbol &&
             Math.round(Number(previous.volume) || 0) >= parsed.volume) {
@@ -2727,7 +2751,8 @@ export class QuoteHub {
         if (!pair) continue;
         const stored = { ...parsed, ...pair };
         await this.statePut(key, JSON.stringify(stored),
-          Date.now() + ACK_TTL_SECONDS * 1000);
+          nowMs + ACK_TTL_SECONDS * 1000);
+        this.lastAckWrites.set(key, nowMs);
         rows[parsed.symbol] = stored;
       }
       return json({ ok: true, rows });

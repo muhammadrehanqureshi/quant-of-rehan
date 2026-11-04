@@ -366,6 +366,27 @@ class RelayWorkerContractTest(unittest.TestCase):
         self.assertIn("clampPair(pair, previous)", update)
         self.assertIn('"cache-control": "no-store"', self.source)
 
+    def test_the_write_budget_is_pinned_not_silent(self):
+        """Owner order 2026-11-03: Cloudflare's free-plan Durable Objects
+        rows_written cap must not be consumed by per-push writes again.
+
+        The flow backup is the one table whose per-symbol row would repeat
+        on every push, so its cadence and hard day row budget are pinned in
+        the Worker source. Same idea for the ACK mirror: a display poll must
+        not be able to buy hundreds of ACK rows an hour, so the mirror
+        write is at most one per symbol per window and a newer live frame
+        still wins on read.
+        """
+        self.assertIn("const FLOW_FLUSH_MS = 10 * 60 * 1000", self.source)
+        self.assertIn("const FLOW_ROWS_PER_DAY = 40000", self.source)
+        self.assertIn("if (flushed - this.lastFlowFlush >= FLOW_FLUSH_MS)", self.source)
+        self.assertIn("this.flowRowsToday += rows", self.source)
+        self.assertIn("ACK_WRITE_MIN_MS", self.source)
+        self.assertIn("this.lastAckWrites.get(key)", self.source)
+        self.assertIn("nowMs - lastAckWrite < ACK_WRITE_MIN_MS", self.source)
+        # A newer live frame is not silently replaced by an older mirror.
+        self.assertIn("storedAt < rowAt", self.source)
+
     def test_the_relay_remembers_the_days_entry_stamp(self):
         """A later card cannot lose the entry time the first card carried."""
         self.assertIn("function signalEntryClock(text)", self.source)
