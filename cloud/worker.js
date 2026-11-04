@@ -776,6 +776,10 @@ function frameIsRegularSession(quote) {
 // band-1 total), so the acknowledged frame is keyed day and band together
 // and the day's answer is the newest session's rows.
 const ACK_TTL_SECONDS = 2 * 86400;
+// Owner order 2026-11-03: the ACK mirror is written at most once per live
+// symbol per 30 seconds. The constant is also the gate in /ack-upsert; a
+// missing definition there is a ReferenceError, not a throttle.
+const ACK_WRITE_MIN_MS = 30 * 1000;
 
 const ACK_SYMBOL_RE = /^[A-Z0-9]{1,12}$/;
 
@@ -2814,6 +2818,15 @@ export class QuoteHub {
     this.flowStates = null;
     this.lastFlowFlush = 0;
     this.lastAckWrites = new Map();
+    // /prices is polled by the phone once per foreground tick. Listing its
+    // acknowledged rows from SQL on every read spent the free Durable Objects
+    // rows-read budget (5,000,000/day) and stopped the relay on 2026-11-04.
+    // This object already owns every ACK write, so it keeps the current day's
+    // map in memory and falls back to one SQL list only when a fresh instance
+    // starts or the Karachi day changes.
+    this.ackRowsDay = "";
+    this.ackRowsBySymbol = null;
+    this.ackRowsLoaded = false;
     this.flowRowsDay = "";
     this.flowRowsToday = 0;
     this.flowStatsLoaded = false;
@@ -3094,6 +3107,15 @@ export class QuoteHub {
       buy_volume: buy, sell_volume: sell };
   }
 
+  rememberAckFrame(day, frame) {
+    if (!frame || !this.ackRowsLoaded || this.ackRowsDay !== day ||
+        !this.ackRowsBySymbol) return;
+    const known = this.ackRowsBySymbol[frame.symbol];
+    if (!known || Number(frame.band) >= Number(known.band)) {
+      this.ackRowsBySymbol[frame.symbol] = frame;
+    }
+  }
+
   async fetch(request) {
     const url = new URL(request.url);
     // The relay's key value store, served by this object instead of KV.
@@ -3146,9 +3168,12 @@ export class QuoteHub {
         if (!parsed) continue;
         const nowMs = Date.now();
         const key = `ACK:${parsed.day}:${parsed.band}:${parsed.symbol}`;
-        const storedRaw = await this.stateGet(key);
-        let previous = null;
-        if (storedRaw) {
+        const cachedPrevious = (this.ackRowsLoaded &&
+          this.ackRowsDay === parsed.day && this.ackRowsBySymbol)
+          ? (this.ackRowsBySymbol[parsed.symbol] || null) : null;
+        const storedRaw = cachedPrevious ? null : await this.stateGet(key);
+        let previous = cachedPrevious;
+        if (!previous && storedRaw) {
           try { previous = JSON.parse(storedRaw); } catch (_) { previous = null; }
         }
         const lastAckWrite = this.lastAckWrites.get(key) || 0;
@@ -3159,12 +3184,14 @@ export class QuoteHub {
         if (previous && previous.symbol === parsed.symbol &&
             nowMs - lastAckWrite < ACK_WRITE_MIN_MS) {
           rows[parsed.symbol] = previous;
+          this.rememberAckFrame(parsed.day, previous);
           continue;
         }
         if (previous && previous.symbol === parsed.symbol &&
             Math.round(Number(previous.volume) || 0) >= parsed.volume) {
           // Older or equal evidence never moves the acknowledged row.
           rows[parsed.symbol] = previous;
+          this.rememberAckFrame(parsed.day, previous);
           continue;
         }
         const pair = clampPair(parsed, previous &&
@@ -3175,6 +3202,7 @@ export class QuoteHub {
           nowMs + ACK_TTL_SECONDS * 1000);
         this.lastAckWrites.set(key, nowMs);
         rows[parsed.symbol] = stored;
+        this.rememberAckFrame(parsed.day, stored);
       }
       return json({ ok: true, rows });
     }
@@ -3185,18 +3213,27 @@ export class QuoteHub {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) {
         return json({ ok: false, error: "day required" }, 400);
       }
-      const listed = await this.stateList(`ACK:${day}:`, 2000);
-      const ackRows = {};
-      for (const item of listed.keys || []) {
-        let frame = null;
-        try { frame = JSON.parse(item.value); } catch (_) { frame = null; }
-        const symbolFromKey = item.name.slice(1 + item.name.lastIndexOf(":"));
-        if (!frame || frame.symbol !== symbolFromKey) continue;
-        const band = Number(frame.band) || 0;
-        const known = ackRows[frame.symbol];
-        if (!known || band >= Number(known.band || 0)) {
-          ackRows[frame.symbol] = frame;
+      let ackRows;
+      if (this.ackRowsLoaded && this.ackRowsDay === day &&
+          this.ackRowsBySymbol) {
+        ackRows = this.ackRowsBySymbol;
+      } else {
+        const listed = await this.stateList(`ACK:${day}:`, 2000);
+        ackRows = {};
+        for (const item of listed.keys || []) {
+          let frame = null;
+          try { frame = JSON.parse(item.value); } catch (_) { frame = null; }
+          const symbolFromKey = item.name.slice(1 + item.name.lastIndexOf(":"));
+          if (!frame || frame.symbol !== symbolFromKey) continue;
+          const band = Number(frame.band) || 0;
+          const known = ackRows[frame.symbol];
+          if (!known || band >= Number(known.band || 0)) {
+            ackRows[frame.symbol] = frame;
+          }
         }
+        this.ackRowsDay = day;
+        this.ackRowsBySymbol = ackRows;
+        this.ackRowsLoaded = true;
       }
       return json({ ok: true, rows: ackRows });
     }
