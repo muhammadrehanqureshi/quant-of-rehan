@@ -3261,9 +3261,14 @@ public class MainActivity extends Activity {
             sellTo = sb.length();
             if (quote.volume != null) {
                 // Owner order 2026-11-04: four parts, never three. U stands
-                // on its own and is never folded into B or S.
+                // on its own and is never folded into B or S. The sided
+                // halves are read into their own values first, so nothing
+                // here can be mistaken for a second total: T stays the
+                // venue's own counter, never a sum computed on the phone.
+                long buyPart = quote.buy;
+                long sellPart = quote.sell;
                 sb.append(String.format(Locale.US, ", U=%,d",
-                        Math.max(0L, quote.volume - (quote.buy + quote.sell))));
+                        Math.max(0L, quote.volume - buyPart - sellPart)));
                 sb.append(String.format(Locale.US, " & T=%,d", quote.volume));
             }
             sb.append(')');
