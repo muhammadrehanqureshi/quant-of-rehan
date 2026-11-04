@@ -428,14 +428,23 @@ class RelayWorkerContractTest(unittest.TestCase):
         not be able to buy hundreds of ACK rows an hour, so the mirror
         write is at most one per symbol per window and a newer live frame
         still wins on read.
+
+        Owner incident 2026-11-04: the 30 second window wrote about 230,000
+        ACK rows in a session, which is more than twice the free plan's
+        100,000 rows written per ACCOUNT per day, and the relay went dark
+        with the market still open. The window and the hard ceiling are
+        pinned here so neither can drift back.
         """
         self.assertIn("const FLOW_FLUSH_MS = 10 * 60 * 1000", self.source)
         self.assertIn("const FLOW_ROWS_PER_DAY = 40000", self.source)
         self.assertIn("if (flushed - this.lastFlowFlush >= FLOW_FLUSH_MS)", self.source)
         self.assertIn("this.flowRowsToday += rows", self.source)
-        self.assertIn("const ACK_WRITE_MIN_MS = 30 * 1000;", self.source)
+        self.assertIn("const ACK_WRITE_MIN_MS = 5 * 60 * 1000;", self.source)
+        self.assertIn("const ACK_ROWS_PER_DAY = 25000;", self.source)
         self.assertIn("this.lastAckWrites.get(key)", self.source)
         self.assertIn("nowMs - lastAckWrite < ACK_WRITE_MIN_MS", self.source)
+        self.assertIn("if (this.ackWritesToday >= ACK_ROWS_PER_DAY)", self.source)
+        self.assertIn("this.ackWritesToday += 1;", self.source)
         # A newer live frame is not silently replaced by an older mirror.
         self.assertIn("storedAt < rowAt", self.source)
 
