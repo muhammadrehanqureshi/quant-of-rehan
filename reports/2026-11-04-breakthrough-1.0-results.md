@@ -15,7 +15,7 @@ Actions. No backtest, replay or research run executed on the owner's PC
 | item | entry point | run | state at the time of writing |
 |---|---|---|---|
 | Breakthrough families 1 and 3, plus the median-only market gate, attempt 1 | `.github/workflows/backtest.yml`, task `breakthrough` | 41794616689 | FAILED after 46 minutes, in family 2, on an index alignment bug. See section 8 |
-| Breakthrough families, attempt 2, after the fix | the same job, from `73295fdd7` | 41801027946 | dispatched 2026-11-04 13:41 PKT; section 8 carries its numbers when it reports |
+| Breakthrough families, attempt 2, after the fix | the same job, from `73295fdd7` | 41801027946 | SUCCEEDED at 14:21 PKT on 2026-11-04; 23 shapes scored, none survived. Section 8 |
 | Pre-registration of the 30 new variants | `scripts/preregister_breakthrough.py`, inside the same job | 41794616689 | written before any family was scored |
 | Family runner | `scripts/breakthrough_families.py` | 41794616689 | guarded by `guard_cloud_backtest`, refuses a local run |
 | Relay write budget fix (not part of this brief, but it stopped the card) | PR #247, `c7fe30c` | 41797375995 | deployed, verified on `/health` |
@@ -229,7 +229,7 @@ then landed as one document rather than two.
 | 3 | Does the hit rate change with time of day or price tier enough to justify a no trade zone? | NOT MEASURED. Part 1C needs the same labelled candidates. | NOT MET |
 | 4 | Under the volatility scaled bracket, what are the break-even and the observed rate? | NOT MEASURED. Part 1D is registered as F4 (stops at 1.0, 1.5 and 2.0 times 30 minute realised volatility) and cannot be scored without tape. | NOT MET |
 | 5 | How many labelled sessions are needed before question 2 can be answered at 95 percent, and how many does the ledger have today? | MEASURED, arithmetic in section 7: 381 sessions to resolve a 65 percent rate against the 58.92 percent break-even at 80 percent power, 1,536 for 62 percent, 12,722 for 60 percent. The ledger holds 3. | MET |
-| 6 | Which Breakthrough families survive their own break-even at discovery, at validation and on the locked test, and which are BLOCKED: DATA? | F5 and F6 are BLOCKED: DATA, by their own definitions in the brief. F1, F2, F3 and F4 were registered. F4 needs tape, so it is NOT MEASURED. F1, F2 and F3 ran in attempt 1, which died before writing any result, and were re-dispatched in 41801027946. No survivor is claimed until that run reports. | NOT MET |
+| 6 | Which Breakthrough families survive their own break-even at discovery, at validation and on the locked test, and which are BLOCKED: DATA? | MEASURED, and the answer is none. Twenty three shapes across F1, F2 and F3 were scored in run 41801027946 and every one died at discovery: all 18 F1 shapes have a negative bootstrap lower bound, as do all 3 F3 shapes and both gated shapes. The 2 to 1 bracket sits at 25.1 to 26.1 percent against a 58.92 percent break-even. F5 and F6 remain BLOCKED: DATA, and F4 is NOT MEASURED because it needs tape. No shape reached validation, so nothing is carried to the locked test. | NOT MET |
 
 ## 7. Question 5, worked out
 
@@ -251,48 +251,75 @@ The ledger has 3 sessions. It is 127 times short of the first row of that table.
 
 ## 8. The family table
 
-Attempt 1, run 41794616689, **FAILED**. It built the panel, scored family 1
-(18 shapes) and family 3 (3 shapes), and then died in family 2 with:
+Run 41801027946, finished green at 14:21 PKT on 2026-11-04, artifact
+`breakthrough-families-41801027946`. Panel: **509,976 rows, 318 symbols,
+2016-10-31 to 2026-11-03**. Twenty three shapes were scored: 18 for F1, 3 for F3, 2 for
+the median-only gate. Every number below is the artifact's own, copied by script
+and not by hand.
 
-```
-ValueError: Cannot mask with non-boolean array containing NA / NaN values
-  at scripts/breakthrough_families.py:310 in run_variant,
-  discovery = trades.loc[masks["discovery"]]
-```
+| shape | n | hit rate | own break-even | net per trade | bootstrap 2.5% | p05 | worst | discovery |
+|---|---|---|---|---|---|---|---|---|
+| F1 52w high 2pct, hold 2, br none | 832 | 39.54% | n/a | -0.0070 | -0.0105 | -0.0719 | -0.1825 | no expectancy |
+| F1 52w high 2pct, hold 2, br 2/1 | 832 | 25.24% | 58.92% | -0.0094 | -0.0102 | -0.0165 | -0.0454 | negative edge |
+| F1 52w high 2pct, hold 3, br none | 832 | 44.95% | n/a | -0.0040 | -0.0083 | -0.0801 | -0.2022 | no expectancy |
+| F1 52w high 2pct, hold 3, br 2/1 | 832 | 25.72% | 58.92% | -0.0093 | -0.0102 | -0.0165 | -0.0454 | negative edge |
+| F1 52w high 2pct, hold 5, br none | 832 | 43.63% | n/a | -0.0005 | -0.0062 | -0.0987 | -0.2257 | no expectancy |
+| F1 52w high 2pct, hold 5, br 2/1 | 832 | 26.08% | 58.92% | -0.0093 | -0.0101 | -0.0165 | -0.0454 | negative edge |
+| F1 52w high 3pct, hold 2, br none | 1231 | 36.64% | n/a | -0.0082 | -0.0112 | -0.0701 | -0.1825 | no expectancy |
+| F1 52w high 3pct, hold 2, br 2/1 | 1231 | 25.10% | 58.92% | -0.0094 | -0.0101 | -0.0165 | -0.0454 | negative edge |
+| F1 52w high 3pct, hold 3, br none | 1231 | 42.89% | n/a | -0.0053 | -0.0088 | -0.0787 | -0.2022 | no expectancy |
+| F1 52w high 3pct, hold 3, br 2/1 | 1231 | 25.59% | 58.92% | -0.0094 | -0.0101 | -0.0165 | -0.0454 | negative edge |
+| F1 52w high 3pct, hold 5, br none | 1231 | 43.46% | n/a | -0.0012 | -0.0061 | -0.0939 | -0.2410 | no expectancy |
+| F1 52w high 3pct, hold 5, br 2/1 | 1231 | 26.00% | 58.92% | -0.0093 | -0.0100 | -0.0165 | -0.0454 | negative edge |
+| F1 52w high 5pct, hold 2, br none | 1840 | 37.28% | n/a | -0.0086 | -0.0110 | -0.0718 | -0.1825 | no expectancy |
+| F1 52w high 5pct, hold 2, br 2/1 | 1840 | 25.43% | 58.92% | -0.0093 | -0.0099 | -0.0165 | -0.0454 | negative edge |
+| F1 52w high 5pct, hold 3, br none | 1840 | 41.14% | n/a | -0.0065 | -0.0095 | -0.0829 | -0.2677 | no expectancy |
+| F1 52w high 5pct, hold 3, br 2/1 | 1840 | 25.65% | 58.92% | -0.0094 | -0.0100 | -0.0165 | -0.0634 | negative edge |
+| F1 52w high 5pct, hold 5, br none | 1840 | 42.55% | n/a | -0.0029 | -0.0072 | -0.0964 | -0.2410 | no expectancy |
+| F1 52w high 5pct, hold 5, br 2/1 | 1840 | 26.09% | 58.92% | -0.0093 | -0.0100 | -0.0165 | -0.0634 | negative edge |
+| F3 pullback drop 3pct | 5405 | 47.53% | n/a | -0.0095 | -0.0119 | -0.0885 | -0.2146 | no expectancy |
+| F3 pullback drop 4pct | 3524 | 50.43% | n/a | -0.0086 | -0.0117 | -0.0933 | -0.2146 | no expectancy |
+| F3 pullback drop 5pct | 2295 | 52.11% | n/a | -0.0080 | -0.0115 | -0.0975 | -0.2146 | no expectancy |
+| F2 median-only gate on F1 base 3pct hold 3 br 2/1 | 958 | 25.37% | 58.92% | -0.0093 | -0.0102 | -0.0165 | -0.0408 | negative edge |
+| F2 median-only gate on F3 base drop 4pct | 2120 | 51.65% | n/a | -0.0059 | -0.0098 | -0.0796 | -0.2082 | no expectancy |
 
-The cause is a real bug in this runner, not in the data. `split_masks` computed
-its masks on a reset index and then handed them to `pd.Series` together with the
-caller's index, so pandas realigned them by label. On family 1 and family 3 the
-index happens to be a clean range, so the masks lined up and the shapes scored.
-Family 2 hands in a **filtered** frame, whose index is a subset of that range, so
-the realignment produced NaN in the mask and pandas refused to mask with it.
+### What the table says
 
-The fix, landed in PR #249 as `73295fdd7`, is to build the mask positionally
-from the boolean array, never by label. Two things were also changed after the
-loss: a variant that raises is now recorded as `ERROR` beside its neighbours so
-the run still writes the file with every shape that scored, and the ten-year
-panel is cached, because the panel build is 43 to 46 minutes and the run that
-failed had nothing to show for it.
+**Not one shape survived discovery.** The brief's own instruction for that
+outcome is unambiguous, and it is followed: no grid was widened, no parameter was
+added, and nothing was carried to validation or to the locked test. The
+validation and test columns are empty because the kill rule stops a shape at
+discovery, not because they were skipped.
 
-So attempt 1 measured no family. That is the honest state of this section, and it
-is why the table below is not filled yet. Attempt 2, run 41801027946, was
-dispatched at 13:41 PKT on 2026-11-04 from `73295fdd7`, and its numbers are
-appended to this file in a follow-up commit. If it fails too, its failure and
-log are written here instead of a number.
+**The 2 to 1 bracket is the killer, and it kills across entry rules.** Every F1
+shape carrying the deployed bracket landed between **25.1 and 26.1 percent** hit
+rate against a 58.92 percent break-even. The 10 year run of 2026-11-01 scored the
+same bracket at 27.69 percent on a different entry rule entirely. Two independent
+entry rules, one answer: on this market the 2 to 1 payoff asks for a hit rate no
+daily rule has come close to.
 
-What the run will settle, and how each shape is judged, so the numbers cannot
-be read as a verdict after the fact:
+**Taking the bracket off helps and still is not enough.** The same entries with a
+time exit reach 36 to 45 percent and lose less, but the best net expectancy in
+the whole run is `-0.05 percent` a trade (F1, 5 percent proximity, hold 5, no
+bracket), and its day clustered bootstrap lower bound is `-0.62 percent`. Every
+single shape in the table has a negative bootstrap lower bound. None is
+distinguishable from zero on the wrong side.
 
-* discovery keeps a shape only if it clears `KILL_FEW_TRADES` and
-  `KILL_NEGATIVE_EDGE` at that shape's own break-even, so an 8 shape cannot be
-  passed by a 6 shape's arithmetic;
-* the primary metric is mean net return per trade with a day clustered
-  bootstrap lower bound at 2.5 percent, not a win rate;
-* beside it: the Wilson interval on the hit rate, that shape's break-even, the
-  worst single loss, the 5th percentile trade and trades per month;
-* validation is scored once with the frozen cuts, and the locked test only
-  after validation keeps the shape;
-* a shape that dies at discovery is not widened to rescue it.
+**The market gate does almost nothing.** On the F1 base it moved the hit rate
+from 25.59 to 25.37 percent, and on the F3 base from 50.43 to 51.65 percent.
+Whatever the median KMIALL stock above its 50 day average is worth, it is not
+worth enough to rescue either family, and the KSE100 legs were not measurable at
+all.
+
+**F3 is the least bad idea and still loses.** Pullbacks in an uptrend hit 47.5 to
+52.1 percent, which looks respectable until the costs: net expectancy runs from
+`-0.80` to `-0.95 percent` a trade, because the 64.8 bps round trip plus CGT is
+paid on every trade and the average winner is too small to cover it.
+
+### What each survivor would have asked of the owner
+
+Nothing, because there were no survivors. That is the answer the brief asked
+for, and it is the honest one.
 
 ## 9. Trial accounting
 
@@ -331,12 +358,20 @@ information content is unmeasured, and the 1 percent stop can and did fill 2.14
 percent through its band. Four trades cannot settle any of that, which is why
 the measurement in parts 1B to 1E is the work that matters.
 
+Measured and negative: all 23 Breakthrough shapes. Every one died at discovery,
+none reached validation, and the best net expectancy in the run is -0.05 percent
+a trade with a bootstrap lower bound of -0.62 percent. The 2 to 1 bracket that the
+live law uses scored 25.1 to 26.1 percent on a 52 week high entry, against the
+58.92 percent it needs, which is the second independent entry rule to land the
+same way and the clearest evidence in this project that the bracket is the
+problem and not the flip.
+
 Not measured, and not guessed: whether the rank 1 pick beats a random eligible
 pick; the rank 1 hit rate against 58.92 percent; any time of day or price tier
 effect; the volatility scaled bracket's observed rate; every Breakthrough family
 result that depends on tape; the KSE100 legs of the market gate; the four wide
-stop shapes of run 4; and the results of families 1, 2 and 3 at the time this
-section was written.
+stop shapes of run 4; and whether GLAXO closes at target, at the stop, or at the
+close.
 
 Nothing here is promoted. A survivor stays shadowed until it has at least 100
 locked forward trades.
