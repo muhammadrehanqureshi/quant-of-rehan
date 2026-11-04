@@ -374,6 +374,14 @@
                 android:text="@string/big_prints_none"/>
         </LinearLayout>
 
+        <include
+            android:id="@+id/rule_after_flow"
+            layout="@layout/qor_rule"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:visibility="gone"/>
+
         <!-- Owner order 2026-10-24, third pass ("there should be diamond
              line feature between the tiles of search and custom scrips of
              volume, have that line there"): the rule stands BETWEEN the

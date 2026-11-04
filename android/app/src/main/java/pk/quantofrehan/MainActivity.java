@@ -329,6 +329,7 @@ public class MainActivity extends Activity {
     private ImageView navFlow;
     private View orderFlowPanel;
     private View orderFlowRule;
+    private View ruleAfterFlow;
     private EditText orderFlowInput;
     private LinearLayout orderFlowResults;
     private TextView orderFlowSelected;
@@ -522,6 +523,7 @@ public class MainActivity extends Activity {
         navFlow = findViewById(R.id.btn_nav_flow);
         orderFlowPanel = findViewById(R.id.order_flow_panel);
         orderFlowRule = findViewById(R.id.rule_order_flow);
+        ruleAfterFlow = findViewById(R.id.rule_after_flow);
         orderFlowInput = findViewById(R.id.order_flow_input);
         orderFlowResults = findViewById(R.id.order_flow_results);
         orderFlowSelected = findViewById(R.id.order_flow_selected);
@@ -556,7 +558,7 @@ public class MainActivity extends Activity {
         });
         // Owner order 2026-11-04: one tap opens ORDER FLOW, one tap on the
         // same icon closes it, exactly like the scanner and search slots.
-        navFlow.setOnClickListener(v -> setOrderFlowOpen(true));
+        navFlow.setOnClickListener(v -> setOrderFlowOpen(!orderFlowOpen));
         navScanner.setOnClickListener(v -> setScannerOpen(true));
         navSearch.setOnClickListener(v -> setSearchOpen(true));
 
@@ -2764,14 +2766,26 @@ public class MainActivity extends Activity {
             ruleSearch.setVisibility(open ? View.GONE
                     : ruleSearch.getVisibility());
         }
+        // The page's own divisions: one diamond above the search tile and
+        // one below the big prints tile, so the division reads the way every
+        // other page's does (owner order 2026-11-04, second pass).
         if (orderFlowRule != null) {
             orderFlowRule.setVisibility(open ? View.VISIBLE : View.GONE);
+        }
+        if (ruleAfterFlow != null) {
+            ruleAfterFlow.setVisibility(open ? View.VISIBLE : View.GONE);
         }
         if (orderFlowPanel != null) {
             orderFlowPanel.setVisibility(open ? View.VISIBLE : View.GONE);
         }
         if (bigPrintsPanel != null) {
             bigPrintsPanel.setVisibility(open ? View.VISIBLE : View.GONE);
+        }
+        // The scanner page's own seam is not this page's: it was left
+        // standing behind the flow tile on the owner's screenshot, so the
+        // one writer that owns this page states it closed here.
+        if (ruleVolume != null) {
+            ruleVolume.setVisibility(View.GONE);
         }
         paintNavSelection();
         if (open) {
