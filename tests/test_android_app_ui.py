@@ -2559,8 +2559,10 @@ class HeadingGrowthTest(unittest.TestCase):
         block = layout[head:layout.index("/>", head)]
         self.assertIn('android:text="@string/label_market"', block)
         self.assertIn('style="@style/QorLabel"', block)
+        # Owner order 2026-11-04: the tile names the index it follows by its
+        # own name, KSE100, in place of the generic word THE INDEX.
         self.assertIn(
-            'name="label_market">THE INDEX &amp; THE TOP 3 SCRIPS OF VOL.<',
+            'name="label_market">KSE100 &amp; THE TOP 3 SCRIPS OF VOL.<',
             strings)
 
     def test_the_existing_headings_keep_their_words(self):
@@ -4747,8 +4749,10 @@ class MarketHeadingWordTest(unittest.TestCase):
 
     def test_the_words_are_exactly_the_owners(self):
         strings = STRINGS.read_text(encoding="utf-8")
+        # Owner order 2026-11-04: the tile names the index it follows by its
+        # own name, KSE100, in place of the generic word THE INDEX.
         self.assertIn(
-            'name="label_market">THE INDEX &amp; THE TOP 3 SCRIPS OF VOL.<',
+            'name="label_market">KSE100 &amp; THE TOP 3 SCRIPS OF VOL.<',
             strings)
         self.assertNotIn('INDEX &amp; TOP 3 SCRIPS', strings)
 
