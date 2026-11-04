@@ -509,9 +509,13 @@ class SettingsControlTest(unittest.TestCase):
         # Owner order 2026-10-24: home is the console's page only when all
         # three menus are closed, and the scanner page paints like the
         # rest of them.
-        self.assertIn("setNavPage(navHome, !searchOpen && !settingsOpen && !scannerOpen);",
+        # Owner order 2026-11-04: the ORDER FLOW page is the fifth page, so
+        # home is the console only when it is closed as well.
+        self.assertIn("setNavPage(navHome, !searchOpen && !settingsOpen && !scannerOpen",
                       self.main)
+        self.assertIn("&& !orderFlowOpen);", self.main)
         self.assertIn("setNavPage(navScanner, scannerOpen);", self.main)
+        self.assertIn("setNavPage(navFlow, orderFlowOpen);", self.main)
         self.assertIn("setNavPage(navSearch, searchOpen);", self.main)
         self.assertIn("setNavPage(navSettings, settingsOpen);", self.main)
 
