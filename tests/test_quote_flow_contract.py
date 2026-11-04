@@ -49,7 +49,21 @@ class WholeDayFlowContractTest(unittest.TestCase):
         self.assertIn(
             'split_method: measured ? "quote_rule" : "range_position"',
             self.source)
-        self.assertIn('bump("baseline_sided")', self.source)
+
+    def test_shares_the_hub_never_saw_stay_unclassified(self):
+        """Owner order 2026-11-04: accuracy before a tidy B+S=T.
+
+        A hub that starts after trading has begun must not assign the
+        shares it missed to buy or sell. The capture starts before the open
+        and sends its own observed pair, which the hub adopts; a genuinely
+        late start reports the remainder in flow_baseline.
+        """
+        self.assertNotIn('bump("baseline_sided")', self.source)
+        self.assertIn("function measuredFlowSeed(quote, total)", self.source)
+        self.assertIn("const seed = measuredFlowSeed(quote, total);", self.source)
+        self.assertIn("baseline: total - buy - sell", self.source)
+        self.assertIn("state.buy + state.sell + state.baseline !== total",
+                      self.source)
 
     def test_the_law_never_reads_the_days_change_sign(self):
         law = self.source[self.source.index("async advanceFlow(quote)"):
