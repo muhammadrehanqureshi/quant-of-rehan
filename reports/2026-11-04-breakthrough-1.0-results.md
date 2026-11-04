@@ -14,7 +14,8 @@ Actions. No backtest, replay or research run executed on the owner's PC
 
 | item | entry point | run | state at the time of writing |
 |---|---|---|---|
-| Breakthrough families 1 and 3, plus the median-only market gate | `.github/workflows/backtest.yml`, task `breakthrough` | 41794616689 | executing in the cloud; section 8 carries its state and its numbers when it reports |
+| Breakthrough families 1 and 3, plus the median-only market gate, attempt 1 | `.github/workflows/backtest.yml`, task `breakthrough` | 41794616689 | FAILED after 46 minutes, in family 2, on an index alignment bug. See section 8 |
+| Breakthrough families, attempt 2, after the fix | the same job, from `73295fdd7` | 41801027946 | dispatched 2026-11-04 13:41 PKT; section 8 carries its numbers when it reports |
 | Pre-registration of the 30 new variants | `scripts/preregister_breakthrough.py`, inside the same job | 41794616689 | written before any family was scored |
 | Family runner | `scripts/breakthrough_families.py` | 41794616689 | guarded by `guard_cloud_backtest`, refuses a local run |
 | Relay write budget fix (not part of this brief, but it stopped the card) | PR #247, `c7fe30c` | 41797375995 | deployed, verified on `/health` |
@@ -144,7 +145,7 @@ then landed as one document rather than two.
 | 3 | Does the hit rate change with time of day or price tier enough to justify a no trade zone? | NOT MEASURED. Part 1C needs the same labelled candidates. | NOT MET |
 | 4 | Under the volatility scaled bracket, what are the break-even and the observed rate? | NOT MEASURED. Part 1D is registered as F4 (stops at 1.0, 1.5 and 2.0 times 30 minute realised volatility) and cannot be scored without tape. | NOT MET |
 | 5 | How many labelled sessions are needed before question 2 can be answered at 95 percent, and how many does the ledger have today? | MEASURED, arithmetic in section 7: 381 sessions to resolve a 65 percent rate against the 58.92 percent break-even at 80 percent power, 1,536 for 62 percent, 12,722 for 60 percent. The ledger holds 3. | MET |
-| 6 | Which Breakthrough families survive their own break-even at discovery, at validation and on the locked test, and which are BLOCKED: DATA? | F5 and F6 are BLOCKED: DATA. F1, F2, F3 and F4 were registered; F1, F2 and F3 were dispatched in 41794616689 and F4 needs tape. Survivors: section 8. | PARTLY MET |
+| 6 | Which Breakthrough families survive their own break-even at discovery, at validation and on the locked test, and which are BLOCKED: DATA? | F5 and F6 are BLOCKED: DATA, by their own definitions in the brief. F1, F2, F3 and F4 were registered. F4 needs tape, so it is NOT MEASURED. F1, F2 and F3 ran in attempt 1, which died before writing any result, and were re-dispatched in 41801027946. No survivor is claimed until that run reports. | NOT MET |
 
 ## 7. Question 5, worked out
 
@@ -166,11 +167,34 @@ The ledger has 3 sessions. It is 127 times short of the first row of that table.
 
 ## 8. The family table
 
-Run 41794616689 was still building its ten-year panel when this report was
-written and landed, so there is no family number in it yet. That is stated
-plainly rather than left to look like a pass. The job's own state and, when it
-reports, the artifact's own rows are appended to this file in a follow-up
-commit; if the job fails, its failure and log are written here instead.
+Attempt 1, run 41794616689, **FAILED**. It built the panel, scored family 1
+(18 shapes) and family 3 (3 shapes), and then died in family 2 with:
+
+```
+ValueError: Cannot mask with non-boolean array containing NA / NaN values
+  at scripts/breakthrough_families.py:310 in run_variant,
+  discovery = trades.loc[masks["discovery"]]
+```
+
+The cause is a real bug in this runner, not in the data. `split_masks` computed
+its masks on a reset index and then handed them to `pd.Series` together with the
+caller's index, so pandas realigned them by label. On family 1 and family 3 the
+index happens to be a clean range, so the masks lined up and the shapes scored.
+Family 2 hands in a **filtered** frame, whose index is a subset of that range, so
+the realignment produced NaN in the mask and pandas refused to mask with it.
+
+The fix, landed in PR #249 as `73295fdd7`, is to build the mask positionally
+from the boolean array, never by label. Two things were also changed after the
+loss: a variant that raises is now recorded as `ERROR` beside its neighbours so
+the run still writes the file with every shape that scored, and the ten-year
+panel is cached, because the panel build is 43 to 46 minutes and the run that
+failed had nothing to show for it.
+
+So attempt 1 measured no family. That is the honest state of this section, and it
+is why the table below is not filled yet. Attempt 2, run 41801027946, was
+dispatched at 13:41 PKT on 2026-11-04 from `73295fdd7`, and its numbers are
+appended to this file in a follow-up commit. If it fails too, its failure and
+log are written here instead of a number.
 
 What the run will settle, and how each shape is judged, so the numbers cannot
 be read as a verdict after the fact:
