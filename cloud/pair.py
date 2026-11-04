@@ -62,8 +62,8 @@ CRONS = [
     "30 7 * * 1-4",      # Mon-Thu 12:30 PKT afternoon scan dispatch
     "17 4 * * 5",        # Friday session 1 open 09:17 PKT
     "32 9 * * 5",        # Friday session 2 open 14:32 PKT
-    "0,30,33 7,10,11 * * 1-5",  # 12:00/12:31/15:30/16:30 PKT closes,
-                                # 15:33 PKT post-market dispatch wake
+    "0,30,35 7,10,11 * * 1-5",  # 12:00/12:31/15:30/16:30 PKT closes,
+                                # 15:35 PKT post-close dispatch wake
 ]
 
 

@@ -7,13 +7,13 @@ Run from the repo root:
 
 Prints every state change between 08:00 and 18:00 for the chosen day
 (Monday 2026-10-12 by default) and then the exact window edges, so the
-strict boundaries are visible: 09:15:00 ends the pre-market, 09:32:00 opens
-the market, 15:30:00 closes it, 15:32:00 starts the post-market and
-15:49:00 ends it. Friday trades two windows and has its own post-market
-window.
+strict boundaries are visible: 09:15:00 starts the exchange's pre-open
+window, 09:30:00 ends it, 09:32:00 opens the market, 15:30:00 closes it,
+15:35:00 starts the Post-Close Session and 15:50:00 ends it. Friday trades
+two windows and has its own post-close window.
 
-The scanner runs only where the state is MARKET. Pre-market and post-market
-are reported for the record and are never scanned (owner order 2026-10-11).
+The scanner runs where the state is MARKET, and in the exchange's pre-open
+and post-close windows when the owner's 2026-10-21 scan order is on.
 """
 
 from __future__ import annotations

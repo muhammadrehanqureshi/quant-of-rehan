@@ -32,10 +32,10 @@ name: KMIALL session scan loop
 #                          sleeps through the 09:30 to 09:32 order-matching
 #                          break)
 #   07:30 UTC = 12:30 PKT  Mon-Thu band 2 (12:30 to 15:30)
-#   10:32 UTC = 15:32 PKT  Mon-Thu post-market (15:32 to 15:52)
+#   10:35 UTC = 15:35 PKT  Mon-Thu post-close (15:35 to 15:55)
 #   04:17 UTC = 09:17 PKT  Friday band 1 (09:17 to 12:00, midday break after)
 #   09:32 UTC = 14:32 PKT  Friday band 2 (14:32 to 16:30)
-#   11:32 UTC = 16:32 PKT  Friday post-market (16:32 to 16:52; owner
+#   11:35 UTC = 16:35 PKT  Friday post-close (16:35 to 16:55; owner
 #                          order 2026-10-31: the loop emails nothing here,
 #                          the market event emails are retired)
 #
@@ -50,16 +50,16 @@ on:
   schedule:
     - cron: "55 3 * * 1-4"     # 08:55 PKT, Mon-Thu band 1
     - cron: "30 7 * * 1-4"     # 12:30 PKT, Mon-Thu afternoon band
-    - cron: "32 10 * * 1-4"    # 15:32 PKT, Mon-Thu post-market
+    - cron: "35 10 * * 1-4"    # 15:35 PKT, Mon-Thu post-close
     - cron: "17 4 * * 5"       # 09:17 PKT, Friday session 1
     - cron: "32 9 * * 5"       # 14:32 PKT, Friday session 2
-    # Owner order 2026-10-24: Friday's post-market window (16:32 to 16:49)
+    # Owner order 2026-10-24: Friday's post-close window (16:35 to 16:50)
     # had no loop at all - the band-2 job ends on the 16:30 close's
-    # finalize - so the day's post-market banking depended on GitHub crons
-    # that had just staged a mass drop. The same 20-minute post-market
+    # finalize - so the day's post-close banking depended on GitHub crons
+    # that had just staged a mass drop. The same 20-minute post-close
     # window Monday-Thursday already has is mirrored here. (Owner order
     # 2026-10-31: the window emails nothing; signals only.)
-    - cron: "32 11 * * 5"     # 16:32 PKT, Friday post-market
+    - cron: "35 11 * * 5"     # 16:35 PKT, Friday post-close
   workflow_dispatch:
     inputs:
       seconds:
@@ -213,10 +213,10 @@ jobs:
             # reach the next band's start, not stop short of it.
             "55 3 * * 1-4") seconds=12960 ;;   # 216 min, ends 12:31
             "30 7 * * 1-4") seconds=10860 ;;   # 181 min, ends 15:31
-            "32 10 * * 1-4") seconds=1200 ;;   # 20 min, post-market to 15:52
+            "35 10 * * 1-4") seconds=1200 ;;   # 20 min, post-close to 15:55
             "17 4 * * 5")   seconds=9900  ;;   # 165 min, midday break after
             "32 9 * * 5")   seconds=7200  ;;   # 120 min, ends 16:32
-            "32 11 * * 5")  seconds=1200 ;;   # 20 min, post-market to 16:52
+            "35 11 * * 5")  seconds=1200 ;;   # 20 min, post-close to 16:55
             *)              seconds="${{ inputs.seconds }}" ;;
           esac
           echo "seconds=${seconds}" >> "$GITHUB_OUTPUT"

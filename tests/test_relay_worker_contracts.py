@@ -477,10 +477,10 @@ class RelayWorkerContractTest(unittest.TestCase):
         # window table, never bandsFor, or the 12:30 edge can never dispatch.
         # Owner order 2026-10-21: the table now opens at 08:55 as a recorder
         # warm-up (the exchange's pre-open window is later) and carries the
-        # 15:31 to 15:49 post-market window as its third entry.
+        # exchange's 15:35 to 15:50 Post-Close Session as its third entry.
         self.assertIn("const WEEKDAY_WINDOWS = [[[8, 55], [12, 30]], [[12, 30], [15, 30]],",
                       self.source)
-        self.assertIn("[[15, 31], [15, 49]]", self.source)
+        self.assertIn("[[15, 35], [15, 50]]", self.source)
         self.assertIn("function dispatchWindowsFor(k) {", self.source)
         self.assertIn("for (const band of dispatchWindowsFor(k))", self.source)
         # The consumer that would have silently frozen the afternoon must be

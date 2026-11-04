@@ -98,13 +98,13 @@ class TestIdleStates(unittest.TestCase):
         self.assertIn("POST_MARKET", decision.reason)
         self.assertIn("2026-10-21", decision.reason)
 
-    def test_the_two_minute_gap_after_the_close_is_idle(self):
-        # 15:30-15:32 is the owner's strict gap: no window owns it.
+    def test_the_post_close_gap_after_the_close_is_idle(self):
+        # 15:30-15:35 is the gap before the exchange's Post-Close Session.
         self.assert_sleeps_without_network(
             at_karachi(2026, 10, 12, 15, 31), "POST_CLOSE")
 
     def test_friday_post_market_scan_window_runs(self):
-        # Owner order 2026-10-21: Friday's own post window (16:32-16:49)
+        # Owner order 2026-10-21: Friday's own post window (16:35-16:50)
         # scans like any other.
         decision = gate.session_gate(at_karachi(2026, 10, 9, 16, 40))
         self.assertTrue(decision.should_run)

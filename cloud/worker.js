@@ -387,11 +387,13 @@ function bandsFor(k) {
 // a recorder warm-up, not a pre-market session: it starts the capture before
 // the first trade, while the scanner itself waits for the exchange's published
 // pre-open window (Mon-Thu 09:15 to 09:30, Friday 09:00 to 09:15 and 14:15 to
-// 14:30). A third Mon-Thu window covers 15:31 to 15:49 post-close.
+// 14:30). The third window is the exchange's published Post-Close Session:
+// 15:35 to 15:50 Monday to Thursday, 16:35 to 16:50 Friday.
 const WEEKDAY_WINDOWS = [[[8, 55], [12, 30]], [[12, 30], [15, 30]],
-                         [[15, 31], [15, 49]]];
+                         [[15, 35], [15, 50]]];
 
-const FRIDAY_WINDOWS = [[[9, 17], [12, 0]], [[14, 32], [16, 30]]];
+const FRIDAY_WINDOWS = [[[9, 17], [12, 0]], [[14, 32], [16, 30]],
+                        [[16, 35], [16, 50]]];
 
 function dispatchWindowsFor(k) {
   if (!isTradingDay(k)) return [];
