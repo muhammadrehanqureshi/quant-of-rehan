@@ -20,10 +20,11 @@ compatibility_date = "2026-10-01"
 # The worker's band table (worker.js) is the same table
 # src/data/sessions.py computes, and the parity test fails if they drift.
 #
-# 03:55/04:32 UTC = 08:55/09:32 PKT (Mon-Thu: the 08:55 pre-market window
-#   opens, owner order 2026-10-21; the 09:32 band-open notification edge)
+# 03:55/04:32 UTC = 08:55/09:32 PKT (Mon-Thu: the 08:55 recorder warm-up
+#   starts the capture before the first trade; the exchange's pre-open window
+#   is 09:15 to 09:30, and 09:32 is the band-open notification edge)
 # 07:30 UTC = 12:30 PKT (Mon-Thu AFTERNOON dispatch edge: the session loop
-#   started at the 08:55 pre-market edge ends at 12:30, so without this
+#   started at the 08:55 warm-up ends at 12:30, so without this
 #   wake the afternoon had no publisher and the phone's numbers froze,
 #   measured 2026-10-20. Not a notification edge; the dispatch's own
 #   dedupe key separates it from the morning loop).

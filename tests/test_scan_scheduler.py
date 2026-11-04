@@ -100,7 +100,7 @@ class SchedulerTest(unittest.IsolatedAsyncioTestCase):
         return report, stop
 
     async def test_it_fires_on_the_four_minute_grid_through_a_live_session(self):
-        clock = VirtualClock(at(MONDAY, 9, 10))
+        clock = VirtualClock(at(MONDAY, 9, 16))
         rec = Recorder()
         stop = asyncio.Event()
 
@@ -111,24 +111,21 @@ class SchedulerTest(unittest.IsolatedAsyncioTestCase):
         report, _ = await self.run_schedule(rec, clock, stop=stop,
                                             hook=stop_after_ten)
 
-        # pre-market slots (scans since 2026-10-21), then warmup, then the
-        # session's slots on the 4-min grid. The 09:10 start is inside the
-        # law's PRE_MARKET window, so the grid fires there too; the 09:15 to
-        # 09:32 morning gap is still a wait.
+        # The exchange's 09:15 to 09:30 pre-open window scans (owner order
+        # 2026-10-21), then the 09:30 to 09:32 order-matching break waits,
+        # then the band's warm-up waits, then the session's slots scan.
         self.assertEqual(rec.slots(),
-                         ["09:08", "09:12", "09:52", "09:56", "10:00", "10:04",
-                          "10:08"])
+                         ["09:16", "09:20", "09:24", "09:28", "09:52",
+                          "09:56", "10:00", "10:04", "10:08"])
         self.assertTrue(all(act == "scan" for act, _, _ in rec.calls))
-        self.assertEqual(report.scans, 7)
-        self.assertEqual(report.pauses, 6)   # 09:12 gap + 5 warmup slots
-        self.assertEqual(report.cycles, 13)
+        self.assertEqual(report.scans, 9)
+        self.assertEqual(report.pauses, 5)   # the five warm-up slots
+        self.assertEqual(report.cycles, 14)
         self.assertEqual(report.failures, 0)
         self.assertEqual(report.exit_code, 0)
-        # 09:10 to 09:12 are PRE_MARKET scans; the CLOSED band gap that
-        # follows wakes on the grid until the band's first warmup slot at
-        # 09:52 (one 960s hinge), every later sleep one slot of 240s.
-        self.assertEqual(clock.sleeps[0], 120.0)   # 09:10 -> 09:12 next slot
-        self.assertEqual({round(s) for s in clock.sleeps[1:]}, {240, 960})
+        # Every step here is one four-minute slot: the pre-open window and
+        # the band are close enough that no long hinge is needed.
+        self.assertEqual({round(s) for s in clock.sleeps}, {240})
         # every fire carries the one true zone and its own slot label
         for _, slot, moment in rec.calls:
             self.assertEqual(moment.utcoffset(), timedelta(hours=5))
@@ -146,18 +143,26 @@ class SchedulerTest(unittest.IsolatedAsyncioTestCase):
         report, _ = await self.run_schedule(rec, clock, stop=stop,
                                             hook=stop_after_break)
 
-        # before the break, and after the second band's warmup: never inside
-        self.assertEqual(rec.slots(), ["11:56", "14:52"])
+        # Before the break, the exchange's 14:15 to 14:30 second pre-open
+        # window, and after the second band's warmup. The pure break slots
+        # are 12:00 to 14:15 and 14:30 to 14:32.
+        self.assertEqual(rec.slots(),
+                         ["11:56", "14:16", "14:20", "14:24", "14:28",
+                          "14:52"])
         self.assertFalse([m for _, _, m in rec.calls
-                          if at(FRIDAY, 12, 0) <= m < at(FRIDAY, 14, 32)],
+                          if at(FRIDAY, 12, 0) <= m < at(FRIDAY, 14, 15)],
                          "the exchange's midday break must never be scanned")
+        self.assertFalse([m for _, _, m in rec.calls
+                          if at(FRIDAY, 14, 30) <= m < at(FRIDAY, 14, 32)],
+                         "the order-matching break must never be scanned")
         self.assertFalse([m for _, _, m in rec.calls
                           if at(FRIDAY, 14, 32) <= m < at(FRIDAY, 14, 52)],
                          "the second band has its own warmup")
         # every fire is one the one schedule law allows (SO-8)
         for act, _slot, moment in rec.calls:
             self.assertEqual(decide(moment)[0], act)
-        self.assertEqual(report.pauses, 43)  # 12:00..14:48, every four minutes
+        # 12:00..14:12 and 14:32..14:48 wait; 14:16..14:28 pre-open scan.
+        self.assertEqual(report.pauses, 39)
         self.assertEqual(report.exit_code, 0)
 
     async def test_it_sleeps_through_the_weekend_without_firing(self):

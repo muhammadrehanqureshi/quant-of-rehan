@@ -475,9 +475,9 @@ class RelayWorkerContractTest(unittest.TestCase):
         # The exchange keeps seeing Mon-Thu as one band; the RUNNABLE windows
         # are what a loop can actually run inside. bandOpenAt consults the
         # window table, never bandsFor, or the 12:30 edge can never dispatch.
-        # Owner order 2026-10-21: the table now opens at 08:55 (pre-market on
-        # the live broker feed) and carries the 15:31 to 15:49 post-market
-        # window as its third entry.
+        # Owner order 2026-10-21: the table now opens at 08:55 as a recorder
+        # warm-up (the exchange's pre-open window is later) and carries the
+        # 15:31 to 15:49 post-market window as its third entry.
         self.assertIn("const WEEKDAY_WINDOWS = [[[8, 55], [12, 30]], [[12, 30], [15, 30]],",
                       self.source)
         self.assertIn("[[15, 31], [15, 49]]", self.source)

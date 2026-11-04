@@ -49,18 +49,20 @@ the law alone, which is why an idle fire is cheap.
 
 ## 2.1 The owner's four market states, and where scanning is allowed
 
-Owner order 2026-10-11. `market_state_at()` in `src/data/sessions.py` answers
-one of four states for a timezone-aware instant; `is_scan_window()` is true
-only in `MARKET`. Windows are half-open, `[start, end)`, so an instant exactly
-on a boundary belongs to the window that starts there, never to the one ending
-there.
+Owner order 2026-10-11, amended by the 2026-10-21 scan order. `market_state_at()`
+in `src/data/sessions.py` answers one of four states for a timezone-aware
+instant; `is_scan_window()` is true in `MARKET` always and in the pre-open and
+post-market windows while the 2026-10-21 order is on. Windows are half-open,
+`[start, end)`, so an instant exactly on a boundary belongs to the window that
+starts there, never to the one ending there. The pre-open times are the
+exchange's own, from psx.com.pk/psx/exchange/general/trading-hours.
 
 | state | Mon-Thu | Friday | scanned |
 |---|---|---|---|
-| `PRE_MARKET` | 09:00 to 09:15 | 09:00 to 09:15 | **never** |
+| `PRE_MARKET` | 09:15 to 09:30 | 09:00 to 09:15 and 14:15 to 14:30 | **yes, every second in the cloud (owner order 2026-10-21, live broker feed)** |
 | `MARKET` | 09:32 to 15:30 | 09:17 to 12:00 and 14:32 to 16:30 | **yes, every second in the cloud (owner order 2026-10-19, amending SO-13); every 4 minutes on the local tick** |
-| `POST_MARKET` | 15:32 to 15:49 | 16:32 to 16:49 | **never** (finalize only) |
-| `CLOSED` | everything else, including 15:30 to 15:32 | everything else, including 16:30 to 16:32 | no |
+| `POST_MARKET` | 15:32 to 15:49 | 16:32 to 16:49 | **yes, every second in the cloud (owner order 2026-10-21); finalize also runs here** |
+| `CLOSED` | everything else, including 09:30 to 09:32 and 15:30 to 15:32 | everything else, including 09:15 to 09:17, 14:30 to 14:32 and 16:30 to 16:32 | no |
 
 The 2-minute gaps after each close are `CLOSED` on purpose: 15:30:00 itself is
 no longer the market, and post-market does not begin until 15:32:00.

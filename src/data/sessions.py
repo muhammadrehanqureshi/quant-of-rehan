@@ -40,13 +40,18 @@ in the market state. `market_state_at` below is that function; it never
 replaces the phases, which the relay, the app and the notification texts
 still read:
 
-    PRE_MARKET   a trading day, 09:00 to 09:15, both session shapes
+    PRE_MARKET   the exchange's own pre-open windows: Mon-Thu 09:15 to
+                 09:30; Friday 09:00 to 09:15 and 14:15 to 14:30
     MARKET       inside a band: Mon-Thu 09:32 to 15:30; Friday 09:17 to
                  12:00 and 14:32 to 16:30
     POST_MARKET  Mon-Thu 15:32 to 15:49; Friday 16:32 to 16:49
-    CLOSED       everything else, including the gaps at 15:30-15:32 and
-                 16:30-16:32, the Friday midday break and the 09:15-09:32
-                 morning gap
+    CLOSED       everything else, including the order-matching breaks at
+                 09:30-09:32 and 14:30-14:32, the gaps at 15:30-15:32 and
+                 16:30-16:32, and the Friday midday break
+
+08:55 is a capture warm-up, not a pre-market session: the KMIALL recorder
+starts early so it sees every print from the first trade, but the exchange
+has published no pre-open window at that time and the scanner waits.
 
 Every window is half-open, [start, end), so 15:30:00 itself is no longer the
 market and 15:32:00 is already post-market: an instant that sits exactly on
@@ -106,11 +111,19 @@ FRIDAY_CLOSE = (16, 30)
 #: A band is ((open_hour, open_minute), (close_hour, close_minute)).
 Band = tuple[tuple[int, int], tuple[int, int]]
 
-# Owner's pre-market and post-market windows (2026-10-11). Both session
-# shapes share the pre-market window; post-market follows the day's last
-# close after the owner's strict 2-minute gap (15:32 and 16:32).
-PRE_MARKET_OPEN = (9, 0)
-PRE_MARKET_CLOSE = (9, 15)
+# The exchange's own pre-open windows, from the PSX trading-hours page
+# (psx.com.pk/psx/exchange/general/trading-hours, read 2026-11-04). These
+# replaced the old shared 09:00-09:15 window, which was only right on Friday
+# and labelled Monday to Thursday minutes as pre-market when the exchange was
+# still shut. 08:55 is a recorder warm-up and is deliberately not one of these
+# windows. Post-market remains the owner's scan window after the day's last
+# close (15:32 and 16:32).
+WEEKDAY_PRE_MARKET_OPEN = (9, 15)
+WEEKDAY_PRE_MARKET_CLOSE = (9, 30)
+FRIDAY_PRE_MARKET_OPEN = (9, 0)
+FRIDAY_PRE_MARKET_CLOSE = (9, 15)
+FRIDAY_SECOND_PRE_MARKET_OPEN = (14, 15)
+FRIDAY_SECOND_PRE_MARKET_CLOSE = (14, 30)
 
 POST_MARKET_OPEN = (15, 32)
 POST_MARKET_CLOSE = (15, 49)
@@ -178,10 +191,12 @@ class MarketPhase(str, Enum):
 class MarketState(str, Enum):
     """The owner's four market states (order of 2026-10-11).
 
-    Windows are half-open, [start, end). PRE_MARKET is 09:00 to 09:15 on
-    any trading day, MARKET is every band, POST_MARKET is 15:32 to 15:49
-    Monday to Thursday and 16:32 to 16:49 on Friday. Every other instant,
-    including the strict 2-minute gaps after each close, is CLOSED.
+    Windows are half-open, [start, end). PRE_MARKET is the exchange's own
+    pre-open window: 09:15 to 09:30 Monday to Thursday, 09:00 to 09:15 and
+    14:15 to 14:30 on Friday. MARKET is every band, POST_MARKET is 15:32 to
+    15:49 Monday to Thursday and 16:32 to 16:49 on Friday. Every other
+    instant, including the order-matching breaks and the strict 2-minute
+    gaps after each close, is CLOSED.
 
     MARKET is a scan window always; PRE_MARKET and POST_MARKET are scan
     windows only when SCAN_PRE_POST_MARKET is set (owner order 2026-10-21,
@@ -343,17 +358,32 @@ def is_market_open(moment: datetime | None = None) -> bool:
     return market_phase(moment).is_live
 
 
-def pre_market_window(d: date) -> tuple[tuple[int, int], tuple[int, int]] | None:
-    """The pre-market window for a Karachi date, or None when closed."""
+def pre_market_windows(d: date) -> tuple[Band, ...]:
+    """Every pre-open window the exchange publishes for a Karachi date.
+
+    Monday to Thursday has one, 09:15 to 09:30. Friday has two, 09:00 to
+    09:15 before the morning band and 14:15 to 14:30 before the afternoon
+    band. A weekend or holiday has none.
+    """
     if not is_trading_day(d):
-        return None
-    return (PRE_MARKET_OPEN, PRE_MARKET_CLOSE)
+        return ()
+    if d.weekday() == 4:
+        return ((FRIDAY_PRE_MARKET_OPEN, FRIDAY_PRE_MARKET_CLOSE),
+                (FRIDAY_SECOND_PRE_MARKET_OPEN,
+                 FRIDAY_SECOND_PRE_MARKET_CLOSE))
+    return ((WEEKDAY_PRE_MARKET_OPEN, WEEKDAY_PRE_MARKET_CLOSE),)
 
 
-#: The morning between the pre-market edge and band 1's open is the
-#: scanning law's WARMUP minute, and it lives in market_phase, not in any
-#: email: the market's open/close/break emails were retired on
-#: 2026-10-31 (owner order), and their session helpers went with them.
+def pre_market_window(d: date) -> tuple[tuple[int, int], tuple[int, int]] | None:
+    """The first pre-open window for a Karachi date, or None when closed."""
+    windows = pre_market_windows(d)
+    return windows[0] if windows else None
+
+
+#: The 09:30-09:32 order-matching break and the 14:30-14:32 break are
+#: CLOSED, not scan windows. The market's open/close/break emails were
+#: retired on 2026-10-31 (owner order), and their session helpers went with
+#: them.
 
 
 def post_market_window(d: date) -> tuple[tuple[int, int], tuple[int, int]] | None:
@@ -383,10 +413,11 @@ def market_state_at(moment: datetime | None = None) -> MarketState:
     value that is not a datetime raises TypeError.
 
     Edges are strict, so an instant that sits exactly on a boundary belongs
-    to the window starting there and never to the one ending there: at
-    09:15:00 this is CLOSED (pre-market has ended, the market opens at
-    09:32), and at 15:30:00 on a Monday to Thursday it is CLOSED until
-    post-market starts at 15:32:00.
+    to the window starting there and never to the one ending there: on
+    Monday to Thursday 09:15:00 starts the pre-open window, 09:30:00 closes
+    it until the band opens at 09:32, and 15:30:00 is CLOSED until
+    post-market starts at 15:32:00. Friday's second pre-open window starts
+    at 14:15:00 and closes at 14:30:00, two minutes before the band.
     """
     if moment is None:
         moment = now_karachi()
@@ -403,10 +434,10 @@ def market_state_at(moment: datetime | None = None) -> MarketState:
         return MarketState.CLOSED
     now_micros = ((k.hour * 60 + k.minute) * 60 + k.second) * 1_000_000 \
         + k.microsecond
-    window = pre_market_window(day)
-    if window is not None and _hm_micros(window[0]) <= now_micros \
-            < _hm_micros(window[1]):
-        return MarketState.PRE_MARKET
+    for window in pre_market_windows(day):
+        if _hm_micros(window[0]) <= now_micros \
+                < _hm_micros(window[1]):
+            return MarketState.PRE_MARKET
     for band in session_bands(day):
         if _hm_micros(band[0]) <= now_micros < _hm_micros(band[1]):
             return MarketState.MARKET
@@ -444,9 +475,10 @@ def market_condition_at(moment: datetime | None = None) -> MarketCondition:
 
     A single fold of `market_phase`, so the condition can never disagree
     with the session bands: WARMUP and OPEN are OPERATIONAL, the Friday
-    midday break is BREAK, and every other phase is CLOSED. The morning
-    gap (09:15 to 09:32) and the two minute gap after a close are CLOSED,
-    because the exchange is not trading in either.
+    midday break is BREAK, and every other phase is CLOSED. The pre-open
+    windows, the order-matching breaks (09:30 to 09:32 and 14:30 to 14:32)
+    and the two minute gap after a close are CLOSED, because the exchange is
+    not trading in any of them.
     """
     phase = market_phase(moment)
     if phase.is_live:

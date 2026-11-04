@@ -56,8 +56,9 @@ SUBDOMAIN = "mrmrehanqureshi"  # workers.dev subdomain of this account
 # without a message. Each edge is still covered by exactly one trigger, so
 # nothing is sent twice.
 CRONS = [
-    "32,55 3,4 * * 1-4",  # Mon-Thu 08:55 PKT pre-market dispatch (owner
-                          # order 2026-10-21) + 09:32 PKT band-open edge
+    "32,55 3,4 * * 1-4",  # Mon-Thu 08:55 PKT recorder warm-up dispatch
+                          # (capture before the first trade) + 09:32 PKT
+                          # band-open edge
     "30 7 * * 1-4",      # Mon-Thu 12:30 PKT afternoon scan dispatch
     "17 4 * * 5",        # Friday session 1 open 09:17 PKT
     "32 9 * * 5",        # Friday session 2 open 14:32 PKT

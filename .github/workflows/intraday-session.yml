@@ -25,10 +25,12 @@ name: KMIALL session scan loop
 # fires and the post-close finalize in intraday-capture.yml stay as they are:
 # they are the backstop if a session job dies mid-band.
 #
-#   03:55 UTC = 08:55 PKT  Mon-Thu band 1 (window opens 08:55; the loop's
-#                          own sleep gate keeps the pre-band minutes off,
-#                          and 09:15 to 09:32, the law's morning gap, is
-#                          deliberately asleep with it)
+#   03:55 UTC = 08:55 PKT  Mon-Thu band 1 (window opens 08:55 as a recorder
+#                          warm-up, not a pre-market session; the loop's own
+#                          sleep gate keeps 08:55 to 09:15 off, scans the
+#                          exchange's 09:15 to 09:30 pre-open window, and
+#                          sleeps through the 09:30 to 09:32 order-matching
+#                          break)
 #   07:30 UTC = 12:30 PKT  Mon-Thu band 2 (12:30 to 15:30)
 #   10:32 UTC = 15:32 PKT  Mon-Thu post-market (15:32 to 15:52)
 #   04:17 UTC = 09:17 PKT  Friday band 1 (09:17 to 12:00, midday break after)
