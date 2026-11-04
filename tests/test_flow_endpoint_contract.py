@@ -32,12 +32,20 @@ class FlowEndpointContractTest(unittest.TestCase):
         pre-deploy class forever. The quote view therefore has its own
         instance name; the state hub keeps the card, signals and ACK rows.
         """
-        self.assertIn('const QUOTE_HUB_NAME = "psx-live-quotes-v2";',
+        self.assertIn('const QUOTE_HUB_NAME = "psx-live-quotes-v3";',
                       self.source)
         self.assertIn("namespace.idFromName(QUOTE_HUB_NAME)", self.source)
         self.assertIn("const stub = quoteHub(env);", self.source)
         self.assertIn("const hub = quoteHub(env);", self.source)
         self.assertIn('const STATE_HUB_NAME = "psx-live-quotes";', self.source)
+
+    def test_a_running_old_capture_can_still_seed_the_new_hub(self):
+        """The capture process survives a deploy; its raw pair stays valid."""
+        start = self.source.index("function measuredFlowSeed(quote, total)")
+        body = self.source[start:start + 1400]
+        self.assertIn('quote.split_method !== "quote_rule"', body)
+        self.assertIn("quote.buy_volume", body)
+        self.assertIn("quote.sell_volume", body)
 
     def test_the_flow_answer_is_a_pure_snapshot_read(self):
         start = self.source.index("async function flowAnswer(env, now)")
