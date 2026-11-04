@@ -273,6 +273,49 @@
                 android:visibility="gone"/>
         </LinearLayout>
 
+        <!-- Owner order 2026-11-04: the ORDER FLOW page, opened by the nav
+             icon that sits between the scanner and the search glass. It is
+             one page of its own, so it follows the same one-page-at-a-time
+             law the other four keep, and the console leaves while it is
+             open, exactly as the search page's own reply does. The list is
+             one TextView rendered by MainActivity, the way the leaders card
+             is, so a wide row can never reflow the tile. -->
+        <LinearLayout
+            android:id="@+id/order_flow_panel"
+            style="@style/QorPanel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/order_flow_heading"
+                style="@style/QorLabel"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:layout_marginBottom="10dp"
+                android:text="@string/label_order_flow"/>
+
+            <TextView
+                android:id="@+id/order_flow_list"
+                style="@style/QorValue"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:lineSpacingExtra="3dp"
+                android:text="@string/order_flow_empty"/>
+
+            <TextView
+                android:id="@+id/order_flow_status"
+                style="@style/QorValue"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:textColor="@color/text_soft"
+                android:text="@string/order_flow_basis"/>
+        </LinearLayout>
+
         <!-- Owner order 2026-10-24, third pass ("there should be diamond
              line feature between the tiles of search and custom scrips of
              volume, have that line there"): the rule stands BETWEEN the
@@ -1257,6 +1300,26 @@
                 android:padding="8dp"
                 android:scaleType="fitCenter"
                 android:src="@drawable/scanner"
+                android:tint="@color/gold"/>
+        </FrameLayout>
+
+        <!-- Owner order 2026-11-04: ORDER FLOW sits BETWEEN the scanner and
+             the search glass, in that order, with the owner's own icon. -->
+        <FrameLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1">
+
+            <ImageView
+                android:id="@+id/btn_nav_flow"
+                android:layout_width="42dp"
+                android:layout_height="42dp"
+                android:layout_gravity="center"
+                android:background="@drawable/settings_ripple"
+                android:contentDescription="@string/cd_order_flow"
+                android:padding="8dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_nav_flow"
                 android:tint="@color/gold"/>
         </FrameLayout>
 

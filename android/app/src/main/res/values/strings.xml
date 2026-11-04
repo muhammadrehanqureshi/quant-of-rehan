@@ -117,7 +117,11 @@
          over them. The settings_hint string stays declared, so the help
          copy keeps one home but never paints itself back onto the tile. -->
     <string name="label_search">SEARCH</string>
-    <string name="label_market">THE INDEX &amp; THE TOP 3 SCRIPS OF VOL.</string>
+    <string name="label_market">KSE100 &amp; THE TOP 3 SCRIPS OF VOL.</string>
+    <string name="label_order_flow">ORDER FLOW</string>
+    <string name="cd_order_flow">Order flow</string>
+    <string name="order_flow_empty">Order flow arrives with the first KMIALL frame of the session.</string>
+    <string name="order_flow_basis">B, S, U and T are the venue volume split three ways: buying, selling, and the volume the split could not side. U is never added to B or S, so B plus S plus U always equals T. BIG is a single transaction of at least PKR 10,000,000.</string>
     <string name="market_open_notification">Market is open. Quant is online now.</string>
     <string name="market_closed_notification">Market is closed. Quant is sleeping now.</string>
     <string name="market_break_notification">Market is on a break. Quant is sleeping until the market reopens.</string>

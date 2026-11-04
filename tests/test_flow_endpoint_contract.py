@@ -84,7 +84,9 @@ class FlowEndpointContractTest(unittest.TestCase):
         self.assertIn("counts: {\n      universe: universe.size,", self.source)
 
     def test_large_prints_are_one_million_rupees_and_labelled_honestly(self):
-        self.assertIn("const LARGE_PRINT_PKR = 1_000_000;", self.source)
+        # Owner order 2026-11-04: a big print is at least PKR 10,000,000 in a
+        # single transaction, up from 1,000,000.
+        self.assertIn("const LARGE_PRINT_PKR = 10_000_000;", self.source)
         self.assertIn("if (value < LARGE_PRINT_PKR) return null;", self.source)
         self.assertIn("one relay update carrying at least PKR 1,000,000",
                       self.source)
