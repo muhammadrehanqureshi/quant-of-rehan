@@ -299,7 +299,7 @@ class TestOutsideSessionGuard(unittest.TestCase):
         """
         self.assertTrue(session_legal(at(WEDNESDAY, 10, 0)))
         self.assertTrue(session_legal(at(FRIDAY, 16, 0)))
-        self.assertTrue(session_legal(at(WEDNESDAY, 9, 0)))
+        self.assertTrue(session_legal(at(WEDNESDAY, 9, 20)))
         # Post-market: 15:32 to 15:49 on Mon-Thu (16:32 to 16:49 Friday).
         self.assertTrue(session_legal(at(WEDNESDAY, 15, 45)))
         self.assertFalse(session_legal(at(WEDNESDAY, 16, 0)))

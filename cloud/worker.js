@@ -382,9 +382,12 @@ function bandsFor(k) {
 // needs its own window open edges, one per job the workflow could run.
 // marketPhase, /health and the phone texts keep reading bandsFor, whose
 // parity with src/data/sessions.py is tested.
-// Owner order 2026-10-21: pre and post market are LIVE scan windows too
-// (banking broker ticks at one second), so the morning window opens at
-// 08:55 PKT and a third Mon-Thu window covers 15:31 to 15:49 post-close.
+// Owner order 2026-10-21: the pre-open and post-market windows are LIVE scan
+// windows too (banking broker ticks at one second). The 08:55 PKT dispatch is
+// a recorder warm-up, not a pre-market session: it starts the capture before
+// the first trade, while the scanner itself waits for the exchange's published
+// pre-open window (Mon-Thu 09:15 to 09:30, Friday 09:00 to 09:15 and 14:15 to
+// 14:30). A third Mon-Thu window covers 15:31 to 15:49 post-close.
 const WEEKDAY_WINDOWS = [[[8, 55], [12, 30]], [[12, 30], [15, 30]],
                          [[15, 31], [15, 49]]];
 
@@ -1412,9 +1415,25 @@ function normalizeQuoteSnapshot(raw) {
   };
   const now = Date.now();
   snapshot.quotes = snapshot.quotes.map((row) => {
-    const age = now - Date.parse(row.observed_at || "");
+    const observedMs = Date.parse(row.observed_at || "");
+    const age = now - observedMs;
+    // age_seconds is the age of the FRAME the relay holds: it answers "is the
+    // feed pushing right now". tick_age_seconds is the age of the exchange's
+    // last print for that symbol: it answers "when did this stock last trade".
+    // They are not the same number, and a quiet stock can have an old tick on a
+    // fresh frame. A desk build needs both to avoid painting a stale last
+    // trade as a stalled relay.
+    let tickAge = null;
+    if (Number.isFinite(observedMs) &&
+        /^[0-9]{2}:[0-9]{2}:[0-9]{2}$/.test(String(row.source_tick_time || ""))) {
+      const tickAt = tickInstantInDay(karachiView(observedMs),
+        row.source_tick_time, null);
+      if (Number.isFinite(tickAt)) tickAge = now - tickAt;
+    }
     return { ...row,
       age_seconds: Number.isFinite(age) ? Math.max(0, Math.round(age / 1000)) : null,
+      tick_age_seconds: Number.isFinite(tickAge)
+        ? Math.max(0, Math.round(tickAge / 1000)) : null,
       fresh: Number.isFinite(age) && age >= -5000 && age <= QUOTE_MAX_AGE_MS,
     };
   });
@@ -1632,6 +1651,8 @@ async function flowAnswer(env, now) {
       observed_at: quote.observed_at || null,
       age_seconds: Number.isFinite(Number(quote.age_seconds))
         ? Math.max(0, Math.round(Number(quote.age_seconds))) : null,
+      tick_age_seconds: Number.isFinite(Number(quote.tick_age_seconds))
+        ? Math.max(0, Math.round(Number(quote.tick_age_seconds))) : null,
       fresh: Boolean(quote.fresh),
       status: quote.status || null,
       source_tick_time: quote.source_tick_time || null,
@@ -1743,6 +1764,7 @@ async function applyLiveQuotes(env, snapshot, quotes, now, ackDay) {
         ...splitFields(split, quote),
         feed_as_of: quote.observed_at,
         feed_age_seconds: quote.age_seconds,
+        feed_tick_age_seconds: quote.tick_age_seconds,
         observed_at: quote.observed_at,
         source_tick_time: quote.source_tick_time,
         quote_fresh: true,
@@ -1796,8 +1818,10 @@ async function applyLiveQuotes(env, snapshot, quotes, now, ackDay) {
             : "the symbol's last published regular-session frame",
           feed_as_of: row.observed_at,
           feed_age_seconds: row.age_seconds,
+          feed_tick_age_seconds: row.tick_age_seconds,
           observed_at: row.observed_at,
           source_tick_time: row.source_tick_time,
+          tick_age_seconds: row.tick_age_seconds,
           quote_fresh: Boolean(row.fresh),
           quote_source: row.source,
         };

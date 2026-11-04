@@ -12,12 +12,13 @@ src/data/sessions.py (SO-8), never typed in twice:
     Mon-Thu   15:47            once              finalize, after the close
     Friday    16:47            once              finalize, after the close
 
-Nothing at all is registered for the pre-market window (09:00 to 09:15), the
-Friday midday break, the evening, the night, or the weekend. The tick still
-refuses to scan outside MARKET by itself (src/data/sessions.py,
-`is_scan_window`), so the triggers are the schedule and the runtime check is the
-guarantee; neither depends on the other being right, and a hand-run tick is
-still safe.
+Nothing at all is registered for the exchange's pre-open windows (Mon-Thu
+09:15 to 09:30; Friday 09:00 to 09:15 and 14:15 to 14:30), the Friday midday
+break, the evening, the night, or the weekend. The tick still decides with
+`is_scan_window` (src/data/sessions.py), so the triggers are the schedule and
+the runtime check is the guarantee; neither depends on the other being right,
+and a hand-run tick is still safe. The cloud loop, not this Windows task, is
+what scans the pre-open and post-market windows under the 2026-10-21 order.
 
 Why the task is registered from an XML definition rather than with
 `schtasks /sc MINUTE /mo 4`: the simple form fires around the clock for ever
