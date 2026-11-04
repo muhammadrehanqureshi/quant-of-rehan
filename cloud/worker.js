@@ -1758,7 +1758,7 @@ async function flowAnswer(env, now) {
       split: "quote_rule: every observed increment of the venue counter is sided once by the bid/ask of the frame that carried it; buy and sell never decrease",
       coverage: "regular-session frames for the named Karachi day; a symbol with no frame that day appears in missing, never with an invented number",
       unclassified: "shares traded before the capture or hub first observed the symbol; they are reported separately and never guessed into buy or sell",
-      large: "one relay update carrying at least PKR 1,000,000 on one side; the broker wire has no individual order id, so this is a large observed increment, not a claimed order ticket",
+      large: "one relay update carrying at least PKR 10,000,000 on one side; the broker wire has no individual order id, so this is a large observed increment, not a claimed order ticket",
     },
   };
 }
