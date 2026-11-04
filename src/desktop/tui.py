@@ -943,14 +943,19 @@ def main(argv: list[str] | None = None) -> int:
                 desk.error = ""
             except Exception as exc:  # noqa: BLE001 - shown in the footer
                 desk.error = f"relay: {type(exc).__name__}"
+            # Owner order 2026-11-04: two clients on one relay have to fit
+            # inside the Workers free plan's 100,000 requests a day. The
+            # card is a read the desk can afford to be slow with, so it
+            # costs one request every half minute, not twelve a minute,
+            # and the health line one a minute.
             if stamp >= next_market:
-                next_market = stamp + 5.0
+                next_market = stamp + 30.0
                 try:
                     desk.market, _ = fetch("/market")
                 except Exception:  # noqa: BLE001
                     pass
             if stamp >= next_health:
-                next_health = stamp + 15.0
+                next_health = stamp + 60.0
                 try:
                     desk.health, _ = fetch("/health")
                 except Exception:  # noqa: BLE001
@@ -981,8 +986,12 @@ def main(argv: list[str] | None = None) -> int:
                 elif key in ("s", "S"):
                     sort = (sort + 1) % len(SORTS)
             # keep the one second cadence even when a poll was slow, so the
-            # poll itself never stretches the refresh into a visible lag
-            next_tick += 1.0
+            # poll itself never stretches the refresh into a visible lag.
+            # Owner order 2026-11-04: outside the session nothing moves, so
+            # the desk reads once every five seconds instead of once a
+            # second, and a window left open overnight cannot spend the
+            # relay's day on a shut market.
+            next_tick += 1.0 if _market_open(desk) else 5.0
             pause = next_tick - time.monotonic()
             if pause > 0:
                 time.sleep(pause)
@@ -991,6 +1000,15 @@ def main(argv: list[str] | None = None) -> int:
     finally:
         sys.stdout.write("\x1b[?25h\x1b[?1049l")
         sys.stdout.flush()
+
+
+def _market_open(desk: Desk) -> bool:
+    """The relay's own answer about the session, never the desk's guess."""
+    for source in (desk.market or {}, desk.health or {}):
+        flag = source.get("market_open") if isinstance(source, dict) else None
+        if isinstance(flag, bool):
+            return flag
+    return True
 
 
 def _quotes(desk: Desk) -> list:
