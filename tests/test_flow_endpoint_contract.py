@@ -1,10 +1,10 @@
-"""The cloud order-flow answer: complete rows and the PKR 1M large prints.
+"""The cloud order-flow answer: complete rows and the PKR 10M large prints.
 
 The Worker cannot run on the owner's PC, so these tests pin the source that
 the deployed relay serves. They are the contract the owner's separate desktop
 build reads: /flow is a pure read, never an ACK write; every row carries the
 full split and its unclassified remainder; a large print is one relay update
-of at least PKR 1,000,000, labelled for exactly that limitation.
+of at least PKR 10,000,000, labelled for exactly that limitation.
 """
 
 import json
@@ -83,12 +83,13 @@ class FlowEndpointContractTest(unittest.TestCase):
         self.assertEqual(embedded, expected)
         self.assertIn("counts: {\n      universe: universe.size,", self.source)
 
-    def test_large_prints_are_one_million_rupees_and_labelled_honestly(self):
+    def test_large_prints_are_ten_million_rupees_and_labelled_honestly(self):
         # Owner order 2026-11-04: a big print is at least PKR 10,000,000 in a
-        # single transaction, up from 1,000,000.
+        # single transaction, up from 1,000,000, and the basis the relay
+        # serves says the same number the constant does.
         self.assertIn("const LARGE_PRINT_PKR = 10_000_000;", self.source)
         self.assertIn("if (value < LARGE_PRINT_PKR) return null;", self.source)
-        self.assertIn("one relay update carrying at least PKR 1,000,000",
+        self.assertIn("one relay update carrying at least PKR 10,000,000",
                       self.source)
         self.assertIn("the broker wire has no individual order id",
                       self.source)
