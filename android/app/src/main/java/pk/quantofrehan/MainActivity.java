@@ -2917,14 +2917,22 @@ public class MainActivity extends Activity {
                     && print.side.trim().toUpperCase(Locale.US).startsWith("S");
             double price = print.price > 0 ? print.price
                     : (print.shares > 0 ? (double) print.value / print.shares : 0d);
-            sb.append(String.format(Locale.US, "%,d shares of ",
-                    print.shares));
+            // Owner order 2026-11-05, ninth pass: the quantity wears the
+            // console's (letter=number) bracket, and the print's own time
+            // closes the line, so a buy and a sale both say when they
+            // happened, not only what they were.
             int from = sb.length();
-            sb.append(String.format(Locale.US, "%s were %s at PKR %,.2f",
+            sb.append(String.format(Locale.US, "(%s=%,d) ",
+                    sale ? "S" : "B", print.shares));
+            sb.append(String.format(Locale.US, "%s %s at PKR %,.2f",
                     print.symbol, sale ? "sold" : "bought", price));
             sb.setSpan(new ForegroundColorSpan(
                             getColor(sale ? R.color.red : R.color.green)),
                     from, sb.length(), 0);
+            String at = printTime(print.at);
+            if (!at.isEmpty()) {
+                sb.append(' ').append(at);
+            }
         }
         if (shown == 0) {
             bigPrintsList.setText(R.string.big_prints_none_match);
@@ -2957,6 +2965,19 @@ public class MainActivity extends Activity {
             lp.height = height;
             bigPrintsScroll.setLayoutParams(lp);
         }
+    }
+
+    /** The print's own clock, HH:mm:ss, from the relay's ISO stamp. */
+    private static String printTime(String at) {
+        if (at == null) {
+            return "";
+        }
+        String raw = at.trim();
+        int t = raw.indexOf('T');
+        if (t >= 0 && raw.length() >= t + 9) {
+            return raw.substring(t + 1, t + 9);
+        }
+        return raw.length() == 8 ? raw : "";
     }
 
     /** The scrips whose ticker starts with what he typed, as tappable rows. */
@@ -3019,17 +3040,34 @@ public class MainActivity extends Activity {
     private CharSequence flowRowText(Watcher.FlowRow row) {
         SpannableStringBuilder sb = new SpannableStringBuilder(row.symbol);
         if (row.price != null) {
+            int priceFrom = sb.length();
             sb.append(String.format(Locale.US, "  PKR %,.2f", row.price));
+            if (row.changePct != null) {
+                sb.append(String.format(Locale.US, " %s %.2f%%",
+                        row.changePct >= 0 ? "\u25B2" : "\u25BC",
+                        Math.abs(row.changePct)));
+                sb.setSpan(new ForegroundColorSpan(getColor(
+                                row.changePct >= 0 ? R.color.green
+                                        : R.color.red)),
+                        priceFrom, sb.length(), 0);
+            }
         }
+        int bidFrom = sb.length();
         sb.append(row.bid != null
                 ? String.format(Locale.US, "  BID %,.2f", row.bid)
                 : "  BID n/a");
+        sb.setSpan(new ForegroundColorSpan(getColor(R.color.green)),
+                bidFrom + 2, bidFrom + 5, 0);
+        sb.append(" & ");
+        int askFrom = sb.length();
         sb.append(row.ask != null
-                ? String.format(Locale.US, "  ASK %,.2f", row.ask)
-                : "  ASK n/a");
+                ? String.format(Locale.US, "ASK %,.2f", row.ask)
+                : "ASK n/a");
+        sb.setSpan(new ForegroundColorSpan(getColor(R.color.red)),
+                askFrom, askFrom + 3, 0);
         sb.append(row.volume != null
-                ? String.format(Locale.US, "  T %,d", row.volume)
-                : "  T n/a");
+                ? String.format(Locale.US, "  (T=%,d)", row.volume)
+                : "  (T=n/a)");
         return sb;
     }
 
@@ -3052,40 +3090,57 @@ public class MainActivity extends Activity {
         SpannableStringBuilder sb = new SpannableStringBuilder();
         sb.append(found.symbol);
         if (found.price != null) {
+            int priceFrom = sb.length();
             sb.append(String.format(Locale.US, "  PKR %,.2f", found.price));
+            if (found.changePct != null) {
+                sb.append(String.format(Locale.US, " %s %.2f%%",
+                        found.changePct >= 0 ? "\u25B2" : "\u25BC",
+                        Math.abs(found.changePct)));
+                sb.setSpan(new ForegroundColorSpan(getColor(
+                                found.changePct >= 0 ? R.color.green
+                                        : R.color.red)),
+                        priceFrom, sb.length(), 0);
+            }
         }
         sb.append('\n');
         // Owner order 2026-11-05 (sixth pass, "I would search for HUBC,
         // then i would see only HUBC's order flow i.e. bid/ask etc."): the
         // searched scrip's own two-way book stands under its money line.
+        int bidFrom = sb.length();
         sb.append(found.bid != null
                 ? String.format(Locale.US, "BID %,.2f", found.bid)
                 : "BID n/a");
-        sb.append("  ");
+        sb.setSpan(new ForegroundColorSpan(getColor(R.color.green)),
+                bidFrom, bidFrom + 3, 0);
+        sb.append(" & ");
+        int askFrom = sb.length();
         sb.append(found.ask != null
                 ? String.format(Locale.US, "ASK %,.2f", found.ask)
                 : "ASK n/a");
+        sb.setSpan(new ForegroundColorSpan(getColor(R.color.red)),
+                askFrom, askFrom + 3, 0);
         sb.append('\n');
         if (found.buy != null && found.sell != null && found.volume != null) {
-            // Owner order 2026-11-05, eighth pass: the measured pair and the
-            // unclear remainder as U, never folded into a side.
-            sb.append("B=");
+            // Owner order 2026-11-05, ninth pass: the quantities directly
+            // below the book wear the console's one bracket, (B=..., S=...,
+            // U=..., T=...), the buy digits green and the sell digits red.
+            sb.append('(').append("B=");
             int from = sb.length();
             sb.append(String.format(Locale.US, "%,d", found.buy));
             sb.setSpan(new ForegroundColorSpan(getColor(R.color.green)),
                     from, sb.length(), 0);
-            sb.append("  S=");
+            sb.append(", S=");
             from = sb.length();
             sb.append(String.format(Locale.US, "%,d", found.sell));
             sb.setSpan(new ForegroundColorSpan(getColor(R.color.red)),
                     from, sb.length(), 0);
             if (found.unclassified != null) {
-                sb.append(String.format(Locale.US, "  U=%,d",
+                sb.append(String.format(Locale.US, ", U=%,d",
                         found.unclassified));
             }
-            sb.append(String.format(Locale.US, "  & T=%,d", found.volume));
+            sb.append(String.format(Locale.US, ", T=%,d)", found.volume));
         } else if (found.volume != null) {
-            sb.append(String.format(Locale.US, "T=%,d", found.volume));
+            sb.append(String.format(Locale.US, "(T=%,d)", found.volume));
         } else {
             sb.append(String.format(Locale.US,
                     "no volume reported for %s yet", found.symbol));

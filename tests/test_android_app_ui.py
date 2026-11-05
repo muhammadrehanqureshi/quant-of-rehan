@@ -551,8 +551,11 @@ class SettingsControlTest(unittest.TestCase):
         """
         self.assertIn("line.setText(flowRowText(row));", self.main)
         self.assertIn('\"  BID %,.2f\"', self.main)
-        self.assertIn('\"  ASK %,.2f\"', self.main)
-        self.assertIn('\"  T %,d\"', self.main)
+        self.assertIn('\"ASK %,.2f\"', self.main)
+        self.assertIn('\"  (T=%,d)\"', self.main)
+        self.assertIn('sb.append(" & ");', self.main)
+        self.assertIn('bidFrom + 2, bidFrom + 5', self.main)
+        self.assertIn('askFrom, askFrom + 3', self.main)
         # The numbers travel from the relay's rows, which carry bid and
         # ask; the Watcher parses both beside the price and the volume.
         watcher = (ROOT / "android" / "app" / "src" / "main" / "java"
@@ -562,6 +565,23 @@ class SettingsControlTest(unittest.TestCase):
         self.assertIn("out.ask = number(row, \"ask\");", watcher)
         self.assertIn("Double bid;", watcher)
         self.assertIn("Double ask;", watcher)
+        self.assertIn('out.changePct = number(row, "change_pct");', watcher)
+        self.assertIn("Double changePct;", watcher)
+
+    def test_the_big_prints_name_the_side_and_the_time(self):
+        """Owner order 2026-11-05: a print leads with its side in the
+        console's (B=...) bracket and closes with the time it traded."""
+        self.assertIn('"(%s=%,d) "', self.main)
+        self.assertIn("printTime(print.at)", self.main)
+        self.assertIn("raw.substring(t + 1, t + 9)", self.main)
+
+    def test_the_selected_book_brackets_its_four_parts(self):
+        """Owner order 2026-11-05: the volume directly below the book
+        follows the app's (letter=number) bracket throughout."""
+        self.assertIn("sb.append('(').append(\"B=\");", self.main)
+        self.assertIn('\", S=\"', self.main)
+        self.assertIn('\", U=%,d\"', self.main)
+        self.assertIn('\", T=%,d)\"', self.main)
 
     def test_the_four_icons_are_the_owners_own_pngs(self):
         """Owner order 2026-10-24: the scanner page's icon (his own
@@ -1952,8 +1972,8 @@ class VersionTest(unittest.TestCase):
         # pass: his new ORDER FLOW picture, the bracketed top three, the
         # eight-print board with its visible bar, and the search-only
         # ORDER FLOW tile.
-        self.assertIn('android:versionName="4.0.7"', manifest)
-        self.assertIn('android:versionCode="116"', manifest)
+        self.assertIn('android:versionName="4.0.8"', manifest)
+        self.assertIn('android:versionCode="117"', manifest)
         self.assertNotIn('android:versionName="3.7.5"', manifest)
         self.assertNotIn('android:versionName="3.7.4"', manifest)
         self.assertNotIn('android:versionName="3.7.3"', manifest)
@@ -2163,8 +2183,8 @@ class VersionTest(unittest.TestCase):
         # rows; v4.0.5 (sixth pass) is his new ORDER FLOW picture, the
         # bracketed top three, the eight-print scrolling board with its
         # visible bar, and the search-only ORDER FLOW tile.
-        self.assertIn('android:versionCode="116"', manifest)
-        self.assertIn('android:versionName="4.0.7"', manifest)
+        self.assertIn('android:versionCode="117"', manifest)
+        self.assertIn('android:versionName="4.0.8"', manifest)
         self.assertNotIn('android:versionName="3.7.5"', manifest)
         self.assertNotIn('android:versionName="3.7.4"', manifest)
         self.assertNotIn('android:versionName="3.7.3"', manifest)
