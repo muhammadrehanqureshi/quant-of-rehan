@@ -1641,6 +1641,17 @@ to sixty seconds. The status tile therefore also carries the app's own
      the orphan law stands so every dot still wears a filament.
   5. The version bump is versionCode 82 / versionName 2.3.15.
 
+**Version 4.0.2, versionCode 111.**
+
+  Owner order 2026-11-04, third pass on the ORDER FLOW page. The seam
+  between the page's two tiles carries the diamond that left the pair
+  under BIG BUYING & SELLING, so the division reads tile, seam, tile,
+  and closes under its one seam. Nothing stands under the search box
+  until a scrip is picked, and the box's own words are "Search for a
+  KMIALL scrip".
+
+  The version bump is versionCode 111 / versionName 4.0.2.
+
 **Version 3.9.0, versionCode 108.**
 
   Owner order 2026-11-02, after 3.7.7. The W/L tile now counts a closed
