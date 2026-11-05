@@ -1010,7 +1010,9 @@ class TypefaceTest(unittest.TestCase):
         # v1.8.5 (owner 14:51): the group's separators are NON-BREAKING
         # spaces, so a wide row can never wrap mid group.
         self.assertIn('sb.append("\\u00A0(B=");', self.main)
-        self.assertIn('"\\u00A0(T=%,d)"', self.main)
+        # Owner order 2026-11-05 (fifth pass): the no-split row still carries
+        # its total, now on its own line like every leader row's total.
+        self.assertIn('"\\nT=%,d"', self.main)
         # v1.8.7 (owner 15:35): the three quantities read as a sentence, a
         # comma after B and an ampersand before T, both non-breaking.
         self.assertIn('sb.append(",\\u00A0S=");', self.main)
@@ -3311,8 +3313,12 @@ class MenuOrdersTest(unittest.TestCase):
         self.assertEqual(block.count("\\u00A0&\\u00A0T="), 1)
         # The buy digits in green and the sell digits in red, the money
         # line with the coloured arrow and the glyph face.
-        self.assertIn("colorQuantity(sb, quote.buy, R.color.green)", block)
-        self.assertIn("colorQuantity(sb, quote.sell, R.color.red)", block)
+        # Owner order 2026-11-05 (fifth pass): the pair printed IS the
+        # completed pair, so the buy digit is pair[0] and the sell digit is
+        # pair[1]; no U rides the line.
+        self.assertIn("colorQuantity(sb, pair[0], R.color.green)", block)
+        self.assertIn("colorQuantity(sb, pair[1], R.color.red)", block)
+        self.assertNotIn("U=", block)
         self.assertIn("TypefaceSpan(ARROW_FACE)", block)
         self.assertIn("R.color.green : R.color.red", block)
         self.assertIn("private void colorQuantity(SpannableStringBuilder sb, long value, int res)", self.main)
