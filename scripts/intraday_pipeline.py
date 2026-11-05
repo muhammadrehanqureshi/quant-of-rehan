@@ -1054,7 +1054,8 @@ def run_finalize(capture: Path | None = None,
                            .total_seconds() // 60)
     # Net is gross minus the modelled round trip and CGT on a positive result,
     # using the ONE cost schedule in src/config.py (the same numbers the frozen
-    # research gate labels with, so a paper outcome and a research label agree).    net_return = config.net_return(gross_return)
+    # research gate labels with, so a paper outcome and a research label agree).
+    net_return = config.net_return(gross_return)
     if state.entry_price:
         # The session-end close the outcome was valued on is also what
         # close_day locks into the state record, so the persisted trade and
