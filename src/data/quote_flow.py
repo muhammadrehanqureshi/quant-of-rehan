@@ -74,33 +74,53 @@ class SymbolFlow:
     ask: float | None = None
     volume: int | None = None
     side: str | None = None
+    first_seen_at: str | None = None
+    baseline_at: str | None = None
+    baseline_reason: str = ""
 
-    def observe(self, price, bid, ask, volume) -> None:
+    def observe(self, price, bid, ask, volume, observed_at=None) -> None:
         last = _number(price)
         best_bid = _number(bid)
         best_ask = _number(ask)
         total = _number(volume)
         previous_price = self.last_price
-        self.last_price = last if last is not None else self.last_price
+        if last is not None and last > 0:
+            self.last_price = last
         self.bid = best_bid if best_bid and best_bid > 0 else self.bid
         self.ask = best_ask if best_ask and best_ask > 0 else self.ask
-        if last is None or total is None or total < 0:
+        if total is None or total < 0:
             return
         total = int(total)
+        if self.first_seen_at is None:
+            self.first_seen_at = observed_at
         if self.volume is None:
-            # The first running total this process sees is the baseline: the
-            # shares traded before it were never observed and are not ours to
-            # side. From here on every increment is attributed.
+            # The first running total is the baseline. A zero here is the
+            # observation the pre-open gate needs: the next increment is sided
+            # by the quote, not reported as an unclear prefix. A non-zero first
+            # total is marked, never distributed into a side.
             self.volume = total
             self.baseline = total
+            self.baseline_at = observed_at
+            self.baseline_reason = ("zero_baseline" if total == 0
+                                    else "first_seen_nonzero")
             return
         delta = total - self.volume
         if delta < 0:
             self._count(RULE_RESET)
             self.volume = total
             self.baseline += total
+            self.baseline_at = observed_at
+            self.baseline_reason = "reset"
             return
         if delta == 0:
+            return
+        if last is None or last <= 0:
+            # An increment with no print cannot be sided from evidence. It
+            # stays in the baseline and is reported, never guessed.
+            self.volume = total
+            self.baseline += delta
+            self.baseline_at = observed_at
+            self.baseline_reason = "no_price"
             return
         rule, side = self._side(last, previous_price)
         if side == "B":
@@ -147,6 +167,9 @@ class SymbolFlow:
             "measured_buy": int(self.buy),
             "measured_sell": int(self.sell),
             "flow_baseline": int(self.baseline),
+            "flow_baseline_at": self.baseline_at,
+            "flow_first_seen_at": self.first_seen_at,
+            "flow_baseline_reason": self.baseline_reason,
             "flow_rules": dict(sorted(self.rules.items())),
         }
 
@@ -165,13 +188,36 @@ class QuoteFlow:
         if flow is None:
             flow = self.symbols[symbol] = SymbolFlow(symbol)
         flow.observe(quote.get("price"), quote.get("bid"), quote.get("ask"),
-                     quote.get("volume"))
+                     quote.get("volume"), quote.get("observed_at"))
         quote.update(flow.payload())
         return quote
 
     def observe_many(self, quotes) -> list:
         return [self.observe(quote) for quote in quotes or []
                 if isinstance(quote, dict)]
+
+    def seed_preopen(self, symbols, observed_at) -> int:
+        """Mark every unseen KMIALL symbol at zero at the 08:55 gate.
+
+        The gate runs before the regular session, when a symbol the feed has
+        not published has zero session volume. This is a gate assumption, not
+        an observation: the baseline reason says so. An observed row is never
+        overwritten, and a mid-session start never calls this method.
+        """
+        seeded = 0
+        for symbol in symbols or []:
+            symbol = str(symbol or "").strip().upper()
+            if not symbol or symbol in self.symbols:
+                continue
+            flow = SymbolFlow(symbol)
+            flow.volume = 0
+            flow.baseline = 0
+            flow.first_seen_at = observed_at
+            flow.baseline_at = observed_at
+            flow.baseline_reason = "preopen_zero_seed"
+            self.symbols[symbol] = flow
+            seeded += 1
+        return seeded
 
     def seed(self, rows) -> int:
         """Adopt the relay's own day pair so a restarted capture continues.
@@ -199,6 +245,9 @@ class QuoteFlow:
             flow = SymbolFlow(symbol)
             flow.volume = volume
             flow.baseline = volume
+            flow.baseline_at = str(row.get("observed_at") or "") or None
+            flow.first_seen_at = flow.baseline_at
+            flow.baseline_reason = "seed"
             if row.get("split_method") == METHOD_QUOTE_RULE:
                 try:
                     buy = int(float(row.get("buy_volume")))

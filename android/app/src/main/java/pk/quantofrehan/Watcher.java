@@ -1146,7 +1146,7 @@ public final class Watcher {
                     sb.append(String.format(java.util.Locale.US, "%,.0f", sell));
                     int sellTo = sb.length();
                     int unclearFrom = -1;
-                    if (unclear != null) {
+                    if (unclear != null && unclear > 0) {
                         sb.append(", U=");
                         unclearFrom = sb.length();
                         sb.append(String.format(java.util.Locale.US, "%,.0f", unclear));

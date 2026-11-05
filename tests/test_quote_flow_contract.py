@@ -43,6 +43,11 @@ class WholeDayFlowContractTest(unittest.TestCase):
         self.assertIn("state.buy += delta", self.source)
         self.assertIn("state.sell += delta", self.source)
 
+    def test_the_baseline_audit_travels_with_the_measured_pair(self):
+        self.assertIn("flow_baseline_at", self.source)
+        self.assertIn("flow_first_seen_at", self.source)
+        self.assertIn("flow_baseline_reason", self.source)
+
     def test_the_measured_pair_is_served_before_the_range(self):
         self.assertIn("function measuredFromQuote(quote)", self.source)
         self.assertIn("const measured = measuredFromQuote(quote);", self.source)

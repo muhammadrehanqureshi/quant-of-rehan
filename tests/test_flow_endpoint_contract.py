@@ -60,7 +60,9 @@ class FlowEndpointContractTest(unittest.TestCase):
 
     def test_every_row_carries_the_full_flow_and_its_unclassified_part(self):
         for field in ("buy_volume", "sell_volume", "classified_volume",
-                      "unclassified_volume", "flow_complete",
+                      "unclassified_volume", "flow_baseline_at",
+                      "flow_first_seen_at", "flow_baseline_reason",
+                      "flow_complete",
                       "buy_share_pct", "sell_share_pct", "bid", "ask",
                       "spread", "observed_at", "age_seconds",
                       "tick_age_seconds", "fresh"):

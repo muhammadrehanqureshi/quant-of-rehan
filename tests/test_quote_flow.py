@@ -5,9 +5,12 @@ import unittest
 from src.data import quote_flow
 
 
-def row(price, bid, ask, volume, symbol="PRL"):
-    return {"symbol": symbol, "price": price, "bid": bid, "ask": ask,
-            "volume": volume}
+def row(price, bid, ask, volume, symbol="PRL", observed_at=None):
+    quote = {"symbol": symbol, "price": price, "bid": bid, "ask": ask,
+             "volume": volume}
+    if observed_at is not None:
+        quote["observed_at"] = observed_at
+    return quote
 
 
 class QuoteFlowTest(unittest.TestCase):
@@ -19,7 +22,54 @@ class QuoteFlowTest(unittest.TestCase):
         self.assertEqual(quote["buy_volume"], 0)
         self.assertEqual(quote["sell_volume"], 0)
         self.assertEqual(quote["flow_baseline"], 1000)
+        self.assertEqual(quote["flow_baseline_reason"],
+                         "first_seen_nonzero")
         self.assertEqual(quote["split_method"], "quote_rule")
+
+    def test_a_zero_volume_frame_with_no_print_is_the_zero_baseline(self):
+        """The pre-open frame has no last print yet, but its zero total is
+        real evidence. It must reach the flow, or the first auction frame
+        becomes an unclear baseline instead."""
+        quote = self.flow.observe({
+            "symbol": "KEL", "price": 0, "bid": 6.10, "ask": 6.20,
+            "volume": 0, "observed_at": "2026-11-05T08:55:00+05:00"})
+        self.assertEqual(quote["flow_baseline"], 0)
+        self.assertEqual(quote["flow_baseline_reason"], "zero_baseline")
+        self.assertEqual(quote["flow_first_seen_at"],
+                         "2026-11-05T08:55:00+05:00")
+        self.assertEqual(quote["buy_volume"], 0)
+        self.assertEqual(quote["sell_volume"], 0)
+        quote = self.flow.observe({
+            "symbol": "KEL", "price": 6.20, "bid": 6.10, "ask": 6.20,
+            "volume": 7_000_000, "observed_at": "2026-11-05T09:15:00+05:00"})
+        self.assertEqual(quote["flow_baseline"], 0)
+        self.assertEqual(quote["buy_volume"], 7_000_000)
+        self.assertEqual(quote["sell_volume"], 0)
+
+    def test_the_preopen_gate_seeds_unseen_symbols_at_zero(self):
+        seeded = self.flow.seed_preopen(
+            ["KEL", "OGDC"], "2026-11-05T08:55:00+05:00")
+        self.assertEqual(seeded, 2)
+        quote = self.flow.observe({
+            "symbol": "KEL", "price": 6.20, "bid": 6.10, "ask": 6.20,
+            "volume": 7_000_000, "observed_at": "2026-11-05T09:15:00+05:00"})
+        self.assertEqual(quote["flow_baseline"], 0)
+        self.assertEqual(quote["flow_baseline_reason"],
+                         "preopen_zero_seed")
+        self.assertEqual(quote["buy_volume"], 7_000_000)
+        self.assertEqual(self.flow.seed_preopen(
+            ["KEL"], "2026-11-05T09:20:00+05:00"), 0)
+
+    def test_a_non_zero_first_frame_is_marked_not_sided(self):
+        quote = self.flow.observe({
+            "symbol": "KEL", "price": 6.15, "bid": 6.10, "ask": 6.20,
+            "volume": 7_000_000,
+            "observed_at": "2026-11-05T09:15:00+05:00"})
+        self.assertEqual(quote["buy_volume"], 0)
+        self.assertEqual(quote["sell_volume"], 0)
+        self.assertEqual(quote["flow_baseline"], 7_000_000)
+        self.assertEqual(quote["flow_baseline_reason"],
+                         "first_seen_nonzero")
 
     def test_the_capture_stamps_the_hubs_own_names_too(self):
         """A newly started hub can adopt the capture's observed pair."""
@@ -114,6 +164,7 @@ class QuoteFlowTest(unittest.TestCase):
         self.assertEqual(quote["buy_volume"], 700)
         self.assertEqual(quote["sell_volume"], 150)
         self.assertEqual(quote["flow_baseline"], 250)
+        self.assertEqual(quote["flow_baseline_reason"], "seed")
         self.assertEqual(quote["buy_volume"] + quote["sell_volume"]
                          + quote["flow_baseline"], 1100)
 

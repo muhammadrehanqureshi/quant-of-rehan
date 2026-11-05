@@ -105,11 +105,19 @@ shrinks the universe to only the symbols that happened to trade.
 The split law is the one in `src/data/quote_flow.py`, running inside the
 `QuoteHub` Durable Object. The capture starts before the open and stamps its
 own observed pair on every quote, so a hub that starts later adopts that pair
-instead of assigning shares it never saw. A capture process that restarts
-mid-session seeds its flow from the relay's same-day `/flow` pair before it
-pushes, so the afternoon band continues the morning instead of re-baselining
-it. If the capture itself started late, the missed shares stay in
-`unclassified_volume`; they are never called buy or sell.
+instead of assigning shares it never saw. The capture carries a zero-volume
+pre-open frame into the flow even when the wire has no last print yet; that
+frame is the zero baseline, so the first auction increment is sided instead
+of becoming an unclear prefix. Symbols the feed did not publish are seeded
+at zero at the 08:55 gate and stamped `preopen_zero_seed`; that seed is an
+explicit gate, never a trade. A non-zero total with no usable price is
+carried as flow-only, so it stays in the baseline and is never published. A
+capture process that restarts mid-session
+retries the relay's same-day `/flow` pair and does not start publishing if no
+seed is adopted. If the capture itself started late, the missed shares stay in
+`unclassified_volume`; they are never called buy or sell. `/flow` rows carry
+`flow_baseline_at`, `flow_first_seen_at` and `flow_baseline_reason` so a
+remaining baseline can be traced to its first frame.
 
 `age_seconds` is the age of the frame the relay holds, so it answers "is the
 feed pushing now". `tick_age_seconds` is the age of the exchange's last print
