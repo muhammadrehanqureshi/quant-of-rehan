@@ -1019,9 +1019,21 @@ def run_finalize(capture: Path | None = None,
         outcome_label = "TARGET_HIT"
         gross_return = state.return_pct
     elif state.entry_price and quality.status == scanner.DATA_BLOCKED:
-        # An open paper position that cannot be valued from real bars is never
-        # given a made-up return. It is labelled UNVERIFIABLE instead.
-        outcome_label = "UNVERIFIABLE"
+        # Owner order 2026-11-05 ("always update the signal at the end of
+        # the day whether it's winning or losing"): the day's open trade
+        # still banks its W or L even when the tape's quality screen is
+        # blocked. The valuation falls back to the exchange's published
+        # session close (see exchange_close_price): a refused download or
+        # an absent symbol keeps the position UNVERIFIABLE. The quality
+        # gate itself stays blocked - a blocked day never earns a research
+        # session - but the trade's own record carries its real close.
+        valued_close, close_source = exchange_close_price(day, state.symbol)
+        if valued_close is not None:
+            final = valued_close
+            gross_return = round(final / state.entry_price - 1.0, 6)
+            outcome_label = "CLOSED_AT_SESSION_END"
+        else:
+            outcome_label = "UNVERIFIABLE"
     elif state.entry_price:
         final = session_close_price(session, state.symbol)
         close_source = "the session tape's own closing bar"
