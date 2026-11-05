@@ -550,8 +550,8 @@ class SettingsControlTest(unittest.TestCase):
         scrip's own four part answer.
         """
         self.assertIn("line.setText(flowRowText(row));", self.main)
-        self.assertIn('\"  B %,.2f\"', self.main)
-        self.assertIn('\"  A %,.2f\"', self.main)
+        self.assertIn('\"  BID %,.2f\"', self.main)
+        self.assertIn('\"  ASK %,.2f\"', self.main)
         self.assertIn('\"  T %,d\"', self.main)
         # The numbers travel from the relay's rows, which carry bid and
         # ask; the Watcher parses both beside the price and the volume.
