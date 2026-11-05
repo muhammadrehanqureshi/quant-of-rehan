@@ -26,7 +26,7 @@
     <!-- The stem: out of the top ledger's bottom edge. -->
     <path
         android:fillColor="#00000000"
-        android:pathData="M250,158 L250,214"
+        android:pathData="M250,164 L250,214"
         android:strokeColor="#FF000000"
         android:strokeWidth="26"
         android:strokeLineCap="round"
@@ -36,7 +36,7 @@
          left ledger's top edge. -->
     <path
         android:fillColor="#00000000"
-        android:pathData="M250,214 C250,246 236,258 204,258 L162,258 C136,258 122,274 122,300 L122,330"
+        android:pathData="M250,214 C250,246 236,258 204,258 L162,258 C136,258 122,274 122,300 L122,318"
         android:strokeColor="#FF000000"
         android:strokeWidth="26"
         android:strokeLineCap="round"
@@ -45,7 +45,7 @@
     <!-- The right arm, the same shape mirrored. -->
     <path
         android:fillColor="#00000000"
-        android:pathData="M250,214 C250,246 264,258 296,258 L338,258 C364,258 378,274 378,300 L378,330"
+        android:pathData="M250,214 C250,246 264,258 296,258 L338,258 C364,258 378,274 378,300 L378,318"
         android:strokeColor="#FF000000"
         android:strokeWidth="26"
         android:strokeLineCap="round"

@@ -9,8 +9,8 @@ import java.util.regex.Pattern;
  * The relay's card is a text block written for a person: a
  * "QoR intraday <date> · <time> PKT" header, then either labelled fields or a
  * sentence, then the rule narration ("one trade already taken today; no
- * further entry is possible; ..."). The tile carries the ticker, the entry
- * time, three labelled prices and the cloud MTF line, or one state word:
+ * further entry is possible; ..."). The tile carries the ticker, the pick's
+ * score, the entry time and three labelled prices, or one state word:
  *
  *   QoR intraday 2026-10-16 · 16:29:30 PKT
  *   One trade already taken today: HCAR entered at 203.0, target 207.06.
@@ -19,7 +19,9 @@ import java.util.regex.Pattern;
  *   Entry price: 203.0
  *   Target price: 207.06
  *   Stop Loss: 199.5
- *   MTF 5m +1 above VWAP | 15m +1 above VWAP | 1h +1 above VWAP | 1D +1 above VWAP
+ *
+ * Owner order 2026-11-05, eighth pass: the cloud's four-frame line left the
+ * tile, and the score of the pick now sits under the ticker.
  *
  * No Android imports: the parsing is exercised on the JVM by
  * tests/test_android_signal_text.py against those exact inputs, so a new card
@@ -41,10 +43,9 @@ final class SignalText {
      *
      * A card opens with the session it was written for, so the first
      * yyyy-MM-dd in the text is that session. Reading a date is not printing
-     * one: the tile still shows the ticker, the entry time and three prices,
-     * and this parser
-     * names no header wording of its own, so the copy can change without
-     * leaving a second spelling of it in the code.
+     * one: the tile still shows the ticker, the score, the entry time and
+     * three prices, and this parser names no header wording of its own, so
+     * the copy can change without leaving a second spelling of it in the code.
      */
     private static final Pattern CARD_DATE =
             Pattern.compile("\\b(\\d{4}-\\d{2}-\\d{2})\\b");
@@ -53,15 +54,16 @@ final class SignalText {
             Pattern.compile("\\bentry\\s*time\\s*:\\s*"
                     + "([0-9]{1,2}:[0-9]{2}(?::[0-9]{2})?)",
                     Pattern.CASE_INSENSITIVE);
+    /** The pick's own score, on a labelled line or inside the sentence. */
+    private static final Pattern SCORE =
+            Pattern.compile("\\bscore\\s*:?\\s*(-?[0-9]+(?:\\.[0-9]+)?)",
+                    Pattern.CASE_INSENSITIVE);
     private static final Pattern TARGET =
             Pattern.compile("\\btarget\\s+(-?[0-9]+(?:\\.[0-9]+)?)",
                     Pattern.CASE_INSENSITIVE);
     private static final Pattern STOP =
             Pattern.compile("\\b(?:stop\\s*loss|stop|sl)\\b\\s*(?:at\\s+)?"
                     + "(-?[0-9]+(?:\\.[0-9]+)?)", Pattern.CASE_INSENSITIVE);
-    /** The cloud's four-frame line, kept verbatim and never reinterpreted. */
-    private static final Pattern MTF =
-            Pattern.compile("(?m)^(MTF .*)$");
 
     private SignalText() {
     }
@@ -79,7 +81,7 @@ final class SignalText {
         return m.find() ? m.group(1) : "";
     }
 
-    /** The ticker, entry time and three prices, else one state word. */
+    /** The ticker, score, entry time and three prices, else one state word. */
     static String compact(String raw) {
         return compact(raw, null);
     }
@@ -100,9 +102,9 @@ final class SignalText {
         if (text.isEmpty()) {
             return UNAVAILABLE;
         }
-        String mtf = mtfLine(text);
 
         String symbol = null;
+        String score = null;
         String entryStamp = null;
         String entry = null;
         String exit = null;
@@ -111,6 +113,8 @@ final class SignalText {
             String value;
             if ((value = afterLabel(line, "Symbol:")) != null) {
                 symbol = symbolName(value);
+            } else if ((value = afterLabel(line, "Score:")) != null) {
+                score = leadingNumber(value);
             } else if ((value = afterLabel(line, "Entry price:")) != null) {
                 entry = value;
             } else if ((value = afterLabel(line, "Exit price:")) != null) {
@@ -130,6 +134,12 @@ final class SignalText {
                 if (numeric != null) {
                     exit = numeric;
                 }
+            }
+        }
+        if (score == null) {
+            Matcher scored = SCORE.matcher(text);
+            if (scored.find()) {
+                score = scored.group(1);
             }
         }
         entryStamp = entryTime(text);
@@ -160,20 +170,14 @@ final class SignalText {
         if (symbol != null) {
             out.append(symbol).append('\n');
         }
+        // Owner order 2026-11-05, eighth pass: the score sits directly under
+        // the stock's name, above the execution numbers.
+        out.append("Score: ").append(orNotReported(score)).append('\n');
         out.append("Entry Time: ").append(orNotReported(entryStamp))
                 .append('\n').append("Entry Price: ").append(orNotReported(entry))
                 .append('\n').append("Target Price: ").append(orNotReported(exit))
                 .append('\n').append("Stop Loss: ").append(orNotReported(stop));
-        if (mtf != null) {
-            out.append('\n').append(mtf);
-        }
         return out.toString();
-    }
-
-    /** The four frame line the cloud sent, or null when it sent none. */
-    private static String mtfLine(String raw) {
-        Matcher m = MTF.matcher(raw);
-        return m.find() ? m.group(1).trim() : null;
     }
 
     /** The trade's own entry stamp, or null when the card carries none. */
@@ -198,6 +202,18 @@ final class SignalText {
         String trimmed = value.trim();
         return trimmed.isEmpty() || "null".equalsIgnoreCase(trimmed)
                 || "undefined".equalsIgnoreCase(trimmed) ? null : trimmed;
+    }
+
+    private static String leadingNumber(String value) {
+        String known = known(value);
+        if (known == null) return null;
+        String first = known.split("\\s+", 2)[0];
+        try {
+            double number = Double.parseDouble(first);
+            return Double.isNaN(number) || Double.isInfinite(number) ? null : first;
+        } catch (NumberFormatException invalid) {
+            return null;
+        }
     }
 
     private static String leadingPrice(String value) {

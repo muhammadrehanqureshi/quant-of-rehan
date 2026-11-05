@@ -124,6 +124,8 @@
     <string name="order_flow_pick">Search a scrip above to see its order flow.</string>
     <string name="order_flow_none">No KMIALL scrip starts with that.</string>
     <string name="big_prints_none">No big print yet today.</string>
+    <string name="big_prints_hint">Search a scrip</string>
+    <string name="big_prints_none_match">No big print for that scrip today.</string>
     <string name="cd_order_flow">Order flow</string>
     <string name="market_open_notification">Market is open. Quant is online now.</string>
     <string name="market_closed_notification">Market is closed. Quant is sleeping now.</string>

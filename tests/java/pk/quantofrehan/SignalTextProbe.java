@@ -24,7 +24,7 @@ public final class SignalTextProbe {
     public static void main(String[] args) {
         fieldCard();
         sentenceCard();
-        mtfCard();
+        scoreCard();
         noTradeCard();
         missingCard();
         summaryTargetIsNotAPrice();
@@ -45,15 +45,17 @@ public final class SignalTextProbe {
     private static void fieldCard() {
         String card = "QoR intraday 2026-10-19 \u00b7 11:14:02 PKT\n"
                 + "Symbol: HCAR\n"
+                + "Score: 89.1\n"
                 + "Entry price: 203.0\n"
                 + "Exit price: 207.06\n"
                 + "Stop Loss: 199.5\n"
                 + "Entry time: 09:41:07 PKT\n"
                 + "One trade already taken today; no further entry is possible.";
         String out = SignalText.compact(card);
-        check("the field card keeps its ticker, entry time and three prices",
-                out.equals("HCAR\nEntry Time: 09:41:07\nEntry Price: 203.0\n"
-                        + "Target Price: 207.06\nStop Loss: 199.5"));
+        check("the field card keeps its score, ticker, entry time and prices",
+                out.equals("HCAR\nScore: 89.1\nEntry Time: 09:41:07\n"
+                        + "Entry Price: 203.0\nTarget Price: 207.06\n"
+                        + "Stop Loss: 199.5"));
     }
 
     /** The sentence form the daily-locked path writes. */
@@ -64,24 +66,25 @@ public final class SignalTextProbe {
                 + "position being monitored.";
         String out = SignalText.compact(card);
         check("the sentence card yields the ticker, time and three prices",
-                out.equals("HCAR\nEntry Time: 09:41:07\nEntry Price: 203.0\n"
-                        + "Target Price: 207.06\nStop Loss: 199.5"));
+                out.equals("HCAR\nScore: Not reported\nEntry Time: 09:41:07\n"
+                        + "Entry Price: 203.0\nTarget Price: 207.06\n"
+                        + "Stop Loss: 199.5"));
     }
 
-    /** The cloud's four frame line survives the compact tile unchanged. */
-    private static void mtfCard() {
+    /** The score is printed and every MTF word is gone (2026-11-05). */
+    private static void scoreCard() {
         String card = "QoR intraday 2026-11-03 | 14:30:00 PKT\n"
                 + "Symbol: HCAR\n"
+                + "Score: 89.1\n"
                 + "Entry price: 203.0\n"
                 + "Exit price: 207.06\n"
                 + "Stop Loss: 199.5\n"
                 + "Entry time: 09:41:07 PKT\n"
-                + "MTF 5m +1 above VWAP | 15m +1 above VWAP | "
-                + "1h +1 above VWAP | 1D +1 above VWAP";
+                + "MTF 5m +1 above VWAP | 15m +1 above VWAP";
         String out = SignalText.compact(card);
-        check("the cloud MTF line stays on the tile",
-                out.endsWith("\nMTF 5m +1 above VWAP | 15m +1 above VWAP | "
-                        + "1h +1 above VWAP | 1D +1 above VWAP"));
+        check("the score sits under the ticker and the MTF line is gone",
+                out.startsWith("HCAR\nScore: 89.1\n")
+                        && !out.contains("MTF") && !out.contains("VWAP"));
     }
 
     /** A market where the rules refused every candidate is one word. */
@@ -112,8 +115,9 @@ public final class SignalTextProbe {
                 + "Target: the momentum rule needs three closes above the gate";
         String out = SignalText.compact(card);
         check("a prose target does not become an exit price",
-                out.equals("Entry Time: Not reported\nEntry Price: 203.0\n"
-                        + "Target Price: Not reported\nStop Loss: Not reported"));
+                out.equals("Score: Not reported\nEntry Time: Not reported\n"
+                        + "Entry Price: 203.0\nTarget Price: Not reported\n"
+                        + "Stop Loss: Not reported"));
         check("the prose itself is not echoed", !out.contains("momentum"));
     }
 

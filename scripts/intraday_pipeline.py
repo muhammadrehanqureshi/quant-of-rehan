@@ -921,6 +921,10 @@ def run_scan(slot: str, capture: Path | None = None,
                 f"{state.entry_price}, target {state.target_price}, "
                 f"stop loss {state.stop_loss}. {entry_clock}"
                 f"{state.last_reason or 'position being monitored'}.")
+            # Owner order 2026-11-05, eighth pass: the tile prints the score
+            # of the pick under its name, so the daily-lock card carries it.
+            if state.entry_score is not None:
+                card_body = f"{card_body}\nScore: {state.entry_score:.2f}"
             mtf_text = mtf_summary(observed)
             if mtf_text:
                 card_body = f"{card_body}\n{mtf_text}"
