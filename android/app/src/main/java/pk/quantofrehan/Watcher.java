@@ -44,6 +44,13 @@ public final class Watcher {
     // cadence, so the foreground display poll and the scan now share one
     // number. This class still only reads the relay: it never scans.
     static final long FAST_POLL_MS = 1000;
+    /** Owner order 2026-11-05 (seventh pass, the relay's daily Durable
+     *  Object budget): the status and signal read rides every fifth tick
+     *  while the card keeps its one-second read, so the relay serves one
+     *  request per tick for the card alone. */
+    static final long HEAD_GAP_MS = 5000;
+    private static Head lastHead;
+    private static long lastHeadAt;
 
     /**
      * One relay answer, before the market card is asked for.
@@ -572,10 +579,11 @@ public final class Watcher {
     static void fetchLive(final Context c, final Callback cb) {
         POOL.execute(() -> {
             String base = relayUrl(c);
-            Future<Head> headJob = null;
+            long nowMs = System.currentTimeMillis();
+            boolean headDue = lastHead == null || nowMs - lastHeadAt >= HEAD_GAP_MS;
+            Future<Head> headJob = headDue ? HEALTH_POOL.submit(() -> fetchHead(c, base)) : null;
             Future<Market> marketJob = null;
             try {
-                headJob = HEALTH_POOL.submit(() -> fetchHead(c, base));
                 marketJob = CARD_POOL.submit(() -> fetchMarket(c, base));
                 // The relay already merges the live quote hub into /market
                 // (applyLiveQuotes in cloud/worker.js), so one answer carries
@@ -587,7 +595,14 @@ public final class Watcher {
                 // The health read is now RACED against this one rather than
                 // queued behind it, so a tick costs one round trip, not two
                 // stacked ones.
-                Head head = headJob.get(9, TimeUnit.SECONDS);
+                Head head;
+                if (headDue) {
+                    head = headJob.get(9, TimeUnit.SECONDS);
+                    lastHead = head;
+                    lastHeadAt = System.currentTimeMillis();
+                } else {
+                    head = lastHead;
+                }
                 Market market = marketJob.get(9, TimeUnit.SECONDS);
                 cb.done(head.online(), head.reachable, head.detail,
                         head.signals, market);
