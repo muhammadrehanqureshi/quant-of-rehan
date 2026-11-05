@@ -1,104 +1,71 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Owner order 2026-11-05 (fifth pass, "it's not as the picture uploaded.
-     Have that same icon"): his picture, path for path, in one black ink so
-     the nav's own tint (setNavPage paints every icon from the theme's
-     accent pair, and the layout carries android:tint="@color/gold" for the
-     resting state) recolors it with every theme. A vector, not a raster
-     trace: the drawing is stroke art, and a bitmap lost its proportions.
-       three ledgers:      top, middle and bottom rounded rectangles
-       top ledger:         a dot above it and a dash inside
-       middle ledger:      a dash and a dot inside
-       bottom ledger:      a dash inside
-       left loop:          from the top ledger down into the middle one
-       right loop:         from the middle ledger down into the bottom one
-       top right arrow:    straight, pointing left at the top ledger
-       bottom left arrow:  straight, pointing left away from the bottom one
--->
+<!-- Owner order 2026-11-05, sixth pass: the owner's new picture, path for
+     path. One ledger on top, a stem that splits into two arms and two
+     ledgers below, drawn in one ink so the nav's own tint recolors it with
+     the worn theme and it stays crisp at any density.
+
+     The three squares are rounded rectangles, each a closed stroke; the
+     stem and the two arms are separate strokes that end inside the
+     squares' own top and bottom edges, so the ink joins without a seam
+     and no cap is ever drawn outside the outer outline. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="48dp"
-    android:height="48dp"
+    android:width="500dp"
+    android:height="500dp"
     android:viewportWidth="500"
     android:viewportHeight="500">
 
-    <!-- The dot above the top ledger. -->
+    <!-- The top ledger. -->
     <path
-        android:pathData="M246,14 A9,9 0 1 1 264,14 A9,9 0 1 1 246,14 Z"
-        android:fillColor="#FF000000"/>
-
-    <!-- Top ledger. -->
-    <path
-        android:pathData="M178,28 L332,28 A28,28 0 0 1 360,56 L360,115 A28,28 0 0 1 332,143 L178,143 A28,28 0 0 1 150,115 L150,56 A28,28 0 0 1 178,28 Z"
         android:fillColor="#00000000"
+        android:pathData="M212,30 L288,30 A34,34 0 0 1 322,64 L322,130 A34,34 0 0 1 288,164 L212,164 A34,34 0 0 1 178,130 L178,64 A34,34 0 0 1 212,30 Z"
         android:strokeColor="#FF000000"
-        android:strokeWidth="22"
+        android:strokeWidth="26"
         android:strokeLineCap="round"
         android:strokeLineJoin="round"/>
 
-    <!-- Middle ledger. -->
+    <!-- The stem: out of the top ledger's bottom edge. -->
     <path
-        android:pathData="M178,183 L332,183 A28,28 0 0 1 360,211 L360,270 A28,28 0 0 1 332,298 L178,298 A28,28 0 0 1 150,270 L150,211 A28,28 0 0 1 178,183 Z"
         android:fillColor="#00000000"
+        android:pathData="M250,158 L250,214"
         android:strokeColor="#FF000000"
-        android:strokeWidth="22"
+        android:strokeWidth="26"
         android:strokeLineCap="round"
         android:strokeLineJoin="round"/>
 
-    <!-- Bottom ledger. -->
+    <!-- The left arm: out of the stem's foot, across, and down into the
+         left ledger's top edge. -->
     <path
-        android:pathData="M178,338 L332,338 A28,28 0 0 1 360,366 L360,425 A28,28 0 0 1 332,453 L178,453 A28,28 0 0 1 150,425 L150,366 A28,28 0 0 1 178,338 Z"
         android:fillColor="#00000000"
+        android:pathData="M250,214 C250,246 236,258 204,258 L162,258 C136,258 122,274 122,300 L122,330"
         android:strokeColor="#FF000000"
-        android:strokeWidth="22"
+        android:strokeWidth="26"
         android:strokeLineCap="round"
         android:strokeLineJoin="round"/>
 
-    <!-- The dashes, and the middle ledger's own dot. -->
+    <!-- The right arm, the same shape mirrored. -->
     <path
-        android:pathData="M188,86 L322,86 M188,240 L266,240 M188,395 L322,395"
         android:fillColor="#00000000"
+        android:pathData="M250,214 C250,246 264,258 296,258 L338,258 C364,258 378,274 378,300 L378,330"
         android:strokeColor="#FF000000"
-        android:strokeWidth="20"
-        android:strokeLineCap="round"/>
-
-    <path
-        android:pathData="M293,240 A9,9 0 1 1 311,240 A9,9 0 1 1 293,240 Z"
-        android:fillColor="#FF000000"/>
-
-    <!-- The left loop: top ledger down into the middle ledger, arrow at the
-         middle ledger's left edge. -->
-    <path
-        android:pathData="M150,86 C50,86 50,240 116,240 M88,212 L116,240 L88,268"
-        android:fillColor="#00000000"
-        android:strokeColor="#FF000000"
-        android:strokeWidth="22"
+        android:strokeWidth="26"
         android:strokeLineCap="round"
         android:strokeLineJoin="round"/>
 
-    <!-- The right loop: middle ledger down into the bottom ledger, arrow at
-         the bottom ledger's right edge. -->
+    <!-- The left ledger. -->
     <path
-        android:pathData="M360,240 C460,240 460,396 396,396 M424,368 L396,396 L424,424"
         android:fillColor="#00000000"
+        android:pathData="M54,318 L142,318 A30,30 0 0 1 172,348 L172,440 A30,30 0 0 1 142,470 L54,470 A30,30 0 0 1 24,440 L24,348 A30,30 0 0 1 54,318 Z"
         android:strokeColor="#FF000000"
-        android:strokeWidth="22"
+        android:strokeWidth="26"
         android:strokeLineCap="round"
         android:strokeLineJoin="round"/>
 
-    <!-- The top right arrow, pointing left at the top ledger. -->
+    <!-- The right ledger. -->
     <path
-        android:pathData="M488,70 L438,70 M410,42 L438,70 L410,98"
         android:fillColor="#00000000"
+        android:pathData="M358,318 L446,318 A30,30 0 0 1 476,348 L476,440 A30,30 0 0 1 446,470 L358,470 A30,30 0 0 1 328,440 L328,348 A30,30 0 0 1 358,318 Z"
         android:strokeColor="#FF000000"
-        android:strokeWidth="22"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"/>
-
-    <!-- The bottom left arrow, pointing left away from the bottom ledger. -->
-    <path
-        android:pathData="M128,396 L68,396 M40,368 L68,396 L40,424"
-        android:fillColor="#00000000"
-        android:strokeColor="#FF000000"
-        android:strokeWidth="22"
+        android:strokeWidth="26"
         android:strokeLineCap="round"
         android:strokeLineJoin="round"/>
 </vector>
