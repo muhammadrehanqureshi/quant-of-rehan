@@ -348,6 +348,23 @@ def relay_quote_updates(record: dict) -> dict:
     return update
 
 
+def seed_day_flow(flow, payload, today: str) -> int:
+    """Adopt the relay's same-day pair into a fresh capture flow.
+
+    Owner order 2026-11-05: every band starts a new capture process. Without
+    this seed each symbol's first running total becomes a fresh baseline, and
+    a hub that adopts that pair reports the morning's whole volume as
+    unclear. Only the relay's own day is adopted: a payload from yesterday's
+    close is refused, because carrying it into today would put yesterday's
+    buy and sell on today's tape.
+    """
+    if not isinstance(payload, dict) or not payload.get("ok"):
+        return 0
+    if str(payload.get("day") or "") != today:
+        return 0
+    return flow.seed(payload.get("rows") or [])
+
+
 class RelayQuotePublisher:
     """Coalesce broker frames and push snapshots from cloud runners only."""
 
@@ -402,9 +419,39 @@ class RelayQuotePublisher:
         self._url = os.environ.get(
             "RELAY_URL", "https://quant-of-rehan-relay.mrmrehanqureshi.workers.dev"
         ).strip().rstrip("/")
+        self._seed_day_flow()
         self._thread = threading.Thread(
             target=self._run, name="cloud-relay-quote-publisher", daemon=True)
         self._thread.start()
+
+    def _seed_day_flow(self) -> int:
+        """Continue the day's pair across a capture restart.
+
+        The 12:30 band starts a new process. The relay's /flow is the day's
+        durable pair, so the new process adopts it instead of re-baselining
+        the morning's volume. The seed is best effort: a relay that cannot
+        answer leaves the process to start from its own first observation,
+        which reports the remainder as unclear rather than inventing a side.
+        """
+        try:
+            import requests
+
+            response = requests.get(
+                self._url + "/flow",
+                headers={"User-Agent": "Mozilla/5.0"},
+                timeout=(1.0, 3.0))
+            response.raise_for_status()
+            adopted = seed_day_flow(
+                self._flow, response.json(),
+                now_karachi().strftime("%Y-%m-%d"))
+            if adopted:
+                print(f"flow seed: continuing {adopted} symbol(s) from "
+                      f"the relay's same-day pair", flush=True)
+            return adopted
+        except Exception as exc:
+            print(f"flow seed skipped: {type(exc).__name__}",
+                  file=sys.stderr, flush=True)
+            return 0
 
     def observe(self, record: dict) -> None:
         if self._thread is None:
