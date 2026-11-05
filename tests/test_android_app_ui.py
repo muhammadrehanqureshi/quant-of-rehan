@@ -4745,8 +4745,10 @@ class UniversalRuleGapTest(unittest.TestCase):
         # gives the ORDER FLOW page a division of its own: TWELVE rules
         # now (seven on the home path, the THEMES tile's two, the search
         # page's own diamond, the ORDER FLOW page's bracket of two, and
-        # the volume pair's own).
-        self.assertEqual(len(rules), 12)
+        # the volume pair's own). Owner order 2026-11-04 (third pass): the
+        # pair under BIG BUYING & SELLING loses one and that one stands
+        # between the page's two tiles, so THIRTEEN rules now.
+        self.assertEqual(len(rules), 13)
         for rule in rules:
             with self.subTest(rule=rule.get(f"{ANDROID_NS}id")):
                 self.assertEqual(rule.get(f"{ANDROID_NS}layout_marginTop"),
