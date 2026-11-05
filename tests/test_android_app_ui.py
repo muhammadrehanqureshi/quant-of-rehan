@@ -725,8 +725,11 @@ class BrandRuleTest(unittest.TestCase):
         # one before QUANT STATUS, so the console carried ten of the one
         # include. Owner order 2026-11-04 (second pass): the ORDER FLOW
         # page owns a division of its own, bracketed above and below, so
-        # the console carries twelve.
-        self.assertEqual(self.layout.count('layout="@layout/qor_rule"'), 12)
+        # the console carried twelve. Owner order 2026-11-04 (third pass):
+        # the pair under BIG BUYING & SELLING loses one and that one
+        # stands between the ORDER FLOW and BIG BUYING & SELLING tiles,
+        # so the console carries thirteen.
+        self.assertEqual(self.layout.count('layout="@layout/qor_rule"'), 13)
 
     def test_the_rules_stand_between_the_tiles_and_never_inside_them(self):
         root = layout_root()
@@ -995,8 +998,11 @@ class CadencePlacementTest(unittest.TestCase):
         # made eight; owner order 2026-11-01 makes NINE - the same four
         # and the W/L tile's own seam rule above it. Owner order
         # 2026-11-04 (second pass) makes TWELVE: the ORDER FLOW page is a
-        # division of its own, bracketed above and below.
-        self.assertEqual(len(rules), 12)
+        # division of its own, bracketed above and below. Owner order
+        # 2026-11-04 (third pass): the seam between the page's two tiles
+        # carries the diamond that left the pair under BIG BUYING &
+        # SELLING, and the console carries THIRTEEN.
+        self.assertEqual(len(rules), 13)
         market_rule = next(
             rule for rule in rules
             if rule.get(f"{ANDROID_NS}id") == "@+id/rule_after_market")
@@ -1828,9 +1834,12 @@ class VersionTest(unittest.TestCase):
         # BLACK & WHITE): each themed plate is copied per view, the
         # diamond rules wear the second colour, versionCode 104.
         manifest = MANIFEST.read_text(encoding="utf-8")
-        # Owner order 2026-11-04: v4.0.0, the ORDER FLOW page.
-        self.assertIn('android:versionName="4.0.1"', manifest)
-        self.assertIn('android:versionCode="110"', manifest)
+        # Owner order 2026-11-04: v4.0.0, the ORDER FLOW page. v4.0.1 is
+        # the big prints relay side; v4.0.2 is the third-pass page:
+        # the seam between the two tiles, the pick line gone until a
+        # scrip is picked, the search box's own words.
+        self.assertIn('android:versionName="4.0.2"', manifest)
+        self.assertIn('android:versionCode="111"', manifest)
         self.assertNotIn('android:versionName="3.7.5"', manifest)
         self.assertNotIn('android:versionName="3.7.4"', manifest)
         self.assertNotIn('android:versionName="3.7.3"', manifest)
@@ -2032,8 +2041,11 @@ class VersionTest(unittest.TestCase):
         manifest = MANIFEST.read_text(encoding="utf-8")
         # v4.0.1 (owner order 2026-11-04, second pass): the ORDER FLOW page
         # rebuilt as a scrip search plus the big buying and selling tile.
-        self.assertIn('android:versionCode="110"', manifest)
-        self.assertIn('android:versionName="4.0.1"', manifest)
+        # v4.0.2 (owner order 2026-11-04, third pass): the page's seam
+        # between its two tiles, the pick line gone until a scrip is
+        # picked, and the search box's own words.
+        self.assertIn('android:versionCode="111"', manifest)
+        self.assertIn('android:versionName="4.0.2"', manifest)
         self.assertNotIn('android:versionName="3.7.5"', manifest)
         self.assertNotIn('android:versionName="3.7.4"', manifest)
         self.assertNotIn('android:versionName="3.7.3"', manifest)

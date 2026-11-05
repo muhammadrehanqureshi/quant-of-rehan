@@ -120,7 +120,7 @@
     <string name="label_market">KSE100 INDEX &amp; THE TOP 3 SCRIPS OF VOL.</string>
     <string name="label_order_flow">ORDER FLOW</string>
     <string name="label_big_prints">BIG BUYING &amp; SELLING</string>
-    <string name="order_flow_hint">Search a KMIALL scrip</string>
+    <string name="order_flow_hint">Search for a KMIALL scrip</string>
     <string name="order_flow_pick">Search a scrip above to see its order flow.</string>
     <string name="big_prints_none">No big print yet today.</string>
     <string name="cd_order_flow">Order flow</string>

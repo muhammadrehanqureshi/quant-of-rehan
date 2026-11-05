@@ -330,6 +330,7 @@ public class MainActivity extends Activity {
     private View orderFlowPanel;
     private View orderFlowRule;
     private View ruleAfterFlow;
+    private View ruleBetweenFlow;
     private EditText orderFlowInput;
     private LinearLayout orderFlowResults;
     private TextView orderFlowSelected;
@@ -524,6 +525,7 @@ public class MainActivity extends Activity {
         orderFlowPanel = findViewById(R.id.order_flow_panel);
         orderFlowRule = findViewById(R.id.rule_order_flow);
         ruleAfterFlow = findViewById(R.id.rule_after_flow);
+        ruleBetweenFlow = findViewById(R.id.rule_between_flow);
         orderFlowInput = findViewById(R.id.order_flow_input);
         orderFlowResults = findViewById(R.id.order_flow_results);
         orderFlowSelected = findViewById(R.id.order_flow_selected);
@@ -2772,11 +2774,16 @@ public class MainActivity extends Activity {
             ruleSearch.setVisibility(open ? View.GONE
                     : ruleSearch.getVisibility());
         }
-        // The page's own divisions: one diamond above the search tile and
-        // one below the big prints tile, so the division reads the way every
-        // other page's does (owner order 2026-11-04, second pass).
+        // The page's divisions: one diamond above the search tile, the one
+        // between the two tiles (owner order 2026-11-04, third pass: the
+        // pair that stood under BIG BUYING & SELLING loses one, and that
+        // one stands between the tiles), and one below the big prints
+        // tile, so the page closes under its own seam.
         if (orderFlowRule != null) {
             orderFlowRule.setVisibility(open ? View.VISIBLE : View.GONE);
+        }
+        if (ruleBetweenFlow != null) {
+            ruleBetweenFlow.setVisibility(open ? View.VISIBLE : View.GONE);
         }
         if (ruleAfterFlow != null) {
             ruleAfterFlow.setVisibility(open ? View.VISIBLE : View.GONE);
@@ -2798,11 +2805,13 @@ public class MainActivity extends Activity {
             if (orderFlowInput != null) {
                 orderFlowInput.setText("");
             }
-            if (orderFlowSelected != null) {
-                orderFlowSelected.setText(R.string.order_flow_pick);
-            }
             if (orderFlowResults != null) {
                 orderFlowResults.setVisibility(View.GONE);
+            }
+            if (orderFlowSelected != null) {
+                // Owner order 2026-11-04 (third pass): nothing stands under
+                // the search box until a scrip is picked.
+                orderFlowSelected.setVisibility(View.GONE);
             }
             refreshOrderFlow();
         }
@@ -2901,7 +2910,7 @@ public class MainActivity extends Activity {
             }
         }
         if (found == null) {
-            orderFlowSelected.setText(R.string.order_flow_pick);
+            orderFlowSelected.setVisibility(View.GONE);
             return;
         }
         SpannableStringBuilder sb = new SpannableStringBuilder();
@@ -2937,6 +2946,7 @@ public class MainActivity extends Activity {
         if (orderFlowResults != null) {
             orderFlowResults.setVisibility(View.GONE);
         }
+        orderFlowSelected.setVisibility(View.VISIBLE);
         orderFlowSelected.setText(sb);
     }
 
