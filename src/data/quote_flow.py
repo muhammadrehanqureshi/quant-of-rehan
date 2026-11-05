@@ -176,10 +176,11 @@ class QuoteFlow:
     def seed(self, rows) -> int:
         """Adopt the relay's own day pair so a restarted capture continues.
 
-        The cloud starts a capture process per cycle. Without a seed each
-        process would re-baseline at the current total and the day's pair
-        would restart from zero, which the relay's clamp would then have to
-        paper over. A row whose stored method is quote_rule carries the
+        The cloud starts a capture process per band, and
+        feed_capture.RelayQuotePublisher seeds from the relay's /flow when
+        that answer's day is Karachi today. Without it each process would
+        re-baseline at the current total and the day's pair would restart
+        from zero. A row whose stored method is quote_rule carries the
         wire-sided pair from the day so far, so it is adopted exactly; any
         other row seeds the total only, as an unattributed baseline that is
         counted but never sided.

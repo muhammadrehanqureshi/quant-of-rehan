@@ -28,7 +28,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from scripts.intraday_pipeline import load_kmiall  # noqa: E402
-from src.data import feed_capture  # noqa: E402
+from src.data import feed_capture, quote_flow  # noqa: E402
 
 
 class PublisherRetryCapTest(unittest.TestCase):
@@ -60,6 +60,60 @@ class PublisherRetryCapTest(unittest.TestCase):
         source = Path(feed_capture.__file__).read_text(encoding="utf-8")
         self.assertIn("session = requests.Session()", source)
         self.assertIn("session.post(", source)
+
+
+class CaptureFlowSeedTest(unittest.TestCase):
+    """Owner order 2026-11-05: a restarted capture continues the day.
+
+    The 12:30 band starts a new process while the hub already holds the
+    morning. Seeding from the relay's same-day pair keeps the day's buy and
+    sell moving; a previous day's pair must never become today's baseline.
+    """
+
+    ROWS = [{"symbol": "SAZEW", "volume": 270414, "buy_volume": 137493,
+             "sell_volume": 109942, "flow_baseline": 22979,
+             "split_method": "quote_rule"}]
+
+    def test_a_same_day_pair_is_adopted_whole(self):
+        flow = quote_flow.QuoteFlow()
+        adopted = feed_capture.seed_day_flow(
+            flow, {"ok": True, "day": "2026-11-05", "rows": self.ROWS},
+            "2026-11-05")
+        self.assertEqual(adopted, 1)
+        quote = flow.observe({"symbol": "SAZEW", "price": 1430.0,
+                              "bid": 1429.9, "ask": 1430.1,
+                              "volume": 270414})
+        self.assertEqual(quote["measured_buy"], 137493)
+        self.assertEqual(quote["measured_sell"], 109942)
+        self.assertEqual(quote["flow_baseline"], 22979)
+
+    def test_an_earlier_days_pair_is_refused(self):
+        flow = quote_flow.QuoteFlow()
+        adopted = feed_capture.seed_day_flow(
+            flow, {"ok": True, "day": "2026-11-04", "rows": self.ROWS},
+            "2026-11-05")
+        self.assertEqual(adopted, 0)
+        self.assertEqual(flow.symbols, {})
+        quote = flow.observe({"symbol": "SAZEW", "price": 1430.0,
+                              "bid": 1429.9, "ask": 1430.1,
+                              "volume": 270414})
+        self.assertEqual(quote["measured_buy"], 0)
+        self.assertEqual(quote["flow_baseline"], 270414)
+
+    def test_a_refused_answer_seeds_nothing(self):
+        flow = quote_flow.QuoteFlow()
+        self.assertEqual(feed_capture.seed_day_flow(
+            flow, {"ok": False, "day": "2026-11-05", "rows": self.ROWS},
+            "2026-11-05"), 0)
+        self.assertEqual(flow.symbols, {})
+
+    def test_the_publisher_seeds_before_it_starts_the_push_thread(self):
+        source = Path(feed_capture.__file__).read_text(encoding="utf-8")
+        init = source[source.index("class RelayQuotePublisher"):]
+        init = init[init.index("def __init__"):init.index("def observe")]
+        self.assertIn("self._seed_day_flow()", init)
+        self.assertLess(init.index("self._seed_day_flow()"),
+                        init.index("self._thread.start()"))
 
 
 class DefaultUniverseTest(unittest.TestCase):
