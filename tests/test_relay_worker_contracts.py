@@ -481,6 +481,29 @@ class RelayWorkerContractTest(unittest.TestCase):
         self.assertIn("this.lastFlowErrorSeen = 0;", self.source)
         self.assertIn("stamp - this.lastFlowErrorSeen >= 60000", self.source)
 
+    def test_the_poll_pillow_wakes_the_post_close_finalize(self):
+        """Owner order 2026-11-05 ("always update the signal at the end of
+        the day whether it's winning or losing"): the post-close finalize
+        windows (Mon-Thu 15:35 to 15:50, Friday 16:35 to 16:50) sit
+        OUTSIDE bandsFor, so the band pillow could never start one. With
+        GitHub's cron dropped, the day's open paper trade waited and its
+        W or L never landed - GLAXO 2026-11-04 is that defect. The same
+        pillow now covers the windows: a poll inside the window claims it
+        under the cron's own key, so every path names ONE dispatch for
+        the window, and a refused store read can never silence the
+        attempt.
+        """
+        self.assertIn("if (open < lastBandClose) continue;", self.source)
+        self.assertIn("const lastBandClose = (() => {", self.source)
+        self.assertIn("SCAN:DISPATCH:${dayStamp(k)}:${hmText(window[0])}",
+                      self.source)
+        self.assertIn("return await dispatchBandScan(env, now, window, \"poll\");",
+                      self.source)
+        # The claim checks answer on the error path too: a store that is
+        # refusing reads must not read as "claimed" forever.
+        self.assertIn("async function readOrNull(env, key)", self.source)
+        self.assertIn("const seen = await readOrNull(env, key);", self.source)
+
     def test_the_daily_row_budget_sums_below_the_free_plan(self):
         """Owner order 2026-11-05: the pinned ceilings must add up below
         Cloudflare's free-plan account cap of 100,000 rows written a day

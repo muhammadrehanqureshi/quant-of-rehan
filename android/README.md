@@ -1641,6 +1641,19 @@ to sixty seconds. The status tile therefore also carries the app's own
      the orphan law stands so every dot still wears a filament.
   5. The version bump is versionCode 82 / versionName 2.3.15.
 
+**Version 4.0.3, versionCode 112.**
+
+  Owner order 2026-11-05, fourth pass on the ORDER FLOW page. The file
+  he pasted is the icon, drawn to its own geometry and tinted by the
+  worn theme's accent the same way every nav icon is. The page gets NO
+  diamond after the BIG BUYING & SELLING tile: the extra one he read as
+  a second seam below the tile is gone. A search result row now IS the
+  live two-way book (bid, ask and total volume beside the ticker), and
+  the BIG BUYING & SELLING board carries every print the relay holds in
+  its own scrolling window, the complete day by scrolling.
+
+  The version bump is versionCode 112 / versionName 4.0.3.
+
 **Version 4.0.2, versionCode 111.**
 
   Owner order 2026-11-04, third pass on the ORDER FLOW page. The seam

@@ -491,7 +491,59 @@ async function ensureBandStart(env, now) {
     }
     return await dispatchBandScan(env, now, window, "poll");
   }
+  // Owner order 2026-11-05 ("always update the signal at the end of the
+  // day whether it's winning or losing"): the post-close finalize windows
+  // (Mon-Thu 15:35 to 15:50, Friday 16:35 to 16:50) sit OUTSIDE bandsFor,
+  // so the pillow above could never start one - the day's paper trade
+  // waited on GitHub's cron, and when GitHub drops schedules the day's W
+  // or L never lands (GLAXO 2026-11-04 is that defect). These windows get
+  // the same pillow as the bands: a poll inside the window claims it with
+  // the same key an edge cron writes, so every path names ONE dispatch
+  // for the window and the finalize can never run twice.
+  const lastBandClose = (() => {
+    const bands = bandsFor(k);
+    if (!bands.length) return null;
+    const last = bands[bands.length - 1][1];
+    return last[0] * 60 + last[1];
+  })();
+  if (lastBandClose !== null) {
+    for (const window of dispatchWindowsFor(k)) {
+      const open = window[0][0] * 60 + window[0][1];
+      if (open < lastBandClose) continue; // a band open edge: handled above
+      if (mins <= open || mins - open > BAND_START_POLL_WINDOW_MINUTES) {
+        continue;
+      }
+      const claimed = `SCAN:DISPATCH:${dayStamp(k)}:${hmText(window[0])}`;
+      if (await readOrNull(env, claimed)) {
+        return { dispatched: false, reason: "already dispatched" };
+      }
+      const cooldown = `SCAN:DISPATCH:TRY:${dayStamp(k)}:${hmText(window[0])}`;
+      if (await readOrNull(env, cooldown)) {
+        return { dispatched: false, reason: "cooldown" };
+      }
+      try {
+        await kvPut(env, cooldown, String(now.getTime()),
+          { expirationTtl: BAND_START_POLL_WINDOW_MINUTES * 60 });
+      } catch (_) {
+        // The cooldown is a courtesy; a failed write must not block a band.
+      }
+      return await dispatchBandScan(env, now, window, "poll");
+    }
+  }
   return { dispatched: false, reason: "no band open" };
+}
+
+// Owner order 2026-11-05: a dispatch never dies on a store read. The
+// claim checks must answer on the error path too - a refused read means
+// "unclaimed", and the dispatch attempt goes out as if the key were
+// free, because a dropped finalize is exactly the defect that left
+// GLAXO 2026-11-04 unbilled.
+async function readOrNull(env, key) {
+  try {
+    return await relayRead(env, key);
+  } catch (_) {
+    return null;
+  }
 }
 
 async function recordDispatch(env, note) {
@@ -515,7 +567,7 @@ async function dispatchBandScan(env, now, band = null, source = "cron") {
   }
 
   const key = `SCAN:DISPATCH:${dayStamp(k)}:${hmText(band[0])}`;
-  const seen = await relayRead(env, key);
+  const seen = await readOrNull(env, key);
   if (seen) return { dispatched: false, reason: "already dispatched" };
 
   const close = band[1][0] * 60 + band[1][1];
