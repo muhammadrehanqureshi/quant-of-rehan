@@ -512,7 +512,7 @@ class SettingsControlTest(unittest.TestCase):
         self.assertIn("requestDisallowInterceptTouchEvent(true)", self.main)
         self.assertIn("bigPrintsScroll.scrollTo(0, 0);", self.main)
         self.assertNotIn("BIG_PRINTS_SHOWN", self.main)
-        self.assertIn("owner order 2026-11-05: EVERY print the relay holds",
+        self.assertIn("Owner order 2026-11-05: EVERY print the relay holds",
                       self.main)
 
     def test_a_search_row_carries_the_live_book(self):
