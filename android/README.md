@@ -1641,6 +1641,16 @@ to sixty seconds. The status tile therefore also carries the app's own
      the orphan law stands so every dot still wears a filament.
   5. The version bump is versionCode 82 / versionName 2.3.15.
 
+**Version 4.0.12, versionCode 121.**
+
+  Owner order 2026-11-05, twelfth pass. B and S are served only when the
+  wire measured the pair. An increment with no bid, ask or tick evidence
+  stays in U, and an old range estimate is never served as a side. When
+  the relay has no measured pair the phone prints the known total as U
+  instead of hiding it or guessing a side.
+
+  The version bump is versionCode 121 / versionName 4.0.12.
+
 **Version 4.0.11, versionCode 120.**
 
   Owner order 2026-11-05, eleventh pass. A zero `U` is no longer printed;

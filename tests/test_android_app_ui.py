@@ -568,6 +568,22 @@ class SettingsControlTest(unittest.TestCase):
         self.assertIn('out.changePct = number(row, "change_pct");', watcher)
         self.assertIn("Double changePct;", watcher)
 
+    def test_a_row_without_a_measured_pair_prints_its_unclear_total(self):
+        """B/S null must not hide U: the known total is printed as U."""
+        watcher = (ROOT / "android" / "app" / "src" / "main" / "java"
+                   / "pk" / "quantofrehan" / "Watcher.java").read_text(
+            encoding="utf-8")
+        start = watcher.index("static void fetchStock")
+        body = watcher[start:start + 8000]
+        self.assertIn("else if (unclear != null && unclear > 0)", body)
+        self.assertIn('" (U=%,.0f"', body)
+        self.assertIn("else if (quote.unclassified != null && quote.unclassified > 0)",
+                      self.main)
+        self.assertIn("else if (row.unclassified != null && row.unclassified > 0)",
+                      self.main)
+        self.assertIn("row.unclassified != null && row.unclassified > 0",
+                      self.main)
+
     def test_the_big_prints_name_the_side_and_the_time(self):
         """Owner order 2026-11-05: a print leads with its side in the
         console's (B=...) bracket and closes with the time it traded."""
@@ -585,6 +601,9 @@ class SettingsControlTest(unittest.TestCase):
         self.assertIn('sb.append(" & S=");', selected)
         self.assertIn('" & U=%,d"', selected)
         self.assertIn("found.unclassified > 0", selected)
+        self.assertIn(
+            "else if (found.unclassified != null && found.unclassified > 0)",
+            selected)
         self.assertNotIn(", S=", selected)
         self.assertNotIn(", U=", selected)
         self.assertNotIn(", T=", selected)
@@ -1987,8 +2006,8 @@ class VersionTest(unittest.TestCase):
         # pass: his new ORDER FLOW picture, the bracketed top three, the
         # eight-print board with its visible bar, and the search-only
         # ORDER FLOW tile.
-        self.assertIn('android:versionName="4.0.11"', manifest)
-        self.assertIn('android:versionCode="120"', manifest)
+        self.assertIn('android:versionName="4.0.12"', manifest)
+        self.assertIn('android:versionCode="121"', manifest)
         self.assertNotIn('android:versionName="3.7.5"', manifest)
         self.assertNotIn('android:versionName="3.7.4"', manifest)
         self.assertNotIn('android:versionName="3.7.3"', manifest)
@@ -2198,8 +2217,8 @@ class VersionTest(unittest.TestCase):
         # rows; v4.0.5 (sixth pass) is his new ORDER FLOW picture, the
         # bracketed top three, the eight-print scrolling board with its
         # visible bar, and the search-only ORDER FLOW tile.
-        self.assertIn('android:versionCode="120"', manifest)
-        self.assertIn('android:versionName="4.0.11"', manifest)
+        self.assertIn('android:versionCode="121"', manifest)
+        self.assertIn('android:versionName="4.0.12"', manifest)
         self.assertNotIn('android:versionName="3.7.5"', manifest)
         self.assertNotIn('android:versionName="3.7.4"', manifest)
         self.assertNotIn('android:versionName="3.7.3"', manifest)

@@ -107,11 +107,15 @@ class QuoteFlowTest(unittest.TestCase):
         self.assertEqual(up["buy_volume"], 10)
         self.assertEqual(down["sell_volume"], 40)
 
-    def test_an_undecidable_increment_is_carried_and_counted(self):
+    def test_an_undecidable_increment_is_unclassified_and_visible(self):
         self.flow.observe(row(86.0, None, None, 1000))
         quote = self.flow.observe(row(86.0, None, None, 1030))
-        self.assertEqual(quote["flow_rules"].get("carried"), 1)
-        self.assertEqual(quote["buy_volume"] + quote["sell_volume"], 30)
+        self.assertEqual(quote["flow_rules"].get("undecidable"), 1)
+        self.assertEqual(quote["buy_volume"], 0)
+        self.assertEqual(quote["sell_volume"], 0)
+        self.assertEqual(quote["flow_baseline"], 1030)
+        self.assertEqual(quote["buy_volume"] + quote["sell_volume"]
+                         + quote["flow_baseline"], quote["volume"])
 
     def test_a_falling_total_is_a_reset_never_a_sale(self):
         self.flow.observe(row(86.0, 85.9, 86.0, 1000))
