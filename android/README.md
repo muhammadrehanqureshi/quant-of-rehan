@@ -1641,6 +1641,20 @@ to sixty seconds. The status tile therefore also carries the app's own
      the orphan law stands so every dot still wears a filament.
   5. The version bump is versionCode 82 / versionName 2.3.15.
 
+**Version 4.0.6, versionCode 115.**
+
+  Owner order 2026-11-05, seventh pass. The relay keeps its Durable Object
+  request budget. One phone tick used to cost five requests (snapshot, ACK
+  read, ACK write, market transition and the W/L row), so one phone plus
+  the one-second scanner reached the 100,000 a day free-tier limit by
+  mid-afternoon. The snapshot is now read at most once a second for every
+  route, the acknowledged rows for half a minute, the market transition
+  for twenty seconds and the W/L row for half a minute, and no read route
+  writes an ACK row any more. The phone's status and signal read rides
+  every fifth tick while the card keeps its one-second read.
+
+  The version bump is versionCode 115 / versionName 4.0.6.
+
 **Version 4.0.5, versionCode 114.**
 
   Owner order 2026-11-05, sixth pass. The ORDER FLOW icon is his new

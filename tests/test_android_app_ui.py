@@ -1545,6 +1545,12 @@ class StatusPulseTest(unittest.TestCase):
                       live)
         self.assertIn("Market market = marketJob.get(9, TimeUnit.SECONDS);", live)
         self.assertNotIn("applyLiveQuotes(market, base);", live)
+        # Owner order 2026-11-05 (seventh pass, the relay's daily Durable
+        # Object budget): the status and signal read rides every fifth tick,
+        # so one phone tick is one relay request for the card alone.
+        self.assertIn("static final long HEAD_GAP_MS = 5000;", watcher)
+        self.assertIn("headDue ? HEALTH_POOL.submit", live)
+        self.assertIn("head = lastHead;", live)
 
     def test_the_market_card_is_read_on_each_live_display_refresh(self):
         """The app polls the current relay card each second while open.
@@ -1562,7 +1568,7 @@ class StatusPulseTest(unittest.TestCase):
         # one second, open market or not (owner order 2026-10-23).
         self.assertNotIn("DISPLAY_REFRESH_MS", watcher)
         live = watcher.index("static void fetchLive(")
-        live_body = watcher[live:live + 1400]
+        live_body = watcher[live:live + 2000]
         self.assertIn("marketJob = CARD_POOL.submit(() -> fetchMarket(c, base));",
                       live_body)
         self.assertIn("head.signals, market);", live_body)
@@ -1948,8 +1954,8 @@ class VersionTest(unittest.TestCase):
         # pass: his new ORDER FLOW picture, the bracketed top three, the
         # eight-print board with its visible bar, and the search-only
         # ORDER FLOW tile.
-        self.assertIn('android:versionName="4.0.5"', manifest)
-        self.assertIn('android:versionCode="114"', manifest)
+        self.assertIn('android:versionName="4.0.6"', manifest)
+        self.assertIn('android:versionCode="115"', manifest)
         self.assertNotIn('android:versionName="3.7.5"', manifest)
         self.assertNotIn('android:versionName="3.7.4"', manifest)
         self.assertNotIn('android:versionName="3.7.3"', manifest)
@@ -2159,8 +2165,8 @@ class VersionTest(unittest.TestCase):
         # rows; v4.0.5 (sixth pass) is his new ORDER FLOW picture, the
         # bracketed top three, the eight-print scrolling board with its
         # visible bar, and the search-only ORDER FLOW tile.
-        self.assertIn('android:versionCode="114"', manifest)
-        self.assertIn('android:versionName="4.0.5"', manifest)
+        self.assertIn('android:versionCode="115"', manifest)
+        self.assertIn('android:versionName="4.0.6"', manifest)
         self.assertNotIn('android:versionName="3.7.5"', manifest)
         self.assertNotIn('android:versionName="3.7.4"', manifest)
         self.assertNotIn('android:versionName="3.7.3"', manifest)

@@ -57,6 +57,22 @@ const KARACHI_OFFSET_MIN = 5 * 60; // SO-8: UTC+5, fixed forever
 // so a change is never hidden behind a stale entry.
 const KV_MEMO_TTL_MS = 10000;
 const kvMemo = new Map();
+// Owner order 2026-11-05 (seventh pass, "for the last two days I have been
+// hitting limit almost 3 hours before the market closing, make sure
+// cloudflare doesn't ever hit it's daily limit"): Workers Free allows
+// 100,000 Durable Object requests a day. One phone tick used to cost five
+// of them (snapshot, ACK read, ACK write, transition, W/L), so one phone
+// and the one-second scanner reached the cap by mid afternoon. Every read
+// now shares a short memory of its own and no polled read route writes an
+// ACK row: a tick costs one snapshot read at most.
+const SNAPSHOT_MEMO_MS = 1000;
+const ACK_MEMO_MS = 30000;
+const TRANSITION_MEMO_MS = 20000;
+const WINLOSS_MEMO_MS = 30000;
+let snapshotMemo = { at: 0, value: null };
+let ackMemo = { day: "", at: 0, rows: null };
+let transitionMemo = { at: 0, value: null };
+let winLossMemo = { at: 0, value: null };
 const STATE_HUB_NAME = "psx-live-quotes";
 // The quote view and the relay's key-value state used to share one Durable
 // Object instance. A deployed class change does not restart an instance that
@@ -268,6 +284,13 @@ function winLossFromSessions(sessions) {
 const WINLOSS_CACHE_SECONDS = 300;
 
 async function winLossSnapshot(env) {
+  // Owner order 2026-11-05 (the daily Durable Object budget): the W/L row
+  // changes when a trade closes, not every second, so half a minute of
+  // memory keeps the per-poll state read off the budget entirely.
+  const stamp = Date.now();
+  if (winLossMemo.value && stamp - winLossMemo.at < WINLOSS_MEMO_MS) {
+    return winLossMemo.value;
+  }
   const cached = await relayRead(env, "RESEARCH:WINLOSS");
   if (cached) {
     try {
@@ -275,6 +298,7 @@ async function winLossSnapshot(env) {
       const at = Date.parse(String(row.computed_at || ""));
       if (Number.isFinite(at) &&
           Date.now() - at < WINLOSS_CACHE_SECONDS * 1000) {
+        winLossMemo = { at: stamp, value: row };
         return row;
       }
     } catch (_) { /* stale row: recompute */ }
@@ -302,6 +326,7 @@ async function winLossSnapshot(env) {
   };
   await kvPut(env, "RESEARCH:WINLOSS", JSON.stringify(row),
     { expirationTtl: WINLOSS_CACHE_SECONDS * 2 });
+  winLossMemo = { at: Date.now(), value: row };
   return row;
 }
 
@@ -920,10 +945,20 @@ function ackCandidateFrame(row, day) {
 // falls back to its own paths unchanged.
 async function ackRowsForDay(env, day) {
   if (!day) return null;
+  // The acknowledged map is a display mirror, not a live tick: half a
+  // minute of memory is enough for every ranking on the phone and keeps
+  // the read off the Durable Objects request budget (owner order
+  // 2026-11-05).
+  const stamp = Date.now();
+  if (ackMemo.day === day && stamp - ackMemo.at < ACK_MEMO_MS) {
+    return ackMemo.rows;
+  }
   try {
     const answer = await stateCall(env, "/ack-splits?day="
       + encodeURIComponent(day));
-    return answer && answer.ok ? answer.rows : null;
+    const rows = answer && answer.ok ? answer.rows : null;
+    if (rows) ackMemo = { day, at: Date.now(), rows };
+    return rows;
   } catch (_) {
     return null;
   }
@@ -1538,13 +1573,22 @@ function normalizeQuoteSnapshot(raw) {
 }
 
 async function readQuoteSnapshot(env) {
+  // One snapshot read a second serves every route on this isolate, so
+  // /market, /prices, /stock and /flow can never each buy their own copy
+  // with a Durable Object request (owner order 2026-11-05, the budget).
+  const stamp = Date.now();
+  if (snapshotMemo.value && stamp - snapshotMemo.at < SNAPSHOT_MEMO_MS) {
+    return snapshotMemo.value;
+  }
   try {
     const stub = quoteHub(env);
     if (!stub) return null;
     const response = await stub.fetch("https://quote-hub/snapshot");
     if (!response.ok) return null;
     const body = await response.json();
-    return body && body.ok ? normalizeQuoteSnapshot(body) : null;
+    const value = body && body.ok ? normalizeQuoteSnapshot(body) : null;
+    if (value) snapshotMemo = { at: Date.now(), value };
+    return value;
   } catch (_) {
     return null;
   }
@@ -1928,10 +1972,10 @@ async function applyLiveQuotes(env, snapshot, quotes, now, ackDay) {
   // the two surfaces can never disagree and the printed B and S only
   // move as the day's own volume grows (owner order 2026-10-31).
   if (snapshot.top_volume && snapshot.top_volume.length && ackDay) {
-    const frames = snapshot.top_volume
-      .map((row) => ackCandidateFrame(row, ackDay))
-      .filter(Boolean);
-    const storedRows = await ackUpsert(env, frames);
+    // Read only (owner order 2026-11-05, the daily Durable Object budget):
+    // a display poll applies the day's acknowledged rows and never writes
+    // one, so a phone tick cannot spend the mirror's write budget.
+    const storedRows = await ackRowsForDay(env, ackDay);
     if (storedRows) {
       snapshot.top_volume = snapshot.top_volume.map(
           (row) => applyStoredFrame(row, storedRows[row.symbol]))
@@ -1963,6 +2007,19 @@ async function marketResponseSnapshot(env, now, ctx) {
 }
 
 async function trackMarketTransitions(env, snapshot, now, ctx) {
+  // Owner order 2026-11-05 (the daily Durable Object budget): a transition
+  // is an edge, not a per-second fact, so one answer serves twenty seconds
+  // of one-second polls instead of one state read and write per poll.
+  const stamp = Date.now();
+  if (transitionMemo.value && stamp - transitionMemo.at < TRANSITION_MEMO_MS) {
+    return transitionMemo.value;
+  }
+  const value = await computeMarketTransitions(env, snapshot, now, ctx);
+  transitionMemo = { at: stamp, value };
+  return value;
+}
+
+async function computeMarketTransitions(env, snapshot, now, ctx) {
   const edge = marketState(now);
   if (!edge.trading_day) {
     return { state: null, evidence: "outside_trading_day", delivered: false };
@@ -2584,25 +2641,12 @@ export default {
           source: quote.source || null,
         });
       }
-      if (ackDay && rowsBuilt.length) {
-        // The day's busiest symbols acknowledge their rows (bounded: six
-        // frames), which is enough for every dropdown ranking the phone
-        // prints and for the card's own top three.
-        const top = rowsBuilt
-          .filter((row) => Number.isFinite(row.volume) && row.volume > 0)
-          .sort((a, b) => b.volume - a.volume)
-          .slice(0, 6)
-          .map((row) => ackCandidateFrame(row, ackDay))
-          .filter(Boolean);
-        const storedTop = await ackUpsert(env, top);
-        if (storedAll === null && storedTop) {
-          // no prefix at all, but the upsert answered: use its map
-          for (const row of rowsBuilt) applyStoredFrame(row, storedTop[row.symbol]);
-        } else if (storedAll || storedTop) {
-          for (const row of rowsBuilt) {
-            applyStoredFrame(row, (storedAll || {})[row.symbol] ||
-              (storedTop || {})[row.symbol] || null);
-          }
+      if (ackDay && rowsBuilt.length && storedAll) {
+        // Read only (owner order 2026-11-05, the daily Durable Object
+        // budget): the acknowledged map is applied, never rewritten by a
+        // poll, so one phone tick costs one snapshot read at most.
+        for (const row of rowsBuilt) {
+          applyStoredFrame(row, storedAll[row.symbol] || null);
         }
       }
       for (const row of rowsBuilt) {

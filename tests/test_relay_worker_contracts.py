@@ -559,6 +559,38 @@ class RelayWorkerContractTest(unittest.TestCase):
 
     # ------------------------------------------------------- market alerts (text law moved)
 
+    def test_the_read_routes_spend_one_durable_object_request_a_tick(self):
+        """Owner order 2026-11-05 (seventh pass, "for the last two days I
+        have been hitting limit almost 3 hours before the market closing,
+        make sure cloudflare doesn't ever hit it's daily limit").
+
+        Workers Free allows 100,000 Durable Object requests a day. A phone
+        tick used to cost five (snapshot, ACK read, ACK write, transition
+        and the W/L row), so one phone and the one-second scanner reached
+        the cap by mid-afternoon. Every read now shares a short memory of
+        its own and no read route writes an ACK row.
+        """
+        self.assertIn("const SNAPSHOT_MEMO_MS = 1000;", self.source)
+        self.assertIn("const ACK_MEMO_MS = 30000;", self.source)
+        self.assertIn("const TRANSITION_MEMO_MS = 20000;", self.source)
+        self.assertIn("const WINLOSS_MEMO_MS = 30000;", self.source)
+        self.assertIn("if (snapshotMemo.value &&", self.source)
+        self.assertIn("if (ackMemo.day === day &&", self.source)
+        self.assertIn("computeMarketTransitions(env, snapshot, now, ctx)",
+                      self.source)
+        self.assertIn("winLossMemo = { at: Date.now(), value: row };",
+                      self.source)
+        live = self.source[self.source.index(
+            "async function applyLiveQuotes("):]
+        live = live[:live.index("async function marketResponseSnapshot(")]
+        self.assertNotIn("ackUpsert", live)
+        prices = self.source[self.source.index(
+            'if (request.method === "GET" && path === "/prices")'):]
+        prices = prices[:prices.index(
+            'if (request.method === "GET" && path === "/market")')]
+        self.assertNotIn("ackUpsert", prices)
+        self.assertIn("ackRowsForDay(env, ackDay)", prices)
+
     def test_friday_break_and_reopen_follow_the_session_boundaries(self):
         self.assertIn('edge.condition === "BREAK"', self.source)
         self.assertIn('edge.phase === "POST_CLOSE"', self.source)
