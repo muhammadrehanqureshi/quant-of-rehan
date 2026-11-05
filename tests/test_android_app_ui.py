@@ -1016,7 +1016,13 @@ class TypefaceTest(unittest.TestCase):
         # v1.8.7 (owner 15:35): the three quantities read as a sentence, a
         # comma after B and an ampersand before T, both non-breaking.
         self.assertIn('sb.append(",\\u00A0S=");', self.main)
-        self.assertIn('"\\u00A0&\\u00A0T=%,d)"', self.main)
+        # Owner order 2026-11-05 (fifth pass): the ampersand still opens the
+        # total in the no-split format, and the digits are appended after it
+        # as their own value, so the U that used to follow has nowhere left
+        # to be printed.
+        self.assertIn('sb.append("\\u00A0&\\u00A0T=");', self.main)
+        self.assertIn('sb.append(String.format(Locale.US, "%,d", total));',
+                      self.main)
         # v1.8.6 (owner 15:15): and that row keeps the body's 13sp. It wins
         # its width from the tile (6dp of each 16dp panel padding, through the
         # negative side margins) and from its own tracking, never from a
