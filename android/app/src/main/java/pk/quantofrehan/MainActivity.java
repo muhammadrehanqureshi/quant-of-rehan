@@ -1622,22 +1622,24 @@ public class MainActivity extends Activity {
     }
 
     /**
-     * The three scrips of the chosen menu, in the SAME sentence the
-     * leaders card prints (v2.3.7, owner order 2026-10-26, "there is no
+     * The three scrips of the chosen menu, in the SAME shape the leaders
+     * card prints (v2.3.7, owner order 2026-10-26, "there is no
      * consistency, no = sign, no , sign, no green and red colors"):
      *
-     *   "1. NRSL (B=1,662,818, S=1,762,588 & T=3,425,406)"
-     *   "PKR 32.36 ▲ 4.64%"
+     *   "1. NRSL"
+     *   "(B=1,662,818, S=1,762,588, U=...)"
+     *   "(T=3,425,406)  PKR 32.36 ▲ 4.64%"
      *
      * The quantities are the leaders card's own bracket, the plain "="
-     * after each letter, the comma after B and the ampersand before T,
-     * the buy digits in the brand green and the sell digits in the brand
-     * red (2026-10-24's colour law), the total neutral. The money sits on
-     * its own line with the arrow, and the arrow plus its percentage take
-     * the move's colour and the glyph face, exactly as renderMarket and
-     * leadersText print them. A quote without a split still gets its
-     * numbered ticker and its money line, never zeros (SO-3). Non-breaking
-     * gaps hold each group together, as they hold the leaders card's.
+     * after each letter, the comma between the parts and the closing
+     * bracket after the last one, the buy digits in the brand green and
+     * the sell digits in the brand red (2026-10-24's colour law), the
+     * total neutral. U prints only when the relay reports an unclear
+     * remainder. The money follows the total on its line, and the arrow
+     * plus its percentage take the move's colour and the glyph face,
+     * exactly as renderMarket and leadersText print them. A quote without
+     * a split still gets its numbered ticker and its money line, never
+     * zeros (SO-3).
      */
     private SpannableStringBuilder volumeRevealText(
             java.util.Map<String, Watcher.Quote> quotes, List<String> symbols) {
@@ -1653,22 +1655,23 @@ public class MainActivity extends Activity {
             sb.append(String.format(Locale.US, "%d.\u00A0%s",
                     i + 1, symbols.get(i)));
             if (quote.buy != null && quote.sell != null) {
-                // Owner order 2026-11-05, eighth pass: the scanner page's
-                // three read exactly like the top three tile. Measured B
-                // and S on their own line, the unclear U beside them, and
-                // T on the price line; no remainder is ever folded in.
-                sb.append('\n').append("B ");
+                // Owner order 2026-11-05, ninth pass: the scanner page's
+                // three keep their three lines, with the measured pair and
+                // the unclear U in the app's one bracket.
+                sb.append('\n').append("(B=");
                 colorQuantity(sb, quote.buy, R.color.green);
-                sb.append(", S ");
+                sb.append(", S=");
                 colorQuantity(sb, quote.sell, R.color.red);
                 if (quote.unclassified != null) {
-                    sb.append(", U ");
+                    sb.append(", U=");
                     sb.append(String.format(Locale.US, "%,d", quote.unclassified));
                 }
+                sb.append(')');
             }
             if (quote.volume != null) {
-                sb.append('\n').append("T ");
+                sb.append('\n').append("(T=");
                 sb.append(String.format(Locale.US, "%,d", quote.volume));
+                sb.append(')');
             }
             // The map only ever carries a live price (Watcher's law), so
             // the symbol's presence in the menu is the price's presence on
@@ -3576,7 +3579,7 @@ public class MainActivity extends Activity {
                         quote.unclassified));
             }
             if (quote.volume != null) {
-                sb.append(String.format(Locale.US, " & T=%,d", quote.volume));
+                sb.append(String.format(Locale.US, ", T=%,d", quote.volume));
             }
             sb.append(')');
         } else if (quote.volume != null) {
@@ -3827,26 +3830,27 @@ public class MainActivity extends Activity {
             }
             sb.append(String.format(Locale.US, "%d. %s", i + 1, row.symbol));
             if (row.hasSplit()) {
-                // Owner order 2026-11-05, eighth pass: the top three read as
-                // three lines. The measured pair sits on its own line and
-                // the unclear remainder prints as U, never folded into a
-                // side (B + S + U = T).
-                sb.append('\n').append("B ");
+                // Owner order 2026-11-05, ninth pass: the top three keep
+                // their three lines, with the measured pair and the unclear
+                // U in the app's one bracket.
+                sb.append('\n').append("(B=");
                 int buyFrom = sb.length();
                 sb.append(String.format(Locale.US, "%,d", row.buy));
                 spans.add(new int[]{buyFrom, sb.length(), R.color.green});
-                sb.append(", S ");
+                sb.append(", S=");
                 int sellFrom = sb.length();
                 sb.append(String.format(Locale.US, "%,d", row.sell));
                 spans.add(new int[]{sellFrom, sb.length(), R.color.red});
                 if (row.unclassified != null) {
-                    sb.append(", U ");
+                    sb.append(", U=");
                     sb.append(String.format(Locale.US, "%,d", row.unclassified));
                 }
+                sb.append(')');
             }
             if (row.hasVolume()) {
-                sb.append('\n').append("T ");
+                sb.append('\n').append("(T=");
                 sb.append(String.format(Locale.US, "%,d", row.volume));
+                sb.append(')');
             }
             // The money line: opened whenever there is a price or a move to
             // show, so even a price-less row puts its change on its own line

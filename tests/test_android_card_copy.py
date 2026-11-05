@@ -187,10 +187,10 @@ class LeaderLineTest(unittest.TestCase):
         # Owner order 2026-11-05, eighth pass: three lines per scrip. The
         # measured B and S stand on their own line with the unclear U beside
         # them, then T with the money line; nothing is folded into a side.
-        self.assertIn("sb.append('\\n').append(\"B \");", self.main)
-        self.assertIn('sb.append(", S ");', self.main)
-        self.assertIn('sb.append(", U ");', self.main)
-        self.assertIn("sb.append('\\n').append(\"T \");", self.main)
+        self.assertIn("sb.append('\\n').append(\"(B=\");", self.main)
+        self.assertIn('sb.append(", S=");', self.main)
+        self.assertIn('sb.append(", U=");', self.main)
+        self.assertIn("sb.append('\\n').append(\"(T=\");", self.main)
         self.assertNotIn("completePair", self.main)
         self.assertIn("row.unclassified", self.main)
         self.assertIn("quote.unclassified", self.main)
@@ -201,7 +201,7 @@ class LeaderLineTest(unittest.TestCase):
         # the card builder it guards, not the whole console file.
         leaders = self.main[
             self.main.index("private SpannableString leadersText("):]
-        volumes = leaders.index("sb.append('\\n').append(\"T \");")
+        volumes = leaders.index("sb.append('\\n').append(\"(T=\");")
         money = leaders.index('"PKR %,.2f"')
         self.assertLess(volumes, money)
 
@@ -238,7 +238,7 @@ class LeaderLineTest(unittest.TestCase):
         self.assertNotIn("estimatedSplit", self.main)
         # A row that carries a split but no total keeps both sides.
         self.assertIn("if (row.hasVolume()) {", self.main)
-        self.assertIn('sb.append(", U ");', self.main)
+        self.assertIn('sb.append(", U=");', self.main)
 
     def test_the_feed_status_line_is_retired_and_the_index_has_no_clock(self):
         """Owner orders 2026-10-19 and 2026-10-20 (third note).

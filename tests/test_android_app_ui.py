@@ -1041,10 +1041,10 @@ class TypefaceTest(unittest.TestCase):
         # Owner order 2026-11-05, eighth pass: three lines per scrip. The
         # measured B and S stand on their own line with the unclear U beside
         # them, then T with the money line; nothing is folded into a side.
-        self.assertIn("sb.append('\\n').append(\"B \");", self.main)
-        self.assertIn('sb.append(", S ");', self.main)
-        self.assertIn('sb.append(", U ");', self.main)
-        self.assertIn("sb.append('\\n').append(\"T \");", self.main)
+        self.assertIn("sb.append('\\n').append(\"(B=\");", self.main)
+        self.assertIn('sb.append(", S=");', self.main)
+        self.assertIn('sb.append(", U=");', self.main)
+        self.assertIn("sb.append('\\n').append(\"(T=\");", self.main)
         self.assertNotIn("completePair", self.main)
         # v1.8.6 (owner 15:15): and that row keeps the body's 13sp. It wins
         # its width from the tile (6dp of each 16dp panel padding, through the
@@ -1972,8 +1972,8 @@ class VersionTest(unittest.TestCase):
         # pass: his new ORDER FLOW picture, the bracketed top three, the
         # eight-print board with its visible bar, and the search-only
         # ORDER FLOW tile.
-        self.assertIn('android:versionName="4.0.8"', manifest)
-        self.assertIn('android:versionCode="117"', manifest)
+        self.assertIn('android:versionName="4.0.9"', manifest)
+        self.assertIn('android:versionCode="118"', manifest)
         self.assertNotIn('android:versionName="3.7.5"', manifest)
         self.assertNotIn('android:versionName="3.7.4"', manifest)
         self.assertNotIn('android:versionName="3.7.3"', manifest)
@@ -2183,8 +2183,8 @@ class VersionTest(unittest.TestCase):
         # rows; v4.0.5 (sixth pass) is his new ORDER FLOW picture, the
         # bracketed top three, the eight-print scrolling board with its
         # visible bar, and the search-only ORDER FLOW tile.
-        self.assertIn('android:versionCode="117"', manifest)
-        self.assertIn('android:versionName="4.0.8"', manifest)
+        self.assertIn('android:versionCode="118"', manifest)
+        self.assertIn('android:versionName="4.0.9"', manifest)
         self.assertNotIn('android:versionName="3.7.5"', manifest)
         self.assertNotIn('android:versionName="3.7.4"', manifest)
         self.assertNotIn('android:versionName="3.7.3"', manifest)
@@ -3132,7 +3132,7 @@ class MenuOrdersTest(unittest.TestCase):
                     main.index("private void paintSignalInk(")]
         self.assertIn("R.color.green", live)
         self.assertIn("R.color.red", live)
-        self.assertIn('" & T=%,d"', live)
+        self.assertIn('", T=%,d"', live)
         self.assertIn("U=%,d", live)
 
     def test_the_dropdown_caret_stands_at_its_face_middle(self):
@@ -3351,10 +3351,11 @@ class MenuOrdersTest(unittest.TestCase):
         # Owner order 2026-11-05, eighth pass: the scanner's three read as
         # three lines, measured B and S with the unclear U beside them, then
         # T on the money line; no remainder is folded into a side.
-        self.assertIn('append("B ");', block)
-        self.assertIn('sb.append(", S ");', block)
-        self.assertIn('sb.append(", U ");', block)
-        self.assertIn('append("T ");', block)
+        self.assertIn('append("(B=");', block)
+        self.assertIn('sb.append(", S=");', block)
+        self.assertIn('sb.append(", U=");', block)
+        self.assertIn('append("(T=");', block)
+        self.assertIn("sb.append(')');", block)
         self.assertIn("colorQuantity(sb, quote.buy, R.color.green)", block)
         self.assertIn("colorQuantity(sb, quote.sell, R.color.red)", block)
         self.assertNotIn("pair[0]", block)
