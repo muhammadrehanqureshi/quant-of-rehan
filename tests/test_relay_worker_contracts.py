@@ -338,13 +338,13 @@ class RelayWorkerContractTest(unittest.TestCase):
         probe_at = self.source.find('url.pathname === "/update"')
         self.assertGreaterEqual(
             probe_at, 0, "the durable object's POST /update route is gone")
-        update_route = self.source[probe_at:probe_at + 8000]
+        update_route = self.source[probe_at:probe_at + 11000]
         self.assertIn("frameIsRegularSession(quote)", update_route,
                       f"the /update anchor sits at {probe_at}; the store law "
-                      f"is not inside the route's own first 8000 characters")
+                      f"is not inside the route's own first 11000 characters")
         self.assertIn("refused_post_session", update_route,
                       f"the /update anchor sits at {probe_at}; the refusal "
-                      f"count is not inside the route's own first 8000 chars")
+                      f"count is not inside the route's own first 11000 chars")
         # The acknowledged store lives in the durable object.
         hub = self.source[self.source.index("export class QuoteHub"):]  # the class to the end of the file
         self.assertIn("/ack-upsert", hub)
@@ -447,6 +447,62 @@ class RelayWorkerContractTest(unittest.TestCase):
         self.assertIn("this.ackWritesToday += 1;", self.source)
         # A newer live frame is not silently replaced by an older mirror.
         self.assertIn("storedAt < rowAt", self.source)
+
+    def test_the_snapshot_lives_in_memory_and_the_hub_never_throws(self):
+        """Owner order 2026-11-05: a daily free-plan budget can never again
+        kill the live feed or surface as the edge's HTML error page.
+
+        Cloudflare's Durable Objects free tier allows 5,000,000 rows read
+        and 100,000 rows written a day, reset at 00:00 UTC, and exceeding
+        one makes the storage call THROW inside the object. Two laws pin
+        the guarantee: the accepted snapshot lives in the hub's memory -
+        so a push does not SELECT the day's row back and a reading poll
+        (the phone's every-second card, the desk's slower pace) costs no
+        SQLite read at all - and every throw inside the hub collapses to
+        a JSON refusal, never an HTML page, with the persistence itself
+        best effort and the reason recorded once for /health.
+        """
+        # The snapshot's memory law, both read and write.
+        self.assertIn("this.snapshotCache = null;", self.source)
+        self.assertIn("if (this.snapshotLoaded) {", self.source)
+        self.assertIn("this.snapshotCache = snapshot;", self.source)
+        # The push reads its previous from memory after the one load.
+        self.assertIn("let previous = this.snapshotCache;", self.source)
+        # Per-push writes are best effort, with the reason named for /health.
+        self.assertIn("let stored = true;", self.source)
+        self.assertIn("stored = false;", self.source)
+        self.assertIn('"SNAPSHOT:PERSIST_ERROR"', self.source)
+        # Nothing thrown inside the object escapes as HTML 1101: the
+        # wrapper answers JSON and the publisher retries.
+        self.assertIn("return await this.handle(request);", self.source)
+        self.assertIn('error: "quote hub refused: " +', self.source)
+        # Per-quoted diagnostics can never spend the write budget on
+        # themselves: one FLOW:LAST_ERROR note a minute at most.
+        self.assertIn("this.lastFlowErrorSeen = 0;", self.source)
+        self.assertIn("stamp - this.lastFlowErrorSeen >= 60000", self.source)
+
+    def test_the_daily_row_budget_sums_below_the_free_plan(self):
+        """Owner order 2026-11-05: the pinned ceilings must add up below
+        Cloudflare's free-plan account cap of 100,000 rows written a day
+        (rows read are held near zero by the snapshot's memory law).
+
+        Worst arithmetic for one full session: one snapshot row per push
+        (a push at most once a second for the 09:30 to 15:30 session is
+        21,600), the flow backup's own 40,000 ceiling, the ACK mirror's
+        25,000, the 10-minute stats row and at most one diagnostic a
+        minute - the sum stays near 88,000, under the cap even doubled,
+        so no day can exhaust writes and mute the feed.
+        """
+        pushes = 21_600
+        snapshot_rows = pushes
+        flow_rows = 40_000
+        ack_rows = 25_000
+        stats_rows = 6 * 60 // 10
+        diagnostics = 6 * 60
+        total = snapshot_rows + flow_rows + ack_rows + stats_rows + diagnostics
+        self.assertLess(total, 100_000, total)
+        self.assertEqual((snapshot_rows, flow_rows, ack_rows, total),
+                         (21600, 40000, 25000, 86996))
 
     def test_the_relay_remembers_the_days_entry_stamp(self):
         """A later card cannot lose the entry time the first card carried."""

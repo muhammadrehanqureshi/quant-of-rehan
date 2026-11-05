@@ -41,6 +41,17 @@ class PublisherRetryCapTest(unittest.TestCase):
         self.assertEqual(feed_capture.RelayQuotePublisher.MAX_RETRY_SECONDS,
                          5.0)
 
+    def test_a_hub_that_refuses_with_5xx_gets_thirty_second_retries(self):
+        """Owner order 2026-11-05: a hub whose daily budget is spent (its
+        5xx answers reset 00:00 UTC) must not have the whole session's
+        request budget spent against it every five seconds. The 5-second
+        wall stays the cap for data refusals; a 5xx floor moves to 30
+        seconds until the relay answers again."""
+        self.assertEqual(
+            feed_capture.RelayQuotePublisher.REFUSAL_RETRY_SECONDS, 30.0)
+        self.assertGreater(feed_capture.RelayQuotePublisher.REFUSAL_RETRY_SECONDS,
+                           feed_capture.RelayQuotePublisher.MAX_RETRY_SECONDS)
+
     def test_a_success_resets_the_floor_below_the_cap(self):
         self.assertLess(feed_capture.RelayQuotePublisher.MIN_PUBLISH_SECONDS,
                         feed_capture.RelayQuotePublisher.MAX_RETRY_SECONDS)
