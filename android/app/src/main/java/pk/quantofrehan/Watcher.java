@@ -1081,6 +1081,14 @@ public final class Watcher {
                 Double sell = numberOrNull(row, "sell_volume");
                 Double total = numberOrNull(row, "volume");
                 android.text.SpannableString styled = null;
+                if (buy != null && total != null) {
+                    // Owner order 2026-11-05 (fifth pass): no U anywhere.
+                    // Every share belongs to a side, so the pair is
+                    // completed to the venue's own total before it prints.
+                    long whole = Math.round(total);
+                    buy = (double) Math.max(0L, Math.min(Math.round(buy), whole));
+                    sell = (double) (whole - buy);
+                }
                 if (buy != null && sell != null) {
                     // Owner order 2026-10-20 (third note): the EST tag after
                     // the total is gone from the search answer exactly as it
@@ -1115,11 +1123,9 @@ public final class Watcher {
                     sb.append(String.format(java.util.Locale.US, "%,.0f", sell));
                     int sellTo = sb.length();
                     if (total != null) {
-                        // Owner order 2026-11-04: four parts, never three.
-                        // U is the venue total minus the two sided halves
-                        // and is never folded into B or S.
-                        sb.append(String.format(java.util.Locale.US,
-                                ", U=%,.0f", Math.max(0d, total - buy - sell)));
+                        // Owner order 2026-11-05 (fifth pass): no U. The
+                        // pair above is completed to the venue's own
+                        // total, so the line reads B, S and T only.
                         sb.append(String.format(java.util.Locale.US, " & T=%,.0f", total));
                     }
                     sb.append(')');

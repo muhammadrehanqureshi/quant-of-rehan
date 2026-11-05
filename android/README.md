@@ -1641,6 +1641,22 @@ to sixty seconds. The status tile therefore also carries the app's own
      the orphan law stands so every dot still wears a filament.
   5. The version bump is versionCode 82 / versionName 2.3.15.
 
+**Version 4.0.4, versionCode 113.**
+
+  Owner order 2026-11-05, fifth pass. The ORDER FLOW icon is his picture
+  path for path as a vector in one ink, so the nav's tint recolors it with
+  every theme and it stays crisp at any density. The ORDER FLOW tile shows
+  current flow the moment it opens (the eight busiest scrips by volume)
+  and narrows on typing. No U is ever printed: the pair is completed to
+  the venue's total, the remainder falling to the day's own side, so every
+  share reads as buying or selling and B + S = T. The KSE100 top three
+  stand in separate lines (name, B and S, T, money) at the body's own size,
+  so no count is cut off, and the BIG BUYING & SELLING board scrolls in a
+  fixed 320dp window instead of stretching the page with the whole day.
+  The W/L ledger counts a W only when the take profit was hit.
+
+  The version bump is versionCode 113 / versionName 4.0.4.
+
 **Version 4.0.3, versionCode 112.**
 
   Owner order 2026-11-05, fourth pass on the ORDER FLOW page. The file

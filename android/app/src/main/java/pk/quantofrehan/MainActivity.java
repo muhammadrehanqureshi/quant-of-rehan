@@ -1623,19 +1623,19 @@ public class MainActivity extends Activity {
             sb.append(String.format(Locale.US, "%d.\u00A0%s",
                     i + 1, symbols.get(i)));
             if (quote.buy != null && quote.sell != null) {
-                sb.append("\u00A0(B=");
-                colorQuantity(sb, quote.buy, R.color.green);
-                sb.append(",\u00A0S=");
-                colorQuantity(sb, quote.sell, R.color.red);
-                // Owner order 2026-11-04: four parts, never three. U is
-                // the total minus the two sided halves and stands on its
-                // own, never folded into B or S. T is the venue's total,
-                // so B + S + U = T on the line as printed.
+                // Owner order 2026-11-05 (fifth pass): no U anywhere. Every
+                // share belongs to a side: the pair is completed to the
+                // venue's total, the remainder falling to the side the
+                // day's move implies (evenly when the move is flat), so
+                // B + S = T on the line as printed.
                 long total = quote.volume != null
                         ? quote.volume : quote.buy + quote.sell;
-                long unclassified = Math.max(0L,
-                        total - (quote.buy + quote.sell));
-                sb.append(String.format(Locale.US, ",\u00A0U=%,d", unclassified));
+                long[] pair = completePair(quote.buy, quote.sell, total,
+                        quote.changePct);
+                sb.append("\u00A0(B=");
+                colorQuantity(sb, pair[0], R.color.green);
+                sb.append(",\u00A0S=");
+                colorQuantity(sb, pair[1], R.color.red);
                 sb.append("\u00A0&\u00A0T=");
                 sb.append(String.format(Locale.US, "%,d", total));
                 sb.append(')');
@@ -2892,13 +2892,18 @@ public class MainActivity extends Activity {
             return;
         }
         orderFlowResults.removeAllViews();
-        if (query.isEmpty()) {
-            orderFlowResults.setVisibility(View.GONE);
-            return;
-        }
+        // Owner order 2026-11-05 (fifth pass, "there is no order flow on
+        // ORDER FLOW tile"): an empty query is the page's own board, the
+        // eight busiest scrips by the relay's total volume, so the tile
+        // always shows current order flow the moment it opens; typing then
+        // narrows the same rows to the ticker prefix.
+        List<Watcher.FlowRow> ranked = new ArrayList<>(flowRows);
+        ranked.sort((a, b) -> Long.compare(
+                b.volume == null ? -1L : b.volume,
+                a.volume == null ? -1L : a.volume));
         int shown = 0;
-        for (Watcher.FlowRow row : flowRows) {
-            if (!row.symbol.startsWith(query)) {
+        for (Watcher.FlowRow row : ranked) {
+            if (!query.isEmpty() && !row.symbol.startsWith(query)) {
                 continue;
             }
             TextView line = new TextView(this);
@@ -2931,7 +2936,36 @@ public class MainActivity extends Activity {
         return sb;
     }
 
-    /** One scrip's own four part volume, the point of the whole page. */
+    /** The pair completed to the venue's total, the side law of 2026-11-05.
+     *
+     * Owner order 2026-11-05 (fifth pass, "the UNCLEAR volume... can't be
+     * ignored. The volume is too much for some stocks and it has to be
+     * either buying or selling"): every share is a buy or a sell and the
+     * line never prints a U. The pair is clamped into the venue's total and
+     * whatever the hub could not side falls to the side the day's move
+     * implies, split evenly when the move is flat. This is a display
+     * completion of the relay's own counters, never a second total: T is
+     * still the venue's number and B + S is made to equal it.
+     */
+    private long[] completePair(long buy, long sell, long total,
+                                Double changePct) {
+        long b = Math.max(0L, Math.min(buy, total));
+        long s = Math.max(0L, Math.min(sell, total - b));
+        long remainder = Math.max(0L, total - b - s);
+        if (remainder > 0) {
+            if (changePct == null) {
+                b += remainder / 2;
+                s += remainder - remainder / 2;
+            } else if (changePct < 0) {
+                s += remainder;
+            } else {
+                b += remainder;
+            }
+        }
+        return new long[]{b, s};
+    }
+
+    /** One scrip's own volume, the point of the whole page. */
     private void selectFlow(String symbol) {
         if (orderFlowSelected == null) {
             return;
@@ -2954,22 +2988,21 @@ public class MainActivity extends Activity {
         }
         sb.append('\n');
         if (found.buy != null && found.sell != null && found.volume != null) {
+            // Owner order 2026-11-05 (fifth pass): no U. The page's answer
+            // completes the pair to the venue's total, so every share is a
+            // buy or a sell and the three numbers add up.
+            long[] pair = completePair(found.buy, found.sell, found.volume,
+                    null);
             sb.append("B=");
             int from = sb.length();
-            sb.append(String.format(Locale.US, "%,d", found.buy));
+            sb.append(String.format(Locale.US, "%,d", pair[0]));
             sb.setSpan(new ForegroundColorSpan(getColor(R.color.green)),
                     from, sb.length(), 0);
             sb.append("  S=");
             from = sb.length();
-            sb.append(String.format(Locale.US, "%,d", found.sell));
+            sb.append(String.format(Locale.US, "%,d", pair[1]));
             sb.setSpan(new ForegroundColorSpan(getColor(R.color.red)),
                     from, sb.length(), 0);
-            sb.append("  U=");
-            if (found.unclassified != null) {
-                sb.append(String.format(Locale.US, "%,d", found.unclassified));
-            } else {
-                sb.append("n/a");
-            }
             sb.append(String.format(Locale.US, "  & T=%,d", found.volume));
         } else if (found.volume != null) {
             sb.append(String.format(Locale.US, "T=%,d", found.volume));
@@ -3393,24 +3426,23 @@ public class MainActivity extends Activity {
         int sellFrom = -1;
         int sellTo = -1;
         if (quote.buy != null && quote.sell != null) {
+            // Owner order 2026-11-05 (fifth pass): no U. The pair is
+            // completed to the venue's total (the remainder falls to the
+            // day's own side), so the line reads B, S and T only and
+            // B + S = T.
+            long total = quote.volume != null
+                    ? quote.volume : quote.buy + quote.sell;
+            long[] pair = completePair(quote.buy, quote.sell, total,
+                    quote.changePct);
             sb.append(" (B=");
             buyFrom = sb.length();
-            sb.append(String.format(Locale.US, "%,d", quote.buy));
+            sb.append(String.format(Locale.US, "%,d", pair[0]));
             buyTo = sb.length();
             sb.append(", S=");
             sellFrom = sb.length();
-            sb.append(String.format(Locale.US, "%,d", quote.sell));
+            sb.append(String.format(Locale.US, "%,d", pair[1]));
             sellTo = sb.length();
             if (quote.volume != null) {
-                // Owner order 2026-11-04: four parts, never three. U stands
-                // on its own and is never folded into B or S. The sided
-                // halves are read into their own values first, so nothing
-                // here can be mistaken for a second total: T stays the
-                // venue's own counter, never a sum computed on the phone.
-                long buyPart = quote.buy;
-                long sellPart = quote.sell;
-                sb.append(String.format(Locale.US, ", U=%,d",
-                        Math.max(0L, quote.volume - buyPart - sellPart)));
                 sb.append(String.format(Locale.US, " & T=%,d", quote.volume));
             }
             sb.append(')');
@@ -3661,45 +3693,31 @@ public class MainActivity extends Activity {
                 sb.append('\n');
             }
             sb.append(String.format(Locale.US, "%d. %s", i + 1, row.symbol));
+            long total = row.hasVolume() ? row.volume : 0L;
             if (row.hasSplit()) {
-                // Owner order 2026-10-20 (second note): both sides carry the
-                // plain "=", and the EST tag after the total is gone. The
-                // numbers are the numbers; the split's method is stated in
-                // the relay's own source line, not as a suffix on the tile.
-                // "(" opens at B and ")" closes after T: one bracketed group.
-                // Owner order 2026-10-21 (14:51): the ticker-to-group gap and
-                // the field separators are non-breaking (U+00A0), so a wide
-                // row can never wrap mid group.
-                // Owner order 2026-10-21 (15:15): the row keeps the body's
-                // 13sp. The width comes from the tile, never from the size.
-                // Owner order 2026-10-21 (15:35): the three quantities read
-                // as a sentence, with a comma after B and an ampersand
-                // before T: "(B=..., S=... & T=...)".
-                sb.append("\u00A0(B=");
+                // Owner order 2026-11-05 (fifth pass, "the KSE100 tile is
+                // too congested... have them written in separate lines" and
+                // "the volume... has to be either buying or selling"): the
+                // scrip's name stands alone, the two sides share the next
+                // line, the total has its own line and the money line closes
+                // the row. No U survives: the pair is completed to the
+                // venue's total, so B + S = T, and no line can run off the
+                // tile at any count width, at the body's own 13sp.
+                long[] pair = completePair(row.buy, row.sell,
+                        total > 0 ? total : row.buy + row.sell, row.changePct);
+                sb.append("\nB=");
                 int buyFrom = sb.length();
-                sb.append(String.format(Locale.US, "%,d", row.buy));
+                sb.append(String.format(Locale.US, "%,d", pair[0]));
                 spans.add(new int[]{buyFrom, sb.length(), R.color.green});
-                sb.append(",\u00A0S=");
+                sb.append("  S=");
                 int sellFrom = sb.length();
-                sb.append(String.format(Locale.US, "%,d", row.sell));
+                sb.append(String.format(Locale.US, "%,d", pair[1]));
                 spans.add(new int[]{sellFrom, sb.length(), R.color.red});
-                if (row.hasVolume()) {
-                    // Owner order 2026-11-04: the volume is read in four
-                    // parts, never three. U is the venue total minus the
-                    // two sided halves, and it is printed on its own line
-                    // item. It is NEVER added to B or S, so the bracket
-                    // always reads B, S, U and T, and B + S + U = T.
-                    long unclassified = Math.max(0L,
-                            row.volume - (row.buy + row.sell));
-                    sb.append(String.format(Locale.US,
-                            ",\u00A0U=%,d", unclassified));
-                    sb.append(String.format(Locale.US, "\u00A0&\u00A0T=%,d)", row.volume));
-                } else {
-                    // The quantities stand without the exchange's total.
-                    sb.append(')');
+                if (total > 0) {
+                    sb.append(String.format(Locale.US, "\nT=%,d", total));
                 }
             } else if (row.hasVolume()) {
-                sb.append(String.format(Locale.US, "\u00A0(T=%,d)", row.volume));
+                sb.append(String.format(Locale.US, "\nT=%,d", row.volume));
             }
             // The money line: opened whenever there is a price or a move to
             // show, so even a price-less row puts its change on its own line

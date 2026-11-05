@@ -263,6 +263,11 @@ class RelayWorkerContractTest(unittest.TestCase):
         # The rate is computed from the closed total; both zero answers null.
         self.assertIn("rate_pct: total > 0 ? Math.round((losses / total) * 100) : null,",
                       self.source)
+        # Owner order 2026-11-05 (fifth pass, "what signal hit TP that you
+        # made it the winner?"): a W is a trade that reached its take
+        # profit. A day that merely closed above entry is still an L.
+        self.assertIn('label === "TARGET_HIT" && net > 0 ? "win" : "loss"',
+                      self.source)
         # The market route grafts the block in, best effort: a failing
         # research store never fails the card.
         route = self.source[self.source.index(

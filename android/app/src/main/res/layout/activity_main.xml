@@ -378,17 +378,18 @@
                 android:layout_marginBottom="10dp"
                 android:text="@string/label_big_prints"/>
 
-            <!-- Owner order 2026-11-05: the board scrolls in its own
-                 window, so the owner reads the complete BIG BUYING &
-                 SELLING during the day by scrolling: the list carries
-                 every print the relay holds, one print a line, and a
-                 touch on the list scrolls the list, never the page
-                 underneath. -->
+            <!-- Owner order 2026-11-05 (fifth pass, "you [have] a really
+                 long page with a really long tile"): the board scrolls in
+                 its own FIXED window, 320dp tall, so the page never grows
+                 with the day's prints. The list carries every print the
+                 relay holds, one print a line, and a touch on the list
+                 scrolls the list, never the page underneath. A maxHeight
+                 on a ScrollView measures as its content, which is exactly
+                 how the tile stretched the page before. -->
             <ScrollView
                 android:id="@+id/big_prints_scroll"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:maxHeight="320dp"
+                android:layout_height="320dp"
                 android:nestedScrollingEnabled="false"
                 android:scrollbars="none">
 
