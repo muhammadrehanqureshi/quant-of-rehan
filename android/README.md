@@ -1641,6 +1641,23 @@ to sixty seconds. The status tile therefore also carries the app's own
      the orphan law stands so every dot still wears a filament.
   5. The version bump is versionCode 82 / versionName 2.3.15.
 
+**Version 4.0.5, versionCode 114.**
+
+  Owner order 2026-11-05, sixth pass. The ORDER FLOW icon is his new
+  picture path for path: one ledger above, a stem that splits into two
+  arms, and two ledgers below, in one ink so the nav's tint recolors it
+  with every theme. The top three scrips of volume carry their
+  quantities in one bracketed group beside the name again,
+  "(B=..., S=... & T=...)", the shape he named as the right one. The
+  BIG BUYING & SELLING board draws a visible scroll bar, stands exactly
+  eight prints tall and scrolls the rest of the day into view. The
+  ORDER FLOW tile is a search and nothing else: an empty box asks for a
+  scrip, a typed ticker answers with only the scrips that start with it,
+  a whole ticker opens that scrip's own book (price, bid, ask, buying,
+  selling and total), and no ranking of the app's own is ever printed.
+
+  The version bump is versionCode 114 / versionName 4.0.5.
+
 **Version 4.0.4, versionCode 113.**
 
   Owner order 2026-11-05, fifth pass. The ORDER FLOW icon is his picture

@@ -192,6 +192,13 @@ public class MainActivity extends Activity {
     /** How many big prints the tile lists, largest first. */
     /** How many scrips the search shows at once. */
     private static final int FLOW_RESULTS_SHOWN = 8;
+    /** Owner order 2026-11-05 (sixth pass, "only display 8 transactions
+     *  in the tile, and when i scroll I should be able to see more"): the
+     *  board's window holds exactly eight prints; the visible bar scrolls
+     *  the rest of the day into view. */
+    private static final int BIG_PRINTS_ROWS = 8;
+    /** The 3dp the board's text view puts between two prints. */
+    private static final int BIG_PRINTS_ROW_AIR_DP = 3;
 
     /**
      * The dim end of the breath, as a fraction of full opacity. It never
@@ -2815,9 +2822,12 @@ public class MainActivity extends Activity {
                 orderFlowResults.setVisibility(View.GONE);
             }
             if (orderFlowSelected != null) {
-                // Owner order 2026-11-04 (third pass): nothing stands under
-                // the search box until a scrip is picked.
-                orderFlowSelected.setVisibility(View.GONE);
+                // Owner order 2026-11-05 (sixth pass, "I should be able to
+                // search for a scrip there"): the tile opens on its own
+                // question and prints no scrip of its own until he types
+                // one, so nothing that is not his search can stand here.
+                orderFlowSelected.setText(R.string.order_flow_pick);
+                orderFlowSelected.setVisibility(View.VISIBLE);
             }
             if (bigPrintsScroll != null) {
                 // Owner order 2026-11-05: a freshly opened page reads the
@@ -2884,35 +2894,69 @@ public class MainActivity extends Activity {
                     from, sb.length(), 0);
         }
         bigPrintsList.setText(sb);
+        fitBigPrintsWindow();
     }
 
-    /** The stocks whose ticker starts with what he typed, as tappable rows. */
+    /**
+     * The board's window is exactly eight prints tall at the body's own
+     * size, whatever the screen's density: one row is the text view's own
+     * line height plus its 3dp line gap, and the window is eight of them
+     * with the list's padding. The visible bar on the right says the rest
+     * of the day is a scroll away.
+     */
+    private void fitBigPrintsWindow() {
+        if (bigPrintsScroll == null || bigPrintsList == null) {
+            return;
+        }
+        int row = bigPrintsList.getLineHeight() + dp(BIG_PRINTS_ROW_AIR_DP);
+        int height = BIG_PRINTS_ROWS * row
+                + bigPrintsList.getPaddingTop()
+                + bigPrintsList.getPaddingBottom() + dp(2);
+        ViewGroup.LayoutParams lp = bigPrintsScroll.getLayoutParams();
+        if (lp != null && lp.height != height) {
+            lp.height = height;
+            bigPrintsScroll.setLayoutParams(lp);
+        }
+    }
+
+    /** The scrips whose ticker starts with what he typed, as tappable rows. */
     private void renderFlowResults(String query) {
         if (orderFlowResults == null) {
             return;
         }
         orderFlowResults.removeAllViews();
-        // Owner order 2026-11-05 (fifth pass, "there is no order flow on
-        // ORDER FLOW tile"): an empty query is the page's own board, the
-        // eight busiest scrips by the relay's total volume, so the tile
-        // always shows current order flow the moment it opens; typing then
-        // narrows the same rows to the ticker prefix.
-        List<Watcher.FlowRow> ranked = new ArrayList<>(flowRows);
-        ranked.sort((a, b) -> Long.compare(
-                b.volume == null ? -1L : b.volume,
-                a.volume == null ? -1L : a.volume));
+        // Owner order 2026-11-05 (sixth pass, "right now order flow tile is
+        // wrong, you got random scrips there, I should be able to search for
+        // a scrip there"): the tile is a SEARCH and nothing else. An empty
+        // box asks for the scrip, and a typed ticker answers with only the
+        // scrips whose own ticker starts with it. No ranking of its own is
+        // ever printed.
+        if (query.isEmpty()) {
+            orderFlowResults.setVisibility(View.GONE);
+            if (orderFlowSelected != null) {
+                orderFlowSelected.setText(R.string.order_flow_pick);
+                orderFlowSelected.setVisibility(View.VISIBLE);
+            }
+            return;
+        }
+        for (Watcher.FlowRow row : flowRows) {
+            if (row.symbol.equals(query)) {
+                // The whole ticker he typed: its own book, no list to read.
+                selectFlow(query);
+                return;
+            }
+        }
         int shown = 0;
-        for (Watcher.FlowRow row : ranked) {
-            if (!query.isEmpty() && !row.symbol.startsWith(query)) {
+        for (Watcher.FlowRow row : flowRows) {
+            if (!row.symbol.startsWith(query)) {
                 continue;
             }
             TextView line = new TextView(this);
             line.setOnClickListener(v -> selectFlow(row.symbol));
             // The row's own paint first (the 13sp body, the padding and the
             // matched-row lift the search page carries), then the row's
-            // text is the scrip's live book: bid, ask and total volume
-            // (owner order 2026-11-05: the search results must show the
-            // CURRENT order flow, not only a tappable ticker).
+            // text is the scrip's live book: price, bid, ask and total
+            // volume, so the match already reads as order flow.
             styleSearchRow(line, row.symbol, query);
             line.setText(flowRowText(row));
             orderFlowResults.addView(line);
@@ -2921,15 +2965,28 @@ public class MainActivity extends Activity {
             }
         }
         orderFlowResults.setVisibility(shown > 0 ? View.VISIBLE : View.GONE);
+        if (orderFlowSelected != null) {
+            if (shown == 0) {
+                orderFlowSelected.setText(R.string.order_flow_none);
+                orderFlowSelected.setVisibility(View.VISIBLE);
+            } else {
+                orderFlowSelected.setVisibility(View.GONE);
+            }
+        }
     }
 
     /** One searched scrip's live book, as one search result row says it. */
     private CharSequence flowRowText(Watcher.FlowRow row) {
         SpannableStringBuilder sb = new SpannableStringBuilder(row.symbol);
+        if (row.price != null) {
+            sb.append(String.format(Locale.US, "  PKR %,.2f", row.price));
+        }
         sb.append(row.bid != null
-                ? String.format(Locale.US, "  B %,.2f", row.bid) : "  B n/a");
+                ? String.format(Locale.US, "  BID %,.2f", row.bid)
+                : "  BID n/a");
         sb.append(row.ask != null
-                ? String.format(Locale.US, "  A %,.2f", row.ask) : "  A n/a");
+                ? String.format(Locale.US, "  ASK %,.2f", row.ask)
+                : "  ASK n/a");
         sb.append(row.volume != null
                 ? String.format(Locale.US, "  T %,d", row.volume)
                 : "  T n/a");
@@ -2986,6 +3043,17 @@ public class MainActivity extends Activity {
         if (found.price != null) {
             sb.append(String.format(Locale.US, "  PKR %,.2f", found.price));
         }
+        sb.append('\n');
+        // Owner order 2026-11-05 (sixth pass, "I would search for HUBC,
+        // then i would see only HUBC's order flow i.e. bid/ask etc."): the
+        // searched scrip's own two-way book stands under its money line.
+        sb.append(found.bid != null
+                ? String.format(Locale.US, "BID %,.2f", found.bid)
+                : "BID n/a");
+        sb.append("  ");
+        sb.append(found.ask != null
+                ? String.format(Locale.US, "ASK %,.2f", found.ask)
+                : "ASK n/a");
         sb.append('\n');
         if (found.buy != null && found.sell != null && found.volume != null) {
             // Owner order 2026-11-05 (fifth pass): no U. The page's answer
@@ -3695,29 +3763,31 @@ public class MainActivity extends Activity {
             sb.append(String.format(Locale.US, "%d. %s", i + 1, row.symbol));
             long total = row.hasVolume() ? row.volume : 0L;
             if (row.hasSplit()) {
-                // Owner order 2026-11-05 (fifth pass, "the KSE100 tile is
-                // too congested... have them written in separate lines" and
-                // "the volume... has to be either buying or selling"): the
-                // scrip's name stands alone, the two sides share the next
-                // line, the total has its own line and the money line closes
-                // the row. No U survives: the pair is completed to the
-                // venue's total, so B + S = T, and no line can run off the
-                // tile at any count width, at the body's own 13sp.
+                // Owner order 2026-11-05 (sixth pass, "on top 3 scrips of
+                // volume tile, do it like this (B=..., S=... & T=...)"):
+                // the top three carry their quantities in ONE bracketed
+                // group beside the name, the shape the owner named as the
+                // right one. No U survives: the pair is completed to the
+                // venue's total, so B + S = T on the line as printed.
                 long[] pair = completePair(row.buy, row.sell,
                         total > 0 ? total : row.buy + row.sell, row.changePct);
-                sb.append("\nB=");
+                sb.append("\u00A0(B=");
                 int buyFrom = sb.length();
                 sb.append(String.format(Locale.US, "%,d", pair[0]));
                 spans.add(new int[]{buyFrom, sb.length(), R.color.green});
-                sb.append("  S=");
+                sb.append(",\u00A0S=");
                 int sellFrom = sb.length();
                 sb.append(String.format(Locale.US, "%,d", pair[1]));
                 spans.add(new int[]{sellFrom, sb.length(), R.color.red});
                 if (total > 0) {
-                    sb.append(String.format(Locale.US, "\nT=%,d", total));
+                    sb.append(String.format(Locale.US,
+                            "\u00A0&\u00A0T=%,d)", total));
+                } else {
+                    sb.append(')');
                 }
             } else if (row.hasVolume()) {
-                sb.append(String.format(Locale.US, "\nT=%,d", row.volume));
+                sb.append(String.format(Locale.US, "\u00A0(T=%,d)",
+                        row.volume));
             }
             // The money line: opened whenever there is a price or a move to
             // show, so even a price-less row puts its change on its own line
