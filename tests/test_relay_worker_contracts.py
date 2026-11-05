@@ -271,6 +271,25 @@ class RelayWorkerContractTest(unittest.TestCase):
         self.assertIn("marketWinLoss(env)", route)
         self.assertIn("win_loss: winLoss,", route)
 
+    def test_an_uncounted_day_may_be_upgraded_by_its_closed_record(self):
+        """Owner order 2026-11-05 ("always update the signal at the end of
+        the day whether it's winning or losing"): the store's first-write
+        immutability refused the corrected CLOSED record after a first
+        attempt banked UNVERIFIABLE, so GLAXO 2026-11-04 sat uncounted for
+        ever. A day that carries no countable trade may be replaced by
+        its closed record, once; a day that already counts stays
+        immutable.
+        """
+        block = self.source[self.source.index(
+            'if (request.method === "POST" && path === "/research/outcome")'):]
+        block = block[:block.index('path === "/research/history"')]
+        self.assertIn("let countable = false;", block)
+        self.assertIn("const upgrade = TRADE_OUTCOME_LABELS.has(nextLabel) &&",
+                      block)
+        self.assertIn("Number.isFinite(Number(nextSession && nextSession.net_return));",
+                      block)
+        self.assertIn("if (countable || !upgrade) {", block)
+
     def test_live_quote_hub_has_bounded_validation_and_a_public_read_contract(self):
         self.assertIn('const QUOTE_MAX_SYMBOLS = 600;', self.source)
         self.assertIn('const QUOTE_MAX_BODY_BYTES = 256 * 1024;', self.source)
