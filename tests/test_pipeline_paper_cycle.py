@@ -287,6 +287,27 @@ class PipelineCycleTest(unittest.TestCase):
         with contextlib.redirect_stdout(io.StringIO()):
             return run_scan(slot, capture or self.capture)
 
+    def test_the_finalize_accepts_a_backfill_day(self):
+        """Owner order 2026-11-05 ("always update the signal at the end of
+        the day, winning goes to W and losing ones goes to L"): the
+        finalize must be able to name a PAST session day, so a day whose
+        post-close job was never dispatched (GLAXO 2026-11-04) can still
+        bank its open trade at its own close, from that day's stored
+        tape. The default stays today, so no scheduled call changes
+        shape and no backfill path opens by accident.
+        """
+        import inspect
+
+        params = inspect.signature(run_finalize).parameters
+        self.assertIn("day", params)
+        self.assertIs(params["day"].default, None)
+        source = (ROOT / "scripts" / "intraday_pipeline.py").read_text(
+            encoding="utf-8")
+        self.assertIn('parser.add_argument("--day", type=str, default=None)',
+                      source)
+        self.assertIn("date.fromisoformat(args.day) if args.day else None",
+                      source)
+
     def assert_real_forward_untouched(self) -> None:
         """See assert_forward_untouched: the live tick's own writes are fine."""
         assert_forward_untouched(self.before, _snapshot_dir(REAL_FORWARD),

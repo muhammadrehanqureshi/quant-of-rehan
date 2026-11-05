@@ -952,8 +952,14 @@ def run_scan(slot: str, capture: Path | None = None,
     return payload
 
 
-def run_finalize(capture: Path | None = None) -> dict:
-    day = now_karachi().date()
+def run_finalize(capture: Path | None = None,
+                 day: date | None = None) -> dict:
+    # Owner order 2026-11-05: a finalize may name a PAST session day, so
+    # yesterday's open paper trade is valued at ITS real close banking
+    # the W or L the day ended on (GLAXO 2026-11-04 is the defect that
+    # asked for this). The default stays today, so every scheduled call
+    # keeps its current behaviour and no backfill path opens by accident.
+    day = day or now_karachi().date()
     if not is_trading_day(day):
         raise RuntimeError("finalization requested on a non-trading day")
     close_h, close_m = close_time(day)
@@ -1088,13 +1094,17 @@ def main(argv: list[str] | None = None) -> int:
     mode.add_argument("--scan", action="store_true")
     mode.add_argument("--finalize", action="store_true")
     parser.add_argument("--slot", choices=("10:00", "11:30", "13:00", "14:30", "16:00"))
+    # Owner order 2026-11-05: the backfill finalize names its own past
+    # session day; empty stays today.
+    parser.add_argument("--day", type=str, default=None)
     parser.add_argument("--capture", type=Path)
     args = parser.parse_args(argv)
 
     if args.scan and not args.slot:
         parser.error("--scan requires --slot")
     if args.finalize:
-        run_finalize(args.capture)
+        run_finalize(args.capture,
+                     date.fromisoformat(args.day) if args.day else None)
     else:
         run_scan(args.slot, args.capture)
     return 0

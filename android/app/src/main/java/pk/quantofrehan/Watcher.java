@@ -850,6 +850,8 @@ public final class Watcher {
     static final class FlowRow {
         String symbol = "";
         Double price;
+        Double bid;
+        Double ask;
         Long volume;
         Long buy;
         Long sell;
@@ -915,6 +917,12 @@ public final class Watcher {
                         FlowRow out = new FlowRow();
                         out.symbol = symbol;
                         out.price = number(row, "price");
+                        // Owner order 2026-11-05: the search result row
+                        // carries the scrip's own bid and ask beside its
+                        // volume, so the owner sees the live two-way book
+                        // while he types, not only after a tap.
+                        out.bid = number(row, "bid");
+                        out.ask = number(row, "ask");
                         out.volume = whole(row, "volume");
                         out.buy = whole(row, "buy_volume");
                         out.sell = whole(row, "sell_volume");

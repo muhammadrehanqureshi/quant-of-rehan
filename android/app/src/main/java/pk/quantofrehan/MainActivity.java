@@ -19,6 +19,7 @@ import android.view.ViewGroup;
 import android.view.animation.AccelerateDecelerateInterpolator;
 import android.view.animation.DecelerateInterpolator;
 import android.widget.EditText;
+import android.widget.ScrollView;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -189,7 +190,6 @@ public class MainActivity extends Activity {
     private static final long BREATH_MS = 2200L;
     /** How many stocks the ORDER FLOW page lists before it stops. */
     /** How many big prints the tile lists, largest first. */
-    private static final int BIG_PRINTS_SHOWN = 20;
     /** How many scrips the search shows at once. */
     private static final int FLOW_RESULTS_SHOWN = 8;
 
@@ -329,13 +329,13 @@ public class MainActivity extends Activity {
     private ImageView navFlow;
     private View orderFlowPanel;
     private View orderFlowRule;
-    private View ruleAfterFlow;
     private View ruleBetweenFlow;
     private EditText orderFlowInput;
     private LinearLayout orderFlowResults;
     private TextView orderFlowSelected;
     private View bigPrintsPanel;
     private TextView bigPrintsList;
+    private ScrollView bigPrintsScroll;
     /** The day's order flow, kept so a keystroke filters without a fetch. */
     private List<Watcher.FlowRow> flowRows = new ArrayList<>();
     /** True while the ORDER FLOW page replaces the console, under the same
@@ -524,13 +524,22 @@ public class MainActivity extends Activity {
         navFlow = findViewById(R.id.btn_nav_flow);
         orderFlowPanel = findViewById(R.id.order_flow_panel);
         orderFlowRule = findViewById(R.id.rule_order_flow);
-        ruleAfterFlow = findViewById(R.id.rule_after_flow);
         ruleBetweenFlow = findViewById(R.id.rule_between_flow);
         orderFlowInput = findViewById(R.id.order_flow_input);
         orderFlowResults = findViewById(R.id.order_flow_results);
         orderFlowSelected = findViewById(R.id.order_flow_selected);
         bigPrintsPanel = findViewById(R.id.big_prints_panel);
         bigPrintsList = findViewById(R.id.big_prints_list);
+        bigPrintsScroll = findViewById(R.id.big_prints_scroll);
+        if (bigPrintsScroll != null) {
+            // Owner order 2026-11-05: the big prints read in their own scroll
+            // window, so a touch on the list scrolls THE LIST, not the page
+            // underneath it.
+            bigPrintsScroll.setOnTouchListener((v, event) -> {
+                v.getParent().requestDisallowInterceptTouchEvent(true);
+                return false;
+            });
+        }
         // Owner order 2026-11-04: he types a scrip and reads its flow, so
         // the list filters on every keystroke, the search page's own law.
         if (orderFlowInput != null) {
@@ -2774,19 +2783,16 @@ public class MainActivity extends Activity {
             ruleSearch.setVisibility(open ? View.GONE
                     : ruleSearch.getVisibility());
         }
-        // The page's divisions: one diamond above the search tile, the one
-        // between the two tiles (owner order 2026-11-04, third pass: the
-        // pair that stood under BIG BUYING & SELLING loses one, and that
-        // one stands between the tiles), and one below the big prints
-        // tile, so the page closes under its own seam.
+        // The page's divisions: one diamond above the search tile and the one
+        // between the two tiles (owner order 2026-11-04, third pass). Owner
+        // order 2026-11-04 (fourth pass): the page gets NO diamond after the
+        // BIG BUYING & SELLING tile - the pair the owner read as two extra
+        // diamonds below the tile is gone with the include.
         if (orderFlowRule != null) {
             orderFlowRule.setVisibility(open ? View.VISIBLE : View.GONE);
         }
         if (ruleBetweenFlow != null) {
             ruleBetweenFlow.setVisibility(open ? View.VISIBLE : View.GONE);
-        }
-        if (ruleAfterFlow != null) {
-            ruleAfterFlow.setVisibility(open ? View.VISIBLE : View.GONE);
         }
         if (orderFlowPanel != null) {
             orderFlowPanel.setVisibility(open ? View.VISIBLE : View.GONE);
@@ -2812,6 +2818,12 @@ public class MainActivity extends Activity {
                 // Owner order 2026-11-04 (third pass): nothing stands under
                 // the search box until a scrip is picked.
                 orderFlowSelected.setVisibility(View.GONE);
+            }
+            if (bigPrintsScroll != null) {
+                // Owner order 2026-11-05: a freshly opened page reads the
+                // board from the top; the owner's scroll stays wherever he
+                // left it while the page stays open.
+                bigPrintsScroll.scrollTo(0, 0);
             }
             refreshOrderFlow();
         }
@@ -2841,14 +2853,17 @@ public class MainActivity extends Activity {
         }
         if (prints == null || prints.isEmpty()) {
             bigPrintsList.setText(R.string.big_prints_none);
+            // The list is the day's whole board; an empty refresh keeps the
+            // owner's own scroll position where it was.
             return;
         }
         SpannableStringBuilder sb = new SpannableStringBuilder();
         int shown = 0;
         for (Watcher.BigPrint print : prints) {
-            if (shown >= BIG_PRINTS_SHOWN) {
-                break;
-            }
+            // Owner order 2026-11-05: EVERY print the relay holds joins the
+            // list. The tile scrolls, so the cap that used to stop at twenty
+            // lines is gone: the owner reads the complete BIG BUYING &
+            // SELLING during the day by scrolling, one print a line.
             if (shown > 0) {
                 sb.append('\n');
             }
@@ -2887,14 +2902,33 @@ public class MainActivity extends Activity {
                 continue;
             }
             TextView line = new TextView(this);
-            styleSearchRow(line, row.symbol, query);
             line.setOnClickListener(v -> selectFlow(row.symbol));
+            // The row's own paint first (the 13sp body, the padding and the
+            // matched-row lift the search page carries), then the row's
+            // text is the scrip's live book: bid, ask and total volume
+            // (owner order 2026-11-05: the search results must show the
+            // CURRENT order flow, not only a tappable ticker).
+            styleSearchRow(line, row.symbol, query);
+            line.setText(flowRowText(row));
             orderFlowResults.addView(line);
             if (++shown >= FLOW_RESULTS_SHOWN) {
                 break;
             }
         }
         orderFlowResults.setVisibility(shown > 0 ? View.VISIBLE : View.GONE);
+    }
+
+    /** One searched scrip's live book, as one search result row says it. */
+    private CharSequence flowRowText(Watcher.FlowRow row) {
+        SpannableStringBuilder sb = new SpannableStringBuilder(row.symbol);
+        sb.append(row.bid != null
+                ? String.format(Locale.US, "  B %,.2f", row.bid) : "  B n/a");
+        sb.append(row.ask != null
+                ? String.format(Locale.US, "  A %,.2f", row.ask) : "  A n/a");
+        sb.append(row.volume != null
+                ? String.format(Locale.US, "  T %,d", row.volume)
+                : "  T n/a");
+        return sb;
     }
 
     /** One scrip's own four part volume, the point of the whole page. */

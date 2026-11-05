@@ -464,6 +464,78 @@ class SettingsControlTest(unittest.TestCase):
                       button)
         self.assertTrue((RES / "drawable-nodpi" / "orderflow.png").is_file())
         self.assertFalse((RES / "drawable" / "ic_nav_flow.xml").is_file())
+        # Owner order 2026-11-05: the square drawing he pasted is the icon,
+        # 512 by 512 like the picture he sent, drawn in one ink the nav's
+        # own tint recolors with the worn theme (setNavPage already paints
+        # every icon, this one included, from the theme's accent pair).
+        width, height, depth, colour = png_header(
+            RES / "drawable-nodpi" / "orderflow.png")
+        self.assertEqual((width, height), (512, 512))
+        self.assertEqual((depth, colour), (8, 6))
+
+    def test_the_flow_page_owns_two_seams_and_no_extra_one(self):
+        """Owner order 2026-11-04, fourth pass ("there are two diamond
+        line feature below the tile of BIG BUYING & SELLING, remove the
+        extra one"): the page keeps the seam above ORDER FLOW and the one
+        between ORDER FLOW and BIG BUYING & SELLING, and it carries NO
+        include after the page's second tile - the extra diamond the
+        owner counted below the tile is gone with rule_after_flow.
+        """
+        self.assertIn('android:id="@+id/rule_order_flow"', self.layout)
+        self.assertIn('android:id="@+id/rule_between_flow"', self.layout)
+        self.assertNotIn("rule_after_flow", self.layout)
+        self.assertNotIn("ruleAfterFlow", self.main)
+        self.assertGreater(
+            self.layout.index("@+id/rule_between_flow"),
+            self.layout.index("@+id/order_flow_panel"))
+        self.assertGreater(
+            self.layout.index("@+id/big_prints_panel"),
+            self.layout.index("@+id/rule_between_flow"))
+
+    def test_the_big_prints_board_scrolls_the_whole_day(self):
+        """Owner order 2026-11-05 ("add a scrolling feature on BIG BUYING
+        & SELLING tile so I can scroll and look for the complete BIG
+        BUYING & SELLING during the day"): the tile's list lives in its
+        own ScrollView, every print the relay served joins the text (the
+        twenty line cap is gone), a touch on the list scrolls the list
+        and never the page underneath it, and a freshly opened page
+        reads the board from its top.
+        """
+        scroll_at = self.layout.index("@+id/big_prints_scroll")
+        list_at = self.layout.index("@+id/big_prints_list")
+        self.assertLess(scroll_at, list_at)
+        self.assertIn("<ScrollView", self.layout[scroll_at - 200:scroll_at])
+        self.assertLess(list_at, self.layout.index("</ScrollView>", list_at))
+        self.assertIn('android:maxHeight="320dp"', self.layout)
+        self.assertIn("bigPrintsScroll = findViewById(R.id.big_prints_scroll);",
+                      self.main)
+        self.assertIn("requestDisallowInterceptTouchEvent(true)", self.main)
+        self.assertIn("bigPrintsScroll.scrollTo(0, 0);", self.main)
+        self.assertNotIn("BIG_PRINTS_SHOWN", self.main)
+        self.assertIn("Owner order 2026-11-05: EVERY print the relay holds",
+                      self.main)
+
+    def test_a_search_row_carries_the_live_book(self):
+        """Owner order 2026-11-05 ("you just got the SEARCH function there,
+        I should be able to see current bid/ask/volume for each stock that
+        I search"): the ORDER FLOW result row IS the live two-way book -
+        bid, ask and total volume beside the ticker - from the same
+        /orderflow answer the page already reads, and a tap adds the
+        scrip's own four part answer.
+        """
+        self.assertIn("line.setText(flowRowText(row));", self.main)
+        self.assertIn('\"  B %,.2f\"', self.main)
+        self.assertIn('\"  A %,.2f\"', self.main)
+        self.assertIn('\"  T %,d\"', self.main)
+        # The numbers travel from the relay's rows, which carry bid and
+        # ask; the Watcher parses both beside the price and the volume.
+        watcher = (ROOT / "android" / "app" / "src" / "main" / "java"
+                   / "pk" / "quantofrehan" / "Watcher.java").read_text(
+            encoding="utf-8")
+        self.assertIn("out.bid = number(row, \"bid\");", watcher)
+        self.assertIn("out.ask = number(row, \"ask\");", watcher)
+        self.assertIn("Double bid;", watcher)
+        self.assertIn("Double ask;", watcher)
 
     def test_the_four_icons_are_the_owners_own_pngs(self):
         """Owner order 2026-10-24: the scanner page's icon (his own
@@ -727,9 +799,12 @@ class BrandRuleTest(unittest.TestCase):
         # page owns a division of its own, bracketed above and below, so
         # the console carried twelve. Owner order 2026-11-04 (third pass):
         # the pair under BIG BUYING & SELLING loses one and that one
-        # stands between the ORDER FLOW and BIG BUYING & SELLING tiles,
-        # so the console carries thirteen.
-        self.assertEqual(self.layout.count('layout="@layout/qor_rule"'), 13)
+        # stands between the ORDER FLOW and BIG BUYING & SELLING tiles.
+        # Owner order 2026-11-04 (fourth pass): the page gets NO diamond
+        # after the BIG BUYING & SELLING tile - the extra one he read as
+        # two seams below the tile is gone with the include - so the
+        # console carries twelve.
+        self.assertEqual(self.layout.count('layout="@layout/qor_rule"'), 12)
 
     def test_the_rules_stand_between_the_tiles_and_never_inside_them(self):
         root = layout_root()
@@ -1001,8 +1076,11 @@ class CadencePlacementTest(unittest.TestCase):
         # division of its own, bracketed above and below. Owner order
         # 2026-11-04 (third pass): the seam between the page's two tiles
         # carries the diamond that left the pair under BIG BUYING &
-        # SELLING, and the console carries THIRTEEN.
-        self.assertEqual(len(rules), 13)
+        # SELLING, and the console carried THIRTEEN. Owner order
+        # 2026-11-04 (fourth pass): the extra seam below BIG BUYING &
+        # SELLING is gone with the include, so the console carries
+        # TWELVE.
+        self.assertEqual(len(rules), 12)
         market_rule = next(
             rule for rule in rules
             if rule.get(f"{ANDROID_NS}id") == "@+id/rule_after_market")
@@ -1835,11 +1913,12 @@ class VersionTest(unittest.TestCase):
         # diamond rules wear the second colour, versionCode 104.
         manifest = MANIFEST.read_text(encoding="utf-8")
         # Owner order 2026-11-04: v4.0.0, the ORDER FLOW page. v4.0.1 is
-        # the big prints relay side; v4.0.2 is the third-pass page:
-        # the seam between the two tiles, the pick line gone until a
-        # scrip is picked, the search box's own words.
-        self.assertIn('android:versionName="4.0.2"', manifest)
-        self.assertIn('android:versionCode="111"', manifest)
+        # the big prints relay side; v4.0.2 is the third-pass page; v4.0.3
+        # is the fourth pass: the owner's own pasted icon, no seam after
+        # the page's second tile, the live bid/ask/total in the search
+        # rows, and the scrolling big prints board.
+        self.assertIn('android:versionName="4.0.3"', manifest)
+        self.assertIn('android:versionCode="112"', manifest)
         self.assertNotIn('android:versionName="3.7.5"', manifest)
         self.assertNotIn('android:versionName="3.7.4"', manifest)
         self.assertNotIn('android:versionName="3.7.3"', manifest)
@@ -2042,10 +2121,12 @@ class VersionTest(unittest.TestCase):
         # v4.0.1 (owner order 2026-11-04, second pass): the ORDER FLOW page
         # rebuilt as a scrip search plus the big buying and selling tile.
         # v4.0.2 (owner order 2026-11-04, third pass): the page's seam
-        # between its two tiles, the pick line gone until a scrip is
-        # picked, and the search box's own words.
-        self.assertIn('android:versionCode="111"', manifest)
-        self.assertIn('android:versionName="4.0.2"', manifest)
+        # between its two tiles. v4.0.3 (owner order 2026-11-05, fourth
+        # pass): the owner's own icon, no seam after the page's second
+        # tile, the live book in the search rows, and the scrollable big
+        # prints board.
+        self.assertIn('android:versionCode="112"', manifest)
+        self.assertIn('android:versionName="4.0.3"', manifest)
         self.assertNotIn('android:versionName="3.7.5"', manifest)
         self.assertNotIn('android:versionName="3.7.4"', manifest)
         self.assertNotIn('android:versionName="3.7.3"', manifest)
@@ -4747,8 +4828,10 @@ class UniversalRuleGapTest(unittest.TestCase):
         # page's own diamond, the ORDER FLOW page's bracket of two, and
         # the volume pair's own). Owner order 2026-11-04 (third pass): the
         # pair under BIG BUYING & SELLING loses one and that one stands
-        # between the page's two tiles, so THIRTEEN rules now.
-        self.assertEqual(len(rules), 13)
+        # between the page's two tiles, and THIRTEEN rules then. Owner
+        # order 2026-11-04 (fourth pass): the extra seam below BIG BUYING
+        # & SELLING is gone with the include, so TWELVE rules now.
+        self.assertEqual(len(rules), 12)
         for rule in rules:
             with self.subTest(rule=rule.get(f"{ANDROID_NS}id")):
                 self.assertEqual(rule.get(f"{ANDROID_NS}layout_marginTop"),

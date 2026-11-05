@@ -57,6 +57,17 @@ on:
           - "16:00"
           - "finalize"
         default: "10:00"
+      # Owner order 2026-11-05 ("always update the signal at the end of the
+      # day, winning goes to W and losing ones goes to L"): a backfill
+      # finalize names a PAST session day: the day's state and tape are
+      # restored from R2, the open paper trade is valued at its own real
+      # close and the record banks to the relay. Empty stays today: the
+      # scheduled finalize.
+      day:
+        description: "Backfill finalize day (YYYY-MM-DD), empty for today"
+        type: string
+        required: false
+        default: ""
 
 permissions:
   actions: read
@@ -188,10 +199,21 @@ jobs:
           # store already holds both, so restore them before the capture
           # appends its own minutes. A missing object is reported and does not
           # invent a session.
-          python -m src.data.band_state --restore
+          #
+          # Owner order 2026-11-05: on a backfill finalize the restore names
+          # THE DAY the record belongs to, so yesterday's state, journal and
+          # tape come back exactly as that day's band pushed them.
+          DAY_FLAG=""
+          if [ -n "${{ inputs.day }}" ]; then
+            DAY_FLAG="--day ${{ inputs.day }}"
+          fi
+          python -m src.data.band_state --restore $DAY_FLAG
 
       - name: Bank the session tape, inside a budget this job can afford
-        if: steps.gate.outputs.should_run == 'true'
+        # Owner order 2026-11-05: a backfill finalize must not record a NEW
+        # live capture. It finalizes from the day's own restored tape, so
+        # the recorder step belongs only to a same-day run.
+        if: steps.gate.outputs.should_run == 'true' && inputs.day == ''
         run: |
           # Owner order 2026-10-14: the eClear OHLC servlet serves no bars, so
           # the bars a scan reads are built from the broker tape the system
@@ -268,7 +290,11 @@ jobs:
           }
           if [ "${{ steps.gate.outputs.purpose }}" = "finalize" ]; then
             MODE=finalize
-            run_and_report python scripts/intraday_pipeline.py --finalize
+            DAY_FLAG=""
+            if [ -n "${{ inputs.day }}" ]; then
+              DAY_FLAG="--day ${{ inputs.day }}"
+            fi
+            run_and_report python scripts/intraday_pipeline.py --finalize $DAY_FLAG
           else
             MODE=scan
             run_and_report python scripts/intraday_pipeline.py --scan \
