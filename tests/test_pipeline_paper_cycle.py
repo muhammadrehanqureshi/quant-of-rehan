@@ -308,6 +308,31 @@ class PipelineCycleTest(unittest.TestCase):
         self.assertIn("date.fromisoformat(args.day) if args.day else None",
                       source)
 
+    def test_the_backfill_valuation_falls_back_to_the_exchange_close(self):
+        """Owner order 2026-11-05 ("always update the signal at the end of
+        the day whether it's winning or losing"): a backfill day whose
+        session tape ends before the bell (GLAXO 2026-11-04, the last
+        band banked minutes short) must still carry its W or L, valued at
+        the exchange's own published regular-session close from the same
+        mkt_summary download the daily history is built from. The fallback
+        is honest: a refused download or an absent symbol stays
+        UNVERIFIABLE and the close's source name lands in the record
+        (SO-3). No mock and no network: these are the code's own words.
+        """
+        source = (ROOT / "scripts" / "intraday_pipeline.py").read_text(
+            encoding="utf-8")
+        self.assertIn("from src.data.psx_daily_downloads import "
+                      "fetch_mkt_summary", source)
+        self.assertIn("def exchange_close_price(day: date, "
+                      "symbol: str | None) -> tuple[float | None, str]:",
+                      source)
+        self.assertIn("final, close_source = exchange_close_price(day, "
+                      "state.symbol)", source)
+        self.assertIn("\"close_source\": close_source,", source)
+        self.assertIn("state.close_day(final if outcome_label == "
+                      "\"CLOSED_AT_SESSION_END\"\n                        else None, as_of)",
+                      source)
+
     def assert_real_forward_untouched(self) -> None:
         """See assert_forward_untouched: the live tick's own writes are fine."""
         assert_forward_untouched(self.before, _snapshot_dir(REAL_FORWARD),
