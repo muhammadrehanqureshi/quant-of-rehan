@@ -9,6 +9,32 @@ writing, in `GOVERNANCE.md`.
 `GOVERNANCE.md` is the full standing orders. This file states the part that is
 about the owner's own computer, because that is the part an eager agent breaks.
 
+## The heat order: zero local compute
+
+**The agent's own session runs no local computation. Edits, the git and gh
+commands, and nothing else.**
+
+Owner order 2026-11-05, verbatim: "when you are working my PC is always over
+75 degree celcius? Don't ever hammer my PC at all ever!!! hardcode this into
+your system"
+
+This is wider than the machine rule below: that one keeps the project's
+workloads off this PC, and this one keeps the AGENT off it too. Every check the
+repo has is already cloud or fits there, so:
+
+- **The only local actions are the file tools and `git`/`gh`.** No local test
+  run, no build, no benchmark, no `python -c` smoke parse, no `node --check`,
+  no script that reads a tape or a CSV, no formatter over the tree. If it
+  computes, it runs in the pull request's CI or in GitHub Actions, never here.
+- **Reading is fine, computing is not.** `read_files`, searches, `git status`
+  and `git diff` are reads; a parser, a linter, a typechecker and a generator
+  are compute and belong to the workflow that runs them.
+- **CI is the answer to every verification question**, including the syntax of
+  a file just edited. The pull request's governance job runs the suite in the
+  cloud; wait on it with `gh pr checks --watch`, which is a network read.
+- **A session that breaks this is a defect, not a shortcut**, and it fixes it
+  in the same pull request (SO-23).
+
 ## The one machine rule
 
 **The owner's PC is not used at all. Zero percent, not two.**
@@ -107,6 +133,7 @@ sentence: the agent is never the clock.
 | No workflow registers local autostart | `LOCAL_AUTOSTART_PATTERNS` | `scripts/check_governance.py` |
 | Backtests run in GitHub Actions, never on this PC | `BACKTEST_SCRIPTS`, `guard_cloud_backtest` | `scripts/check_governance.py` (`check_backtests_in_cloud`) |
 | No wait for the clock sits in the agent's tooling | `MAX_PACING_SECONDS`, `idle_wait_violations` | `scripts/check_governance.py` (`check_no_idle_waits`), `tests/test_governance_no_idle.py` |
+| The agent's session runs no local compute, only edits, git and gh | this file's heat order, `GOVERNANCE.md` SO-23 | `scripts/check_governance.py` (`check_governance_doc` pinned text) |
 
 The declared cloud-only entry points are `scripts/install_kmiall_tick.py`,
 `scripts/install_scheduler.py`, `scripts/kmiall_tick.py`,
@@ -150,3 +177,6 @@ instruction, not to be discovered as a convenience.
 - **SO-22** the agent never sleeps and never waits for the clock. No `sleep`,
   no waiting for a market event, no turn held open for a later moment: the
   cloud waits, the session works.
+- **SO-23** the agent's own session runs no local computation: the file tools
+  and the `git`/`gh` commands are its only local actions. Every check, build
+  and test runs in the pull request's CI, never on the owner's PC.

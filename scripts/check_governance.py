@@ -127,6 +127,14 @@ REQUIRED_GOVERNANCE_SNIPPETS = [
     "the cloud waits for it",
     "It never becomes the clock itself",
     "aimed at a market clock",
+    # Owner order 2026-11-05 (SO-23): the agent's own session runs no local
+    # computation. SO-21 kept the project's workloads in the cloud; this one
+    # keeps the session's own checks there too, so its only local actions are
+    # edits and git/gh and the machine stays idle while it works.
+    "The agent's own session runs no local computation",
+    "Don't ever hammer my PC at all ever",
+    "the agent's only local actions are file edits and the `git` and `gh` "
+    "commands",
 ]
 
 # SO-12: a workflow that registers local autostart would put recurring work
@@ -174,6 +182,11 @@ REQUIRED_AGENTS_SNIPPETS = [
     "The no-idling rule",
     "Don't ever sleep, do the work what I tell you",
     "the agent is never the clock",
+    # Owner order 2026-11-05 (SO-23): the heat order sits at the top of the
+    # machine law, before the one machine rule, so a session reads it first.
+    "The heat order: zero local compute",
+    "Don't ever hammer my PC at all ever",
+    "no `python -c` smoke parse, no `node --check`",
 ]
 
 
@@ -706,7 +719,8 @@ def main() -> int:
           "SO-7a co-author line verified, SO-8 Karachi pin verified, "
           "SO-21 backtests cloud-only enforced, SO-12 cloud-only recurring "
           "work enforced, SO-20 tape before scanner, KV quota removed, "
-          "SO-22 no clock wait in the agent's tooling.")
+          "SO-22 no clock wait in the agent's tooling, "
+          "SO-23 zero local compute in an agent session.")
     return 0
 
 
