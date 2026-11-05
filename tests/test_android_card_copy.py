@@ -189,8 +189,14 @@ class LeaderLineTest(unittest.TestCase):
         # each held to its neighbour by the same non-breaking space, so the
         # group still cannot be broken across two lines.
         self.assertIn('sb.append(",\\u00A0S=");', self.main)
-        self.assertIn('"\\u00A0&\\u00A0T=%,d)"', self.main)
-        self.assertIn('"\\u00A0(T=%,d)"', self.main)
+        self.assertIn('sb.append("\\u00A0&\\u00A0T=");', self.main)
+        self.assertIn('sb.append(String.format(Locale.US, "%,d", total));',
+                      self.main)
+        # Owner order 2026-11-05 (fifth pass): the total no longer trails a
+        # bracketed group on the same line, so neither old format survives
+        # to carry a U beside it.
+        self.assertNotIn('"\\u00A0&\\u00A0T=%,d)"', self.main)
+        self.assertNotIn('"\\u00A0(T=%,d)"', self.main)
         # Owner order 2026-10-21 13:07: the tail opens with one space before
         # the price, and with the 14:19 gap fix the box gaps come from the
         # panel padding, not margins.
@@ -218,8 +224,13 @@ class LeaderLineTest(unittest.TestCase):
 
     def test_the_quantity_fields_print_the_feeds_own_numbers(self):
         """Render only exact non-negative broker share counts; never round."""
-        self.assertIn('String.format(Locale.US, "%,d", row.buy)', self.main)
-        self.assertIn('String.format(Locale.US, "%,d", row.sell)', self.main)
+        # Owner order 2026-11-05 (fifth pass): the leader row prints the
+        # completed pair, so its two quantities are pair[0] and pair[1],
+        # which are the venue's own counts after the remainder falls to a
+        # side. No figure is ever rounded to make it fit.
+        self.assertIn('String.format(Locale.US, "%,d", pair[0])', self.main)
+        self.assertIn('String.format(Locale.US, "%,d", pair[1])', self.main)
+        self.assertIn("completePair(row.buy, row.sell,", self.main)
         self.assertNotIn("Math.round(row.buy", self.main)
         self.assertNotIn("Math.round(row.sell", self.main)
         watcher = (ROOT / "android" / "app" / "src" / "main" / "java"

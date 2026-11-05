@@ -2150,9 +2150,11 @@ class VersionTest(unittest.TestCase):
         # between its two tiles. v4.0.3 (owner order 2026-11-05, fourth
         # pass): the owner's own icon, no seam after the page's second
         # tile, the live book in the search rows, and the scrollable big
-        # prints board.
-        self.assertIn('android:versionCode="112"', manifest)
-        self.assertIn('android:versionName="4.0.3"', manifest)
+        # prints board. v4.0.4 (fifth pass): the icon as a one-ink vector,
+        # no U printed, the KSE100 rows split, the open board, the fixed
+        # big prints window and the TP-only W/L ledger.
+        self.assertIn('android:versionCode="113"', manifest)
+        self.assertIn('android:versionName="4.0.4"', manifest)
         self.assertNotIn('android:versionName="3.7.5"', manifest)
         self.assertNotIn('android:versionName="3.7.4"', manifest)
         self.assertNotIn('android:versionName="3.7.3"', manifest)
