@@ -736,6 +736,7 @@ def signal_message(candidate: dict, market: dict, entry: float,
     return (
         "QUANT LONG SIGNAL - PAPER REFERENCE\n\n"
         f"Symbol: {candidate['symbol']}\n"
+        f"Score: {candidate['score']:.2f}\n"
         f"Entry price: {entry:.4f}\n"
         f"Target: {target_price(entry):.4f} (+{config.TARGET_PCT * 100:.1f}% gross)\n"
         f"Stop Loss: {stop:.4f}\n"

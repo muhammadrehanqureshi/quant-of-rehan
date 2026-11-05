@@ -378,6 +378,33 @@
                 android:layout_marginBottom="10dp"
                 android:text="@string/label_big_prints"/>
 
+            <!-- Owner order 2026-11-05, eighth pass ("have a search
+                 feature as well for big buying and selling tile, so I can
+                 easily search for individual stocks, because the log is
+                 huge"): the board carries its own field, the same 43dp
+                 plate every other field on the console wears. A typed
+                 ticker filters the prints to that scrip; an empty box
+                 shows the whole session. -->
+            <EditText
+                android:id="@+id/big_prints_input"
+                android:layout_width="match_parent"
+                android:layout_height="43dp"
+                android:layout_marginBottom="8dp"
+                android:background="@drawable/field_bg"
+                android:gravity="center_vertical"
+                android:hint="@string/big_prints_hint"
+                android:imeOptions="actionSearch"
+                android:includeFontPadding="false"
+                android:inputType="textCapCharacters"
+                android:maxLines="1"
+                android:paddingLeft="10dp"
+                android:paddingRight="10dp"
+                android:paddingTop="3dp"
+                android:paddingBottom="3dp"
+                android:textColor="@color/text_bright"
+                android:textColorHint="@color/text_soft"
+                android:textSize="13sp"/>
+
             <!-- Owner order 2026-11-05 (fifth pass, "you [have] a really
                  long page with a really long tile"): the board scrolls in
                  its own FIXED window, so the page never grows with the

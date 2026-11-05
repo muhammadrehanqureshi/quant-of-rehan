@@ -1641,6 +1641,19 @@ to sixty seconds. The status tile therefore also carries the app's own
      the orphan law stands so every dot still wears a filament.
   5. The version bump is versionCode 82 / versionName 2.3.15.
 
+**Version 4.0.7, versionCode 116.**
+
+  Owner order 2026-11-05, eighth pass. The latest signal tile loses the MTF
+  and VWAP line and prints the pick's score under the stock's name. The top
+  three scrips and the scanner's three print as three lines each: rank and
+  ticker, then the measured B and S with the unclear U beside them, then T
+  with the current price and percentage. Unclear volume is never folded into
+  a side again. The big buying and selling tile carries its own search field,
+  and the order flow icon's arms stop at the ledgers instead of running
+  through them.
+
+  The version bump is versionCode 116 / versionName 4.0.7.
+
 **Version 4.0.6, versionCode 115.**
 
   Owner order 2026-11-05, seventh pass. The relay keeps its Durable Object

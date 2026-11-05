@@ -80,10 +80,11 @@ class SignalTextSourceTest(unittest.TestCase):
         self.assertIn('name="signal_none"', strings)
         self.assertIn('name="signal_unavailable"', strings)
 
-    def test_the_reader_keeps_the_cloud_mtf_line(self):
-        self.assertIn(
-            'Pattern.compile("(?m)^(MTF .*)$")', self.reader)
-        self.assertIn("out.append('\\n').append(mtf);", self.reader)
+    def test_the_reader_has_no_mtf_line_and_prints_the_score(self):
+        """Owner order 2026-11-05, eighth pass: MTF and VWAP leave the tile."""
+        self.assertNotIn("MTF", self.reader)
+        self.assertNotIn("VWAP", self.reader)
+        self.assertIn('out.append("Score: ")', self.reader)
 
     def test_the_tile_carries_the_entry_time_but_no_header(self):
         """The real entry stamp is allowed; the card header is not."""

@@ -478,7 +478,7 @@ class SettingsControlTest(unittest.TestCase):
                        'android:pathData="M54,318',
                        'android:pathData="M358,318'):
             self.assertIn(square, text)
-        for line in ('M250,158 L250,214',
+        for line in ('M250,164 L250,214',
                      'M250,214 C250,246 236,258 204,258',
                      'M250,214 C250,246 264,258 296,258',
                      'android:strokeWidth="26"'):
@@ -1018,16 +1018,14 @@ class TypefaceTest(unittest.TestCase):
         self.assertNotIn('sb.append("  EST")', self.main)
         # v1.8.5 (owner 14:51): the group's separators are NON-BREAKING
         # spaces, so a wide row can never wrap mid group.
-        self.assertIn('sb.append("\\u00A0(B=");', self.main)
-        # v1.8.7 (owner 15:35): the three quantities read as a sentence, a
-        # comma after B and an ampersand before T, both non-breaking.
-        self.assertIn('sb.append(",\\u00A0S=");', self.main)
-        # Owner order 2026-11-05 (sixth pass, "on top 3 scrips of volume
-        # tile, do it like this (B=..., S=... & T=...)"): the top three
-        # carry the group on the name's own line again, the total closing
-        # the bracket, and a row with no split keeps its one-field bracket.
-        self.assertIn('"\\u00A0&\\u00A0T=%,d)"', self.main)
-        self.assertIn('"\\u00A0(T=%,d)"', self.main)
+        # Owner order 2026-11-05, eighth pass: three lines per scrip. The
+        # measured B and S stand on their own line with the unclear U beside
+        # them, then T with the money line; nothing is folded into a side.
+        self.assertIn("sb.append('\\n').append(\"B \");", self.main)
+        self.assertIn('sb.append(", S ");', self.main)
+        self.assertIn('sb.append(", U ");', self.main)
+        self.assertIn("sb.append('\\n').append(\"T \");", self.main)
+        self.assertNotIn("completePair", self.main)
         # v1.8.6 (owner 15:15): and that row keeps the body's 13sp. It wins
         # its width from the tile (6dp of each 16dp panel padding, through the
         # negative side margins) and from its own tracking, never from a
@@ -1954,8 +1952,8 @@ class VersionTest(unittest.TestCase):
         # pass: his new ORDER FLOW picture, the bracketed top three, the
         # eight-print board with its visible bar, and the search-only
         # ORDER FLOW tile.
-        self.assertIn('android:versionName="4.0.6"', manifest)
-        self.assertIn('android:versionCode="115"', manifest)
+        self.assertIn('android:versionName="4.0.7"', manifest)
+        self.assertIn('android:versionCode="116"', manifest)
         self.assertNotIn('android:versionName="3.7.5"', manifest)
         self.assertNotIn('android:versionName="3.7.4"', manifest)
         self.assertNotIn('android:versionName="3.7.3"', manifest)
@@ -2165,8 +2163,8 @@ class VersionTest(unittest.TestCase):
         # rows; v4.0.5 (sixth pass) is his new ORDER FLOW picture, the
         # bracketed top three, the eight-print scrolling board with its
         # visible bar, and the search-only ORDER FLOW tile.
-        self.assertIn('android:versionCode="115"', manifest)
-        self.assertIn('android:versionName="4.0.6"', manifest)
+        self.assertIn('android:versionCode="116"', manifest)
+        self.assertIn('android:versionName="4.0.7"', manifest)
         self.assertNotIn('android:versionName="3.7.5"', manifest)
         self.assertNotIn('android:versionName="3.7.4"', manifest)
         self.assertNotIn('android:versionName="3.7.3"', manifest)
@@ -2648,18 +2646,21 @@ class LeaderRowFitsAtBodySizeTest(unittest.TestCase):
         return self.TILE_DP - 2 * self.SIDE_INSET_DP
 
     def test_the_widest_row_the_card_has_shown_fits_at_13sp(self):
-        row = "2. CNERGY (B=12,626,814, S=25,253,629 & T=37,880,443)"
+        row = "B 12,626,814, S 25,253,629, U 1,234,567"
         self.assertLess(self.width(row), self.available())
 
     def test_nine_digit_counts_fit_too(self):
-        row = "2. CNERGY (B=12,626,814, S=25,253,629 & T=101,880,443)"
+        row = "T 1,101,880,443  PKR 1,234.56 \u25B2 9.72%"
         self.assertLess(self.width(row), self.available())
 
     def test_the_tracking_is_what_makes_13sp_fit(self):
-        # Without it the same row overshoots the line, which is exactly why
-        # v1.8.5 shrank the type instead of using the tile's width.
-        row = "2. CNERGY (B=12,626,814, S=25,253,629 & T=37,880,443)"
-        self.assertGreater(self.width(row, 0.0), self.available())
+        # The three-line rows are shorter than the old bracket, so the tile
+        # keeps its measured negative tracking rather than shrinking type.
+        self.assertLess(self.TRACKING, 0.0)
+        layout = LAYOUT.read_text(encoding="utf-8")
+        leaders = layout[layout.index("@+id/market_leaders"):]
+        leaders = leaders[:leaders.index("/>\n")]
+        self.assertIn(f'android:letterSpacing="{self.TRACKING}"', leaders)
 
     def test_the_shipped_tracking_and_inset_are_the_measured_ones(self):
         layout = LAYOUT.read_text(encoding="utf-8")
@@ -3112,7 +3113,7 @@ class MenuOrdersTest(unittest.TestCase):
         self.assertIn("R.color.green", live)
         self.assertIn("R.color.red", live)
         self.assertIn('" & T=%,d"', live)
-        self.assertNotIn("U=%,d", live)
+        self.assertIn("U=%,d", live)
 
     def test_the_dropdown_caret_stands_at_its_face_middle(self):
         """Owner order 2026-11-01 ("have the drop down/up icon at the
@@ -3327,18 +3328,16 @@ class MenuOrdersTest(unittest.TestCase):
         block = self.main[self.main.index(
             "private SpannableStringBuilder volumeRevealText(") :]
         block = block[:block.index("/** One coloured quantity")]
-        # The leaders card's own bracket, comma after B, ampersand before T.
-        self.assertEqual(block.count("\\u00A0(B="), 1)
-        self.assertEqual(block.count(",\\u00A0S="), 1)
-        self.assertEqual(block.count("\\u00A0&\\u00A0T="), 1)
-        # The buy digits in green and the sell digits in red, the money
-        # line with the coloured arrow and the glyph face.
-        # Owner order 2026-11-05 (fifth pass): the pair printed IS the
-        # completed pair, so the buy digit is pair[0] and the sell digit is
-        # pair[1]; no U rides the line.
-        self.assertIn("colorQuantity(sb, pair[0], R.color.green)", block)
-        self.assertIn("colorQuantity(sb, pair[1], R.color.red)", block)
-        self.assertNotIn("U=", block)
+        # Owner order 2026-11-05, eighth pass: the scanner's three read as
+        # three lines, measured B and S with the unclear U beside them, then
+        # T on the money line; no remainder is folded into a side.
+        self.assertIn('append("B ");', block)
+        self.assertIn('sb.append(", S ");', block)
+        self.assertIn('sb.append(", U ");', block)
+        self.assertIn('append("T ");', block)
+        self.assertIn("colorQuantity(sb, quote.buy, R.color.green)", block)
+        self.assertIn("colorQuantity(sb, quote.sell, R.color.red)", block)
+        self.assertNotIn("pair[0]", block)
         self.assertIn("TypefaceSpan(ARROW_FACE)", block)
         self.assertIn("R.color.green : R.color.red", block)
         self.assertIn("private void colorQuantity(SpannableStringBuilder sb, long value, int res)", self.main)

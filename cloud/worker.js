@@ -2661,6 +2661,13 @@ export default {
           // pair, so the search answer and the selected line print the
           // same moving counter the card's row carries.
           row.volume,
+          // The unclear remainder rides as the seventh field (owner order
+          // 2026-11-05, eighth pass): the phone prints it as U and never
+          // folds it into a side.
+          row.volume != null && row.buy_volume != null && row.sell_volume != null
+            ? Math.max(0, Math.round(row.volume) - Math.round(row.buy_volume)
+              - Math.round(row.sell_volume))
+            : null,
         ]);
       }
       return json({ ok: true, prices });

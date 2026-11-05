@@ -153,6 +153,8 @@ public final class Watcher {
         Long buy;
         /** null: no buy/sell split arrived. */
         Long sell;
+        /** null: the split did not report a remainder, never a guessed zero. */
+        Long unclassified;
         /**
          * How the relay produced the split: "measured_tape" when the numbers
          * came from the session's own trade tape, "range_position" when they
@@ -406,6 +408,7 @@ public final class Watcher {
                     leader.changePct = numberOrNull(row, "change_pct");
                     leader.buy = integerOrNull(row, "buy_volume");
                     leader.sell = integerOrNull(row, "sell_volume");
+                    leader.unclassified = integerOrNull(row, "unclassified_volume");
                     leader.splitMethod = row.optString("split_method", "");
                     market.leaders.add(leader);
                 }
@@ -796,13 +799,19 @@ public final class Watcher {
          *  so it grows with the tape; the selected answer and the card's
          *  rows both restamp it from this one number (2026-11-01). */
         final Long volume;
+        /** The shares the split could not side (owner order 2026-11-05,
+         *  eighth pass). Boxed: null is unknown, never a guessed zero, and
+         *  it is never folded into buy or sell. */
+        final Long unclassified;
 
-        Quote(double price, Double changePct, Long buy, Long sell, Long volume) {
+        Quote(double price, Double changePct, Long buy, Long sell, Long volume,
+              Long unclassified) {
             this.price = price;
             this.changePct = changePct;
             this.buy = buy;
             this.sell = sell;
             this.volume = volume;
+            this.unclassified = unclassified;
         }
     }
 
@@ -1029,6 +1038,7 @@ public final class Watcher {
                         Object buyVal = row.opt(3);
                         Object sellVal = row.opt(4);
                         Object volumeVal = row.opt(5);
+                        Object unclearVal = row.opt(6);
                         if (buyVal instanceof Number) {
                             buy = ((Number) buyVal).longValue();
                         }
@@ -1037,10 +1047,12 @@ public final class Watcher {
                         }
                         Long volume = volumeVal instanceof Number
                                 ? ((Number) volumeVal).longValue() : null;
+                        Long unclear = unclearVal instanceof Number
+                                ? ((Number) unclearVal).longValue() : null;
                     if (!symbol.isEmpty() && !Double.isNaN(price) && price > 0) {
                         map.put(symbol, new Quote(price,
                                 Double.isNaN(pct) ? null : pct, buy, sell,
-                                volume));
+                                volume, unclear));
                     }
                 }
             }
@@ -1095,15 +1107,8 @@ public final class Watcher {
                 Double buy = numberOrNull(row, "buy_volume");
                 Double sell = numberOrNull(row, "sell_volume");
                 Double total = numberOrNull(row, "volume");
+                Double unclear = numberOrNull(row, "unclassified_volume");
                 android.text.SpannableString styled = null;
-                if (buy != null && total != null) {
-                    // Owner order 2026-11-05 (fifth pass): no U anywhere.
-                    // Every share belongs to a side, so the pair is
-                    // completed to the venue's own total before it prints.
-                    long whole = Math.round(total);
-                    buy = (double) Math.max(0L, Math.min(Math.round(buy), whole));
-                    sell = (double) (whole - buy);
-                }
                 if (buy != null && sell != null) {
                     // Owner order 2026-10-20 (third note): the EST tag after
                     // the total is gone from the search answer exactly as it
@@ -1137,6 +1142,12 @@ public final class Watcher {
                     int sellFrom = sb.length();
                     sb.append(String.format(java.util.Locale.US, "%,.0f", sell));
                     int sellTo = sb.length();
+                    int unclearFrom = -1;
+                    if (unclear != null) {
+                        sb.append(", U=");
+                        unclearFrom = sb.length();
+                        sb.append(String.format(java.util.Locale.US, "%,.0f", unclear));
+                    }
                     if (total != null) {
                         // Owner order 2026-11-05 (fifth pass): no U. The
                         // pair above is completed to the venue's own
