@@ -69,6 +69,16 @@ class FlowEndpointContractTest(unittest.TestCase):
             self.assertIn(field + ":", self.source, field)
         self.assertIn("Math.max(0, volume - classified)", self.source)
 
+    def test_a_row_without_a_measured_pair_reports_the_total_as_unclassified(self):
+        start = self.source.index("async function flowAnswer(env, now)")
+        end = self.source.index("async function applyLiveQuotes", start)
+        body = self.source[start:end]
+        self.assertIn(
+            "? (classified !== null ? Math.max(0, volume - classified) : volume)",
+            body)
+        self.assertIn('split_method: split ? "quote_rule" : "unavailable"',
+                      body)
+
     def test_the_answer_names_the_day_and_the_missing_symbols(self):
         self.assertIn("counts: {", self.source)
         self.assertIn("missing,", self.source)

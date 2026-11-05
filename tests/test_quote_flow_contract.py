@@ -48,12 +48,22 @@ class WholeDayFlowContractTest(unittest.TestCase):
         self.assertIn("flow_first_seen_at", self.source)
         self.assertIn("flow_baseline_reason", self.source)
 
-    def test_the_measured_pair_is_served_before_the_range(self):
+    def test_only_a_measured_pair_is_served(self):
         self.assertIn("function measuredFromQuote(quote)", self.source)
         self.assertIn("const measured = measuredFromQuote(quote);", self.source)
-        self.assertIn(
-            'split_method: measured ? "quote_rule" : "range_position"',
-            self.source)
+        start = self.source.index("function splitFromQuote(quote)")
+        end = self.source.index("function measuredFlowSeed", start)
+        body = self.source[start:end]
+        self.assertIn('quote.flow_method !== "quote_rule"', body)
+        self.assertNotIn("rangePositionSplit", body)
+        self.assertIn('split_method: "quote_rule"', body)
+
+    def test_an_undecidable_increment_stays_unclassified(self):
+        start = self.source.index("async advanceFlow(quote)")
+        body = self.source[start:start + 6000]
+        self.assertIn('rule = "unclassified";', body)
+        self.assertIn("state.baseline += delta;", body)
+        self.assertNotIn('state.side === "S" ? "S" : "B"', body)
 
     def test_shares_the_hub_never_saw_stay_unclassified(self):
         """Owner order 2026-11-04: accuracy before a tidy B+S=T.
