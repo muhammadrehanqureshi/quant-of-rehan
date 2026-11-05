@@ -1641,6 +1641,16 @@ to sixty seconds. The status tile therefore also carries the app's own
      the orphan law stands so every dot still wears a filament.
   5. The version bump is versionCode 82 / versionName 2.3.15.
 
+**Version 4.0.9, versionCode 118.**
+
+  Owner order 2026-11-05, ninth pass continued. The top three and the
+  scanner's three keep their three-line shape, with the measured pair and
+  the unclear U in the app's one bracket, `(B=..., S=..., U=...)`, and the
+  total in `(T=...)` on the money line. The search answer's live volume line
+  uses the same comma after U before T.
+
+  The version bump is versionCode 118 / versionName 4.0.9.
+
 **Version 4.0.8, versionCode 117.**
 
   Owner order 2026-11-05, ninth pass. The big buying and selling board prints
