@@ -197,7 +197,7 @@ class QuoteFlow:
                 if isinstance(quote, dict)]
 
     def seed_preopen(self, symbols, observed_at) -> int:
-        """Mark every unseen KMIALL symbol at zero at the 08:55 gate.
+        """Mark every unseen KMIALL symbol at zero at the pre-open gate.
 
         The gate runs before the regular session, when a symbol the feed has
         not published has zero session volume. This is a gate assumption, not
