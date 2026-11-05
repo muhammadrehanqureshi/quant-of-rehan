@@ -21,6 +21,7 @@ import socket
 import sys
 import tempfile
 import unittest
+from datetime import datetime
 from pathlib import Path
 from unittest import mock
 
@@ -111,9 +112,71 @@ class CaptureFlowSeedTest(unittest.TestCase):
         source = Path(feed_capture.__file__).read_text(encoding="utf-8")
         init = source[source.index("class RelayQuotePublisher"):]
         init = init[init.index("def __init__"):init.index("def observe")]
-        self.assertIn("self._seed_day_flow()", init)
-        self.assertLess(init.index("self._seed_day_flow()"),
+        self.assertIn("adopted = self._seed_day_flow()", init)
+        self.assertIn("if self._seed_required and adopted == 0", init)
+        self.assertIn("self._flow.seed_preopen(", init)
+        self.assertLess(init.index("adopted = self._seed_day_flow()"),
                         init.index("self._thread.start()"))
+
+    def test_a_zero_volume_pre_open_row_reaches_the_flow_not_the_app(self):
+        update = feed_capture.relay_quote_updates({
+            "kind": "MKT-FEED",
+            "ts": "2026-11-05T08:55:00+05:00",
+            "ticks": [{"market": "REG", "scrip": "KEL", "last": "0",
+                       "bid": "6.10", "ask": "6.20", "volume": "0"}],
+        })
+        self.assertEqual(len(update["quotes"]), 1)
+        quote = update["quotes"][0]
+        self.assertTrue(quote["flow_only"])
+        self.assertEqual(quote["volume"], 0)
+        quote = quote_flow.QuoteFlow().observe(quote)
+        self.assertEqual(quote["flow_baseline"], 0)
+        self.assertEqual(quote["flow_baseline_reason"], "zero_baseline")
+
+    def test_a_nonzero_no_price_row_stays_baseline_not_sided(self):
+        flow = quote_flow.QuoteFlow()
+        flow.seed_preopen(["KEL"], "2026-11-05T08:55:00+05:00")
+        update = feed_capture.relay_quote_updates({
+            "kind": "MKT-FEED",
+            "ts": "2026-11-05T09:15:00+05:00",
+            "ticks": [{"market": "REG", "scrip": "KEL", "last": "",
+                       "bid": "6.10", "ask": "6.20",
+                       "volume": "7000000"}],
+        })
+        quote = update["quotes"][0]
+        self.assertTrue(quote["flow_only"])
+        quote = flow.observe(quote)
+        self.assertEqual(quote["flow_baseline"], 7_000_000)
+        self.assertEqual(quote["flow_baseline_reason"], "no_price")
+        update = feed_capture.relay_quote_updates({
+            "kind": "MKT-FEED",
+            "ts": "2026-11-05T09:16:00+05:00",
+            "ticks": [{"market": "REG", "scrip": "KEL", "last": "6.20",
+                       "bid": "6.10", "ask": "6.20",
+                       "volume": "7000000"}],
+        })
+        quote = flow.observe(update["quotes"][0])
+        self.assertEqual(quote["buy_volume"], 0)
+        self.assertEqual(quote["flow_baseline"], 7_000_000)
+
+    def test_the_publisher_never_publishes_a_flow_only_row(self):
+        source = Path(feed_capture.__file__).read_text(encoding="utf-8")
+        self.assertIn('if not quote.get("flow_only")]', source)
+
+    def test_the_restart_seed_is_required_once_the_preopen_starts(self):
+        tz = feed_capture.KARACHI
+        self.assertFalse(feed_capture.session_has_opened(
+            datetime(2026, 11, 5, 8, 55, tzinfo=tz)))
+        self.assertFalse(feed_capture.session_has_opened(
+            datetime(2026, 11, 5, 9, 14, tzinfo=tz)))
+        self.assertTrue(feed_capture.session_has_opened(
+            datetime(2026, 11, 5, 9, 15, tzinfo=tz)))
+        self.assertTrue(feed_capture.session_has_opened(
+            datetime(2026, 11, 5, 12, 30, tzinfo=tz)))
+        self.assertFalse(feed_capture.session_has_opened(
+            datetime(2026, 11, 6, 8, 59, tzinfo=tz)))
+        self.assertTrue(feed_capture.session_has_opened(
+            datetime(2026, 11, 6, 9, 0, tzinfo=tz)))
 
 
 class DefaultUniverseTest(unittest.TestCase):
