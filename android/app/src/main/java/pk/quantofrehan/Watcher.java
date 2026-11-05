@@ -874,6 +874,8 @@ public final class Watcher {
     static final class FlowRow {
         String symbol = "";
         Double price;
+        /** The frame's own move, boxed so a missing move stays unknown. */
+        Double changePct;
         Double bid;
         Double ask;
         Long volume;
@@ -941,6 +943,7 @@ public final class Watcher {
                         FlowRow out = new FlowRow();
                         out.symbol = symbol;
                         out.price = number(row, "price");
+                        out.changePct = number(row, "change_pct");
                         // Owner order 2026-11-05: the search result row
                         // carries the scrip's own bid and ask beside its
                         // volume, so the owner sees the live two-way book

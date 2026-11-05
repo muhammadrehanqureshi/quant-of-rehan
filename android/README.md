@@ -1641,6 +1641,18 @@ to sixty seconds. The status tile therefore also carries the app's own
      the orphan law stands so every dot still wears a filament.
   5. The version bump is versionCode 82 / versionName 2.3.15.
 
+**Version 4.0.8, versionCode 117.**
+
+  Owner order 2026-11-05, ninth pass. The big buying and selling board prints
+  each transaction as `(B=100,000) FFC bought at PKR 580.00 14:32:07`, with
+  the side in the console's bracket and the print's own time. The board's
+  search field asks for a KMIALL scrip. On the order flow page every searched
+  stock carries its price and move in the move's colour, `BID` in green and
+  `ASK` in red joined by an ampersand, and the four part volume directly under
+  that book as `(B=..., S=..., U=..., T=...)`.
+
+  The version bump is versionCode 117 / versionName 4.0.8.
+
 **Version 4.0.7, versionCode 116.**
 
   Owner order 2026-11-05, eighth pass. The latest signal tile loses the MTF
