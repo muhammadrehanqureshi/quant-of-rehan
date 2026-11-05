@@ -1662,7 +1662,7 @@ public class MainActivity extends Activity {
                 colorQuantity(sb, quote.buy, R.color.green);
                 sb.append(", S=");
                 colorQuantity(sb, quote.sell, R.color.red);
-                if (quote.unclassified != null) {
+                if (quote.unclassified != null && quote.unclassified > 0) {
                     sb.append(", U=");
                     sb.append(String.format(Locale.US, "%,d", quote.unclassified));
                 }
@@ -3139,7 +3139,7 @@ public class MainActivity extends Activity {
             sb.append(String.format(Locale.US, "%,d", found.sell));
             sb.setSpan(new ForegroundColorSpan(getColor(R.color.red)),
                     from, sb.length(), 0);
-            if (found.unclassified != null) {
+            if (found.unclassified != null && found.unclassified > 0) {
                 sb.append(String.format(Locale.US, " & U=%,d",
                         found.unclassified));
             }
@@ -3571,7 +3571,7 @@ public class MainActivity extends Activity {
             sellFrom = sb.length();
             sb.append(String.format(Locale.US, "%,d", quote.sell));
             sellTo = sb.length();
-            if (quote.unclassified != null) {
+            if (quote.unclassified != null && quote.unclassified > 0) {
                 sb.append(String.format(Locale.US, ", U=%,d",
                         quote.unclassified));
             }
@@ -3838,7 +3838,7 @@ public class MainActivity extends Activity {
                 int sellFrom = sb.length();
                 sb.append(String.format(Locale.US, "%,d", row.sell));
                 spans.add(new int[]{sellFrom, sb.length(), R.color.red});
-                if (row.unclassified != null) {
+                if (row.unclassified != null && row.unclassified > 0) {
                     sb.append(", U=");
                     sb.append(String.format(Locale.US, "%,d", row.unclassified));
                 }
