@@ -378,22 +378,29 @@
                 android:layout_marginBottom="10dp"
                 android:text="@string/label_big_prints"/>
 
-            <TextView
-                android:id="@+id/big_prints_list"
-                style="@style/QorValue"
+            <!-- Owner order 2026-11-05: the board scrolls in its own
+                 window, so the owner reads the complete BIG BUYING &
+                 SELLING during the day by scrolling: the list carries
+                 every print the relay holds, one print a line, and a
+                 touch on the list scrolls the list, never the page
+                 underneath. -->
+            <ScrollView
+                android:id="@+id/big_prints_scroll"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:lineSpacingExtra="3dp"
-                android:text="@string/big_prints_none"/>
-        </LinearLayout>
+                android:maxHeight="320dp"
+                android:nestedScrollingEnabled="false"
+                android:scrollbars="none">
 
-        <include
-            android:id="@+id/rule_after_flow"
-            layout="@layout/qor_rule"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:visibility="gone"/>
+                <TextView
+                    android:id="@+id/big_prints_list"
+                    style="@style/QorValue"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:lineSpacingExtra="3dp"
+                    android:text="@string/big_prints_none"/>
+            </ScrollView>
+        </LinearLayout>
 
         <!-- Owner order 2026-10-24, third pass ("there should be diamond
              line feature between the tiles of search and custom scrips of
