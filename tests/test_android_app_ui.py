@@ -575,13 +575,27 @@ class SettingsControlTest(unittest.TestCase):
         self.assertIn("printTime(print.at)", self.main)
         self.assertIn("raw.substring(t + 1, t + 9)", self.main)
 
-    def test_the_selected_book_brackets_its_four_parts(self):
-        """Owner order 2026-11-05: the volume directly below the book
-        follows the app's (letter=number) bracket throughout."""
-        self.assertIn("sb.append('(').append(\"B=\");", self.main)
-        self.assertIn('\", S=\"', self.main)
-        self.assertIn('\", U=%,d\"', self.main)
-        self.assertIn('\", T=%,d)\"', self.main)
+    def test_the_selected_book_puts_volume_with_bid_and_ask(self):
+        """Owner order 2026-11-05, tenth pass: the total volume stands on
+        the BID and ASK line, and the split line uses ampersands."""
+        selected = self.main[self.main.index("private void selectFlow("):]
+        selected = selected[:selected.index("private void setSearchOpen(")]
+        self.assertIn('sb.append(" & ");', selected)
+        self.assertIn('"(T=%,d)"', selected)
+        self.assertIn('sb.append(" & S=");', selected)
+        self.assertIn('" & U=%,d"', selected)
+        self.assertNotIn(", S=", selected)
+        self.assertNotIn(", U=", selected)
+        self.assertNotIn(", T=", selected)
+
+    def test_the_order_flow_prompt_is_retired(self):
+        """Owner order 2026-11-05, tenth pass: the sentence under the
+        order-flow search box is gone."""
+        strings = STRINGS.read_text(encoding="utf-8")
+        layout = LAYOUT.read_text(encoding="utf-8")
+        self.assertNotIn('name="order_flow_pick"', strings)
+        self.assertNotIn("@string/order_flow_pick", layout)
+        self.assertNotIn("R.string.order_flow_pick", self.main)
 
     def test_the_four_icons_are_the_owners_own_pngs(self):
         """Owner order 2026-10-24: the scanner page's icon (his own
@@ -1972,8 +1986,8 @@ class VersionTest(unittest.TestCase):
         # pass: his new ORDER FLOW picture, the bracketed top three, the
         # eight-print board with its visible bar, and the search-only
         # ORDER FLOW tile.
-        self.assertIn('android:versionName="4.0.9"', manifest)
-        self.assertIn('android:versionCode="118"', manifest)
+        self.assertIn('android:versionName="4.0.10"', manifest)
+        self.assertIn('android:versionCode="119"', manifest)
         self.assertNotIn('android:versionName="3.7.5"', manifest)
         self.assertNotIn('android:versionName="3.7.4"', manifest)
         self.assertNotIn('android:versionName="3.7.3"', manifest)
@@ -2183,8 +2197,8 @@ class VersionTest(unittest.TestCase):
         # rows; v4.0.5 (sixth pass) is his new ORDER FLOW picture, the
         # bracketed top three, the eight-print scrolling board with its
         # visible bar, and the search-only ORDER FLOW tile.
-        self.assertIn('android:versionCode="118"', manifest)
-        self.assertIn('android:versionName="4.0.9"', manifest)
+        self.assertIn('android:versionCode="119"', manifest)
+        self.assertIn('android:versionName="4.0.10"', manifest)
         self.assertNotIn('android:versionName="3.7.5"', manifest)
         self.assertNotIn('android:versionName="3.7.4"', manifest)
         self.assertNotIn('android:versionName="3.7.3"', manifest)
