@@ -341,8 +341,21 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="10dp"
+                android:visibility="gone"
                 android:text="@string/order_flow_pick"/>
         </LinearLayout>
+
+        <!-- Owner order 2026-11-04 (third pass): the diamond between the
+             page's two tiles: the one he asked to move out of the pair
+             that stood under BIG BUYING & SELLING, so the division reads
+             tile, seam, tile, and closes under its own one seam. -->
+        <include
+            android:id="@+id/rule_between_flow"
+            layout="@layout/qor_rule"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:visibility="gone"/>
 
         <!-- Owner order 2026-11-04: the page's second tile, the session's
              big buying and selling across KMIALL, each row a real print:
