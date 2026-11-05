@@ -1641,6 +1641,16 @@ to sixty seconds. The status tile therefore also carries the app's own
      the orphan law stands so every dot still wears a filament.
   5. The version bump is versionCode 82 / versionName 2.3.15.
 
+**Version 4.0.10, versionCode 119.**
+
+  Owner order 2026-11-05, tenth pass. The searched scrip's order flow puts
+  the total volume on the BID and ASK line, keeps the B, S and U split on
+  the line below with `&` between the parts, and retires the sentence under
+  the search box. The top three and the custom scrips keep the `=` in
+  `(B=..., S=..., U=...)` and `(T=...)`.
+
+  The version bump is versionCode 119 / versionName 4.0.10.
+
 **Version 4.0.9, versionCode 118.**
 
   Owner order 2026-11-05, ninth pass continued. The top three and the

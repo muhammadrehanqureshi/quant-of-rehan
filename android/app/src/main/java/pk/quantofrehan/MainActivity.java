@@ -2848,12 +2848,9 @@ public class MainActivity extends Activity {
                 orderFlowResults.setVisibility(View.GONE);
             }
             if (orderFlowSelected != null) {
-                // Owner order 2026-11-05 (sixth pass, "I should be able to
-                // search for a scrip there"): the tile opens on its own
-                // question and prints no scrip of its own until he types
-                // one, so nothing that is not his search can stand here.
-                orderFlowSelected.setText(R.string.order_flow_pick);
-                orderFlowSelected.setVisibility(View.VISIBLE);
+                // Owner order 2026-11-05, tenth pass: the question line is
+                // retired. The tile opens with the search box alone.
+                orderFlowSelected.setVisibility(View.GONE);
             }
             if (bigPrintsScroll != null) {
                 // Owner order 2026-11-05: a freshly opened page reads the
@@ -2998,8 +2995,7 @@ public class MainActivity extends Activity {
         if (query.isEmpty()) {
             orderFlowResults.setVisibility(View.GONE);
             if (orderFlowSelected != null) {
-                orderFlowSelected.setText(R.string.order_flow_pick);
-                orderFlowSelected.setVisibility(View.VISIBLE);
+                orderFlowSelected.setVisibility(View.GONE);
             }
             return;
         }
@@ -3122,31 +3118,32 @@ public class MainActivity extends Activity {
                 : "ASK n/a");
         sb.setSpan(new ForegroundColorSpan(getColor(R.color.red)),
                 askFrom, askFrom + 3, 0);
-        sb.append('\n');
-        if (found.buy != null && found.sell != null && found.volume != null) {
-            // Owner order 2026-11-05, ninth pass: the quantities directly
-            // below the book wear the console's one bracket, (B=..., S=...,
-            // U=..., T=...), the buy digits green and the sell digits red.
+        // Owner order 2026-11-05, tenth pass: the total volume sits on the
+        // same line as the bid and the ask, so the book reads as one line.
+        sb.append(" & ");
+        sb.append(found.volume != null
+                ? String.format(Locale.US, "(T=%,d)", found.volume)
+                : "(T=n/a)");
+        if (found.buy != null && found.sell != null) {
+            // Owner order 2026-11-05, tenth pass: the split quantities stay
+            // on the line below, separated by the ampersand the owner asked
+            // for. Each part keeps the app's (letter=number) bracket.
+            sb.append('\n');
             sb.append('(').append("B=");
             int from = sb.length();
             sb.append(String.format(Locale.US, "%,d", found.buy));
             sb.setSpan(new ForegroundColorSpan(getColor(R.color.green)),
                     from, sb.length(), 0);
-            sb.append(", S=");
+            sb.append(" & S=");
             from = sb.length();
             sb.append(String.format(Locale.US, "%,d", found.sell));
             sb.setSpan(new ForegroundColorSpan(getColor(R.color.red)),
                     from, sb.length(), 0);
             if (found.unclassified != null) {
-                sb.append(String.format(Locale.US, ", U=%,d",
+                sb.append(String.format(Locale.US, " & U=%,d",
                         found.unclassified));
             }
-            sb.append(String.format(Locale.US, ", T=%,d)", found.volume));
-        } else if (found.volume != null) {
-            sb.append(String.format(Locale.US, "(T=%,d)", found.volume));
-        } else {
-            sb.append(String.format(Locale.US,
-                    "no volume reported for %s yet", found.symbol));
+            sb.append(')');
         }
         if (orderFlowResults != null) {
             orderFlowResults.setVisibility(View.GONE);
