@@ -184,22 +184,16 @@ class LeaderLineTest(unittest.TestCase):
         # spaces (U+00A0), so the widest row the relay can publish keeps the
         # name, B, S and T on ONE line even at an unlucky width. Visible as
         # an NBSP escape: "\u00A0".
-        self.assertIn('sb.append("\\u00A0(B=");', self.main)
-        # v1.8.7 (owner 15:35): a comma after B and an ampersand before T,
-        # each held to its neighbour by the same non-breaking space, so the
-        # group still cannot be broken across two lines.
-        self.assertIn('sb.append(",\\u00A0S=");', self.main)
-        # Owner order 2026-11-05 (sixth pass): the top three carry the one
-        # bracketed group again, the total closing it, and the no-split row
-        # keeps its single-field bracket.
-        self.assertIn('"\\u00A0&\\u00A0T=%,d)"', self.main)
-        self.assertIn('"\\u00A0(T=%,d)"', self.main)
-        # Owner order 2026-10-21 13:07: the tail opens with one space before
-        # the price, and with the 14:19 gap fix the box gaps come from the
-        # panel padding, not margins.
-        self.assertNotIn('sb.append(" B")', self.main)
-        self.assertNotIn('sb.append(" (B")', self.main)
-        self.assertNotIn('sb.append("  S")', self.main)
+        # Owner order 2026-11-05, eighth pass: three lines per scrip. The
+        # measured B and S stand on their own line with the unclear U beside
+        # them, then T with the money line; nothing is folded into a side.
+        self.assertIn("sb.append('\\n').append(\"B \");", self.main)
+        self.assertIn('sb.append(", S ");', self.main)
+        self.assertIn('sb.append(", U ");', self.main)
+        self.assertIn("sb.append('\\n').append(\"T \");", self.main)
+        self.assertNotIn("completePair", self.main)
+        self.assertIn("row.unclassified", self.main)
+        self.assertIn("quote.unclassified", self.main)
 
     def test_the_money_line_opens_after_the_volumes(self):
         # v2.3.7 (owner 2026-10-26, ninth pass): the volume reveal prints
@@ -207,10 +201,9 @@ class LeaderLineTest(unittest.TestCase):
         # the card builder it guards, not the whole console file.
         leaders = self.main[
             self.main.index("private SpannableString leadersText("):]
-        volumes = leaders.index('"\\u00A0&\\u00A0T=%,d)"')
+        volumes = leaders.index("sb.append('\\n').append(\"T \");")
         money = leaders.index('"PKR %,.2f"')
         self.assertLess(volumes, money)
-        self.assertIn("sb.append('\\n');", leaders[volumes:money])
 
     def test_a_price_less_row_still_opens_the_money_line(self):
         # The edge case the layout must not lose: the relay can report a
@@ -225,9 +218,9 @@ class LeaderLineTest(unittest.TestCase):
         # completed pair, so its two quantities are pair[0] and pair[1],
         # which are the venue's own counts after the remainder falls to a
         # side. No figure is ever rounded to make it fit.
-        self.assertIn('String.format(Locale.US, "%,d", pair[0])', self.main)
-        self.assertIn('String.format(Locale.US, "%,d", pair[1])', self.main)
-        self.assertIn("completePair(row.buy, row.sell,", self.main)
+        self.assertIn('String.format(Locale.US, "%,d", row.buy)', self.main)
+        self.assertIn('String.format(Locale.US, "%,d", row.sell)', self.main)
+        self.assertIn("row.unclassified", self.main)
         self.assertNotIn("Math.round(row.buy", self.main)
         self.assertNotIn("Math.round(row.sell", self.main)
         watcher = (ROOT / "android" / "app" / "src" / "main" / "java"
@@ -245,7 +238,7 @@ class LeaderLineTest(unittest.TestCase):
         self.assertNotIn("estimatedSplit", self.main)
         # A row that carries a split but no total keeps both sides.
         self.assertIn("if (row.hasVolume()) {", self.main)
-        self.assertIn("sb.append(')');", self.main)
+        self.assertIn('sb.append(", U ");', self.main)
 
     def test_the_feed_status_line_is_retired_and_the_index_has_no_clock(self):
         """Owner orders 2026-10-19 and 2026-10-20 (third note).
