@@ -189,14 +189,11 @@ class LeaderLineTest(unittest.TestCase):
         # each held to its neighbour by the same non-breaking space, so the
         # group still cannot be broken across two lines.
         self.assertIn('sb.append(",\\u00A0S=");', self.main)
-        self.assertIn('sb.append("\\u00A0&\\u00A0T=");', self.main)
-        self.assertIn('sb.append(String.format(Locale.US, "%,d", total));',
-                      self.main)
-        # Owner order 2026-11-05 (fifth pass): the total no longer trails a
-        # bracketed group on the same line, so neither old format survives
-        # to carry a U beside it.
-        self.assertNotIn('"\\u00A0&\\u00A0T=%,d)"', self.main)
-        self.assertNotIn('"\\u00A0(T=%,d)"', self.main)
+        # Owner order 2026-11-05 (sixth pass): the top three carry the one
+        # bracketed group again, the total closing it, and the no-split row
+        # keeps its single-field bracket.
+        self.assertIn('"\\u00A0&\\u00A0T=%,d)"', self.main)
+        self.assertIn('"\\u00A0(T=%,d)"', self.main)
         # Owner order 2026-10-21 13:07: the tail opens with one space before
         # the price, and with the 14:19 gap fix the box gaps come from the
         # panel padding, not margins.
@@ -210,7 +207,7 @@ class LeaderLineTest(unittest.TestCase):
         # the card builder it guards, not the whole console file.
         leaders = self.main[
             self.main.index("private SpannableString leadersText("):]
-        volumes = leaders.index('"\\nT=%,d"')
+        volumes = leaders.index('"\\u00A0&\\u00A0T=%,d)"')
         money = leaders.index('"PKR %,.2f"')
         self.assertLess(volumes, money)
         self.assertIn("sb.append('\\n');", leaders[volumes:money])

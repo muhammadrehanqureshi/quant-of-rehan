@@ -471,19 +471,17 @@ class SettingsControlTest(unittest.TestCase):
         text = flow.read_text(encoding="utf-8")
         self.assertIn('android:viewportWidth="500"', text)
         self.assertIn('android:viewportHeight="500"', text)
-        # Three ledgers, the dot above the top one, the dash and dot inside
-        # the middle one, the two loops and the two straight arrows.
-        for ledger in ('android:pathData="M178,28',
-                       'android:pathData="M178,183',
-                       'android:pathData="M178,338'):
-            self.assertIn(ledger, text)
-        for line in ('M188,86 L322,86 M188,240 L266,240 M188,395 L322,395',
-                     'M246,14 A9,9 0 1 1 264,14',
-                     'M293,240 A9,9 0 1 1 311,240',
-                     'M150,86 C50,86 50,240 116,240',
-                     'M360,240 C460,240 460,396 396,396',
-                     'M488,70 L438,70',
-                     'M128,396 L68,396'):
+        # Owner order 2026-11-05 (sixth pass): his new picture. One ledger
+        # above, a stem that splits into two arms, and two ledgers below,
+        # every stroke in the one ink the nav's tint recolors.
+        for square in ('android:pathData="M212,30',
+                       'android:pathData="M54,318',
+                       'android:pathData="M358,318'):
+            self.assertIn(square, text)
+        for line in ('M250,158 L250,214',
+                     'M250,214 C250,246 236,258 204,258',
+                     'M250,214 C250,246 264,258 296,258',
+                     'android:strokeWidth="26"'):
             self.assertIn(line, text)
 
     def test_the_flow_page_owns_two_seams_and_no_extra_one(self):
@@ -519,11 +517,22 @@ class SettingsControlTest(unittest.TestCase):
         self.assertLess(scroll_at, list_at)
         self.assertIn("<ScrollView", self.layout[scroll_at - 200:scroll_at])
         self.assertLess(list_at, self.layout.index("</ScrollView>", list_at))
-        # Owner order 2026-11-05 (fifth pass): a FIXED window, because a
-        # maxHeight on a ScrollView measures as its content and the tile
-        # stretched the page with the whole day's prints.
-        self.assertIn('android:layout_height="320dp"',
+        # Owner order 2026-11-05 (sixth pass, "have a visible scroll bar,
+        # and only display 8 transactions in the tile, and when i scroll I
+        # should be able to see more"): the bar is drawn and never fades,
+        # and the window is sized to exactly eight prints from the text
+        # view's own line height at the screen's density.
+        self.assertIn('android:scrollbars="vertical"',
                       self.layout[scroll_at:list_at])
+        self.assertIn('android:fadeScrollbars="false"',
+                      self.layout[scroll_at:list_at])
+        self.assertIn('android:layout_height="176dp"',
+                      self.layout[scroll_at:list_at])
+        self.assertIn("private static final int BIG_PRINTS_ROWS = 8;",
+                      self.main)
+        self.assertIn("fitBigPrintsWindow();", self.main)
+        self.assertIn("BIG_PRINTS_ROWS * row", self.main)
+        self.assertIn("lp.height = height;", self.main)
         self.assertIn("bigPrintsScroll = findViewById(R.id.big_prints_scroll);",
                       self.main)
         self.assertIn("requestDisallowInterceptTouchEvent(true)", self.main)
@@ -1010,19 +1019,15 @@ class TypefaceTest(unittest.TestCase):
         # v1.8.5 (owner 14:51): the group's separators are NON-BREAKING
         # spaces, so a wide row can never wrap mid group.
         self.assertIn('sb.append("\\u00A0(B=");', self.main)
-        # Owner order 2026-11-05 (fifth pass): the no-split row still carries
-        # its total, now on its own line like every leader row's total.
-        self.assertIn('"\\nT=%,d"', self.main)
         # v1.8.7 (owner 15:35): the three quantities read as a sentence, a
         # comma after B and an ampersand before T, both non-breaking.
         self.assertIn('sb.append(",\\u00A0S=");', self.main)
-        # Owner order 2026-11-05 (fifth pass): the ampersand still opens the
-        # total in the no-split format, and the digits are appended after it
-        # as their own value, so the U that used to follow has nowhere left
-        # to be printed.
-        self.assertIn('sb.append("\\u00A0&\\u00A0T=");', self.main)
-        self.assertIn('sb.append(String.format(Locale.US, "%,d", total));',
-                      self.main)
+        # Owner order 2026-11-05 (sixth pass, "on top 3 scrips of volume
+        # tile, do it like this (B=..., S=... & T=...)"): the top three
+        # carry the group on the name's own line again, the total closing
+        # the bracket, and a row with no split keeps its one-field bracket.
+        self.assertIn('"\\u00A0&\\u00A0T=%,d)"', self.main)
+        self.assertIn('"\\u00A0(T=%,d)"', self.main)
         # v1.8.6 (owner 15:15): and that row keeps the body's 13sp. It wins
         # its width from the tile (6dp of each 16dp panel padding, through the
         # negative side margins) and from its own tracking, never from a
@@ -1939,12 +1944,12 @@ class VersionTest(unittest.TestCase):
         manifest = MANIFEST.read_text(encoding="utf-8")
         # Owner order 2026-11-04: v4.0.0, the ORDER FLOW page. v4.0.1 is
         # the big prints relay side; v4.0.2 is the third-pass page; v4.0.3
-        # is the fourth pass; v4.0.4 is the fifth pass: his picture as a
-        # one-ink vector, no U printed anywhere, the KSE100 rows in
-        # separate lines, the open board on ORDER FLOW, the fixed big
-        # prints window and the TP-only W/L ledger.
-        self.assertIn('android:versionName="4.0.4"', manifest)
-        self.assertIn('android:versionCode="113"', manifest)
+        # is the fourth pass; v4.0.4 is the fifth pass. v4.0.5 is the sixth
+        # pass: his new ORDER FLOW picture, the bracketed top three, the
+        # eight-print board with its visible bar, and the search-only
+        # ORDER FLOW tile.
+        self.assertIn('android:versionName="4.0.5"', manifest)
+        self.assertIn('android:versionCode="114"', manifest)
         self.assertNotIn('android:versionName="3.7.5"', manifest)
         self.assertNotIn('android:versionName="3.7.4"', manifest)
         self.assertNotIn('android:versionName="3.7.3"', manifest)
@@ -2150,11 +2155,12 @@ class VersionTest(unittest.TestCase):
         # between its two tiles. v4.0.3 (owner order 2026-11-05, fourth
         # pass): the owner's own icon, no seam after the page's second
         # tile, the live book in the search rows, and the scrollable big
-        # prints board. v4.0.4 (fifth pass): the icon as a one-ink vector,
-        # no U printed, the KSE100 rows split, the open board, the fixed
-        # big prints window and the TP-only W/L ledger.
-        self.assertIn('android:versionCode="113"', manifest)
-        self.assertIn('android:versionName="4.0.4"', manifest)
+        # prints board. v4.0.4 (fifth pass) is that pass minus the split
+        # rows; v4.0.5 (sixth pass) is his new ORDER FLOW picture, the
+        # bracketed top three, the eight-print scrolling board with its
+        # visible bar, and the search-only ORDER FLOW tile.
+        self.assertIn('android:versionCode="114"', manifest)
+        self.assertIn('android:versionName="4.0.5"', manifest)
         self.assertNotIn('android:versionName="3.7.5"', manifest)
         self.assertNotIn('android:versionName="3.7.4"', manifest)
         self.assertNotIn('android:versionName="3.7.3"', manifest)

@@ -380,18 +380,31 @@
 
             <!-- Owner order 2026-11-05 (fifth pass, "you [have] a really
                  long page with a really long tile"): the board scrolls in
-                 its own FIXED window, 320dp tall, so the page never grows
-                 with the day's prints. The list carries every print the
-                 relay holds, one print a line, and a touch on the list
-                 scrolls the list, never the page underneath. A maxHeight
-                 on a ScrollView measures as its content, which is exactly
-                 how the tile stretched the page before. -->
+                 its own FIXED window, so the page never grows with the
+                 day's prints. The list carries every print the relay holds,
+                 one print a line, and a touch on the list scrolls the
+                 list, never the page underneath. A maxHeight on a
+                 ScrollView measures as its content, which is exactly how
+                 the tile stretched the page before.
+
+                 Owner order 2026-11-05 (sixth pass, "on the big buying and
+                 selling tile, have a visible scroll bar, and only display
+                 8 transactions in the tile"): the bar is drawn and never
+                 fades, and its track stands inside the padding so the ink
+                 of the prints is never covered. MainActivity sizes the
+                 window to exactly eight prints once the text is set; the
+                 176dp here is the first layout's own measure before that. -->
             <ScrollView
                 android:id="@+id/big_prints_scroll"
                 android:layout_width="match_parent"
-                android:layout_height="320dp"
+                android:layout_height="176dp"
+                android:fadeScrollbars="false"
                 android:nestedScrollingEnabled="false"
-                android:scrollbars="none">
+                android:paddingRight="6dp"
+                android:scrollbarAlwaysDrawVerticalTrack="true"
+                android:scrollbarSize="3dp"
+                android:scrollbarStyle="insideInset"
+                android:scrollbars="vertical">
 
                 <TextView
                     android:id="@+id/big_prints_list"
