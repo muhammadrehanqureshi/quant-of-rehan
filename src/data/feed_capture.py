@@ -362,6 +362,14 @@ class RelayQuotePublisher:
     # from its 1s floor; it just stops at 5, so the worst gap between two
     # successful pushes stays inside the card's own freshness window.
     MAX_RETRY_SECONDS = 5.0
+    # Owner order 2026-11-05: a drifting platform cannot have the whole
+    # session's request budget spent against a hub that is refusing every
+    # push anyway. When the relay answers 5xx (its own daily budget has
+    # been exhausted, or anything else is wrong inside it), the retry
+    # floor moves from the 5-second cap out to this 30-second one until
+    # the relay answers again. Data refusals (4xx) keep the 5-second cap:
+    # a bad frame is fixed by the next quote, not by waiting.
+    REFUSAL_RETRY_SECONDS = 30.0
 
     def __init__(self) -> None:
         # Owner order 2026-11-03: buying and selling are separated at the
@@ -525,6 +533,18 @@ class RelayQuotePublisher:
                     return
                 self._retry_seconds = min(self.MAX_RETRY_SECONDS,
                                           self._retry_seconds * 2.0)
+                # Owner order 2026-11-05: a hub that answers 5xx (its own
+                # daily budget spent, or anything inside it broken) keeps
+                # the retry floor at 30 seconds, so the session's request
+                # budget is never spent hammering a relay that is refusing
+                # every push anyway. Data refusals keep the 5-second cap.
+                status = 0
+                response = getattr(exc, "response", None)
+                if response is not None:
+                    status = int(getattr(response, "status_code", 0) or 0)
+                if status >= 500:
+                    self._retry_seconds = max(self._retry_seconds,
+                                              self.REFUSAL_RETRY_SECONDS)
                 if self._wake.wait(self._retry_seconds):
                     self._wake.clear()
                 self._wake.set()
