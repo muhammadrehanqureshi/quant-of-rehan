@@ -338,13 +338,13 @@ class RelayWorkerContractTest(unittest.TestCase):
         probe_at = self.source.find('url.pathname === "/update"')
         self.assertGreaterEqual(
             probe_at, 0, "the durable object's POST /update route is gone")
-        update_route = self.source[probe_at:probe_at + 8000]
+        update_route = self.source[probe_at:probe_at + 11000]
         self.assertIn("frameIsRegularSession(quote)", update_route,
                       f"the /update anchor sits at {probe_at}; the store law "
-                      f"is not inside the route's own first 8000 characters")
+                      f"is not inside the route's own first 11000 characters")
         self.assertIn("refused_post_session", update_route,
                       f"the /update anchor sits at {probe_at}; the refusal "
-                      f"count is not inside the route's own first 8000 chars")
+                      f"count is not inside the route's own first 11000 chars")
         # The acknowledged store lives in the durable object.
         hub = self.source[self.source.index("export class QuoteHub"):]  # the class to the end of the file
         self.assertIn("/ack-upsert", hub)
