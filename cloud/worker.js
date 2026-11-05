@@ -231,8 +231,9 @@ function withRememberedEntry(text, entry) {
 // CNERGY 2026-11-02 closed at its stop, so the answer is 0/2 = 100%.
 // The tile asks ONE question, so the relay answers it as ONE object,
 // shaped once, in one place:
-//   wins   = closed trades that landed net POSITIVE
-//   losses = closed trades that landed net zero or negative
+//   wins   = closed trades whose outcome is TARGET_HIT: the take profit
+//            was reached (owner order 2026-11-05: only a TP hit is a W)
+//   losses = every other closed trade, however the day itself ended
 //   closed = wins + losses (both zero means the rate is not computable)
 //   rate_pct = losing share of the CLOSED total, rounded
 const TRADE_OUTCOME_LABELS = new Set([
@@ -248,7 +249,10 @@ function winLossFromSessions(sessions) {
     if (!Number.isFinite(net)) continue;
     const day = String((session && (session.date || session.day)) || "");
     const key = day || `${(session && session.symbol) || ""}|${label}|${net}`;
-    byDate.set(key, net > 0 ? "win" : "loss");
+    // Owner order 2026-11-05 (fifth pass, "what signal hit TP that you
+    // made it the winner?"): only a call that reached its take profit is
+    // a W. Every other closed trade is an L, however the day itself ended.
+    byDate.set(key, label === "TARGET_HIT" && net > 0 ? "win" : "loss");
   }
   let wins = 0, losses = 0;
   for (const result of byDate.values()) {

@@ -455,23 +455,36 @@ class SettingsControlTest(unittest.TestCase):
         self.assertEqual(ids, ["@+id/btn_nav_home", "@+id/btn_nav_scanner",
                                "@+id/btn_nav_flow", "@+id/btn_nav_search",
                                "@+id/btn_nav_settings"])
-        # Owner order 2026-11-04 (second pass): the owner's own drawing, a
-        # raster, not a redrawn vector. It is his icon as he sent it.
+        # Owner order 2026-11-05 (fifth pass): his picture path for path as
+        # a vector in one ink, so the nav's tint recolors it with every
+        # theme and it stays crisp at any density. A raster trace was the
+        # fourth pass and it read wrong.
         button = element(self.layout, 'android:id="@+id/btn_nav_flow"')
         self.assertIn('android:src="@drawable/orderflow"', button)
         self.assertIn('android:tint="@color/gold"', button)
         self.assertIn('android:contentDescription="@string/cd_order_flow"',
                       button)
-        self.assertTrue((RES / "drawable-nodpi" / "orderflow.png").is_file())
+        flow = RES / "drawable" / "orderflow.xml"
+        self.assertTrue(flow.is_file())
+        self.assertFalse((RES / "drawable-nodpi" / "orderflow.png").is_file())
         self.assertFalse((RES / "drawable" / "ic_nav_flow.xml").is_file())
-        # Owner order 2026-11-05: the square drawing he pasted is the icon,
-        # 512 by 512 like the picture he sent, drawn in one ink the nav's
-        # own tint recolors with the worn theme (setNavPage already paints
-        # every icon, this one included, from the theme's accent pair).
-        width, height, depth, colour = png_header(
-            RES / "drawable-nodpi" / "orderflow.png")
-        self.assertEqual((width, height), (512, 512))
-        self.assertEqual((depth, colour), (8, 6))
+        text = flow.read_text(encoding="utf-8")
+        self.assertIn('android:viewportWidth="500"', text)
+        self.assertIn('android:viewportHeight="500"', text)
+        # Three ledgers, the dot above the top one, the dash and dot inside
+        # the middle one, the two loops and the two straight arrows.
+        for ledger in ('android:pathData="M178,28',
+                       'android:pathData="M178,183',
+                       'android:pathData="M178,338'):
+            self.assertIn(ledger, text)
+        for line in ('M188,86 L322,86 M188,240 L266,240 M188,395 L322,395',
+                     'M246,14 A9,9 0 1 1 264,14',
+                     'M293,240 A9,9 0 1 1 311,240',
+                     'M150,86 C50,86 50,240 116,240',
+                     'M360,240 C460,240 460,396 396,396',
+                     'M488,70 L438,70',
+                     'M128,396 L68,396'):
+            self.assertIn(line, text)
 
     def test_the_flow_page_owns_two_seams_and_no_extra_one(self):
         """Owner order 2026-11-04, fourth pass ("there are two diamond
@@ -506,7 +519,11 @@ class SettingsControlTest(unittest.TestCase):
         self.assertLess(scroll_at, list_at)
         self.assertIn("<ScrollView", self.layout[scroll_at - 200:scroll_at])
         self.assertLess(list_at, self.layout.index("</ScrollView>", list_at))
-        self.assertIn('android:maxHeight="320dp"', self.layout)
+        # Owner order 2026-11-05 (fifth pass): a FIXED window, because a
+        # maxHeight on a ScrollView measures as its content and the tile
+        # stretched the page with the whole day's prints.
+        self.assertIn('android:layout_height="320dp"',
+                      self.layout[scroll_at:list_at])
         self.assertIn("bigPrintsScroll = findViewById(R.id.big_prints_scroll);",
                       self.main)
         self.assertIn("requestDisallowInterceptTouchEvent(true)", self.main)
@@ -1914,11 +1931,12 @@ class VersionTest(unittest.TestCase):
         manifest = MANIFEST.read_text(encoding="utf-8")
         # Owner order 2026-11-04: v4.0.0, the ORDER FLOW page. v4.0.1 is
         # the big prints relay side; v4.0.2 is the third-pass page; v4.0.3
-        # is the fourth pass: the owner's own pasted icon, no seam after
-        # the page's second tile, the live bid/ask/total in the search
-        # rows, and the scrolling big prints board.
-        self.assertIn('android:versionName="4.0.3"', manifest)
-        self.assertIn('android:versionCode="112"', manifest)
+        # is the fourth pass; v4.0.4 is the fifth pass: his picture as a
+        # one-ink vector, no U printed anywhere, the KSE100 rows in
+        # separate lines, the open board on ORDER FLOW, the fixed big
+        # prints window and the TP-only W/L ledger.
+        self.assertIn('android:versionName="4.0.4"', manifest)
+        self.assertIn('android:versionCode="113"', manifest)
         self.assertNotIn('android:versionName="3.7.5"', manifest)
         self.assertNotIn('android:versionName="3.7.4"', manifest)
         self.assertNotIn('android:versionName="3.7.3"', manifest)
@@ -3072,7 +3090,7 @@ class MenuOrdersTest(unittest.TestCase):
         self.assertIn("R.color.green", live)
         self.assertIn("R.color.red", live)
         self.assertIn('" & T=%,d"', live)
-        self.assertNotIn("quote.buy + quote.sell", live)
+        self.assertNotIn("U=%,d", live)
 
     def test_the_dropdown_caret_stands_at_its_face_middle(self):
         """Owner order 2026-11-01 ("have the drop down/up icon at the

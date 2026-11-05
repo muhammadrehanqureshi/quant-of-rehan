@@ -204,7 +204,7 @@ class LeaderLineTest(unittest.TestCase):
         # the card builder it guards, not the whole console file.
         leaders = self.main[
             self.main.index("private SpannableString leadersText("):]
-        volumes = leaders.index('"\\u00A0&\\u00A0T=%,d)"')
+        volumes = leaders.index('"\\nT=%,d"')
         money = leaders.index('"PKR %,.2f"')
         self.assertLess(volumes, money)
         self.assertIn("sb.append('\\n');", leaders[volumes:money])
