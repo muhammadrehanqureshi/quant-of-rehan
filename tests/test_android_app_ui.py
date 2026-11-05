@@ -1041,10 +1041,10 @@ class TypefaceTest(unittest.TestCase):
         # Owner order 2026-11-05, eighth pass: three lines per scrip. The
         # measured B and S stand on their own line with the unclear U beside
         # them, then T with the money line; nothing is folded into a side.
-        self.assertIn("sb.append('\\n').append(\"B \");", self.main)
-        self.assertIn('sb.append(", S ");', self.main)
-        self.assertIn('sb.append(", U ");', self.main)
-        self.assertIn("sb.append('\\n').append(\"T \");", self.main)
+        self.assertIn("sb.append('\\n').append(\"(B=\");", self.main)
+        self.assertIn('sb.append(", S=");', self.main)
+        self.assertIn('sb.append(", U=");', self.main)
+        self.assertIn("sb.append('\\n').append(\"(T=\");", self.main)
         self.assertNotIn("completePair", self.main)
         # v1.8.6 (owner 15:15): and that row keeps the body's 13sp. It wins
         # its width from the tile (6dp of each 16dp panel padding, through the
