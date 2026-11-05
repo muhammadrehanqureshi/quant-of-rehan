@@ -51,6 +51,7 @@ from src import config  # noqa: E402
 from src.data import daily_history  # noqa: E402
 from src.data import eligibility  # noqa: E402
 from src.data import tape_bars  # noqa: E402
+from src.data.psx_daily_downloads import fetch_mkt_summary  # noqa: E402
 from src.data.sessions import (  # noqa: E402
     KARACHI, band_bounds, close_time, current_band, is_scan_window,
     is_trading_day, now_karachi,
@@ -588,6 +589,37 @@ def session_close_price(session: scanner.SessionData, symbol: str | None) -> flo
     return final.close if final is not None else None
 
 
+def exchange_close_price(day: date, symbol: str | None) -> tuple[float | None, str]:
+    """The exchange's own published close for one symbol on one session day.
+
+    Owner order 2026-11-05 ("always update the signal at the end of the day
+    whether it's winning or losing"): when the session tape cannot value an
+    open paper trade at the close (a backfill day whose last banked band
+    ended minutes before the bell, GLAXO 2026-11-04), the valuation falls
+    back to the exchange's own published regular-session close, read from
+    the same mkt_summary download that builds the daily history. Nothing is
+    invented: a refused download, an unreadable payload or an absent
+    symbol returns (None, reason), which the caller turns into
+    UNVERIFIABLE, never a made-up return (SO-3).
+    """
+    if not symbol:
+        return None, "no symbol was in position"
+    rows, info = fetch_mkt_summary(day, pause=1.0, retries=2)
+    if not rows:
+        return None, ("the exchange's close file is unavailable "
+                      f"({info.get('status', 'unknown')})")
+    for row in rows:
+        if str(row.get("symbol", "")).upper() == symbol.upper():
+            try:
+                close = float(row.get("close"))
+            except (TypeError, ValueError):
+                return None, "the exchange's close price is unreadable"
+            if close > 0:
+                return close, "the exchange's published session close"
+            return None, "the exchange's close price is unreadable"
+    return None, "the symbol is absent from the exchange's close file"
+
+
 def capture_label(path: Path, session: scanner.SessionData) -> dict:
     """Which capture spoke, in what format, and what it could not see.
 
@@ -976,6 +1008,8 @@ def run_finalize(capture: Path | None = None,
     outcome_label = "NO_CANDIDATE"
     gross_return = net_return = None
     minutes_held = None
+    final: float | None = None
+    close_source = ""
     monitor_exit(state, session)
     archive_exit_close(state)
     if state.stop_hit:
@@ -990,6 +1024,17 @@ def run_finalize(capture: Path | None = None,
         outcome_label = "UNVERIFIABLE"
     elif state.entry_price:
         final = session_close_price(session, state.symbol)
+        close_source = "the session tape's own closing bar"
+        if final is None:
+            # Owner order 2026-11-05 ("always update the signal at the end of
+            # the day whether it's winning or losing"): a backfill day whose
+            # tape ended before the close (GLAXO 2026-11-04) is still valued
+            # at the exchange's own published regular-session close, read
+            # from the mkt_summary download every daily history is built
+            # from. Nothing is invented: a refused download or an absent
+            # symbol stays UNVERIFIABLE, and the source name travels with
+            # the record (SO-3).
+            final, close_source = exchange_close_price(day, state.symbol)
         if final is not None:
             gross_return = round(final / state.entry_price - 1.0, 6)
             outcome_label = "CLOSED_AT_SESSION_END"
@@ -1009,11 +1054,13 @@ def run_finalize(capture: Path | None = None,
                            .total_seconds() // 60)
     # Net is gross minus the modelled round trip and CGT on a positive result,
     # using the ONE cost schedule in src/config.py (the same numbers the frozen
-    # research gate labels with, so a paper outcome and a research label agree).
-    net_return = config.net_return(gross_return)
+    # research gate labels with, so a paper outcome and a research label agree).    net_return = config.net_return(gross_return)
     if state.entry_price:
-        state.close_day(session_close_price(session, state.symbol)
-                        if outcome_label == "CLOSED_AT_SESSION_END" else None, as_of)
+        # The session-end close the outcome was valued on is also what
+        # close_day locks into the state record, so the persisted trade and
+        # the banked outcome carry the same exit price.
+        state.close_day(final if outcome_label == "CLOSED_AT_SESSION_END"
+                        else None, as_of)
     else:
         state.close_day(None, as_of)
 
@@ -1028,6 +1075,7 @@ def run_finalize(capture: Path | None = None,
         },
         "minutes_held": minutes_held,
         "outcome": outcome_label,
+        "close_source": close_source,
         "market": context,
         "capture": capture_label(path, session),
         "data_quality": quality.as_dict(),
