@@ -2747,8 +2747,31 @@ export default {
       const key = `RESEARCH:OUTCOME:${body.date}`;
       const existing = await relayRead(env, key);
       if (existing) {
-        await kvDelete(env, "RESEARCH:WINLOSS");
-        return json({ ok: true, stored: false, immutable: true });
+        // Owner order 2026-11-05 ("always update the signal at the end of
+        // the day whether it's winning or losing"): a day whose FIRST
+        // attempt carried no countable trade (an UNVERIFIABLE finalize,
+        // GLAXO 2026-11-04) may be replaced by the day's CLOSED record.
+        // A record that already counts is immutable: the day is banked
+        // once, and no later run can relabel it.
+        let countable = false;
+        try {
+          const prior = JSON.parse(existing);
+          const priorSession = Array.isArray(prior && prior.sessions)
+            ? prior.sessions[0] : null;
+          const priorLabel = String((priorSession && priorSession.outcome) || "")
+            .toUpperCase();
+          countable = TRADE_OUTCOME_LABELS.has(priorLabel) &&
+            Number.isFinite(Number(priorSession && priorSession.net_return));
+        } catch (_) { countable = false; }
+        const nextSession = body.sessions[0];
+        const nextLabel = String((nextSession && nextSession.outcome) || "")
+          .toUpperCase();
+        const upgrade = TRADE_OUTCOME_LABELS.has(nextLabel) &&
+          Number.isFinite(Number(nextSession && nextSession.net_return));
+        if (countable || !upgrade) {
+          await kvDelete(env, "RESEARCH:WINLOSS");
+          return json({ ok: true, stored: false, immutable: true });
+        }
       }
       await kvPut(env, key, JSON.stringify(body),
         { expirationTtl: 63072000 });
