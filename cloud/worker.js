@@ -2166,11 +2166,23 @@ async function healthPayload(env) {
   } catch (_) {
     flowBudget = null;
   }
+  // Owner order 2026-11-05: when the day's rows-written budget or any
+  // storage error makes the hub hold the snapshot in memory alone, the
+  // card keeps answering fresh numbers and /health says why, so a
+  // degraded-but-alive day can never look like a healthy one (SO-3).
+  let snapshotPersistError = null;
+  try {
+    const rawPersistError = await quoteHubValue(env, "SNAPSHOT:PERSIST_ERROR");
+    if (rawPersistError) snapshotPersistError = JSON.parse(rawPersistError);
+  } catch (_) {
+    snapshotPersistError = null;
+  }
   return {
     ok: true,
     service: "quant-of-rehan-relay",
     flow_last_error: flowError,
     flow_budget: flowBudget,
+    snapshot_persist_error: snapshotPersistError,
     // The commit this script was built from. The deploy workflow sets it from
     // GITHUB_SHA and then asks /health for it, so a deploy that uploaded
     // nothing (or uploaded to another account) cannot pass as a success.
@@ -2830,12 +2842,36 @@ export class QuoteHub {
   constructor(ctx, env) {
     this.ctx = ctx;
     this.env = env;
+    // Owner order 2026-11-05: the free plan's Durable Objects daily
+    // budgets (5,000,000 rows read and 100,000 rows written a day, reset
+    // 00:00 UTC) must never again be able to kill the live feed. Two
+    // laws hold this. ONE: the quote snapshot lives in this hub's memory
+    // between loads, so a push does not SELECT the day's row back and a
+    // reading poll never touches SQLite at all - the session's reads
+    // drop from six figures a day to a few thousand, and the dedicated
+    // phone and desk clients can read for a century of sessions inside
+    // the cap. TWO: even when persistence itself refuses (any budget,
+    // any error), the handler still answers JSON with the memory-held
+    // snapshot, so a throw can never again surface as the edge's HTML
+    // error page and mute the feed until midnight UTC.
     // Flow state is authoritative in memory between flushes. Persisting it
     // on every push cost one SQL row per symbol per push and exhausted the
     // Durable Objects daily write budget; five minutes is 312 rows at a
     // time, not 312 rows every second.
     this.flowStates = null;
     this.lastFlowFlush = 0;
+    // Owner order 2026-11-05: the memory-read law. The last accepted
+    // snapshot lives here between loads, so the POST /update handler
+    // stops SELECTing the day's row back on every push and no reading
+    // poll (the phone's one-a-second card and the desk's slower pace)
+    // ever costs a SQLite row read. A fresh instance loads the row once;
+    // from then on every read answer comes from memory.
+    this.snapshotCache = null;
+    this.snapshotLoaded = false;
+    // Per-push error notes are rate limited to one a minute, so a
+    // repeating per-symbol error can never spend the day's rows-written
+    // budget on diagnostics itself.
+    this.lastFlowErrorSeen = 0;
     this.lastAckWrites = new Map();
     // The mirror's own day ledger, so ACK_ROWS_PER_DAY is a measured ceiling
     // and not a promise. It is in-memory like the flow counters: an instance
@@ -3060,15 +3096,38 @@ export class QuoteHub {
 
   async snapshot() {
     await this.ready;
-    const row = this.ctx.storage.sql.exec(
-      "SELECT payload FROM quote_snapshot WHERE id = 1",
-    ).toArray()[0];
-    if (!row) {
-      return { ok: true, quotes: [], index: null, market_feed: null,
+    // Owner order 2026-11-05: served from memory once loaded, so the
+    // phone's every-second card read never costs a SQLite row read. The
+    // cache is loaded by this one guarded read; after that the DO's own
+    // reads are free for the life of the instance.
+    if (this.snapshotLoaded) {
+      if (this.snapshotCache) return { ok: true, ...this.snapshotCache };
+      return { ok: false, quotes: [], index: null, market_feed: null,
         updated_at: null, stale: true };
     }
-    const snapshot = normalizeQuoteSnapshot(JSON.parse(row.payload));
-    return { ok: true, ...snapshot };
+    try {
+      const row = this.ctx.storage.sql.exec(
+        "SELECT payload FROM quote_snapshot WHERE id = 1",
+      ).toArray()[0];
+      this.snapshotLoaded = true;
+      if (!row) return { ok: true, quotes: [], index: null, market_feed: null,
+        updated_at: null, stale: true };
+      let parsed = null;
+      try { parsed = JSON.parse(row.payload); } catch (_) { parsed = null; }
+      if (!parsed) {
+        return { ok: true, quotes: [], index: null, market_feed: null,
+          updated_at: null, stale: true };
+      }
+      this.snapshotCache = parsed;
+      return { ok: true, ...parsed };
+    } catch (_) {
+      // A storage read refused (a daily free-plan budget, reset 00:00
+      // UTC, or any storage error). Answer stale-and-empty rather than
+      // throwing: the caller's own catch turns this into JSON, never
+      // into the edge's HTML error page.
+      return { ok: false, quotes: [], index: null, market_feed: null,
+        updated_at: null, stale: true };
+    }
   }
 
   async stateGet(key) {
@@ -3140,7 +3199,30 @@ export class QuoteHub {
     }
   }
 
+  // Owner order 2026-11-05: nothing this object does may ever surface as
+  // the edge's HTML 1101 page again. Every throw inside the hub collapses
+  // to a JSON refusal the publisher retries and the phone survives; columns
+  // or limits reset at 00:00 UTC and the memory-held snapshot keeps the
+  // answers moving meanwhile.
   async fetch(request) {
+    try {
+      return await this.handle(request);
+    } catch (error) {
+      try {
+        await this.statePut("FLOW:LAST_ERROR", JSON.stringify({
+          at: new Date().toISOString(),
+          message: String((error && error.message) || error).slice(0, 200),
+        }), Date.now() + 86400 * 1000);
+      } catch (_) { /* diagnostics never break a refusal */ }
+      return json({
+        ok: false,
+        error: "quote hub refused: " +
+          String((error && error.message) || error).slice(0, 160),
+      }, 503);
+    }
+  }
+
+  async handle(request) {
     const url = new URL(request.url);
     // The relay's key value store, served by this object instead of KV.
     if (url.pathname === "/state") {
@@ -3308,13 +3390,31 @@ export class QuoteHub {
       if (!body || typeof body !== "object" || !Array.isArray(body.quotes)) {
         return json({ ok: false, error: "invalid quote update" }, 400);
       }
-      let previous = null;
-      const row = this.ctx.storage.sql.exec(
-        "SELECT payload FROM quote_snapshot WHERE id = 1",
-      ).toArray()[0];
-      if (row) {
-        try { previous = JSON.parse(row.payload); } catch (_) { previous = null; }
+      // Owner order 2026-11-05: the previous snapshot comes from memory.
+      // One guarded read loads it on a fresh instance; after that a push
+      // never SELECTs the day's row back, so a whole session's pushes
+      // cost at most one row read. If even the one load is refused, the
+      // push is answered with a refusal the publisher retries, never
+      // with a blank overwrite of a snapshot this object cannot read.
+      let previous = this.snapshotCache;
+      if (!this.snapshotLoaded) {
+        let row = null;
+        try {
+          row = this.ctx.storage.sql.exec(
+            "SELECT payload FROM quote_snapshot WHERE id = 1",
+          ).toArray()[0];
+          this.snapshotLoaded = true;
+          if (row) {
+            try { previous = JSON.parse(row.payload); }
+            catch (_) { previous = null; }
+          }
+        } catch (_) {
+          return json({ ok: false, error: "snapshot row unavailable" }, 503);
+        }
       }
+      // While this push is being assembled the previous snapshot stays in
+      // memory: a reading poll that lands mid-push must keep seeing the
+      // last accepted snapshot, never a blank.
     const flowDay = dayStamp(karachiView(Date.now()));
     let largePrints = previous && previous.flow_day === flowDay &&
       Array.isArray(previous.large_prints)
@@ -3373,13 +3473,19 @@ export class QuoteHub {
           }
         } catch (error) {
           // The range pair still answers. The reason is kept for /health so
-          // a silent failure can never hide for long.
-          try {
-            await this.statePut("FLOW:LAST_ERROR", JSON.stringify({
-              at: new Date().toISOString(),
-              message: String((error && error.message) || error).slice(0, 200),
-            }), Date.now() + 86400 * 1000);
-          } catch (ignored) { /* diagnostics never break a push */ }
+          // a silent failure can never hide for long - at most one note a
+          // minute, so diagnostics can never spend the day's own written
+          // rows budget diagnosing itself.
+          const stamp = Date.now();
+          if (stamp - this.lastFlowErrorSeen >= 60000) {
+            this.lastFlowErrorSeen = stamp;
+            try {
+              await this.statePut("FLOW:LAST_ERROR", JSON.stringify({
+                at: new Date().toISOString(),
+                message: String((error && error.message) || error).slice(0, 200),
+              }), Date.now() + 86400 * 1000);
+            } catch (ignored) { /* diagnostics never break a push */ }
+          }
         }
         const split = splitFromQuote(quote);
         if (split) {
@@ -3446,13 +3552,33 @@ export class QuoteHub {
         large_prints_total: largePrintsTotal,
       };
       const serialized = JSON.stringify(snapshot);
-      this.ctx.storage.sql.exec(
-        "INSERT INTO quote_snapshot (id, payload) VALUES (1, ?) " +
-        "ON CONFLICT(id) DO UPDATE SET payload = excluded.payload",
-        serialized,
-      );
-      const current = await this.snapshot();
-      const answer = { ok: true, stored: true, quotes: accepted.length,
+      // Owner order 2026-11-05: the memory law again. The pushed
+      // snapshot is authoritative in this object's memory BEFORE it is
+      // persisted, and the persistence is best effort: if the day's
+      // rows-written budget or any storage error refuses the write, the
+      // push is still answered ok with the memory-held snapshot, the
+      // phone and the desk keep reading fresh numbers, and the reason
+      // is recorded once for /health (SO-3: a silent failure is never
+      // allowed to hide).
+      let stored = true;
+      try {
+        this.ctx.storage.sql.exec(
+          "INSERT INTO quote_snapshot (id, payload) VALUES (1, ?) " +
+          "ON CONFLICT(id) DO UPDATE SET payload = excluded.payload",
+          serialized,
+        );
+      } catch (error) {
+        stored = false;
+        try {
+          await this.statePut("SNAPSHOT:PERSIST_ERROR", JSON.stringify({
+            at: new Date().toISOString(),
+            message: String((error && error.message) || error).slice(0, 200),
+          }), Date.now() + 86400 * 1000);
+        } catch (_) { /* diagnostics never break a push */ }
+      }
+      this.snapshotCache = snapshot;
+      const current = { ok: true, ...snapshot };
+      const answer = { ok: true, stored, quotes: accepted.length,
         refused_post_session: body.quotes.length - accepted.length,
         updated_at: snapshot.updated_at, market_feed: current.market_feed };
       for (const socket of this.ctx.getWebSockets(QUOTE_HUB_SOCKET_TAG)) {
