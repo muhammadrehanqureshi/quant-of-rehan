@@ -243,7 +243,9 @@ scan cadence is 30 seconds, on the public repository's free cloud minutes
 SO-21 the owner's PC is not used at all: backtests and their data crawls run
 on the free Actions minutes of the public repository (owner order
 2026-10-19, supersedes SO-4) · SO-22 the agent never sleeps and never waits
-for the clock; the cloud waits (owner order 2026-10-21).
+for the clock; the cloud waits (owner order 2026-10-21) · SO-23 the agent's
+own session runs no local computation: edits, git and gh only (owner order
+2026-11-05).
 
 ## SO-10 · Resource law: the owner's PC is for backtesting and local trials only (owner order, 2026-10-06)
 
@@ -433,4 +435,35 @@ ever do that. Hardcode all this to your system."
   a sleep in it, a `while true` poll, or a wait for a Karachi clock time is a
   violation even when nothing is committed. This file is the record because
   an instruction in chat lasts one session and this one lasts all of them.
+- **Withdrawal.** Only a later written owner instruction, recorded here.
+
+## SO-23 · The agent's own session runs no local computation (owner order, 2026-11-05)
+
+Owner order, verbatim: "when you are working my PC is always over 75 degree
+celcius? Don't ever hammer my PC at all ever!!! hardcode this into your
+system"
+
+- **The law.** While a session is working, the owner's PC stays idle. The
+  agent's only local actions are file edits and the `git` and `gh` commands.
+  Every verification question is answered by the pull request's CI or another
+  GitHub Actions job: the test suite, a build, a benchmark, a syntax parse, a
+  `node --check`, a `python -c` smoke check, a formatter, all of it.
+- **Why this is wider than SO-21.** SO-21 keeps the project's workloads
+  (scanner, capture, backtests, crawls) off the machine. This order keeps the
+  agent itself off it, because the owner measured his machine above 75 C while
+  a session was working and named that as the offence. Reading a file and
+  sending a GitHub request are seconds of network and disk; a parse of a
+  thousand-line file, a test run, a build or a benchmark is heat he can feel.
+- **No local validation exception.** `scripts/land.sh` already skips local
+  checks by default, and `--local-checks` stays an explicit exception that a
+  session must not make a habit. A session that wants to know whether its edit
+  works asks CI, with `gh pr checks --watch`.
+- **The shell is bound too.** A command line with a local parser, a test run,
+  a build or a generator is a violation even when nothing is committed. If a
+  check needs code executed, that code runs in Actions. The one place where
+  local execution is legitimate is the owner himself, in his own shell,
+  because he is the owner.
+- **Enforcement.** `scripts/check_governance.py` pins the order's own words in
+  this file and in `AGENTS.md`; removing them fails every pull request, and
+  `tests/test_governance_heat.py` holds the pin itself.
 - **Withdrawal.** Only a later written owner instruction, recorded here.
