@@ -1641,6 +1641,15 @@ to sixty seconds. The status tile therefore also carries the app's own
      the orphan law stands so every dot still wears a filament.
   5. The version bump is versionCode 82 / versionName 2.3.15.
 
+**Version 4.0.11, versionCode 120.**
+
+  Owner order 2026-11-05, eleventh pass. A zero `U` is no longer printed;
+  a positive unclear remainder is still shown and never folded into B or
+  S. The upstream capture now carries the pre-open zero frame into the
+  flow and records the baseline reason.
+
+  The version bump is versionCode 120 / versionName 4.0.11.
+
 **Version 4.0.10, versionCode 119.**
 
   Owner order 2026-11-05, tenth pass. The searched scrip's order flow puts

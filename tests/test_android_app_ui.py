@@ -584,6 +584,7 @@ class SettingsControlTest(unittest.TestCase):
         self.assertIn('"(T=%,d)"', selected)
         self.assertIn('sb.append(" & S=");', selected)
         self.assertIn('" & U=%,d"', selected)
+        self.assertIn("found.unclassified > 0", selected)
         self.assertNotIn(", S=", selected)
         self.assertNotIn(", U=", selected)
         self.assertNotIn(", T=", selected)
@@ -1986,8 +1987,8 @@ class VersionTest(unittest.TestCase):
         # pass: his new ORDER FLOW picture, the bracketed top three, the
         # eight-print board with its visible bar, and the search-only
         # ORDER FLOW tile.
-        self.assertIn('android:versionName="4.0.10"', manifest)
-        self.assertIn('android:versionCode="119"', manifest)
+        self.assertIn('android:versionName="4.0.11"', manifest)
+        self.assertIn('android:versionCode="120"', manifest)
         self.assertNotIn('android:versionName="3.7.5"', manifest)
         self.assertNotIn('android:versionName="3.7.4"', manifest)
         self.assertNotIn('android:versionName="3.7.3"', manifest)
@@ -2197,8 +2198,8 @@ class VersionTest(unittest.TestCase):
         # rows; v4.0.5 (sixth pass) is his new ORDER FLOW picture, the
         # bracketed top three, the eight-print scrolling board with its
         # visible bar, and the search-only ORDER FLOW tile.
-        self.assertIn('android:versionCode="119"', manifest)
-        self.assertIn('android:versionName="4.0.10"', manifest)
+        self.assertIn('android:versionCode="120"', manifest)
+        self.assertIn('android:versionName="4.0.11"', manifest)
         self.assertNotIn('android:versionName="3.7.5"', manifest)
         self.assertNotIn('android:versionName="3.7.4"', manifest)
         self.assertNotIn('android:versionName="3.7.3"', manifest)

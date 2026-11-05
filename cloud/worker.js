@@ -1205,6 +1205,9 @@ function measuredFromQuote(quote) {
     sell_volume: sell,
     split_volume: buy + sell,
     flow_baseline: baseline,
+    flow_baseline_at: quote.flow_baseline_at || null,
+    flow_first_seen_at: quote.flow_first_seen_at || null,
+    flow_baseline_reason: quote.flow_baseline_reason || null,
     split_method: "quote_rule",
     split_source:
       "every volume increment sided by the wire's own bid/ask at the poll",
@@ -1614,6 +1617,9 @@ function splitFields(split, quote) {
       unclassified_volume: null,
       flow_complete: null,
       flow_baseline: null,
+      flow_baseline_at: null,
+      flow_first_seen_at: null,
+      flow_baseline_reason: null,
       split_method: "unavailable",
       split_source: quote
         ? "the frame's range is incomplete"
@@ -1635,6 +1641,12 @@ function splitFields(split, quote) {
     flow_baseline: Number.isFinite(Number(split.flow_baseline))
       ? Math.max(0, Math.round(Number(split.flow_baseline)))
       : null,
+    flow_baseline_at: quote && quote.flow_baseline_at
+      ? String(quote.flow_baseline_at) : null,
+    flow_first_seen_at: quote && quote.flow_first_seen_at
+      ? String(quote.flow_first_seen_at) : null,
+    flow_baseline_reason: quote && quote.flow_baseline_reason
+      ? String(quote.flow_baseline_reason) : null,
     split_method: measured ? "quote_rule" : "range_position",
     split_source: measured
       ? (split.split_source ||
@@ -1763,6 +1775,11 @@ async function flowAnswer(env, now) {
       sell_volume: sell,
       classified_volume: classified,
       unclassified_volume: unclassified,
+      flow_baseline: split && Number.isFinite(Number(split.flow_baseline))
+        ? Math.max(0, Math.round(Number(split.flow_baseline))) : null,
+      flow_baseline_at: quote.flow_baseline_at || null,
+      flow_first_seen_at: quote.flow_first_seen_at || null,
+      flow_baseline_reason: quote.flow_baseline_reason || null,
       buy_share_pct: buyShare,
       sell_share_pct: sellShare,
       flow_complete: unclassified === null ? null : unclassified === 0,

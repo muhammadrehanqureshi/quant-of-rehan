@@ -306,14 +306,24 @@ def relay_quote_updates(record: dict) -> dict:
             if not symbol or not symbol.isalnum():
                 continue
             price = _finite_number(tick.get("last"))
-            if price is None or price <= 0:
+            volume = _finite_number(tick.get("volume"))
+            if volume is None or volume < 0:
                 continue
+            volume_int = int(volume)
+            # A zero total is the pre-open zero baseline. The feed may carry no
+            # last print yet, so it must reach the flow even when price is 0;
+            # it is never published as a live quote. A non-zero total with no
+            # usable price cannot be sided either: carry it as flow-only so it
+            # stays in the baseline instead of being dropped and sided whole
+            # by the next priced frame.
+            flow_only = volume_int == 0 or price is None or price <= 0
+            if flow_only and (price is None or price <= 0):
+                price = 0.0
             close = _finite_number(tick.get("close"))
             change = _finite_number(tick.get("change"))
             change_pct = (change / close * 100.0
                           if change is not None and close is not None and close > 0
                           else None)
-            volume = _finite_number(tick.get("volume"))
             quote = {
                 "symbol": symbol,
                 "price": price,
@@ -321,7 +331,8 @@ def relay_quote_updates(record: dict) -> dict:
                 "ask": _finite_number(tick.get("ask")),
                 "change": change,
                 "change_pct": change_pct,
-                "volume": int(volume) if volume is not None and volume >= 0 else None,
+                "volume": volume_int,
+                "flow_only": flow_only,
                 "high": _finite_number(tick.get("high")),
                 "low": _finite_number(tick.get("low")),
                 "status": ("OPEN" if str(tick.get("status", "")).strip().upper()
@@ -346,6 +357,21 @@ def relay_quote_updates(record: dict) -> dict:
             }
     update["captured_at"] = observed_at
     return update
+
+
+def session_has_opened(now: datetime) -> bool:
+    """True once the day's first pre-open window has started.
+
+    The capture's first band starts at 08:55, before the exchange's pre-open
+    window (09:15 Monday to Thursday, 09:00 Friday). Before that boundary a
+    symbol the feed has not published may be zero-seeded. From it onward a
+    restart must adopt the relay's same-day pair instead of re-baselining
+    the auction or the morning.
+    """
+    clock = now.strftime("%H:%M")
+    if now.weekday() == 4:          # Friday's first pre-open starts at 09:00.
+        return clock >= "09:00"
+    return clock >= "09:15"
 
 
 def seed_day_flow(flow, payload, today: str) -> int:
@@ -388,6 +414,9 @@ class RelayQuotePublisher:
     # a bad frame is fixed by the next quote, not by waiting.
     REFUSAL_RETRY_SECONDS = 30.0
 
+    SEED_ATTEMPTS = 3
+    SEED_RETRY_SECONDS = 1.0
+
     def __init__(self) -> None:
         # Owner order 2026-11-03: buying and selling are separated at the
         # wire, by the quote standing when each increment of the venue's own
@@ -407,6 +436,9 @@ class RelayQuotePublisher:
         self._last_attempt = 0.0
         self._retry_seconds = 1.0
         self._last_refusal_log = 0.0
+        self._baseline_logged: set[str] = set()
+        self._seed_required = session_has_opened(now_karachi())
+        self._seed_failed = False
         self._thread: threading.Thread | None = None
 
         # The owner's PC is never a publisher. Only a cloud session runner
@@ -419,7 +451,22 @@ class RelayQuotePublisher:
         self._url = os.environ.get(
             "RELAY_URL", "https://quant-of-rehan-relay.mrmrehanqureshi.workers.dev"
         ).strip().rstrip("/")
-        self._seed_day_flow()
+        adopted = self._seed_day_flow()
+        if self._seed_required and adopted == 0:
+            # A mid-session restart must not replace the morning pair with a
+            # fresh baseline. The capture keeps banking, but the phone keeps
+            # the last honest pair until a seed succeeds.
+            self._seed_failed = True
+            print("flow seed required for this mid-session start but no "
+                  "same-day pair was adopted; publisher not started",
+                  file=sys.stderr, flush=True)
+            return
+        if not self._seed_required:
+            seeded = self._flow.seed_preopen(
+                load_universe(), now_karachi().isoformat())
+            if seeded:
+                print(f"pre-open zero gate: seeded {seeded} unseen "
+                      f"symbol(s) at zero", flush=True)
         self._thread = threading.Thread(
             target=self._run, name="cloud-relay-quote-publisher", daemon=True)
         self._thread.start()
@@ -429,46 +476,64 @@ class RelayQuotePublisher:
 
         The 12:30 band starts a new process. The relay's /flow is the day's
         durable pair, so the new process adopts it instead of re-baselining
-        the morning's volume. The seed is best effort: a relay that cannot
-        answer leaves the process to start from its own first observation,
-        which reports the remainder as unclear rather than inventing a side.
+        the morning's volume. The seed is retried a bounded number of times;
+        a mid-session start that still cannot adopt it refuses to publish
+        rather than replacing the morning pair with a fresh baseline.
         """
-        try:
-            import requests
+        import requests
 
-            response = requests.get(
-                self._url + "/flow",
-                headers={"User-Agent": "Mozilla/5.0"},
-                timeout=(1.0, 3.0))
-            response.raise_for_status()
-            adopted = seed_day_flow(
-                self._flow, response.json(),
-                now_karachi().strftime("%Y-%m-%d"))
-            if adopted:
-                print(f"flow seed: continuing {adopted} symbol(s) from "
-                      f"the relay's same-day pair", flush=True)
-            return adopted
-        except Exception as exc:
-            print(f"flow seed skipped: {type(exc).__name__}",
-                  file=sys.stderr, flush=True)
-            return 0
+        last_reason = "no same-day pair adopted"
+        for attempt in range(1, self.SEED_ATTEMPTS + 1):
+            try:
+                response = requests.get(
+                    self._url + "/flow",
+                    headers={"User-Agent": "Mozilla/5.0"},
+                    timeout=(1.0, 3.0))
+                response.raise_for_status()
+                adopted = seed_day_flow(
+                    self._flow, response.json(),
+                    now_karachi().strftime("%Y-%m-%d"))
+                if adopted:
+                    print(f"flow seed: continuing {adopted} symbol(s) from "
+                          f"the relay's same-day pair", flush=True)
+                    return adopted
+                last_reason = "the relay answered without a same-day pair"
+            except Exception as exc:
+                last_reason = type(exc).__name__
+            if attempt < self.SEED_ATTEMPTS:
+                time.sleep(self.SEED_RETRY_SECONDS)
+        print(f"flow seed skipped after {self.SEED_ATTEMPTS} attempt(s): "
+              f"{last_reason}", file=sys.stderr, flush=True)
+        return 0
 
     def observe(self, record: dict) -> None:
         if self._thread is None:
             return
         update = relay_quote_updates(record)
         self._flow.observe_many(update["quotes"])
+        published = [quote for quote in update["quotes"]
+                     if not quote.get("flow_only")]
+        for quote in update["quotes"]:
+            reason = quote.get("flow_baseline_reason")
+            symbol = quote["symbol"]
+            if (reason in {"first_seen_nonzero", "no_price"}
+                    and symbol not in self._baseline_logged):
+                self._baseline_logged.add(symbol)
+                print(f"flow baseline: {symbol} {reason} at "
+                      f"{quote.get('flow_baseline_at')} with "
+                      f"{quote.get('flow_baseline')} shares; prefix is not "
+                      f"sided", file=sys.stderr, flush=True)
         with self._lock:
             if (self._latest_captured_at is None or
                     update["captured_at"] > self._latest_captured_at):
                 self._latest_captured_at = update["captured_at"]
-            for quote in update["quotes"]:
+            for quote in published:
                 self._pending_quotes[quote["symbol"]] = quote
             if update.get("index") is not None:
                 self._pending_index = update["index"]
             if update.get("market_feed") is not None:
                 self._pending_market_feed = update["market_feed"]
-        if update["quotes"] or update.get("index") or update.get("market_feed"):
+        if published or update.get("index") or update.get("market_feed"):
             self._wake.set()
 
     def _take_pending(self) -> dict | None:
