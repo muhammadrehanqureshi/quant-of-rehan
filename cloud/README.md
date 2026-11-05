@@ -105,9 +105,11 @@ shrinks the universe to only the symbols that happened to trade.
 The split law is the one in `src/data/quote_flow.py`, running inside the
 `QuoteHub` Durable Object. The capture starts before the open and stamps its
 own observed pair on every quote, so a hub that starts later adopts that pair
-instead of assigning shares it never saw. If the capture itself started late,
-the missed shares stay in `unclassified_volume`; they are never called buy or
-sell.
+instead of assigning shares it never saw. A capture process that restarts
+mid-session seeds its flow from the relay's same-day `/flow` pair before it
+pushes, so the afternoon band continues the morning instead of re-baselining
+it. If the capture itself started late, the missed shares stay in
+`unclassified_volume`; they are never called buy or sell.
 
 `age_seconds` is the age of the frame the relay holds, so it answers "is the
 feed pushing now". `tick_age_seconds` is the age of the exchange's last print
