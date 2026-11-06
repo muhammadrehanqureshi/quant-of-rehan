@@ -329,6 +329,8 @@ def relay_quote_updates(record: dict) -> dict:
                 "price": price,
                 "bid": _finite_number(tick.get("bid")),
                 "ask": _finite_number(tick.get("ask")),
+                "bid_size": _finite_number(tick.get("bid_size")),
+                "ask_size": _finite_number(tick.get("ask_size")),
                 "change": change,
                 "change_pct": change_pct,
                 "volume": volume_int,

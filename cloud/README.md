@@ -32,10 +32,10 @@ status surface, on the Cloudflare edge off your PC.
   one regular-session frame per Karachi day, band and symbol, clamped so
   the B/S pair only moves as the day's own volume grows.
 - `GET /flow` (also `/orderflow`): the complete KMIALL order-flow answer.
-  One row per symbol with last, bid, ask, change, volume, buy, sell, the
-  unclassified remainder, the split method, feed freshness, last-trade age
-  and the day's large prints. It is a pure read of the durable quote
-  snapshot: no portal fetch
+  One row per symbol with last, bid, ask, the resting bid and ask sizes,
+  change, volume, buy, sell, the unclassified remainder, the split method,
+  feed freshness, last-trade age and the day's large prints. It is a pure
+  read of the durable quote snapshot: no portal fetch
   and no ACK write, so a desktop poll cannot spend the Durable Objects
   write budget.
 - Cron triggers do scan dispatch and card upkeep only; owner order
@@ -62,6 +62,7 @@ shrinks the universe to only the symbols that happened to trade.
   "rows": [
     {
       "symbol": "CNERGY", "price": 11.86, "bid": 11.85, "ask": 11.87,
+      "bid_size": 12000, "ask_size": 9000,
       "spread": 0.02, "change_pct": 1.2, "high": 12.1, "low": 11.4,
       "volume": 37942931, "buy_volume": 21800000, "sell_volume": 16142931,
       "classified_volume": 37942931, "unclassified_volume": 0,
