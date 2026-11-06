@@ -12,10 +12,11 @@ day's high.
 The three questions, each answered from completed bars only:
 
   * pullback: inside the trailing PULLBACK_LOOKBACK_BARS one minute bars of
-    the current band, the highest high is the swing high, the lowest low
-    after it is the pullback low, and the decline between them must reach
-    PULLBACK_MIN_DEPTH_PCT of the swing high. A flat window, a new high with
-    no dip after it, or a dip shorter than the floor is refused by name.
+    the current band, the lowest low is the pullback low, the highest high
+    before it is the swing high, and the decline between them must reach
+    PULLBACK_MIN_DEPTH_PCT of the swing high. A window whose low is its first
+    bar, a rise with no dip at all, or a dip shorter than the floor is
+    refused by name.
   * resumption: the first bar after the pullback low whose close clears the
     highest high printed on the pullback leg. That bar is the signal, and it
     must be at most PULLBACK_RESUME_BARS old, so a dip that recovered ten
@@ -58,25 +59,28 @@ def detect(rows: list, lookback: int, resume_bars: int,
     """Find a completed pullback and its resumption in the trailing bars.
 
     Returns the measured swing, or a named refusal. Nothing looks ahead: the
-    peak, the low and the resumption are all indexed from the window's own
-    completed bars and the resumption must already have printed.
+    low, the peak and the resumption are all indexed from the window's own
+    completed bars and the resumption must already have printed. The dip is
+    found FIRST and its swing high second, so a resumption that clears the
+    old high cannot erase the dip it came from.
     """
     window = _window(rows, lookback)
     if len(window) < 3:
         return None, "pullback_window_too_short"
-    # The EARLIEST print of the window's highest high: the dip has to come
-    # after the swing high, and an earlier peak leaves the longer leg.
-    peak = max(range(len(window)),
-               key=lambda index: (window[index].high, -index))
-    if peak >= len(window) - 1:
-        return None, "pullback_no_dip_yet"
-    trough = min(range(peak + 1, len(window)),
+    # The pullback low first, the swing high it fell from second. The low may
+    # not be the window's first bar, because then no swing high inside the
+    # window precedes it.
+    trough = min(range(1, len(window)),
                  key=lambda index: (window[index].low, index))
+    peak = max(range(trough),
+               key=lambda index: (window[index].high, -index))
     peak_high = float(window[peak].high)
     trough_low = float(window[trough].low)
     if not (math.isfinite(peak_high) and math.isfinite(trough_low)
             and peak_high > 0 and trough_low > 0):
         return None, "pullback_unusable_prices"
+    if trough_low >= peak_high:
+        return None, "pullback_no_dip_yet"
     depth = (peak_high - trough_low) / peak_high
     if depth < min_depth:
         return None, "pullback_too_shallow"
