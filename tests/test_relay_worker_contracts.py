@@ -852,6 +852,36 @@ class RelayWorkerContractTest(unittest.TestCase):
         self.assertIn("split ? split.sell_volume : null,", prices)
 
 
+    def test_search_rows_fall_back_to_the_exchange_table_when_the_tape_is_silent(
+            self):
+        """Owner report 2026-11-06: the broker tape went silent at the open.
+
+        The socket answered its welcome and then pushed nothing, so the quote
+        hub held no frame for today and every search row, scanner ranking and
+        sector line vanished while the exchange's own KMIALLSHR table carried
+        the session. That table is already read for the card's top three; its
+        rows are kept beside it now and /prices fills only the symbols the hub
+        has not answered for today. A portal row carries no measured pair, so
+        B and S stay null and the total is the unclear remainder, and a hub
+        frame always wins (SO-3).
+        """
+        self.assertIn('const PORTAL_ROWS_KEY = "MARKET:ROWS";', self.source)
+        self.assertIn("await rememberPortalRows(env, now, rows);", self.source)
+        self.assertIn("await portalRowsToday(env, portalNow)", self.source)
+        self.assertIn("async function refreshPortalRows(env, now)", self.source)
+        self.assertIn("ctx.waitUntil(refreshPortalRows(env, portalNow));",
+                      self.source)
+        prices = self.source[self.source.index('path === "/prices"'):]
+        prices = prices[:prices.index('path === "/market"')]
+        self.assertIn("if (tradingToday) {", prices)
+        self.assertIn("const held = new Set(rowsBuilt.map((row) => row.symbol));",
+                      prices)
+        self.assertIn("if (held.has(row.symbol)) continue;", prices)
+        self.assertIn('source: "dps.psx.com.pk KMIALLSHR"', prices)
+        # The exchange publishes a total, never a side, so no split exists.
+        self.assertIn("buy_volume: null,", prices)
+        self.assertIn("sell_volume: null,", prices)
+
     def test_one_newest_frame_answers_every_surface(self):
         """Owner order 2026-11-01: the card, /stock and /prices agree.
 
