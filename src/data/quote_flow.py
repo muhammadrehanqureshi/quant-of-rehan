@@ -20,11 +20,12 @@ day's range. The rules, in order, first match wins:
   2. last <= bid (bid > 0)              -> SELL  (hit the bid)
   3. bid < last < ask, last vs midpoint -> BUY above the mid, SELL below
   4. last moved up from the previous row -> BUY, down -> SELL
-  5. otherwise                          -> the symbol's last decided side
-                                           (counted, never hidden)
+  5. otherwise                          -> no side; the increment stays
+                                           in the unclassified baseline
 
-Rule 5 is the only place where a side is carried rather than decided, and
-the row reports how many increments were carried, so the desk can say so.
+Rule 5 never carries a side forward. An increment with no bid, ask or tick
+evidence is counted as undecidable and remains in the baseline, so the row
+reports it as U instead of guessing it into B or S.
 The day's change sign (field [7]) is deliberately never consulted: it is the
 sign of the change, not the side of a trade, and using it is what produced
 the wrong buy and sell numbers this module replaces.
@@ -48,7 +49,7 @@ RULE_ABOVE_MID = "above_mid"
 RULE_BELOW_MID = "below_mid"
 RULE_UP = "tick_up"
 RULE_DOWN = "tick_down"
-RULE_CARRIED = "carried"
+RULE_UNDECIDABLE = "undecidable"
 RULE_RESET = "reset"
 
 
@@ -123,6 +124,17 @@ class SymbolFlow:
             self.baseline_reason = "no_price"
             return
         rule, side = self._side(last, previous_price)
+        if side is None:
+            # No bid, ask or tick evidence decides this increment. It stays
+            # visible in the unclear baseline and is never carried into a
+            # side from an earlier print.
+            self.volume = total
+            self.baseline += delta
+            self.baseline_at = observed_at
+            self.baseline_reason = "undecidable"
+            self._count(rule)
+            self.side = None
+            return
         if side == "B":
             self.buy += delta
         else:
@@ -146,7 +158,7 @@ class SymbolFlow:
             return RULE_UP, "B"
         if previous_price is not None and last < previous_price:
             return RULE_DOWN, "S"
-        return RULE_CARRIED, (self.side or "B")
+        return RULE_UNDECIDABLE, None
 
     def _count(self, rule: str) -> None:
         self.rules[rule] = self.rules.get(rule, 0) + 1

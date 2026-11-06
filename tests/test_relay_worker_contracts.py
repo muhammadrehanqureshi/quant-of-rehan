@@ -821,12 +821,19 @@ class RelayWorkerContractTest(unittest.TestCase):
         self.assertIn("Number.isFinite(quote.price)", prices)
 
     def test_stock_computes_the_split_from_the_last_published_frame(self):
-        """B, S and T are stated after close, stamped with their date."""
+        """B, S, U and T are stated after close, stamped with their date."""
         stock = self.source[self.source.index('path === "/stock"') :]
         stock = stock[:stock.index('path === "/prices"')]
         self.assertNotIn("if (quote.fresh) {", stock)
         self.assertIn("const split = splitFromQuote(quote);", stock)
-        self.assertIn("the market is closed", stock)
+        # No measured pair means the known total is U, not a range estimate.
+        self.assertIn(
+            'split_source: "no measured order-flow pair; the total is unclassified"',
+            stock)
+        self.assertIn(
+            "unclassified_volume: Number.isFinite(Number(quote.volume))",
+            stock)
+        self.assertNotIn("range_position", stock)
         self.assertIn("quote_fresh: Boolean(quote.fresh),", stock)
 
     def test_prices_rows_carry_the_relay_split_for_the_dropdowns(self):
