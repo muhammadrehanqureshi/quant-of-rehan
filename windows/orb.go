@@ -3,14 +3,13 @@ package main
 import "math"
 
 // The quant mark is the HUD dial from the owner's picture: a teal field under
-// concentric pale rings, a ring of heavy blocks, ribbed and tick rings, and a
-// bright inner ring, with an empty centre. It is drawn as a picture: every
-// character cell holds four pixels, so the curves stay smooth at terminal size.
+// concentric pale ice blue rings, clear gaps between them, a ring of heavy
+// blocks, a ribbed ring, two tick rings, a bright inner ring and a small inner
+// ring, with an empty centre.
 //
-// There is no gold sun, no wireframe sphere, no radar sweep and no crosshair,
-// because the picture has none. The only movement is the slow clockwise turn
-// of the rings while the quant is online; they stand still when it is parked,
-// which is how the picture itself stands.
+// It is drawn as a picture: every cell holds four pixels, and only two colours
+// are ever mixed in one cell, so the rings stay clean instead of breaking into
+// speckle at terminal size.
 
 var cellAspect = defaultCellAspect
 
@@ -37,18 +36,17 @@ func clamp01(x float64) float64 {
 	return x
 }
 
-// The dial's own colours, taken from the owner's picture: a deep teal field
-// and pale ice blue rings.
+// The dial's own colours, from the owner's picture: a deep teal field and pale
+// ice blue rings.
 var (
-	hudTeal = RGB{12, 104, 140}
-	hudPale = RGB{228, 243, 249}
-	hudMid  = RGB{176, 212, 228}
-	hudDim  = RGB{104, 156, 180}
+	hudTeal = RGB{10, 96, 130}
+	hudPale = RGB{232, 246, 251}
+	hudMid  = RGB{176, 214, 230}
+	hudDim  = RGB{96, 150, 176}
 )
 
-// hudRing is one concentric band of the dial. count 1 draws one arc with a gap;
-// count above 1 draws that many segments around the circle, and a low fill
-// makes them thin radial ticks instead of blocks.
+// hudRing is one concentric band. count above 1 draws that many segments around
+// the circle, and a low fill makes them thin radial ticks rather than blocks.
 type hudRing struct {
 	r0, r1 float64 // inner and outer radius as a fraction of the dial's radius
 	count  int     // segments around the circle
@@ -58,17 +56,17 @@ type hudRing struct {
 	tone   float64 // 0 dim, 1 the brightest pale
 }
 
-// hudRings is the picture from the outside in: the thin capped arc, the ring
-// of heavy blocks, the ribbed ring, the dense tick ring, the bright ring, the
-// second tick ring and the small inner ring.
+// hudRings is the picture from the outside in. The bands are wide enough to
+// read at terminal size; the tick rings use few, thick ticks rather than a
+// dense fringe that would turn into noise.
 var hudRings = []hudRing{
-	{0.955, 0.990, 1, 0.94, 0.06, 0.004, 0.50},
-	{0.800, 0.930, 12, 0.62, 0.01, 0.010, 0.92},
-	{0.690, 0.760, 40, 0.84, 0.00, 0.016, 0.68},
-	{0.615, 0.700, 64, 0.30, 0.00, 0.022, 0.88},
-	{0.455, 0.545, 6, 0.78, 0.02, 0.030, 1.00},
-	{0.360, 0.440, 48, 0.28, 0.00, 0.038, 0.76},
-	{0.230, 0.290, 36, 0.30, 0.00, 0.048, 0.70},
+	{0.960, 0.995, 1, 0.74, 0.02, 0.004, 0.60},
+	{0.795, 0.945, 10, 0.58, 0.01, 0.012, 0.95},
+	{0.665, 0.760, 20, 0.70, 0.00, 0.018, 0.62},
+	{0.560, 0.645, 20, 0.30, 0.00, 0.026, 0.88},
+	{0.385, 0.500, 5, 0.78, 0.02, 0.034, 1.00},
+	{0.265, 0.345, 14, 0.34, 0.00, 0.044, 0.74},
+	{0.140, 0.225, 3, 0.84, 0.00, 0.052, 0.88},
 }
 
 // radarState is what animates. When moving is false the rings stay where they
@@ -92,12 +90,13 @@ func hudInk(tone float64, mode OrbMode) RGB {
 }
 
 // orbPixels paints the dial into a w by h pixel buffer and returns the colours
-// to add to the background. h is twice the cell rows.
+// to add to the background. h is twice the cell rows. A zero RGB means "outside
+// the dial", which keeps the panel behind it untouched.
 func orbPixels(w, h int, sx float64, st radarState, mode OrbMode) []RGB {
 	vs := cellAspect / 2
 	cx, cy := float64(w)/2, float64(h)/2
 	R := math.Min(cx/sx, cy*vs) - 0.5
-	if R < 3 {
+	if R < 4 {
 		return nil
 	}
 	buf := make([]RGB, w*h)
@@ -107,7 +106,7 @@ func orbPixels(w, h int, sx float64, st radarState, mode OrbMode) []RGB {
 	}
 	field := hudTeal
 	if mode == OrbParked || mode == OrbFault {
-		field = mix(field, RGB{0, 0, 0}, 0.45)
+		field = mix(field, RGB{0, 0, 0}, 0.42)
 	}
 	for j := 0; j < h; j++ {
 		for i := 0; i < w; i++ {
@@ -118,7 +117,6 @@ func orbPixels(w, h int, sx float64, st radarState, mode OrbMode) []RGB {
 				continue
 			}
 			col := field
-			// The rings sit on the teal field, the way the picture's do.
 			turn := math.Atan2(y, x)/(2*math.Pi) + 1
 			for _, g := range hudRings {
 				if r < g.r0 || r > g.r1 {
@@ -163,9 +161,17 @@ func drawOrb(c *Canvas, x0, y0, w, h int, t float64, mode OrbMode, th *Theme) {
 		}
 		for cy := 0; cy < h; cy++ {
 			for cx := 0; cx < w; cx++ {
-				bg := c.BGAt(x0+cx, y0+cy)
-				top, bot := over(bg, px[(2*cy)*w+cx]), over(bg, px[(2*cy+1)*w+cx])
-				c.Set(x0+cx, y0+cy, '▀', top, bot, false)
+				top, bot := px[(2*cy)*w+cx], px[(2*cy+1)*w+cx]
+				ch, fg, bg := '▀', top, bot
+				switch {
+				case top == (RGB{}) && bot == (RGB{}):
+					continue
+				case top == (RGB{}):
+					ch, fg, bg = '▄', bot, c.BGAt(x0+cx, y0+cy)
+				case bot == (RGB{}):
+					ch, fg, bg = '▀', top, c.BGAt(x0+cx, y0+cy)
+				}
+				c.Set(x0+cx, y0+cy, ch, fg, bg, false)
 			}
 		}
 		return
@@ -177,22 +183,75 @@ func drawOrb(c *Canvas, x0, y0, w, h int, t float64, mode OrbMode, th *Theme) {
 	wp := 2 * w
 	for cy := 0; cy < h; cy++ {
 		for cx := 0; cx < w; cx++ {
-			// A cell outside the dial keeps the panel behind it, so the mark
-			// stays a round dial rather than a filled square.
-			if px[(2*cy)*wp+2*cx] == (RGB{}) && px[(2*cy)*wp+2*cx+1] == (RGB{}) &&
-				px[(2*cy+1)*wp+2*cx] == (RGB{}) && px[(2*cy+1)*wp+2*cx+1] == (RGB{}) {
-				continue
-			}
-			bg := c.BGAt(x0+cx, y0+cy)
 			var q [4]RGB
-			q[0] = over(bg, px[(2*cy)*wp+2*cx])
-			q[1] = over(bg, px[(2*cy)*wp+2*cx+1])
-			q[2] = over(bg, px[(2*cy+1)*wp+2*cx])
-			q[3] = over(bg, px[(2*cy+1)*wp+2*cx+1])
-			ch, fg, bgc := quadrantCell(q)
-			c.Set(x0+cx, y0+cy, ch, fg, bgc, false)
+			q[0] = px[(2*cy)*wp+2*cx]
+			q[1] = px[(2*cy)*wp+2*cx+1]
+			q[2] = px[(2*cy+1)*wp+2*cx]
+			q[3] = px[(2*cy+1)*wp+2*cx+1]
+			paintOrbCell(c, x0+cx, y0+cy, q)
 		}
 	}
+}
+
+// paintOrbCell draws one cell from its four pixels. Every pixel is either the
+// panel behind the dial or one of the dial's two or three colours, so the cell
+// is drawn as an exact quadrant rather than an average. That is what keeps the
+// rings crisp instead of speckled.
+func paintOrbCell(c *Canvas, x, y int, q [4]RGB) {
+	var cols []RGB
+	var masks []int
+	for i := 0; i < 4; i++ {
+		col := q[i]
+		found := -1
+		for k, have := range cols {
+			if have == col {
+				found = k
+				break
+			}
+		}
+		if found < 0 {
+			cols = append(cols, col)
+			masks = append(masks, 0)
+			found = len(cols) - 1
+		}
+		masks[found] |= 1 << i
+	}
+	if len(cols) == 1 {
+		if cols[0] == (RGB{}) {
+			return
+		}
+		c.Set(x, y, '█', cols[0], cols[0], false)
+		return
+	}
+	outside := -1
+	for k, col := range cols {
+		if col == (RGB{}) {
+			outside = k
+		}
+	}
+	if len(cols) == 2 {
+		fg, bg := cols[0], cols[1]
+		mask := masks[0]
+		if outside == 0 {
+			bg = c.BGAt(x, y)
+			fg, mask = cols[1], masks[1]
+		} else if outside == 1 {
+			bg = c.BGAt(x, y)
+		}
+		c.Set(x, y, quadrants[mask], fg, bg, false)
+		return
+	}
+	// Three colours in one cell is a ring boundary. Fall back to the best
+	// quadrant, with the panel behind the dial in place of the outside.
+	var qq [4]RGB
+	for i := range qq {
+		qq[i] = q[i]
+		if qq[i] == (RGB{}) {
+			qq[i] = c.BGAt(x, y)
+		}
+	}
+	ch, fg, bg := quadrantCell(qq)
+	c.Set(x, y, ch, fg, bg, false)
 }
 
 // quadrants[m] is the character whose lit quarters are the bits of m: 1 upper
@@ -263,16 +322,4 @@ func quadrantCell(q [4]RGB) (ch rune, fg, bg RGB) {
 		}
 	}
 	return ch, fg, bg
-}
-
-// over adds a glow colour to a background: light on dark.
-func over(bg, glow RGB) RGB {
-	add := func(b, g uint8) uint8 {
-		v := int(b) + int(g)
-		if v > 255 {
-			v = 255
-		}
-		return uint8(v)
-	}
-	return RGB{add(bg.R, glow.R), add(bg.G, glow.G), add(bg.B, glow.B)}
 }

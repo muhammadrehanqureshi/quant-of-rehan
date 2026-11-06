@@ -5,7 +5,7 @@ One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of 
 
 ## What is new in build 6
 
-* **The owner's latest layout.** `◆ QUANT OF REHAN ◆` is the biggest thing on the screen: block letters two rows tall in a window 100 columns or wider, one line of text in a narrow one. `PSX'S KMIALL INDEX` is on the next line and the rule closes the header. The live seconds counter is at the top left of every page, in bold. The greeting has its own tile, the footer carries navigation only, and the sound and alert flags live only in Settings. The old scrolling banner is gone. The green and red share bars are half a cell tall and sit on the centre line of each stock's block, never along its foot.
+* **The owner's latest layout.** `◆ QUANT OF REHAN ◆` is centred on the first line, in the theme's accent, bold. `PSX'S KMIALL INDEX` is on the next line and the rule closes the header. The live seconds counter is at the top left of every page, in bold. The greeting has its own tile, the footer carries navigation only, and the sound and alert flags live only in Settings. The old scrolling banner is gone. The green and red share bars are half a cell tall and sit on the centre line of each stock's block, never along its foot.
 * **Five tabs, in your order:** 1 HOME, 2 ALERTS, 3 ORDER FLOW, 4 SCANNER, 5 SETTINGS. SEARCH is no longer a tab: it is the tile at the top of SCANNER, and the scanner carries on below it.
 * **LATEST SIGNAL** has SYMBOL, ENTRY TIME, ENTRY PRICE, TAKE PROFIT and STOP LOSS, in those words. Entry time comes from the signal's own `Entry time` line. If the signal does not carry one it says `not reported` and nothing is made up.
 * **Alerts say what you asked:** `PRL is getting big buying orders` and `PRL is getting big selling orders`, with the stock name only. Selling has its own tone, its own flag (Settings, or the S key) and its own board next to BIG BUYING NOW. The log marks each line BUY or SELL.
@@ -14,7 +14,7 @@ One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of 
 * **HOME:** one blank line between the BUYING NOW line and the `Data from the broker's feed...` line.
 * **The HUD dial (ORB).** The owner's picture, drawn as a picture rather than dots: a 2 by 2 block of pixels in every cell (quadrant block characters, in full colour). A teal field carries concentric pale ice blue rings, a ring of heavy blocks, ribbed and tick rings and a bright inner ring, with an empty centre. There is no sun, no wireframe, no radar sweep and no crosshair, because the picture has none. The rings turn clockwise only while the market is online and stand still when it is parked, dimmed in the picture's own blue. It is on HOME only; the SCANNER gives its width to the search, the SECTORS tile and the list. The application icon is the same dial, drawn full square on the picture's teal by `tools/mkicon_hud.py` in the Windows workflow.
 
-* **SECTORS** is on the SCANNER: the relay's `/sectors` groups in a drop down list. The wheel or the scrollbar moves through the groups, a click picks one, and the chosen group's scrips are written under the list.
+* **SECTORS** is on the SCANNER: the relay's `/sectors` groups in a drop down list. The wheel or the scrollbar moves through the groups. A click opens the chosen group and lists every one of its scrips that is in KMIALLSHR, with its price; that list scrolls, a click opens a scrip in the search tile, and ESC closes it.
 
 ## Run it
 
