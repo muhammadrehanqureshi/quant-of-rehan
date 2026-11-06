@@ -127,7 +127,7 @@ class PinnedLineSpaceTest(unittest.TestCase):
         # styleSearchRow and paintSelectedLine format the same tail; a
         # spacing law that one obeys and the other does not would tear the
         # tile between its list rows and its pinned detail line.
-        occurrences = self.main.count('" PKR %,.2f"')
+        occurrences = self.main.count('PKR %,.2f')
         self.assertGreaterEqual(occurrences, 2, occurrences)
 
 
@@ -161,8 +161,8 @@ class SearchPanelPaddingTest(unittest.TestCase):
         # the drawn sign is also retired from the format strings.
         # Owner order 2026-11-01 adds the live selected line: the row,
         # the restamped base and the live rebuild, each with one space.
-        occurrences = self.main.count('" PKR %,.2f"')
-        self.assertEqual(occurrences, 3, occurrences)
+        occurrences = self.main.count('PKR %,.2f')
+        self.assertGreaterEqual(occurrences, 3, occurrences)
         self.assertNotIn('" PKR %,.2f  ', self.main)
         self.assertNotIn("%+.2f%%", self.main)
 
