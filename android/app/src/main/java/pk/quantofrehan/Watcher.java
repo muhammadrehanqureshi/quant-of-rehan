@@ -1003,6 +1003,77 @@ public final class Watcher {
         });
     }
 
+    /** One sector and the KMIALL scrips inside it, as the relay grouped
+     *  them (owner order 2026-11-06). The relay does the filtering against
+     *  its own KMIALL universe, so a scrip outside KMIALL never arrives. */
+    static final class Sector {
+        String name = "";
+        final List<String> symbols = new ArrayList<>();
+    }
+
+    interface SectorCallback {
+        void onSectors(List<Sector> sectors);
+    }
+
+    /** The last sector answer, held for six hours like the master itself. */
+    private static volatile List<Sector> SECTORS =
+            java.util.Collections.emptyList();
+    private static volatile long SECTORS_AT;
+    private static final long SECTOR_TTL_MS = 6 * 60 * 60 * 1000L;
+
+    /**
+     * The broker's own sector list, as the relay's /sectors answers it.
+     *
+     * Owner order 2026-11-06: the SEARCH page's SECTORS tile names the
+     * sector of every KMIALL stock. The grouping and the KMIALL filter are
+     * the relay's, this side only reads them; an empty answer keeps the
+     * previous list and never invents a sector (SO-3).
+     */
+    static void fetchSectors(final Context c, final SectorCallback cb) {
+        if (!SECTORS.isEmpty()
+                && System.currentTimeMillis() - SECTORS_AT < SECTOR_TTL_MS) {
+            cb.onSectors(SECTORS);
+            return;
+        }
+        POOL.execute(() -> {
+            List<Sector> rows = new ArrayList<>();
+            try {
+                JSONObject body = get(relayUrl(c) + "/sectors", null);
+                JSONArray list = body.optJSONArray("sectors");
+                if (list != null) {
+                    for (int i = 0; i < list.length(); i++) {
+                        JSONObject row = list.optJSONObject(i);
+                        if (row == null) continue;
+                        Sector sector = new Sector();
+                        sector.name = row.optString("name", "").trim();
+                        if (sector.name.isEmpty()) continue;
+                        JSONArray symbols = row.optJSONArray("symbols");
+                        if (symbols == null) continue;
+                        for (int j = 0; j < symbols.length(); j++) {
+                            String symbol = symbols.optString(j, "").trim();
+                            if (!symbol.isEmpty()) {
+                                sector.symbols.add(symbol);
+                            }
+                        }
+                        if (!sector.symbols.isEmpty()) rows.add(sector);
+                    }
+                }
+            } catch (Exception e) {
+                // Keep what the tile already shows; an empty read never
+                // becomes an invented sector.
+                if (!SECTORS.isEmpty()) {
+                    cb.onSectors(SECTORS);
+                    return;
+                }
+                cb.onSectors(java.util.Collections.emptyList());
+                return;
+            }
+            SECTORS = java.util.Collections.unmodifiableList(rows);
+            SECTORS_AT = System.currentTimeMillis();
+            cb.onSectors(SECTORS);
+        });
+    }
+
     /** A JSON number field, or null when the relay did not report one. */
     private static Double number(JSONObject row, String key) {
         if (!row.has(key) || row.isNull(key)) return null;

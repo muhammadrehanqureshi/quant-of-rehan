@@ -350,6 +350,24 @@ public class MainActivity extends Activity {
     private List<Watcher.BigPrint> lastPrints = new ArrayList<>();
     /** The day's order flow, kept so a keystroke filters without a fetch. */
     private List<Watcher.FlowRow> flowRows = new ArrayList<>();
+    /** The SEARCH page's SECTORS tile (owner order 2026-11-06): a dropdown
+     *  of the broker's own sectors, the chosen sector's KMIALL scrips with
+     *  price, move and the one quantities bracket. */
+    private View tileSectors;
+    private View ruleSectors;
+    private TextView sectorsSpinner;
+    private LinearLayout sectorsMenu;
+    private ImageView sectorsArrow;
+    private TextView sectorsReveal;
+    private final java.util.Map<String, List<String>> sectorRows =
+            new java.util.LinkedHashMap<>();
+    private String sectorChoice = "";
+    private String sectorsBoxLabel = "";
+    private boolean sectorMenuOpen;
+    private boolean sectorsInFlight;
+    /** A tap that asked for the list before it had arrived: the menu opens
+     *  the moment that answer lands (owner order 2026-11-06). */
+    private boolean sectorMenuPending;
     /** True while the ORDER FLOW page replaces the console, under the same
      *  one-page-at-a-time law the search and scanner pages keep. */
     private boolean orderFlowOpen;
@@ -569,6 +587,24 @@ public class MainActivity extends Activity {
                 v.getParent().requestDisallowInterceptTouchEvent(true);
                 return false;
             });
+        }
+        // Owner order 2026-11-06: the SECTORS tile's own box and menu. One
+        // plate, the closed face stepping aside while the rows show, exactly
+        // the law the volume and themes dropdowns keep.
+        tileSectors = findViewById(R.id.tile_sectors);
+        ruleSectors = findViewById(R.id.rule_sectors);
+        sectorsSpinner = findViewById(R.id.sectors_spinner);
+        sectorsMenu = findViewById(R.id.sectors_menu);
+        sectorsArrow = findViewById(R.id.sectors_arrow);
+        sectorsReveal = findViewById(R.id.sectors_reveal);
+        if (sectorsSpinner != null) {
+            sectorsBoxLabel = sectorsSpinner.getText().toString();
+            sectorsSpinner.setOnClickListener(v ->
+                    showSectorMenu(!sectorMenuOpen));
+        }
+        if (sectorsArrow != null) {
+            sectorsArrow.setOnClickListener(v ->
+                    showSectorMenu(!sectorMenuOpen));
         }
         // Owner order 2026-11-04: he types a scrip and reads its flow, so
         // the list filters on every keystroke, the search page's own law.
@@ -1666,6 +1702,10 @@ public class MainActivity extends Activity {
                     sb.append(", U=");
                     sb.append(String.format(Locale.US, "%,d", quote.unclassified));
                 }
+                if (quote.volume != null) {
+                    sb.append(", T=");
+                    sb.append(String.format(Locale.US, "%,d", quote.volume));
+                }
                 sb.append(')');
             } else if (quote.unclassified != null && quote.unclassified > 0) {
                 // B/S null is not a reason to hide the unclear total.
@@ -1673,7 +1713,11 @@ public class MainActivity extends Activity {
                 sb.append(String.format(Locale.US, "%,d", quote.unclassified));
                 sb.append(')');
             }
-            if (quote.volume != null) {
+            // Owner order 2026-11-06: one bracket per scrip. T joins the
+            // measured pair's own bracket, so no bracket opens before it;
+            // only a row with no B, S or U prints T in a bracket of its own.
+            if (quote.volume != null && (quote.buy == null || quote.sell == null)
+                    && (quote.unclassified == null || quote.unclassified <= 0)) {
                 sb.append('\n').append("(T=");
                 sb.append(String.format(Locale.US, "%,d", quote.volume));
                 sb.append(')');
@@ -1681,7 +1725,7 @@ public class MainActivity extends Activity {
             // The map only ever carries a live price (Watcher's law), so
             // the symbol's presence in the menu is the price's presence on
             // the card; changePct stays boxed, its null a real "no move".
-            sb.append(quote.volume != null ? "  " : "\n");
+            sb.append('\n');
             int priceFrom = sb.length();
             sb.append(String.format(Locale.US, "PKR %,.2f", quote.price));
             if (quote.changePct != null) {
@@ -2489,6 +2533,10 @@ public class MainActivity extends Activity {
             if (searchOpen || scannerOpen) {
                 renderVolumeSpinners();
             }
+            // The chosen sector's numbers ride the same tick as the rows.
+            if (searchOpen) {
+                renderSectorReveal();
+            }
         }));
     }
 
@@ -2838,6 +2886,13 @@ public class MainActivity extends Activity {
         if (bigPrintsPanel != null) {
             bigPrintsPanel.setVisibility(open ? View.VISIBLE : View.GONE);
         }
+        // The SECTORS tile and its rule follow the search page alone.
+        if (ruleSectors != null) {
+            ruleSectors.setVisibility(open ? View.VISIBLE : View.GONE);
+        }
+        if (tileSectors != null) {
+            tileSectors.setVisibility(open ? View.VISIBLE : View.GONE);
+        }
         // The scanner page's own seam is not this page's: it was left
         // standing behind the flow tile on the owner's screenshot, so the
         // one writer that owns this page states it closed here.
@@ -2892,8 +2947,10 @@ public class MainActivity extends Activity {
         lastPrints = prints == null ? new ArrayList<>() : new ArrayList<>(prints);
         if (lastPrints.isEmpty()) {
             bigPrintsList.setText(R.string.big_prints_none);
-            // The list is the day's whole board; an empty refresh keeps the
-            // owner's own scroll position where it was.
+            // Owner order 2026-11-06: an empty board is its own sentence,
+            // never eight blank rows. The eight print window returns with
+            // the first print.
+            wrapBigPrintsWindow();
             return;
         }
         // Owner order 2026-11-05, eighth pass: the tile searches its own
@@ -2941,6 +2998,7 @@ public class MainActivity extends Activity {
         }
         if (shown == 0) {
             bigPrintsList.setText(R.string.big_prints_none_match);
+            wrapBigPrintsWindow();
             return;
         }
         if (bigPrintsScroll != null && !query.isEmpty()) {
@@ -2968,6 +3026,22 @@ public class MainActivity extends Activity {
         ViewGroup.LayoutParams lp = bigPrintsScroll.getLayoutParams();
         if (lp != null && lp.height != height) {
             lp.height = height;
+            bigPrintsScroll.setLayoutParams(lp);
+        }
+    }
+
+    /**
+     * Owner order 2026-11-06: with nothing to print the board is its own
+     * one sentence tall, so the tile never draws eight empty rows. The eight
+     * print window (fitBigPrintsWindow) returns with the first print.
+     */
+    private void wrapBigPrintsWindow() {
+        if (bigPrintsScroll == null) {
+            return;
+        }
+        ViewGroup.LayoutParams lp = bigPrintsScroll.getLayoutParams();
+        if (lp != null && lp.height != ViewGroup.LayoutParams.WRAP_CONTENT) {
+            lp.height = ViewGroup.LayoutParams.WRAP_CONTENT;
             bigPrintsScroll.setLayoutParams(lp);
         }
     }
@@ -3069,13 +3143,16 @@ public class MainActivity extends Activity {
                 : "ASK n/a");
         sb.setSpan(new ForegroundColorSpan(getColor(R.color.red)),
                 askFrom, askFrom + 3, 0);
-        sb.append(row.volume != null
-                ? String.format(Locale.US, "  (T=%,d)", row.volume)
-                : "  (T=n/a)");
-        if (row.unclassified != null && row.unclassified > 0) {
-            sb.append(String.format(Locale.US, "  (U=%,d)",
-                    row.unclassified));
+        // Owner order 2026-11-06: one bracket carries the row's own
+        // quantities, U first and T last, so no bracket stands before T.
+        boolean unclear = row.unclassified != null && row.unclassified > 0;
+        sb.append("  (");
+        if (unclear) {
+            sb.append(String.format(Locale.US, "U=%,d, ", row.unclassified));
         }
+        sb.append(row.volume != null
+                ? String.format(Locale.US, "T=%,d)", row.volume)
+                : "T=n/a)");
         return sb;
     }
 
@@ -3127,12 +3204,9 @@ public class MainActivity extends Activity {
                 : "ASK n/a");
         sb.setSpan(new ForegroundColorSpan(getColor(R.color.red)),
                 askFrom, askFrom + 3, 0);
-        // Owner order 2026-11-05, tenth pass: the total volume sits on the
-        // same line as the bid and the ask, so the book reads as one line.
-        sb.append(" & ");
-        sb.append(found.volume != null
-                ? String.format(Locale.US, "(T=%,d)", found.volume)
-                : "(T=n/a)");
+        // Owner order 2026-11-06: the total volume joins the split's own
+        // bracket, so the book line ends at the ask and T has no bracket
+        // of its own.
         if (found.buy != null && found.sell != null) {
             // Owner order 2026-11-05, tenth pass: the split quantities stay
             // on the line below, separated by the ampersand the owner asked
@@ -3152,19 +3226,198 @@ public class MainActivity extends Activity {
                 sb.append(String.format(Locale.US, " & U=%,d",
                         found.unclassified));
             }
+            sb.append(found.volume != null
+                    ? String.format(Locale.US, " & T=%,d", found.volume)
+                    : " & T=n/a");
             sb.append(')');
-        } else if (found.unclassified != null && found.unclassified > 0) {
-            // No measured pair: the selected scrip's known total is U.
+        } else if ((found.unclassified != null && found.unclassified > 0)
+                || found.volume != null) {
+            // No measured pair: the selected scrip's known totals ride the
+            // same bracket, U first and T last.
             sb.append('\n');
-            sb.append('(').append("U=");
-            sb.append(String.format(Locale.US, "%,d", found.unclassified));
-            sb.append(')');
+            sb.append('(');
+            if (found.unclassified != null && found.unclassified > 0) {
+                sb.append(String.format(Locale.US, "U=%,d & ",
+                        found.unclassified));
+            }
+            sb.append(found.volume != null
+                    ? String.format(Locale.US, "T=%,d)", found.volume)
+                    : "T=n/a)");
         }
         if (orderFlowResults != null) {
             orderFlowResults.setVisibility(View.GONE);
         }
         orderFlowSelected.setVisibility(View.VISIBLE);
         orderFlowSelected.setText(sb);
+    }
+
+    /**
+     * The SECTORS menu's own state, the console's one dropdown law: the
+     * rows stand inside the box's plate, the closed face steps aside while
+     * they show, and the caret stays the roll-up tap (owner order
+     * 2026-11-06). With no list yet the tap asks the relay first and the
+     * menu opens when that answer lands; on an empty answer the tile says
+     * so and never invents a sector (SO-3).
+     */
+    private void showSectorMenu(boolean open) {
+        if (open && sectorRows.isEmpty()) {
+            sectorMenuPending = true;
+            if (!sectorsInFlight) {
+                refreshSectors();
+            }
+            return;
+        }
+        sectorMenuOpen = open;
+        if (sectorsMenu != null) {
+            sectorsMenu.setVisibility(open ? View.VISIBLE : View.GONE);
+            if (open) {
+                revealMenu(sectorsMenu);
+            }
+        }
+        if (sectorsSpinner != null) {
+            sectorsSpinner.setVisibility(open ? View.GONE : View.VISIBLE);
+        }
+        rotateDropdownArrow(sectorsArrow, open);
+        centerDropdownCaret(sectorsArrow, sectorsSpinner, sectorsMenu);
+        if (open) {
+            showVolumeMenu(false);
+            showThemeMenu(false);
+        }
+    }
+
+    /** Ask the relay for the sector list and build the menu once. */
+    private void refreshSectors() {
+        if (sectorsInFlight) {
+            return;
+        }
+        sectorsInFlight = true;
+        Watcher.fetchSectors(this, (sectors) -> runOnUiThread(() -> {
+            sectorsInFlight = false;
+            if (isFinishing() || isDestroyed()) {
+                return;
+            }
+            sectorRows.clear();
+            for (Watcher.Sector sector : sectors) {
+                sectorRows.put(sector.name, sector.symbols);
+            }
+            fillSectorMenu();
+            if (sectorRows.isEmpty()) {
+                sectorMenuPending = false;
+                if (sectorsReveal != null) {
+                    sectorsReveal.setText(R.string.sectors_unavailable);
+                    sectorsReveal.setVisibility(View.VISIBLE);
+                }
+                return;
+            }
+            if (sectorMenuPending) {
+                sectorMenuPending = false;
+                showSectorMenu(true);
+            }
+            if (!sectorChoice.isEmpty() && sectorRows.containsKey(sectorChoice)) {
+                renderSectorReveal();
+            }
+        }));
+    }
+
+    /** One row per sector, in the relay's own alphabetical order. */
+    private void fillSectorMenu() {
+        if (sectorsMenu == null) {
+            return;
+        }
+        sectorsMenu.removeAllViews();
+        for (String name : sectorRows.keySet()) {
+            TextView row = new TextView(this);
+            row.setText(name);
+            row.setTextColor(getColor(R.color.text_bright));
+            row.setTextSize(13f);
+            row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+            row.setPadding(dp(10), dp(10), dp(14), dp(10));
+            row.setOnClickListener(v -> chooseSector(name));
+            sectorsMenu.addView(row);
+        }
+    }
+
+    /** Pick a sector: the box wears its name and its scrips print below. */
+    private void chooseSector(String name) {
+        sectorChoice = name;
+        if (sectorsSpinner != null) {
+            sectorsSpinner.setText(name);
+        }
+        showSectorMenu(false);
+        renderSectorReveal();
+    }
+
+    /**
+     * The chosen sector's stocks, the leaders card's own sentence shape:
+     * the ticker with its money and move, then ONE bracket carrying
+     * B, S, U and T, so no bracket stands before T (owner order
+     * 2026-11-06). Only KMIALL scrips reach this list at all; a scrip the
+     * live map has not quoted yet is skipped, never printed as zero.
+     */
+    private void renderSectorReveal() {
+        if (sectorsReveal == null) {
+            return;
+        }
+        List<String> symbols = sectorRows.get(sectorChoice);
+        if (symbols == null || symbols.isEmpty()) {
+            sectorsReveal.setVisibility(View.GONE);
+            return;
+        }
+        java.util.Map<String, Watcher.Quote> quotes = Watcher.quotes();
+        SpannableStringBuilder sb = new SpannableStringBuilder();
+        for (String symbol : symbols) {
+            Watcher.Quote quote = quotes.get(symbol);
+            if (quote == null) {
+                continue;
+            }
+            if (sb.length() > 0) {
+                sb.append('\n');
+            }
+            sb.append(symbol);
+            int priceFrom = sb.length();
+            sb.append(String.format(Locale.US, "  PKR %,.2f", quote.price));
+            if (quote.changePct != null) {
+                sb.setSpan(new ForegroundColorSpan(getColor(
+                                quote.changePct >= 0 ? R.color.green : R.color.red)),
+                        priceFrom, sb.length(), 0);
+                sb.append(' ');
+                int from = sb.length();
+                sb.append(String.format(Locale.US, "%s %.2f%%",
+                        quote.changePct >= 0 ? "\u25B2" : "\u25BC",
+                        Math.abs(quote.changePct)));
+                sb.setSpan(new ForegroundColorSpan(getColor(
+                                quote.changePct >= 0 ? R.color.green : R.color.red)),
+                        from, sb.length(), 0);
+                sb.setSpan(new TypefaceSpan(ARROW_FACE), from, from + 1, 0);
+            }
+            boolean any = false;
+            if (quote.buy != null && quote.sell != null) {
+                sb.append('\n').append("(B=");
+                colorQuantity(sb, quote.buy, R.color.green);
+                sb.append(", S=");
+                colorQuantity(sb, quote.sell, R.color.red);
+                any = true;
+            }
+            if (quote.unclassified != null && quote.unclassified > 0) {
+                sb.append(any ? ", U=" : "\n(U=");
+                sb.append(String.format(Locale.US, "%,d", quote.unclassified));
+                any = true;
+            }
+            if (quote.volume != null) {
+                sb.append(any ? ", T=" : "\n(T=");
+                sb.append(String.format(Locale.US, "%,d", quote.volume));
+                any = true;
+            }
+            if (any) {
+                sb.append(')');
+            }
+        }
+        if (sb.length() == 0) {
+            sectorsReveal.setVisibility(View.GONE);
+            return;
+        }
+        sectorsReveal.setText(sb);
+        sectorsReveal.setVisibility(View.VISIBLE);
     }
 
     private void setSearchOpen(boolean open) {
@@ -3224,6 +3477,7 @@ public class MainActivity extends Activity {
         if (open) {
             refreshPrices();
             renderVolumeSpinners();
+            refreshSectors();
             searchInput.setText("");
             searchInput.requestFocus();
             renderSearchResults("");
@@ -3235,6 +3489,13 @@ public class MainActivity extends Activity {
             selectedBase = "";
             searchRows.clear();
             renderedQuery = "";
+            sectorChoice = "";
+            if (sectorsSpinner != null) {
+                sectorsSpinner.setText(sectorsBoxLabel);
+            }
+            if (sectorsReveal != null) {
+                sectorsReveal.setVisibility(View.GONE);
+            }
         }
     }
 
@@ -3865,6 +4126,10 @@ public class MainActivity extends Activity {
                     sb.append(", U=");
                     sb.append(String.format(Locale.US, "%,d", row.unclassified));
                 }
+                if (row.hasVolume()) {
+                    sb.append(", T=");
+                    sb.append(String.format(Locale.US, "%,d", row.volume));
+                }
                 sb.append(')');
             } else if (row.unclassified != null && row.unclassified > 0) {
                 // The leaders' row has no measured pair: print its U.
@@ -3872,7 +4137,9 @@ public class MainActivity extends Activity {
                 sb.append(String.format(Locale.US, "%,d", row.unclassified));
                 sb.append(')');
             }
-            if (row.hasVolume()) {
+            // Owner order 2026-11-06: T rides the split's own bracket.
+            if (row.hasVolume() && !row.hasSplit()
+                    && (row.unclassified == null || row.unclassified <= 0)) {
                 sb.append('\n').append("(T=");
                 sb.append(String.format(Locale.US, "%,d", row.volume));
                 sb.append(')');
@@ -3881,7 +4148,7 @@ public class MainActivity extends Activity {
             // show, so even a price-less row puts its change on its own line
             // instead of hanging it off the volumes.
             if (row.price != null || row.changePct != null) {
-                sb.append(row.hasVolume() || row.hasSplit() ? "  " : "\n");
+                sb.append('\n');
             }
             if (row.price != null) {
                 int priceFrom = sb.length();
