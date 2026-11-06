@@ -378,9 +378,9 @@ func (f *Flow) BoardBoth(now time.Time, q *Quotes, limit int) []FlowStat {
 			continue
 		}
 		buyFirst := buyV >= sellV
-		word, own, opp := "BUY", buy, sell
+		word := "BUY"
 		if !buyFirst {
-			word, own, opp = "SELL", sell, buy
+			word = "SELL"
 		}
 		st := FlowStat{Side: word, Symbol: sym, Price: sf.px, BuyShares: buy, SellShares: sell, BuyValue: buyV, SellValue: sellV,
 			Share: float64(buy) / float64(buy+sell), Flagged: f.Flagged(now, sym)}
