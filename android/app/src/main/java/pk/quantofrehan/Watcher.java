@@ -1226,12 +1226,13 @@ public final class Watcher {
                         unclearFrom = sb.length();
                         sb.append(String.format(java.util.Locale.US, "%,.0f", unclear));
                     }
-                    sb.append(')');
+                    sb.append(unclear != null ? " &" : ")");
                     if (total != null) {
                         // Owner order 2026-11-06: B, S and U share the first
                         // line; the venue's own total T starts the next one.
                         sb.append('\n').append("T=");
                         sb.append(String.format(java.util.Locale.US, "%,.0f", total));
+                        sb.append(')');
                     }
                     styled = new android.text.SpannableString(sb);
                     styled.setSpan(new android.text.style.ForegroundColorSpan(
