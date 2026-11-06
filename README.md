@@ -17,23 +17,35 @@ No order placement, no broker trading integration: signals and research only.
 
 ## The strategy in one paragraph
 
-Scan the current KMIALL universe for one ICT/SMC setup: a confirmed sell-side
-sweep, a bullish market structure shift, a fair value gap retest in the
-discount half of the band's range. A candidate only exists when the evidence
-is fresh and confirmed on completed minutes; there is no momentum or RSI
-fallback. Gate on market context: after a broad selloff, no trade. Take the
-single highest scoring setup, enter on paper at the observed price, stop
-under the swept low, target entry x 1.02, and lock the day. Entry and exit
-intent only: nothing reaches a broker (SO-1).
+Scan the current KMIALL universe for the Kalman Trend in one of two shapes.
+The first is a fresh upward flip of the one minute Kalman filter: the flip is
+the entry and the last completed minute's close is the price. The second is
+the pullback: when the one minute trend is already up and the 5 minute, 15
+minute, 1 hour and 1 day VWAP frames agree, do not enter on the agreement
+itself. Wait for the pullback, take its resumption, and only while both the
+pullback's low and the entry sit nearer the day's low than the day's high.
+When both shapes are legal on one symbol, the higher score is carried. Either
+way the plan is the owner's law: paper entry at the observed price, stop at
+entry minus 1%, target at entry plus 2%, one call a day, and no trade after a
+broad selloff. A candidate only exists on completed minutes; there is no
+momentum or RSI fallback. Entry and exit intent only: nothing reaches a
+broker (SO-1).
 
 ## What is true today
 
 - **One scanner**: [src/signals/momentum_scanner.py](src/signals/momentum_scanner.py)
-  returns exactly one confirmed ICT/SMC long, NO TRADE, or DATA BLOCKED, with
-  market context gating and late-entry refusal instead of any fallback signal.
+  returns exactly one confirmed Kalman Trend long (the fresh flip, or the four
+  frame agreement's pullback), NO TRADE, or DATA BLOCKED, with market context
+  gating and late-entry refusal instead of any fallback signal.
+- **Two entry laws**: [src/signals/kalman_trend.py](src/signals/kalman_trend.py)
+  owns the fresh flip (`kalman_trend_flip_v1`), and
+  [src/signals/kalman_vwap_pullback.py](src/signals/kalman_vwap_pullback.py)
+  owns the four frame VWAP pullback (`kalman_vwap_pullback_v1`), which must
+  keep both the dip and the entry in the lower half of the day's range.
 - **One configuration surface**: [src/config.py](src/config.py) holds the
-  target, the coverage floor, the SMC parameters, the scan cadence and the
-  paper/live switch. Paper is the default; live is off.
+  target, the coverage floor, the Kalman and VWAP parameters, the pullback
+  window, the scan cadence and the paper/live switch. Paper is the default;
+  live is off.
 - **One daily trade state**: [src/signals/trade_state.py](src/signals/trade_state.py),
   with a hard one-trade-per-day lock that survives a restart.
 - **One market clock**: Asia/Karachi UTC+5 forever (SO-8), in

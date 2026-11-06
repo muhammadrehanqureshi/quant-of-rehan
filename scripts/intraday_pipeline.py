@@ -840,8 +840,10 @@ def run_scan(slot: str, capture: Path | None = None,
         else:
             entry = result.candidate["price"]["last"]
             state.note_candidate(result.candidate["symbol"], result.candidate["score"])
-            state.enter(result.candidate["symbol"], entry, as_of, result.candidate["score"],
-                        stop_loss=result.candidate.get("stop_loss"))
+            state.enter(result.candidate["symbol"], entry, as_of,
+                        result.candidate["score"],
+                        stop_loss=result.candidate.get("stop_loss"),
+                        strategy=result.candidate.get("strategy"))
             state.save()
             text = scanner.signal_message(result.candidate, context, entry, as_of)
             mtf_text = mtf_summary(result.candidate)
@@ -1102,7 +1104,7 @@ def run_finalize(capture: Path | None = None,
         "data_confirmations": config.data_confirmations(),
         "universe_size": len(symbols),
         "universe_sha256": universe_fingerprint(symbols),
-        "scanner_version": config.SCANNER_VERSION,
+        "scanner_version": state.scanner_version,
     }
     state.append_journal(record)
     state.save()
@@ -1113,8 +1115,8 @@ def run_finalize(capture: Path | None = None,
     adaptive_snapshot = adaptive_memory.load_cached(extra=[record]).as_dict()
     outcome = {
         "date": day.isoformat(),
-        "scanner_version": config.SCANNER_VERSION,
-        "outcomes_by_rule": {config.SCANNER_VERSION: record},
+        "scanner_version": state.scanner_version,
+        "outcomes_by_rule": {state.scanner_version: record},
         "data_quality": quality.as_dict(),
         "adaptive": adaptive_snapshot,
     }
