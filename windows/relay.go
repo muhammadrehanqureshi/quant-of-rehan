@@ -604,7 +604,7 @@ func sortedKeys[V any](m map[string]V) []string {
 // phaseLine ports Watcher.phaseLine (the sentence under the status pill).
 func phaseLine(m *Market) string {
 	if m != nil && m.FeedHalted && m.FeedStatusFresh {
-		return "Market is halted now. Quant is sleeping until the market reopens."
+		return "Market is halted now. Quant is offline until the market reopens."
 	}
 	if m == nil || !m.PhaseKnown() {
 		return "Market status not reported by the relay yet."
@@ -614,7 +614,7 @@ func phaseLine(m *Market) string {
 		return ""
 	case "BREAK":
 		if m.ConditionText == "" {
-			return "Market is on a break right now."
+			return "Market is on a break right now. Quant is offline."
 		}
 		return m.ConditionText
 	case "CLOSED":
