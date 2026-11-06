@@ -206,44 +206,35 @@ class StartTapeProbeTest(unittest.TestCase):
 
 class SplitSummaryTest(unittest.TestCase):
     def rows(self, methods) -> list[dict]:
-        return [{"symbol": f"S{i}", "split_method": method}
-                for i, method in enumerate(methods)]
+        out = []
+        for index, method in enumerate(methods):
+            measured = method == "quote_rule"
+            out.append({"symbol": f"S{index}", "split_method": method,
+                        "buy_volume": 60 if measured else None,
+                        "sell_volume": 40 if measured else None})
+        return out
 
-    def test_the_framed_card_says_one_law_for_all_leaders(self):
-        """Owner order 2026-10-30: the row's own frame is the only source."""
+    def test_all_measured_pairs_are_named_as_wire_measurements(self):
         text = live_card.split_summary({"top_volume": self.rows(
-            ["range_position"] * 3)})
-        self.assertEqual(
-            text,
-            "B/S from the row's own published frame, the same law the "
-            "search box shows, for all 3 leaders")
+            ["quote_rule"] * 3)})
+        self.assertEqual(text, "B/S measured at the wire for all 3 leaders")
 
-    def test_a_legacy_tape_card_is_named_not_claimed_as_measurement(self):
-        """If a legacy tape method ever stands on a row again, the sentence
-        names the tape rather than calling the card measured."""
+    def test_a_mixed_card_counts_only_measured_pairs(self):
         text = live_card.split_summary({"top_volume": self.rows(
-            ["measured_tape"] * 3)})
-        self.assertIn("split from the session tape", text)
-        counted = live_card.split_summary({"top_volume": self.rows(
-            ["tape_counts"] * 3)})
-        self.assertIn("split from the session tape", counted)
-        self.assertNotIn("for all", counted)
-        self.assertNotIn("for all 3 leaders measured", counted)
+            ["quote_rule", "unavailable", "unavailable"])})
+        self.assertIn("1 of 3 leaders carry a measured B/S pair", text)
+        self.assertIn("the rest are U", text)
 
-    def test_a_mixed_card_names_both_methods(self):
-        text = live_card.split_summary({"top_volume": self.rows(
-            ["measured_tape", "range_position", "range_position"])})
-        self.assertIn("1 of 3 leaders split from the session tape", text)
-        self.assertIn("estimated from the row's own frame", text)
-        counted = live_card.split_summary({"top_volume": self.rows(
-            ["tape_counts", "tape_counts", "range_position"])})
-        self.assertIn("2 of 3 leaders split from the session tape", counted)
-        self.assertIn("estimated from the row's own frame", counted)
-
-    def test_nothing_available_is_stated_not_hidden(self):
+    def test_nothing_measured_is_stated_not_hidden(self):
         text = live_card.split_summary({"top_volume": self.rows(
             ["unavailable"] * 3)})
-        self.assertIn("no split", text)
+        self.assertIn("no measured B/S pair", text)
+        self.assertIn("totals are U", text)
+
+    def test_a_legacy_range_or_tape_pair_is_not_counted(self):
+        text = live_card.split_summary({"top_volume": self.rows(
+            ["range_position", "measured_tape", "tape_counts"])})
+        self.assertIn("no measured B/S pair", text)
 
     def test_no_leaders_at_all(self):
         self.assertIn("no volume ranking", live_card.split_summary({}))
@@ -257,12 +248,17 @@ class PublishCardTest(unittest.TestCase):
         live_card.CARD_PUSH_STATE["epoch"] = 0.0
 
     def snapshot(self, methods) -> dict:
-        return {"top_volume": [{"symbol": "OGDC", "split_method": method}
-                               for method in methods]}
+        rows = []
+        for index, method in enumerate(methods):
+            measured = method == "quote_rule"
+            rows.append({"symbol": f"S{index}", "split_method": method,
+                         "buy_volume": 60 if measured else None,
+                         "sell_volume": 40 if measured else None})
+        return {"top_volume": rows}
 
     def test_a_dry_run_builds_and_never_pushes(self):
         with mock.patch.object(market_snapshot, "build_snapshot",
-                               return_value=self.snapshot(["measured_tape"])), \
+                               return_value=self.snapshot(["quote_rule"])), \
                 mock.patch.object(market_snapshot, "push_snapshot") as push:
             result = live_card.publish_card(NOW, dry_run=True)
         push.assert_not_called()
@@ -271,16 +267,16 @@ class PublishCardTest(unittest.TestCase):
 
     def test_a_published_card_reports_what_it_measured(self):
         with mock.patch.object(market_snapshot, "build_snapshot",
-                               return_value=self.snapshot(["measured_tape"])), \
+                               return_value=self.snapshot(["quote_rule"])), \
                 mock.patch.object(market_snapshot, "push_snapshot",
                                   return_value={"ok": True}):
             result = live_card.publish_card(NOW)
         self.assertTrue(result["ok"])
-        self.assertIn("split from the session tape", result["split"])
+        self.assertIn("measured at the wire", result["split"])
 
     def test_a_refusing_relay_is_reported_not_raised(self):
         with mock.patch.object(market_snapshot, "build_snapshot",
-                               return_value=self.snapshot(["measured_tape"])), \
+                               return_value=self.snapshot(["quote_rule"])), \
                 mock.patch.object(market_snapshot, "push_snapshot",
                                   return_value={"ok": False, "error": "no KV"}):
             result = live_card.publish_card(NOW)
@@ -302,12 +298,12 @@ class PublishCardTest(unittest.TestCase):
             raise SystemExit("RELAY_ADMIN_TOKEN missing (env and .env)")
 
         with mock.patch.object(market_snapshot, "build_snapshot",
-                               return_value=self.snapshot(["range_position"])), \
+                               return_value=self.snapshot(["quote_rule"])), \
                 mock.patch.object(market_snapshot, "push_snapshot", no_token):
             result = live_card.publish_card(NOW)
         self.assertFalse(result["ok"])
         self.assertIn("RELAY_ADMIN_TOKEN missing", result["detail"])
-        self.assertIn("the same law the search box shows", result["split"])
+        self.assertIn("measured at the wire", result["split"])
 
 
 class RunOnceTest(unittest.TestCase):
@@ -364,7 +360,7 @@ class CardPushThrottleTest(unittest.TestCase):
         return {
             "as_of": f"2026-10-12T{as_of}+05:00",
             "top_volume": [{"symbol": "OGDC", "volume": volume,
-                            "split_method": "range_position"}],
+                            "split_method": "unavailable"}],
         }
 
     def reset(self) -> None:

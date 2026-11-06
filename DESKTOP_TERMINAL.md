@@ -47,10 +47,10 @@ bitmap.
   previous poll (or keeps the last side when the price held) and valued at
   the print price. The first sight of a scrip is its baseline, never a
   trade.
-- Day buying and selling hold each side at its session high-water mark, so
-  neither can fall inside a session, and the board says in words that the
-  pair is the relay's range estimate and not order flow. A row the relay
-  sends without a split gets the same range estimate locally.
+- Day buying and selling are the relay's current measured pair, so
+  B + S + U always equals the row's total. The board says in words that a
+  side appears only when the relay measured it. A row the relay sends
+  without that pair prints U, never a local estimate.
 - A quote whose running total goes backwards is never attributed, and one
   bad row never stops a poll.
 
