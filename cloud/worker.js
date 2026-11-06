@@ -1437,7 +1437,7 @@ async function portalText(url) {
 
 // Build a fresh snapshot straight from the portal. A failure in either half
 // is reported in `notes` and leaves that half null.
-async function buildMarketSnapshot(now) {
+async function buildMarketSnapshot(env, now) {
   const k = karachiView(now.getTime());
   const snapshot = {
     as_of: `${dayStamp(k)}T${hhmm(k)}:00+05:00`,
@@ -1467,6 +1467,7 @@ async function buildMarketSnapshot(now) {
       snapshot.notes.push("the index constituent table was empty");
       snapshot.volume_split_basis = "no leaders, so there is no split to report";
     } else {
+      await rememberPortalRows(env, now, rows);
       snapshot.top_volume = await attachSplits(topByVolume(rows, MARKET_TOP_N));
       snapshot.top_volume_basis = snapshot.top_volume.length
         ? `current session volume, top ${snapshot.top_volume.length}`
@@ -1481,6 +1482,96 @@ async function buildMarketSnapshot(now) {
       "no volume ranking, so the buy/sell split is unavailable";
   }
   return snapshot;
+}
+
+// Owner report 2026-11-06: the broker tape went silent at the open, so the
+// quote hub held no frame for today and the search, the scanner and the
+// sector reveal answered empty while the exchange's own constituent table
+// was live. That table is already read for the card's top three; its rows
+// are kept here too, so /prices can answer a symbol the hub has not heard
+// from today with the exchange's own price, move and session volume instead
+// of dropping it. B and S stay null: the portal publishes a total, never a
+// measured split, and no split is invented (SO-3).
+const PORTAL_ROWS_KEY = "MARKET:ROWS";
+const PORTAL_ROWS_MAX_AGE_MS = 15 * 60 * 1000;
+let portalRowsMemo = null;
+
+async function rememberPortalRows(env, now, rows) {
+  const kept = [];
+  for (const row of rows || []) {
+    if (!row || typeof row !== "object") continue;
+    const symbol = String(row.symbol || "");
+    if (!/^[A-Z0-9]{2,12}$/.test(symbol)) continue;
+    if (!Number.isFinite(row.current) || row.current <= 0) continue;
+    kept.push({
+      symbol,
+      price: row.current,
+      change_pct: Number.isFinite(row.change_pct) ? row.change_pct : null,
+      volume: Number.isFinite(row.volume) ? Math.round(row.volume) : null,
+    });
+  }
+  if (!kept.length) return;
+  const payload = {
+    built_at: now.toISOString(),
+    date: dayStamp(karachiView(now.getTime())),
+    rows: kept,
+  };
+  portalRowsMemo = { at: now.getTime(), value: payload };
+  try {
+    await kvPut(env, PORTAL_ROWS_KEY, JSON.stringify(payload),
+      { expirationTtl: 1800 });
+  } catch (_) {
+    // The isolate's own memo still answers; the next build retries the write.
+  }
+}
+
+async function portalRowsToday(env, now) {
+  const fresh = (value) => {
+    if (!value || !Array.isArray(value.rows)) return null;
+    if (value.date !== dayStamp(karachiView(now.getTime()))) return null;
+    const built = Date.parse(value.built_at || "");
+    if (!Number.isFinite(built)) return null;
+    if (now.getTime() - built > PORTAL_ROWS_MAX_AGE_MS) return null;
+    return value.rows;
+  };
+  if (portalRowsMemo &&
+      now.getTime() - portalRowsMemo.at <= PORTAL_ROWS_MAX_AGE_MS) {
+    const remembered = fresh(portalRowsMemo.value);
+    if (remembered) return remembered;
+  }
+  try {
+    return fresh(JSON.parse((await kvGet(env, PORTAL_ROWS_KEY)) || "null"));
+  } catch (_) {
+    return null;
+  }
+}
+
+// The card's five minute portal build is skipped whenever a runner's pushed
+// snapshot keeps the MARKET key fresh, and that pushed snapshot carries only
+// the top three. A silent tape then needs the member table on its own, so
+// the search route asks for this build directly: one fetch of the exchange's
+// own KMIALLSHR table, one shared task, and a two minute floor between
+// builds so a one second poll cannot spend the day's write budget.
+const PORTAL_ROWS_MIN_GAP_MS = 2 * 60 * 1000;
+let portalRowsRefreshInFlight = null;
+let portalRowsBuiltAt = 0;
+
+async function refreshPortalRows(env, now) {
+  if (portalRowsRefreshInFlight) return portalRowsRefreshInFlight;
+  if (now.getTime() - portalRowsBuiltAt < PORTAL_ROWS_MIN_GAP_MS) return null;
+  portalRowsBuiltAt = now.getTime();
+  portalRowsRefreshInFlight = (async () => {
+    try {
+      const rows = parseConstituents(
+        await portalText(PORTAL_INDEX + MARKET_MEMBERSHIP));
+      await rememberPortalRows(env, now, rows);
+    } catch (_) {
+      // The next poll retries; a failed fetch answers nothing.
+    } finally {
+      portalRowsRefreshInFlight = null;
+    }
+  })();
+  return portalRowsRefreshInFlight;
 }
 
 // The card reads a fixed field set, and a snapshot can come from either
@@ -2226,7 +2317,7 @@ async function refreshMarketSnapshot(env, now) {
   if (marketRefreshInFlight) return marketRefreshInFlight;
   marketRefreshInFlight = (async () => {
     try {
-      const fresh = normalizeMarket(await buildMarketSnapshot(now));
+      const fresh = normalizeMarket(await buildMarketSnapshot(env, now));
       fresh.built_at = now.toISOString();
       fresh.cache_age_seconds = 0;
       await kvPut(env, "MARKET", JSON.stringify(fresh), { expirationTtl: 3600 });
@@ -2731,6 +2822,37 @@ export default {
           observed_at: quote.observed_at || null,
           source: quote.source || null,
         });
+      }
+      if (tradingToday) {
+        // Owner report 2026-11-06: the tape was silent and every search row
+        // vanished with it, while the exchange's own table carried today's
+        // price and volume. A symbol the hub has not answered for today is
+        // filled from that table, with no measured pair, so the list, the
+        // scanner and the sector reveal show the real session instead of
+        // nothing. A hub frame always wins, and nothing is invented (SO-3).
+        const held = new Set(rowsBuilt.map((row) => row.symbol));
+        const portalNow = new Date();
+        const portalRows = await portalRowsToday(env, portalNow);
+        if (!portalRows && ctx && typeof ctx.waitUntil === "function") {
+          // The card's own portal build can be suppressed by a fresh runner
+          // push, so the member table is rebuilt here, behind the poll.
+          ctx.waitUntil(refreshPortalRows(env, portalNow));
+        }
+        for (const row of portalRows || []) {
+          if (held.has(row.symbol)) continue;
+          rowsBuilt.push({
+            symbol: row.symbol,
+            price: row.price,
+            change_pct: row.change_pct,
+            volume: row.volume,
+            buy_volume: null,
+            sell_volume: null,
+            split_method: "unavailable",
+            split_source: "the exchange's table publishes a total, not a measured pair",
+            observed_at: null,
+            source: "dps.psx.com.pk KMIALLSHR",
+          });
+        }
       }
       if (ackDay && rowsBuilt.length && storedAll) {
         // Read only (owner order 2026-11-05, the daily Durable Object
