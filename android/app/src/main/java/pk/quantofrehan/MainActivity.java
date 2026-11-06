@@ -192,6 +192,12 @@ public class MainActivity extends Activity {
     /** How many big prints the tile lists, largest first. */
     /** How many scrips the search shows at once. */
     private static final int FLOW_RESULTS_SHOWN = 8;
+    /** The ORDER FLOW table: eight real fields from the broker snapshot. */
+    private static final String[] FLOW_COLUMNS = {
+            "SYMBOL", "LAST", "CHG%", "BID QTY", "BID", "ASK",
+            "ASK QTY", "VOL"};
+    private static final float[] FLOW_WEIGHTS = {
+            1.25f, 0.95f, 0.72f, 1.0f, 0.92f, 0.92f, 1.0f, 1.05f};
     /** Owner order 2026-11-05 (sixth pass, "only display 8 transactions
      *  in the tile, and when i scroll I should be able to see more"): the
      *  board's window holds exactly eight prints; the visible bar scrolls
@@ -1663,15 +1669,16 @@ public class MainActivity extends Activity {
      * consistency, no = sign, no , sign, no green and red colors"):
      *
      *   "1. NRSL"
-     *   "(B=1,662,818, S=1,762,588, U=... & T=3,425,406)"
+     *   "(B=1,662,818, S=1,762,588, U=0)"
+     *   "T=3,425,406"
      *   "PKR 32.36 ▲ 4.64%"
      *
      * The quantities are the leaders card's own bracket, the plain "="
-     * after each letter, commas between B, S and U, the ampersand before
-     * the total and the closing bracket after it, the buy digits in green and
-     * the sell digits in the brand red (2026-10-24's colour law), the
-     * total neutral. U prints only when the relay reports an unclear
-     * remainder. The money follows the total on its line, and the arrow
+     * after each letter, commas between B, S and U, and the closing bracket
+     * after U, the buy digits in green and the sell digits in the brand red
+     * (2026-10-24's colour law), the total neutral. U prints whenever the
+     * relay reports it, including zero. T starts the next line. The money
+     * follows T on its line, and the arrow
      * plus its percentage take the move's colour and the glyph face,
      * exactly as renderMarket and leadersText print them. A quote without
      * a split still gets its numbered ticker and its money line, never
@@ -1691,38 +1698,38 @@ public class MainActivity extends Activity {
             sb.append(String.format(Locale.US, "%d.\u00A0%s",
                     i + 1, symbols.get(i)));
             if (quote.buy != null && quote.sell != null) {
-                // Owner order 2026-11-05, ninth pass: the scanner page's
-                // three keep their three lines, with the measured pair and
-                // the unclear U in the app's one bracket.
+                // Owner order 2026-11-06: B, S and U share the first line;
+                // the venue's total T starts the next one. U is shown
+                // whenever the relay reports it, including a measured zero.
                 sb.append('\n').append("(B=");
                 colorQuantity(sb, quote.buy, R.color.green);
                 sb.append(", S=");
                 colorQuantity(sb, quote.sell, R.color.red);
-                if (quote.unclassified != null && quote.unclassified > 0) {
+                if (quote.unclassified != null) {
                     sb.append(", U=");
                     sb.append(String.format(Locale.US, "%,d", quote.unclassified));
                 }
+                sb.append(')');
                 if (quote.volume != null) {
-                    sb.append(" & T=");
+                    sb.append('\n').append("T=");
                     sb.append(String.format(Locale.US, "%,d", quote.volume));
                 }
-                sb.append(')');
-            } else if (quote.volume != null
-                    || (quote.unclassified != null && quote.unclassified > 0)) {
-                // Owner order 2026-11-06: with no measured pair the relay's
-                // own U and T ride ONE bracket, so U never hides T.
-                sb.append('\n').append('(');
-                boolean any = false;
-                if (quote.unclassified != null && quote.unclassified > 0) {
-                    sb.append("U=");
+            } else if (quote.unclassified != null || quote.volume != null) {
+                // No measured pair: the known U keeps the first line and T
+                // takes the next. A missing U is not invented.
+                sb.append('\n');
+                if (quote.unclassified != null) {
+                    sb.append("(U=");
                     sb.append(String.format(Locale.US, "%,d", quote.unclassified));
-                    any = true;
+                    sb.append(')');
+                    if (quote.volume != null) {
+                        sb.append('\n');
+                    }
                 }
                 if (quote.volume != null) {
-                    sb.append(any ? " & T=" : "T=");
+                    sb.append("T=");
                     sb.append(String.format(Locale.US, "%,d", quote.volume));
                 }
-                sb.append(')');
             }
             // The map only ever carries a live price (Watcher's law), so
             // the symbol's presence in the menu is the price's presence on
@@ -3087,20 +3094,16 @@ public class MainActivity extends Activity {
                 return;
             }
         }
+        orderFlowResults.addView(flowTableHeader());
         int shown = 0;
         for (Watcher.FlowRow row : flowRows) {
             if (!row.symbol.startsWith(query)) {
                 continue;
             }
-            TextView line = new TextView(this);
-            line.setOnClickListener(v -> selectFlow(row.symbol));
-            // The row's own paint first (the 13sp body, the padding and the
-            // matched-row lift the search page carries), then the row's
-            // text is the scrip's live book: price, bid, ask and total
-            // volume, so the match already reads as order flow.
-            styleSearchRow(line, row.symbol, query);
-            line.setText(flowRowText(row));
-            orderFlowResults.addView(line);
+            // Each row is the scrip's live book as eight columns: symbol,
+            // last, change, bid quantity, bid, ask, ask quantity and total
+            // volume. Its B/S/U and T lines follow underneath.
+            orderFlowResults.addView(flowTableRow(row, query));
             if (++shown >= FLOW_RESULTS_SHOWN) {
                 break;
             }
@@ -3117,6 +3120,147 @@ public class MainActivity extends Activity {
     }
 
     /** One searched scrip's live book, as one search result row says it. */
+    /** The header for the eight-column ORDER FLOW table. */
+    private View flowTableHeader() {
+        LinearLayout header = new LinearLayout(this);
+        header.setOrientation(LinearLayout.HORIZONTAL);
+        header.setLayoutParams(new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT));
+        header.setPadding(dp(10), dp(2), dp(10), dp(2));
+        for (int i = 0; i < FLOW_COLUMNS.length; i++) {
+            TextView cell = flowCell(FLOW_COLUMNS[i], FLOW_WEIGHTS[i],
+                    themeBodyInk, 8f, android.view.Gravity.CENTER, true);
+            cell.setAlpha(0.62f);
+            header.addView(cell);
+        }
+        return header;
+    }
+
+    /** One searched scrip's live book, as eight real columns plus its split. */
+    private View flowTableRow(Watcher.FlowRow row, String query) {
+        LinearLayout wrap = new LinearLayout(this);
+        wrap.setOrientation(LinearLayout.VERTICAL);
+        wrap.setLayoutParams(new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT));
+        wrap.setPadding(0, dp(3), 0, dp(3));
+        wrap.setOnClickListener(v -> selectFlow(row.symbol));
+        if (query != null && !query.isEmpty() && row.symbol.startsWith(query)) {
+            wrap.setBackground(highlightPlate(row.symbol.length() == query.length()));
+        }
+        LinearLayout columns = new LinearLayout(this);
+        columns.setOrientation(LinearLayout.HORIZONTAL);
+        columns.setLayoutParams(new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT));
+        columns.setPadding(dp(10), dp(2), dp(10), dp(1));
+        int priceColor = row.changePct == null ? themeBodyInk
+                : getColor(row.changePct >= 0 ? R.color.green : R.color.red);
+        columns.addView(flowCell(row.symbol, FLOW_WEIGHTS[0], themeBodyInk,
+                9f, android.view.Gravity.LEFT, true));
+        columns.addView(flowCell(row.price != null
+                        ? String.format(Locale.US, "%,.2f", row.price) : "n/a",
+                FLOW_WEIGHTS[1], priceColor, 9f,
+                android.view.Gravity.RIGHT, false));
+        columns.addView(flowCell(row.changePct != null
+                        ? String.format(Locale.US, "%s%.2f%%",
+                        row.changePct >= 0 ? "▲" : "▼",
+                        Math.abs(row.changePct)) : "n/a",
+                FLOW_WEIGHTS[2], priceColor, 8f,
+                android.view.Gravity.RIGHT, false));
+        columns.addView(flowCell(flowCount(row.bidSize), FLOW_WEIGHTS[3],
+                getColor(R.color.green), 9f,
+                android.view.Gravity.RIGHT, false));
+        columns.addView(flowCell(row.bid != null
+                        ? String.format(Locale.US, "%,.2f", row.bid) : "n/a",
+                FLOW_WEIGHTS[4], getColor(R.color.green), 9f,
+                android.view.Gravity.RIGHT, false));
+        columns.addView(flowCell(row.ask != null
+                        ? String.format(Locale.US, "%,.2f", row.ask) : "n/a",
+                FLOW_WEIGHTS[5], getColor(R.color.red), 9f,
+                android.view.Gravity.RIGHT, false));
+        columns.addView(flowCell(flowCount(row.askSize), FLOW_WEIGHTS[6],
+                getColor(R.color.red), 9f,
+                android.view.Gravity.RIGHT, false));
+        columns.addView(flowCell(flowCount(row.volume), FLOW_WEIGHTS[7],
+                themeBodyInk, 9f, android.view.Gravity.RIGHT, false));
+        wrap.addView(columns);
+        CharSequence split = flowSplitText(row);
+        if (split.length() > 0) {
+            TextView detail = new TextView(this);
+            detail.setText(split);
+            detail.setTextSize(13f);
+            detail.setTextColor(themeBodyInk);
+            detail.setPadding(dp(10), dp(2), dp(10), dp(2));
+            wrap.addView(detail);
+        }
+        return wrap;
+    }
+
+    private TextView flowCell(String text, float weight, int color,
+                              float sizeSp, int gravity, boolean bold) {
+        TextView cell = new TextView(this);
+        cell.setLayoutParams(new LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.WRAP_CONTENT, weight));
+        cell.setText(text);
+        cell.setTextColor(color);
+        cell.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, sizeSp);
+        cell.setGravity(gravity | android.view.Gravity.CENTER_VERTICAL);
+        cell.setSingleLine(true);
+        cell.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        cell.setIncludeFontPadding(false);
+        if (bold) {
+            cell.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        }
+        cell.setPadding(dp(1), dp(1), dp(1), dp(1));
+        return cell;
+    }
+
+    private String flowCount(Long value) {
+        return value != null ? String.format(Locale.US, "%,d", value) : "n/a";
+    }
+
+    /** B, S and U on one line, then the venue's total T on its own line. */
+    private SpannableStringBuilder flowSplitText(Watcher.FlowRow row) {
+        SpannableStringBuilder sb = new SpannableStringBuilder();
+        if (row.buy != null && row.sell != null) {
+            sb.append('(').append("B=");
+            int from = sb.length();
+            sb.append(String.format(Locale.US, "%,d", row.buy));
+            sb.setSpan(new ForegroundColorSpan(getColor(R.color.green)),
+                    from, sb.length(), 0);
+            sb.append(", S=");
+            from = sb.length();
+            sb.append(String.format(Locale.US, "%,d", row.sell));
+            sb.setSpan(new ForegroundColorSpan(getColor(R.color.red)),
+                    from, sb.length(), 0);
+            if (row.unclassified != null) {
+                sb.append(", U=");
+                sb.append(String.format(Locale.US, "%,d", row.unclassified));
+            }
+            sb.append(')');
+            if (row.volume != null) {
+                sb.append('\n').append("T=");
+                sb.append(String.format(Locale.US, "%,d", row.volume));
+            }
+        } else if (row.unclassified != null || row.volume != null) {
+            if (row.unclassified != null) {
+                sb.append("(U=");
+                sb.append(String.format(Locale.US, "%,d", row.unclassified));
+                sb.append(')');
+                if (row.volume != null) {
+                    sb.append('\n');
+                }
+            }
+            if (row.volume != null) {
+                sb.append("T=");
+                sb.append(String.format(Locale.US, "%,d", row.volume));
+            }
+        }
+        return sb;
+    }
+
     private CharSequence flowRowText(Watcher.FlowRow row) {
         SpannableStringBuilder sb = new SpannableStringBuilder(row.symbol);
         if (row.price != null) {
@@ -3132,30 +3276,7 @@ public class MainActivity extends Activity {
                         priceFrom, sb.length(), 0);
             }
         }
-        int bidFrom = sb.length();
-        sb.append(row.bid != null
-                ? String.format(Locale.US, "  BID %,.2f", row.bid)
-                : "  BID n/a");
-        sb.setSpan(new ForegroundColorSpan(getColor(R.color.green)),
-                bidFrom + 2, bidFrom + 5, 0);
-        sb.append(" & ");
-        int askFrom = sb.length();
-        sb.append(row.ask != null
-                ? String.format(Locale.US, "ASK %,.2f", row.ask)
-                : "ASK n/a");
-        sb.setSpan(new ForegroundColorSpan(getColor(R.color.red)),
-                askFrom, askFrom + 3, 0);
-        // Owner order 2026-11-06: one bracket carries the row's own
-        // quantities, U first and T last, so no bracket stands before T.
-        boolean unclear = row.unclassified != null && row.unclassified > 0;
-        sb.append("  (");
-        if (unclear) {
-            sb.append(String.format(Locale.US, "U=%,d & ", row.unclassified));
-        }
-        sb.append(row.volume != null
-                ? String.format(Locale.US, "T=%,d)", row.volume)
-                : "T=n/a)");
-        return sb;
+        return flowSplitText(row);
     }
 
     /** One scrip's own volume, the point of the whole page. */
@@ -3193,6 +3314,15 @@ public class MainActivity extends Activity {
         // Owner order 2026-11-05 (sixth pass, "I would search for HUBC,
         // then i would see only HUBC's order flow i.e. bid/ask etc."): the
         // searched scrip's own two-way book stands under its money line.
+        int bidQtyFrom = sb.length();
+        sb.append(found.bidSize != null
+                ? String.format(Locale.US, "BID QTY %,d", found.bidSize)
+                : "BID QTY n/a");
+        if (found.bidSize != null) {
+            sb.setSpan(new ForegroundColorSpan(getColor(R.color.green)),
+                    bidQtyFrom + 8, sb.length(), 0);
+        }
+        sb.append("  ");
         int bidFrom = sb.length();
         sb.append(found.bid != null
                 ? String.format(Locale.US, "BID %,.2f", found.bid)
@@ -3206,46 +3336,20 @@ public class MainActivity extends Activity {
                 : "ASK n/a");
         sb.setSpan(new ForegroundColorSpan(getColor(R.color.red)),
                 askFrom, askFrom + 3, 0);
-        // Owner order 2026-11-06: the total volume joins the split's own
-        // bracket, so the book line ends at the ask and T has no bracket
-        // of its own.
-        if (found.buy != null && found.sell != null) {
-            // Owner order 2026-11-06, eleventh pass: the split quantities
-            // stay on the line below, separated by commas, and only the total
-            // takes the ampersand, so B, S and U read as one list and T
-            // closes it.
-            sb.append('\n');
-            sb.append('(').append("B=");
-            int from = sb.length();
-            sb.append(String.format(Locale.US, "%,d", found.buy));
-            sb.setSpan(new ForegroundColorSpan(getColor(R.color.green)),
-                    from, sb.length(), 0);
-            sb.append(", S=");
-            from = sb.length();
-            sb.append(String.format(Locale.US, "%,d", found.sell));
+        sb.append("  ");
+        int askQtyFrom = sb.length();
+        sb.append(found.askSize != null
+                ? String.format(Locale.US, "ASK QTY %,d", found.askSize)
+                : "ASK QTY n/a");
+        if (found.askSize != null) {
             sb.setSpan(new ForegroundColorSpan(getColor(R.color.red)),
-                    from, sb.length(), 0);
-            if (found.unclassified != null && found.unclassified > 0) {
-                sb.append(String.format(Locale.US, ", U=%,d",
-                        found.unclassified));
-            }
-            sb.append(found.volume != null
-                    ? String.format(Locale.US, " & T=%,d", found.volume)
-                    : " & T=n/a");
-            sb.append(')');
-        } else if ((found.unclassified != null && found.unclassified > 0)
-                || found.volume != null) {
-            // No measured pair: the selected scrip's known totals ride the
-            // same bracket, U first and T last.
-            sb.append('\n');
-            sb.append('(');
-            if (found.unclassified != null && found.unclassified > 0) {
-                sb.append(String.format(Locale.US, "U=%,d & ",
-                        found.unclassified));
-            }
-            sb.append(found.volume != null
-                    ? String.format(Locale.US, "T=%,d)", found.volume)
-                    : "T=n/a)");
+                    askQtyFrom + 8, sb.length(), 0);
+        }
+        // Owner order 2026-11-06: B, S and U share one line and the total T
+        // starts the next, matching the leaders card and the search answer.
+        SpannableStringBuilder split = flowSplitText(found);
+        if (split.length() > 0) {
+            sb.append('\n').append(split);
         }
         if (orderFlowResults != null) {
             orderFlowResults.setVisibility(View.GONE);
@@ -3359,10 +3463,10 @@ public class MainActivity extends Activity {
 
     /**
      * The chosen sector's stocks, the leaders card's own sentence shape:
-     * the ticker with its money and move, then ONE bracket carrying
-     * B, S, U and T, so no bracket stands before T (owner order
-     * 2026-11-06). Only KMIALL scrips reach this list at all; a scrip the
-     * live map has not quoted yet is skipped, never printed as zero.
+     * the ticker with its money and move, then B, S and U on one line and
+     * T on the next (owner order 2026-11-06). Only KMIALL scrips reach this
+     * list at all; a scrip the live map has not quoted yet is skipped,
+     * never printed as zero.
      */
     private void renderSectorReveal() {
         if (sectorsReveal == null) {
@@ -3408,26 +3512,34 @@ public class MainActivity extends Activity {
                         from, sb.length(), 0);
                 sb.setSpan(new TypefaceSpan(ARROW_FACE), from, from + 1, 0);
             }
-            boolean any = false;
             if (quote.buy != null && quote.sell != null) {
                 sb.append('\n').append("(B=");
                 colorQuantity(sb, quote.buy, R.color.green);
                 sb.append(", S=");
                 colorQuantity(sb, quote.sell, R.color.red);
-                any = true;
-            }
-            if (quote.unclassified != null && quote.unclassified > 0) {
-                sb.append(any ? ", U=" : "\n(U=");
-                sb.append(String.format(Locale.US, "%,d", quote.unclassified));
-                any = true;
-            }
-            if (quote.volume != null) {
-                sb.append(any ? " & T=" : "\n(T=");
-                sb.append(String.format(Locale.US, "%,d", quote.volume));
-                any = true;
-            }
-            if (any) {
+                if (quote.unclassified != null) {
+                    sb.append(", U=");
+                    sb.append(String.format(Locale.US, "%,d", quote.unclassified));
+                }
                 sb.append(')');
+                if (quote.volume != null) {
+                    sb.append('\n').append("T=");
+                    sb.append(String.format(Locale.US, "%,d", quote.volume));
+                }
+            } else if (quote.unclassified != null || quote.volume != null) {
+                sb.append('\n');
+                if (quote.unclassified != null) {
+                    sb.append("(U=");
+                    sb.append(String.format(Locale.US, "%,d", quote.unclassified));
+                    sb.append(')');
+                    if (quote.volume != null) {
+                        sb.append('\n');
+                    }
+                }
+                if (quote.volume != null) {
+                    sb.append("T=");
+                    sb.append(String.format(Locale.US, "%,d", quote.volume));
+                }
             }
         }
         if (sb.length() == 0) {
@@ -3812,7 +3924,7 @@ public class MainActivity extends Activity {
         // a + or a - sign, and the number is the move's magnitude - the
         // arrow IS the sign.
         int from = styled.length();
-        styled.append(String.format(Locale.US, " PKR %,.2f", quote.price));
+        styled.append(String.format(Locale.US, "\nPKR %,.2f", quote.price));
         if (quote.changePct != null) {
             int moveFrom = styled.length();
             styled.setSpan(new ForegroundColorSpan(getColor(
@@ -3865,27 +3977,33 @@ public class MainActivity extends Activity {
             sellFrom = sb.length();
             sb.append(String.format(Locale.US, "%,d", quote.sell));
             sellTo = sb.length();
-            if (quote.unclassified != null && quote.unclassified > 0) {
+            if (quote.unclassified != null) {
                 sb.append(String.format(Locale.US, ", U=%,d",
                         quote.unclassified));
             }
-            if (quote.volume != null) {
-                sb.append(String.format(Locale.US, " & T=%,d", quote.volume));
-            }
             sb.append(')');
-        } else if (quote.unclassified != null && quote.unclassified > 0) {
-            // No measured pair: the live line still shows the unclear total.
-            sb.append(String.format(Locale.US, " (U=%,d",
-                    quote.unclassified));
             if (quote.volume != null) {
-                sb.append(String.format(Locale.US, " & T=%,d", quote.volume));
+                sb.append('\n').append("T=");
+                sb.append(String.format(Locale.US, "%,d", quote.volume));
             }
-            sb.append(')');
-        } else if (quote.volume != null) {
-            sb.append(String.format(Locale.US, " (T=%,d)", quote.volume));
+        } else if (quote.unclassified != null || quote.volume != null) {
+            // No measured pair: the known U keeps the first line and T
+            // takes the next. A missing U is not invented.
+            sb.append('\n');
+            if (quote.unclassified != null) {
+                sb.append(String.format(Locale.US, " (U=%,d",
+                        quote.unclassified));
+                sb.append(')');
+                if (quote.volume != null) {
+                    sb.append('\n');
+                }
+            }
+            if (quote.volume != null) {
+                sb.append(String.format(Locale.US, "T=%,d", quote.volume));
+            }
         }
         int tailFrom = sb.length();
-        sb.append(String.format(Locale.US, " PKR %,.2f", quote.price));
+        sb.append(String.format(Locale.US, "\nPKR %,.2f", quote.price));
         int moveFrom = -1;
         if (quote.changePct != null) {
             moveFrom = sb.length();
@@ -4129,9 +4247,9 @@ public class MainActivity extends Activity {
             }
             sb.append(String.format(Locale.US, "%d. %s", i + 1, row.symbol));
             if (row.hasSplit()) {
-                // Owner order 2026-11-05, ninth pass: the top three keep
-                // their three lines, with the measured pair and the unclear
-                // U in the app's one bracket.
+                // Owner order 2026-11-06: B, S and U share the first line;
+                // the venue's total T starts the next one. U is shown
+                // whenever the relay reports it, including a measured zero.
                 sb.append('\n').append("(B=");
                 int buyFrom = sb.length();
                 sb.append(String.format(Locale.US, "%,d", row.buy));
@@ -4140,31 +4258,31 @@ public class MainActivity extends Activity {
                 int sellFrom = sb.length();
                 sb.append(String.format(Locale.US, "%,d", row.sell));
                 spans.add(new int[]{sellFrom, sb.length(), R.color.red});
-                if (row.unclassified != null && row.unclassified > 0) {
+                if (row.unclassified != null) {
                     sb.append(", U=");
                     sb.append(String.format(Locale.US, "%,d", row.unclassified));
                 }
+                sb.append(')');
                 if (row.hasVolume()) {
-                    sb.append(" & T=");
+                    sb.append('\n').append("T=");
                     sb.append(String.format(Locale.US, "%,d", row.volume));
                 }
-                sb.append(')');
-            } else if (row.hasVolume()
-                    || (row.unclassified != null && row.unclassified > 0)) {
-                // Owner order 2026-11-06: no measured pair, so the relay's
-                // own U and T ride ONE bracket. U alone never hides T.
-                sb.append('\n').append('(');
-                boolean any = false;
-                if (row.unclassified != null && row.unclassified > 0) {
-                    sb.append("U=");
+            } else if (row.unclassified != null || row.hasVolume()) {
+                // No measured pair: the known U keeps the first line and T
+                // takes the next. A missing U is not invented.
+                sb.append('\n');
+                if (row.unclassified != null) {
+                    sb.append("(U=");
                     sb.append(String.format(Locale.US, "%,d", row.unclassified));
-                    any = true;
+                    sb.append(')');
+                    if (row.hasVolume()) {
+                        sb.append('\n');
+                    }
                 }
                 if (row.hasVolume()) {
-                    sb.append(any ? " & T=" : "T=");
+                    sb.append("T=");
                     sb.append(String.format(Locale.US, "%,d", row.volume));
                 }
-                sb.append(')');
             }
             // The money line: opened whenever there is a price or a move to
             // show, so even a price-less row puts its change on its own line

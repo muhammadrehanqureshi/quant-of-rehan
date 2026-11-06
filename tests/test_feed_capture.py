@@ -142,12 +142,16 @@ class CaptureFlowSeedTest(unittest.TestCase):
             "kind": "MKT-FEED",
             "ts": "2026-11-05T08:55:00+05:00",
             "ticks": [{"market": "REG", "scrip": "KEL", "last": "0",
-                       "bid": "6.10", "ask": "6.20", "volume": "0"}],
+                       "bid": "6.10", "ask": "6.20",
+                       "bid_size": "500", "ask_size": "700",
+                       "volume": "0"}],
         })
         self.assertEqual(len(update["quotes"]), 1)
         quote = update["quotes"][0]
         self.assertTrue(quote["flow_only"])
         self.assertEqual(quote["volume"], 0)
+        self.assertEqual(quote["bid_size"], 500.0)
+        self.assertEqual(quote["ask_size"], 700.0)
         quote = quote_flow.QuoteFlow().observe(quote)
         self.assertEqual(quote["flow_baseline"], 0)
         self.assertEqual(quote["flow_baseline_reason"], "zero_baseline")

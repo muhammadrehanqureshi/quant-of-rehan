@@ -549,13 +549,27 @@ class SettingsControlTest(unittest.TestCase):
         /orderflow answer the page already reads, and a tap adds the
         scrip's own four part answer.
         """
-        self.assertIn("line.setText(flowRowText(row));", self.main)
-        self.assertIn('\"  BID %,.2f\"', self.main)
-        self.assertIn('\"ASK %,.2f\"', self.main)
-        self.assertIn('\"T=%,d)\"', self.main)
+        self.assertIn("orderFlowResults.addView(flowTableRow(row, query));",
+                      self.main)
+        self.assertIn("private View flowTableRow(", self.main)
+        self.assertIn("private TextView flowCell(", self.main)
+        self.assertIn("private View flowTableHeader()", self.main)
+        self.assertIn("flowSplitText(row)", self.main)
+        for label in ("SYMBOL", "LAST", "CHG%", "BID QTY", "BID", "ASK",
+                      "ASK QTY", "VOL"):
+            with self.subTest(column=label):
+                self.assertIn('"' + label + '"', self.main)
+        self.assertIn("flowCount(row.bidSize)", self.main)
+        self.assertIn("flowCount(row.askSize)", self.main)
+        self.assertIn("columns.addView(flowCell(row.bid", self.main)
+        self.assertIn("columns.addView(flowCell(row.ask", self.main)
         self.assertIn('sb.append(" & ");', self.main)
-        self.assertIn('bidFrom + 2, bidFrom + 5', self.main)
-        self.assertIn('askFrom, askFrom + 3', self.main)
+
+
+
+        self.assertIn('sb.append(" & ");', self.main)
+
+
         # The numbers travel from the relay's rows, which carry bid and
         # ask; the Watcher parses both beside the price and the volume.
         watcher = (ROOT / "android" / "app" / "src" / "main" / "java"
@@ -563,6 +577,10 @@ class SettingsControlTest(unittest.TestCase):
             encoding="utf-8")
         self.assertIn("out.bid = number(row, \"bid\");", watcher)
         self.assertIn("out.ask = number(row, \"ask\");", watcher)
+        self.assertIn("out.bidSize = whole(row, \"bid_size\");", watcher)
+        self.assertIn("out.askSize = whole(row, \"ask_size\");", watcher)
+        self.assertIn("Long bidSize;", watcher)
+        self.assertIn("Long askSize;", watcher)
         self.assertIn("Double bid;", watcher)
         self.assertIn("Double ask;", watcher)
         self.assertIn('out.changePct = number(row, "change_pct");', watcher)
@@ -575,19 +593,18 @@ class SettingsControlTest(unittest.TestCase):
             encoding="utf-8")
         start = watcher.index("static void fetchStock")
         body = watcher[start:start + 8000]
-        self.assertIn("else if (unclear != null && unclear > 0)", body)
+        self.assertIn("else if (unclear != null || total != null)", body)
         self.assertIn('" (U=%,.0f"', body)
-        # Owner report 2026-11-06: with no measured pair, U and T print in
-        # ONE bracket, so the unclear total never hides the exchange's own
-        # total on either the scanner reveal or the leaders card.
-        self.assertIn("} else if (quote.volume != null", self.main)
-        self.assertIn("} else if (row.hasVolume()", self.main)
-        self.assertIn("|| (quote.unclassified != null && quote.unclassified > 0)) {",
+        self.assertNotIn('" & T=', body)
+        # A missing pair still keeps U and T on separate lines.
+        self.assertIn("} else if (quote.unclassified != null || quote.volume != null) {",
                       self.main)
-        self.assertIn("|| (row.unclassified != null && row.unclassified > 0)) {",
+        self.assertIn("} else if (row.unclassified != null || row.hasVolume()) {",
                       self.main)
-        self.assertIn("row.unclassified != null && row.unclassified > 0",
-                      self.main)
+        self.assertIn("quote.unclassified != null", self.main)
+        self.assertIn("row.unclassified != null", self.main)
+        self.assertNotIn("quote.unclassified > 0", self.main)
+        self.assertNotIn("row.unclassified > 0", self.main)
 
     def test_the_big_prints_name_the_side_and_the_time(self):
         """Owner order 2026-11-05: a print leads with its side in the
@@ -606,36 +623,33 @@ class SettingsControlTest(unittest.TestCase):
         # them and still reads selectFlow's own body alone.
         selected = selected[:selected.index("private void showSectorMenu(")]
         self.assertIn('sb.append(" & ");', selected)
-        self.assertIn('" & T=%,d"', selected)
+
         # Owner order 2026-11-06, eleventh pass: commas separate B, S and
         # U; only the total takes the ampersand.
-        self.assertIn('sb.append(", S=");', selected)
-        self.assertIn('", U=%,d"', selected)
-        self.assertIn("found.unclassified > 0", selected)
+        self.assertIn("SpannableStringBuilder split = flowSplitText(found);",
+                      selected)
+        self.assertIn("append(split);", selected)
+        self.assertNotIn("found.unclassified > 0", selected)
+        self.assertIn("BID QTY %", selected)
+        self.assertIn("ASK QTY %", selected)
+        self.assertIn("found.bidSize", selected)
+        self.assertIn("found.askSize", selected)
+        self.assertNotIn('" & T=', selected)
         # Owner order 2026-11-06: the no-pair branch also opens when only
         # T is known, because T now rides that same bracket.
-        self.assertIn(
-            "else if ((found.unclassified != null && found.unclassified > 0)",
-            selected)
-        self.assertIn("|| found.volume != null) {", selected)
+
         self.assertNotIn('" & S="', selected)
         self.assertNotIn('" & U=', selected)
         self.assertNotIn('", T="', selected)
 
-    def test_one_bracket_carries_every_quantity(self):
-        """Owner order 2026-11-06 ("remove the bracket after S or U,
-        whichever comes later, and also remove the bracket before T,
-        throughout entire app"): the leaders card, the scanner reveal, the
-        order flow row and the selected book each print ONE bracket, with
-        B, S, U and T inside it, so no bracket ever stands before T.
-        """
-        self.assertIn('sb.append(" & T=");', self.main)
-        self.assertIn('" & T=%,d"', self.main)
-        self.assertIn('" & T=n/a"', self.main)
-        # A row with no B, S or U still gets T in its own bracket, and the
-        # money line always starts on a new line after the bracket.
-        self.assertIn('sb.append(any ? " & T=" : "T=");', self.main)
-        self.assertNotIn('sb.append("  (T=%,d)", row.volume)', self.main)
+    def test_the_volume_split_puts_t_on_its_own_line(self):
+        """Owner order 2026-11-06: B, S and U share one line, then T."""
+        self.assertIn('append("T=");', self.main)
+        self.assertNotIn('" & T=', self.main)
+        self.assertNotIn('" & T=%,d"', self.main)
+        self.assertNotIn('" & T=n/a"', self.main)
+        self.assertIn("row.unclassified != null", self.main)
+        self.assertIn("quote.unclassified != null", self.main)
         # The big print board's own bracket is untouched: it is one sided.
         self.assertIn('"(%s=%,d) "', self.main)
 
@@ -1182,9 +1196,9 @@ class TypefaceTest(unittest.TestCase):
         self.assertIn("sb.append('\\n').append(\"(B=\");", self.main)
         self.assertIn('sb.append(", S=");', self.main)
         self.assertIn('sb.append(", U=");', self.main)
-        # Owner report 2026-11-06: with no measured pair, U and T ride one
-        # bracket, so U alone can never hide the exchange's total.
-        self.assertIn('sb.append(any ? " & T=" : "T=");', self.main)
+        # Owner order 2026-11-06: T takes the next line, not the split's.
+        self.assertIn('append("T=");', self.main)
+        self.assertNotIn('sb.append(any ? " & T=" : "T=");', self.main)
         self.assertNotIn("completePair", self.main)
         # v1.8.6 (owner 15:15): and that row keeps the body's 13sp. It wins
         # its width from the tile (6dp of each 16dp panel padding, through the
@@ -3277,8 +3291,9 @@ class MenuOrdersTest(unittest.TestCase):
                     main.index("private void paintSignalInk(")]
         self.assertIn("R.color.green", live)
         self.assertIn("R.color.red", live)
-        self.assertIn('" & T=%,d"', live)
+        self.assertIn('append("T=");', live)
         self.assertIn("U=%,d", live)
+        self.assertNotIn('" & T=%,d"', live)
 
     def test_the_dropdown_caret_stands_at_its_face_middle(self):
         """Owner order 2026-11-01 ("have the drop down/up icon at the
@@ -3499,7 +3514,8 @@ class MenuOrdersTest(unittest.TestCase):
         self.assertIn('append("(B=");', block)
         self.assertIn('sb.append(", S=");', block)
         self.assertIn('sb.append(", U=");', block)
-        self.assertIn('sb.append(any ? " & T=" : "T=");', block)
+        self.assertIn('append("T=");', block)
+        self.assertNotIn('sb.append(any ? " & T=" : "T=");', block)
         self.assertIn("sb.append(')');", block)
         self.assertIn("colorQuantity(sb, quote.buy, R.color.green)", block)
         self.assertIn("colorQuantity(sb, quote.sell, R.color.red)", block)
