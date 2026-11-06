@@ -1,156 +1,57 @@
 """Buy versus sell volume for the card's volume leaders.
 
-SO-3 (footprint honesty law): this module is the single answer to "what are
-B and S" for the card's leaders, and it only produces those numbers when a
-real source sits behind them. The truth source is src/data/registry.py; this
-module reads that exact number-source and refuses to split when it says the
-source is degraded or unavailable. Everything SO-3 cares about  --  the decision
-of what is a real source, the refusal language, the labelled-proxy boundary  -- 
-lives in registry.py, so this module imports it and the governance guard can
-verify that any footprint/order-flow claim goes through the one law.
+The card carries B and S only when the relay measured the pair at the wire
+and tagged it ``quote_rule``. A range position, a tape slice or a price move
+is never turned into a side. Without that measured pair the row carries null
+B and S, the whole known total as U, and a short reason.
 
-Owner order 2026-10-11: the card shows, for each of the day's top three
-stocks, the buy volume, the sell volume and the total, and the card never
-prints legacy wording about index membership or about a broker capture.
+Owner order 2026-11-06: "BUYING and SELLING have to be correct, always."
+The rule that follows is strict: an unmeasured share is not distributed to
+either side, and a positive U is never hidden.
 
-What genuinely exists, checked against the venue's own pages on 2026-10-11
-(SO-3, footprint honesty law):
+The one measured path is a pair already on the row. ``attach_splits`` copies
+it through, computes the unclassified remainder, and leaves ``flow_complete``
+true only when B + S equals the row's total. Every other row is explicit
+unavailable, with U equal to its total.
 
-  * the constituent table on dps.psx.com.pk carries ONE volume column
-    (SYMBOL, NAME, LDCP, CURRENT, CHANGE, CHANGE %, IDX WTG, IDX POINT,
-    VOLUME, SHARES, MARKET CAP), so a split cannot come from the ranking
-    page;
-  * the company page's "Bid Volume" and "Ask Volume" are the resting depth
-    at the top of the book, not traded volume, so they are not a split
-    either;
-  * the only place a traded-side split genuinely exists is the per-trade
-    tape, which this repository banks as
-    data/feed_capture/capture_YYYYMMDD.ndjson whenever a capture has run.
-    src/data/tick_volume.py reads that tape.
-
-So every row is answered in this order:
-
-  1. RANGE ESTIMATE. The split is the money flow multiplier position of the
-     close inside the day's published high low range, applied to the row's
-     own session total. SO-3 allows an OHLCV derived proxy in this system
-     only when it is explicitly labelled as degraded, so the label travels
-     with the number and the app prints it. It is never presented as
-     observed order flow.
-  2. UNAVAILABLE. When the venue's own fields are missing or contradictory
-     the row carries no numbers at all and a short reason.
-
-Owner order 2026-10-30: ONE law for every stock. "Have the same/correct
-Data for each stock. Which one was correct?" The report that started this
-file measured the owner seeing two different B/S pairs for the same PRL on
-the same minute: the card's top row carried a tape/measured split whose
-sum was the capture's own window, not the venue total printed beside it as
-T, while the search box showed the range split that sums to that T. The
-tape answers stand retired from the card: whether measured or verbatim
-counts, a tape-derived pair only ever names the prints the tape saw, so it
-can never agree with the T the row prints or with the /prices answer the
-app's search ranks from. Every producer now answers with the row's own
-frame split, the same computation cloud/worker.js recomputes for /prices
-and the merged live card.
-
-The tape functions below (measured_split, tape_counts_split) stand only as
-documented reference of what used to answer; split_for no longer calls
-them, and they are kept for the tick_volume reconciliation story.
-
-Invariants, all covered by tests/test_volume_split.py:
-
-  * buy + sell == volume, exactly, for every produced split, and `volume`
-    is always the venue session total the row prints beside it as T
-
-Invariants, all covered by tests/test_volume_split.py:
-
-  * buy + sell == volume, exactly, for every produced split. For a counted
-    split `volume` is the tape's own counted window, which is deliberately
-    not the venue's session total printed beside it as T;
-  * buy and sell are non negative integers, so the card can never print a
-    negative or fractional share;
-  * the estimate is refused rather than guessed when high < low, when a
-    field is missing, when the session volume is not positive, or when the
-    last price sits outside the published high low range;
-  * the tape flow proportion is only used when the tape attributed volume
-    to at least one side, and it is projected onto the session total with
-    half-up rounding so this file and the relay's JavaScript agree to the
-    share;
-  * a session whose entire range is a single price carries no directional
-    information, so its split is stated as even and the range is reported
-    rather than hidden.
-
-Worked example (also runnable, this is the demonstration the owner asked
-for):
-
-    python -m src.data.volume_split --high 101.5 --low 99.0 --close 101.0 \
-        --volume 1000000
+The legacy method tags below exist only so an old range or tape pair can be
+recognised and refused. They are not producers.
 """
 
 from __future__ import annotations
 
-import argparse
-import sys
 from dataclasses import dataclass
 from datetime import date
-from pathlib import Path
 from typing import Iterable, Mapping
 
-ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT))
-
-from src.data import tick_volume  # noqa: E402
-# SO-3 (footprint honesty law): the truth source for buy/sell is
-# src/data/registry.py. This module makes its claim through that law by
-# refusing to split when no real source is behind the numbers, so any
-# footprint/order-flow claim can be verified against the one place that owns
-# what this system genuinely has. The governance guard (src/data/registry.py)
-# scopes each claim to the registry module, so every source-facing module
-# imports that truth source directly.
+from src.data import tick_volume
 
 #: Per-row method tags, so the app can label a number honestly.
 METHOD_MEASURED = "measured_tape"
 METHOD_TAPE_COUNTS = "tape_counts"
 METHOD_RANGE = "range_position"
+METHOD_WIRE = "quote_rule"
 METHOD_NONE = "unavailable"
 
-#: Footnote labels, keyed by method. SO-3: the proxy is named as a proxy
-#: wherever it is shown, in as few words as the law allows.
+#: Footnote labels, keyed by method. The wire label is the only one a live
+#: producer can set; the rest remain for recognising retired rows.
 METHOD_LABELS = {
     METHOD_MEASURED: "B/S measured from the session tape",
     METHOD_TAPE_COUNTS: ("B/S counted from the session's own trade tape, "
                          "covering part of the session"),
     METHOD_RANGE: "B/S estimated from the day's range, not order flow",
+    METHOD_WIRE: "B/S measured at the wire from the broker feed",
 }
 
-#: Weakest first, for the one line footnote: the sentence must name the
-#: weakest method that produced a number on the card.
-METHOD_STRENGTH_ORDER = (METHOD_RANGE, METHOD_TAPE_COUNTS, METHOD_MEASURED)
-
-#: The venue's ranking table and its per-symbol panel are fetched seconds
-#: apart, so the panel's session volume may only be equal to or newer than
-#: the table's. A panel that reports LESS than the table was served stale,
-#: and a stale range must never be turned into a split.
-STALE_VOLUME_RATIO = 1.0
-
-#: How much of the day's volume the tape must have attributed before its own
-#: counts stand on the card. Measured 2026-10-12, a capture that began
-#: mid-session: a 0.1 percent slice of SLGL's day would have printed as 100
-#: percent buying, and a 5 percent slice of TREET's as 45 percent buying,
-#: both of them one or two windows' directions rather than the day's flow.
-#: Below a tenth of the day's shares the range estimate answers instead,
-#: labelled as it is. A tape kept alive from the open (src/data/live_card.py
-#: does this) covers most of a normal session, with only the shares traded
-#: before its first sight of a symbol, any tape outage, and windows with no
-#: print evidence left unclassified.
-MIN_TAPE_COVERAGE = 0.10
-
-#: And it must have more than a couple of windows behind those counts.
-MIN_TAPE_WINDOWS = 5
+#: Weakest first. A live row can only carry METHOD_WIRE, so this ordering
+#: matters only if an old row is ever shown beside a measured one.
+METHOD_STRENGTH_ORDER = (METHOD_RANGE, METHOD_TAPE_COUNTS, METHOD_MEASURED,
+                         METHOD_WIRE)
 
 
 @dataclass(frozen=True)
 class Split:
-    """One symbol's split, with the method that produced it."""
+    """One symbol's measured pair, with the method that produced it."""
 
     buy: int
     sell: int
@@ -160,11 +61,11 @@ class Split:
 
     @property
     def fraction(self) -> float:
-        """Share of the session volume classified as buying, 0.0 to 1.0."""
+        """Share of the classified volume that is buying, 0.0 to 1.0."""
         return 0.0 if self.volume <= 0 else self.buy / self.volume
 
     def as_fields(self) -> dict:
-        """The four fields the card reads, ready to merge into a leader row."""
+        """The fields the card reads, ready to merge into a leader row."""
         return {
             "buy_volume": self.buy,
             "sell_volume": self.sell,
@@ -194,204 +95,72 @@ def _number(value) -> float | None:
                                                          float("-inf")) else None
 
 
-def range_position_split(high, low, close, volume) -> Split | None:
-    """Split a session volume by where the close sits in the day's range.
-
-    The money flow multiplier is ``((C - L) - (H - C)) / (H - L)``, which is
-    the same statement as the close's position in the range scaled to
-    ``[-1, 1]``. Buying is the volume that the position attributes to
-    buyers:
-
-        position = (close - low) / (high - low)      in [0, 1]
-        buy      = floor(volume * position + 0.5)
-        sell     = volume - buy
-
-    A close at the day's high attributes the whole session to buying, a
-    close at the low attributes it all to selling, and a close at the
-    midpoint splits it evenly. That is a proxy for order flow and is
-    labelled as one by every caller (SO-3).
-
-    Returns None, producing no numbers at all, when the venue's fields are
-    missing, when the day's low exceeds its high, when the session volume
-    is not positive, or when the last price sits outside the published
-    range. The last case means the range and the price came from different
-    sessions, and a range that does not contain its own last price is stale
-    evidence, so it is refused rather than clamped. A session that traded at
-    a single price has no directional information, so it returns an even
-    split and says so in `note` rather than refusing: an even split is the
-    unbiased answer for a range of zero, and hiding it would leave the card
-    claiming a gap that is not there.
-    """
-    h = _number(high)
-    l = _number(low)
-    c = _number(close)
-    v = _number(volume)
-    if h is None or l is None or c is None or v is None:
-        return None
-    if h < l or v <= 0 or c < l or c > h:
-        return None
-    total = int(round(v))
-    if total <= 0:
-        return None
-    note = ""
-    span = h - l
-    if span <= 0:
-        position = 0.5
-        note = "single price session, so the split is even"
-    else:
-        position = (c - l) / span
-    # Half up, which is what the relay's JavaScript Math.round does, so the
-    # edge and the local runner can never disagree about a share count.
-    buy = int(total * position + 0.5)
-    buy = min(max(buy, 0), total)
-    return Split(buy=buy, sell=total - buy, volume=total,
-                 method=METHOD_RANGE, note=note)
-
-
-def measured_split(flow: "tick_volume.SymbolFlow") -> Split | None:
-    """A banked tape's reconciled split. Retired from the card 2026-10-30:
-    split_for no longer calls this, because a pair that reconciles only
-    within tolerance can still disagree with the T the row prints and with
-    the /prices answer the app's search ranks from (see the module
-    docstring's owner order 2026-10-30).
-
-    The tape is the one genuine source of a traded-side split, but a
-    partial capture understates it. A measured split is therefore accepted
-    only when the classified buy and sell sums land within tolerance of the
-    venue's own cumulative total for the same symbol (the reconciliation
-    `SymbolFlow` already performs). Anything else falls through to the
-    labelled estimate, so the card never prints a floor as if it were the
-    whole day.
-    """
-    if flow is None or not flow.split_available or not flow.reconcilable:
-        return None
-    total = int(flow.total_volume)
-    if total <= 0:
-        return None
-    return Split(buy=int(flow.buy_volume), sell=int(flow.sell_volume),
-                 volume=total, method=METHOD_MEASURED)
-
-
-def tape_counts_split(flow: "tick_volume.SymbolFlow") -> Split | None:
-    """The tape's own counted sides, verbatim. Retired from the card
-    2026-10-30: split_for no longer calls this, because the verbatim pair's
-    B + S is deliberately not the T printed on the same row, which is the
-    exact divergence the owner measured on 2026-10-29 (see the module
-    docstring's owner order 2026-10-30).
-
-    Owner order 2026-10-15: the card's quantity fields show the exact, raw
-    numbers the broker feed produced. The capture did not cover the whole
-    day for this symbol (measured_split refused it), but it did attribute
-    volume to both sides from where the venue's prints traded, and those
-    integers ride through unchanged: nothing is scaled or rounded onto the
-    venue's session total, because that total includes prints the tape never
-    saw. `volume` is therefore the tape's classified total (buy + sell, the
-    invariant this module keeps), not the T printed on the same row, and the
-    note says how much of the venue's counter the counts cover so a reader
-    can never take them for the whole session.
-
-    Returns None when the tape attributed nothing, or attributed too little
-    for a side to mean anything: under MIN_TAPE_WINDOWS windows or under
-    MIN_TAPE_COVERAGE of the day, one or two prints' directions would print
-    as the day's sides. The caller falls through to the range estimate.
-    """
-    if flow is None or not flow.split_available:
-        return None
-    if flow.windows < MIN_TAPE_WINDOWS or flow.coverage < MIN_TAPE_COVERAGE:
-        # Too thin to stand for the day. The reason travels with the flow's
-        # own notes; the row falls through to the range estimate and is
-        # labelled as that.
-        return None
-    buy = int(flow.buy_volume)
-    sell = int(flow.sell_volume)
-    counted = buy + sell
-    if counted <= 0:
-        return None
-    note = (f"the session's own tape counted {counted:,} of the venue's "
-            f"{flow.total_volume:,} shares so far")
-    return Split(buy=buy, sell=sell, volume=counted,
-                 method=METHOD_TAPE_COUNTS, note=note)
-
-
 def split_for(row: Mapping, *, quotes: Mapping | None = None,
               flows: Mapping | None = None) -> tuple[Split | None, str]:
-    """One leader row's split, plus the reason when there is none.
+    """One leader row's measured pair, plus the reason when there is none.
 
-    `quotes` maps a symbol to the venue's own published session fields
-    (high, low, volume) and `flows` maps a symbol to a
-    `tick_volume.SymbolFlow` from a banked tape. Either may be absent, in
-    which case that source simply cannot answer.
-
-    `flows` is accepted for call compatibility and IGNORED since owner order
-    2026-10-30: the card's one-truth law answers every row with the same
-    range-position split the search box shows, computed from the row's own
-    frame, so a stock can never carry two different pairs.
+    A B or S number is accepted only when the row already carries the relay's
+    own measured pair, tagged METHOD_WIRE. The published range, a banked tape
+    and a price move are deliberately not consulted: none proves the side of
+    the venue's whole-session counter.
     """
-    symbol = str(row.get("symbol", "")).strip().upper()
-    table_volume = _number(row.get("volume"))
-    quote = (quotes or {}).get(symbol)
-    if quote is None:
-        return None, "no published session range for this symbol"
-    panel_volume = _number(quote.get("volume"))
-    if (table_volume is not None and panel_volume is not None
-            and panel_volume < table_volume * STALE_VOLUME_RATIO):
-        return None, ("the per-symbol panel reported less volume than the "
-                      "ranking table, so its range is stale")
-    high = _number(quote.get("high"))
-    low = _number(quote.get("low"))
-    # The session's last price comes from the ranking table of the same
-    # snapshot unless the panel published a close of its own.
-    close = _number(quote.get("close"))
-    if close is None:
-        close = _number(row.get("price"))
-    if high is None or low is None or close is None or panel_volume is None:
-        return None, "the published session range is incomplete"
-    if close < low or close > high:
-        return None, ("the last price sits outside the published range, so "
-                      "that range is stale")
-    # Decompose the session total the card prints as T, not the panel's own
-    # copy of it: buy and sell must add up to that T on the same row, and the
-    # panel's copy is fetched seconds later, so it can only be newer.
-    total = table_volume if table_volume is not None else panel_volume
-    split = range_position_split(high, low, close, total)
-    if split is None:
-        return None, "the published session range is incomplete"
-    return split, ""
+    if str(row.get("split_method") or "") != METHOD_WIRE:
+        return None, "no measured order-flow pair; the total is unclassified"
+    total = _number(row.get("volume"))
+    buy = _number(row.get("buy_volume"))
+    sell = _number(row.get("sell_volume"))
+    if buy is None or sell is None:
+        return None, "the measured pair is missing a side"
+    b, s = int(round(buy)), int(round(sell))
+    if b < 0 or s < 0:
+        return None, "the measured pair is negative"
+    if total is not None and b + s > int(round(total)):
+        return None, "the measured pair exceeds the venue total"
+    return Split(buy=b, sell=s, volume=b + s, method=METHOD_WIRE,
+                 note="measured at the wire"), ""
 
 
 def attach_splits(leaders: list[dict], *, quotes: Mapping | None = None,
                   flows: Mapping | None = None) -> str:
-    """Fill buy_volume and sell_volume on leader rows in place.
+    """Fill B, S and U on leader rows in place.
 
-    Returns the footnote sentence for the card. Every row ends up either
-    with a labelled split or with explicit nulls and a short reason, so the
-    card can never show a number it cannot stand behind.
+    A measured pair is copied through and U is the rest of the row's total.
+    Every other row gets explicit null B/S, split_method unavailable, and U
+    equal to the whole total. The card therefore never prints a guessed side
+    or hides an unclassified share.
     """
     for row in leaders:
-        row.pop("split_method", None)
         row.pop("split_volume", None)
         split, reason = split_for(row, quotes=quotes, flows=flows)
+        total = _number(row.get("volume"))
+        total_int = max(0, int(round(total))) if total is not None else None
         if split is None:
             row["buy_volume"] = None
             row["sell_volume"] = None
+            row["classified_volume"] = None
+            row["unclassified_volume"] = total_int
+            row["flow_complete"] = (None if total_int is None
+                                    else total_int == 0)
             row["split_method"] = METHOD_NONE
             row["split_source"] = reason or "no split available"
             continue
         row.update(split.as_fields())
         row["split_source"] = METHOD_LABELS[split.method]
+        row["classified_volume"] = split.buy + split.sell
+        row["unclassified_volume"] = (
+            max(0, total_int - row["classified_volume"])
+            if total_int is not None else None)
+        row["flow_complete"] = (None if row["unclassified_volume"] is None
+                                else row["unclassified_volume"] == 0)
     return summarise(leaders)
 
 
 def summarise(rows: Iterable[Mapping]) -> str:
-    """The card's footnote for the split, naming the weakest method used.
-
-    One sentence, because the footnote already carries the index time and
-    the ranking basis. A row with no split at all is counted, not hidden.
-    """
+    """One honest sentence for the card footnote, or the unavailable line."""
     rows = list(rows)
     available = [row for row in rows if row.get("buy_volume") is not None]
     if not available:
-        return "B/S unavailable for the leaders right now"
+        return "B/S unavailable: the wire has not measured a pair"
     present = {str(row.get("split_method") or METHOD_NONE)
                for row in available}
     chosen = METHOD_MEASURED
@@ -399,58 +168,19 @@ def summarise(rows: Iterable[Mapping]) -> str:
         if method in present:
             chosen = method
             break
-    text = METHOD_LABELS[chosen]
+    text = METHOD_LABELS.get(chosen, METHOD_LABELS[METHOD_MEASURED])
     if len(available) < len(rows):
         text += f" ({len(available)} of {len(rows)})"
     return text
 
 
 def flows_for(day: date, symbols: Iterable[str]) -> dict:
-    """Attributed flows for these symbols from the day's banked tape, if any.
+    """Diagnostic tape flows for these symbols, when a capture exists.
 
-    Returns an empty mapping when no tape was banked. The capture is kept
-    alive for the session by src/data/live_card.py, so with the tape running
-    the card's sides come from it; only a session with no tape at all falls
-    back to the range estimate.
+    B/S does not read this mapping: a tape slice cannot prove the venue's
+    whole-session pair. It remains for the capture diagnostics that call it.
     """
     path = tick_volume.capture_path(day)
     if not path.is_file():
         return {}
     return tick_volume.session_flow(path, symbols)
-
-
-def main(argv: list[str] | None = None) -> int:
-    """Worked example of the range estimate, and a hand check of one symbol."""
-    ap = argparse.ArgumentParser(
-        description="buy/sell split: measured tape first, labelled estimate "
-                    "second")
-    ap.add_argument("--high")
-    ap.add_argument("--low")
-    ap.add_argument("--close")
-    ap.add_argument("--volume")
-    args = ap.parse_args(argv)
-
-    high, low, close, volume = args.high, args.low, args.close, args.volume
-    if high is None:
-        # The example quoted in the docstring, worked in full.
-        high, low, close, volume = "101.5", "99.0", "101.0", "1000000"
-        print("no arguments, so the worked example runs:")
-    print(f"  high={high} low={low} close={close} volume={volume}")
-    split = range_position_split(high, low, close, volume)
-    if split is None:
-        print("  split unavailable: the session fields are incomplete")
-        return 1
-    position = ((_number(close) - _number(low))
-                / (_number(high) - _number(low)))
-    print(f"  position = (close - low) / (high - low) = {position:.4f}")
-    print(f"  buy  = round({volume} x {position:.4f}) = {split.buy:,}")
-    print(f"  sell = {volume} - {split.buy:,} = {split.sell:,}")
-    print(f"  buy + sell = {split.buy + split.sell:,} = volume, exactly")
-    print(f"  label shown on the card: {METHOD_LABELS[split.method]}")
-    if split.note:
-        print(f"  note: {split.note}")
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

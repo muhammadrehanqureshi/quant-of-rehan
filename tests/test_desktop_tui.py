@@ -1,4 +1,4 @@
-"""Tests for the console terminal: monotone B/S, poll-delta flow, frames."""
+"""Tests for the console terminal: measured B/S, U, poll flow, frames."""
 
 import unittest
 from datetime import datetime, timedelta, timezone
@@ -17,6 +17,7 @@ def quote(symbol="PRL", price=86.0, volume=18_173_240, buy=13_874_998,
         "volume": volume,
         "buy_volume": buy,
         "sell_volume": sell,
+        "split_method": "quote_rule",
         "change_pct": change_pct,
         "high": 87.7,
         "low": 82.55,
@@ -50,23 +51,30 @@ class DaySplitTest(unittest.TestCase):
         self.assertEqual(row["sell_volume"], 4_298_242)
         self.assertAlmostEqual(row["bought"], 13_874_998 * 86.0)
 
-    def test_day_split_never_falls_when_the_relay_rebalances(self):
+    def test_day_split_follows_the_current_relay_pair(self):
         desk = desk_with([quote()])
         desk.observe([quote(price=83.0, volume=19_000_000, buy=12_000_000,
                             sell=7_000_000)], NOW + timedelta(seconds=1))
         row = desk.flow.rows(now=NOW + timedelta(seconds=1))[0]
-        self.assertEqual(row["buy_volume"], 13_874_998)
+        self.assertEqual(row["buy_volume"], 12_000_000)
         self.assertEqual(row["sell_volume"], 7_000_000)
+        self.assertEqual(row["unclassified"], 0)
 
-    def test_a_row_without_a_split_falls_back_to_the_range_estimate(self):
+    def test_a_row_without_a_measured_pair_is_unclear_never_estimated(self):
         row = quote(symbol="SGPL", price=22.49, volume=1_197_880, buy=None,
                     sell=None, change_pct=-2.13)
         row["high"], row["low"] = 24.0, 21.0
+        row["split_method"] = "unavailable"
         desk = desk_with([row])
         saved = desk.flow.rows(now=NOW)[0]
-        self.assertGreater(saved["buy_volume"], 0)
-        self.assertEqual(saved["buy_volume"] + saved["sell_volume"],
-                         1_197_880)
+        self.assertIsNone(saved["buy_volume"])
+        self.assertIsNone(saved["sell_volume"])
+        self.assertEqual(saved["unclassified"], 1_197_880)
+        self.assertEqual(saved["split_method"], "unavailable")
+        frame = "\n".join(plain_frame(desk))
+        self.assertIn("U=1,197,880", frame)
+        self.assertIn("T=1,197,880", frame)
+        self.assertNotIn("B/S is a range estimate", frame)
 
 
 class SixtySecondFlowTest(unittest.TestCase):
@@ -142,6 +150,16 @@ class FrameTest(unittest.TestCase):
             self.assertIn(name, frame)
         self.assertIn("no executed buying in the last 60 s yet", frame)
 
+    def test_scanner_states_u_when_a_row_has_no_measured_pair(self):
+        row = quote(symbol="SGPL", price=22.49, volume=1_197_880, buy=None,
+                    sell=None, change_pct=-2.13)
+        row["split_method"] = "unavailable"
+        frame = "\n".join(plain_frame(desk_with([row]), page=1, sort=0))
+        self.assertIn("U=1,197,880", frame)
+        self.assertIn("T=1,197,880", frame)
+        self.assertIn("B/S unmeasured", frame)
+        self.assertNotIn("BOUGHT PKR 0", frame)
+
     def test_scanner_ranks_the_sixty_second_buyers_after_a_poll(self):
         desk = desk_with([quote(price=86.0, volume=18_173_240)])
         desk.observe([quote(price=86.5, volume=18_180_000)],
@@ -204,12 +222,14 @@ class FrameTest(unittest.TestCase):
 
     def test_the_hub_pair_replaces_the_desks_own_count(self):
         row = quote()
-        row.update({"measured_buy": 12_000_000, "measured_sell": 5_000_000,
+        row.update({"buy_volume": 12_000_000, "sell_volume": 5_923_240,
+                    "measured_buy": 12_000_000, "measured_sell": 5_923_240,
                     "flow_baseline": 250_000, "flow_method": "quote_rule"})
         desk = desk_with([row])
         saved = desk.flow.rows(now=NOW)[0]
         self.assertEqual(saved["measured_buy"], 12_000_000)
-        self.assertEqual(saved["measured_sell"], 5_000_000)
+        self.assertEqual(saved["measured_sell"], 5_923_240)
+        self.assertEqual(saved["unclassified"], 250_000)
         self.assertEqual(saved["measured_source"], "hub")
         frame = "\n".join(plain_frame(desk, page=2))
         self.assertIn("whole day, measured at the relay", frame)

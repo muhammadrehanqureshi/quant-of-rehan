@@ -14,11 +14,10 @@ the app answers, using the same modules the app's data comes from.
 
     2. WHAT IS THE MARKET DOING?  src/data/market_snapshot.py reads the PSX
        Data Portal's own pages for the KSE100 index and the volume leaders,
-       and src/data/volume_split.py answers the buy and sell volumes from
-       the session's own tape when one is running: measured when it covered
-       the day, otherwise the exact sides it counted, carried verbatim
-       (owner order 2026-10-15). Only with no tape at all does the day's
-       published range answer, and that estimate is labelled as one (SO-3).
+       and src/data/volume_split.py answers the buy and sell volumes only
+       when the relay measured the pair at the wire. A row without that
+       pair carries null B/S and the whole known total as U; a range or a
+       tape slice is never turned into a side.
 
 Every field is validated before it is rendered: a snapshot with a missing
 index, a negative volume, a percentage that is not a number, a split that is
@@ -72,9 +71,10 @@ class Leader:
         if self.has_split:
             parts.append(f"B={self.buy:,}")
             parts.append(f"S={self.sell:,}")
-            parts.append(f"T={self.volume:,}")
+            parts.append(f"U={self.volume - self.buy - self.sell:,}")
         else:
-            parts.append(f"T={self.volume:,}")
+            parts.append(f"U={self.volume:,}")
+        parts.append(f"T={self.volume:,}")
         if self.price is not None:
             parts.append(f"Rs {self.price:,.2f}")
         if self.change_pct is not None:
@@ -169,8 +169,8 @@ def validate_leader(row: Any) -> Leader:
     if (buy is None) != (sell is None):
         # Half a split is not a split: it would print one side as zero.
         raise CardError(f"{symbol} carries only one side of the split")
-    if buy is not None and sell is not None and buy + sell > volume * 2:
-        raise CardError(f"{symbol} split {buy}+{sell} dwarfs its total {volume}")
+    if buy is not None and sell is not None and buy + sell > volume:
+        raise CardError(f"{symbol} split {buy}+{sell} exceeds its total {volume}")
     return Leader(
         symbol=symbol, volume=volume,
         price=_number(row.get("price"), f"{symbol}.price", low=0.0),
@@ -226,9 +226,9 @@ def validate_card(snapshot: Any) -> Card:
     )
 
 
-#: The Friday midday break, with the day's split carried the way the relay
-#: carries it: labelled as an estimate, because the venue publishes total
-#: volume only (src/data/volume_split.py).
+#: The Friday midday break. The venue publishes total volume only, so the
+#: offline rows carry no B/S and show the whole total as U
+#: (src/data/volume_split.py).
 OFFLINE_FIXTURE: dict = {
     "market_open": False,
     "market_state": {"phase": "BREAK", "market_open": False,
@@ -242,16 +242,17 @@ OFFLINE_FIXTURE: dict = {
     "kmiall_members": 313,
     "top_volume": [
         {"symbol": "CNERGY", "volume": 27276548, "price": 12.52,
-         "change_pct": 1.049, "buy_volume": 14547492,
-         "sell_volume": 12729056, "split_method": "range_position"},
+         "change_pct": 1.049, "buy_volume": None,
+         "sell_volume": None, "split_method": "unavailable"},
         {"symbol": "PRL", "volume": 24123072, "price": 93.07,
-         "change_pct": -2.14, "buy_volume": 11782216,
-         "sell_volume": 12340856, "split_method": "range_position"},
+         "change_pct": -2.14, "buy_volume": None,
+         "sell_volume": None, "split_method": "unavailable"},
         {"symbol": "TREET", "volume": 22903682, "price": 41.1,
-         "change_pct": 0.51, "buy_volume": None, "sell_volume": None},
+         "change_pct": 0.51, "buy_volume": None, "sell_volume": None,
+         "split_method": "unavailable"},
     ],
     "top_volume_basis": "current session volume, top 3",
-    "volume_split_basis": "B/S estimated from the day's range, not order flow (SO-3: proxy; truth source src/data/registry.py)",
+    "volume_split_basis": "B/S unavailable: the wire has not measured a pair",
     "notes": [],
 }
 

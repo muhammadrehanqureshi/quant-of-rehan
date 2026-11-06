@@ -371,22 +371,20 @@ class MeasuredSplitTest(unittest.TestCase):
         self.assertIsNone(rows[0]["buy_volume"])
         self.assertIsNone(rows[0]["sell_volume"])
         self.assertEqual(rows[0]["split_method"], volume_split.METHOD_NONE)
-        self.assertIn("no published session range", rows[0]["split_source"])
-        self.assertEqual(basis, "B/S unavailable for the leaders right now")
+        self.assertIn("no measured order-flow pair", rows[0]["split_source"])
+        self.assertEqual(
+            basis, "B/S unavailable: the wire has not measured a pair")
         for row_ in rows:
             self.assertTrue(row_["split_source"])
 
-    def test_a_partial_tape_counts_never_split_the_row_the_frame_does(self):
-        """The tape saw part of the day: its counts are no longer the card's.
+    def test_a_partial_tape_counts_never_split_the_card_row(self):
+        """The tape saw part of the day: its counts are not the card's.
 
         Six windows, four of them buys, 3000 attributed shares against a
-        running total of 4000 (75 percent coverage). The verbatim pair's sum
-        is the tape's own window, deliberately not the venue total printed
-        beside T on the same row, which is exactly the two answers for one
-        stock the owner measured on 2026-10-29. The row's own frame answers
-        instead: price 100 sits at the day's high of 100, so the range split
-        puts the whole session on the buy side, and B + S is the row's T,
-        exactly.
+        running total of 4000 (75 percent coverage). That is still not the
+        venue's whole-session pair, so the row stays explicit null B/S with
+        the whole total as U, never a range estimate and never the tape's
+        partial sum.
         """
         ticks = [row("OGDC", bid="100.00", ask="100.50", last="100.00",
                      total="1000", when="10:00")]
@@ -407,19 +405,12 @@ class MeasuredSplitTest(unittest.TestCase):
                                                    "low": 90.0,
                                                    "close": 100.0,
                                                    "volume": 1000}})
-        self.assertEqual((rows[0]["buy_volume"], rows[0]["sell_volume"]),
-                         (1000, 0))
-        self.assertEqual(rows[0]["buy_volume"] + rows[0]["sell_volume"],
-                         rows[0]["volume"])
-        self.assertEqual(rows[0]["split_method"],
-                         volume_split.METHOD_RANGE)
-        # One truth (owner order 2026-10-30): the frame's range answers
-        # the row even when the tape saw only a part of the day, so the
-        # note is the range basis the card counts rows with - one split
-        # row of the two in this frame.
+        self.assertIsNone(rows[0]["buy_volume"])
+        self.assertIsNone(rows[0]["sell_volume"])
+        self.assertEqual(rows[0]["unclassified_volume"], 1000)
+        self.assertEqual(rows[0]["split_method"], volume_split.METHOD_NONE)
         self.assertEqual(
-            basis, volume_split.METHOD_LABELS[volume_split.METHOD_RANGE]
-                   + " (1 of 2)")
+            basis, "B/S unavailable: the wire has not measured a pair")
 
     def test_a_capture_without_tape_rows_cannot_split_a_row(self):
         """A stats frame is not a trade: the row stays without numbers."""
@@ -432,12 +423,13 @@ class MeasuredSplitTest(unittest.TestCase):
         for row_ in rows:
             self.assertIsNone(row_["buy_volume"])
             self.assertIsNone(row_["sell_volume"])
-        self.assertNotIn("measured", basis)
-        self.assertNotIn("broker", basis)
+        self.assertEqual(
+            basis, "B/S unavailable: the wire has not measured a pair")
 
     def test_no_capture_at_all_leaves_every_row_unavailable(self):
         rows, basis = self.attach()
-        self.assertEqual(basis, "B/S unavailable for the leaders right now")
+        self.assertEqual(
+            basis, "B/S unavailable: the wire has not measured a pair")
         for row_ in rows:
             self.assertEqual(row_["split_method"], volume_split.METHOD_NONE)
             self.assertTrue(row_["split_source"])
@@ -578,12 +570,13 @@ class MarketCardExampleTest(unittest.TestCase):
         # Owner order 2026-10-12: the retired "MARKET NOW" label is gone from
         # the card, so the example cannot print it either.
         self.assertNotIn("MARKET NOW", result.stdout)
-        # The fixture carries the day's split, labelled as the estimate it is:
-        # the venue publishes total volume only, so a bare B=/S= would claim
-        # more than anyone can know (SO-3).
-        self.assertIn("B=14,547,492", result.stdout)
-        self.assertIn("S=12,729,056", result.stdout)
-        self.assertIn("B/S estimated from the day's range, not order flow",
+        # The offline fixture has no measured pair, so it shows the whole
+        # total as U and no B or S at all (SO-3).
+        self.assertIn("U=27,276,548", result.stdout)
+        self.assertIn("T=27,276,548", result.stdout)
+        self.assertNotIn("B=", result.stdout)
+        self.assertNotIn("S=", result.stdout)
+        self.assertIn("B/S unavailable: the wire has not measured a pair",
                       result.stdout)
         self.assertIn("Market is on a break right now.", result.stdout)
         self.assertNotIn("KMIALLSHR members", result.stdout)
