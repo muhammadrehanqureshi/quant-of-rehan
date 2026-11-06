@@ -723,7 +723,11 @@ func (a *App) beat() {
 		silentPhase = true
 	}
 	if silentPhase {
-		// Keep the phase baseline current without a banner, tone or toast.
+		// Keep the phase baseline current without a banner, tone or toast. Any
+		// banner from the session that just ended is cleared too: the pre and
+		// post markets must not mention sleep or a closed market.
+		a.bannerTitle, a.bannerBody, a.bannerKind = "", "", ""
+		a.bannerUntil = time.Time{}
 		if ev := marketEvent(a.market); ev != "" {
 			a.cfg.LastMarketEvent, a.dirty = ev, true
 		}
