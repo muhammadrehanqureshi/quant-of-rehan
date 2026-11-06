@@ -413,7 +413,7 @@ function bandsFor(k) {
 // parity with src/data/sessions.py is tested.
 // Owner order 2026-10-21: the pre-open and post-market windows are LIVE scan
 // windows too (banking broker ticks at one second). The 08:55 PKT dispatch,
-// on Mon-Thu and Friday, and the 14:15 PKT Friday dispatch are recorder
+// on Mon-Thu and Friday, and the 14:10 PKT Friday dispatch are recorder
 // warm-ups, not pre-market sessions: they start the capture before the first
 // trade, while the scanner itself waits for the exchange's published
 // pre-open window (Mon-Thu 09:15 to 09:30, Friday 09:00 to 09:15 and 14:15 to
@@ -422,7 +422,7 @@ function bandsFor(k) {
 const WEEKDAY_WINDOWS = [[[8, 55], [12, 30]], [[12, 30], [15, 30]],
                          [[15, 35], [15, 50]]];
 
-const FRIDAY_WINDOWS = [[[8, 55], [12, 30]], [[14, 15], [16, 30]],
+const FRIDAY_WINDOWS = [[[8, 55], [12, 30]], [[14, 10], [16, 30]],
                         [[16, 35], [16, 50]]];
 
 function dispatchWindowsFor(k) {
