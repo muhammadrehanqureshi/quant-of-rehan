@@ -18,8 +18,9 @@ name: KMIALL session scan loop
 # newest snapshot the relay holds.
 #
 # Why four windows instead of one job: a GitHub job may not exceed six hours,
-# and Mon-Thu 09:32 to 15:30 is 5h58m before any setup is billed. Each window
-# here is under three hours, and the loop pauses in the warm-up, in the Friday
+# and Mon-Thu 09:32 to 15:30 is 5h58m before any setup is billed. The longest
+# window here is 216 minutes (08:55 to 12:31), inside the job's 240-minute
+# timeout, and the loop pauses in the warm-up, in the Friday
 # midday break and outside the session, so a window that starts at a band edge
 # and ends at the next one never scans a shut market. The scheduled per-slot
 # fires and the post-close finalize in intraday-capture.yml stay as they are:
@@ -83,7 +84,7 @@ concurrency:
 jobs:
   session:
     runs-on: ubuntu-latest
-    timeout-minutes: 190
+    timeout-minutes: 240
     env:
       # The journal token: actual intraday signals (and deduped ops
       # alerts) still email the owner through the watched issue (owner

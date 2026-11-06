@@ -646,6 +646,8 @@ class RelayWorkerContractTest(unittest.TestCase):
         # exchange's 15:35 to 15:50 Post-Close Session as its third entry.
         self.assertIn("const WEEKDAY_WINDOWS = [[[8, 55], [12, 30]], [[12, 30], [15, 30]],",
                       self.source)
+        self.assertIn("const FRIDAY_WINDOWS = [[[8, 55], [12, 30]],",
+                      self.source)
         self.assertIn("[[15, 35], [15, 50]]", self.source)
         self.assertIn("function dispatchWindowsFor(k) {", self.source)
         self.assertIn("for (const band of dispatchWindowsFor(k))", self.source)
