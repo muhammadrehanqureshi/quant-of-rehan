@@ -452,15 +452,28 @@ class RelayQuotePublisher:
             "RELAY_URL", "https://quant-of-rehan-relay.mrmrehanqureshi.workers.dev"
         ).strip().rstrip("/")
         adopted = self._seed_day_flow()
-        if self._seed_required and adopted == 0:
+        if self._seed_required and adopted < 0:
             # A mid-session restart must not replace the morning pair with a
-            # fresh baseline. The capture keeps banking, but the phone keeps
-            # the last honest pair until a seed succeeds.
+            # fresh baseline, and a relay that cannot be asked must not be
+            # guessed at. The capture keeps banking, but the phone keeps the
+            # last honest pair until a seed can be read.
             self._seed_failed = True
-            print("flow seed required for this mid-session start but no "
-                  "same-day pair was adopted; publisher not started",
-                  file=sys.stderr, flush=True)
+            print("flow seed unreadable for this mid-session start; "
+                  "publisher not started", file=sys.stderr, flush=True)
             return
+        if self._seed_required and adopted == 0:
+            # Owner report 2026-11-06: the relay had no same-day pair because
+            # no capture had pushed at all that day, and the refusal below
+            # then kept the phone blank for the whole session while the tape
+            # itself was live (1472 messages and 13188 ticks were banked and
+            # thrown away). With nothing to continue there is nothing to
+            # overwrite: this capture's first frame seeds the day's baseline,
+            # the morning's prefix stays unclassified (U), and every
+            # increment from here is measured at the wire.
+            self._seed_failed = False
+            print("flow seed: no same-day pair on the relay, so the day's "
+                  "baseline is seeded from this capture's first frame",
+                  flush=True)
         if not self._seed_required:
             seeded = self._flow.seed_preopen(
                 load_universe(), now_karachi().isoformat())
@@ -483,6 +496,7 @@ class RelayQuotePublisher:
         import requests
 
         last_reason = "no same-day pair adopted"
+        answered = False
         for attempt in range(1, self.SEED_ATTEMPTS + 1):
             try:
                 response = requests.get(
@@ -490,9 +504,10 @@ class RelayQuotePublisher:
                     headers={"User-Agent": "Mozilla/5.0"},
                     timeout=(1.0, 3.0))
                 response.raise_for_status()
+                body = response.json()
+                answered = True
                 adopted = seed_day_flow(
-                    self._flow, response.json(),
-                    now_karachi().strftime("%Y-%m-%d"))
+                    self._flow, body, now_karachi().strftime("%Y-%m-%d"))
                 if adopted:
                     print(f"flow seed: continuing {adopted} symbol(s) from "
                           f"the relay's same-day pair", flush=True)
@@ -504,7 +519,9 @@ class RelayQuotePublisher:
                 time.sleep(self.SEED_RETRY_SECONDS)
         print(f"flow seed skipped after {self.SEED_ATTEMPTS} attempt(s): "
               f"{last_reason}", file=sys.stderr, flush=True)
-        return 0
+        # -1 means the relay never answered, so whether a same-day pair exists
+        # is unknown; 0 means it answered and has none, which is safe to seed.
+        return 0 if answered else -1
 
     def observe(self, record: dict) -> None:
         if self._thread is None:
