@@ -198,20 +198,19 @@ func orbPixels(w, h int, sx float64, st radarState, pal radarPal) []RGB {
 		}
 	}
 
-	// The wireframe sphere turns slowly around its vertical axis.
+	// The wireframe sphere turns clockwise only, and stops when parked or faulted.
 	t := st.t
 	if !st.moving {
 		t = 2.4
 	}
-	ca, sa := math.Cos(t*0.42), math.Sin(t*0.42)
-	tilt := 0.38
-	ct, stt := math.Cos(tilt), math.Sin(tilt)
+	// Clockwise only: the mesh turns about the view axis. Screen y grows
+	// downward, so a positive angle turns clockwise.
+	a := t * 0.9
+	ca, sa := math.Cos(a), math.Sin(a)
 	project := func(n markNode) (float64, float64, float64) {
-		x := ca*n.x + sa*n.z
-		z := -sa*n.x + ca*n.z
-		y := ct*n.y - stt*z
-		z = stt*n.y + ct*z
-		return x * R * 0.98, y * R * 0.98, z
+		x := ca*n.x - sa*n.y
+		y := sa*n.x + ca*n.y
+		return x * R * 0.98, y * R * 0.98, n.z
 	}
 	// Back edges first, so the front of the sphere reads as the front.
 	type edge struct {
