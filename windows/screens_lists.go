@@ -414,12 +414,13 @@ func (a *App) showing(l *listView, noun string) string {
 	return fmt.Sprintf("%d to %d of %s", l.off+1, last, plural(l.total, noun))
 }
 
-// drawSectorTile shows one of the relay's KMIALL sector groups at a time, with
-// its members. Clicking the tile steps to the next group, so every group can be
-// read without leaving the scanner.
+// drawSectorTile shows the relay's KMIALL sector groups as a drop down: every
+// group is listed, the chosen one is marked, and the wheel or the scrollbar
+// moves through the list. Clicking a row picks that group.
 func (a *App) drawSectorTile(c *Canvas, x, y, w, h int) {
 	th := a.th
-	ix, iy, iw, ih := a.panel(c, x, y, w, h, "SECTORS", "click to cycle")
+	ix, iy, iw, ih := a.panel(c, x, y, w, h, "SECTORS", "wheel to scroll, click to pick")
+	a.sectorY, a.sectorH = y, h
 	groups := a.sectorGroups()
 	if len(groups) == 0 {
 		msg := "Reading the sector groups from the relay."
@@ -434,24 +435,41 @@ func (a *App) drawSectorTile(c *Canvas, x, y, w, h int) {
 	if a.sectorChoice >= len(groups) || a.sectorChoice < 0 {
 		a.sectorChoice = 0
 	}
-	g := groups[a.sectorChoice]
-	c.Spans(ix, iy, iw, []Span{{"SECTOR  ", th.Soft, false}, {g.Name, th.Hot, true},
-		{"  ·  ", th.Soft, false}, {fmt.Sprintf("%d scrips", len(g.Symbols)), th.Text, false}})
-	if ih > 1 {
-		c.Text(ix, iy+1, iw, fit(strings.Join(g.Symbols, "  "), iw), th.Text, false)
-	}
+	rows := ih
 	if ih > 2 {
-		hint := "The relay's own KMIALL groups."
-		if len(groups) > 1 {
-			hint = fmt.Sprintf("Group %d of %d. Click the tile for the next one.", a.sectorChoice+1, len(groups))
-		}
-		c.Text(ix, iy+2, iw, fit(hint, iw), th.Soft, false)
+		rows = ih - 1 // the last row carries the chosen group's scrips
 	}
-	a.addHit(x, y, w, h, func() {
-		if len(groups) > 1 {
-			a.sectorChoice = (a.sectorChoice + 1) % len(groups)
+	a.lvSector.set(len(groups), rows)
+	if a.sectorChoice < a.lvSector.off {
+		a.lvSector.off = a.sectorChoice
+	}
+	if a.sectorChoice >= a.lvSector.off+a.lvSector.view {
+		a.lvSector.off = a.sectorChoice - a.lvSector.view + 1
+	}
+	cw := contentW(&a.lvSector, iw)
+	for n := 0; n < a.lvSector.view; n++ {
+		i := a.lvSector.off + n
+		if i >= len(groups) {
+			break
 		}
-	})
+		g := groups[i]
+		ry := iy + n
+		idx := i
+		bg := a.selectRow(c, ix, ry, cw, i == a.sectorChoice, func() { a.sectorChoice = idx })
+		mark := "  "
+		if i == a.sectorChoice {
+			mark = "◆ "
+		}
+		c.Set(ix+1, ry, []rune(mark)[0], th.Accent, bg, true)
+		c.Text(ix+3, ry, cw-3, fit(g.Name, cw-3), th.Text, i == a.sectorChoice)
+		rightAlign(c, ix, ry, cw, []Span{{fmt.Sprintf("%d", len(g.Symbols)), th.Soft, false}})
+	}
+	a.scrollbar(c, ix+iw-1, iy, a.lvSector.view, &a.lvSector)
+	if ih > 1 {
+		g := groups[a.sectorChoice]
+		line := fmt.Sprintf("%d scrips  ·  %s", len(g.Symbols), strings.Join(g.Symbols, "  "))
+		c.Text(ix, iy+ih-1, iw, fit(line, iw), th.Soft, false)
+	}
 }
 
 // demoSectorGroups gives the demo scanner a real-looking set of groups, so the
@@ -504,7 +522,9 @@ func (a *App) drawFlowList(c *Canvas, ix, head, top, iw, rows, barX int) {
 		}
 		c.Spans(ix, row, cw, []Span{{fmt.Sprintf("%3d. ", i+1), th.Soft, false}, {b.Symbol, th.Hot, true}, {flag, th.Warn, true}})
 		if cw >= 70 {
-			a.shareBar(c, ix+24, row, 22, b.Share)
+			// On the block's top row, the lower half of the cell brings the bar
+			// to the block's centre line.
+			a.shareBarHalf(c, ix+24, row, 22, b.Share, '▄')
 		}
 		right := ix + cw
 		if b.ChangePct != nil {
@@ -527,18 +547,26 @@ func (a *App) drawFlowList(c *Canvas, ix, head, top, iw, rows, barX int) {
 	a.scrollbar(c, barX, top, a.lvScan.view*2, &a.lvScan)
 }
 
-// shareBar draws a buy versus sell bar of w columns: the bar, then one space,
-// then the percentage written from there, whatever its width, so "98%" and
-// "100%" both follow the bar by exactly one space.
+// shareBar draws a buy versus sell bar of w columns at half the height of a
+// cell, on the top half of its row, so it sits in the middle of a stock's two
+// row block rather than along the bottom. Then one space, then the percentage,
+// so "98%" and "100%" both follow the bar by exactly one space.
 func (a *App) shareBar(c *Canvas, x, y, w int, buyShare float64) {
+	a.shareBarHalf(c, x, y, w, buyShare, '▀')
+}
+
+// shareBarHalf is shareBar with the caller choosing which half of the cell the
+// bar fills: the top half on a block's lower row, the bottom half on its upper
+// row, so the bar always touches the block's centre line.
+func (a *App) shareBarHalf(c *Canvas, x, y, w int, buyShare float64, half rune) {
 	th := a.th
 	bw := w - 5
 	f := int(math.Round(buyShare * float64(bw)))
 	for i := 0; i < bw; i++ {
 		if i < f {
-			c.Put(x+i, y, '█', th.Good, false)
+			c.Put(x+i, y, half, th.Good, false)
 		} else {
-			c.Put(x+i, y, '█', mix(th.Panel, th.Bad, 0.8), false)
+			c.Put(x+i, y, half, mix(th.Panel, th.Bad, 0.8), false)
 		}
 	}
 	c.Text(x+bw+1, y, 4, strconv.FormatFloat(math.Round(buyShare*100), 'f', 0, 64)+"%", th.Soft, false)

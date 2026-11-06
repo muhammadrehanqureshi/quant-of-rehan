@@ -1,25 +1,23 @@
 package main
 
-import (
-	"math"
-	"sort"
-)
+import "math"
 
-// The quant mark is the gold sun inside a wireframe network sphere, after the
-// owner's picture. It is drawn as a picture rather than dots: every character
-// cell holds four pixels, so the curves stay smooth at terminal size.
+// The quant mark is the HUD dial from the owner's picture: a teal field under
+// concentric pale rings, a ring of heavy blocks, ribbed and tick rings, and a
+// bright inner ring, with an empty centre. It is drawn as a picture: every
+// character cell holds four pixels, so the curves stay smooth at terminal size.
 //
-// There is no radar sweep, no antenna beam and no crosshair. The only movement
-// is the slow turn of the wireframe sphere. The sun itself stays still, as in
-// the picture, and the mark stays gold in every state; the status pill and the
-// text carry the online or offline state.
+// There is no gold sun, no wireframe sphere, no radar sweep and no crosshair,
+// because the picture has none. The only movement is the slow clockwise turn
+// of the rings while the quant is online; they stand still when it is parked,
+// which is how the picture itself stands.
 
 var cellAspect = defaultCellAspect
 
 const defaultCellAspect = 2.22
 
-// OrbMode mirrors the Android ThinkingOrb gate: it burns while the quant is
-// online and parks when it is not.
+// OrbMode says whether the quant is online. The dial keeps the picture's own
+// blue in every state; offline it is dimmed rather than recoloured.
 type OrbMode int
 
 const (
@@ -39,231 +37,106 @@ func clamp01(x float64) float64 {
 	return x
 }
 
-// radarPal is the colour set of one state. The three stops are the dim line
-// work, the main ink and the brightest highlight.
-type radarPal struct {
-	dim, mid, hot RGB
-	gain          float64
+// The dial's own colours, taken from the owner's picture: a deep teal field
+// and pale ice blue rings.
+var (
+	hudTeal = RGB{12, 104, 140}
+	hudPale = RGB{228, 243, 249}
+	hudMid  = RGB{176, 212, 228}
+	hudDim  = RGB{104, 156, 180}
+)
+
+// hudRing is one concentric band of the dial. count 1 draws one arc with a gap;
+// count above 1 draws that many segments around the circle, and a low fill
+// makes them thin radial ticks instead of blocks.
+type hudRing struct {
+	r0, r1 float64 // inner and outer radius as a fraction of the dial's radius
+	count  int     // segments around the circle
+	fill   float64 // the painted part of each segment, 0 to 1
+	offset float64 // where the segments start, in turns
+	speed  float64 // turns a second, clockwise
+	tone   float64 // 0 dim, 1 the brightest pale
 }
 
-func (p radarPal) at(tone float64) RGB {
-	tone = clamp01(tone * p.gain)
-	if tone < 0.5 {
-		return mix(p.dim, p.mid, tone/0.5)
-	}
-	return mix(p.mid, p.hot, (tone-0.5)/0.5)
+// hudRings is the picture from the outside in: the thin capped arc, the ring
+// of heavy blocks, the ribbed ring, the dense tick ring, the bright ring, the
+// second tick ring and the small inner ring.
+var hudRings = []hudRing{
+	{0.955, 0.990, 1, 0.94, 0.06, 0.004, 0.50},
+	{0.800, 0.930, 12, 0.62, 0.01, 0.010, 0.92},
+	{0.690, 0.760, 40, 0.84, 0.00, 0.016, 0.68},
+	{0.615, 0.700, 64, 0.30, 0.00, 0.022, 0.88},
+	{0.455, 0.545, 6, 0.78, 0.02, 0.030, 1.00},
+	{0.360, 0.440, 48, 0.28, 0.00, 0.038, 0.76},
+	{0.230, 0.290, 36, 0.30, 0.00, 0.048, 0.70},
 }
 
-// The mark is gold in every state, as the owner's picture is. Offline is a
-// dimmer gold rather than a different hue.
-func radarPalette(mode OrbMode) radarPal {
-	switch mode {
-	case OrbParked, OrbFault:
-		return radarPal{dim: RGB{70, 14, 14}, mid: RGB{200, 40, 40}, hot: RGB{255, 140, 140}, gain: 0.9}
-	case OrbChecking:
-		return radarPal{dim: RGB{60, 60, 16}, mid: RGB{200, 190, 50}, hot: RGB{255, 245, 160}, gain: 1}
-	}
-	return radarPal{dim: RGB{14, 70, 30}, mid: RGB{40, 200, 90}, hot: RGB{150, 255, 180}, gain: 1}
-}
-
-// radarState is what animates. When moving is false the sphere stays where it
+// radarState is what animates. When moving is false the rings stay where they
 // stopped.
 type radarState struct {
 	t      float64 // seconds of motion
 	moving bool
 }
 
-// markNode is one vertex of the wireframe sphere.
-type markNode struct {
-	x, y, z float64
+// hudInk gives the ink for one tone at this mode: the picture's ice blue when
+// online, dimmed when the quant is parked, softer while the relay is checked.
+func hudInk(tone float64, mode OrbMode) RGB {
+	c := mix(hudMid, hudPale, clamp01(tone))
+	switch mode {
+	case OrbParked, OrbFault:
+		return mix(hudDim, c, 0.40)
+	case OrbChecking:
+		return mix(hudDim, c, 0.72)
+	}
+	return c
 }
 
-// markNodes builds a Fibonacci sphere: evenly spread points, which look like a
-// network rather than a regular grid. The list is fixed, so the picture is
-// stable from frame to frame.
-func markNodes() []markNode {
-	const n = 46
-	out := make([]markNode, 0, n)
-	ga := math.Pi * (3 - math.Sqrt(5))
-	for i := 0; i < n; i++ {
-		y := 1 - 2*(float64(i)+0.5)/n
-		rad := math.Sqrt(math.Max(0, 1-y*y))
-		a := ga * float64(i)
-		out = append(out, markNode{math.Cos(a) * rad, y, math.Sin(a) * rad})
-	}
-	return out
-}
-
-// markEdges joins each node to its nearest neighbours, giving a constellation
-// mesh. Each pair is kept once.
-func markEdges(nodes []markNode) [][2]int {
-	type pair struct {
-		i, j int
-		d    float64
-	}
-	var pairs []pair
-	for i := range nodes {
-		for j := i + 1; j < len(nodes); j++ {
-			dx := nodes[i].x - nodes[j].x
-			dy := nodes[i].y - nodes[j].y
-			dz := nodes[i].z - nodes[j].z
-			pairs = append(pairs, pair{i, j, dx*dx + dy*dy + dz*dz})
-		}
-	}
-	sort.Slice(pairs, func(a, b int) bool { return pairs[a].d < pairs[b].d })
-	seen := make([]int, len(nodes))
-	var out [][2]int
-	for _, p := range pairs {
-		if seen[p.i] >= 2 && seen[p.j] >= 2 {
-			continue
-		}
-		if seen[p.i] >= 3 || seen[p.j] >= 3 {
-			continue
-		}
-		seen[p.i]++
-		seen[p.j]++
-		out = append(out, [2]int{p.i, p.j})
-	}
-	return out
-}
-
-var markVerts = markNodes()
-var markLinks = markEdges(markVerts)
-
-// orbPixels paints the mark into a w by h pixel buffer and returns the colours
+// orbPixels paints the dial into a w by h pixel buffer and returns the colours
 // to add to the background. h is twice the cell rows.
-func orbPixels(w, h int, sx float64, st radarState, pal radarPal) []RGB {
+func orbPixels(w, h int, sx float64, st radarState, mode OrbMode) []RGB {
 	vs := cellAspect / 2
 	cx, cy := float64(w)/2, float64(h)/2
 	R := math.Min(cx/sx, cy*vs) - 0.5
 	if R < 3 {
 		return nil
 	}
-	buf := make([][3]float64, w*h)
-	put := func(i, j int, tone, alpha float64) {
-		if alpha <= 0 || i < 0 || j < 0 || i >= w || j >= h {
-			return
-		}
-		c := pal.at(tone)
-		idx := j*w + i
-		buf[idx][0] += float64(c.R) / 255 * alpha
-		buf[idx][1] += float64(c.G) / 255 * alpha
-		buf[idx][2] += float64(c.B) / 255 * alpha
-	}
-
-	// A faint halo makes the gold read as light on the dark panel.
-	for j := 0; j < h; j++ {
-		for i := 0; i < w; i++ {
-			x := (float64(i) + 0.5 - cx) / sx
-			y := (float64(j) + 0.5 - cy) * vs
-			f := math.Hypot(x, y) / R
-			if f > 1.18 {
-				continue
-			}
-			put(i, j, 0.08, 0.22*clamp01((1.18-f)/0.28))
-		}
-	}
-
-	// The sun: a still, glowing disc at the centre of the network.
-	sun := 0.27 * R
-	for j := 0; j < h; j++ {
-		for i := 0; i < w; i++ {
-			x := (float64(i) + 0.5 - cx) / sx
-			y := (float64(j) + 0.5 - cy) * vs
-			r := math.Hypot(x, y)
-			if r > sun*2.3 {
-				continue
-			}
-			switch {
-			case r <= sun*0.55:
-				put(i, j, 0.95, 0.98)
-			case r <= sun:
-				put(i, j, 0.72, 0.92*clamp01((sun-r)/sun+0.15))
-			case r <= sun*1.45:
-				put(i, j, 0.5, 0.42*clamp01((sun*1.45-r)/(sun*0.45)))
-			default:
-				put(i, j, 0.3, 0.20*clamp01((sun*2.3-r)/(sun*0.85)))
-			}
-		}
-	}
-	// A few short rays, still part of the sun rather than a sweep.
-	for k := 0; k < 12; k++ {
-		a := float64(k) * math.Pi / 6
-		for d := sun * 1.35; d < sun*1.75; d += 0.45 {
-			x := math.Cos(a) * d
-			y := math.Sin(a) * d
-			i := int(cx + x*sx)
-			j := int(cy + y/vs)
-			put(i, j, 0.55, 0.18)
-		}
-	}
-
-	// The wireframe sphere turns clockwise only, and stops when parked or faulted.
+	buf := make([]RGB, w*h)
 	t := st.t
 	if !st.moving {
-		t = 2.4
+		t = 0
 	}
-	// Clockwise only: the mesh turns about the view axis. Screen y grows
-	// downward, so a positive angle turns clockwise.
-	a := t * 0.9
-	ca, sa := math.Cos(a), math.Sin(a)
-	project := func(n markNode) (float64, float64, float64) {
-		x := ca*n.x - sa*n.y
-		y := sa*n.x + ca*n.y
-		return x * R * 0.98, y * R * 0.98, n.z
+	field := hudTeal
+	if mode == OrbParked || mode == OrbFault {
+		field = mix(field, RGB{0, 0, 0}, 0.45)
 	}
-	// Back edges first, so the front of the sphere reads as the front.
-	type edge struct {
-		a, b markNode
-		d    float64
-	}
-	edges := make([]edge, 0, len(markLinks))
-	for _, e := range markLinks {
-		edges = append(edges, edge{markVerts[e[0]], markVerts[e[1]], 0})
-	}
-	sort.SliceStable(edges, func(i, j int) bool {
-		_, _, zi := project(edges[i].a)
-		_, _, zj := project(edges[j].a)
-		return zi < zj
-	})
-	for _, e := range edges {
-		ax, ay, az := project(e.a)
-		bx, by, bz := project(e.b)
-		depth := (az + bz) / 2
-		alpha := 0.28 + 0.42*clamp01(depth+0.5)
-		tone := 0.34 + 0.30*clamp01(depth+0.5)
-		const steps = 22
-		for s := 0; s <= steps; s++ {
-			f := float64(s) / steps
-			x := ax + (bx-ax)*f
-			y := ay + (by-ay)*f
-			i := int(cx + x*sx)
-			j := int(cy + y/vs)
-			put(i, j, tone, alpha)
-			// A one pixel soft edge on each side.
-			put(i+1, j, tone*0.96, alpha*0.35)
+	for j := 0; j < h; j++ {
+		for i := 0; i < w; i++ {
+			x := (float64(i) + 0.5 - cx) / sx
+			y := (float64(j) + 0.5 - cy) * vs
+			r := math.Hypot(x, y) / R
+			if r > 1 {
+				continue
+			}
+			col := field
+			// The rings sit on the teal field, the way the picture's do.
+			turn := math.Atan2(y, x)/(2*math.Pi) + 1
+			for _, g := range hudRings {
+				if r < g.r0 || r > g.r1 {
+					continue
+				}
+				if g.count > 0 {
+					slot := (turn + g.offset + g.speed*t) * float64(g.count)
+					if slot-math.Floor(slot) > g.fill {
+						continue
+					}
+				}
+				col = hudInk(g.tone, mode)
+				break
+			}
+			buf[j*w+i] = col
 		}
 	}
-	for _, n := range markVerts {
-		x, y, z := project(n)
-		i := int(cx + x*sx)
-		j := int(cy + y/vs)
-		tone := 0.55 + 0.4*clamp01(z+0.5)
-		put(i, j, tone, 0.85)
-		put(i-1, j, tone*0.9, 0.4)
-		put(i, j-1, tone*0.9, 0.4)
-	}
-
-	// Soft clip, so nothing burns to a hard white.
-	out := make([]RGB, w*h)
-	for i := range out {
-		var ch [3]float64
-		for c := 0; c < 3; c++ {
-			ch[c] = 1 - math.Exp(-1.6*buf[i][c])
-		}
-		out[i] = RGB{uint8(ch[0]*255 + 0.5), uint8(ch[1]*255 + 0.5), uint8(ch[2]*255 + 0.5)}
-	}
-	return out
+	return buf
 }
 
 // ringHalfBlocks turns the mark back to one pixel per column, drawn with the
@@ -276,16 +149,15 @@ func drawOrb(c *Canvas, x0, y0, w, h int, t float64, mode OrbMode, th *Theme) {
 	if w < 6 || h < 3 {
 		return
 	}
-	pal := radarPalette(mode)
 	st := radarState{t: t, moving: true}
 	switch mode {
 	case OrbParked, OrbFault:
-		st = radarState{t: 2.4, moving: false}
+		st = radarState{t: 0, moving: false}
 	case OrbChecking:
 		st = radarState{t: t * 0.6, moving: true}
 	}
 	if ringHalfBlocks {
-		px := orbPixels(w, 2*h, 1, st, pal)
+		px := orbPixels(w, 2*h, 1, st, mode)
 		if px == nil {
 			return
 		}
@@ -298,13 +170,19 @@ func drawOrb(c *Canvas, x0, y0, w, h int, t float64, mode OrbMode, th *Theme) {
 		}
 		return
 	}
-	px := orbPixels(2*w, 2*h, 2, st, pal)
+	px := orbPixels(2*w, 2*h, 2, st, mode)
 	if px == nil {
 		return
 	}
 	wp := 2 * w
 	for cy := 0; cy < h; cy++ {
 		for cx := 0; cx < w; cx++ {
+			// A cell outside the dial keeps the panel behind it, so the mark
+			// stays a round dial rather than a filled square.
+			if px[(2*cy)*wp+2*cx] == (RGB{}) && px[(2*cy)*wp+2*cx+1] == (RGB{}) &&
+				px[(2*cy+1)*wp+2*cx] == (RGB{}) && px[(2*cy+1)*wp+2*cx+1] == (RGB{}) {
+				continue
+			}
 			bg := c.BGAt(x0+cx, y0+cy)
 			var q [4]RGB
 			q[0] = over(bg, px[(2*cy)*wp+2*cx])

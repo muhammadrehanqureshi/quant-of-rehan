@@ -203,6 +203,8 @@ func (a *App) wheel(d int) {
 			if n := len(a.matches()); n > 0 {
 				a.searchCursor = min(max(0, a.searchCursor+d), n-1)
 			}
+		} else if a.sectorH > 0 && a.hoverY >= a.sectorY && a.hoverY < a.sectorY+a.sectorH {
+			a.lvSector.scroll(d)
 		} else if a.scanChoice > 0 {
 			a.lvScan.scroll(d * 2)
 		}

@@ -40,7 +40,7 @@ func main() {
 		ticks     = flag.Int("ticks", 0, "with --snapshot: let the demo market run this many more seconds first")
 		state     = flag.String("state", "", "with --snapshot: open (default), closed, checking, fault or alert")
 		halfblock = flag.Bool("halfblock", false, "draw the ring with half blocks instead of quadrant blocks (only if the ring looks broken in your font)")
-		cell      = flag.String("cell", "", "size of one terminal cell in pixels as WxH, for example 9x20 (the default shape is 2.22); only the radar's roundness uses it")
+		cell      = flag.String("cell", "", "size of one terminal cell in pixels as WxH, for example 9x20 (the default shape is 2.22); only the dial's roundness uses it")
 	)
 	flag.Usage = func() {
 		fmt.Fprint(os.Stderr, usage)

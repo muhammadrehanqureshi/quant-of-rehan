@@ -121,6 +121,9 @@ type App struct {
 	sectors      *Sectors   // the latest /sectors answer
 	sectorsErr   string     // why the last sector read failed, for the screen
 	sectorChoice int        // which sector group the scanner tile shows
+	lvSector     listView   // the scanner's sector drop down
+	sectorY      int        // the sector tile's top row, for the wheel
+	sectorH      int        // and its height
 	lvOF        listView   // the ORDER FLOW list
 	bannerSell  bool       // the banner on show is a big selling flag
 	lvScan      listView   // the scanner's list
