@@ -1707,19 +1707,21 @@ public class MainActivity extends Activity {
                     sb.append(String.format(Locale.US, "%,d", quote.volume));
                 }
                 sb.append(')');
-            } else if (quote.unclassified != null && quote.unclassified > 0) {
-                // B/S null is not a reason to hide the unclear total.
-                sb.append('\n').append("(U=");
-                sb.append(String.format(Locale.US, "%,d", quote.unclassified));
-                sb.append(')');
-            }
-            // Owner order 2026-11-06: one bracket per scrip. T joins the
-            // measured pair's own bracket, so no bracket opens before it;
-            // only a row with no B, S or U prints T in a bracket of its own.
-            if (quote.volume != null && (quote.buy == null || quote.sell == null)
-                    && (quote.unclassified == null || quote.unclassified <= 0)) {
-                sb.append('\n').append("(T=");
-                sb.append(String.format(Locale.US, "%,d", quote.volume));
+            } else if (quote.volume != null
+                    || (quote.unclassified != null && quote.unclassified > 0)) {
+                // Owner order 2026-11-06: with no measured pair the relay's
+                // own U and T ride ONE bracket, so U never hides T.
+                sb.append('\n').append('(');
+                boolean any = false;
+                if (quote.unclassified != null && quote.unclassified > 0) {
+                    sb.append("U=");
+                    sb.append(String.format(Locale.US, "%,d", quote.unclassified));
+                    any = true;
+                }
+                if (quote.volume != null) {
+                    sb.append(any ? ", T=" : "T=");
+                    sb.append(String.format(Locale.US, "%,d", quote.volume));
+                }
                 sb.append(')');
             }
             // The map only ever carries a live price (Watcher's law), so
@@ -3325,13 +3327,16 @@ public class MainActivity extends Activity {
             return;
         }
         sectorsMenu.removeAllViews();
+        boolean first = true;
         for (String name : sectorRows.keySet()) {
-            TextView row = new TextView(this);
-            row.setText(name);
-            row.setTextColor(getColor(R.color.text_bright));
-            row.setTextSize(13f);
-            row.setGravity(android.view.Gravity.CENTER_VERTICAL);
-            row.setPadding(dp(10), dp(10), dp(14), dp(10));
+            // Owner report 2026-11-06: the sector list separates its rows
+            // with the same 1dp line every other dropdown draws, one line
+            // between each pair and none above the first.
+            if (!first) {
+                sectorsMenu.addView(menuDivider());
+            }
+            first = false;
+            TextView row = menuRow(name);
             row.setOnClickListener(v -> chooseSector(name));
             sectorsMenu.addView(row);
         }
@@ -3367,13 +3372,17 @@ public class MainActivity extends Activity {
         SpannableStringBuilder sb = new SpannableStringBuilder();
         for (String symbol : symbols) {
             Watcher.Quote quote = quotes.get(symbol);
-            if (quote == null) {
-                continue;
-            }
             if (sb.length() > 0) {
                 sb.append('\n');
             }
             sb.append(symbol);
+            if (quote == null) {
+                // Owner report 2026-11-06: a tapped sector must always list
+                // its stocks. A scrip the live map has not quoted yet says
+                // so instead of vanishing or printing a zero (SO-3).
+                sb.append('\n').append(getString(R.string.sector_waiting));
+                continue;
+            }
             int priceFrom = sb.length();
             sb.append(String.format(Locale.US, "  PKR %,.2f", quote.price));
             if (quote.changePct != null) {
@@ -4131,17 +4140,21 @@ public class MainActivity extends Activity {
                     sb.append(String.format(Locale.US, "%,d", row.volume));
                 }
                 sb.append(')');
-            } else if (row.unclassified != null && row.unclassified > 0) {
-                // The leaders' row has no measured pair: print its U.
-                sb.append('\n').append("(U=");
-                sb.append(String.format(Locale.US, "%,d", row.unclassified));
-                sb.append(')');
-            }
-            // Owner order 2026-11-06: T rides the split's own bracket.
-            if (row.hasVolume() && !row.hasSplit()
-                    && (row.unclassified == null || row.unclassified <= 0)) {
-                sb.append('\n').append("(T=");
-                sb.append(String.format(Locale.US, "%,d", row.volume));
+            } else if (row.hasVolume()
+                    || (row.unclassified != null && row.unclassified > 0)) {
+                // Owner order 2026-11-06: no measured pair, so the relay's
+                // own U and T ride ONE bracket. U alone never hides T.
+                sb.append('\n').append('(');
+                boolean any = false;
+                if (row.unclassified != null && row.unclassified > 0) {
+                    sb.append("U=");
+                    sb.append(String.format(Locale.US, "%,d", row.unclassified));
+                    any = true;
+                }
+                if (row.hasVolume()) {
+                    sb.append(any ? ", T=" : "T=");
+                    sb.append(String.format(Locale.US, "%,d", row.volume));
+                }
                 sb.append(')');
             }
             // The money line: opened whenever there is a price or a move to

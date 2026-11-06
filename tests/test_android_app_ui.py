@@ -626,7 +626,7 @@ class SettingsControlTest(unittest.TestCase):
         self.assertIn('" & T=n/a"', self.main)
         # A row with no B, S or U still gets T in its own bracket, and the
         # money line always starts on a new line after the bracket.
-        self.assertIn('sb.append(\'\\n\').append("(T=");', self.main)
+        self.assertIn('sb.append(any ? ", T=" : "T=");', self.main)
         self.assertNotIn('sb.append("  (T=%,d)", row.volume)', self.main)
         # The big print board's own bracket is untouched: it is one sided.
         self.assertIn('"(%s=%,d) "', self.main)
@@ -670,6 +670,14 @@ class SettingsControlTest(unittest.TestCase):
         self.assertIn("Watcher.fetchSectors(this", self.main)
         self.assertIn("row.setOnClickListener(v -> chooseSector(name));",
                       self.main)
+        # Owner report 2026-11-06: one 1dp line between each pair of sector
+        # rows, exactly the line every other dropdown draws.
+        self.assertIn("sectorsMenu.addView(menuDivider());", self.main)
+        self.assertIn("TextView row = menuRow(name);", self.main)
+        # And a tapped sector always lists its stocks: a scrip with no live
+        # quote yet says so instead of vanishing.
+        self.assertIn("R.string.sector_waiting", self.main)
+        self.assertIn('name="sector_waiting">NO LIVE QUOTE YET<', strings)
         self.assertIn("sectorsReveal.setText(sb);", self.main)
         # The tile and its rule follow the search page, and close with it.
         self.assertIn("tileSectors.setVisibility(open ? View.VISIBLE",
@@ -1161,7 +1169,9 @@ class TypefaceTest(unittest.TestCase):
         self.assertIn("sb.append('\\n').append(\"(B=\");", self.main)
         self.assertIn('sb.append(", S=");', self.main)
         self.assertIn('sb.append(", U=");', self.main)
-        self.assertIn("sb.append('\\n').append(\"(T=\");", self.main)
+        # Owner report 2026-11-06: with no measured pair, U and T ride one
+        # bracket, so U alone can never hide the exchange's total.
+        self.assertIn('sb.append(any ? ", T=" : "T=");', self.main)
         self.assertNotIn("completePair", self.main)
         # v1.8.6 (owner 15:15): and that row keeps the body's 13sp. It wins
         # its width from the tile (6dp of each 16dp panel padding, through the
@@ -2092,8 +2102,10 @@ class VersionTest(unittest.TestCase):
         # pass: his new ORDER FLOW picture, the bracketed top three, the
         # eight-print board with its visible bar, and the search-only
         # ORDER FLOW tile.
-        self.assertIn('android:versionName="4.0.12"', manifest)
-        self.assertIn('android:versionCode="121"', manifest)
+        # Owner report 2026-11-06: the sector menu's dividers, the always
+        # listed sector stocks and the U+T bracket ship as 4.0.13.
+        self.assertIn('android:versionName="4.0.13"', manifest)
+        self.assertIn('android:versionCode="122"', manifest)
         self.assertNotIn('android:versionName="3.7.5"', manifest)
         self.assertNotIn('android:versionName="3.7.4"', manifest)
         self.assertNotIn('android:versionName="3.7.3"', manifest)
@@ -3474,7 +3486,7 @@ class MenuOrdersTest(unittest.TestCase):
         self.assertIn('append("(B=");', block)
         self.assertIn('sb.append(", S=");', block)
         self.assertIn('sb.append(", U=");', block)
-        self.assertIn('append("(T=");', block)
+        self.assertIn('sb.append(any ? ", T=" : "T=");', block)
         self.assertIn("sb.append(')');", block)
         self.assertIn("colorQuantity(sb, quote.buy, R.color.green)", block)
         self.assertIn("colorQuantity(sb, quote.sell, R.color.red)", block)
