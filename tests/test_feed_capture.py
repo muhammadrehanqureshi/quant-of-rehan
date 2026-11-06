@@ -113,10 +113,29 @@ class CaptureFlowSeedTest(unittest.TestCase):
         init = source[source.index("class RelayQuotePublisher"):]
         init = init[init.index("def __init__"):init.index("def observe")]
         self.assertIn("adopted = self._seed_day_flow()", init)
-        self.assertIn("if self._seed_required and adopted == 0", init)
+        self.assertIn("if self._seed_required and adopted < 0", init)
         self.assertIn("self._flow.seed_preopen(", init)
         self.assertLess(init.index("adopted = self._seed_day_flow()"),
                         init.index("self._thread.start()"))
+
+    def test_a_day_with_no_pair_yet_seeds_from_the_first_frame(self):
+        """Owner report 2026-11-06: no capture had pushed all day, so the
+        relay held no same-day pair and the mid-session refusal threw away a
+        live tape (1472 messages, 13188 ticks) for the whole session, leaving
+        the phone blank and B/S absent. Nothing exists to overwrite in that
+        case: the first frame seeds the baseline, the morning's prefix stays
+        unclassified, and publishing starts. Only an unreachable relay still
+        refuses, because whether a pair exists is then unknown.
+        """
+        source = Path(feed_capture.__file__).read_text(encoding="utf-8")
+        init = source[source.index("class RelayQuotePublisher"):]
+        init = init[init.index("def __init__"):init.index("def observe")]
+        self.assertIn("if self._seed_required and adopted == 0:", init)
+        self.assertIn("self._seed_failed = False", init)
+        seed = source[source.index("def _seed_day_flow"):]
+        seed = seed[:seed.index("def observe")]
+        self.assertIn("answered = True", seed)
+        self.assertIn("return 0 if answered else -1", seed)
 
     def test_a_zero_volume_pre_open_row_reaches_the_flow_not_the_app(self):
         update = feed_capture.relay_quote_updates({
