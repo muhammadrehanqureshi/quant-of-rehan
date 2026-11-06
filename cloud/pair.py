@@ -60,7 +60,8 @@ CRONS = [
                           # (capture before the first trade) + 09:32 PKT
                           # band-open edge
     "30 7 * * 1-4",      # Mon-Thu 12:30 PKT afternoon scan dispatch
-    "17 4 * * 5",        # Friday session 1 open 09:17 PKT
+    "17,55 3,4 * * 5",   # Friday 08:55 pre-open warm-up + 09:17 session 1 open
+                         # (09:55 and 10:17 are non-edge extras the worker discards)
     "32 9 * * 5",        # Friday session 2 open 14:32 PKT
     "0,30,35 7,10,11 * * 1-5",  # 12:00/12:31/15:30/16:30 PKT closes,
                                 # 15:35 PKT post-close dispatch wake
