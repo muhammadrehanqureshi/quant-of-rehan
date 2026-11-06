@@ -25,6 +25,7 @@ from datetime import date
 from typing import Iterable, Mapping
 
 from src.data import tick_volume
+from src.data.registry import Availability, availability
 
 #: Per-row method tags, so the app can label a number honestly.
 METHOD_MEASURED = "measured_tape"
@@ -47,6 +48,10 @@ METHOD_LABELS = {
 #: matters only if an old row is ever shown beside a measured one.
 METHOD_STRENGTH_ORDER = (METHOD_RANGE, METHOD_TAPE_COUNTS, METHOD_MEASURED,
                          METHOD_WIRE)
+
+#: The registry's footprint verdict. It is UNAVAILABLE, so no derived range
+#: or tape pair may stand as B/S; only the relay's measured pair is copied.
+FOOTPRINT = availability("footprint")
 
 
 @dataclass(frozen=True)
@@ -105,6 +110,9 @@ def split_for(row: Mapping, *, quotes: Mapping | None = None,
     the venue's whole-session counter.
     """
     if str(row.get("split_method") or "") != METHOD_WIRE:
+        if FOOTPRINT is Availability.UNAVAILABLE:
+            return None, ("footprint is UNAVAILABLE and the row has no "
+                          "measured order-flow pair")
         return None, "no measured order-flow pair; the total is unclassified"
     total = _number(row.get("volume"))
     buy = _number(row.get("buy_volume"))
