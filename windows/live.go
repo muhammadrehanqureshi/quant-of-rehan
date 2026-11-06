@@ -199,7 +199,9 @@ func (a *App) onMouse(k Key) {
 func (a *App) wheel(d int) {
 	switch a.screen {
 	case scrScanner:
-		if a.searchText != "" {
+		if a.sectorOpen {
+			a.lvSectorStk.scroll(d * 2)
+		} else if a.searchText != "" {
 			if n := len(a.matches()); n > 0 {
 				a.searchCursor = min(max(0, a.searchCursor+d), n-1)
 			}

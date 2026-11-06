@@ -57,11 +57,17 @@ func TestScannerShowsSectorsAndCyclesThem(t *testing.T) {
 		}
 	}
 	clickText(t, a, "CEMENT")
-	if a.sectorChoice != 1 {
-		t.Errorf("clicking a row of the sector drop down must pick that group: %d", a.sectorChoice)
+	if a.sectorChoice != 1 || !a.sectorOpen {
+		t.Errorf("clicking a sector must open it: choice %d open %v", a.sectorChoice, a.sectorOpen)
 	}
-	if s := plain(a); !strings.Contains(s, "CHRL") {
-		t.Errorf("the chosen group's scrips must be shown:\n%s", s)
+	opened := plain(a)
+	if a.lvSectorStk.total != 3 {
+		t.Errorf("the open sector must list its three scrips: %d", a.lvSectorStk.total)
+	}
+	for _, want := range []string{"CHRL", "ECHO", "GOLF"} {
+		if !strings.Contains(opened, want) {
+			t.Errorf("the open sector is missing %q:\n%s", want, opened)
+		}
 	}
 }
 

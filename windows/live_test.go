@@ -10,33 +10,14 @@ import (
 
 func rowsOf(a *App) []string { return a.render().PlainRows() }
 
-// The name is the biggest thing on the screen: block letters two rows tall in
-// a window 100 columns or wider, one line of text in a narrow one. The index is
-// under it and the rule closes the header.
+// The name is centred on the top line with a diamond on either side, the
+// index is on the next line and the rule is on the third line.
 func TestTitleIsTheTopLine(t *testing.T) {
 	for _, sz := range [][2]int{{80, 26}, {100, 30}, {120, 30}, {160, 45}} {
 		for scr := range screenNames {
 			a := demoApp(t, sz[0], sz[1])
 			a.screen = screenID(scr)
 			rows := rowsOf(a)
-			if sz[0] >= 100 {
-				lit := 0
-				for _, r := range rows[0] + rows[1] {
-					if r == '█' || r == '▀' || r == '▄' {
-						lit++
-					}
-				}
-				if lit < 40 {
-					t.Errorf("%dx%d screen %d: the name is not in block letters (%d cells)", sz[0], sz[1], scr, lit)
-				}
-				if !strings.Contains(rows[2], "PSX'S KMIALL INDEX") {
-					t.Errorf("%dx%d screen %d: row 2 is %q", sz[0], sz[1], scr, rows[2])
-				}
-				if !strings.HasPrefix(rows[3], "━━━━") {
-					t.Errorf("%dx%d screen %d: row 3 is %q, want the rule", sz[0], sz[1], scr, rows[3])
-				}
-				continue
-			}
 			if !strings.Contains(rows[0], "◆ QUANT OF REHAN ◆") {
 				t.Errorf("%dx%d screen %d: row 0 is %q", sz[0], sz[1], scr, rows[0])
 			}
@@ -58,7 +39,7 @@ func TestHeaderClockTicksEverySecond(t *testing.T) {
 	for i := 0; i < 3; i++ {
 		a.now = time.Date(2026, 11, 2, 11, 0, i, 0, pkt)
 		want := fmt.Sprintf("MON 02 NOV 2026 11:00:0%d UTC+5", i)
-		if row := rowsOf(a)[2]; !strings.HasSuffix(strings.TrimRight(row, " "), want) {
+		if row := rowsOf(a)[0]; !strings.HasSuffix(strings.TrimRight(row, " "), want) {
 			t.Errorf("second %d: top row is %q, want it to end with %q", i, row, want)
 		}
 	}
@@ -79,8 +60,8 @@ func TestOnlyOneClockOnHome(t *testing.T) {
 			hits = append(hits, fmt.Sprintf("row %d: %s", y, m))
 		}
 	}
-	if len(hits) != 1 || !strings.HasPrefix(hits[0], "row 2:") {
-		t.Errorf("want one clock on the index row, got %v", hits)
+	if len(hits) != 1 || !strings.HasPrefix(hits[0], "row 0:") {
+		t.Errorf("want one clock on row 0, got %v", hits)
 	}
 }
 
@@ -242,14 +223,14 @@ func TestBigBuyRaisesBannerToneAndToast(t *testing.T) {
 	}
 }
 
-func TestBannerShowsOnTheIndexRowAndClickOpensAlerts(t *testing.T) {
+func TestBannerShowsOnRowOneAndClickOpensAlerts(t *testing.T) {
 	a := demoApp(t, 120, 30)
 	a.raiseFlag(Flag{Time: a.now, Symbol: "ECHO", Kind: "flow", Text: "Stock ECHO is getting big buying orders", Detail: "Bought PKR 12.0M"})
 	rows := rowsOf(a)
-	if !strings.Contains(rows[2], "Stock ECHO is getting big buying orders") {
-		t.Fatalf("banner: %q", rows[2])
+	if !strings.Contains(rows[1], "Stock ECHO is getting big buying orders") {
+		t.Fatalf("banner: %q", rows[1])
 	}
-	a.onKey(Key{Kind: KMouse, X: 40, Y: 2, Btn: MouseLeft})
+	a.onKey(Key{Kind: KMouse, X: 40, Y: 1, Btn: MouseLeft})
 	if a.screen != scrAlerts || a.now.Before(a.bannerUntil) {
 		t.Errorf("a click on the banner opens the alerts and clears it: %v", a.screen)
 	}
@@ -482,7 +463,7 @@ func TestTelemetryTellsTheTruthAboutScanning(t *testing.T) {
 func TestSnapshotAlertStateShowsBanner(t *testing.T) {
 	a := demoApp(t, 120, 30)
 	snapshotState(a, "alert")
-	if !strings.Contains(rowsOf(a)[2], "is getting big buying orders") {
-		t.Errorf("alert snapshot: %q", rowsOf(a)[2])
+	if !strings.Contains(rowsOf(a)[1], "is getting big buying orders") {
+		t.Errorf("alert snapshot: %q", rowsOf(a)[1])
 	}
 }

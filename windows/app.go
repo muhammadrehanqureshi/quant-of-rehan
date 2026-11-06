@@ -124,6 +124,8 @@ type App struct {
 	lvSector     listView   // the scanner's sector drop down
 	sectorY      int        // the sector tile's top row, for the wheel
 	sectorH      int        // and its height
+	sectorOpen   bool       // a tapped sector is open with its KMIALLSHR scrips
+	lvSectorStk  listView   // the open sector's scrip list
 	lvOF        listView   // the ORDER FLOW list
 	bannerSell  bool       // the banner on show is a big selling flag
 	lvScan      listView   // the scanner's list
@@ -952,7 +954,9 @@ func (a *App) keyScanner(k Key) {
 	searching := a.searchText != ""
 	switch k.Kind {
 	case KEsc:
-		if searching || a.selectedSym != "" {
+		if a.sectorOpen {
+			a.sectorOpen = false
+		} else if searching || a.selectedSym != "" {
 			a.clearSearch()
 		} else {
 			a.setScreen(scrHome)
