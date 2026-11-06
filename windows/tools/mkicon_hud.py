@@ -1,8 +1,8 @@
-"""Draw the Quant of Rehan mark: a HUD dial in the owner's blue.
+"""Draw the Quant of Rehan mark exactly as the owner's HUD picture: a teal tile
+under concentric pale ice blue rings, one ring of heavy blocks, ribbed and tick
+rings and a bright inner ring, with an empty centre.
 
-Inspired by the owner's HUD picture, not a copy of it. A blue gradient glass
-tile carries concentric segmented rings, tick rings, a thin outer arc with end
-caps and a pale centre. Usage:
+Usage:
     python mkicon_hud.py assets/QuantOfRehan.ico assets/icon-1024.png
 """
 import math
@@ -16,15 +16,19 @@ K = 2
 N = S * K
 CX = CY = N / 2
 
-TOP_LEFT = (0, 124, 176)
-BOTTOM_RIGHT = (0, 66, 102)
-PALE = (232, 244, 248)
-MID = (168, 208, 224)
-DIM = (96, 150, 176)
+TOP = (12, 106, 142)
+BOTTOM = (6, 82, 116)
+PALE = (230, 244, 250)
+MID = (176, 212, 228)
+DIM = (108, 160, 184)
 
 
 def rgba(c, a=255):
     return (c[0], c[1], c[2], a)
+
+
+def ink(tone):
+    return tuple(int(DIM[i] + (PALE[i] - DIM[i]) * tone) for i in range(3))
 
 
 def arc_block(d, r0, r1, a0, a1, fill):
@@ -48,11 +52,11 @@ def tick(d, r0, r1, a, fill, width):
 
 
 def background():
-    # A 2x2 corner grid stretched smoothly gives a diagonal gradient cheaply.
+    # The picture's teal, a touch deeper at the bottom.
     small = Image.new("RGB", (2, 2))
-    small.putpixel((0, 0), TOP_LEFT)
-    small.putpixel((1, 1), BOTTOM_RIGHT)
-    mid = tuple((TOP_LEFT[i] + BOTTOM_RIGHT[i]) // 2 for i in range(3))
+    small.putpixel((0, 0), TOP)
+    small.putpixel((1, 1), BOTTOM)
+    mid = tuple((TOP[i] + BOTTOM[i]) // 2 for i in range(3))
     small.putpixel((1, 0), mid)
     small.putpixel((0, 1), mid)
     return small.resize((N, N), Image.BILINEAR).convert("RGBA")
@@ -62,53 +66,49 @@ def dial():
     layer = Image.new("RGBA", (N, N), (0, 0, 0, 0))
     d = ImageDraw.Draw(layer)
 
-    # Outer ring of heavy blocks, twelve of them.
+    # The thin outer arc, almost a full circle, with a small gap and two caps.
+    arc_block(d, 0.955, 0.990, 10, 348, rgba(ink(0.50), 210))
+    for ang in (10, 348):
+        a = math.radians(ang)
+        x, y = CX + math.cos(a) * 0.9725 * N, CY + math.sin(a) * 0.9725 * N
+        d.rectangle([x - N * 0.009, y - N * 0.009, x + N * 0.009, y + N * 0.009],
+                    fill=rgba(ink(0.80), 235))
+
+    # The ring of heavy blocks, twelve of them.
     for k in range(12):
         a0 = k * 30 + 4
-        arc_block(d, 0.352, 0.384, a0, a0 + 20, rgba(PALE, 240))
+        arc_block(d, 0.800, 0.930, a0, a0 + 22, rgba(ink(0.92), 245))
 
-    # Thin outer arc with two end caps, over the top-left quarter.
-    arc_block(d, 0.405, 0.410, 196, 292, rgba(MID, 210))
-    for ang in (196, 292):
-        a = math.radians(ang)
-        x, y = CX + math.cos(a) * 0.4075 * N, CY + math.sin(a) * 0.4075 * N
-        d.rectangle([x - N * 0.008, y - N * 0.008, x + N * 0.008, y + N * 0.008], fill=rgba(PALE, 230))
+    # The ribbed ring.
+    for k in range(40):
+        a0 = k * 9 + 1
+        arc_block(d, 0.690, 0.760, a0, a0 + 7.0, rgba(ink(0.62), 220))
 
-    # Segmented middle ring, with one brighter section.
-    for a0, a1, c, al in ((-150, -40, MID, 200), (-30, 50, PALE, 235), (70, 150, MID, 200)):
-        arc_block(d, 0.292, 0.310, a0, a1, rgba(c, al))
+    # The first dense tick ring.
+    for i in range(64):
+        a = i * (360 / 64)
+        arc_block(d, 0.615, 0.700, a + 0.4, a + 1.5, rgba(ink(0.88), 225))
 
-    # Dense tick ring, long tick every fifteen degrees.
-    for i in range(120):
-        a = i * 3
-        length = 0.022 if i % 5 == 0 else 0.011
-        tick(d, 0.258 - length * 0.4, 0.258 + length, a, rgba(PALE, 220), max(2, int(N * 0.0025)))
+    # The bright inner ring, in a few long segments.
+    for k in range(6):
+        a0 = k * 60 + 5
+        arc_block(d, 0.455, 0.545, a0, a0 + 47, rgba(ink(1.0), 250))
 
-    # Inner segmented ring with a dim gap.
-    for a0, a1, c, al in ((-120, 30, PALE, 225), (40, 110, MID, 190), (120, 230, PALE, 225)):
-        arc_block(d, 0.205, 0.226, a0, a1, rgba(c, al))
+    # The second tick ring.
+    for i in range(48):
+        a = i * (360 / 48)
+        arc_block(d, 0.360, 0.440, a + 0.4, a + 1.6, rgba(ink(0.76), 225))
 
-    # Small inner tick ring and a pale centre.
-    for i in range(60):
-        tick(d, 0.150, 0.162 if i % 5 else 0.170, i * 6, rgba(MID, 200), max(2, int(N * 0.002)))
-    r = N * 0.075
-    for i in range(16, 0, -1):
-        f = i / 16
-        rr = r * f
-        col = tuple(int(PALE[k] * (1 - f) + MID[k] * f) for k in range(3))
-        d.ellipse([CX - rr, CY - rr, CX + rr, CY + rr], fill=rgba(col, 255))
+    # The small inner ring.
+    for i in range(36):
+        a = i * 10
+        arc_block(d, 0.230, 0.290, a + 0.6, a + 2.6, rgba(ink(0.70), 220))
     return layer
 
 
 def main():
-    pad = int(N * 0.035)
-    radius = int(N * 0.16)
-    mask = Image.new("L", (N, N), 0)
-    ImageDraw.Draw(mask).rounded_rectangle([pad, pad, N - pad, N - pad], radius=radius, fill=255)
-    base = background()
-    base.putalpha(mask)
-    base = Image.alpha_composite(base, dial())
-    out = base.resize((S, S), Image.LANCZOS)
+    out = Image.alpha_composite(background(), dial())
+    out = out.resize((S, S), Image.LANCZOS)
     out.save(OUT_PNG)
     out.save(OUT_ICO, sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)])
     print("wrote", OUT_PNG, "and", OUT_ICO)

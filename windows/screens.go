@@ -46,7 +46,8 @@ func (a *App) render() *Canvas {
 		c.Text(max(0, (a.w-runeLen(msg))/2), a.h/2, a.w, msg, th.Warn, true)
 		return c
 	}
-	top, rows := 3, a.h-4
+	top := a.headerRows()
+	rows := a.h - top - 1
 	rx, rw := 1, a.w-2
 	if a.w >= 100 && a.hasRing() {
 		const lw = 40
@@ -173,42 +174,139 @@ func (a *App) flashRight(c *Canvas, right, y int, s string, fg RGB, bold bool, k
 
 // ---------- chrome ----------
 
-// drawHeader is the top of the window: the name with a diamond on either side
-// on the first line, the index the quant watches under it, and the clock with
-// one space between its parts at the right. The live counter sits at the top
-// left on every page. Line three is the rule with a bright segment sweeping
-// along it.
+// drawHeader is the top of the window: the name with a diamond on either side,
+// in big block letters two rows tall when the window is wide enough, then the
+// index the quant watches, then the rule with a bright segment sweeping along
+// it. The live counter sits at the top left on every page, in bold.
+//
+// headerRows is how many rows the header takes: four when the name is drawn in
+// the big block letters, three in a narrow window where it is drawn as text.
+func (a *App) headerRows() int {
+	if a.w >= 100 {
+		return 4
+	}
+	return 3
+}
+
+// titleFont is the name's block letters: three columns wide and four half rows
+// tall, so the name stands two cell rows high, twice the size of the text
+// around it. A cell grid has no smaller step up.
+var titleFont = map[rune][4]string{
+	'Q': {"###", "# #", "# #", "##."},
+	'U': {"# #", "# #", "# #", "###"},
+	'A': {"###", "# #", "###", "# #"},
+	'N': {"# #", "###", "# #", "# #"},
+	'T': {"###", ".#.", ".#.", ".#."},
+	'O': {"###", "# #", "# #", "###"},
+	'F': {"###", "#..", "###", "#.."},
+	'R': {"###", "# #", "##.", "# #"},
+	'E': {"###", "#..", "###", "#.."},
+	'H': {"# #", "# #", "###", "# #"},
+	'◆': {".#.", "###", "###", ".#."},
+}
+
+// bigTitleWidth is how many columns the block name needs at x.
+func bigTitleWidth(s string) int {
+	w := 0
+	for _, r := range s {
+		if r == ' ' {
+			w += 2
+			continue
+		}
+		if _, ok := titleFont[r]; !ok {
+			continue
+		}
+		w += 4
+	}
+	return max(0, w-1)
+}
+
+// drawBigTitle draws the name in block letters two rows tall, centred, with the
+// diamond on either side as in the Android app.
+func (a *App) drawBigTitle(c *Canvas, y int) {
+	th := a.th
+	s := "◆ QUANT OF REHAN ◆"
+	x := max(1, (c.W-bigTitleWidth(s))/2)
+	put := func(col, row int, top, bottom bool) {
+		ch := ' '
+		switch {
+		case top && bottom:
+			ch = '█'
+		case top:
+			ch = '▀'
+		case bottom:
+			ch = '▄'
+		default:
+			return
+		}
+		c.Put(col, row, ch, th.Accent, true)
+	}
+	for _, r := range s {
+		if r == ' ' {
+			x += 2
+			continue
+		}
+		g, ok := titleFont[r]
+		if !ok {
+			continue
+		}
+		for col := 0; col < 3; col++ {
+			put(x+col, y, g[0][col] == '#', g[1][col] == '#')
+			put(x+col, y+1, g[2][col] == '#', g[3][col] == '#')
+		}
+		x += 4
+	}
+}
+
 func (a *App) drawHeader(c *Canvas) {
 	th := a.th
+	head := a.headerRows()
+	big := head == 4
 	title := "◆ QUANT OF REHAN ◆"
-	if lt := a.feedLight(); len(lt) > 0 && c.W >= runeLen(title)+spanW(lt)+4 {
-		c.Spans(1, 0, min(c.W-2, spanW(lt)), lt)
+	lt := a.feedLight()
+	if big {
+		a.drawBigTitle(c, 0)
+		if len(lt) > 0 && c.W >= bigTitleWidth(title)+spanW(lt)+6 {
+			c.Spans(1, 0, min(c.W-2, spanW(lt)), lt)
+		}
+	} else {
+		if len(lt) > 0 && c.W >= runeLen(title)+spanW(lt)+4 {
+			c.Spans(1, 0, min(c.W-2, spanW(lt)), lt)
+		}
+		c.Text((c.W-runeLen(title))/2, 0, runeLen(title), title, th.Accent, true)
 	}
-	c.Text((c.W-runeLen(title))/2, 0, runeLen(title), title, th.Accent, true)
 
+	clockRow := 0
+	if big {
+		clockRow = head - 2
+	}
 	k := a.karachiNow().In(pkt)
 	layout := "Mon 02 Jan 2006"
 	if c.W < 100 {
 		layout = "02 Jan 06"
 	}
 	clock := strings.ToUpper(k.Format(layout)) + " " + k.Format("15:04:05") + " UTC+5"
-	rightAlign(c, 0, 0, c.W-1, []Span{{clock, th.Good, true}})
+	rightAlign(c, 0, clockRow, c.W-1, []Span{{clock, th.Good, true}})
 
 	tag := "PSX'S KMIALL INDEX"
 	if a.demo {
 		tag += "  ·  DEMO DATA"
 	}
-	centerText(c, 0, 1, c.W, tag, th.Soft, false)
+	if big {
+		centerText(c, 0, head-2, c.W, tag, th.Soft, false)
+	} else {
+		centerText(c, 0, 1, c.W, tag, th.Soft, false)
+	}
 
 	// Rule with a bright segment sweeping along it.
-	c.HLine(0, 2, c.W, '━', th.Line)
+	c.HLine(0, head-1, c.W, '━', th.Line)
 	t := a.animSeconds()
 	pos := int(t*28)%(c.W+24) - 12
 	for i := 0; i < 12; i++ {
 		x := pos + i
 		if x >= 0 && x < c.W {
 			kk := math.Sin(math.Pi * float64(i) / 11)
-			c.Put(x, 2, '━', mix(th.Line, th.Hot, kk), false)
+			c.Put(x, head-1, '━', mix(th.Line, th.Hot, kk), false)
 		}
 	}
 	if a.now.Before(a.bannerUntil) && a.bannerTitle != "" {
@@ -223,15 +321,16 @@ func (a *App) drawHeader(c *Canvas) {
 		if !flash {
 			bg, fg = th.Panel, bg
 		}
+		by := head - 2
 		for x := 0; x < c.W; x++ {
-			c.Set(x, 1, ' ', fg, bg, true)
+			c.Set(x, by, ' ', fg, bg, true)
 		}
 		txt := "! " + sentence(a.bannerTitle)
 		if b := firstLine(a.bannerBody); b != "" {
 			txt += " " + sentence(b)
 		}
-		c.Text(1, 1, c.W-2, fit(txt, c.W-2), fg, true)
-		a.addHit(0, 1, c.W, 1, func() {
+		c.Text(1, by, c.W-2, fit(txt, c.W-2), fg, true)
+		a.addHit(0, by, c.W, 1, func() {
 			if a.bannerKind == "flow" {
 				a.setScreen(scrAlerts)
 			}
@@ -654,9 +753,9 @@ func (a *App) feedLight() []Span {
 	th := a.th
 	switch {
 	case a.checking:
-		return []Span{{"● ", th.Warn, true}, {"LIVE --", th.Soft, false}}
+		return []Span{{"● ", th.Warn, true}, {"LIVE --", th.Soft, true}}
 	case !a.link && !a.lastMarketOK.IsZero():
-		return []Span{{"● ", th.Bad, true}, {"STALE " + strconv.Itoa(max(0, int(a.now.Sub(a.lastMarketOK).Seconds()))) + "s", th.Bad, false}}
+		return []Span{{"● ", th.Bad, true}, {"STALE " + strconv.Itoa(max(0, int(a.now.Sub(a.lastMarketOK).Seconds()))) + "s", th.Bad, true}}
 	case a.quotes != nil:
 		state, age, _ := a.feedState()
 		col := th.Good
@@ -671,11 +770,11 @@ func (a *App) feedLight() []Span {
 			dot = mix(col, th.Hot, 0.5+0.5*math.Sin(a.animSeconds()*2*math.Pi))
 		}
 		if state == "NO FEED" {
-			return []Span{{"● ", dot, true}, {state, col, false}}
+			return []Span{{"● ", dot, true}, {state, col, true}}
 		}
-		return []Span{{"● ", dot, true}, {fmt.Sprintf("%s %ds", state, age), col, false}}
+		return []Span{{"● ", dot, true}, {fmt.Sprintf("%s %ds", state, age), col, true}}
 	}
-	return []Span{{"● ", th.Soft, true}, {"LIVE --", th.Soft, false}}
+	return []Span{{"● ", th.Soft, true}, {"LIVE --", th.Soft, true}}
 }
 
 // marketNote is the one line at the foot of the market panel. It says where
