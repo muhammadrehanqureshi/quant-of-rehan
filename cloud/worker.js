@@ -916,13 +916,50 @@ function regularBandIndexOf(quote) {
   return 0;
 }
 
-// Store law (owner order 2026-10-31): a frame enters the quote store
-// only when its own tick sits inside its own day's regular bands (with
-// the grace the last band-close prints need to land). The post-market
-// loop's frames keep their own feed alive but no longer overwrite the
-// REGULAR session's number the app answers with.
-function frameIsRegularSession(quote) {
-  return regularBandIndexOf(quote) !== null && regularBandIndexOf(quote) > 0;
+// Store law (owner order 2026-11-06, twelfth pass): a frame enters the
+// quote store when its own tick sits inside one of the exchange's real
+// trading windows, which now includes the pre-open auction and the
+// published Post-Close Session, not only the regular bands. The day's
+// B, S and T therefore cover the whole tape from the first pre-open
+// print to the last post-close print, and no pre-open or post-close
+// volume can fall into the next frame's unclassified baseline. A tail
+// after the post-close window is still refused.
+const PRE_OPEN_WINDOWS = {
+  1: [[9 * 60 + 15, 9 * 60 + 30]],
+  2: [[9 * 60 + 15, 9 * 60 + 30]],
+  3: [[9 * 60 + 15, 9 * 60 + 30]],
+  4: [[9 * 60 + 15, 9 * 60 + 30]],
+  5: [[9 * 60, 9 * 60 + 15], [14 * 60 + 15, 14 * 60 + 30]],
+};
+const POST_CLOSE_WINDOWS = {
+  1: [[15 * 60 + 35, 15 * 60 + 50]],
+  2: [[15 * 60 + 35, 15 * 60 + 50]],
+  3: [[15 * 60 + 35, 15 * 60 + 50]],
+  4: [[15 * 60 + 35, 15 * 60 + 50]],
+  5: [[16 * 60 + 35, 16 * 60 + 50]],
+};
+function frameSessionClock(quote) {
+  const at = Date.parse(quote && quote.observed_at ? quote.observed_at : "");
+  if (!Number.isFinite(at)) return null;
+  const k = karachiView(at);
+  const tickAt = tickInstantInDay(k, quote.source_tick_time, at);
+  if (tickAt === null) return null;
+  const t = karachiView(tickAt);
+  return { weekday: t.getUTCDay(), minute: minutesOf(t) };
+}
+function minuteInAnyWindow(minute, spans) {
+  for (const span of spans || []) {
+    if (minute >= span[0] && minute < span[1]) return true;
+  }
+  return false;
+}
+function frameIsTradingSession(quote) {
+  const band = regularBandIndexOf(quote);
+  if (band !== null && band > 0) return true;
+  const clock = frameSessionClock(quote);
+  if (!clock) return false;
+  return minuteInAnyWindow(clock.minute, PRE_OPEN_WINDOWS[clock.weekday]) ||
+    minuteInAnyWindow(clock.minute, POST_CLOSE_WINDOWS[clock.weekday]);
 }
 
 // One symbol's acknowledged frame for one Karachi day, in relay_state's
@@ -3786,7 +3823,7 @@ export class QuoteHub {
       // close that the card, /stock and /prices all agree on.
       const accepted = body.quotes.filter((quote) =>
         quote && typeof quote.symbol === "string" && quote.symbol &&
-        frameIsRegularSession(quote));
+        frameIsTradingSession(quote));
       for (const quote of accepted) {
         const old = quotes.get(quote.symbol);
         if (old && !(Date.parse(quote.observed_at) >= Date.parse(old.observed_at))) {
@@ -3926,7 +3963,7 @@ export class QuoteHub {
       this.snapshotCache = snapshot;
       const current = { ok: true, ...snapshot };
       const answer = { ok: true, stored, quotes: accepted.length,
-        refused_post_session: body.quotes.length - accepted.length,
+        refused_outside_session: body.quotes.length - accepted.length,
         updated_at: snapshot.updated_at, market_feed: current.market_feed };
       for (const socket of this.ctx.getWebSockets(QUOTE_HUB_SOCKET_TAG)) {
         const tags = this.ctx.getTags(socket);
