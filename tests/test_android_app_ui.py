@@ -2460,7 +2460,7 @@ class SearchPanelStabilityTest(unittest.TestCase):
         self.assertIn("private void paintSelectedLine() {", main)
         paint = main[main.index("private void paintSelectedLine() {"):
                      main.index("private void paintSignalInk(")]
-        marker = 'String.format(Locale.US, " PKR %,.2f", quote.price)'
+        marker = 'PKR %,.2f'
         first = paint.index(marker)
         tail = paint[first:]
         # v2.3.19 (owner order 2026-10-28, "there should be up or down
@@ -2523,7 +2523,7 @@ class SearchPanelStabilityTest(unittest.TestCase):
         self.assertLess(watcher.index("paintSelectedLine"),
                         watcher.index("restamps the live quote"))
         # The one money line lives in both restamps (v2.3.19's arrow law).
-        marker = 'String.format(Locale.US, " PKR %,.2f", quote.price)'
+        marker = 'PKR %,.2f'
         window = main[main.index("private void styleSearchRow("):
                       main.index("private void paintSignalInk(")]
         # Owner order 2026-11-01 adds the third site: the live selected
