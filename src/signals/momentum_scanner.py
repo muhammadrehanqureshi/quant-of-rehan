@@ -1,10 +1,13 @@
-"""The authoritative intraday scanner: the Kalman Trend, sole strategy.
+"""The authoritative intraday scanner: the Kalman Trend, only strategy family.
 
 Owner order 2026-10-30: the ICT/SMC strategy is removed and the Kalman
-Trend is the only strategy the intraday signals run on. The capture
+Trend is the only strategy family the intraday signals run on. The capture
 validation and the public SessionData/ScanResult contracts stay stable
-for all runners. Only a fresh confirmed upward trend flip (computed by
-src/signals/kalman_trend.py's causal level+slope filter) can enter.
+for all runners. Two entries can enter, both built by
+src/signals/kalman_trend.py's causal level+slope filter: a fresh confirmed
+upward trend flip, and, when that trend and the four VWAP frames agree, the
+resumption after a completed pullback that sits nearer the day's low than
+its high (src/signals/kalman_vwap_pullback.py).
 The old RSI diagnostic remains solely for reproducing the HCAR postmortem.
 Asia/Karachi, UTC+5. Signal-only, no broker orders and no assured returns.
 """
@@ -649,7 +652,7 @@ def _wilder_rsi(closes: list[float], period: int = 14) -> float | None:
 def score_symbol(symbol: str, rows: list[MinuteBar], session: SessionData,
                  tally: dict | None = None,
                  daily: dict | None = None) -> dict | None:
-    """The scanner's one strategy: a candidate only on a fresh upward flip.
+    """Score one symbol under the Kalman Trend's two entry laws.
 
     `daily` is the per-symbol completed daily history the 1 day frame reads
     (src/data/daily_history.py). None keeps the replay and unit-test path on
@@ -708,12 +711,15 @@ def select_one(session: SessionData, quality: QualityReport,
         # This stays a NO TRADE under every owner order: there is no setup
         # to carry, and naming a symbol with none would be a fabricated
         # signal (SO-3), not a watch. The strict law is untouched.
-        return ScanResult(NO_TRADE, "no symbol passed the Kalman flip gates",
+        return ScanResult(NO_TRADE, "no symbol passed the Kalman Trend entry gates",
                           quality, context, ranked=[], coverage_text=coverage,
                           gate_tally=dict(tally))
-    return ScanResult(TRADE, "confirmed upward Kalman trend flip, fresh",
-                      quality, context, candidate=ranked[0], ranked=ranked,
-                      coverage_text=coverage, gate_tally=dict(tally))
+    best = ranked[0]
+    return ScanResult(
+        TRADE,
+        f"confirmed {best.get('strategy') or config.SCANNER_VERSION} entry",
+        quality, context, candidate=best, ranked=ranked,
+        coverage_text=coverage, gate_tally=dict(tally))
 
 
 # ------------------------------------------------------------------- messages
@@ -733,6 +739,12 @@ def target_price(entry: float) -> float:
 def signal_message(candidate: dict, market: dict, entry: float,
                    entry_time: datetime) -> str:
     stop = candidate["stop_loss"]
+    strategy = candidate.get("strategy") or config.SCANNER_VERSION
+    if (candidate.get("setup") or {}).get("pullback"):
+        reason = ("pullback resumed after the Kalman trend and the four frame "
+                  "VWAP agreed, nearer the daily low than the daily high")
+    else:
+        reason = "upward Kalman trend flip on the intraday band feed"
     return (
         "QUANT LONG SIGNAL - PAPER REFERENCE\n\n"
         f"Symbol: {candidate['symbol']}\n"
@@ -740,10 +752,10 @@ def signal_message(candidate: dict, market: dict, entry: float,
         f"Entry price: {entry:.4f}\n"
         f"Target: {target_price(entry):.4f} (+{config.TARGET_PCT * 100:.1f}% gross)\n"
         f"Stop Loss: {stop:.4f}\n"
-        "Reason: upward Kalman trend flip on the intraday band feed\n"
-        f"Strategy: {config.SCANNER_VERSION}\n"
+        f"Reason: {reason}\n"
+        f"Strategy: {strategy}\n"
         f"Entry time: {entry_time:%H:%M:%S} PKT\n"
-        "Entry is the completed retest close, not a confirmed executable fill.\n"
+        "Entry is the last completed minute close, not a confirmed fill.\n"
         "ONE TRADE ONLY. Target is not a guaranteed return."
     )
 
@@ -788,7 +800,7 @@ def call_watch_message(result, quality, market: dict, as_of) -> str:
         "",
         "These are WATCH rows, not paper entries: the market veto stands,",
         "no position opens, and the day's one confirmed paper trade slot",
-        "stays free. The Kalman flip law is untouched.",
+        "stays free. The Kalman Trend entry laws are untouched.",
     ]
     return "\n".join(lines)
 
@@ -802,7 +814,8 @@ def no_trade_message(quality: QualityReport, market: dict,
              f"({quality.leaders_fresh}/{quality.leader_symbols} leaders fresh)\n"
              f"Market: {market.get('status', 'UNKNOWN')}\n"
              f"Market context: {market.get('reason', 'unavailable')}\n"
-             "Reason: no actionable upward Kalman flip with the 2% target room.\n"
+             "Reason: no actionable Kalman Trend or VWAP pullback entry with "
+             "the 2% target room.\n"
              f"Source: {quality.source}")
     if gate_tally:
         lines += "\nWhy nothing passed, measured per gate:\n"
