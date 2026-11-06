@@ -143,7 +143,7 @@ PKR 1,000,000 on one side is the smallest honest unit this data can support.
 |---|---|---|---|
 | Open | 09:32 PKT | 08:55 PKT (pre-open warm-up; band 09:17) | `32,55 3,4 * * 1-4` / `17,55 3,4 * * 5` |
 | Close | 15:30 PKT | 12:00 PKT (session 1) | `30 10 * * 1-4` / shared below |
-| Open | - | 14:15 PKT (pre-open warm-up; band 14:32) | `15,32 9 * * 5` |
+| Open | - | 14:10 PKT (pre-open warm-up; band 14:32) | `10,32 9 * * 5` |
 | Close | - | 16:30 PKT (session 2) | `30 11 * * 5` |
 
 The shared expression also fires at 07:32 and 09:00 UTC. Those are not band
