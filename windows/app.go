@@ -713,12 +713,20 @@ func (a *App) beat() {
 	// in the window may turn a phase change into a notification. The clock is
 	// consulted as well as the relay's phase, because the relay can call the
 	// whole stretch around the session CLOSED.
+	silentPhase := false
 	switch a.phase() {
 	case "PRE_OPEN", "POST_CLOSE":
-		return
+		silentPhase = true
 	}
 	switch phaseAt(a.karachiNow()) {
 	case qsPre, qsPost:
+		silentPhase = true
+	}
+	if silentPhase {
+		// Keep the phase baseline current without a banner, tone or toast.
+		if ev := marketEvent(a.market); ev != "" {
+			a.cfg.LastMarketEvent, a.dirty = ev, true
+		}
 		return
 	}
 	if ev := marketEvent(a.market); ev != "" {

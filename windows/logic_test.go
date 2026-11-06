@@ -351,8 +351,11 @@ func TestBeatMarketEventsDedupe(t *testing.T) {
 	}
 	a.market = marketIn("POST_CLOSE")
 	a.beat()
-	if a.bannerTitle != textMarketClosed || a.cfg.LastMarketEvent != "offline" {
-		t.Fatalf("closed: %q %q", a.bannerTitle, a.cfg.LastMarketEvent)
+	if a.bannerTitle != "" {
+		t.Fatalf("the post-market must be silent: %q", a.bannerTitle)
+	}
+	if a.cfg.LastMarketEvent != "offline" {
+		t.Fatalf("the post-market still updates the baseline: %q", a.cfg.LastMarketEvent)
 	}
 }
 
