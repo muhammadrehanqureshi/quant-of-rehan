@@ -131,6 +131,7 @@
     <string name="label_sectors">SECTORS</string>
     <string name="sectors_placeholder">SELECT A SECTOR</string>
     <string name="sectors_unavailable">SECTORS UNAVAILABLE RIGHT NOW</string>
+    <string name="sector_waiting">NO LIVE QUOTE YET</string>
     <string name="cd_order_flow">Order flow</string>
     <string name="market_open_notification">Market is open. Quant is online now.</string>
     <string name="market_closed_notification">Market is closed. Quant is sleeping now.</string>
