@@ -548,9 +548,9 @@ class TestCloudflareSchedule(unittest.TestCase):
         self.assertEqual(
             sorted(pair_crons),
             ["0,30,35 7,10,11 * * 1-5",
+             "15,32 9 * * 5",
              "17,55 3,4 * * 5",
              "30 7 * * 1-4",
-             "32 9 * * 5",
              "32,55 3,4 * * 1-4"],
             "cloud/pair.py and cloud/wrangler.toml disagree about "
             "the cron schedule, so the deploy would set something "
@@ -583,7 +583,7 @@ class TestCloudflareSchedule(unittest.TestCase):
             [             (8, 55, frozenset({1, 2, 3, 4})),
              (8, 55, frozenset({5})),
              (12, 30, frozenset({1, 2, 3, 4})),
-             (14, 32, frozenset({5})),
+             (14, 15, frozenset({5})),
              (15, 35, frozenset({1, 2, 3, 4})),
              (16, 35, frozenset({5}))],
             "the session loop must offer exactly the six runnable windows: "
@@ -601,7 +601,7 @@ class TestCloudflareSchedule(unittest.TestCase):
             "[[12, 30], [15, 30]],", source)
         self.assertIn(
             "const FRIDAY_WINDOWS = [[[8, 55], [12, 30]], "
-            "[[14, 32], [16, 30]],", source)
+            "[[14, 15], [16, 30]],", source)
         worker_wakes: dict[int, dict[int, set[int]]] = {}
         for expression in crons_of(WRANGLER):
             for hour, minute, weekdays in cron_fires(expression):
