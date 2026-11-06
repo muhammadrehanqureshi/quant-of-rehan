@@ -8,8 +8,8 @@ each second (price, volume, high, low and the relay's own buy/sell split),
 GET /market every five seconds (KSE100 and the volume leaders), GET /health
 every fifteen seconds (session law, feed state, next event).
 
-Buying and selling never fall. The day split takes the relay's pair and
-holds each side at its session high-water mark; the sixty second board
+The day split takes the relay's current measured pair; a later poll
+replaces it, so B + S + U stays the row's total. The sixty second board
 adds only positive poll deltas, sided by the price move or the last side
 when the price held. The engine record is shown with the time it was
 written, and the market phase always comes from the session law, never
@@ -19,8 +19,9 @@ Karachi is Asia/Karachi, the one fixed offset this system speaks, UTC+5,
 with no daylight saving; every clock on the frame is that instant.
 
 The registry is consulted for what the desk honestly has: true bid/ask
-footprint is UNAVAILABLE on this wire, so the split shown is the relay's
-range estimate, in words, on the page itself.
+footprint is UNAVAILABLE on this wire, so a B or S number appears only
+when the relay carries its own measured quote_rule pair. Every other
+share is shown as U, never estimated from the day's range.
 """
 
 from __future__ import annotations
@@ -174,30 +175,15 @@ def _whole(value):
         return None
 
 
-def _range_split(price, volume, high, low):
-    """The same range-position estimate the relay publishes, for rows that
-    arrive without a split pair. Never a tape claim, only the estimate."""
-    if not isinstance(volume, (int, float)) or volume <= 0:
-        return None, None
-    if not all(isinstance(item, (int, float)) for item in (price, high, low)):
-        return None, None
-    span = high - low
-    if span <= 0:
-        return int(volume * 0.5), int(volume) - int(volume * 0.5)
-    position = (price - low) / span
-    position = min(1.0, max(0.0, position))
-    buy = int(round(volume * position))
-    return buy, int(volume) - buy
-
-
 class FlowTracker:
     """Session state for every scrip, from every poll of the relay.
 
-    The day pair is the relay's own split, held at each side's high-water
-    mark, so neither can fall. The sixty second board adds only positive
-    volume deltas, sided by the price move against the previous poll (or
-    the last side when the price held), which is the console's executed
-    buying rule. Nothing here subtracts.
+    The day pair is the relay's current measured split, never a range
+    estimate. A later poll replaces it, so B + S + U stays the row's total.
+    The sixty second board adds only positive volume deltas, sided by the
+    price move against the previous poll (or the last side when the price
+    held), which is the console's executed buying rule. Nothing here
+    subtracts.
     """
 
     def __init__(self) -> None:
@@ -221,23 +207,23 @@ class FlowTracker:
         volume = int(volume) if isinstance(volume, (int, float)) else None
         buy_relay = quote.get("buy_volume")
         sell_relay = quote.get("sell_volume")
+        measured_pair = (quote.get("split_method") == "quote_rule" and
+                         isinstance(buy_relay, (int, float)) and
+                         isinstance(sell_relay, (int, float)))
         high = quote.get("high")
         low = quote.get("low")
         state = self.day.get(symbol)
         if state is None:
-            if not isinstance(buy_relay, (int, float)) or \
-                    not isinstance(sell_relay, (int, float)):
-                buy_relay, sell_relay = _range_split(price, volume, high, low)
             state = self.day[symbol] = {
                 "symbol": symbol, "price": price, "volume": volume or 0,
-                "buy": int(buy_relay) if isinstance(buy_relay, (int, float))
-                else 0,
-                "sell": int(sell_relay) if isinstance(sell_relay, (int, float))
-                else 0,
+                "buy": int(buy_relay) if measured_pair else None,
+                "sell": int(sell_relay) if measured_pair else None,
+                "unclassified": (volume or 0) if not measured_pair else
+                max(0, (volume or 0) - int(buy_relay) - int(sell_relay)),
                 "change_pct": quote.get("change_pct"), "side": "B",
                 "high": high, "low": low, "series": [price],
                 "baseline": bool(volume),
-                "method": quote.get("split_method") or "range_position",
+                "method": "quote_rule" if measured_pair else "unavailable",
                 "mbuy": _whole(quote.get("measured_buy")) or 0,
                 "msell": _whole(quote.get("measured_sell")) or 0,
                 "mbase": _whole(quote.get("flow_baseline")) or 0,
@@ -253,9 +239,6 @@ class FlowTracker:
             state["high"] = high
         if isinstance(low, (int, float)):
             state["low"] = low
-        declared = quote.get("split_method")
-        if declared:
-            state["method"] = declared
         # The hub's whole-day separation is the one that covers the session
         # from its first observed print; when it is present it replaces the
         # desk's own since-open count instead of being added to it.
@@ -265,15 +248,19 @@ class FlowTracker:
             state["mbuy"], state["msell"] = measured_buy, measured_sell
             state["mbase"] = _whole(quote.get("flow_baseline")) or 0
             state["msrc"] = "hub"
-        if not isinstance(buy_relay, (int, float)) or \
-                not isinstance(sell_relay, (int, float)):
-            buy_relay, sell_relay = _range_split(
-                price, state["volume"] or None, state.get("high"),
-                state.get("low"))
-        if isinstance(buy_relay, (int, float)):
-            state["buy"] = max(state["buy"], int(buy_relay))
-        if isinstance(sell_relay, (int, float)):
-            state["sell"] = max(state["sell"], int(sell_relay))
+        measured_pair = (quote.get("split_method") == "quote_rule" and
+                         isinstance(buy_relay, (int, float)) and
+                         isinstance(sell_relay, (int, float)))
+        if measured_pair:
+            state["buy"] = int(buy_relay)
+            state["sell"] = int(sell_relay)
+            state["method"] = "quote_rule"
+        else:
+            # A previous pair is not evidence for the grown total. Without a
+            # current measured pair the whole total is unclear, never guessed.
+            state["buy"] = None
+            state["sell"] = None
+            state["method"] = "unavailable"
         state["price"] = price
         state["change_pct"] = quote.get("change_pct")
         delta = 0
@@ -287,6 +274,17 @@ class FlowTracker:
                 delta = volume - previous_volume
                 state["volume"] = volume
             # a running total that falls is never attributed or adopted
+        if state["msrc"] == "hub" and (state["mbuy"] or state["msell"]):
+            # The hub's whole-day pair is measured even when the quote route
+            # has not attached its own copy. Its U is the remainder of the
+            # same total, not the whole total.
+            state["unclassified"] = max(
+                0, (state["volume"] or 0) - state["mbuy"] - state["msell"])
+        elif state["buy"] is None or state["sell"] is None:
+            state["unclassified"] = state["volume"] or 0
+        else:
+            state["unclassified"] = max(
+                0, (state["volume"] or 0) - state["buy"] - state["sell"])
         if delta > 0:
             if price > previous_price:
                 state["side"] = "B"
@@ -326,10 +324,25 @@ class FlowTracker:
             bought = sum(item[2] for item in window)
             sold = sum(item[3] for item in window)
             moved = sum(item[1] for item in window)
+            if state["buy"] is not None:
+                day_buy, day_sell = state["buy"], state["sell"]
+            elif state["msrc"] == "hub" and (state["mbuy"] or state["msell"]):
+                day_buy, day_sell = state["mbuy"], state["msell"]
+            else:
+                day_buy = day_sell = None
+            if state["msrc"] == "hub" and (state["mbuy"] or state["msell"]):
+                unclassified = max(
+                    0, (state["volume"] or 0) - state["mbuy"] - state["msell"])
+            elif state["buy"] is not None and state["sell"] is not None:
+                unclassified = max(
+                    0, (state["volume"] or 0) - state["buy"] - state["sell"])
+            else:
+                unclassified = state["volume"] or 0
             out.append({
                 "symbol": symbol, "price": state["price"],
                 "change_pct": state["change_pct"], "volume": state["volume"],
                 "buy_volume": state["buy"], "sell_volume": state["sell"],
+                "unclassified": unclassified,
                 "high": state.get("high"), "low": state.get("low"),
                 "split_method": state.get("method"),
                 "measured_buy": state["mbuy"],
@@ -337,8 +350,10 @@ class FlowTracker:
                 "measured_baseline": state["mbase"],
                 "measured_source": state["msrc"],
                 "measured_since": state["since"],
-                "bought": state["buy"] * state["price"],
-                "sold": state["sell"] * state["price"],
+                "bought": (None if day_buy is None
+                           else day_buy * state["price"]),
+                "sold": (None if day_sell is None
+                         else day_sell * state["price"]),
                 "bought_60": bought, "sold_60": sold, "shares_60": moved,
                 "series": list(state["series"]),
             })
@@ -688,11 +703,17 @@ def _home_page(desk: Desk, width: int, now: datetime) -> list[str]:
             board.append(
                 f"   MB={paint(count(row['measured_buy']), GREEN)}  "
                 f"MS={paint(count(row['measured_sell']), RED)}  "
+                f"U={count(row.get('unclassified'))}  "
                 f"T={count(row['volume'])}")
-        else:
+        elif row.get("split_method") == "quote_rule":
             board.append(
                 f"   B={paint(count(row['buy_volume']), GREEN)}  "
                 f"S={paint(count(row['sell_volume']), RED)}  "
+                f"U={count(row.get('unclassified'))}  "
+                f"T={count(row['volume'])}")
+        else:
+            board.append(
+                f"   U={count(row.get('unclassified'))}  "
                 f"T={count(row['volume'])}")
         board.append("")
     if any(row.get("measured_source") == "hub" for row in tops):
@@ -704,8 +725,8 @@ def _home_page(desk: Desk, width: int, now: datetime) -> list[str]:
                      f"are unclassified")
         board.append(paint(note, FAINT))
     else:
-        board.append(paint("B/S is a range estimate, not order flow; "
-                           "footprint UNAVAILABLE.", FAINT))
+        board.append(paint("B/S only when the relay measured the pair; U is "
+                           "the total it could not side.", FAINT))
     for line in boxed("\u25c6 THE INDEX & TOP 3 SCRIPS OF VOL.", board, width):
         lines.append(line)
     return lines
@@ -723,7 +744,7 @@ def _scanner_page(desk: Desk, sort: int, width: int, now: datetime) -> list[str]
     windowed = chosen == "BIG BUYING NOW (LIVE FLOW)"
     heading = pad(paint(chosen, CYAN, True), max(10, width - 32))
     lines.append(heading + pad(paint(
-        "last 60 s, executed buying" if windowed else "day split, estimate",
+        "last 60 s, executed buying" if windowed else "day split, measured only",
         FAINT), 32, "right"))
     lines.append("")
     rows = desk.flow.rows(chosen, now)
@@ -746,14 +767,19 @@ def _scanner_page(desk: Desk, sort: int, width: int, now: datetime) -> list[str]
     scale = max(1, min(36, width - 44))
     for number, (row, bought, sold, moved) in enumerate(flow, start=1):
         arrow, colour = pct_text(row["change_pct"])
-        total = bought + sold
-        percent = int(round(100 * bought / total)) if total > 0 else 0
-        filled = int(round(scale * percent / 100))
-        bar = "\u2501" * filled
         price = paint(f"PKR {row['price']:.2f} {arrow}", colour, True)
         head = f"{number}. {paint(row['symbol'], WHITE, True)}"
         lines.append(head + pad(price, max(8, width - width_of(head)),
                                 "right"))
+        if bought is None or sold is None:
+            lines.append(
+                f"   U={count(row['unclassified'])}  "
+                f"T={count(row['volume'])}  B/S unmeasured")
+            continue
+        total = bought + sold
+        percent = int(round(100 * bought / total)) if total > 0 else 0
+        filled = int(round(scale * percent / 100))
+        bar = "\u2501" * filled
         lines.append(f"   BOUGHT {paint(money(bought), GREEN)}"
                      f"  SOLD {paint(money(sold), RED)}  {shares(moved)}")
         lines.append("   " + paint(bar, GREEN) +
@@ -766,7 +792,8 @@ def _flow_page(desk: Desk, width: int, now: datetime) -> list[str]:
                    WHITE, True), ""]
     header = (pad("SCRIP", 8) + pad("PRICE", 8, "right") +
               pad("BUY", 10, "right") + pad("SELL", 10, "right") +
-              pad("TOTAL", 11, "right") + pad("CHG", 8, "right") +
+              pad("U", 10, "right") + pad("TOTAL", 11, "right") +
+              pad("CHG", 8, "right") +
               pad("MB", 10, "right") + pad("MS", 10, "right"))
     lines.append(paint(header, FAINT))
     rows = desk.flow.rows(now=now)
@@ -779,6 +806,7 @@ def _flow_page(desk: Desk, width: int, now: datetime) -> list[str]:
             pad(f"{row['price']:.2f}", 8, "right") +
             pad(count(row["buy_volume"]), 10, "right") +
             pad(count(row["sell_volume"]), 10, "right") +
+            pad(count(row["unclassified"]), 10, "right") +
             pad(count(row["volume"]), 11, "right") +
             pad(arrow, 8, "right") +
             pad(count(row.get("measured_buy")), 10, "right") +
@@ -796,8 +824,8 @@ def _flow_page(desk: Desk, width: int, now: datetime) -> list[str]:
         lines.append(paint(
             f"MB/MS: this desk's own strict flow since {since:%H:%M}, "
             f"sided by the broker's bid/ask", FAINT))
-    lines.append(paint("day pair: " + split_basis() + "; each side is "
-                       "held at its high-water mark", FAINT))
+    lines.append(paint("day pair: " + split_basis() + "; it is the "
+                       "relay's current measured pair", FAINT))
     return lines
 
 
@@ -861,8 +889,9 @@ def split_basis() -> str:
     """What the B/S pair is, in the registry's own verdict."""
     if availability("footprint") is Availability.UNAVAILABLE:
         return ("true bid/ask footprint is UNAVAILABLE (registry): B and S "
-                "are the relay's range estimate, not order flow")
-    return "B and S follow the feed's own split"
+                "appear only when the relay measured the pair, never as a "
+                "range estimate")
+    return "B and S follow the feed's own measured split"
 
 
 def _settings_page(desk: Desk, width: int, now: datetime) -> list[str]:

@@ -194,8 +194,8 @@ def volume_leaders(rows: list[dict], top_n: int = TOP_N) -> list[dict]:
 
     Each leader carries its day's percentage change (the exchange prints it
     in the same row, so it is a measurement, not a derivation). Buy and sell
-    volume are filled in afterwards by volume_split.attach_splits, which
-    labels every number it produces.
+    volume are filled in afterwards by volume_split.attach_splits: only a
+    measured wire pair survives, and every other row carries U instead.
     """
     ranked = [row for row in rows if row["volume"] and row["volume"] > 0]
     ranked.sort(key=lambda row: (-row["volume"], row["symbol"]))
@@ -357,11 +357,8 @@ def build_snapshot() -> dict:
             for row in live_leaders:
                 row.pop("market_status", None)
             leaders = live_leaders
-            symbols = [str(row["symbol"]).strip().upper() for row in leaders]
             snapshot["volume_split_basis"] = volume_split.attach_splits(
-                leaders,
-                quotes={},
-                flows=volume_split.flows_for(now.date(), symbols))
+                leaders)
         else:
             rows = fetch_constituents()
             snapshot["kmiall_members"] = len(rows)
@@ -373,13 +370,10 @@ def build_snapshot() -> dict:
             else:
                 leaders = volume_leaders(rows)
                 if leaders:
-                    symbols = [str(row["symbol"]).strip().upper()
-                               for row in leaders]
-                    # The portal is an explicit fallback; B/S stays labelled.
+                    # The portal cannot prove a side; B/S stays null and the
+                    # row's whole total is served as U.
                     snapshot["volume_split_basis"] = volume_split.attach_splits(
-                        leaders,
-                        quotes=fetch_quotes(symbols),
-                        flows=volume_split.flows_for(now.date(), symbols))
+                        leaders)
                     snapshot["top_volume"] = leaders
                     snapshot["top_volume_basis"] = (
                         f"current session volume, top {len(leaders)} (portal fallback)")
