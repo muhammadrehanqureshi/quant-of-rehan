@@ -341,10 +341,10 @@ class RelayWorkerContractTest(unittest.TestCase):
 
         Three laws are pinned from the worker's sources:
 
-          * a frame whose own tick sits outside its day's regular bands
-            never enters the quote store, so the search can never answer
-            with the post-market tail the card's regular session never
-            saw;
+          * a frame whose own tick sits outside the exchange's real
+            trading windows (pre-open, regular and post-close) never
+            enters the quote store, so the search can never answer with
+            an after-hours tail;
           * every display path (the merged card, /stock, /prices) reads
             and advances ONE acknowledged frame per Karachi day, band
             and symbol, stored in the durable object;
@@ -352,7 +352,9 @@ class RelayWorkerContractTest(unittest.TestCase):
             never decrease within a day: volume increases, or it does
             not print.
         """
-        self.assertIn("function frameIsRegularSession(quote)", self.source)
+        self.assertIn("function frameIsTradingSession(quote)", self.source)
+        self.assertIn("const PRE_OPEN_WINDOWS", self.source)
+        self.assertIn("const POST_CLOSE_WINDOWS", self.source)
         self.assertIn("function regularBandIndexOf(quote)", self.source)
         self.assertIn("REGULAR_SESSION_GRACE_MS", self.source)
         # Store law: the post-market tail is refused at the DO's own
@@ -363,10 +365,10 @@ class RelayWorkerContractTest(unittest.TestCase):
         self.assertGreaterEqual(
             probe_at, 0, "the durable object's POST /update route is gone")
         update_route = self.source[probe_at:probe_at + 11000]
-        self.assertIn("frameIsRegularSession(quote)", update_route,
+        self.assertIn("frameIsTradingSession(quote)", update_route,
                       f"the /update anchor sits at {probe_at}; the store law "
                       f"is not inside the route's own first 11000 characters")
-        self.assertIn("refused_post_session", update_route,
+        self.assertIn("refused_outside_session", update_route,
                       f"the /update anchor sits at {probe_at}; the refusal "
                       f"count is not inside the route's own first 11000 chars")
         # The acknowledged store lives in the durable object.
