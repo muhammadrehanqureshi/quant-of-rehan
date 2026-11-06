@@ -1226,7 +1226,7 @@ public final class Watcher {
                         unclearFrom = sb.length();
                         sb.append(String.format(java.util.Locale.US, "%,.0f", unclear));
                     }
-                    sb.append(unclear != null ? " &" : ")");
+                    sb.append(unclear != null && total != null ? " &" : ")");
                     if (total != null) {
                         // Owner order 2026-11-06: B, S and U share the first
                         // line; the venue's own total T starts the next one.

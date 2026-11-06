@@ -1709,7 +1709,7 @@ public class MainActivity extends Activity {
                     sb.append(", U=");
                     sb.append(String.format(Locale.US, "%,d", quote.unclassified));
                 }
-                sb.append(quote.unclassified != null ? " &" : ")");
+                sb.append(quote.unclassified != null && quote.volume != null ? " &" : ")");
                 if (quote.volume != null) {
                     sb.append('\n').append("T=");
                     sb.append(String.format(Locale.US, "%,d", quote.volume));
@@ -3240,7 +3240,7 @@ public class MainActivity extends Activity {
                 sb.append(", U=");
                 sb.append(String.format(Locale.US, "%,d", row.unclassified));
             }
-            sb.append(row.unclassified != null ? " &" : ")");
+            sb.append(row.unclassified != null && row.volume != null ? " &" : ")");
             if (row.volume != null) {
                 sb.append('\n').append("T=");
                 sb.append(String.format(Locale.US, "%,d", row.volume));
@@ -3523,7 +3523,7 @@ public class MainActivity extends Activity {
                     sb.append(", U=");
                     sb.append(String.format(Locale.US, "%,d", quote.unclassified));
                 }
-                sb.append(quote.unclassified != null ? " &" : ")");
+                sb.append(quote.unclassified != null && quote.volume != null ? " &" : ")");
                 if (quote.volume != null) {
                     sb.append('\n').append("T=");
                     sb.append(String.format(Locale.US, "%,d", quote.volume));
@@ -3984,10 +3984,11 @@ public class MainActivity extends Activity {
                 sb.append(String.format(Locale.US, ", U=%,d",
                         quote.unclassified));
             }
-            sb.append(')');
+            sb.append(quote.unclassified != null && quote.volume != null ? " &" : ")");
             if (quote.volume != null) {
                 sb.append('\n').append("T=");
                 sb.append(String.format(Locale.US, "%,d", quote.volume));
+                sb.append(')');
             }
         } else if (quote.unclassified != null || quote.volume != null) {
             // No measured pair: the known U keeps the first line and T
