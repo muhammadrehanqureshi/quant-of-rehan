@@ -64,6 +64,7 @@ class FlowEndpointContractTest(unittest.TestCase):
                       "flow_first_seen_at", "flow_baseline_reason",
                       "flow_complete",
                       "buy_share_pct", "sell_share_pct", "bid", "ask",
+                      "bid_size", "ask_size",
                       "spread", "observed_at", "age_seconds",
                       "tick_age_seconds", "fresh"):
             self.assertIn(field + ":", self.source, field)

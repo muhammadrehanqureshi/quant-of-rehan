@@ -1687,7 +1687,8 @@ function quoteSnapshotShapeError(body) {
     if (row.source !== "eClear MKT-FEED REG") {
       return `quotes[${i}] has an unsupported source or timestamp`;
     }
-    for (const key of ["bid", "ask", "change", "change_pct", "volume", "high", "low"]) {
+    for (const key of ["bid", "ask", "bid_size", "ask_size",
+      "change", "change_pct", "volume", "high", "low"]) {
       if (row[key] !== null && row[key] !== undefined && !Number.isFinite(row[key])) {
         return `quotes[${i}].${key} must be finite or null`;
       }
@@ -1965,12 +1966,20 @@ async function flowAnswer(env, now) {
       ? Math.round((10000 * sell) / classified) / 100 : null;
     const bid = Number.isFinite(Number(quote.bid)) ? Number(quote.bid) : null;
     const ask = Number.isFinite(Number(quote.ask)) ? Number(quote.ask) : null;
+    const bidSize = quote.bid_size === null || quote.bid_size === undefined
+      ? null
+      : (Number.isFinite(Number(quote.bid_size)) ? Number(quote.bid_size) : null);
+    const askSize = quote.ask_size === null || quote.ask_size === undefined
+      ? null
+      : (Number.isFinite(Number(quote.ask_size)) ? Number(quote.ask_size) : null);
     const large = largeStats.get(String(quote.symbol || "").toUpperCase()) || {};
     rows.push({
       symbol: String(quote.symbol || "").toUpperCase(),
       price: Number(quote.price),
       bid,
       ask,
+      bid_size: bidSize,
+      ask_size: askSize,
       spread: bid !== null && ask !== null && ask >= bid
         ? Math.round((ask - bid) * 10000) / 10000 : null,
       change_pct: Number.isFinite(Number(quote.change_pct))

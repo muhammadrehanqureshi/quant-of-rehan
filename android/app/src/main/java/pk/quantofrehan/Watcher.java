@@ -878,6 +878,8 @@ public final class Watcher {
         Double changePct;
         Double bid;
         Double ask;
+        Long bidSize;
+        Long askSize;
         Long volume;
         Long buy;
         Long sell;
@@ -950,6 +952,8 @@ public final class Watcher {
                         // while he types, not only after a tap.
                         out.bid = number(row, "bid");
                         out.ask = number(row, "ask");
+                        out.bidSize = whole(row, "bid_size");
+                        out.askSize = whole(row, "ask_size");
                         out.volume = whole(row, "volume");
                         out.buy = whole(row, "buy_volume");
                         out.sell = whole(row, "sell_volume");
@@ -1217,36 +1221,40 @@ public final class Watcher {
                     sb.append(String.format(java.util.Locale.US, "%,.0f", sell));
                     int sellTo = sb.length();
                     int unclearFrom = -1;
-                    if (unclear != null && unclear > 0) {
+                    if (unclear != null) {
                         sb.append(", U=");
                         unclearFrom = sb.length();
                         sb.append(String.format(java.util.Locale.US, "%,.0f", unclear));
                     }
-                    if (total != null) {
-                        // Owner order 2026-11-05 (fifth pass): no U. The
-                        // pair above is completed to the venue's own
-                        // total, so the line reads B, S and T only.
-                        sb.append(String.format(java.util.Locale.US, " & T=%,.0f", total));
-                    }
                     sb.append(')');
+                    if (total != null) {
+                        // Owner order 2026-11-06: B, S and U share the first
+                        // line; the venue's own total T starts the next one.
+                        sb.append('\n').append("T=");
+                        sb.append(String.format(java.util.Locale.US, "%,.0f", total));
+                    }
                     styled = new android.text.SpannableString(sb);
                     styled.setSpan(new android.text.style.ForegroundColorSpan(
                             c.getColor(R.color.green)), buyFrom, buyTo, 0);
                     styled.setSpan(new android.text.style.ForegroundColorSpan(
                             c.getColor(R.color.red)), sellFrom, sellTo, 0);
-                } else if (unclear != null && unclear > 0) {
-                    // No measured pair: the whole known total is unclear and
-                    // prints as U, never as a guessed B or S.
-                    sb.append(String.format(java.util.Locale.US,
-                            " (U=%,.0f", unclear));
+                } else if (unclear != null || total != null) {
+                    // No measured pair: the known U keeps the first line and
+                    // the venue's total T takes its own next line. A missing
+                    // U is not invented, and T never rides the same line.
+                    sb.append('\n');
+                    if (unclear != null) {
+                        sb.append(String.format(java.util.Locale.US,
+                                " (U=%,.0f", unclear));
+                        sb.append(')');
+                        if (total != null) {
+                            sb.append('\n');
+                        }
+                    }
                     if (total != null) {
                         sb.append(String.format(java.util.Locale.US,
-                                " & T=%,.0f", total));
+                                "T=%,.0f", total));
                     }
-                    sb.append(')');
-                    styled = new android.text.SpannableString(sb);
-                } else if (total != null) {
-                    sb.append(String.format(java.util.Locale.US, " (T=%,.0f)", total));
                     styled = new android.text.SpannableString(sb);
                 } else {
                     styled = new android.text.SpannableString(sb);
