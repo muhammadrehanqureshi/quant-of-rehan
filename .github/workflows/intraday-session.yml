@@ -33,7 +33,10 @@ name: KMIALL session scan loop
 #                          break)
 #   07:30 UTC = 12:30 PKT  Mon-Thu band 2 (12:30 to 15:30)
 #   10:35 UTC = 15:35 PKT  Mon-Thu post-close (15:35 to 15:55)
-#   04:17 UTC = 09:17 PKT  Friday band 1 (09:17 to 12:00, midday break after)
+#   03:55 UTC = 08:55 PKT  Friday band 1 (window opens 08:55 as a recorder
+#                          warm-up, so the pre-open zero gate seeds the day
+#                          before the 09:00 Friday auction; the loop then
+#                          scans 09:17 to 12:00 and holds through the break)
 #   09:32 UTC = 14:32 PKT  Friday band 2 (14:32 to 16:30)
 #   11:35 UTC = 16:35 PKT  Friday post-close (16:35 to 16:55; owner
 #                          order 2026-10-31: the loop emails nothing here,
@@ -51,7 +54,7 @@ on:
     - cron: "55 3 * * 1-4"     # 08:55 PKT, Mon-Thu band 1
     - cron: "30 7 * * 1-4"     # 12:30 PKT, Mon-Thu afternoon band
     - cron: "35 10 * * 1-4"    # 15:35 PKT, Mon-Thu post-close
-    - cron: "17 4 * * 5"       # 09:17 PKT, Friday session 1
+    - cron: "55 3 * * 5"       # 08:55 PKT, Friday pre-open recorder warm-up
     - cron: "32 9 * * 5"       # 14:32 PKT, Friday session 2
     # Owner order 2026-10-24: Friday's post-close window (16:35 to 16:50)
     # had no loop at all - the band-2 job ends on the 16:30 close's
@@ -214,7 +217,7 @@ jobs:
             "55 3 * * 1-4") seconds=12960 ;;   # 216 min, ends 12:31
             "30 7 * * 1-4") seconds=10860 ;;   # 181 min, ends 15:31
             "35 10 * * 1-4") seconds=1200 ;;   # 20 min, post-close to 15:55
-            "17 4 * * 5")   seconds=9900  ;;   # 165 min, midday break after
+            "55 3 * * 5")   seconds=12960 ;;   # 216 min, ends 12:31
             "32 9 * * 5")   seconds=7200  ;;   # 120 min, ends 16:32
             "35 11 * * 5")  seconds=1200 ;;   # 20 min, post-close to 16:55
             *)              seconds="${{ inputs.seconds }}" ;;
@@ -293,6 +296,7 @@ jobs:
             data/forward/observation.json
             data/forward/session_state.json
             data/forward/session_journal.jsonl
+            data/feed_capture/capture_*.ndjson
             logs/scan_loop.log
             logs/feed_capture.log
             logs/feed_capture_daemon.log
