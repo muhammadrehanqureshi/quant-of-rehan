@@ -190,7 +190,9 @@ class LeaderLineTest(unittest.TestCase):
         self.assertIn("sb.append('\\n').append(\"(B=\");", self.main)
         self.assertIn('sb.append(", S=");', self.main)
         self.assertIn('sb.append(", U=");', self.main)
-        self.assertIn("sb.append('\\n').append(\"(T=\");", self.main)
+        # Owner order 2026-11-06: with no measured pair, U and T ride one
+        # bracket, so the total always prints beside the unclear remainder.
+        self.assertIn('sb.append(any ? ", T=" : "T=");', self.main)
         self.assertNotIn("completePair", self.main)
         self.assertIn("row.unclassified", self.main)
         self.assertIn("quote.unclassified", self.main)
@@ -201,7 +203,7 @@ class LeaderLineTest(unittest.TestCase):
         # the card builder it guards, not the whole console file.
         leaders = self.main[
             self.main.index("private SpannableString leadersText("):]
-        volumes = leaders.index("sb.append('\\n').append(\"(T=\");")
+        volumes = leaders.index('sb.append(any ? ", T=" : "T=");')
         money = leaders.index('"PKR %,.2f"')
         self.assertLess(volumes, money)
 

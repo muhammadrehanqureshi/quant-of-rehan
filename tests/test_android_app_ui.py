@@ -577,9 +577,14 @@ class SettingsControlTest(unittest.TestCase):
         body = watcher[start:start + 8000]
         self.assertIn("else if (unclear != null && unclear > 0)", body)
         self.assertIn('" (U=%,.0f"', body)
-        self.assertIn("else if (quote.unclassified != null && quote.unclassified > 0)",
+        # Owner report 2026-11-06: with no measured pair, U and T print in
+        # ONE bracket, so the unclear total never hides the exchange's own
+        # total on either the scanner reveal or the leaders card.
+        self.assertIn("} else if (quote.volume != null", self.main)
+        self.assertIn("} else if (row.hasVolume()", self.main)
+        self.assertIn("|| (quote.unclassified != null && quote.unclassified > 0)) {",
                       self.main)
-        self.assertIn("else if (row.unclassified != null && row.unclassified > 0)",
+        self.assertIn("|| (row.unclassified != null && row.unclassified > 0)) {",
                       self.main)
         self.assertIn("row.unclassified != null && row.unclassified > 0",
                       self.main)
