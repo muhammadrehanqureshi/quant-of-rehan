@@ -271,23 +271,19 @@ def split_summary(snapshot: dict) -> str:
     so the tick log never calls an estimate a measurement.
     """
     rows = snapshot.get("top_volume") or []
-    measured = sum(1 for row in rows
-                   if row.get("split_method") == "measured_tape")
-    counted = sum(1 for row in rows
-                  if row.get("split_method") == "tape_counts")
-    estimated = sum(1 for row in rows
-                    if row.get("split_method") == "range_position")
     if not rows:
         return "no volume ranking to split"
-    tape = measured + counted
-    if tape == 0 and estimated == len(rows):
-        return (f"B/S from the row's own published frame, the same law the "
-                f"search box shows, for all {estimated} leaders")
-    if tape or estimated:
-        return (f"{tape} of {len(rows)} leaders split from the session "
-                f"tape, {estimated} estimated from the row's own frame, "
-                f"the same law the search box shows")
-    return f"no split for any of the {len(rows)} leaders yet"
+    measured = sum(1 for row in rows
+                   if row.get("split_method") == "quote_rule" and
+                   row.get("buy_volume") is not None and
+                   row.get("sell_volume") is not None)
+    if measured == len(rows):
+        return f"B/S measured at the wire for all {len(rows)} leaders"
+    if measured:
+        return (f"{measured} of {len(rows)} leaders carry a measured B/S "
+                f"pair; the rest are U")
+    return (f"no measured B/S pair for any of the {len(rows)} leaders; "
+            f"their totals are U")
 
 
 def publish_card(now: datetime | None = None, dry_run: bool = False) -> dict:
