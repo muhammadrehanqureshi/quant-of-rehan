@@ -14,7 +14,7 @@ compatibility_date = "2026-10-01"
 # recorder warm-up shares a packed cron with the 09:17 PKT band open, so the
 # capture starts before the 09:00 auction and the edge still has a fire; the
 # extra minutes in that expression are discarded by the worker's edge check.
-# The second session does the same from 14:15 to its 14:32 open.
+# The second session does the same from 14:10 to its 14:32 open.
 # Workers Free allows only 5 cron triggers per ACCOUNT, so the remaining
 # Friday edges share the close/post-close expression below. A six entry list
 # is rejected outright by Cloudflare (error 10072).
@@ -35,7 +35,7 @@ compatibility_date = "2026-10-01"
 # 03:55 UTC = 08:55 PKT (Friday pre-open recorder warm-up)
 # 04:17 UTC = 09:17 PKT (Friday session 1 open, packed with the warm-up)
 # 07:00 UTC = 12:00 PKT (Friday session 1 close, midday break begins)
-# 09:15 UTC = 14:15 PKT (Friday session 2 pre-open recorder warm-up; the band
+# 09:10 UTC = 14:10 PKT (Friday session 2 pre-open recorder warm-up; the band
 #   opens at 14:32, packed with the warm-up)
 # 09:32 UTC = 14:32 PKT (Friday session 2 open, trading resumes)
 # 11:35 UTC = 16:35 PKT (Friday post-close window wake: 16:35 to 16:50)
@@ -47,7 +47,7 @@ crons = [
   "32,55 3,4 * * 1-4",
   "30 7 * * 1-4",
   "17,55 3,4 * * 5",
-  "15,32 9 * * 5",
+  "10,32 9 * * 5",
   "0,30,35 7,10,11 * * 1-5",
 ]
 
