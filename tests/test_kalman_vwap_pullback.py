@@ -62,10 +62,9 @@ def pullback_rows(early_price: float = 130.0) -> list:
     The entry is bar 59's close.
     """
     prices = ([early_price] * 15 + [104.0] * 15
-              + [106.0] * 15
-              + [106.5, 107.0, 107.5, 108.0, 108.5, 109.0]
-              + [108.5, 108.0, 107.0, 106.0]
-              + [106.5, 107.0, 107.5, 108.0, 108.5])
+              + [round(107.0 + 0.1 * index, 4) for index in range(20)]
+              + [109.5, 109.0, 108.0, 107.0, 106.5]
+              + [107.0, 107.5, 108.0, 108.5, 109.0])
     return series(prices)
 
 
