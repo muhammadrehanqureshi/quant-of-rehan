@@ -43,9 +43,9 @@ The tab shows the relay's own numbers, written down as they arrived. Nothing is 
 * **B and S are shown only when the relay measured them.** That is `split_method: quote_rule`: every increment of volume was sided by the wire's own bid and ask.
 * **U is the relay's `unclassified_volume`**: volume the capture saw but could not side. It is written on its own as `U=` and is never added to B or S. For a measured stock B + S + U = T. If that ever fails for a stock, the row says CHECK and the summary counts it. It is never smoothed over.
 * **An estimate is marked.** A stock whose split is only guessed from the day's range (`range_position`) shows `B~` and `S~` with a tilde, dimmed, and is left out of the totals at the top. A stock with no split shows only its total, and says `no split`.
-* **The totals** at the top add up the measured stocks only: `MEASURED 6 stocks  B=..., S=..., U=... & T=...)`. The line under it says how many stocks are estimated or unsplit and why they are not in it.
+* **The totals** at the top add up the measured stocks only: `MEASURED 6 stocks  B=..., S=..., U=... & T=...`. The line under it says how many stocks are estimated or unsplit and why they are not in it.
 * **BID and ASK** are the relay's. A missing one shows `n/a`, never a zero. A stock whose frame is stale is dimmed and marked STALE.
-* Wide windows (about 110 columns and up) show one table with a column each for B, S, U and T and a buy share bar. Narrower windows show two lines per stock: price, change, bid and ask, then `B=..., S=..., U=... & T=...)`.
+* Wide windows (about 110 columns and up) show one table with a column each for B, S, U and T and a buy share bar. Narrower windows show two lines per stock: price, change, bid and ask, then `B=..., S=..., U=... & T=...`.
 * **The ALERTS and ORDER FLOW can differ on purpose.** The flag engine counts executed volume once a second from `/quotes` (a tick rule). ORDER FLOW shows the relay's quote rule split. They are two measures of the same thing, so a stock can be flagged while its ORDER FLOW B and S look different. Trust ORDER FLOW for the day's split, and the flags for what is happening this minute.
 
 ## The big buying and big selling flags, and what they can and cannot see
