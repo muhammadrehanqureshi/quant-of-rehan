@@ -1546,6 +1546,34 @@ async function portalRowsToday(env, now) {
   }
 }
 
+// The card's five minute portal build is skipped whenever a runner's pushed
+// snapshot keeps the MARKET key fresh, and that pushed snapshot carries only
+// the top three. A silent tape then needs the member table on its own, so
+// the search route asks for this build directly: one fetch of the exchange's
+// own KMIALLSHR table, one shared task, and a two minute floor between
+// builds so a one second poll cannot spend the day's write budget.
+const PORTAL_ROWS_MIN_GAP_MS = 2 * 60 * 1000;
+let portalRowsRefreshInFlight = null;
+let portalRowsBuiltAt = 0;
+
+async function refreshPortalRows(env, now) {
+  if (portalRowsRefreshInFlight) return portalRowsRefreshInFlight;
+  if (now.getTime() - portalRowsBuiltAt < PORTAL_ROWS_MIN_GAP_MS) return null;
+  portalRowsBuiltAt = now.getTime();
+  portalRowsRefreshInFlight = (async () => {
+    try {
+      const rows = parseConstituents(
+        await portalText(PORTAL_INDEX + MARKET_MEMBERSHIP));
+      await rememberPortalRows(env, now, rows);
+    } catch (_) {
+      // The next poll retries; a failed fetch answers nothing.
+    } finally {
+      portalRowsRefreshInFlight = null;
+    }
+  })();
+  return portalRowsRefreshInFlight;
+}
+
 // The card reads a fixed field set, and a snapshot can come from either
 // producer: the edge's own portal build, or the owner's local runner push
 // (POST /market). Normalizing on the way out means a partial push can never
@@ -2803,7 +2831,14 @@ export default {
         // scanner and the sector reveal show the real session instead of
         // nothing. A hub frame always wins, and nothing is invented (SO-3).
         const held = new Set(rowsBuilt.map((row) => row.symbol));
-        for (const row of (await portalRowsToday(env, new Date())) || []) {
+        const portalNow = new Date();
+        const portalRows = await portalRowsToday(env, portalNow);
+        if (!portalRows && ctx && typeof ctx.waitUntil === "function") {
+          // The card's own portal build can be suppressed by a fresh runner
+          // push, so the member table is rebuilt here, behind the poll.
+          ctx.waitUntil(refreshPortalRows(env, portalNow));
+        }
+        for (const row of portalRows || []) {
           if (held.has(row.symbol)) continue;
           rowsBuilt.push({
             symbol: row.symbol,
