@@ -1641,6 +1641,19 @@ to sixty seconds. The status tile therefore also carries the app's own
      the orphan law stands so every dot still wears a filament.
   5. The version bump is versionCode 82 / versionName 2.3.15.
 
+**Version 4.0.14, versionCode 123.**
+
+  Owner order 2026-11-06, eleventh pass. Every bracket now reads
+  (B=..., S=..., U=... & T=...): commas separate B, S and U, and only
+  the exchange's total takes the ampersand. The ORDER FLOW book, its
+  search rows, the scanner's two drop downs, the SECTORS reveal and the
+  leaders card all obey the one law. The SECTORS drop down numbers its
+  sectors and a tapped sector numbers its stocks, both in sequence. U
+  stays the honest remainder of the morning before a mid-session seed,
+  never a guessed side.
+
+  The version bump is versionCode 123 / versionName 4.0.14.
+
 **Version 4.0.13, versionCode 122.**
 
   Owner report 2026-11-06, read on the 09:45 PKT home card and search
