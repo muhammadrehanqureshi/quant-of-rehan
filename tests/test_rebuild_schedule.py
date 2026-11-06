@@ -344,7 +344,7 @@ class TestTheOneSecondSessionWorkflow(unittest.TestCase):
                 pkt = datetime(2026, 10, 5, hour, minute, tzinfo=KARACHI) \
                     + timedelta(hours=5, days=weekday - 1)
                 day = pkt.date()
-                if expression == '55 3 * * 1-4':
+                if expression in ('55 3 * * 1-4', '55 3 * * 5'):
                     # The deliberate early lead, held asleep until the open.
                     continue
                 state = market_state_at(pkt)
@@ -580,8 +580,8 @@ class TestCloudflareSchedule(unittest.TestCase):
         # unwoken - the Friday emails that never arrived.
         self.assertEqual(
             sorted(windows),
-            [(8, 55, frozenset({1, 2, 3, 4})),
-             (9, 17, frozenset({5})),
+            [             (8, 55, frozenset({1, 2, 3, 4})),
+             (8, 55, frozenset({5})),
              (12, 30, frozenset({1, 2, 3, 4})),
              (14, 32, frozenset({5})),
              (15, 35, frozenset({1, 2, 3, 4})),
@@ -605,6 +605,10 @@ class TestCloudflareSchedule(unittest.TestCase):
                 table = worker_wakes.setdefault(((hour + 5) % 24), {})
                 table.setdefault(minute, set()).update(weekdays)
         for hour, minute, weekdays in windows:
+            # The 08:55 lead is deliberate: the workflow's own cron wakes
+            # it before the open, so it has no worker dispatch edge.
+            if (hour, minute) == (8, 55):
+                continue
             wake: set[int] = set()
             for gap in range(4):
                 table = worker_wakes.get(hour, {})
