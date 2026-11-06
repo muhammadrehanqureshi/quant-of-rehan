@@ -450,6 +450,97 @@
              in MainActivity.setScannerOpen beside the tile's own line,
              the single truth both obey: visible while the CUSTOM SCRIPS
              OF VOL. page is, gone on home and on every other page. -->
+        <!-- Owner order 2026-11-06 ("on the SEARCH page I want you to
+             introduce SECTORS tile as well, there would be a drop down
+             feature on the box of SECTORS"): the tile opens a menu of the
+             broker's own sectors inside its own box, and the chosen
+             sector's KMIALL scrips print below it. Its visibility travels
+             with the search page, so it exists only while he searches. -->
+        <include
+            android:id="@+id/rule_sectors"
+            layout="@layout/qor_rule"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:visibility="gone"/>
+
+        <LinearLayout
+            android:id="@+id/tile_sectors"
+            style="@style/QorPanel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/sectors_heading"
+                style="@style/QorLabel"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:text="@string/label_sectors"/>
+
+            <!-- The box and its menu are ONE plate, the law every dropdown on
+                 the console keeps: the closed face steps aside while the
+                 rows stand in its own space, and the caret stays the
+                 roll-up tap. -->
+            <LinearLayout
+                android:id="@+id/sectors_field_group"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:background="@drawable/field_bg"
+                android:orientation="vertical">
+
+                <FrameLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content">
+
+                    <TextView
+                        android:id="@+id/sectors_spinner"
+                        android:layout_width="match_parent"
+                        android:layout_height="43dp"
+                        android:background="@null"
+                        android:contentDescription="@string/label_sectors"
+                        android:gravity="center_vertical"
+                        android:includeFontPadding="false"
+                        android:paddingLeft="10dp"
+                        android:paddingRight="10dp"
+                        android:paddingTop="3dp"
+                        android:paddingBottom="3dp"
+                        android:text="@string/sectors_placeholder"
+                        android:textColor="@color/text_bright"
+                        android:textSize="13sp"/>
+
+                    <LinearLayout
+                        android:id="@+id/sectors_menu"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:visibility="gone"/>
+
+                    <ImageView
+                        android:id="@+id/sectors_arrow"
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
+                        android:layout_gravity="end|top"
+                        android:layout_marginTop="11dp"
+                        android:layout_marginEnd="14dp"
+                        android:contentDescription="@string/cd_dropdown"
+                        android:src="@drawable/dropdown_arrow"/>
+                </FrameLayout>
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/sectors_reveal"
+                style="@style/QorValue"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:visibility="gone"/>
+        </LinearLayout>
+
         <include
             android:id="@+id/rule_volume"
             layout="@layout/qor_rule"

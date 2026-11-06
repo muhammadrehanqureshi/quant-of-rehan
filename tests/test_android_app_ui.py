@@ -552,7 +552,7 @@ class SettingsControlTest(unittest.TestCase):
         self.assertIn("line.setText(flowRowText(row));", self.main)
         self.assertIn('\"  BID %,.2f\"', self.main)
         self.assertIn('\"ASK %,.2f\"', self.main)
-        self.assertIn('\"  (T=%,d)\"', self.main)
+        self.assertIn('\"T=%,d)\"', self.main)
         self.assertIn('sb.append(" & ");', self.main)
         self.assertIn('bidFrom + 2, bidFrom + 5', self.main)
         self.assertIn('askFrom, askFrom + 3', self.main)
@@ -595,18 +595,99 @@ class SettingsControlTest(unittest.TestCase):
         """Owner order 2026-11-05, tenth pass: the total volume stands on
         the BID and ASK line, and the split line uses ampersands."""
         selected = self.main[self.main.index("private void selectFlow("):]
-        selected = selected[:selected.index("private void setSearchOpen(")]
+        # Owner order 2026-11-06: the SECTORS methods now sit between
+        # selectFlow and setSearchOpen, so the slice ends at the first of
+        # them and still reads selectFlow's own body alone.
+        selected = selected[:selected.index("private void showSectorMenu(")]
         self.assertIn('sb.append(" & ");', selected)
-        self.assertIn('"(T=%,d)"', selected)
+        self.assertIn('" & T=%,d"', selected)
         self.assertIn('sb.append(" & S=");', selected)
         self.assertIn('" & U=%,d"', selected)
         self.assertIn("found.unclassified > 0", selected)
+        # Owner order 2026-11-06: the no-pair branch also opens when only
+        # T is known, because T now rides that same bracket.
         self.assertIn(
-            "else if (found.unclassified != null && found.unclassified > 0)",
+            "else if ((found.unclassified != null && found.unclassified > 0)",
             selected)
+        self.assertIn("|| found.volume != null) {", selected)
         self.assertNotIn(", S=", selected)
         self.assertNotIn(", U=", selected)
         self.assertNotIn(", T=", selected)
+
+    def test_one_bracket_carries_every_quantity(self):
+        """Owner order 2026-11-06 ("remove the bracket after S or U,
+        whichever comes later, and also remove the bracket before T,
+        throughout entire app"): the leaders card, the scanner reveal, the
+        order flow row and the selected book each print ONE bracket, with
+        B, S, U and T inside it, so no bracket ever stands before T.
+        """
+        self.assertIn('sb.append(", T=");', self.main)
+        self.assertIn('" & T=%,d"', self.main)
+        self.assertIn('" & T=n/a"', self.main)
+        # A row with no B, S or U still gets T in its own bracket, and the
+        # money line always starts on a new line after the bracket.
+        self.assertIn('sb.append(\'\\n\').append("(T=");', self.main)
+        self.assertNotIn('sb.append("  (T=%,d)", row.volume)', self.main)
+        # The big print board's own bracket is untouched: it is one sided.
+        self.assertIn('"(%s=%,d) "', self.main)
+
+    def test_the_empty_big_prints_board_is_sentence_height(self):
+        """Owner order 2026-11-06 ("the BIG BUYING & SELLING tile is too
+        large when there is no print, so make it fit/normal when there is
+        nothing"): an empty board wraps its one sentence, and the eight
+        print window comes back with the first print.
+        """
+        self.assertIn("wrapBigPrintsWindow();", self.main)
+        self.assertIn("lp.height = ViewGroup.LayoutParams.WRAP_CONTENT;",
+                      self.main)
+        empty = self.main[self.main.index("private void renderBigPrints("):]
+        empty = empty[:empty.index("private void fitBigPrintsWindow(")]
+        self.assertIn("wrapBigPrintsWindow();", empty)
+        self.assertIn("fitBigPrintsWindow();", empty)
+        self.assertIn("BIG_PRINTS_ROWS * row", self.main)
+
+    def test_the_sectors_tile_lists_only_the_kmi_all_scrips(self):
+        """Owner order 2026-11-06: the SEARCH page carries a SECTORS tile,
+        its box drops a menu of the broker's own sectors down inside the
+        tile, and the chosen sector prints every KMIALL scrip it holds with
+        price, move and the one quantities bracket. A scrip outside KMIALL
+        is filtered out on the relay before the phone ever sees it.
+        """
+        self.assertIn('android:text="@string/label_sectors"', self.layout)
+        for view in ("@+id/tile_sectors", "@+id/sectors_spinner",
+                     "@+id/sectors_menu", "@+id/sectors_arrow",
+                     "@+id/sectors_reveal", "@+id/rule_sectors"):
+            self.assertIn(view, self.layout)
+        self.assertGreater(self.layout.index("@+id/tile_sectors"),
+                           self.layout.index("@+id/big_prints_panel"))
+        strings = STRINGS.read_text(encoding="utf-8")
+        self.assertIn('name="label_sectors">SECTORS<', strings)
+        self.assertIn('name="sectors_placeholder"', strings)
+        self.assertIn('name="sectors_unavailable"', strings)
+        self.assertIn("private void showSectorMenu(boolean open)", self.main)
+        self.assertIn("private void refreshSectors()", self.main)
+        self.assertIn("private void renderSectorReveal()", self.main)
+        self.assertIn("Watcher.fetchSectors(this", self.main)
+        self.assertIn("row.setOnClickListener(v -> chooseSector(name));",
+                      self.main)
+        self.assertIn("sectorsReveal.setText(sb);", self.main)
+        # The tile and its rule follow the search page, and close with it.
+        self.assertIn("tileSectors.setVisibility(open ? View.VISIBLE",
+                      self.main)
+        self.assertIn("ruleSectors.setVisibility(open ? View.VISIBLE",
+                      self.main)
+        # The relay groups the broker's own master, KMIALL only.
+        worker = (ROOT / "cloud" / "worker.js").read_text(encoding="utf-8")
+        self.assertIn('path === "/sectors"', worker)
+        self.assertIn("const wanted = new Set(KMIALL_UNIVERSE);", worker)
+        self.assertIn("if (!wanted.has(symbol)) continue;", worker)
+        self.assertIn("row.approved !== \"Approved\"", worker)
+        self.assertIn("sectorMaster = { at: now, answer };", worker)
+        # The app reads that route and skips a scrip with no live quote.
+        watcher = WATCHER.read_text(encoding="utf-8")
+        self.assertIn("static void fetchSectors(", watcher)
+        self.assertIn('relayUrl(c) + "/sectors"', watcher)
+        self.assertIn('SECTOR_TTL_MS = 6 * 60 * 60 * 1000L', watcher)
 
     def test_the_order_flow_prompt_is_retired(self):
         """Owner order 2026-11-05, tenth pass: the sentence under the
@@ -883,8 +964,10 @@ class BrandRuleTest(unittest.TestCase):
         # Owner order 2026-11-04 (fourth pass): the page gets NO diamond
         # after the BIG BUYING & SELLING tile - the extra one he read as
         # two seams below the tile is gone with the include - so the
-        # console carries twelve.
-        self.assertEqual(self.layout.count('layout="@layout/qor_rule"'), 12)
+        # console carried twelve. Owner order 2026-11-06: the SEARCH page's
+        # SECTORS tile is a division of its own, so the console carries
+        # THIRTEEN - the new rule stands above it and nothing else moves.
+        self.assertEqual(self.layout.count('layout="@layout/qor_rule"'), 13)
 
     def test_the_rules_stand_between_the_tiles_and_never_inside_them(self):
         root = layout_root()
@@ -1160,9 +1243,10 @@ class CadencePlacementTest(unittest.TestCase):
         # carries the diamond that left the pair under BIG BUYING &
         # SELLING, and the console carried THIRTEEN. Owner order
         # 2026-11-04 (fourth pass): the extra seam below BIG BUYING &
-        # SELLING is gone with the include, so the console carries
-        # TWELVE.
-        self.assertEqual(len(rules), 12)
+        # SELLING is gone with the include, so the console carried
+        # TWELVE. Owner order 2026-11-06: the SECTORS tile's own rule above
+        # it makes THIRTEEN.
+        self.assertEqual(len(rules), 13)
         market_rule = next(
             rule for rule in rules
             if rule.get(f"{ANDROID_NS}id") == "@+id/rule_after_market")
@@ -1556,7 +1640,9 @@ class StatusPulseTest(unittest.TestCase):
         # v1.7.9 adds the fourth: the per-tick price read that paints the
         # search rows, guarded exactly like the two rounds and the one-symbol
         # answer.
-        self.assertEqual(self.main.count("isFinishing() || isDestroyed()"), 4)
+        # Owner order 2026-11-06: the SECTORS read is the fifth callback
+        # that releases its reference instead of painting a finished page.
+        self.assertEqual(self.main.count("isFinishing() || isDestroyed()"), 5)
         self.assertEqual(self.main.count("if (resumed) {"), 2)
         for marker in ("private void refresh()", "private void refreshLive()"):
             body = self.main[self.main.index(marker):][:800]
@@ -4929,7 +5015,9 @@ class UniversalRuleGapTest(unittest.TestCase):
         # between the page's two tiles, and THIRTEEN rules then. Owner
         # order 2026-11-04 (fourth pass): the extra seam below BIG BUYING
         # & SELLING is gone with the include, so TWELVE rules now.
-        self.assertEqual(len(rules), 12)
+        # Owner order 2026-11-06: the SECTORS tile's own rule above it makes
+        # THIRTEEN, every one of them carrying the grid's 12dp gap.
+        self.assertEqual(len(rules), 13)
         for rule in rules:
             with self.subTest(rule=rule.get(f"{ANDROID_NS}id")):
                 self.assertEqual(rule.get(f"{ANDROID_NS}layout_marginTop"),
