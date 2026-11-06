@@ -1641,6 +1641,18 @@ to sixty seconds. The status tile therefore also carries the app's own
      the orphan law stands so every dot still wears a filament.
   5. The version bump is versionCode 82 / versionName 2.3.15.
 
+**Version 4.0.13, versionCode 122.**
+
+  Owner report 2026-11-06, read on the 09:45 PKT home card and search
+  page. The SECTORS menu draws one divider between adjacent sectors,
+  the same line the themes menu carries, and a tapped sector now lists
+  every symbol it holds, not only the ones with a live frame: a symbol
+  with no quote yet prints NO LIVE QUOTE YET instead of vanishing. The
+  top three leaders print the unclear and the total volume together in
+  one bracket, (U=..., T=...), so T can never be hidden by U again.
+
+  The version bump is versionCode 122 / versionName 4.0.13.
+
 **Version 4.0.12, versionCode 121.**
 
   Owner order 2026-11-05, twelfth pass. B and S are served only when the
