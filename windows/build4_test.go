@@ -32,7 +32,7 @@ func TestScannerFlowListScrollsAndNeverCutsAnItem(t *testing.T) {
 		t.Fatalf("the first stock must be numbered 1:\n%s", s)
 	}
 	view := a.lvScan.view
-	if view < 4 || view >= 30 {
+	if view < 3 || view >= 30 {
 		t.Fatalf("the list should show a few stocks and scroll for the rest, view %d", view)
 	}
 	// Every shown item has both of its rows: a title row and a B, S and T row.
@@ -67,13 +67,13 @@ func TestScannerFlowListScrollsAndNeverCutsAnItem(t *testing.T) {
 		t.Errorf("up moves one stock: %d", a.lvScan.off)
 	}
 	for i := 0; i < 100; i++ {
-		a.onKey(Key{Kind: KMouse, X: 60, Y: 12, Btn: MouseWheelDown})
+		a.onKey(Key{Kind: KMouse, X: 60, Y: 20, Btn: MouseWheelDown})
 	}
 	if a.lvScan.off != 30-view {
 		t.Errorf("the wheel stops at the end: %d", a.lvScan.off)
 	}
 	for i := 0; i < 100; i++ {
-		a.onKey(Key{Kind: KMouse, X: 60, Y: 12, Btn: MouseWheelUp})
+		a.onKey(Key{Kind: KMouse, X: 60, Y: 20, Btn: MouseWheelUp})
 	}
 	if a.lvScan.off != 0 {
 		t.Errorf("the wheel stops at the top: %d", a.lvScan.off)
@@ -246,9 +246,9 @@ func TestPhaseAtMatchesTheSessionLaw(t *testing.T) {
 	}
 }
 
-// The gold mark turns while the quant is online and is perfectly still while
-// it is parked. Its ink is gold in every theme; the old green and red radar is
-// gone with the sweep and the crosshair.
+// The HUD dial turns while the quant is online and is perfectly still while it
+// is parked. Its ink is the picture's pale ice blue in every theme; the old
+// gold sun, wireframe and radar sweep are gone.
 func TestMarkTurnsOnlineAndIsStillOffline(t *testing.T) {
 	th := themeAt(0)
 	paint := func(mode OrbMode, secs float64) *Canvas {
@@ -272,28 +272,28 @@ func TestMarkTurnsOnlineAndIsStillOffline(t *testing.T) {
 			t.Errorf("offline (mode %d), the mark must be still", m)
 		}
 	}
-	gold := func(c *Canvas) int {
+	pale := func(c *Canvas) int {
 		n := 0
 		for _, ce := range c.Cells {
 			if _, ok := quadrantMask(ce.Ch); !ok {
 				continue
 			}
 			for _, p := range cellPixels(ce) {
-				if p.G >= 90 && p.G >= p.R && p.G >= p.B {
+				if p.B >= 180 && p.G >= 150 && p.R >= 120 {
 					n++
 				}
 			}
 		}
 		return n
 	}
-	if n := gold(paint(OrbBurning, 2)); n < 150 {
-		t.Errorf("online mark: only %d green pixels", n)
+	if n := pale(paint(OrbBurning, 2)); n < 150 {
+		t.Errorf("online mark: only %d pale blue pixels", n)
 	}
 	for i := range themes {
 		c := NewCanvas(38, 14, themeAt(i).BG)
 		drawOrb(c, 0, 0, 38, 14, 2, OrbBurning, themeAt(i))
-		if n := gold(c); n < 150 {
-			t.Errorf("theme %d: the mark is not green", i)
+		if n := pale(c); n < 150 {
+			t.Errorf("theme %d: the mark is not the picture's pale blue", i)
 		}
 	}
 }

@@ -56,10 +56,12 @@ func TestScannerShowsSectorsAndCyclesThem(t *testing.T) {
 			t.Errorf("scanner is missing %q", want)
 		}
 	}
-	before := a.sectorChoice
-	clickText(t, a, "AUTOMOBILE")
-	if a.sectorChoice == before {
-		t.Errorf("clicking the sector tile must show the next group")
+	clickText(t, a, "CEMENT")
+	if a.sectorChoice != 1 {
+		t.Errorf("clicking a row of the sector drop down must pick that group: %d", a.sectorChoice)
+	}
+	if s := plain(a); !strings.Contains(s, "CHRL") {
+		t.Errorf("the chosen group's scrips must be shown:\n%s", s)
 	}
 }
 
