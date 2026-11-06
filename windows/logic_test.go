@@ -223,7 +223,7 @@ func TestPhaseLine(t *testing.T) {
 		{NewMarket(), "Market status not reported by the relay yet."},
 		{mk("OPEN", "OPERATIONAL", ""), ""},
 		{mk("OPEN", "", ""), ""},
-		{mk("BREAK", "BREAK", ""), "Market is on a break right now."},
+		{mk("BREAK", "BREAK", ""), "Market is on a break right now. Quant is offline."},
 		{mk("BREAK", "BREAK", "Back at 15:30"), "Back at 15:30"},
 		{mk("CLOSED", "CLOSED", ""), "Market is closed right now."},
 		{mk("CLOSED", "CLOSED", "Closed until Monday"), "Closed until Monday"},

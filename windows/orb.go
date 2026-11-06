@@ -59,11 +59,11 @@ func (p radarPal) at(tone float64) RGB {
 func radarPalette(mode OrbMode) radarPal {
 	switch mode {
 	case OrbParked, OrbFault:
-		return radarPal{dim: RGB{58, 36, 8}, mid: RGB{176, 116, 28}, hot: RGB{236, 202, 126}, gain: 0.9}
+		return radarPal{dim: RGB{70, 14, 14}, mid: RGB{200, 40, 40}, hot: RGB{255, 140, 140}, gain: 0.9}
 	case OrbChecking:
-		return radarPal{dim: RGB{76, 50, 10}, mid: RGB{214, 148, 34}, hot: RGB{255, 226, 156}, gain: 1}
+		return radarPal{dim: RGB{60, 60, 16}, mid: RGB{200, 190, 50}, hot: RGB{255, 245, 160}, gain: 1}
 	}
-	return radarPal{dim: RGB{92, 58, 8}, mid: RGB{238, 168, 40}, hot: RGB{255, 244, 198}, gain: 1}
+	return radarPal{dim: RGB{14, 70, 30}, mid: RGB{40, 200, 90}, hot: RGB{150, 255, 180}, gain: 1}
 }
 
 // radarState is what animates. When moving is false the sphere stays where it

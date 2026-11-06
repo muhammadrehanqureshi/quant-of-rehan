@@ -192,7 +192,7 @@ func (a *App) drawHeader(c *Canvas) {
 		layout = "02 Jan 06"
 	}
 	clock := strings.ToUpper(k.Format(layout)) + " " + k.Format("15:04:05") + " UTC+5"
-	rightAlign(c, 0, 0, c.W-1, []Span{{clock, th.Text, false}})
+	rightAlign(c, 0, 0, c.W-1, []Span{{clock, th.Good, true}})
 
 	tag := "PSX'S KMIALL INDEX"
 	if a.demo {

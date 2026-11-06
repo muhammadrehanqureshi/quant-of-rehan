@@ -536,9 +536,9 @@ func (a *App) shareBar(c *Canvas, x, y, w int, buyShare float64) {
 	f := int(math.Round(buyShare * float64(bw)))
 	for i := 0; i < bw; i++ {
 		if i < f {
-			c.Put(x+i, y, '▄', th.Good, false)
+			c.Put(x+i, y, '█', th.Good, false)
 		} else {
-			c.Put(x+i, y, '▄', mix(th.Panel, th.Bad, 0.8), false)
+			c.Put(x+i, y, '█', mix(th.Panel, th.Bad, 0.8), false)
 		}
 	}
 	c.Text(x+bw+1, y, 4, strconv.FormatFloat(math.Round(buyShare*100), 'f', 0, 64)+"%", th.Soft, false)
