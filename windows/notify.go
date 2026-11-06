@@ -8,7 +8,7 @@ import (
 // Titles for market events, taken from the app's string resources.
 const (
 	textMarketOpen   = "Market is open. Quant is online now."
-	textMarketBreak  = "Market is on a break. Quant is sleeping until the market reopens."
+	textMarketBreak  = "Market is on a break. Quant is offline until the market reopens."
 	textMarketClosed = "Market is closed. Quant is sleeping now."
 )
 
