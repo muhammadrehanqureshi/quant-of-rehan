@@ -110,10 +110,10 @@ func TestAlertsBoardIsNumberedAndScrolls(t *testing.T) {
 	}
 }
 
-// B, S and T are written one way on every screen: B=1, S=2 & T=3).
+// B, S and T are written one way on every screen: B=1, S=2 & T=3.
 func TestBSTFormatEverywhere(t *testing.T) {
-	good := regexp.MustCompile(`B=[\d,]+, S=[\d,]+ & T=[\d,]+\)`)
-	bad := regexp.MustCompile(`B=[\d,]+\s{2,}S=|S=[\d,]+\s{2,}T=|\(B=`)
+	good := regexp.MustCompile(`B=[\d,]+, S=[\d,]+ & T=[\d,]+`)
+	bad := regexp.MustCompile(`B=[\d,]+\s{2,}S=|S=[\d,]+\s{2,}T=|\(B=|\)\s*$`)
 	for _, c := range []struct {
 		name string
 		set  func(a *App)
@@ -134,7 +134,7 @@ func TestBSTFormatEverywhere(t *testing.T) {
 		c.set(a)
 		s := plain(a)
 		if !good.MatchString(s) {
-			t.Errorf("%s: no 'B=1, S=2 & T=3)' anywhere:\n%s", c.name, s)
+			t.Errorf("%s: no 'B=1, S=2 & T=3' anywhere:\n%s", c.name, s)
 		}
 		if loc := bad.FindString(s); loc != "" {
 			t.Errorf("%s: old spacing %q still on screen", c.name, loc)

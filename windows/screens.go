@@ -692,7 +692,7 @@ func (a *App) marketNote() string {
 	return "Waiting for the broker feed."
 }
 
-// putBST draws "B=1,234, S=5,678 & T=6,912)" at (x, y) the way every list on the
+// putBST draws "B=1,234, S=5,678 & T=6,912" at (x, y) the way every list on the
 // screen words it, with the live flash on each number. A part that is missing
 // is left out. It returns the width drawn.
 func (a *App) putBST(c *Canvas, x, y int, buy, sell, total *int64, keys ...string) int {
@@ -708,11 +708,11 @@ func (a *App) putBST(c *Canvas, x, y int, buy, sell, total *int64, keys ...strin
 		put(commaInt(*sell), th.Bad, true)
 		if total != nil {
 			put(" & T=", th.Soft, false)
-			put(commaInt(*total)+")", th.Text, false)
+			put(commaInt(*total), th.Text, false)
 		}
 	} else if total != nil {
 		put("T=", th.Soft, false)
-		put(commaInt(*total)+")", th.Text, false)
+		put(commaInt(*total), th.Text, false)
 	}
 	return vx - x
 }
