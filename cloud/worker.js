@@ -757,6 +757,83 @@ const LARGE_PRINT_MAX = 200;
 // this list drifts from src/data/universe_kmiall.json.
 const KMIALL_UNIVERSE = ["AASM","ABOT","ACPL","ADAMS","AGIL","AGP","AGTL","AHTM","AIRLINK","AKGL","ALNRS","ANL","ANTM","ARCTM","ARPL","ASC","ASHT","ASL","ASTM","ATBA","ATRL","AVN","AWTX","BAFS","BATA","BBFL","BCL","BECO","BERG","BFAGRO","BFBIO","BFMOD","BHAT","BIFO","BIPL","BLUEX","BNL","BNWM","BPL","BRRG","BTL","BUXL","BWHL","CCM","CEPB","CFL","CHAS","CHCC","CLOV","CNERGY","COLG","CPHL","CPPL","CRTM","CSAP","DAAG","DADX","DBSL","DCL","DCR","DFSM","DGKC","DINT","DMC","DNCC","DOL","DSL","DWSM","DYNO","ECOP","EFERT","ELCM","ELSM","EMCO","ENGROH","EPCL","EPQL","EXIDE","FABL","FANM","FASM","FATIMA","FCCL","FCEPL","FCL","FECM","FECTC","FEM","FEROZ","FFC","FFL","FFLM","FHAM","FIBLM","FIL","FIMM","FLYNG","FML","FNBM","FPJM","FPRM","FRCL","FRSM","FTMM","FTSM","FZCM","GADT","GAL","GATI","GATM","GCIL","GCWL","GDL","GEMBCEM","GEMMEL","GEMPACRA","GEMPAPL","GFIL","GGGL","GGL","GHGL","GHNI","GIL","GLAXO","GOC","GTYR","GVGL","GWLC","HAEL","HAFL","HALEON","HATM","HCAR","HINO","HINOON","HPL","HRPL","HTL","HUBC","IBFL","IBLHL","ICCI","ICL","IDRT","IDSM","ILP","IMAGE","INIL","INKL","IPAK","IREIT","ISIL","ISL","ITANZ","ITTEFAQ","JATM","JDMT","JDWS","JSML","JUBS","JVDC","KCL","KEL","KHYT","KOHC","KOHE","KOHTM","KPUS","KSBP","KSTM","KTML","LCI","LEUL","LIVEN","LOADS","LOTCHEM","LPGL","LUCK","MACFL","MACTER","MARI","MEBL","MEHT","MERIT","MFFL","MFL","MIIETF","MIRKS","MLCF","MQTM","MRNS","MSCL","MTL","MUBT","MUGHAL","MWMP","MZNPETF","NATM","NCML","NESTLE","NETSOL","NML","NONS","NRL","NRSL","NSRM","OCTOPUS","OGDC","OLPM","OML","ORM","OTSU","PAEL","PAKD","PAKOXY","PAKQATAR","PIBTL","PICT","PIM","PIOC","PKGS","PMRS","POML","POWER","PPL","PPP","PQGTL","PREMA","PRL","PSEL","PSO","PSYL","PTL","QTECH","QUET","QUICE","RCML","REDCO","REWM","RMPL","RPL","RUBY","RUPL","SANSM","SAPT","SARC","SASML","SAZEW","SCL","SEARL","SEL","SELECT","SERT","SGABL","SGF","SGPL","SGPLR","SHCM","SHDT","SHFA","SHSML","SIEM","SINDM","SITC","SKRS","SLGL","SLM","SMCPL","SML","SNAI","SNGP","SOYASUP","SPEL","SPL","SPSL","SRR","SRVI","SSGC","SSML","SSOM","STCL","STJT","STL","STLR","STML","STYLERS","SUHJ","SURC","SWL","SYM","SYS","SZTM","TATM","TCORP","TELE","TGL","THCCL","TICL","TISL","TOMCL","TOWL","TPLRF1","TREET","TRSM","TSIL","UBDL","UDLI","UDPL","UNITY","UPFL","WAFI","WAHDAT","WAHN","WASL","WAVES","ZAHID","ZAL","ZIL","ZTL"];
 
+// Owner order 2026-11-06: the phone's SEARCH page carries a SECTORS tile.
+// The classification is the broker's own scrip master (a sectorName on every
+// approved REG scrip), filtered against KMIALL_UNIVERSE, so a scrip outside
+// KMIALL never reaches the phone and no sector is invented here (SO-3). The
+// master moves only on listing events, so it is held for six hours; an
+// unreachable master answers a stated gap, never a guessed list.
+const SCRIP_MASTER_URLS = [
+  "https://nxg2.eclear.com.pk/pero/ScripServlet",
+  "https://nxg1.eclear.com.pk/pero/ScripServlet",
+];
+const SECTOR_MASTER_TTL_MS = 6 * 60 * 60 * 1000;
+let sectorMaster = { at: 0, answer: null };
+
+async function sectorsAnswer() {
+  const now = Date.now();
+  if (sectorMaster.answer && now - sectorMaster.at < SECTOR_MASTER_TTL_MS) {
+    return sectorMaster.answer;
+  }
+  const wanted = new Set(KMIALL_UNIVERSE);
+  let lastError = "no source";
+  for (const base of SCRIP_MASTER_URLS) {
+    try {
+      const response = await fetch(
+        `${base}?ScripLoadDateTime=&IsReLoad=1`,
+        {
+          headers: { "user-agent": "okhttp/4.9.3", accept: "application/json" },
+          cf: { cacheTtl: 3600, cacheEverything: true },
+        },
+      );
+      if (!response.ok) {
+        lastError = `HTTP ${response.status}`;
+        continue;
+      }
+      const rows = await response.json();
+      if (!Array.isArray(rows)) {
+        lastError = "not a list";
+        continue;
+      }
+      const bySector = new Map();
+      for (const row of rows) {
+        if (!row || row.market !== "REG" || row.approved !== "Approved") {
+          continue;
+        }
+        const symbol = String(row.symbol || "").trim().toUpperCase();
+        if (!wanted.has(symbol)) continue;
+        const sector = String(row.sectorName || "").trim().toUpperCase();
+        if (!sector) continue;
+        if (!bySector.has(sector)) bySector.set(sector, new Set());
+        bySector.get(sector).add(symbol);
+      }
+      if (bySector.size === 0) {
+        lastError = "no KMIALL sectors in the master";
+        continue;
+      }
+      const answer = {
+        ok: true,
+        source: "eClear ScripServlet sectorName",
+        as_of: new Date().toISOString(),
+        sectors: [...bySector.entries()]
+          .map(([name, symbols]) => ({ name, symbols: [...symbols].sort() }))
+          .sort((a, b) => a.name.localeCompare(b.name)),
+      };
+      sectorMaster = { at: now, answer };
+      return answer;
+    } catch (err) {
+      lastError = String((err && err.message) || err);
+    }
+  }
+  return {
+    ok: false,
+    source: "eClear ScripServlet sectorName",
+    as_of: new Date().toISOString(),
+    sectors: [],
+    error: `sector master unavailable: ${lastError}`,
+  };
+}
+
 function largePrintFrom(quote, measured) {
   if (!quote || !measured || !Number.isFinite(measured.delta) ||
       measured.delta <= 0) return null;
@@ -2410,6 +2487,15 @@ export default {
       // pure read of the durable snapshot, so polling it can never spend
       // the Durable Objects write budget.
       return json(await flowAnswer(env, new Date()), 200, {
+        "access-control-allow-origin": "*",
+        "cache-control": "no-store",
+      });
+    }
+
+    if (request.method === "GET" && path === "/sectors") {
+      // Every KMIALL scrip's sector, grouped and filtered on the relay: the
+      // phone never receives a scrip outside the universe (2026-11-06).
+      return json(await sectorsAnswer(), 200, {
         "access-control-allow-origin": "*",
         "cache-control": "no-store",
       });

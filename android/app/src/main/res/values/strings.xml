@@ -125,6 +125,12 @@
     <string name="big_prints_none">No big print yet today.</string>
     <string name="big_prints_hint">Search for a KMIALL scrip</string>
     <string name="big_prints_none_match">No big print for that scrip today.</string>
+    <!-- Owner order 2026-11-06: the SEARCH page's SECTORS tile. Its menu
+         names the broker's own sectors and every row prints only the
+         KMIALL scrips that sector holds. -->
+    <string name="label_sectors">SECTORS</string>
+    <string name="sectors_placeholder">SELECT A SECTOR</string>
+    <string name="sectors_unavailable">SECTORS UNAVAILABLE RIGHT NOW</string>
     <string name="cd_order_flow">Order flow</string>
     <string name="market_open_notification">Market is open. Quant is online now.</string>
     <string name="market_closed_notification">Market is closed. Quant is sleeping now.</string>
