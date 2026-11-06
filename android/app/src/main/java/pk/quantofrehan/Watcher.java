@@ -1163,6 +1163,17 @@ public final class Watcher {
                             c.getColor(R.color.green)), buyFrom, buyTo, 0);
                     styled.setSpan(new android.text.style.ForegroundColorSpan(
                             c.getColor(R.color.red)), sellFrom, sellTo, 0);
+                } else if (unclear != null && unclear > 0) {
+                    // No measured pair: the whole known total is unclear and
+                    // prints as U, never as a guessed B or S.
+                    sb.append(String.format(java.util.Locale.US,
+                            " (U=%,.0f", unclear));
+                    if (total != null) {
+                        sb.append(String.format(java.util.Locale.US,
+                                " & T=%,.0f", total));
+                    }
+                    sb.append(')');
+                    styled = new android.text.SpannableString(sb);
                 } else if (total != null) {
                     sb.append(String.format(java.util.Locale.US, " (T=%,.0f)", total));
                     styled = new android.text.SpannableString(sb);

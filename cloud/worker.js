@@ -919,6 +919,9 @@ function ackCandidateFrame(row, day) {
   if (!Number.isFinite(buy) || !Number.isFinite(sell)) return null;
   if (Math.round(buy) < 0 || Math.round(sell) < 0) return null;
   if (Math.round(buy) + Math.round(sell) !== Math.round(volume)) return null;
+  // Only a measured pair may enter the mirror. An old range pair carries no
+  // wire evidence and must never be carried forward.
+  if (row.split_method !== "quote_rule") return null;
   const band = regularBandIndexOf(row);
   if (band === null || band < 1) return null;
   return {
@@ -931,8 +934,9 @@ function ackCandidateFrame(row, day) {
     volume: Math.round(volume),
     buy_volume: Math.round(buy),
     sell_volume: Math.round(sell),
-    split_method: row.split_method || "range_position",
-    split_source: row.split_source || null,
+    split_method: "quote_rule",
+    split_source: row.split_source ||
+      "every volume increment sided by the wire's own bid/ask at the poll",
     observed_at: row.observed_at || row.feed_as_of || null,
     source: row.quote_source || row.source || null,
     quote_fresh: Boolean(row.quote_fresh),
@@ -1004,15 +1008,39 @@ function applyStoredFrame(row, stored) {
   if (Number.isFinite(Number(stored.change_pct))) {
     row.change_pct = Number(stored.change_pct);
   }
-  if (Number.isFinite(Number(stored.buy_volume)) &&
+  const measuredStored = stored.split_method === "quote_rule";
+  if (measuredStored && Number.isFinite(Number(stored.buy_volume)) &&
       Number.isFinite(Number(stored.sell_volume))) {
     row.buy_volume = Math.round(Number(stored.buy_volume));
     row.sell_volume = Math.round(Number(stored.sell_volume));
     row.split_volume = row.buy_volume + row.sell_volume;
+    row.split_method = "quote_rule";
+    row.split_source = stored.split_source ||
+      "every volume increment sided by the wire's own bid/ask at the poll";
+  } else if (row.split_method !== "quote_rule") {
+    // A stored range is not a measurement. It may update the total, but it
+    // never supplies a side; the total stays visible as U.
+    row.buy_volume = null;
+    row.sell_volume = null;
+    row.split_volume = null;
+    row.classified_volume = null;
+    row.split_method = "unavailable";
+    row.split_source =
+      "no measured order-flow pair; the total is unclassified";
   }
-  row.split_method = stored.split_method || "range_position";
-  row.split_source = stored.split_source
-    ? stored.split_source : row.split_source || null;
+  if (Number.isFinite(Number(row.volume)) &&
+      Number.isFinite(row.buy_volume) && Number.isFinite(row.sell_volume)) {
+    row.classified_volume = row.buy_volume + row.sell_volume;
+    row.split_volume = row.classified_volume;
+    row.unclassified_volume = Math.max(0,
+      Math.round(Number(row.volume)) - row.classified_volume);
+    row.flow_complete = row.unclassified_volume === 0;
+  } else if (row.split_method !== "quote_rule" &&
+      Number.isFinite(Number(row.volume))) {
+    row.classified_volume = null;
+    row.unclassified_volume = Math.max(0, Math.round(Number(row.volume)));
+    row.flow_complete = row.unclassified_volume === 0;
+  }
   row.ack_band = stored.band;
   return row;
 }
@@ -1165,21 +1193,9 @@ function parseSymbolRange(html) {
   return quote;
 }
 
-// The money flow multiplier split of one session's volume. Buying is the
-// volume the close's position in the range attributes to buyers, so buy + sell
-// is exactly the volume it was given, which is the same total the card prints
-// as T. This is a proxy for order flow and every caller labels it as one
-// (SO-3). Returns null rather than guessing when the venue's fields are
-// missing, contradictory, or describe no session.
-function rangePositionSplit(high, low, close, volume) {
-  if (![high, low, close, volume].every((v) => Number.isFinite(v))) return null;
-  if (high < low || volume <= 0 || close < low || close > high) return null;
-  const total = Math.round(volume);
-  if (total <= 0) return null;
-  const position = high === low ? 0.5 : (close - low) / (high - low);
-  const buy = Math.min(Math.max(Math.round(total * position), 0), total);
-  return { buy_volume: buy, sell_volume: total - buy, split_volume: total };
-}
+// B/S is never estimated from the day's range. A pair is served only when
+// the capture measured every increment at the wire; a frame without one
+// ships null B/S and the whole known total as unclassified.
 
 // One answer for a quote's B/S pair. The durable quote store writes the pair
 // on every accepted frame, so every route reads that pair instead of
@@ -1216,17 +1232,27 @@ function measuredFromQuote(quote) {
 
 function splitFromQuote(quote) {
   if (!quote || typeof quote !== "object") return null;
+  // An old stored range pair carries split_method "range_position"; it is
+  // not evidence and is never served as B or S.
+  if (quote.flow_method !== "quote_rule" &&
+      quote.split_method !== "quote_rule") return null;
   const measured = measuredFromQuote(quote);
   if (measured) return measured;
   const volume = Math.round(Number(quote.volume));
   const buy = Math.round(Number(quote.buy_volume));
   const sell = Math.round(Number(quote.sell_volume));
-  if (Number.isFinite(volume) && volume > 0 &&
-      Number.isFinite(buy) && Number.isFinite(sell) &&
-      buy >= 0 && sell >= 0 && buy + sell === volume) {
-    return { buy_volume: buy, sell_volume: sell, split_volume: volume };
-  }
-  return rangePositionSplit(quote.high, quote.low, quote.price, quote.volume);
+  if (!Number.isFinite(buy) || !Number.isFinite(sell) ||
+      buy < 0 || sell < 0) return null;
+  if (Number.isFinite(volume) && buy + sell > volume) return null;
+  return {
+    buy_volume: buy,
+    sell_volume: sell,
+    split_volume: buy + sell,
+    flow_baseline: Number.isFinite(volume) ? volume - buy - sell : null,
+    split_method: "quote_rule",
+    split_source: quote.split_source ||
+      "every volume increment sided by the wire's own bid/ask at the poll",
+  };
 }
 
 // The capture's own pair, when it carries one. The feed daemon starts before
@@ -1260,42 +1286,21 @@ function quoteSessionKey(quote) {
   return { day: dayStamp(karachiView(at)) };
 }
 
-// Fetch each leader's published range and fill its split, one bounded fetch
-// per leader. A symbol that cannot be read keeps nulls and a stated reason.
+// The leader table has no order-flow pair. Never fill it from the day's
+// range: the total is the only proven number, so it ships as U and B/S
+// stay null.
 async function attachSplits(rows) {
-  for (const row of rows) {
-    const tableVolume = Number.isFinite(row.volume) ? row.volume : null;
-    let quote = null;
-    try {
-      quote = parseSymbolRange(await portalText(PORTAL_COMPANY + row.symbol));
-    } catch (e) {
-      quote = null;
-    }
-    if (!quote) {
-      row.split_method = "unavailable";
-      row.split_source = "no published session range for this symbol";
-      continue;
-    }
-    if (tableVolume !== null && Number.isFinite(quote.volume) &&
-        quote.volume < tableVolume) {
-      row.split_method = "unavailable";
-      row.split_source = "the per-symbol panel reported less volume than " +
-        "the ranking table, so its range is stale";
-      continue;
-    }
-    // Decompose the session total the card prints as T, not the panel's own
-    // copy of it: buy and sell must add up to that T on the same row, and the
-    // panel's copy is fetched seconds later, so it can only be newer.
-    const total = Number.isFinite(tableVolume) ? tableVolume : quote.volume;
-    const split = rangePositionSplit(quote.high, quote.low, row.price, total);
-    if (!split) {
-      row.split_method = "unavailable";
-      row.split_source = "the published session range is incomplete";
-      continue;
-    }
-    Object.assign(row, split);
-    row.split_method = "range_position";
-    row.split_source = "B/S estimated from the day's range, not order flow";
+  for (const row of rows || []) {
+    const volume = Number.isFinite(Number(row.volume))
+      ? Math.max(0, Math.round(Number(row.volume))) : null;
+    row.buy_volume = null;
+    row.sell_volume = null;
+    row.split_volume = null;
+    row.classified_volume = null;
+    row.unclassified_volume = volume;
+    row.flow_complete = volume === null ? null : volume === 0;
+    row.split_method = "unavailable";
+    row.split_source = "no measured order-flow pair; the total is unclassified";
   }
   return rows;
 }
@@ -1303,16 +1308,13 @@ async function attachSplits(rows) {
 // The card's one sentence about the split, naming the weakest method used and
 // counting any row that carries no split at all.
 function splitLabel(rows) {
-  const available = rows.filter((r) => Number.isFinite(r.buy_volume));
-  if (!available.length) return "B/S unavailable for the leaders right now";
-  const measured = available.filter((r) =>
-    r.split_method === "measured_tape" ||
-    r.split_method === "quote_rule").length;
-  let text = measured === available.length
-    ? "B/S measured at the wire from the broker feed"
-    : measured > 0
-      ? "B/S partly measured at the wire, partly estimated from the day's range"
-      : "B/S estimated from the day's range, not order flow";
+  const available = (rows || []).filter((r) =>
+    r.split_method === "quote_rule" && Number.isFinite(r.buy_volume) &&
+    Number.isFinite(r.sell_volume));
+  if (!available.length) {
+    return "B/S unavailable: the wire has not measured a pair";
+  }
+  let text = "B/S measured at the wire from the broker feed";
   if (available.length < rows.length) {
     text += ` (${available.length} of ${rows.length})`;
   }
@@ -1332,10 +1334,9 @@ function topByVolume(rows, limit) {
       // percentage is carried instead of being dropped (it was parsed and
       // then discarded, which is why the app had no percentage to show).
       change_pct: r.change_pct,
-      // The exchange's own table carries ONE volume column, so the split
-      // comes from the symbol's published session range instead, and the
-      // method that produced it always travels with the numbers. Null here
-      // means "not read yet", never "zero" (SO-3).
+      // The exchange's own table carries ONE volume column and no aggressor
+      // evidence, so B/S stay null and the known total is reported as U.
+      // Null here means "not measured", never "zero" (SO-3).
       buy_volume: null,
       sell_volume: null,
       split_method: "unavailable",
@@ -1605,29 +1606,30 @@ async function readQuoteSnapshot(env) {
 // which is exactly the "the quantities are not moving" the owner reported on
 // 2026-10-20: the venv saw CNERGY's B stuck at 1,208,688 while its T climbed
 // past 15,000,000. So every merged row recomputes its split from THIS frame,
-// and a frame whose range is incomplete says so instead of inheriting the last
+// and a frame without a measured pair says so instead of inheriting the last
 // split forever.
 function splitFields(split, quote) {
+  const total = Number(quote && quote.volume);
   if (!split) {
+    const unclassified = Number.isFinite(total)
+      ? Math.max(0, Math.round(total)) : null;
     return {
       buy_volume: null,
       sell_volume: null,
       split_volume: null,
       classified_volume: null,
-      unclassified_volume: null,
-      flow_complete: null,
+      unclassified_volume: unclassified,
+      flow_complete: unclassified === null ? null : unclassified === 0,
       flow_baseline: null,
       flow_baseline_at: null,
       flow_first_seen_at: null,
       flow_baseline_reason: null,
       split_method: "unavailable",
       split_source: quote
-        ? "the frame's range is incomplete"
+        ? "no measured order-flow pair; the total is unclassified"
         : "no fresh frame for this symbol",
     };
   }
-  const measured = split.split_method === "quote_rule";
-  const total = Number(quote && quote.volume);
   const classified = Number(split.buy_volume) + Number(split.sell_volume);
   const unclassified = Number.isFinite(total)
     ? Math.max(0, Math.round(total) - Math.round(classified)) : null;
@@ -1647,11 +1649,9 @@ function splitFields(split, quote) {
       ? String(quote.flow_first_seen_at) : null,
     flow_baseline_reason: quote && quote.flow_baseline_reason
       ? String(quote.flow_baseline_reason) : null,
-    split_method: measured ? "quote_rule" : "range_position",
-    split_source: measured
-      ? (split.split_source ||
-         "every volume increment sided by the wire's own bid/ask at the poll")
-      : "B/S estimated from the day's range, not order flow",
+    split_method: "quote_rule",
+    split_source: split.split_source ||
+      "every volume increment sided by the wire's own bid/ask at the poll",
   };
 }
 
@@ -1750,8 +1750,9 @@ async function flowAnswer(env, now) {
     const buy = split ? Math.max(0, Math.round(Number(split.buy_volume))) : null;
     const sell = split ? Math.max(0, Math.round(Number(split.sell_volume))) : null;
     const classified = buy !== null && sell !== null ? buy + sell : null;
-    const unclassified = volume !== null && classified !== null
-      ? Math.max(0, volume - classified) : null;
+    const unclassified = volume !== null
+      ? (classified !== null ? Math.max(0, volume - classified) : volume)
+      : null;
     const buyShare = classified && buy !== null
       ? Math.round((10000 * buy) / classified) / 100 : null;
     const sellShare = classified && sell !== null
@@ -1783,13 +1784,11 @@ async function flowAnswer(env, now) {
       buy_share_pct: buyShare,
       sell_share_pct: sellShare,
       flow_complete: unclassified === null ? null : unclassified === 0,
-      split_method: split && split.split_method === "quote_rule"
-        ? "quote_rule" : (split ? "range_position" : "unavailable"),
+      split_method: split ? "quote_rule" : "unavailable",
       split_source: split
-        ? (split.split_source || (split.split_method === "quote_rule"
-          ? "every volume increment sided by the wire's own bid/ask"
-          : "B/S estimated from the day's range, not order flow"))
-        : "the frame's range is incomplete",
+        ? (split.split_source ||
+           "every volume increment sided by the wire's own bid/ask")
+        : "no measured order-flow pair; the total is unclassified",
       observed_at: quote.observed_at || null,
       age_seconds: Number.isFinite(Number(quote.age_seconds))
         ? Math.max(0, Math.round(Number(quote.age_seconds))) : null,
@@ -1874,7 +1873,7 @@ async function flowAnswer(env, now) {
     basis: {
       split: "quote_rule: every observed increment of the venue counter is sided once by the bid/ask of the frame that carried it; buy and sell never decrease",
       coverage: "regular-session frames for the named Karachi day; a symbol with no frame that day appears in missing, never with an invented number",
-      unclassified: "shares traded before the capture or hub first observed the symbol; they are reported separately and never guessed into buy or sell",
+      unclassified: "shares traded before the capture or hub first observed the symbol, plus increments the wire did not decide; they are reported separately and never guessed into buy or sell",
       large: "one relay update carrying at least PKR 10,000,000 on one side; the broker wire has no individual order id, so this is a large observed increment, not a claimed order ticket",
     },
   };
@@ -1898,8 +1897,7 @@ async function applyLiveQuotes(env, snapshot, quotes, now, ackDay) {
     for (const quote of liveBySymbol.values()) {
       if (!Number.isFinite(quote.volume) || quote.volume <= 0) continue;
       const volume = quote.volume;
-      const split = splitFromQuote(quote)
-        || rangePositionSplit(quote.high, quote.low, quote.price, volume);
+      const split = splitFromQuote(quote);
       merged.push({
         ...quote,
         volume,
@@ -1947,8 +1945,7 @@ async function applyLiveQuotes(env, snapshot, quotes, now, ackDay) {
       Number.isFinite(row.volume) && row.volume > 0);
     if (todayFrames.length) {
       snapshot.top_volume = todayFrames.map((row) => {
-        const split = splitFromQuote(row)
-          || rangePositionSplit(row.high, row.low, row.price, row.volume);
+        const split = splitFromQuote(row);
         return {
           symbol: row.symbol,
           volume: Math.round(row.volume),
@@ -2548,8 +2545,13 @@ export default {
         quote_fresh: Boolean(quote.fresh),
         buy_volume: null,
         sell_volume: null,
+        classified_volume: null,
+        unclassified_volume: Number.isFinite(Number(quote.volume))
+          ? Math.max(0, Math.round(Number(quote.volume))) : null,
+        flow_complete: Number.isFinite(Number(quote.volume))
+          ? Math.max(0, Math.round(Number(quote.volume))) === 0 : null,
         split_method: "unavailable",
-        split_source: "the frame's range is incomplete",
+        split_source: "no measured order-flow pair; the total is unclassified",
         observed_at: quote.observed_at || null,
         source_tick_time: quote.source_tick_time || null,
       };
@@ -2564,14 +2566,9 @@ export default {
         stock.unclassified_volume = unclassified;
         stock.flow_complete = unclassified === null
           ? null : unclassified === 0;
-        stock.split_method = quote.split_method === "quote_rule"
-          ? "quote_rule" : "range_position";
-        stock.split_source = quote.split_method === "quote_rule"
-          ? (quote.split_source ||
-             "every volume increment sided by the wire's own bid/ask")
-          : quote.fresh
-            ? "B/S estimated from the day's range, not order flow"
-            : "B/S estimated from the symbol's last published frame; the market is closed";
+        stock.split_method = "quote_rule";
+        stock.split_source = split.split_source || quote.split_source ||
+          "every volume increment sided by the wire's own bid/ask";
       }
       // Owner order 2026-10-31: the answer also reads and advances the
       // SAME acknowledged frame every surface reads, so the search's B, S
@@ -2587,9 +2584,6 @@ export default {
         if (stored) {
           applyStoredFrame(stock, stored);
           if (stored.observed_at) stock.quote_as_of = stored.observed_at;
-          stock.split_source = quote.fresh
-            ? "B/S estimated from the day's range, not order flow"
-            : "B/S estimated from the symbol's last published frame; the market is closed";
         }
       }
       return json({ ok: true, stock });
@@ -2630,12 +2624,11 @@ export default {
         // yesterday's frames are not today's list.
         if (!quoteIsFromToday(quote) && tradingToday) continue;
         // The volume dropdowns (owner order 2026-10-23) rank scrips by their
-        // published split, so each row carries the same B/S pair the /stock
-        // route computes: the day's range is the frame it is split from, and
-        // a frame whose range is incomplete ships nulls instead of guessing
-        // (SO-3). The row is six long now (owner order 2026-11-01): the
-        // acknowledged total rides beside the pair so the phone's pinned
-        // answer moves with the card instead of a frozen copy.
+        // measured split, so each row carries the same B/S pair the /stock
+        // route computes. A frame without a measured pair ships null B/S and
+        // the total as U instead of guessing (SO-3). The row is seven long
+        // now: the acknowledged total rides beside the pair, and the seventh
+        // field is the unclear remainder.
         const split = splitFromQuote(quote);
         rowsBuilt.push({
           symbol: String(quote.symbol || ""),
@@ -2644,16 +2637,11 @@ export default {
           volume: Number.isFinite(quote.volume) ? Math.round(quote.volume) : null,
           buy_volume: split ? split.buy_volume : null,
           sell_volume: split ? split.sell_volume : null,
-          split_method: split
-            ? (quote.split_method === "quote_rule" ? "quote_rule"
-               : "range_position")
-            : "unavailable",
+          split_method: split ? "quote_rule" : "unavailable",
           split_source: split
-            ? (quote.split_method === "quote_rule"
-               ? (quote.split_source ||
-                  "every volume increment sided by the wire's own bid/ask")
-               : "B/S estimated from the day's range, not order flow")
-            : null,
+            ? (split.split_source || quote.split_source ||
+               "every volume increment sided by the wire's own bid/ask")
+            : "no measured order-flow pair; the total is unclassified",
           observed_at: quote.observed_at || null,
           source: quote.source || null,
         });
@@ -2681,9 +2669,12 @@ export default {
           // The unclear remainder rides as the seventh field (owner order
           // 2026-11-05, eighth pass): the phone prints it as U and never
           // folds it into a side.
-          row.volume != null && row.buy_volume != null && row.sell_volume != null
-            ? Math.max(0, Math.round(row.volume) - Math.round(row.buy_volume)
-              - Math.round(row.sell_volume))
+          row.volume != null
+            ? (row.buy_volume != null && row.sell_volume != null
+              ? Math.max(0, Math.round(row.volume)
+                - Math.round(row.buy_volume)
+                - Math.round(row.sell_volume))
+              : Math.round(row.volume))
             : null,
         ]);
       }
@@ -3060,12 +3051,11 @@ export class QuoteHub {
   // Every increment of the venue's own running total, sided once, for the
   // whole day. Rules, first match wins: last at or above the ask buys; at or
   // below the bid sells; inside the spread the midpoint decides; otherwise
-  // the tick decides; otherwise the symbol's last decided side is carried
-  // and counted. The day's change sign is never consulted: it is the sign of
-  // the change, not the side of a trade. A falling total is stale evidence
-  // and is refused, never turned into a sale. The pre-baseline counter is
-  // sided once by the first quote in hand, exactly like any increment, so
-  // buy + sell equals the total on every served frame.
+  // the tick decides; otherwise no side is known and the increment stays in
+  // the unclassified baseline. The day's change sign is never consulted: it
+  // is the sign of the change, not the side of a trade. A falling total is
+  // stale evidence and is refused, never turned into a sale. The pre-baseline
+  // counter is unclassified too; no share is ever guessed into a side.
   async advanceFlow(quote) {
     await this.ready;
     // An instance that was already running before the flow table shipped
@@ -3128,8 +3118,8 @@ export class QuoteHub {
     } else {
       const delta = total - state.volume;
       if (delta > 0) {
-        let rule = "carried";
-        let side = state.side === "S" ? "S" : "B";
+        let rule = null;
+        let side = null;
         if (state.ask > 0 && state.last >= state.ask) {
           rule = "at_ask"; side = "B";
         } else if (state.bid > 0 && state.last <= state.bid) {
@@ -3139,16 +3129,25 @@ export class QuoteHub {
           if (state.last > mid) { rule = "above_mid"; side = "B"; }
           else if (state.last < mid) { rule = "below_mid"; side = "S"; }
         }
-        if (rule === "carried" && Number.isFinite(previousLast) && previousLast > 0) {
+        if (!side && Number.isFinite(previousLast) && previousLast > 0) {
           if (state.last > previousLast) { rule = "tick_up"; side = "B"; }
           else if (state.last < previousLast) { rule = "tick_down"; side = "S"; }
         }
         if (side === "B") state.buy += delta;
-        else state.sell += delta;
-        state.side = side;
-        attributed = delta;
+        else if (side === "S") state.sell += delta;
+        else {
+          // No evidence decides this increment. It stays in the baseline,
+          // which is served as U, and never carries the previous side.
+          rule = "unclassified";
+          state.baseline += delta;
+          state.side = "";
+        }
+        if (side) {
+          state.side = side;
+          attributed = delta;
+          attributedSide = side;
+        }
         attributedRule = rule;
-        attributedSide = side;
         bump(rule);
       }
       state.volume = total;
@@ -3648,29 +3647,22 @@ export class QuoteHub {
                        sell_volume: clamped.sell };
             }
           }
-          // Owner order 2026-11-03: when the capture sided every increment
-          // of the venue's own counter at the wire (quote_rule), that is a
-          // measured pair, and the range sentence would be a lie about it.
-          // The declared method travels with the numbers; only a frame that
-          // declares nothing is labelled as the range estimate.
-          const declared = split.split_method === "quote_rule"
-            || quote.split_method === "quote_rule"
-            ? "quote_rule" : "range_position";
-          const declaredSource = declared === "quote_rule"
-            ? (split.split_source || quote.split_source ||
-               "every volume increment sided by the wire's own bid/ask at the poll")
-            : "B/S estimated from the day's range, not order flow";
+          // splitFromQuote returns only a measured pair. An old range row
+          // never reaches this branch, so the declared method is always the
+          // wire measurement rather than an estimate.
           quote.buy_volume = pair.buy_volume;
           quote.sell_volume = pair.sell_volume;
           quote.split_volume = pair.volume;
-          quote.split_method = declared;
-          quote.split_source = declaredSource;
+          quote.split_method = "quote_rule";
+          quote.split_source = split.split_source || quote.split_source ||
+            "every volume increment sided by the wire's own bid/ask at the poll";
         } else {
           quote.buy_volume = null;
           quote.sell_volume = null;
           quote.split_volume = null;
           quote.split_method = "unavailable";
-          quote.split_source = "the frame's range is incomplete";
+          quote.split_source =
+            "no measured order-flow pair; the total is unclassified";
         }
         quotes.set(quote.symbol, quote);
       }

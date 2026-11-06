@@ -1667,6 +1667,11 @@ public class MainActivity extends Activity {
                     sb.append(String.format(Locale.US, "%,d", quote.unclassified));
                 }
                 sb.append(')');
+            } else if (quote.unclassified != null && quote.unclassified > 0) {
+                // B/S null is not a reason to hide the unclear total.
+                sb.append('\n').append("(U=");
+                sb.append(String.format(Locale.US, "%,d", quote.unclassified));
+                sb.append(')');
             }
             if (quote.volume != null) {
                 sb.append('\n').append("(T=");
@@ -3067,6 +3072,10 @@ public class MainActivity extends Activity {
         sb.append(row.volume != null
                 ? String.format(Locale.US, "  (T=%,d)", row.volume)
                 : "  (T=n/a)");
+        if (row.unclassified != null && row.unclassified > 0) {
+            sb.append(String.format(Locale.US, "  (U=%,d)",
+                    row.unclassified));
+        }
         return sb;
     }
 
@@ -3143,6 +3152,12 @@ public class MainActivity extends Activity {
                 sb.append(String.format(Locale.US, " & U=%,d",
                         found.unclassified));
             }
+            sb.append(')');
+        } else if (found.unclassified != null && found.unclassified > 0) {
+            // No measured pair: the selected scrip's known total is U.
+            sb.append('\n');
+            sb.append('(').append("U=");
+            sb.append(String.format(Locale.US, "%,d", found.unclassified));
             sb.append(')');
         }
         if (orderFlowResults != null) {
@@ -3579,6 +3594,14 @@ public class MainActivity extends Activity {
                 sb.append(String.format(Locale.US, ", T=%,d", quote.volume));
             }
             sb.append(')');
+        } else if (quote.unclassified != null && quote.unclassified > 0) {
+            // No measured pair: the live line still shows the unclear total.
+            sb.append(String.format(Locale.US, " (U=%,d",
+                    quote.unclassified));
+            if (quote.volume != null) {
+                sb.append(String.format(Locale.US, ", T=%,d", quote.volume));
+            }
+            sb.append(')');
         } else if (quote.volume != null) {
             sb.append(String.format(Locale.US, " (T=%,d)", quote.volume));
         }
@@ -3842,6 +3865,11 @@ public class MainActivity extends Activity {
                     sb.append(", U=");
                     sb.append(String.format(Locale.US, "%,d", row.unclassified));
                 }
+                sb.append(')');
+            } else if (row.unclassified != null && row.unclassified > 0) {
+                // The leaders' row has no measured pair: print its U.
+                sb.append('\n').append("(U=");
+                sb.append(String.format(Locale.US, "%,d", row.unclassified));
                 sb.append(')');
             }
             if (row.hasVolume()) {
