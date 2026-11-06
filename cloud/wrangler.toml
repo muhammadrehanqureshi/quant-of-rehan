@@ -11,11 +11,12 @@ compatibility_date = "2026-10-01"
 # cron drift still sends exactly one notification per event.
 #
 # Friday is two sessions with a midday break. The 08:55 PKT pre-open
-# recorder warm-up has its own cron, so the capture starts before the 09:00
-# auction; the session band itself opens at 09:17. Workers Free allows only
-# 5 cron triggers per ACCOUNT, so the remaining Friday edges share the
-# close/post-close expression below. A six entry list is rejected outright
-# by Cloudflare (error 10072).
+# recorder warm-up shares a packed cron with the 09:17 PKT band open, so the
+# capture starts before the 09:00 auction and the edge still has a fire; the
+# extra minutes in that expression are discarded by the worker's edge check.
+# Workers Free allows only 5 cron triggers per ACCOUNT, so the remaining
+# Friday edges share the close/post-close expression below. A six entry list
+# is rejected outright by Cloudflare (error 10072).
 #
 # The worker's band table (worker.js) is the same table
 # src/data/sessions.py computes, and the parity test fails if they drift.
@@ -30,8 +31,8 @@ compatibility_date = "2026-10-01"
 #   dedupe key separates it from the morning loop).
 # 10:35 UTC = 15:35 PKT (Mon-Thu post-close window wake: the exchange's
 #   published Post-Close Session opens at 15:35 and closes at 15:50)
-# 03:55 UTC = 08:55 PKT (Friday pre-open recorder warm-up; the band opens
-#   at 09:17)
+# 03:55 UTC = 08:55 PKT (Friday pre-open recorder warm-up)
+# 04:17 UTC = 09:17 PKT (Friday session 1 open, packed with the warm-up)
 # 07:00 UTC = 12:00 PKT (Friday session 1 close, midday break begins)
 # 09:32 UTC = 14:32 PKT (Friday session 2 open, trading resumes)
 # 11:35 UTC = 16:35 PKT (Friday post-close window wake: 16:35 to 16:50)
@@ -42,7 +43,7 @@ compatibility_date = "2026-10-01"
 crons = [
   "32,55 3,4 * * 1-4",
   "30 7 * * 1-4",
-  "55 3 * * 5",
+  "17,55 3,4 * * 5",
   "32 9 * * 5",
   "0,30,35 7,10,11 * * 1-5",
 ]

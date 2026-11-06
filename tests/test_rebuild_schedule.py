@@ -548,10 +548,10 @@ class TestCloudflareSchedule(unittest.TestCase):
         self.assertEqual(
             sorted(pair_crons),
             ["0,30,35 7,10,11 * * 1-5",
+             "17,55 3,4 * * 5",
              "30 7 * * 1-4",
              "32 9 * * 5",
-             "32,55 3,4 * * 1-4",
-             "55 3 * * 5"],
+             "32,55 3,4 * * 1-4"],
             "cloud/pair.py and cloud/wrangler.toml disagree about "
             "the cron schedule, so the deploy would set something "
             "other than the schedule this suite just proved")
