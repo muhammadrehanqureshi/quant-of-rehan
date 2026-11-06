@@ -103,6 +103,8 @@ func (a *App) zebra(c *Canvas, x, y, w, rows, i int, sym string) {
 // openSymbol shows one symbol in the search tile at the top of the scanner.
 func (a *App) openSymbol(sym string) {
 	a.setScreen(scrScanner)
+	a.sectorOpen = false
+	a.lvSectorStk.top()
 	a.searchText, a.searchCursor = sym, 0
 	a.selectedSym = sym
 	a.fetchOrDemo(sym)
@@ -147,6 +149,12 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 	sh := a.searchTileHeight(w, h)
 	a.drawSearchTile(c, x, y, w, sh)
 	sy := y + sh + 1
+	// A tapped sector takes the rest of the screen with its scrips, so every
+	// name in it can be read without leaving the scanner.
+	if a.sectorOpen {
+		a.drawSectorOpen(c, x, sy, w, y+h-sy)
+		return
+	}
 	// The sector tile sits between the search and the ranked list, as in the
 	// latest app. It keeps a fixed, small height so the list never disappears.
 	sectorH := 6
@@ -455,7 +463,11 @@ func (a *App) drawSectorTile(c *Canvas, x, y, w, h int) {
 		g := groups[i]
 		ry := iy + n
 		idx := i
-		bg := a.selectRow(c, ix, ry, cw, i == a.sectorChoice, func() { a.sectorChoice = idx })
+		bg := a.selectRow(c, ix, ry, cw, i == a.sectorChoice, func() {
+			a.sectorChoice = idx
+			a.sectorOpen = true
+			a.lvSectorStk.top()
+		})
 		mark := "  "
 		if i == a.sectorChoice {
 			mark = "◆ "
@@ -470,6 +482,77 @@ func (a *App) drawSectorTile(c *Canvas, x, y, w, h int) {
 		line := fmt.Sprintf("%d scrips  ·  %s", len(g.Symbols), strings.Join(g.Symbols, "  "))
 		c.Text(ix, iy+ih-1, iw, fit(line, iw), th.Soft, false)
 	}
+}
+
+// inKMIALLSHR says whether the relay's KMIALL list carries this scrip. Until
+// that list has arrived, every name the sector sends is shown.
+func (a *App) inKMIALLSHR(sym string) bool {
+	if len(a.symbols) == 0 {
+		return true
+	}
+	for _, s := range a.symbols {
+		if s == sym {
+			return true
+		}
+	}
+	return false
+}
+
+// drawSectorOpen is a tapped sector: every one of its scrips that is in
+// KMIALLSHR, with the live price when the feed has one. The wheel or the
+// scrollbar moves through them, a click opens one in the search tile, and ESC
+// closes the sector.
+func (a *App) drawSectorOpen(c *Canvas, x, y, w, h int) {
+	th := a.th
+	if h < 4 {
+		return
+	}
+	ix, iy, iw, ih := a.panel(c, x, y, w, h, "SECTORS", "ESC closes, wheel scrolls")
+	groups := a.sectorGroups()
+	if a.sectorChoice < 0 || a.sectorChoice >= len(groups) {
+		a.sectorOpen = false
+		return
+	}
+	g := groups[a.sectorChoice]
+	var member []string
+	for _, s := range g.Symbols {
+		// The demo's groups are invented, so they are shown whole; live data
+		// is filtered to the relay's KMIALL list.
+		if a.demo || a.inKMIALLSHR(s) {
+			member = append(member, s)
+		}
+	}
+	c.Spans(ix, iy, iw, []Span{{"◆ " + g.Name, th.Hot, true},
+		{"  ·  ", th.Soft, false},
+		{fmt.Sprintf("%d of %d scrips in KMIALLSHR", len(member), len(g.Symbols)), th.Soft, false}})
+	if len(member) == 0 {
+		c.Text(ix, iy+1, iw, "None of this sector's scrips is in KMIALLSHR right now.", th.Soft, false)
+		return
+	}
+	rows := ih - 1
+	if rows < 1 {
+		return
+	}
+	a.lvSectorStk.set(len(member), rows)
+	tbl := a.scanTable()
+	cw := contentW(&a.lvSectorStk, iw)
+	for n := 0; n < a.lvSectorStk.view; n++ {
+		i := a.lvSectorStk.off + n
+		if i >= len(member) || iy+1+n >= iy+ih {
+			break
+		}
+		sym := member[i]
+		ry := iy + 1 + n
+		a.selectRow(c, ix, ry, cw, false, func() { a.openSymbol(sym) })
+		c.Spans(ix+1, ry, cw-1, []Span{{"  " + padRight(sym, 9), th.Hot, true}})
+		if q, ok := tbl[sym]; ok && q.Price > 0 {
+			c.Spans(ix+12, ry, cw-12, []Span{{"PKR ", th.Soft, false}, {commaFloat(q.Price, 2), th.Text, true}})
+			if q.ChangePct != nil {
+				rightAlign(c, ix, ry, cw, []Span{{changeText(*q.ChangePct), a.dirColor(*q.ChangePct), true}})
+			}
+		}
+	}
+	a.scrollbar(c, ix+iw-1, iy+1, a.lvSectorStk.view, &a.lvSectorStk)
 }
 
 // demoSectorGroups gives the demo scanner a real-looking set of groups, so the

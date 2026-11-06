@@ -32,7 +32,7 @@ func TestScannerFlowListScrollsAndNeverCutsAnItem(t *testing.T) {
 		t.Fatalf("the first stock must be numbered 1:\n%s", s)
 	}
 	view := a.lvScan.view
-	if view < 3 || view >= 30 {
+	if view < 4 || view >= 30 {
 		t.Fatalf("the list should show a few stocks and scroll for the rest, view %d", view)
 	}
 	// Every shown item has both of its rows: a title row and a B, S and T row.
