@@ -1663,12 +1663,12 @@ public class MainActivity extends Activity {
      * consistency, no = sign, no , sign, no green and red colors"):
      *
      *   "1. NRSL"
-     *   "(B=1,662,818, S=1,762,588, U=...)"
-     *   "(T=3,425,406)  PKR 32.36 ▲ 4.64%"
+     *   "(B=1,662,818, S=1,762,588, U=... & T=3,425,406)"
+     *   "PKR 32.36 ▲ 4.64%"
      *
      * The quantities are the leaders card's own bracket, the plain "="
-     * after each letter, the comma between the parts and the closing
-     * bracket after the last one, the buy digits in the brand green and
+     * after each letter, commas between B, S and U, the ampersand before
+     * the total and the closing bracket after it, the buy digits in green and
      * the sell digits in the brand red (2026-10-24's colour law), the
      * total neutral. U prints only when the relay reports an unclear
      * remainder. The money follows the total on its line, and the arrow
@@ -1703,7 +1703,7 @@ public class MainActivity extends Activity {
                     sb.append(String.format(Locale.US, "%,d", quote.unclassified));
                 }
                 if (quote.volume != null) {
-                    sb.append(", T=");
+                    sb.append(" & T=");
                     sb.append(String.format(Locale.US, "%,d", quote.volume));
                 }
                 sb.append(')');
@@ -1719,7 +1719,7 @@ public class MainActivity extends Activity {
                     any = true;
                 }
                 if (quote.volume != null) {
-                    sb.append(any ? ", T=" : "T=");
+                    sb.append(any ? " & T=" : "T=");
                     sb.append(String.format(Locale.US, "%,d", quote.volume));
                 }
                 sb.append(')');
@@ -3150,7 +3150,7 @@ public class MainActivity extends Activity {
         boolean unclear = row.unclassified != null && row.unclassified > 0;
         sb.append("  (");
         if (unclear) {
-            sb.append(String.format(Locale.US, "U=%,d, ", row.unclassified));
+            sb.append(String.format(Locale.US, "U=%,d & ", row.unclassified));
         }
         sb.append(row.volume != null
                 ? String.format(Locale.US, "T=%,d)", row.volume)
@@ -3210,22 +3210,23 @@ public class MainActivity extends Activity {
         // bracket, so the book line ends at the ask and T has no bracket
         // of its own.
         if (found.buy != null && found.sell != null) {
-            // Owner order 2026-11-05, tenth pass: the split quantities stay
-            // on the line below, separated by the ampersand the owner asked
-            // for. Each part keeps the app's (letter=number) bracket.
+            // Owner order 2026-11-06, eleventh pass: the split quantities
+            // stay on the line below, separated by commas, and only the total
+            // takes the ampersand, so B, S and U read as one list and T
+            // closes it.
             sb.append('\n');
             sb.append('(').append("B=");
             int from = sb.length();
             sb.append(String.format(Locale.US, "%,d", found.buy));
             sb.setSpan(new ForegroundColorSpan(getColor(R.color.green)),
                     from, sb.length(), 0);
-            sb.append(" & S=");
+            sb.append(", S=");
             from = sb.length();
             sb.append(String.format(Locale.US, "%,d", found.sell));
             sb.setSpan(new ForegroundColorSpan(getColor(R.color.red)),
                     from, sb.length(), 0);
             if (found.unclassified != null && found.unclassified > 0) {
-                sb.append(String.format(Locale.US, " & U=%,d",
+                sb.append(String.format(Locale.US, ", U=%,d",
                         found.unclassified));
             }
             sb.append(found.volume != null
@@ -3328,6 +3329,7 @@ public class MainActivity extends Activity {
         }
         sectorsMenu.removeAllViews();
         boolean first = true;
+        int number = 0;
         for (String name : sectorRows.keySet()) {
             // Owner report 2026-11-06: the sector list separates its rows
             // with the same 1dp line every other dropdown draws, one line
@@ -3336,7 +3338,10 @@ public class MainActivity extends Activity {
                 sectorsMenu.addView(menuDivider());
             }
             first = false;
-            TextView row = menuRow(name);
+            // Owner order 2026-11-06, eleventh pass: the sectors carry
+            // their number in sequence too, 1. to n.
+            TextView row = menuRow(String.format(Locale.US, "%d. %s",
+                    ++number, name));
             row.setOnClickListener(v -> chooseSector(name));
             sectorsMenu.addView(row);
         }
@@ -3370,12 +3375,16 @@ public class MainActivity extends Activity {
         }
         java.util.Map<String, Watcher.Quote> quotes = Watcher.quotes();
         SpannableStringBuilder sb = new SpannableStringBuilder();
-        for (String symbol : symbols) {
+        for (int i = 0; i < symbols.size(); i++) {
+            String symbol = symbols.get(i);
             Watcher.Quote quote = quotes.get(symbol);
             if (sb.length() > 0) {
                 sb.append('\n');
             }
-            sb.append(symbol);
+            // Owner order 2026-11-06, eleventh pass: the stocks carry their
+            // number in sequence, exactly as the leaders card and the
+            // scanner's reveal number theirs.
+            sb.append(String.format(Locale.US, "%d. %s", i + 1, symbol));
             if (quote == null) {
                 // Owner report 2026-11-06: a tapped sector must always list
                 // its stocks. A scrip the live map has not quoted yet says
@@ -3413,7 +3422,7 @@ public class MainActivity extends Activity {
                 any = true;
             }
             if (quote.volume != null) {
-                sb.append(any ? ", T=" : "\n(T=");
+                sb.append(any ? " & T=" : "\n(T=");
                 sb.append(String.format(Locale.US, "%,d", quote.volume));
                 any = true;
             }
@@ -3861,7 +3870,7 @@ public class MainActivity extends Activity {
                         quote.unclassified));
             }
             if (quote.volume != null) {
-                sb.append(String.format(Locale.US, ", T=%,d", quote.volume));
+                sb.append(String.format(Locale.US, " & T=%,d", quote.volume));
             }
             sb.append(')');
         } else if (quote.unclassified != null && quote.unclassified > 0) {
@@ -3869,7 +3878,7 @@ public class MainActivity extends Activity {
             sb.append(String.format(Locale.US, " (U=%,d",
                     quote.unclassified));
             if (quote.volume != null) {
-                sb.append(String.format(Locale.US, ", T=%,d", quote.volume));
+                sb.append(String.format(Locale.US, " & T=%,d", quote.volume));
             }
             sb.append(')');
         } else if (quote.volume != null) {
@@ -4136,7 +4145,7 @@ public class MainActivity extends Activity {
                     sb.append(String.format(Locale.US, "%,d", row.unclassified));
                 }
                 if (row.hasVolume()) {
-                    sb.append(", T=");
+                    sb.append(" & T=");
                     sb.append(String.format(Locale.US, "%,d", row.volume));
                 }
                 sb.append(')');
@@ -4152,7 +4161,7 @@ public class MainActivity extends Activity {
                     any = true;
                 }
                 if (row.hasVolume()) {
-                    sb.append(any ? ", T=" : "T=");
+                    sb.append(any ? " & T=" : "T=");
                     sb.append(String.format(Locale.US, "%,d", row.volume));
                 }
                 sb.append(')');

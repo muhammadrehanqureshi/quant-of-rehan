@@ -598,7 +598,8 @@ class SettingsControlTest(unittest.TestCase):
 
     def test_the_selected_book_puts_volume_with_bid_and_ask(self):
         """Owner order 2026-11-05, tenth pass: the total volume stands on
-        the BID and ASK line, and the split line uses ampersands."""
+        the BID and ASK line, and the split line separates B, S and U with
+        commas and closes the total with the one ampersand."""
         selected = self.main[self.main.index("private void selectFlow("):]
         # Owner order 2026-11-06: the SECTORS methods now sit between
         # selectFlow and setSearchOpen, so the slice ends at the first of
@@ -606,8 +607,10 @@ class SettingsControlTest(unittest.TestCase):
         selected = selected[:selected.index("private void showSectorMenu(")]
         self.assertIn('sb.append(" & ");', selected)
         self.assertIn('" & T=%,d"', selected)
-        self.assertIn('sb.append(" & S=");', selected)
-        self.assertIn('" & U=%,d"', selected)
+        # Owner order 2026-11-06, eleventh pass: commas separate B, S and
+        # U; only the total takes the ampersand.
+        self.assertIn('sb.append(", S=");', selected)
+        self.assertIn('", U=%,d"', selected)
         self.assertIn("found.unclassified > 0", selected)
         # Owner order 2026-11-06: the no-pair branch also opens when only
         # T is known, because T now rides that same bracket.
@@ -615,9 +618,9 @@ class SettingsControlTest(unittest.TestCase):
             "else if ((found.unclassified != null && found.unclassified > 0)",
             selected)
         self.assertIn("|| found.volume != null) {", selected)
-        self.assertNotIn(", S=", selected)
-        self.assertNotIn(", U=", selected)
-        self.assertNotIn(", T=", selected)
+        self.assertNotIn('" & S="', selected)
+        self.assertNotIn('" & U=', selected)
+        self.assertNotIn('", T="', selected)
 
     def test_one_bracket_carries_every_quantity(self):
         """Owner order 2026-11-06 ("remove the bracket after S or U,
@@ -626,12 +629,12 @@ class SettingsControlTest(unittest.TestCase):
         order flow row and the selected book each print ONE bracket, with
         B, S, U and T inside it, so no bracket ever stands before T.
         """
-        self.assertIn('sb.append(", T=");', self.main)
+        self.assertIn('sb.append(" & T=");', self.main)
         self.assertIn('" & T=%,d"', self.main)
         self.assertIn('" & T=n/a"', self.main)
         # A row with no B, S or U still gets T in its own bracket, and the
         # money line always starts on a new line after the bracket.
-        self.assertIn('sb.append(any ? ", T=" : "T=");', self.main)
+        self.assertIn('sb.append(any ? " & T=" : "T=");', self.main)
         self.assertNotIn('sb.append("  (T=%,d)", row.volume)', self.main)
         # The big print board's own bracket is untouched: it is one sided.
         self.assertIn('"(%s=%,d) "', self.main)
@@ -678,7 +681,12 @@ class SettingsControlTest(unittest.TestCase):
         # Owner report 2026-11-06: one 1dp line between each pair of sector
         # rows, exactly the line every other dropdown draws.
         self.assertIn("sectorsMenu.addView(menuDivider());", self.main)
-        self.assertIn("TextView row = menuRow(name);", self.main)
+        # Owner order 2026-11-06, eleventh pass: the sectors and their
+        # stocks carry their numbers in sequence.
+        self.assertIn('menuRow(String.format(Locale.US, "%d. %s",', self.main)
+        self.assertIn("++number, name));", self.main)
+        self.assertIn('String.format(Locale.US, "%d. %s", i + 1, symbol)',
+                      self.main)
         # And a tapped sector always lists its stocks: a scrip with no live
         # quote yet says so instead of vanishing.
         self.assertIn("R.string.sector_waiting", self.main)
@@ -1176,7 +1184,7 @@ class TypefaceTest(unittest.TestCase):
         self.assertIn('sb.append(", U=");', self.main)
         # Owner report 2026-11-06: with no measured pair, U and T ride one
         # bracket, so U alone can never hide the exchange's total.
-        self.assertIn('sb.append(any ? ", T=" : "T=");', self.main)
+        self.assertIn('sb.append(any ? " & T=" : "T=");', self.main)
         self.assertNotIn("completePair", self.main)
         # v1.8.6 (owner 15:15): and that row keeps the body's 13sp. It wins
         # its width from the tile (6dp of each 16dp panel padding, through the
@@ -2108,9 +2116,9 @@ class VersionTest(unittest.TestCase):
         # eight-print board with its visible bar, and the search-only
         # ORDER FLOW tile.
         # Owner report 2026-11-06: the sector menu's dividers, the always
-        # listed sector stocks and the U+T bracket ship as 4.0.13.
-        self.assertIn('android:versionName="4.0.13"', manifest)
-        self.assertIn('android:versionCode="122"', manifest)
+        # listed sector stocks and the U+T bracket ship as 4.0.14.
+        self.assertIn('android:versionName="4.0.14"', manifest)
+        self.assertIn('android:versionCode="123"', manifest)
         self.assertNotIn('android:versionName="3.7.5"', manifest)
         self.assertNotIn('android:versionName="3.7.4"', manifest)
         self.assertNotIn('android:versionName="3.7.3"', manifest)
@@ -2320,8 +2328,8 @@ class VersionTest(unittest.TestCase):
         # rows; v4.0.5 (sixth pass) is his new ORDER FLOW picture, the
         # bracketed top three, the eight-print scrolling board with its
         # visible bar, and the search-only ORDER FLOW tile.
-        self.assertIn('android:versionCode="122"', manifest)
-        self.assertIn('android:versionName="4.0.13"', manifest)
+        self.assertIn('android:versionCode="123"', manifest)
+        self.assertIn('android:versionName="4.0.14"', manifest)
         self.assertNotIn('android:versionName="3.7.5"', manifest)
         self.assertNotIn('android:versionName="3.7.4"', manifest)
         self.assertNotIn('android:versionName="3.7.3"', manifest)
@@ -3269,7 +3277,7 @@ class MenuOrdersTest(unittest.TestCase):
                     main.index("private void paintSignalInk(")]
         self.assertIn("R.color.green", live)
         self.assertIn("R.color.red", live)
-        self.assertIn('", T=%,d"', live)
+        self.assertIn('" & T=%,d"', live)
         self.assertIn("U=%,d", live)
 
     def test_the_dropdown_caret_stands_at_its_face_middle(self):
@@ -3491,7 +3499,7 @@ class MenuOrdersTest(unittest.TestCase):
         self.assertIn('append("(B=");', block)
         self.assertIn('sb.append(", S=");', block)
         self.assertIn('sb.append(", U=");', block)
-        self.assertIn('sb.append(any ? ", T=" : "T=");', block)
+        self.assertIn('sb.append(any ? " & T=" : "T=");', block)
         self.assertIn("sb.append(')');", block)
         self.assertIn("colorQuantity(sb, quote.buy, R.color.green)", block)
         self.assertIn("colorQuantity(sb, quote.sell, R.color.red)", block)
