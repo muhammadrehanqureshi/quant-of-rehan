@@ -301,6 +301,24 @@ MTF_DAILY_FILE = "data/mtf_daily.csv.gz"
 MTF_TIMEFRAMES = (5, 15, 60, 1440)
 MTF_VWAP_LOOKBACK = {5: 12, 15: 12, 60: 12, 1440: 20}
 MTF_MIN_BARS = {5: 3, 15: 2, 60: 2, 1440: 40}
+
+# ------------------------------- Kalman Trend four frame VWAP pullback
+# Owner order 2026-11-06: a second intraday entry beside the fresh one minute
+# flip. When the one minute Kalman Trend is up and the 5 minute, 15 minute, 1
+# hour and 1 day VWAP frames agree, the alignment is not itself the entry:
+# the entry is the resumption after the pullback that follows it, and only
+# while both the pullback's low and the entry sit nearer the day's low than
+# its high (src/signals/kalman_vwap_pullback.py). The owner's +2% target, -1%
+# stop, one call a day and every data-honesty gate are unchanged.
+PULLBACK_ENABLED = _flag("PULLBACK_ENABLED", True)
+PULLBACK_STRATEGY_VERSION = "kalman_vwap_pullback_v1"
+#: How many of the current band's completed minutes may hold the pullback.
+PULLBACK_LOOKBACK_BARS = int(_number("PULLBACK_LOOKBACK_BARS", 30))
+#: A resumption older than this many bars is history, not an entry.
+PULLBACK_RESUME_BARS = int(_number("PULLBACK_RESUME_BARS", 5))
+#: The dip must reach this share of the swing high. Percent in the environment,
+#: stored as a fraction like every other threshold here.
+PULLBACK_MIN_DEPTH_PCT = _number("PULLBACK_MIN_DEPTH_PCT", 0.5) / 100.0
 # Legacy momentum constants above are retained only by historical daily-bar
 # research. They have no decision path in the intraday scanner.
 
@@ -621,6 +639,13 @@ def config_snapshot() -> dict:
             "timeframes_minutes": list(MTF_TIMEFRAMES),
             "vwap_lookback": {str(k): v for k, v in MTF_VWAP_LOOKBACK.items()},
             "min_bars": {str(k): v for k, v in MTF_MIN_BARS.items()},
+        },
+        "pullback": {
+            "enabled": PULLBACK_ENABLED,
+            "version": PULLBACK_STRATEGY_VERSION,
+            "lookback_bars": PULLBACK_LOOKBACK_BARS,
+            "resume_bars": PULLBACK_RESUME_BARS,
+            "min_depth_pct": round(PULLBACK_MIN_DEPTH_PCT * 100, 4),
         },
         "min_relative_volume": MIN_RELATIVE_VOLUME,
         "min_session_traded_value": MIN_SESSION_TRADED_VALUE,

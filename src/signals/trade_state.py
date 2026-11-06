@@ -241,8 +241,14 @@ class SessionState:
             self.state = State.SCANNING
 
     def enter(self, symbol: str, entry_price: float, entry_time: datetime,
-              score: float, stop_loss: float | None = None) -> None:
-        """Record the paper entry and lock the day to this one trade."""
+              score: float, stop_loss: float | None = None,
+              strategy: str | None = None) -> None:
+        """Record the paper entry and lock the day to this one trade.
+
+        `strategy` is the entry law that actually spoke (the fresh flip or the
+        four frame pullback); None keeps the flip's own label, which is what
+        every caller before 2026-11-06 meant.
+        """
         import math
 
         if not math.isfinite(entry_price) or entry_price <= 0:
@@ -265,7 +271,7 @@ class SessionState:
         self.stop_loss = stop_loss
         self.stop_hit = False
         self.exit_reason = None
-        self.scanner_version = config.SCANNER_VERSION
+        self.scanner_version = strategy or config.SCANNER_VERSION
         self.last_reason = "entered one KMIALL long, daily lock engaged"
         self.state = State.TARGET_MONITORING
 

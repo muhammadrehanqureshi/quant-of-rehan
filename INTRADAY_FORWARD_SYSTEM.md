@@ -2,13 +2,14 @@
 
 ## Active strategy, 2026-10-30 (Karachi)
 
-The active intraday rule is now `kalman_trend_flip_v1`, the owner's sole
-strategy (owner order 2026-10-30: the ICT/SMC strategy is removed outright).
-See src/signals/kalman_trend.py for the authoritative contract: entry, stop
-and exit from the flip alone on the intraday band feed, the owner's +2%
-target, parameters grid-fit in GitHub Actions. Momentum/RSI gates and
-daily-model routing no longer decide entries. Historical opening-range and
-momentum results never count as evidence for the new rule.
+The active intraday rules are the owner's Kalman Trend strategies:
+`kalman_trend_flip_v1` (owner order 2026-10-30, which removed ICT/SMC
+outright) and `kalman_vwap_pullback_v1` (owner order 2026-11-06, below).
+See src/signals/kalman_trend.py and src/signals/kalman_vwap_pullback.py for
+the authoritative contracts: entry, stop and exit on the intraday band feed,
+the owner's +2% target, parameters grid-fit in GitHub Actions. Momentum/RSI
+gates and daily-model routing no longer decide entries. Historical
+opening-range and momentum results never count as evidence for the new rule.
 The frozen chronological evidence gate and source-confirmation checks remain.
 All tests, backtests and builds run in GitHub Actions, never on the owner's PC.
 The scheduled session loop requests one-second cycles and preserves one shared
@@ -33,6 +34,23 @@ for example `MTF 5m +1 above VWAP | 15m +1 above VWAP | 1h +1 above VWAP |
 1D +1 above VWAP`. `src/signals/mtf_vwap.py` builds the line and
 `scripts/intraday_pipeline.py` appends it to the delivered signal. The
 desktop HUD is not part of the signal path and is not required to read it.
+
+## Kalman Trend VWAP pullback, owner order 2026-11-06 (Karachi)
+
+A second entry now sits beside the fresh one minute flip. The one minute
+Kalman Trend must be up, without needing a fresh flip, and the 5 minute, 15
+minute, 1 hour and 1 day VWAP frames must agree exactly as above. The
+alignment is not the entry. The scan waits for a pullback in the current
+band's trailing 30 completed minutes (a swing high, then a dip of at least
+0.5 percent), takes the first bar whose close clears the highest high printed
+on the dip, and refuses the entry when that resumption is more than 5 bars
+old. The owner's location law is then applied to the whole session range: the
+pullback's low AND the entry must both be strictly below the midpoint of the
+day's high and low, so the dip is nearer the day low than the day high. The
+strategy label is `kalman_vwap_pullback_v1`; it rides the candidate, the
+session state and the owner email. When both entries are legal the higher
+score is carried and the flip keeps an exact tie. The +2% target, the -1%
+stop, the one call a day and every data-honesty gate are unchanged.
 
 ## Historical design, not the running entry rule
 
