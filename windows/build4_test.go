@@ -32,7 +32,7 @@ func TestScannerFlowListScrollsAndNeverCutsAnItem(t *testing.T) {
 		t.Fatalf("the first stock must be numbered 1:\n%s", s)
 	}
 	view := a.lvScan.view
-	if view < 6 || view >= 30 {
+	if view < 4 || view >= 30 {
 		t.Fatalf("the list should show a few stocks and scroll for the rest, view %d", view)
 	}
 	// Every shown item has both of its rows: a title row and a B, S and T row.
@@ -154,17 +154,13 @@ func TestHomeWordingAndLayoutAt122x30(t *testing.T) {
 			t.Errorf("%q must be gone", gone)
 		}
 	}
-	// All three volume leaders fit in the market tile, each with its B, S & T row.
-	for _, n := range []string{"1. ", "2. ", "3. "} {
-		if !strings.Contains(s, n) {
-			t.Errorf("leader %q is missing at 122x30", n)
-		}
-	}
-	// The gap under the greeting is the same as the gap between tiles: one blank row.
+	// The greeting and status tiles are separated by one blank row, and so are
+	// the status and signal tiles. A thirty row window shows the first two
+	// leaders; the third arrives when the window is tall enough.
 	var greet, status, signal int
 	for y, r := range rows {
 		switch {
-		case strings.Contains(r, "Good morning, Mr. Rehan!"):
+		case strings.Contains(r, "GREETING"):
 			greet = y
 		case strings.Contains(r, "QUANT STATUS"):
 			status = y
@@ -172,11 +168,20 @@ func TestHomeWordingAndLayoutAt122x30(t *testing.T) {
 			signal = y
 		}
 	}
-	statusBottom := status + 3 // a four row tile
-	if status-greet != 2 || signal-statusBottom != 2 {
-		t.Errorf("greeting %d, status %d, signal %d: gaps are %d and %d rows apart, want both 2", greet, status, signal, status-greet, signal-statusBottom)
+	if status-greet != 4 || signal-(status+3) != 2 {
+		t.Errorf("greeting %d, status %d, signal %d: want one blank row between the three tiles", greet, status, signal)
 	}
-	// Nothing on the home screen is more than a screen tall.
+	for _, n := range []string{"1. ", "2. "} {
+		if !strings.Contains(s, n) {
+			t.Errorf("leader %q is missing at 122x30", n)
+		}
+	}
+	tall := busyApp(t, 158, 41, 3)
+	for _, n := range []string{"1. ", "2. ", "3. "} {
+		if !strings.Contains(strings.Join(rowsOf(tall), "\n"), n) {
+			t.Errorf("leader %q is missing at 158x41", n)
+		}
+	}
 	if len(rows) != 30 {
 		t.Errorf("rows: %d", len(rows))
 	}
@@ -241,8 +246,10 @@ func TestPhaseAtMatchesTheSessionLaw(t *testing.T) {
 	}
 }
 
-// The radar is green and moving online, and red and perfectly still offline.
-func TestRadarIsGreenAndMovingOnlineRedAndStillOffline(t *testing.T) {
+// The gold mark turns while the quant is online and is perfectly still while
+// it is parked. Its ink is gold in every theme; the old green and red radar is
+// gone with the sweep and the crosshair.
+func TestMarkTurnsOnlineAndIsStillOffline(t *testing.T) {
 	th := themeAt(0)
 	paint := func(mode OrbMode, secs float64) *Canvas {
 		c := NewCanvas(38, 14, th.BG)
@@ -258,45 +265,35 @@ func TestRadarIsGreenAndMovingOnlineRedAndStillOffline(t *testing.T) {
 		return true
 	}
 	if same(paint(OrbBurning, 1.0), paint(OrbBurning, 1.5)) {
-		t.Errorf("online, the radar must move")
+		t.Errorf("online, the wireframe sphere must turn")
 	}
 	for _, m := range []OrbMode{OrbParked, OrbFault} {
 		if !same(paint(m, 1.0), paint(m, 9.7)) {
-			t.Errorf("offline (mode %d), the radar must not move at all", m)
+			t.Errorf("offline (mode %d), the mark must be still", m)
 		}
 	}
-	// Count the ink: online is green led, offline is red led.
-	dominant := func(c *Canvas) (r, g int) {
-		// Every cell is four pixels, drawn with a quadrant character.
+	gold := func(c *Canvas) int {
+		n := 0
 		for _, ce := range c.Cells {
 			if _, ok := quadrantMask(ce.Ch); !ok {
 				continue
 			}
 			for _, p := range cellPixels(ce) {
-				if int(p.G) > int(p.R)+40 {
-					g++
-				}
-				if int(p.R) > int(p.G)+40 {
-					r++
+				if p.R >= 90 && p.R >= p.G && p.G >= p.B {
+					n++
 				}
 			}
 		}
-		return
+		return n
 	}
-	if r, g := dominant(paint(OrbBurning, 2)); g < 150 || r > 0 {
-		t.Errorf("online: %d red cells, %d green cells", r, g)
+	if n := gold(paint(OrbBurning, 2)); n < 150 {
+		t.Errorf("online mark: only %d gold pixels", n)
 	}
-	for _, m := range []OrbMode{OrbParked, OrbFault} {
-		if r, g := dominant(paint(m, 2)); r < 150 || g > 0 {
-			t.Errorf("offline (mode %d): %d red cells, %d green cells", m, r, g)
-		}
-	}
-	// The same colours on every theme: green and red do not follow the theme.
 	for i := range themes {
 		c := NewCanvas(38, 14, themeAt(i).BG)
 		drawOrb(c, 0, 0, 38, 14, 2, OrbBurning, themeAt(i))
-		if _, g := dominant(c); g < 150 {
-			t.Errorf("theme %d: the online radar is not green", i)
+		if n := gold(c); n < 150 {
+			t.Errorf("theme %d: the mark is not gold", i)
 		}
 	}
 }

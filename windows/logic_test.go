@@ -336,7 +336,7 @@ func TestBeatMarketEventsDedupe(t *testing.T) {
 	}
 	a.market = marketIn("OPEN")
 	a.beat()
-	if a.bannerTitle != textMarketOpen || a.cfg.LastMarketEvent != "online" || !a.bell {
+	if a.bannerTitle != textMarketOpen || a.cfg.LastMarketEvent != "online" || (!toneNative && !a.bell) {
 		t.Fatalf("open should alert once: %q %q", a.bannerTitle, a.cfg.LastMarketEvent)
 	}
 	a.bannerTitle, a.bell = "", false

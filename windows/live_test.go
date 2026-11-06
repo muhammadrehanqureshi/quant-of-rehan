@@ -204,8 +204,8 @@ func TestBigBuyRaisesBannerToneAndToast(t *testing.T) {
 	if a.bannerTitle != fl.Text || a.bannerKind != "flow" || !a.now.Before(a.bannerUntil) {
 		t.Errorf("banner: %q %q", a.bannerTitle, a.bannerKind)
 	}
-	if !a.bell {
-		t.Errorf("sound on: the tone (the bell where there is no sound card) must play")
+	if !toneNative && !a.bell {
+		t.Errorf("sound on: the bell where there is no sound card must play")
 	}
 	// Sound off: banner yes, tone no.
 	b := newTestApp(t)

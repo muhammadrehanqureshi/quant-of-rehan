@@ -73,7 +73,7 @@ func TestQuantOnlineInPreAndPostWithoutAlerts(t *testing.T) {
 	a.market.Phase, a.market.TradingDay = "CLOSED", true
 	a.cfg.LastMarketEvent = "online"
 	for _, at := range []time.Time{
-		time.Date(2026, 11, 2, 10, 0, 0, 0, pkt),
+		time.Date(2026, 11, 2, 9, 5, 0, 0, pkt),
 		time.Date(2026, 11, 2, 15, 40, 0, 0, pkt),
 	} {
 		a.now = at

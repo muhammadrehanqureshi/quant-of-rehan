@@ -710,8 +710,14 @@ func (a *App) beat() {
 	}
 	// During the pre-market and the post-market there are no alerts. The quant
 	// is online in both windows, and the session law owns the waiting; nothing
-	// in the window may turn a phase change into a notification.
-	switch a.quantPhase() {
+	// in the window may turn a phase change into a notification. The clock is
+	// consulted as well as the relay's phase, because the relay can call the
+	// whole stretch around the session CLOSED.
+	switch a.phase() {
+	case "PRE_OPEN", "POST_CLOSE":
+		return
+	}
+	switch phaseAt(a.karachiNow()) {
 	case qsPre, qsPost:
 		return
 	}
