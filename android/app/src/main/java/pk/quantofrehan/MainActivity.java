@@ -1709,10 +1709,11 @@ public class MainActivity extends Activity {
                     sb.append(", U=");
                     sb.append(String.format(Locale.US, "%,d", quote.unclassified));
                 }
-                sb.append(')');
+                sb.append(quote.unclassified != null ? " &" : ")");
                 if (quote.volume != null) {
                     sb.append('\n').append("T=");
                     sb.append(String.format(Locale.US, "%,d", quote.volume));
+                    sb.append(')');
                 }
             } else if (quote.unclassified != null || quote.volume != null) {
                 // No measured pair: the known U keeps the first line and T
@@ -3239,10 +3240,11 @@ public class MainActivity extends Activity {
                 sb.append(", U=");
                 sb.append(String.format(Locale.US, "%,d", row.unclassified));
             }
-            sb.append(')');
+            sb.append(row.unclassified != null ? " &" : ")");
             if (row.volume != null) {
                 sb.append('\n').append("T=");
                 sb.append(String.format(Locale.US, "%,d", row.volume));
+                sb.append(')');
             }
         } else if (row.unclassified != null || row.volume != null) {
             if (row.unclassified != null) {
@@ -3521,10 +3523,11 @@ public class MainActivity extends Activity {
                     sb.append(", U=");
                     sb.append(String.format(Locale.US, "%,d", quote.unclassified));
                 }
-                sb.append(')');
+                sb.append(quote.unclassified != null ? " &" : ")");
                 if (quote.volume != null) {
                     sb.append('\n').append("T=");
                     sb.append(String.format(Locale.US, "%,d", quote.volume));
+                    sb.append(')');
                 }
             } else if (quote.unclassified != null || quote.volume != null) {
                 sb.append('\n');
