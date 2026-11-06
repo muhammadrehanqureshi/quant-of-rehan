@@ -595,7 +595,10 @@ class SettingsControlTest(unittest.TestCase):
         """Owner order 2026-11-05, tenth pass: the total volume stands on
         the BID and ASK line, and the split line uses ampersands."""
         selected = self.main[self.main.index("private void selectFlow("):]
-        selected = selected[:selected.index("private void setSearchOpen(")]
+        # Owner order 2026-11-06: the SECTORS methods now sit between
+        # selectFlow and setSearchOpen, so the slice ends at the first of
+        # them and still reads selectFlow's own body alone.
+        selected = selected[:selected.index("private void showSectorMenu(")]
         self.assertIn('sb.append(" & ");', selected)
         self.assertIn('" & T=%,d"', selected)
         self.assertIn('sb.append(" & S=");', selected)
