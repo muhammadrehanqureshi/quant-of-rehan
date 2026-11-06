@@ -548,7 +548,7 @@ class TestCloudflareSchedule(unittest.TestCase):
         self.assertEqual(
             sorted(pair_crons),
             ["0,30,35 7,10,11 * * 1-5",
-             "17 4 * * 5",
+             "17,55 3,4 * * 5",
              "30 7 * * 1-4",
              "32 9 * * 5",
              "32,55 3,4 * * 1-4"],
@@ -599,16 +599,17 @@ class TestCloudflareSchedule(unittest.TestCase):
         self.assertIn(
             "const WEEKDAY_WINDOWS = [[[8, 55], [12, 30]], "
             "[[12, 30], [15, 30]],", source)
+        self.assertIn(
+            "const FRIDAY_WINDOWS = [[[8, 55], [12, 30]], "
+            "[[14, 32], [16, 30]],", source)
         worker_wakes: dict[int, dict[int, set[int]]] = {}
         for expression in crons_of(WRANGLER):
             for hour, minute, weekdays in cron_fires(expression):
                 table = worker_wakes.setdefault(((hour + 5) % 24), {})
                 table.setdefault(minute, set()).update(weekdays)
         for hour, minute, weekdays in windows:
-            # The 08:55 lead is deliberate: the workflow's own cron wakes
-            # it before the open, so it has no worker dispatch edge.
-            if (hour, minute) == (8, 55):
-                continue
+            # Every window, including the 08:55 pre-open warm-up, needs its
+            # own punctual dispatch wake: a GitHub cron can be dropped.
             wake: set[int] = set()
             for gap in range(4):
                 table = worker_wakes.get(hour, {})
