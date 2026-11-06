@@ -867,7 +867,10 @@ class RelayWorkerContractTest(unittest.TestCase):
         """
         self.assertIn('const PORTAL_ROWS_KEY = "MARKET:ROWS";', self.source)
         self.assertIn("await rememberPortalRows(env, now, rows);", self.source)
-        self.assertIn("await portalRowsToday(env, new Date())", self.source)
+        self.assertIn("await portalRowsToday(env, portalNow)", self.source)
+        self.assertIn("async function refreshPortalRows(env, now)", self.source)
+        self.assertIn("ctx.waitUntil(refreshPortalRows(env, portalNow));",
+                      self.source)
         prices = self.source[self.source.index('path === "/prices"'):]
         prices = prices[:prices.index('path === "/market"')]
         self.assertIn("if (tradingToday) {", prices)
