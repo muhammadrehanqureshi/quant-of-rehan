@@ -601,9 +601,12 @@ class SettingsControlTest(unittest.TestCase):
         self.assertIn('sb.append(" & S=");', selected)
         self.assertIn('" & U=%,d"', selected)
         self.assertIn("found.unclassified > 0", selected)
+        # Owner order 2026-11-06: the no-pair branch also opens when only
+        # T is known, because T now rides that same bracket.
         self.assertIn(
-            "else if (found.unclassified != null && found.unclassified > 0)",
+            "else if ((found.unclassified != null && found.unclassified > 0)",
             selected)
+        self.assertIn("|| found.volume != null) {", selected)
         self.assertNotIn(", S=", selected)
         self.assertNotIn(", U=", selected)
         self.assertNotIn(", T=", selected)
@@ -1634,7 +1637,9 @@ class StatusPulseTest(unittest.TestCase):
         # v1.7.9 adds the fourth: the per-tick price read that paints the
         # search rows, guarded exactly like the two rounds and the one-symbol
         # answer.
-        self.assertEqual(self.main.count("isFinishing() || isDestroyed()"), 4)
+        # Owner order 2026-11-06: the SECTORS read is the fifth callback
+        # that releases its reference instead of painting a finished page.
+        self.assertEqual(self.main.count("isFinishing() || isDestroyed()"), 5)
         self.assertEqual(self.main.count("if (resumed) {"), 2)
         for marker in ("private void refresh()", "private void refreshLive()"):
             body = self.main[self.main.index(marker):][:800]
@@ -5007,7 +5012,9 @@ class UniversalRuleGapTest(unittest.TestCase):
         # between the page's two tiles, and THIRTEEN rules then. Owner
         # order 2026-11-04 (fourth pass): the extra seam below BIG BUYING
         # & SELLING is gone with the include, so TWELVE rules now.
-        self.assertEqual(len(rules), 12)
+        # Owner order 2026-11-06: the SECTORS tile's own rule above it makes
+        # THIRTEEN, every one of them carrying the grid's 12dp gap.
+        self.assertEqual(len(rules), 13)
         for rule in rules:
             with self.subTest(rule=rule.get(f"{ANDROID_NS}id")):
                 self.assertEqual(rule.get(f"{ANDROID_NS}layout_marginTop"),
