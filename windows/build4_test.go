@@ -279,7 +279,7 @@ func TestMarkTurnsOnlineAndIsStillOffline(t *testing.T) {
 				continue
 			}
 			for _, p := range cellPixels(ce) {
-				if p.R >= 90 && p.R >= p.G && p.G >= p.B {
+				if p.G >= 90 && p.G >= p.R && p.G >= p.B {
 					n++
 				}
 			}
@@ -287,13 +287,13 @@ func TestMarkTurnsOnlineAndIsStillOffline(t *testing.T) {
 		return n
 	}
 	if n := gold(paint(OrbBurning, 2)); n < 150 {
-		t.Errorf("online mark: only %d gold pixels", n)
+		t.Errorf("online mark: only %d green pixels", n)
 	}
 	for i := range themes {
 		c := NewCanvas(38, 14, themeAt(i).BG)
 		drawOrb(c, 0, 0, 38, 14, 2, OrbBurning, themeAt(i))
 		if n := gold(c); n < 150 {
-			t.Errorf("theme %d: the mark is not gold", i)
+			t.Errorf("theme %d: the mark is not green", i)
 		}
 	}
 }
