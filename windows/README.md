@@ -1,11 +1,15 @@
-# Quant of Rehan for Windows (console edition), build 18
+# Quant of Rehan for Windows (console edition), build 19
 
 A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.16**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
 
+## What is new in build 19
+
+* **Build 19.** The application icon is the HUD's own red dial now, instead of the older teal picture. Build 18's icon step still preferred `assets/icon-source.png` whenever that file existed, so the red palette never reached the icon Explorer draws. That override is retired and the dial is always drawn, so the icon matches the ORB. The title line, the tab order and the rest of the HUD are unchanged from build 18.
+
 ## What is new in build 18
 
-* **Build 18.** The index line is `PSX'S KMIALL`, the owner's own spelling, at 12 cells instead of 15: a fifth narrower. A console has one fixed font size, so a shorter line is the only way to draw it smaller, and INDEX stepped out to buy the width. CHARTS moved to tab 3 and the tabs after it followed: `3` or F3 is CHARTS, `4` or F4 is ORDER FLOW, `5` or F5 is SCANNER, `6` or F6 is SETTINGS. The application icon is the HUD's own red dial now instead of the old teal one.
+* **Build 18.** The index line is `PSX'S KMIALL`, the owner's own spelling, at 12 cells instead of 15: a fifth narrower. A console has one fixed font size, so a shorter line is the only way to draw it smaller, and INDEX stepped out to buy the width. CHARTS moved to tab 3 and the tabs after it followed: `3` or F3 is CHARTS, `4` or F4 is ORDER FLOW, `5` or F5 is SCANNER, `6` or F6 is SETTINGS.
 
 ## What is new in build 17
 

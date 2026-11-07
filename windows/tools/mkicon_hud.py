@@ -1,6 +1,5 @@
-"""Make the Windows icon. When the owner's exact picture is saved at
-assets/icon-source.png, that bitmap is used unchanged apart from a square crop
-and the rounded corners. Otherwise the red dial is drawn as before: a rounded
+"""Make the Windows icon. The icon is the HUD's own dial (owner order
+2026-11-07), so it follows the ORB the app shows: a rounded
 dark maroon tile
 under concentric bright red rings, with the thin outer arc, twelve bright
 blocks, a smooth ring, two tick rings, the bright inner ring and the small inner
@@ -145,16 +144,14 @@ def source_art():
 
 
 def main():
-    if os.path.exists(SOURCE):
-        out = source_art()
-        print("using the owner's exact picture", SOURCE)
-    else:
-        art = dial()
-        # A soft halo under the pale segments, like the glow in the picture.
-        halo = art.filter(ImageFilter.GaussianBlur(N * 0.011))
-        halo.putalpha(halo.getchannel("A").point(lambda v: int(v * 0.55)))
-        out = Image.alpha_composite(background(), halo)
-        out = Image.alpha_composite(out, art)
+    # Owner order 2026-11-07: the icon is the HUD's own red dial. The old teal
+    # picture is retired, so the icon follows the ORB the app actually shows.
+    art = dial()
+    # A soft halo under the bright segments, like the glow around the ORB.
+    halo = art.filter(ImageFilter.GaussianBlur(N * 0.011))
+    halo.putalpha(halo.getchannel("A").point(lambda v: int(v * 0.55)))
+    out = Image.alpha_composite(background(), halo)
+    out = Image.alpha_composite(out, art)
     # Round the tile's corners. The mask is drawn at the supersampled size and
     # reduced with the artwork, so the edge stays smooth at 16 pixels too.
     mask = Image.new("L", (N, N), 0)
