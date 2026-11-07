@@ -33,7 +33,7 @@ func main() {
 		feedwatch = flag.Int("feedwatch", 0, "watch the live feed for this many seconds (10 to 900), write qor-feedwatch.txt and say whether any lag is the broker's wire, a stall upstream, or the network")
 		version   = flag.Bool("version", false, "print the version and exit")
 		snapshot  = flag.String("snapshot", "", "render one frame as WxH to stdout and exit (implies --demo)")
-		screen    = flag.Int("screen", 1, "with --snapshot: screen 1 home, 2 alerts, 3 order flow, 4 scanner, 5 charts, 6 settings")
+		screen    = flag.Int("screen", 1, "with --snapshot: screen 1 home, 2 alerts, 3 charts, 4 order flow, 5 scanner, 6 settings")
 		ansi      = flag.Bool("ansi", false, "with --snapshot: keep colour codes")
 		at        = flag.Float64("t", 3.0, "with --snapshot: animation time in seconds")
 		query     = flag.String("query", "", "with --snapshot: search text for the search screen")

@@ -613,7 +613,7 @@ func TestKeyNavigation(t *testing.T) {
 	r := func(c rune) Key { return Key{Kind: KRune, R: c} }
 
 	// The six tabs, in the owner's order.
-	want := []string{"HOME", "ALERTS", "ORDER FLOW", "SCANNER", "CHARTS", "SETTINGS"}
+	want := []string{"HOME", "ALERTS", "CHARTS", "ORDER FLOW", "SCANNER", "SETTINGS"}
 	if len(screenNames) != len(want) {
 		t.Fatalf("tabs: %v", screenNames)
 	}
@@ -632,18 +632,18 @@ func TestKeyNavigation(t *testing.T) {
 		t.Fatalf("shift tab wraps: %v", a.screen)
 	}
 	press(Key{Kind: KF4})
-	if a.screen != scrScanner {
-		t.Fatalf("F4 is the scanner: %v", a.screen)
+	if a.screen != scrOrderFlow {
+		t.Fatalf("F4 is order flow: %v", a.screen)
 	}
 	press(Key{Kind: KF5})
-	if a.screen != scrCharts {
-		t.Fatalf("F5 is the charts tab: %v", a.screen)
+	if a.screen != scrScanner {
+		t.Fatalf("F5 is the scanner: %v", a.screen)
 	}
 	press(Key{Kind: KF6})
 	if a.screen != scrSettings {
 		t.Fatalf("F6 is settings: %v", a.screen)
 	}
-	press(Key{Kind: KF4})
+	press(Key{Kind: KF5})
 	// In the scanner, q is search text, not quit.
 	press(r('q'))
 	press(r('a'))
@@ -683,9 +683,9 @@ func TestKeyNavigation(t *testing.T) {
 		t.Fatalf("scanner clear: %d", a.scanChoice)
 	}
 	// With an empty box a digit still jumps to its tab.
-	press(r('3'))
+	press(r('4'))
 	if a.screen != scrOrderFlow {
-		t.Fatalf("3 is order flow: %v", a.screen)
+		t.Fatalf("4 is order flow: %v", a.screen)
 	}
 	press(r('o'))
 	if a.ofSort != 1 {

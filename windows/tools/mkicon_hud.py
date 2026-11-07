@@ -1,8 +1,8 @@
 """Make the Windows icon. When the owner's exact picture is saved at
 assets/icon-source.png, that bitmap is used unchanged apart from a square crop
-and the rounded corners. Otherwise the teal dial is drawn as before: a rounded
-teal tile
-under concentric pale ice blue rings, with the thin outer arc, twelve pale
+and the rounded corners. Otherwise the red dial is drawn as before: a rounded
+dark maroon tile
+under concentric bright red rings, with the thin outer arc, twelve bright
 blocks, a smooth ring, two tick rings, the bright inner ring and the small inner
 ring, and an empty centre. The tile's corners are transparent, so Explorer
 shows the rounded app tile the owner asked for.
@@ -31,13 +31,15 @@ R = N * 0.48
 CORNER_RADIUS = 0.18
 CORNER_INSET = 0.012
 
-TOP_LEFT = (13, 110, 146)
-TOP_RIGHT = (10, 99, 131)
-BOTTOM_LEFT = (8, 86, 115)
-BOTTOM_RIGHT = (7, 78, 106)
-PALE = (230, 244, 250)
-MID = (176, 212, 228)
-DIM = (108, 160, 184)
+# The HUD's own red (owner order 2026-11-07): the tile is the dark maroon of
+# the panel and the rings run from deep red to the bright red of the ORB.
+TOP_LEFT = (58, 8, 10)
+TOP_RIGHT = (46, 6, 8)
+BOTTOM_LEFT = (36, 4, 6)
+BOTTOM_RIGHT = (28, 3, 4)
+PALE = (255, 96, 96)
+MID = (240, 48, 48)
+DIM = (150, 18, 20)
 
 
 def rgba(c, a=255):
@@ -62,7 +64,7 @@ def arc_block(d, r0, r1, a0, a1, fill):
 
 
 def background():
-    # The picture's teal, lighter at the top left and deeper at the bottom right.
+    # The tile's maroon, lighter at the top left and deeper at the bottom right.
     small = Image.new("RGB", (2, 2))
     small.putpixel((0, 0), TOP_LEFT)
     small.putpixel((1, 0), TOP_RIGHT)
