@@ -199,18 +199,20 @@ func (a *App) onMouse(k Key) {
 func (a *App) wheel(d int) {
 	switch a.screen {
 	case scrScanner:
-		if a.sectorOpen {
+		sectorHover := a.sectorH > 0 && a.hoverY >= a.sectorY && a.hoverY < a.sectorY+a.sectorH
+		switch {
+		case a.sectorOpen && sectorHover:
 			a.lvSectorStk.scroll(d * 2)
-		} else if a.sectorH > 0 && a.hoverY >= a.sectorY && a.hoverY < a.sectorY+a.sectorH {
+		case !a.sectorOpen && sectorHover:
 			// The sector tile wins over the search and the ranked list: hovering
 			// it and turning the wheel always moves the groups, even while a
 			// search is typed above it.
 			a.lvSector.scroll(d)
-		} else if a.searchText != "" {
+		case a.searchText != "":
 			if n := len(a.matches()); n > 0 {
 				a.searchCursor = min(max(0, a.searchCursor+d), n-1)
 			}
-		} else if a.scanChoice > 0 {
+		case a.scanChoice > 0:
 			a.lvScan.scroll(d * 2)
 		}
 	case scrAlerts:
