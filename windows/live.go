@@ -228,6 +228,8 @@ func (a *App) wheel(d int) {
 		a.alertList().scroll(d * 2)
 	case scrOrderFlow:
 		a.lvOF.scroll(d * 3)
+	case scrCharts:
+		a.lvChart.scroll(d * 3)
 	case scrSettings:
 		a.setCursor = min(max(0, a.setCursor+d), settingsRows-1)
 	}

@@ -169,8 +169,8 @@ func TestOrderFlowSortKeepsUnmeasuredAtTheBottom(t *testing.T) {
 // After the bar there is one space and then the percentage, however many
 // digits it has.
 func TestPercentFollowsTheBarWithOneSpace(t *testing.T) {
-	good := regexp.MustCompile(`▇ \d{1,3}%`)
-	bad := regexp.MustCompile(`▇  +\d|▇\d`)
+	good := regexp.MustCompile(`█ \d{1,3}%`)
+	bad := regexp.MustCompile(`█  +\d|█\d`)
 	for _, ch := range []int{2, 3} {
 		a := busyApp(t, 122, 30, 6)
 		a.screen, a.scanChoice = scrScanner, ch
@@ -188,8 +188,8 @@ func TestPercentFollowsTheBarWithOneSpace(t *testing.T) {
 		a := demoApp(t, 100, 30)
 		a.shareBar(c, 2, 0, 22, share)
 		row := c.PlainRows()[0]
-		i := strings.LastIndex(row, "▇")
-		if i < 0 || row[i+len("▇")] != ' ' || row[i+len("▇")+1] < '0' || row[i+len("▇")+1] > '9' {
+		i := strings.LastIndex(row, "█")
+		if i < 0 || row[i+len("█")] != ' ' || row[i+len("█")+1] < '0' || row[i+len("█")+1] > '9' {
 			t.Errorf("share %.2f: %q", share, row)
 		}
 	}
@@ -270,7 +270,7 @@ func TestOrderFlowSearchFiltersTheList(t *testing.T) {
 // The dot matrix mark is on the home screen only. The scanner gives its width
 // to the search, the sectors and the list. No other screen carries the mark.
 func TestNoRingOnSettingsAndAlerts(t *testing.T) {
-	for _, scr := range []screenID{scrSettings, scrAlerts, scrOrderFlow, scrScanner} {
+	for _, scr := range []screenID{scrSettings, scrAlerts, scrOrderFlow, scrScanner, scrCharts} {
 		a := demoApp(t, 158, 41)
 		a.screen = scr
 		s := strings.ToUpper(plain(a))
@@ -442,7 +442,7 @@ func TestShareBarHasTenTabs(t *testing.T) {
 	c := NewCanvas(40, 1, RGB{})
 	a.shareBar(c, 2, 0, 22, 0.5)
 	row := c.PlainRows()[0]
-	if n := strings.Count(row, "▇"); n != 17 {
+	if n := strings.Count(row, "█"); n != 17 {
 		t.Fatalf("the bar has %d cells, want the previous 17: %q", n, row)
 	}
 	widths := shareBarTabWidths(17)

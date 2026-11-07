@@ -21,8 +21,11 @@ func TestTitleIsTheTopLine(t *testing.T) {
 			if !strings.Contains(strings.Join(strings.Fields(rows[0]), ""), "QUANTOFREHAN") {
 				t.Errorf("%dx%d screen %d: row 0 is %q", sz[0], sz[1], scr, rows[0])
 			}
-			if !strings.Contains(rows[1], "PSX'S KMIALL INDEX") {
+			if !strings.Contains(rows[1], headerTag) {
 				t.Errorf("%dx%d screen %d: row 1 is %q", sz[0], sz[1], scr, rows[1])
+			}
+			if !strings.Contains(rows[0], headerTitle) {
+				t.Errorf("%dx%d screen %d: row 0 is %q, want the tight diamonds", sz[0], sz[1], scr, rows[0])
 			}
 			if !strings.HasPrefix(rows[2], "━━━━") {
 				t.Errorf("%dx%d screen %d: row 2 is %q, want the rule", sz[0], sz[1], scr, rows[2])

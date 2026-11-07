@@ -47,9 +47,12 @@ func clamp01(x float64) float64 {
 // The dial's colours: red while the market is live, and a dark red that
 // reads as off when there is no live market.
 var (
-	hudPale = RGB{255, 178, 178}
-	hudMid  = RGB{255, 36, 36}
-	hudDark = RGB{46, 14, 14}
+	// Owner order 2026-11-07: a brighter, more saturated red. The old pale ink
+	// (255,178,178) washed the dial out to a light pink; this keeps the lighter
+	// shade red rather than white.
+	hudPale = RGB{255, 64, 64}
+	hudMid  = RGB{255, 4, 4}
+	hudDark = RGB{52, 6, 6}
 )
 
 // hudBand is one ring of dots. r0 and r1 are fractions of the dial's radius.

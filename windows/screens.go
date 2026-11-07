@@ -63,6 +63,8 @@ func (a *App) render() *Canvas {
 		a.drawOrderFlow(c, rx, top, rw, rows)
 	case scrScanner:
 		a.drawScanner(c, rx, top, rw, rows)
+	case scrCharts:
+		a.drawCharts(c, rx, top, rw, rows)
 	case scrSettings:
 		a.drawSettings(c, rx, top, rw, rows)
 	}
@@ -200,7 +202,7 @@ func (a *App) drawHeader(c *Canvas) {
 	ink := mix(th.Soft, th.BG, 0.28)
 	rightAlign(c, 0, 0, c.W-1, []Span{{date + " ", ink, false}, {clock, th.Good, true}, {" UTC+5", ink, false}})
 
-	tag := "PSX'S KMIALL INDEX"
+	tag := headerTag
 	if a.demo {
 		tag += "  ·  DEMO DATA"
 	}
@@ -281,7 +283,7 @@ func (a *App) drawNav(c *Canvas, y int) {
 		for k, r := range label {
 			ink := fg
 			if k == 1 {
-				// Owner order 2026-11-07: the five tab numbers are green and bold.
+				// Owner order 2026-11-07: the tab numbers are green and bold.
 				ink = th.Good
 			}
 			c.Set(x+k, y, r, ink, bg, bold || k == 1)
@@ -301,6 +303,8 @@ func (a *App) drawNav(c *Canvas, y int) {
 		hints = []string{"D details  TAB next  R refresh  Q quit", "D details  R refresh  Q quit", "D details  Q quit", "Q quit"}
 	case scrOrderFlow:
 		hints = []string{"O sort  TAB next  R refresh  Q quit", "O sort  R refresh  Q quit", "O sort  Q quit", "Q quit"}
+	case scrCharts:
+		hints = []string{"TAB next  ESC clear  CTRL+C quit", "ESC clear  CTRL+C quit", "CTRL+C quit"}
 	}
 	// The longest hint that leaves a gap after the tabs.
 	for _, hint := range hints {
