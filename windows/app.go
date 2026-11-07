@@ -9,18 +9,18 @@ import (
 
 type screenID int
 
-// The tabs, in the owner's order: Home, Alerts, Order Flow, Scanner (which
-// carries the search tile on top), Charts and Settings.
+// The tabs, in the owner's order: Home, Alerts, Charts, Order Flow and Scanner
+// (which carries the search tile on top), then Settings.
 const (
 	scrHome screenID = iota
 	scrAlerts
+	scrCharts
 	scrOrderFlow
 	scrScanner
-	scrCharts
 	scrSettings
 )
 
-var screenNames = []string{"HOME", "ALERTS", "ORDER FLOW", "SCANNER", "CHARTS", "SETTINGS"}
+var screenNames = []string{"HOME", "ALERTS", "CHARTS", "ORDER FLOW", "SCANNER", "SETTINGS"}
 
 // Messages posted from fetch goroutines to the single UI goroutine.
 type (
@@ -936,13 +936,13 @@ func (a *App) onKey(k Key) {
 		a.setScreen(scrAlerts)
 		return
 	case KF3:
-		a.setScreen(scrOrderFlow)
+		a.setScreen(scrCharts)
 		return
 	case KF4:
-		a.setScreen(scrScanner)
+		a.setScreen(scrOrderFlow)
 		return
 	case KF5:
-		a.setScreen(scrCharts)
+		a.setScreen(scrScanner)
 		return
 	case KF6:
 		a.setScreen(scrSettings)
@@ -989,11 +989,11 @@ func (a *App) onKey(k Key) {
 		case '2':
 			a.setScreen(scrAlerts)
 		case '3':
-			a.setScreen(scrOrderFlow)
-		case '4':
-			a.setScreen(scrScanner)
-		case '5':
 			a.setScreen(scrCharts)
+		case '4':
+			a.setScreen(scrOrderFlow)
+		case '5':
+			a.setScreen(scrScanner)
 		case '6':
 			a.setScreen(scrSettings)
 		case '/':

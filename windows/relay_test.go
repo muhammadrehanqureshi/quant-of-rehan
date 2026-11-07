@@ -192,7 +192,10 @@ func TestRelayEndpoints(t *testing.T) {
 	ctx := context.Background()
 
 	mk, rtt, err := r.FetchMarket(ctx)
-	if err != nil || !mk.Open || len(mk.Leaders) != 3 || rtt <= 0 {
+	// A local test server can answer inside one clock tick, so a measured round
+	// trip of exactly zero is a real measurement, not a failure. Only a negative
+	// duration would be impossible.
+	if err != nil || !mk.Open || len(mk.Leaders) != 3 || rtt < 0 {
 		t.Fatalf("market: %v %+v", err, mk)
 	}
 	h, _, err := r.FetchHead(ctx, phaseLine)

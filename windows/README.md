@@ -1,7 +1,11 @@
-# Quant of Rehan for Windows (console edition), build 17
+# Quant of Rehan for Windows (console edition), build 18
 
 A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.16**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
+
+## What is new in build 18
+
+* **Build 18.** The index line is `PSX'S KMIALL`, the owner's own spelling, at 12 cells instead of 15: a fifth narrower. A console has one fixed font size, so a shorter line is the only way to draw it smaller, and INDEX stepped out to buy the width. CHARTS moved to tab 3 and the tabs after it followed: `3` or F3 is CHARTS, `4` or F4 is ORDER FLOW, `5` or F5 is SCANNER, `6` or F6 is SETTINGS. The application icon is the HUD's own red dial now instead of the old teal one.
 
 ## What is new in build 17
 
@@ -72,9 +76,9 @@ One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of 
 |---|---|---|
 | 1 HOME | 1, F1 | Greeting, ONLINE or OFFLINE pill with its sentence, W/L tile, LATEST SIGNAL (SYMBOL, ENTRY TIME, ENTRY PRICE, TAKE PROFIT, STOP LOSS, with the stock live), KSE100 INDEX & THE TOP 3 SCRIPS OF VOLUME with live prices, B, S & T and a chart each, who is being bought hardest right now |
 | 2 ALERTS | 2, F2 | BIG BUYING NOW in green and BIG SELLING NOW in red, side by side (stacked when narrow), and the ALERT LOG with times, BUY or SELL and the sentence. LEFT and RIGHT pick the list the keys scroll |
-| 3 ORDER FLOW | 3, F3 | Every KMIALL stock with price, change, bid, ask, B, S, U and T. `/` focuses the search box and filters the list as you type, ESC clears it. O (or a click on the heading chips) changes the order. UP, DOWN, PAGE UP, PAGE DOWN and the wheel scroll |
-| 4 SCANNER | 4, F4 | The SEARCH tile, then the numbered SECTORS, then the scanner: PRICES RISING FAST, MORE BUYERS & LESS SELLERS and BIG BUYING & SELLING NOW (LIVE FLOW). The sector tile grows to show every group it can and the wheel scrolls the rest; every group and every scrip carries its number. The search box says `Search for a KMIALL scrip`. Type to search, UP and DOWN choose a match, ENTER opens it in the tile. A clicked sector lists its scrips in place; BACKSPACE brings all sectors back. With the box empty, LEFT and RIGHT change the sort |
-| 5 CHARTS | 5, F5 | Every KMIALL stock in a searchable list, and the chosen stock's live intraday candles from the relay's `/history`: one minute bars grouped to fit, the live price as a dotted line, the last bar's O, H, L, C and volume, and an honest empty state when the relay has no bars. Type to search, UP and DOWN open the previous or next stock, ESC clears |
+| 3 CHARTS | 3, F3 | Every KMIALL stock in a searchable list, and the chosen stock's live intraday candles from the relay's `/history`: one minute bars grouped to fit, the live price as a dotted line, the last bar's O, H, L, C and volume, and an honest empty state when the relay has no bars. Type to search, UP and DOWN open the previous or next stock, ESC clears |
+| 4 ORDER FLOW | 4, F4 | Every KMIALL stock with price, change, bid, ask, B, S, U and T. `/` focuses the search box and filters the list as you type, ESC clears it. O (or a click on the heading chips) changes the order. UP, DOWN, PAGE UP, PAGE DOWN and the wheel scroll |
+| 5 SCANNER | 5, F5 | The SEARCH tile, then the numbered SECTORS, then the scanner: PRICES RISING FAST, MORE BUYERS & LESS SELLERS and BIG BUYING & SELLING NOW (LIVE FLOW). The sector tile grows to show every group it can and the wheel scrolls the rest; every group and every scrip carries its number. The search box says `Search for a KMIALL scrip`. Type to search, UP and DOWN choose a match, ENTER opens it in the tile. A clicked sector lists its scrips in place; BACKSPACE brings all sectors back. With the box empty, LEFT and RIGHT change the sort |
 | 6 SETTINGS | 6, F6 | Relay status, notifications, big buying flag, big selling flag, sound, big order size, test buying alert, test selling alert, six themes, version, request counter |
 
 Other keys: TAB and SHIFT+TAB switch screens, R refresh now, D flip the signal card to raw text (Home), `[` and `]` mark roundness (Home), ESC clears the search or goes Home, Q quits, CTRL+C quits anywhere. The sound and alert flags are changed only on SETTINGS. On the Scanner letters and digits go into the search box; with the box empty a digit still jumps to that tab, and CTRL+C always quits. On CHARTS letters and digits go into the chart search, UP and DOWN open the previous or next stock, and CTRL+C always quits. On ALERTS, ENTER plays a test and DEL clears the log.
