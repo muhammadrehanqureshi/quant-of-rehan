@@ -342,6 +342,27 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="10dp"
                 android:visibility="gone"/>
+
+            <!-- Owner order 2026-11-07: the scrip's book is two columns now,
+                 BID & QTY, a vertical line, then ASK & QTY. MainActivity
+                 builds the columns and paints the numbers, never the words. -->
+            <LinearLayout
+                android:id="@+id/order_flow_book"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:orientation="vertical"
+                android:visibility="gone"/>
+
+            <!-- The scrip's own filled transactions, at most eight, in the
+                 same tile as its book. -->
+            <TextView
+                android:id="@+id/order_flow_prints"
+                style="@style/QorValue"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:visibility="gone"/>
         </LinearLayout>
 
         <!-- Owner order 2026-11-04 (third pass): the diamond between the

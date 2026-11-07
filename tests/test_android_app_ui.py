@@ -563,11 +563,9 @@ class SettingsControlTest(unittest.TestCase):
         self.assertIn("flowCount(row.askSize)", self.main)
         self.assertIn("columns.addView(flowCell(row.bid", self.main)
         self.assertIn("columns.addView(flowCell(row.ask", self.main)
-        self.assertIn('sb.append(" & ");', self.main)
-
-
-
-        self.assertIn('sb.append(" & ");', self.main)
+        # Owner order 2026-11-07: the selected scrip's book is the two
+        # column one below, so the old single line " & " sentence is gone.
+        self.assertIn("fillFlowBook(found);", self.main)
 
 
         # The numbers travel from the relay's rows, which carry bid and
@@ -585,6 +583,21 @@ class SettingsControlTest(unittest.TestCase):
         self.assertIn("Double ask;", watcher)
         self.assertIn('out.changePct = number(row, "change_pct");', watcher)
         self.assertIn("Double changePct;", watcher)
+
+    def test_the_search_row_carries_the_days_high_and_low(self):
+        """Owner order 2026-11-07: H= and L= on each search row, the high
+        green and the low red, from the relay's own day range."""
+        self.assertIn('built.append("  H=");', self.main)
+        self.assertIn('built.append("  L=");', self.main)
+        self.assertIn("quote.high != null", self.main)
+        self.assertIn("quote.low != null", self.main)
+        watcher = (ROOT / "android" / "app" / "src" / "main" / "java"
+                   / "pk" / "quantofrehan" / "Watcher.java").read_text(
+            encoding="utf-8")
+        self.assertIn("Double high;", watcher)
+        self.assertIn("Double low;", watcher)
+        self.assertIn('row.optDouble(7, Double.NaN)', watcher)
+        self.assertIn('row.optDouble(8, Double.NaN)', watcher)
 
     def test_a_row_without_a_measured_pair_prints_its_unclear_total(self):
         """B/S null must not hide U: the known total is printed as U."""
@@ -613,41 +626,46 @@ class SettingsControlTest(unittest.TestCase):
         self.assertIn("printTime(print.at)", self.main)
         self.assertIn("raw.substring(t + 1, t + 9)", self.main)
 
-    def test_the_selected_book_puts_volume_with_bid_and_ask(self):
-        """Owner order 2026-11-05, tenth pass: the total volume stands on
-        the BID and ASK line, and the split line separates B, S and U with
-        commas and closes the total with the one ampersand."""
+    def test_the_selected_book_is_two_coloured_columns(self):
+        """Owner order 2026-11-07 ("make two columns, one would contain
+        BID & QTY get a vertical line after that then make another column
+        for ASK & QTY ... you should have the price and the qty in
+        color")."""
         selected = self.main[self.main.index("private void selectFlow("):]
-        # Owner order 2026-11-06: the SECTORS methods now sit between
-        # selectFlow and setSearchOpen, so the slice ends at the first of
-        # them and still reads selectFlow's own body alone.
         selected = selected[:selected.index("private void showSectorMenu(")]
-        self.assertIn('sb.append(" & ");', selected)
-
-        # Owner order 2026-11-06, eleventh pass: commas separate B, S and
-        # U; only the total takes the ampersand.
+        self.assertIn('flowBookColumn("BID"', selected)
+        self.assertIn('flowBookColumn("ASK"', selected)
+        self.assertIn("LinearLayout.HORIZONTAL", selected)
+        self.assertIn("divider.setBackgroundColor(themeAccentInk);", selected)
+        self.assertIn("head.setTextColor(themeBodyInk);", selected)
+        self.assertIn(
+            "value.setTextColor(price != null ? getColor(colorRes) : themeBodyInk);",
+            selected)
+        self.assertIn(
+            "quantity.setSpan(new ForegroundColorSpan(getColor(colorRes))",
+            selected)
+        # The split line still travels with the book, and the selected
+        # scrip's own fills stand at most eight.
         self.assertIn("SpannableStringBuilder split = flowSplitText(found);",
                       selected)
-        self.assertIn("append(split);", selected)
+        self.assertIn("fillFlowPrints(symbol);", selected)
+        self.assertIn("LAST 8 FILLED", selected)
+        self.assertIn("shown >= FLOW_RESULTS_SHOWN", selected)
         self.assertNotIn("found.unclassified > 0", selected)
-        self.assertIn("BID QTY %", selected)
-        self.assertIn("ASK QTY %", selected)
-        self.assertIn("found.bidSize", selected)
-        self.assertIn("found.askSize", selected)
-        self.assertNotIn('" & T=', selected)
-        # Owner order 2026-11-06: the no-pair branch also opens when only
-        # T is known, because T now rides that same bracket.
 
-        self.assertNotIn('" & S="', selected)
-        self.assertNotIn('" & U=', selected)
-        self.assertNotIn('", T="', selected)
-
-    def test_the_volume_split_puts_t_on_its_own_line(self):
-        """Owner order 2026-11-06: B, S and U share one line, then T."""
+    def test_the_leaders_card_closes_after_the_total(self):
+        """Owner order 2026-11-07 ("remove the bracket just after U,
+        instead of the bracket, put & there, and have the bracket after
+        T")."""
+        leaders = self.main[self.main.index(
+            "private SpannableString leadersText("):]
+        leaders = leaders[:leaders.index("private void toast(")]
+        self.assertIn('sb.append(" & T=");', leaders)
+        self.assertIn("spans.add(new int[]{unclearFrom, sb.length(), "
+                      "R.color.yellow});", leaders)
+        # The other surfaces keep their own shape; only this card moved the
+        # closing bracket.
         self.assertIn('append("T=");', self.main)
-        self.assertNotIn('" & T=', self.main)
-        self.assertNotIn('" & T=%,d"', self.main)
-        self.assertNotIn('" & T=n/a"', self.main)
         self.assertIn("row.unclassified != null", self.main)
         self.assertIn("quote.unclassified != null", self.main)
         # The big print board's own bracket is untouched: it is one sided.
@@ -2131,8 +2149,12 @@ class VersionTest(unittest.TestCase):
         # ORDER FLOW tile.
         # Owner report 2026-11-06: the sector menu's dividers, the always
         # listed sector stocks and the U+T bracket ship as 4.0.14.
-        self.assertIn('android:versionName="4.0.14"', manifest)
-        self.assertIn('android:versionCode="123"', manifest)
+        # Owner order 2026-11-07: the KSE100 closing bracket after T, yellow
+        # U everywhere, the two column BID/ASK book with eight fills, the
+        # themed ORDER FLOW page and the search H/L ship as 4.0.15.
+        self.assertIn('android:versionName="4.0.15"', manifest)
+        self.assertIn('android:versionCode="124"', manifest)
+        self.assertNotIn('android:versionName="4.0.14"', manifest)
         self.assertNotIn('android:versionName="3.7.5"', manifest)
         self.assertNotIn('android:versionName="3.7.4"', manifest)
         self.assertNotIn('android:versionName="3.7.3"', manifest)
@@ -2342,8 +2364,8 @@ class VersionTest(unittest.TestCase):
         # rows; v4.0.5 (sixth pass) is his new ORDER FLOW picture, the
         # bracketed top three, the eight-print scrolling board with its
         # visible bar, and the search-only ORDER FLOW tile.
-        self.assertIn('android:versionCode="123"', manifest)
-        self.assertIn('android:versionName="4.0.14"', manifest)
+        self.assertIn('android:versionCode="124"', manifest)
+        self.assertIn('android:versionName="4.0.15"', manifest)
         self.assertNotIn('android:versionName="3.7.5"', manifest)
         self.assertNotIn('android:versionName="3.7.4"', manifest)
         self.assertNotIn('android:versionName="3.7.3"', manifest)
@@ -3292,7 +3314,11 @@ class MenuOrdersTest(unittest.TestCase):
         self.assertIn("R.color.green", live)
         self.assertIn("R.color.red", live)
         self.assertIn('append("T=");', live)
-        self.assertIn("U=%,d", live)
+        # Owner order 2026-11-07: U is captured as its own range and painted
+        # yellow; the digits still come from the live quote.
+        self.assertIn('sb.append(", U=");', live)
+        self.assertIn("unclearFrom = sb.length();", live)
+        self.assertIn("R.color.yellow", live)
         self.assertNotIn('" & T=%,d"', live)
 
     def test_the_dropdown_caret_stands_at_its_face_middle(self):

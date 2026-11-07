@@ -803,15 +803,21 @@ public final class Watcher {
          *  eighth pass). Boxed: null is unknown, never a guessed zero, and
          *  it is never folded into buy or sell. */
         final Long unclassified;
+        /** The day's own high and low (owner order 2026-11-07), boxed so a
+         *  missing side of the range stays unknown, never a guessed price. */
+        final Double high;
+        final Double low;
 
         Quote(double price, Double changePct, Long buy, Long sell, Long volume,
-              Long unclassified) {
+              Long unclassified, Double high, Double low) {
             this.price = price;
             this.changePct = changePct;
             this.buy = buy;
             this.sell = sell;
             this.volume = volume;
             this.unclassified = unclassified;
+            this.high = high;
+            this.low = low;
         }
     }
 
@@ -1127,10 +1133,18 @@ public final class Watcher {
                                 ? ((Number) volumeVal).longValue() : null;
                         Long unclear = unclearVal instanceof Number
                                 ? ((Number) unclearVal).longValue() : null;
+                        // Owner order 2026-11-07: the day's high and low ride
+                        // the same compact row, after the unclear remainder.
+                        double highVal = row.optDouble(7, Double.NaN);
+                        double lowVal = row.optDouble(8, Double.NaN);
+                        Double high = Double.isNaN(highVal) || highVal <= 0 ? null
+                                : highVal;
+                        Double low = Double.isNaN(lowVal) || lowVal <= 0 ? null
+                                : lowVal;
                     if (!symbol.isEmpty() && !Double.isNaN(price) && price > 0) {
                         map.put(symbol, new Quote(price,
                                 Double.isNaN(pct) ? null : pct, buy, sell,
-                                volume, unclear));
+                                volume, unclear, high, low));
                     }
                 }
             }
@@ -1221,10 +1235,12 @@ public final class Watcher {
                     sb.append(String.format(java.util.Locale.US, "%,.0f", sell));
                     int sellTo = sb.length();
                     int unclearFrom = -1;
+                    int unclearTo = -1;
                     if (unclear != null) {
                         sb.append(", U=");
                         unclearFrom = sb.length();
                         sb.append(String.format(java.util.Locale.US, "%,.0f", unclear));
+                        unclearTo = sb.length();
                     }
                     sb.append(unclear != null && total != null ? " &" : ")");
                     if (total != null) {
@@ -1239,6 +1255,13 @@ public final class Watcher {
                             c.getColor(R.color.green)), buyFrom, buyTo, 0);
                     styled.setSpan(new android.text.style.ForegroundColorSpan(
                             c.getColor(R.color.red)), sellFrom, sellTo, 0);
+                    // Owner order 2026-11-07: U is yellow everywhere, this
+                    // search answer included.
+                    if (unclearFrom >= 0) {
+                        styled.setSpan(new android.text.style.ForegroundColorSpan(
+                                c.getColor(R.color.yellow)),
+                                unclearFrom, unclearTo, 0);
+                    }
                 } else if (unclear != null || total != null) {
                     // No measured pair: the known U keeps the first line and
                     // the venue's total T takes its own next line. A missing
