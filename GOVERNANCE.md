@@ -245,7 +245,9 @@ on the free Actions minutes of the public repository (owner order
 2026-10-19, supersedes SO-4) · SO-22 the agent never sleeps and never waits
 for the clock; the cloud waits (owner order 2026-10-21) · SO-23 the agent's
 own session runs no local computation: edits, git and gh only (owner order
-2026-11-05).
+2026-11-05) · SO-24 no human review gates a landing: the agent approves and
+merges on the owner's behalf, while the governance and gitleaks checks still
+gate it (owner order 2026-11-07).
 
 ## SO-10 · Resource law: the owner's PC is for backtesting and local trials only (owner order, 2026-10-06)
 
@@ -466,4 +468,30 @@ system"
 - **Enforcement.** `scripts/check_governance.py` pins the order's own words in
   this file and in `AGENTS.md`; removing them fails every pull request, and
   `tests/test_governance_heat.py` holds the pin itself.
+
+## SO-24 · No pull request waits for a human review (owner order, 2026-11-07)
+
+Owner order, verbatim: "I am seeing there is review required for PRs, and
+governance checks failing, fix that and merge, you have my approval, you can
+review and merge from my behalf."
+
+- **The law.** The owner is the only human author, so a required approving
+  review could never be met: GitHub does not let an author approve his own
+  pull request, and every landing therefore needed an administrator merge.
+  His approval is standing instead. The agent reviews the change it opened,
+  approves it on his behalf, and merges it through `scripts/land.sh`.
+- **What still gates a landing.** The `governance` and `gitleaks` checks are
+  required on `master` and are not waived. A red check still stops the merge.
+  The gate that is gone is the human approval, not the checks.
+- **The setting.** `master` requires zero approving reviews
+  (`required_approving_review_count` is 0), keeps `dismiss_stale_reviews`,
+  keeps `enforce_admins` off, and keeps `governance` and `gitleaks` as
+  required status checks with up-to-date branches. Turning a review
+  requirement back on would make every future landing need `--admin`, which
+  is why this order is recorded here.
+- **No `--admin` merge.** With the review gate gone, `scripts/land.sh` merges
+  normally. An administrator merge is not part of the flow.
+- **The checks themselves.** A governance failure is a real failure and is
+  fixed in the pull request that carries it (SO-11). It is never waived, and
+  it never becomes a reason to merge around a red check.
 - **Withdrawal.** Only a later written owner instruction, recorded here.
