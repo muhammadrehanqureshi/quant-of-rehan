@@ -1,12 +1,16 @@
-# Quant of Rehan for Windows (console edition), build 15
+# Quant of Rehan for Windows (console edition), build 16
 
 A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.16**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
 
-## What is new in build 15
+## What is new in build 16
+
+* **Build 16.** The ORB is red. The header title is 20 cells wide instead of 18, 11.1 percent wider: the diamonds sit one extra space from the words, the nearest whole cell to the ten percent the owner asked for. The glyph height stays the console's fixed font. Every buy versus sell bar is back to its previous 17-cell span, still split into ten ten-percent tabs. The ORDER FLOW bar column is called `BARS`, right-aligned like the numeric columns. The application icon is the owner's exact `logo2.png`, saved as `assets/icon-source.png`; `mkicon_hud.py` crops it square, gives it transparent rounded corners and embeds it in the exe.
+
+## What was new in build 15
 
 * **Build 15.** D and R are green in the footer, Q is red, and every coloured footer key is bold. The five tab numbers are bold green as well. The ORB rings are a more vivid green. The title is still bold in the theme's accent, at the console's one fixed size; a 20 percent per-line font size is not a cell the console can draw.
-* **The icon source.** The build still uses `assets/icon-source.png` when that file exists. The attached rounded picture is not a file in the repository, so the drawn fallback remains until the picture is saved at that path.
+* **The icon source.** Build 15 still used the drawn fallback because the owner's rounded picture was not yet a file in the repository.
 
 ## What was new in build 14
 
