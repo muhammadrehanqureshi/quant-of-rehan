@@ -238,6 +238,33 @@ func TestLatestSignalTileWords(t *testing.T) {
 			t.Errorf("the old word %q is still on screen", old)
 		}
 	}
+
+}
+
+// Owner order 2026-11-07: the ORDER FLOW page carries its own search box.
+func TestOrderFlowSearchFiltersTheList(t *testing.T) {
+	a := orderFlowApp(t, 122, 30, sampleOrderFlow)
+	a.onKey(Key{Kind: KRune, R: '/'})
+	if !a.ofSearch {
+		t.Fatal("the slash must focus the ORDER FLOW search")
+	}
+	for _, r := range "BBB" {
+		a.onKey(Key{Kind: KRune, R: r})
+	}
+	if a.ofQuery != "BBB" {
+		t.Fatalf("the search box holds %q", a.ofQuery)
+	}
+	rows := a.sortedFlow()
+	if len(rows) != 1 || rows[0].Symbol != "BBB" {
+		t.Fatalf("BBB must be the only row left: %+v", rows)
+	}
+	if s := plain(a); !strings.Contains(s, "BBB") || strings.Contains(s, "AAA") {
+		t.Errorf("the filtered screen still shows another stock:\n%s", s)
+	}
+	a.onKey(Key{Kind: KEsc})
+	if a.ofQuery != "" || a.ofSearch || len(a.sortedFlow()) != 4 {
+		t.Errorf("ESC must clear the search: %q %v %d", a.ofQuery, a.ofSearch, len(a.sortedFlow()))
+	}
 }
 
 // The gold mark is on the home screen only. The scanner gives its width to the

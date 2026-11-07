@@ -2,14 +2,16 @@ package main
 
 import "math"
 
-// The quant mark is the HUD dial from the owner's picture: a teal field under
-// concentric pale ice blue rings, clear gaps between them, a ring of heavy
-// blocks, a ribbed ring, two tick rings, a bright inner ring and a small inner
-// ring, with an empty centre.
+// The quant mark is the HUD dial from the owner's picture: a square teal field
+// under concentric pale ice blue rings, with clear gaps between them. At a
+// terminal the picture can carry five bands, so the dial keeps the thin outer
+// arc, the twelve heavy blocks, the dense tick ring, the bright inner ring and
+// the small inner ring. The finer ribs of the picture would turn into speckle
+// at this size, so they are left out.
 //
-// It is drawn as a picture: every cell holds four pixels, and only two colours
-// are ever mixed in one cell, so the rings stay clean instead of breaking into
-// speckle at terminal size.
+// It is drawn as a picture: every cell holds four pixels, and a pixel is either
+// ring or field, never a mix, so the rings stay clean instead of dissolving
+// into noise at terminal size.
 
 var cellAspect = defaultCellAspect
 
@@ -56,17 +58,15 @@ type hudRing struct {
 	tone   float64 // 0 dim, 1 the brightest pale
 }
 
-// hudRings is the picture from the outside in. The bands are wide enough to
-// read at terminal size; the tick rings use few, thick ticks rather than a
-// dense fringe that would turn into noise.
+// hudRings is the picture from the outside in, reduced to the five bands a
+// terminal can draw cleanly. The gaps between the bands are as much a part of
+// the picture as the bands themselves.
 var hudRings = []hudRing{
-	{0.960, 0.995, 1, 0.74, 0.02, 0.004, 0.60},
-	{0.795, 0.945, 10, 0.58, 0.01, 0.012, 0.95},
-	{0.665, 0.760, 20, 0.70, 0.00, 0.018, 0.62},
-	{0.560, 0.645, 20, 0.30, 0.00, 0.026, 0.88},
-	{0.385, 0.500, 5, 0.78, 0.02, 0.034, 1.00},
-	{0.265, 0.345, 14, 0.34, 0.00, 0.044, 0.74},
-	{0.140, 0.225, 3, 0.84, 0.00, 0.052, 0.88},
+	{0.940, 0.990, 1, 0.94, 0.02, 0.004, 0.65},  // the thin outer arc
+	{0.720, 0.920, 12, 0.74, 0.00, 0.010, 1.00}, // the twelve heavy blocks
+	{0.550, 0.680, 48, 0.42, 0.00, 0.020, 0.85}, // the dense tick ring
+	{0.300, 0.500, 6, 0.88, 0.00, 0.030, 1.00},  // the bright inner ring
+	{0.120, 0.260, 12, 0.55, 0.00, 0.040, 0.80}, // the small inner ring
 }
 
 // radarState is what animates. When moving is false the rings stay where they
@@ -89,9 +89,19 @@ func hudInk(tone float64, mode OrbMode) RGB {
 	return c
 }
 
-// orbPixels paints the dial into a w by h pixel buffer and returns the colours
-// to add to the background. h is twice the cell rows. A zero RGB means "outside
-// the dial", which keeps the panel behind it untouched.
+// orbField is the picture's own square field: teal when the quant is online,
+// dimmed in the same blue when it is parked or the relay cannot be reached.
+func orbField(mode OrbMode) RGB {
+	field := hudTeal
+	if mode == OrbParked || mode == OrbFault {
+		field = mix(field, RGB{0, 0, 0}, 0.42)
+	}
+	return field
+}
+
+// orbPixels paints the dial into a w by h pixel buffer. h is twice the cell
+// rows. The whole rectangle carries the picture's field, exactly as the owner's
+// square picture does, and the rings sit on top of it.
 func orbPixels(w, h int, sx float64, st radarState, mode OrbMode) []RGB {
 	vs := cellAspect / 2
 	cx, cy := float64(w)/2, float64(h)/2
@@ -104,32 +114,28 @@ func orbPixels(w, h int, sx float64, st radarState, mode OrbMode) []RGB {
 	if !st.moving {
 		t = 0
 	}
-	field := hudTeal
-	if mode == OrbParked || mode == OrbFault {
-		field = mix(field, RGB{0, 0, 0}, 0.42)
-	}
+	field := orbField(mode)
 	for j := 0; j < h; j++ {
 		for i := 0; i < w; i++ {
 			x := (float64(i) + 0.5 - cx) / sx
 			y := (float64(j) + 0.5 - cy) * vs
 			r := math.Hypot(x, y) / R
-			if r > 1 {
-				continue
-			}
 			col := field
-			turn := math.Atan2(y, x)/(2*math.Pi) + 1
-			for _, g := range hudRings {
-				if r < g.r0 || r > g.r1 {
-					continue
-				}
-				if g.count > 0 {
-					slot := (turn + g.offset + g.speed*t) * float64(g.count)
-					if slot-math.Floor(slot) > g.fill {
+			if r <= 1 {
+				turn := math.Atan2(y, x)/(2*math.Pi) + 1
+				for _, g := range hudRings {
+					if r < g.r0 || r > g.r1 {
 						continue
 					}
+					if g.count > 0 {
+						slot := (turn + g.offset + g.speed*t) * float64(g.count)
+						if slot-math.Floor(slot) > g.fill {
+							continue
+						}
+					}
+					col = hudInk(g.tone, mode)
+					break
 				}
-				col = hudInk(g.tone, mode)
-				break
 			}
 			buf[j*w+i] = col
 		}
@@ -163,13 +169,8 @@ func drawOrb(c *Canvas, x0, y0, w, h int, t float64, mode OrbMode, th *Theme) {
 			for cx := 0; cx < w; cx++ {
 				top, bot := px[(2*cy)*w+cx], px[(2*cy+1)*w+cx]
 				ch, fg, bg := '▀', top, bot
-				switch {
-				case top == (RGB{}) && bot == (RGB{}):
-					continue
-				case top == (RGB{}):
-					ch, fg, bg = '▄', bot, c.BGAt(x0+cx, y0+cy)
-				case bot == (RGB{}):
-					ch, fg, bg = '▀', top, c.BGAt(x0+cx, y0+cy)
+				if top == bot {
+					ch, fg, bg = '█', top, top
 				}
 				c.Set(x0+cx, y0+cy, ch, fg, bg, false)
 			}
@@ -181,6 +182,7 @@ func drawOrb(c *Canvas, x0, y0, w, h int, t float64, mode OrbMode, th *Theme) {
 		return
 	}
 	wp := 2 * w
+	field := orbField(mode)
 	for cy := 0; cy < h; cy++ {
 		for cx := 0; cx < w; cx++ {
 			var q [4]RGB
@@ -188,70 +190,45 @@ func drawOrb(c *Canvas, x0, y0, w, h int, t float64, mode OrbMode, th *Theme) {
 			q[1] = px[(2*cy)*wp+2*cx+1]
 			q[2] = px[(2*cy+1)*wp+2*cx]
 			q[3] = px[(2*cy+1)*wp+2*cx+1]
-			paintOrbCell(c, x0+cx, y0+cy, q)
+			paintOrbCell(c, x0+cx, y0+cy, q, field)
 		}
 	}
 }
 
-// paintOrbCell draws one cell from its four pixels. Every pixel is either the
-// panel behind the dial or one of the dial's two or three colours, so the cell
-// is drawn as an exact quadrant rather than an average. That is what keeps the
-// rings crisp instead of speckled.
-func paintOrbCell(c *Canvas, x, y int, q [4]RGB) {
-	var cols []RGB
-	var masks []int
-	for i := 0; i < 4; i++ {
-		col := q[i]
-		found := -1
-		for k, have := range cols {
-			if have == col {
-				found = k
-				break
-			}
+// paintOrbCell draws one cell from its four pixels. Each pixel is either the
+// picture's field or ring, so the cell is drawn as an exact quadrant: there is
+// no averaging and no third colour, which is what keeps the rings crisp instead
+// of speckled at terminal size.
+func paintOrbCell(c *Canvas, x, y int, q [4]RGB, field RGB) {
+	mask := 0
+	nf, nb := 0, 0
+	var fs, bs [3]float64
+	for i, col := range q {
+		if col == field {
+			bs[0] += float64(col.R)
+			bs[1] += float64(col.G)
+			bs[2] += float64(col.B)
+			nb++
+			continue
 		}
-		if found < 0 {
-			cols = append(cols, col)
-			masks = append(masks, 0)
-			found = len(cols) - 1
-		}
-		masks[found] |= 1 << i
+		mask |= 1 << i
+		fs[0] += float64(col.R)
+		fs[1] += float64(col.G)
+		fs[2] += float64(col.B)
+		nf++
 	}
-	if len(cols) == 1 {
-		if cols[0] == (RGB{}) {
-			return
-		}
-		c.Set(x, y, '█', cols[0], cols[0], false)
+	if mask == 0 {
+		c.Set(x, y, '█', field, field, false)
 		return
 	}
-	outside := -1
-	for k, col := range cols {
-		if col == (RGB{}) {
-			outside = k
-		}
+	fg, bg := field, field
+	if nf > 0 {
+		fg = RGB{uint8(fs[0]/float64(nf) + 0.5), uint8(fs[1]/float64(nf) + 0.5), uint8(fs[2]/float64(nf) + 0.5)}
 	}
-	if len(cols) == 2 {
-		fg, bg := cols[0], cols[1]
-		mask := masks[0]
-		if outside == 0 {
-			bg = c.BGAt(x, y)
-			fg, mask = cols[1], masks[1]
-		} else if outside == 1 {
-			bg = c.BGAt(x, y)
-		}
-		c.Set(x, y, quadrants[mask], fg, bg, false)
-		return
+	if nb > 0 {
+		bg = RGB{uint8(bs[0]/float64(nb) + 0.5), uint8(bs[1]/float64(nb) + 0.5), uint8(bs[2]/float64(nb) + 0.5)}
 	}
-	// Three colours in one cell is a ring boundary. Fall back to the best
-	// quadrant, with the panel behind the dial in place of the outside.
-	var qq [4]RGB
-	for i := range qq {
-		qq[i] = q[i]
-		if qq[i] == (RGB{}) {
-			qq[i] = c.BGAt(x, y)
-		}
-	}
-	ch, fg, bg := quadrantCell(qq)
-	c.Set(x, y, ch, fg, bg, false)
+	c.Set(x, y, quadrants[mask], fg, bg, false)
 }
 
 // quadrants[m] is the character whose lit quarters are the bits of m: 1 upper

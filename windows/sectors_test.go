@@ -51,7 +51,7 @@ func TestScannerShowsSectorsAndCyclesThem(t *testing.T) {
 	a.screen = scrScanner
 	a.sectors = nil // the demo has its own invented groups
 	s := plain(a)
-	for _, want := range []string{"SECTORS", "AUTOMOBILE", "ALFA"} {
+	for _, want := range []string{"SECTORS", "AUTOMOBILE", "ALFA", "1. AUTOMOBILE"} {
 		if !strings.Contains(s, want) {
 			t.Errorf("scanner is missing %q", want)
 		}
@@ -64,10 +64,35 @@ func TestScannerShowsSectorsAndCyclesThem(t *testing.T) {
 	if a.lvSectorStk.total != 3 {
 		t.Errorf("the open sector must list its three scrips: %d", a.lvSectorStk.total)
 	}
-	for _, want := range []string{"CHRL", "ECHO", "GOLF"} {
+	for _, want := range []string{"CHRL", "ECHO", "GOLF", "1. CHRL"} {
 		if !strings.Contains(opened, want) {
 			t.Errorf("the open sector is missing %q:\n%s", want, opened)
 		}
+	}
+}
+
+// Owner order 2026-11-07: the sector list must scroll freely. The chosen group
+// used to pull the list back to itself every frame, so the wheel did nothing.
+func TestSectorListScrollsFreeOfTheChosenGroup(t *testing.T) {
+	a := demoApp(t, 122, 30)
+	a.screen = scrScanner
+	a.demo = false
+	a.sectors = &Sectors{OK: true}
+	for i := 0; i < 20; i++ {
+		a.sectors.Items = append(a.sectors.Items, Sector{Name: string(rune('A' + i)), Symbols: []string{"ALFA"}})
+	}
+	_ = plain(a) // draw once so the tile sets its own size
+	if a.sectorH == 0 {
+		t.Fatal("the scanner must show the sector tile")
+	}
+	a.lvSector.scroll(2)
+	want := a.lvSector.off
+	if want == 0 {
+		t.Fatalf("the test needs a scrollable list: %d rows of %d", a.lvSector.view, a.lvSector.total)
+	}
+	_ = plain(a)
+	if a.lvSector.off != want {
+		t.Errorf("the chosen group pulled the list back from %d to %d", want, a.lvSector.off)
 	}
 }
 

@@ -311,9 +311,11 @@ func TestRadarIsRoundInPixels(t *testing.T) {
 		for _, sz := range [][2]int{{36, 14}, {30, 12}, {38, 25}} {
 			c := NewCanvas(sz[0], sz[1], th.BG)
 			drawOrb(c, 0, 0, sz[0], sz[1], 2, OrbBurning, th)
-			// Find the lit pixels. A cell is 2 by 2 pixels, so a pixel is half a
-			// column wide and aspect/2 columns tall.
-			lit := func(p RGB) bool { return max(p.R, max(p.G, p.B)) > 70 }
+			// Find the ring's pale pixels. The dial's square field is teal and is
+			// not part of the ring, so a plain "lit" test would measure the whole
+			// rectangle. A cell is 2 by 2 pixels, so a pixel is half a column wide
+			// and aspect/2 columns tall.
+			lit := func(p RGB) bool { return p.R >= 120 && p.G >= 150 && p.B >= 180 }
 			minX, maxX, minY, maxY := 1<<30, -1, 1<<30, -1
 			for y := 0; y < c.H; y++ {
 				for x := 0; x < c.W; x++ {

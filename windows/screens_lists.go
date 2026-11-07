@@ -155,11 +155,15 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 		a.drawSectorOpen(c, x, sy, w, y+h-sy)
 		return
 	}
-	// The sector tile sits between the search and the ranked list, as in the
-	// latest app. It keeps a fixed, small height so the list never disappears.
+	// The sector tile sits between the search and the ranked list. It grows to
+	// show every group it can while leaving the ranked list at least seven rows,
+	// and it scrolls when there are more groups than rows.
 	sectorH := 6
-	if h < 28 {
-		sectorH = 5
+	if n := len(a.sectorGroups()); n > 0 {
+		sectorH = min(n+2, 14)
+	}
+	if avail := y + h - sy; avail-sectorH < 7 {
+		sectorH = max(5, avail-7)
 	}
 	if y+h-sy >= sectorH+7 {
 		a.drawSectorTile(c, x, sy, w, sectorH)
@@ -427,7 +431,7 @@ func (a *App) showing(l *listView, noun string) string {
 // moves through the list. Clicking a row picks that group.
 func (a *App) drawSectorTile(c *Canvas, x, y, w, h int) {
 	th := a.th
-	ix, iy, iw, ih := a.panel(c, x, y, w, h, "SECTORS", "wheel to scroll, click to pick")
+	ix, iy, iw, ih := a.panel(c, x, y, w, h, "SECTORS", "wheel scrolls, click opens")
 	a.sectorY, a.sectorH = y, h
 	groups := a.sectorGroups()
 	if len(groups) == 0 {
@@ -443,17 +447,10 @@ func (a *App) drawSectorTile(c *Canvas, x, y, w, h int) {
 	if a.sectorChoice >= len(groups) || a.sectorChoice < 0 {
 		a.sectorChoice = 0
 	}
-	rows := ih
-	if ih > 2 {
-		rows = ih - 1 // the last row carries the chosen group's scrips
-	}
+	rows := max(1, ih)
 	a.lvSector.set(len(groups), rows)
-	if a.sectorChoice < a.lvSector.off {
-		a.lvSector.off = a.sectorChoice
-	}
-	if a.sectorChoice >= a.lvSector.off+a.lvSector.view {
-		a.lvSector.off = a.sectorChoice - a.lvSector.view + 1
-	}
+	// The list is never snapped back to the chosen group: the wheel may scroll
+	// the groups freely, even when the chosen one is the first row.
 	cw := contentW(&a.lvSector, iw)
 	for n := 0; n < a.lvSector.view; n++ {
 		i := a.lvSector.off + n
@@ -473,15 +470,11 @@ func (a *App) drawSectorTile(c *Canvas, x, y, w, h int) {
 			mark = "◆ "
 		}
 		c.Set(ix+1, ry, []rune(mark)[0], th.Accent, bg, true)
-		c.Text(ix+3, ry, cw-3, fit(g.Name, cw-3), th.Text, i == a.sectorChoice)
+		name := fmt.Sprintf("%2d. %s", i+1, g.Name)
+		c.Text(ix+3, ry, max(1, cw-3), fit(name, max(1, cw-3)), th.Text, i == a.sectorChoice)
 		rightAlign(c, ix, ry, cw, []Span{{fmt.Sprintf("%d", len(g.Symbols)), th.Soft, false}})
 	}
 	a.scrollbar(c, ix+iw-1, iy, a.lvSector.view, &a.lvSector)
-	if ih > 1 {
-		g := groups[a.sectorChoice]
-		line := fmt.Sprintf("%d scrips  ·  %s", len(g.Symbols), strings.Join(g.Symbols, "  "))
-		c.Text(ix, iy+ih-1, iw, fit(line, iw), th.Soft, false)
-	}
 }
 
 // inKMIALLSHR says whether the relay's KMIALL list carries this scrip. Until
@@ -544,9 +537,9 @@ func (a *App) drawSectorOpen(c *Canvas, x, y, w, h int) {
 		sym := member[i]
 		ry := iy + 1 + n
 		a.selectRow(c, ix, ry, cw, false, func() { a.openSymbol(sym) })
-		c.Spans(ix+1, ry, cw-1, []Span{{"  " + padRight(sym, 9), th.Hot, true}})
+		c.Spans(ix+1, ry, cw-1, []Span{{fmt.Sprintf("%3d. %-9s", i+1, sym), th.Hot, true}})
 		if q, ok := tbl[sym]; ok && q.Price > 0 {
-			c.Spans(ix+12, ry, cw-12, []Span{{"PKR ", th.Soft, false}, {commaFloat(q.Price, 2), th.Text, true}})
+			c.Spans(ix+16, ry, cw-16, []Span{{"PKR ", th.Soft, false}, {commaFloat(q.Price, 2), th.Text, true}})
 			if q.ChangePct != nil {
 				rightAlign(c, ix, ry, cw, []Span{{changeText(*q.ChangePct), a.dirColor(*q.ChangePct), true}})
 			}
@@ -636,6 +629,13 @@ func (a *App) drawFlowList(c *Canvas, ix, head, top, iw, rows, barX int) {
 // so "98%" and "100%" both follow the bar by exactly one space.
 func (a *App) shareBar(c *Canvas, x, y, w int, buyShare float64) {
 	a.shareBarHalf(c, x, y, w, buyShare, '▀')
+}
+
+// shareBarMid draws the same bar as a line through the middle of a single-row
+// box, which is what the ORDER FLOW table has: the bar is centred in the row,
+// not along its top edge.
+func (a *App) shareBarMid(c *Canvas, x, y, w int, buyShare float64) {
+	a.shareBarHalf(c, x, y, w, buyShare, '━')
 }
 
 // shareBarHalf is shareBar with the caller choosing which half of the cell the
