@@ -4,10 +4,10 @@ import "math"
 
 // The quant mark is the HUD dial from the owner's picture: a square teal field
 // under concentric pale ice blue rings, with clear gaps between them. At a
-// terminal the picture can carry five bands, so the dial keeps the thin outer
-// arc, the twelve heavy blocks, the dense tick ring, the bright inner ring and
-// the small inner ring. The finer ribs of the picture would turn into speckle
-// at this size, so they are left out.
+// terminal the dial keeps four thick concentric bands, two tick rings and a
+// small core, every one of them cut by three wide radial seams. The three
+// seams turn with the rings, so the whole dial is alive in every state. The
+// finer ribs are left out where they would be speckle at this size.
 //
 // It is drawn as a picture: every cell holds four pixels, and a pixel is either
 // ring or field, never a mix, so the rings stay clean instead of dissolving
@@ -58,15 +58,42 @@ type hudRing struct {
 	tone   float64 // 0 dim, 1 the brightest pale
 }
 
-// hudRings is the picture from the outside in, reduced to the five bands a
+// hudRings is the picture from the outside in, reduced to the eight bands a
 // terminal can draw cleanly. The gaps between the bands are as much a part of
 // the picture as the bands themselves.
 var hudRings = []hudRing{
-	{0.940, 0.990, 1, 0.94, 0.02, 0.004, 0.65},  // the thin outer arc
-	{0.720, 0.920, 12, 0.74, 0.00, 0.010, 1.00}, // the twelve heavy blocks
-	{0.550, 0.680, 48, 0.42, 0.00, 0.020, 0.85}, // the dense tick ring
-	{0.300, 0.500, 6, 0.88, 0.00, 0.030, 1.00},  // the bright inner ring
-	{0.120, 0.260, 12, 0.55, 0.00, 0.040, 0.80}, // the small inner ring
+	{0.945, 0.992, 3, 0.90, 0.01, 0.030, 0.55}, // the thin outer rim, cut into arcs
+	{0.835, 0.922, 8, 0.70, 0.00, 0.036, 0.95}, // the broad outer blocks
+	{0.755, 0.810, 3, 0.82, 0.00, 0.042, 0.72}, // the middle rim
+	{0.665, 0.735, 48, 0.58, 0.00, 0.050, 0.55}, // the dense tick ring
+	{0.545, 0.640, 6, 0.66, 0.00, 0.040, 1.00}, // the bright inner ring
+	{0.445, 0.505, 72, 0.56, 0.00, 0.055, 0.72}, // the fine inner ticks
+	{0.330, 0.405, 3, 0.56, 0.00, 0.046, 0.88}, // the core ring
+	{0.190, 0.250, 6, 0.55, 0.00, 0.060, 0.60}, // the small inner ring
+}
+
+const (
+	hudSeams     = 3
+	hudSeamHalf  = 0.013 // half the width of one cut, in turns
+	hudSeamStart = 0.035
+	hudSeamSpeed = 0.028 // turns a second, clockwise
+)
+
+// hudCut says whether an angle falls in one of the dial's three thick cut
+// seams. The seams turn with the dial, so the picture never stands still.
+func hudCut(turn, t float64) bool {
+	turn -= math.Floor(turn)
+	for k := 0; k < hudSeams; k++ {
+		centre := float64(k)/hudSeams + hudSeamStart + hudSeamSpeed*t
+		d := math.Abs(turn - centre)
+		if d > 0.5 {
+			d = 1 - d
+		}
+		if d <= hudSeamHalf {
+			return true
+		}
+	}
+	return false
 }
 
 // radarState is what animates. When moving is false the rings stay where they
@@ -122,19 +149,21 @@ func orbPixels(w, h int, sx float64, st radarState, mode OrbMode) []RGB {
 			r := math.Hypot(x, y) / R
 			col := field
 			if r <= 1 {
-				turn := math.Atan2(y, x)/(2*math.Pi) + 1
-				for _, g := range hudRings {
-					if r < g.r0 || r > g.r1 {
-						continue
-					}
-					if g.count > 0 {
-						slot := (turn + g.offset + g.speed*t) * float64(g.count)
-						if slot-math.Floor(slot) > g.fill {
+				turn := math.Atan2(y, x)/(2*math.Pi) + 0.5
+				if !hudCut(turn, t) {
+					for _, g := range hudRings {
+						if r < g.r0 || r > g.r1 {
 							continue
 						}
+						if g.count > 0 {
+							slot := (turn + g.offset + g.speed*t) * float64(g.count)
+							if slot-math.Floor(slot) > g.fill {
+								continue
+							}
+						}
+						col = hudInk(g.tone, mode)
+						break
 					}
-					col = hudInk(g.tone, mode)
-					break
 				}
 			}
 			buf[j*w+i] = col
@@ -156,7 +185,7 @@ func drawOrb(c *Canvas, x0, y0, w, h int, t float64, mode OrbMode, th *Theme) {
 	st := radarState{t: t, moving: true}
 	switch mode {
 	case OrbParked, OrbFault:
-		st = radarState{t: 0, moving: false}
+		st = radarState{t: t * 0.55, moving: true}
 	case OrbChecking:
 		st = radarState{t: t * 0.6, moving: true}
 	}

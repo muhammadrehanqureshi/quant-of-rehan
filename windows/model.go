@@ -3,10 +3,18 @@ package main
 import "time"
 
 // appVersion mirrors the Android app this build is ported from.
-const appVersion = "4.0.15"
+const appVersion = "4.0.16"
 
 // hudBuild is the build number of this Windows HUD port.
-const hudBuild = "8"
+const hudBuild = "9"
+
+// scripSearchHint is the same search line on every desktop search box.
+const scripSearchHint = "Search for a KMIALL scrip"
+
+// A terminal has one font size for the whole window, so a per-title point size
+// cannot be requested. The title is tracked 10 percent wider instead: the
+// 17 column brand line below occupies 19 columns.
+const headerTitle = "◆  QUANT  OF  REHAN  ◆"
 
 // pkt is Pakistan time, fixed UTC+5 (no daylight saving), same as the session law.
 var pkt = time.FixedZone("PKT", 5*3600)

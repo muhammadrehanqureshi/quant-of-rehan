@@ -391,17 +391,21 @@ func (a *App) drawFlowSearch(c *Canvas, ix, y, iw int) {
 	c.Put(ix+7, y, '[', th.Accent, true)
 	field, col := a.ofQuery, th.Text
 	if field == "" {
-		field, col = "symbol", th.Soft
+		field, col = scripSearchHint, th.Soft
 	}
 	if a.ofSearch {
 		field += "▏"
 	}
-	c.Text(ix+9, y, 14, fit(field, 14), col, a.ofSearch)
-	c.Put(ix+24, y, ']', th.Accent, true)
-	if a.ofQuery != "" {
-		c.Text(ix+26, y, 12, fmt.Sprintf("%d match", len(a.sortedFlow())), th.Soft, false)
+	bw := runeLen(scripSearchHint) + 1
+	if limit := iw - 12; bw > limit {
+		bw = max(8, limit)
 	}
-	if iw > 52 {
+	c.Text(ix+9, y, bw, fit(field, bw), col, a.ofSearch)
+	c.Put(ix+9+bw, y, ']', th.Accent, true)
+	if a.ofQuery != "" {
+		c.Text(ix+11+bw, y, 12, fmt.Sprintf("%d match", len(a.sortedFlow())), th.Soft, false)
+	}
+	if iw > 64 {
 		rightAlign(c, ix, y, iw, []Span{{"/ searches  ESC clears", th.Soft, false}})
 	}
 	a.addHit(ix, y, iw, 1, func() { a.ofSearch = true })
