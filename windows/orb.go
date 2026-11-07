@@ -47,8 +47,8 @@ func clamp01(x float64) float64 {
 // The dial's colours: green while the market is live, and a dark green that
 // reads as off when there is no live market.
 var (
-	hudPale = RGB{196, 255, 220}
-	hudMid  = RGB{64, 236, 138}
+	hudPale = RGB{170, 255, 195}
+	hudMid  = RGB{32, 255, 112}
 	hudDark = RGB{14, 46, 30}
 )
 

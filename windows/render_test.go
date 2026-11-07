@@ -321,32 +321,37 @@ func TestFriendlyNextShowsTheScanStart(t *testing.T) {
 	}
 }
 
-// Owner order 2026-11-07: the tab numbers and TAB are green, ESC is yellow and
-// CTRL+C is red.
+// Owner order 2026-11-07: the tab numbers and TAB are green, D and R are green,
+// ESC is yellow, Q and CTRL+C are red, and every coloured key is bold.
 func TestFooterKeysAreColoured(t *testing.T) {
 	a := demoApp(t, 122, 30)
 	a.screen = scrScanner
 	c := a.render()
-	y := c.H - 1
-	row := c.PlainRows()[y]
-	cell := func(x int) Cell { return c.Cells[y*c.W+x] }
-	for _, item := range []struct {
-		text string
-		want RGB
-	}{
-		{"1 HOME", a.th.Good},
-		{"TAB", a.th.Good},
-		{"ESC", a.th.Warn},
-		{"CTRL+C", a.th.Bad},
-	} {
-		i := strings.Index(row, item.text)
-		if i < 0 {
-			t.Fatalf("%q is not in the footer: %q", item.text, row)
+	check := func(c *Canvas, text string, want RGB, last bool) {
+		t.Helper()
+		row := c.PlainRows()[c.H-1]
+		i := strings.Index(row, text)
+		if last {
+			i = strings.LastIndex(row, text)
 		}
-		if got := cell(i).FG; got != item.want {
-			t.Errorf("%s is %v, want %v", item.text, got, item.want)
+		if i < 0 {
+			t.Fatalf("%q is not in the footer: %q", text, row)
+		}
+		ce := c.Cells[(c.H-1)*c.W+i]
+		if ce.FG != want || !ce.Bold {
+			t.Errorf("%s is %v (bold %v), want %v and bold", text, ce.FG, ce.Bold, want)
 		}
 	}
+	check(c, "1 HOME", a.th.Good, false)
+	check(c, "TAB", a.th.Good, false)
+	check(c, "ESC", a.th.Warn, false)
+	check(c, "CTRL+C", a.th.Bad, false)
+	a.screen = scrHome
+	c = a.render()
+	check(c, "1 HOME", a.th.Good, false)
+	check(c, "D", a.th.Good, false)
+	check(c, "R", a.th.Good, true)
+	check(c, "Q", a.th.Bad, false)
 }
 
 func TestAlertLogDetailIsWrappedNotCut(t *testing.T) {
