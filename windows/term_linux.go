@@ -218,6 +218,8 @@ func (t *unixTerm) csi(params []byte, final byte) {
 			t.emit(Key{Kind: KPgDn})
 		case "15":
 			t.emit(Key{Kind: KF5})
+		case "17":
+			t.emit(Key{Kind: KF6})
 		}
 	}
 }
