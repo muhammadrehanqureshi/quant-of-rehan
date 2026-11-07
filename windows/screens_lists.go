@@ -149,24 +149,26 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 	sh := a.searchTileHeight(w, h)
 	a.drawSearchTile(c, x, y, w, sh)
 	sy := y + sh + 1
-	// A tapped sector takes the rest of the screen with its scrips, so every
-	// name in it can be read without leaving the scanner.
-	if a.sectorOpen {
-		a.drawSectorOpen(c, x, sy, w, y+h-sy)
-		return
-	}
 	// The sector tile sits between the search and the ranked list. It grows to
 	// show every group it can while leaving the ranked list at least seven rows,
-	// and it scrolls when there are more groups than rows.
+	// and it scrolls when there are more groups than rows. A tapped sector opens
+	// its scrips inside this tile, and the CUSTOM SCRIPS tile below stays on
+	// screen, so the two lists can be read together.
 	sectorH := 6
-	if n := len(a.sectorGroups()); n > 0 {
+	if a.sectorOpen {
+		sectorH = min(max(len(a.sectorMembers())+2, 7), 14)
+	} else if n := len(a.sectorGroups()); n > 0 {
 		sectorH = min(n+2, 14)
 	}
 	if avail := y + h - sy; avail-sectorH < 7 {
 		sectorH = max(5, avail-7)
 	}
 	if y+h-sy >= sectorH+7 {
-		a.drawSectorTile(c, x, sy, w, sectorH)
+		if a.sectorOpen {
+			a.drawSectorOpen(c, x, sy, w, sectorH)
+		} else {
+			a.drawSectorTile(c, x, sy, w, sectorH)
+		}
 		sy += sectorH + 1
 	}
 	sh2 := y + h - sy
@@ -465,11 +467,7 @@ func (a *App) drawSectorTile(c *Canvas, x, y, w, h int) {
 		g := groups[i]
 		ry := iy + n
 		idx := i
-		bg := a.selectRow(c, ix, ry, cw, i == a.sectorChoice, func() {
-			a.sectorChoice = idx
-			a.sectorOpen = true
-			a.lvSectorStk.top()
-		})
+		bg := a.selectRow(c, ix, ry, cw, i == a.sectorChoice, func() { a.openSector(idx) })
 		mark := "  "
 		if i == a.sectorChoice {
 			mark = "◆ "
@@ -496,12 +494,14 @@ func (a *App) inKMIALLSHR(sym string) bool {
 	return false
 }
 
-// drawSectorOpen is a tapped sector: every one of its scrips that is in
-// KMIALLSHR, with the live price when the feed has one. The wheel or the
-// scrollbar moves through them, a click opens one in the search tile, and
+// drawSectorOpen is a tapped sector, shown inside the SECTORS tile: every one
+// of its scrips that is in KMIALLSHR, with the live price when the feed has
+// one. The CUSTOM SCRIPS tile below stays on screen. The wheel or the
+// scrollbar moves through the scrips, a click opens one in the search tile, and
 // BACKSPACE (or ESC) brings all the sectors back without changing screen.
 func (a *App) drawSectorOpen(c *Canvas, x, y, w, h int) {
 	th := a.th
+	a.sectorY, a.sectorH = y, h
 	if h < 4 {
 		return
 	}
@@ -512,14 +512,7 @@ func (a *App) drawSectorOpen(c *Canvas, x, y, w, h int) {
 		return
 	}
 	g := groups[a.sectorChoice]
-	var member []string
-	for _, s := range g.Symbols {
-		// The demo's groups are invented, so they are shown whole; live data
-		// is filtered to the relay's KMIALL list.
-		if a.demo || a.inKMIALLSHR(s) {
-			member = append(member, s)
-		}
-	}
+	member := a.sectorMembers()
 	c.Spans(ix, iy, iw, []Span{{"◆ " + g.Name, th.Hot, true},
 		{"  ·  ", th.Soft, false},
 		{fmt.Sprintf("%d of %d scrips in KMIALLSHR", len(member), len(g.Symbols)), th.Soft, false}})
@@ -551,6 +544,47 @@ func (a *App) drawSectorOpen(c *Canvas, x, y, w, h int) {
 		}
 	}
 	a.scrollbar(c, ix+iw-1, iy+1, a.lvSectorStk.view, &a.lvSectorStk)
+}
+
+// openSector opens group i in the SECTORS tile without leaving the scanner.
+func (a *App) openSector(i int) {
+	groups := a.sectorGroups()
+	if i < 0 || i >= len(groups) {
+		return
+	}
+	a.sectorChoice = i
+	a.sectorOpen = true
+	a.lvSectorStk.top()
+}
+
+// sectorMembers is the chosen sector's scrips that the relay's KMIALLSHR list
+// carries. The demo's groups are invented, so they are shown whole.
+func (a *App) sectorMembers() []string {
+	groups := a.sectorGroups()
+	if a.sectorChoice < 0 || a.sectorChoice >= len(groups) {
+		return nil
+	}
+	g := groups[a.sectorChoice]
+	var member []string
+	for _, s := range g.Symbols {
+		if a.demo || a.inKMIALLSHR(s) {
+			member = append(member, s)
+		}
+	}
+	return member
+}
+
+// hoveredSector is the group row under the pointer in the closed sector tile,
+// or -1. It lets ENTER open the row the owner is pointing at.
+func (a *App) hoveredSector() int {
+	if a.sectorOpen || a.sectorH <= 0 || a.hoverY < a.sectorY+1 || a.hoverY >= a.sectorY+a.sectorH-1 {
+		return -1
+	}
+	i := a.lvSector.off + a.hoverY - (a.sectorY + 1)
+	if i < 0 || i >= len(a.sectorGroups()) {
+		return -1
+	}
+	return i
 }
 
 // demoSectorGroups gives the demo scanner a real-looking set of groups, so the
@@ -628,23 +662,25 @@ func (a *App) drawFlowList(c *Canvas, ix, head, top, iw, rows, barX int) {
 	a.scrollbar(c, barX, top, a.lvScan.view*2, &a.lvScan)
 }
 
-// barBlock is the lower three quarters of a cell. Unicode has no upper block of
-// the same height, so every share bar is drawn in this one step, the closest the
-// terminal font can come to the further fifteen percent that was asked for.
-const barBlock = '▆'
+// barBlock is the lower seven eighths of a cell. The owner asked for fifteen
+// percent more than the three quarters of the last build; seven eighths is the
+// terminal font's next step, sixteen and two thirds over three quarters and the
+// closest it can come.
+const barBlock = '▇'
 
-// shareBar draws a buy versus sell bar of w columns, three quarters of a cell
+// shareBar draws a buy versus sell bar of w columns, seven eighths of a cell
 // tall. One space follows the bar, then the percentage, so "98%" and "100%"
 // both sit the same distance from it.
 func (a *App) shareBar(c *Canvas, x, y, w int, buyShare float64) {
 	a.shareBarRune(c, x, y, w, buyShare, barBlock)
 }
 
-// shareBarMid draws the same bar as a line through the middle of a single-row
-// box, which is what the ORDER FLOW table has: the bar is centred in the row,
-// not along its top edge.
+// shareBarMid draws the same split through the middle of a single-row box, which
+// is what the ORDER FLOW table has: the bar is centred in the row, not along its
+// top edge. A filled rectangle gives that one-row bar the thickness the owner
+// asked for.
 func (a *App) shareBarMid(c *Canvas, x, y, w int, buyShare float64) {
-	a.shareBarRune(c, x, y, w, buyShare, '━')
+	a.shareBarRune(c, x, y, w, buyShare, '▬')
 }
 
 // shareBarRune draws the bar with the caller's character, always followed by

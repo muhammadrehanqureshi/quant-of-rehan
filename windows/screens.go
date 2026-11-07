@@ -174,10 +174,11 @@ func (a *App) flashRight(c *Canvas, right, y int, s string, fg RGB, bold bool, k
 // ---------- chrome ----------
 
 // drawHeader is the top of the window: the live feed counter on the left, the
-// name centred between two diamonds, and the date and 24 hour clock on the
-// right in a darker shade with UTC+5 after the time. The index the quant watches
-// is centred on the next line between two thin rules, and the rule with a bright
-// segment sweeping along it closes the header.
+// name centred between two diamonds in the brightest ink, and the date and 24
+// hour clock on the right in a darker shade, with the clock itself green and
+// UTC+5 after it. The index the quant watches is centred on the next line
+// between two thin rules, and the rule with a bright segment sweeping along it
+// closes the header.
 func (a *App) drawHeader(c *Canvas) {
 	th := a.th
 	title := headerTitle
@@ -185,17 +186,19 @@ func (a *App) drawHeader(c *Canvas) {
 	if len(lt) > 0 && c.W >= runeLen(title)+spanW(lt)+4 {
 		c.Spans(1, 0, min(c.W-2, spanW(lt)), lt)
 	}
-	c.Text((c.W-runeLen(title))/2, 0, runeLen(title), title, th.Accent, true)
+	c.Text((c.W-runeLen(title))/2, 0, runeLen(title), title, th.Hot, true)
 
 	k := a.karachiNow().In(pkt)
 	layout := "Mon 02 Jan 2006"
 	if c.W < 100 {
 		layout = "02 Jan 06"
 	}
-	clock := strings.ToUpper(k.Format(layout)) + "  " + k.Format("15:04:05") + " UTC+5"
-	// A darker shade than the body text, as the owner asked, so the clock sits
-	// back instead of competing with the title.
-	rightAlign(c, 0, 0, c.W-1, []Span{{clock, mix(th.Soft, th.BG, 0.28), false}})
+	date := strings.ToUpper(k.Format(layout))
+	clock := k.Format("15:04:05")
+	// Owner order 2026-11-07: one space between the date and the time, the time
+	// itself green, and the UTC+5 tag still in the darker shade.
+	ink := mix(th.Soft, th.BG, 0.28)
+	rightAlign(c, 0, 0, c.W-1, []Span{{date + " ", ink, false}, {clock, th.Good, true}, {" UTC+5", ink, false}})
 
 	tag := "PSX'S KMIALL INDEX"
 	if a.demo {
