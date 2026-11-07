@@ -654,7 +654,8 @@ func selfTest(base string) int {
 		sort.Strings(keys)
 		fmt.Printf("  OK    %-22s %6dms  ok=%v keys=%s\n", path, rtt.Milliseconds(), o.boolean("ok", false), strings.Join(keys, ","))
 	}
-	for _, p := range []string{"/health", "/market", "/signals", "/quotes", "/prices", "/sectors"} {
+	for _, p := range []string{"/health", "/market", "/signals", "/quotes", "/prices", "/sectors",
+		"/bars?symbol=KSE100&tf=1D&days=365&limit=5"} {
 		check(p)
 	}
 	if fail > 0 {
