@@ -84,10 +84,58 @@ func TestScannerShowsSectorsAndCyclesThem(t *testing.T) {
 		}
 	}
 	// ENTER opens the group under the pointer, not only a click.
-	a.hoverX, a.hoverY = 10, a.sectorY+1+2
+	a.hoverX, a.hoverY = 10, a.sectorY+2+2
 	a.onKey(Key{Kind: KEnter})
 	if !a.sectorOpen || a.sectorChoice != 2 {
 		t.Errorf("ENTER must open the pointed sector: open %v choice %d", a.sectorOpen, a.sectorChoice)
+	}
+}
+
+// Owner order 2026-11-07: the SECTORS tile has its own search box. Slash gives
+// it the keys, it filters the groups, ENTER opens the first match, and the same
+// box filters the open group's scrips.
+func TestSectorSearchFiltersGroupsAndScrips(t *testing.T) {
+	a := demoApp(t, 122, 30)
+	a.screen = scrScanner
+	_ = a.render() // draw once so the tile has a size and the slash key can focus it
+	a.onKey(Key{Kind: KRune, R: '/'})
+	if !a.sectorSearch {
+		t.Fatal("slash must focus the SECTORS search box")
+	}
+	if s := plain(a); !strings.Contains(s, "Search sectors") {
+		t.Fatalf("the SECTORS tile has no search box:\n%s", s)
+	}
+	for _, r := range "CEM" {
+		a.onKey(Key{Kind: KRune, R: r})
+	}
+	if a.sectorQuery != "CEM" {
+		t.Fatalf("typed sector query %q, want CEM", a.sectorQuery)
+	}
+	vis := a.visibleSectorIndices()
+	if len(vis) != 1 || a.sectorGroups()[vis[0]].Name != "CEMENT" {
+		t.Fatalf("CEM must filter to CEMENT: %v", vis)
+	}
+	if s := plain(a); !strings.Contains(s, "CUSTOM SCRIPS BY VOLUME") {
+		t.Fatalf("the sector search hid the CUSTOM SCRIPS tile:\n%s", s)
+	}
+	a.onKey(Key{Kind: KEnter})
+	if !a.sectorOpen || a.sectorChoice != vis[0] {
+		t.Fatalf("ENTER must open CEMENT: open %v choice %d", a.sectorOpen, a.sectorChoice)
+	}
+	if a.sectorQuery != "" || a.sectorSearch {
+		t.Fatalf("opening a group must clear its search: %q %v", a.sectorQuery, a.sectorSearch)
+	}
+	a.onKey(Key{Kind: KRune, R: '/'})
+	for _, r := range "CH" {
+		a.onKey(Key{Kind: KRune, R: r})
+	}
+	m := a.visibleSectorMembers()
+	if len(m) != 1 || m[0] != "CHRL" {
+		t.Fatalf("CH must filter CEMENT to CHRL: %v", m)
+	}
+	a.onKey(Key{Kind: KEnter})
+	if a.selectedSym != "CHRL" || a.sectorOpen {
+		t.Fatalf("ENTER must open CHRL: symbol %q open %v", a.selectedSym, a.sectorOpen)
 	}
 }
 
