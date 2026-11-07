@@ -435,13 +435,40 @@ func TestFetchOrderFlowFallsBackToFlowAndAcceptsALargeBody(t *testing.T) {
 	}
 }
 
-// Owner order 2026-11-07: ten tabs in every bar, one per ten percent.
+// Owner order 2026-11-07: ten tabs in every bar, one per ten percent, and the
+// bar keeps its previous 17-cell span.
 func TestShareBarHasTenTabs(t *testing.T) {
 	a := demoApp(t, 100, 30)
 	c := NewCanvas(40, 1, RGB{})
 	a.shareBar(c, 2, 0, 22, 0.5)
 	row := c.PlainRows()[0]
-	if n := strings.Count(row, "▇"); n != 10 {
-		t.Fatalf("the bar has %d tabs, want 10: %q", n, row)
+	if n := strings.Count(row, "▇"); n != 17 {
+		t.Fatalf("the bar has %d cells, want the previous 17: %q", n, row)
+	}
+	widths := shareBarTabWidths(17)
+	if len(widths) != shareBarTabs {
+		t.Fatalf("the bar has %d tabs, want %d", len(widths), shareBarTabs)
+	}
+	sum := 0
+	for _, w := range widths {
+		if w < 1 {
+			t.Fatalf("a tab has width %d; every tab needs a cell", w)
+		}
+		sum += w
+	}
+	if sum != 17 {
+		t.Fatalf("the tabs cover %d cells, want 17", sum)
+	}
+}
+
+func TestOrderFlowBarColumnIsCalledBars(t *testing.T) {
+	a := demoApp(t, 160, 45)
+	a.screen = scrOrderFlow
+	s := plain(a)
+	if !strings.Contains(s, "BARS") {
+		t.Errorf("the order flow bar column is not called BARS:\n%s", s)
+	}
+	if strings.Contains(s, "BUY SHARE") {
+		t.Errorf("the old BUY SHARE heading is still there")
 	}
 }

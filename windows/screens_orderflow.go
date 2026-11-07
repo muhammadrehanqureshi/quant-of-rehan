@@ -252,8 +252,9 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 		for k, hd := range []string{"BUYING (B)", "SELLING (S)", "UNCL. (U)", "TOTAL (T)"} {
 			c.Text(ix+colX[4+k], row, colW[4+k], padLeft(hd, colW[4+k]), th.Soft, false)
 		}
-		if cw := contentW(&a.lvOF, iw); cw-flowBarX >= 12 {
-			c.Text(ix+flowBarX, row, 9, "BUY SHARE", th.Soft, false)
+		if bw := contentW(&a.lvOF, iw) - flowBarX; bw >= 12 {
+			bw = min(22, bw)
+			c.Text(ix+flowBarX, row, bw, padLeft("BARS", bw), th.Soft, false)
 		}
 		row++
 	}
