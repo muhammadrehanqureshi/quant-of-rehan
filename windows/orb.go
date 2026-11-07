@@ -10,15 +10,15 @@ import "math"
 //
 // Three thick seams cut every ring and turn with it, the dashed rings crawl in
 // opposite directions, and one bright glint sweeps around the outside, so the
-// mark is alive in every state. Offline the same dial is drawn dimmer and
-// slower rather than recoloured.
+// mark is alive while the market is live. A market that is closed, still being
+// checked or unreachable leaves the same dial dark and completely still.
 
 var cellAspect = defaultCellAspect
 
 const defaultCellAspect = 2.22
 
-// OrbMode says whether the quant is online. The dial keeps the picture's own
-// blue in every state; offline it is dimmed rather than recoloured.
+// OrbMode says whether the quant is online. The owner asked for a green dial
+// while he checks the desktop build; it only turns while the market is live.
 type OrbMode int
 
 const (
@@ -38,11 +38,12 @@ func clamp01(x float64) float64 {
 	return x
 }
 
-// The dial's own colours, from the owner's picture: pale ice blue dots.
+// The dial's colours: green while the market is live, and a dark green that
+// reads as off when there is no live market.
 var (
-	hudPale = RGB{232, 246, 251}
-	hudMid  = RGB{176, 214, 230}
-	hudDim  = RGB{96, 150, 176}
+	hudPale = RGB{196, 255, 220}
+	hudMid  = RGB{64, 236, 138}
+	hudDark = RGB{14, 46, 30}
 )
 
 // hudBand is one ring of dots. r0 and r1 are fractions of the dial's radius.
@@ -61,11 +62,11 @@ type hudBand struct {
 // ring. The gaps between the rings and the empty centre are part of the mark.
 var hudBands = []hudBand{
 	{0.945, 1.000, 0, 1, 0.000, 0.55},      // the thin outer rim
-	{0.835, 0.930, 8, 0.62, 0.030, 0.95},   // the broad outer blocks
+	{0.835, 0.930, 8, 0.62, 0.055, 0.95},   // the broad outer blocks
 	{0.745, 0.805, 0, 1, 0.000, 0.70},      // the middle rim
-	{0.645, 0.705, 24, 0.55, -0.034, 0.55}, // the dense tick ring
-	{0.505, 0.605, 6, 0.70, 0.040, 1.00},   // the bright inner ring
-	{0.405, 0.465, 36, 0.58, -0.030, 0.60}, // the fine inner ticks
+	{0.645, 0.705, 24, 0.55, -0.062, 0.55}, // the dense tick ring
+	{0.505, 0.605, 6, 0.70, 0.072, 1.00},   // the bright inner ring
+	{0.405, 0.465, 36, 0.58, -0.055, 0.60}, // the fine inner ticks
 	{0.290, 0.350, 0, 1, 0.000, 0.78},      // the core ring, empty inside
 }
 
@@ -73,7 +74,7 @@ const (
 	hudSeams     = 3
 	hudSeamHalf  = 0.013 // half the width of one cut, in turns
 	hudSeamStart = 0.035
-	hudSeamSpeed = 0.028 // turns a second, clockwise
+	hudSeamSpeed = 0.060 // turns a second, clockwise
 )
 
 // hudCut says whether an angle falls in one of the dial's three thick cut
@@ -93,39 +94,32 @@ func hudCut(turn, t float64) bool {
 	return false
 }
 
-// hudTime is the clock the dial runs on. Parked, checking and faulted states
-// turn more slowly, as the old radar did.
+// hudTime is the clock the dial runs on. It only turns while the market is
+// live: closed, checking and unreachable all leave it dark and still.
 func hudTime(mode OrbMode, t float64) float64 {
-	switch mode {
-	case OrbParked, OrbFault:
-		return t * 0.55
-	case OrbChecking:
-		return t * 0.6
+	if mode != OrbBurning {
+		return 0
 	}
 	return t
 }
 
-// hudInk gives the ink for one tone at this mode: the picture's ice blue when
-// online, dimmed when the quant is parked, softer while the relay is checked.
+// hudInk gives the ink for one tone. A dial with no live market is dark; while
+// the market is live its dots run from green to pale green.
 func hudInk(tone float64, mode OrbMode) RGB {
-	c := mix(hudMid, hudPale, clamp01(tone))
-	switch mode {
-	case OrbParked, OrbFault:
-		return mix(hudDim, c, 0.40)
-	case OrbChecking:
-		return mix(hudDim, c, 0.72)
+	if mode != OrbBurning {
+		return hudDark
 	}
-	return c
+	return mix(hudMid, hudPale, clamp01(tone))
 }
 
 // hudGlint is the bright head that sweeps around the dial, one turn every
-// twenty two seconds. It is a wedge rather than a dot, so the ring it crosses
+// twelve seconds. It is a wedge rather than a dot, so the ring it crosses
 // flashes without widening.
 func hudGlint(turn, r, t float64) float64 {
 	if r < 0.40 {
 		return 0
 	}
-	d := math.Abs(turn - (0.10 + 0.045*t))
+	d := math.Abs(turn - (0.10 + 0.085*t))
 	if d > 0.5 {
 		d = 1 - d
 	}

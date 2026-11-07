@@ -246,10 +246,10 @@ func TestPhaseAtMatchesTheSessionLaw(t *testing.T) {
 	}
 }
 
-// The HUD dial turns in every state, slower while it is parked or checking. It
-// is the owner's dot matrix now: Braille dots on concentric rings, over the
-// panel's own background, with an empty centre.
-func TestMarkTurnsInEveryState(t *testing.T) {
+// The dial turns only while the market is live, and it is green while it runs.
+// A closed, checking or unreachable market leaves the same dots dark and still.
+// It is always dots on the panel, never a filled field.
+func TestDialTurnsOnlyWhileTheMarketIsLive(t *testing.T) {
 	th := themeAt(0)
 	paint := func(mode OrbMode, secs float64) *Canvas {
 		c := NewCanvas(38, 14, th.Panel)
@@ -265,16 +265,14 @@ func TestMarkTurnsInEveryState(t *testing.T) {
 		return true
 	}
 	if same(paint(OrbBurning, 1.0), paint(OrbBurning, 1.5)) {
-		t.Errorf("online, the dial must turn")
+		t.Fatalf("online, the dial must turn")
 	}
-	for _, m := range []OrbMode{OrbBurning, OrbChecking, OrbParked, OrbFault} {
-		if same(paint(m, 1.0), paint(m, 9.7)) {
-			t.Errorf("mode %d, the mark must turn", m)
+	for _, m := range []OrbMode{OrbChecking, OrbParked, OrbFault} {
+		if !same(paint(m, 1.0), paint(m, 9.7)) {
+			t.Errorf("mode %d: a dial with no live market must be still", m)
 		}
 	}
-	// The mark is dots on the panel, never a filled field, and its dots carry
-	// the picture's pale ice blue in every theme.
-	dots, cells := 0, 0
+	lit := 0
 	for _, ce := range paint(OrbBurning, 2).Cells {
 		if ce.BG != th.Panel {
 			t.Fatalf("the dial painted a background: %v", ce.BG)
@@ -282,16 +280,18 @@ func TestMarkTurnsInEveryState(t *testing.T) {
 		if ce.Ch < 0x2800 || ce.Ch > 0x28ff {
 			continue
 		}
-		cells++
-		if ce.FG.B < 180 || ce.FG.G < 150 || ce.FG.R < 120 {
-			t.Errorf("a dial dot is %v, not the picture's pale blue", ce.FG)
+		if ce.FG.G < 150 || ce.FG.G < ce.FG.R+40 {
+			t.Errorf("a live dial dot is %v, not green", ce.FG)
 		}
-		for m := ce.Ch - 0x2800; m != 0; m &= m - 1 {
-			dots++
-		}
+		lit++
 	}
-	if cells < 40 || dots < 200 {
-		t.Errorf("online mark: %d lit cells and %d dots, want a dot matrix", cells, dots)
+	if lit < 40 {
+		t.Errorf("online mark: %d lit cells, want a dot matrix", lit)
+	}
+	for _, ce := range paint(OrbParked, 2).Cells {
+		if ce.Ch >= 0x2800 && ce.Ch <= 0x28ff && ce.FG.G > 90 {
+			t.Errorf("a closed dial dot is %v, not dark", ce.FG)
+		}
 	}
 }
 
@@ -322,7 +322,7 @@ func TestRadarIsRoundInPixels(t *testing.T) {
 	th := themeAt(0)
 	was := cellAspect
 	defer func() { cellAspect = was }()
-	lit := func(p RGB) bool { return p.R >= 120 && p.G >= 150 && p.B >= 180 }
+	lit := func(p RGB) bool { return p.G >= 150 }
 	for _, aspect := range []float64{1.90, 20.0 / 9.0, 2.05} {
 		cellAspect = aspect
 		for _, sz := range [][2]int{{36, 14}, {30, 12}, {38, 25}} {
