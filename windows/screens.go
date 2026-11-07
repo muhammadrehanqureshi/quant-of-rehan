@@ -173,14 +173,17 @@ func (a *App) flashRight(c *Canvas, right, y int, s string, fg RGB, bold bool, k
 
 // ---------- chrome ----------
 
-// drawHeader is the top of the window: the name with a diamond on either side,
-// in big block letters two rows tall when the window is wide enough, then the
-// index the quant watches, then the rule with a bright segment sweeping along
-// it. The live counter sits at the top left on every page, in bold.
-//
+// drawHeader is the top of the window, set the way the owner's picture sets
+// it: the live feed counter on the left, the letterspaced name centred between
+// two diamonds, and the date and 24 hour clock on the right in pale ink. The
+// index the quant watches is centred on the next line, and the rule with a
+// bright segment sweeping along it closes the header.
 func (a *App) drawHeader(c *Canvas) {
 	th := a.th
 	title := headerTitle
+	if c.W < 96 {
+		title = headerTitleCompact
+	}
 	lt := a.feedLight()
 	if len(lt) > 0 && c.W >= runeLen(title)+spanW(lt)+4 {
 		c.Spans(1, 0, min(c.W-2, spanW(lt)), lt)
@@ -192,8 +195,8 @@ func (a *App) drawHeader(c *Canvas) {
 	if c.W < 100 {
 		layout = "02 Jan 06"
 	}
-	clock := strings.ToUpper(k.Format(layout)) + " " + k.Format("15:04:05") + " UTC+5"
-	rightAlign(c, 0, 0, c.W-1, []Span{{clock, th.Good, true}})
+	clock := strings.ToUpper(k.Format(layout)) + "  " + k.Format("15:04:05") + " PKT"
+	rightAlign(c, 0, 0, c.W-1, []Span{{clock, th.Text, false}})
 
 	tag := "PSX'S KMIALL INDEX"
 	if a.demo {

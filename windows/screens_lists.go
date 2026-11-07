@@ -260,13 +260,19 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 		ps := commaFloat(q.Price, 2)
 		a.flashRight(c, right, row, ps, th.Text, true, pxKey)
 		c.Text(right-runeLen(ps)-4, row, 4, "PKR ", th.Soft, false)
+		var total int64
+		if q.Buy != nil && q.Sell != nil {
+			total = *q.Buy + *q.Sell
+		}
+		// The bar goes on the block's top row, in the free gap between the
+		// symbol and the numbers, so its foot is the block's centre line and
+		// the extra height grows upward from it.
+		if total > 0 && cw >= 74 {
+			a.shareBar(c, ix+24, row, 22, float64(*q.Buy)/float64(total))
+		}
 		row++
 		if q.Buy != nil && q.Sell != nil {
-			t := *q.Buy + *q.Sell
-			a.putBST(c, ix+5, row, q.Buy, q.Sell, &t, pxKey, "vol:"+s)
-			if t > 0 && cw >= 66 {
-				a.shareBar(c, ix+cw-22, row, 22, float64(*q.Buy)/float64(t))
-			}
+			a.putBST(c, ix+5, row, q.Buy, q.Sell, &total, pxKey, "vol:"+s)
 		}
 		row++
 	}
@@ -597,9 +603,9 @@ func (a *App) drawFlowList(c *Canvas, ix, head, top, iw, rows, barX int) {
 		}
 		c.Spans(ix, row, cw, []Span{{fmt.Sprintf("%3d. ", i+1), th.Soft, false}, {b.Symbol, th.Hot, true}, {flag, th.Warn, true}})
 		if cw >= 70 {
-			// On the block's top row, the lower half of the cell brings the bar
-			// to the block's centre line.
-			a.shareBarHalf(c, ix+24, row, 22, b.Share, '▄')
+			// On the block's top row, the foot of the cell is the block's
+			// centre line, so the bar grows upward from it.
+			a.shareBar(c, ix+24, row, 22, b.Share)
 		}
 		right := ix + cw
 		if b.ChangePct != nil {
@@ -622,33 +628,37 @@ func (a *App) drawFlowList(c *Canvas, ix, head, top, iw, rows, barX int) {
 	a.scrollbar(c, barX, top, a.lvScan.view*2, &a.lvScan)
 }
 
-// shareBar draws a buy versus sell bar of w columns at half the height of a
-// cell, on the top half of its row, so it sits in the middle of a stock's two
-// row block rather than along the bottom. Then one space, then the percentage,
-// so "98%" and "100%" both follow the bar by exactly one space.
+// barBlock is the lower five eighths of a cell. Unicode has no upper block of
+// the same height, so every share bar is drawn in this one step: taller than
+// the old half cell, and the closest the terminal font can come to the fifth
+// more that was asked for.
+const barBlock = '▅'
+
+// shareBar draws a buy versus sell bar of w columns, five eighths of a cell
+// tall. One space follows the bar, then the percentage, so "98%" and "100%"
+// both sit the same distance from it.
 func (a *App) shareBar(c *Canvas, x, y, w int, buyShare float64) {
-	a.shareBarHalf(c, x, y, w, buyShare, '▀')
+	a.shareBarRune(c, x, y, w, buyShare, barBlock)
 }
 
 // shareBarMid draws the same bar as a line through the middle of a single-row
 // box, which is what the ORDER FLOW table has: the bar is centred in the row,
 // not along its top edge.
 func (a *App) shareBarMid(c *Canvas, x, y, w int, buyShare float64) {
-	a.shareBarHalf(c, x, y, w, buyShare, '━')
+	a.shareBarRune(c, x, y, w, buyShare, '━')
 }
 
-// shareBarHalf is shareBar with the caller choosing which half of the cell the
-// bar fills: the top half on a block's lower row, the bottom half on its upper
-// row, so the bar always touches the block's centre line.
-func (a *App) shareBarHalf(c *Canvas, x, y, w int, buyShare float64, half rune) {
+// shareBarRune draws the bar with the caller's character, always followed by
+// one space and the percentage.
+func (a *App) shareBarRune(c *Canvas, x, y, w int, buyShare float64, ch rune) {
 	th := a.th
 	bw := w - 5
 	f := int(math.Round(buyShare * float64(bw)))
 	for i := 0; i < bw; i++ {
 		if i < f {
-			c.Put(x+i, y, half, th.Good, false)
+			c.Put(x+i, y, ch, th.Good, false)
 		} else {
-			c.Put(x+i, y, half, mix(th.Panel, th.Bad, 0.8), false)
+			c.Put(x+i, y, ch, mix(th.Panel, th.Bad, 0.8), false)
 		}
 	}
 	c.Text(x+bw+1, y, 4, strconv.FormatFloat(math.Round(buyShare*100), 'f', 0, 64)+"%", th.Soft, false)

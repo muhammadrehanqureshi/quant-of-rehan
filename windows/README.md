@@ -1,19 +1,25 @@
-# Quant of Rehan for Windows (console edition), build 9
+# Quant of Rehan for Windows (console edition), build 10
 
 A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.16**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
 
-## What is new in build 9
+## What is new in build 10
+
+* **Build 10.** The header is the owner's picture: the live feed counter on the left, `◆ Q U A N T   O F   R E H A N ◆` tracked and centred between its diamonds, the date and the 24 hour clock on the right as `WED 04 NOV 2026  09:41:41 PKT` in pale ink, and `PSX'S KMIALL INDEX` centred under it.
+* **The dial is a dot matrix.** It is drawn with Braille dots, not quadrant blocks, on the panel's own background: there is no filled field at all. Seven concentric rings, an empty centre, three seams that turn, dashed rings that crawl and one bright glint sweeping around. Offline it is the same dial, dimmer and slower.
+* **Taller share bars.** Every green and red share bar is five eighths of a cell tall instead of half, the closest step the terminal font has to the further fifth the owner asked for, and each one still meets the centre line of its stock's block.
+
+## What was new in build 9
 
 * **Build 9.** The HUD dial is now thick concentric rings cut by three rotating seams, and every ring turns in every state. Every search box says `Search for a KMIALL scrip`. The empty CUSTOM SCRIPS tile has no prompt. The BIG BUYING NOW heading is green and BIG SELLING NOW is red. Telemetry says `MARKET IS CLOSED`. The header title is tracked 10 percent wider; a console has one font size for the whole window, so a per-title point size is not available.
-* **The owner's latest layout.** `◆  QUANT  OF  REHAN  ◆` is centred on the first line, in the theme's accent, bold. `PSX'S KMIALL INDEX` is on the next line and the rule closes the header. The live seconds counter is at the top left of every page, in bold. The greeting has its own tile, the footer carries navigation only, and the sound and alert flags live only in Settings. The old scrolling banner is gone. The green and red share bars are half a cell tall and sit on the centre line of each stock's block, never along its foot.
+* **The owner's latest layout.** The letterspaced title is centred on the first line, in the theme's accent, bold. `PSX'S KMIALL INDEX` is on the next line and the rule closes the header. The live seconds counter is at the top left of every page, in bold. The greeting has its own tile, the footer carries navigation only, and the sound and alert flags live only in Settings. The old scrolling banner is gone. The green and red share bars meet the centre line of each stock's block, never its foot.
 * **Five tabs, in your order:** 1 HOME, 2 ALERTS, 3 ORDER FLOW, 4 SCANNER, 5 SETTINGS. SEARCH is no longer a tab: it is the tile at the top of SCANNER, and the scanner carries on below it.
 * **LATEST SIGNAL** has SYMBOL, ENTRY TIME, ENTRY PRICE, TAKE PROFIT and STOP LOSS, in those words. Entry time comes from the signal's own `Entry time` line. If the signal does not carry one it says `not reported` and nothing is made up.
 * **Alerts say what you asked:** `PRL is getting big buying orders` and `PRL is getting big selling orders`, with the stock name only. Selling has its own tone, its own flag (Settings, or the S key) and its own board next to BIG BUYING NOW. The log marks each line BUY or SELL.
 * **ORDER FLOW**, a new tab, reads the relay's `GET /orderflow` (and falls back to `GET /flow`, the same answer). See the section below.
 * **Percent after a bar:** every share bar is followed by one space and then the percentage, so `98%` and `100%` sit the same distance from the bar.
 * **HOME:** one blank line between the BUYING NOW line and the `Data from the broker's feed...` line.
-* **The HUD dial (ORB).** The owner's picture, drawn as a picture rather than dots: a 2 by 2 block of pixels in every cell (quadrant block characters, in full colour). A square teal field carries eight concentric pale ice blue bands: a thin rim, broad outer blocks, a middle rim, a dense tick ring, a bright inner ring, fine inner ticks, a core ring and a small inner ring, with an empty centre. Three thick cut seams run through every band, and every band turns, so the dial is alive even when the relay is offline. There is no sun, no wireframe, no radar sweep and no crosshair, because the picture has none. It is on HOME only; the SCANNER gives its width to the search, the SECTORS tile and the list. The application icon is the same dial, drawn full square on the picture's teal by `tools/mkicon_hud.py` in the Windows workflow.
+* **The HUD dial (ORB).** The owner's animated ring, drawn as a dot matrix: a 2 by 4 grid of Braille dots in every cell, and only the dots that fall on a ring are lit, so the panel's own background is the only background. Seven concentric pale ice blue rings, an empty centre, three thick cut seams that turn through every ring, dashed rings crawling in opposite directions and one bright glint sweeping around. Offline the same dial is dimmer and slower. There is no sun, no wireframe, no radar sweep and no crosshair, because the GIF has none. It is on HOME only; the SCANNER gives its width to the search, the SECTORS tile and the list. The application icon is the same dial, drawn full square by `tools/mkicon_hud.py` in the Windows workflow.
 
 * **SECTORS** is on the SCANNER: the relay's `/sectors` groups in a drop down list. The wheel or the scrollbar moves through the groups. A click stays on the SCANNER, hides the other sectors and lists every scrip of the chosen group that is in KMIALLSHR, with its price. That list scrolls and a click opens a scrip in the search tile. BACKSPACE, or ESC, brings every sector back without changing screen.
 
@@ -146,7 +152,7 @@ go test ./...
 set GOOS=windows& set GOARCH=amd64& go build -trimpath -ldflags "-s -w -buildid=" -o QuantOfRehan.exe .
 ```
 
-`rsrc_windows_amd64.syso` holds the icon and version info. `python tools/mkicon_hud.py assets/QuantOfRehan.ico assets/icon-1024.png` draws the blue HUD dial icon (needs Pillow) and `python tools/mksyso.py assets/QuantOfRehan.ico rsrc_windows_amd64.syso 4.0.16.9` writes the resource file. The Windows workflow runs both before the tests and the build.
+`rsrc_windows_amd64.syso` holds the icon and version info. `python tools/mkicon_hud.py assets/QuantOfRehan.ico assets/icon-1024.png` draws the blue HUD dial icon (needs Pillow) and `python tools/mksyso.py assets/QuantOfRehan.ico rsrc_windows_amd64.syso 4.0.16.10` writes the resource file. The Windows workflow runs both before the tests and the build.
 
 Source map: `signaltext.go` and `rank.go` port the app's signal and ranking rules, `relay.go` is the relay client, `session.go` is the PSX session law (pre, trading, break and post times) and the scan window, `flow.go` is the big buying detector, `live.go` holds flashes, charts, feed health and the mouse, `screens*.go`, `orb.go` (the ring), `orderflow_data.go` and `screens_orderflow.go` (the ORDER FLOW tab), `feedstats.go` and `feedwatch.go` (feed ages and the diagnostic) and `spark.go` draw the HUD, `term_windows.go` is the Windows console layer.
 

@@ -169,8 +169,8 @@ func TestOrderFlowSortKeepsUnmeasuredAtTheBottom(t *testing.T) {
 // After the bar there is one space and then the percentage, however many
 // digits it has.
 func TestPercentFollowsTheBarWithOneSpace(t *testing.T) {
-	good := regexp.MustCompile(`[▀▄] \d{1,3}%`)
-	bad := regexp.MustCompile(`[▀▄]  +\d|[▀▄]\d`)
+	good := regexp.MustCompile(`▅ \d{1,3}%`)
+	bad := regexp.MustCompile(`▅  +\d|▅\d`)
 	for _, ch := range []int{2, 3} {
 		a := busyApp(t, 122, 30, 6)
 		a.screen, a.scanChoice = scrScanner, ch
@@ -188,8 +188,8 @@ func TestPercentFollowsTheBarWithOneSpace(t *testing.T) {
 		a := demoApp(t, 100, 30)
 		a.shareBar(c, 2, 0, 22, share)
 		row := c.PlainRows()[0]
-		i := strings.LastIndex(row, "▀")
-		if i < 0 || row[i+len("▀")] != ' ' || row[i+len("▀")+1] < '0' || row[i+len("▀")+1] > '9' {
+		i := strings.LastIndex(row, "▅")
+		if i < 0 || row[i+len("▅")] != ' ' || row[i+len("▅")+1] < '0' || row[i+len("▅")+1] > '9' {
 			t.Errorf("share %.2f: %q", share, row)
 		}
 	}
@@ -267,33 +267,39 @@ func TestOrderFlowSearchFiltersTheList(t *testing.T) {
 	}
 }
 
-// The gold mark is on the home screen only. The scanner gives its width to the
-// search, the sectors and the list. No other screen carries the mark.
+// The dot matrix mark is on the home screen only. The scanner gives its width
+// to the search, the sectors and the list. No other screen carries the mark.
 func TestNoRingOnSettingsAndAlerts(t *testing.T) {
 	for _, scr := range []screenID{scrSettings, scrAlerts, scrOrderFlow, scrScanner} {
 		a := demoApp(t, 158, 41)
 		a.screen = scr
-		c := a.render()
-		for _, ce := range c.Cells {
-			if isRingGlyph(ce.Ch) {
-				t.Fatalf("screen %d draws quadrant blocks (the ring)", scr)
-			}
-		}
 		s := strings.ToUpper(plain(a))
+		if strings.Contains(s, "QUANT CORE") {
+			t.Errorf("screen %d carries the quant mark", scr)
+		}
 		if strings.Contains(s, "RADAR") || strings.Contains(strings.ReplaceAll(s, "JARVIS CYAN", ""), "JARVIS") {
 			t.Errorf("screen %d still mentions the ring or the radar", scr)
 		}
 	}
 	a := demoApp(t, 158, 41)
 	a.screen = scrHome
-	hasRing := false
-	for _, ce := range a.render().Cells {
-		if isRingGlyph(ce.Ch) {
-			hasRing = true
+	c := a.render()
+	// The left column holds the mark and nothing else, so its Braille dots are
+	// the dial's own.
+	dots := 0
+	for y := 0; y < c.H; y++ {
+		for x := 0; x < 41 && x < c.W; x++ {
+			ce := c.Cells[y*c.W+x]
+			if ce.Ch < 0x2800 || ce.Ch > 0x28ff {
+				continue
+			}
+			for m := ce.Ch - 0x2800; m != 0; m &= m - 1 {
+				dots++
+			}
 		}
 	}
-	if !hasRing {
-		t.Errorf("home must have the ring")
+	if dots < 200 {
+		t.Errorf("home must have the dot matrix dial, it has %d dots in the left column", dots)
 	}
 }
 
@@ -427,15 +433,4 @@ func TestFetchOrderFlowFallsBackToFlowAndAcceptsALargeBody(t *testing.T) {
 	if _, err := NewRelay(bad.URL).FetchOrderFlow(context.Background()); err == nil {
 		t.Errorf("two refusals must be an error")
 	}
-}
-
-// isRingGlyph is true for the quadrant characters only the ring uses (the
-// diagonal and three quarter ones). Bars and charts use only halves and full
-// blocks, so these mark the ring.
-func isRingGlyph(ch rune) bool {
-	switch ch {
-	case '▘', '▝', '▖', '▗', '▚', '▞', '▛', '▜', '▙', '▟':
-		return true
-	}
-	return false
 }

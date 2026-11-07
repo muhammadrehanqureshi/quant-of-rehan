@@ -2,16 +2,16 @@ package main
 
 import "math"
 
-// The quant mark is the HUD dial from the owner's picture: a square teal field
-// under concentric pale ice blue rings, with clear gaps between them. At a
-// terminal the dial keeps four thick concentric bands, two tick rings and a
-// small core, every one of them cut by three wide radial seams. The three
-// seams turn with the rings, so the whole dial is alive in every state. The
-// finer ribs are left out where they would be speckle at this size.
+// The quant mark is the animated dial from the owner's GIF: a dot matrix, not a
+// picture. Every cell holds a 2 by 4 grid of Braille dots, and the dial is the
+// dots that fall on concentric rings around an empty centre. Nothing is filled:
+// a dot is either lit or it is not, so the panel's own background shows through
+// and there is no square field under the rings.
 //
-// It is drawn as a picture: every cell holds four pixels, and a pixel is either
-// ring or field, never a mix, so the rings stay clean instead of dissolving
-// into noise at terminal size.
+// Three thick seams cut every ring and turn with it, the dashed rings crawl in
+// opposite directions, and one bright glint sweeps around the outside, so the
+// mark is alive in every state. Offline the same dial is drawn dimmer and
+// slower rather than recoloured.
 
 var cellAspect = defaultCellAspect
 
@@ -38,38 +38,35 @@ func clamp01(x float64) float64 {
 	return x
 }
 
-// The dial's own colours, from the owner's picture: a deep teal field and pale
-// ice blue rings.
+// The dial's own colours, from the owner's picture: pale ice blue dots.
 var (
-	hudTeal = RGB{10, 96, 130}
 	hudPale = RGB{232, 246, 251}
 	hudMid  = RGB{176, 214, 230}
 	hudDim  = RGB{96, 150, 176}
 )
 
-// hudRing is one concentric band. count above 1 draws that many segments around
-// the circle, and a low fill makes them thin radial ticks rather than blocks.
-type hudRing struct {
-	r0, r1 float64 // inner and outer radius as a fraction of the dial's radius
-	count  int     // segments around the circle
-	fill   float64 // the painted part of each segment, 0 to 1
-	offset float64 // where the segments start, in turns
-	speed  float64 // turns a second, clockwise
-	tone   float64 // 0 dim, 1 the brightest pale
+// hudBand is one ring of dots. r0 and r1 are fractions of the dial's radius.
+// dashes above zero breaks the ring into that many arcs, of which fill is lit.
+// speed is turns a second, negative to run the other way. tone picks the ink.
+type hudBand struct {
+	r0, r1 float64
+	dashes int
+	fill   float64
+	speed  float64
+	tone   float64
 }
 
-// hudRings is the picture from the outside in, reduced to the eight bands a
-// terminal can draw cleanly. The gaps between the bands are as much a part of
-// the picture as the bands themselves.
-var hudRings = []hudRing{
-	{0.945, 0.992, 3, 0.90, 0.01, 0.030, 0.55}, // the thin outer rim, cut into arcs
-	{0.835, 0.922, 8, 0.70, 0.00, 0.036, 0.95}, // the broad outer blocks
-	{0.755, 0.810, 3, 0.82, 0.00, 0.042, 0.72}, // the middle rim
-	{0.665, 0.735, 48, 0.58, 0.00, 0.050, 0.55}, // the dense tick ring
-	{0.545, 0.640, 6, 0.66, 0.00, 0.040, 1.00}, // the bright inner ring
-	{0.445, 0.505, 72, 0.56, 0.00, 0.055, 0.72}, // the fine inner ticks
-	{0.330, 0.405, 3, 0.56, 0.00, 0.046, 0.88}, // the core ring
-	{0.190, 0.250, 6, 0.55, 0.00, 0.060, 0.60}, // the small inner ring
+// hudBands is the GIF from the outside in: a thin rim, a broad broken band, a
+// middle rim, a tick ring, the bright inner ring, fine inner ticks and the core
+// ring. The gaps between the rings and the empty centre are part of the mark.
+var hudBands = []hudBand{
+	{0.945, 1.000, 0, 1, 0.000, 0.55},      // the thin outer rim
+	{0.835, 0.930, 8, 0.62, 0.030, 0.95},   // the broad outer blocks
+	{0.745, 0.805, 0, 1, 0.000, 0.70},      // the middle rim
+	{0.645, 0.705, 24, 0.55, -0.034, 0.55}, // the dense tick ring
+	{0.505, 0.605, 6, 0.70, 0.040, 1.00},   // the bright inner ring
+	{0.405, 0.465, 36, 0.58, -0.030, 0.60}, // the fine inner ticks
+	{0.290, 0.350, 0, 1, 0.000, 0.78},      // the core ring, empty inside
 }
 
 const (
@@ -96,11 +93,16 @@ func hudCut(turn, t float64) bool {
 	return false
 }
 
-// radarState is what animates. When moving is false the rings stay where they
-// stopped.
-type radarState struct {
-	t      float64 // seconds of motion
-	moving bool
+// hudTime is the clock the dial runs on. Parked, checking and faulted states
+// turn more slowly, as the old radar did.
+func hudTime(mode OrbMode, t float64) float64 {
+	switch mode {
+	case OrbParked, OrbFault:
+		return t * 0.55
+	case OrbChecking:
+		return t * 0.6
+	}
+	return t
 }
 
 // hudInk gives the ink for one tone at this mode: the picture's ice blue when
@@ -116,216 +118,121 @@ func hudInk(tone float64, mode OrbMode) RGB {
 	return c
 }
 
-// orbField is the picture's own square field: teal when the quant is online,
-// dimmed in the same blue when it is parked or the relay cannot be reached.
-func orbField(mode OrbMode) RGB {
-	field := hudTeal
-	if mode == OrbParked || mode == OrbFault {
-		field = mix(field, RGB{0, 0, 0}, 0.42)
+// hudGlint is the bright head that sweeps around the dial, one turn every
+// twenty two seconds. It is a wedge rather than a dot, so the ring it crosses
+// flashes without widening.
+func hudGlint(turn, r, t float64) float64 {
+	if r < 0.40 {
+		return 0
 	}
-	return field
+	d := math.Abs(turn - (0.10 + 0.045*t))
+	if d > 0.5 {
+		d = 1 - d
+	}
+	if d > 0.045 {
+		return 0
+	}
+	return 1
 }
 
-// orbPixels paints the dial into a w by h pixel buffer. h is twice the cell
-// rows. The whole rectangle carries the picture's field, exactly as the owner's
-// square picture does, and the rings sit on top of it.
-func orbPixels(w, h int, sx float64, st radarState, mode OrbMode) []RGB {
-	vs := cellAspect / 2
-	cx, cy := float64(w)/2, float64(h)/2
-	R := math.Min(cx/sx, cy*vs) - 0.5
-	if R < 4 {
-		return nil
+// hudSample gives the dot at one point, measured in dot widths from the dial's
+// centre, with y already corrected for the cell's shape. ok is false where the
+// dial is empty: outside the rim, between two rings, or inside a cut seam.
+func hudSample(dx, dy, R, t float64) (tone float32, ok bool) {
+	if R <= 0 {
+		return 0, false
 	}
-	buf := make([]RGB, w*h)
-	t := st.t
-	if !st.moving {
-		t = 0
+	r := math.Hypot(dx, dy) / R
+	if r > 1 {
+		return 0, false
 	}
-	field := orbField(mode)
-	for j := 0; j < h; j++ {
-		for i := 0; i < w; i++ {
-			x := (float64(i) + 0.5 - cx) / sx
-			y := (float64(j) + 0.5 - cy) * vs
-			r := math.Hypot(x, y) / R
-			col := field
-			if r <= 1 {
-				turn := math.Atan2(y, x)/(2*math.Pi) + 0.5
-				if !hudCut(turn, t) {
-					for _, g := range hudRings {
-						if r < g.r0 || r > g.r1 {
-							continue
-						}
-						if g.count > 0 {
-							slot := (turn + g.offset + g.speed*t) * float64(g.count)
-							if slot-math.Floor(slot) > g.fill {
-								continue
-							}
-						}
-						col = hudInk(g.tone, mode)
-						break
-					}
-				}
-			}
-			buf[j*w+i] = col
-		}
+	turn := math.Atan2(dy, dx)/(2*math.Pi) + 0.5
+	if hudCut(turn, t) {
+		return 0, false
 	}
-	return buf
-}
-
-// ringHalfBlocks turns the mark back to one pixel per column, drawn with the
-// upper half block. It is the -halfblock flag, for a font that cannot draw the
-// quadrant characters.
-var ringHalfBlocks bool
-
-// drawOrb paints the mark into the rectangle (x0,y0,w,h) of cells.
-func drawOrb(c *Canvas, x0, y0, w, h int, t float64, mode OrbMode, th *Theme) {
-	if w < 6 || h < 3 {
-		return
-	}
-	st := radarState{t: t, moving: true}
-	switch mode {
-	case OrbParked, OrbFault:
-		st = radarState{t: t * 0.55, moving: true}
-	case OrbChecking:
-		st = radarState{t: t * 0.6, moving: true}
-	}
-	if ringHalfBlocks {
-		px := orbPixels(w, 2*h, 1, st, mode)
-		if px == nil {
-			return
-		}
-		for cy := 0; cy < h; cy++ {
-			for cx := 0; cx < w; cx++ {
-				top, bot := px[(2*cy)*w+cx], px[(2*cy+1)*w+cx]
-				ch, fg, bg := '▀', top, bot
-				if top == bot {
-					ch, fg, bg = '█', top, top
-				}
-				c.Set(x0+cx, y0+cy, ch, fg, bg, false)
-			}
-		}
-		return
-	}
-	px := orbPixels(2*w, 2*h, 2, st, mode)
-	if px == nil {
-		return
-	}
-	wp := 2 * w
-	field := orbField(mode)
-	for cy := 0; cy < h; cy++ {
-		for cx := 0; cx < w; cx++ {
-			var q [4]RGB
-			q[0] = px[(2*cy)*wp+2*cx]
-			q[1] = px[(2*cy)*wp+2*cx+1]
-			q[2] = px[(2*cy+1)*wp+2*cx]
-			q[3] = px[(2*cy+1)*wp+2*cx+1]
-			paintOrbCell(c, x0+cx, y0+cy, q, field)
-		}
-	}
-}
-
-// paintOrbCell draws one cell from its four pixels. Each pixel is either the
-// picture's field or ring, so the cell is drawn as an exact quadrant: there is
-// no averaging and no third colour, which is what keeps the rings crisp instead
-// of speckled at terminal size.
-func paintOrbCell(c *Canvas, x, y int, q [4]RGB, field RGB) {
-	mask := 0
-	nf, nb := 0, 0
-	var fs, bs [3]float64
-	for i, col := range q {
-		if col == field {
-			bs[0] += float64(col.R)
-			bs[1] += float64(col.G)
-			bs[2] += float64(col.B)
-			nb++
+	for _, b := range hudBands {
+		if r < b.r0 || r > b.r1 {
 			continue
 		}
-		mask |= 1 << i
-		fs[0] += float64(col.R)
-		fs[1] += float64(col.G)
-		fs[2] += float64(col.B)
-		nf++
-	}
-	if mask == 0 {
-		c.Set(x, y, '█', field, field, false)
-		return
-	}
-	fg, bg := field, field
-	if nf > 0 {
-		fg = RGB{uint8(fs[0]/float64(nf) + 0.5), uint8(fs[1]/float64(nf) + 0.5), uint8(fs[2]/float64(nf) + 0.5)}
-	}
-	if nb > 0 {
-		bg = RGB{uint8(bs[0]/float64(nb) + 0.5), uint8(bs[1]/float64(nb) + 0.5), uint8(bs[2]/float64(nb) + 0.5)}
-	}
-	c.Set(x, y, quadrants[mask], fg, bg, false)
-}
-
-// quadrants[m] is the character whose lit quarters are the bits of m: 1 upper
-// left, 2 upper right, 4 lower left, 8 lower right.
-var quadrants = [16]rune{' ', '▘', '▝', '▀', '▖', '▌', '▞', '▛', '▗', '▚', '▐', '▜', '▄', '▙', '▟', '█'}
-
-// quadrantMask gives the bits of the quarters a character lights, or ok false
-// when the character is not a quadrant character.
-func quadrantMask(ch rune) (m int, ok bool) {
-	for i, r := range quadrants {
-		if r == ch {
-			return i, true
+		if b.dashes > 0 {
+			slot := (turn + b.speed*t) * float64(b.dashes)
+			if slot-math.Floor(slot) > b.fill {
+				return 0, false
+			}
 		}
+		ink := b.tone
+		if g := hudGlint(turn, r, t); g > ink {
+			ink = g
+		}
+		return float32(ink), true
 	}
 	return 0, false
 }
 
-// quadrantCell picks the character and the two colours that best draw four
-// pixels: for every way to split the four into two groups, each group takes its
-// own average, and the split with the least error wins.
-func quadrantCell(q [4]RGB) (ch rune, fg, bg RGB) {
-	best := -1.0
-	for m := 0; m < 15; m++ {
-		var sf, sb [3]float64
-		nf, nb := 0, 0
-		for i := 0; i < 4; i++ {
-			c := [3]float64{float64(q[i].R), float64(q[i].G), float64(q[i].B)}
-			if m&(1<<i) != 0 {
-				for k := range c {
-					sf[k] += c[k]
-				}
-				nf++
-			} else {
-				for k := range c {
-					sb[k] += c[k]
-				}
-				nb++
+// hudRadius is the dial's radius and centre for a grid of cw by ch cells. One
+// dot is half a column wide and a quarter of a cell tall, so a dot row is
+// cellAspect/2 dot widths high; that factor is what keeps the rings round.
+func hudRadius(cw, ch int) (cx, cy, vs, R float64) {
+	vs = cellAspect / 2
+	cx, cy = float64(cw), float64(2*ch)
+	R = math.Min(cx, cy*vs) - 1.2
+	return
+}
+
+// ringHalfBlocks turns the mark back to two pixels per cell, drawn with the
+// upper and lower half block. It is the -halfblock flag, for a font that cannot
+// draw Braille.
+var ringHalfBlocks bool
+
+// drawOrb paints the mark into the rectangle (x0,y0,w,h) of cells. Only dots
+// are written: every other cell keeps whatever background the panel already
+// painted, which is why there is no field behind the dial.
+func drawOrb(c *Canvas, x0, y0, w, h int, t float64, mode OrbMode, th *Theme) {
+	if w < 6 || h < 3 {
+		return
+	}
+	tt := hudTime(mode, t)
+	if ringHalfBlocks {
+		drawOrbHalves(c, x0, y0, w, h, tt, mode)
+		return
+	}
+	g := newDotGrid(w, h)
+	cx, cy, vs, R := hudRadius(w, h)
+	for j := 0; j < g.h; j++ {
+		dy := (float64(j) + 0.5 - cy) * vs
+		for i := 0; i < g.w; i++ {
+			if tone, ok := hudSample(float64(i)+0.5-cx, dy, R, tt); ok {
+				g.set(i, j, tone)
 			}
-		}
-		var f, b [3]float64
-		for k := 0; k < 3; k++ {
-			if nf > 0 {
-				f[k] = sf[k] / float64(nf)
-			}
-			if nb > 0 {
-				b[k] = sb[k] / float64(nb)
-			}
-		}
-		e := 0.0
-		for i := 0; i < 4; i++ {
-			c := [3]float64{float64(q[i].R), float64(q[i].G), float64(q[i].B)}
-			ref := b
-			if m&(1<<i) != 0 {
-				ref = f
-			}
-			for k := 0; k < 3; k++ {
-				e += (c[k] - ref[k]) * (c[k] - ref[k])
-			}
-		}
-		if m == 0 && (best < 0 || e < best) {
-			best, ch, fg, bg = e, ' ', RGB{uint8(b[0] + 0.5), uint8(b[1] + 0.5), uint8(b[2] + 0.5)}, RGB{uint8(b[0] + 0.5), uint8(b[1] + 0.5), uint8(b[2] + 0.5)}
-			continue
-		}
-		if m != 0 && (best < 0 || e < best-1e-9) {
-			best, ch = e, quadrants[m]
-			fg = RGB{uint8(f[0] + 0.5), uint8(f[1] + 0.5), uint8(f[2] + 0.5)}
-			bg = RGB{uint8(b[0] + 0.5), uint8(b[1] + 0.5), uint8(b[2] + 0.5)}
 		}
 	}
-	return ch, fg, bg
+	// A zero glow leaves every cell's background exactly as the panel drew it.
+	g.blitRamp(c, x0, y0, func(tone float64) RGB { return hudInk(tone, mode) }, th.Panel)
+}
+
+// drawOrbHalves draws the same dial when Braille is not available: two pixels
+// per cell, again leaving every unlit cell transparent.
+func drawOrbHalves(c *Canvas, x0, y0, w, h int, tt float64, mode OrbMode) {
+	cx, cy, vs, R := hudRadius(w, h)
+	for row := 0; row < h; row++ {
+		top := (4*float64(row) + 1 - cy) * vs
+		bot := (4*float64(row) + 3 - cy) * vs
+		for col := 0; col < w; col++ {
+			dx := 2*float64(col) + 1 - cx
+			toneT, okT := hudSample(dx, top, R, tt)
+			toneB, okB := hudSample(dx, bot, R, tt)
+			switch {
+			case okT && okB:
+				tone := toneT
+				if toneB > tone {
+					tone = toneB
+				}
+				c.Put(x0+col, y0+row, '█', hudInk(float64(tone), mode), false)
+			case okT:
+				c.Put(x0+col, y0+row, '▀', hudInk(float64(toneT), mode), false)
+			case okB:
+				c.Put(x0+col, y0+row, '▄', hudInk(float64(toneB), mode), false)
+			}
+		}
+	}
 }
