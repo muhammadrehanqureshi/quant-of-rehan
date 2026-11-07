@@ -84,7 +84,7 @@ func TestScannerShowsSectorsAndCyclesThem(t *testing.T) {
 		}
 	}
 	// ENTER opens the group under the pointer, not only a click.
-	a.hoverX, a.hoverY = 10, a.sectorY+2+2
+	a.hoverX, a.hoverY = 10, a.sectorY+1+2
 	a.onKey(Key{Kind: KEnter})
 	if !a.sectorOpen || a.sectorChoice != 2 {
 		t.Errorf("ENTER must open the pointed sector: open %v choice %d", a.sectorOpen, a.sectorChoice)
