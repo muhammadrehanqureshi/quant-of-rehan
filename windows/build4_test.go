@@ -314,7 +314,9 @@ func TestRadarIsRoundInPixels(t *testing.T) {
 	th := themeAt(0)
 	was := cellAspect
 	defer func() { cellAspect = was }()
-	lit := func(p RGB) bool { return p.G >= 150 }
+	// Build 17 paints the dial in saturated red, so a dot is lit when its ink is
+	// that red and not the old pale pink's bright green.
+	lit := func(p RGB) bool { return p.R >= 100 && p.G < 120 && p.R > p.G+60 }
 	for _, aspect := range []float64{1.90, 20.0 / 9.0, 2.05} {
 		cellAspect = aspect
 		for _, sz := range [][2]int{{36, 14}, {30, 12}, {38, 25}} {
