@@ -434,3 +434,14 @@ func TestFetchOrderFlowFallsBackToFlowAndAcceptsALargeBody(t *testing.T) {
 		t.Errorf("two refusals must be an error")
 	}
 }
+
+// Owner order 2026-11-07: ten tabs in every bar, one per ten percent.
+func TestShareBarHasTenTabs(t *testing.T) {
+	a := demoApp(t, 100, 30)
+	c := NewCanvas(40, 1, RGB{})
+	a.shareBar(c, 2, 0, 22, 0.5)
+	row := c.PlainRows()[0]
+	if n := strings.Count(row, "▇"); n != 10 {
+		t.Fatalf("the bar has %d tabs, want 10: %q", n, row)
+	}
+}

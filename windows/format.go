@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"math"
 	"strconv"
 	"strings"
@@ -145,22 +146,26 @@ func plural(n int, noun string) string {
 }
 
 // friendlyNext words the relay's next event, such as "OPEN 2026-11-02 09:32",
-// the way a person would say it: "Opens Mon 02 Nov, 09:32". Anything it does
-// not recognise is shown as the relay sent it.
+// the way a person would say it. An OPEN is the next scanning window, which
+// starts at scanOpen (08:55), not the exchange's 09:32 opening bell, so the
+// telemetry says "Scanner Mon 02 Nov, 08:55". A CLOSE keeps the relay's time.
+// Anything it does not recognise is shown as the relay sent it.
 func friendlyNext(s string) string {
 	parts := strings.Fields(s)
 	if len(parts) != 3 {
-		return s
-	}
-	verb := map[string]string{"OPEN": "Opens", "CLOSE": "Closes"}[strings.ToUpper(parts[0])]
-	if verb == "" {
 		return s
 	}
 	day, err := time.ParseInLocation("2006-01-02", parts[1], pkt)
 	if err != nil {
 		return s
 	}
-	return verb + " " + day.Format("Mon 02 Jan") + ", " + parts[2]
+	switch strings.ToUpper(parts[0]) {
+	case "OPEN":
+		return fmt.Sprintf("Scanner %s, %02d:%02d", day.Format("Mon 02 Jan"), scanOpen/60, scanOpen%60)
+	case "CLOSE":
+		return "Closes " + day.Format("Mon 02 Jan") + ", " + parts[2]
+	}
+	return s
 }
 
 // sentence ends s with a full stop unless it already ends in a mark that
