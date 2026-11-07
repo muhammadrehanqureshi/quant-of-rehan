@@ -1,9 +1,14 @@
-# Quant of Rehan for Windows (console edition), build 14
+# Quant of Rehan for Windows (console edition), build 15
 
 A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.16**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
 
-## What is new in build 14
+## What is new in build 15
+
+* **Build 15.** D and R are green in the footer, Q is red, and every coloured footer key is bold. The five tab numbers are bold green as well. The ORB rings are a more vivid green. The title is still bold in the theme's accent, at the console's one fixed size; a 20 percent per-line font size is not a cell the console can draw.
+* **The icon source.** The build still uses `assets/icon-source.png` when that file exists. The attached rounded picture is not a file in the repository, so the drawn fallback remains until the picture is saved at that path.
+
+## What was new in build 14
 
 * **Build 14.** The header title is back in the theme's accent ink. The footer keys are coloured: the five tab numbers and TAB green, ESC yellow, CTRL+C red. Telemetry now says `Scanner Tue 10 Nov, 08:55` for the next OPEN, because 08:55 is when the scanner goes live; a CLOSE keeps its relay time. Every share bar is ten tabs, one per ten percent, so 100% is easy to read, and the percentage keeps its old place.
 * **The SECTORS search box.** The SECTORS tile has its own field now. Click it, or press `/` while the top scrip search is empty, and type a sector name or a scrip. The groups filter as you type. ENTER opens the first match; in an open sector the same box filters its scrips. ESC clears the box and BACKSPACE edits it. The CUSTOM SCRIPS tile stays on screen.
