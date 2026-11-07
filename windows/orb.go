@@ -12,13 +12,13 @@ import "math"
 // opposite directions, and one bright glint sweeps around the outside, so the
 // mark is alive while the market is live. A closed, checking or unreachable
 // market leaves the dial dark and still, but the owner is checking the desktop
-// build now, so hudForceLive keeps it green and turning in every state.
+// build now, so hudForceLive keeps it red and turning in every state.
 
 var cellAspect = defaultCellAspect
 
 const defaultCellAspect = 2.22
 
-// OrbMode says whether the quant is online. The owner asked for a green dial
+// OrbMode says whether the quant is online. The owner asked for a red dial
 // while he checks the desktop build; it only turns while the market is live.
 type OrbMode int
 
@@ -29,7 +29,7 @@ const (
 	OrbFault                   // relay unreachable
 )
 
-// hudForceLive keeps the dial green and turning outside market hours. Owner
+// hudForceLive keeps the dial red and turning outside market hours. Owner
 // order 2026-11-07: he is checking the desktop build while the market is closed
 // and needs to see it move. Set this to false to restore the dark, still dial.
 const hudForceLive = true
@@ -44,12 +44,12 @@ func clamp01(x float64) float64 {
 	return x
 }
 
-// The dial's colours: green while the market is live, and a dark green that
+// The dial's colours: red while the market is live, and a dark red that
 // reads as off when there is no live market.
 var (
-	hudPale = RGB{170, 255, 195}
-	hudMid  = RGB{32, 255, 112}
-	hudDark = RGB{14, 46, 30}
+	hudPale = RGB{255, 178, 178}
+	hudMid  = RGB{255, 36, 36}
+	hudDark = RGB{46, 14, 14}
 )
 
 // hudBand is one ring of dots. r0 and r1 are fractions of the dial's radius.
@@ -111,9 +111,9 @@ func hudTime(mode OrbMode, t float64) float64 {
 	return t
 }
 
-// hudInk gives the ink for one tone. With hudForceLive on every state is green;
-// otherwise a dial with no live market is dark and a live one runs green to pale
-// green.
+// hudInk gives the ink for one tone. With hudForceLive on every state is red;
+// otherwise a dial with no live market is dark and a live one runs red to pale
+// red.
 func hudInk(tone float64, mode OrbMode) RGB {
 	if !hudForceLive && mode != OrbBurning {
 		return hudDark
