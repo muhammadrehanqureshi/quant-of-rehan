@@ -177,7 +177,9 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 	if sh2 < 6 {
 		return
 	}
-	hint := ""
+	// The sort instruction rides in the panel hint so the menu and the list keep
+	// the row back that the sector search above took.
+	hint := "Sort: click one, or press LEFT or RIGHT"
 	if a.scanChoice > 0 {
 		hint = "UP, DOWN, PGUP, PGDN or the wheel scroll"
 	}
@@ -185,7 +187,6 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 		hint = "ESC clears the search"
 	}
 	ix, iy, iw, ih := a.panel(c, x, sy, w, sh2, "CUSTOM SCRIPS BY VOLUME", hint)
-	c.Text(ix, iy, iw, "Pick a sort: click one, or press LEFT or RIGHT. BACKSPACE clears it.", th.Soft, false)
 	menu := 3
 	if ih < 11 {
 		menu = 0 // a short window: the sort is chosen with LEFT and RIGHT only
@@ -194,7 +195,7 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 		if i >= menu {
 			break
 		}
-		ry := iy + 1 + i
+		ry := iy + i
 		id := i + 1
 		cur := i == a.scanCursor
 		bg := a.selectRow(c, ix, ry, min(iw, 48), cur, func() { a.pickScan(id) })
@@ -210,10 +211,7 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 		c.Set(ix+3, ry, []rune(chosen)[0], th.Accent, bg, true)
 		c.Text(ix+5, ry, min(44, iw-5), name, th.Text, a.scanChoice == id)
 	}
-	head := iy + 1 + menu + 1
-	if menu == 0 {
-		head = iy + 1
-	}
+	head := iy + menu + 1 // the row after the menu, or the first row when it is hidden
 	if a.scanChoice == 0 {
 		return
 	}
