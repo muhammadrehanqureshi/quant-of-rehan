@@ -80,6 +80,8 @@ let winLossMemo = { at: 0, value: null };
 const HISTORY_MEMO_MS = 5000;
 const HISTORY_MEMO_MAX = 32;
 let historyMemo = new Map();
+const BARS_MEMO_MS = 5000;
+let barsMemo = new Map();
 const STATE_HUB_NAME = "psx-live-quotes";
 // The quote view and the relay's key-value state used to share one Durable
 // Object instance. A deployed class change does not restart an instance that
@@ -2600,7 +2602,7 @@ export default {
 
     if (request.method === "OPTIONS" &&
         (path === "/quotes" || path === "/quotes/stream" ||
-         path === "/history" ||
+         path === "/history" || path === "/bars" ||
          path === "/flow" || path === "/orderflow")) {
       return new Response(null, { status: 204, headers: {
         "access-control-allow-origin": "*",
@@ -2712,6 +2714,53 @@ export default {
         "access-control-allow-origin": "*",
         "cache-control": "no-store",
       });
+    }
+
+    if (request.method === "GET" && path === "/bars") {
+      // Owner order 2026-11-07: the desktop draws KSE100, KMIALLSHR and every
+      // KMIALL scrip on ten frames. This route is the one chart answer; it is
+      // public and read-only, and the hub does every aggregation so a repaint
+      // can never cost one Durable Object request per candle.
+      const symbol = String(url.searchParams.get("symbol") || "").toUpperCase();
+      const tf = String(url.searchParams.get("tf") || "1m");
+      const headers = {
+        "access-control-allow-origin": "*",
+        "cache-control": "no-store",
+      };
+      if (!symbol || !/^[A-Z0-9]{1,12}$/.test(symbol)) {
+        return json({ ok: false, error: "invalid symbol" }, 400, headers);
+      }
+      if (!BAR_TFS.includes(tf)) {
+        return json({ ok: false, error: "tf must be one of " + BAR_TFS.join(", "),
+          supported: BAR_TFS }, 400, headers);
+      }
+      const askedDays = Number(url.searchParams.get("days"));
+      const days = Number.isFinite(askedDays)
+        ? Math.max(1, Math.min(BARS_MAX_DAYS, Math.round(askedDays)))
+        : BARS_MAX_DAYS;
+      const askedLimit = Number(url.searchParams.get("limit"));
+      const limit = Number.isFinite(askedLimit)
+        ? Math.max(1, Math.min(BARS_MAX, Math.round(askedLimit)))
+        : BARS_DEFAULT;
+      const key = `${symbol}|${tf}|${days}|${limit}`;
+      const stamp = Date.now();
+      const memo = barsMemo.get(key);
+      if (memo && stamp - memo.at < BARS_MEMO_MS) {
+        return json(memo.body, 200, headers);
+      }
+      const hub = quoteHub(env);
+      if (!hub) return json({ ok: false, error: "quote hub not configured" }, 503, headers);
+      const answer = await hub.fetch("https://quote-hub/bars?" + new URLSearchParams({
+        symbol, tf, days: String(days), limit: String(limit),
+      }).toString());
+      const body = await answer.json().catch(() => ({
+        ok: false, error: "quote hub answered invalid JSON",
+      }));
+      if (answer.ok && body && body.ok) {
+        if (barsMemo.size >= 64) barsMemo.clear();
+        barsMemo.set(key, { at: stamp, body });
+      }
+      return json(body, answer.ok ? 200 : answer.status, headers);
     }
 
     if (request.method === "GET" && path === "/sectors") {
@@ -3331,9 +3380,29 @@ const FLOW_ROWS_PER_DAY = 40000;
 // and the arithmetic in tests/test_relay_worker_contracts.py stays under the
 // free plan's cap.
 const BAR_ROWS_PER_DAY = 1000;
-const BAR_RETENTION_DAYS = 10;
+const BAR_RETENTION_DAYS = 45;
 const HISTORY_DEFAULT_BARS = 500;
 const HISTORY_MAX_BARS = 1000;
+
+// Owner order 2026-11-07: the owner's charts cover KSE100, KMIALLSHR and every
+// KMIALLSHR scrip on ten frames, with a rolling year where the data exists.
+// ONE: the broker feed samples one symbol every 30 to 90 seconds, so a stored
+// one or five second bar would pretend to a detail the wire never had; those
+// two frames are built on the desktop from its own live samples and are
+// labelled live-only. TWO: from one minute up the relay stores one row per
+// (frame, day, bucket) carrying every symbol, five rows a closed minute, so a
+// session writes about 1,900 rows and a chart read is bounded by its limit
+// rather than by the year. THREE: one minute bars are kept 45 days; five
+// minutes 180; everything longer a full 365 days.
+const BAR_TFS = ["1s", "5s", "1m", "5m", "15m", "30m", "1h", "1D", "1W", "1M"];
+const BAR_TF_MINUTES = { "5m": 5, "15m": 15, "30m": 30, "1h": 60 };
+const BAR_ROLL_TFS = ["5m", "15m", "30m", "1h", "1D"];
+const BAR_TF_RETENTION = { "1m": 45, "5m": 180, "15m": 365, "30m": 365,
+  "1h": 365, "1D": 365, "1W": 365, "1M": 365 };
+const BARS_DEFAULT = 400;
+const BARS_MAX = 2000;
+const BARS_MAX_DAYS = 365;
+const BAR_ROLL_ROWS_PER_DAY = 3000;
 
 // One SQLite-backed object holds the latest broker frame set. Producer
 // requests are coalesced to at most once per second by the cloud capture;
@@ -3403,6 +3472,15 @@ export class QuoteHub {
     this.barRowsToday = 0;
     this.barPruneDay = "";
     this.barWriteError = null;
+    // Owner order 2026-11-07: the ten frame chart store. The rollups are
+    // held for the day in memory between writes; these fields make the
+    // budget ledger explicit instead of accidental.
+    this.barRolls = null;
+    this.barRollsDay = "";
+    this.barRollRowsDay = "";
+    this.barRollRowsToday = 0;
+    this.barRollPruneDay = "";
+    this.barRollWriteError = null;
     this.ready = ctx.blockConcurrencyWhile(async () => {
       ctx.storage.sql.exec(
         "CREATE TABLE IF NOT EXISTS quote_snapshot (id INTEGER PRIMARY KEY CHECK (id = 1), payload TEXT NOT NULL)",
@@ -3426,6 +3504,9 @@ export class QuoteHub {
       // symbol per minute, which would be about 115,000 on its own.
       ctx.storage.sql.exec(
         "CREATE TABLE IF NOT EXISTS quote_bars (day TEXT NOT NULL, minute INTEGER NOT NULL, payload TEXT NOT NULL, updated_at INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (day, minute))",
+      );
+      this.ctx.storage.sql.exec(
+        "CREATE TABLE IF NOT EXISTS quote_bars_tf (tf TEXT NOT NULL, day TEXT NOT NULL, bucket INTEGER NOT NULL, payload TEXT NOT NULL, updated_at INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (tf, day, bucket))",
       );
     });
   }
@@ -3639,6 +3720,9 @@ export class QuoteHub {
       this.ctx.storage.sql.exec(
         "CREATE TABLE IF NOT EXISTS quote_bars (day TEXT NOT NULL, minute INTEGER NOT NULL, payload TEXT NOT NULL, updated_at INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (day, minute))",
       );
+      this.ctx.storage.sql.exec(
+        "CREATE TABLE IF NOT EXISTS quote_bars_tf (tf TEXT NOT NULL, day TEXT NOT NULL, bucket INTEGER NOT NULL, payload TEXT NOT NULL, updated_at INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (tf, day, bucket))",
+      );
     } catch (_) { /* the write that follows records the refusal */ }
   }
 
@@ -3686,6 +3770,7 @@ export class QuoteHub {
         this.barsDayCache.rows.set(forming.minute, payload);
       }
       this.pruneBars(forming.day);
+      this.rollBars(forming.day, forming.minute, payload);
       return true;
     } catch (error) {
       this.barWriteError = {
@@ -3799,6 +3884,255 @@ export class QuoteHub {
     const k = karachiView(instantMs);
     return `${dayStamp(k)}T${pad(k.getUTCHours())}:` +
       `${pad(k.getUTCMinutes())}:${pad(k.getUTCSeconds())}+05:00`;
+  }
+
+  // One closed minute becomes five rollup rows (5m, 15m, 30m, 1h, 1D), each
+  // carrying every symbol. The day's buckets are cached here, so a minute's
+  // merge is memory work plus one INSERT per frame. A refused write leaves
+  // the minute bars intact and records the reason for the answer, never
+  // throws into the feed.
+  rollBars(day, minute, payload) {
+    if (!payload || typeof payload !== "object") return;
+    if (this.barRollsDay !== day) {
+      this.barRollsDay = day;
+      this.barRolls = new Map();
+    }
+    if (!this.barRolls) this.barRolls = new Map();
+    if (this.barRollRowsDay !== day) {
+      this.barRollRowsDay = day;
+      this.barRollRowsToday = 0;
+    }
+    for (const tf of BAR_ROLL_TFS) {
+      if (this.barRollRowsToday >= BAR_ROLL_ROWS_PER_DAY) break;
+      const bucket = tf === "1D" ? 0
+        : Math.floor(minute / BAR_TF_MINUTES[tf]) * BAR_TF_MINUTES[tf];
+      const key = tf + "|" + day + "|" + bucket;
+      let book = this.barRolls.get(key);
+      if (!book) {
+        book = {};
+        try {
+          const row = this.ctx.storage.sql.exec(
+            "SELECT payload FROM quote_bars_tf WHERE tf = ? AND day = ? AND bucket = ?",
+            tf, day, bucket,
+          ).toArray()[0];
+          if (row) {
+            try { book = JSON.parse(row.payload) || {}; } catch (_) { book = {}; }
+          }
+        } catch (_) { book = {}; }
+      }
+      for (const name of Object.keys(payload)) {
+        const bar = payload[name];
+        if (!bar || !Number.isFinite(Number(bar.o))) continue;
+        const held = book[name];
+        if (!held) {
+          book[name] = { o: bar.o, h: bar.h, l: bar.l, c: bar.c,
+            v: Math.max(0, Number(bar.v) || 0) };
+        } else {
+          if (bar.h > held.h) held.h = bar.h;
+          if (bar.l < held.l) held.l = bar.l;
+          held.c = bar.c;
+          held.v = Math.max(0, Number(held.v) || 0) +
+            Math.max(0, Number(bar.v) || 0);
+        }
+      }
+      this.barRolls.set(key, book);
+      try {
+        this.ctx.storage.sql.exec(
+          "INSERT INTO quote_bars_tf (tf, day, bucket, payload, updated_at) VALUES (?, ?, ?, ?, ?) " +
+          "ON CONFLICT(tf, day, bucket) DO UPDATE SET payload = excluded.payload, " +
+          "updated_at = excluded.updated_at",
+          tf, day, bucket, JSON.stringify(book), Date.now(),
+        );
+        this.barRollRowsToday += 1;
+        this.barRollWriteError = null;
+      } catch (error) {
+        this.barRollWriteError = {
+          at: new Date().toISOString(),
+          message: String((error && error.message) || error).slice(0, 200),
+        };
+      }
+    }
+    this.pruneBarRolls(day);
+  }
+
+  pruneBarRolls(today) {
+    if (this.barRollPruneDay === today) return;
+    this.barRollPruneDay = today;
+    const start = Date.parse(today + "T00:00:00+05:00");
+    if (!Number.isFinite(start)) return;
+    for (const tf of BAR_ROLL_TFS) {
+      const keep = BAR_TF_RETENTION[tf] || 365;
+      const cutoff = dayStamp(karachiView(start - keep * 86400000));
+      try {
+        const stale = this.ctx.storage.sql.exec(
+          "SELECT COUNT(*) AS rows FROM quote_bars_tf WHERE tf = ? AND day < ?",
+          tf, cutoff,
+        ).toArray()[0];
+        const count = Math.max(0, Number(stale && stale.rows) || 0);
+        if (!count) continue;
+        if (this.barRollRowsToday + count > BAR_ROLL_ROWS_PER_DAY) continue;
+        this.ctx.storage.sql.exec(
+          "DELETE FROM quote_bars_tf WHERE tf = ? AND day < ?", tf, cutoff,
+        );
+        this.barRollRowsToday += count;
+      } catch (_) { /* the next day retries */ }
+    }
+  }
+
+  // Every frame the desk can draw, for one symbol, newest first in the store
+  // but returned oldest first for the chart. A read is bounded by `limit`
+  // rows, never by the year, so a 365 day chart costs a few hundred reads.
+  // The forming minute is folded into the newest bar, so a live chart ticks
+  // with the same data the session is writing.
+  async barsAnswer(url) {
+    await this.ready;
+    const tf = String(url.searchParams.get("tf") || "1m");
+    const symbol = String(url.searchParams.get("symbol") || "").toUpperCase();
+    if (!BAR_TFS.includes(tf)) {
+      return { ok: false, error: "tf must be one of " + BAR_TFS.join(", "),
+        supported: BAR_TFS };
+    }
+    if (!symbol) return { ok: false, error: "symbol required" };
+    if (!/^[A-Z0-9]{1,12}$/.test(symbol)) return { ok: false, error: "invalid symbol" };
+    if (tf === "1s" || tf === "5s") {
+      return {
+        ok: true, symbol, tf, bars: [], bar_count: 0,
+        retention_days: 0, retention: "live session only",
+        source: "desktop live quote buffer",
+        notes: [
+          "one and five second candles are built on the desktop from the live quote stream",
+          "the broker feed samples one symbol every 30 to 90 seconds, so the relay cannot store a true second bar for a year",
+        ],
+      };
+    }
+    const askedDays = Number(url.searchParams.get("days"));
+    const days = Number.isFinite(askedDays)
+      ? Math.max(1, Math.min(BARS_MAX_DAYS, Math.round(askedDays)))
+      : BARS_MAX_DAYS;
+    const askedLimit = Number(url.searchParams.get("limit"));
+    const limit = Number.isFinite(askedLimit)
+      ? Math.max(1, Math.min(BARS_MAX, Math.round(askedLimit)))
+      : BARS_DEFAULT;
+    const cutoff = dayStamp(karachiView(Date.now() - days * 86400000));
+    this.ensureBarTable();
+    const notes = [];
+    let bars = [];
+    if (tf === "1m") {
+      const rows = this.ctx.storage.sql.exec(
+        "SELECT day, minute, payload FROM quote_bars WHERE day >= ? " +
+        "ORDER BY day DESC, minute DESC LIMIT ?", cutoff, limit,
+      ).toArray();
+      for (const row of rows.reverse()) {
+        let book = null;
+        try { book = JSON.parse(row.payload); } catch (_) { book = null; }
+        const bar = book && book[symbol];
+        if (!bar || !Number.isFinite(Number(bar.o))) continue;
+        bars.push({ t: this.barStamp(String(row.day), Number(row.minute)),
+          o: Number(bar.o), h: Number(bar.h), l: Number(bar.l),
+          c: Number(bar.c), v: Math.max(0, Number(bar.v) || 0) });
+      }
+    } else if (tf === "5m" || tf === "15m" || tf === "30m" ||
+               tf === "1h" || tf === "1D") {
+      const rows = this.ctx.storage.sql.exec(
+        "SELECT day, bucket, payload FROM quote_bars_tf WHERE tf = ? AND day >= ? " +
+        "ORDER BY day DESC, bucket DESC LIMIT ?", tf, cutoff, limit,
+      ).toArray();
+      for (const row of rows.reverse()) {
+        let book = null;
+        try { book = JSON.parse(row.payload); } catch (_) { book = null; }
+        const bar = book && book[symbol];
+        if (!bar || !Number.isFinite(Number(bar.o))) continue;
+        bars.push({ t: this.barStamp(String(row.day), Number(row.bucket)),
+          o: Number(bar.o), h: Number(bar.h), l: Number(bar.l),
+          c: Number(bar.c), v: Math.max(0, Number(bar.v) || 0) });
+      }
+    } else {
+      const rows = this.ctx.storage.sql.exec(
+        "SELECT day, payload FROM quote_bars_tf WHERE tf = '1D' AND day >= ? " +
+        "ORDER BY day ASC", cutoff,
+      ).toArray();
+      const groups = new Map();
+      for (const row of rows) {
+        const day = String(row.day);
+        let key = day;
+        if (tf === "1W") {
+          const at = new Date(day + "T00:00:00Z");
+          if (!Number.isFinite(at.getTime())) continue;
+          const dow = (at.getUTCDay() + 6) % 7;
+          key = new Date(at.getTime() - dow * 86400000).toISOString().slice(0, 10);
+        } else {
+          key = day.slice(0, 7) + "-01";
+        }
+        let book = null;
+        try { book = JSON.parse(row.payload); } catch (_) { book = null; }
+        const bar = book && book[symbol];
+        if (!bar || !Number.isFinite(Number(bar.o))) continue;
+        const held = groups.get(key);
+        if (!held) {
+          groups.set(key, { t: key + "T00:00:00+05:00", o: Number(bar.o),
+            h: Number(bar.h), l: Number(bar.l), c: Number(bar.c),
+            v: Math.max(0, Number(bar.v) || 0) });
+        } else {
+          if (Number(bar.h) > held.h) held.h = Number(bar.h);
+          if (Number(bar.l) < held.l) held.l = Number(bar.l);
+          held.c = Number(bar.c);
+          held.v += Math.max(0, Number(bar.v) || 0);
+        }
+      }
+      bars = Array.from(groups.values()).sort((a, b) => a.t.localeCompare(b.t));
+    }
+    // The forming minute is not in SQL yet. Fold it into the newest bar so a
+    // chart ticks while the minute is still open, and never invent a bucket.
+    if (this.barForming && this.barForming.day >= cutoff) {
+      const forming = this.barForming;
+      const bar = forming.symbols[symbol];
+      if (bar) {
+        let t = this.barStamp(forming.day, forming.minute);
+        if (tf === "5m" || tf === "15m" || tf === "30m" || tf === "1h") {
+          t = this.barStamp(forming.day,
+            Math.floor(forming.minute / BAR_TF_MINUTES[tf]) * BAR_TF_MINUTES[tf]);
+        } else if (tf === "1D" || tf === "1W" || tf === "1M") {
+          t = forming.day + "T00:00:00+05:00";
+        }
+        let target = null;
+        for (let i = bars.length - 1; i >= 0 && i >= bars.length - 2; i--) {
+          if (bars[i] && (bars[i].t === t ||
+              ((tf === "1W" || tf === "1M") &&
+               bars[i].t.slice(0, 7) === t.slice(0, 7)))) {
+            target = bars[i];
+            break;
+          }
+        }
+        if (target) {
+          if (Number(bar.h) > target.h) target.h = Number(bar.h);
+          if (Number(bar.l) < target.l) target.l = Number(bar.l);
+          target.c = Number(bar.c);
+        } else if (tf !== "1W" && tf !== "1M") {
+          bars.push({ t, o: Number(bar.o), h: Number(bar.h), l: Number(bar.l),
+            c: Number(bar.c), v: 0 });
+        }
+      }
+    }
+    bars.sort((a, b) => a.t.localeCompare(b.t));
+    const newest = bars.slice(-limit);
+    if (!newest.length) {
+      notes.push("no stored " + tf + " bars for " + symbol + " in this range");
+      notes.push("the relay began storing bars on 2026-11-07; a day with no session has no bar");
+    }
+    if (this.barRollWriteError) {
+      notes.push("a rollup write was refused at " + this.barRollWriteError.at +
+        "; the reason is " + this.barRollWriteError.message);
+    }
+    return {
+      ok: true, symbol, tf, days, bars: newest, bar_count: newest.length,
+      first: newest.length ? newest[0].t : null,
+      last: newest.length ? newest[newest.length - 1].t : null,
+      retention_days: BAR_TF_RETENTION[tf] || 0,
+      source: tf === "1m"
+        ? "relay minute bars built from accepted broker quote frames"
+        : "relay " + tf + " bars rolled up from its minute bars",
+      notes,
+    };
   }
 
   async historyAnswer(url) {
@@ -4185,6 +4519,10 @@ export class QuoteHub {
       const answer = await this.historyAnswer(url);
       return json(answer, answer && answer.ok ? 200 : 400);
     }
+    if (request.method === "GET" && url.pathname === "/bars") {
+      const answer = await this.barsAnswer(url);
+      return json(answer, answer && answer.ok ? 200 : 400);
+    }
     if (request.method === "GET" && url.pathname === "/snapshot") {
       return json(await this.snapshot());
     }
@@ -4348,6 +4686,19 @@ export class QuoteHub {
             "no measured order-flow pair; the total is unclassified";
         }
         quotes.set(quote.symbol, quote);
+      }
+      // The broker's own KSE100 frame is a chart symbol too. It rides the same
+      // minute store and every rollup, under its own name, so the index has
+      // the same ten frames as a scrip. No KMIALLSHR level is invented: the
+      // wire does not publish one and the exchange page carries only its
+      // constituents.
+      if (body.index && Number.isFinite(Number(body.index.value)) &&
+          Number(body.index.value) > 0) {
+        const indexAt = Date.parse(String(body.index.as_of || ""));
+        if (Number.isFinite(indexAt) && isTradingDay(karachiView(indexAt))) {
+          this.accumulateBar({ symbol: "KSE100", price: Number(body.index.value),
+            observed_at: body.index.as_of, volume: 0 });
+        }
       }
       const newer = (current, incoming, stamp) => {
         if (!incoming) return current || null;
