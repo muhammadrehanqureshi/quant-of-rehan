@@ -695,9 +695,9 @@ func TestKeyNavigation(t *testing.T) {
 	if a.screen != scrAlerts {
 		t.Fatalf("2 is alerts: %v", a.screen)
 	}
-	press(Key{Kind: KF5})
+	press(Key{Kind: KF6})
 	if a.screen != scrSettings {
-		t.Fatalf("F5 is settings: %v", a.screen)
+		t.Fatalf("F6 is settings: %v", a.screen)
 	}
 	for i := 0; i < settingsItems; i++ {
 		press(Key{Kind: KDown})
