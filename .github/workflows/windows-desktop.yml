@@ -27,7 +27,7 @@ jobs:
         run: |
           python -m pip install --disable-pip-version-check pillow
           python tools/mkicon_hud.py assets/QuantOfRehan.ico assets/icon-1024.png
-          python tools/mksyso.py assets/QuantOfRehan.ico rsrc_windows_amd64.syso 4.0.16.13
+          python tools/mksyso.py assets/QuantOfRehan.ico rsrc_windows_amd64.syso 4.0.16.14
       - name: Check the icon has rounded corners
         run: |
           python -c "from PIL import Image; im=Image.open('assets/icon-1024.png').convert('RGBA'); assert all(im.getpixel(xy)[3] <= 8 for xy in ((0,0),(1023,0),(0,1023),(1023,1023))), 'icon corners must be transparent'; assert im.getpixel((512,512))[3] == 255, 'icon centre must be opaque'"

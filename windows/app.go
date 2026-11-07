@@ -123,6 +123,8 @@ type App struct {
 	sectors      *Sectors   // the latest /sectors answer
 	sectorsErr   string     // why the last sector read failed, for the screen
 	sectorChoice int        // which sector group the scanner tile shows
+	sectorQuery  string     // the SECTORS tile's own search text, upper case
+	sectorSearch bool       // the SECTORS search box has the keys
 	lvSector     listView   // the scanner's sector drop down
 	sectorY      int        // the sector tile's top row, for the wheel
 	sectorH      int        // and its height
@@ -848,6 +850,7 @@ func (a *App) setScreen(s screenID) {
 	if s == a.screen {
 		return
 	}
+	a.sectorSearch = false
 	a.screen = s
 	switch s {
 	case scrScanner:
@@ -961,13 +964,17 @@ func (a *App) onKey(k Key) {
 }
 
 // keyScanner handles the scanner screen with its search tile. Letters and
-// digits typed here go to the search box. UP and DOWN move through the matches
-// while there is a search, and scroll the list otherwise. LEFT and RIGHT change
-// the sort. ENTER picks the highlighted match, or the highlighted sort when
-// nothing is typed. BACKSPACE first closes an open sector, then edits the search
-// and clears the sort when the box is empty. ESC clears the search, and goes Home
-// when there is none.
+// digits typed here go to the search box, or to the SECTORS box while that has
+// the keys. UP and DOWN move through the matches while there is a search, and
+// scroll the list otherwise. LEFT and RIGHT change the sort. ENTER picks the
+// highlighted match, or the highlighted sort when nothing is typed. BACKSPACE
+// first closes an open sector, then edits the search and clears the sort when
+// the box is empty. ESC clears the search, and goes Home when there is none.
 func (a *App) keyScanner(k Key) {
+	if a.sectorSearch {
+		a.keySectorSearch(k)
+		return
+	}
 	searching := a.searchText != ""
 	switch k.Kind {
 	case KEsc:
@@ -1045,6 +1052,14 @@ func (a *App) keyScanner(k Key) {
 			a.setScreen(screenID(r - '1'))
 			return
 		}
+		// Owner order 2026-11-07: the SECTORS tile has its own search box.
+		// The slash key focuses it while the top search is empty.
+		if r == '/' && !searching && a.sectorH > 0 {
+			a.sectorSearch = true
+			a.lvSector.top()
+			a.lvSectorStk.top()
+			return
+		}
 		if (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '.' || r == '-' || r == '_' {
 			if runeLen(a.searchText) < 12 {
 				a.searchText += string(r)
@@ -1058,6 +1073,82 @@ func (a *App) keyScanner(k Key) {
 			} else {
 				a.stepCell(1, false)
 			}
+		}
+	}
+}
+
+// keySectorSearch handles the SECTORS tile's own search box. It filters the
+// group names and the scrips of the open group. ENTER opens the first match,
+// ESC clears and leaves the box, and BACKSPACE edits the query.
+func (a *App) keySectorSearch(k Key) {
+	switch k.Kind {
+	case KEsc:
+		a.sectorQuery, a.sectorSearch = "", false
+		a.lvSector.top()
+		a.lvSectorStk.top()
+	case KEnter:
+		if a.sectorOpen {
+			if m := a.visibleSectorMembers(); len(m) > 0 {
+				a.openSymbol(m[0])
+			}
+		} else if v := a.visibleSectorIndices(); len(v) > 0 {
+			a.openSector(v[0])
+		}
+	case KBackspace:
+		if r := []rune(a.sectorQuery); len(r) > 0 {
+			a.sectorQuery = string(r[:len(r)-1])
+		} else {
+			a.sectorSearch = false
+		}
+		a.lvSector.top()
+		a.lvSectorStk.top()
+	case KUp:
+		if a.sectorOpen {
+			a.lvSectorStk.scroll(-1)
+		} else {
+			a.lvSector.scroll(-1)
+		}
+	case KDown:
+		if a.sectorOpen {
+			a.lvSectorStk.scroll(1)
+		} else {
+			a.lvSector.scroll(1)
+		}
+	case KPgUp:
+		if a.sectorOpen {
+			a.lvSectorStk.page(-1)
+		} else {
+			a.lvSector.page(-1)
+		}
+	case KPgDn:
+		if a.sectorOpen {
+			a.lvSectorStk.page(1)
+		} else {
+			a.lvSector.page(1)
+		}
+	case KHome:
+		if a.sectorOpen {
+			a.lvSectorStk.top()
+		} else {
+			a.lvSector.top()
+		}
+	case KEnd:
+		if a.sectorOpen {
+			a.lvSectorStk.bottom()
+		} else {
+			a.lvSector.bottom()
+		}
+	case KRune:
+		r := k.R
+		if r >= 'a' && r <= 'z' {
+			r -= 'a' - 'A'
+		}
+		if (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '.' || r == '-' || r == '_' {
+			if runeLen(a.sectorQuery) < 16 {
+				a.sectorQuery += string(r)
+			}
+			a.lvSector.top()
+			a.lvSectorStk.top()
 		}
 	}
 }
