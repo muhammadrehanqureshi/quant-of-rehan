@@ -1201,6 +1201,8 @@ public final class Watcher {
                 Double total = numberOrNull(row, "volume");
                 Double unclear = numberOrNull(row, "unclassified_volume");
                 android.text.SpannableString styled = null;
+                int totalFrom = -1;
+                int totalTo = -1;
                 if (buy != null && sell != null) {
                     // Owner order 2026-10-20 (third note): the EST tag after
                     // the total is gone from the search answer exactly as it
@@ -1247,7 +1249,9 @@ public final class Watcher {
                         // Owner order 2026-11-06: B, S and U share the first
                         // line; the venue's own total T starts the next one.
                         sb.append('\n').append("T=");
+                        totalFrom = sb.length();
                         sb.append(String.format(java.util.Locale.US, "%,.0f", total));
+                        totalTo = sb.length();
                         sb.append(')');
                     }
                     styled = new android.text.SpannableString(sb);
@@ -1261,6 +1265,11 @@ public final class Watcher {
                         styled.setSpan(new android.text.style.ForegroundColorSpan(
                                 c.getColor(R.color.yellow)),
                                 unclearFrom, unclearTo, 0);
+                    }
+                    if (totalFrom >= 0) {
+                        styled.setSpan(new android.text.style.ForegroundColorSpan(
+                                c.getColor(R.color.blue)),
+                                totalFrom, totalTo, 0);
                     }
                 } else if (unclear != null || total != null) {
                     // No measured pair: the known U keeps the first line and
@@ -1276,10 +1285,17 @@ public final class Watcher {
                         }
                     }
                     if (total != null) {
-                        sb.append(String.format(java.util.Locale.US,
-                                "T=%,.0f", total));
+                        sb.append("T=");
+                        totalFrom = sb.length();
+                        sb.append(String.format(java.util.Locale.US, "%,.0f", total));
+                        totalTo = sb.length();
                     }
                     styled = new android.text.SpannableString(sb);
+                    if (totalFrom >= 0) {
+                        styled.setSpan(new android.text.style.ForegroundColorSpan(
+                                c.getColor(R.color.blue)),
+                                totalFrom, totalTo, 0);
+                    }
                 } else {
                     styled = new android.text.SpannableString(sb);
                 }

@@ -515,12 +515,17 @@
      ampersand where the bracket stood, U prints yellow everywhere, the
      ORDER FLOW book is two columns with a vertical line and the words stay
      neutral, its page repaints with the theme, the search row carries the
-     day's H and L, and the selected scrip lists its own filled prints.
+     day's H and L,     and the selected scrip lists its own filled prints.
+
+     versionCode 125 / versionName 4.0.16 belong to the owner's orders of
+     2026-11-07, second pass: the SECTORS tile and its box wear the worn
+     theme, the ASK column sits at the far right of its half of the book,
+     and the exchange's total volume T prints blue everywhere.
      -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="pk.quantofrehan"
-    android:versionCode="124"
-    android:versionName="4.0.15">
+    android:versionCode="125"
+    android:versionName="4.0.16">
 
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="30"/>
 
