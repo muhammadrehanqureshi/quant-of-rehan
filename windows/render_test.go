@@ -309,6 +309,46 @@ func TestDemoNextEventFollowsTheSessionLaw(t *testing.T) {
 	}
 }
 
+// Owner order 2026-11-07: the next event is the scanner going live at 08:55,
+// not the exchange's 09:32 opening bell. The relay's date is kept, so a holiday
+// is still the relay's holiday.
+func TestFriendlyNextShowsTheScanStart(t *testing.T) {
+	if got := friendlyNext("OPEN 2026-11-10 09:32"); got != "Scanner Tue 10 Nov, 08:55" {
+		t.Errorf("next open: %q", got)
+	}
+	if got := friendlyNext("CLOSE 2026-11-10 15:30"); got != "Closes Tue 10 Nov, 15:30" {
+		t.Errorf("next close: %q", got)
+	}
+}
+
+// Owner order 2026-11-07: the tab numbers and TAB are green, ESC is yellow and
+// CTRL+C is red.
+func TestFooterKeysAreColoured(t *testing.T) {
+	a := demoApp(t, 122, 30)
+	a.screen = scrScanner
+	c := a.render()
+	y := c.H - 1
+	row := c.PlainRows()[y]
+	cell := func(x int) Cell { return c.Cells[y*c.W+x] }
+	for _, item := range []struct {
+		text string
+		want RGB
+	}{
+		{"1 HOME", a.th.Good},
+		{"TAB", a.th.Good},
+		{"ESC", a.th.Warn},
+		{"CTRL+C", a.th.Bad},
+	} {
+		i := strings.Index(row, item.text)
+		if i < 0 {
+			t.Fatalf("%q is not in the footer: %q", item.text, row)
+		}
+		if got := cell(i).FG; got != item.want {
+			t.Errorf("%s is %v, want %v", item.text, got, item.want)
+		}
+	}
+}
+
 func TestAlertLogDetailIsWrappedNotCut(t *testing.T) {
 	a := demoApp(t, 130, 34)
 	a.screen = scrAlerts

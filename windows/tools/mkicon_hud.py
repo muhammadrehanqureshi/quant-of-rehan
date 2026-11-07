@@ -1,4 +1,7 @@
-"""Draw the owner's teal dial artwork as the Windows icon: a rounded teal tile
+"""Make the Windows icon. When the owner's exact picture is saved at
+assets/icon-source.png, that bitmap is used unchanged apart from a square crop
+and the rounded corners. Otherwise the teal dial is drawn as before: a rounded
+teal tile
 under concentric pale ice blue rings, with the thin outer arc, twelve pale
 blocks, a smooth ring, two tick rings, the bright inner ring and the small inner
 ring, and an empty centre. The tile's corners are transparent, so Explorer
@@ -8,11 +11,13 @@ Usage:
     python mkicon_hud.py assets/QuantOfRehan.ico assets/icon-1024.png
 """
 import math
+import os
 import sys
 
 from PIL import Image, ImageDraw, ImageFilter
 
 OUT_ICO, OUT_PNG = sys.argv[1], sys.argv[2]
+SOURCE = "assets/icon-source.png"
 S = 1024
 K = 2
 N = S * K
@@ -26,10 +31,10 @@ R = N * 0.48
 CORNER_RADIUS = 0.18
 CORNER_INSET = 0.012
 
-TOP_LEFT = (17, 118, 150)
-TOP_RIGHT = (12, 103, 134)
-BOTTOM_LEFT = (10, 91, 120)
-BOTTOM_RIGHT = (7, 75, 99)
+TOP_LEFT = (13, 110, 146)
+TOP_RIGHT = (10, 99, 131)
+BOTTOM_LEFT = (8, 86, 115)
+BOTTOM_RIGHT = (7, 78, 106)
 PALE = (230, 244, 250)
 MID = (176, 212, 228)
 DIM = (108, 160, 184)
@@ -84,17 +89,17 @@ def dial():
 
     # The thin outer arc, almost a full circle, with a small gap at the top and
     # the picture's four square caps on the diagonals.
-    arc_block(d, 0.962, 0.986, 12, 348, rgba(ink(0.55), 215))
-    cap(d, 12, 0.974, 0.0078, rgba(ink(0.85), 235))
-    cap(d, 348, 0.974, 0.0078, rgba(ink(0.85), 235))
+    arc_block(d, 0.962, 0.986, 12, 348, rgba(ink(0.78), 225))
+    cap(d, 12, 0.974, 0.0078, rgba(ink(0.95), 240))
+    cap(d, 348, 0.974, 0.0078, rgba(ink(0.95), 240))
     for ang in (45, 135, 225, 315):
         cap(d, ang, 0.974, 0.0068, rgba(ink(0.90), 240))
 
     # The ring of twelve pale blocks, the picture's most visible band. They
     # sit on the 12 o'clock marks, as in the picture, rather than between them.
     for k in range(12):
-        a0 = k * 30 - 11
-        arc_block(d, 0.815, 0.915, a0, a0 + 22, rgba(ink(0.94), 245))
+        a0 = k * 30 - 12
+        arc_block(d, 0.815, 0.915, a0, a0 + 24, rgba(ink(0.94), 245))
 
     # The smooth pale ring under the blocks, in four long segments.
     for k in range(4):
@@ -128,13 +133,26 @@ def dial():
     return layer
 
 
+def source_art():
+    """The owner's exact picture, square and at the working resolution."""
+    im = Image.open(SOURCE).convert("RGBA")
+    w, h = im.size
+    side = min(w, h)
+    im = im.crop(((w - side) // 2, (h - side) // 2, (w + side) // 2, (h + side) // 2))
+    return im.resize((N, N), Image.LANCZOS)
+
+
 def main():
-    art = dial()
-    # A soft halo under the pale segments, like the glow in the picture.
-    halo = art.filter(ImageFilter.GaussianBlur(N * 0.011))
-    halo.putalpha(halo.getchannel("A").point(lambda v: int(v * 0.55)))
-    out = Image.alpha_composite(background(), halo)
-    out = Image.alpha_composite(out, art)
+    if os.path.exists(SOURCE):
+        out = source_art()
+        print("using the owner's exact picture", SOURCE)
+    else:
+        art = dial()
+        # A soft halo under the pale segments, like the glow in the picture.
+        halo = art.filter(ImageFilter.GaussianBlur(N * 0.011))
+        halo.putalpha(halo.getchannel("A").point(lambda v: int(v * 0.55)))
+        out = Image.alpha_composite(background(), halo)
+        out = Image.alpha_composite(out, art)
     # Round the tile's corners. The mask is drawn at the supersampled size and
     # reduced with the artwork, so the edge stays smooth at 16 pixels too.
     mask = Image.new("L", (N, N), 0)

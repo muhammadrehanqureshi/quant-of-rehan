@@ -104,6 +104,7 @@ func (a *App) zebra(c *Canvas, x, y, w, rows, i int, sym string) {
 func (a *App) openSymbol(sym string) {
 	a.setScreen(scrScanner)
 	a.sectorOpen = false
+	a.sectorQuery, a.sectorSearch = "", false
 	a.lvSectorStk.top()
 	a.searchText, a.searchCursor = sym, 0
 	a.selectedSym = sym
@@ -146,6 +147,7 @@ func (a *App) scanTable() map[string]Quote {
 // continues below it.
 func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 	th := a.th
+	a.sectorY, a.sectorH = 0, 0
 	sh := a.searchTileHeight(w, h)
 	a.drawSearchTile(c, x, y, w, sh)
 	sy := y + sh + 1
@@ -156,9 +158,9 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 	// screen, so the two lists can be read together.
 	sectorH := 6
 	if a.sectorOpen {
-		sectorH = min(max(len(a.sectorMembers())+2, 7), 14)
-	} else if n := len(a.sectorGroups()); n > 0 {
-		sectorH = min(n+2, 14)
+		sectorH = min(max(len(a.visibleSectorMembers())+2, 7), 15)
+	} else if n := len(a.visibleSectorIndices()); n > 0 {
+		sectorH = min(n+2, 15)
 	}
 	if avail := y + h - sy; avail-sectorH < 7 {
 		sectorH = max(5, avail-7)
@@ -433,13 +435,15 @@ func (a *App) showing(l *listView, noun string) string {
 	return fmt.Sprintf("%d to %d of %s", l.off+1, last, plural(l.total, noun))
 }
 
-// drawSectorTile shows the relay's KMIALL sector groups as a drop down: every
-// group is listed, the chosen one is marked, and the wheel or the scrollbar
-// moves through the list. Clicking a row picks that group.
+// drawSectorTile shows the relay's KMIALL sector groups as a drop down with a
+// search box of its own: every group is listed, the chosen one is marked, and
+// the wheel or the scrollbar moves through the list. Clicking a row picks that
+// group. The box filters by sector name or by any scrip it carries.
 func (a *App) drawSectorTile(c *Canvas, x, y, w, h int) {
 	th := a.th
-	ix, iy, iw, ih := a.panel(c, x, y, w, h, "SECTORS", "wheel scrolls, click opens")
+	ix, iy, iw, ih := a.panel(c, x, y, w, h, "SECTORS", "")
 	a.sectorY, a.sectorH = y, h
+	a.drawSectorSearch(c, x, y, w, false)
 	groups := a.sectorGroups()
 	if len(groups) == 0 {
 		msg := "Reading the sector groups from the relay."
@@ -451,33 +455,86 @@ func (a *App) drawSectorTile(c *Canvas, x, y, w, h int) {
 		}
 		return
 	}
+	vis := a.visibleSectorIndices()
+	if len(vis) == 0 {
+		a.lvSector.set(0, max(1, ih))
+		if ih > 0 {
+			c.Text(ix, iy, iw, "No sector or scrip starts with "+a.sectorQueryText()+".", th.Soft, false)
+		}
+		return
+	}
 	if a.sectorChoice >= len(groups) || a.sectorChoice < 0 {
 		a.sectorChoice = 0
 	}
 	rows := max(1, ih)
-	a.lvSector.set(len(groups), rows)
+	a.lvSector.set(len(vis), rows)
 	// The list is never snapped back to the chosen group: the wheel may scroll
 	// the groups freely, even when the chosen one is the first row.
 	cw := contentW(&a.lvSector, iw)
 	for n := 0; n < a.lvSector.view; n++ {
 		i := a.lvSector.off + n
-		if i >= len(groups) {
+		if i >= len(vis) {
 			break
 		}
-		g := groups[i]
+		idx := vis[i]
+		g := groups[idx]
 		ry := iy + n
-		idx := i
-		bg := a.selectRow(c, ix, ry, cw, i == a.sectorChoice, func() { a.openSector(idx) })
+		bg := a.selectRow(c, ix, ry, cw, idx == a.sectorChoice, func() { a.openSector(idx) })
 		mark := "  "
-		if i == a.sectorChoice {
+		if idx == a.sectorChoice {
 			mark = "◆ "
 		}
 		c.Set(ix+1, ry, []rune(mark)[0], th.Accent, bg, true)
-		name := fmt.Sprintf("%2d. %s", i+1, g.Name)
-		c.Text(ix+3, ry, max(1, cw-3), fit(name, max(1, cw-3)), th.Text, i == a.sectorChoice)
+		name := fmt.Sprintf("%2d. %s", idx+1, g.Name)
+		c.Text(ix+3, ry, max(1, cw-3), fit(name, max(1, cw-3)), th.Text, idx == a.sectorChoice)
 		rightAlign(c, ix, ry, cw, []Span{{fmt.Sprintf("%d", len(g.Symbols)), th.Soft, false}})
 	}
 	a.scrollbar(c, ix+iw-1, iy, a.lvSector.view, &a.lvSector)
+}
+
+// drawSectorSearch draws the SECTORS tile's own field in the tile's top edge,
+// to the right of the title. The field is a hit region: clicking it gives the
+// box the keys, and the slash key does the same while the top scrip search is
+// empty. It lives on the border so it does not take a row from the lists.
+func (a *App) drawSectorSearch(c *Canvas, x, y, w int, scrips bool) {
+	th := a.th
+	fx := x + 14
+	hint := "Search sectors"
+	if scrips {
+		hint = "Search scrips"
+	}
+	field, col := a.sectorQuery, th.Text
+	if field == "" {
+		field, col = hint, th.Soft
+	}
+	if a.sectorSearch {
+		field += "▏"
+	}
+	bw := runeLen(hint) + 1
+	if limit := w - 20; bw > limit {
+		bw = max(8, limit)
+	}
+	bg := mix(th.Panel, th.Accent, 0.14)
+	for i := 0; i < bw+2; i++ {
+		c.Set(fx+i, y, ' ', th.Text, bg, false)
+	}
+	c.Put(fx, y, '[', th.Accent, true)
+	c.Text(fx+1, y, bw, fit(field, bw), col, a.sectorSearch)
+	c.Put(fx+1+bw, y, ']', th.Accent, true)
+	if a.sectorQuery != "" {
+		n := len(a.visibleSectorIndices())
+		if scrips {
+			n = len(a.visibleSectorMembers())
+		}
+		if w > 82 {
+			c.Text(fx+bw+3, y, 9, fmt.Sprintf("%d match", n), th.Soft, false)
+		}
+	}
+	a.addHit(fx, y, bw+2, 1, func() {
+		a.sectorSearch = true
+		a.lvSector.top()
+		a.lvSectorStk.top()
+	})
 }
 
 // inKMIALLSHR says whether the relay's KMIALL list carries this scrip. Until
@@ -505,19 +562,29 @@ func (a *App) drawSectorOpen(c *Canvas, x, y, w, h int) {
 	if h < 4 {
 		return
 	}
-	ix, iy, iw, ih := a.panel(c, x, y, w, h, "SECTORS", "BACKSPACE all sectors, wheel scrolls")
+	ix, iy, iw, ih := a.panel(c, x, y, w, h, "SECTORS", "")
+	a.drawSectorSearch(c, x, y, w, true)
 	groups := a.sectorGroups()
 	if a.sectorChoice < 0 || a.sectorChoice >= len(groups) {
 		a.sectorOpen = false
 		return
 	}
 	g := groups[a.sectorChoice]
-	member := a.sectorMembers()
+	all := a.sectorMembers()
+	member := a.visibleSectorMembers()
+	detail := fmt.Sprintf("%d of %d scrips in KMIALLSHR", len(all), len(g.Symbols))
+	if len(member) != len(all) {
+		detail += fmt.Sprintf(", %d match", len(member))
+	}
 	c.Spans(ix, iy, iw, []Span{{"◆ " + g.Name, th.Hot, true},
 		{"  ·  ", th.Soft, false},
-		{fmt.Sprintf("%d of %d scrips in KMIALLSHR", len(member), len(g.Symbols)), th.Soft, false}})
-	if len(member) == 0 {
+		{detail, th.Soft, false}})
+	if len(all) == 0 {
 		c.Text(ix, iy+1, iw, "None of this sector's scrips is in KMIALLSHR right now.", th.Soft, false)
+		return
+	}
+	if len(member) == 0 {
+		c.Text(ix, iy+1, iw, "No scrip in this sector starts with "+a.sectorQueryText()+".", th.Soft, false)
 		return
 	}
 	rows := ih - 1
@@ -554,6 +621,7 @@ func (a *App) openSector(i int) {
 	}
 	a.sectorChoice = i
 	a.sectorOpen = true
+	a.sectorQuery, a.sectorSearch = "", false
 	a.lvSectorStk.top()
 }
 
@@ -574,6 +642,55 @@ func (a *App) sectorMembers() []string {
 	return member
 }
 
+func (a *App) sectorQueryText() string {
+	return strings.ToUpper(strings.TrimSpace(a.sectorQuery))
+}
+
+// visibleSectorIndices are the groups the SECTORS search box lets through, as
+// indices into sectorGroups. A group matches when its name starts with the
+// query or when any scrip it carries does, so typing CHRL finds CEMENT too.
+func (a *App) visibleSectorIndices() []int {
+	groups := a.sectorGroups()
+	q := a.sectorQueryText()
+	if q == "" {
+		out := make([]int, len(groups))
+		for i := range out {
+			out[i] = i
+		}
+		return out
+	}
+	var out []int
+	for i, g := range groups {
+		if strings.HasPrefix(g.Name, q) {
+			out = append(out, i)
+			continue
+		}
+		for _, sym := range g.Symbols {
+			if strings.HasPrefix(strings.ToUpper(sym), q) {
+				out = append(out, i)
+				break
+			}
+		}
+	}
+	return out
+}
+
+// visibleSectorMembers are the open group's scrips that match the box.
+func (a *App) visibleSectorMembers() []string {
+	members := a.sectorMembers()
+	q := a.sectorQueryText()
+	if q == "" {
+		return members
+	}
+	var out []string
+	for _, s := range members {
+		if strings.HasPrefix(strings.ToUpper(s), q) {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
 // hoveredSector is the group row under the pointer in the closed sector tile,
 // or -1. It lets ENTER open the row the owner is pointing at.
 func (a *App) hoveredSector() int {
@@ -581,10 +698,11 @@ func (a *App) hoveredSector() int {
 		return -1
 	}
 	i := a.lvSector.off + a.hoverY - (a.sectorY + 1)
-	if i < 0 || i >= len(a.sectorGroups()) {
+	vis := a.visibleSectorIndices()
+	if i < 0 || i >= len(vis) {
 		return -1
 	}
-	return i
+	return vis[i]
 }
 
 // demoSectorGroups gives the demo scanner a real-looking set of groups, so the
@@ -668,9 +786,15 @@ func (a *App) drawFlowList(c *Canvas, ix, head, top, iw, rows, barX int) {
 // closest it can come.
 const barBlock = '▇'
 
+// shareBarTabs is the number of cells in every buy versus sell bar. Owner
+// order 2026-11-07: ten tabs, so each one is ten percent and 100% is easy to
+// read at a glance. The bar keeps the right edge it had before, with the
+// unused part of the old span on its left.
+const shareBarTabs = 10
+
 // shareBar draws a buy versus sell bar of w columns, seven eighths of a cell
-// tall. One space follows the bar, then the percentage, so "98%" and "100%"
-// both sit the same distance from it.
+// tall. The coloured part is ten tabs wide; one space follows it, then the
+// percentage, so "98%" and "100%" both sit the same distance from it.
 func (a *App) shareBar(c *Canvas, x, y, w int, buyShare float64) {
 	a.shareBarRune(c, x, y, w, buyShare, barBlock)
 }
@@ -687,7 +811,9 @@ func (a *App) shareBarMid(c *Canvas, x, y, w int, buyShare float64) {
 // one space and the percentage.
 func (a *App) shareBarRune(c *Canvas, x, y, w int, buyShare float64, ch rune) {
 	th := a.th
-	bw := w - 5
+	full := max(1, w-5)
+	bw := min(shareBarTabs, full)
+	x += full - bw
 	f := int(math.Round(buyShare * float64(bw)))
 	for i := 0; i < bw; i++ {
 		if i < f {

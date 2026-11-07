@@ -6,14 +6,14 @@ import "time"
 const appVersion = "4.0.16"
 
 // hudBuild is the build number of this Windows HUD port.
-const hudBuild = "13"
+const hudBuild = "14"
 
 // scripSearchHint is the same search line on every desktop search box.
 const scripSearchHint = "Search for a KMIALL scrip"
 
 // A terminal has one font size for the whole window, so the title is set in the
-// theme's brightest ink and closed by a diamond on either side. The owner asked
-// for the letters close together, so it uses ordinary word spacing.
+// theme's accent and closed by a diamond on either side. The owner asked for the
+// letters close together, so it uses ordinary word spacing.
 const headerTitle = "◆ QUANT OF REHAN ◆"
 
 // pkt is Pakistan time, fixed UTC+5 (no daylight saving), same as the session law.

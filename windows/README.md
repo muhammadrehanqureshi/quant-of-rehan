@@ -1,9 +1,16 @@
-# Quant of Rehan for Windows (console edition), build 13
+# Quant of Rehan for Windows (console edition), build 14
 
 A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.16**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
 
-## What is new in build 13
+## What is new in build 14
+
+* **Build 14.** The header title is back in the theme's accent ink. The footer keys are coloured: the five tab numbers and TAB green, ESC yellow, CTRL+C red. Telemetry now says `Scanner Tue 10 Nov, 08:55` for the next OPEN, because 08:55 is when the scanner goes live; a CLOSE keeps its relay time. Every share bar is ten tabs, one per ten percent, so 100% is easy to read, and the percentage keeps its old place.
+* **The SECTORS search box.** The SECTORS tile has its own field now. Click it, or press `/` while the top scrip search is empty, and type a sector name or a scrip. The groups filter as you type. ENTER opens the first match; in an open sector the same box filters its scrips. ESC clears the box and BACKSPACE edits it. The CUSTOM SCRIPS tile stays on screen.
+* **The title size.** A Windows console uses one font size for the whole window, so a literal ten percent on only the title is not a cell that can be drawn. The title is bold and in the accent again, at the console's fixed size, with the owner's ordinary word spacing.
+* **The icon source.** `tools/mkicon_hud.py` now uses `assets/icon-source.png` automatically when that file exists: the picture is cropped to a square, given the same transparent rounded corners and embedded at every icon size. Without that file it keeps the drawn dial as a fallback. The exact picture is not part of this change because the chat upload is not a file in the repository; save it at that path to make the next Windows build carry it.
+
+## What was new in build 13
 
 * **Build 13.** The icon is redrawn closer to the owner's picture, and its tile now has transparent rounded corners. The twelve outer blocks sit on the 12 o'clock marks instead of between them, the outer arc and the tick rings are thinner, and the background is the picture's brighter teal, so the small icon no longer reads as a white target. The workflow checks that all four corners of the 1024 icon are transparent and its centre is opaque before it builds. The console is otherwise unchanged from build 12.
 

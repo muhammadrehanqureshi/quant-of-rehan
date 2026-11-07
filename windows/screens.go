@@ -186,7 +186,7 @@ func (a *App) drawHeader(c *Canvas) {
 	if len(lt) > 0 && c.W >= runeLen(title)+spanW(lt)+4 {
 		c.Spans(1, 0, min(c.W-2, spanW(lt)), lt)
 	}
-	c.Text((c.W-runeLen(title))/2, 0, runeLen(title), title, th.Hot, true)
+	c.Text((c.W-runeLen(title))/2, 0, runeLen(title), title, th.Accent, true)
 
 	k := a.karachiNow().In(pkt)
 	layout := "Mon 02 Jan 2006"
@@ -271,17 +271,20 @@ func (a *App) drawNav(c *Canvas, y int) {
 		label := fmt.Sprintf(" %d %s ", i+1, name)
 		id := screenID(i)
 		w := runeLen(label)
+		fg, bg, bold := th.Soft, c.BGAt(x, y), false
 		switch {
 		case id == a.screen:
-			for k, r := range label {
-				c.Set(x+k, y, r, th.BG, th.Accent, true)
-			}
+			fg, bg, bold = th.BG, th.Accent, true
 		case a.hovering(x, y, w, 1):
-			for k, r := range label {
-				c.Set(x+k, y, r, th.Hot, mix(th.Panel, th.Accent, 0.3), true)
+			fg, bg, bold = th.Hot, mix(th.Panel, th.Accent, 0.3), true
+		}
+		for k, r := range label {
+			ink := fg
+			if k == 1 {
+				// Owner order 2026-11-07: the five tab numbers are green.
+				ink = th.Good
 			}
-		default:
-			c.Text(x, y, w, label, th.Soft, false)
+			c.Set(x+k, y, r, ink, bg, bold)
 		}
 		a.addHit(x, y, w, 1, func() { a.setScreen(id) })
 		x += w + 1
@@ -302,10 +305,34 @@ func (a *App) drawNav(c *Canvas, y int) {
 	// The longest hint that leaves a gap after the tabs.
 	for _, hint := range hints {
 		if right-runeLen(hint) >= x+1 {
-			rightAlign(c, 0, y, right+1, []Span{{hint, th.Soft, false}})
+			rightAlign(c, 0, y, right+1, hintSpans(hint, th))
 			break
 		}
 	}
+}
+
+// hintSpans colours the key tokens in the footer: TAB green, ESC yellow and
+// CTRL+C red. The rest of the hint stays in the soft ink, and the spacing is
+// preserved exactly.
+func hintSpans(s string, th *Theme) []Span {
+	fields := strings.Split(s, " ")
+	out := make([]Span, 0, len(fields))
+	for i, f := range fields {
+		if i > 0 {
+			out = append(out, Span{" ", th.Soft, false})
+		}
+		switch f {
+		case "TAB":
+			out = append(out, Span{f, th.Good, true})
+		case "ESC":
+			out = append(out, Span{f, th.Warn, true})
+		case "CTRL+C":
+			out = append(out, Span{f, th.Bad, true})
+		default:
+			out = append(out, Span{f, th.Soft, false})
+		}
+	}
+	return out
 }
 
 // scanStatus words what the scanner is doing now, for the telemetry panel.
