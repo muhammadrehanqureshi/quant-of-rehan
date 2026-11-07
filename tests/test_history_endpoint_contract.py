@@ -87,7 +87,7 @@ class HistoryEndpointContractTest(unittest.TestCase):
         self.assertIn("const BAR_ROWS_PER_DAY = 1000;", self.source)
         self.assertIn("if (this.barRowsToday >= BAR_ROWS_PER_DAY) return false;",
                       self.source)
-        self.assertIn("const BAR_RETENTION_DAYS = 10;", self.source)
+        self.assertIn("const BAR_RETENTION_DAYS = 45;", self.source)
         self.assertIn("DELETE FROM quote_bars WHERE day < ?", self.source)
 
     def test_a_bar_is_built_only_from_an_accepted_session_frame(self):

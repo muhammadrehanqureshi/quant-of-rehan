@@ -553,11 +553,39 @@ class RelayWorkerContractTest(unittest.TestCase):
         # carrying every symbol, about 360 a session, with a 1,000 row ceiling
         # and one retention prune a day.
         bar_rows = 1_000
+        # Owner order 2026-11-07: the ten frame chart store writes five
+        # rollup rows a closed minute (5m, 15m, 30m, 1h, 1D), about 1,875 a
+        # session, with a hard 3,000 row ceiling.
+        rollup_rows = 3_000
         total = (snapshot_rows + flow_rows + ack_rows + stats_rows +
-                 diagnostics + bar_rows)
+                 diagnostics + bar_rows + rollup_rows)
         self.assertLess(total, 100_000, total)
-        self.assertEqual((snapshot_rows, flow_rows, ack_rows, bar_rows, total),
-                         (21600, 40000, 25000, 1000, 87996))
+        self.assertEqual((snapshot_rows, flow_rows, ack_rows, bar_rows,
+                          rollup_rows, total),
+                         (21600, 40000, 25000, 1000, 3000, 90996))
+
+    def test_the_chart_bars_cover_every_frame_the_desk_draws(self):
+        """Owner order 2026-11-07: ten frames for KSE100 and every scrip.
+
+        Second candles are built on the desktop, because the broker feed
+        samples one symbol every 30 to 90 seconds and a stored second bar
+        would claim detail the wire never had. The relay stores one minute
+        and rolls every longer frame into one row per (frame, day, bucket)
+        carrying all symbols, so a chart read is bounded. KSE100 rides the
+        broker's own index frame; no KMIALLSHR level is invented because the
+        wire does not publish one.
+        """
+        self.assertIn('const BAR_TFS = ["1s", "5s", "1m", "5m", "15m", '
+                      '"30m", "1h", "1D", "1W", "1M"];', self.source)
+        self.assertIn('path === "/bars"', self.source)
+        self.assertIn('url.pathname === "/bars"', self.source)
+        self.assertIn("async barsAnswer(url)", self.source)
+        self.assertIn("CREATE TABLE IF NOT EXISTS quote_bars_tf", self.source)
+        self.assertIn("this.rollBars(forming.day, forming.minute, payload);",
+                      self.source)
+        self.assertIn('this.accumulateBar({ symbol: "KSE100"', self.source)
+        self.assertIn('const BAR_TF_RETENTION = { "1m": 45, "5m": 180,',
+                      self.source)
 
     def test_the_relay_remembers_the_days_entry_stamp(self):
         """A later card cannot lose the entry time the first card carried."""

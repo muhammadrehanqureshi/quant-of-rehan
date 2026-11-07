@@ -143,6 +143,37 @@ ticket. The MKT-FEED wire carries a per-symbol snapshot with a cumulative
 volume, bid and ask, and no individual order id. One relay update of at least
 PKR 1,000,000 on one side is the smallest honest unit this data can support.
 
+## Chart bars (`GET /bars`)
+
+Owner order 2026-11-07: the desktop draws KSE100 and every KMIALLSHR scrip on
+`1s`, `5s`, `1m`, `5m`, `15m`, `30m`, `1h`, `1D`, `1W` and `1M`. One route
+answers every frame, the hub does every aggregation, and a chart read is
+bounded by its own limit rather than by the year.
+
+```
+GET /bars?symbol=OGDC&tf=5m&days=365&limit=400
+```
+
+`tf` is one of the ten frames. `days` defaults to 365 and is capped at 365;
+`limit` defaults to 400 and is capped at 2,000, and the newest bars in the
+window are returned. KSE100 is a symbol too: the broker's own index frame is
+folded into the same minute store under that name.
+
+Two frames are live-only, and the answer says so rather than inventing a bar:
+`1s` and `5s` are built on the desktop from its own quote samples, because the
+broker feed observes one symbol every 30 to 90 seconds. From `1m` up, every
+closed minute is rolled into `5m`, `15m`, `30m`, `1h` and `1D` buckets, one row
+per bucket carrying every symbol, and `1W` and `1M` are grouped from the daily
+rows when they are read. A session writes about 1,875 rollup rows, inside the
+free plan's 100,000 rows a day; a chart read is a few hundred rows.
+
+Retention is a budget decision, stated in the answer's `retention_days`: `1m`
+for 45 days, `5m` for 180, and `15m` through `1M` for a full year. A 365 day
+window therefore fills over the first year of storage; the relay began storing
+on 2026-11-07 and nothing before that date is invented. KMIALLSHR has no
+published index level in the broker feed or on the exchange's constituent page
+(only its members and weights), so no KMIALLSHR line is drawn (SO-3).
+
 ## Minute bars (`GET /history`)
 
 Owner order 2026-11-07: the owner's desktop build draws a full-day
@@ -202,7 +233,7 @@ the relay measured:
 - the volume is the observed increase of the venue's cumulative total, so it
   is a measured increment, not an exchange-reported minute volume.
 
-Bars are kept for 10 days and pruned once a day. Storing began on
+Bars are kept for 45 days and pruned once a day. Storing began on
 2026-11-07, so earlier sessions have no history at this resolution.
 
 | Event | Mon-Thu | Friday | Trigger (UTC) |
