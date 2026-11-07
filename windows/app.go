@@ -1015,6 +1015,8 @@ func (a *App) keyScanner(k Key) {
 	case KEnter:
 		if searching {
 			a.pickMatch()
+		} else if i := a.hoveredSector(); i >= 0 {
+			a.openSector(i)
 		} else {
 			a.pickScan(a.scanCursor + 1)
 		}
@@ -1335,12 +1337,11 @@ func (a *App) draw(w io.Writer) {
 }
 
 // frameEvery is the time between animation frames. A console has to parse
-// every colour code it is sent, so the live orb runs at ten frames a second;
-// the owner asked for more speed, which is in the dial's own turn rates. The
-// dark dial does not move, so it is redrawn only when something else needs the
-// screen.
+// every colour code it is sent, so the dial runs at ten frames a second while
+// it turns. With hudForceLive on it turns in every state for the owner's check;
+// otherwise only a live market animates it.
 func (a *App) frameEvery() time.Duration {
-	if a.orbMode() == OrbBurning {
+	if hudForceLive || a.orbMode() == OrbBurning {
 		return 100 * time.Millisecond
 	}
 	return 250 * time.Millisecond

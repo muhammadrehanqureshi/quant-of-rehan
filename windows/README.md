@@ -1,9 +1,14 @@
-# Quant of Rehan for Windows (console edition), build 11
+# Quant of Rehan for Windows (console edition), build 12
 
 A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.16**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
 
-## What is new in build 11
+## What is new in build 12
+
+* **Build 12.** The clock is green and the UTC+5 tag keeps the darker shade; the date and the time now have one space between them. The share bars are seven eighths of a cell tall, the terminal's next step above build 11's three quarters, which is sixteen and two thirds percent more. The dial is green and turning in every state while the owner checks the build outside market hours; `hudForceLive` in `orb.go` restores the dark, still dial afterwards. Opening a sector lists its scrips inside the SECTORS tile and leaves CUSTOM SCRIPS BY VOLUME on screen; BACKSPACE brings every group back, and ENTER opens the group under the pointer as well as a click. The icon is redrawn from the teal dial, and the workflow extracts the icon the exe actually carries into the `QuantOfRehan-exe-icon` artifact so it can be checked.
+* **The title.** A console has one font size for the whole window, so a literal ten percent on one line is not available. The title is now the theme's brightest ink, bold, with the ordinary word spacing the owner asked for.
+
+## What was new in build 11
 
 * **Build 11.** The title is `◆ QUANT OF REHAN ◆` with ordinary word spacing, the date and clock are a darker shade and end in `UTC+5`, and the index line has a thin rule on either side. The green and red share bars are three quarters of a cell tall. The dial is green and turns faster while the market is live; a closed market leaves it dark and still, as the owner asked.
 * **The icon is the picture.** The Windows icon is the owner's teal dial artwork, rendered at 1024 by `tools/mkicon_hud.py` in the Windows workflow and embedded in the exe at every icon size.
@@ -26,7 +31,7 @@ One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of 
 * **HOME:** one blank line between the BUYING NOW line and the `Data from the broker's feed...` line.
 * **The HUD dial (ORB).** The owner's animated ring, drawn as a dot matrix: a 2 by 4 grid of Braille dots in every cell, and only the dots that fall on a ring are lit, so the panel's own background is the only background. Seven concentric pale ice blue rings, an empty centre, three thick cut seams that turn through every ring, dashed rings crawling in opposite directions and one bright glint sweeping around. Offline the same dial is dimmer and slower. There is no sun, no wireframe, no radar sweep and no crosshair, because the GIF has none. It is on HOME only; the SCANNER gives its width to the search, the SECTORS tile and the list. The application icon is the owner's teal dial artwork, drawn by `tools/mkicon_hud.py` in the Windows workflow.
 
-* **SECTORS** is on the SCANNER: the relay's `/sectors` groups in a drop down list. The wheel or the scrollbar moves through the groups. A click stays on the SCANNER, hides the other sectors and lists every scrip of the chosen group that is in KMIALLSHR, with its price. That list scrolls and a click opens a scrip in the search tile. BACKSPACE, or ESC, brings every sector back without changing screen.
+* **SECTORS** is on the SCANNER: the relay's `/sectors` groups in a drop down list. The wheel or the scrollbar moves through the groups. A click or ENTER opens the chosen group inside the SECTORS tile and lists every scrip of it that is in KMIALLSHR, with its price; the CUSTOM SCRIPS BY VOLUME tile below stays visible. That list scrolls and a click opens a scrip in the search tile. BACKSPACE, or ESC, brings every sector back without changing screen.
 
 ## Run it
 
@@ -157,7 +162,7 @@ go test ./...
 set GOOS=windows& set GOARCH=amd64& go build -trimpath -ldflags "-s -w -buildid=" -o QuantOfRehan.exe .
 ```
 
-`rsrc_windows_amd64.syso` holds the icon and version info. `python tools/mkicon_hud.py assets/QuantOfRehan.ico assets/icon-1024.png` draws the blue HUD dial icon (needs Pillow) and `python tools/mksyso.py assets/QuantOfRehan.ico rsrc_windows_amd64.syso 4.0.16.11` writes the resource file. The Windows workflow runs both before the tests and the build.
+`rsrc_windows_amd64.syso` holds the icon and version info. `python tools/mkicon_hud.py assets/QuantOfRehan.ico assets/icon-1024.png` draws the blue HUD dial icon (needs Pillow) and `python tools/mksyso.py assets/QuantOfRehan.ico rsrc_windows_amd64.syso 4.0.16.12` writes the resource file. The Windows workflow runs both before the tests and the build.
 
 Source map: `signaltext.go` and `rank.go` port the app's signal and ranking rules, `relay.go` is the relay client, `session.go` is the PSX session law (pre, trading, break and post times) and the scan window, `flow.go` is the big buying detector, `live.go` holds flashes, charts, feed health and the mouse, `screens*.go`, `orb.go` (the ring), `orderflow_data.go` and `screens_orderflow.go` (the ORDER FLOW tab), `feedstats.go` and `feedwatch.go` (feed ages and the diagnostic) and `spark.go` draw the HUD, `term_windows.go` is the Windows console layer.
 

@@ -246,10 +246,10 @@ func TestPhaseAtMatchesTheSessionLaw(t *testing.T) {
 	}
 }
 
-// The dial turns only while the market is live, and it is green while it runs.
-// A closed, checking or unreachable market leaves the same dots dark and still.
-// It is always dots on the panel, never a filled field.
-func TestDialTurnsOnlyWhileTheMarketIsLive(t *testing.T) {
+// Owner order 2026-11-07: he is checking the desktop build outside market
+// hours, so hudForceLive keeps the dial green and turning in every state. The
+// dark, still dial is still in orb.go behind that switch.
+func TestDialTurnsAndIsGreenWhileTheOwnerChecks(t *testing.T) {
 	th := themeAt(0)
 	paint := func(mode OrbMode, secs float64) *Canvas {
 		c := NewCanvas(38, 14, th.Panel)
@@ -264,33 +264,25 @@ func TestDialTurnsOnlyWhileTheMarketIsLive(t *testing.T) {
 		}
 		return true
 	}
-	if same(paint(OrbBurning, 1.0), paint(OrbBurning, 1.5)) {
-		t.Fatalf("online, the dial must turn")
-	}
-	for _, m := range []OrbMode{OrbChecking, OrbParked, OrbFault} {
-		if !same(paint(m, 1.0), paint(m, 9.7)) {
-			t.Errorf("mode %d: a dial with no live market must be still", m)
+	for _, m := range []OrbMode{OrbBurning, OrbChecking, OrbParked, OrbFault} {
+		if same(paint(m, 1.0), paint(m, 9.7)) {
+			t.Errorf("mode %d: the dial must turn while the check override is on", m)
 		}
-	}
-	lit := 0
-	for _, ce := range paint(OrbBurning, 2).Cells {
-		if ce.BG != th.Panel {
-			t.Fatalf("the dial painted a background: %v", ce.BG)
+		lit := 0
+		for _, ce := range paint(m, 2).Cells {
+			if ce.BG != th.Panel {
+				t.Fatalf("the dial painted a background: %v", ce.BG)
+			}
+			if ce.Ch < 0x2800 || ce.Ch > 0x28ff {
+				continue
+			}
+			if ce.FG.G < 150 || ce.FG.G < ce.FG.R+40 {
+				t.Errorf("mode %d: a dial dot is %v, not green", m, ce.FG)
+			}
+			lit++
 		}
-		if ce.Ch < 0x2800 || ce.Ch > 0x28ff {
-			continue
-		}
-		if ce.FG.G < 150 || ce.FG.G < ce.FG.R+40 {
-			t.Errorf("a live dial dot is %v, not green", ce.FG)
-		}
-		lit++
-	}
-	if lit < 40 {
-		t.Errorf("online mark: %d lit cells, want a dot matrix", lit)
-	}
-	for _, ce := range paint(OrbParked, 2).Cells {
-		if ce.Ch >= 0x2800 && ce.Ch <= 0x28ff && ce.FG.G > 90 {
-			t.Errorf("a closed dial dot is %v, not dark", ce.FG)
+		if lit < 40 {
+			t.Errorf("mode %d: %d lit cells, want a dot matrix", m, lit)
 		}
 	}
 }
@@ -373,7 +365,7 @@ func TestOnlySafeGlyphsOnScreen(t *testing.T) {
 		case r >= 0x2500 && r <= 0x259f, r >= 0x2800 && r <= 0x28ff:
 			return true
 		}
-		return strings.ContainsRune("·…▲▼●◆♦♪▪", r)
+		return strings.ContainsRune("·…▲▼●◆♦♪▪▬", r)
 	}
 	for _, sz := range [][2]int{{80, 26}, {122, 30}, {160, 45}} {
 		for scr := range screenNames {

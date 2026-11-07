@@ -10,8 +10,9 @@ import "math"
 //
 // Three thick seams cut every ring and turn with it, the dashed rings crawl in
 // opposite directions, and one bright glint sweeps around the outside, so the
-// mark is alive while the market is live. A market that is closed, still being
-// checked or unreachable leaves the same dial dark and completely still.
+// mark is alive while the market is live. A closed, checking or unreachable
+// market leaves the dial dark and still, but the owner is checking the desktop
+// build now, so hudForceLive keeps it green and turning in every state.
 
 var cellAspect = defaultCellAspect
 
@@ -27,6 +28,11 @@ const (
 	OrbChecking                // no answer yet
 	OrbFault                   // relay unreachable
 )
+
+// hudForceLive keeps the dial green and turning outside market hours. Owner
+// order 2026-11-07: he is checking the desktop build while the market is closed
+// and needs to see it move. Set this to false to restore the dark, still dial.
+const hudForceLive = true
 
 func clamp01(x float64) float64 {
 	if x < 0 {
@@ -95,19 +101,21 @@ func hudCut(turn, t float64) bool {
 	return false
 }
 
-// hudTime is the clock the dial runs on. It only turns while the market is
-// live: closed, checking and unreachable all leave it dark and still.
+// hudTime is the clock the dial runs on. With hudForceLive on it runs in every
+// state for the owner's check; otherwise only a live market turns it, and a
+// closed, checking or unreachable market leaves it still.
 func hudTime(mode OrbMode, t float64) float64 {
-	if mode != OrbBurning {
+	if !hudForceLive && mode != OrbBurning {
 		return 0
 	}
 	return t
 }
 
-// hudInk gives the ink for one tone. A dial with no live market is dark; while
-// the market is live its dots run from green to pale green.
+// hudInk gives the ink for one tone. With hudForceLive on every state is green;
+// otherwise a dial with no live market is dark and a live one runs green to pale
+// green.
 func hudInk(tone float64, mode OrbMode) RGB {
-	if mode != OrbBurning {
+	if !hudForceLive && mode != OrbBurning {
 		return hudDark
 	}
 	return mix(hudMid, hudPale, clamp01(tone))

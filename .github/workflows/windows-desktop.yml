@@ -27,11 +27,17 @@ jobs:
         run: |
           python -m pip install --disable-pip-version-check pillow
           python tools/mkicon_hud.py assets/QuantOfRehan.ico assets/icon-1024.png
-          python tools/mksyso.py assets/QuantOfRehan.ico rsrc_windows_amd64.syso 4.0.16.11
+          python tools/mksyso.py assets/QuantOfRehan.ico rsrc_windows_amd64.syso 4.0.16.12
       - name: Test
         run: go test ./...
       - name: Build the console executable
         run: go build -trimpath -ldflags "-s -w -buildid=" -o QuantOfRehan.exe .
+      - name: Extract the icon the exe carries
+        shell: pwsh
+        run: |
+          Add-Type -AssemblyName System.Drawing
+          $icon = [System.Drawing.Icon]::ExtractAssociatedIcon("$PWD\QuantOfRehan.exe")
+          $icon.ToBitmap().Save("$PWD\exe-icon.png", [System.Drawing.Imaging.ImageFormat]::Png)
       - name: Package the runtime
         shell: pwsh
         run: |
@@ -48,3 +54,7 @@ jobs:
         with:
           name: QuantOfRehan-icon
           path: windows/assets/icon-1024.png
+      - uses: actions/upload-artifact@v4
+        with:
+          name: QuantOfRehan-exe-icon
+          path: windows/exe-icon.png

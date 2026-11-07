@@ -69,6 +69,9 @@ func TestScannerShowsSectorsAndCyclesThem(t *testing.T) {
 			t.Errorf("the open sector is missing %q:\n%s", want, opened)
 		}
 	}
+	if !strings.Contains(opened, "CUSTOM SCRIPS BY VOLUME") {
+		t.Errorf("the open sector hid the CUSTOM SCRIPS tile:\n%s", opened)
+	}
 	// Owner order 2026-11-07: BACKSPACE brings every sector back, in place.
 	a.onKey(Key{Kind: KBackspace})
 	if a.sectorOpen || a.screen != scrScanner {
@@ -79,6 +82,12 @@ func TestScannerShowsSectorsAndCyclesThem(t *testing.T) {
 		if !strings.Contains(restored, want) {
 			t.Errorf("after BACKSPACE the sector list is missing %q:\n%s", want, restored)
 		}
+	}
+	// ENTER opens the group under the pointer, not only a click.
+	a.hoverX, a.hoverY = 10, a.sectorY+1+2
+	a.onKey(Key{Kind: KEnter})
+	if !a.sectorOpen || a.sectorChoice != 2 {
+		t.Errorf("ENTER must open the pointed sector: open %v choice %d", a.sectorOpen, a.sectorChoice)
 	}
 }
 
