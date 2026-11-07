@@ -539,7 +539,8 @@ class RelayWorkerContractTest(unittest.TestCase):
         (a push at most once a second for the 09:30 to 15:30 session is
         21,600), the flow backup's own 40,000 ceiling, the ACK mirror's
         25,000, the 10-minute stats row and at most one diagnostic a
-        minute - the sum stays near 88,000, under the cap even doubled,
+        minute, and at most 1,000 minute-bar rows - the sum stays near
+        88,000, under the cap even doubled,
         so no day can exhaust writes and mute the feed.
         """
         pushes = 21_600
@@ -548,10 +549,15 @@ class RelayWorkerContractTest(unittest.TestCase):
         ack_rows = 25_000
         stats_rows = 6 * 60 // 10
         diagnostics = 6 * 60
-        total = snapshot_rows + flow_rows + ack_rows + stats_rows + diagnostics
+        # Owner order 2026-11-07: the minute bars are one row per minute
+        # carrying every symbol, about 360 a session, with a 1,000 row ceiling
+        # and one retention prune a day.
+        bar_rows = 1_000
+        total = (snapshot_rows + flow_rows + ack_rows + stats_rows +
+                 diagnostics + bar_rows)
         self.assertLess(total, 100_000, total)
-        self.assertEqual((snapshot_rows, flow_rows, ack_rows, total),
-                         (21600, 40000, 25000, 86996))
+        self.assertEqual((snapshot_rows, flow_rows, ack_rows, bar_rows, total),
+                         (21600, 40000, 25000, 1000, 87996))
 
     def test_the_relay_remembers_the_days_entry_stamp(self):
         """A later card cannot lose the entry time the first card carried."""

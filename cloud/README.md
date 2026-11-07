@@ -38,6 +38,9 @@ status surface, on the Cloudflare edge off your PC.
   read of the durable quote snapshot: no portal fetch
   and no ACK write, so a desktop poll cannot spend the Durable Objects
   write budget.
+- `GET /history`: minute OHLC bars for one symbol and one Karachi day,
+  built by the relay from the accepted one-second feed, with a coverage
+  answer when no symbol is given. See "Minute bars" below.
 - Cron triggers do scan dispatch and card upkeep only; owner order
   2026-10-31 retires the market open/close/break emails entirely, and no
   cron sends a chat message.
@@ -129,7 +132,7 @@ not there, while a real push stall moves both numbers. Treat `age_seconds` as
 the feed freshness and `tick_age_seconds` as the stock's last-trade age.
 
 The live quote view uses its own Durable Object instance name,
-`psx-live-quotes-v3`, because a deployed class change does not restart an
+`psx-live-quotes-v4`, because a deployed class change does not restart an
 object that the one-second feed never lets go idle. The new instance adopts
 the capture's observed pair on its first push, under either the measured_*
 names or the original `buy_volume`/`sell_volume` pair. The original state instance
@@ -139,6 +142,68 @@ keeps the market card, signals and acknowledged rows untouched.
 ticket. The MKT-FEED wire carries a per-symbol snapshot with a cumulative
 volume, bid and ask, and no individual order id. One relay update of at least
 PKR 1,000,000 on one side is the smallest honest unit this data can support.
+
+## Minute bars (`GET /history`)
+
+Owner order 2026-11-07: the owner's desktop build draws a full-day
+candlestick chart per KMIALL scrip. Its own buffer holds only about five
+minutes of one-second samples, so the relay aggregates the accepted quote
+feed into minute bars and serves them here. The route is public and read-only.
+
+```
+GET /history?symbol=OGDC&day=2026-11-05&limit=500
+```
+
+`resolution` is `1m`, the only resolution this route serves. `day` defaults
+to the current Karachi day and must be `YYYY-MM-DD`. `limit` defaults to 500
+and is capped at 1,000 bars, which covers a whole session (about 360 bars on
+Monday to Thursday, about 280 on Friday). Calling the route without `symbol`
+returns coverage instead: the days the relay holds, each with its minute
+count and first and last minute.
+
+The numbers below are illustrative, not a live claim.
+
+```json
+{
+  "ok": true,
+  "symbol": "OGDC",
+  "day": "2026-11-05",
+  "resolution": "1m",
+  "source": "eClear broker feed, aggregated to minute bars inside the relay",
+  "bars": [
+    {"t": "2026-11-05T09:32:00+05:00", "minute": "09:32", "o": 241.5, "h": 241.9, "l": 241.2, "c": 241.7, "v": 18200}
+  ],
+  "bar_count": 1,
+  "first_minute": "09:32",
+  "last_minute": "09:32",
+  "forming": false,
+  "as_of": "2026-11-05T10:05:11+05:00",
+  "retention_days": 10,
+  "notes": [
+    "built by the relay from accepted one-second quote frames, not from an exchange OHLC feed",
+    "a minute's volume is the observed increase of the venue's cumulative day total between the first and last frame accepted in that minute",
+    "times are ISO 8601 with the Karachi offset (+05:00)"
+  ]
+}
+```
+
+`t` is the minute's start as an ISO 8601 stamp with the Karachi offset
+(`+05:00`); `minute` is the same moment as `HH:MM` for a chart axis. The store
+is one row per Karachi minute carrying every symbol, not one row per symbol
+per minute: a session costs about 360 written rows, and the route's day
+reader keeps one day in memory, so paging a chart costs one SQL read.
+
+Two limitations are stated plainly because a chart must not imply more than
+the relay measured:
+
+- a bar exists only where the relay accepted a print in that minute; a minute
+  with no accepted frame has no bar, and a day with no stored rows is
+  answered as an empty list with a note, never filled with a flat line;
+- the volume is the observed increase of the venue's cumulative total, so it
+  is a measured increment, not an exchange-reported minute volume.
+
+Bars are kept for 10 days and pruned once a day. Storing began on
+2026-11-07, so earlier sessions have no history at this resolution.
 
 | Event | Mon-Thu | Friday | Trigger (UTC) |
 |---|---|---|---|
