@@ -19,6 +19,15 @@ func (a *App) sortedFlow() []FlowRow {
 	}
 	rows := make([]FlowRow, len(a.of.Rows))
 	copy(rows, a.of.Rows)
+	if q := a.ofQuery; q != "" {
+		kept := rows[:0]
+		for _, r := range rows {
+			if strings.HasPrefix(r.Symbol, q) {
+				kept = append(kept, r)
+			}
+		}
+		rows = kept
+	}
 	key := func(r FlowRow) (float64, bool) {
 		switch a.ofSort {
 		case 0:
@@ -120,7 +129,7 @@ func (a *App) ofAge() (string, bool) {
 
 func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 	th := a.th
-	hint := "O changes the order. UP and DOWN scroll."
+	hint := "O changes the order. / searches. UP and DOWN scroll."
 	ix, iy, iw, ih := a.panel(c, x, y, w, h, "ORDER FLOW", hint)
 	if a.of == nil {
 		msg := "Reading ORDER FLOW from the relay."
@@ -215,11 +224,17 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 		a.addHit(cx, row, runeLen(lab), 1, func() { a.ofSort = i; a.lvOF.top() })
 		cx += runeLen(lab) + 2
 	}
-	row += 2
+	row++ // one blank row under the chips
+	a.drawFlowSearch(c, ix, row, iw)
+	row++
 
 	rows := a.sortedFlow()
 	if len(rows) == 0 {
-		c.Text(ix, row, iw, "The relay answered with no stock rows.", th.Soft, false)
+		msg := "The relay answered with no stock rows."
+		if a.ofQuery != "" {
+			msg = fmt.Sprintf("No stock matches %q.", a.ofQuery)
+		}
+		c.Text(ix, row, iw, fit(msg, iw), th.Soft, false)
 		return
 	}
 	wide := iw >= 102
@@ -289,7 +304,7 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 			c.Text(ix+colX[3], row, colW[3], padLeft(bidAsk(r.Ask), colW[3]), th.Text, false)
 			a.drawFlowCols(c, ix, row, r, volKey)
 			if bw := cw - flowBarX; bw >= 12 && r.Measured() && *r.Buy+*r.Sell > 0 {
-				a.shareBar(c, ix+flowBarX, row, min(22, bw), float64(*r.Buy)/float64(*r.Buy+*r.Sell))
+				a.shareBarMid(c, ix+flowBarX, row, min(22, bw), float64(*r.Buy)/float64(*r.Buy+*r.Sell))
 			}
 			if warn != "" {
 				c.Text(ix+cw-len(warn), row, len(warn), warn, th.Warn, true)
@@ -366,6 +381,30 @@ func (a *App) drawFlowCols(c *Canvas, ix, y int, r FlowRow, volKey string) {
 		c.Text(ix+colX[4], y, colW[4], padLeft("no split", colW[4]), th.Soft, false)
 		cell(7, r.Volume, th.Text, false, "")
 	}
+}
+
+// drawFlowSearch draws the ORDER FLOW search box. The slash key focuses it,
+// letters and digits go into the box, and ESC clears the filter.
+func (a *App) drawFlowSearch(c *Canvas, ix, y, iw int) {
+	th := a.th
+	c.Text(ix, y, 7, "SEARCH", th.Soft, false)
+	c.Put(ix+7, y, '[', th.Accent, true)
+	field, col := a.ofQuery, th.Text
+	if field == "" {
+		field, col = "symbol", th.Soft
+	}
+	if a.ofSearch {
+		field += "▏"
+	}
+	c.Text(ix+9, y, 14, fit(field, 14), col, a.ofSearch)
+	c.Put(ix+24, y, ']', th.Accent, true)
+	if a.ofQuery != "" {
+		c.Text(ix+26, y, 12, fmt.Sprintf("%d match", len(a.sortedFlow())), th.Soft, false)
+	}
+	if iw > 52 {
+		rightAlign(c, ix, y, iw, []Span{{"/ searches  ESC clears", th.Soft, false}})
+	}
+	a.addHit(ix, y, iw, 1, func() { a.ofSearch = true })
 }
 
 func padLeft(s string, w int) string {

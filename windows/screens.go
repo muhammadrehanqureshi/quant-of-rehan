@@ -306,8 +306,8 @@ func (a *App) scanStatus() (string, RGB) {
 	switch {
 	case isWeekend(p):
 		return "OFF AT THE WEEKEND", th.Soft
-	case secondOf(p) < preWindow.from*60:
-		return "STARTS AT 09:00", th.Soft
+	case secondOf(p) < scanOpen*60:
+		return "STARTS AT 08:55", th.Soft
 	}
 	return "DONE FOR TODAY", th.Soft
 }

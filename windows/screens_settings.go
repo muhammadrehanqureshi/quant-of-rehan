@@ -73,7 +73,7 @@ func (a *App) drawSettings(c *Canvas, x, y, w, h int) {
 	info("VERSION", appVersion+" (Windows build "+hudBuild+")", th.Hot)
 	info("REQUESTS TODAY", commaInt(a.reqToday())+" of 100,000 on the free tier.", th.Text)
 	info("", "The count resets at 05:00 PKT.", th.Text)
-	info("SCANNING", "Every second from 09:00 until the post-market closes.", th.Text)
+	info("SCANNING", "Every second from 08:55 until the post-market closes.", th.Text)
 	info("", "That is 15:49 Monday to Thursday and 16:49 on Friday.", th.Text)
 	info("SETTINGS FILE", settingsPath(), th.Soft)
 }

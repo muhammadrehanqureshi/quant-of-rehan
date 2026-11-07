@@ -3,10 +3,10 @@ package main
 import "time"
 
 // appVersion mirrors the Android app this build is ported from.
-const appVersion = "4.0.14"
+const appVersion = "4.0.15"
 
 // hudBuild is the build number of this Windows HUD port.
-const hudBuild = "7"
+const hudBuild = "8"
 
 // pkt is Pakistan time, fixed UTC+5 (no daylight saving), same as the session law.
 var pkt = time.FixedZone("PKT", 5*3600)

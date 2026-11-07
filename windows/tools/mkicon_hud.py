@@ -1,6 +1,7 @@
-"""Draw the Quant of Rehan mark exactly as the owner's HUD picture: a teal tile
-under concentric pale ice blue rings, one ring of heavy blocks, ribbed and tick
-rings and a bright inner ring, with an empty centre.
+"""Draw the Quant of Rehan mark exactly as the owner's HUD picture: a square teal
+tile under concentric pale ice blue rings, with the thin outer arc, twelve heavy
+blocks, a smooth ring, two tick rings, the bright inner ring and the small inner
+ring, and an empty centre.
 
 Usage:
     python mkicon_hud.py assets/QuantOfRehan.ico assets/icon-1024.png
@@ -44,13 +45,6 @@ def arc_block(d, r0, r1, a0, a1, fill):
     d.polygon(pts, fill=fill)
 
 
-def tick(d, r0, r1, a, fill, width):
-    a = math.radians(a)
-    d.line([CX + math.cos(a) * r0 * N, CY + math.sin(a) * r0 * N,
-            CX + math.cos(a) * r1 * N, CY + math.sin(a) * r1 * N],
-           fill=fill, width=width)
-
-
 def background():
     # The picture's teal, a touch deeper at the bottom.
     small = Image.new("RGB", (2, 2))
@@ -62,47 +56,54 @@ def background():
     return small.resize((N, N), Image.BILINEAR).convert("RGBA")
 
 
+def cap(d, ang, r, size, fill):
+    a = math.radians(ang)
+    x, y = CX + math.cos(a) * r * N, CY + math.sin(a) * r * N
+    h = N * size
+    d.rectangle([x - h, y - h, x + h, y + h], fill=fill)
+
+
 def dial():
     layer = Image.new("RGBA", (N, N), (0, 0, 0, 0))
     d = ImageDraw.Draw(layer)
 
-    # The thin outer arc, almost a full circle, with a small gap and two caps.
-    arc_block(d, 0.955, 0.990, 10, 348, rgba(ink(0.50), 210))
-    for ang in (10, 348):
-        a = math.radians(ang)
-        x, y = CX + math.cos(a) * 0.9725 * N, CY + math.sin(a) * 0.9725 * N
-        d.rectangle([x - N * 0.009, y - N * 0.009, x + N * 0.009, y + N * 0.009],
-                    fill=rgba(ink(0.80), 235))
+    # The thin outer arc, almost a full circle, with a small gap at the top and
+    # the picture's four square caps on the diagonals.
+    arc_block(d, 0.955, 0.990, 12, 348, rgba(ink(0.55), 215))
+    cap(d, 12, 0.9725, 0.0085, rgba(ink(0.85), 235))
+    cap(d, 348, 0.9725, 0.0085, rgba(ink(0.85), 235))
+    for ang in (45, 135, 225, 315):
+        cap(d, ang, 0.9725, 0.0075, rgba(ink(0.90), 240))
 
-    # The ring of heavy blocks, twelve of them.
+    # The ring of twelve heavy blocks, the picture's most visible band.
     for k in range(12):
         a0 = k * 30 + 4
-        arc_block(d, 0.800, 0.930, a0, a0 + 22, rgba(ink(0.92), 245))
+        arc_block(d, 0.805, 0.930, a0, a0 + 22, rgba(ink(0.94), 245))
 
-    # The ribbed ring.
-    for k in range(40):
-        a0 = k * 9 + 1
-        arc_block(d, 0.690, 0.760, a0, a0 + 7.0, rgba(ink(0.62), 220))
+    # The smooth pale ring under the blocks, in four long segments.
+    for k in range(4):
+        a0 = k * 90 + 2
+        arc_block(d, 0.700, 0.770, a0, a0 + 86, rgba(ink(0.72), 225))
 
-    # The first dense tick ring.
+    # The first tick ring.
     for i in range(64):
         a = i * (360 / 64)
-        arc_block(d, 0.615, 0.700, a + 0.4, a + 1.5, rgba(ink(0.88), 225))
+        arc_block(d, 0.610, 0.685, a + 0.4, a + 1.5, rgba(ink(0.88), 225))
 
-    # The bright inner ring, in a few long segments.
+    # The bright inner ring, in six long segments.
     for k in range(6):
         a0 = k * 60 + 5
-        arc_block(d, 0.455, 0.545, a0, a0 + 47, rgba(ink(1.0), 250))
+        arc_block(d, 0.450, 0.545, a0, a0 + 47, rgba(ink(1.0), 250))
 
     # The second tick ring.
     for i in range(48):
         a = i * (360 / 48)
-        arc_block(d, 0.360, 0.440, a + 0.4, a + 1.6, rgba(ink(0.76), 225))
+        arc_block(d, 0.350, 0.435, a + 0.4, a + 1.6, rgba(ink(0.76), 225))
 
-    # The small inner ring.
-    for i in range(36):
-        a = i * 10
-        arc_block(d, 0.230, 0.290, a + 0.6, a + 2.6, rgba(ink(0.70), 220))
+    # The small inner ring, in twelve short segments around an empty centre.
+    for i in range(12):
+        a0 = i * 30 + 7
+        arc_block(d, 0.235, 0.295, a0, a0 + 16, rgba(ink(0.80), 235))
     return layer
 
 
