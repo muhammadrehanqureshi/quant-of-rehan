@@ -80,10 +80,34 @@ func TestHeaderClockTicksEverySecond(t *testing.T) {
 	a.animT = -1
 	for i := 0; i < 3; i++ {
 		a.now = time.Date(2026, 11, 2, 11, 0, i, 0, pkt)
-		want := fmt.Sprintf("MON 02 NOV 2026  11:00:0%d UTC+5", i)
+		want := fmt.Sprintf("MON 02 NOV 2026 11:00:0%d UTC+5", i)
 		if row := rowsOf(a)[0]; !strings.HasSuffix(strings.TrimRight(row, " "), want) {
 			t.Errorf("second %d: top row is %q, want it to end with %q", i, row, want)
 		}
+	}
+}
+
+// Owner order 2026-11-07: the clock itself is green; the date and the UTC+5 tag
+// stay in the darker shade.
+func TestHeaderClockIsGreenButUTCDoesNotFollow(t *testing.T) {
+	a := demoApp(t, 122, 30)
+	a.animT = -1
+	a.now = time.Date(2026, 11, 2, 11, 0, 7, 0, pkt)
+	c := a.render()
+	row := c.PlainRows()[0]
+	timeAt := strings.Index(row, "11:00:07")
+	if timeAt < 0 {
+		t.Fatalf("the top row has no clock: %q", row)
+	}
+	if got := c.Cells[timeAt].FG; got != a.th.Good {
+		t.Errorf("the clock is %v, want green %v", got, a.th.Good)
+	}
+	utcAt := strings.Index(row, "UTC+5")
+	if utcAt < 0 {
+		t.Fatalf("the top row has no UTC+5 tag: %q", row)
+	}
+	if got := c.Cells[utcAt].FG; got == a.th.Good {
+		t.Errorf("UTC+5 is green too; it must stay in the darker shade")
 	}
 }
 
