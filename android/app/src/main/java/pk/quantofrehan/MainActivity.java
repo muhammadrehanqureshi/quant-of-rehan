@@ -346,6 +346,11 @@ public class MainActivity extends Activity {
     private EditText orderFlowInput;
     private LinearLayout orderFlowResults;
     private TextView orderFlowSelected;
+    /** Owner order 2026-11-07: the two-column BID | ASK book and the
+     *  selected scrip's own filled transactions. */
+    private LinearLayout orderFlowBook;
+    private TextView orderFlowPrints;
+    private String orderFlowBookSymbol;
     private View bigPrintsPanel;
     private TextView bigPrintsList;
     private ScrollView bigPrintsScroll;
@@ -564,6 +569,9 @@ public class MainActivity extends Activity {
         orderFlowInput = findViewById(R.id.order_flow_input);
         orderFlowResults = findViewById(R.id.order_flow_results);
         orderFlowSelected = findViewById(R.id.order_flow_selected);
+        orderFlowBook = findViewById(R.id.order_flow_book);
+        orderFlowPrints = findViewById(R.id.order_flow_prints);
+        themedInputs.add(orderFlowInput);
         bigPrintsPanel = findViewById(R.id.big_prints_panel);
         bigPrintsList = findViewById(R.id.big_prints_list);
         bigPrintsScroll = findViewById(R.id.big_prints_scroll);
@@ -1301,6 +1309,7 @@ public class MainActivity extends Activity {
                 findViewById(R.id.tile_signal),
                 findViewById(R.id.tile_market),
                 settingsPanel, searchPanel, tileVolume,
+                orderFlowPanel, bigPrintsPanel,
                 findViewById(R.id.tile_themes),
                 findViewById(R.id.nav_tile)};
         for (View plate : plates) {
@@ -1312,6 +1321,7 @@ public class MainActivity extends Activity {
                 R.id.brand_title, R.id.status_label, R.id.signal_label,
                 R.id.winloss_label, R.id.search_heading, R.id.settings_heading,
                 R.id.market_heading, R.id.volume_heading,
+                R.id.order_flow_heading, R.id.big_prints_heading,
                 R.id.themes_heading};
         for (int id : headingIds) {
             View heading = findViewById(id);
@@ -1326,6 +1336,17 @@ public class MainActivity extends Activity {
         if (searchInput != null) {
             renderSearchResults(searchInput.getText().toString());
         }
+        // Owner order 2026-11-07: the ORDER FLOW page is the theme's too. Its
+        // panels, headings and field paint above; the rows and the book it
+        // builds itself are rebuilt in the new ink in this same pass.
+        if (orderFlowInput != null) {
+            renderFlowResults(orderFlowInput.getText().toString().trim()
+                    .toUpperCase(Locale.US));
+        }
+        if (orderFlowBookSymbol != null) {
+            selectFlow(orderFlowBookSymbol);
+        }
+        renderBigPrints(lastPrints);
         // v2.3.20 (owner order 2026-10-28, "when I have selected another
         // theme, the app always shows purple and yellow"): the closed
         // THEMES box restamps its label with the theme this pass painted,
@@ -1707,7 +1728,10 @@ public class MainActivity extends Activity {
                 colorQuantity(sb, quote.sell, R.color.red);
                 if (quote.unclassified != null) {
                     sb.append(", U=");
+                    int unclearFrom = sb.length();
                     sb.append(String.format(Locale.US, "%,d", quote.unclassified));
+                    sb.setSpan(new ForegroundColorSpan(getColor(R.color.yellow)),
+                            unclearFrom, sb.length(), 0);
                 }
                 sb.append(quote.unclassified != null && quote.volume != null ? " &" : ")");
                 if (quote.volume != null) {
@@ -1721,7 +1745,10 @@ public class MainActivity extends Activity {
                 sb.append('\n');
                 if (quote.unclassified != null) {
                     sb.append("(U=");
+                    int unclearFrom = sb.length();
                     sb.append(String.format(Locale.US, "%,d", quote.unclassified));
+                    sb.setSpan(new ForegroundColorSpan(getColor(R.color.yellow)),
+                            unclearFrom, sb.length(), 0);
                     sb.append(')');
                     if (quote.volume != null) {
                         sb.append('\n');
@@ -2922,6 +2949,7 @@ public class MainActivity extends Activity {
                 // retired. The tile opens with the search box alone.
                 orderFlowSelected.setVisibility(View.GONE);
             }
+            hideFlowBook();
             if (bigPrintsScroll != null) {
                 // Owner order 2026-11-05: a freshly opened page reads the
                 // board from the top; the owner's scroll stays wherever he
@@ -3075,6 +3103,7 @@ public class MainActivity extends Activity {
             return;
         }
         orderFlowResults.removeAllViews();
+        hideFlowBook();
         // Owner order 2026-11-05 (sixth pass, "right now order flow tile is
         // wrong, you got random scrips there, I should be able to search for
         // a scrip there"): the tile is a SEARCH and nothing else. An empty
@@ -3238,7 +3267,10 @@ public class MainActivity extends Activity {
                     from, sb.length(), 0);
             if (row.unclassified != null) {
                 sb.append(", U=");
+                int unclearFrom = sb.length();
                 sb.append(String.format(Locale.US, "%,d", row.unclassified));
+                sb.setSpan(new ForegroundColorSpan(getColor(R.color.yellow)),
+                        unclearFrom, sb.length(), 0);
             }
             sb.append(row.unclassified != null && row.volume != null ? " &" : ")");
             if (row.volume != null) {
@@ -3249,7 +3281,10 @@ public class MainActivity extends Activity {
         } else if (row.unclassified != null || row.volume != null) {
             if (row.unclassified != null) {
                 sb.append("(U=");
+                int unclearFrom = sb.length();
                 sb.append(String.format(Locale.US, "%,d", row.unclassified));
+                sb.setSpan(new ForegroundColorSpan(getColor(R.color.yellow)),
+                        unclearFrom, sb.length(), 0);
                 sb.append(')');
                 if (row.volume != null) {
                     sb.append('\n');
@@ -3295,6 +3330,7 @@ public class MainActivity extends Activity {
         }
         if (found == null) {
             orderFlowSelected.setVisibility(View.GONE);
+            hideFlowBook();
             return;
         }
         SpannableStringBuilder sb = new SpannableStringBuilder();
@@ -3312,43 +3348,9 @@ public class MainActivity extends Activity {
                         priceFrom, sb.length(), 0);
             }
         }
-        sb.append('\n');
-        // Owner order 2026-11-05 (sixth pass, "I would search for HUBC,
-        // then i would see only HUBC's order flow i.e. bid/ask etc."): the
-        // searched scrip's own two-way book stands under its money line.
-        int bidQtyFrom = sb.length();
-        sb.append(found.bidSize != null
-                ? String.format(Locale.US, "BID QTY %,d", found.bidSize)
-                : "BID QTY n/a");
-        if (found.bidSize != null) {
-            sb.setSpan(new ForegroundColorSpan(getColor(R.color.green)),
-                    bidQtyFrom + 8, sb.length(), 0);
-        }
-        sb.append("  ");
-        int bidFrom = sb.length();
-        sb.append(found.bid != null
-                ? String.format(Locale.US, "BID %,.2f", found.bid)
-                : "BID n/a");
-        sb.setSpan(new ForegroundColorSpan(getColor(R.color.green)),
-                bidFrom, bidFrom + 3, 0);
-        sb.append(" & ");
-        int askFrom = sb.length();
-        sb.append(found.ask != null
-                ? String.format(Locale.US, "ASK %,.2f", found.ask)
-                : "ASK n/a");
-        sb.setSpan(new ForegroundColorSpan(getColor(R.color.red)),
-                askFrom, askFrom + 3, 0);
-        sb.append("  ");
-        int askQtyFrom = sb.length();
-        sb.append(found.askSize != null
-                ? String.format(Locale.US, "ASK QTY %,d", found.askSize)
-                : "ASK QTY n/a");
-        if (found.askSize != null) {
-            sb.setSpan(new ForegroundColorSpan(getColor(R.color.red)),
-                    askQtyFrom + 8, sb.length(), 0);
-        }
-        // Owner order 2026-11-06: B, S and U share one line and the total T
-        // starts the next, matching the leaders card and the search answer.
+        // Owner order 2026-11-07: the two-way book is two columns below
+        // this line now, so the scrip's own line and its four part split
+        // are all that stay in this text.
         SpannableStringBuilder split = flowSplitText(found);
         if (split.length() > 0) {
             sb.append('\n').append(split);
@@ -3358,6 +3360,139 @@ public class MainActivity extends Activity {
         }
         orderFlowSelected.setVisibility(View.VISIBLE);
         orderFlowSelected.setText(sb);
+        orderFlowBookSymbol = symbol;
+        fillFlowBook(found);
+        fillFlowPrints(symbol);
+    }
+
+    /** Clear the two-column book and the fills below it. */
+    private void hideFlowBook() {
+        orderFlowBookSymbol = null;
+        if (orderFlowBook != null) {
+            orderFlowBook.removeAllViews();
+            orderFlowBook.setVisibility(View.GONE);
+        }
+        if (orderFlowPrints != null) {
+            orderFlowPrints.setText("");
+            orderFlowPrints.setVisibility(View.GONE);
+        }
+    }
+
+    /**
+     * Owner order 2026-11-07: BID & QTY in one column, a vertical line, then
+     * ASK & QTY. The words stay neutral and the price and quantity carry the
+     * side's own colour, which is the way the owner reads the book.
+     */
+    private void fillFlowBook(Watcher.FlowRow row) {
+        if (orderFlowBook == null) {
+            return;
+        }
+        orderFlowBook.removeAllViews();
+        if (row.bid == null && row.ask == null) {
+            orderFlowBook.setVisibility(View.GONE);
+            return;
+        }
+        LinearLayout columns = new LinearLayout(this);
+        columns.setOrientation(LinearLayout.HORIZONTAL);
+        columns.setLayoutParams(new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT));
+        columns.addView(flowBookColumn("BID", row.bid, row.bidSize,
+                        R.color.green),
+                new LinearLayout.LayoutParams(0,
+                        LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        View divider = new View(this);
+        divider.setBackgroundColor(themeAccentInk);
+        divider.setAlpha(0.5f);
+        LinearLayout.LayoutParams dividerParams = new LinearLayout.LayoutParams(
+                Math.max(1, dp(1)), dp(64));
+        dividerParams.leftMargin = dp(10);
+        dividerParams.rightMargin = dp(10);
+        columns.addView(divider, dividerParams);
+        columns.addView(flowBookColumn("ASK", row.ask, row.askSize,
+                        R.color.red),
+                new LinearLayout.LayoutParams(0,
+                        LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        orderFlowBook.addView(columns);
+        orderFlowBook.setVisibility(View.VISIBLE);
+    }
+
+    /** One side of the two-column book: label, price and quantity. */
+    private LinearLayout flowBookColumn(String label, Double price, Long qty,
+                                        int colorRes) {
+        LinearLayout column = new LinearLayout(this);
+        column.setOrientation(LinearLayout.VERTICAL);
+        TextView head = new TextView(this);
+        head.setText(label);
+        head.setTextSize(11f);
+        head.setTextColor(themeBodyInk);
+        head.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        head.setIncludeFontPadding(false);
+        column.addView(head);
+        TextView value = new TextView(this);
+        value.setText(price != null
+                ? String.format(Locale.US, "%,.2f", price) : "n/a");
+        value.setTextSize(16f);
+        value.setTextColor(price != null ? getColor(colorRes) : themeBodyInk);
+        value.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        value.setIncludeFontPadding(false);
+        column.addView(value);
+        TextView size = new TextView(this);
+        SpannableString quantity = new SpannableString(qty != null
+                ? String.format(Locale.US, "QTY %,d", qty) : "QTY n/a");
+        if (qty != null) {
+            quantity.setSpan(new ForegroundColorSpan(getColor(colorRes)),
+                    4, quantity.length(), 0);
+        }
+        size.setText(quantity);
+        size.setTextSize(11f);
+        size.setTextColor(themeBodyInk);
+        size.setIncludeFontPadding(false);
+        column.addView(size);
+        return column;
+    }
+
+    /**
+     * Owner order 2026-11-07: the selected scrip's own filled transactions,
+     * at most eight, each with its side, its shares and its price.
+     */
+    private void fillFlowPrints(String symbol) {
+        if (orderFlowPrints == null) {
+            return;
+        }
+        SpannableStringBuilder sb = new SpannableStringBuilder();
+        int shown = 0;
+        for (Watcher.BigPrint print : lastPrints) {
+            if (print.symbol == null || !print.symbol.equalsIgnoreCase(symbol)) {
+                continue;
+            }
+            boolean sale = print.side != null
+                    && print.side.trim().toUpperCase(Locale.US).startsWith("S");
+            double price = print.price > 0 ? print.price
+                    : (print.shares > 0 ? (double) print.value / print.shares : 0d);
+            sb.append(shown == 0 ? "LAST 8 FILLED" : "");
+            sb.append('\n');
+            int from = sb.length();
+            String at = printTime(print.at);
+            if (!at.isEmpty()) {
+                sb.append(at).append("  ");
+            }
+            sb.append(String.format(Locale.US, "(%s=%,d) PKR %,.2f",
+                    sale ? "S" : "B", print.shares, price));
+            sb.setSpan(new ForegroundColorSpan(
+                            getColor(sale ? R.color.red : R.color.green)),
+                    from, sb.length(), 0);
+            if (++shown >= FLOW_RESULTS_SHOWN) {
+                break;
+            }
+        }
+        if (shown == 0) {
+            orderFlowPrints.setText("");
+            orderFlowPrints.setVisibility(View.GONE);
+            return;
+        }
+        orderFlowPrints.setText(sb);
+        orderFlowPrints.setVisibility(View.VISIBLE);
     }
 
     /**
@@ -3521,7 +3656,10 @@ public class MainActivity extends Activity {
                 colorQuantity(sb, quote.sell, R.color.red);
                 if (quote.unclassified != null) {
                     sb.append(", U=");
+                    int unclearFrom = sb.length();
                     sb.append(String.format(Locale.US, "%,d", quote.unclassified));
+                    sb.setSpan(new ForegroundColorSpan(getColor(R.color.yellow)),
+                            unclearFrom, sb.length(), 0);
                 }
                 sb.append(quote.unclassified != null && quote.volume != null ? " &" : ")");
                 if (quote.volume != null) {
@@ -3533,7 +3671,10 @@ public class MainActivity extends Activity {
                 sb.append('\n');
                 if (quote.unclassified != null) {
                     sb.append("(U=");
+                    int unclearFrom = sb.length();
                     sb.append(String.format(Locale.US, "%,d", quote.unclassified));
+                    sb.setSpan(new ForegroundColorSpan(getColor(R.color.yellow)),
+                            unclearFrom, sb.length(), 0);
                     sb.append(')');
                     if (quote.volume != null) {
                         sb.append('\n');
@@ -3744,6 +3885,23 @@ public class MainActivity extends Activity {
             if (quote.changePct == null) {
                 built.setSpan(new ForegroundColorSpan(themeBodyInk),
                         priceFrom, from, 0);
+            }
+            // Owner order 2026-11-07: the day's own high and low stand on
+            // the search row, the high in green and the low in red. A side
+            // the relay did not report is not invented (SO-3).
+            if (quote.high != null) {
+                built.append("  H=");
+                int highFrom = built.length();
+                built.append(String.format(Locale.US, "%,.2f", quote.high));
+                built.setSpan(new ForegroundColorSpan(getColor(R.color.green_hi)),
+                        highFrom, built.length(), 0);
+            }
+            if (quote.low != null) {
+                built.append("  L=");
+                int lowFrom = built.length();
+                built.append(String.format(Locale.US, "%,.2f", quote.low));
+                built.setSpan(new ForegroundColorSpan(getColor(R.color.red)),
+                        lowFrom, built.length(), 0);
             }
             row.setText(built);
         } else {
@@ -3969,6 +4127,8 @@ public class MainActivity extends Activity {
         int buyTo = -1;
         int sellFrom = -1;
         int sellTo = -1;
+        int unclearFrom = -1;
+        int unclearTo = -1;
         if (quote.buy != null && quote.sell != null) {
             // Owner order 2026-11-05, eighth pass: measured B and S, the
             // unclear remainder as U, never folded into a side.
@@ -3981,8 +4141,10 @@ public class MainActivity extends Activity {
             sb.append(String.format(Locale.US, "%,d", quote.sell));
             sellTo = sb.length();
             if (quote.unclassified != null) {
-                sb.append(String.format(Locale.US, ", U=%,d",
-                        quote.unclassified));
+                sb.append(", U=");
+                unclearFrom = sb.length();
+                sb.append(String.format(Locale.US, "%,d", quote.unclassified));
+                unclearTo = sb.length();
             }
             sb.append(quote.unclassified != null && quote.volume != null ? " &" : ")");
             if (quote.volume != null) {
@@ -3995,8 +4157,10 @@ public class MainActivity extends Activity {
             // takes the next. A missing U is not invented.
             sb.append('\n');
             if (quote.unclassified != null) {
-                sb.append(String.format(Locale.US, " (U=%,d",
-                        quote.unclassified));
+                sb.append(" (U=");
+                unclearFrom = sb.length();
+                sb.append(String.format(Locale.US, "%,d", quote.unclassified));
+                unclearTo = sb.length();
                 sb.append(')');
                 if (quote.volume != null) {
                     sb.append('\n');
@@ -4021,6 +4185,10 @@ public class MainActivity extends Activity {
                     buyFrom, buyTo, 0);
             sp.setSpan(new ForegroundColorSpan(getColor(R.color.red)),
                     sellFrom, sellTo, 0);
+        }
+        if (unclearFrom >= 0) {
+            sp.setSpan(new ForegroundColorSpan(getColor(R.color.yellow)),
+                    unclearFrom, unclearTo, 0);
         }
         if (moveFrom >= 0) {
             sp.setSpan(new ForegroundColorSpan(getColor(
@@ -4264,26 +4432,33 @@ public class MainActivity extends Activity {
                 spans.add(new int[]{sellFrom, sb.length(), R.color.red});
                 if (row.unclassified != null) {
                     sb.append(", U=");
+                    int unclearFrom = sb.length();
                     sb.append(String.format(Locale.US, "%,d", row.unclassified));
+                    spans.add(new int[]{unclearFrom, sb.length(), R.color.yellow});
                 }
-                sb.append(')');
+                // Owner order 2026-11-07: the bracket closes after T, and the
+                // ampersand takes the place the closing bracket held.
                 if (row.hasVolume()) {
-                    sb.append('\n').append("T=");
+                    sb.append(" & T=");
                     sb.append(String.format(Locale.US, "%,d", row.volume));
                 }
+                sb.append(')');
             } else if (row.unclassified != null || row.hasVolume()) {
                 // No measured pair: the known U keeps the first line and T
-                // takes the next. A missing U is not invented.
+                // rides the same bracket after the ampersand (owner order
+                // 2026-11-07).
                 sb.append('\n');
                 if (row.unclassified != null) {
                     sb.append("(U=");
+                    int unclearFrom = sb.length();
                     sb.append(String.format(Locale.US, "%,d", row.unclassified));
-                    sb.append(')');
+                    spans.add(new int[]{unclearFrom, sb.length(), R.color.yellow});
                     if (row.hasVolume()) {
-                        sb.append('\n');
+                        sb.append(" & T=");
+                        sb.append(String.format(Locale.US, "%,d", row.volume));
                     }
-                }
-                if (row.hasVolume()) {
+                    sb.append(')');
+                } else {
                     sb.append("T=");
                     sb.append(String.format(Locale.US, "%,d", row.volume));
                 }

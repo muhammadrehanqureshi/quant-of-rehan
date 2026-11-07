@@ -854,6 +854,13 @@ class RelayWorkerContractTest(unittest.TestCase):
         self.assertIn("const split = splitFromQuote(quote);", prices)
         self.assertIn("split ? split.buy_volume : null,", prices)
         self.assertIn("split ? split.sell_volume : null,", prices)
+        # Owner order 2026-11-07: the day's high and low ride after the
+        # remainder, so the phone's search row prints H and L.
+        self.assertIn(
+            "high: Number.isFinite(quote.high) && quote.high > 0 ? quote.high : null,",
+            prices)
+        self.assertIn("row.high,", prices)
+        self.assertIn("row.low,", prices)
 
 
     def test_search_rows_fall_back_to_the_exchange_table_when_the_tape_is_silent(

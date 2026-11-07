@@ -509,11 +509,18 @@
      version marks the build made after the self-improvement engine's
      reviewer defects were fixed and its kill gate was made payoff-aware,
      as recorded in PROJECT_REPORT.md.
+
+     versionCode 124 / versionName 4.0.15 belong to the owner's orders of
+     2026-11-07: the KSE100 card closes its bracket after T with the
+     ampersand where the bracket stood, U prints yellow everywhere, the
+     ORDER FLOW book is two columns with a vertical line and the words stay
+     neutral, its page repaints with the theme, the search row carries the
+     day's H and L, and the selected scrip lists its own filled prints.
      -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="pk.quantofrehan"
-    android:versionCode="123"
-    android:versionName="4.0.14">
+    android:versionCode="124"
+    android:versionName="4.0.15">
 
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="30"/>
 
