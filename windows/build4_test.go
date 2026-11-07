@@ -246,13 +246,13 @@ func TestPhaseAtMatchesTheSessionLaw(t *testing.T) {
 	}
 }
 
-// The HUD dial turns in every state, slower while it is parked or checking. Its
-// ink is the picture's pale ice blue in every theme; the old gold sun, wireframe
-// and radar sweep are gone.
+// The HUD dial turns in every state, slower while it is parked or checking. It
+// is the owner's dot matrix now: Braille dots on concentric rings, over the
+// panel's own background, with an empty centre.
 func TestMarkTurnsInEveryState(t *testing.T) {
 	th := themeAt(0)
 	paint := func(mode OrbMode, secs float64) *Canvas {
-		c := NewCanvas(38, 14, th.BG)
+		c := NewCanvas(38, 14, th.Panel)
 		drawOrb(c, 0, 0, 38, 14, secs, mode, th)
 		return c
 	}
@@ -272,29 +272,26 @@ func TestMarkTurnsInEveryState(t *testing.T) {
 			t.Errorf("mode %d, the mark must turn", m)
 		}
 	}
-	pale := func(c *Canvas) int {
-		n := 0
-		for _, ce := range c.Cells {
-			if _, ok := quadrantMask(ce.Ch); !ok {
-				continue
-			}
-			for _, p := range cellPixels(ce) {
-				if p.B >= 180 && p.G >= 150 && p.R >= 120 {
-					n++
-				}
-			}
+	// The mark is dots on the panel, never a filled field, and its dots carry
+	// the picture's pale ice blue in every theme.
+	dots, cells := 0, 0
+	for _, ce := range paint(OrbBurning, 2).Cells {
+		if ce.BG != th.Panel {
+			t.Fatalf("the dial painted a background: %v", ce.BG)
 		}
-		return n
-	}
-	if n := pale(paint(OrbBurning, 2)); n < 150 {
-		t.Errorf("online mark: only %d pale blue pixels", n)
-	}
-	for i := range themes {
-		c := NewCanvas(38, 14, themeAt(i).BG)
-		drawOrb(c, 0, 0, 38, 14, 2, OrbBurning, themeAt(i))
-		if n := pale(c); n < 150 {
-			t.Errorf("theme %d: the mark is not the picture's pale blue", i)
+		if ce.Ch < 0x2800 || ce.Ch > 0x28ff {
+			continue
 		}
+		cells++
+		if ce.FG.B < 180 || ce.FG.G < 150 || ce.FG.R < 120 {
+			t.Errorf("a dial dot is %v, not the picture's pale blue", ce.FG)
+		}
+		for m := ce.Ch - 0x2800; m != 0; m &= m - 1 {
+			dots++
+		}
+	}
+	if cells < 40 || dots < 200 {
+		t.Errorf("online mark: %d lit cells and %d dots, want a dot matrix", cells, dots)
 	}
 }
 
@@ -317,43 +314,48 @@ func TestOrbHasThreeCutSeams(t *testing.T) {
 	}
 }
 
-// A terminal cell is taller than it is wide (cellAspect times), so a round
-// ring must be about cellAspect times as many columns across as rows tall. The
+// A terminal cell is taller than it is wide (cellAspect times), so the dots of
+// a round ring must span about cellAspect times as many columns as rows. The
 // first radar was drawn as if cells were square and came out tall. It is
 // checked at the owner's measured shape and at the common 20 / 9.
 func TestRadarIsRoundInPixels(t *testing.T) {
 	th := themeAt(0)
 	was := cellAspect
 	defer func() { cellAspect = was }()
+	lit := func(p RGB) bool { return p.R >= 120 && p.G >= 150 && p.B >= 180 }
 	for _, aspect := range []float64{1.90, 20.0 / 9.0, 2.05} {
 		cellAspect = aspect
 		for _, sz := range [][2]int{{36, 14}, {30, 12}, {38, 25}} {
-			c := NewCanvas(sz[0], sz[1], th.BG)
-			drawOrb(c, 0, 0, sz[0], sz[1], 2, OrbBurning, th)
-			// Find the ring's pale pixels. The dial's square field is teal and is
-			// not part of the ring, so a plain "lit" test would measure the whole
-			// rectangle. A cell is 2 by 2 pixels, so a pixel is half a column wide
-			// and aspect/2 columns tall.
-			lit := func(p RGB) bool { return p.R >= 120 && p.G >= 150 && p.B >= 180 }
+			c := NewCanvas(sz[0], sz[1], th.Panel)
+			drawOrb(c, 0, 0, sz[0], sz[1], 0, OrbBurning, th)
+			// Each Braille cell is 2 dots across and 4 dots down, so a dot is
+			// half a column wide and a quarter of a cell tall.
 			minX, maxX, minY, maxY := 1<<30, -1, 1<<30, -1
 			for y := 0; y < c.H; y++ {
 				for x := 0; x < c.W; x++ {
 					ce := c.Cells[y*c.W+x]
-					if _, ok := quadrantMask(ce.Ch); !ok {
+					if ce.Ch < 0x2800 || ce.Ch > 0x28ff || !lit(ce.FG) {
 						continue
 					}
-					for i, p := range cellPixels(ce) {
-						if lit(p) {
-							px, py := 2*x+i%2, 2*y+i/2
+					for dxi := 0; dxi < 2; dxi++ {
+						for dyi := 0; dyi < 4; dyi++ {
+							if (ce.Ch-0x2800)&brailleBit[dxi][dyi] == 0 {
+								continue
+							}
+							px, py := 2*x+dxi, 4*y+dyi
 							minX, maxX = min(minX, px), max(maxX, px)
 							minY, maxY = min(minY, py), max(maxY, py)
 						}
 					}
 				}
 			}
-			wpx, hpx := float64(maxX-minX+1)/2, float64(maxY-minY+1)*aspect/2
+			if maxX < 0 {
+				t.Fatalf("aspect %.2f, %dx%d cells: no dots at all", aspect, sz[0], sz[1])
+			}
+			wpx := float64(maxX-minX+1) * 0.5
+			hpx := float64(maxY-minY+1) * aspect / 4
 			if ratio := wpx / hpx; math.Abs(ratio-1) > 0.12 {
-				t.Errorf("aspect %.2f, %dx%d cells: ring is %.0f x %.0f units, ratio %.2f", aspect, sz[0], sz[1], wpx, hpx, ratio)
+				t.Errorf("aspect %.2f, %dx%d cells: dial is %.1f x %.1f columns, ratio %.2f", aspect, sz[0], sz[1], wpx, hpx, ratio)
 			}
 		}
 	}
@@ -440,19 +442,4 @@ func TestMarketFootnote(t *testing.T) {
 	if got := a.marketNote(); got != "Waiting for the broker feed." {
 		t.Errorf("no feed footnote: %q", got)
 	}
-}
-
-// cellPixels gives the four pixels a quadrant character shows: upper left,
-// upper right, lower left, lower right.
-func cellPixels(ce Cell) [4]RGB {
-	m, _ := quadrantMask(ce.Ch)
-	var q [4]RGB
-	for i := range q {
-		if m&(1<<i) != 0 {
-			q[i] = ce.FG
-		} else {
-			q[i] = ce.BG
-		}
-	}
-	return q
 }
