@@ -34,7 +34,7 @@ class FlowEndpointContractTest(unittest.TestCase):
         pre-deploy class forever. The quote view therefore has its own
         instance name; the state hub keeps the card, signals and ACK rows.
         """
-        self.assertIn('const QUOTE_HUB_NAME = "psx-live-quotes-v3";',
+        self.assertIn('const QUOTE_HUB_NAME = "psx-live-quotes-v4";',
                       self.source)
         self.assertIn("namespace.idFromName(QUOTE_HUB_NAME)", self.source)
         self.assertIn("const stub = quoteHub(env);", self.source)
