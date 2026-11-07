@@ -180,7 +180,7 @@ func (a *App) flashRight(c *Canvas, right, y int, s string, fg RGB, bold bool, k
 //
 func (a *App) drawHeader(c *Canvas) {
 	th := a.th
-	title := "◆ QUANT OF REHAN ◆"
+	title := headerTitle
 	lt := a.feedLight()
 	if len(lt) > 0 && c.W >= runeLen(title)+spanW(lt)+4 {
 		c.Spans(1, 0, min(c.W-2, spanW(lt)), lt)
@@ -300,7 +300,7 @@ func (a *App) scanStatus() (string, RGB) {
 	case a.scanning():
 		return "EVERY SECOND", th.Good
 	case a.market != nil && a.market.PhaseKnown() && !a.market.TradingDay:
-		return "OFF TODAY (NO TRADING)", th.Soft
+		return "MARKET IS CLOSED", th.Soft
 	}
 	p := a.karachiNow().In(pkt)
 	switch {

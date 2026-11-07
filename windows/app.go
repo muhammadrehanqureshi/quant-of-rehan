@@ -964,8 +964,9 @@ func (a *App) onKey(k Key) {
 // digits typed here go to the search box. UP and DOWN move through the matches
 // while there is a search, and scroll the list otherwise. LEFT and RIGHT change
 // the sort. ENTER picks the highlighted match, or the highlighted sort when
-// nothing is typed. BACKSPACE edits the search, and clears the sort when the box
-// is empty. ESC clears the search, and goes Home when there is none.
+// nothing is typed. BACKSPACE first closes an open sector, then edits the search
+// and clears the sort when the box is empty. ESC clears the search, and goes Home
+// when there is none.
 func (a *App) keyScanner(k Key) {
 	searching := a.searchText != ""
 	switch k.Kind {
@@ -1018,7 +1019,12 @@ func (a *App) keyScanner(k Key) {
 			a.pickScan(a.scanCursor + 1)
 		}
 	case KBackspace:
-		if r := []rune(a.searchText); len(r) > 0 {
+		if a.sectorOpen {
+			// Owner order 2026-11-07: BACKSPACE leaves the open sector and brings
+			// every sector back, without leaving the SCANNER.
+			a.sectorOpen = false
+			a.lvSectorStk.top()
+		} else if r := []rune(a.searchText); len(r) > 0 {
 			a.searchText = string(r[:len(r)-1])
 			a.searchCursor = 0
 			a.selectedSym, a.selectedSt, a.selectedInfo = "", "", nil

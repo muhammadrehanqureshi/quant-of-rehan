@@ -57,8 +57,8 @@ func TestScannerShowsSectorsAndCyclesThem(t *testing.T) {
 		}
 	}
 	clickText(t, a, "CEMENT")
-	if a.sectorChoice != 1 || !a.sectorOpen {
-		t.Errorf("clicking a sector must open it: choice %d open %v", a.sectorChoice, a.sectorOpen)
+	if a.sectorChoice != 1 || !a.sectorOpen || a.screen != scrScanner {
+		t.Errorf("clicking a sector must open it in place: screen %v choice %d open %v", a.screen, a.sectorChoice, a.sectorOpen)
 	}
 	opened := plain(a)
 	if a.lvSectorStk.total != 3 {
@@ -67,6 +67,17 @@ func TestScannerShowsSectorsAndCyclesThem(t *testing.T) {
 	for _, want := range []string{"CHRL", "ECHO", "GOLF", "1. CHRL"} {
 		if !strings.Contains(opened, want) {
 			t.Errorf("the open sector is missing %q:\n%s", want, opened)
+		}
+	}
+	// Owner order 2026-11-07: BACKSPACE brings every sector back, in place.
+	a.onKey(Key{Kind: KBackspace})
+	if a.sectorOpen || a.screen != scrScanner {
+		t.Errorf("BACKSPACE must close the sector on the scanner: screen %v open %v", a.screen, a.sectorOpen)
+	}
+	restored := plain(a)
+	for _, want := range []string{"AUTOMOBILE", "CEMENT", "FERTILIZER"} {
+		if !strings.Contains(restored, want) {
+			t.Errorf("after BACKSPACE the sector list is missing %q:\n%s", want, restored)
 		}
 	}
 }

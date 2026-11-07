@@ -211,7 +211,6 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 		head = iy + 1
 	}
 	if a.scanChoice == 0 {
-		c.Text(ix, head, iw, "Choose a sort above to see the scrips.", th.Soft, false)
 		return
 	}
 	c.Text(ix, head, iw, scanChoices[a.scanChoice-1], th.Accent, true)
@@ -308,7 +307,7 @@ func (a *App) drawSearchTile(c *Canvas, x, y, w, h int) {
 		c.Set(ix+k, iy, ' ', th.Text, field, false)
 	}
 	if a.searchText == "" {
-		c.Text(ix+2, iy, fw-3, "Type to search the KMIALL scrips.", th.Soft, false)
+		c.Text(ix+2, iy, fw-3, scripSearchHint, th.Soft, false)
 	} else {
 		c.Text(ix+1, iy, 1, ">", th.Accent, true)
 		c.Text(ix+3, iy, fw-4, a.searchText, th.Hot, true)
@@ -493,14 +492,14 @@ func (a *App) inKMIALLSHR(sym string) bool {
 
 // drawSectorOpen is a tapped sector: every one of its scrips that is in
 // KMIALLSHR, with the live price when the feed has one. The wheel or the
-// scrollbar moves through them, a click opens one in the search tile, and ESC
-// closes the sector.
+// scrollbar moves through them, a click opens one in the search tile, and
+// BACKSPACE (or ESC) brings all the sectors back without changing screen.
 func (a *App) drawSectorOpen(c *Canvas, x, y, w, h int) {
 	th := a.th
 	if h < 4 {
 		return
 	}
-	ix, iy, iw, ih := a.panel(c, x, y, w, h, "SECTORS", "ESC closes, wheel scrolls")
+	ix, iy, iw, ih := a.panel(c, x, y, w, h, "SECTORS", "BACKSPACE all sectors, wheel scrolls")
 	groups := a.sectorGroups()
 	if a.sectorChoice < 0 || a.sectorChoice >= len(groups) {
 		a.sectorOpen = false
@@ -707,6 +706,11 @@ func (a *App) drawBoardPanel(c *Canvas, x, y, w, h int, side int) {
 	_ = word
 	a.focusNext = a.alertFocus == focus
 	ix, iy, iw, ih := a.panel(c, x, y, w, h, title, hint)
+	// Owner order 2026-11-07: the buying heading is green and the selling
+	// heading is red, even when the focused panel would otherwise be hot.
+	titleInk := good
+	c.Put(x+2, y, '◆', titleInk, false)
+	c.Text(x+4, y, w-8, fit(title, w-12), titleInk, true)
 	a.addHit(x, y, w, h, func() { a.alertFocus = focus })
 	if !on {
 		for i, ln := range wrap("The flag is off. Press "+flagKey+" or use Settings to turn it on.", iw) {
