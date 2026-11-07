@@ -786,15 +786,34 @@ func (a *App) drawFlowList(c *Canvas, ix, head, top, iw, rows, barX int) {
 // closest it can come.
 const barBlock = '▇'
 
-// shareBarTabs is the number of cells in every buy versus sell bar. Owner
-// order 2026-11-07: ten tabs, so each one is ten percent and 100% is easy to
-// read at a glance. The bar keeps the right edge it had before, with the
-// unused part of the old span on its left.
+// shareBarTabs is the number of ten percent tabs in every buy versus sell
+// bar. Owner order 2026-11-07: ten tabs, and the bar keeps its previous
+// 17-cell span, so the tabs share the old length instead of shrinking it to
+// ten cells.
 const shareBarTabs = 10
 
+// shareBarTabWidths splits total cells into at most tabs tabs, spreading the
+// cells from the left. Every cell belongs to one tab, so the bar has no holes.
+// At 17 cells and ten tabs the widths are 2,2,2,1,2,2,1,2,2,1.
+func shareBarTabWidths(total int) []int {
+	if total <= 0 {
+		return nil
+	}
+	n := shareBarTabs
+	if total < n {
+		n = total
+	}
+	widths := make([]int, n)
+	for i := 0; i < total; i++ {
+		widths[i*n/total]++
+	}
+	return widths
+}
+
 // shareBar draws a buy versus sell bar of w columns, seven eighths of a cell
-// tall. The coloured part is ten tabs wide; one space follows it, then the
-// percentage, so "98%" and "100%" both sit the same distance from it.
+// tall. The coloured part keeps its previous 17-cell span, split into ten
+// ten-percent tabs; one space follows it, then the percentage, so "98%" and
+// "100%" both sit the same distance from the right edge.
 func (a *App) shareBar(c *Canvas, x, y, w int, buyShare float64) {
 	a.shareBarRune(c, x, y, w, buyShare, barBlock)
 }
@@ -808,21 +827,31 @@ func (a *App) shareBarMid(c *Canvas, x, y, w int, buyShare float64) {
 }
 
 // shareBarRune draws the bar with the caller's character, always followed by
-// one space and the percentage.
+// one space and the percentage. The ten tabs are coloured at ten percent steps,
+// while their widths share the full old span.
 func (a *App) shareBarRune(c *Canvas, x, y, w int, buyShare float64, ch rune) {
 	th := a.th
 	full := max(1, w-5)
-	bw := min(shareBarTabs, full)
-	x += full - bw
-	f := int(math.Round(buyShare * float64(bw)))
-	for i := 0; i < bw; i++ {
-		if i < f {
-			c.Put(x+i, y, ch, th.Good, false)
-		} else {
-			c.Put(x+i, y, ch, mix(th.Panel, th.Bad, 0.8), false)
-		}
+	widths := shareBarTabWidths(full)
+	green := int(math.Round(buyShare * float64(len(widths))))
+	if green < 0 {
+		green = 0
 	}
-	c.Text(x+bw+1, y, 4, strconv.FormatFloat(math.Round(buyShare*100), 'f', 0, 64)+"%", th.Soft, false)
+	if green > len(widths) {
+		green = len(widths)
+	}
+	at := x
+	for i, tw := range widths {
+		ink := mix(th.Panel, th.Bad, 0.8)
+		if i < green {
+			ink = th.Good
+		}
+		for j := 0; j < tw; j++ {
+			c.Put(at+j, y, ch, ink, false)
+		}
+		at += tw
+	}
+	c.Text(x+full+1, y, 4, strconv.FormatFloat(math.Round(buyShare*100), 'f', 0, 64)+"%", th.Soft, false)
 }
 
 // ---------- alerts ----------
