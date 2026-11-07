@@ -180,3 +180,8 @@ instruction, not to be discovered as a convenience.
 - **SO-23** the agent's own session runs no local computation: the file tools
   and the `git`/`gh` commands are its only local actions. Every check, build
   and test runs in the pull request's CI, never on the owner's PC.
+- **SO-24** the owner's approval is standing, so no landing waits for a human
+  review. The agent reviews the pull request it opened, approves it on his
+  behalf, and merges it with `scripts/land.sh`. The `governance` and
+  `gitleaks` checks still gate the merge and are never waived; what is gone
+  is the approval requirement, which a sole human author could never meet.
