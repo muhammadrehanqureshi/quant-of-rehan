@@ -16,6 +16,9 @@ S = 1024
 K = 2
 N = S * K
 CX = CY = N / 2
+# The dial's outer radius, as a fraction of the half canvas. The picture keeps
+# a small margin of plain teal around its thin outer arc.
+R = N * 0.48
 
 TOP_LEFT = (14, 112, 143)
 TOP_RIGHT = (10, 93, 122)
@@ -40,10 +43,10 @@ def arc_block(d, r0, r1, a0, a1, fill):
     pts = []
     for i in range(steps + 1):
         a = math.radians(a0 + (a1 - a0) * i / steps)
-        pts.append((CX + math.cos(a) * r1 * N, CY + math.sin(a) * r1 * N))
+        pts.append((CX + math.cos(a) * r1 * R, CY + math.sin(a) * r1 * R))
     for i in range(steps, -1, -1):
         a = math.radians(a0 + (a1 - a0) * i / steps)
-        pts.append((CX + math.cos(a) * r0 * N, CY + math.sin(a) * r0 * N))
+        pts.append((CX + math.cos(a) * r0 * R, CY + math.sin(a) * r0 * R))
     d.polygon(pts, fill=fill)
 
 
@@ -59,7 +62,7 @@ def background():
 
 def cap(d, ang, r, size, fill):
     a = math.radians(ang)
-    x, y = CX + math.cos(a) * r * N, CY + math.sin(a) * r * N
+    x, y = CX + math.cos(a) * r * R, CY + math.sin(a) * r * R
     h = N * size
     d.rectangle([x - h, y - h, x + h, y + h], fill=fill)
 
@@ -86,10 +89,10 @@ def dial():
         a0 = k * 90 + 2
         arc_block(d, 0.700, 0.770, a0, a0 + 86, rgba(ink(0.72), 225))
 
-    # The first tick ring.
-    for i in range(64):
-        a = i * (360 / 64)
-        arc_block(d, 0.610, 0.685, a + 0.4, a + 1.5, rgba(ink(0.88), 225))
+    # The first tick ring, dense like the picture's.
+    for i in range(96):
+        a = i * (360 / 96)
+        arc_block(d, 0.610, 0.685, a + 0.3, a + 1.1, rgba(ink(0.88), 225))
 
     # The bright inner ring, in six long segments.
     for k in range(6):
@@ -97,14 +100,14 @@ def dial():
         arc_block(d, 0.450, 0.545, a0, a0 + 47, rgba(ink(1.0), 250))
 
     # The second tick ring.
-    for i in range(48):
-        a = i * (360 / 48)
-        arc_block(d, 0.350, 0.435, a + 0.4, a + 1.6, rgba(ink(0.76), 225))
+    for i in range(60):
+        a = i * (360 / 60)
+        arc_block(d, 0.350, 0.435, a + 0.3, a + 1.4, rgba(ink(0.76), 225))
 
-    # The small inner ring, in twelve short segments around an empty centre.
-    for i in range(12):
-        a0 = i * 30 + 7
-        arc_block(d, 0.235, 0.295, a0, a0 + 16, rgba(ink(0.80), 235))
+    # The small inner ring, thin dashes around an empty centre.
+    for i in range(36):
+        a = i * (360 / 36)
+        arc_block(d, 0.235, 0.295, a + 0.5, a + 1.9, rgba(ink(0.80), 235))
     return layer
 
 
