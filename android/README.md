@@ -1641,6 +1641,19 @@ to sixty seconds. The status tile therefore also carries the app's own
      the orphan law stands so every dot still wears a filament.
   5. The version bump is versionCode 82 / versionName 2.3.15.
 
+**Version 4.0.16, versionCode 125.**
+
+  Owner order 2026-11-07, second pass. The SECTORS tile is part of the theme
+  now: its plate, its heading, its field box, the open menu and the chosen
+  sector's reveal all repaint with the look the app is wearing, so it is never
+  a plum island on a blue page. In the ORDER FLOW book BID stays at the left
+  edge and ASK, its price and its quantity move to the far right edge of the
+  right half. The exchange's total volume T is blue on every surface: the
+  leaders card, the volume reveal, the sectors reveal, the selected search
+  answer, the broker search answer and the ORDER FLOW split.
+
+  The version bump is versionCode 125 / versionName 4.0.16.
+
 **Version 4.0.14, versionCode 123.**
 
   Owner order 2026-11-06, eleventh pass. Every bracket now reads

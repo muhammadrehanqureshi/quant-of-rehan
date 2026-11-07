@@ -29,6 +29,10 @@
     <!-- The unclear remainder U (owner order 2026-11-07): one ink for the
          volume the split could not side, wherever U prints. -->
     <color name="yellow">#FFFFD54F</color>
+    <!-- The total volume T (owner order 2026-11-07): blue wherever the
+         exchange's total prints, so it reads apart from the green buy
+         and red sell digits at a glance. -->
+    <color name="blue">#FF5AA9FF</color>
     <color name="orange_logo">#FFE58142</color>
     <color name="crimson_logo">#FF882F48</color>
     <color name="green">#FF2FAE6F</color>
