@@ -18,7 +18,7 @@ func TestTitleIsTheTopLine(t *testing.T) {
 			a := demoApp(t, sz[0], sz[1])
 			a.screen = screenID(scr)
 			rows := rowsOf(a)
-			if !strings.Contains(rows[0], "◆ QUANT OF REHAN ◆") {
+			if !strings.Contains(strings.Join(strings.Fields(rows[0]), " "), "◆ QUANT OF REHAN ◆") {
 				t.Errorf("%dx%d screen %d: row 0 is %q", sz[0], sz[1], scr, rows[0])
 			}
 			if !strings.Contains(rows[1], "PSX'S KMIALL INDEX") {
@@ -28,6 +28,48 @@ func TestTitleIsTheTopLine(t *testing.T) {
 				t.Errorf("%dx%d screen %d: row 2 is %q, want the rule", sz[0], sz[1], scr, rows[2])
 			}
 		}
+	}
+}
+
+// Every search box asks for a KMIALL scrip in the same words, and the empty
+// CUSTOM SCRIPS tile no longer carries a sorting prompt.
+func TestSearchBoxesAndEmptySortText(t *testing.T) {
+	a := demoApp(t, 120, 30)
+	a.screen = scrScanner
+	if s := plain(a); !strings.Contains(s, scripSearchHint) {
+		t.Errorf("scanner search box is missing %q", scripSearchHint)
+	}
+	a.scanChoice = 0
+	if s := plain(a); strings.Contains(s, "Choose a sort") {
+		t.Errorf("the empty CUSTOM SCRIPS tile still has its old prompt:\n%s", s)
+	}
+	a.screen = scrOrderFlow
+	if s := plain(a); !strings.Contains(s, scripSearchHint) {
+		t.Errorf("ORDER FLOW search box is missing %q", scripSearchHint)
+	}
+}
+
+// The big buying heading is green and the big selling heading is red.
+func TestAlertBoardHeadingsUseGreenAndRed(t *testing.T) {
+	a := demoApp(t, 120, 30)
+	a.screen = scrAlerts
+	c := a.render()
+	ink := func(title string) RGB {
+		for y, row := range c.PlainRows() {
+			i := strings.Index(row, title)
+			if i < 0 {
+				continue
+			}
+			return c.Cells[y*c.W+runeLen(row[:i])].FG
+		}
+		t.Fatalf("the alerts screen has no %q heading", title)
+		return RGB{}
+	}
+	if got := ink("BIG BUYING NOW"); got != a.th.Good {
+		t.Errorf("BIG BUYING NOW is %v, want green %v", got, a.th.Good)
+	}
+	if got := ink("BIG SELLING NOW"); got != a.th.Bad {
+		t.Errorf("BIG SELLING NOW is %v, want red %v", got, a.th.Bad)
 	}
 }
 
@@ -446,6 +488,12 @@ func TestTelemetryTellsTheTruthAboutScanning(t *testing.T) {
 	if w, _ := a.scanStatus(); w != "OFF AT THE WEEKEND" {
 		t.Errorf("Saturday: %q", w)
 	}
+	// Owner order 2026-11-07: a known non-trading day says MARKET IS CLOSED.
+	a.market.TradingDay = false
+	if w, _ := a.scanStatus(); w != "MARKET IS CLOSED" {
+		t.Errorf("closed day: %q", w)
+	}
+	a.market = marketIn("CLOSED")
 	// The row above the foot is the navigation, and says nothing about polling.
 	// The last row is the first build's scrolling ticker.
 	a.now = time.Date(2026, 11, 2, 10, 0, 0, 0, pkt)

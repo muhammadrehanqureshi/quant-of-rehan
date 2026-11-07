@@ -246,10 +246,10 @@ func TestPhaseAtMatchesTheSessionLaw(t *testing.T) {
 	}
 }
 
-// The HUD dial turns while the quant is online and is perfectly still while it
-// is parked. Its ink is the picture's pale ice blue in every theme; the old
-// gold sun, wireframe and radar sweep are gone.
-func TestMarkTurnsOnlineAndIsStillOffline(t *testing.T) {
+// The HUD dial turns in every state, slower while it is parked or checking. Its
+// ink is the picture's pale ice blue in every theme; the old gold sun, wireframe
+// and radar sweep are gone.
+func TestMarkTurnsInEveryState(t *testing.T) {
 	th := themeAt(0)
 	paint := func(mode OrbMode, secs float64) *Canvas {
 		c := NewCanvas(38, 14, th.BG)
@@ -265,11 +265,11 @@ func TestMarkTurnsOnlineAndIsStillOffline(t *testing.T) {
 		return true
 	}
 	if same(paint(OrbBurning, 1.0), paint(OrbBurning, 1.5)) {
-		t.Errorf("online, the wireframe sphere must turn")
+		t.Errorf("online, the dial must turn")
 	}
-	for _, m := range []OrbMode{OrbParked, OrbFault} {
-		if !same(paint(m, 1.0), paint(m, 9.7)) {
-			t.Errorf("offline (mode %d), the mark must be still", m)
+	for _, m := range []OrbMode{OrbBurning, OrbChecking, OrbParked, OrbFault} {
+		if same(paint(m, 1.0), paint(m, 9.7)) {
+			t.Errorf("mode %d, the mark must turn", m)
 		}
 	}
 	pale := func(c *Canvas) int {
@@ -295,6 +295,25 @@ func TestMarkTurnsOnlineAndIsStillOffline(t *testing.T) {
 		if n := pale(c); n < 150 {
 			t.Errorf("theme %d: the mark is not the picture's pale blue", i)
 		}
+	}
+}
+
+// The dial is cut by three thick seams, and the cuts turn with the rings.
+func TestOrbHasThreeCutSeams(t *testing.T) {
+	runs := 0
+	prev := false
+	for i := 0; i < 10000; i++ {
+		cut := hudCut(float64(i)/10000, 0)
+		if cut && !prev {
+			runs++
+		}
+		prev = cut
+	}
+	if runs != hudSeams {
+		t.Errorf("the dial has %d cut seams, want %d", runs, hudSeams)
+	}
+	if !hudCut(hudSeamStart, 0) || hudCut(hudSeamStart, 10) {
+		t.Errorf("the cut seams must move")
 	}
 }
 
