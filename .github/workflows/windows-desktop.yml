@@ -27,7 +27,7 @@ jobs:
         run: |
           python -m pip install --disable-pip-version-check pillow
           python tools/mkicon_hud.py assets/QuantOfRehan.ico assets/icon-1024.png
-          python tools/mksyso.py assets/QuantOfRehan.ico rsrc_windows_amd64.syso 4.0.16.9
+          python tools/mksyso.py assets/QuantOfRehan.ico rsrc_windows_amd64.syso 4.0.16.10
       - name: Test
         run: go test ./...
       - name: Build the console executable

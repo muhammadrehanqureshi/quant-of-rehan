@@ -18,8 +18,11 @@ func TestTitleIsTheTopLine(t *testing.T) {
 			a := demoApp(t, sz[0], sz[1])
 			a.screen = screenID(scr)
 			rows := rowsOf(a)
-			if !strings.Contains(strings.Join(strings.Fields(rows[0]), " "), "◆ QUANT OF REHAN ◆") {
+			if !strings.Contains(strings.Join(strings.Fields(rows[0]), ""), "QUANTOFREHAN") {
 				t.Errorf("%dx%d screen %d: row 0 is %q", sz[0], sz[1], scr, rows[0])
+			}
+			if sz[0] >= 100 && !strings.Contains(rows[0], "Q U A N T") {
+				t.Errorf("%dx%d screen %d: the title is not letterspaced: %q", sz[0], sz[1], scr, rows[0])
 			}
 			if !strings.Contains(rows[1], "PSX'S KMIALL INDEX") {
 				t.Errorf("%dx%d screen %d: row 1 is %q", sz[0], sz[1], scr, rows[1])
@@ -80,7 +83,7 @@ func TestHeaderClockTicksEverySecond(t *testing.T) {
 	a.animT = -1
 	for i := 0; i < 3; i++ {
 		a.now = time.Date(2026, 11, 2, 11, 0, i, 0, pkt)
-		want := fmt.Sprintf("MON 02 NOV 2026 11:00:0%d UTC+5", i)
+		want := fmt.Sprintf("MON 02 NOV 2026  11:00:0%d PKT", i)
 		if row := rowsOf(a)[0]; !strings.HasSuffix(strings.TrimRight(row, " "), want) {
 			t.Errorf("second %d: top row is %q, want it to end with %q", i, row, want)
 		}
