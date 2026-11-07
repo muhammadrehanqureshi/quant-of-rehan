@@ -1335,11 +1335,12 @@ func (a *App) draw(w io.Writer) {
 }
 
 // frameEvery is the time between animation frames. A console has to parse
-// every colour code it is sent, so the orb runs at ten frames a second while
-// the quant is online and at four when it is parked or the relay is down.
+// every colour code it is sent, so the live orb runs at ten frames a second;
+// the owner asked for more speed, which is in the dial's own turn rates. The
+// dark dial does not move, so it is redrawn only when something else needs the
+// screen.
 func (a *App) frameEvery() time.Duration {
-	switch a.orbMode() {
-	case OrbBurning, OrbChecking:
+	if a.orbMode() == OrbBurning {
 		return 100 * time.Millisecond
 	}
 	return 250 * time.Millisecond

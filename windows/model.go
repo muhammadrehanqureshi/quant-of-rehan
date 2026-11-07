@@ -6,19 +6,15 @@ import "time"
 const appVersion = "4.0.16"
 
 // hudBuild is the build number of this Windows HUD port.
-const hudBuild = "10"
+const hudBuild = "11"
 
 // scripSearchHint is the same search line on every desktop search box.
 const scripSearchHint = "Search for a KMIALL scrip"
 
-// A terminal has one font size for the whole window, so a per-title point size
-// cannot be requested. The title is tracked instead, the way the owner's
-// picture sets it: every letter is spaced, with wider gaps between the words.
-const headerTitle = "◆ Q U A N T   O F   R E H A N ◆"
-
-// headerTitleCompact is the same line for a window too narrow to seat the
-// spaced title between the feed light and the clock.
-const headerTitleCompact = "◆ QUANT OF REHAN ◆"
+// A terminal has one font size for the whole window, so the title is set in the
+// theme's accent and closed by a diamond on either side. The owner asked for
+// the letters close together, so it uses ordinary word spacing.
+const headerTitle = "◆ QUANT OF REHAN ◆"
 
 // pkt is Pakistan time, fixed UTC+5 (no daylight saving), same as the session law.
 var pkt = time.FixedZone("PKT", 5*3600)

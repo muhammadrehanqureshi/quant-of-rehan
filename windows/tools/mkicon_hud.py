@@ -1,5 +1,5 @@
-"""Draw the Quant of Rehan mark exactly as the owner's HUD picture: a square teal
-tile under concentric pale ice blue rings, with the thin outer arc, twelve heavy
+"""Draw the owner's teal dial artwork as the Windows icon: a square teal tile
+under concentric pale ice blue rings, with the thin outer arc, twelve heavy
 blocks, a smooth ring, two tick rings, the bright inner ring and the small inner
 ring, and an empty centre.
 
@@ -9,7 +9,7 @@ Usage:
 import math
 import sys
 
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFilter
 
 OUT_ICO, OUT_PNG = sys.argv[1], sys.argv[2]
 S = 1024
@@ -17,8 +17,10 @@ K = 2
 N = S * K
 CX = CY = N / 2
 
-TOP = (12, 106, 142)
-BOTTOM = (6, 82, 116)
+TOP_LEFT = (14, 112, 143)
+TOP_RIGHT = (10, 93, 122)
+BOTTOM_LEFT = (8, 82, 109)
+BOTTOM_RIGHT = (5, 60, 82)
 PALE = (230, 244, 250)
 MID = (176, 212, 228)
 DIM = (108, 160, 184)
@@ -46,13 +48,12 @@ def arc_block(d, r0, r1, a0, a1, fill):
 
 
 def background():
-    # The picture's teal, a touch deeper at the bottom.
+    # The picture's teal, lighter at the top left and deeper at the bottom right.
     small = Image.new("RGB", (2, 2))
-    small.putpixel((0, 0), TOP)
-    small.putpixel((1, 1), BOTTOM)
-    mid = tuple((TOP[i] + BOTTOM[i]) // 2 for i in range(3))
-    small.putpixel((1, 0), mid)
-    small.putpixel((0, 1), mid)
+    small.putpixel((0, 0), TOP_LEFT)
+    small.putpixel((1, 0), TOP_RIGHT)
+    small.putpixel((0, 1), BOTTOM_LEFT)
+    small.putpixel((1, 1), BOTTOM_RIGHT)
     return small.resize((N, N), Image.BILINEAR).convert("RGBA")
 
 
@@ -108,7 +109,12 @@ def dial():
 
 
 def main():
-    out = Image.alpha_composite(background(), dial())
+    art = dial()
+    # A soft halo under the pale segments, like the glow in the picture.
+    halo = art.filter(ImageFilter.GaussianBlur(N * 0.010))
+    halo.putalpha(halo.getchannel("A").point(lambda v: int(v * 0.55)))
+    out = Image.alpha_composite(background(), halo)
+    out = Image.alpha_composite(out, art)
     out = out.resize((S, S), Image.LANCZOS)
     out.save(OUT_PNG)
     out.save(OUT_ICO, sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)])

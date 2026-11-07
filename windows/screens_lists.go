@@ -628,13 +628,12 @@ func (a *App) drawFlowList(c *Canvas, ix, head, top, iw, rows, barX int) {
 	a.scrollbar(c, barX, top, a.lvScan.view*2, &a.lvScan)
 }
 
-// barBlock is the lower five eighths of a cell. Unicode has no upper block of
-// the same height, so every share bar is drawn in this one step: taller than
-// the old half cell, and the closest the terminal font can come to the fifth
-// more that was asked for.
-const barBlock = '▅'
+// barBlock is the lower three quarters of a cell. Unicode has no upper block of
+// the same height, so every share bar is drawn in this one step, the closest the
+// terminal font can come to the further fifteen percent that was asked for.
+const barBlock = '▆'
 
-// shareBar draws a buy versus sell bar of w columns, five eighths of a cell
+// shareBar draws a buy versus sell bar of w columns, three quarters of a cell
 // tall. One space follows the bar, then the percentage, so "98%" and "100%"
 // both sit the same distance from it.
 func (a *App) shareBar(c *Canvas, x, y, w int, buyShare float64) {
