@@ -635,6 +635,11 @@ class SettingsControlTest(unittest.TestCase):
         selected = selected[:selected.index("private void showSectorMenu(")]
         self.assertIn('flowBookColumn("BID"', selected)
         self.assertIn('flowBookColumn("ASK"', selected)
+        self.assertIn("R.color.red, true)", selected)
+        self.assertIn(
+            "int align = alignRight ? Gravity.END : Gravity.START;",
+            selected)
+        self.assertIn("column.setGravity(align);", selected)
         self.assertIn("LinearLayout.HORIZONTAL", selected)
         self.assertIn("divider.setBackgroundColor(themeAccentInk);", selected)
         self.assertIn("head.setTextColor(themeBodyInk);", selected)
@@ -2152,8 +2157,11 @@ class VersionTest(unittest.TestCase):
         # Owner order 2026-11-07: the KSE100 closing bracket after T, yellow
         # U everywhere, the two column BID/ASK book with eight fills, the
         # themed ORDER FLOW page and the search H/L ship as 4.0.15.
-        self.assertIn('android:versionName="4.0.15"', manifest)
-        self.assertIn('android:versionCode="124"', manifest)
+        # Owner order 2026-11-07, second pass: the themed SECTORS tile, the
+        # far-right ASK column and the blue total volume ship as 4.0.16.
+        self.assertIn('android:versionName="4.0.16"', manifest)
+        self.assertIn('android:versionCode="125"', manifest)
+        self.assertNotIn('android:versionName="4.0.15"', manifest)
         self.assertNotIn('android:versionName="4.0.14"', manifest)
         self.assertNotIn('android:versionName="3.7.5"', manifest)
         self.assertNotIn('android:versionName="3.7.4"', manifest)
@@ -2364,8 +2372,11 @@ class VersionTest(unittest.TestCase):
         # rows; v4.0.5 (sixth pass) is his new ORDER FLOW picture, the
         # bracketed top three, the eight-print scrolling board with its
         # visible bar, and the search-only ORDER FLOW tile.
-        self.assertIn('android:versionCode="124"', manifest)
-        self.assertIn('android:versionName="4.0.15"', manifest)
+        # Owner order 2026-11-07, second pass: the themed SECTORS tile, the
+        # far-right ASK column and the blue total volume ship as 4.0.16.
+        self.assertIn('android:versionCode="125"', manifest)
+        self.assertIn('android:versionName="4.0.16"', manifest)
+        self.assertNotIn('android:versionName="4.0.15"', manifest)
         self.assertNotIn('android:versionName="3.7.5"', manifest)
         self.assertNotIn('android:versionName="3.7.4"', manifest)
         self.assertNotIn('android:versionName="3.7.3"', manifest)
@@ -4221,6 +4232,37 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         # plate follows the worn theme instead of the static purple.
         self.assertIn("View relayButton = findViewById(R.id.btn_open);", main)
         self.assertIn("themedInputs.add(relayButton);", main)
+
+    def test_the_sectors_tile_wears_the_worn_theme(self):
+        """Owner report 2026-11-07: after a theme change the SECTORS tile was
+        still the fixed plum card. It is a themed plate, a themed heading, a
+        themed field and a rebuilt menu and reveal now."""
+        main = MAIN.read_text(encoding="utf-8")
+        theme = main[main.index("private void applyTheme(int index)"):]
+        theme = theme[:theme.index(
+            "private final GradientDrawable[] themePlates")]
+        self.assertIn("tileSectors,", theme)
+        self.assertIn("R.id.sectors_heading,", theme)
+        self.assertIn("renderSectorReveal();", theme)
+        self.assertIn("fillSectorMenu();", theme)
+        self.assertIn(
+            "sectorsFieldGroup = findViewById(R.id.sectors_field_group);",
+            main)
+        self.assertIn(
+            "sectorsFieldGroup.setBackground(fieldPlate(index));", main)
+
+    def test_total_volume_is_blue_everywhere(self):
+        """Owner order 2026-11-07: T is blue on every surface, not only the
+        leaders card. The splitters call one helper, the two span builders
+        carry the same resource, and the broker answer does too."""
+        colors = COLORS.read_text(encoding="utf-8")
+        main = MAIN.read_text(encoding="utf-8")
+        self.assertIn('<color name="blue">', colors)
+        self.assertIn("private void colorTotal(", main)
+        self.assertGreaterEqual(main.count("colorTotal(sb,"), 5)
+        self.assertGreaterEqual(main.count("R.color.blue"), 4)
+        watcher = WATCHER.read_text(encoding="utf-8")
+        self.assertIn("c.getColor(R.color.blue)", watcher)
 
     def test_v2_2_5_no_purple_stencil_under_a_themed_input(self):
         """v2.2.5: the volume dropdown no longer carries a purple

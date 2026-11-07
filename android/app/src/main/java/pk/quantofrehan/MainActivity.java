@@ -370,6 +370,7 @@ public class MainActivity extends Activity {
     private LinearLayout sectorsMenu;
     private ImageView sectorsArrow;
     private TextView sectorsReveal;
+    private View sectorsFieldGroup;
     private final java.util.Map<String, List<String>> sectorRows =
             new java.util.LinkedHashMap<>();
     private String sectorChoice = "";
@@ -611,6 +612,7 @@ public class MainActivity extends Activity {
         sectorsMenu = findViewById(R.id.sectors_menu);
         sectorsArrow = findViewById(R.id.sectors_arrow);
         sectorsReveal = findViewById(R.id.sectors_reveal);
+        sectorsFieldGroup = findViewById(R.id.sectors_field_group);
         if (sectorsSpinner != null) {
             sectorsBoxLabel = sectorsSpinner.getText().toString();
             sectorsSpinner.setOnClickListener(v ->
@@ -1140,6 +1142,9 @@ public class MainActivity extends Activity {
         if (themeFieldGroup != null) {
             themeFieldGroup.setBackground(fieldPlate(index));
         }
+        if (sectorsFieldGroup != null) {
+            sectorsFieldGroup.setBackground(fieldPlate(index));
+        }
         repaintDropdownArrows();
     }
 
@@ -1309,7 +1314,7 @@ public class MainActivity extends Activity {
                 findViewById(R.id.tile_signal),
                 findViewById(R.id.tile_market),
                 settingsPanel, searchPanel, tileVolume,
-                orderFlowPanel, bigPrintsPanel,
+                orderFlowPanel, bigPrintsPanel, tileSectors,
                 findViewById(R.id.tile_themes),
                 findViewById(R.id.nav_tile)};
         for (View plate : plates) {
@@ -1322,7 +1327,7 @@ public class MainActivity extends Activity {
                 R.id.winloss_label, R.id.search_heading, R.id.settings_heading,
                 R.id.market_heading, R.id.volume_heading,
                 R.id.order_flow_heading, R.id.big_prints_heading,
-                R.id.themes_heading};
+                R.id.sectors_heading, R.id.themes_heading};
         for (int id : headingIds) {
             View heading = findViewById(id);
             if (heading instanceof TextView) {
@@ -1347,6 +1352,10 @@ public class MainActivity extends Activity {
             selectFlow(orderFlowBookSymbol);
         }
         renderBigPrints(lastPrints);
+        // Owner order 2026-11-07: the SECTORS tile and its dropdown are part
+        // of the theme too, not a fixed plum island inside a themed page.
+        renderSectorReveal();
+        fillSectorMenu();
         // v2.3.20 (owner order 2026-10-28, "when I have selected another
         // theme, the app always shows purple and yellow"): the closed
         // THEMES box restamps its label with the theme this pass painted,
@@ -1736,7 +1745,7 @@ public class MainActivity extends Activity {
                 sb.append(quote.unclassified != null && quote.volume != null ? " &" : ")");
                 if (quote.volume != null) {
                     sb.append('\n').append("T=");
-                    sb.append(String.format(Locale.US, "%,d", quote.volume));
+                    colorTotal(sb, quote.volume);
                     sb.append(')');
                 }
             } else if (quote.unclassified != null || quote.volume != null) {
@@ -1756,7 +1765,7 @@ public class MainActivity extends Activity {
                 }
                 if (quote.volume != null) {
                     sb.append("T=");
-                    sb.append(String.format(Locale.US, "%,d", quote.volume));
+                    colorTotal(sb, quote.volume);
                 }
             }
             // The map only ever carries a live price (Watcher's law), so
@@ -1789,6 +1798,15 @@ public class MainActivity extends Activity {
         int from = sb.length();
         sb.append(String.format(Locale.US, "%,d", value));
         sb.setSpan(new ForegroundColorSpan(getColor(res)),
+                from, sb.length(), 0);
+    }
+
+    /** The venue's total volume is blue on every surface (owner order
+     *  2026-11-07). Only the digits carry the ink; T= stays neutral. */
+    private void colorTotal(SpannableStringBuilder sb, long value) {
+        int from = sb.length();
+        sb.append(String.format(Locale.US, "%,d", value));
+        sb.setSpan(new ForegroundColorSpan(getColor(R.color.blue)),
                 from, sb.length(), 0);
     }
 
@@ -3275,7 +3293,7 @@ public class MainActivity extends Activity {
             sb.append(row.unclassified != null && row.volume != null ? " &" : ")");
             if (row.volume != null) {
                 sb.append('\n').append("T=");
-                sb.append(String.format(Locale.US, "%,d", row.volume));
+                colorTotal(sb, row.volume);
                 sb.append(')');
             }
         } else if (row.unclassified != null || row.volume != null) {
@@ -3292,7 +3310,7 @@ public class MainActivity extends Activity {
             }
             if (row.volume != null) {
                 sb.append("T=");
-                sb.append(String.format(Locale.US, "%,d", row.volume));
+                colorTotal(sb, row.volume);
             }
         }
         return sb;
@@ -3398,7 +3416,7 @@ public class MainActivity extends Activity {
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT));
         columns.addView(flowBookColumn("BID", row.bid, row.bidSize,
-                        R.color.green),
+                        R.color.green, false),
                 new LinearLayout.LayoutParams(0,
                         LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
         View divider = new View(this);
@@ -3410,7 +3428,7 @@ public class MainActivity extends Activity {
         dividerParams.rightMargin = dp(10);
         columns.addView(divider, dividerParams);
         columns.addView(flowBookColumn("ASK", row.ask, row.askSize,
-                        R.color.red),
+                        R.color.red, true),
                 new LinearLayout.LayoutParams(0,
                         LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
         orderFlowBook.addView(columns);
@@ -3419,11 +3437,14 @@ public class MainActivity extends Activity {
 
     /** One side of the two-column book: label, price and quantity. */
     private LinearLayout flowBookColumn(String label, Double price, Long qty,
-                                        int colorRes) {
+                                        int colorRes, boolean alignRight) {
         LinearLayout column = new LinearLayout(this);
         column.setOrientation(LinearLayout.VERTICAL);
+        int align = alignRight ? Gravity.END : Gravity.START;
+        column.setGravity(align);
         TextView head = new TextView(this);
         head.setText(label);
+        head.setGravity(align);
         head.setTextSize(11f);
         head.setTextColor(themeBodyInk);
         head.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
@@ -3434,6 +3455,7 @@ public class MainActivity extends Activity {
                 ? String.format(Locale.US, "%,.2f", price) : "n/a");
         value.setTextSize(16f);
         value.setTextColor(price != null ? getColor(colorRes) : themeBodyInk);
+        value.setGravity(align);
         value.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
         value.setIncludeFontPadding(false);
         column.addView(value);
@@ -3445,6 +3467,7 @@ public class MainActivity extends Activity {
                     4, quantity.length(), 0);
         }
         size.setText(quantity);
+        size.setGravity(align);
         size.setTextSize(11f);
         size.setTextColor(themeBodyInk);
         size.setIncludeFontPadding(false);
@@ -3664,7 +3687,7 @@ public class MainActivity extends Activity {
                 sb.append(quote.unclassified != null && quote.volume != null ? " &" : ")");
                 if (quote.volume != null) {
                     sb.append('\n').append("T=");
-                    sb.append(String.format(Locale.US, "%,d", quote.volume));
+                    colorTotal(sb, quote.volume);
                     sb.append(')');
                 }
             } else if (quote.unclassified != null || quote.volume != null) {
@@ -3682,7 +3705,7 @@ public class MainActivity extends Activity {
                 }
                 if (quote.volume != null) {
                     sb.append("T=");
-                    sb.append(String.format(Locale.US, "%,d", quote.volume));
+                    colorTotal(sb, quote.volume);
                 }
             }
         }
@@ -4129,6 +4152,8 @@ public class MainActivity extends Activity {
         int sellTo = -1;
         int unclearFrom = -1;
         int unclearTo = -1;
+        int totalFrom = -1;
+        int totalTo = -1;
         if (quote.buy != null && quote.sell != null) {
             // Owner order 2026-11-05, eighth pass: measured B and S, the
             // unclear remainder as U, never folded into a side.
@@ -4149,7 +4174,9 @@ public class MainActivity extends Activity {
             sb.append(quote.unclassified != null && quote.volume != null ? " &" : ")");
             if (quote.volume != null) {
                 sb.append('\n').append("T=");
+                totalFrom = sb.length();
                 sb.append(String.format(Locale.US, "%,d", quote.volume));
+                totalTo = sb.length();
                 sb.append(')');
             }
         } else if (quote.unclassified != null || quote.volume != null) {
@@ -4167,7 +4194,10 @@ public class MainActivity extends Activity {
                 }
             }
             if (quote.volume != null) {
-                sb.append(String.format(Locale.US, "T=%,d", quote.volume));
+                sb.append("T=");
+                totalFrom = sb.length();
+                sb.append(String.format(Locale.US, "%,d", quote.volume));
+                totalTo = sb.length();
             }
         }
         int tailFrom = sb.length();
@@ -4189,6 +4219,10 @@ public class MainActivity extends Activity {
         if (unclearFrom >= 0) {
             sp.setSpan(new ForegroundColorSpan(getColor(R.color.yellow)),
                     unclearFrom, unclearTo, 0);
+        }
+        if (totalFrom >= 0) {
+            sp.setSpan(new ForegroundColorSpan(getColor(R.color.blue)),
+                    totalFrom, totalTo, 0);
         }
         if (moveFrom >= 0) {
             sp.setSpan(new ForegroundColorSpan(getColor(
@@ -4440,7 +4474,9 @@ public class MainActivity extends Activity {
                 // ampersand takes the place the closing bracket held.
                 if (row.hasVolume()) {
                     sb.append(" & T=");
+                    int totalFrom = sb.length();
                     sb.append(String.format(Locale.US, "%,d", row.volume));
+                    spans.add(new int[]{totalFrom, sb.length(), R.color.blue});
                 }
                 sb.append(')');
             } else if (row.unclassified != null || row.hasVolume()) {
@@ -4455,12 +4491,16 @@ public class MainActivity extends Activity {
                     spans.add(new int[]{unclearFrom, sb.length(), R.color.yellow});
                     if (row.hasVolume()) {
                         sb.append(" & T=");
+                        int totalFrom = sb.length();
                         sb.append(String.format(Locale.US, "%,d", row.volume));
+                        spans.add(new int[]{totalFrom, sb.length(), R.color.blue});
                     }
                     sb.append(')');
                 } else {
                     sb.append("T=");
+                    int totalFrom = sb.length();
                     sb.append(String.format(Locale.US, "%,d", row.volume));
+                    spans.add(new int[]{totalFrom, sb.length(), R.color.blue});
                 }
             }
             // The money line: opened whenever there is a price or a move to
