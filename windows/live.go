@@ -201,12 +201,15 @@ func (a *App) wheel(d int) {
 	case scrScanner:
 		if a.sectorOpen {
 			a.lvSectorStk.scroll(d * 2)
+		} else if a.sectorH > 0 && a.hoverY >= a.sectorY && a.hoverY < a.sectorY+a.sectorH {
+			// The sector tile wins over the search and the ranked list: hovering
+			// it and turning the wheel always moves the groups, even while a
+			// search is typed above it.
+			a.lvSector.scroll(d)
 		} else if a.searchText != "" {
 			if n := len(a.matches()); n > 0 {
 				a.searchCursor = min(max(0, a.searchCursor+d), n-1)
 			}
-		} else if a.sectorH > 0 && a.hoverY >= a.sectorY && a.hoverY < a.sectorY+a.sectorH {
-			a.lvSector.scroll(d)
 		} else if a.scanChoice > 0 {
 			a.lvScan.scroll(d * 2)
 		}

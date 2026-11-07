@@ -11,10 +11,12 @@ import "time"
 //	Friday              pre-market 09:00 to 09:15, trading 09:17 to 12:00 and
 //	                    14:32 to 16:30, post-market 16:32 to 16:49
 //
-// The quant reads the broker feed every second from the start of the
-// pre-market until the post-market closes, so the gaps between those windows
-// are scanned too. Each end is half open: 15:49:00 is already after the
-// post-market, and a short grace period after it catches the final print.
+// The quant reads the broker feed every second from 08:55, five minutes before
+// the exchange's pre-open, until the post-market closes, so the gaps between
+// those windows are scanned too. The 08:55 start is the owner's order of
+// 2026-11-07: the day must never begin with volume the capture could not side.
+// Each end is half open: 15:49:00 is already after the post-market, and a short
+// grace period after it catches the final print.
 
 type window struct{ from, to int } // minutes after midnight, half open
 
@@ -25,6 +27,11 @@ var (
 	weekdayPost   = window{15*60 + 32, 15*60 + 49}
 	fridayPost    = window{16*60 + 32, 16*60 + 49}
 	scanGraceSecs = 30
+
+	// scanOpen is 08:55, five minutes before the exchange's pre-open. The scan
+	// starts there on every trading day, not at 09:00, so the day never begins
+	// with volume the capture could not side.
+	scanOpen = 8*60 + 55
 )
 
 func isFriday(p time.Time) bool { return p.Weekday() == time.Friday }
@@ -90,7 +97,7 @@ func sessionAt(t time.Time) string {
 	return sesClosed
 }
 
-// inScanWindow is true on a weekday from 09:00 until the post-market closes
+// inScanWindow is true on a weekday from 08:55 until the post-market closes
 // (15:49 Monday to Thursday, 16:49 on Friday), plus a short grace period.
 func inScanWindow(t time.Time) bool {
 	p := t.In(pkt)
@@ -98,7 +105,7 @@ func inScanWindow(t time.Time) bool {
 		return false
 	}
 	s := secondOf(p)
-	return s >= preWindow.from*60 && s < postWindow(p).to*60+scanGraceSecs
+	return s >= scanOpen*60 && s < postWindow(p).to*60+scanGraceSecs
 }
 
 // inTradingBand is true only while the exchange is trading, which is when the
@@ -125,7 +132,7 @@ func untilScanStart(t time.Time) time.Duration {
 		return 0
 	}
 	p := t.In(pkt)
-	day := time.Date(p.Year(), p.Month(), p.Day(), 9, 0, 0, 0, pkt)
+	day := time.Date(p.Year(), p.Month(), p.Day(), 8, 55, 0, 0, pkt)
 	if !day.After(p) {
 		day = day.AddDate(0, 0, 1)
 	}

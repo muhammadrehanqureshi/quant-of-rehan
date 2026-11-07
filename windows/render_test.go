@@ -123,7 +123,8 @@ func TestScreensShowTheAppsText(t *testing.T) {
 	a.screen = scrSettings
 	set := plain(a)
 	for _, want := range []string{"RELAY STATUS", "NOTIFICATIONS", "JARVIS CYAN", "PURPLE & YELLOW", "BLACK & WHITE",
-		"GREEN & YELLOW", "NAVY BLUE & WHITE", "ORANGE & WHITE", "VERSION", "4.0.14", "REQUESTS TODAY",
+		"GREEN & YELLOW", "NAVY BLUE & WHITE", "ORANGE & WHITE", "VERSION", "4.0.15", "REQUESTS TODAY",
+		"Every second from 08:55 until the post-market closes.",
 		"BIG BUYING FLAG", "BIG SELLING FLAG", "SOUND", "BIG ORDER SIZE", "TEST BUYING ALERT", "TEST SELLING ALERT"} {
 		if !strings.Contains(set, want) {
 			t.Errorf("settings is missing %q", want)

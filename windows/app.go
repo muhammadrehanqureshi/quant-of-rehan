@@ -118,6 +118,8 @@ type App struct {
 	of          *OrderFlow // the latest /orderflow answer
 	ofErr       string     // why the last read failed, for the screen
 	ofSort      int        // which order the ORDER FLOW list is in
+	ofQuery     string     // the ORDER FLOW search text, upper case
+	ofSearch    bool       // the ORDER FLOW search box has the keys
 	sectors      *Sectors   // the latest /sectors answer
 	sectorsErr   string     // why the last sector read failed, for the screen
 	sectorChoice int        // which sector group the scanner tile shows
@@ -418,7 +420,7 @@ func (a *App) matches() []string {
 // ---------- polling ----------
 
 // scanning says whether the app should be reading the feed every second now:
-// from 09:00 until the post-market closes, on a trading day. The relay's own
+// from 08:55 until the post-market closes, on a trading day. The relay's own
 // phase wins while it says the market is trading or on a break, and a day the
 // relay calls a non-trading day (a holiday) is never scanned, so it cannot
 // burn the daily request quota.
@@ -902,8 +904,17 @@ func (a *App) onKey(k Key) {
 	}
 	switch k.Kind {
 	case KEsc:
-		a.setScreen(scrHome)
+		if a.screen == scrOrderFlow && (a.ofSearch || a.ofQuery != "") {
+			a.ofQuery, a.ofSearch = "", false
+			a.lvOF.top()
+		} else {
+			a.setScreen(scrHome)
+		}
 	case KRune:
+		if a.screen == scrOrderFlow && a.ofSearch {
+			a.keyOrderFlow(k)
+			return
+		}
 		switch k.R {
 		case '1':
 			a.setScreen(scrHome)
@@ -915,6 +926,11 @@ func (a *App) onKey(k Key) {
 			a.setScreen(scrScanner)
 		case '5':
 			a.setScreen(scrSettings)
+		case '/':
+			if a.screen == scrOrderFlow {
+				a.ofSearch = true
+				a.lvOF.top()
+			}
 		case 'q', 'Q':
 			a.quit = true
 		case 'r', 'R':
@@ -1101,6 +1117,30 @@ func (a *App) keyAlerts(k Key) {
 
 func (a *App) keyOrderFlow(k Key) {
 	switch k.Kind {
+	case KEsc:
+		a.ofQuery, a.ofSearch = "", false
+		a.lvOF.top()
+	case KEnter:
+		a.ofSearch = false
+	case KBackspace:
+		if r := []rune(a.ofQuery); len(r) > 0 {
+			a.ofQuery = string(r[:len(r)-1])
+		} else {
+			a.ofSearch = false
+		}
+		a.lvOF.top()
+	case KRune:
+		r := k.R
+		if r >= 'a' && r <= 'z' {
+			r -= 'a' - 'A'
+		}
+		if (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '.' || r == '-' || r == '_' {
+			if runeLen(a.ofQuery) < 12 {
+				a.ofQuery += string(r)
+			}
+			a.ofSearch = true
+			a.lvOF.top()
+		}
 	case KLeft:
 		a.stepFlowSort(-1)
 	case KRight:
