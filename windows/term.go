@@ -24,6 +24,7 @@ const (
 	KF3
 	KF4
 	KF5
+	KF6
 	KCtrlC
 	KHome
 	KEnd

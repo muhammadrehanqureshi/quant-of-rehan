@@ -239,7 +239,7 @@ func (t *winTerm) readLoop() {
 			k = Key{Kind: KEnd}
 		case vk == vkDelete:
 			k = Key{Kind: KDel}
-		case vk >= vkF1 && vk <= vkF1+4:
+		case vk >= vkF1 && vk <= vkF1+5:
 			k = Key{Kind: KF1 + KeyKind(vk-vkF1)}
 		case rec.UnicodeChar == 3:
 			k = Key{Kind: KCtrlC}

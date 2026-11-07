@@ -42,6 +42,10 @@ func TestSGRMouseReports(t *testing.T) {
 	if k := get(); k.Kind != KF5 {
 		t.Errorf("F5: %+v", k)
 	}
+	u.csi([]byte("17"), '~')
+	if k := get(); k.Kind != KF6 {
+		t.Errorf("F6: %+v", k)
+	}
 	u.csi([]byte("5"), '~')
 	if k := get(); k.Kind != KPgUp {
 		t.Errorf("Page Up: %+v", k)

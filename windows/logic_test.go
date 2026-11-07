@@ -612,8 +612,8 @@ func TestKeyNavigation(t *testing.T) {
 	press := func(k Key) { a.onKey(k) }
 	r := func(c rune) Key { return Key{Kind: KRune, R: c} }
 
-	// The five tabs, in the owner's order.
-	want := []string{"HOME", "ALERTS", "ORDER FLOW", "SCANNER", "SETTINGS"}
+	// The six tabs, in the owner's order.
+	want := []string{"HOME", "ALERTS", "ORDER FLOW", "SCANNER", "CHARTS", "SETTINGS"}
 	if len(screenNames) != len(want) {
 		t.Fatalf("tabs: %v", screenNames)
 	}
@@ -635,6 +635,15 @@ func TestKeyNavigation(t *testing.T) {
 	if a.screen != scrScanner {
 		t.Fatalf("F4 is the scanner: %v", a.screen)
 	}
+	press(Key{Kind: KF5})
+	if a.screen != scrCharts {
+		t.Fatalf("F5 is the charts tab: %v", a.screen)
+	}
+	press(Key{Kind: KF6})
+	if a.screen != scrSettings {
+		t.Fatalf("F6 is settings: %v", a.screen)
+	}
+	press(Key{Kind: KF4})
 	// In the scanner, q is search text, not quit.
 	press(r('q'))
 	press(r('a'))
@@ -686,9 +695,9 @@ func TestKeyNavigation(t *testing.T) {
 	if a.screen != scrAlerts {
 		t.Fatalf("2 is alerts: %v", a.screen)
 	}
-	press(Key{Kind: KF5})
+	press(Key{Kind: KF6})
 	if a.screen != scrSettings {
-		t.Fatalf("F5 is settings: %v", a.screen)
+		t.Fatalf("F6 is settings: %v", a.screen)
 	}
 	for i := 0; i < settingsItems; i++ {
 		press(Key{Kind: KDown})
