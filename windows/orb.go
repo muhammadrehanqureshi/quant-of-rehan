@@ -84,6 +84,7 @@ func hudCut(turn, t float64) bool {
 	for k := 0; k < hudSeams; k++ {
 		centre := float64(k)/hudSeams + hudSeamStart + hudSeamSpeed*t
 		d := math.Abs(turn - centre)
+		d -= math.Floor(d) // distance the short way round, however many turns
 		if d > 0.5 {
 			d = 1 - d
 		}
@@ -120,6 +121,7 @@ func hudGlint(turn, r, t float64) float64 {
 		return 0
 	}
 	d := math.Abs(turn - (0.10 + 0.085*t))
+	d -= math.Floor(d) // distance the short way round, however many turns
 	if d > 0.5 {
 		d = 1 - d
 	}
