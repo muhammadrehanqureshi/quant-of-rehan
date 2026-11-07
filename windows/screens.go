@@ -173,17 +173,14 @@ func (a *App) flashRight(c *Canvas, right, y int, s string, fg RGB, bold bool, k
 
 // ---------- chrome ----------
 
-// drawHeader is the top of the window, set the way the owner's picture sets
-// it: the live feed counter on the left, the letterspaced name centred between
-// two diamonds, and the date and 24 hour clock on the right in pale ink. The
-// index the quant watches is centred on the next line, and the rule with a
-// bright segment sweeping along it closes the header.
+// drawHeader is the top of the window: the live feed counter on the left, the
+// name centred between two diamonds, and the date and 24 hour clock on the
+// right in a darker shade with UTC+5 after the time. The index the quant watches
+// is centred on the next line between two thin rules, and the rule with a bright
+// segment sweeping along it closes the header.
 func (a *App) drawHeader(c *Canvas) {
 	th := a.th
 	title := headerTitle
-	if c.W < 96 {
-		title = headerTitleCompact
-	}
 	lt := a.feedLight()
 	if len(lt) > 0 && c.W >= runeLen(title)+spanW(lt)+4 {
 		c.Spans(1, 0, min(c.W-2, spanW(lt)), lt)
@@ -195,14 +192,26 @@ func (a *App) drawHeader(c *Canvas) {
 	if c.W < 100 {
 		layout = "02 Jan 06"
 	}
-	clock := strings.ToUpper(k.Format(layout)) + "  " + k.Format("15:04:05") + " PKT"
-	rightAlign(c, 0, 0, c.W-1, []Span{{clock, th.Text, false}})
+	clock := strings.ToUpper(k.Format(layout)) + "  " + k.Format("15:04:05") + " UTC+5"
+	// A darker shade than the body text, as the owner asked, so the clock sits
+	// back instead of competing with the title.
+	rightAlign(c, 0, 0, c.W-1, []Span{{clock, mix(th.Soft, th.BG, 0.28), false}})
 
 	tag := "PSX'S KMIALL INDEX"
 	if a.demo {
 		tag += "  ·  DEMO DATA"
 	}
-	centerText(c, 0, 1, c.W, tag, th.Soft, false)
+	tag = fit(tag, c.W)
+	tagX := max(0, (c.W-runeLen(tag))/2)
+	c.Text(tagX, 1, runeLen(tag), tag, th.Soft, false)
+	// Thin rules on both sides of the index line, with a space around the words.
+	rule := mix(th.Line, th.BG, 0.25)
+	if tagX >= 3 {
+		c.HLine(0, 1, tagX-2, '─', rule)
+	}
+	if end := tagX + runeLen(tag) + 2; end < c.W-1 {
+		c.HLine(end, 1, c.W-1-end, '─', rule)
+	}
 
 	// Rule with a bright segment sweeping along it.
 	c.HLine(0, 2, c.W, '━', th.Line)
