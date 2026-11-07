@@ -857,6 +857,10 @@ func (a *App) demoHistory(sym string) *ChartHistory {
 	base := 100.0
 	if q, ok := a.liveQuote(sym); ok && q.Price > 0 {
 		base = q.Price
+	} else if sym == "KSE100" && a.quotes != nil && a.quotes.Index != nil && a.quotes.Index.Value > 0 {
+		// The index has no scrip quote; its demo session must sit at the index
+		// level, or the live line would flatten every invented candle.
+		base = a.quotes.Index.Value
 	}
 	seed := 0
 	for _, r := range sym {
