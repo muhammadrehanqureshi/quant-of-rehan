@@ -4237,7 +4237,8 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         """Owner report 2026-11-07: after a theme change the SECTORS tile was
         still the fixed plum card. It is a themed plate, a themed heading, a
         themed field and a rebuilt menu and reveal now."""
-        theme = self.main[self.main.index("private void applyTheme(int index)"):]
+        main = MAIN.read_text(encoding="utf-8")
+        theme = main[main.index("private void applyTheme(int index)"):]
         theme = theme[:theme.index(
             "private final GradientDrawable[] themePlates")]
         self.assertIn("tileSectors,", theme)
@@ -4246,19 +4247,20 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         self.assertIn("fillSectorMenu();", theme)
         self.assertIn(
             "sectorsFieldGroup = findViewById(R.id.sectors_field_group);",
-            self.main)
+            main)
         self.assertIn(
-            "sectorsFieldGroup.setBackground(fieldPlate(index));", self.main)
+            "sectorsFieldGroup.setBackground(fieldPlate(index));", main)
 
     def test_total_volume_is_blue_everywhere(self):
         """Owner order 2026-11-07: T is blue on every surface, not only the
         leaders card. The splitters call one helper, the two span builders
         carry the same resource, and the broker answer does too."""
         colors = COLORS.read_text(encoding="utf-8")
+        main = MAIN.read_text(encoding="utf-8")
         self.assertIn('<color name="blue">', colors)
-        self.assertIn("private void colorTotal(", self.main)
-        self.assertGreaterEqual(self.main.count("colorTotal(sb,"), 5)
-        self.assertGreaterEqual(self.main.count("R.color.blue"), 4)
+        self.assertIn("private void colorTotal(", main)
+        self.assertGreaterEqual(main.count("colorTotal(sb,"), 5)
+        self.assertGreaterEqual(main.count("R.color.blue"), 4)
         watcher = WATCHER.read_text(encoding="utf-8")
         self.assertIn("c.getColor(R.color.blue)", watcher)
 
