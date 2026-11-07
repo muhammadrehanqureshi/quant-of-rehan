@@ -9,17 +9,18 @@ import (
 
 type screenID int
 
-// The tabs, in the order the owner asked for on 2026-11-05: Home, Alerts, Order
-// Flow, Scanner (which carries the search tile on top) and Settings.
+// The tabs, in the owner's order: Home, Alerts, Order Flow, Scanner (which
+// carries the search tile on top), Charts and Settings.
 const (
 	scrHome screenID = iota
 	scrAlerts
 	scrOrderFlow
 	scrScanner
+	scrCharts
 	scrSettings
 )
 
-var screenNames = []string{"HOME", "ALERTS", "ORDER FLOW", "SCANNER", "SETTINGS"}
+var screenNames = []string{"HOME", "ALERTS", "ORDER FLOW", "SCANNER", "CHARTS", "SETTINGS"}
 
 // Messages posted from fetch goroutines to the single UI goroutine.
 type (
@@ -56,6 +57,11 @@ type (
 	}
 	msgSectors struct {
 		s   *Sectors
+		err error
+	}
+	msgHistory struct {
+		sym string
+		h   *ChartHistory
 		err error
 	}
 )
@@ -131,6 +137,14 @@ type App struct {
 	sectorOpen   bool       // a tapped sector is open with its KMIALLSHR scrips
 	lvSectorStk  listView   // the open sector's scrip list
 	lvOF        listView   // the ORDER FLOW list
+	chartSym    string     // the stock the CHARTS tab is showing
+	chart       *ChartHistory
+	chartSt     string // "", "loading", "failed", "ok"
+	chartErr    string
+	chartQuery  string
+	chartSearch bool
+	chartCursor int
+	lvChart     listView
 	bannerSell  bool       // the banner on show is a big selling flag
 	lvScan      listView   // the scanner's list
 	lvBoard     listView   // the Alerts screen's big buying list
@@ -524,6 +538,13 @@ func (a *App) interval(name string) time.Duration {
 		if scan {
 			d = 5 * time.Minute
 		}
+	case "history":
+		// The relay writes one bar a minute. Five seconds keeps the forming bar
+		// and the live line close without spending the free quota.
+		d = min(60*time.Second, idle)
+		if scan {
+			d = max(5*time.Second, 5*base)
+		}
 	}
 	if f := a.fails[name]; f > 0 {
 		b := 2 * time.Second << min(f, 5)
@@ -546,6 +567,11 @@ func (a *App) fetch(name string) {
 	a.inflight[name] = true
 	a.sentAt[name] = a.now
 	r := a.relay
+	histSym, histDay := a.chartSym, a.karachiNow().In(pkt).Format("2006-01-02")
+	if name == "history" && histSym == "" {
+		a.inflight[name] = false
+		return
+	}
 	// The one second feed must not sit behind a stuck request: it gives up
 	// after 4 seconds and the next ask goes out at once. Slower answers get
 	// longer.
@@ -581,6 +607,9 @@ func (a *App) fetch(name string) {
 		case "sectors":
 			s, err := r.FetchSectors(ctx)
 			a.msgs <- msgSectors{s, err}
+		case "history":
+			h, err := r.FetchHistory(ctx, histSym, histDay)
+			a.msgs <- msgHistory{histSym, h, err}
 		}
 	}()
 }
@@ -698,6 +727,24 @@ func (a *App) onMsg(m any) {
 			a.sectorsErr = ""
 		} else {
 			a.sectorsErr = unreachableText(v.err)
+		}
+	case msgHistory:
+		ok := v.err == nil
+		a.done("history", ok)
+		if v.sym != a.chartSym {
+			// The reader moved to another stock: let the new one be asked for
+			// on the next tick instead of waiting out this answer's interval.
+			a.next["history"] = time.Time{}
+			break
+		}
+		if ok && v.h != nil {
+			a.chart, a.chartErr, a.chartSt = v.h, "", "ok"
+		} else {
+			errText := "The relay did not answer with a chart."
+			if v.err != nil {
+				errText = unreachableText(v.err)
+			}
+			a.chartErr, a.chartSt = errText, "failed"
 		}
 	case msgStock:
 		if v.sym != a.selectedSym {
@@ -834,6 +881,9 @@ func (a *App) onTick(now time.Time) {
 	if a.screen == scrOrderFlow {
 		names = append(names, "orderflow")
 	}
+	if a.screen == scrCharts {
+		names = append(names, "prices", "history")
+	}
 	for _, n := range names {
 		if !a.inflight[n] && !now.Before(a.next[n]) {
 			a.fetch(n)
@@ -858,6 +908,14 @@ func (a *App) setScreen(s screenID) {
 		a.next["sectors"] = time.Time{} // and the sector groups
 	case scrOrderFlow:
 		a.next["orderflow"] = time.Time{}
+	case scrCharts:
+		a.next["prices"] = time.Time{}
+		a.next["history"] = time.Time{}
+		if a.chartSym == "" {
+			if m := a.chartSymbols(); len(m) > 0 {
+				a.chartSym, a.chartSt = m[0], "loading"
+			}
+		}
 	}
 }
 
@@ -884,6 +942,9 @@ func (a *App) onKey(k Key) {
 		a.setScreen(scrScanner)
 		return
 	case KF5:
+		a.setScreen(scrCharts)
+		return
+	case KF6:
 		a.setScreen(scrSettings)
 		return
 	case KMouse:
@@ -903,6 +964,10 @@ func (a *App) onKey(k Key) {
 	// from anywhere.
 	if a.screen == scrScanner {
 		a.keyScanner(k)
+		return
+	}
+	if a.screen == scrCharts {
+		a.keyCharts(k)
 		return
 	}
 	switch k.Kind {
@@ -928,6 +993,8 @@ func (a *App) onKey(k Key) {
 		case '4':
 			a.setScreen(scrScanner)
 		case '5':
+			a.setScreen(scrCharts)
+		case '6':
 			a.setScreen(scrSettings)
 		case '/':
 			if a.screen == scrOrderFlow {
@@ -1048,7 +1115,7 @@ func (a *App) keyScanner(k Key) {
 			r -= 'a' - 'A'
 		}
 		// With an empty box a digit still jumps to that tab, as on every screen.
-		if !searching && r >= '1' && r <= '5' {
+		if !searching && r >= '1' && r <= '6' {
 			a.setScreen(screenID(r - '1'))
 			return
 		}

@@ -384,32 +384,27 @@ func (a *App) drawFlowCols(c *Canvas, ix, y int, r FlowRow, volKey string) {
 	}
 }
 
-// drawFlowSearch draws the ORDER FLOW search box. The slash key focuses it,
-// letters and digits go into the box, and ESC clears the filter.
+// drawFlowSearch draws the ORDER FLOW search box in the same filled field as
+// the SCANNER tile. The slash key focuses it, letters and digits go into the
+// box, and ESC clears the filter.
 func (a *App) drawFlowSearch(c *Canvas, ix, y, iw int) {
 	th := a.th
-	c.Text(ix, y, 7, "SEARCH", th.Soft, false)
-	c.Put(ix+7, y, '[', th.Accent, true)
-	field, col := a.ofQuery, th.Text
-	if field == "" {
-		field, col = scripSearchHint, th.Soft
+	c.Text(ix, y, 6, "SEARCH", th.Soft, false)
+	bw := iw - 8
+	if bw > 40 {
+		bw = 40
 	}
-	if a.ofSearch {
-		field += "▏"
+	if bw < 1 {
+		bw = 1
 	}
-	bw := runeLen(scripSearchHint) + 1
-	if limit := iw - 12; bw > limit {
-		bw = max(8, limit)
-	}
-	c.Text(ix+9, y, bw, fit(field, bw), col, a.ofSearch)
-	c.Put(ix+9+bw, y, ']', th.Accent, true)
+	fw := a.searchBox(c, ix+8, y, bw, a.ofQuery, scripSearchHint, a.ofSearch)
 	if a.ofQuery != "" {
-		c.Text(ix+11+bw, y, 12, fmt.Sprintf("%d match", len(a.sortedFlow())), th.Soft, false)
+		c.Text(ix+10+fw, y, 12, fmt.Sprintf("%d match", len(a.sortedFlow())), th.Soft, false)
 	}
-	if iw > 64 {
+	if iw > 70 {
 		rightAlign(c, ix, y, iw, []Span{{"/ searches  ESC clears", th.Soft, false}})
 	}
-	a.addHit(ix, y, iw, 1, func() { a.ofSearch = true })
+	a.addHit(ix, y, iw, 1, func() { a.ofSearch = true; a.lvOF.top() })
 }
 
 func padLeft(s string, w int) string {

@@ -1,9 +1,14 @@
-# Quant of Rehan for Windows (console edition), build 16
+# Quant of Rehan for Windows (console edition), build 17
 
 A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.16**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
 
-## What is new in build 16
+## What is new in build 17
+
+* **Build 17.** The ORB is a saturated, brighter red: its lighter shade is `255,64,64` instead of the washed out `255,178,178`, and its core is `255,4,4`. The header diamonds sit one space from the words, and the index line is 16 cells instead of 18, the nearest whole cell to the ten percent smaller the owner asked for. Every buy versus sell bar is still 17 cells wide and still ten tabs, but a tab now fills its cells, so the bar has exactly ten boxes and each one is about twice as long. The SECTORS search box sits below the title, says `Search for a sector`, and the scrip count at the right of each sector is gone. The ORDER FLOW search is the same filled field as SCANNER's.
+* **CHARTS, a sixth tab.** Every KMIALL stock is in a searchable list on the left; the chosen stock's live intraday chart is on the right, built from the relay's `GET /history` one minute bars. A whole session is grouped into candles that fit the width, the live price is a dotted line across them, and the last bar's O, H, L, C and volume are written above. A day the relay has no bars for says so, and no bar is invented. In demo mode the bars are invented and labelled `demo bars`. `5` or F5 opens the tab, `6` or F6 is Settings.
+
+## What was new in build 16
 
 * **Build 16.** The ORB is red. The header title is 20 cells wide instead of 18, 11.1 percent wider: the diamonds sit one extra space from the words, the nearest whole cell to the ten percent the owner asked for. The glyph height stays the console's fixed font. Every buy versus sell bar is back to its previous 17-cell span, still split into ten ten-percent tabs. The ORDER FLOW bar column is called `BARS`, right-aligned like the numeric columns. The application icon is the owner's exact `logo2.png`, saved as `assets/icon-source.png`; `mkicon_hud.py` crops it square, gives it transparent rounded corners and embeds it in the exe.
 
@@ -59,7 +64,7 @@ One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of 
 2. Or run it from a terminal you already have open. It needs at least 80 x 26 characters. 120 x 30 or bigger shows the full HUD with the orb and telemetry panel.
 3. Windows SmartScreen will say "Windows protected your PC" because the file is not code signed. Click More info, then Run anyway. Check the SHA-256 in `SHA256SUMS.txt` first if you want to be sure it is the file you were given.
 4. First run on a new PC: `QuantOfRehan.exe -selftest` calls every relay endpoint once and prints what came back.
-5. Press 5, move to **TEST THE ALERT** and press ENTER (or click it). You should see the banner, hear the tone and get the Windows notification. If one is missing, that is the part to look at.
+5. Press 6, move to **TEST THE ALERT** and press ENTER (or click it). You should see the banner, hear the tone and get the Windows notification. If one is missing, that is the part to look at.
 
 ## Screens
 
@@ -69,9 +74,10 @@ One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of 
 | 2 ALERTS | 2, F2 | BIG BUYING NOW in green and BIG SELLING NOW in red, side by side (stacked when narrow), and the ALERT LOG with times, BUY or SELL and the sentence. LEFT and RIGHT pick the list the keys scroll |
 | 3 ORDER FLOW | 3, F3 | Every KMIALL stock with price, change, bid, ask, B, S, U and T. `/` focuses the search box and filters the list as you type, ESC clears it. O (or a click on the heading chips) changes the order. UP, DOWN, PAGE UP, PAGE DOWN and the wheel scroll |
 | 4 SCANNER | 4, F4 | The SEARCH tile, then the numbered SECTORS, then the scanner: PRICES RISING FAST, MORE BUYERS & LESS SELLERS and BIG BUYING & SELLING NOW (LIVE FLOW). The sector tile grows to show every group it can and the wheel scrolls the rest; every group and every scrip carries its number. The search box says `Search for a KMIALL scrip`. Type to search, UP and DOWN choose a match, ENTER opens it in the tile. A clicked sector lists its scrips in place; BACKSPACE brings all sectors back. With the box empty, LEFT and RIGHT change the sort |
-| 5 SETTINGS | 5, F5 | Relay status, notifications, big buying flag, big selling flag, sound, big order size, test buying alert, test selling alert, six themes, version, request counter |
+| 5 CHARTS | 5, F5 | Every KMIALL stock in a searchable list, and the chosen stock's live intraday candles from the relay's `/history`: one minute bars grouped to fit, the live price as a dotted line, the last bar's O, H, L, C and volume, and an honest empty state when the relay has no bars. Type to search, UP and DOWN open the previous or next stock, ESC clears |
+| 6 SETTINGS | 6, F6 | Relay status, notifications, big buying flag, big selling flag, sound, big order size, test buying alert, test selling alert, six themes, version, request counter |
 
-Other keys: TAB and SHIFT+TAB switch screens, R refresh now, D flip the signal card to raw text (Home), `[` and `]` mark roundness (Home), ESC clears the search or goes Home, Q quits, CTRL+C quits anywhere. The sound and alert flags are changed only on SETTINGS. On the Scanner letters and digits go into the search box; with the box empty a digit still jumps to that tab, and CTRL+C always quits. On ALERTS, ENTER plays a test and DEL clears the log.
+Other keys: TAB and SHIFT+TAB switch screens, R refresh now, D flip the signal card to raw text (Home), `[` and `]` mark roundness (Home), ESC clears the search or goes Home, Q quits, CTRL+C quits anywhere. The sound and alert flags are changed only on SETTINGS. On the Scanner letters and digits go into the search box; with the box empty a digit still jumps to that tab, and CTRL+C always quits. On CHARTS letters and digits go into the chart search, UP and DOWN open the previous or next stock, and CTRL+C always quits. On ALERTS, ENTER plays a test and DEL clears the log.
 
 ## ORDER FLOW, and why every number can be trusted
 
