@@ -26,7 +26,11 @@ type ChartBar struct {
 // an empty chart with the relay's own note.
 type ChartHistory struct {
 	Symbol    string
+	TF        string
 	Day       string
+	Days      int
+	Retention int
+	LiveOnly  bool
 	Bars      []ChartBar
 	Forming   bool
 	Demo      bool
@@ -106,19 +110,270 @@ func (r *Relay) FetchHistory(ctx context.Context, sym, day string) (*ChartHistor
 	return h, nil
 }
 
+// Owner order 2026-11-07: ten frames for KSE100, KMIALLSHR and every KMIALL
+// scrip. The relay stores one minute and every longer frame; the two second
+// frames are built here from this desk's own live samples, because the broker
+// feed samples a symbol every 30 to 90 seconds and a stored second bar would
+// claim detail the wire never had.
+var chartFrames = []string{"1s", "5s", "1m", "5m", "15m", "30m", "1h", "1D", "1W", "1M"}
+
+func chartFrameIndex(tf string) int {
+	for i, f := range chartFrames {
+		if f == tf {
+			return i
+		}
+	}
+	return -1
+}
+
+func (a *App) chartFrame() string {
+	if chartFrameIndex(a.chartTF) < 0 {
+		return "1m"
+	}
+	return a.chartTF
+}
+
+func (a *App) liveFrame() bool {
+	f := a.chartFrame()
+	return f == "1s" || f == "5s"
+}
+
+// setChartFrame switches the panel to one frame. A live frame needs no relay
+// read; a stored frame asks for its bars at once.
+func (a *App) setChartFrame(tf string) {
+	if chartFrameIndex(tf) < 0 || tf == a.chartFrame() {
+		return
+	}
+	a.chartTF = tf
+	a.chart, a.chartErr = nil, ""
+	if a.demo || a.liveFrame() {
+		a.chartSt = "ok"
+		return
+	}
+	a.chartSt = "loading"
+	a.next["history"] = time.Time{}
+}
+
+func (a *App) moveChartFrame(d int) {
+	i := chartFrameIndex(a.chartFrame())
+	if i < 0 {
+		i = 2
+	}
+	i = (i + d + len(chartFrames)) % len(chartFrames)
+	a.setChartFrame(chartFrames[i])
+}
+
+// ParseBars reads {ok, tf, days, retention_days, bars:[{t,o,h,l,c,v}], notes}.
+// A daily or longer bar is labelled with its date; an intraday bar with its
+// Karachi clock time. No bar the relay did not send is invented.
+func ParseBars(o J, sym, tf string) *ChartHistory {
+	h := &ChartHistory{Symbol: sym, TF: tf, Days: o.intDef("days", 0),
+		Retention: o.intDef("retention_days", 0)}
+	if chartFrameIndex(h.TF) < 0 {
+		h.TF = o.str("tf", "1m")
+	}
+	if chartFrameIndex(h.TF) < 0 {
+		h.TF = "1m"
+	}
+	h.LiveOnly = h.TF == "1s" || h.TF == "5s"
+	if !o.boolean("ok", false) {
+		h.Err = o.str("error", "The relay did not return any bars.")
+	}
+	for _, raw := range o.arr("notes") {
+		if s, ok := raw.(string); ok && strings.TrimSpace(s) != "" {
+			h.Notes = append(h.Notes, s)
+		}
+	}
+	daily := h.TF == "1D" || h.TF == "1W" || h.TF == "1M"
+	for _, raw := range o.arr("bars") {
+		obj := objOf(raw)
+		if obj == nil {
+			continue
+		}
+		at, err := time.Parse(time.RFC3339, obj.str("t", ""))
+		if err != nil {
+			continue
+		}
+		local := at.In(pkt)
+		label := local.Format("15:04")
+		if daily {
+			label = local.Format("02 Jan 06")
+		}
+		b := ChartBar{At: local, Minute: label}
+		if f := obj.num("o"); f != nil {
+			b.Open = *f
+		}
+		if f := obj.num("h"); f != nil {
+			b.High = *f
+		}
+		if f := obj.num("l"); f != nil {
+			b.Low = *f
+		}
+		if f := obj.num("c"); f != nil {
+			b.Close = *f
+		}
+		if f := obj.num("v"); f != nil {
+			b.Volume = int64(math.Round(*f))
+		}
+		if b.High <= 0 || b.Low <= 0 {
+			continue
+		}
+		h.Bars = append(h.Bars, b)
+	}
+	if len(h.Bars) > 0 {
+		h.Day = h.Bars[len(h.Bars)-1].At.Format("2006-01-02")
+	}
+	return h
+}
+
+// FetchBars reads one frame for one symbol, newest limit bars inside the
+// rolling day window. The relay does the aggregation; this side only parses.
+func (r *Relay) FetchBars(ctx context.Context, sym, tf string, days, limit int) (*ChartHistory, error) {
+	sym = strings.ToUpper(strings.TrimSpace(sym))
+	path := fmt.Sprintf("/bars?symbol=%s&tf=%s&days=%d&limit=%d",
+		url.QueryEscape(sym), url.QueryEscape(tf), days, limit)
+	o, _, err := r.get(ctx, path)
+	if err != nil {
+		return nil, err
+	}
+	h := ParseBars(o, sym, tf)
+	h.FetchedAt = time.Now()
+	if h.Err != "" {
+		return h, errors.New(h.Err)
+	}
+	return h, nil
+}
+
+// liveChart builds the 1s or 5s frame from this desk's own samples. It is
+// labelled live-only because the wire does not publish second bars.
+func (a *App) liveChart(sym, tf string) *ChartHistory {
+	var vals []float64
+	switch {
+	case sym == "KSE100" && a.quotes != nil && a.quotes.Index != nil:
+		vals = a.idxHist.v
+	case a.symHist[sym] != nil:
+		vals = a.symHist[sym].v
+	}
+	h := &ChartHistory{Symbol: sym, TF: tf, LiveOnly: true}
+	if len(vals) == 0 {
+		h.Notes = append(h.Notes, "waiting for the next live sample")
+		return h
+	}
+	if len(vals) > 120 {
+		vals = vals[len(vals)-120:]
+	}
+	end := a.karachiNow().Truncate(time.Second)
+	if tf == "5s" {
+		bars := make([]ChartBar, 0, (len(vals)+4)/5)
+		for i := 0; i < len(vals); i += 5 {
+			j := min(len(vals), i+5)
+			at := end.Add(-time.Duration(len(vals)-i) * time.Second)
+			b := ChartBar{At: at, Minute: at.Format("15:04"), Open: vals[i],
+				High: vals[i], Low: vals[i], Close: vals[j-1]}
+			for _, v := range vals[i:j] {
+				b.High = math.Max(b.High, v)
+				b.Low = math.Min(b.Low, v)
+			}
+			bars = append(bars, b)
+		}
+		h.Bars = bars
+	} else {
+		bars := make([]ChartBar, 0, len(vals))
+		for i, v := range vals {
+			at := end.Add(-time.Duration(len(vals)-1-i) * time.Second)
+			bars = append(bars, ChartBar{At: at, Minute: at.Format("15:04:05"),
+				Open: v, High: v, Low: v, Close: v})
+		}
+		h.Bars = bars
+	}
+	h.Day = end.Format("2006-01-02")
+	return h
+}
+
+// chartLive is the last price for the panel's live line. KSE100 reads the index
+// quote the relay carries; every other symbol reads its live scrip quote.
+func (a *App) chartLive(sym string) (float64, *float64, bool) {
+	if sym == "KSE100" {
+		if a.quotes != nil && a.quotes.Index != nil && a.quotes.Index.Value > 0 {
+			pct := a.quotes.Index.ChangePct
+			return a.quotes.Index.Value, &pct, true
+		}
+		if a.demo {
+			h := a.demoHistory(sym)
+			last := h.Bars[len(h.Bars)-1].Close
+			return last, nil, true
+		}
+		return 0, nil, false
+	}
+	if q, ok := a.liveQuote(sym); ok && q.Price > 0 {
+		return q.Price, q.ChangePct, true
+	}
+	return 0, nil, false
+}
+
+// demoBars relabels the invented demo session to the chosen frame. It is
+// always labelled DEMO; no demo bar is ever shown as a relay bar.
+func (a *App) demoBars(sym, tf string) *ChartHistory {
+	base := a.demoHistory(sym)
+	if tf == "1m" || chartFrameIndex(tf) < 0 {
+		return base
+	}
+	d := time.Minute
+	switch tf {
+	case "1s":
+		d = time.Second
+	case "5s":
+		d = 5 * time.Second
+	case "5m":
+		d = 5 * time.Minute
+	case "15m":
+		d = 15 * time.Minute
+	case "30m":
+		d = 30 * time.Minute
+	case "1h":
+		d = time.Hour
+	case "1D":
+		d = 24 * time.Hour
+	case "1W":
+		d = 7 * 24 * time.Hour
+	case "1M":
+		d = 30 * 24 * time.Hour
+	}
+	const n = 120
+	end := a.karachiNow().In(pkt).Truncate(d)
+	bars := make([]ChartBar, 0, n)
+	for i := 0; i < n; i++ {
+		src := base.Bars[i%len(base.Bars)]
+		at := end.Add(-time.Duration(n-1-i) * d)
+		label := at.Format("15:04")
+		if tf == "1D" || tf == "1W" || tf == "1M" {
+			label = at.Format("02 Jan 06")
+		}
+		bars = append(bars, ChartBar{At: at, Minute: label, Open: src.Open,
+			High: src.High, Low: src.Low, Close: src.Close, Volume: src.Volume})
+	}
+	return &ChartHistory{Symbol: sym, TF: tf, Day: end.Format("2006-01-02"),
+		Bars: bars, Forming: true, Demo: true}
+}
+
 // chartSymbols is every KMIALL stock, sorted. /prices is the full membership
 // list; before it arrives the symbols the feed has named stand in.
 func (a *App) chartSymbols() []string {
-	set := map[string]bool{}
+	set := map[string]bool{"KSE100": true, "KMIALLSHR": true}
 	for s := range a.prices {
 		set[s] = true
 	}
-	if len(set) == 0 {
+	if len(a.prices) == 0 {
 		for _, s := range a.symbols {
 			set[s] = true
 		}
 	}
-	return sortedKeys(set)
+	out := make([]string, 0, len(set))
+	for _, s := range []string{"KSE100", "KMIALLSHR"} {
+		out = append(out, s)
+		delete(set, s)
+	}
+	return append(out, sortedKeys(set)...)
 }
 
 // chartMatches is the list the CHARTS search box lets through.
@@ -144,24 +399,21 @@ func (a *App) selectChart(sym string) {
 		return
 	}
 	a.chartQuery, a.chartSearch = "", false
-	if sym == a.chartSym {
-		if a.demo {
-			if a.chart == nil || a.chart.Symbol != sym {
-				a.chart, a.chartSt = a.demoHistory(sym), "ok"
-			}
-		} else if a.chart == nil {
-			a.chartSt = "loading"
-			a.next["history"] = time.Time{}
-		}
+	if sym == a.chartSym && a.chart != nil && a.chart.TF == a.chartFrame() {
 		return
 	}
 	a.chartSym = sym
-	a.chart, a.chartErr, a.chartSt = nil, "", "loading"
+	a.chart, a.chartErr = nil, ""
 	if a.demo {
-		a.chart, a.chartSt = a.demoHistory(sym), "ok"
-	} else {
-		a.next["history"] = time.Time{}
+		a.chart, a.chartSt = a.demoBars(sym, a.chartFrame()), "ok"
+		return
 	}
+	if a.liveFrame() {
+		a.chartSt = "ok"
+		return
+	}
+	a.chartSt = "loading"
+	a.next["history"] = time.Time{}
 }
 
 // stepChart moves the chart selection by one row and opens it.
@@ -225,6 +477,14 @@ func (a *App) keyCharts(k Key) {
 		}
 	case KRune:
 		r := k.R
+		if r == '[' {
+			a.moveChartFrame(-1)
+			return
+		}
+		if r == ']' {
+			a.moveChartFrame(1)
+			return
+		}
 		if r >= 'a' && r <= 'z' {
 			r -= 'a' - 'A'
 		}
@@ -309,16 +569,25 @@ func (a *App) drawChartList(c *Canvas, x, y, w, h int, syms []string) {
 
 func (a *App) drawChartPanel(c *Canvas, x, y, w, h int) {
 	th := a.th
+	tf := a.chartFrame()
 	title := "CHARTS"
 	hint := "live intraday"
 	if a.chartSym != "" {
 		title = a.chartSym + " INTRADAY"
+		if tf == "1D" || tf == "1W" || tf == "1M" {
+			title = a.chartSym + " " + tf
+		}
 	}
-	if a.demo {
+	switch {
+	case a.demo:
 		hint = "demo bars"
+	case a.liveFrame():
+		hint = "live samples"
+	case tf != "1m":
+		hint = tf + " bars"
 	}
 	ix, iy, iw, ih := a.panel(c, x, y, w, h, title, hint)
-	if ih < 4 {
+	if ih < 6 {
 		return
 	}
 	sym := a.chartSym
@@ -326,14 +595,21 @@ func (a *App) drawChartPanel(c *Canvas, x, y, w, h int) {
 		c.Text(ix, iy, iw, "Pick a KMIALL stock on the left to see its chart.", th.Soft, false)
 		return
 	}
-	if a.demo && (a.chart == nil || a.chart.Symbol != sym) {
-		a.chart, a.chartSt, a.chartErr = a.demoHistory(sym), "ok", ""
-	}
+	a.drawChartFrames(c, ix, iy, iw)
 	hst := a.chart
 	if hst != nil && hst.Symbol != sym {
 		hst = nil
 	}
-	q, live := a.liveQuote(sym)
+	if a.liveFrame() {
+		hst = a.liveChart(sym, tf)
+	} else if a.demo {
+		hst = a.demoBars(sym, tf)
+		a.chart = hst
+	} else if hst != nil && hst.TF != tf {
+		hst = nil
+	}
+	price, pct, live := a.chartLive(sym)
+	q := LiveQuote{Price: price, ChangePct: pct}
 	// Line 1: the day, the live quote and the day's range as the bars have it.
 	sp := []Span{{"DAY ", th.Soft, false}}
 	day := "--"
@@ -360,7 +636,7 @@ func (a *App) drawChartPanel(c *Canvas, x, y, w, h int) {
 		sp = append(sp, Span{"   HI ", th.Soft, false}, Span{commaFloat(hi, 2), th.Good, false},
 			Span{"  LO ", th.Soft, false}, Span{commaFloat(lo, 2), th.Bad, false})
 	}
-	c.Spans(ix, iy, iw, sp)
+	c.Spans(ix, iy+1, iw, sp)
 
 	// Line 2: the last bar, exactly as the relay wrote it.
 	if hst != nil && len(hst.Bars) > 0 {
@@ -373,11 +649,11 @@ func (a *App) drawChartPanel(c *Canvas, x, y, w, h int) {
 		if hst.Forming {
 			line += "   ·   forming"
 		}
-		c.Text(ix, iy+1, iw, fit(line, iw), th.Soft, false)
+		c.Text(ix, iy+2, iw, fit(line, iw), th.Soft, false)
 	}
 
-	plotY := iy + 2
-	plotH := ih - 3
+	plotY := iy + 3
+	plotH := ih - 4
 	if plotH < 2 {
 		return
 	}
@@ -388,7 +664,14 @@ func (a *App) drawChartPanel(c *Canvas, x, y, w, h int) {
 	case hst == nil && a.chartSt == "failed":
 		msg, col = "The chart is not available right now: "+a.chartErr, th.Warn
 	case hst == nil || len(hst.Bars) == 0:
-		msg = "No one minute bars are stored for " + sym + " today."
+		switch {
+		case a.liveFrame():
+			msg = "This frame is built from live samples; waiting for the next tick."
+		case tf == "1m":
+			msg = "No one minute bars are stored for " + sym + " in the last 45 days."
+		default:
+			msg = "No " + tf + " bars are stored for " + sym + " in the last 365 days."
+		}
 		if hst != nil && len(hst.Notes) > 0 {
 			msg += " " + hst.Notes[0]
 		}
@@ -406,14 +689,44 @@ func (a *App) drawChartPanel(c *Canvas, x, y, w, h int) {
 
 	step := a.drawCandles(c, ix, plotY, iw, plotH, hst.Bars, live && q.Price > 0, q.Price)
 	first, last := hst.Bars[0].Minute, hst.Bars[len(hst.Bars)-1].Minute
-	foot := fmt.Sprintf("%s to %s   ·   %d bars", first, last, len(hst.Bars))
+	foot := fmt.Sprintf("%s to %s   ·   %d bars   ·   %s", first, last, len(hst.Bars), tf)
 	if step > 1 {
-		foot += fmt.Sprintf(", %d min candles", step)
+		foot += fmt.Sprintf(", %d bars a candle", step)
 	}
-	if a.demo {
+	switch {
+	case hst.LiveOnly:
+		foot += "   ·   live samples"
+	case hst.Demo:
 		foot += "   ·   DEMO"
+	case hst.Retention > 0:
+		foot += fmt.Sprintf("   ·   %d day store", hst.Retention)
 	}
 	c.Text(ix, iy+ih-1, iw, fit(foot, iw), mix(th.Panel, th.Soft, 0.8), false)
+}
+
+// drawChartFrames draws the ten frame chips. A click switches the panel, and
+// the brackets do the same from the keyboard.
+func (a *App) drawChartFrames(c *Canvas, x, y, w int) {
+	th := a.th
+	tf := a.chartFrame()
+	fx := x
+	for _, f := range chartFrames {
+		label := " " + f + " "
+		lw := runeLen(label)
+		if fx+lw > x+w {
+			break
+		}
+		fg, bg := th.Soft, th.Panel
+		if f == tf {
+			fg, bg = th.Panel, th.Accent
+		}
+		for i, r := range []rune(label) {
+			c.Set(fx+i, y, r, fg, bg, f == tf)
+		}
+		frame := f
+		a.addHit(fx, y, lw, 1, func() { a.setChartFrame(frame) })
+		fx += lw + 1
+	}
 }
 
 // drawCandles draws the day's bars as candles and returns how many minutes one

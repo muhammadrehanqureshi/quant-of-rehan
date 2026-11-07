@@ -59,8 +59,8 @@ func TestChartsTabShowsEveryKMIALLStockAndCandles(t *testing.T) {
 	if n := strings.Count(s, "█"); n < 10 {
 		t.Errorf("charts has %d candle cells, want a drawn chart:\n%s", n, s)
 	}
-	if len(a.chartSymbols()) != len(demoRows) {
-		t.Errorf("the chart list has %d stocks, want all %d demo KMIALL stocks", len(a.chartSymbols()), len(demoRows))
+	if len(a.chartSymbols()) != len(demoRows)+2 {
+		t.Errorf("the chart list has %d names, want the %d demo KMIALL stocks and both indices", len(a.chartSymbols()), len(demoRows))
 	}
 }
 
@@ -83,6 +83,55 @@ func TestChartsSearchOpensTheChosenStock(t *testing.T) {
 	}
 	if s := plain(a); !strings.Contains(s, "DLTA INTRADAY") {
 		t.Errorf("the chart panel is not labelled DLTA:\n%s", s)
+	}
+}
+
+// /bars carries every frame the owner ordered, and the desktop reads its own
+// frame labels from the stamps rather than inventing them.
+func TestParseBarsReadsEveryFrame(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/bars" || r.URL.Query().Get("symbol") != "OGDC" ||
+			r.URL.Query().Get("tf") != "5m" || r.URL.Query().Get("days") != "365" {
+			t.Errorf("path %q query %q", r.URL.Path, r.URL.RawQuery)
+		}
+		_, _ = w.Write([]byte(`{"ok":true,"tf":"5m","days":365,"retention_days":180,
+			"bars":[{"t":"2026-11-10T09:30:00+05:00","o":241.5,"h":242,"l":241,"c":241.8,"v":1200},
+			{"t":"2026-11-10T09:35:00+05:00","o":241.8,"h":242.4,"l":241.7,"c":242.1,"v":900}]}`))
+	}))
+	defer srv.Close()
+	h, err := NewRelay(srv.URL).FetchBars(context.Background(), "ogdc", "5m", 365, 400)
+	if err != nil || h == nil || len(h.Bars) != 2 {
+		t.Fatalf("fetch: %v %+v", err, h)
+	}
+	if h.TF != "5m" || h.Days != 365 || h.Retention != 180 || h.Bars[1].Close != 242.1 {
+		t.Errorf("parsed: %+v", h)
+	}
+	if h.Bars[0].Minute != "09:30" || h.Bars[0].High != 242 {
+		t.Errorf("first bar: %+v", h.Bars[0])
+	}
+}
+
+func TestChartFramesFollowTheOwnerOrder(t *testing.T) {
+	want := []string{"1s", "5s", "1m", "5m", "15m", "30m", "1h", "1D", "1W", "1M"}
+	if strings.Join(chartFrames, ",") != strings.Join(want, ",") {
+		t.Fatalf("frames: %v", chartFrames)
+	}
+	a := demoApp(t, 140, 36)
+	a.screen = scrCharts
+	_ = a.render()
+	if a.chartFrame() != "1m" {
+		t.Fatalf("the panel starts on %q, want 1m", a.chartFrame())
+	}
+	a.moveChartFrame(1)
+	if a.chartTF != "5m" {
+		t.Errorf("] took the frame to %q, want 5m", a.chartTF)
+	}
+	a.moveChartFrame(-2)
+	if !a.liveFrame() || a.chartTF != "5s" {
+		t.Errorf("[ took the frame to %q, want live 5s", a.chartTF)
+	}
+	if h := a.liveChart("ALFA", "5s"); h == nil || !h.LiveOnly {
+		t.Errorf("a live frame must be labelled live-only: %+v", h)
 	}
 }
 

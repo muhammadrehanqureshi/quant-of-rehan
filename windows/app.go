@@ -61,6 +61,7 @@ type (
 	}
 	msgHistory struct {
 		sym string
+		tf  string
 		h   *ChartHistory
 		err error
 	}
@@ -138,6 +139,7 @@ type App struct {
 	lvSectorStk  listView   // the open sector's scrip list
 	lvOF        listView   // the ORDER FLOW list
 	chartSym    string     // the stock the CHARTS tab is showing
+	chartTF     string     // the frame the CHARTS tab is showing, 1m until chosen
 	chart       *ChartHistory
 	chartSt     string // "", "loading", "failed", "ok"
 	chartErr    string
@@ -567,7 +569,7 @@ func (a *App) fetch(name string) {
 	a.inflight[name] = true
 	a.sentAt[name] = a.now
 	r := a.relay
-	histSym, histDay := a.chartSym, a.karachiNow().In(pkt).Format("2006-01-02")
+	histSym, histTF := a.chartSym, a.chartFrame()
 	if name == "history" && histSym == "" {
 		a.inflight[name] = false
 		return
@@ -608,8 +610,8 @@ func (a *App) fetch(name string) {
 			s, err := r.FetchSectors(ctx)
 			a.msgs <- msgSectors{s, err}
 		case "history":
-			h, err := r.FetchHistory(ctx, histSym, histDay)
-			a.msgs <- msgHistory{histSym, h, err}
+			h, err := r.FetchBars(ctx, histSym, histTF, 365, 400)
+			a.msgs <- msgHistory{histSym, histTF, h, err}
 		}
 	}()
 }
@@ -731,9 +733,9 @@ func (a *App) onMsg(m any) {
 	case msgHistory:
 		ok := v.err == nil
 		a.done("history", ok)
-		if v.sym != a.chartSym {
-			// The reader moved to another stock: let the new one be asked for
-			// on the next tick instead of waiting out this answer's interval.
+		if v.sym != a.chartSym || v.tf != a.chartFrame() {
+			// The reader moved to another stock or frame: let the new one be
+			// asked for on the next tick instead of waiting out this answer.
 			a.next["history"] = time.Time{}
 			break
 		}
@@ -882,7 +884,12 @@ func (a *App) onTick(now time.Time) {
 		names = append(names, "orderflow")
 	}
 	if a.screen == scrCharts {
-		names = append(names, "prices", "history")
+		names = append(names, "prices")
+		// The two second frames are built from the desk's own samples, so they
+		// cost no relay read at all.
+		if !a.liveFrame() {
+			names = append(names, "history")
+		}
 	}
 	for _, n := range names {
 		if !a.inflight[n] && !now.Before(a.next[n]) {
