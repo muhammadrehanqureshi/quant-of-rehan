@@ -2850,15 +2850,20 @@ export default {
         // The volume dropdowns (owner order 2026-10-23) rank scrips by their
         // measured split, so each row carries the same B/S pair the /stock
         // route computes. A frame without a measured pair ships null B/S and
-        // the total as U instead of guessing (SO-3). The row is seven long
-        // now: the acknowledged total rides beside the pair, and the seventh
-        // field is the unclear remainder.
+        // the total as U instead of guessing (SO-3). The row is nine long
+        // now: the acknowledged total rides beside the pair, the seventh
+        // field is the unclear remainder, and the eighth and ninth are the
+        // day's high and low.
         const split = splitFromQuote(quote);
         rowsBuilt.push({
           symbol: String(quote.symbol || ""),
           price: quote.price,
           change_pct: Number.isFinite(quote.change_pct) ? quote.change_pct : null,
           volume: Number.isFinite(quote.volume) ? Math.round(quote.volume) : null,
+          // Owner order 2026-11-07: the phone's search row carries the day's
+          // own high and low beside the price, so both ride the compact row.
+          high: Number.isFinite(quote.high) && quote.high > 0 ? quote.high : null,
+          low: Number.isFinite(quote.low) && quote.low > 0 ? quote.low : null,
           buy_volume: split ? split.buy_volume : null,
           sell_volume: split ? split.sell_volume : null,
           split_method: split ? "quote_rule" : "unavailable",
@@ -2892,6 +2897,8 @@ export default {
             price: row.price,
             change_pct: row.change_pct,
             volume: row.volume,
+            high: Number.isFinite(row.high) && row.high > 0 ? row.high : null,
+            low: Number.isFinite(row.low) && row.low > 0 ? row.low : null,
             buy_volume: null,
             sell_volume: null,
             split_method: "unavailable",
@@ -2931,6 +2938,10 @@ export default {
                 - Math.round(row.sell_volume))
               : Math.round(row.volume))
             : null,
+          // The day's high and low are the eighth and ninth fields (owner
+          // order 2026-11-07): the search row prints H and L from them.
+          row.high,
+          row.low,
         ]);
       }
       return json({ ok: true, prices });

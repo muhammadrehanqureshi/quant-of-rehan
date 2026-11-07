@@ -26,6 +26,9 @@
          colour, and nothing of the quote tail changes. -->
     <color name="gold_match">#59D9A441</color>
     <color name="gold_bright">#FFF8CE66</color>
+    <!-- The unclear remainder U (owner order 2026-11-07): one ink for the
+         volume the split could not side, wherever U prints. -->
+    <color name="yellow">#FFFFD54F</color>
     <color name="orange_logo">#FFE58142</color>
     <color name="crimson_logo">#FF882F48</color>
     <color name="green">#FF2FAE6F</color>
