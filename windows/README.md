@@ -1,7 +1,11 @@
-# Quant of Rehan for Windows (console edition), build 12
+# Quant of Rehan for Windows (console edition), build 13
 
 A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.16**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
+
+## What is new in build 13
+
+* **Build 13.** The icon is redrawn closer to the owner's picture, and its tile now has transparent rounded corners. The twelve outer blocks sit on the 12 o'clock marks instead of between them, the outer arc and the tick rings are thinner, and the background is the picture's brighter teal, so the small icon no longer reads as a white target. The workflow checks that all four corners of the 1024 icon are transparent and its centre is opaque before it builds. The console is otherwise unchanged from build 12.
 
 ## What is new in build 12
 
@@ -162,7 +166,7 @@ go test ./...
 set GOOS=windows& set GOARCH=amd64& go build -trimpath -ldflags "-s -w -buildid=" -o QuantOfRehan.exe .
 ```
 
-`rsrc_windows_amd64.syso` holds the icon and version info. `python tools/mkicon_hud.py assets/QuantOfRehan.ico assets/icon-1024.png` draws the blue HUD dial icon (needs Pillow) and `python tools/mksyso.py assets/QuantOfRehan.ico rsrc_windows_amd64.syso 4.0.16.12` writes the resource file. The Windows workflow runs both before the tests and the build.
+`rsrc_windows_amd64.syso` holds the icon and version info. `python tools/mkicon_hud.py assets/QuantOfRehan.ico assets/icon-1024.png` draws the blue HUD dial icon (needs Pillow) and `python tools/mksyso.py assets/QuantOfRehan.ico rsrc_windows_amd64.syso 4.0.16.13` writes the resource file. The Windows workflow runs both before the tests and the build.
 
 Source map: `signaltext.go` and `rank.go` port the app's signal and ranking rules, `relay.go` is the relay client, `session.go` is the PSX session law (pre, trading, break and post times) and the scan window, `flow.go` is the big buying detector, `live.go` holds flashes, charts, feed health and the mouse, `screens*.go`, `orb.go` (the ring), `orderflow_data.go` and `screens_orderflow.go` (the ORDER FLOW tab), `feedstats.go` and `feedwatch.go` (feed ages and the diagnostic) and `spark.go` draw the HUD, `term_windows.go` is the Windows console layer.
 
