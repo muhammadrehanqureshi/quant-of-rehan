@@ -1,7 +1,11 @@
-# Quant of Rehan for Windows (console edition), build 19
+# Quant of Rehan for Windows (console edition), build 20
 
 A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.16**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
+
+## What is new in build 20
+
+* **Build 20.** The application icon is the owner's own picture again, and it is pinned. `windows/assets/icon-source.png` is byte for byte `logo2.png`, and a test fails if its SHA-256 changes, so no build can silently replace, recolour or redraw it. Build 19's red dial is withdrawn. The line at the top centre is `PSX'S KMIALL`, with no `INDEX`, and a test pins that too. Everything else is build 19's.
 
 ## What is new in build 19
 
