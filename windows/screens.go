@@ -281,10 +281,10 @@ func (a *App) drawNav(c *Canvas, y int) {
 		for k, r := range label {
 			ink := fg
 			if k == 1 {
-				// Owner order 2026-11-07: the five tab numbers are green.
+				// Owner order 2026-11-07: the five tab numbers are green and bold.
 				ink = th.Good
 			}
-			c.Set(x+k, y, r, ink, bg, bold)
+			c.Set(x+k, y, r, ink, bg, bold || k == 1)
 		}
 		a.addHit(x, y, w, 1, func() { a.setScreen(id) })
 		x += w + 1
@@ -311,9 +311,9 @@ func (a *App) drawNav(c *Canvas, y int) {
 	}
 }
 
-// hintSpans colours the key tokens in the footer: TAB green, ESC yellow and
-// CTRL+C red. The rest of the hint stays in the soft ink, and the spacing is
-// preserved exactly.
+// hintSpans colours the key tokens in the footer: D, R and TAB green, ESC
+// yellow, Q and CTRL+C red. Every coloured key is bold. The rest of the hint
+// stays in the soft ink, and the spacing is preserved exactly.
 func hintSpans(s string, th *Theme) []Span {
 	fields := strings.Split(s, " ")
 	out := make([]Span, 0, len(fields))
@@ -322,11 +322,11 @@ func hintSpans(s string, th *Theme) []Span {
 			out = append(out, Span{" ", th.Soft, false})
 		}
 		switch f {
-		case "TAB":
+		case "D", "R", "TAB":
 			out = append(out, Span{f, th.Good, true})
 		case "ESC":
 			out = append(out, Span{f, th.Warn, true})
-		case "CTRL+C":
+		case "Q", "CTRL+C":
 			out = append(out, Span{f, th.Bad, true})
 		default:
 			out = append(out, Span{f, th.Soft, false})
