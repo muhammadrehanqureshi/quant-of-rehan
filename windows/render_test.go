@@ -349,7 +349,7 @@ func TestFooterKeysAreColoured(t *testing.T) {
 	a.screen = scrHome
 	c = a.render()
 	check(c, "1 HOME", a.th.Good, false)
-	check(c, "D", a.th.Good, false)
+	check(c, "D", a.th.Good, true)
 	check(c, "R", a.th.Good, true)
 	check(c, "Q", a.th.Bad, false)
 }
