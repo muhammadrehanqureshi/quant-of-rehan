@@ -123,7 +123,7 @@ func TestScreensShowTheAppsText(t *testing.T) {
 	a.screen = scrSettings
 	set := plain(a)
 	for _, want := range []string{"RELAY STATUS", "NOTIFICATIONS", "JARVIS CYAN", "PURPLE & YELLOW", "BLACK & WHITE",
-		"GREEN & YELLOW", "NAVY BLUE & WHITE", "ORANGE & WHITE", "VERSION", "4.0.15", "REQUESTS TODAY",
+		"GREEN & YELLOW", "NAVY BLUE & WHITE", "ORANGE & WHITE", "VERSION", "4.0.16", "REQUESTS TODAY",
 		"Every second from 08:55 until the post-market closes.",
 		"BIG BUYING FLAG", "BIG SELLING FLAG", "SOUND", "BIG ORDER SIZE", "TEST BUYING ALERT", "TEST SELLING ALERT"} {
 		if !strings.Contains(set, want) {
@@ -326,7 +326,7 @@ func TestSettingsDescriptionsAreNotCut(t *testing.T) {
 	a := demoApp(t, 130, 34)
 	a.screen = scrSettings
 	s := plain(a)
-	for _, want := range []string{"Windows pop-ups and the banner.", "Alerts you when buyers dominate.", "LEFT and RIGHT.", "Plays the buying tone and a test pop-up.", "Alerts you when sellers dominate."} {
+	for _, want := range []string{"Windows pop-ups and the banner.", "Alerts you when buyers dominate.", "a minute.", "Plays the buying tone and a test pop-up.", "Alerts you when sellers dominate."} {
 		if !strings.Contains(s, want) {
 			t.Errorf("settings text is cut: missing %q", want)
 		}

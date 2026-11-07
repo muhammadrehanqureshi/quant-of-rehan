@@ -31,7 +31,7 @@ func (a *App) drawSettings(c *Canvas, x, y, w, h int) {
 	item(2, "BIG BUYING FLAG", onoff(a.cfg.BigBuy, "  Alerts you when buyers dominate."))
 	item(3, "BIG SELLING FLAG", onoff(a.cfg.BigSell, "  Alerts you when sellers dominate."))
 	item(4, "SOUND", onoff(a.cfg.Sound, "  A tone plays with alerts."))
-	item(5, "BIG ORDER SIZE", []Span{{"PKR " + compactNum(float64(a.cfg.BigBuyValue)), th.Hot, true}, {" a minute. LEFT and RIGHT.", th.Soft, false}})
+	item(5, "BIG ORDER SIZE", []Span{{"PKR " + compactNum(float64(a.cfg.BigBuyValue)), th.Hot, true}, {" a minute.", th.Soft, false}})
 	item(6, "TEST BUYING ALERT", []Span{{"Plays the buying tone and a test pop-up.", th.Soft, false}})
 	item(7, "TEST SELLING ALERT", []Span{{"Plays the selling tone and a test pop-up.", th.Soft, false}})
 	row++
