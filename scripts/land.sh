@@ -334,7 +334,13 @@ fi
 note "pushed $BRANCH"
 
 TITLE=$(printf "%s" "$MESSAGE" | head -n1)
-if pr=$(gh pr view --json number --jq .number 2>/dev/null); then
+# Only an OPEN pull request can be reused. After a landing, this branch's
+# previous pull request is MERGED and gh still answers with its number; reusing
+# it waits for a mergeable state that never arrives and abandons work that was
+# never merged. A merged or closed pull request means a fresh one is needed.
+pr=""
+if pr=$(gh pr view --json number,state --jq 'select(.state == "OPEN") | .number' 2>/dev/null) \
+    && [[ -n "$pr" ]]; then
     note "reusing the open pull request #$pr"
 else
     gh pr create --base "$BASE" --head "$BRANCH" --title "$TITLE" --body "$FULL_MESSAGE" >/dev/null
