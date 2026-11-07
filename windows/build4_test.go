@@ -247,9 +247,9 @@ func TestPhaseAtMatchesTheSessionLaw(t *testing.T) {
 }
 
 // Owner order 2026-11-07: he is checking the desktop build outside market
-// hours, so hudForceLive keeps the dial green and turning in every state. The
+// hours, so hudForceLive keeps the dial red and turning in every state. The
 // dark, still dial is still in orb.go behind that switch.
-func TestDialTurnsAndIsGreenWhileTheOwnerChecks(t *testing.T) {
+func TestDialTurnsAndIsRedWhileTheOwnerChecks(t *testing.T) {
 	th := themeAt(0)
 	paint := func(mode OrbMode, secs float64) *Canvas {
 		c := NewCanvas(38, 14, th.Panel)
@@ -276,8 +276,8 @@ func TestDialTurnsAndIsGreenWhileTheOwnerChecks(t *testing.T) {
 			if ce.Ch < 0x2800 || ce.Ch > 0x28ff {
 				continue
 			}
-			if ce.FG.G < 150 || ce.FG.G < ce.FG.R+40 {
-				t.Errorf("mode %d: a dial dot is %v, not green", m, ce.FG)
+			if ce.FG.R < 150 || ce.FG.R < ce.FG.G+40 {
+				t.Errorf("mode %d: a dial dot is %v, not red", m, ce.FG)
 			}
 			lit++
 		}
