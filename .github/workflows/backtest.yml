@@ -16,7 +16,7 @@ on:
       task:
         description: "what to run"
         type: choice
-        options: [both, smoke, build-dataset, ten-year, mean-reversion, kalman-grid, self-improve, breakthrough]
+        options: [both, smoke, build-dataset, ten-year, mean-reversion, kalman-grid, eleven, self-improve, breakthrough]
         default: both
       prior_trials:
         description: "trials already spent in this search program"
@@ -208,6 +208,90 @@ jobs:
           name: kalman-grid-${{ github.run_id }}
           path: data/research/kalman_grid.json
           if-no-files-found: error
+          retention-days: 90
+
+  # The owner's eleven-strategy intraday study (2026-11-08): the current
+  # Kalman flip plus the nine rules the captured tape can support. The
+  # sessions live in the R2 band store, never in a checkout. The 3-year
+  # daily panel is built for the target-feasibility context only; the
+  # intraday result is the stored-session sample and says so. Manual
+  # dispatch only (SO-21).
+  eleven:
+    if: inputs.task == 'eleven'
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    env:
+      PYTHONUNBUFFERED: "1"
+      CF_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CF_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt --retries 5 --timeout 60
+
+      - name: Replay the stored intraday sessions
+        run: |
+          python scripts/backtest_eleven_intraday.py \
+            --input 'data/feed_capture/capture_*.ndjson' \
+            --from-store 20 \
+            --out data/research/eleven_intraday.json \
+            --trades data/research/eleven_intraday_trades.csv
+          cat data/research/eleven_intraday.json
+
+      - name: Keep the intraday result
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: eleven-intraday-${{ github.run_id }}
+          path: |
+            data/research/eleven_intraday.json
+            data/research/eleven_intraday_trades.csv
+          if-no-files-found: warn
+          retention-days: 90
+
+      - name: Restore the ten-year panel
+        id: panel
+        uses: actions/cache/restore@v4
+        with:
+          path: data/eod_dataset_10y.csv.gz
+          key: eod-10y-${{ hashFiles('src/data/universe_kmiall.json') }}-2016-10-29-v1
+
+      - name: Build the ten-year panel
+        if: steps.panel.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p data
+          python scripts/build_backtest_dataset.py \
+            --universe src/data/universe_kmiall.json \
+            --start 2016-10-29 \
+            --out data/eod_dataset_10y.csv.gz \
+            --cache-dir data/mkt_cache
+
+      - name: Save the ten-year panel
+        if: steps.panel.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: data/eod_dataset_10y.csv.gz
+          key: eod-10y-${{ hashFiles('src/data/universe_kmiall.json') }}-2016-10-29-v1
+
+      - name: Measure the three-year daily target context
+        run: |
+          python scripts/backtest_eleven_context.py \
+            --dataset data/eod_dataset_10y.csv.gz \
+            --out data/research/eleven_daily_context.json
+          cat data/research/eleven_daily_context.json
+
+      - name: Keep the daily context
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: eleven-daily-context-${{ github.run_id }}
+          path: data/research/eleven_daily_context.json
+          if-no-files-found: warn
           retention-days: 90
 
   # The self-improvement mission's ONE command (owner order): the
