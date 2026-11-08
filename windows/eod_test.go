@@ -23,7 +23,12 @@ func TestReadEODBarsKeepsTheYearAndRepairsTheEnvelope(t *testing.T) {
 	if err := zw.Close(); err != nil {
 		t.Fatal(err)
 	}
-	bars, err := readEODBars(bytes.NewReader(buf.Bytes()), "PRL")
+	zr, err := gzip.NewReader(bytes.NewReader(buf.Bytes()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer zr.Close()
+	bars, err := readEODBars(zr, "PRL")
 	if err != nil {
 		t.Fatal(err)
 	}
