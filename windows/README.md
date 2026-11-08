@@ -1,7 +1,11 @@
-# Quant of Rehan for Windows (console edition), build 24
+# Quant of Rehan for Windows (console edition), build 25
 
 A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.16**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
+
+## What is new in build 25
+
+* **Build 25.** The quant mark is the owner's refined green dial at every hour and on every day, the palette of `windows/assets/orb-online-green-refined.gif`; the red palette and its 08:55 to 17:00 rule are withdrawn. The CHARTS tab is removed at the owner's order of 2026-11-08: charts belong to the Charts of Rehan project now, so the desktop carries HOME, ALERTS, ORDER FLOW, SCANNER and SETTINGS only, and `3` to `5` (or F3 to F5) are the tabs after ALERTS. The index line under the title keeps the build's own font: build 23's small-capital letterforms are gone, and the line is set unbolded under the title because a Windows console draws one glyph size per window.
 
 ## What is new in build 24
 
@@ -92,20 +96,19 @@ One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of 
 2. Or run it from a terminal you already have open. It needs at least 80 x 26 characters. 120 x 30 or bigger shows the full HUD with the orb and telemetry panel.
 3. Windows SmartScreen will say "Windows protected your PC" because the file is not code signed. Click More info, then Run anyway. Check the SHA-256 in `SHA256SUMS.txt` first if you want to be sure it is the file you were given.
 4. First run on a new PC: `QuantOfRehan.exe -selftest` calls every relay endpoint once and prints what came back.
-5. Press 6, move to **TEST THE ALERT** and press ENTER (or click it). You should see the banner, hear the tone and get the Windows notification. If one is missing, that is the part to look at.
+5. Press 5, move to **TEST THE ALERT** and press ENTER (or click it). You should see the banner, hear the tone and get the Windows notification. If one is missing, that is the part to look at.
 
 ## Screens
 
 | Screen | Keys | What it shows |
 |---|---|---|
 | 1 HOME | 1, F1 | Greeting, ONLINE or OFFLINE pill with its sentence, W/L tile, LATEST SIGNAL (SYMBOL, ENTRY TIME, ENTRY PRICE, TAKE PROFIT, STOP LOSS, with the stock live), KSE100 INDEX & THE TOP 3 SCRIPS OF VOLUME with live prices, B, S & T and a chart each, who is being bought hardest right now |
-| 2 ALERTS | 2, F2 | BIG BUYING NOW in green and BIG SELLING NOW in red, side by side (stacked when narrow), and the ALERT LOG with times, BUY or SELL and the sentence. LEFT and RIGHT pick the list the keys scroll |
-| 3 CHARTS | 3, F3 | KSE100, KMIALLSHR and every KMIALL stock in a searchable list, and the chosen name's candles on ten frames (`1s` to `1M`) from the relay's `/bars`. The chips are clickable and `[` and `]` step them. A stored frame shows the newest bars in a rolling 365 day window, its live forming bar and the store's honest retention in the footer; the `1D` frame first reads `data/eod_history.csv.gz` for the full year and falls back to the relay when that file is absent; `1s` and `5s` are built from the desk's live samples. Type to search, UP and DOWN open the previous or next name, ESC clears |
-| 4 ORDER FLOW | 4, F4 | Every KMIALL stock with price, change, bid, ask, B, S, U and T. `/` focuses the search box and filters the list as you type, ESC clears it. O (or a click on the heading chips) changes the order. UP, DOWN, PAGE UP, PAGE DOWN and the wheel scroll |
-| 5 SCANNER | 5, F5 | The SEARCH tile, then the numbered SECTORS, then the scanner: PRICES RISING FAST, MORE BUYERS & LESS SELLERS and BIG BUYING & SELLING NOW (LIVE FLOW). The sector tile grows to show every group it can and the wheel scrolls the rest; every group and every scrip carries its number. The search box says `Search for a KMIALL scrip`. Type to search, UP and DOWN choose a match, ENTER opens it in the tile. A clicked sector lists its scrips in place; BACKSPACE brings all sectors back. With the box empty, LEFT and RIGHT change the sort |
-| 6 SETTINGS | 6, F6 | Relay status, notifications, big buying flag, big selling flag, sound, big order size, test buying alert, test selling alert, six themes, version, request counter |
+| 2 ALERTS | 2, F2 | BIG BUYING NOW in green and BIG SELLING NOW in red, side by side (stacked when narrow), and the ALERT LOG with times, BUY or SELL and the sentence. LEFT and RIGHT pick the list the keys scroll | |
+| 3 ORDER FLOW | 3, F3 | Every KMIALL stock with price, change, bid, ask, B, S, U and T. `/` focuses the search box and filters the list as you type, ESC clears it. O (or a click on the heading chips) changes the order. UP, DOWN, PAGE UP, PAGE DOWN and the wheel scroll |
+| 4 SCANNER | 4, F4 | The SEARCH tile, then the numbered SECTORS, then the scanner: PRICES RISING FAST, MORE BUYERS & LESS SELLERS and BIG BUYING & SELLING NOW (LIVE FLOW). The sector tile grows to show every group it can and the wheel scrolls the rest; every group and every scrip carries its number. The search box says `Search for a KMIALL scrip`. Type to search, UP and DOWN choose a match, ENTER opens it in the tile. A clicked sector lists its scrips in place; BACKSPACE brings all sectors back. With the box empty, LEFT and RIGHT change the sort |
+| 5 SETTINGS | 5, F5 | Relay status, notifications, big buying flag, big selling flag, sound, big order size, test buying alert, test selling alert, six themes, version, request counter |
 
-Other keys: TAB and SHIFT+TAB switch screens, R refresh now, D flip the signal card to raw text (Home), `[` and `]` mark roundness (Home), ESC clears the search or goes Home, Q quits, CTRL+C quits anywhere. The sound and alert flags are changed only on SETTINGS. On the Scanner letters and digits go into the search box; with the box empty a digit still jumps to that tab, and CTRL+C always quits. On CHARTS letters and digits go into the chart search, UP and DOWN open the previous or next name, `[` and `]` step the ten frames (or click a chip), and CTRL+C always quits. On ALERTS, ENTER plays a test and DEL clears the log.
+Other keys: TAB and SHIFT+TAB switch screens, R refresh now, D flip the signal card to raw text (Home), `[` and `]` mark roundness (Home), ESC clears the search or goes Home, Q quits, CTRL+C quits anywhere. The sound and alert flags are changed only on SETTINGS. On the Scanner letters and digits go into the search box; with the box empty a digit still jumps to that tab, and CTRL+C always quits. On ALERTS, ENTER plays a test and DEL clears the log.
 
 ## ORDER FLOW, and why every number can be trusted
 
@@ -166,7 +169,7 @@ The free tier allows 100,000 requests per UTC day (the counter resets at 05:00 K
 * The signal card also shows the symbol, and its stock live.
 * A card from another day shows no prices, and says which date it carries.
 * If the relay stops answering, the last reading stays on screen labelled `STALE 47s`.
-* Telemetry, the orb, the charts, the alerts and the mouse are new.
+* Telemetry, the orb, the alerts and the mouse are new.
 
 ## B and S on HOME and SCANNER
 
@@ -218,7 +221,7 @@ set GOOS=windows& set GOARCH=amd64& go build -trimpath -ldflags "-s -w -buildid=
 
 `rsrc_windows_amd64.syso` holds the icon and version info. `python tools/mkicon_hud.py assets/QuantOfRehan.ico assets/icon-1024.png` draws the blue HUD dial icon (needs Pillow) and `python tools/mksyso.py assets/QuantOfRehan.ico rsrc_windows_amd64.syso 4.0.16.13` writes the resource file. The Windows workflow runs both before the tests and the build.
 
-Source map: `signaltext.go` and `rank.go` port the app's signal and ranking rules, `relay.go` is the relay client, `session.go` is the PSX session law (pre, trading, break and post times) and the scan window, `flow.go` is the big buying detector, `live.go` holds flashes, charts, feed health and the mouse, `screens*.go`, `orb.go` (the ring), `orderflow_data.go` and `screens_orderflow.go` (the ORDER FLOW tab), `feedstats.go` and `feedwatch.go` (feed ages and the diagnostic) and `spark.go` draw the HUD, `term_windows.go` is the Windows console layer.
+Source map: `signaltext.go` and `rank.go` port the app's signal and ranking rules, `relay.go` is the relay client, `session.go` is the PSX session law (pre, trading, break and post times) and the scan window, `flow.go` is the big buying detector, `live.go` holds flashes, feed health and the mouse, `screens*.go`, `orb.go` (the ring), `orderflow_data.go` and `screens_orderflow.go` (the ORDER FLOW tab), `feedstats.go` and `feedwatch.go` (feed ages and the diagnostic) and `spark.go` draw the HUD, `term_windows.go` is the Windows console layer.
 
 ## Brief for the repo agent: SECTORS
 

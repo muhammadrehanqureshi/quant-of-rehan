@@ -9,18 +9,19 @@ import (
 
 type screenID int
 
-// The tabs, in the owner's order: Home, Alerts, Charts, Order Flow and Scanner
-// (which carries the search tile on top), then Settings.
+// The tabs, in the owner's order: Home, Alerts, Order Flow and Scanner (which
+// carries the search tile on top), then Settings. Owner order 2026-11-08:
+// CHARTS is removed from this build; charts belong to the Charts of Rehan
+// project now.
 const (
 	scrHome screenID = iota
 	scrAlerts
-	scrCharts
 	scrOrderFlow
 	scrScanner
 	scrSettings
 )
 
-var screenNames = []string{"HOME", "ALERTS", "CHARTS", "ORDER FLOW", "SCANNER", "SETTINGS"}
+var screenNames = []string{"HOME", "ALERTS", "ORDER FLOW", "SCANNER", "SETTINGS"}
 
 // Messages posted from fetch goroutines to the single UI goroutine.
 type (
@@ -57,12 +58,6 @@ type (
 	}
 	msgSectors struct {
 		s   *Sectors
-		err error
-	}
-	msgHistory struct {
-		sym string
-		tf  string
-		h   *ChartHistory
 		err error
 	}
 )
@@ -111,7 +106,7 @@ type App struct {
 	fails    map[string]int
 	msgs     chan any
 
-	// live tape: flashes, charts, feed health and the big buying detector
+	// live tape: flashes, feed health and the big buying detector
 	flow        *Flow
 	lastVal     map[string]float64
 	flashes     map[string]flash
@@ -138,15 +133,6 @@ type App struct {
 	sectorOpen   bool       // a tapped sector is open with its KMIALLSHR scrips
 	lvSectorStk  listView   // the open sector's scrip list
 	lvOF        listView   // the ORDER FLOW list
-	chartSym    string     // the stock the CHARTS tab is showing
-	chartTF     string     // the frame the CHARTS tab is showing, 1D until chosen
-	chart       *ChartHistory
-	chartSt     string // "", "loading", "failed", "ok"
-	chartErr    string
-	chartQuery  string
-	chartSearch bool
-	chartCursor int
-	lvChart     listView
 	bannerSell  bool       // the banner on show is a big selling flag
 	lvScan      listView   // the scanner's list
 	lvBoard     listView   // the Alerts screen's big buying list
@@ -547,13 +533,6 @@ func (a *App) interval(name string) time.Duration {
 		if scan {
 			d = 5 * time.Minute
 		}
-	case "history":
-		// The relay writes one bar a minute. Five seconds keeps the forming bar
-		// and the live line close without spending the free quota.
-		d = min(60*time.Second, idle)
-		if scan {
-			d = max(5*time.Second, 5*base)
-		}
 	}
 	if f := a.fails[name]; f > 0 {
 		b := 2 * time.Second << min(f, 5)
@@ -576,11 +555,6 @@ func (a *App) fetch(name string) {
 	a.inflight[name] = true
 	a.sentAt[name] = a.now
 	r := a.relay
-	histSym, histTF := a.chartSym, a.chartFrame()
-	if name == "history" && histSym == "" {
-		a.inflight[name] = false
-		return
-	}
 	// The one second feed must not sit behind a stuck request: it gives up
 	// after 4 seconds and the next ask goes out at once. Slower answers get
 	// longer.
@@ -616,18 +590,6 @@ func (a *App) fetch(name string) {
 		case "sectors":
 			s, err := r.FetchSectors(ctx)
 			a.msgs <- msgSectors{s, err}
-		case "history":
-			var h *ChartHistory
-			var err error
-			if a.demo {
-				h = a.demoBars(histSym, histTF)
-			} else if histTF == "1D" && histSym != "KSE100" && histSym != "KMIALLSHR" {
-				h = localEODHistory(histSym)
-			}
-			if h == nil {
-				h, err = r.FetchBars(ctx, histSym, histTF, 365, 400)
-			}
-			a.msgs <- msgHistory{histSym, histTF, h, err}
 		}
 	}()
 }
@@ -746,24 +708,6 @@ func (a *App) onMsg(m any) {
 			a.sectorsErr = ""
 		} else {
 			a.sectorsErr = unreachableText(v.err)
-		}
-	case msgHistory:
-		ok := v.err == nil
-		a.done("history", ok)
-		if v.sym != a.chartSym || v.tf != a.chartFrame() {
-			// The reader moved to another stock or frame: let the new one be
-			// asked for on the next tick instead of waiting out this answer.
-			a.next["history"] = time.Time{}
-			break
-		}
-		if ok && v.h != nil {
-			a.chart, a.chartErr, a.chartSt = v.h, "", "ok"
-		} else {
-			errText := "The relay did not answer with a chart."
-			if v.err != nil {
-				errText = unreachableText(v.err)
-			}
-			a.chartErr, a.chartSt = errText, "failed"
 		}
 	case msgStock:
 		if v.sym != a.selectedSym {
@@ -900,14 +844,6 @@ func (a *App) onTick(now time.Time) {
 	if a.screen == scrOrderFlow {
 		names = append(names, "orderflow")
 	}
-	if a.screen == scrCharts {
-		names = append(names, "prices", "sectors")
-		// The two second frames are built from the desk's own samples, so they
-		// cost no relay read at all.
-		if !a.liveFrame() {
-			names = append(names, "history")
-		}
-	}
 	for _, n := range names {
 		if !a.inflight[n] && !now.Before(a.next[n]) {
 			a.fetch(n)
@@ -932,15 +868,6 @@ func (a *App) setScreen(s screenID) {
 		a.next["sectors"] = time.Time{} // and the sector groups
 	case scrOrderFlow:
 		a.next["orderflow"] = time.Time{}
-	case scrCharts:
-		a.next["prices"] = time.Time{}
-		a.next["sectors"] = time.Time{}
-		a.next["history"] = time.Time{}
-		if a.chartSym == "" {
-			if m := a.chartSymbols(); len(m) > 0 {
-				a.chartSym, a.chartSt = m[0], "loading"
-			}
-		}
 	}
 }
 
@@ -961,15 +888,12 @@ func (a *App) onKey(k Key) {
 		a.setScreen(scrAlerts)
 		return
 	case KF3:
-		a.setScreen(scrCharts)
-		return
-	case KF4:
 		a.setScreen(scrOrderFlow)
 		return
-	case KF5:
+	case KF4:
 		a.setScreen(scrScanner)
 		return
-	case KF6:
+	case KF5:
 		a.setScreen(scrSettings)
 		return
 	case KMouse:
@@ -991,10 +915,6 @@ func (a *App) onKey(k Key) {
 		a.keyScanner(k)
 		return
 	}
-	if a.screen == scrCharts {
-		a.keyCharts(k)
-		return
-	}
 	switch k.Kind {
 	case KEsc:
 		if a.screen == scrOrderFlow && (a.ofSearch || a.ofQuery != "") {
@@ -1014,12 +934,10 @@ func (a *App) onKey(k Key) {
 		case '2':
 			a.setScreen(scrAlerts)
 		case '3':
-			a.setScreen(scrCharts)
-		case '4':
 			a.setScreen(scrOrderFlow)
-		case '5':
+		case '4':
 			a.setScreen(scrScanner)
-		case '6':
+		case '5':
 			a.setScreen(scrSettings)
 		case '/':
 			if a.screen == scrOrderFlow {

@@ -83,7 +83,7 @@ func TestScreensShowTheAppsText(t *testing.T) {
 		"GREETING", "Good morning, Mr. Rehan!", "QUANT STATUS", "ONLINE", "LATEST SIGNAL", "ALFA", "42.94",
 		"KSE100 INDEX & THE TOP 3 SCRIPS OF VOLUME", "KSE100  166,4", "B=", "S=", "T=",
 		"QUANT CORE", "TELEMETRY", "DEMO DATA", "FRI 30 OCT 2026 11:42:18 UTC+5",
-		"1 HOME", "2 ALERTS", "3 CHARTS", "4 ORDER FLOW", "5 SCANNER", "6 SETTINGS",
+		"1 HOME", "2 ALERTS", "3 ORDER FLOW", "4 SCANNER", "5 SETTINGS",
 		"SYMBOL", "ENTRY TIME", "ENTRY PRICE", "TAKE PROFIT", "STOP LOSS",
 		"W/L & W/L RATE", "3/1 & 75%", "BUYING NOW",
 	} {
@@ -231,7 +231,7 @@ func TestOrbStaysInsideItsBox(t *testing.T) {
 	th := themeAt(0)
 	for _, mode := range []OrbMode{OrbBurning, OrbParked, OrbChecking, OrbFault} {
 		c := NewCanvas(40, 20, th.BG)
-		drawOrb(c, 5, 3, 20, 10, 1.7, mode, true, th)
+		drawOrb(c, 5, 3, 20, 10, 1.7, mode, th)
 		lit := 0
 		for y := 0; y < c.H; y++ {
 			for x := 0; x < c.W; x++ {
@@ -249,7 +249,7 @@ func TestOrbStaysInsideItsBox(t *testing.T) {
 			t.Errorf("mode %d drew almost nothing: %d cells", mode, lit)
 		}
 	}
-	drawOrb(NewCanvas(4, 3, th.BG), 0, 0, 4, 3, 0, OrbBurning, true, th) // too small: must not panic
+	drawOrb(NewCanvas(4, 3, th.BG), 0, 0, 4, 3, 0, OrbBurning, th) // too small: must not panic
 }
 
 func TestSourceHasNoEmOrEnDashes(t *testing.T) {

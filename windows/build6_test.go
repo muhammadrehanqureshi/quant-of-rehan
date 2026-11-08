@@ -270,7 +270,7 @@ func TestOrderFlowSearchFiltersTheList(t *testing.T) {
 // The dot matrix mark is on the home screen only. The scanner gives its width
 // to the search, the sectors and the list. No other screen carries the mark.
 func TestNoRingOnSettingsAndAlerts(t *testing.T) {
-	for _, scr := range []screenID{scrSettings, scrAlerts, scrOrderFlow, scrScanner, scrCharts} {
+	for _, scr := range []screenID{scrSettings, scrAlerts, scrOrderFlow, scrScanner} {
 		a := demoApp(t, 158, 41)
 		a.screen = scr
 		s := strings.ToUpper(plain(a))
