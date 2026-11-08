@@ -1,9 +1,11 @@
 """The Kalman Trend pullback entry: agreement first, then a dip near the low.
 
-Owner order 2026-11-06: a second intraday entry beside the fresh one minute
-flip (src/signals/kalman_trend.py). When the one minute Kalman Trend is up and
-the 5 minute, 15 minute, 1 hour and 1 day VWAP frames all agree
-(src/signals/mtf_vwap.py), the alignment itself is not the entry. The entry
+Owner order 2026-11-06, updated by the owner's order of 2026-11-08: a second
+intraday entry beside the fresh one minute flip (src/signals/kalman_trend.py).
+When the one minute Kalman Trend is up and the 5 minute, 15 minute and 1 hour
+VWAP frames all agree (src/signals/mtf_vwap.py), the alignment itself is not
+the entry. The 1 day frame and every daily file it needed are withdrawn, so
+the law reads the session tape alone. The entry
 waits for the pullback that follows the agreement, takes the resumption, and
 does so only while BOTH the pullback's low and the entry price sit in the
 lower half of the session's range: strictly nearer the day's low than the
