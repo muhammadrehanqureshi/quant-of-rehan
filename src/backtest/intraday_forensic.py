@@ -828,9 +828,11 @@ def one_metrics(trades: Sequence[Mapping]) -> dict:
         "avg_loss": round(statistics.mean(losses), 6) if losses else None,
         "profit_factor": (round(sum(wins) / abs(sum(losses)), 4)
                           if losses and sum(losses) != 0 else None),
-        "profit_factor_gross": (round(sum(v for v in gross if v > 0)
-                                      / abs(sum(v for v in gross if v <= 0)), 4)
-                                if any(v <= 0 for v in gross) else None),
+        "profit_factor_gross": (
+            round(sum(v for v in gross if v > 0)
+                  / abs(sum(v for v in gross if v <= 0)), 4)
+            if any(v <= 0 for v in gross)
+            and sum(v for v in gross if v <= 0) != 0 else None),
         "max_drawdown": round(drawdown, 6),
         "gross_max_drawdown": round(gross_drawdown, 6),
         "best": round(max(nets), 6),
