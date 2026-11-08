@@ -171,6 +171,16 @@ class TapeBar:
     volume: float
     prints: int = 0
     carried: bool = False
+    #: True when the minute's first observation is itself a fresh print, so
+    #: its open is an executable price rather than a carried state.
+    open_is_print: bool = False
+    #: The arrival time and price of the minute's first fresh print. An entry
+    #: dated from the minute start cannot precede this print.
+    first_print_time: datetime | None = None
+    first_print_price: float | None = None
+    #: The arrival time of the minute's last fresh print. A last-print exit is
+    #: dated here, never at the next minute boundary.
+    last_print_time: datetime | None = None
 
 
 @dataclass
@@ -192,6 +202,14 @@ class TapeBars:
     counter_resets: int = 0
     priced_bars: int = 0
     carried_bars: int = 0
+    #: Minute buckets, as distinct from the tape rows behind them.
+    minute_bars: int = 0
+    fresh_bars: int = 0
+    stale_bars: int = 0
+    stale_open_bars: int = 0
+    #: The venue's own day low and high per symbol, used to test a suspicious
+    #: print against the exchange's range instead of against a guess.
+    venue_extremes: dict[str, tuple[float, float]] = field(default_factory=dict)
     #: Symbols whose series holds a hole wider than the carry bound: an outage
     #: or a stopped tape, left as a hole rather than filled with a flat line.
     hole_symbols: tuple[str, ...] = ()
@@ -231,13 +249,17 @@ class TapeBars:
                    for bar in rows)
 
     def as_dict(self) -> dict:
-        total = self.priced_bars + self.carried_bars
+        total = self.minute_bars or (self.priced_bars + self.carried_bars)
         return {
             "source": self.source,
             "day": self.day.isoformat(),
             "capture": str(self.path) if self.path else None,
             "symbols_with_bars": self.symbols_with_bars,
             "bars": total,
+            "minute_bars": self.minute_bars,
+            "fresh_bars": self.fresh_bars,
+            "stale_bars": self.stale_bars,
+            "stale_open_bars": self.stale_open_bars,
             "priced_bars": self.priced_bars,
             "carried_bars": self.carried_bars,
             "carried_share": round(self.carried_bars / total, 4) if total else 0.0,
@@ -346,19 +368,29 @@ def build(path: Path, symbols: Iterable[str], as_of: datetime,
 
         minute = moment.replace(second=0, microsecond=0)
         bucket = minutes.setdefault(symbol, {}).get(minute)
+        fresh = _is_new_print(row, prior)
         if bucket is None:
             minutes[symbol][minute] = {
                 "open": price, "high": price, "low": price, "close": price,
                 "volume": delta,
-                "prints": 1 if _is_new_print(row, prior) else 0,
+                "prints": 1 if fresh else 0,
+                "open_is_print": fresh,
+                "first_print_time": moment if fresh else None,
+                "first_print_price": price if fresh else None,
+                "last_print_time": moment if fresh else None,
             }
+            bucket = minutes[symbol][minute]
         else:
             bucket["high"] = max(bucket["high"], price)
             bucket["low"] = min(bucket["low"], price)
             bucket["close"] = price
             bucket["volume"] += delta
-            if _is_new_print(row, prior):
+            if fresh:
                 bucket["prints"] += 1
+                if bucket["first_print_time"] is None:
+                    bucket["first_print_time"] = moment
+                    bucket["first_print_price"] = price
+                bucket["last_print_time"] = moment
         tape.priced_bars += 1
 
     session_start = datetime.combine(session_day, time(*open_time(session_day)),
@@ -372,8 +404,12 @@ def build(path: Path, symbols: Iterable[str], as_of: datetime,
         rows: list[TapeBar] = []
         for index, minute in enumerate(ordered):
             data = buckets[minute]
-            rows.append(TapeBar(minute, data["open"], data["high"], data["low"],
-                                data["close"], data["volume"], data["prints"]))
+            rows.append(TapeBar(
+                minute, data["open"], data["high"], data["low"],
+                data["close"], data["volume"], data["prints"], False,
+                data["open_is_print"], data["first_print_time"],
+                data["first_print_price"], data["last_print_time"],
+            ))
             following = ordered[index + 1] if index + 1 < len(ordered) else None
             if following is None:
                 continue
@@ -394,6 +430,20 @@ def build(path: Path, symbols: Iterable[str], as_of: datetime,
                 tape.carried_bars += 1
                 fill += timedelta(seconds=config.BAR_SECONDS)
         tape.bars[symbol] = rows
+
+    all_bars = [bar for rows in tape.bars.values() for bar in rows]
+    tape.minute_bars = len(all_bars)
+    tape.fresh_bars = sum(1 for bar in all_bars
+                          if bar.prints > 0 and not bar.carried)
+    tape.stale_bars = sum(1 for bar in all_bars
+                          if bar.prints <= 0 and not bar.carried)
+    tape.stale_open_bars = sum(1 for bar in all_bars
+                               if not bar.carried and not bar.open_is_print)
+    tape.venue_extremes = {
+        symbol: (venue_low[symbol], venue_high[symbol])
+        for symbol in venue_low
+        if symbol in venue_high
+    }
 
     for symbol, rows in tape.bars.items():
         high = venue_high.get(symbol)
