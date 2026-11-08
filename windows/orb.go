@@ -11,18 +11,18 @@ import "math"
 //
 // Three thick seams cut every ring and turn with it, the dashed rings crawl in
 // opposite directions, and one bright glint sweeps around the outside, so the
-// mark is alive while the market is live. Owner order 2026-11-08 (build 25):
-// the dial wears the GIF's refined green at every hour and on every day. The
-// older red palette and its 08:55 to 17:00 colour rule are withdrawn.
-// hudForceLive keeps it turning in every state while he checks the desktop
-// build.
+// mark is alive while the market is live. Owner order 2026-11-08 (build 27):
+// the dial is the GIF's refined shape in the market's own colour, green in the
+// pre-market, the trading session and the post-market and red at every other
+// hour and day. hudForceLive keeps it turning in every state while he checks
+// the desktop build.
 
 var cellAspect = defaultCellAspect
 
 const defaultCellAspect = 2.22
 
 // OrbMode says whether the quant is online. The mode decides the motion when
-// hudForceLive is off; the ink is always the owner's green.
+// hudForceLive is off; the ink comes from orbGreen, not from the mode.
 type OrbMode int
 
 const (
@@ -47,12 +47,14 @@ func clamp01(x float64) float64 {
 	return x
 }
 
-// The dial's colours are the owner's refined green, the palette of
-// windows/assets/orb-online-green-refined.gif: a mint pale shade and a
-// saturated spring green core.
+// The dial's colours: the refined green of
+// windows/assets/orb-online-green-refined.gif for the pre-market, the session
+// and the post-market, and the owner's saturated red at every other hour.
 var (
-	hudPale = RGB{132, 255, 190}
-	hudMid  = RGB{18, 220, 112}
+	hudPale    = RGB{132, 255, 190}
+	hudMid     = RGB{18, 220, 112}
+	hudRedPale = RGB{255, 64, 64}
+	hudRedMid  = RGB{255, 4, 4}
 )
 
 // hudBand is one ring of dots. r0 and r1 are fractions of the dial's radius.
@@ -114,10 +116,14 @@ func hudTime(mode OrbMode, t float64) float64 {
 	return t
 }
 
-// hudInk gives the ink for one tone: the owner's refined green, pale for the
-// brightest dots and saturated for the rest.
-func hudInk(tone float64) RGB {
-	return mix(hudMid, hudPale, clamp01(tone))
+// hudInk gives the ink for one tone: the refined green while the quant is in
+// its pre-market, trading or post-market, the saturated red at every other
+// time. The pale shade is for the brightest dots.
+func hudInk(tone float64, green bool) RGB {
+	if green {
+		return mix(hudMid, hudPale, clamp01(tone))
+	}
+	return mix(hudRedMid, hudRedPale, clamp01(tone))
 }
 
 // hudGlint is the bright head that sweeps around the dial, one turn every
@@ -189,15 +195,15 @@ var ringHalfBlocks bool
 
 // drawOrb paints the mark into the rectangle (x0,y0,w,h) of cells. Only dots
 // are written: every other cell keeps whatever background the panel already
-// painted, which is why there is no field behind the dial. The ink is the
-// owner's refined green at every hour and on every day.
-func drawOrb(c *Canvas, x0, y0, w, h int, t float64, mode OrbMode, th *Theme) {
+// painted, which is why there is no field behind the dial. green selects the
+// refined GIF palette; false paints the same dial in the owner's red.
+func drawOrb(c *Canvas, x0, y0, w, h int, t float64, mode OrbMode, green bool, th *Theme) {
 	if w < 6 || h < 3 {
 		return
 	}
 	tt := hudTime(mode, t)
 	if ringHalfBlocks {
-		drawOrbHalves(c, x0, y0, w, h, tt, mode)
+		drawOrbHalves(c, x0, y0, w, h, tt, mode, green)
 		return
 	}
 	g := newDotGrid(w, h)
@@ -211,12 +217,12 @@ func drawOrb(c *Canvas, x0, y0, w, h int, t float64, mode OrbMode, th *Theme) {
 		}
 	}
 	// A zero glow leaves every cell's background exactly as the panel drew it.
-	g.blitRamp(c, x0, y0, hudInk, th.Panel)
+	g.blitRamp(c, x0, y0, func(tone float64) RGB { return hudInk(tone, green) }, th.Panel)
 }
 
 // drawOrbHalves draws the same dial when Braille is not available: two pixels
 // per cell, again leaving every unlit cell transparent.
-func drawOrbHalves(c *Canvas, x0, y0, w, h int, tt float64, mode OrbMode) {
+func drawOrbHalves(c *Canvas, x0, y0, w, h int, tt float64, mode OrbMode, green bool) {
 	cx, cy, vs, R := hudRadius(w, h)
 	for row := 0; row < h; row++ {
 		top := (4*float64(row) + 1 - cy) * vs
@@ -231,11 +237,11 @@ func drawOrbHalves(c *Canvas, x0, y0, w, h int, tt float64, mode OrbMode) {
 				if toneB > tone {
 					tone = toneB
 				}
-				c.Put(x0+col, y0+row, '█', hudInk(float64(tone)), false)
+				c.Put(x0+col, y0+row, '█', hudInk(float64(tone), green), false)
 			case okT:
-				c.Put(x0+col, y0+row, '▀', hudInk(float64(toneT)), false)
+				c.Put(x0+col, y0+row, '▀', hudInk(float64(toneT), green), false)
 			case okB:
-				c.Put(x0+col, y0+row, '▄', hudInk(float64(toneB)), false)
+				c.Put(x0+col, y0+row, '▄', hudInk(float64(toneB), green), false)
 			}
 		}
 	}
