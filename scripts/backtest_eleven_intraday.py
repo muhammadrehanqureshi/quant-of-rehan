@@ -545,7 +545,7 @@ def _rs_table(day_data: dict, histories: dict, ind15: dict) -> dict:
     for band, _tape in day_data["bands"]:
         for sym, frames in band["f15"].items():
             off = band["off15"].get(sym)
-            if off is None:
+            if off is None or sym not in ind15:
                 continue
             values = ind15[sym]
             close = values["close"]
