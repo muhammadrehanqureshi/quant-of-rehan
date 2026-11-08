@@ -16,7 +16,7 @@ on:
       task:
         description: "what to run"
         type: choice
-        options: [both, smoke, build-dataset, ten-year, mean-reversion, kalman-grid, eleven, self-improve, breakthrough]
+        options: [both, smoke, build-dataset, ten-year, mean-reversion, kalman-grid, eleven, forensic, quality, self-improve, breakthrough]
         default: both
       prior_trials:
         description: "trials already spent in this search program"
@@ -291,6 +291,105 @@ jobs:
         with:
           name: eleven-daily-context-${{ github.run_id }}
           path: data/research/eleven_daily_context.json
+          if-no-files-found: warn
+          retention-days: 90
+
+  # The owner's forensic audit of the eleven-strategy study (2026-11-08).
+  # It runs the original replay for reconciliation, an execution-only corrected
+  # replay and a strict-data replay, then writes the audit, the corrected
+  # ledgers and the per-session quality evidence. Research only: no live
+  # signal, target, stop, notification, broker or Android change. Manual
+  # dispatch only (SO-21); the sessions come from the R2 band store.
+  forensic:
+    if: inputs.task == 'forensic'
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      PYTHONUNBUFFERED: "1"
+      CF_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CF_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt --retries 5 --timeout 60
+
+      - name: Run the forensic audit
+        run: |
+          python scripts/backtest_forensic_audit.py \
+            --input 'data/feed_capture/capture_*.ndjson' \
+            --from-store 20 \
+            --out data/research/backtest_forensic_audit.json \
+            --trades data/research/eleven_corrected_trades.csv \
+            --execution-trades data/research/eleven_execution_corrected_trades.csv \
+            --quality data/research/intraday_data_quality.json \
+            --performance data/research/eleven_corrected_performance.json \
+            --audit-report INTRADAY_BACKTEST_FORENSIC_AUDIT.md \
+            --performance-report reports/2026-11-08-eleven-strategy-intraday-corrected.md \
+            --quality-report reports/2026-11-08-intraday-data-quality.md
+          cat data/research/backtest_forensic_audit.json
+
+      - name: Keep the forensic evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: intraday-forensic-${{ github.run_id }}
+          path: |
+            INTRADAY_BACKTEST_FORENSIC_AUDIT.md
+            reports/2026-11-08-eleven-strategy-intraday-corrected.md
+            reports/2026-11-08-intraday-data-quality.md
+            data/research/backtest_forensic_audit.json
+            data/research/eleven_corrected_trades.csv
+            data/research/eleven_execution_corrected_trades.csv
+            data/research/intraday_data_quality.json
+            data/research/eleven_corrected_performance.json
+          if-no-files-found: warn
+          retention-days: 90
+
+  # The lightweight data-quality monitor for the research branch. It performs
+  # the raw capture audit and the session completeness count only, so it can
+  # run after every capture block without replaying a strategy. Manual
+  # dispatch only (SO-21).
+  quality:
+    if: inputs.task == 'quality'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      PYTHONUNBUFFERED: "1"
+      CF_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CF_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt --retries 5 --timeout 60
+
+      - name: Measure the stored sessions
+        run: |
+          python scripts/backtest_forensic_audit.py \
+            --input 'data/feed_capture/capture_*.ndjson' \
+            --from-store 20 \
+            --quality-only \
+            --quality data/research/intraday_data_quality.json \
+            --quality-report reports/2026-11-08-intraday-data-quality.md
+          cat data/research/intraday_data_quality.json
+
+      - name: Keep the quality evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: intraday-quality-${{ github.run_id }}
+          path: |
+            reports/2026-11-08-intraday-data-quality.md
+            data/research/intraday_data_quality.json
           if-no-files-found: warn
           retention-days: 90
 
