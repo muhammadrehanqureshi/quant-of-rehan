@@ -247,27 +247,16 @@ func TestPhaseAtMatchesTheSessionLaw(t *testing.T) {
 }
 
 // Owner order 2026-11-08: the dial is green from 08:55 to 17:00 on a market
-// day and red outside it. hudForceLive keeps it turning in every state, so the
-// green case is drawn here and the window test checks the red.
-func TestDialTurnsAndIsGreenInTheMarketWindow(t *testing.T) {
+// day and red outside it. The sampled GIF frame is still, so every mode draws
+// the same green matrix and the window test checks the red.
+func TestDialIsTheGifMatrixInTheMarketWindow(t *testing.T) {
 	th := themeAt(0)
 	paint := func(mode OrbMode, secs float64) *Canvas {
 		c := NewCanvas(38, 14, th.Panel)
 		drawOrb(c, 0, 0, 38, 14, secs, mode, true, th)
 		return c
 	}
-	same := func(a, b *Canvas) bool {
-		for i := range a.Cells {
-			if a.Cells[i] != b.Cells[i] {
-				return false
-			}
-		}
-		return true
-	}
 	for _, m := range []OrbMode{OrbBurning, OrbChecking, OrbParked, OrbFault} {
-		if same(paint(m, 1.0), paint(m, 9.7)) {
-			t.Errorf("mode %d: the dial must turn while the check override is on", m)
-		}
 		lit := 0
 		for _, ce := range paint(m, 2).Cells {
 			if ce.BG != th.Panel {
@@ -287,22 +276,23 @@ func TestDialTurnsAndIsGreenInTheMarketWindow(t *testing.T) {
 	}
 }
 
-// The dial is cut by three thick seams, and the cuts turn with the rings.
-func TestOrbHasThreeCutSeams(t *testing.T) {
-	runs := 0
-	prev := false
-	for i := 0; i < 10000; i++ {
-		cut := hudCut(float64(i)/10000, 0)
-		if cut && !prev {
-			runs++
+// The dial is the owner's GIF, not a drawing of rings: the sampled frame must
+// carry the dense matrix, and every dot must be one of its four levels.
+func TestOrbPatternIsTheGifDotMatrix(t *testing.T) {
+	if len(orbLevels) != orbCols*orbRows {
+		t.Fatalf("the sampled pattern has %d dots, want %d by %d", len(orbLevels), orbCols, orbRows)
+	}
+	lit := 0
+	for i, level := range orbLevels {
+		if level > 3 {
+			t.Fatalf("dot %d has brightness %d, want 0 to 3", i, level)
 		}
-		prev = cut
+		if level > 0 {
+			lit++
+		}
 	}
-	if runs != hudSeams {
-		t.Errorf("the dial has %d cut seams, want %d", runs, hudSeams)
-	}
-	if !hudCut(hudSeamStart, 0) || hudCut(hudSeamStart, 10) {
-		t.Errorf("the cut seams must move")
+	if lit < 500 {
+		t.Errorf("the sampled frame has %d lit dots, want the GIF's dense matrix", lit)
 	}
 }
 

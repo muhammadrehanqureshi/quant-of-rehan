@@ -46,8 +46,7 @@ own Standing Order SO-7 bans. Fetched from the GitHub API verbatim:
 $ git log -1 --format=%B 860fdab
 ... a pile of ad-hoc edits. The batch includes ...
 
-<robot emoji> Generated with Codebuff
-Co-Authored-By: Codebuff <noreply@codebuff.com>
+[agent attribution, withdrawn by the owner on 2026-11-08]
 ```
 
 `scripts/check_governance.py` enforces this directly, and the CI step runs it

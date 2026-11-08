@@ -158,9 +158,9 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 	// screen, so the two lists can be read together.
 	sectorH := 7
 	if a.sectorOpen {
-		sectorH = min(max(len(a.visibleSectorMembers())+3, 8), 15)
+		sectorH = min(max(len(a.visibleSectorMembers())+4, 9), 16)
 	} else if n := len(a.visibleSectorIndices()); n > 0 {
-		sectorH = min(n+3, 15)
+		sectorH = min(n+4, 16)
 	}
 	if avail := y + h - sy; avail-sectorH < 7 {
 		sectorH = max(5, avail-7)
@@ -455,7 +455,8 @@ func (a *App) drawSectorTile(c *Canvas, x, y, w, h int) {
 	searchRows := 0
 	if ih > 0 {
 		a.drawSectorSearch(c, ix, iy, iw, false)
-		searchRows = 1
+		// One row for the field and one blank row before the list begins.
+		searchRows = 2
 	}
 	listY := iy + searchRows
 	listRows := max(1, ih-searchRows)
@@ -551,6 +552,8 @@ func (a *App) drawSectorOpen(c *Canvas, x, y, w, h int) {
 	}
 	ix, iy, iw, ih := a.panel(c, x, y, w, h, "SECTORS", "")
 	a.drawSectorSearch(c, ix, iy+1, iw, true)
+	// The field is on iy+1, iy+2 is the blank separator, and the table starts
+	// on iy+3.
 	groups := a.sectorGroups()
 	if a.sectorChoice < 0 || a.sectorChoice >= len(groups) {
 		a.sectorOpen = false
@@ -567,14 +570,14 @@ func (a *App) drawSectorOpen(c *Canvas, x, y, w, h int) {
 		{"  ·  ", th.Soft, false},
 		{detail, th.Soft, false}})
 	if len(all) == 0 {
-		c.Text(ix, iy+2, iw, "None of this sector's scrips is in KMIALLSHR right now.", th.Soft, false)
+		c.Text(ix, iy+3, iw, "None of this sector's scrips is in KMIALLSHR right now.", th.Soft, false)
 		return
 	}
 	if len(member) == 0 {
-		c.Text(ix, iy+2, iw, "No scrip in this sector starts with "+a.sectorQueryText()+".", th.Soft, false)
+		c.Text(ix, iy+3, iw, "No scrip in this sector starts with "+a.sectorQueryText()+".", th.Soft, false)
 		return
 	}
-	rows := ih - 2
+	rows := ih - 3
 	if rows < 1 {
 		return
 	}
@@ -583,11 +586,11 @@ func (a *App) drawSectorOpen(c *Canvas, x, y, w, h int) {
 	cw := contentW(&a.lvSectorStk, iw)
 	for n := 0; n < a.lvSectorStk.view; n++ {
 		i := a.lvSectorStk.off + n
-		if i >= len(member) || iy+1+n >= iy+ih {
+		if i >= len(member) || iy+3+n >= iy+ih {
 			break
 		}
 		sym := member[i]
-		ry := iy + 2 + n
+		ry := iy + 3 + n
 		a.selectRow(c, ix, ry, cw, false, func() { a.openSymbol(sym) })
 		c.Spans(ix+1, ry, cw-1, []Span{{fmt.Sprintf("%3d. %-9s", i+1, sym), th.Hot, true}})
 		if q, ok := tbl[sym]; ok && q.Price > 0 {
@@ -597,7 +600,7 @@ func (a *App) drawSectorOpen(c *Canvas, x, y, w, h int) {
 			}
 		}
 	}
-	a.scrollbar(c, ix+iw-1, iy+2, a.lvSectorStk.view, &a.lvSectorStk)
+	a.scrollbar(c, ix+iw-1, iy+3, a.lvSectorStk.view, &a.lvSectorStk)
 }
 
 // openSector opens group i in the SECTORS tile without leaving the scanner.
