@@ -10,16 +10,17 @@ import "math"
 //
 // Three thick seams cut every ring and turn with it, the dashed rings crawl in
 // opposite directions, and one bright glint sweeps around the outside, so the
-// mark is alive while the market is live. A closed, checking or unreachable
-// market leaves the dial dark and still, but the owner is checking the desktop
-// build now, so hudForceLive keeps it green and turning in every state.
+// mark is alive while the market is live. From 08:55 to 17:00 on a market day
+// the owner's dial is green; outside that window it is red. hudForceLive keeps
+// it turning in every state while he checks the desktop build.
 
 var cellAspect = defaultCellAspect
 
 const defaultCellAspect = 2.22
 
-// OrbMode says whether the quant is online. The owner asked for a green dial
-// while he checks the desktop build; it only turns while the market is live.
+// OrbMode says whether the quant is online. The colour is the owner's 08:55 to
+// 17:00 market rule, not the mode; the mode still decides the motion when
+// hudForceLive is off.
 type OrbMode int
 
 const (
@@ -29,9 +30,10 @@ const (
 	OrbFault                   // relay unreachable
 )
 
-// hudForceLive keeps the dial green and turning outside market hours. Owner
-// order 2026-11-07: he is checking the desktop build while the market is closed
-// and needs to see it move. Set this to false to restore the dark, still dial.
+// hudForceLive keeps the dial turning in every state. Owner order 2026-11-07:
+// he is checking the desktop build while the market is closed and needs to see
+// it move. Set this to false to leave it still outside a live market. The
+// colour is the owner's 08:55 to 17:00 rule, not this switch.
 const hudForceLive = true
 
 func clamp01(x float64) float64 {
@@ -44,16 +46,24 @@ func clamp01(x float64) float64 {
 	return x
 }
 
-// The dial's colours: the owner's new green dot-matrix GIF while the market
-// is live, and a dark green that reads as off when there is no live market.
+// The dial's colours: the owner's refined green inside his 08:55 to 17:00
+// market window, and the familiar red outside it.
 var (
-	// Owner order 2026-11-08: the refined green ORB. The pale shade is mint,
-	// the core is saturated spring green, and the dark shade still reads as
-	// off when hudForceLive is false.
+	// Owner order 2026-11-08: the green palette is for his 08:55 to 17:00
+	// market window. The pale shade is mint and the core is saturated spring
+	// green. The red palette below is for every other time.
 	hudPale = RGB{132, 255, 190}
 	hudMid  = RGB{18, 220, 112}
-	hudDark = RGB{4, 40, 24}
+	// The owner's pre-build-23 red, still the off shade when hudForceLive
+	// is false.
+	hudRedPale = RGB{255, 64, 64}
+	hudRedMid  = RGB{255, 4, 4}
+	hudRedDark = RGB{52, 6, 6}
 )
+
+// orbGreenTo is 17:00, the end of the owner's ORB window. The window starts at
+// scanOpen, 08:55, the same minute the scanner starts.
+const orbGreenTo = 17 * 60
 
 // hudBand is one ring of dots. r0 and r1 are fractions of the dial's radius.
 // dashes above zero breaks the ring into that many arcs, of which fill is lit.
@@ -114,14 +124,17 @@ func hudTime(mode OrbMode, t float64) float64 {
 	return t
 }
 
-// hudInk gives the ink for one tone. With hudForceLive on every state is green;
-// otherwise a dial with no live market is dark and a live one runs green to
-// pale mint.
-func hudInk(tone float64, mode OrbMode) RGB {
-	if !hudForceLive && mode != OrbBurning {
-		return hudDark
+// hudInk gives the ink for one tone: the green palette inside the owner's
+// market window and the red palette outside it. A dial with no live market
+// is dark only when hudForceLive is false.
+func hudInk(tone float64, mode OrbMode, green bool) RGB {
+	if green {
+		return mix(hudMid, hudPale, clamp01(tone))
 	}
-	return mix(hudMid, hudPale, clamp01(tone))
+	if !hudForceLive && mode != OrbBurning {
+		return hudRedDark
+	}
+	return mix(hudRedMid, hudRedPale, clamp01(tone))
 }
 
 // hudGlint is the bright head that sweeps around the dial, one turn every
@@ -193,14 +206,15 @@ var ringHalfBlocks bool
 
 // drawOrb paints the mark into the rectangle (x0,y0,w,h) of cells. Only dots
 // are written: every other cell keeps whatever background the panel already
-// painted, which is why there is no field behind the dial.
-func drawOrb(c *Canvas, x0, y0, w, h int, t float64, mode OrbMode, th *Theme) {
+// painted, which is why there is no field behind the dial. green selects the
+// owner's 08:55 to 17:00 green palette; false paints the same dial red.
+func drawOrb(c *Canvas, x0, y0, w, h int, t float64, mode OrbMode, green bool, th *Theme) {
 	if w < 6 || h < 3 {
 		return
 	}
 	tt := hudTime(mode, t)
 	if ringHalfBlocks {
-		drawOrbHalves(c, x0, y0, w, h, tt, mode)
+		drawOrbHalves(c, x0, y0, w, h, tt, mode, green)
 		return
 	}
 	g := newDotGrid(w, h)
@@ -214,12 +228,13 @@ func drawOrb(c *Canvas, x0, y0, w, h int, t float64, mode OrbMode, th *Theme) {
 		}
 	}
 	// A zero glow leaves every cell's background exactly as the panel drew it.
-	g.blitRamp(c, x0, y0, func(tone float64) RGB { return hudInk(tone, mode) }, th.Panel)
+	g.blitRamp(c, x0, y0, func(tone float64) RGB { return hudInk(tone, mode, green) }, th.Panel)
 }
 
 // drawOrbHalves draws the same dial when Braille is not available: two pixels
-// per cell, again leaving every unlit cell transparent.
-func drawOrbHalves(c *Canvas, x0, y0, w, h int, tt float64, mode OrbMode) {
+// per cell, again leaving every unlit cell transparent. green selects the same
+// palette as drawOrb.
+func drawOrbHalves(c *Canvas, x0, y0, w, h int, tt float64, mode OrbMode, green bool) {
 	cx, cy, vs, R := hudRadius(w, h)
 	for row := 0; row < h; row++ {
 		top := (4*float64(row) + 1 - cy) * vs
@@ -234,11 +249,11 @@ func drawOrbHalves(c *Canvas, x0, y0, w, h int, tt float64, mode OrbMode) {
 				if toneB > tone {
 					tone = toneB
 				}
-				c.Put(x0+col, y0+row, '█', hudInk(float64(tone), mode), false)
+				c.Put(x0+col, y0+row, '█', hudInk(float64(tone), mode, green), false)
 			case okT:
-				c.Put(x0+col, y0+row, '▀', hudInk(float64(toneT), mode), false)
+				c.Put(x0+col, y0+row, '▀', hudInk(float64(toneT), mode, green), false)
 			case okB:
-				c.Put(x0+col, y0+row, '▄', hudInk(float64(toneB), mode), false)
+				c.Put(x0+col, y0+row, '▄', hudInk(float64(toneB), mode, green), false)
 			}
 		}
 	}
