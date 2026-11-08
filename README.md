@@ -13,7 +13,6 @@ No order placement, no broker trading integration: signals and research only.
 | Name | Role |
 |---|---|
 | [Mr. Rehan](https://github.com/muhammadrehanqureshi) | Owner and sole human author (SO-7). Decision authority for every rule in [GOVERNANCE.md](GOVERNANCE.md). |
-| Codebuff AI agent | Co-author on every commit, pull request and merge, per SO-7a. Writes and lands the code, never decides the law. |
 
 ## The strategy in one paragraph
 
@@ -172,8 +171,8 @@ legacy/                           quarantined code from the deleted sentinel rep
 5. **SO-5 Secrets never enter the repo**, a log line or a message.
 6. **SO-7 Sole human author, human style.** Every commit is authored by
    Mr. Rehan and em dashes are banned from commits and files.
-7. **SO-7a The agent is the co-author.** Every commit, PR body and merge
-   carries `Co-Authored-By: Codebuff <noreply@codebuff.com>`.
+7. **SO-7a No agent attribution.** No commit, PR body or merge carries a
+   co-author trailer, generated-by footer or signature (owner order 2026-11-08).
 8. **SO-8 Karachi time forever.** UTC+5, hardcoded, no other zone.
 9. **SO-9 Owner notifications** at open and close, through the relay.
 10. **SO-12 / SO-13 Cloud cadence.** The one-second scan runs on Actions

@@ -1,7 +1,11 @@
-# Quant of Rehan for Windows (console edition), build 27
+# Quant of Rehan for Windows (console edition), build 28
 
 A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.16**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
+
+## What is new in build 28
+
+* **Build 28.** The quant mark is the owner's GIF itself, not a drawing of it: the console draws the 55 by 50 dot matrix sampled from `windows/assets/orb-online-green-refined.gif`, dot for dot, with its own four brightness levels and the palette switching between the refined green and the owner's red. The SECTORS tile now keeps one blank row between its search field and the list, so the first group no longer touches the box.
 
 ## What is new in build 27
 

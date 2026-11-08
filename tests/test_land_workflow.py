@@ -251,21 +251,14 @@ class LandingWorkflowTest(unittest.TestCase):
                            "--until", "validate")
         self.assertIn("nothing new to commit", result.stdout)
 
-    def test_a_hand_made_commit_without_the_coauthor_line_is_repaired(self):
-        """The defect class behind the 2026-10-21 red email: a commit made
-        outside land.sh without the SO-7a trailer is repaired here, never
-        pushed to fail the pull request's governance check."""
-        self.write("README.md", "hand made\\n")
-        self.git("-C", str(self.work), "add", "-A")
-        self.git("-C", str(self.work), "commit", "-qm",
-                 "Sandbox: hand made commit lacks the co-author line")
+    def test_a_message_with_a_coauthor_line_is_refused(self):
+        """SO-7a, owner order 2026-11-08: no agent attribution may land."""
+        self.write("README.md", "readme\n")
         result = self.land("-y", "-m",
-                           "Sandbox: the repair runs before anything is pushed")
-        self.assertIn("SO-7a repair", result.stdout)
-        self.assertTrue((self.state / "merged").is_file())
-        body = self.git("-C", str(self.remote), "log", "-1", "master",
-                        "--format=%B").lower()
-        self.assertIn("co-authored-by: codebuff", body)
+                           "Sandbox: no attribution\n\n"
+                           "Co-Authored-By: Codebuff <noreply@codebuff.com>",
+                           expect=1)
+        self.assertIn("no co-author trailer", result.stderr)
 
     def test_it_refuses_a_checkout_that_declares_another_repository(self):
         # The failure this guards: a copy of this flow run from the other

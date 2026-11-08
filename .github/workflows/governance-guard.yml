@@ -37,7 +37,7 @@ jobs:
         run: pip install -r requirements.txt --retries 5 --timeout 60
 
       # SO-7 and SO-7a: verify every PR commit is authored by the owner,
-      # carries the agent's co-author line exactly once, and holds no other
+      # carries no co-author trailer (owner order 2026-11-08), holds no other
       # trailer and no banned dash character in the message.
       - name: Governance check (secrets, style, identity, standing orders)
         env:

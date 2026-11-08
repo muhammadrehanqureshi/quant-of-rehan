@@ -2,10 +2,9 @@
 # land.sh: stage, commit, sync, validate, and land one local change on
 # master through a pull request, exactly as the standing orders require.
 #
-# SO-7a (owner order, 2026-10-13): the script also hardcodes the owner's
-# co-author line. Every commit it writes carries it as its last line, the
-# pull request body carries it, and the merge commit carries it, so a change
-# cannot reach master without the agent's co-authorship on it.
+# SO-7a (owner order, 2026-11-08): the script never adds an agent attribution.
+# It refuses a message that carries a co-author trailer, a generated-by footer
+# or a signature, so no commit, pull request body or merge can credit one.
 #
 # Why a script and not a merge Action: SO-2 and SO-6 put every change behind
 # a pull request that the agent merges, and SO-4/SO-10 reserve the GitHub
@@ -22,10 +21,8 @@
 #            --local-checks runs scripts/check_governance.py and the suite here
 #   publish  push, open or reuse the PR, wait for CI, merge, resync master
 #
-#   Before anything is pushed, every commit ahead of the base is checked
-#   for the SO-7a co-author line (even a hand made commit); a missing
-#   line is appended on the spot, so the pull request's governance
-#   check can never fail or email the owner for that reason.
+#   Before anything is pushed, a message that carries an attribution
+#   trailer is refused, so no commit or pull request can credit the agent.
 #
 # Usage examples:
 #   scripts/land.sh -m "Fix the capture mirror fallthrough"
@@ -53,10 +50,8 @@ OWNER_NAME="Mr. Rehan"
 OWNER_EMAIL="muhammadrehanqureshi@users.noreply.github.com"
 OWNER_EMAIL_ALT="111383512+muhammadrehanqureshi@users.noreply.github.com"
 
-# SO-7a (owner order, 2026-10-13): the agent is the owner's co-author on every
-# commit, every PR body and every merge. Written once here, as the same string
-# scripts/check_governance.py requires, so the two can never drift apart.
-COAUTHOR="Co-Authored-By: Codebuff <noreply@codebuff.com>"
+# SO-7a (owner order, 2026-11-08): no agent attribution on any commit, pull
+# request body or merge. scripts/check_governance.py enforces the same rule.
 
 now_pkt() { date -u -d "+5 hours" "+%Y-%m-%d %H:%M:%S PKT"; }
 step()    { printf "\n== %s ==\n" "$*"; }
@@ -138,7 +133,7 @@ if [[ "$got_name" != "$OWNER_NAME" ]] || { [[ "$got_email" != "$OWNER_EMAIL" ]] 
 fi
 note "author identity ok (SO-7)"
 
-[[ -n "$MESSAGE" ]] || die "a commit message is required: -m \"...\" (SO-7: no dashes, no bot trailers; SO-7a adds the co-author line itself)"
+[[ -n "$MESSAGE" ]] || die "a commit message is required: -m \"...\" (SO-7: no dashes, no bot trailers; SO-7a bans every attribution)"
 
 validate_message() {
     python - "$1" <<'PY' || die "commit message rejected by the SO-7 validator above"
@@ -157,22 +152,21 @@ for ch in msg:
         print(f"SO-7: banned dash character U+{ord(ch):04X} in the message", file=sys.stderr)
         sys.exit(1)
 if "co-authored-by:" in msg.lower():
-    print("SO-7a: the co-author line is appended by land.sh itself, exactly "
-          "as the owner ordered it; leave it out of -m", file=sys.stderr)
+    print("SO-7a: no co-author trailer is allowed; the owner withdrew agent "
+          "attribution (owner order 2026-11-08)", file=sys.stderr)
     sys.exit(1)
 for trailer in ("generated with", "generated-by:", "signed-off-by:"):
     if trailer in msg.lower():
         print(f"SO-7: banned trailer pattern {trailer!r} in the message", file=sys.stderr)
         sys.exit(1)
-print("   message passes the SO-7 style rules; land.sh appends the SO-7a "
-      "co-author line")
+print("   message passes the SO-7 style rules; no agent attribution")
 PY
 }
 validate_message "$MESSAGE"
 
-# SO-7a: the message the commit, the pull request and the merge all carry.
-# The caller's words first, then the owner's co-author line as the last line.
-FULL_MESSAGE=$(printf '%s\n\n%s\n' "$MESSAGE" "$COAUTHOR")
+# The commit, the pull request body and the merge carry the caller's words and
+# nothing else (SO-7a: no agent attribution).
+FULL_MESSAGE="$MESSAGE"
 
 [[ -f scripts/check_governance.py ]] || die "scripts/check_governance.py is missing; cannot validate locally"
 note "base commit: $(git rev-parse --short "origin/$BASE" 2>/dev/null || echo 'origin/'$BASE' not fetched yet')"
@@ -211,7 +205,7 @@ else
     fi
     git commit -m "$FULL_MESSAGE"
     note "commit: $(git log --oneline -1)"
-    note "SO-7a co-author line: $COAUTHOR"
+    note "SO-7a: no agent attribution"
 fi
 if [[ "$UNTIL" == "commit" ]]; then
     printf "\nStopping after the commit phase (--until commit). Nothing was pushed.\n"
@@ -232,59 +226,9 @@ fi
 note "branch is now on top of $(git rev-parse --short "origin/$BASE")"
 note "commits to land:"; git log --oneline "origin/$BASE..HEAD" | sed "s/^/     /"
 
-# SO-7a repair (2026-10-21): an earlier landing pushed a hand made commit
-# without the owner's co-author line, the pull request's governance check
-# refused it, and the owner got a red email for it. Fix the class of
-# defect here: every commit about to be published is checked now, and a
-# missing line is appended on the spot, so the defect can never reach
-# Actions' governance check (or the owner's inbox) again.
-REPAIR_MISSING=''
-REPAIRED=''
-for REPAIR_CANDIDATE in $(git rev-list --reverse "origin/$BASE..HEAD"); do
-    if ! git show -s --format=%B "$REPAIR_CANDIDATE" | grep -qiF "$COAUTHOR"; then
-        REPAIR_MISSING="$REPAIR_MISSING $REPAIR_CANDIDATE"
-    fi
-done
-if [[ -n "${REPAIR_MISSING// }" ]]; then
-    step "SO-7a repair: appending the co-author line before anything is pushed"
-    for c in $REPAIR_MISSING; do
-        note "   missing on $(git log -1 --format='%h %s' "$c")"
-    done
-    REPAIR_MSG=$(mktemp)
-    REPAIR_ORIG=$(git rev-parse HEAD)
-    REPAIR_BACKUP="land-backup-$(git rev-parse --short "$REPAIR_ORIG")"
-    git branch -f "$REPAIR_BACKUP" "$REPAIR_ORIG"
-    repair_finish()
-    {
-        rm -f "$REPAIR_MSG" 2>/dev/null || true
-    }
-    trap repair_finish EXIT
-    if ! git checkout -q --detach "origin/$BASE"; then
-        git branch -D "$REPAIR_BACKUP" 2>/dev/null || true
-        die "could not start the SO-7a repair on origin/$BASE; nothing was pushed"
-    fi
-    for c in $(git rev-list --reverse "origin/$BASE..$REPAIR_ORIG"); do
-        if ! git cherry-pick "$c" >/dev/null 2>&1; then
-            git cherry-pick --abort 2>/dev/null || true
-            git checkout -q "$BRANCH" 2>/dev/null || true
-            git reset -q --hard "$REPAIR_ORIG"
-            git branch -D "$REPAIR_BACKUP" 2>/dev/null || true
-            rm -f "$REPAIR_MSG" 2>/dev/null || true
-            die "the SO-7a repair could not reapply $c (see git status); nothing was pushed and the branch was left exactly as it was"
-        fi
-        if ! git show -s --format=%B HEAD | grep -qiF "$COAUTHOR"; then
-            git show -s --format=%B HEAD > "$REPAIR_MSG"
-            printf '%s\n' "$COAUTHOR" >> "$REPAIR_MSG"
-            git commit -q --amend -F "$REPAIR_MSG"
-            note "   repaired $(git log -1 --format='%h %s')"
-        fi
-    done
-    REPAIR_TIP=$(git rev-parse HEAD)
-    git checkout -q "$BRANCH"
-    git reset -q --hard "$REPAIR_TIP"
-    REPAIRED=1
-    note "   backup branch $REPAIR_BACKUP keeps the pre-repair commits; delete it once the landing is done"
-fi
+# SO-7a (owner order 2026-11-08): the owner withdrew the agent co-author line.
+# validate_message refuses a commit message that carries one, so there is no
+# repair pass and nothing is ever appended before a push.
 
 if [[ "$UNTIL" == "sync" ]]; then
     printf "\nStopping after the sync phase (--until sync). Nothing was pushed.\n"
@@ -324,12 +268,7 @@ command -v gh >/dev/null 2>&1 || die "gh is required to open and merge the pull 
 gh auth status >/dev/null 2>&1 || die "gh is not authenticated; run: gh auth login"
 
 if ! git push -u origin HEAD; then
-    if [[ -n "$REPAIRED" ]]; then
-        note "the unrepaired tip was already published; pushing the repaired commits with --force-with-lease"
-        git push --force-with-lease -u origin HEAD
-    else
-        die "git push was rejected by the remote; nothing was opened or merged"
-    fi
+    die "git push was rejected by the remote; nothing was opened or merged"
 fi
 note "pushed $BRANCH"
 
@@ -376,8 +315,8 @@ done
 
 merge_args=(--merge)
 (( DELETE_BRANCH )) && merge_args+=(--delete-branch)
-gh pr merge "$pr" "${merge_args[@]}" --body "$COAUTHOR"
-note "merged PR #$pr into $BASE (merge commit carries the SO-7a co-author line)"
+gh pr merge "$pr" "${merge_args[@]}"
+note "merged PR #$pr into $BASE (no agent attribution)"
 
 merge_sha=$(gh pr view "$pr" --json mergeCommit --jq ".mergeCommit.oid" 2>/dev/null || true)
 [[ -n "$merge_sha" ]] && note "merge commit: ${merge_sha:0:10}"
