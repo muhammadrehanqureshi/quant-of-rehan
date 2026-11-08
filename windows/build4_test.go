@@ -246,14 +246,14 @@ func TestPhaseAtMatchesTheSessionLaw(t *testing.T) {
 	}
 }
 
-// Owner order 2026-11-07: he is checking the desktop build outside market
-// hours, so hudForceLive keeps the dial green and turning in every state. The
-// dark, still dial is still in orb.go behind that switch.
-func TestDialTurnsAndIsGreenWhileTheOwnerChecks(t *testing.T) {
+// Owner order 2026-11-08: the dial is green from 08:55 to 17:00 on a market
+// day and red outside it. hudForceLive keeps it turning in every state, so the
+// green case is drawn here and the window test checks the red.
+func TestDialTurnsAndIsGreenInTheMarketWindow(t *testing.T) {
 	th := themeAt(0)
 	paint := func(mode OrbMode, secs float64) *Canvas {
 		c := NewCanvas(38, 14, th.Panel)
-		drawOrb(c, 0, 0, 38, 14, secs, mode, th)
+		drawOrb(c, 0, 0, 38, 14, secs, mode, true, th)
 		return c
 	}
 	same := func(a, b *Canvas) bool {
@@ -314,14 +314,14 @@ func TestRadarIsRoundInPixels(t *testing.T) {
 	th := themeAt(0)
 	was := cellAspect
 	defer func() { cellAspect = was }()
-	// Build 23 paints the dial in the owner's refined green, so a dot is lit
-	// when its ink is that green and not the theme's own accent.
+	// The radar test paints the dial in the owner's green window, so a dot is
+	// lit when its ink is that green and not the theme's own accent.
 	lit := func(p RGB) bool { return p.G >= 150 && p.R < 180 && p.G > p.R+40 }
 	for _, aspect := range []float64{1.90, 20.0 / 9.0, 2.05} {
 		cellAspect = aspect
 		for _, sz := range [][2]int{{36, 14}, {30, 12}, {38, 25}} {
 			c := NewCanvas(sz[0], sz[1], th.Panel)
-			drawOrb(c, 0, 0, sz[0], sz[1], 0, OrbBurning, th)
+			drawOrb(c, 0, 0, sz[0], sz[1], 0, OrbBurning, true, th)
 			// Each Braille cell is 2 dots across and 4 dots down, so a dot is
 			// half a column wide and a quarter of a cell tall.
 			minX, maxX, minY, maxY := 1<<30, -1, 1<<30, -1
