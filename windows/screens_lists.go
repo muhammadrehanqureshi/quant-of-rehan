@@ -158,9 +158,9 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 	// screen, so the two lists can be read together.
 	sectorH := 7
 	if a.sectorOpen {
-		sectorH = min(max(len(a.visibleSectorMembers())+4, 9), 16)
+		sectorH = min(max(len(a.visibleSectorMembers())+3, 8), 15)
 	} else if n := len(a.visibleSectorIndices()); n > 0 {
-		sectorH = min(n+4, 16)
+		sectorH = min(n+3, 15)
 	}
 	if avail := y + h - sy; avail-sectorH < 7 {
 		sectorH = max(5, avail-7)
