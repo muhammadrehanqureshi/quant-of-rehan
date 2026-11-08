@@ -246,7 +246,7 @@ class SessionState:
         """Record the paper entry and lock the day to this one trade.
 
         `strategy` is the entry law that actually spoke (the fresh flip or the
-        four frame pullback); None keeps the flip's own label, which is what
+        three frame pullback); None keeps the flip's own label, which is what
         every caller before 2026-11-06 meant.
         """
         import math

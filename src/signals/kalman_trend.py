@@ -2,8 +2,9 @@
 
 The owner's order: remove the ICT/SMC strategy from quant of Rehan intraday,
 and introduce the Kalman Trend only, as the sole strategy for the intraday
-signals. A second entry inside that same family arrived on 2026-11-06 (the
-four frame VWAP pullback, below). Owner-confirmed scope:
+signals. A second entry inside that same family arrived on 2026-11-06 and
+was updated by the owner's order of 2026-11-08 (the three frame VWAP
+pullback, below). Owner-confirmed scope:
 
   * bars: the intraday PSX band feed, the same captured tape bars the
     scanner already loads (src/data/tape_bars.py);
@@ -25,11 +26,12 @@ One filter per symbol, causal, nothing looks ahead:
   the state only moves off its previous sign when the slope crosses the
   threshold, so one noisy print cannot flip the view.
 
-Two entries now share that law (owner order 2026-11-06):
+Two entries now share that law (owner order 2026-11-06, updated 2026-11-08):
 
   * the fresh flip: the bar the trend flips UP, while the flip is fresh;
-  * the pullback: with the trend already up and all four VWAP frames in
-    agreement (src/signals/mtf_vwap.py), the resumption after a completed
+  * the pullback: with the trend already up and the 5 minute, 15 minute and
+    1 hour VWAP frames in agreement (src/signals/mtf_vwap.py), the
+    resumption after a completed
     pullback, and only while the pullback and the entry are nearer the
     day's low than the day's high (src/signals/kalman_vwap_pullback.py).
 
@@ -128,7 +130,7 @@ def best_candidate(built: list[dict]) -> dict:
 
 def candidate(symbol: str, rows: list, session,
               tally: dict | None = None,
-              daily: list | None = None) -> dict | None:
+              frames: bool = False) -> dict | None:
     """Return a candidate from either entry law, or None.
 
     Same call shape the scanner and its tests always used. The gates below
@@ -137,15 +139,13 @@ def candidate(symbol: str, rows: list, session,
     price and turnover floors); the STRATEGY itself is the flip and only
     the flip.
 
-    Owner order 2026-11-03: when `daily` is supplied (the symbol's completed
-    daily bars), whichever entry is taken must also agree with the 5 minute,
-    15 minute, 1 hour and 1 day VWAP and Kalman frames
-    (src/signals/mtf_vwap.py). None means the caller is a replay or a unit
-    test that has no daily history and asked for the one minute law alone;
-    the live pipeline always passes a mapping, and an empty list for the
-    symbol fails closed at the 1 day frame. The pullback entry needs that
-    agreement by definition, so it is refused outright when the frames are
-    not being read.
+    Owner order 2026-11-08: `frames` says whether this deployment reads the
+    5 minute, 15 minute and 1 hour VWAP and Kalman frames
+    (src/signals/mtf_vwap.py). False is the replay and unit-test path with
+    no higher-timeframe history, which runs the one minute law alone; the
+    live pipeline passes the deployment flag, and a frame that is not ready
+    fails closed. The pullback entry needs that agreement by definition, so
+    it is refused outright when the frames are not being read.
     """
     if config.is_etf_symbol(symbol) or session.as_of.tzinfo is None:
         _bump(tally, "etf_or_naive_tz")
@@ -227,17 +227,18 @@ def candidate(symbol: str, rows: list, session,
     else:
         flip_index = flips[-1]
 
-    # Entry path 2, owner order 2026-11-06: the trend is up and the four VWAP
-    # frames agree, so the entry is the completed pullback's resumption, and
-    # only while the pullback and the entry are nearer the day's low than its
-    # high. The swing is read on the current band's bars; the day's own range
-    # comes from the whole session. Skipped silently when the frames are not
-    # being read at all (a replay or a unit test with no daily context), so a
-    # tally never reports a law that config had turned off.
+    # Entry path 2, owner order 2026-11-06, updated 2026-11-08: the trend is
+    # up and the three VWAP frames agree, so the entry is the completed
+    # pullback's resumption, and only while the pullback and the entry are
+    # nearer the day's low than its high. The swing is read on the current
+    # band's bars; the day's own range comes from the whole session. Skipped
+    # silently when the frames are not being read at all (a replay or a unit
+    # test with no frame context), so a tally never reports a law that config
+    # had turned off.
     pullback_setup: dict | None = None
     if not config.PULLBACK_ENABLED:
         pass
-    elif not (config.MTF_ENABLED and daily is not None):
+    elif not (config.MTF_ENABLED and frames):
         pass
     elif trace[-1]["state"] != 1:
         _bump(tally, "pullback_trend_not_up")
@@ -251,11 +252,11 @@ def candidate(symbol: str, rows: list, session,
         return None
 
     view = None
-    if config.MTF_ENABLED and daily is not None:
+    if config.MTF_ENABLED and frames:
         from src.signals import mtf_vwap
 
-        view, mtf_reason = mtf_vwap.evaluate(rows, session, daily,
-                                            hourly_rows=mtf_rows)
+        view, mtf_reason = mtf_vwap.evaluate(rows, session,
+                                             hourly_rows=mtf_rows)
         if view is None:
             _bump(tally, mtf_reason)
             return None
@@ -314,7 +315,7 @@ def candidate(symbol: str, rows: list, session,
                        "volume_source": "captured bar volume"},
             "last_bar": last.timestamp.isoformat(), "bars": len(rows),
             "entry_basis": "latest completed close after the pullback resumed "
-                           "inside the four frame agreement, with the pullback "
+                           "inside the three frame agreement, with the pullback "
                            "and the entry nearer the daily low than the daily "
                            "high; paper reference, not a fill",
         })

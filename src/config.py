@@ -278,40 +278,37 @@ KALMAN_MAX_SIGNAL_AGE_SECONDS = 60
 KALMAN_LAST_ENTRY_MINUTES = 30
 
 # ------------------------------------------------- multi-timeframe VWAP
-# Owner order 2026-11-03: VWAP joins the Kalman Trend, and the intraday
-# signal is read on the 5 minute, 15 minute, 1 hour and 1 day charts. The
-# one minute flip stays the execution trigger; these four frames are the
-# regime the flip must agree with, each by its own VWAP and Kalman state
-# (src/signals/mtf_vwap.py).
+# Owner order 2026-11-08 (which supersedes the four frame wording of
+# 2026-11-03): VWAP joins the Kalman Trend on the 5 minute, 15 minute and 1
+# hour charts. The one minute tape stays the execution clock and the trend
+# gate; these three frames are the regime the entry must agree with, each by
+# its own VWAP and Kalman state (src/signals/mtf_vwap.py).
 #
-# The daily frame needs a history the one session tape cannot hold. The
-# session workflows restore data/mtf_daily.csv.gz from the Actions cache
-# and build it once per day with scripts/prepare_mtf_daily.py. When that
-# file is missing the scanner reports DATA BLOCKED rather than quietly
-# dropping the 1 day gate: a four frame law with three frames is not this
-# law.
+# The 1 day frame and the data/mtf_daily.csv.gz file it needed are withdrawn
+# by the same order. The law now reads the session tape alone, so a missing
+# cache can never block it and no daily history has to be built in Actions.
 MTF_ENABLED = _flag("MTF_ENABLED", True)
-# The daily gate is on in the live session workflows, which set this to 1.
-# It defaults off so an offline unit test or a replay that has no daily file
-# runs the one minute law it was written to test instead of blocking on a
-# file only the live cache provides. The live pipeline passes no daily
-# context when this is off, so the four frame law is never half-applied.
-MTF_REQUIRE_DAILY = _flag("MTF_REQUIRE_DAILY", False)
-MTF_DAILY_FILE = "data/mtf_daily.csv.gz"
-MTF_TIMEFRAMES = (5, 15, 60, 1440)
-MTF_VWAP_LOOKBACK = {5: 12, 15: 12, 60: 12, 1440: 20}
-MTF_MIN_BARS = {5: 3, 15: 2, 60: 2, 1440: 40}
+# The frame gate is on in the live session workflows, which set this to 1.
+# It defaults off so an offline unit test or a replay without the higher
+# frames runs the one minute law it was written to test instead of failing
+# on frames that a short fixture cannot hold. The live pipeline passes this
+# flag to the scanner, so the three frame law is never half-applied.
+MTF_REQUIRE_FRAMES = _flag("MTF_REQUIRE_FRAMES", False)
+MTF_TIMEFRAMES = (5, 15, 60)
+MTF_VWAP_LOOKBACK = {5: 12, 15: 12, 60: 12}
+MTF_MIN_BARS = {5: 3, 15: 2, 60: 2}
 
-# ------------------------------- Kalman Trend four frame VWAP pullback
-# Owner order 2026-11-06: a second intraday entry beside the fresh one minute
-# flip. When the one minute Kalman Trend is up and the 5 minute, 15 minute, 1
-# hour and 1 day VWAP frames agree, the alignment is not itself the entry:
-# the entry is the resumption after the pullback that follows it, and only
-# while both the pullback's low and the entry sit nearer the day's low than
-# its high (src/signals/kalman_vwap_pullback.py). The owner's +2% target, -1%
-# stop, one call a day and every data-honesty gate are unchanged.
+# ----------------------------- Kalman Trend three frame VWAP pullback
+# Owner order 2026-11-08 (the updated intraday signal he checks on Nov 10):
+# a second intraday entry beside the fresh one minute flip. When the one
+# minute Kalman Trend is up and the 5 minute, 15 minute and 1 hour VWAP
+# frames agree, the alignment is not itself the entry: the entry is the
+# resumption after the pullback that follows it, and only while both the
+# pullback's low and the entry sit nearer the day's low than its high
+# (src/signals/kalman_vwap_pullback.py). The owner's +2% target, -1% stop,
+# one call a day and every data-honesty gate are unchanged.
 PULLBACK_ENABLED = _flag("PULLBACK_ENABLED", True)
-PULLBACK_STRATEGY_VERSION = "kalman_vwap_pullback_v1"
+PULLBACK_STRATEGY_VERSION = "kalman_vwap_pullback_v2"
 #: How many of the current band's completed minutes may hold the pullback.
 PULLBACK_LOOKBACK_BARS = int(_number("PULLBACK_LOOKBACK_BARS", 30))
 #: A resumption older than this many bars is history, not an entry.
@@ -634,8 +631,7 @@ def config_snapshot() -> dict:
                    if name.startswith("KALMAN_")},
         "mtf": {
             "enabled": MTF_ENABLED,
-            "require_daily": MTF_REQUIRE_DAILY,
-            "daily_file": MTF_DAILY_FILE,
+            "require_frames": MTF_REQUIRE_FRAMES,
             "timeframes_minutes": list(MTF_TIMEFRAMES),
             "vwap_lookback": {str(k): v for k, v in MTF_VWAP_LOOKBACK.items()},
             "min_bars": {str(k): v for k, v in MTF_MIN_BARS.items()},
