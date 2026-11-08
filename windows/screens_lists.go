@@ -150,7 +150,10 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 	a.sectorY, a.sectorH = 0, 0
 	sh := a.searchTileHeight(w, h)
 	a.drawSearchTile(c, x, y, w, sh)
-	sy := y + sh + 1
+	// The SECTORS tile sits directly under the search tile. The blank row the
+	// owner asked for belongs inside SECTORS, after its own search field, and
+	// moving the tile up here leaves the ranked list its four stock rows.
+	sy := y + sh
 	// The sector tile sits between the search and the ranked list. It grows to
 	// show every group it can while leaving the ranked list at least seven rows,
 	// and it scrolls when there are more groups than rows. A tapped sector opens
