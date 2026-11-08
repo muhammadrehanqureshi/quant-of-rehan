@@ -111,6 +111,31 @@ func TestParseBarsReadsEveryFrame(t *testing.T) {
 	}
 }
 
+// While the market is closed /prices and /quotes are empty, but the relay's
+// /sectors membership still names every KMIALLSHR scrip. The chart list must
+// use it, or the owner sees only the two indices on a closed day.
+func TestChartsListFallsBackToTheSectorMembership(t *testing.T) {
+	a := demoApp(t, 140, 36)
+	a.prices, a.quotes, a.symbols = map[string]Quote{}, nil, nil
+	a.sectors = &Sectors{OK: true, Items: []Sector{
+		{Name: "OIL & GAS", Symbols: []string{"OGDC", "PPL"}},
+		{Name: "BANKS", Symbols: []string{"MEBL"}},
+	}}
+	got := a.chartSymbols()
+	if len(got) != 5 {
+		t.Fatalf("the list has %d names, want the two indices and three sector scrips: %v", len(got), got)
+	}
+	if got[0] != "KSE100" || got[1] != "KMIALLSHR" {
+		t.Errorf("the indices must lead the list: %v", got)
+	}
+	joined := strings.Join(got, ",")
+	for _, want := range []string{"OGDC", "PPL", "MEBL"} {
+		if !strings.Contains(joined, want) {
+			t.Errorf("the sector scrip %s is missing from %v", want, got)
+		}
+	}
+}
+
 func TestChartFramesFollowTheOwnerOrder(t *testing.T) {
 	want := []string{"1s", "5s", "1m", "5m", "15m", "30m", "1h", "1D", "1W", "1M"}
 	if strings.Join(chartFrames, ",") != strings.Join(want, ",") {
@@ -148,7 +173,7 @@ func TestIndexLineIsTenPercentShorter(t *testing.T) {
 	if headerTitle != "◆ QUANT OF REHAN ◆" {
 		t.Errorf("the diamonds must sit one space from the words: %q", headerTitle)
 	}
-	if runeLen(headerTag) > 16 {
-		t.Errorf("the index line is %d cells, want 16", runeLen(headerTag))
+	if runeLen(headerTag) != 18 {
+		t.Errorf("the index line is %d cells, want the full 18", runeLen(headerTag))
 	}
 }

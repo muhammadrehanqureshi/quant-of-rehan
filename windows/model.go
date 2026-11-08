@@ -6,7 +6,7 @@ import "time"
 const appVersion = "4.0.16"
 
 // hudBuild is the build number of this Windows HUD port.
-const hudBuild = "21"
+const hudBuild = "22"
 
 // scripSearchHint is the same search line on every desktop search box.
 const scripSearchHint = "Search for a KMIALL scrip"
@@ -17,11 +17,9 @@ const scripSearchHint = "Search for a KMIALL scrip"
 // height is fixed by the console.
 const headerTitle = "◆ QUANT OF REHAN ◆"
 
-// headerTag is the index line under the title. A console has one font size, so
-// the only way to make the line smaller is fewer cells: 15 shrank to 12, a fifth
-// narrower than the line it replaced. The possessive is spelled as the owner
-// writes it, and INDEX steps out to buy the smaller line (owner order 2026-11-07).
-const headerTag = "PSX'S KMIALL"
+// headerTag is the index line under the title. Owner order 2026-11-07: the
+// full line is back, INDEX included; build 18's shortened line is withdrawn.
+const headerTag = "PSX'S KMIALL INDEX"
 
 // pkt is Pakistan time, fixed UTC+5 (no daylight saving), same as the session law.
 var pkt = time.FixedZone("PKT", 5*3600)
