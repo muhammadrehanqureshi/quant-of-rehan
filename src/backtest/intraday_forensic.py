@@ -651,6 +651,11 @@ def price_evidence(tape: TapeBars, trade: Mapping,
     scale = None
     if ratio is not None and (ratio >= 50.0 or ratio <= 0.02):
         scale = median / entry_price if entry_price else None
+    if scale:
+        # A measured ratio carries the noise of the session median, while the
+        # defect it detects is a decimal shift. Snap to that power of ten so
+        # the corrected prices and the reported scale are exact.
+        scale = 10.0 ** round(math.log10(scale))
     low, high = tape.venue_extremes.get(symbol, (None, None))
     above_venue = bool(high is not None and entry_price is not None
                        and entry_price > high * 1.001)
