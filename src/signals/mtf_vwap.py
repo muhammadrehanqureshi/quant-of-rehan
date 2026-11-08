@@ -1,23 +1,25 @@
 """Multi-timeframe VWAP and Kalman confirmation for the intraday signal.
 
-Owner order 2026-11-03: VWAP joins the Kalman Trend, and the intraday signal
-is read on the 5 minute, 15 minute, 1 hour and 1 day charts. The one minute
-tape stays the execution clock: it is where the fresh flip and the entry
-price come from. The four higher timeframes are the regime the flip must
-agree with.
+Owner order 2026-11-08 (which supersedes the four frame wording of
+2026-11-03): the intraday signal is read on the 5 minute, 15 minute and 1
+hour charts. The one minute tape stays the execution clock: it is where the
+entry price and the trend state come from. The three higher timeframes are
+the regime the entry must agree with.
 
 Each frame is built only from completed bars, so nothing here looks at a
 forming candle:
 
   * 5m, 15m and 1h are strict session-aligned aggregations of the one minute
     bars. A bucket with a missing minute is a hole, never a padded bar.
-  * 1D is the symbol's daily history, supplied by the caller from
-    src/data/daily_history.py. Today's forming day is never included.
+
+The 1 day frame and the daily history file it needed are withdrawn by the
+same order: the law now reads the session tape alone, so a missing cache can
+never block the signal.
 
 For every frame the close must sit above that frame's rolling VWAP and the
 Kalman state on that frame's closes must be +1. The VWAP is volume weighted
 typical price over the last N completed bars of the frame, so it is a real
-per-chart line rather than one session number copied four times. A frame
+per-chart line rather than one session number copied three times. A frame
 with no volume, no VWAP or too little history fails closed and its reason is
 returned, never guessed.
 
@@ -34,18 +36,16 @@ from src import config
 from src.data.sessions import band_bounds, current_band, open_time
 from src.signals.kalman_trend import filter_series
 
-MTF_VERSION = "vwap_mtf_v1"
+MTF_VERSION = "vwap_mtf_v2"
 
-#: The four frames the owner named, in minutes. 1440 is handled separately
-#: because a day bar is not a strict multiple of the session's 1 minute bars.
+#: The three frames the owner named, in minutes.
 TIMEFRAMES = config.MTF_TIMEFRAMES
 
 #: VWAP lookbacks, in completed bars of each frame. Twelve 5m bars is one
-#: hour, twelve 1h bars is a day and a half, twenty daily bars is one month.
+#: hour and twelve 1h bars is a day and a half.
 VWAP_LOOKBACK = config.MTF_VWAP_LOOKBACK
 
-#: The minimum completed bars a frame needs before it can vote. The 1D frame
-#: needs the same forty bars the one minute filter uses to settle.
+#: The minimum completed bars a frame needs before it can vote.
 MIN_BARS = config.MTF_MIN_BARS
 
 
@@ -168,13 +168,9 @@ def _view(bars: list[Frame], minutes: int) -> tuple[dict | None, str]:
     return view, "ok"
 
 
-def evaluate(rows: list, session, daily: list,
+def evaluate(rows: list, session,
              hourly_rows: list | None = None) -> tuple[dict | None, str]:
-    """Read the four frames and return the agreement, or the first refusal.
-
-    *daily* is the symbol's completed daily bars, oldest first, with the
-    current session excluded. It must be supplied: the caller decides
-    whether the one day frame is available at all.
+    """Read the three frames and return the agreement, or the first refusal.
 
     *hourly_rows* is the whole session's one minute tape, so the 1 hour bars
     still carry the morning block after a Friday midday break. The 5 and 15
@@ -207,38 +203,24 @@ def evaluate(rows: list, session, daily: list,
     if reason != "ok":
         return None, reason
 
-    daily_bars = [
-        Frame(timestamp=bar.day, open=bar.open, high=bar.high, low=bar.low,
-              close=bar.close, volume=bar.volume)
-        for bar in daily
-        if bar.close > 0 and bar.day < session.day
-    ]
-    view, reason = _view(daily_bars, 1440)
-    if view is None:
-        return None, reason
-    frames["1d"] = view
-    if reason != "ok":
-        return None, reason
-
     return {
         "rule": MTF_VERSION,
         "frames": frames,
-        "entry_clock": "1m flip and last completed 1m close",
+        "entry_clock": "1m trend state and last completed 1m close",
     }, "ok"
 
 
 def summary(view: dict | None) -> str:
-    """One ASCII line naming all four frame states, or empty when incomplete.
+    """One ASCII line naming all three frame states, or empty when incomplete.
 
     The line is the display contract for the cloud card and the owner email.
     It never invents a frame: a missing frame returns empty rather than a
-    partial claim, because a reader must not see three states and assume the
-    fourth agreed.
+    partial claim, because a reader must not see two states and assume the
+    third agreed.
     """
     frames = (view or {}).get("frames") or {}
     parts = []
-    for key, label in (("5m", "5m"), ("15m", "15m"),
-                       ("60m", "1h"), ("1d", "1D")):
+    for key, label in (("5m", "5m"), ("15m", "15m"), ("60m", "1h")):
         frame = frames.get(key)
         if not isinstance(frame, dict):
             return ""

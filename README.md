@@ -21,8 +21,8 @@ Scan the current KMIALL universe for the Kalman Trend in one of two shapes.
 The first is a fresh upward flip of the one minute Kalman filter: the flip is
 the entry and the last completed minute's close is the price. The second is
 the pullback: when the one minute trend is already up and the 5 minute, 15
-minute, 1 hour and 1 day VWAP frames agree, do not enter on the agreement
-itself. Wait for the pullback, take its resumption, and only while both the
+minute and 1 hour VWAP frames agree, do not enter on the agreement itself.
+Wait for the pullback, take its resumption, and only while both the
 pullback's low and the entry sit nearer the day's low than the day's high.
 When both shapes are legal on one symbol, the higher score is carried. Either
 way the plan is the owner's law: paper entry at the observed price, stop at
@@ -34,14 +34,17 @@ broker (SO-1).
 ## What is true today
 
 - **One scanner**: [src/signals/momentum_scanner.py](src/signals/momentum_scanner.py)
-  returns exactly one confirmed Kalman Trend long (the fresh flip, or the four
+  returns exactly one confirmed Kalman Trend long (the fresh flip, or the three
   frame agreement's pullback), NO TRADE, or DATA BLOCKED, with market context
   gating and late-entry refusal instead of any fallback signal.
 - **Two entry laws**: [src/signals/kalman_trend.py](src/signals/kalman_trend.py)
   owns the fresh flip (`kalman_trend_flip_v1`), and
   [src/signals/kalman_vwap_pullback.py](src/signals/kalman_vwap_pullback.py)
-  owns the four frame VWAP pullback (`kalman_vwap_pullback_v1`), which must
-  keep both the dip and the entry in the lower half of the day's range.
+  owns the three frame VWAP pullback (`kalman_vwap_pullback_v2`), which must
+  keep both the dip and the entry in the lower half of the day's range. The
+  owner's order of 2026-11-08 set those three frames (5 minute, 15 minute and
+  1 hour) and withdrew the 1 day frame and its daily file; he checks the
+  updated signal on 2026-11-10.
 - **One configuration surface**: [src/config.py](src/config.py) holds the
   target, the coverage floor, the Kalman and VWAP parameters, the pullback
   window, the scan cadence and the paper/live switch. Paper is the default;

@@ -1,8 +1,9 @@
-"""Tests for the 2026-11-06 Kalman Trend four frame VWAP pullback entry.
+"""Tests for the 2026-11-06 Kalman Trend VWAP pullback entry, updated to the
+owner's three frame law of 2026-11-08.
 
 The law is pure: completed one minute bars, the session's own high and low,
 and the owner's fixed TP/SL in, a candidate or a named refusal out. The
-integration tests patch the one minute filter and the four frame reader at
+integration tests patch the one minute filter and the three frame reader at
 their seams, so what they measure is the orchestration of the two entry
 paths; tests/test_mtf_vwap.py measures the frames themselves.
 """
@@ -29,13 +30,13 @@ from src.signals import trade_state  # noqa: E402
 DAY = date(2026, 10, 7)
 SESSION_OPEN = datetime.combine(DAY, time(*open_time(DAY)), tzinfo=KARACHI)
 
-#: The four frame agreement, already measured by test_mtf_vwap.py. The
+#: The three frame agreement, already measured by test_mtf_vwap.py. The
 #: orchestration tests patch the reader with this so they measure the entry
 #: paths rather than repeating the frame law.
 MTF_VIEW = {
     "rule": mtf_vwap.MTF_VERSION,
     "frames": {key: {"kalman_state": 1, "above_vwap": True}
-               for key in ("5m", "15m", "60m", "1d")},
+               for key in ("5m", "15m", "60m")},
     "entry_clock": "test clock",
 }
 
@@ -175,7 +176,7 @@ class CandidateTest(unittest.TestCase):
                 patch.object(mtf_vwap, "evaluate",
                              return_value=(MTF_VIEW, "ok")):
             return kalman_trend.candidate("OGDC", rows, session_of(rows), tally,
-                                          daily=[])
+                                          frames=True)
 
     def test_the_pullback_entry_carries_its_own_strategy(self):
         result = self._candidate(pullback_rows(), flat_trace(60))
@@ -226,7 +227,7 @@ class CandidateTest(unittest.TestCase):
                 patch.object(mtf_vwap, "evaluate",
                              return_value=(MTF_VIEW, "ok")):
             result = kalman_trend.candidate("OGDC", rows, session_of(rows),
-                                            tally, daily=[])
+                                            tally, frames=True)
         self.assertIsNone(result)
         self.assertIn("pullback_trend_not_up", tally)
         self.assertIn("no_upward_flip_yet", tally)

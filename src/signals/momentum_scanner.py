@@ -651,21 +651,21 @@ def _wilder_rsi(closes: list[float], period: int = 14) -> float | None:
 
 def score_symbol(symbol: str, rows: list[MinuteBar], session: SessionData,
                  tally: dict | None = None,
-                 daily: dict | None = None) -> dict | None:
-    """Score one symbol under the Kalman Trend's two entry laws.
+                 frames: bool = False) -> dict | None:
+    """Score one symbol under the Kalman Trend entry laws.
 
-    `daily` is the per-symbol completed daily history the 1 day frame reads
-    (src/data/daily_history.py). None keeps the replay and unit-test path on
-    the one minute law; the live pipeline always passes a mapping.
+    `frames` says whether this deployment reads the 5 minute, 15 minute and
+    1 hour VWAP frames (src/signals/mtf_vwap.py). False keeps the replay and
+    unit-test path on the one minute law; the live pipeline passes the
+    deployment flag from src/config.py.
     """
-    daily_rows = None if daily is None else list(daily.get(symbol, []))
-    return kalman_trend.candidate(symbol, rows, session, tally, daily=daily_rows)
+    return kalman_trend.candidate(symbol, rows, session, tally, frames=frames)
 
 
 def rank_candidates(session: SessionData,
                     ai_prior: dict[str, float] | None = None,
                     tally: dict | None = None,
-                    daily: dict | None = None) -> list[dict]:
+                    frames: bool = False) -> list[dict]:
     """Rank confirmed setups; the old daily-model prior has no entry authority.
 
     When `tally` is a dict, it is filled with every gate rejection the whole
@@ -674,14 +674,14 @@ def rank_candidates(session: SessionData,
     """
     ranked = [row for symbol in sorted(session.bars)
               if (row := score_symbol(symbol, session.bars[symbol], session,
-                                      tally, daily=daily)) is not None]
+                                      tally, frames=frames)) is not None]
     return sorted(ranked, key=lambda row: (-row["score"], row["symbol"]))
 
 
 def select_one(session: SessionData, quality: QualityReport,
                ai_prior: dict[str, float] | None = None,
                ai_status: dict | None = None,
-               daily: dict | None = None) -> ScanResult:
+               frames: bool = False) -> ScanResult:
     """At most one fully confirmed long, never a momentum/RSI fallback."""
     coverage = f"{quality.symbols_with_bars}/{quality.symbols_expected} ({quality.coverage:.1%})"
     if quality.status == DATA_BLOCKED:
@@ -689,7 +689,7 @@ def select_one(session: SessionData, quality: QualityReport,
     context = market_context(session)
     context["ai"] = {"active": False, "reason": "Kalman flip rules do not use the daily momentum prior"}
     tally: dict = {}
-    ranked = rank_candidates(session, tally=tally, daily=daily)
+    ranked = rank_candidates(session, tally=tally, frames=frames)
     # Broad panic is a risk veto; ordinary weak breadth is not a momentum
     # entry filter on this reversal strategy.
     if context.get("median_return") is None or context["median_return"] < config.MAX_MARKET_DROP:
@@ -741,7 +741,7 @@ def signal_message(candidate: dict, market: dict, entry: float,
     stop = candidate["stop_loss"]
     strategy = candidate.get("strategy") or config.SCANNER_VERSION
     if (candidate.get("setup") or {}).get("pullback"):
-        reason = ("pullback resumed after the Kalman trend and the four frame "
+        reason = ("pullback resumed after the Kalman trend and the three frame "
                   "VWAP agreed, nearer the daily low than the daily high")
     else:
         reason = "upward Kalman trend flip on the intraday band feed"
