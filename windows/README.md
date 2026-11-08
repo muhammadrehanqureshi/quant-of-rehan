@@ -1,10 +1,11 @@
-# Quant of Rehan for Windows (console edition), build 25
+# Quant of Rehan for Windows (console edition), build 26
 
 A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.16**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
 
-## What is new in build 25
+## What is new in builds 25 and 26
 
+* **Build 26.** The window keeps the last market day's answers on disk, in `%AppData%\QuantOfRehan\last-session.json`, and starts from them: the card, the scanner's table, the signal and the sector groups are on screen even when the exchange is shut or the relay answers with an empty feed. A sentence under the status pill names the day (`Showing the last stored session, 06 Nov 2026`) whenever the data is not today's. A relay answer that carries no rows never erases the stored table, and prices and sectors are now read even when the scanner is not open, so the file always has the whole session.
 * **Build 25.** The quant mark is the owner's refined green dial at every hour and on every day, the palette of `windows/assets/orb-online-green-refined.gif`; the red palette and its 08:55 to 17:00 rule are withdrawn. The CHARTS tab is removed at the owner's order of 2026-11-08: charts belong to the Charts of Rehan project now, so the desktop carries HOME, ALERTS, ORDER FLOW, SCANNER and SETTINGS only, and `3` to `5` (or F3 to F5) are the tabs after ALERTS. The index line under the title keeps the build's own font: build 23's small-capital letterforms are gone, and the line is set unbolded under the title because a Windows console draws one glyph size per window.
 
 ## What is new in build 24
