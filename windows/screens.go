@@ -32,6 +32,24 @@ func (a *App) orbMode() OrbMode {
 	return OrbParked
 }
 
+// orbGreen says whether the quant mark wears the GIF's refined green. Owner
+// order 2026-11-08 (build 27): green in the pre-market, the trading session and
+// the post-market; red at every other hour and day, including a break, a
+// halt and a weekend.
+func (a *App) orbGreen() bool {
+	phase := a.quantPhase()
+	if phase == qsUnknown {
+		// Before the first relay answer, the session law on Karachi's clock is
+		// the only phase there is; it still knows a weekend from a session.
+		phase = phaseAt(a.karachiNow())
+	}
+	switch phase {
+	case qsOpen, qsPre, qsPost:
+		return true
+	}
+	return false
+}
+
 // hasRing says whether this screen carries the left column with the quant mark
 // and the telemetry. The mark is on the home screen only now: the scanner is
 // given the whole width for its search, sectors and list.
@@ -200,7 +218,7 @@ func (a *App) drawHeader(c *Canvas) {
 	ink := mix(th.Soft, th.BG, 0.28)
 	rightAlign(c, 0, 0, c.W-1, []Span{{date + " ", ink, false}, {clock, th.Good, true}, {" UTC+5", ink, false}})
 
-	tag := headerTag
+	tag := headerTagSmall
 	if a.demo {
 		tag += "  ·  DEMO DATA"
 	}
@@ -361,7 +379,7 @@ func (a *App) drawLeft(c *Canvas, x, y, w, h int) {
 	const telH = 9
 	orbH := h - telH - 1
 	ix, iy, iw, ih := a.panel(c, x, y, w, orbH, "QUANT CORE", "")
-	drawOrb(c, ix, iy, iw, ih, a.animSeconds(), a.orbMode(), th)
+	drawOrb(c, ix, iy, iw, ih, a.animSeconds(), a.orbMode(), a.orbGreen(), th)
 
 	tx, ty, tw, _ := a.panel(c, x, y+orbH+1, w, telH, "TELEMETRY", "")
 	label := func(row int, k string, v []Span) {

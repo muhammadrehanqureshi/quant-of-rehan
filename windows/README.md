@@ -1,7 +1,11 @@
-# Quant of Rehan for Windows (console edition), build 26
+# Quant of Rehan for Windows (console edition), build 27
 
 A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.16**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
+
+## What is new in build 27
+
+* **Build 27.** The index line is back in the owner's small capitals (`ᴘꜱx'ꜱ ᴋᴍɪᴀʟʟ ɪɴᴅᴇx`), a size below the title, the order of 2026-11-08 after build 25 set it in the plain font. The SECTORS tile opens with its filled field alone: the inline `SEARCH` word is gone, and the field stands at the tile's left edge. The quant mark is the refined dial of `windows/assets/orb-online-green-refined.gif` in the market's own colour: green through the pre-market, the trading session and the post-market, red at every other hour and day, including a break, a halt and a weekend.
 
 ## What is new in builds 25 and 26
 
@@ -87,7 +91,7 @@ One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of 
 * **ORDER FLOW**, a new tab, reads the relay's `GET /orderflow` (and falls back to `GET /flow`, the same answer). See the section below.
 * **Percent after a bar:** every share bar is followed by one space and then the percentage, so `98%` and `100%` sit the same distance from the bar.
 * **HOME:** one blank line between the BUYING NOW line and the `Data from the broker's feed...` line.
-* **The HUD dial (ORB).** The owner's animated ring, drawn as a dot matrix: a 2 by 4 grid of Braille dots in every cell, and only the dots that fall on a ring are lit, so the panel's own background is the only background. Seven concentric green rings, an empty centre, three thick cut seams that turn through every ring, dashed rings crawling in opposite directions and one bright glint sweeping around. Offline the same dial is dimmer and slower. There is no sun, no wireframe, no radar sweep and no crosshair, because the GIF has none. The reference is `windows/assets/orb-online-green-refined.gif`. It is on HOME only; the SCANNER gives its width to the search, the SECTORS tile and the list. The application icon is the owner's teal dial artwork, drawn by `tools/mkicon_hud.py` in the Windows workflow.
+* **The HUD dial (ORB).** The owner's animated ring, drawn as a dot matrix: a 2 by 4 grid of Braille dots in every cell, and only the dots that fall on a ring are lit, so the panel's own background is the only background. Seven concentric rings, green from the pre-market through the post-market and red at every other hour, an empty centre, three thick cut seams that turn through every ring, dashed rings crawling in opposite directions and one bright glint sweeping around. Outside the session the same dial is red. There is no sun, no wireframe, no radar sweep and no crosshair, because the GIF has none. The reference is `windows/assets/orb-online-green-refined.gif`. It is on HOME only; the SCANNER gives its width to the search, the SECTORS tile and the list. The application icon is the owner's teal dial artwork, drawn by `tools/mkicon_hud.py` in the Windows workflow.
 
 * **SECTORS** is on the SCANNER: the relay's `/sectors` groups in a drop down list. The wheel or the scrollbar moves through the groups. A click or ENTER opens the chosen group inside the SECTORS tile and lists every scrip of it that is in KMIALLSHR, with its price; the CUSTOM SCRIPS BY VOLUME tile below stays visible. That list scrolls and a click opens a scrip in the search tile. BACKSPACE, or ESC, brings every sector back without changing screen.
 
