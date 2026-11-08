@@ -11,8 +11,8 @@ Checks:
 4. SO-7: owner-only author identity and human style. The em dash is
    banned from every committed file and commit message; quarantined
    legacy/ reference material is exempt because it is never modified.
-5. SO-7a: every PR commit carries the agent's co-author line, exactly once
-   and exactly as the owner ordered it on 2026-10-13.
+5. SO-7a: no PR commit carries an agent attribution. The owner withdrew the
+   co-author line on 2026-11-08, so any co-author trailer fails the check.
 6. SO-8: session logic must pin Karachi time (UTC+5) explicitly.
 7. SO-4: every declared backtest entry point refuses to run in GitHub
    Actions (src/ci/local_only.py) and no workflow invokes one.
@@ -69,13 +69,10 @@ OWNER_NAME = "Mr. Rehan"
 OWNER_EMAIL = "muhammadrehanqureshi@users.noreply.github.com"
 OWNER_EMAIL_ALT = "111383512+muhammadrehanqureshi@users.noreply.github.com"
 
-# SO-7a (owner order, 2026-10-13): the agent is the owner's co-author, so
-# every commit must carry this one line, exactly as written. The agent keeps
-# its own identity in the repository's own words: Codebuff, the agent that
-# works here. It is compared case-insensitively, like every trailer below.
-REQUIRED_COAUTHOR = "co-authored-by: Codebuff <noreply@codebuff.com>"
-
-# SO-7/SO-7a: every OTHER attribution stays banned on top of the one line.
+# SO-7a (owner order, 2026-11-08): the owner withdrew the former co-author
+# line. No agent is named anywhere, so every attribution trailer, including a
+# co-author line, is a violation.
+BANNED_COAUTHOR = "co-authored-by:"
 FORBIDDEN_TRAILERS = (
     "generated with",
     "generated-by:",
@@ -508,30 +505,15 @@ def check_commit_messages(errors: list) -> None:
                 f"<{OWNER_EMAIL}>: got {name} <{email}>"
             )
         low = message.lower()
-        # SO-7a: the owner's co-author line, present exactly once and never
-        # replaced by another identity. The check is on the trailer lines
-        # themselves, so a name buried in the body prose cannot stand in for
-        # it and a second co-author cannot ride along beside it.
-        coauthor_lines = [line.strip() for line in low.splitlines()
-                          if line.strip().startswith("co-authored-by:")]
-        if not coauthor_lines:
-            errors.append(
-                f"[SO-7a] commit {sha} is missing the owner's co-author line "
-                f"{REQUIRED_COAUTHOR!r}: every commit, PR and merge carries "
-                f"the agent as co-author (owner order 2026-10-13)"
-            )
-        for line in coauthor_lines:
-            if line != REQUIRED_COAUTHOR.lower():
+        # SO-7a: no agent attribution. Any co-author trailer is a violation,
+        # whichever identity it names (owner order 2026-11-08).
+        for line in low.splitlines():
+            if line.strip().startswith(BANNED_COAUTHOR):
                 errors.append(
-                    f"[SO-7a] commit {sha} carries a co-author line that is "
-                    f"not the owner's own: {line!r}"
+                    f"[SO-7a] commit {sha} carries a co-author trailer "
+                    f"{line.strip()!r}; the owner withdrew agent attribution "
+                    f"(owner order 2026-11-08)"
                 )
-        if len(coauthor_lines) > 1:
-            errors.append(
-                f"[SO-7a] commit {sha} carries the co-author line "
-                f"{len(coauthor_lines)} times; it belongs once, as the last "
-                f"line of the message"
-            )
         for trailer in FORBIDDEN_TRAILERS:
             if trailer in low:
                 errors.append(
@@ -716,7 +698,7 @@ def main() -> int:
     print("GOVERNANCE CHECK PASSED (SO-13 cadence and free-minute law included): "
           "secrets clean, footprint honesty intact, "
           "standing orders present, SO-7 style and identity verified, "
-          "SO-7a co-author line verified, SO-8 Karachi pin verified, "
+          "SO-7a no agent attribution verified, SO-8 Karachi pin verified, "
           "SO-21 backtests cloud-only enforced, SO-12 cloud-only recurring "
           "work enforced, SO-20 tape before scanner, KV quota removed, "
           "SO-22 no clock wait in the agent's tooling, "

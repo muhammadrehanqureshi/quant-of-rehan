@@ -170,8 +170,9 @@ instruction, not to be discovered as a convenience.
 - **SO-3** never fabricate data, coverage or a result.
 - **SO-5** secrets never enter the repository, a log line or a message.
 - **SO-7 / SO-7a** the owner is the only human author, the em dash is banned
-  from every committed file and message, and `Co-Authored-By: Codebuff
-  <noreply@codebuff.com>` is the last line of every commit, PR body and merge.
+  from every committed file and message, and no agent is named anywhere: no
+  co-author trailer, no generated-by footer, no signature. Owner order
+  2026-11-08 withdrew the old co-author rule.
 - **SO-8** Karachi time (UTC+5, Asia/Karachi) everywhere.
 - **SO-11** known drift is fixed in the same session it is found.
 - **SO-22** the agent never sleeps and never waits for the clock. No `sleep`,
