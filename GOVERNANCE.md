@@ -141,33 +141,24 @@ instruction from the owner.
   (excluding `legacy/`, which is quarantined reference material from the
   deleted sentinel repos and is never modified) and every new PR commit
   message. A violation fails the PR.
-- The one agent attribution this repository shows is the co-author line of
-  SO-7a, added by the owner's written instruction of 2026-10-13. Everything
-  else (other co-authors, generated-by footers, signed-off-by) stays banned.
+- The repository shows no agent attribution at all. The owner withdrew the
+  former co-author line on 2026-11-08: no co-author trailer, no generated-by
+  footer, no signed-off-by, and no agent name in a commit, PR body or merge.
+  `scripts/check_governance.py` and `scripts/land.sh` enforce the absence.
 
-## SO-7a · The agent is the owner's co-author (owner order, 2026-10-13)
+## SO-7a · No agent attribution (owner order, 2026-11-08, supersedes 2026-10-13)
 
-Explicit owner instruction, 2026-10-13: "I want you to be my co author until
-further notice, you need to hardcode this for all the PRs and merging into the
-master branch from now on." This adds exactly one line to every change, and
-nothing else about SO-7 moves.
+Explicit owner instruction, 2026-11-08: "from now on DON'T INCLUDE YOURSELF
+as the contributor. And remove yourself as the contributor from the entire
+repo and project."
 
-- The line is, verbatim and as the last line of the commit message:
-  `Co-Authored-By: Codebuff <noreply@codebuff.com>` (Codebuff is the agent
-  that works in this repository, Buffy / the QUANT; that address is its fixed
-  identity and the software's role is fixed there).
-- It travels with the whole path to master, not only with the commit: the pull
-  request body carries it and the merge commit carries it, so the credit is
-  visible on the commit, on the PR page and on `master` itself.
-- It is hardcoded rather than remembered. `scripts/land.sh` appends it to
-  every commit it writes, passes it as the pull request body, and passes it to
-  `gh pr merge --body`, so a change cannot land without it. And
-  `scripts/check_governance.py` fails a pull request whose commits do not
-  carry it, or that carry any second identity, so the rule holds even if a
-  future session forgets it.
-- The author of every commit is still the owner (SO-7), the em dash ban is
-  untouched, and the owner can withdraw this at any time: a withdrawal is a
-  new written owner instruction and a new amendment here.
+- Every commit, pull request body and merge carries only the owner's words.
+  No `Co-Authored-By:` line, no "Generated with" footer, no signature.
+- `scripts/land.sh` refuses a message that carries any of those trailers and
+  never adds one. `scripts/check_governance.py` fails a pull request whose
+  commits carry one.
+- The owner's author identity (SO-7) is unchanged. The order of 2026-10-13 is
+  withdrawn.
 
 ## SO-8 · Karachi time, forever (owner order, 2026-10-05)
 
@@ -232,8 +223,8 @@ nothing else about SO-7 moves.
 SO-1 signal-only · SO-2 PR first, agent merges · SO-3 never fabricate data ·
 SO-4 backtest locally only (superseded by SO-21) · SO-5 secrets stay out ·
 SO-6 the agent merges ·
-SO-7 sole human contributor, human-looking code, no em dashes · SO-7a the
-agent is the owner's co-author on every commit, PR body and merge ·
+SO-7 sole human contributor, human-looking code, no em dashes · SO-7a no
+agent attribution on any commit, PR body or merge (owner order 2026-11-08) ·
 SO-8 Karachi time forever · SO-9 owner notifications via the Cloudflare
 relay · SO-10 resource law: cloud-first, local only for backtests · SO-11
 zero-defect law: known drift is fixed immediately · SO-12 the 4-minute

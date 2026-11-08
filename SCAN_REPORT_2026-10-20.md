@@ -242,7 +242,7 @@ badging reads `versionCode=32 versionName=1.7.8`.
 | #52 | Dead code removed, card header made ASCII, audit wired into CI |
 
 Every one went through a pull request, was merged by `scripts/land.sh`, and
-carries `Co-Authored-By: Codebuff <noreply@codebuff.com>` as its last line.
+carries the agent attribution that the owner withdrew on 2026-11-08.
 
 ## 7. What is not verified here
 
