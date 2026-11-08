@@ -578,10 +578,12 @@ def _rs_table(day_data: dict, histories: dict, ind15: dict) -> dict:
 
 
 def _evaluate(day_data: dict, histories: dict, ind5: dict, ind15: dict,
-              ind60: dict, rs: dict) -> list[dict]:
+              ind60: dict, rs: dict, simulate=None) -> list[dict]:
+    simulate = simulate or _simulate
     trades: list[dict] = []
     taken = {name: False for name in STRATEGY_NAMES}
     for band, _tape in day_data["bands"]:
+        band["rows_strict"] = band.get("rows_strict", band["rows"])
         for t5 in band["slots"]:
             completion = t5 + MIN5
             if completion + MIN5 > band["close"]:
@@ -773,8 +775,8 @@ def _evaluate(day_data: dict, histories: dict, ind5: dict, ind15: dict,
                     continue
                 candidates[name].sort(key=lambda row: (-row["score"], row["sym"]))
                 for candidate in candidates[name]:
-                    trade = _simulate(band, candidate["sym"], completion,
-                                      candidate.get("max_entry"))
+                    trade = simulate(band, candidate["sym"], completion,
+                                     candidate.get("max_entry"))
                     if trade is None:
                         continue
                     trade.update({"strategy": name, "day": band["day"].isoformat(),
@@ -823,7 +825,7 @@ def _evaluate(day_data: dict, histories: dict, ind5: dict, ind15: dict,
                             row["score"] = 0.60 * z8 + 0.40 * z4
                         pool.sort(key=lambda row: (-row["score"], row["sym"]))
                         top = pool[0]
-                        trade = _simulate(band, top["sym"], completion + MIN5)
+                        trade = simulate(band, top["sym"], completion + MIN5)
                         if trade is not None:
                             trade.update({"strategy": "9_relative_strength_rotation",
                                           "day": band["day"].isoformat(),
@@ -835,7 +837,7 @@ def _evaluate(day_data: dict, histories: dict, ind5: dict, ind15: dict,
     if not taken["current_kalman_flip"]:
         flips = []
         for band, _tape in day_data["bands"]:
-            for sym, rows in band["rows"].items():
+            for sym, rows in band["rows_strict"].items():
                 start = 0
                 for i in range(1, len(rows)):
                     if rows[i].timestamp - rows[i - 1].timestamp != MIN1:
@@ -862,7 +864,7 @@ def _evaluate(day_data: dict, histories: dict, ind5: dict, ind15: dict,
         if flips:
             flips.sort(key=lambda row: (row["time"], -row["score"], row["sym"]))
             top = flips[0]
-            trade = _simulate(top["band"], top["sym"], top["time"])
+            trade = simulate(top["band"], top["sym"], top["time"])
             if trade is not None:
                 trade.update({"strategy": "current_kalman_flip",
                               "day": day_data["day"].isoformat(),
