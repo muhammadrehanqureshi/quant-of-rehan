@@ -42,7 +42,6 @@ import statistics
 import sys
 import time
 from collections import defaultdict
-from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
@@ -54,7 +53,7 @@ sys.path.insert(0, str(ROOT))
 
 from src.ci.local_only import guard_cloud_backtest  # noqa: E402
 from src import config  # noqa: E402
-from src.data import band_state, tape_bars  # noqa: E402
+from src.data import tape_bars  # noqa: E402
 from src.data.sessions import (  # noqa: E402
     KARACHI, band_bounds, is_trading_day, session_bands,
 )
