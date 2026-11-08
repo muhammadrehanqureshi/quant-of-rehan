@@ -139,7 +139,7 @@ type App struct {
 	lvSectorStk  listView   // the open sector's scrip list
 	lvOF        listView   // the ORDER FLOW list
 	chartSym    string     // the stock the CHARTS tab is showing
-	chartTF     string     // the frame the CHARTS tab is showing, 1m until chosen
+	chartTF     string     // the frame the CHARTS tab is showing, 1D until chosen
 	chart       *ChartHistory
 	chartSt     string // "", "loading", "failed", "ok"
 	chartErr    string
@@ -617,7 +617,16 @@ func (a *App) fetch(name string) {
 			s, err := r.FetchSectors(ctx)
 			a.msgs <- msgSectors{s, err}
 		case "history":
-			h, err := r.FetchBars(ctx, histSym, histTF, 365, 400)
+			var h *ChartHistory
+			var err error
+			if a.demo {
+				h = a.demoBars(histSym, histTF)
+			} else if histTF == "1D" && histSym != "KSE100" && histSym != "KMIALLSHR" {
+				h = localEODHistory(histSym)
+			}
+			if h == nil {
+				h, err = r.FetchBars(ctx, histSym, histTF, 365, 400)
+			}
 			a.msgs <- msgHistory{histSym, histTF, h, err}
 		}
 	}()

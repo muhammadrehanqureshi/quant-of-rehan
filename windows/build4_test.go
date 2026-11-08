@@ -247,9 +247,9 @@ func TestPhaseAtMatchesTheSessionLaw(t *testing.T) {
 }
 
 // Owner order 2026-11-07: he is checking the desktop build outside market
-// hours, so hudForceLive keeps the dial red and turning in every state. The
+// hours, so hudForceLive keeps the dial green and turning in every state. The
 // dark, still dial is still in orb.go behind that switch.
-func TestDialTurnsAndIsRedWhileTheOwnerChecks(t *testing.T) {
+func TestDialTurnsAndIsGreenWhileTheOwnerChecks(t *testing.T) {
 	th := themeAt(0)
 	paint := func(mode OrbMode, secs float64) *Canvas {
 		c := NewCanvas(38, 14, th.Panel)
@@ -276,8 +276,8 @@ func TestDialTurnsAndIsRedWhileTheOwnerChecks(t *testing.T) {
 			if ce.Ch < 0x2800 || ce.Ch > 0x28ff {
 				continue
 			}
-			if ce.FG.R < 150 || ce.FG.R < ce.FG.G+40 {
-				t.Errorf("mode %d: a dial dot is %v, not red", m, ce.FG)
+			if ce.FG.G < 150 || ce.FG.G < ce.FG.R+40 {
+				t.Errorf("mode %d: a dial dot is %v, not green", m, ce.FG)
 			}
 			lit++
 		}
@@ -314,9 +314,9 @@ func TestRadarIsRoundInPixels(t *testing.T) {
 	th := themeAt(0)
 	was := cellAspect
 	defer func() { cellAspect = was }()
-	// Build 17 paints the dial in saturated red, so a dot is lit when its ink is
-	// that red and not the old pale pink's bright green.
-	lit := func(p RGB) bool { return p.R >= 100 && p.G < 120 && p.R > p.G+60 }
+	// Build 23 paints the dial in the owner's refined green, so a dot is lit
+	// when its ink is that green and not the theme's own accent.
+	lit := func(p RGB) bool { return p.G >= 150 && p.R < 180 && p.G > p.R+40 }
 	for _, aspect := range []float64{1.90, 20.0 / 9.0, 2.05} {
 		cellAspect = aspect
 		for _, sz := range [][2]int{{36, 14}, {30, 12}, {38, 25}} {
@@ -367,7 +367,8 @@ func TestOnlySafeGlyphsOnScreen(t *testing.T) {
 		case r >= 0x2500 && r <= 0x259f, r >= 0x2800 && r <= 0x28ff:
 			return true
 		}
-		return strings.ContainsRune("·…▲▼●◆♦♪▪▬", r)
+		// Owner order 2026-11-08: the tagline's Unicode small capitals.
+		return strings.ContainsRune("·…▲▼●◆♦♪▪▬ᴘꜱᴋᴍɪᴀʟɴᴅᴇ", r)
 	}
 	for _, sz := range [][2]int{{80, 26}, {122, 30}, {160, 45}} {
 		for scr := range screenNames {

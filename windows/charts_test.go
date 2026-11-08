@@ -51,7 +51,7 @@ func TestChartsTabShowsEveryKMIALLStockAndCandles(t *testing.T) {
 	a := demoApp(t, 140, 36)
 	a.screen = scrCharts
 	s := plain(a)
-	for _, want := range []string{"CHARTS", "ALFA", "BRVO", "DLTA", "HTEL", "INTRADAY", "LIVE PKR", "demo bars"} {
+	for _, want := range []string{"SCRIPS", "ALFA", "BRVO", "DLTA", "HTEL", "1D", "LIVE PKR", "demo bars"} {
 		if !strings.Contains(s, want) {
 			t.Errorf("charts is missing %q:\n%s", want, s)
 		}
@@ -81,7 +81,7 @@ func TestChartsSearchOpensTheChosenStock(t *testing.T) {
 	if a.chart == nil || a.chart.Symbol != "DLTA" || len(a.chart.Bars) == 0 {
 		t.Fatalf("DLTA has no demo bars: %+v", a.chart)
 	}
-	if s := plain(a); !strings.Contains(s, "DLTA INTRADAY") {
+	if s := plain(a); !strings.Contains(s, "DLTA 1D") {
 		t.Errorf("the chart panel is not labelled DLTA:\n%s", s)
 	}
 }
@@ -144,9 +144,10 @@ func TestChartFramesFollowTheOwnerOrder(t *testing.T) {
 	a := demoApp(t, 140, 36)
 	a.screen = scrCharts
 	_ = a.render()
-	if a.chartFrame() != "1m" {
-		t.Fatalf("the panel starts on %q, want 1m", a.chartFrame())
+	if a.chartFrame() != "1D" {
+		t.Fatalf("the panel starts on %q, want 1D", a.chartFrame())
 	}
+	a.chartTF = "1m" // the movement checks below start from the old first frame
 	a.moveChartFrame(1)
 	if a.chartTF != "5m" {
 		t.Errorf("] took the frame to %q, want 5m", a.chartTF)
@@ -160,12 +161,12 @@ func TestChartFramesFollowTheOwnerOrder(t *testing.T) {
 	}
 }
 
-func TestOrbRedIsSaturated(t *testing.T) {
-	if hudMid.R < 250 || hudMid.G > 20 || hudMid.B > 20 {
-		t.Errorf("the ORB core is %v, want a saturated red", hudMid)
+func TestOrbGreenIsSaturated(t *testing.T) {
+	if hudMid.G < 180 || hudMid.R > 90 || hudMid.B > 160 {
+		t.Errorf("the ORB core is %v, want a saturated green", hudMid)
 	}
-	if hudPale.G > 90 || hudPale.B > 90 {
-		t.Errorf("the ORB's light shade is %v, still washed out", hudPale)
+	if hudPale.R > 200 || hudPale.G < 220 || hudPale.B < 120 {
+		t.Errorf("the ORB's light shade is %v, want a bright mint", hudPale)
 	}
 }
 
