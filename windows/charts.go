@@ -128,7 +128,7 @@ func chartFrameIndex(tf string) int {
 
 func (a *App) chartFrame() string {
 	if chartFrameIndex(a.chartTF) < 0 {
-		return "1m"
+		return "1D"
 	}
 	return a.chartTF
 }
@@ -529,7 +529,7 @@ func (a *App) drawChartList(c *Canvas, x, y, w, h int, syms []string) {
 	if a.chartQuery != "" {
 		hint = "ESC clears"
 	}
-	ix, iy, iw, ih := a.panel(c, x, y, w, h, "CHARTS", hint)
+	ix, iy, iw, ih := a.panel(c, x, y, w, h, "SCRIPS", hint)
 	if ih < 2 {
 		return
 	}
@@ -669,7 +669,7 @@ func (a *App) drawChartPanel(c *Canvas, x, y, w, h int) {
 	msg, col := "", th.Soft
 	switch {
 	case hst == nil && (a.chartSt == "loading" || a.chartSt == ""):
-		msg = "Reading today's one minute bars from the relay."
+		msg = "Reading the chart's stored bars."
 	case hst == nil && a.chartSt == "failed":
 		msg, col = "The chart is not available right now: "+a.chartErr, th.Warn
 	case hst == nil || len(hst.Bars) == 0:
