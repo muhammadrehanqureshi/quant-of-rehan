@@ -6,7 +6,7 @@ import "time"
 const appVersion = "4.0.16"
 
 // hudBuild is the build number of this Windows HUD port.
-const hudBuild = "22"
+const hudBuild = "23"
 
 // scripSearchHint is the same search line on every desktop search box.
 const scripSearchHint = "Search for a KMIALL scrip"
@@ -20,6 +20,15 @@ const headerTitle = "◆ QUANT OF REHAN ◆"
 // headerTag is the index line under the title. Owner order 2026-11-07: the
 // full line is back, INDEX included; build 18's shortened line is withdrawn.
 const headerTag = "PSX'S KMIALL INDEX"
+
+// headerTagSmall is the same eighteen cells set in the console's smallest
+// letterforms: Unicode small capitals. A Windows console has one font size for
+// the whole window, so this is how the owner's "reduce the font size" order of
+// 2026-11-08 is drawn without shrinking the title, the tape or the clock. The
+// words are unchanged; only the glyph height is smaller. If the terminal lacks
+// a glyph it falls back to a font that has it, and headerTag remains the plain
+// text the rest of the code and the tests name.
+const headerTagSmall = "ᴘꜱx'ꜱ ᴋᴍɪᴀʟʟ ɪɴᴅᴇx"
 
 // pkt is Pakistan time, fixed UTC+5 (no daylight saving), same as the session law.
 var pkt = time.FixedZone("PKT", 5*3600)

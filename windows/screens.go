@@ -202,7 +202,7 @@ func (a *App) drawHeader(c *Canvas) {
 	ink := mix(th.Soft, th.BG, 0.28)
 	rightAlign(c, 0, 0, c.W-1, []Span{{date + " ", ink, false}, {clock, th.Good, true}, {" UTC+5", ink, false}})
 
-	tag := headerTag
+	tag := headerTagSmall
 	if a.demo {
 		tag += "  ·  DEMO DATA"
 	}
