@@ -99,6 +99,13 @@ type App struct {
 	rtt          time.Duration
 	relayErr     string
 
+	// The last stored market day, so a restart on a closed day starts with
+	// the table instead of empty panels. Build 26.
+	sessionAt       time.Time
+	sessionDate     string
+	sessionDirty    bool
+	lastSessionSave time.Time
+
 	// scheduling
 	inflight map[string]bool
 	next     map[string]time.Time
@@ -208,6 +215,9 @@ func NewApp(cfg Settings, cfgPath string, relay *Relay) *App {
 	} else {
 		a.cfg.ReqDay = today
 	}
+	// Start from the last market day the previous run stored, so the window
+	// is never empty just because the exchange is shut.
+	a.restoreSession(loadSession(sessionPath(cfgPath)))
 	return a
 }
 
@@ -304,10 +314,20 @@ func (a *App) relayDate() string {
 	return ""
 }
 
-// statusNote is the sentence under the status pill. It changes with the part
-// of the day, and the quant is offline whenever the market is not in its
-// pre-market, trading or post-market.
+// statusNote is the sentence under the status pill, plus the day the stored
+// data belongs to when it is not today's.
 func (a *App) statusNote() string {
+	note := a.statusNoteBase()
+	if !a.sessionAt.IsZero() && !sameSessionDay(a.sessionDate, a.karachiNow()) {
+		note += " Showing the last stored session, " + a.storedSessionDay() + "."
+	}
+	return note
+}
+
+// statusNoteBase is the sentence under the status pill. It changes with the
+// part of the day, and the quant is offline whenever the market is not in its
+// pre-market, trading or post-market.
+func (a *App) statusNoteBase() string {
 	switch {
 	case a.checking:
 		return "Checking the system."
@@ -632,9 +652,33 @@ func (a *App) onMsg(m any) {
 			a.checking = false
 			a.link = true
 			a.relayErr = ""
+			// A card with no index and no leaders is metadata only; it may not
+			// relabel or replace the stored session.
+			freshCard := v.m.HasIndex() || len(v.m.Leaders) > 0
+			// Outside a session the relay can answer with a card that has no
+			// index or leaders; the stored day stays on screen rather than
+			// being erased by the empty answer.
+			if prev := a.market; prev != nil {
+				if !v.m.HasIndex() && prev.HasIndex() {
+					v.m.IndexValue, v.m.IndexChange, v.m.IndexPct = prev.IndexValue, prev.IndexChange, prev.IndexPct
+					v.m.IndexAsOf, v.m.IndexSource = prev.IndexAsOf, prev.IndexSource
+				}
+				if len(v.m.Leaders) == 0 {
+					v.m.Leaders = prev.Leaders
+				}
+				if v.m.Date == "" {
+					v.m.Date = prev.Date
+				}
+			}
 			a.market = v.m
 			a.marketOpen = v.m.Open
 			a.lastMarketOK = a.now
+			if freshCard {
+				if v.m.Date != "" {
+					a.sessionDate = v.m.Date
+				}
+				a.sessionDirty = true
+			}
 			if a.head != nil && !v.m.PhaseKnown() && a.head.Phase != nil {
 				v.m.Phase, v.m.TradingDay = a.head.Phase.Phase, a.head.Phase.TradingDay
 			}
@@ -668,13 +712,25 @@ func (a *App) onMsg(m any) {
 		}
 	case msgSignals:
 		a.done("signals", v.ok)
-		a.signals, a.signalsOK = v.text, v.ok
+		if v.ok && strings.TrimSpace(v.text) != "" {
+			a.signals = v.text
+			a.sessionDirty = true
+		}
+		a.signalsOK = v.ok || a.signalsOK
 		a.beat()
 	case msgQuotes:
 		ok := v.err == nil
 		a.done("quotes", ok)
-		if ok {
+		if ok && v.q != nil {
+			// A closed relay can answer with no rows; the last table it sent
+			// stays on screen until a real one arrives.
+			if len(v.q.Items) == 0 && v.q.Index == nil && a.quotes != nil && len(a.quotes.Items) > 0 {
+				break
+			}
 			a.ingestQuotes(v.q)
+			if len(v.q.Items) > 0 {
+				a.sessionDirty = true
+			}
 		}
 	case msgPrices:
 		ok := v.err == nil
@@ -685,6 +741,9 @@ func (a *App) onMsg(m any) {
 			}
 			a.prices = v.p
 			a.rebuildSymbols()
+			if len(v.p) > 0 {
+				a.sessionDirty = true
+			}
 		}
 	case msgOrderFlow:
 		ok := v.err == nil
@@ -697,9 +756,10 @@ func (a *App) onMsg(m any) {
 	case msgSectors:
 		ok := v.err == nil
 		a.done("sectors", ok)
-		if v.s != nil {
+		if v.s != nil && len(v.s.Items) > 0 {
 			a.sectors = v.s
 			a.rebuildSymbols()
+			a.sessionDirty = true
 			if a.sectorChoice >= len(v.s.Items) {
 				a.sectorChoice = 0
 			}
@@ -837,10 +897,9 @@ func (a *App) onTick(now time.Time) {
 		a.demoTick(now)
 		return
 	}
-	names := []string{"market", "health", "signals", "quotes"}
-	if a.screen == scrScanner {
-		names = append(names, "prices", "sectors")
-	}
+	// Prices and sectors are read even when the scanner is not on screen, so
+	// the stored session carries the whole table and not just the card.
+	names := []string{"market", "health", "signals", "quotes", "prices", "sectors"}
 	if a.screen == scrOrderFlow {
 		names = append(names, "orderflow")
 	}
@@ -851,6 +910,11 @@ func (a *App) onTick(now time.Time) {
 	}
 	if a.dirty && now.Sub(a.lastSave) > 10*time.Second {
 		a.save()
+	}
+	// The table is written while it moves, at most every twenty seconds, so
+	// the next start has the day's own last answer.
+	if a.sessionDirty && now.Sub(a.lastSessionSave) > 20*time.Second {
+		a.saveSession()
 	}
 }
 
@@ -1487,5 +1551,6 @@ func (a *App) run(t Term) error {
 		}
 	}
 	a.save()
+	a.saveSession()
 	return nil
 }
