@@ -107,9 +107,9 @@ jobs:
       # are untouched: no position opens, no one-trade claim is taken
       # (src/config.py OWNER_ORDERED_CALLS).
       OWNER_ORDERED_CALLS: "1"
-      # Owner order 2026-11-03: the intraday signal must agree with the 1 day
-      # frame, and the file that frame reads is restored or built below.
-      MTF_REQUIRE_DAILY: "1"
+      # Owner order 2026-11-08: the intraday signal must agree with the 5
+      # minute, 15 minute and 1 hour VWAP frames, read from the session tape.
+      MTF_REQUIRE_FRAMES: "1"
       OWNER_EMAIL_ISSUE: "81"
       RELAY_ADMIN_TOKEN: ${{ secrets.RELAY_ADMIN_TOKEN }}
       # Band-state persistence (src/data/band_state.py): the day's tape and
@@ -170,39 +170,6 @@ jobs:
       - name: Install dependencies
         if: steps.gate.outputs.should_run == 'true'
         run: pip install -r requirements.txt --retries 5 --timeout 60
-
-      # The 1 day frame of the intraday law (owner order 2026-11-03). The
-      # file is one small gzipped CSV built once per Karachi day and
-      # restored by every later band and scan job, so the crawl never runs
-      # inside a scan cycle. A cache miss builds it before the loop starts;
-      # a failed build leaves the file absent and the scanner reports DATA
-      # BLOCKED, never a silently three-frame signal.
-      - name: Resolve the multi-timeframe daily key
-        id: mtf_day
-        if: steps.gate.outputs.should_run == 'true'
-        run: echo "day=$(TZ=Asia/Karachi date +%F)" >> "$GITHUB_OUTPUT"
-
-      - name: Restore the multi-timeframe daily history
-        id: mtf_daily
-        if: steps.gate.outputs.should_run == 'true'
-        uses: actions/cache/restore@v4
-        with:
-          path: data/mtf_daily.csv.gz
-          key: mtf-daily-${{ steps.mtf_day.outputs.day }}
-          restore-keys: |
-            mtf-daily-
-
-      - name: Build the multi-timeframe daily history on a cache miss
-        if: steps.gate.outputs.should_run == 'true' && steps.mtf_daily.outputs.cache-hit != 'true'
-        run: python scripts/prepare_mtf_daily.py --sessions 50
-
-      - name: Save the multi-timeframe daily history
-        if: steps.gate.outputs.should_run == 'true' && steps.mtf_daily.outputs.cache-hit != 'true'
-        continue-on-error: true
-        uses: actions/cache/save@v4
-        with:
-          path: data/mtf_daily.csv.gz
-          key: mtf-daily-${{ steps.mtf_day.outputs.day }}
 
       - name: Resolve this band's length
         id: window

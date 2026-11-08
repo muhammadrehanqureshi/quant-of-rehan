@@ -4,7 +4,8 @@
 
 The active intraday rules are the owner's Kalman Trend strategies:
 `kalman_trend_flip_v1` (owner order 2026-10-30, which removed ICT/SMC
-outright) and `kalman_vwap_pullback_v1` (owner order 2026-11-06, below).
+outright) and `kalman_vwap_pullback_v2` (owner order 2026-11-06, frame list
+updated 2026-11-08, below).
 See src/signals/kalman_trend.py and src/signals/kalman_vwap_pullback.py for
 the authoritative contracts: entry, stop and exit on the intraday band feed,
 the owner's +2% target, parameters grid-fit in GitHub Actions. Momentum/RSI
@@ -15,25 +16,45 @@ All tests, backtests and builds run in GitHub Actions, never on the owner's PC.
 The scheduled session loop requests one-second cycles and preserves one shared
 daily entry claim. No broker orders are transmitted.
 
-## Multi-timeframe VWAP, owner order 2026-11-03 (Karachi)
+## Three frame VWAP pullback, owner order 2026-11-08 (Karachi)
 
-VWAP now sits beside the Kalman Trend. The one minute flip remains the
-execution trigger and the entry print, and the signal must also agree with
-the 5 minute, 15 minute, 1 hour and 1 day frames: on every frame the last
-completed close is above that frame's rolling VWAP and the Kalman state on
-that frame is +1. The 1 day frame reads `data/mtf_daily.csv.gz`, built once
-per Karachi day by `scripts/prepare_mtf_daily.py` and restored by the session
-workflows from the Actions cache. When that file is absent the scan is
-DATA BLOCKED, never a three-frame signal. The 1 hour frame needs two
-completed hours, so the first legal intraday minute is after 11:32 on a
-Monday-Thursday session. The +2% target, the -1% stop, the one call a day
-and every data-honesty gate are unchanged.
+The updated intraday signal is the Kalman Trend with VWAP on the 5 minute,
+15 minute and 1 hour charts, and the pullback is the entry. Price crossing
+above VWAP on all three frames is never the trigger: the scan waits inside
+the current band's trailing 30 completed minutes for a swing high and a dip
+of at least 0.5 percent, takes the first bar whose close clears the highest
+high printed on the dip (at most 5 bars old), and refuses the entry while
+the pullback's low or the entry sits at or above the midpoint of the day's
+high and low, so the call is nearer the daily low than the daily high. The
+1 day frame and `data/mtf_daily.csv.gz` are withdrawn: the law reads the
+session tape alone, the daily cache steps leave both session workflows, and
+a missing cache can no longer block the scan. The strategy label is now
+`kalman_vwap_pullback_v2` and the frame reader is `vwap_mtf_v2`. The owner's
++2% target, -1% stop, one call a day and every data-honesty gate are
+unchanged. The first legal 1 hour frame still completes after two hours of
+tape, so the earliest signal is after 11:32 on a Monday-Thursday session.
 
-The cloud card and the owner email carry the four states as one ASCII line,
-for example `MTF 5m +1 above VWAP | 15m +1 above VWAP | 1h +1 above VWAP |
-1D +1 above VWAP`. `src/signals/mtf_vwap.py` builds the line and
+## Multi-timeframe VWAP, owner order 2026-11-03 (superseded on the frame list)
+
+VWAP joined the Kalman Trend under this order. It read the signal on the 5
+minute, 15 minute, 1 hour and 1 day frames: on every frame the last completed
+close had to be above that frame's rolling VWAP and the Kalman state on that
+frame had to be +1. The 1 day frame read `data/mtf_daily.csv.gz`, built once
+per Karachi day by a preparation script and restored by the session workflows
+from the Actions cache; when the file was absent the scan was DATA BLOCKED.
+The owner's order of 2026-11-08 above withdrew that frame and its file, so the
+running law is the three frame one. The 1 hour frame still needs two completed
+hours, so the first legal intraday minute is after 11:32 on a Monday-Thursday
+session. The +2% target, the -1% stop, the one call a day and every
+data-honesty gate are unchanged.
+
+That order carried four states as one ASCII line, for example `MTF 5m +1
+above VWAP | 15m +1 above VWAP | 1h +1 above VWAP | 1D +1 above VWAP`. The
+running line names the three frames. `src/signals/mtf_vwap.py` builds it and
 `scripts/intraday_pipeline.py` appends it to the delivered signal. The
 desktop HUD is not part of the signal path and is not required to read it.
+The 1 day frame named in this section was withdrawn by the owner's order of
+2026-11-08; see the three frame section above.
 
 ## Kalman Trend VWAP pullback, owner order 2026-11-06 (Karachi)
 
@@ -47,10 +68,13 @@ on the dip, and refuses the entry when that resumption is more than 5 bars
 old. The owner's location law is then applied to the whole session range: the
 pullback's low AND the entry must both be strictly below the midpoint of the
 day's high and low, so the dip is nearer the day low than the day high. The
-strategy label is `kalman_vwap_pullback_v1`; it rides the candidate, the
+strategy label is `kalman_vwap_pullback_v2` after the 2026-11-08 frame update;
+it rides the candidate, the
 session state and the owner email. When both entries are legal the higher
 score is carried and the flip keeps an exact tie. The +2% target, the -1%
-stop, the one call a day and every data-honesty gate are unchanged.
+stop, the one call a day and every data-honesty gate are unchanged. The frame
+list was updated to the owner's three frame order of 2026-11-08 above; the
+pullback, resumption and daily-low location rules are unchanged.
 
 ## Historical design, not the running entry rule
 
