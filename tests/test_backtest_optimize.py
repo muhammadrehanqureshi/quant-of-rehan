@@ -534,7 +534,7 @@ class TestOfflineProof(unittest.TestCase):
                                 "typing", "pathlib", "json", "math", "ast",
                                 "tempfile", "unittest", "sys", "datetime",
                                 "collections", "argparse", "bisect", "random",
-                                "statistics"} | allowed:
+                                "statistics", "hashlib"} | allowed:
                         continue
                     self.fail(f"{path.name} imports unexpected module {name!r}")
 

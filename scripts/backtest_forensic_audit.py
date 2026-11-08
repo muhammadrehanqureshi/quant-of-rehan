@@ -7,14 +7,12 @@ read-only against the band store and writes only under data/ and reports/.
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
-import math
 import os
 import statistics
 import sys
 import time
-from collections import Counter, defaultdict
+from collections import defaultdict
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Iterable
@@ -28,10 +26,7 @@ from src import config  # noqa: E402
 from src.backtest import intraday_forensic as fx  # noqa: E402
 from src.data.sessions import (  # noqa: E402
     KARACHI,
-    band_bounds,
     is_trading_day,
-    now_karachi,
-    session_bands,
 )
 from scripts import backtest_eleven_intraday as eleven  # noqa: E402
 from scripts.feed_forensic_audit import audit as raw_audit  # noqa: E402
@@ -79,16 +74,6 @@ def _csv(path: Path, rows: list[dict]) -> None:
         )
         return
     pd.DataFrame(rows).to_csv(path, index=False)
-
-
-def _sha(path: Path) -> str | None:
-    if not path.is_file():
-        return None
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
 
 
 def _spread_profile(path: Path, trades: Iterable[dict]) -> dict:
@@ -157,17 +142,6 @@ def _day_paths(input_pattern: str) -> list[tuple[date, Path]]:
     return out
 
 
-def _hashes(trades: list[dict]) -> list[dict]:
-    return sorted(({
-        "strategy": row.get("strategy"), "day": row.get("day"),
-        "symbol": row.get("symbol"), "signal_time": row.get("signal_time"),
-        "entry_time": row.get("entry_time"), "exit_time": row.get("exit_time"),
-        "net": row.get("net"),
-    } for row in trades), key=lambda row: (
-        str(row.get("day")), str(row.get("strategy")), str(row.get("symbol")),
-        str(row.get("entry_time"))))
-
-
 def _suspicious_rows(day: date, trades: list[dict], tape) -> list[dict]:
     out = []
     for trade in trades:
@@ -181,16 +155,6 @@ def _suspicious_rows(day: date, trades: list[dict], tape) -> list[dict]:
             evidence["study_day"] = day.isoformat()
             out.append(evidence)
     return out
-
-
-def _trade_summary(trades: list[dict]) -> dict:
-    return {
-        "trades": len(trades),
-        "signals": len({(t.get("day"), t.get("strategy"), t.get("signal_time"))
-                        for t in trades}),
-        "symbols": len({t.get("symbol") for t in trades}),
-        "days": len({t.get("day") for t in trades}),
-    }
 
 
 def _session_completeness(quality: list[dict]) -> list[str]:
