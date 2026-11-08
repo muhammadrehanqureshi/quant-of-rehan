@@ -368,6 +368,15 @@ func (a *App) chartSymbols() []string {
 			set[s] = true
 		}
 	}
+	// The relay's sector answer carries the full KMIALLSHR membership even
+	// when the market is closed and /prices is empty.
+	if a.sectors != nil {
+		for _, sec := range a.sectors.Items {
+			for _, sym := range sec.Symbols {
+				set[sym] = true
+			}
+		}
+	}
 	out := make([]string, 0, len(set))
 	for _, s := range []string{"KSE100", "KMIALLSHR"} {
 		out = append(out, s)
@@ -672,6 +681,11 @@ func (a *App) drawChartPanel(c *Canvas, x, y, w, h int) {
 		default:
 			msg = "No " + tf + " bars are stored for " + sym + " in the last 365 days."
 		}
+		if !a.trading() {
+			if next := a.nextOpenLine(); next != "" {
+				msg = "Market closed. Next " + next + ". " + msg
+			}
+		}
 		if hst != nil && len(hst.Notes) > 0 {
 			msg += " " + hst.Notes[0]
 		}
@@ -702,6 +716,18 @@ func (a *App) drawChartPanel(c *Canvas, x, y, w, h int) {
 		foot += fmt.Sprintf("   ·   %d day store", hst.Retention)
 	}
 	c.Text(ix, iy+ih-1, iw, fit(foot, iw), mix(th.Panel, th.Soft, 0.8), false)
+}
+
+// nextOpenLine is the relay's next session event, used to explain an empty
+// chart while the market is closed.
+func (a *App) nextOpenLine() string {
+	if a.market != nil && a.market.NextEvent != "" {
+		return a.market.NextEvent
+	}
+	if a.head != nil && a.head.NextEvent != "" {
+		return a.head.NextEvent
+	}
+	return ""
 }
 
 // drawChartFrames draws the ten frame chips. A click switches the panel, and

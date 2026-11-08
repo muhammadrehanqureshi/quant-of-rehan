@@ -41,12 +41,12 @@ func TestIconGeneratorNeverRedraws(t *testing.T) {
 	}
 }
 
-// TestHeaderCarriesNoIndex pins the owner's line at the top centre.
-func TestHeaderCarriesNoIndex(t *testing.T) {
-	if headerTag != "PSX'S KMIALL" {
-		t.Fatalf("headerTag is %q, want %q", headerTag, "PSX'S KMIALL")
+// TestHeaderCarriesTheIndex pins the owner's full line at the top centre.
+func TestHeaderCarriesTheIndex(t *testing.T) {
+	if headerTag != "PSX'S KMIALL INDEX" {
+		t.Fatalf("headerTag is %q, want %q", headerTag, "PSX'S KMIALL INDEX")
 	}
-	if strings.Contains(strings.ToUpper(headerTag), "INDEX") {
-		t.Fatalf("headerTag %q still carries INDEX", headerTag)
+	if !strings.Contains(strings.ToUpper(headerTag), "INDEX") {
+		t.Fatalf("headerTag %q must carry INDEX", headerTag)
 	}
 }
