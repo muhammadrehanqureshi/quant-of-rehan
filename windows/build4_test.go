@@ -253,7 +253,7 @@ func TestDialTurnsAndIsGreenInTheMarketWindow(t *testing.T) {
 	th := themeAt(0)
 	paint := func(mode OrbMode, secs float64) *Canvas {
 		c := NewCanvas(38, 14, th.Panel)
-		drawOrb(c, 0, 0, 38, 14, secs, mode, true, th)
+		drawOrb(c, 0, 0, 38, 14, secs, mode, th)
 		return c
 	}
 	same := func(a, b *Canvas) bool {
@@ -321,7 +321,7 @@ func TestRadarIsRoundInPixels(t *testing.T) {
 		cellAspect = aspect
 		for _, sz := range [][2]int{{36, 14}, {30, 12}, {38, 25}} {
 			c := NewCanvas(sz[0], sz[1], th.Panel)
-			drawOrb(c, 0, 0, sz[0], sz[1], 0, OrbBurning, true, th)
+			drawOrb(c, 0, 0, sz[0], sz[1], 0, OrbBurning, th)
 			// Each Braille cell is 2 dots across and 4 dots down, so a dot is
 			// half a column wide and a quarter of a cell tall.
 			minX, maxX, minY, maxY := 1<<30, -1, 1<<30, -1
