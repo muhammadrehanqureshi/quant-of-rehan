@@ -37,7 +37,13 @@ func (a *App) orbMode() OrbMode {
 // the post-market; red at every other hour and day, including a break, a
 // halt and a weekend.
 func (a *App) orbGreen() bool {
-	switch a.quantPhase() {
+	phase := a.quantPhase()
+	if phase == qsUnknown {
+		// Before the first relay answer, the session law on Karachi's clock is
+		// the only phase there is; it still knows a weekend from a session.
+		phase = phaseAt(a.karachiNow())
+	}
+	switch phase {
 	case qsOpen, qsPre, qsPost:
 		return true
 	}
