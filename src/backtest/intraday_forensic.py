@@ -24,6 +24,11 @@ The functions here enforce the stricter law:
 * a complete session is a capture that starts before the regular open and
   ends at the regular close. The current sample has only six of them.
 
+SO-8: every clock time in this module is Asia/Karachi (UTC+5, with no
+daylight saving). The schedule itself is never rebuilt here: the bands, the
+boundaries and the trading day all come from `src/data/sessions.py`, through
+`KARACHI`, `session_bands`, `band_bounds` and `is_trading_day`.
+
 The module never writes a file and never touches a network.
 """
 from __future__ import annotations
