@@ -231,7 +231,7 @@ func TestOrbStaysInsideItsBox(t *testing.T) {
 	th := themeAt(0)
 	for _, mode := range []OrbMode{OrbBurning, OrbParked, OrbChecking, OrbFault} {
 		c := NewCanvas(40, 20, th.BG)
-		drawOrb(c, 5, 3, 20, 10, 1.7, mode, th)
+		drawOrb(c, 5, 3, 20, 10, 1.7, mode, true, th)
 		lit := 0
 		for y := 0; y < c.H; y++ {
 			for x := 0; x < c.W; x++ {
@@ -249,7 +249,7 @@ func TestOrbStaysInsideItsBox(t *testing.T) {
 			t.Errorf("mode %d drew almost nothing: %d cells", mode, lit)
 		}
 	}
-	drawOrb(NewCanvas(4, 3, th.BG), 0, 0, 4, 3, 0, OrbBurning, th) // too small: must not panic
+	drawOrb(NewCanvas(4, 3, th.BG), 0, 0, 4, 3, 0, OrbBurning, true, th) // too small: must not panic
 }
 
 func TestSourceHasNoEmOrEnDashes(t *testing.T) {

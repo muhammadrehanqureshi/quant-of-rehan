@@ -510,30 +510,13 @@ func (a *App) drawSectorTile(c *Canvas, x, y, w, h int) {
 // the box the keys, and the slash key does the same while the top scrip search
 // is empty.
 func (a *App) drawSectorSearch(c *Canvas, x, y, w int, scrips bool) {
-	th := a.th
 	hint := "Search for a sector"
 	if scrips {
 		hint = "Search for a scrip"
 	}
-	c.Text(x, y, 6, "SEARCH", th.Soft, false)
-	fx := x + 8
-	bw := w - 8
-	if bw > 40 {
-		bw = 40
-	}
-	if bw < 1 {
-		bw = 1
-	}
-	fw := a.searchBox(c, fx, y, bw, a.sectorQuery, hint, a.sectorSearch)
-	if a.sectorQuery != "" {
-		n := len(a.visibleSectorIndices())
-		if scrips {
-			n = len(a.visibleSectorMembers())
-		}
-		if fx+fw+2 < x+w {
-			c.Text(fx+fw+2, y, 9, fmt.Sprintf("%d match", n), th.Soft, false)
-		}
-	}
+	// Owner order 2026-11-08 (build 27): the SECTORS tile carries the filled
+	// field alone; the word SEARCH is gone.
+	a.searchBox(c, x, y, max(1, w), a.sectorQuery, hint, a.sectorSearch)
 	a.addHit(x, y, w, 1, func() {
 		a.sectorSearch = true
 		a.lvSector.top()
