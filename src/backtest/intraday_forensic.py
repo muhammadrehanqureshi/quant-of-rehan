@@ -386,7 +386,7 @@ def session_quality(day_data: Mapping, raw_path: Path,
     tape: TapeBars = day_data["tape"]
     bands = day_data["bands"]
     all_bars = [bar for _band, _tape in bands
-                for rows in band["rows"].values() for bar in rows]
+                for rows in _band["rows"].values() for bar in rows]
     if not all_bars:
         all_bars = [bar for rows in tape.bars.values() for bar in rows]
     session_open, session_close = _session_bounds(day)
