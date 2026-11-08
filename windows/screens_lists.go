@@ -167,7 +167,7 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 	}
 	// The gap costs one row. On a short window, keep the ranked list at four
 	// stocks by letting the sector list scroll instead of taking that row.
-	if a.scanChoice != 0 && sectorH > 7 {
+	if a.scanChoice != 0 && !a.sectorOpen && sectorH > 7 {
 		for sectorH > 5 {
 			sh2 := y + h - sy - sectorH - 1
 			if sh2 < 6 {
