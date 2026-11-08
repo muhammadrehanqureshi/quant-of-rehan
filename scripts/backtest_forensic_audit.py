@@ -395,7 +395,7 @@ def _audit_markdown(report: dict) -> str:
         "",
         "No strategy has a positive corrected net expectancy with a confidence",
         "interval that excludes zero on a sufficient independent sample. Even a",
-        "positive point estimate here would be a description of six sessions, not",
+        "positive point estimate here would describe the complete sessions on hand,",
         "an edge.",
         "",
         "## Why selection stops",
