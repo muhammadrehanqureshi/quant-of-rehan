@@ -1,7 +1,11 @@
-# Quant of Rehan for Windows (console edition), build 23
+# Quant of Rehan for Windows (console edition), build 24
 
 A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.16**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
+
+## What is new in build 24
+
+* **Build 24.** The ORB is green from 08:55 to 17:00 Karachi on a market day and red at every other time, the owner's order of 2026-11-08. The PSX week is Monday to Friday; when the relay's trading-day flag names today, a holiday is red as well. The dial still turns in every state; only its ink changes. The rest of build 23 is unchanged.
 
 ## What is new in build 23
 
