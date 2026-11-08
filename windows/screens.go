@@ -32,23 +32,6 @@ func (a *App) orbMode() OrbMode {
 	return OrbParked
 }
 
-// orbGreenWindow is the owner's colour rule for the quant mark: green from
-// 08:55 to 17:00 on a market day and red at every other time. The PSX week is
-// Monday to Friday; the relay's trading-day flag, when its date is today,
-// makes a holiday red as well.
-func (a *App) orbGreenWindow() bool {
-	p := a.karachiNow().In(pkt)
-	if isWeekend(p) {
-		return false
-	}
-	if a.market != nil && a.market.PhaseKnown() && !a.market.TradingDay &&
-		strings.HasPrefix(a.market.Date, p.Format("2006-01-02")) {
-		return false
-	}
-	m := minuteOf(p)
-	return m >= scanOpen && m < orbGreenTo
-}
-
 // hasRing says whether this screen carries the left column with the quant mark
 // and the telemetry. The mark is on the home screen only now: the scanner is
 // given the whole width for its search, sectors and list.
@@ -80,8 +63,6 @@ func (a *App) render() *Canvas {
 		a.drawOrderFlow(c, rx, top, rw, rows)
 	case scrScanner:
 		a.drawScanner(c, rx, top, rw, rows)
-	case scrCharts:
-		a.drawCharts(c, rx, top, rw, rows)
 	case scrSettings:
 		a.drawSettings(c, rx, top, rw, rows)
 	}
@@ -219,7 +200,7 @@ func (a *App) drawHeader(c *Canvas) {
 	ink := mix(th.Soft, th.BG, 0.28)
 	rightAlign(c, 0, 0, c.W-1, []Span{{date + " ", ink, false}, {clock, th.Good, true}, {" UTC+5", ink, false}})
 
-	tag := headerTagSmall
+	tag := headerTag
 	if a.demo {
 		tag += "  ·  DEMO DATA"
 	}
@@ -320,8 +301,6 @@ func (a *App) drawNav(c *Canvas, y int) {
 		hints = []string{"D details  TAB next  R refresh  Q quit", "D details  R refresh  Q quit", "D details  Q quit", "Q quit"}
 	case scrOrderFlow:
 		hints = []string{"O sort  TAB next  R refresh  Q quit", "O sort  R refresh  Q quit", "O sort  Q quit", "Q quit"}
-	case scrCharts:
-		hints = []string{"TAB next  ESC clear  CTRL+C quit", "ESC clear  CTRL+C quit", "CTRL+C quit"}
 	}
 	// The longest hint that leaves a gap after the tabs.
 	for _, hint := range hints {
@@ -382,7 +361,7 @@ func (a *App) drawLeft(c *Canvas, x, y, w, h int) {
 	const telH = 9
 	orbH := h - telH - 1
 	ix, iy, iw, ih := a.panel(c, x, y, w, orbH, "QUANT CORE", "")
-	drawOrb(c, ix, iy, iw, ih, a.animSeconds(), a.orbMode(), a.orbGreenWindow(), th)
+	drawOrb(c, ix, iy, iw, ih, a.animSeconds(), a.orbMode(), th)
 
 	tx, ty, tw, _ := a.panel(c, x, y+orbH+1, w, telH, "TELEMETRY", "")
 	label := func(row int, k string, v []Span) {

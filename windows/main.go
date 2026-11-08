@@ -12,7 +12,7 @@ import (
 
 const usage = `Quant of Rehan for Windows, the console edition of the Android app (version ` + appVersion + `).
 
-Keys:  1-6 or F1-F6 or TAB switch screens   R refresh   D signal details (Home)
+Keys:  1-5 or F1-F5 or TAB switch screens   R refresh   D signal details (Home)
        Q quit (Ctrl+C anywhere)
        Search: type, UP/DOWN, ENTER, ESC clears
 Mouse: click tabs, rows and switches, wheel scrolls, right click goes Home
@@ -33,7 +33,7 @@ func main() {
 		feedwatch = flag.Int("feedwatch", 0, "watch the live feed for this many seconds (10 to 900), write qor-feedwatch.txt and say whether any lag is the broker's wire, a stall upstream, or the network")
 		version   = flag.Bool("version", false, "print the version and exit")
 		snapshot  = flag.String("snapshot", "", "render one frame as WxH to stdout and exit (implies --demo)")
-		screen    = flag.Int("screen", 1, "with --snapshot: screen 1 home, 2 alerts, 3 charts, 4 order flow, 5 scanner, 6 settings")
+		screen    = flag.Int("screen", 1, "with --snapshot: screen 1 home, 2 alerts, 3 order flow, 4 scanner, 5 settings")
 		ansi      = flag.Bool("ansi", false, "with --snapshot: keep colour codes")
 		at        = flag.Float64("t", 3.0, "with --snapshot: animation time in seconds")
 		query     = flag.String("query", "", "with --snapshot: search text for the search screen")
@@ -134,12 +134,6 @@ func runSnapshot(a *App, size string, screen int, withColour bool, t float64, qu
 	}
 	if screen >= 1 && screen <= len(screenNames) {
 		a.screen = screenID(screen - 1)
-	}
-	if a.screen == scrCharts && query != "" {
-		a.chartQuery = strings.ToUpper(strings.TrimSpace(query))
-		if m := a.chartMatches(); len(m) > 0 {
-			a.selectChart(m[0])
-		}
 	}
 	if a.screen == scrScanner && query != "" {
 		a.searchText = strings.ToUpper(query)
