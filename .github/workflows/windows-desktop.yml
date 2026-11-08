@@ -48,7 +48,7 @@ jobs:
           Copy-Item QuantOfRehan.exe, assets/QuantOfRehan.ico, README.md package
           Get-FileHash QuantOfRehan.exe -Algorithm SHA256 |
             ForEach-Object { "$($_.Hash.ToLower())  QuantOfRehan.exe" } |
-            Set-Content package/SHA256SUMS.txt
+            Set-Content -NoNewline package/SHA256SUMS.txt
       - uses: actions/upload-artifact@v4
         with:
           name: QuantOfRehan-windows
