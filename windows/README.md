@@ -1,7 +1,11 @@
-# Quant of Rehan for Windows (console edition), build 21
+# Quant of Rehan for Windows (console edition), build 22
 
 A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.16**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
+
+## What is new in build 22
+
+* **Build 22.** The line under the title is `PSX'S KMIALL INDEX` again, at the owner's order of 2026-11-07; build 18's shortened line is withdrawn. The CHARTS list now comes from the relay's `/sectors` KMIALLSHR membership, so every scrip is listed even when the market is closed and `/prices` is empty. A selected scrip says the market is closed, gives the next open time, and repeats the relay's own reason for an empty chart instead of showing a blank panel. The icon and every other screen are build 21's.
 
 ## What is new in build 21
 

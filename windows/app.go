@@ -415,6 +415,13 @@ func (a *App) rebuildSymbols() {
 			set[s] = true
 		}
 	}
+	if a.sectors != nil {
+		for _, sec := range a.sectors.Items {
+			for _, s := range sec.Symbols {
+				set[s] = true
+			}
+		}
+	}
 	a.symbols = sortedKeys(set)
 }
 
@@ -721,6 +728,7 @@ func (a *App) onMsg(m any) {
 		a.done("sectors", ok)
 		if v.s != nil {
 			a.sectors = v.s
+			a.rebuildSymbols()
 			if a.sectorChoice >= len(v.s.Items) {
 				a.sectorChoice = 0
 			}
@@ -884,7 +892,7 @@ func (a *App) onTick(now time.Time) {
 		names = append(names, "orderflow")
 	}
 	if a.screen == scrCharts {
-		names = append(names, "prices")
+		names = append(names, "prices", "sectors")
 		// The two second frames are built from the desk's own samples, so they
 		// cost no relay read at all.
 		if !a.liveFrame() {
@@ -917,6 +925,7 @@ func (a *App) setScreen(s screenID) {
 		a.next["orderflow"] = time.Time{}
 	case scrCharts:
 		a.next["prices"] = time.Time{}
+		a.next["sectors"] = time.Time{}
 		a.next["history"] = time.Time{}
 		if a.chartSym == "" {
 			if m := a.chartSymbols(); len(m) > 0 {
