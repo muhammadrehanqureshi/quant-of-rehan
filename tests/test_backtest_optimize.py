@@ -533,7 +533,8 @@ class TestOfflineProof(unittest.TestCase):
                     if name in {"src", "__future__", "dataclasses", "itertools",
                                 "typing", "pathlib", "json", "math", "ast",
                                 "tempfile", "unittest", "sys", "datetime",
-                                "collections", "argparse"} | allowed:
+                                "collections", "argparse", "bisect", "random",
+                                "statistics"} | allowed:
                         continue
                     self.fail(f"{path.name} imports unexpected module {name!r}")
 

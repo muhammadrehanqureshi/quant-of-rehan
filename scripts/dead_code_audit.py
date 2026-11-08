@@ -31,6 +31,7 @@ from __future__ import annotations
 import argparse
 import ast
 import re
+from functools import lru_cache
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -55,6 +56,7 @@ def corpus() -> list[Path]:
     return files
 
 
+@lru_cache(maxsize=None)
 def text_of(path: Path) -> str:
     try:
         return path.read_text(encoding="utf-8", errors="replace")
@@ -62,8 +64,26 @@ def text_of(path: Path) -> str:
         return ""
 
 
+@lru_cache(maxsize=None)
+def words_of(path: Path) -> frozenset[str]:
+    """Every maximal word in one corpus file, tokenised once per run.
+
+    `mentions` asks thousands of times whether a file carries one name, and
+    the audit used to re-read and re-scan every corpus file for every module
+    and every def. That is quadratic in the corpus, and it outgrew the pull
+    request's timeout as the repository grew. One token set per file answers
+    the same whole-word question in constant time.
+    """
+    return frozenset(re.findall(r"\w+", text_of(path)))
+
+
 def mentions(name: str, files: list[Path], skip: Path | None = None) -> list[str]:
     """Files, other than `skip`, whose text mentions `name` as a whole word."""
+    if re.fullmatch(r"\w+", name):
+        # A word-only name matches `\bname\b` exactly when it is one whole
+        # token, which the per-file token set already answers.
+        return [str(candidate.relative_to(ROOT)) for candidate in files
+                if candidate != skip and name in words_of(candidate)]
     pattern = re.compile(rf"\b{re.escape(name)}\b")
     found = []
     for candidate in files:
