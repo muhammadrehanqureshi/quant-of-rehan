@@ -21,7 +21,7 @@ func TestTitleIsTheTopLine(t *testing.T) {
 			if !strings.Contains(strings.Join(strings.Fields(rows[0]), ""), "QUANTOFREHAN") {
 				t.Errorf("%dx%d screen %d: row 0 is %q", sz[0], sz[1], scr, rows[0])
 			}
-			if !strings.Contains(rows[1], headerTagSmall) {
+			if !strings.Contains(rows[1], headerTag) {
 				t.Errorf("%dx%d screen %d: row 1 is %q", sz[0], sz[1], scr, rows[1])
 			}
 			if !strings.Contains(rows[0], headerTitle) {
