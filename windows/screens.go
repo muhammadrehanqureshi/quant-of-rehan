@@ -32,6 +32,23 @@ func (a *App) orbMode() OrbMode {
 	return OrbParked
 }
 
+// orbGreenWindow is the owner's colour rule for the quant mark: green from
+// 08:55 to 17:00 on a market day and red at every other time. The PSX week is
+// Monday to Friday; the relay's trading-day flag, when its date is today,
+// makes a holiday red as well.
+func (a *App) orbGreenWindow() bool {
+	p := a.karachiNow().In(pkt)
+	if isWeekend(p) {
+		return false
+	}
+	if a.market != nil && a.market.PhaseKnown() && !a.market.TradingDay &&
+		strings.HasPrefix(a.market.Date, p.Format("2006-01-02")) {
+		return false
+	}
+	m := minuteOf(p)
+	return m >= scanOpen && m < orbGreenTo
+}
+
 // hasRing says whether this screen carries the left column with the quant mark
 // and the telemetry. The mark is on the home screen only now: the scanner is
 // given the whole width for its search, sectors and list.
@@ -365,7 +382,7 @@ func (a *App) drawLeft(c *Canvas, x, y, w, h int) {
 	const telH = 9
 	orbH := h - telH - 1
 	ix, iy, iw, ih := a.panel(c, x, y, w, orbH, "QUANT CORE", "")
-	drawOrb(c, ix, iy, iw, ih, a.animSeconds(), a.orbMode(), th)
+	drawOrb(c, ix, iy, iw, ih, a.animSeconds(), a.orbMode(), a.orbGreenWindow(), th)
 
 	tx, ty, tw, _ := a.panel(c, x, y+orbH+1, w, telH, "TELEMETRY", "")
 	label := func(row int, k string, v []Span) {
