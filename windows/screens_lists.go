@@ -158,9 +158,29 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 	// screen, so the two lists can be read together.
 	sectorH := 7
 	if a.sectorOpen {
-		sectorH = min(max(len(a.visibleSectorMembers())+3, 8), 15)
+		sectorH = min(max(len(a.visibleSectorMembers())+4, 9), 16)
 	} else if n := len(a.visibleSectorIndices()); n > 0 {
-		sectorH = min(n+3, 15)
+		sectorH = min(n+4, 16)
+	}
+	// The gap costs one row. On a short window, keep the ranked list at four
+	// stocks by letting the sector list scroll instead of taking that row.
+	if a.scanChoice != 0 {
+		for sectorH > 5 {
+			sh2 := y + h - sy - sectorH - 1
+			if sh2 < 6 {
+				break
+			}
+			ih := sh2 - 2
+			menu := 0
+			if ih >= 11 {
+				menu = 3
+			}
+			rows := ih - menu - 2
+			if rows/2 >= 4 {
+				break
+			}
+			sectorH--
+		}
 	}
 	if avail := y + h - sy; avail-sectorH < 7 {
 		sectorH = max(5, avail-7)
