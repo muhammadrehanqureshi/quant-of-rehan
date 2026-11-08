@@ -22,7 +22,7 @@ The functions here enforce the stricter law:
   dropped;
 * target first, net wins and net expectancy are reported separately;
 * a complete session is a capture that starts before the regular open and
-  ends at the regular close. The current sample has only six of them.
+  ends at the regular close. The current sample has 5 of the 60 it requires.
 
 SO-8: every clock time in this module is Asia/Karachi (UTC+5, with no
 daylight saving). The schedule itself is never rebuilt here: the bands, the

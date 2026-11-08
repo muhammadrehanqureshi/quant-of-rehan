@@ -168,7 +168,7 @@ class TestQualityAndPrices(unittest.TestCase):
         self.assertAlmostEqual(evidence["corrected_prices"]["entry"], 30.67562,
                                places=5)
 
-    def test_the_strict_session_count_is_six_not_thirteen(self):
+    def test_a_complete_session_needs_an_early_start_and_a_close_observation(self):
         tape = TapeBars(day=DAY, first_observation=OPEN - timedelta(minutes=1),
                         observed_at={"OGDC": CLOSE - timedelta(minutes=1)},
                         bars={"OGDC": [bar(OPEN, 100.0, 100.0, 100.0, 100.0)]})
