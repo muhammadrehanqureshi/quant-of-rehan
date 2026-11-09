@@ -382,6 +382,43 @@ class RelayWorkerContractTest(unittest.TestCase):
         self.assertIn("applyStoredFrame(stock, stored)", self.source)
         self.assertIn("ackRowsForDay(env, ackDay)", self.source)
 
+    def test_a_stale_feed_inside_an_open_window_is_started_again(self):
+        """Owner order 2026-11-09: the capture must never go to waste.
+
+        Measured on the live relay on 2026-11-06 (Friday): the hub's newest
+        frame was 12:09 PKT while the exchange traded to 16:30, and 61 percent
+        of the day's shares could only be reported as unclassified. The
+        once-per-window dispatch claim cannot see a band whose capture died,
+        so a watchdog reads the hub's newest frame and forces a fresh start
+        inside a live window, under its own cooldown.
+        """
+        self.assertIn("async function ensureFeedAlive(env, now)", self.source)
+        self.assertIn("const FEED_WATCHDOG_STALE_MS", self.source)
+        self.assertIn("const FEED_WATCHDOG_COOLDOWN_MS", self.source)
+        self.assertIn("function newestFrameAgeMs(snapshot, now)", self.source)
+
+        start = self.source.index("async function ensureFeedAlive(env, now)")
+        body = self.source[start:start + 2600]
+        for want in ("dispatchWindowsFor(k)", "newestFrameAgeMs(snapshot, now)",
+                     "FEED_WATCHDOG_STALE_MS", "FEED_WATCHDOG_COOLDOWN_MS",
+                     "force: true"):
+            self.assertIn(want, body,
+                          f"the watchdog body does not carry {want!r}")
+
+        dispatch = self.source[self.source.index("async function dispatchBandScan"):]
+        dispatch = dispatch[:2600]
+        self.assertIn("options = {}", dispatch,
+                      "dispatchBandScan cannot be forced by the watchdog")
+        self.assertIn("seen && !options.force", dispatch,
+                      "a forced dispatch is still blocked by the band claim")
+
+        scheduled = self.source[self.source.index("async scheduled(controller, env, ctx)"):]
+        self.assertIn("ensureFeedAlive(env, now)", scheduled[:1200],
+                      "the cron never arms the feed watchdog")
+        signals = self.source[self.source.index('path === "/signals"'):]
+        self.assertIn("ensureFeedAlive(env, now)", signals[:2600],
+                      "the phone poll never arms the feed watchdog")
+
     def test_the_store_windows_are_the_session_law_windows(self):
         """Owner order 2026-11-09: the broker feed carries the pre-market and
         the post-market, and the day's buying and selling must include both.
@@ -706,9 +743,12 @@ class RelayWorkerContractTest(unittest.TestCase):
         self.assertIn("const SCAN_WORKFLOW_FILE = \"intraday-session.yml\";",
                       self.source)
         self.assertIn("const SCAN_DISPATCH_GRACE_MINUTES = 3;", self.source)
+        # Owner order 2026-11-09: the watchdog is the one caller allowed to
+        # force a start, so the signature carries an options bag that defaults
+        # to the unchanged once-per-window behaviour.
         self.assertIn(
             "async function dispatchBandScan(env, now, band = null, "
-            "source = \"cron\")", self.source)
+            "source = \"cron\", options = {})", self.source)
         self.assertIn('const token = String(env.GH_DISPATCH_TOKEN || "").trim();',
                       self.source)
         self.assertIn('if (!token) {', self.source)

@@ -118,6 +118,44 @@ class CaptureFlowSeedTest(unittest.TestCase):
         self.assertLess(init.index("adopted = self._seed_day_flow()"),
                         init.index("self._thread.start()"))
 
+    def test_every_universe_symbol_gets_the_zero_gate_at_the_preopen(self):
+        """Owner order 2026-11-09: no first trade may become an unclear prefix.
+
+        The zero gate must cover the whole universe, and it must also run when
+        a capture process starts inside the exchange's own pre-open window:
+        that is where the day's first prints are made, and a symbol seeded
+        there has every later increment sided instead of baselined.
+        """
+        tz = feed_capture.KARACHI
+        self.assertTrue(feed_capture.in_preopen_window(
+            datetime(2026, 11, 5, 9, 20, tzinfo=tz)))
+        self.assertFalse(feed_capture.in_preopen_window(
+            datetime(2026, 11, 5, 8, 55, tzinfo=tz)))
+        self.assertFalse(feed_capture.in_preopen_window(
+            datetime(2026, 11, 5, 9, 32, tzinfo=tz)))
+        self.assertTrue(feed_capture.in_preopen_window(
+            datetime(2026, 11, 6, 9, 5, tzinfo=tz)))
+
+        source = Path(feed_capture.__file__).read_text(encoding="utf-8")
+        init = source[source.index("class RelayQuotePublisher"):]
+        init = init[init.index("def __init__"):init.index("def observe")]
+        self.assertIn("in_preopen_window(now_karachi())", init)
+        self.assertIn("self._flow.seed_preopen(", init)
+        self.assertIn("load_universe()", init)
+
+        flow = quote_flow.QuoteFlow()
+        self.assertEqual(
+            flow.seed_preopen(["KEL", "HUBC"],
+                              "2026-11-05T09:16:00+05:00"), 2)
+        quote = flow.observe({"symbol": "KEL", "price": 6.2, "bid": 6.1,
+                              "ask": 6.2, "volume": 5000,
+                              "observed_at": "2026-11-05T09:17:00+05:00"})
+        self.assertEqual(quote["flow_baseline"], 0,
+                         "a seeded symbol must not carry an unclear prefix")
+        self.assertEqual(quote["measured_buy"], 5000,
+                         "the first print after the gate is sided by the ask")
+        self.assertEqual(quote["measured_sell"], 0)
+
     def test_a_day_with_no_pair_yet_seeds_from_the_first_frame(self):
         """Owner report 2026-11-06: no capture had pushed all day, so the
         relay held no same-day pair and the mid-session refusal threw away a

@@ -123,6 +123,18 @@ seed is adopted. If the capture itself started late, the missed shares stay in
 `flow_baseline_at`, `flow_first_seen_at` and `flow_baseline_reason` so a
 remaining baseline can be traced to its first frame.
 
+**The feed watchdog.** Owner order 2026-11-09: the capture must never be lost
+mid-session. Measured on the live relay on 2026-11-06 (Friday), the hub's
+newest frame was 12:09 PKT while the exchange traded to 16:30, and 148,036,924
+of that day's 240,850,912 shares sat in `unclassified` because nothing had
+watched the tape after the midday break. The once-per-window dispatch claim
+stops a band starting twice, but it cannot see a band whose capture has died.
+`ensureFeedAlive` therefore reads the hub's newest frame on every cron wake and
+on every `/signals` poll while a dispatch window is open: when that frame is
+older than five minutes it dispatches the band scan again with `force`, under a
+ten minute cooldown of its own, so a dead capture is restarted long before the
+close. A live feed costs one cooldown read and nothing else.
+
 `age_seconds` is the age of the frame the relay holds, so it answers "is the
 feed pushing now". `tick_age_seconds` is the age of the exchange's last print
 for that symbol, so it answers "when did this stock last trade". They are

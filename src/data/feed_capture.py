@@ -361,6 +361,24 @@ def relay_quote_updates(record: dict) -> dict:
     return update
 
 
+def in_preopen_window(now: datetime) -> bool:
+    """True inside the exchange's own pre-open window.
+
+    Owner order 2026-11-09: the zero gate must reach every universe symbol
+    where the day's first prints are made, not only in the 08:55 warm-up. A
+    capture that starts inside the pre-open auction would otherwise give each
+    symbol its own baseline at whatever it had already traded, and that
+    prefix can never be sided.
+    """
+    from src.data.sessions import MarketState, market_state_at
+
+    try:
+        state = market_state_at(now)
+    except Exception:
+        return False
+    return state is MarketState.PRE_MARKET
+
+
 def session_has_opened(now: datetime) -> bool:
     """True once the day's first pre-open window has started.
 
@@ -476,7 +494,16 @@ class RelayQuotePublisher:
             print("flow seed: no same-day pair on the relay, so the day's "
                   "baseline is seeded from this capture's first frame",
                   flush=True)
-        if not self._seed_required:
+        # Owner order 2026-11-09: every universe symbol gets the zero gate, so
+        # the first trade of each is sided instead of parked in the unclear
+        # remainder. Measured on the live relay on 2026-11-06: 148,036,924 of
+        # 240,850,912 shares, 61 percent, sat in U, most of it the volume a
+        # symbol had already traded when its first frame arrived. The gate
+        # therefore runs in the 08:55 warm-up AND inside the exchange's own
+        # pre-open window, where the day's first prints are made; seed_preopen
+        # skips a symbol the relay already has a pair for, so an adopted
+        # morning is never re-baselined.
+        if not self._seed_required or in_preopen_window(now_karachi()):
             seeded = self._flow.seed_preopen(
                 load_universe(), now_karachi().isoformat())
             if seeded:
