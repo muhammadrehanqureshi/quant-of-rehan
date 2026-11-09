@@ -71,7 +71,11 @@ func (a *App) render() *Canvas {
 	top, rows := 3, a.h-4
 	rx, rw := 1, a.w-2
 	if a.w >= 100 && a.hasRing() {
-		const lw = 40
+		// The mark is drawn one console dot per GIF dot with one empty dot
+		// between, so the GIF's 55 dot wide stipple needs 55 cells of width to
+		// show dot for dot. The column widens with the window for that reason
+		// and stops at 60 cells, keeping 40 at the 120 column home size.
+		lw := min(max(a.w/3, 40), 60)
 		a.drawLeft(c, 1, top, lw, rows)
 		rx = lw + 2
 		rw = a.w - rx - 1
