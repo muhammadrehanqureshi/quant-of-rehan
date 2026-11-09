@@ -382,6 +382,59 @@ class RelayWorkerContractTest(unittest.TestCase):
         self.assertIn("applyStoredFrame(stock, stored)", self.source)
         self.assertIn("ackRowsForDay(env, ackDay)", self.source)
 
+    def test_the_store_windows_are_the_session_law_windows(self):
+        """Owner order 2026-11-09: the broker feed carries the pre-market and
+        the post-market, and the day's buying and selling must include both.
+
+        The relay keeps a frame whose own tick sits in the exchange's
+        pre-open auction or in its Post-Close Session, so the day's B, S and
+        T run from the first pre-open print to the last post-close print.
+        Those two windows are written out as minute spans in the worker, and
+        they are compared here with ``src/data/sessions.py``: a hand edit on
+        one side that quietly narrows a window back to the regular bands is
+        exactly what drops a session's volume into the unclear remainder.
+        """
+        from src.data import sessions
+
+        def js(at):
+            hour, minute = at
+            return f"{hour} * 60" if minute == 0 else f"{hour} * 60 + {minute}"
+
+        def spans(pairs):
+            return "[" + ", ".join(f"[{js(a)}, {js(b)}]" for a, b in pairs) + "]"
+
+        def block(name):
+            start = self.source.index(f"const {name} = {{")
+            return self.source[start:self.source.index("\n};", start)]
+
+        weekday_pre = [(sessions.WEEKDAY_PRE_MARKET_OPEN,
+                        sessions.WEEKDAY_PRE_MARKET_CLOSE)]
+        friday_pre = [(sessions.FRIDAY_PRE_MARKET_OPEN,
+                       sessions.FRIDAY_PRE_MARKET_CLOSE),
+                      (sessions.FRIDAY_SECOND_PRE_MARKET_OPEN,
+                       sessions.FRIDAY_SECOND_PRE_MARKET_CLOSE)]
+        weekday_post = [(sessions.POST_MARKET_OPEN, sessions.POST_MARKET_CLOSE)]
+        friday_post = [(sessions.FRIDAY_POST_MARKET_OPEN,
+                        sessions.FRIDAY_POST_MARKET_CLOSE)]
+
+        pre, post = block("PRE_OPEN_WINDOWS"), block("POST_CLOSE_WINDOWS")
+        for day in (1, 2, 3, 4):
+            self.assertIn(f"  {day}: {spans(weekday_pre)},", pre,
+                          f"weekday {day} pre-open drifted from the session law")
+            self.assertIn(f"  {day}: {spans(weekday_post)},", post,
+                          f"weekday {day} post-close drifted from the session law")
+        self.assertIn(f"  5: {spans(friday_pre)},", pre,
+                      "Friday's two pre-open windows drifted from the session law")
+        self.assertIn(f"  5: {spans(friday_post)},", post,
+                      "Friday's post-close window drifted from the session law")
+
+        law_start = self.source.index("function frameIsTradingSession(quote)")
+        law = self.source[law_start:law_start + 1200]
+        self.assertIn("PRE_OPEN_WINDOWS", law,
+                      "the store law no longer reads the pre-open windows")
+        self.assertIn("POST_CLOSE_WINDOWS", law,
+                      "the store law no longer reads the post-close windows")
+
     def test_prices_does_not_scan_every_ack_row_on_each_poll(self):
         """The phone reads /prices once per tick; that must not list 319 rows.
 
