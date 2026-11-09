@@ -600,7 +600,7 @@ async function recordDispatch(env, note) {
   }
 }
 
-async function dispatchBandScan(env, now, band = null, source = "cron") {
+async function dispatchBandScan(env, now, band = null, source = "cron", options = {}) {
   const k = karachiView(now.getTime());
   band = band || bandOpenAt(k);
   if (!band) return { dispatched: false, reason: "not a band open" };
@@ -613,7 +613,13 @@ async function dispatchBandScan(env, now, band = null, source = "cron") {
 
   const key = `SCAN:DISPATCH:${dayStamp(k)}:${hmText(band[0])}`;
   const seen = await readOrNull(env, key);
-  if (seen) return { dispatched: false, reason: "already dispatched" };
+  // Once a band is claimed, a second start is refused: that is what stops two
+  // loops running the same window. The watchdog is the one caller allowed to
+  // force a start, because a claimed band whose capture has died is exactly
+  // the case the claim cannot see.
+  if (seen && !options.force) {
+    return { dispatched: false, reason: "already dispatched" };
+  }
 
   const close = band[1][0] * 60 + band[1][1];
   const seconds = Math.max(60, (close - minutesOf(k)) * 60);
@@ -657,6 +663,68 @@ async function dispatchBandScan(env, now, band = null, source = "cron") {
   await recordDispatch(env, note);
   return { dispatched: note.ok, reason: note.ok ? "dispatched" : note.detail,
     status: note.status };
+}
+
+// Owner order 2026-11-09: a capture that stops inside an open window must not
+// throw the rest of the day into U. Measured on the live relay on 2026-11-06
+// (Friday): the hub's newest frame was 12:09 PKT while the exchange traded to
+// 16:30, and 148,036,924 of that day's 240,850,912 shares, 61 percent, could
+// only be reported as unclassified. The once-per-window claim stops a band
+// starting twice; it cannot see a band whose capture has died. This watchdog
+// reads the hub's own newest frame and, when it has gone stale inside a live
+// window, dispatches the band scan again under a cooldown of its own.
+const FEED_WATCHDOG_STALE_MS = 5 * 60 * 1000;
+const FEED_WATCHDOG_COOLDOWN_MS = 10 * 60 * 1000;
+
+// Milliseconds since the newest frame the hub holds was observed, or null when
+// the hub holds no stamped frame at all (which counts as stale).
+function newestFrameAgeMs(snapshot, now) {
+  let newest = 0;
+  for (const quote of newestQuoteRows(snapshot && snapshot.quotes).values()) {
+    const at = Date.parse(quote && quote.observed_at ? quote.observed_at : "");
+    if (Number.isFinite(at) && at > newest) newest = at;
+  }
+  if (!newest) return null;
+  return Math.max(0, now.getTime() - newest);
+}
+
+async function ensureFeedAlive(env, now) {
+  const k = karachiView(now.getTime());
+  if (!isTradingDay(k)) return { dispatched: false, reason: "not a trading day" };
+  const mins = minutesOf(k);
+  const open = dispatchWindowsFor(k).filter((w) => {
+    const from = w[0][0] * 60 + w[0][1];
+    const to = w[1][0] * 60 + w[1][1];
+    return mins >= from && mins < to;
+  });
+  if (!open.length) return { dispatched: false, reason: "no window open" };
+  const window = open[open.length - 1];
+  // The cooldown is read first so a poll in a live window costs one KV read,
+  // not a snapshot read, while nothing is wrong.
+  const key = `SCAN:WATCHDOG:${dayStamp(k)}:${hmText(window[0])}`;
+  const last = Number((await readOrNull(env, key)) || 0);
+  if (last && now.getTime() - last < FEED_WATCHDOG_COOLDOWN_MS) {
+    return { dispatched: false, reason: "watchdog cooldown" };
+  }
+  let snapshot = null;
+  try {
+    snapshot = await readQuoteSnapshot(env);
+  } catch (_) {
+    snapshot = null;
+  }
+  const age = newestFrameAgeMs(snapshot, now);
+  if (age !== null && age < FEED_WATCHDOG_STALE_MS) {
+    return { dispatched: false, reason: "feed is live",
+      age_seconds: Math.round(age / 1000) };
+  }
+  try {
+    await kvPut(env, key, String(now.getTime()), { expirationTtl: 6 * 3600 });
+  } catch (_) {
+    // A failed cooldown write must never withhold the dispatch.
+  }
+  const answer = await dispatchBandScan(env, now, window, "watchdog",
+    { force: true });
+  return { ...answer, age_seconds: age === null ? null : Math.round(age / 1000) };
 }
 
 // Which part of the trading day this instant is in. The names are the
@@ -3298,6 +3366,9 @@ export default {
       // dispatch attempt.
       if (ctx && typeof ctx.waitUntil === "function") {
         ctx.waitUntil(ensureBandStart(env, now).catch(() => {}));
+        // Owner order 2026-11-09: the same poll also watches the feed, so a
+        // capture that died mid-band is started again before the close.
+        ctx.waitUntil(ensureFeedAlive(env, now).catch(() => {}));
       }
       const k = karachiView(now.getTime());
       const next = nextEvent(now);
@@ -3352,6 +3423,10 @@ export default {
     // and a scanned band. No token, no dispatch: the scheduled triggers stay
     // the fallback.
     ctx.waitUntil(dispatchBandScan(env, now));
+    // Owner order 2026-11-09: the cron is the clock that does not depend on a
+    // phone being open, so it also watches that the band it started is still
+    // being fed, and starts the band again when the hub's frames go stale.
+    ctx.waitUntil(ensureFeedAlive(env, now).catch(() => {}));
 
     // Cron is an edge wake-up, not a substitute for a feed observation.
     // Reuse the latest broker snapshot when fresh; break/close transitions are
