@@ -743,9 +743,12 @@ class RelayWorkerContractTest(unittest.TestCase):
         self.assertIn("const SCAN_WORKFLOW_FILE = \"intraday-session.yml\";",
                       self.source)
         self.assertIn("const SCAN_DISPATCH_GRACE_MINUTES = 3;", self.source)
+        # Owner order 2026-11-09: the watchdog is the one caller allowed to
+        # force a start, so the signature carries an options bag that defaults
+        # to the unchanged once-per-window behaviour.
         self.assertIn(
             "async function dispatchBandScan(env, now, band = null, "
-            "source = \"cron\")", self.source)
+            "source = \"cron\", options = {})", self.source)
         self.assertIn('const token = String(env.GH_DISPATCH_TOKEN || "").trim();',
                       self.source)
         self.assertIn('if (!token) {', self.source)
