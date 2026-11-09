@@ -181,13 +181,19 @@ def tile(grid, dim, bright, scale):
 WIDE_ROWS = 52  # a 60 cell wide column at a 180 column window
 
 
+def shade(colour, factor):
+    """darken() in orb.go: the panel's shades are the GIF's, taken down."""
+    return tuple(int(round(v * factor)) for v in colour)
+
+
 def draw_preview(levels, dim, bright, path):
     """The GIF's raster, then the console lattice at the home and wide panels."""
     showcase = [0, len(levels) // 4] if len(levels) > 1 else [0]
+    hud_dim, hud_bright = shade(dim, 0.55), shade(bright, 0.82)
     rows = [
         [tile(levels[i], dim, bright, 2) for i in showcase],
-        [hud_tile(hud_grid(levels[i], rows=HUD_ROWS), dim, bright) for i in showcase],
-        [hud_tile(hud_grid(levels[i], rows=WIDE_ROWS), dim, bright) for i in showcase],
+        [hud_tile(hud_grid(levels[i], rows=HUD_ROWS), hud_dim, hud_bright) for i in showcase],
+        [hud_tile(hud_grid(levels[i], rows=WIDE_ROWS), hud_dim, hud_bright) for i in showcase],
     ]
     gap = 12
     width = max(sum(t.width for t in row) + gap * (len(row) - 1) for row in rows)

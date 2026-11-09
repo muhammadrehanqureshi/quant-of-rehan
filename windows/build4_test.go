@@ -265,7 +265,9 @@ func TestDialIsTheGifMatrixInTheMarketWindow(t *testing.T) {
 			if ce.Ch < 0x2800 || ce.Ch > 0x28ff {
 				continue
 			}
-			if ce.FG.G < 100 || ce.FG.G < ce.FG.R+40 {
+			// The panel's greens were deepened on 2026-11-09, so the check is
+			// that a dot is green and dominant, not that it is bright.
+			if ce.FG.G < 60 || ce.FG.G < ce.FG.R+40 {
 				t.Errorf("mode %d: a dial dot is %v, not green", m, ce.FG)
 			}
 			lit++
@@ -312,7 +314,9 @@ func TestRadarIsRoundInPixels(t *testing.T) {
 	defer func() { cellAspect = was }()
 	// The radar test paints the dial in the owner's green window, so a dot is
 	// lit when its ink is that green and not the theme's own accent.
-	lit := func(p RGB) bool { return p.G >= 100 && p.R < 180 && p.G > p.R+40 }
+	// The panel's greens were deepened on 2026-11-09, so a lit dot is one that
+	// is green and dominant rather than one that is bright.
+	lit := func(p RGB) bool { return p.G >= 60 && p.R < 180 && p.G > p.R+40 }
 	for _, aspect := range []float64{1.90, 20.0 / 9.0, 2.05} {
 		cellAspect = aspect
 		for _, sz := range [][2]int{{36, 14}, {30, 12}, {38, 25}} {
