@@ -310,14 +310,103 @@ public final class Watcher {
         return sb.toString();
     }
 
+    // ---- The day's hard relay request stop ----------------------------
+    //
+    // Owner order 2026-11-09: the shared Cloudflare allowance is never
+    // exhausted, so the phone stops itself the way the Windows console does.
+    // The free tier allows 100,000 requests a day and then refuses to answer,
+    // and the console already holds its own hard line at 90,000 (its
+    // reqHardCap) for the rest of the day. The phone therefore takes a share
+    // that keeps the total under the line rather than at it: 90,000 from the
+    // console, 8,000 from this app and 2,000 left for the relay's own work is
+    // 100,000, so no process can spend the allowance out from under the
+    // others. The count is per UTC day (it rolls over at 00:00 UTC, 05:00
+    // PKT), it is written to this app's own preferences BEFORE a socket opens,
+    // and it survives a restart, so a crash cannot hand back spent requests.
+    static final long DAILY_REQUEST_CAP = 8000;
+    private static final String CAP_DAY_KEY = "req_day";
+    private static final String CAP_COUNT_KEY = "req_count";
+
+    /** Said wherever the cap refuses a read, never worded as a relay fault. */
+    static final String CAP_NOTE =
+            "The day's relay request allowance is spent. Readings resume at 05:00 PKT.";
+
+    /** The cap refused the request; no socket was opened, nothing failed. */
+    static final class DailyCapSpent extends IOException {
+        DailyCapSpent() {
+            super("the day's relay request allowance is spent");
+        }
+    }
+
+    private static final Object CAP_LOCK = new Object();
+    private static String capDay = "";
+    private static long capCount;
+
+    /** Today's date in UTC, the day the allowance is counted against. */
+    static String utcDay() {
+        java.text.SimpleDateFormat day =
+                new java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US);
+        day.setTimeZone(java.util.TimeZone.getTimeZone("UTC"));
+        return day.format(new java.util.Date());
+    }
+
+    /** Today's relay requests. */
+    static long requestsToday(Context c) {
+        if (c == null) {
+            return capCount;
+        }
+        synchronized (CAP_LOCK) {
+            loadDay(c);
+            return capCount;
+        }
+    }
+
+    /** Reads the stored count when the UTC day has rolled over. Holds CAP_LOCK. */
+    private static void loadDay(Context c) {
+        String today = utcDay();
+        if (today.equals(capDay)) {
+            return;
+        }
+        SharedPreferences p = prefs(c);
+        capDay = today;
+        capCount = today.equals(p.getString(CAP_DAY_KEY, ""))
+                ? p.getLong(CAP_COUNT_KEY, 0L) : 0L;
+    }
+
+    /**
+     * Reserves one request against today's cap, or refuses it.
+     *
+     * The count is written before the socket opens, so a restart or a crash
+     * can never hand back requests the day has already spent. A refusal opens
+     * nothing: no request left this phone.
+     */
+    static boolean reserveRequest(Context c) {
+        synchronized (CAP_LOCK) {
+            loadDay(c);
+            if (capCount >= DAILY_REQUEST_CAP) {
+                return false;
+            }
+            capCount++;
+            prefs(c).edit()
+                    .putString(CAP_DAY_KEY, capDay)
+                    .putLong(CAP_COUNT_KEY, capCount)
+                    .apply();
+            return true;
+        }
+    }
+
     /**
      * One raw GET; returns the parsed body or throws.
      *
      * A truncated or malformed body makes the JSON constructor throw, and the
      * callers below turn that into a footnote. A bad payload empties the card,
-     * it never crashes the app.
+     * it never crashes the app. Every relay read in this class passes through
+     * here, which is why the day's hard stop sits in this one place.
      */
-    private static JSONObject get(String url, String admin) throws Exception {
+    private static JSONObject get(Context c, String url, String admin) throws Exception {
+        if (!reserveRequest(c)) {
+            throw new DailyCapSpent();
+        }
         HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
         conn.setConnectTimeout(CONNECT_TIMEOUT_MS);
         conn.setReadTimeout(READ_TIMEOUT_MS);
@@ -337,12 +426,17 @@ public final class Watcher {
     }
 
     /** Health with one retry, so a single dropped packet does not alarm. */
-    private static JSONObject healthWithRetry(String base) throws Exception {
+    private static JSONObject healthWithRetry(Context c, String base) throws Exception {
         Exception last = null;
         for (int attempt = 0; attempt < 2; attempt++) {
             try {
-                return get(base + "/health", null);
+                return get(c, base + "/health", null);
             } catch (Exception e) {
+                // A spent cap is not a dropped packet: retrying it would only
+                // ask the same closed door.
+                if (e instanceof DailyCapSpent) {
+                    throw e;
+                }
                 last = e;
                 try {
                     Thread.sleep(200);
@@ -363,7 +457,7 @@ public final class Watcher {
     static Market fetchMarket(Context c, String base) {
         Market market = new Market();
         try {
-            JSONObject body = get(base + "/market", null);
+            JSONObject body = get(c, base + "/market", null);
             market.answered = body.optBoolean("ok", false);
             market.open = body.optBoolean("market_open", false);
             market.date = body.optString("date", "");
@@ -526,7 +620,7 @@ public final class Watcher {
      */
     private static Head fetchHead(Context c, String base) throws Exception {
         Head head = new Head();
-        JSONObject health = healthWithRetry(base);
+        JSONObject health = healthWithRetry(c, base);
         head.reachable = health.optBoolean("ok", false);
         head.marketOpen = health.optBoolean("market_open", false);
         String karachi = health.optString("karachi_now", "");
@@ -557,7 +651,7 @@ public final class Watcher {
         // invented as a signal.
         String signalNote = "";
         try {
-            JSONObject sig = get(base + "/signals", null);
+            JSONObject sig = get(c, base + "/signals", null);
             if (sig.optBoolean("ok")) {
                 head.signals = sig.optString("signals", "");
             } else {
@@ -621,6 +715,12 @@ public final class Watcher {
                 }
                 Throwable cause = e instanceof ExecutionException
                         && e.getCause() != null ? e.getCause() : e;
+                if (cause instanceof DailyCapSpent) {
+                    // Nothing was sent, so nothing failed: the tile says the
+                    // allowance is spent instead of blaming the relay.
+                    cb.done(false, false, CAP_NOTE, "", null);
+                    return;
+                }
                 String why = cause.getClass().getSimpleName();
                 String hint = why.contains("UnknownHost") || why.contains("Connect")
                         ? "No route to the relay from this phone. Check internet or VPN."
@@ -637,7 +737,7 @@ public final class Watcher {
             try {
                 Head head = fetchHead(c, base);
                 Market market = fetchMarket(c, base);
-                applyLiveQuotes(market, base);
+                applyLiveQuotes(c, market, base);
                 if (!market.phaseKnown()) {
                     // the card failed to load: keep the phase the relay already
                     // told us, so the pill and the footnote never disagree
@@ -648,6 +748,12 @@ public final class Watcher {
                 cb.done(head.online(), head.reachable, head.detail,
                         head.signals, market);
             } catch (Exception e) {
+                if (e instanceof DailyCapSpent) {
+                    Market market = new Market();
+                    market.note = CAP_NOTE;
+                    cb.done(false, false, CAP_NOTE, "", market);
+                    return;
+                }
                 String why = e.getClass().getSimpleName();
                 String hint = why.contains("UnknownHost") || why.contains("Connect")
                         ? "No route to the relay from this phone. Check internet or VPN."
@@ -676,10 +782,10 @@ public final class Watcher {
      * the one thing this app must not do (SO-3). If the snapshot is missing or
      * unparseable the card stands on its own, unchanged.
      */
-    private static void applyLiveQuotes(Market market, String base) {
+    private static void applyLiveQuotes(Context c, Market market, String base) {
         JSONObject snapshot;
         try {
-            snapshot = get(base + "/quotes", null);
+            snapshot = get(c, base + "/quotes", null);
         } catch (Exception unreachable) {
             return;
         }
@@ -940,7 +1046,7 @@ public final class Watcher {
             List<FlowRow> rows = new ArrayList<>();
             List<BigPrint> prints = new ArrayList<>();
             try {
-                JSONObject body = get(relayUrl(c) + "/orderflow", null);
+                JSONObject body = get(c, relayUrl(c) + "/orderflow", null);
                 JSONArray list = body.optJSONArray("rows");
                 if (list != null) {
                     for (int i = 0; i < list.length(); i++) {
@@ -1048,7 +1154,7 @@ public final class Watcher {
         POOL.execute(() -> {
             List<Sector> rows = new ArrayList<>();
             try {
-                JSONObject body = get(relayUrl(c) + "/sectors", null);
+                JSONObject body = get(c, relayUrl(c) + "/sectors", null);
                 JSONArray list = body.optJSONArray("sectors");
                 if (list != null) {
                     for (int i = 0; i < list.length(); i++) {
@@ -1107,7 +1213,7 @@ public final class Watcher {
     static void fetchPrices(final Context c, final PricesCallback cb) {
         POOL.execute(() -> {
             try {
-                JSONObject body = get(relayUrl(c) + "/prices", null);
+                JSONObject body = get(c, relayUrl(c) + "/prices", null);
                 JSONArray rows = body.optJSONArray("prices");
                 Map<String, Quote> map = new HashMap<>();
                 if (rows != null) {
@@ -1188,7 +1294,7 @@ public final class Watcher {
         POOL.execute(() -> {
             String base = relayUrl(c);
             try {
-                JSONObject answer = get(base + "/stock?symbol="
+                JSONObject answer = get(c, base + "/stock?symbol="
                         + java.net.URLEncoder.encode(symbol, "UTF-8"), null);
                 JSONObject row = answer.optJSONObject("stock");
                 if (!answer.optBoolean("ok", false) || row == null) {

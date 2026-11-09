@@ -521,11 +521,17 @@
      2026-11-07, second pass: the SECTORS tile and its box wear the worn
      theme, the ASK column sits at the far right of its half of the book,
      and the exchange's total volume T prints blue everywhere.
+
+     versionCode 126 / versionName 4.0.17 belong to the owner's order of
+     2026-11-09: the phone keeps the same hard daily stop on relay requests
+     that the Windows console keeps, 8,000 a day of the free 100,000, so the
+     console, this app and the relay can never spend the shared allowance out
+     from under each other.
      -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="pk.quantofrehan"
-    android:versionCode="125"
-    android:versionName="4.0.16">
+    android:versionCode="126"
+    android:versionName="4.0.17">
 
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="30"/>
 
