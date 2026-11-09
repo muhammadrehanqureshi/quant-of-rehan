@@ -361,6 +361,31 @@ def relay_quote_updates(record: dict) -> dict:
     return update
 
 
+def zero_baseline_seeds(quotes, seen: set[str]) -> list[dict]:
+    """The zero-volume baselines that must still reach the hub.
+
+    Owner order 2026-11-09: the pre-market and post-market volume has to be
+    captured, and no first trade may become an unclear prefix. A zero-volume
+    frame was dropped at the publisher, so the hub never learned the baseline
+    and its first observation of a symbol became the baseline instead: on
+    2026-11-06 that left 148,036,924 of 240,850,912 shares in U. One zero
+    baseline is sent per symbol per day; every other flow-only row is still
+    withhheld, because a frame with no price is not a quote.
+    """
+    seeds: list[dict] = []
+    for quote in quotes or []:
+        if not isinstance(quote, dict) or not quote.get("flow_only"):
+            continue
+        if quote.get("volume") not in (0, None):
+            continue
+        symbol = str(quote.get("symbol") or "").strip().upper()
+        if not symbol or symbol in seen:
+            continue
+        seen.add(symbol)
+        seeds.append(quote)
+    return seeds
+
+
 def in_preopen_window(now: datetime) -> bool:
     """True inside the exchange's own pre-open window.
 
@@ -457,6 +482,7 @@ class RelayQuotePublisher:
         self._retry_seconds = 1.0
         self._last_refusal_log = 0.0
         self._baseline_logged: set[str] = set()
+        self._seeded_symbols: set[str] = set()
         self._seed_required = session_has_opened(now_karachi())
         self._seed_failed = False
         self._thread: threading.Thread | None = None
@@ -559,6 +585,11 @@ class RelayQuotePublisher:
         self._flow.observe_many(update["quotes"])
         published = [quote for quote in update["quotes"]
                      if not quote.get("flow_only")]
+        # The zero baseline goes to the hub once per symbol: without it the
+        # hub's first observation of the symbol is its baseline and the whole
+        # prefix is reported as unclear (owner order 2026-11-09).
+        published.extend(
+            zero_baseline_seeds(update["quotes"], self._seeded_symbols))
         for quote in update["quotes"]:
             reason = quote.get("flow_baseline_reason")
             symbol = quote["symbol"]

@@ -115,8 +115,10 @@ frame is the zero baseline, so the first auction increment is sided instead
 of becoming an unclear prefix. Symbols the feed did not publish are seeded
 at zero at the 08:55 gate and stamped `preopen_zero_seed`; that seed is an
 explicit gate, never a trade. A non-zero total with no usable price is
-carried as flow-only, so it stays in the baseline and is never published. A
-capture process that restarts mid-session
+carried as flow-only, so it stays in the baseline and is never published.The capture also sends one zero-volume baseline per symbol per day: before
+2026-11-09 those frames were dropped at the publisher, so the hub's first
+observation of a symbol became its baseline and the prefix could only be
+reported as U. A capture process that restarts mid-session
 retries the relay's same-day `/flow` pair and does not start publishing if no
 seed is adopted. If the capture itself started late, the missed shares stay in
 `unclassified_volume`; they are never called buy or sell. `/flow` rows carry

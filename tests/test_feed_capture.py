@@ -220,9 +220,36 @@ class CaptureFlowSeedTest(unittest.TestCase):
         self.assertEqual(quote["buy_volume"], 0)
         self.assertEqual(quote["flow_baseline"], 7_000_000)
 
-    def test_the_publisher_never_publishes_a_flow_only_row(self):
+    def test_the_zero_baseline_reaches_the_hub_once_per_symbol(self):
+        """Owner order 2026-11-09: pre-market volume must be captured, and no
+        first trade may become an unclear prefix.
+
+        A zero-volume pre-open frame used to be dropped at the publisher, so
+        the hub never learned the baseline and its first observation of the
+        symbol became the baseline instead: 148,036,924 of 240,850,912 shares
+        sat in U on 2026-11-06. One zero baseline per symbol per day is now
+        sent; a priced flow-only row is still never published as a quote.
+        """
+        quotes = [
+            {"symbol": "KEL", "volume": 0, "price": 0.0, "flow_only": True},
+            {"symbol": "HUBC", "volume": 0, "price": 0.0, "flow_only": True},
+            {"symbol": "KEL", "volume": 7000000, "price": 0.0,
+             "flow_only": True},
+            {"symbol": "CNERGY", "volume": 5000, "price": 11.9,
+             "flow_only": False},
+        ]
+        seen: set[str] = set()
+        seeds = feed_capture.zero_baseline_seeds(quotes, seen)
+        self.assertEqual([q["symbol"] for q in seeds], ["KEL", "HUBC"])
+        self.assertEqual(feed_capture.zero_baseline_seeds(quotes, seen), [],
+                         "a symbol is seeded once, not on every frame")
+
         source = Path(feed_capture.__file__).read_text(encoding="utf-8")
-        self.assertIn('if not quote.get("flow_only")]', source)
+        self.assertIn('if not quote.get("flow_only")]', source,
+                      "a priced flow-only row is still never published")
+        self.assertIn("zero_baseline_seeds(update[\"quotes\"], "
+                      "self._seeded_symbols)", source)
+        self.assertIn("self._seeded_symbols: set[str] = set()", source)
 
     def test_the_restart_seed_is_required_once_the_preopen_starts(self):
         tz = feed_capture.KARACHI
