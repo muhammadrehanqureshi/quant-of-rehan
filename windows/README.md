@@ -1,7 +1,11 @@
-# Quant of Rehan for Windows (console edition), build 30
+# Quant of Rehan for Windows (console edition), build 31
 
 A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.16**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
+
+## What is new in build 31
+
+* **Build 31.** The quant mark is the owner's GIF itself again, frame for frame. Build 30 sampled a single frame and drew its own turn and glint; this build embeds every frame of `windows/assets/orb-online-green-refined.gif` on the GIF's own 55 by 50 dot grid and plays each frame at its own declared delay, so the rotation on screen is the source's rotation. The palette is the GIF's two measured greens, not the four invented shades of builds 28 and 29, and a PSX holiday paints the same matrix in two reds all day: the relay's `TradingDay` and the holiday law in `windows/session.go` both close the green window, so 9 November reads red on a Monday morning. `python tools/mkorb.py` regenerates `windows/orbpattern.go` and `orb-preview.png` in the Windows workflow before the tests, so the dots, both shades and the timing are the GIF's own pixels rather than a drawing of them.
 
 ## What is new in build 30
 
