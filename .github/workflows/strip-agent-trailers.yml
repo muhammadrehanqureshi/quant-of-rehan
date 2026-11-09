@@ -1,0 +1,108 @@
+name: Strip agent trailers from history
+
+# Owner order 2026-11-09: no agent identity survives in this repository's
+# history. GitHub's contributor panel reads commit authorship and co-author
+# trailers, so the second name on the panel is really 845 "Co-Authored-By:
+# Codebuff" lines inside 1,102 commits. There is no permission to revoke and
+# no account to delete: the only way to remove the name is to rewrite the
+# commits that carry it.
+#
+# The rewrite runs here, in Actions, because the owner's PC is never used for
+# computation (owner order 2026-10-19, SO-23). It is manual and it demands the
+# typed confirmation below.
+#
+# It does NOT push to master itself. A workflow token cannot move a protected
+# branch, and asking for a personal token to be stored as a secret is a
+# credential nobody needs: the job rewrites master in the cloud and pushes the
+# result to the branch below with the ordinary workflow token. The repository
+# owner then points master at that branch's head in one API call, with the old
+# head in hand, so the move is one action and one action undoes it.
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: Type REWRITE to strip the agent lines from master
+        required: true
+        default: ""
+      dry_run:
+        description: Type yes to count the agent lines and change nothing
+        required: false
+        default: "no"
+
+permissions:
+  contents: write
+
+jobs:
+  rewrite:
+    if: github.repository == 'muhammadrehanqureshi/quant-of-rehan'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CLEAN_BRANCH: buffy/history-without-agent-trailers
+    steps:
+      - name: Require the typed confirmation
+        env:
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          set -euo pipefail
+          if [ "$CONFIRM" != "REWRITE" ]; then
+            echo "confirmation was '$CONFIRM', not REWRITE: nothing was rewritten" >&2
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Count the agent lines before the rewrite
+        run: |
+          set -euo pipefail
+          lines=$(git log master --format=%B | grep -icE "codebuff" || true)
+          commits=$(git log master --format=%H | wc -l)
+          echo "master carries $lines agent lines across $commits commits"
+          echo "master head before the rewrite: $(git rev-parse master)"
+
+      - name: Rewrite every message reachable from master
+        if: ${{ inputs.dry_run != 'yes' }}
+        env:
+          FILTER_BRANCH_SQUELCH_WARNING: "1"
+        run: |
+          set -euo pipefail
+          git config user.name "Mr. Rehan"
+          git config user.email "muhammadrehanqureshi@users.noreply.github.com"
+          # Every line that names the agent goes, in every spelling history
+          # carries: both co-author trailers, the robot-emoji footer and the
+          # prose line that named it as a co-author. Nothing else changes: the
+          # owner stays the author and the committer of every commit, and every
+          # tree, date and subject is preserved.
+          git filter-branch -f --msg-filter 'grep -viE "codebuff" || true' master
+
+      - name: Prove no agent line survives
+        if: ${{ inputs.dry_run != 'yes' }}
+        run: |
+          set -euo pipefail
+          left=$(git log master --format=%B | grep -icE "codebuff" || true)
+          echo "agent lines left on master: $left"
+          if [ "$left" != "0" ]; then
+            echo "the rewrite left agent lines behind; nothing was pushed" >&2
+            exit 1
+          fi
+
+      - name: Publish the rewritten history as a branch
+        if: ${{ inputs.dry_run != 'yes' }}
+        run: |
+          set -euo pipefail
+          git push --force origin "master:refs/heads/$CLEAN_BRANCH"
+          clean=$(git rev-parse master)
+          {
+            echo "### Rewritten history is ready"
+            echo
+            echo "- branch: \`$CLEAN_BRANCH\`"
+            echo "- new master head: \`$clean\`"
+            echo "- old master head: \`$(git rev-parse refs/original/refs/heads/master)\`"
+            echo "- agent lines left: 0"
+            echo
+            echo "Point master at the new head with one API call, or leave it"
+            echo "where it is and nothing changes."
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "pushed $CLEAN_BRANCH at $clean"
