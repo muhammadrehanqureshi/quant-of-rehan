@@ -138,11 +138,19 @@ func (a *App) rebuildOrderFlowFromSession() {
 		Basis:     "last stored session",
 	}
 	for _, sym := range a.symbols {
-		q, ok := a.prices[sym]
-		if !ok || q.Price <= 0 {
+		price, chg := 0.0, (*float64)(nil)
+		if q, ok := a.prices[sym]; ok && q.Price > 0 {
+			price, chg = q.Price, q.ChangePct
+		}
+		if price <= 0 && a.quotes != nil {
+			if lq, ok := a.quotes.Items[sym]; ok && lq.Price > 0 {
+				price, chg = lq.Price, lq.ChangePct
+			}
+		}
+		if price <= 0 {
 			continue
 		}
-		row := FlowRow{Symbol: sym, Price: q.Price, ChangePct: q.ChangePct, Method: methodNone, Source: "last stored session"}
+		row := FlowRow{Symbol: sym, Price: price, ChangePct: chg, Method: methodNone, Source: "last stored session"}
 		if a.quotes != nil {
 			if lq, ok := a.quotes.Items[sym]; ok && lq.Volume > 0 {
 				v := lq.Volume
