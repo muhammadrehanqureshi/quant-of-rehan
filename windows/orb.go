@@ -81,47 +81,40 @@ func hudInk(tone float64, green bool) RGB {
 // draw Braille.
 var ringHalfBlocks bool
 
-// orbDrawSize is the dot-matrix size that fits a w by h cell box. It grows the
-// build 28 matrix by orbGrowth and then clamps to the box, so a larger panel
-// gives the owner the full ten percent and a smaller one stays inside its frame.
-// The box is the panel's inner rectangle; no cell of margin is reserved, because
-// the home panel's fourteen inner rows are exactly enough for the enlarged dial.
+// orbDrawSize is the dot-matrix size that fits a w by h cell box. One
+// terminal dot is half a cell wide and a quarter of a cell tall, so a dot is
+// cellAspect/2 times as tall as it is wide; a square GIF therefore needs that
+// many more dots across than down, and the picture keeps its own proportions.
+// The box is the panel's inner rectangle: at the 120 by 30 home size the old
+// one cell margin on each side clamped the dial shorter than the tile.
 func orbDrawSize(w, h int) (int, int) {
-	if len(orbFrames) == 0 || len(orbFrames[0]) != orbCols*orbRows || w <= 0 || h <= 0 {
+	if len(orbFrames) == 0 || w <= 0 || h <= 0 {
 		return 0, 0
 	}
 	aspect := cellAspect
 	if aspect <= 0 {
 		aspect = defaultCellAspect
 	}
-	stretch := 2.2 / aspect
-	if stretch < 0.5 {
-		stretch = 0.5
+	across := aspect / 2
+	if across < 0.5 {
+		across = 0.5
 	}
-	if stretch > 1.6 {
-		stretch = 1.6
+	if across > 1.6 {
+		across = 1.6
 	}
-	dw := orbCols
-	dh := int(math.Round(float64(orbRows) * stretch))
-	if dh < 1 {
-		dh = 1
+	maxW, maxH := 2*w, 4*h
+	dh := maxH
+	if limit := int(math.Round(float64(dh) * across)); limit > maxW {
+		dh = int(math.Round(float64(maxW) / across))
 	}
-	// A dot cell is two dots wide and four dots tall. Use the panel's whole
-	// inner box: at the 120 by 30 home size the old one cell margin on each
-	// side clamped build 29 back to build 28's height, so the owner's ten
-	// percent enlargement never reached the screen.
-	availW := float64(max(1, w)*2) / float64(dw)
-	availH := float64(max(1, h)*4) / float64(dh)
-	scale := math.Min(orbGrowth, math.Min(availW, availH))
-	if scale <= 0 {
+	dw := int(math.Round(float64(dh) * across))
+	if dw > maxW {
+		dw = maxW
+	}
+	if dw < 1 || dh < 1 {
 		return 0, 0
 	}
-	outW := int(math.Round(float64(dw) * scale))
-	outH := int(math.Round(float64(dh) * scale))
-	if outW < 1 || outH < 1 {
-		return 0, 0
-	}
-	return outW, outH
+	return dw, dh
 }
 
 // orbFrameIndex picks the GIF frame on screen after t seconds, honouring each
@@ -157,12 +150,20 @@ func orbFrameIndex(t float64, count int) int {
 	return count - 1
 }
 
-// orbGrid places one GIF frame in a grid of w by h cells. The GIF's 55 by 50
-// dots are square as a picture; a terminal dot is half a column wide and a
-// quarter of a cell tall, so the rows are stretched to keep the orb round at
-// the measured cell shape. The dots and the motion are both the GIF's own:
-// the frame index follows the source delay, and nothing is rotated, waved or
-// glinted on top of it (owner order 2026-11-09).
+// orbDotCover is how much of a panel dot the GIF has to fill before that dot
+// lights. A dot of the GIF's stipple covers about two fifths of a panel dot at
+// the 120 by 30 home size, so a stricter rule than "any lit pixel" is what
+// keeps the gaps between the GIF's dots open instead of closing them into
+// strokes.
+const orbDotCover = 0.35
+
+// orbGrid places one GIF frame in a grid of w by h cells. The frame is the
+// owner's GIF itself, sampled at orbRaster by orbRaster dots; each panel dot
+// takes the brightest source cell it covers, so no dot of the picture is lost
+// in the resize and the gaps between the GIF's own dots stay open. The dots
+// and the motion are both the source's: the frame index follows each frame's
+// own delay, and nothing is rotated, waved or glinted on top of it (owner
+// order 2026-11-09).
 func orbGrid(w, h int, t float64) *dotGrid {
 	g := newDotGrid(w, h)
 	dw, dh := orbDrawSize(w, h)
@@ -172,22 +173,41 @@ func orbGrid(w, h int, t float64) *dotGrid {
 	frame := orbFrames[orbFrameIndex(t, len(orbFrames))]
 	ox, oy := (g.w-dw)/2, (g.h-dh)/2
 	for y := 0; y < dh; y++ {
-		sy := int((float64(y) + 0.5) * float64(orbRows) / float64(dh))
-		if sy < 0 || sy >= orbRows {
-			continue
+		sy0 := y * orbRaster / dh
+		sy1 := (y + 1) * orbRaster / dh
+		if sy1 <= sy0 {
+			sy1 = sy0 + 1
+		}
+		if sy1 > orbRaster {
+			sy1 = orbRaster
 		}
 		for x := 0; x < dw; x++ {
-			sx := int((float64(x) + 0.5) * float64(orbCols) / float64(dw))
-			if sx < 0 || sx >= orbCols {
+			sx0 := x * orbRaster / dw
+			sx1 := (x + 1) * orbRaster / dw
+			if sx1 <= sx0 {
+				sx1 = sx0 + 1
+			}
+			if sx1 > orbRaster {
+				sx1 = orbRaster
+			}
+			total, cells, peak := 0, 0, uint8(0)
+			for sy := sy0; sy < sy1; sy++ {
+				row := frame[sy*orbRaster : (sy+1)*orbRaster]
+				for sx := sx0; sx < sx1; sx++ {
+					level := row[sx]
+					total += int(level)
+					if level > peak {
+						peak = level
+					}
+					cells++
+				}
+			}
+			if cells == 0 || float64(total)/float64(cells) < orbDotCover {
 				continue
 			}
-			level := frame[sy*orbCols+sx]
-			if level == 0 {
-				continue
-			}
-			// The two GIF shades, kept apart by the ink threshold.
+			// The two GIF shades, taken from the strongest pixel the dot covers.
 			tone := 0.25
-			if level >= 2 {
+			if peak >= 2 {
 				tone = 1.0
 			}
 			g.set(ox+x, oy+y, float32(tone))

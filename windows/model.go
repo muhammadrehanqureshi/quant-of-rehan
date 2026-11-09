@@ -6,7 +6,12 @@ import "time"
 const appVersion = "4.0.16"
 
 // hudBuild is the build number of this Windows HUD port.
-const hudBuild = "31"
+const hudBuild = "32"
+
+// appVersionLabel is the version the SETTINGS page names. Owner order
+// 2026-11-09: the page shows 2.8 alone, with no Windows build number and no
+// ported app version beside it.
+const appVersionLabel = "2.8"
 
 // scripSearchHint is the same search line on every desktop search box.
 const scripSearchHint = "Search for a KMIALL scrip"

@@ -1,7 +1,11 @@
-# Quant of Rehan for Windows (console edition), build 31
+# Quant of Rehan for Windows (console edition), build 32
 
 A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.16**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
+
+## What is new in build 32
+
+* **Build 32.** The quant mark is the GIF's own picture at the panel's dot resolution: `tools/mkorb.py` samples every frame of `windows/assets/orb-online-green-refined.gif` onto a 152 by 152 dot raster, zlib compresses the whole set into `windows/orbpattern.go`, and the console lights a panel dot once the GIF covers 35 percent of it, taking that dot's shade from the strongest pixel underneath, so the stipple, the gaps between its dots and its two greens are the file's own rather than a lattice of 55 by 50. The TELEMETRY flow row is named `BUYING & SELLING`, with its side and value unchanged. The KSE100 tile's idle line now reads `Quant is sleeping till the next market day.` The SETTINGS page names the version `2.8` alone, with no Windows build number and no ported app version beside it.
 
 ## What is new in build 31
 
