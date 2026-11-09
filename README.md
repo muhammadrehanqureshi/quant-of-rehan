@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/QoR.png" width="420" alt="Quant of Rehan">
+  <img src="assets/QoR.png" width="340" alt="Quant of Rehan">
 </p>
 
 <h1 align="center">Quant of Rehan</h1>
