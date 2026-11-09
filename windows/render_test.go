@@ -349,9 +349,9 @@ func TestFooterKeysAreColoured(t *testing.T) {
 	a.screen = scrHome
 	c = a.render()
 	check(c, "1 HOME", a.th.Good, false)
-	check(c, "D", a.th.Good, false)
-	check(c, "R", a.th.Good, false)
-	check(c, "Q", a.th.Bad, false)
+	check(c, "D DETAILS", a.th.Good, false)
+	check(c, "R REFRESH", a.th.Good, false)
+	check(c, "Q QUIT", a.th.Bad, false)
 }
 
 func TestAlertLogDetailIsWrappedNotCut(t *testing.T) {
