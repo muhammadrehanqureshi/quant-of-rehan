@@ -29,10 +29,10 @@ const hudForceLive = true
 // owner asked for exactly that render instead of a thinned copy of it.
 const orbDotPitch = 1
 
-// orbScale is the mark's share of its tile: it fills the tile, then the owner
-// asked for five percent less (order 2026-11-09), so the lattice is taken down
-// by that much and nothing else about it changes.
-const orbScale = 0.95
+// orbScale is the mark's share of its tile: it filled the tile, then the owner
+// asked for five percent less and then another five (order 2026-11-09), so the
+// lattice is taken down by that much and nothing else about it changes.
+const orbScale = 0.90
 
 // orbBands is how many rings of shade run from the middle of the mark out. The
 // innermost band is the darker shade, the next the lighter one, and they

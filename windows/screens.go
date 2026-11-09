@@ -361,19 +361,23 @@ func hintSpans(s string, th *Theme) []Span {
 	return out
 }
 
-// scanStatus words what the scanner is doing now, for the telemetry panel.
+// scanStatus words what the scanner is doing now, for the telemetry panel, and
+// follows the market's own day and clock: the weekend names itself, a trading
+// day the exchange has closed says so, and a weekday outside the band says
+// whether the scan has started yet or is done for the day.
 func (a *App) scanStatus() (string, RGB) {
 	th := a.th
-	switch {
-	case a.scanning():
+	if a.scanning() {
 		return "EVERY SECOND", th.Good
-	case a.market != nil && a.market.PhaseKnown() && !a.market.TradingDay:
-		return "MARKET IS CLOSED", th.Soft
 	}
 	p := a.karachiNow().In(pkt)
-	switch {
-	case isWeekend(p):
+	if isWeekend(p) {
 		return "OFF AT THE WEEKEND", th.Soft
+	}
+	switch {
+	case a.market != nil && a.market.PhaseKnown() && !a.market.TradingDay:
+		// Owner order 2026-11-09: a closed trading day names itself.
+		return "MARKET IS CLOSED TODAY", th.Soft
 	case secondOf(p) < scanOpen*60:
 		return "STARTS AT 08:55", th.Soft
 	}
