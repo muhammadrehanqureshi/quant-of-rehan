@@ -1,7 +1,11 @@
-# Quant of Rehan for Windows (console edition), build 29
+# Quant of Rehan for Windows (console edition), build 30
 
 A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.16**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
+
+## What is new in build 30
+
+* **Build 30.** The console now stops itself at 90,000 relay requests a day. Cloudflare's free tier allows 100,000 and then refuses to answer, so the app keeps 10,000 in reserve for the phone and the relay instead of discovering that limit as an outage: no request leaves after the cap, the last answer stays on screen, telemetry shows `paused until 05:00 PKT` in red, and the count resets at 00:00 UTC. The Settings screen states the stop beside the day's count.
 
 ## What is new in build 29
 
