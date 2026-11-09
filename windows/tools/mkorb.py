@@ -1,13 +1,18 @@
 #!/usr/bin/env python3
-"""Copy the owner's orb GIF into windows/orbpattern.go.
+"""Copy the owner's orb GIFs into windows/orbpattern.go.
 
 Owner order 2026-11-09: the HUD orb must be the GIF, not a drawing of it. The
 earlier sampler quantised the artwork onto a 55 by 50 dot lattice, which moved
 dots and closed the gaps between them, so the console never matched the file.
 This one keeps the picture: every frame is sampled onto a square dot raster at
-152 by 152, each dot keeping one of the GIF's own two greens, every frame plays
-at its own declared delay, and the whole raster set is zlib compressed so 160
+152 by 152, each dot keeping one of the GIF's own two shades, every frame plays
+at its own declared delay, and the whole raster set is zlib compressed so the
 frames fit in a source file instead of eight hundred kilobytes of base64.
+
+There are two sources. The green GIF draws the orb inside the market window.
+For outside it the owner supplied a red GIF of the same mark, and ordered that
+file be copied into the build rather than recoloured, so the red state carries
+that file's own dots, its own two reds and its own ring shading.
 
 Run from the windows directory: python tools/mkorb.py
 """
@@ -15,7 +20,6 @@ Run from the windows directory: python tools/mkorb.py
 from __future__ import annotations
 
 import base64
-import math
 import zlib
 from pathlib import Path
 
@@ -25,13 +29,17 @@ from PIL import Image
 RASTER = 152
 
 HERE = Path(__file__).resolve().parent
-ASSET = HERE.parent / "assets" / "orb-online-green-refined.gif"
+ASSETS = HERE.parent / "assets"
+GREEN_GIF = ASSETS / "orb-online-green-refined.gif"
+RED_GIF = ASSETS / "orb-offline-red-refined.gif"
 OUT = HERE.parent / "orbpattern.go"
 PREVIEW = HERE.parent / "orb-preview.png"
 
+PAPER = (7, 18, 28)
 
-def load_frames():
-    im = Image.open(ASSET)
+
+def load_frames(path):
+    im = Image.open(path)
     count = getattr(im, "n_frames", 1)
     frames, delays = [], []
     for index in range(count):
@@ -57,7 +65,7 @@ def sample(frame):
 
 
 def two_means(values):
-    """Two luminance centroids; the GIF has exactly two shades."""
+    """Two luminance centroids; each GIF has exactly two shades."""
     low, high = float(values.min()), float(values.max())
     if high - low < 1e-6:
         return low, high
@@ -91,7 +99,7 @@ def palette(first):
 
 
 def quantise(cells, background, dim_lum, bright_lum):
-    """0 for no dot, 1 for the dim green, 2 for the bright green."""
+    """0 for no dot, 1 for the dim shade, 2 for the bright shade."""
     lit_at = (background + dim_lum) / 2
     bright_at = (dim_lum + bright_lum) / 2
     levels = np.zeros(cells.shape, dtype=np.uint8)
@@ -122,23 +130,28 @@ HUD_BANDS = 5       # orbBands: dark inside, light next, and so outward
 HUD_SCALE = 0.90    # orbScale: ten percent under the tile in all
 
 
-def hud_grid(frame, rows=HUD_ROWS, aspect=HUD_ASPECT):
-    """What orbGrid draws: one console dot per grid point the GIF covers, and
-    its shade from the concentric bands, dark on the inside circle and light
-    on the next."""
+def hud_grid(frame, rows=HUD_ROWS, aspect=HUD_ASPECT, banded=True):
+    """What orbGrid draws: one console dot per grid point the GIF covers.
+
+    The green state takes its shade from concentric bands counted out from
+    where the ink begins, so the inside circle is dark and the rings alternate.
+    The red state keeps the file's own shade at every point."""
     size = frame.shape[0]
     rows = max(1, round(rows * HUD_SCALE))
     cols = max(1, round(rows * aspect))
-    lit = np.zeros((rows, cols), dtype=bool)
+    cells = np.zeros((rows, cols), dtype=np.uint8)
     for j in range(rows):
         sy0 = j * size // rows
         sy1 = max(sy0 + 1, (j + 1) * size // rows)
         for i in range(cols):
             sx0 = i * size // cols
             sx1 = max(sx0 + 1, (i + 1) * size // cols)
-            lit[j, i] = int(frame[sy0:sy1, sx0:sx1].max()) > 0
+            cells[j, i] = int(frame[sy0:sy1, sx0:sx1].max())
+    if not banded:
+        return cells
+    lit = cells > 0
     if not lit.any():
-        return np.zeros((rows, cols), dtype=np.uint8)
+        return cells
     cx, cy = (cols - 1) / 2, (rows - 1) / 2
     jj, ii = np.mgrid[0:rows, 0:cols]
     radius = np.hypot(ii - cx, jj - cy)
@@ -155,7 +168,7 @@ def hud_grid(frame, rows=HUD_ROWS, aspect=HUD_ASPECT):
 def hud_tile(grid, dim, bright, cell=6):
     """The console's own pixels: one square per dot, neighbours touching."""
     rows, cols = grid.shape
-    img = Image.new("RGB", (cols * HUD_PITCH * cell, rows * HUD_PITCH * cell), (7, 18, 28))
+    img = Image.new("RGB", (cols * HUD_PITCH * cell, rows * HUD_PITCH * cell), PAPER)
     pixels = img.load()
     for j in range(rows):
         for i in range(cols):
@@ -172,7 +185,7 @@ def hud_tile(grid, dim, bright, cell=6):
 
 def tile(grid, dim, bright, scale):
     rows, cols = grid.shape
-    img = Image.new("RGB", (cols * scale, rows * scale), (7, 18, 28))
+    img = Image.new("RGB", (cols * scale, rows * scale), PAPER)
     pixels = img.load()
     for y in range(rows):
         for x in range(cols):
@@ -186,30 +199,33 @@ def tile(grid, dim, bright, scale):
     return img
 
 
-
 def shade(colour, factor):
-    """darken() in orb.go: the panel's shades are the GIF's, taken down."""
+    """darken() in orb.go: the green panel shades are the GIF's, taken down."""
     return tuple(int(round(v * factor)) for v in colour)
 
 
 def lighten(colour, amount):
-    """lighten() in orb.go: the lighter step is mixed towards white."""
+    """lighten() in orb.go: the lighter green step is mixed towards white."""
     return tuple(int(round(v + (255 - v) * amount)) for v in colour)
 
 
-def draw_preview(levels, dim, bright, path):
-    """The GIF's raster, then the console lattice at the home and wide panels."""
-    showcase = [0, len(levels) // 4] if len(levels) > 1 else [0]
-    hud_dim, hud_bright = shade(dim, 0.55), lighten(shade(bright, 0.82), 0.18)  # greens
-    rows = [
-        [tile(levels[i], dim, bright, 2) for i in showcase],
-        [hud_tile(hud_grid(levels[i], rows=HUD_ROWS), hud_dim, hud_bright) for i in showcase],
-        [hud_tile(hud_grid(levels[i], rows=HUD_WIDE_ROWS), hud_dim, hud_bright) for i in showcase],
-    ]
+def draw_preview(path, green, red):
+    """Each file's raster, then the console lattice at home and at wide."""
+    rows = []
+    for art in (green, red):
+        levels, dim, bright = art["levels"], art["dict_dim"], art["dict_bright"]
+        showcase = [0, len(levels) // 4] if len(levels) > 1 else [0]
+        rows.append([tile(levels[i], dim, bright, 2) for i in showcase])
+        for count in (HUD_ROWS, HUD_WIDE_ROWS):
+            rows.append([
+                hud_tile(hud_grid(levels[i], rows=count, banded=art["banded"]),
+                         art["hud_dim"], art["hud_bright"])
+                for i in showcase
+            ])
     gap = 12
     width = max(sum(t.width for t in row) + gap * (len(row) - 1) for row in rows)
     height = sum(row[0].height for row in rows) + gap * (len(rows) - 1)
-    strip = Image.new("RGB", (width, height), (7, 18, 28))
+    strip = Image.new("RGB", (width, height), PAPER)
     y = 0
     for row in rows:
         x = 0
@@ -258,96 +274,136 @@ def crop_square(frame, box):
     return out
 
 
-def main():
-    frames, delays = load_frames()
+def build(path, banded, green_shades):
+    frames, delays = load_frames(path)
     if not frames:
-        raise SystemExit("the GIF has no frames")
+        raise SystemExit(f"{path.name} has no frames")
     background, dim_lum, bright_lum, dim, bright = palette(frames[0])
     box = lit_box(frames, (background + dim_lum) / 2)
     frames = [crop_square(frame, box) for frame in frames]
     levels = [quantise(sample(f), background, dim_lum, bright_lum) for f in frames]
     blob = zlib.compress(b"".join(pack(frame) for frame in levels), 9)
-    payload = base64.b64encode(blob).decode("ascii")
-    delays_go = ", ".join(str(v) for v in delays)
-    hexed = lambda colour: f"0x{colour[0]:02x}{colour[1]:02x}{colour[2]:02x}"
-    source = f'''package main
+    if green_shades:
+        hud_dim, hud_bright = shade(dim, 0.55), lighten(shade(bright, 0.82), 0.18)
+    else:
+        hud_dim, hud_bright = dim, bright
+    return {
+        "name": path.name,
+        "levels": levels,
+        "delays": delays,
+        "dict_dim": dim,
+        "dict_bright": bright,
+        "hud_dim": hud_dim,
+        "hud_bright": hud_bright,
+        "banded": banded,
+        "payload": wrap(base64.b64encode(blob).decode("ascii")),
+    }
+
+
+TEMPLATE = '''package main
 
 import (
-\t"bytes"
-\t"compress/zlib"
-\t"encoding/base64"
-\t"io"
-\t"strings"
+	"bytes"
+	"compress/zlib"
+	"encoding/base64"
+	"io"
+	"strings"
 )
 
-// Generated by tools/mkorb.py from assets/orb-online-green-refined.gif. Do not
-// edit by hand: the Windows workflow regenerates this file before it tests and
-// builds. This is the owner's GIF itself, sampled onto a square dot raster at
-// {RASTER} by {RASTER}; each cell is 0 (no dot), 1 (the dim green) or 2 (the
-// bright green), four cells to a byte, every frame back to back, zlib
-// compressed. orbDelays is each frame's own display time in milliseconds, as
-// the GIF declares it.
+// Generated by tools/mkorb.py from assets/orb-online-green-refined.gif and
+// assets/orb-offline-red-refined.gif. Do not edit by hand: the Windows
+// workflow regenerates this file before it tests and builds. These are the
+// owner's GIFs themselves, sampled onto a square dot raster at 152 by 152;
+// each cell is 0 (no dot), 1 (the dim shade) or 2 (the bright shade), four
+// cells to a byte, every frame back to back, zlib compressed. The delays are
+// each frame's own display time in milliseconds, as the GIF declares it.
 const (
-\torbRaster = {RASTER}
+	orbRaster = @@RASTER@@
 
-\torbGreenDim    = {hexed(dim)}
-\torbGreenBright = {hexed(bright)}
+	orbGreenDim    = @@GREENDIM@@
+	orbGreenBright = @@GREENBRIGHT@@
 
-\torbFramesB64 = `{wrap(payload)}`
+	orbRedDim    = @@REDDIM@@
+	orbRedBright = @@REDBRIGHT@@
+
+	orbFramesB64    = `@@GREENPAYLOAD@@`
+	orbRedFramesB64 = `@@REDPAYLOAD@@`
 )
 
 var (
-\torbDelays = []int{{{delays_go}}}
+	orbDelays    = []int{@@GREENDELAYS@@}
+	orbRedDelays = []int{@@REDDELAYS@@}
 
-\torbFrames = decodeOrbFrames()
+	orbFrames    = decodeOrbFrames(orbFramesB64)
+	orbRedFrames = decodeOrbFrames(orbRedFramesB64)
 )
 
-func decodeOrbFrames() [][]uint8 {{
-\tjoined := strings.ReplaceAll(orbFramesB64, "\\n", "")
-\tif joined == "" {{
-\t\treturn nil
-\t}}
-\tpacked, err := base64.StdEncoding.DecodeString(joined)
-\tif err != nil {{
-\t\treturn nil
-\t}}
-\treader, err := zlib.NewReader(bytes.NewReader(packed))
-\tif err != nil {{
-\t\treturn nil
-\t}}
-\tdefer reader.Close()
-\tall, err := io.ReadAll(reader)
-\tif err != nil {{
-\t\treturn nil
-\t}}
-\tsize := orbRaster * orbRaster
-\tperFrame := (size + 3) / 4
-\tif perFrame == 0 || len(all)%perFrame != 0 {{
-\t\treturn nil
-\t}}
-\tframes := make([][]uint8, 0, len(all)/perFrame)
-\tfor offset := 0; offset+perFrame <= len(all); offset += perFrame {{
-\t\tlevels := make([]uint8, size)
-\t\tfor index := 0; index < size; index++ {{
-\t\t\tlevels[index] = (all[offset+index/4] >> (2 * uint(index%4))) & 0x3
-\t\t}}
-\t\tframes = append(frames, levels)
-\t}}
-\treturn frames
-}}
+func decodeOrbFrames(payload string) [][]uint8 {
+	joined := strings.ReplaceAll(payload, "\\n", "")
+	if joined == "" {
+		return nil
+	}
+	packed, err := base64.StdEncoding.DecodeString(joined)
+	if err != nil {
+		return nil
+	}
+	reader, err := zlib.NewReader(bytes.NewReader(packed))
+	if err != nil {
+		return nil
+	}
+	defer reader.Close()
+	all, err := io.ReadAll(reader)
+	if err != nil {
+		return nil
+	}
+	size := orbRaster * orbRaster
+	perFrame := (size + 3) / 4
+	if perFrame == 0 || len(all)%perFrame != 0 {
+		return nil
+	}
+	frames := make([][]uint8, 0, len(all)/perFrame)
+	for offset := 0; offset+perFrame <= len(all); offset += perFrame {
+		levels := make([]uint8, size)
+		for index := 0; index < size; index++ {
+			levels[index] = (all[offset+index/4] >> (2 * uint(index%4))) & 0x3
+		}
+		frames = append(frames, levels)
+	}
+	return frames
+}
 '''
+
+
+def main():
+    green = build(GREEN_GIF, banded=True, green_shades=True)
+    red = build(RED_GIF, banded=False, green_shades=False)
+    hexed = lambda colour: f"0x{colour[0]:02x}{colour[1]:02x}{colour[2]:02x}"
+    delays = lambda art: ", ".join(str(v) for v in art["delays"])
+    source = (TEMPLATE
+              .replace("@@RASTER@@", str(RASTER))
+              .replace("@@GREENDIM@@", hexed(green["dict_dim"]))
+              .replace("@@GREENBRIGHT@@", hexed(green["dict_bright"]))
+              .replace("@@REDDIM@@", hexed(red["dict_dim"]))
+              .replace("@@REDBRIGHT@@", hexed(red["dict_bright"]))
+              .replace("@@GREENPAYLOAD@@", green["payload"])
+              .replace("@@REDPAYLOAD@@", red["payload"])
+              .replace("@@GREENDELAYS@@", delays(green))
+              .replace("@@REDDELAYS@@", delays(red)))
     OUT.write_text(source, encoding="utf-8", newline="\n")
-    draw_preview(levels, dim, bright, PREVIEW)
-    lit = int((levels[0] > 0).sum())
-    print(f"orb: {len(frames)} frames, {lit} lit dots of {RASTER * RASTER}, "
-          f"{max(delays)} ms longest frame")
-    print(f"greens: dim #{dim[0]:02x}{dim[1]:02x}{dim[2]:02x}, "
-          f"bright #{bright[0]:02x}{bright[1]:02x}{bright[2]:02x}")
-    for name, count in (("home", HUD_ROWS), ("wide", HUD_WIDE_ROWS)):
-        hud = hud_grid(levels[0], rows=count)
-        rows, cols = hud.shape
-        print(f"hud {name}: {int((hud > 0).sum())} of {cols * rows} dots lit at "
-              f"{cols} by {rows}, one console dot per GIF dot (pitch {HUD_PITCH})")
+    draw_preview(PREVIEW, green, red)
+    for art in (green, red):
+        levels, name = art["levels"], art["name"]
+        lit = int((levels[0] > 0).sum())
+        dim, bright = art["hud_dim"], art["hud_bright"]
+        print(f"{name}: {len(levels)} frames, {lit} lit dots of {RASTER * RASTER}, "
+              f"{max(art['delays'])} ms longest frame")
+        print(f"  panel shades: dim #{dim[0]:02x}{dim[1]:02x}{dim[2]:02x}, "
+              f"bright #{bright[0]:02x}{bright[1]:02x}{bright[2]:02x}")
+        for label, count in (("home", HUD_ROWS), ("wide", HUD_WIDE_ROWS)):
+            hud = hud_grid(levels[0], rows=count, banded=art["banded"])
+            rows, cols = hud.shape
+            print(f"  hud {label}: {int((hud > 0).sum())} of {cols * rows} dots lit at "
+                  f"{cols} by {rows}, one console dot per GIF dot (pitch {HUD_PITCH})")
     print(f"wrote {OUT.name} ({OUT.stat().st_size} bytes) and {PREVIEW.name}")
 
 
