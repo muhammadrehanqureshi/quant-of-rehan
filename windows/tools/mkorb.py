@@ -12,7 +12,9 @@ frames fit in a source file instead of eight hundred kilobytes of base64.
 There are two sources. The green GIF draws the orb inside the market window.
 For outside it the owner supplied a red GIF of the same mark, and ordered that
 file be copied into the build rather than recoloured, so the red state carries
-that file's own dots, its own two reds and its own ring shading.
+that file's own dots, its own two reds and its own ring shading. That file is a
+single frame, and the owner then asked that the red mark move like the green
+one, so its dots are turned a full circle across the green GIF's own frames.
 
 Run from the windows directory: python tools/mkorb.py
 """
@@ -106,6 +108,15 @@ def quantise(cells, background, dim_lum, bright_lum):
     levels[cells > lit_at] = 1
     levels[cells > bright_at] = 2
     return levels
+
+
+def rotate_levels(level, angle):
+    """Turn one raster by an angle, nearest neighbour, so every cell keeps one
+    of the file's own levels and no shade is blended into a third."""
+    art = Image.fromarray((level * 127).astype(np.uint8), mode="L")
+    turned = art.rotate(angle, resample=Image.NEAREST, expand=False, fillcolor=0)
+    out = np.asarray(turned, dtype=np.uint8)
+    return np.where(out >= 190, 2, np.where(out >= 60, 1, 0)).astype(np.uint8)
 
 
 def pack(levels):
@@ -274,7 +285,7 @@ def crop_square(frame, box):
     return out
 
 
-def build(path, banded, green_shades):
+def build(path, banded, green_shades, spin_frames=0, spin_delays=None):
     frames, delays = load_frames(path)
     if not frames:
         raise SystemExit(f"{path.name} has no frames")
@@ -282,6 +293,17 @@ def build(path, banded, green_shades):
     box = lit_box(frames, (background + dim_lum) / 2)
     frames = [crop_square(frame, box) for frame in frames]
     levels = [quantise(sample(f), background, dim_lum, bright_lum) for f in frames]
+    if spin_frames > 1:
+        # Owner order 2026-11-09: the owner's red file holds a single frame, so
+        # the mark is turned on the green GIF's own clock instead. Every frame
+        # is those same dots in the same two shades, carried round by a full
+        # turn across the loop; nothing is tinted, redrawn or resized.
+        base = levels[0]
+        levels = [rotate_levels(base, 360.0 * k / spin_frames) for k in range(spin_frames)]
+        if spin_delays:
+            delays = [spin_delays[k % len(spin_delays)] for k in range(spin_frames)]
+        else:
+            delays = [80] * spin_frames
     blob = zlib.compress(b"".join(pack(frame) for frame in levels), 9)
     if green_shades:
         hud_dim, hud_bright = shade(dim, 0.55), lighten(shade(bright, 0.82), 0.18)
@@ -376,7 +398,8 @@ func decodeOrbFrames(payload string) [][]uint8 {
 
 def main():
     green = build(GREEN_GIF, banded=True, green_shades=True)
-    red = build(RED_GIF, banded=False, green_shades=False)
+    red = build(RED_GIF, banded=False, green_shades=False,
+                spin_frames=len(green["levels"]), spin_delays=green["delays"])
     hexed = lambda colour: f"0x{colour[0]:02x}{colour[1]:02x}{colour[2]:02x}"
     delays = lambda art: ", ".join(str(v) for v in art["delays"])
     source = (TEMPLATE
