@@ -15,6 +15,7 @@ Run from the windows directory: python tools/mkorb.py
 from __future__ import annotations
 
 import base64
+import math
 import zlib
 from pathlib import Path
 
@@ -120,9 +121,12 @@ HUD_COVER = 0.35   # orbDotCover: how much of a point the GIF must fill
 
 
 def hud_grid(frame, rows=HUD_ROWS, aspect=HUD_ASPECT):
-    """What orbGrid draws: one dot per lattice point, one empty dot between."""
+    """What orbGrid draws: one dot per lattice point, one empty dot between,
+    and the two shades alternating ring by ring from the middle outward."""
     size = frame.shape[0]
     cols = max(1, round(rows * aspect))
+    band = max(2, round(cols / 2 / 5))
+    cx, cy = (cols - 1) / 2, (rows - 1) / 2
     out = np.zeros((rows, cols), dtype=np.uint8)
     for j in range(rows):
         sy0 = j * size // rows
@@ -133,7 +137,7 @@ def hud_grid(frame, rows=HUD_ROWS, aspect=HUD_ASPECT):
             block = frame[sy0:sy1, sx0:sx1]
             if float(block.mean()) < HUD_COVER:
                 continue
-            out[j, i] = int(block.max())
+            out[j, i] = 2 if int(math.hypot(i - cx, j - cy) / band) % 2 == 0 else 1
     return out
 
 
