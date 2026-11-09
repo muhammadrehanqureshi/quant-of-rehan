@@ -351,7 +351,7 @@ func (a *App) statusNoteBase() string {
 	case qsUnknown:
 		return "Market status not reported by the relay yet."
 	}
-	return "Market is closed and the quant is offline now."
+	return "Market is closed and the quant is sleeping now."
 }
 
 // Where the index on screen came from.
@@ -749,7 +749,15 @@ func (a *App) onMsg(m any) {
 		ok := v.err == nil
 		a.done("orderflow", ok)
 		if ok {
-			a.of, a.ofErr = v.f, ""
+			if v.f != nil && (len(v.f.Rows) > 0 || a.of == nil || len(a.of.Rows) == 0) {
+				a.of = v.f
+				a.ofErr = ""
+				// An empty answer must not relabel a stored day as today.
+				if v.f.Day != "" && (len(v.f.Rows) > 0 || a.sessionDate == "") {
+					a.sessionDate = v.f.Day
+				}
+				a.sessionDirty = true
+			}
 		} else {
 			a.ofErr = unreachableText(v.err)
 		}
@@ -899,10 +907,9 @@ func (a *App) onTick(now time.Time) {
 	}
 	// Prices and sectors are read even when the scanner is not on screen, so
 	// the stored session carries the whole table and not just the card.
-	names := []string{"market", "health", "signals", "quotes", "prices", "sectors"}
-	if a.screen == scrOrderFlow {
-		names = append(names, "orderflow")
-	}
+	// The order flow is read on every screen too, so the saved session carries
+	// the ORDER FLOW table and not only the card and the scanner.
+	names := []string{"market", "health", "signals", "quotes", "prices", "sectors", "orderflow"}
 	for _, n := range names {
 		if !a.inflight[n] && !now.Before(a.next[n]) {
 			a.fetch(n)
