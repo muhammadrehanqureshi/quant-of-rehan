@@ -34,6 +34,7 @@ Exit code 0 = compliant. Non-zero = PR must not merge.
 from __future__ import annotations
 
 import re
+import subprocess
 import sys
 from pathlib import Path
 
