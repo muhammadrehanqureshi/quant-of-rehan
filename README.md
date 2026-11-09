@@ -1,6 +1,8 @@
-# Quant of Rehan
+<p align="center">
+  <img src="assets/QoR.png" width="420" alt="Quant of Rehan">
+</p>
 
-![Quant of Rehan](assets/QoR.png)
+<h1 align="center">Quant of Rehan</h1>
 
 [![Governance Guard](https://github.com/muhammadrehanqureshi/quant-of-rehan/actions/workflows/governance-guard.yml/badge.svg)](https://github.com/muhammadrehanqureshi/quant-of-rehan/actions/workflows/governance-guard.yml)
 [![Android App](https://github.com/muhammadrehanqureshi/quant-of-rehan/actions/workflows/android-apk.yml/badge.svg)](https://github.com/muhammadrehanqureshi/quant-of-rehan/actions/workflows/android-apk.yml)
