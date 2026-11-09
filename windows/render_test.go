@@ -136,7 +136,7 @@ func TestClosedAndFaultWording(t *testing.T) {
 	a := demoApp(t, 120, 30)
 	snapshotState(a, "closed")
 	s := plain(a)
-	for _, want := range []string{"OFFLINE", "NO SIGNAL AVAILABLE RIGHT NOW", "Scan blocked: WARMING UP", "Volume leaders unavailable right now.", "Market is closed and the quant is offline now."} {
+	for _, want := range []string{"OFFLINE", "NO SIGNAL AVAILABLE RIGHT NOW", "Scan blocked: WARMING UP", "Volume leaders unavailable right now.", "Market is closed and the quant is sleeping now."} {
 		if !strings.Contains(s, want) {
 			t.Errorf("closed is missing %q", want)
 		}
@@ -313,7 +313,7 @@ func TestDemoNextEventFollowsTheSessionLaw(t *testing.T) {
 // not the exchange's 09:32 opening bell. The relay's date is kept, so a holiday
 // is still the relay's holiday.
 func TestFriendlyNextShowsTheScanStart(t *testing.T) {
-	if got := friendlyNext("OPEN 2026-11-10 09:32"); got != "Scanner Tue 10 Nov, 08:55" {
+	if got := friendlyNext("OPEN 2026-11-10 09:32"); got != "Tue 10 Nov, 08:55" {
 		t.Errorf("next open: %q", got)
 	}
 	if got := friendlyNext("CLOSE 2026-11-10 15:30"); got != "Closes Tue 10 Nov, 15:30" {
@@ -349,9 +349,9 @@ func TestFooterKeysAreColoured(t *testing.T) {
 	a.screen = scrHome
 	c = a.render()
 	check(c, "1 HOME", a.th.Good, false)
-	check(c, "D", a.th.Good, true)
-	check(c, "R", a.th.Good, true)
-	check(c, "Q", a.th.Bad, false)
+	check(c, "D DETAILS", a.th.Good, false)
+	check(c, "R REFRESH", a.th.Good, false)
+	check(c, "Q QUIT", a.th.Bad, false)
 }
 
 func TestAlertLogDetailIsWrappedNotCut(t *testing.T) {

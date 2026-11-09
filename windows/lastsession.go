@@ -22,8 +22,9 @@ type sessionSnapshot struct {
 	Market  *Market          `json:"market,omitempty"`
 	Quotes  *Quotes          `json:"quotes,omitempty"`
 	Prices  map[string]Quote `json:"prices,omitempty"`
-	Signals string           `json:"signals,omitempty"`
-	Sectors *Sectors         `json:"sectors,omitempty"`
+	Signals   string           `json:"signals,omitempty"`
+	Sectors   *Sectors         `json:"sectors,omitempty"`
+	OrderFlow *OrderFlow       `json:"order_flow,omitempty"`
 }
 
 // sessionVer is bumped when an old file must not be read any more.
@@ -56,7 +57,7 @@ func loadSession(path string) *sessionSnapshot {
 	if err := json.Unmarshal(b, &s); err != nil || s.Ver != sessionVer {
 		return nil
 	}
-	if s.Market == nil && s.Quotes == nil && len(s.Prices) == 0 && s.Sectors == nil && strings.TrimSpace(s.Signals) == "" {
+	if s.Market == nil && s.Quotes == nil && len(s.Prices) == 0 && s.Sectors == nil && s.OrderFlow == nil && strings.TrimSpace(s.Signals) == "" {
 		return nil
 	}
 	return &s
@@ -102,8 +103,60 @@ func (a *App) restoreSession(s *sessionSnapshot) {
 	if strings.TrimSpace(s.Signals) != "" {
 		a.signals = s.Signals
 	}
+	if s.OrderFlow != nil {
+		a.of = s.OrderFlow
+	}
 	a.sessionAt, a.sessionDate = s.SavedAt, s.Session
 	a.rebuildSymbols()
+	// Build 26 stored the prices and quotes but not the ORDER FLOW answer. A
+	// build 29 window can still show that day's volume table by rebuilding the
+	// rows from the stored quotes, with T only because the old snapshot did not
+	// carry the relay's split method. It is the relay's own stored data, never an
+	// invented row.
+	a.rebuildOrderFlowFromSession()
+}
+
+// rebuildOrderFlowFromSession gives an old stored day an ORDER FLOW table when
+// the snapshot has prices or quotes but no order-flow answer. Only the stored
+// total volume is used; B and S stay absent because the old file did not keep a
+// measured split method. This is why the table shows T only.
+func (a *App) rebuildOrderFlowFromSession() {
+	if a.of != nil && len(a.of.Rows) > 0 {
+		return
+	}
+	if len(a.prices) == 0 && (a.quotes == nil || len(a.quotes.Items) == 0) {
+		return
+	}
+	of := &OrderFlow{
+		OK:        true,
+		Day:       a.sessionDate,
+		AsOf:      a.sessionAt.In(pkt).Format("2006-01-02 15:04:05"),
+		AsOfTime:  a.sessionAt,
+		FetchedAt: a.sessionAt,
+		Universe:  len(a.symbols),
+		Path:      "last-session",
+		Basis:     "last stored session",
+	}
+	for _, sym := range a.symbols {
+		q, ok := a.prices[sym]
+		if !ok || q.Price <= 0 {
+			continue
+		}
+		row := FlowRow{Symbol: sym, Price: q.Price, ChangePct: q.ChangePct, Method: methodNone, Source: "last stored session"}
+		if a.quotes != nil {
+			if lq, ok := a.quotes.Items[sym]; ok && lq.Volume > 0 {
+				v := lq.Volume
+				row.Volume = &v
+				row.ObservedAt = lq.ObservedAt
+			}
+		}
+		of.Rows = append(of.Rows, row)
+	}
+	if len(of.Rows) == 0 {
+		return
+	}
+	of.Included = len(of.Rows)
+	a.of = of
 }
 
 // saveSession writes what the window has now. A demo run, or a run pointed at
@@ -119,10 +172,11 @@ func (a *App) saveSession() {
 		Market:  a.market,
 		Quotes:  a.quotes,
 		Prices:  a.prices,
-		Signals: a.signals,
-		Sectors: a.sectors,
+		Signals:   a.signals,
+		Sectors:   a.sectors,
+		OrderFlow: a.of,
 	}
-	if s.Market == nil && s.Quotes == nil && len(s.Prices) == 0 && s.Sectors == nil && strings.TrimSpace(s.Signals) == "" {
+	if s.Market == nil && s.Quotes == nil && len(s.Prices) == 0 && s.Sectors == nil && s.OrderFlow == nil && strings.TrimSpace(s.Signals) == "" {
 		return
 	}
 	if err := saveSession(sessionPath(a.cfgPath), s); err != nil {

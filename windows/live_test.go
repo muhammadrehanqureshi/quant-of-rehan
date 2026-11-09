@@ -21,7 +21,7 @@ func TestTitleIsTheTopLine(t *testing.T) {
 			if !strings.Contains(strings.Join(strings.Fields(rows[0]), ""), "QUANTOFREHAN") {
 				t.Errorf("%dx%d screen %d: row 0 is %q", sz[0], sz[1], scr, rows[0])
 			}
-			if !strings.Contains(rows[1], headerTagSmall) {
+			if !strings.Contains(rows[1], headerTag) {
 				t.Errorf("%dx%d screen %d: row 1 is %q", sz[0], sz[1], scr, rows[1])
 			}
 			if !strings.Contains(rows[0], headerTitle) {
@@ -36,6 +36,16 @@ func TestTitleIsTheTopLine(t *testing.T) {
 
 // Every search box asks for a KMIALL scrip in the same words, and the empty
 // CUSTOM SCRIPS tile no longer carries a sorting prompt.
+func TestFooterActionsAreUppercase(t *testing.T) {
+	a := demoApp(t, 122, 30)
+	s := plain(a)
+	for _, want := range []string{"D DETAILS", "TAB NEXT", "R REFRESH", "Q QUIT"} {
+		if !strings.Contains(s, want) {
+			t.Errorf("the footer is missing %q:\n%s", want, s)
+		}
+	}
+}
+
 func TestSearchBoxesAndEmptySortText(t *testing.T) {
 	a := demoApp(t, 120, 30)
 	a.screen = scrScanner
@@ -433,7 +443,7 @@ func TestAlertsScreenListsTheLogAndBoard(t *testing.T) {
 	a := demoApp(t, 120, 30)
 	a.screen = scrAlerts
 	s := plain(a)
-	for _, want := range []string{"BIG BUYING NOW", "BIG SELLING NOW", "ALERT LOG (", "ECHO is getting big buying orders", "From PKR 10.0M a minute", "BUY FLOW", "BUY BLOCK"} {
+	for _, want := range []string{"BIG BUYING NOW", "BIG SELLING NOW", "ALERTS LOG (", "ECHO is getting big buying orders", "From PKR 10.0M a minute", "BUY FLOW", "BUY BLOCK"} {
 		if !strings.Contains(s, want) {
 			t.Errorf("alerts screen is missing %q", want)
 		}

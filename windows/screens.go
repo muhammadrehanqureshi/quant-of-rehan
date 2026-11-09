@@ -33,21 +33,22 @@ func (a *App) orbMode() OrbMode {
 }
 
 // orbGreen says whether the quant mark wears the GIF's refined green. Owner
-// order 2026-11-08 (build 27): green in the pre-market, the trading session and
-// the post-market; red at every other hour and day, including a break, a
-// halt and a weekend.
+// order 2026-11-09 (build 29): green from 08:55 to 16:00 Monday to Thursday
+// and from 08:55 to 17:00 on Friday, red outside those windows and all weekend.
+// The clock decides, so the Friday break stays green and the post-market end
+// does not keep the red away past the owner's cut-off.
 func (a *App) orbGreen() bool {
-	phase := a.quantPhase()
-	if phase == qsUnknown {
-		// Before the first relay answer, the session law on Karachi's clock is
-		// the only phase there is; it still knows a weekend from a session.
-		phase = phaseAt(a.karachiNow())
+	p := a.karachiNow().In(pkt)
+	if isWeekend(p) {
+		return false
 	}
-	switch phase {
-	case qsOpen, qsPre, qsPost:
-		return true
+	start := scanOpen // 08:55
+	end := 16 * 60
+	if isFriday(p) {
+		end = 17 * 60
 	}
-	return false
+	m := minuteOf(p)
+	return m >= start && m < end
 }
 
 // hasRing says whether this screen carries the left column with the quant mark
@@ -218,7 +219,7 @@ func (a *App) drawHeader(c *Canvas) {
 	ink := mix(th.Soft, th.BG, 0.28)
 	rightAlign(c, 0, 0, c.W-1, []Span{{date + " ", ink, false}, {clock, th.Good, true}, {" UTC+5", ink, false}})
 
-	tag := headerTagSmall
+	tag := headerTag
 	if a.demo {
 		tag += "  ·  DEMO DATA"
 	}
@@ -311,14 +312,14 @@ func (a *App) drawNav(c *Canvas, y int) {
 	// Sound and the two alert flags live only on Settings now. The footer is
 	// navigation and a short key hint, nothing that can be switched by accident.
 	right := c.W - 1
-	hints := []string{"TAB next  R refresh  Q quit", "R refresh  Q quit", "Q quit"}
+	hints := []string{"TAB NEXT  R REFRESH  Q QUIT", "R REFRESH  Q QUIT", "Q QUIT"}
 	switch a.screen {
 	case scrScanner:
-		hints = []string{"TAB next  ESC clear  CTRL+C quit", "ESC clear  CTRL+C quit", "CTRL+C quit"}
+		hints = []string{"TAB NEXT  ESC CLEAR  CTRL+C QUIT", "ESC CLEAR  CTRL+C QUIT", "CTRL+C QUIT"}
 	case scrHome:
-		hints = []string{"D details  TAB next  R refresh  Q quit", "D details  R refresh  Q quit", "D details  Q quit", "Q quit"}
+		hints = []string{"D DETAILS  TAB NEXT  R REFRESH  Q QUIT", "D DETAILS  R REFRESH  Q QUIT", "D DETAILS  Q QUIT", "Q QUIT"}
 	case scrOrderFlow:
-		hints = []string{"O sort  TAB next  R refresh  Q quit", "O sort  R refresh  Q quit", "O sort  Q quit", "Q quit"}
+		hints = []string{"O SORT  TAB NEXT  R REFRESH  Q QUIT", "O SORT  R REFRESH  Q QUIT", "O SORT  Q QUIT", "Q QUIT"}
 	}
 	// The longest hint that leaves a gap after the tabs.
 	for _, hint := range hints {
@@ -770,11 +771,11 @@ func (a *App) putBST(c *Canvas, x, y int, buy, sell, total *int64, keys ...strin
 		put(commaInt(*sell), th.Bad, true)
 		if total != nil {
 			put(" & T=", th.Soft, false)
-			put(commaInt(*total), th.Text, false)
+			put(commaInt(*total), totalBlue, false)
 		}
 	} else if total != nil {
 		put("T=", th.Soft, false)
-		put(commaInt(*total), th.Text, false)
+		put(commaInt(*total), totalBlue, false)
 	}
 	return vx - x
 }
