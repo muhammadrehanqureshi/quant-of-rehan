@@ -83,7 +83,9 @@ DEFAULT_PER_FIRE_BILLABLE = {
     "governance_guard": 1,
 }
 
-#: Fires per month implied by each workflow's cron list (4.348 weeks/month).
+#: Fires per month implied by each workflow's audited cron list (4.348
+#: weeks/month). The capture figure is the October 2026 fingerprint, which is
+#: the in-band cadence; the 2026-11-09 pre/post backstops are separate.
 DEFAULT_FIRES_PER_MONTH = {
     "capture": 108.7,
     "signal_push": 43.5,
@@ -500,7 +502,15 @@ def _cron_utc_hour(expr: str) -> int:
 
 
 def _default_capture_crons() -> list[str]:
-    """The capture workflow's standing cron list (UTC), from its header."""
+    """The capture workflow's standing cron list (UTC), from its header.
+
+    This list is the in-band and finalize cadence the October 2026 audit
+    measured, which is what every figure above is anchored to. The five
+    pre-market and post-market backstops the owner ordered on 2026-11-09 are
+    deliberately not in it: they are idle-gated to about a minute outside
+    their own window, and their cost belongs to the coverage guarantee rather
+    than to this fingerprint.
+    """
     return [
         "7 5 * * 1-5",
         "37 6 * * 1-5",

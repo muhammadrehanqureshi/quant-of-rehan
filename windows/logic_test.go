@@ -599,11 +599,48 @@ func TestDailyBudget(t *testing.T) {
 		if worst > day.cap {
 			t.Errorf("%s: the default pace is too close to the free cap: %.0f", day.name, worst)
 		}
+		if worst > reqHardCap {
+			t.Errorf("%s: a measured day must stay under the hard stop of %d: %.0f",
+				day.name, reqHardCap, worst)
+		}
 	}
 	a.now = time.Date(2026, 11, 2, 11, 0, 0, 0, pkt)
 	if got := 7.8 * 3600 / a.interval("quotes").Seconds(); got != 7.8*3600 {
 		// one quotes call every second for the whole window
 		t.Errorf("quotes are not every second: %.0f", got)
+	}
+}
+
+// TestRequestBudgetIsAHardStop proves the console stops itself below the free
+// Cloudflare allowance instead of discovering that limit as a relay outage.
+// Owner order 2026-11-09: the day's allowance is never exhausted.
+func TestRequestBudgetIsAHardStop(t *testing.T) {
+	a := newTestApp(t)
+	if reqHardCap >= 100000 {
+		t.Fatalf("the hard stop must leave headroom under 100,000: %d", reqHardCap)
+	}
+	set := func(want int64) {
+		a.reqBase = want + a.reqOffset - a.relay.Requests()
+		if got := a.reqToday(); got != want {
+			t.Fatalf("count is %d, want %d", got, want)
+		}
+	}
+	set(reqHardCap - 1)
+	if !a.budgetOpen() {
+		t.Fatalf("one request left must still be allowed: %d", a.reqToday())
+	}
+	set(reqHardCap)
+	if a.budgetOpen() {
+		t.Fatalf("the cap must be closed: %d", a.reqToday())
+	}
+	a.inflight = map[string]bool{}
+	a.fetch("quotes")
+	if a.inflight["quotes"] {
+		t.Fatal("a request left the console after the cap was reached")
+	}
+	a.fetchStock("PRL")
+	if a.selectedSt != "" {
+		t.Fatalf("the stock fetch must be refused at the cap too: %q", a.selectedSt)
 	}
 }
 

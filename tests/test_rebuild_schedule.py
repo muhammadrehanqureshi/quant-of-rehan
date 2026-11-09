@@ -6,8 +6,9 @@ Owner acceptance list (2026-10-09) covered here:
   TEST 14  Monday-Thursday close state begins at 15:30 Asia/Karachi
   TEST 15  Friday close state begins at 16:30 Asia/Karachi
   TEST 16  the open/close texts are the owner's exact words, one per edge
-  TEST 17  every GitHub Actions cron lands inside the session (scan) or
-           strictly after the close (finalize) once converted to PKT
+  TEST 17  every GitHub Actions cron lands inside a session band, inside a
+           pre-market or post-market scan window, or strictly after the
+           close (finalize) once converted to PKT
   TEST 18  every session edge is covered by the Cloudflare crons exactly once,
            within the Workers Free five cron cap
   TEST 19  the scanner refuses to run outside the configured session
@@ -29,8 +30,8 @@ sys.path.insert(0, str(ROOT))
 
 from src.data.sessions import (  # noqa: E402
     FRIDAY_BANDS, KARACHI, MSG_MARKET_CLOSED, MSG_MARKET_OPEN, MarketPhase,
-    MarketState, WEEKDAY_BANDS, close_time, is_market_open, market_phase,
-    market_state_at, next_event, open_time, session_bands,
+    MarketState, WEEKDAY_BANDS, close_time, is_market_open, is_scan_window,
+    market_phase, market_state_at, next_event, open_time, session_bands,
 )
 from scripts.intraday_pipeline import session_legal  # noqa: E402
 
@@ -420,13 +421,19 @@ class TestGitHubActionsSchedule(unittest.TestCase):
                 inside = any(band[0] <= (pkt.hour, pkt.minute) < band[1]
                              for band in bands)
                 after_close = (pkt.hour, pkt.minute) >= close_hm
+                # Owner order 2026-10-21, restated as hard coverage by the
+                # order of 2026-11-09: the pre-market and post-market windows
+                # scan on the live broker feed, so a backstop fire there is a
+                # legal scan rather than a fire against a shut market.
+                scan_window = is_scan_window(pkt)
                 with self.subTest(cron=expression, weekday=weekday,
                                   pkt=pkt.strftime("%H:%M")):
                     self.assertTrue(
-                        inside or after_close,
+                        inside or after_close or scan_window,
                         f"{expression} lands at {pkt:%H:%M} PKT on "
                         f"{day.isoformat()}, outside every band "
-                        f"({bands}) and before the "
+                        f"({bands}), outside the pre and post windows, "
+                        f"and before the "
                         f"{close_hm[0]:02d}:{close_hm[1]:02d} close")
 
     def test_scan_slots_appear_inside_both_sessions(self):

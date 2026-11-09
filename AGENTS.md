@@ -35,6 +35,26 @@ repo has is already cloud or fits there, so:
 - **A session that breaks this is a defect, not a shortcut**, and it fixes it
   in the same pull request (SO-23).
 
+## The contributor rule: only the owner
+
+**No agent is ever a contributor. Not as an author, not as a co-author, not in
+any ref.**
+
+Owner order 2026-11-09, verbatim: "From now on make sure you don't include
+yourself as the contributor, remove yourself completely as the contributor from
+the entire repo, hardcode this into your system"
+
+- **Every commit is the owner's.** Author `Mr. Rehan
+  <muhammadrehanqureshi@users.noreply.github.com>` (or the user-id form). No
+  other author, in any branch, tag or ref, ever. This file already carried the
+  attribution rule; SO-25 widens it from the pull request's own commits to the
+  whole repository.
+- **No trailers of any kind.** No `Co-Authored-By:`, no "Generated with", no
+  signature, and no agent name in a commit message or a pull request body.
+- **The check is not optional.** `scripts/check_governance.py`
+  (`check_owner_identity`) reads every local ref and fails the pull request on
+  any agent identity. A session that finds one removes it and says so.
+
 ## The one machine rule
 
 **The owner's PC is not used at all. Zero percent, not two.**
@@ -134,6 +154,7 @@ sentence: the agent is never the clock.
 | Backtests run in GitHub Actions, never on this PC | `BACKTEST_SCRIPTS`, `guard_cloud_backtest` | `scripts/check_governance.py` (`check_backtests_in_cloud`) |
 | No wait for the clock sits in the agent's tooling | `MAX_PACING_SECONDS`, `idle_wait_violations` | `scripts/check_governance.py` (`check_no_idle_waits`), `tests/test_governance_no_idle.py` |
 | The agent's session runs no local compute, only edits, git and gh | this file's heat order, `GOVERNANCE.md` SO-23 | `scripts/check_governance.py` (`check_governance_doc` pinned text) |
+| No agent identity is a contributor, in any ref | `AGENT_IDENTITY_MARKERS`, `check_owner_identity` | `scripts/check_governance.py` (`check_owner_identity`) |
 
 The declared cloud-only entry points are `scripts/install_kmiall_tick.py`,
 `scripts/install_scheduler.py`, `scripts/kmiall_tick.py`,

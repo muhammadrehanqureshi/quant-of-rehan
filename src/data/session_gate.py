@@ -112,6 +112,13 @@ SCHEDULE_PLAN: dict[str, tuple[str, str | None]] = {
     "7 11 * * 5": (PURPOSE_SCAN, "16:00"),       # 16:07 PKT, Friday session 2
     "47 10 * * 1-4": (PURPOSE_FINALIZE, None),   # 15:47 PKT, after the close
     "47 11 * * 5": (PURPOSE_FINALIZE, None),     # 16:47 PKT, after the close
+    # Owner order 2026-11-09: explicit pre-market and post-market backstops,
+    # so a band loop that never starts cannot leave a day's volume UNCLEAR.
+    "20 4 * * 1-4": (PURPOSE_SCAN, "09:20"),     # 09:20 PKT, Mon-Thu pre-open
+    "10 4 * * 5": (PURPOSE_SCAN, "09:10"),       # 09:10 PKT, Friday pre-open
+    "20 9 * * 5": (PURPOSE_SCAN, "14:20"),       # 14:20 PKT, Friday pre-open 2
+    "40 10 * * 1-4": (PURPOSE_SCAN, "15:40"),    # 15:40 PKT, Mon-Thu post-market
+    "40 11 * * 5": (PURPOSE_SCAN, "16:40"),      # 16:40 PKT, Friday post-market
 }
 
 
