@@ -150,6 +150,13 @@ func orbFrameIndex(t float64, count int) int {
 	return count - 1
 }
 
+// orbDotCover is how much of a panel dot the GIF has to fill before that dot
+// lights. A dot of the GIF's stipple covers about two fifths of a panel dot at
+// the 120 by 30 home size, so a stricter rule than "any lit pixel" is what
+// keeps the gaps between the GIF's dots open instead of closing them into
+// strokes.
+const orbDotCover = 0.35
+
 // orbGrid places one GIF frame in a grid of w by h cells. The frame is the
 // owner's GIF itself, sampled at orbRaster by orbRaster dots; each panel dot
 // takes the brightest source cell it covers, so no dot of the picture is lost
@@ -183,21 +190,24 @@ func orbGrid(w, h int, t float64) *dotGrid {
 			if sx1 > orbRaster {
 				sx1 = orbRaster
 			}
-			best := uint8(0)
+			total, cells, peak := 0, 0, uint8(0)
 			for sy := sy0; sy < sy1; sy++ {
 				row := frame[sy*orbRaster : (sy+1)*orbRaster]
 				for sx := sx0; sx < sx1; sx++ {
-					if row[sx] > best {
-						best = row[sx]
+					level := row[sx]
+					total += int(level)
+					if level > peak {
+						peak = level
 					}
+					cells++
 				}
 			}
-			if best == 0 {
+			if cells == 0 || float64(total)/float64(cells) < orbDotCover {
 				continue
 			}
-			// The two GIF shades, kept apart by the ink threshold.
+			// The two GIF shades, taken from the strongest pixel the dot covers.
 			tone := 0.25
-			if best >= 2 {
+			if peak >= 2 {
 				tone = 1.0
 			}
 			g.set(ox+x, oy+y, float32(tone))
