@@ -86,8 +86,10 @@ var (
 	hudGreenDim    = darken(rgbFromHex(orbGreenDim), 0.55)
 	hudGreenBright = darken(rgbFromHex(orbGreenBright), 0.82)
 
-	hudRedDim    = RGB{120, 16, 16}
-	hudRedBright = RGB{215, 58, 58}
+	// Owner order 2026-11-09 (latest): the two reds are his own hex values,
+	// #FF0000 for the darker step and #D2042D for the lighter one.
+	hudRedDim    = RGB{0xff, 0x00, 0x00}
+	hudRedBright = RGB{0xd2, 0x04, 0x2d}
 )
 
 // hudInk gives the ink for one dot. A dim dot is the dim shade, a bright dot
