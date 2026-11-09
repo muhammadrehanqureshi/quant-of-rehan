@@ -10,8 +10,10 @@ import "math"
 //
 // Owner order 2026-11-09 (build 31): the mark is the GIF itself, dot for dot,
 // with the GIF's own TWO green shades (the earlier four were invented), the
-// GIF's own rotation instead of a drawn glint, two red shades outside the
-// market, and the ten percent enlargement of build 29.
+// GIF's own rotation instead of a drawn glint, and two red shades outside the
+// market. The later order of the same day alternates those two shades ring by
+// ring: dark at the middle, lighter outward, then dark again, in green and in
+// red alike, because one flat tint read as too light.
 
 var cellAspect = defaultCellAspect
 
@@ -185,6 +187,9 @@ func orbGrid(w, h int, t float64) *dotGrid {
 		return g
 	}
 	frame := orbFrames[orbFrameIndex(t, len(orbFrames))]
+	// One shade band every fifth of the radius, so a small panel and a wide one
+	// both carry about five alternating rings instead of one flat tint.
+	band := max(2, int(math.Round(float64(cols)/2/5)))
 	ox := (g.w - cols*orbDotPitch) / 2
 	oy := (g.h - rows*orbDotPitch) / 2
 	for j := 0; j < rows; j++ {
@@ -205,24 +210,24 @@ func orbGrid(w, h int, t float64) *dotGrid {
 			if sx1 > orbRaster {
 				sx1 = orbRaster
 			}
-			total, cells, peak := 0, 0, uint8(0)
+			total, cells := 0, 0
 			for sy := sy0; sy < sy1; sy++ {
 				row := frame[sy*orbRaster : (sy+1)*orbRaster]
 				for sx := sx0; sx < sx1; sx++ {
-					level := row[sx]
-					total += int(level)
-					if level > peak {
-						peak = level
-					}
+					total += int(row[sx])
 					cells++
 				}
 			}
 			if cells == 0 || float64(total)/float64(cells) < orbDotCover {
 				continue
 			}
-			// The two GIF shades, taken from the strongest cell the dot covers.
+			// Owner order 2026-11-09: the two shades alternate by concentric
+			// band, dark at the middle and lighter outward, so the mark reads as
+			// rings of shade instead of one flat tint. The innermost visible ring
+			// is the dim shade, the next the bright one, and so on outward.
+			radius := math.Hypot(float64(i)-(float64(cols)-1)/2, float64(j)-(float64(rows)-1)/2)
 			tone := 0.25
-			if peak >= 2 {
+			if int(radius/float64(band))%2 == 0 {
 				tone = 1.0
 			}
 			g.set(ox+i*orbDotPitch, oy+j*orbDotPitch, float32(tone))
