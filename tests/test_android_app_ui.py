@@ -2199,8 +2199,10 @@ class VersionTest(unittest.TestCase):
         # themed ORDER FLOW page and the search H/L ship as 4.0.15.
         # Owner order 2026-11-07, second pass: the themed SECTORS tile, the
         # far-right ASK column and the blue total volume ship as 4.0.16.
-        self.assertIn('android:versionName="4.0.16"', manifest)
-        self.assertIn('android:versionCode="125"', manifest)
+        # Owner order 2026-11-09: the phone's own hard daily relay request
+        # stop ships as 4.0.17.
+        self.assertIn('android:versionName="4.0.17"', manifest)
+        self.assertIn('android:versionCode="126"', manifest)
         self.assertNotIn('android:versionName="4.0.15"', manifest)
         self.assertNotIn('android:versionName="4.0.14"', manifest)
         self.assertNotIn('android:versionName="3.7.5"', manifest)
@@ -2414,8 +2416,10 @@ class VersionTest(unittest.TestCase):
         # visible bar, and the search-only ORDER FLOW tile.
         # Owner order 2026-11-07, second pass: the themed SECTORS tile, the
         # far-right ASK column and the blue total volume ship as 4.0.16.
-        self.assertIn('android:versionCode="125"', manifest)
-        self.assertIn('android:versionName="4.0.16"', manifest)
+        # Owner order 2026-11-09: the phone's own hard daily relay request
+        # stop ships as 4.0.17.
+        self.assertIn('android:versionCode="126"', manifest)
+        self.assertIn('android:versionName="4.0.17"', manifest)
         self.assertNotIn('android:versionName="4.0.15"', manifest)
         self.assertNotIn('android:versionName="3.7.5"', manifest)
         self.assertNotIn('android:versionName="3.7.4"', manifest)
