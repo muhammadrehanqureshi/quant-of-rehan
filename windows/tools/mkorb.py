@@ -118,14 +118,17 @@ HUD_PITCH = 2      # one empty console dot between dots, so a dot stays a dot
 HUD_ROWS = 28      # the 120 by 30 home panel offers 56 dots down, halved
 HUD_ASPECT = 1.11  # cellAspect / 2: a square source stays square on screen
 HUD_COVER = 0.35   # orbDotCover: how much of a point the GIF must fill
+HUD_SCALE = 0.90   # orbScale: ten percent smaller than the tile allows
+HUD_BANDS = 8      # orbBands: rings of alternating shade from the middle out
 
 
 def hud_grid(frame, rows=HUD_ROWS, aspect=HUD_ASPECT):
     """What orbGrid draws: one dot per lattice point, one empty dot between,
     and the two shades alternating ring by ring from the middle outward."""
     size = frame.shape[0]
+    rows = max(1, round(rows * HUD_SCALE))
     cols = max(1, round(rows * aspect))
-    band = max(2, round(cols / 2 / 5))
+    band = max(2, round(cols / 2 / HUD_BANDS))
     cx, cy = (cols - 1) / 2, (rows - 1) / 2
     out = np.zeros((rows, cols), dtype=np.uint8)
     for j in range(rows):

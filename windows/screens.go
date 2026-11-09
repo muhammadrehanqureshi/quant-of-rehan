@@ -479,7 +479,9 @@ func (a *App) drawLeft(c *Canvas, x, y, w, h int) {
 		side := "BUY"
 		switch {
 		case a.cfg.BigBuy && a.cfg.BigSell:
-			side = "BUY+SELL"
+			// Owner order 2026-11-09: the flow row spells the side out in full
+			// instead of the old BUY+SELL shorthand.
+			side = "BUYING & SELLING"
 		case a.cfg.BigSell:
 			side = "SELL"
 		}

@@ -30,6 +30,15 @@ const hudForceLive = true
 // turns the stipple into a filled shape (owner order 2026-11-09).
 const orbDotPitch = 2
 
+// orbScale is the owner's ten percent reduction of build 32's first size: the
+// mark was crowding its tile (order 2026-11-09).
+const orbScale = 0.90
+
+// orbBands is how many rings of shade the mark carries from the middle out. It
+// is the ring rhythm the owner asked for, counted so a small panel and a wide
+// one both show eight clear bands.
+const orbBands = 8
+
 // OrbMode says whether the quant is online. The ink comes from orbGreen; the
 // mode is kept for the rest of the HUD and the existing tests.
 type OrbMode int
@@ -65,8 +74,10 @@ var (
 	hudGreenDim    = rgbFromHex(orbGreenDim)
 	hudGreenBright = rgbFromHex(orbGreenBright)
 
-	hudRedDim    = RGB{150, 8, 8}
-	hudRedBright = RGB{255, 64, 64}
+	// Owner order 2026-11-09: the dim red has to stay visible against the
+	// panel, so it is raised from the old 150,8,8 which read as black.
+	hudRedDim    = RGB{180, 28, 28}
+	hudRedBright = RGB{255, 88, 88}
 )
 
 // hudInk gives the ink for one dot. A dim dot is the dim shade, a bright dot
@@ -114,6 +125,9 @@ func orbDotGrid(w, h int) (cols, rows int) {
 	if rows > orbRaster {
 		rows = orbRaster
 	}
+	// Ten percent smaller than the tile allows, so the mark sits inside its
+	// panel instead of crowding the frame.
+	rows = max(1, int(math.Round(float64(rows)*orbScale)))
 	if rows < 1 {
 		return 0, 0
 	}
@@ -187,9 +201,9 @@ func orbGrid(w, h int, t float64) *dotGrid {
 		return g
 	}
 	frame := orbFrames[orbFrameIndex(t, len(orbFrames))]
-	// One shade band every fifth of the radius, so a small panel and a wide one
-	// both carry about five alternating rings instead of one flat tint.
-	band := max(2, int(math.Round(float64(cols)/2/5)))
+	// orbBands rings of alternating shade from the middle out, so a small panel
+	// and a wide one both show the same rhythm instead of one flat tint.
+	band := max(2, int(math.Round(float64(cols)/2/float64(orbBands))))
 	ox := (g.w - cols*orbDotPitch) / 2
 	oy := (g.h - rows*orbDotPitch) / 2
 	for j := 0; j < rows; j++ {
