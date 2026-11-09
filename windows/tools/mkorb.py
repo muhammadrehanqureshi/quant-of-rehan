@@ -119,13 +119,14 @@ HUD_ROWS = 56       # the 120 by 30 home panel offers 56 dots down
 HUD_WIDE_ROWS = 104
 HUD_ASPECT = 1.11   # cellAspect / 2: a square source stays square on screen
 HUD_BANDS = 5       # orbBands: dark inside, light next, and so outward
+HUD_SCALE = 0.95    # orbScale: five percent under the tile
 
 
 def hud_grid(frame, rows=HUD_ROWS, aspect=HUD_ASPECT):
     """What orbGrid draws: one console dot per grid point the GIF covers, and
     its shade from the concentric bands, dark at the middle and light next."""
     size = frame.shape[0]
-    rows = max(1, rows)
+    rows = max(1, round(rows * HUD_SCALE))
     cols = max(1, round(rows * aspect))
     band = max(1, round(cols / 2 / HUD_BANDS))
     cx, cy = (cols - 1) / 2, (rows - 1) / 2
@@ -183,10 +184,15 @@ def shade(colour, factor):
     return tuple(int(round(v * factor)) for v in colour)
 
 
+def lighten(colour, amount):
+    """lighten() in orb.go: the lighter step is mixed towards white."""
+    return tuple(int(round(v + (255 - v) * amount)) for v in colour)
+
+
 def draw_preview(levels, dim, bright, path):
     """The GIF's raster, then the console lattice at the home and wide panels."""
     showcase = [0, len(levels) // 4] if len(levels) > 1 else [0]
-    hud_dim, hud_bright = shade(dim, 0.55), shade(bright, 0.82)
+    hud_dim, hud_bright = shade(dim, 0.55), lighten(shade(bright, 0.82), 0.18)
     rows = [
         [tile(levels[i], dim, bright, 2) for i in showcase],
         [hud_tile(hud_grid(levels[i], rows=HUD_ROWS), hud_dim, hud_bright) for i in showcase],
