@@ -70,14 +70,24 @@ func rgbFromHex(v uint32) RGB {
 // the same two brightness steps in the owner's red (order 2026-11-09: "there
 // are 2 different shades of GREEN so in the same way there are 2 different
 // shades of RED").
-var (
-	hudGreenDim    = rgbFromHex(orbGreenDim)
-	hudGreenBright = rgbFromHex(orbGreenBright)
+// darken scales one shade. Owner order 2026-11-09 (later): the mark read too
+// light on the panel, so the dark step of each palette is deepened much more
+// than the light one, which only steps down a little.
+func darken(c RGB, factor float64) RGB {
+	return RGB{
+		uint8(math.Round(float64(c.R) * factor)),
+		uint8(math.Round(float64(c.G) * factor)),
+		uint8(math.Round(float64(c.B) * factor)),
+	}
+}
 
-	// Owner order 2026-11-09: the dim red has to stay visible against the
-	// panel, so it is raised from the old 150,8,8 which read as black.
-	hudRedDim    = RGB{180, 28, 28}
-	hudRedBright = RGB{255, 88, 88}
+var (
+	// The greens are the GIF's own measured pixels, taken down for the panel.
+	hudGreenDim    = darken(rgbFromHex(orbGreenDim), 0.55)
+	hudGreenBright = darken(rgbFromHex(orbGreenBright), 0.82)
+
+	hudRedDim    = RGB{120, 16, 16}
+	hudRedBright = RGB{215, 58, 58}
 )
 
 // hudInk gives the ink for one dot. A dim dot is the dim shade, a bright dot

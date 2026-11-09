@@ -265,7 +265,9 @@ func TestDialIsTheGifMatrixInTheMarketWindow(t *testing.T) {
 			if ce.Ch < 0x2800 || ce.Ch > 0x28ff {
 				continue
 			}
-			if ce.FG.G < 100 || ce.FG.G < ce.FG.R+40 {
+			// The panel's greens were deepened on 2026-11-09, so the check is
+			// that a dot is green and dominant, not that it is bright.
+			if ce.FG.G < 60 || ce.FG.G < ce.FG.R+40 {
 				t.Errorf("mode %d: a dial dot is %v, not green", m, ce.FG)
 			}
 			lit++

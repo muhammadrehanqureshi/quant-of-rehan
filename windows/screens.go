@@ -390,13 +390,7 @@ func (a *App) drawLeft(c *Canvas, x, y, w, h int) {
 	drawOrb(c, ix, iy, iw, ih, a.animSeconds(), a.orbMode(), a.orbGreen(), th)
 
 	tx, ty, tw, _ := a.panel(c, x, y+orbH+1, w, telH, "TELEMETRY", "")
-	// Owner order 2026-11-09: the flow row is named BUYING & SELLING, and the
-	// words are wider than the old FLOW, so every row's value starts at the
-	// same column, after the widest label the tile carries.
-	labelW := 17
-	if tw <= labelW+4 {
-		labelW = 7
-	}
+	const labelW = 7
 	label := func(row int, k string, v []Span) {
 		c.Text(tx, ty+row, labelW, k, th.Soft, false)
 		c.Spans(tx+labelW, ty+row, tw-labelW, v)
@@ -473,23 +467,21 @@ func (a *App) drawLeft(c *Canvas, x, y, w, h int) {
 	// SCAN
 	sw, sc := a.scanStatus()
 	label(4, "SCAN", []Span{{sw, sc, true}})
-	// BUYING & SELLING, the row the owner called FLOW. Order 2026-11-09: the
-	// row carries the words BUYING & SELLING and the old BUY+SELL shorthand is
-	// gone, so a single side names itself and both sides need no second word
-	// beyond the label.
+	// FLOW. Owner order 2026-11-09 (later): the label is FLOW again and the
+	// green words BUY & SELL sit in front of the per-minute value.
 	switch {
 	case a.cfg.BigBuy || a.cfg.BigSell:
 		val := compactNum(float64(a.cfg.BigBuyValue)) + "/min  " + plural(a.flagCount, "flag")
+		side := "BUY & SELL"
 		switch {
-		case a.cfg.BigBuy && a.cfg.BigSell:
-			label(5, "BUYING & SELLING", []Span{{val, th.Text, false}})
-		case a.cfg.BigSell:
-			label(5, "BUYING & SELLING", []Span{{"SELL", th.Good, true}, {"  " + val, th.Text, false}})
-		default:
-			label(5, "BUYING & SELLING", []Span{{"BUY", th.Good, true}, {"  " + val, th.Text, false}})
+		case a.cfg.BigSell && !a.cfg.BigBuy:
+			side = "SELL"
+		case a.cfg.BigBuy && !a.cfg.BigSell:
+			side = "BUY"
 		}
+		label(5, "FLOW", []Span{{side, th.Good, true}, {"  " + val, th.Text, false}})
 	default:
-		label(5, "BUYING & SELLING", []Span{{"OFF", th.Bad, true}})
+		label(5, "FLOW", []Span{{"OFF", th.Bad, true}})
 	}
 	// REQ
 	rq := a.reqToday()

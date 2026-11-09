@@ -12,7 +12,7 @@ import (
 func TestOrbInkIsGreenInTheMarketWindowAndRedOutsideIt(t *testing.T) {
 	for _, tone := range []float64{0, 0.35, 0.7, 1} {
 		green := hudInk(tone, true)
-		if green.G <= green.R || green.G < 100 {
+		if green.G <= green.R || green.G < 60 {
 			t.Errorf("tone %.2f paints %v, which is not the owner's green", tone, green)
 		}
 		red := hudInk(tone, false)
@@ -36,7 +36,7 @@ func TestOrbDrawsTheMarketColour(t *testing.T) {
 				continue
 			}
 			lit++
-			if green && (ce.FG.G < 100 || ce.FG.G <= ce.FG.R) {
+			if green && (ce.FG.G < 60 || ce.FG.G <= ce.FG.R) {
 				t.Fatalf("a green dot paints %v", ce.FG)
 			}
 			if !green && (ce.FG.R < 120 || ce.FG.R <= ce.FG.G) {
