@@ -29,10 +29,10 @@ const hudForceLive = true
 // owner asked for exactly that render instead of a thinned copy of it.
 const orbDotPitch = 1
 
-// orbScale is the mark's share of its tile. It was cut by ten percent once,
-// then the owner asked for more dots and a bigger mark, so it fills the tile
-// again and only the lattice decides how many dots there are.
-const orbScale = 1.0
+// orbScale is the mark's share of its tile: it fills the tile, then the owner
+// asked for five percent less (order 2026-11-09), so the lattice is taken down
+// by that much and nothing else about it changes.
+const orbScale = 0.95
 
 // orbBands is how many rings of shade run from the middle of the mark out. The
 // innermost band is the darker shade, the next the lighter one, and they
@@ -81,15 +81,25 @@ func darken(c RGB, factor float64) RGB {
 	}
 }
 
+// lighten mixes one shade towards white. Owner order 2026-11-09 (latest): only
+// the lighter step moves, so it reads clearly apart from the darker one, which
+// is left exactly as it was.
+func lighten(c RGB, amount float64) RGB {
+	mix := func(v uint8) uint8 {
+		return uint8(math.Round(float64(v) + (255-float64(v))*amount))
+	}
+	return RGB{mix(c.R), mix(c.G), mix(c.B)}
+}
+
 var (
 	// The greens are the GIF's own measured pixels, taken down for the panel.
 	hudGreenDim    = darken(rgbFromHex(orbGreenDim), 0.55)
-	hudGreenBright = darken(rgbFromHex(orbGreenBright), 0.82)
+	hudGreenBright = lighten(darken(rgbFromHex(orbGreenBright), 0.82), 0.18)
 
-	// Owner order 2026-11-09 (latest): the two reds are his own hex values,
-	// #FF0000 for the darker step and #D2042D for the lighter one.
+	// The two reds are the owner's own hex values, #FF0000 for the darker step
+	// and #D2042D for the lighter one, the latter lifted towards white.
 	hudRedDim    = RGB{0xff, 0x00, 0x00}
-	hudRedBright = RGB{0xd2, 0x04, 0x2d}
+	hudRedBright = lighten(RGB{0xd2, 0x04, 0x2d}, 0.15)
 )
 
 // hudInk gives the ink for one dot. A dim dot is the dim shade, a bright dot
