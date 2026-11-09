@@ -124,23 +124,31 @@ HUD_SCALE = 0.95    # orbScale: five percent under the tile
 
 def hud_grid(frame, rows=HUD_ROWS, aspect=HUD_ASPECT):
     """What orbGrid draws: one console dot per grid point the GIF covers, and
-    its shade from the concentric bands, dark at the middle and light next."""
+    its shade from the concentric bands, dark on the inside circle and light
+    on the next."""
     size = frame.shape[0]
     rows = max(1, round(rows * HUD_SCALE))
     cols = max(1, round(rows * aspect))
-    band = max(1, round(cols / 2 / HUD_BANDS))
-    cx, cy = (cols - 1) / 2, (rows - 1) / 2
-    out = np.zeros((rows, cols), dtype=np.uint8)
+    lit = np.zeros((rows, cols), dtype=bool)
     for j in range(rows):
         sy0 = j * size // rows
         sy1 = max(sy0 + 1, (j + 1) * size // rows)
         for i in range(cols):
             sx0 = i * size // cols
             sx1 = max(sx0 + 1, (i + 1) * size // cols)
-            if int(frame[sy0:sy1, sx0:sx1].max()) == 0:
-                continue
-            dark = int(math.hypot(i - cx, j - cy) / band) % 2 == 0
-            out[j, i] = 1 if dark else 2
+            lit[j, i] = int(frame[sy0:sy1, sx0:sx1].max()) > 0
+    if not lit.any():
+        return np.zeros((rows, cols), dtype=np.uint8)
+    cx, cy = (cols - 1) / 2, (rows - 1) / 2
+    jj, ii = np.mgrid[0:rows, 0:cols]
+    radius = np.hypot(ii - cx, jj - cy)
+    # The bands start where the ink starts, so the inside circle is dark.
+    min_r, max_r = float(radius[lit].min()), float(radius[lit].max())
+    band = max(1.0, (max_r - min_r) / HUD_BANDS)
+    ring = ((radius - min_r) / band).astype(int)
+    out = np.zeros((rows, cols), dtype=np.uint8)
+    out[lit & (ring % 2 == 0)] = 1
+    out[lit & (ring % 2 == 1)] = 2
     return out
 
 
@@ -192,7 +200,7 @@ def lighten(colour, amount):
 def draw_preview(levels, dim, bright, path):
     """The GIF's raster, then the console lattice at the home and wide panels."""
     showcase = [0, len(levels) // 4] if len(levels) > 1 else [0]
-    hud_dim, hud_bright = shade(dim, 0.55), lighten(shade(bright, 0.82), 0.18)
+    hud_dim, hud_bright = shade(dim, 0.55), lighten(shade(bright, 0.82), 0.18)  # greens
     rows = [
         [tile(levels[i], dim, bright, 2) for i in showcase],
         [hud_tile(hud_grid(levels[i], rows=HUD_ROWS), hud_dim, hud_bright) for i in showcase],
