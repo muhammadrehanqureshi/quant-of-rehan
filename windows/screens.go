@@ -386,9 +386,16 @@ func (a *App) drawLeft(c *Canvas, x, y, w, h int) {
 	drawOrb(c, ix, iy, iw, ih, a.animSeconds(), a.orbMode(), a.orbGreen(), th)
 
 	tx, ty, tw, _ := a.panel(c, x, y+orbH+1, w, telH, "TELEMETRY", "")
+	// Owner order 2026-11-09: the flow row is named BUYING & SELLING, and the
+	// words are wider than the old FLOW, so every row's value starts at the
+	// same column, after the widest label the tile carries.
+	labelW := 17
+	if tw <= labelW+4 {
+		labelW = 7
+	}
 	label := func(row int, k string, v []Span) {
-		c.Text(tx, ty+row, 7, k, th.Soft, false)
-		c.Spans(tx+7, ty+row, tw-7, v)
+		c.Text(tx, ty+row, labelW, k, th.Soft, false)
+		c.Spans(tx+labelW, ty+row, tw-labelW, v)
 	}
 	// LINK
 	switch {
@@ -425,7 +432,7 @@ func (a *App) drawLeft(c *Canvas, x, y, w, h int) {
 			typ = fmt.Sprintf("  typical %d s", a.feed.Median+sinceAnswer)
 		}
 		rate := fmt.Sprintf("  %.1f/s", a.updatesPerSecond())
-		room := tw - 7 - runeLen(state)
+		room := tw - labelW - runeLen(state)
 		detail := old
 		switch {
 		case runeLen(old+rate+typ) <= room:
@@ -472,9 +479,9 @@ func (a *App) drawLeft(c *Canvas, x, y, w, h int) {
 		case a.cfg.BigSell:
 			side = "SELL"
 		}
-		label(5, "FLOW", []Span{{side, th.Good, true}, {"  " + compactNum(float64(a.cfg.BigBuyValue)) + "/min  " + plural(a.flagCount, "flag"), th.Text, false}})
+		label(5, "BUYING & SELLING", []Span{{side, th.Good, true}, {"  " + compactNum(float64(a.cfg.BigBuyValue)) + "/min  " + plural(a.flagCount, "flag"), th.Text, false}})
 	default:
-		label(5, "FLOW", []Span{{"OFF", th.Bad, true}})
+		label(5, "BUYING & SELLING", []Span{{"OFF", th.Bad, true}})
 	}
 	// REQ
 	rq := a.reqToday()
@@ -758,7 +765,8 @@ func (a *App) marketNote() string {
 	case a.quotes != nil && len(a.quotes.Items) > 0:
 		return "The last data the broker's feed sent."
 	}
-	return "Waiting for the broker feed."
+	// Owner order 2026-11-09: the idle line under the KSE100 tile.
+	return "Quant is sleeping till the next market day."
 }
 
 // putBST draws "B=1,234, S=5,678 & T=6,912" at (x, y) the way every list on the
