@@ -288,7 +288,7 @@ func decodeOrbFrames() [][]uint8 {{
         hud = hud_grid(levels[0], rows=count)
         rows, cols = hud.shape
         print(f"hud {name}: {int((hud > 0).sum())} of {cols * rows} dots lit at "
-              f"{cols} by {rows}, one empty dot between (pitch {HUD_PITCH})")
+              f"{cols} by {rows}, one console dot per GIF dot (pitch {HUD_PITCH})")
     print(f"wrote {OUT.name} ({OUT.stat().st_size} bytes) and {PREVIEW.name}")
 
 
