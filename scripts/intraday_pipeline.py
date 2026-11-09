@@ -909,7 +909,7 @@ def run_scan(slot: str, capture: Path | None = None,
             # Owner order 2026-11-05, eighth pass: the tile prints the score
             # of the pick under its name, so the daily-lock card carries it.
             if state.entry_score is not None:
-                card_body = f"{card_body}\nScore: {state.entry_score:.2f}"
+                card_body = f"{card_body}\nScore: {state.entry_score:.0f}/100"
             mtf_text = mtf_summary(observed)
             if mtf_text:
                 card_body = f"{card_body}\n{mtf_text}"

@@ -6,7 +6,7 @@ import "time"
 const appVersion = "4.0.16"
 
 // hudBuild is the build number of this Windows HUD port.
-const hudBuild = "30"
+const hudBuild = "31"
 
 // scripSearchHint is the same search line on every desktop search box.
 const scripSearchHint = "Search for a KMIALL scrip"

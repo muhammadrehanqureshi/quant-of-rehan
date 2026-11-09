@@ -34,6 +34,29 @@ var (
 	scanOpen = 8*60 + 55
 )
 
+// PSX holidays, mirroring PSX_HOLIDAYS_2026 in src/data/sessions.py. The 9th
+// of November and the 25th of December are closed every year by the owner's
+// 2026-10-24 order, whatever the yearly list says.
+var (
+	psxHolidays2026 = map[string]bool{
+		"2026-02-05": true, "2026-03-21": true, "2026-03-23": true,
+		"2026-05-01": true, "2026-05-27": true, "2026-05-28": true,
+		"2026-06-25": true, "2026-06-26": true, "2026-08-14": true,
+		"2026-08-25": true, "2026-11-09": true, "2026-12-25": true,
+	}
+	alwaysClosedMonthDay = map[[2]int]bool{{11, 9}: true, {12, 25}: true}
+)
+
+// isPsxHoliday says whether this Karachi day is a PSX holiday. It matters to
+// the orb: a holiday is not a market day, so the mark is red all day even
+// inside the owner's green clock window (order 2026-11-09).
+func isPsxHoliday(p time.Time) bool {
+	if alwaysClosedMonthDay[[2]int{int(p.Month()), p.Day()}] {
+		return true
+	}
+	return psxHolidays2026[p.Format("2006-01-02")]
+}
+
 func isFriday(p time.Time) bool { return p.Weekday() == time.Friday }
 
 func isWeekend(p time.Time) bool {
