@@ -473,19 +473,21 @@ func (a *App) drawLeft(c *Canvas, x, y, w, h int) {
 	// SCAN
 	sw, sc := a.scanStatus()
 	label(4, "SCAN", []Span{{sw, sc, true}})
-	// FLOW
+	// BUYING & SELLING, the row the owner called FLOW. Order 2026-11-09: the
+	// row carries the words BUYING & SELLING and the old BUY+SELL shorthand is
+	// gone, so a single side names itself and both sides need no second word
+	// beyond the label.
 	switch {
 	case a.cfg.BigBuy || a.cfg.BigSell:
-		side := "BUY"
+		val := compactNum(float64(a.cfg.BigBuyValue)) + "/min  " + plural(a.flagCount, "flag")
 		switch {
 		case a.cfg.BigBuy && a.cfg.BigSell:
-			// Owner order 2026-11-09: the flow row spells the side out in full
-			// instead of the old BUY+SELL shorthand.
-			side = "BUYING & SELLING"
+			label(5, "BUYING & SELLING", []Span{{val, th.Text, false}})
 		case a.cfg.BigSell:
-			side = "SELL"
+			label(5, "BUYING & SELLING", []Span{{"SELL", th.Good, true}, {"  " + val, th.Text, false}})
+		default:
+			label(5, "BUYING & SELLING", []Span{{"BUY", th.Good, true}, {"  " + val, th.Text, false}})
 		}
-		label(5, "BUYING & SELLING", []Span{{side, th.Good, true}, {"  " + compactNum(float64(a.cfg.BigBuyValue)) + "/min  " + plural(a.flagCount, "flag"), th.Text, false}})
 	default:
 		label(5, "BUYING & SELLING", []Span{{"OFF", th.Bad, true}})
 	}
