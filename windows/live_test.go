@@ -525,10 +525,17 @@ func TestTelemetryTellsTheTruthAboutScanning(t *testing.T) {
 	if w, _ := a.scanStatus(); w != "OFF AT THE WEEKEND" {
 		t.Errorf("Saturday: %q", w)
 	}
-	// Owner order 2026-11-07: a known non-trading day says MARKET IS CLOSED.
+	// The weekend names itself even when the relay also reports the day closed.
 	a.market.TradingDay = false
-	if w, _ := a.scanStatus(); w != "MARKET IS CLOSED" {
-		t.Errorf("closed day: %q", w)
+	if w, _ := a.scanStatus(); w != "OFF AT THE WEEKEND" {
+		t.Errorf("Saturday, closed day: %q", w)
+	}
+	// Owner order 2026-11-09: a weekday the exchange has closed says so.
+	a.market = marketIn("CLOSED")
+	a.market.TradingDay = false
+	a.now = time.Date(2026, 11, 9, 11, 0, 0, 0, pkt) // Iqbal Day, a Monday holiday
+	if w, _ := a.scanStatus(); w != "MARKET IS CLOSED TODAY" {
+		t.Errorf("closed trading day: %q", w)
 	}
 	a.market = marketIn("CLOSED")
 	// The row above the foot is the navigation, and says nothing about polling.
