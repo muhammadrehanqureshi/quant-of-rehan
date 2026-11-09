@@ -305,7 +305,20 @@ func (a *App) online() bool {
 	return false
 }
 
+// reqHardCap is the day's ceiling on relay requests, and it is hard: once the
+// count reaches it no call leaves this process until the counter rolls over at
+// 00:00 UTC (05:00 PKT). The free Cloudflare tier allows 100,000 requests a day
+// and then stops answering, so the console stops itself below that line and
+// keeps the last answer on screen. The 10,000 above the cap belong to the phone
+// app and the relay's own work, which share the same allowance. Owner order
+// 2026-11-09: the day's allowance is never exhausted.
+const reqHardCap = 90000
+
 func (a *App) reqToday() int64 { return a.reqBase + a.relay.Requests() - a.reqOffset }
+
+// budgetOpen reports whether another relay request may leave today. A request
+// already in flight was counted when it left, so the count is the whole spend.
+func (a *App) budgetOpen() bool { return a.reqToday() < reqHardCap }
 
 func (a *App) relayDate() string {
 	if a.market != nil {
@@ -572,6 +585,12 @@ func (a *App) refreshNow() {
 }
 
 func (a *App) fetch(name string) {
+	// The free allowance is a ceiling, not a suggestion: a request that would
+	// pass it never leaves, so the day can never be exhausted. The last answer
+	// stays on screen and the polls resume at the 00:00 UTC rollover.
+	if !a.budgetOpen() {
+		return
+	}
 	a.inflight[name] = true
 	a.sentAt[name] = a.now
 	r := a.relay
@@ -615,6 +634,9 @@ func (a *App) fetch(name string) {
 }
 
 func (a *App) fetchStock(sym string) {
+	if !a.budgetOpen() {
+		return
+	}
 	a.selectedSt = "loading"
 	a.selectedInfo = nil
 	r := a.relay

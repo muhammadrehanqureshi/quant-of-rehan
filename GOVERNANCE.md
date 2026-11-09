@@ -238,7 +238,9 @@ for the clock; the cloud waits (owner order 2026-10-21) · SO-23 the agent's
 own session runs no local computation: edits, git and gh only (owner order
 2026-11-05) · SO-24 no human review gates a landing: the agent approves and
 merges on the owner's behalf, while the governance and gitleaks checks still
-gate it (owner order 2026-11-07).
+gate it (owner order 2026-11-07) · SO-25 the owner is the only contributor, in
+every ref: no agent identity is ever an author, committer, co-author or
+contributor (owner order 2026-11-09).
 
 ## SO-10 · Resource law: the owner's PC is for backtesting and local trials only (owner order, 2026-10-06)
 
@@ -482,6 +484,32 @@ review and merge from my behalf."
   is why this order is recorded here.
 - **No `--admin` merge.** With the review gate gone, `scripts/land.sh` merges
   normally. An administrator merge is not part of the flow.
+
+## SO-25 · The owner is the only contributor, in every ref (owner order, 2026-11-09)
+
+Owner order, verbatim: "From now on make sure you don't include yourself as the
+contributor, remove yourself completely as the contributor from the entire repo,
+hardcode this into your system"
+
+- **The law.** The owner is the only author this repository may ever show, in
+  every branch, tag and ref, not only in the commits a pull request carries. An
+  agent's identity is never a commit author, a committer, a co-author, a pull
+  request author, or a name in the GitHub contributors list.
+- **Why the whole repository.** SO-7a banned the attribution trailers, which
+  covered everything on the way to master. A commit an agent wrote on a side
+  ref still counts in the contributor graph, so this order widens the rule to
+  every reachable ref and to the author field itself.
+- **The audit.** `scripts/check_governance.py` (`check_owner_identity`) reads
+  every commit reachable from every local ref and fails the pull request when
+  an author is not the owner, or when any author or committer carries a known
+  agent identity. GitHub's own merge machinery
+  (`GitHub <noreply@github.com>`) is a committer, never a contributor, so that
+  side is only checked against the agent names.
+- **The cleanup.** The single commit an agent had authored lived in a local
+  `refs/freebuff/` ref and never reached a branch. It was deleted from the
+  checkout, so no ref in this repository names an agent and the remote shows
+  exactly one contributor, the owner.
+- **Withdrawal.** Only a later written owner instruction, recorded here.
 - **The checks themselves.** A governance failure is a real failure and is
   fixed in the pull request that carries it (SO-11). It is never waived, and
   it never becomes a reason to merge around a red check.
