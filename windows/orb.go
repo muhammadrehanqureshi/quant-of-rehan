@@ -34,6 +34,11 @@ const orbDotPitch = 1
 // again and only the lattice decides how many dots there are.
 const orbScale = 1.0
 
+// orbBands is how many rings of shade run from the middle of the mark out. The
+// innermost band is the darker shade, the next the lighter one, and they
+// alternate from there (owner order 2026-11-09).
+const orbBands = 5
+
 // OrbMode says whether the quant is online. The ink comes from orbGreen; the
 // mode is kept for the rest of the HUD and the existing tests.
 type OrbMode int
@@ -203,6 +208,9 @@ func orbGrid(w, h int, t float64) *dotGrid {
 		return g
 	}
 	frame := orbFrames[orbFrameIndex(t, len(orbFrames))]
+	// orbBands rings of shade from the middle out, dark first, so a small panel
+	// and a wide one both show the same rhythm.
+	band := max(1, int(math.Round(float64(cols)/2/float64(orbBands))))
 	ox := (g.w - cols*orbDotPitch) / 2
 	oy := (g.h - rows*orbDotPitch) / 2
 	for j := 0; j < rows; j++ {
@@ -235,12 +243,13 @@ func orbGrid(w, h int, t float64) *dotGrid {
 			if peak == 0 {
 				continue
 			}
-			// Owner order 2026-11-09 (latest): the two shades are the GIF's own
-			// per dot, so the mark keeps the file's own mix of light and dark
-			// dots instead of one tint or a drawn rhythm.
-			tone := 0.25
-			if peak >= 2 {
-				tone = 1.0
+			// Owner order 2026-11-09 (latest): the shade comes from the
+			// concentric band, the inner circle dark and each ring out
+			// alternating light and dark, in green and in red alike.
+			radius := math.Hypot(float64(i)-(float64(cols)-1)/2, float64(j)-(float64(rows)-1)/2)
+			tone := 1.0
+			if int(radius/float64(band))%2 == 0 {
+				tone = 0.25
 			}
 			g.set(ox+i*orbDotPitch, oy+j*orbDotPitch, float32(tone))
 		}
