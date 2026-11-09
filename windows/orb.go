@@ -96,10 +96,10 @@ var (
 	hudGreenDim    = darken(rgbFromHex(orbGreenDim), 0.55)
 	hudGreenBright = lighten(darken(rgbFromHex(orbGreenBright), 0.82), 0.18)
 
-	// The two reds are the owner's own hex values, #FF0000 for the darker step
-	// and #D2042D for the lighter one, the latter lifted towards white.
+	// The two reds are the owner's own hex values: #FF0000 for the darker step
+	// and #FF5252 for the lighter one (order 2026-11-09).
 	hudRedDim    = RGB{0xff, 0x00, 0x00}
-	hudRedBright = lighten(RGB{0xd2, 0x04, 0x2d}, 0.15)
+	hudRedBright = RGB{0xff, 0x52, 0x52}
 )
 
 // hudInk gives the ink for one dot. A dim dot is the dim shade, a bright dot
@@ -218,11 +218,12 @@ func orbGrid(w, h int, t float64) *dotGrid {
 		return g
 	}
 	frame := orbFrames[orbFrameIndex(t, len(orbFrames))]
-	// orbBands rings of shade from the middle out, dark first, so a small panel
-	// and a wide one both show the same rhythm.
-	band := max(1, int(math.Round(float64(cols)/2/float64(orbBands))))
 	ox := (g.w - cols*orbDotPitch) / 2
 	oy := (g.h - rows*orbDotPitch) / 2
+	cx, cy := (float64(cols)-1)/2, (float64(rows)-1)/2
+	lit := make([]bool, cols*rows)
+	radii := make([]float64, cols*rows)
+	minR, maxR := math.MaxFloat64, 0.0
 	for j := 0; j < rows; j++ {
 		sy0 := j * orbRaster / rows
 		sy1 := (j + 1) * orbRaster / rows
@@ -253,12 +254,37 @@ func orbGrid(w, h int, t float64) *dotGrid {
 			if peak == 0 {
 				continue
 			}
-			// Owner order 2026-11-09 (latest): the shade comes from the
-			// concentric band, the inner circle dark and each ring out
-			// alternating light and dark, in green and in red alike.
-			radius := math.Hypot(float64(i)-(float64(cols)-1)/2, float64(j)-(float64(rows)-1)/2)
+			index := j*cols + i
+			lit[index] = true
+			radii[index] = math.Hypot(float64(i)-cx, float64(j)-cy)
+			if radii[index] < minR {
+				minR = radii[index]
+			}
+			if radii[index] > maxR {
+				maxR = radii[index]
+			}
+		}
+	}
+	if maxR <= 0 || minR > maxR {
+		return g
+	}
+	// Owner order 2026-11-09 (latest): the bands are measured from where the
+	// mark's ink begins, not from the middle of its hole, so the very inside
+	// circle is the darker shade every time and the rings alternate outward
+	// from it, in green and in red alike.
+	span := maxR - minR
+	if span <= 0 {
+		span = 1
+	}
+	band := math.Max(1, span/float64(orbBands))
+	for j := 0; j < rows; j++ {
+		for i := 0; i < cols; i++ {
+			index := j*cols + i
+			if !lit[index] {
+				continue
+			}
 			tone := 1.0
-			if int(radius/float64(band))%2 == 0 {
+			if int((radii[index]-minR)/band)%2 == 0 {
 				tone = 0.25
 			}
 			g.set(ox+i*orbDotPitch, oy+j*orbDotPitch, float32(tone))
