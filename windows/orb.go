@@ -96,10 +96,11 @@ var (
 	hudGreenDim    = darken(rgbFromHex(orbGreenDim), 0.55)
 	hudGreenBright = lighten(darken(rgbFromHex(orbGreenBright), 0.82), 0.18)
 
-	// The two reds are the owner's own hex values: #FF0000 for the darker step
-	// and #FF5252 for the lighter one (order 2026-11-09).
-	hudRedDim    = RGB{0xff, 0x00, 0x00}
-	hudRedBright = RGB{0xff, 0x52, 0x52}
+	// The reds are the owner's red GIF's own measured pixels, used exactly as
+	// the file has them: he supplied that GIF and ordered it copied into the
+	// build rather than recoloured (order 2026-11-09).
+	hudRedDim    = rgbFromHex(orbRedDim)
+	hudRedBright = rgbFromHex(orbRedBright)
 )
 
 // hudInk gives the ink for one dot. A dim dot is the dim shade, a bright dot
@@ -174,7 +175,7 @@ func orbDrawSize(w, h int) (int, int) {
 
 // orbFrameIndex picks the GIF frame on screen after t seconds, honouring each
 // frame's own delay, and loops forever.
-func orbFrameIndex(t float64, count int) int {
+func orbFrameIndex(t float64, delays []int, count int) int {
 	if count <= 1 {
 		return 0
 	}
@@ -183,7 +184,7 @@ func orbFrameIndex(t float64, count int) int {
 		millis = 0
 	}
 	total := 0
-	for _, delay := range orbDelays {
+	for _, delay := range delays {
 		if delay > 0 {
 			total += delay
 		}
@@ -193,7 +194,7 @@ func orbFrameIndex(t float64, count int) int {
 	}
 	millis %= total
 	elapsed := 0
-	for index, delay := range orbDelays {
+	for index, delay := range delays {
 		if delay <= 0 {
 			delay = 80
 		}
@@ -211,17 +212,22 @@ func orbFrameIndex(t float64, count int) int {
 // and the points are spaced orbDotPitch apart so those gaps survive the panel's
 // finer dot grid. The frame index follows each frame's own delay, and nothing
 // is rotated, waved or glinted on top of it (owner order 2026-11-09).
-func orbGrid(w, h int, t float64) *dotGrid {
+func orbGrid(w, h int, t float64, red bool) *dotGrid {
+	frames, delays := orbFrames, orbDelays
+	if red {
+		frames, delays = orbRedFrames, orbRedDelays
+	}
 	g := newDotGrid(w, h)
 	cols, rows := orbDotGrid(w, h)
-	if cols < 1 || rows < 1 {
+	if cols < 1 || rows < 1 || len(frames) == 0 {
 		return g
 	}
-	frame := orbFrames[orbFrameIndex(t, len(orbFrames))]
+	frame := frames[orbFrameIndex(t, delays, len(frames))]
 	ox := (g.w - cols*orbDotPitch) / 2
 	oy := (g.h - rows*orbDotPitch) / 2
 	cx, cy := (float64(cols)-1)/2, (float64(rows)-1)/2
 	lit := make([]bool, cols*rows)
+	peaks := make([]uint8, cols*rows)
 	radii := make([]float64, cols*rows)
 	minR, maxR := math.MaxFloat64, 0.0
 	for j := 0; j < rows; j++ {
@@ -256,6 +262,7 @@ func orbGrid(w, h int, t float64) *dotGrid {
 			}
 			index := j*cols + i
 			lit[index] = true
+			peaks[index] = peak
 			radii[index] = math.Hypot(float64(i)-cx, float64(j)-cy)
 			if radii[index] < minR {
 				minR = radii[index]
@@ -264,6 +271,25 @@ func orbGrid(w, h int, t float64) *dotGrid {
 				maxR = radii[index]
 			}
 		}
+	}
+	if red {
+		// The red GIF draws with two shades mixed across its own dots, so every
+		// point keeps the shade the file gives it and no rings are laid on top
+		// (owner order 2026-11-09: copy the red file in, do not recolour it).
+		for j := 0; j < rows; j++ {
+			for i := 0; i < cols; i++ {
+				index := j*cols + i
+				if !lit[index] {
+					continue
+				}
+				tone := 0.25
+				if peaks[index] >= 2 {
+					tone = 1.0
+				}
+				g.set(ox+i*orbDotPitch, oy+j*orbDotPitch, float32(tone))
+			}
+		}
+		return g
 	}
 	if maxR <= 0 || minR > maxR {
 		return g
@@ -306,7 +332,7 @@ func drawOrb(c *Canvas, x0, y0, w, h int, t float64, mode OrbMode, green bool, t
 		drawOrbHalves(c, x0, y0, w, h, t, green)
 		return
 	}
-	g := orbGrid(w, h, t)
+	g := orbGrid(w, h, t, !green)
 	// A zero glow leaves every cell's background exactly as the panel drew it.
 	g.blitRamp(c, x0, y0, func(tone float64) RGB { return hudInk(tone, green) }, th.Panel)
 }
@@ -314,7 +340,7 @@ func drawOrb(c *Canvas, x0, y0, w, h int, t float64, mode OrbMode, green bool, t
 // drawOrbHalves draws the same dial when Braille is not available: two pixels
 // per cell, again leaving every unlit cell transparent.
 func drawOrbHalves(c *Canvas, x0, y0, w, h int, t float64, green bool) {
-	g := orbGrid(w, h, t)
+	g := orbGrid(w, h, t, !green)
 	for row := 0; row < h; row++ {
 		for col := 0; col < w; col++ {
 			var toneT, toneB float32
