@@ -100,17 +100,17 @@ func (a *App) putBSUT(c *Canvas, x, y int, r FlowRow, keys ...string) int {
 		}
 		put(num(r.Unclassified), uc, r.Unclassified != nil && *r.Unclassified > 0)
 		put(" & T=", th.Soft, false)
-		put(num(r.Volume), th.Text, false)
+		put(num(r.Volume), totalBlue, false)
 	case r.Method == methodEstimated && r.Buy != nil && r.Sell != nil:
 		put("B~", th.Soft, false)
 		put(num(r.Buy), mix(th.Good, th.Soft, 0.5), false)
 		put(", S~", th.Soft, false)
 		put(num(r.Sell), mix(th.Bad, th.Soft, 0.5), false)
 		put(" & T=", th.Soft, false)
-		put(num(r.Volume), th.Text, false)
+		put(num(r.Volume), totalBlue, false)
 	default:
 		put("T=", th.Soft, false)
-		put(num(r.Volume), th.Text, false)
+		put(num(r.Volume), totalBlue, false)
 	}
 	return vx - x
 }
@@ -168,7 +168,7 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 		{"B=", th.Soft, false}, {commaInt(tot.Buy), th.Good, true},
 		{", S=", th.Soft, false}, {commaInt(tot.Sell), th.Bad, true},
 		{", U=", th.Soft, false}, {commaInt(tot.Unclassified), th.Warn, tot.Unclassified > 0},
-		{" & T=", th.Soft, false}, {commaInt(tot.MeasuredTotal), th.Text, false}}
+		{" & T=", th.Soft, false}, {commaInt(tot.MeasuredTotal), totalBlue, false}}
 	c.Spans(ix, row, iw, t2)
 	row++
 
@@ -231,6 +231,9 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 	rows := a.sortedFlow()
 	if len(rows) == 0 {
 		msg := "The relay answered with no stock rows."
+		if a.sessionDate != "" && !sameSessionDay(a.sessionDate, a.karachiNow()) {
+			msg = "No stock rows from the relay. The last stored session is " + a.storedSessionDay() + "."
+		}
 		if a.ofQuery != "" {
 			msg = fmt.Sprintf("No stock matches %q.", a.ofQuery)
 		}
@@ -372,15 +375,15 @@ func (a *App) drawFlowCols(c *Canvas, ix, y int, r FlowRow, volKey string) {
 			uc, ub = th.Warn, true
 		}
 		cell(6, r.Unclassified, uc, ub, "")
-		cell(7, r.Volume, th.Text, false, "")
+		cell(7, r.Volume, totalBlue, false, "")
 	case r.Method == methodEstimated && r.Buy != nil && r.Sell != nil:
 		cell(4, r.Buy, mix(th.Good, th.Soft, 0.5), false, "~")
 		cell(5, r.Sell, mix(th.Bad, th.Soft, 0.5), false, "~")
 		c.Text(ix+colX[6], y, colW[6], padLeft("estimate", colW[6]), th.Soft, false)
-		cell(7, r.Volume, th.Text, false, "")
+		cell(7, r.Volume, totalBlue, false, "")
 	default:
 		c.Text(ix+colX[4], y, colW[4], padLeft("no split", colW[4]), th.Soft, false)
-		cell(7, r.Volume, th.Text, false, "")
+		cell(7, r.Volume, totalBlue, false, "")
 	}
 }
 
@@ -389,17 +392,18 @@ func (a *App) drawFlowCols(c *Canvas, ix, y int, r FlowRow, volKey string) {
 // box, and ESC clears the filter.
 func (a *App) drawFlowSearch(c *Canvas, ix, y, iw int) {
 	th := a.th
-	c.Text(ix, y, 6, "SEARCH", th.Soft, false)
-	bw := iw - 8
+	// Owner order 2026-11-09 (build 29): the field stands alone. The word
+	// SEARCH before it is gone, exactly as the SECTORS field already was.
+	bw := iw
 	if bw > 40 {
 		bw = 40
 	}
 	if bw < 1 {
 		bw = 1
 	}
-	fw := a.searchBox(c, ix+8, y, bw, a.ofQuery, scripSearchHint, a.ofSearch)
+	fw := a.searchBox(c, ix, y, bw, a.ofQuery, scripSearchHint, a.ofSearch)
 	if a.ofQuery != "" {
-		c.Text(ix+10+fw, y, 12, fmt.Sprintf("%d match", len(a.sortedFlow())), th.Soft, false)
+		c.Text(ix+2+fw, y, 12, fmt.Sprintf("%d match", len(a.sortedFlow())), th.Soft, false)
 	}
 	if iw > 70 {
 		rightAlign(c, ix, y, iw, []Span{{"/ searches  ESC clears", th.Soft, false}})

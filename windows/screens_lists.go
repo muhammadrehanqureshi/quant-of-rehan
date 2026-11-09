@@ -991,7 +991,7 @@ func (a *App) drawAlertLog(c *Canvas, x, y, w, h int) {
 	th := a.th
 	log := a.flagLog()
 	hint := "ENTER plays a test. DEL clears the log."
-	title := "ALERT LOG (" + strconv.Itoa(len(log)) + ")"
+	title := "ALERTS LOG (" + strconv.Itoa(len(log)) + ")"
 	a.focusNext = a.alertFocus == 2
 	lx, liy, liw, lih := a.panel(c, x, y, w, h, title, hint)
 	a.addHit(x, y, w, h, func() { a.alertFocus = 2 })

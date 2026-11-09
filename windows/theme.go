@@ -8,6 +8,10 @@ import (
 // RGB is a 24 bit colour.
 type RGB struct{ R, G, B uint8 }
 
+// totalBlue is the owner's colour for the T volume, beside the green buy,
+// red sell and yellow unclassified shades.
+var totalBlue = RGB{80, 170, 255}
+
 func hexc(s string) RGB {
 	if len(s) == 7 && s[0] == '#' {
 		r, _ := strconv.ParseUint(s[1:3], 16, 8)

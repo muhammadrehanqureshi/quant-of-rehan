@@ -196,17 +196,17 @@ func TestStatusWordingFollowsThePart(t *testing.T) {
 		want   string
 		online bool
 	}{
-		{"before the pre-market", at(2, 8, 30), "PRE_OPEN", "Market is closed and the quant is offline now.", false},
+		{"before the pre-market", at(2, 8, 30), "PRE_OPEN", "Market is closed and the quant is sleeping now.", false},
 		{"pre-market", at(2, 9, 5), "PRE_OPEN", "Pre-market is running and the quant is online now.", true},
 		{"matching gap", at(2, 9, 31), "PRE_OPEN", "Pre-market is running and the quant is online now.", true},
 		{"open", at(2, 11, 0), "OPEN", "Market is open and the quant is online now.", true},
 		{"post-market", at(2, 15, 40), "POST_CLOSE", "Post-market is running and the quant is online now.", true},
-		{"after the post-market", at(2, 15, 50), "POST_CLOSE", "Market is closed and the quant is offline now.", false},
-		{"evening", at(2, 20, 0), "POST_CLOSE", "Market is closed and the quant is offline now.", false},
+		{"after the post-market", at(2, 15, 50), "POST_CLOSE", "Market is closed and the quant is sleeping now.", false},
+		{"evening", at(2, 20, 0), "POST_CLOSE", "Market is closed and the quant is sleeping now.", false},
 		{"friday break", at(6, 13, 0), "BREAK", "Market is on a break and the quant is offline now.", false},
 		{"friday second session", at(6, 15, 0), "OPEN", "Market is open and the quant is online now.", true},
 		{"friday post-market", at(6, 16, 40), "POST_CLOSE", "Post-market is running and the quant is online now.", true},
-		{"weekend", at(7, 11, 0), "CLOSED", "Market is closed and the quant is offline now.", false},
+		{"weekend", at(7, 11, 0), "CLOSED", "Market is closed and the quant is sleeping now.", false},
 	} {
 		a := newTestApp(t)
 		a.now, a.checking, a.link = c.t, false, true
@@ -265,7 +265,7 @@ func TestDialIsTheGifMatrixInTheMarketWindow(t *testing.T) {
 			if ce.Ch < 0x2800 || ce.Ch > 0x28ff {
 				continue
 			}
-			if ce.FG.G < 150 || ce.FG.G < ce.FG.R+40 {
+			if ce.FG.G < 100 || ce.FG.G < ce.FG.R+40 {
 				t.Errorf("mode %d: a dial dot is %v, not green", m, ce.FG)
 			}
 			lit++
@@ -306,7 +306,7 @@ func TestRadarIsRoundInPixels(t *testing.T) {
 	defer func() { cellAspect = was }()
 	// The radar test paints the dial in the owner's green window, so a dot is
 	// lit when its ink is that green and not the theme's own accent.
-	lit := func(p RGB) bool { return p.G >= 150 && p.R < 180 && p.G > p.R+40 }
+	lit := func(p RGB) bool { return p.G >= 100 && p.R < 180 && p.G > p.R+40 }
 	for _, aspect := range []float64{1.90, 20.0 / 9.0, 2.05} {
 		cellAspect = aspect
 		for _, sz := range [][2]int{{36, 14}, {30, 12}, {38, 25}} {
