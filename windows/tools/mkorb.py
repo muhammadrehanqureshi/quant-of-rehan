@@ -14,7 +14,8 @@ For outside it the owner supplied a red GIF of the same mark, and ordered that
 file be copied into the build rather than recoloured, so the red state carries
 that file's own dots, its own two reds and its own ring shading. That file is a
 single frame, and the owner then asked that the red mark move like the green
-one, so its dots are turned a full circle across the green GIF's own frames.
+one, so its dots are turned a full circle clockwise across the green GIF's own
+frames.
 
 Run from the windows directory: python tools/mkorb.py
 """
@@ -111,10 +112,13 @@ def quantise(cells, background, dim_lum, bright_lum):
 
 
 def rotate_levels(level, angle):
-    """Turn one raster by an angle, nearest neighbour, so every cell keeps one
-    of the file's own levels and no shade is blended into a third."""
+    """Turn one raster clockwise by an angle, nearest neighbour, so every cell
+    keeps one of the file's own levels and no shade is blended into a third.
+    PIL turns anticlockwise for a positive angle, so the sign is flipped: the
+    dial travels the same way round as the rest of the HUD (owner order
+    2026-11-09)."""
     art = Image.fromarray((level * 127).astype(np.uint8), mode="L")
-    turned = art.rotate(angle, resample=Image.NEAREST, expand=False, fillcolor=0)
+    turned = art.rotate(-angle, resample=Image.NEAREST, expand=False, fillcolor=0)
     out = np.asarray(turned, dtype=np.uint8)
     return np.where(out >= 190, 2, np.where(out >= 60, 1, 0)).astype(np.uint8)
 
@@ -296,8 +300,8 @@ def build(path, banded, green_shades, spin_frames=0, spin_delays=None):
     if spin_frames > 1:
         # Owner order 2026-11-09: the owner's red file holds a single frame, so
         # the mark is turned on the green GIF's own clock instead. Every frame
-        # is those same dots in the same two shades, carried round by a full
-        # turn across the loop; nothing is tinted, redrawn or resized.
+        # is those same dots in the same two shades, carried round clockwise by
+        # a full turn across the loop; nothing is tinted, redrawn or resized.
         base = levels[0]
         levels = [rotate_levels(base, 360.0 * k / spin_frames) for k in range(spin_frames)]
         if spin_delays:
