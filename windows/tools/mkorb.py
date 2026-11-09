@@ -171,24 +171,28 @@ def tile(grid, dim, bright, scale):
     return img
 
 
+WIDE_ROWS = 52  # a 60 cell wide column at a 180 column window
+
+
 def draw_preview(levels, dim, bright, path):
-    """The GIF's own raster on top, the console's dot grid underneath."""
+    """The GIF's raster, then the console lattice at the home and wide panels."""
     showcase = [0, len(levels) // 4] if len(levels) > 1 else [0]
-    big = [tile(levels[i], dim, bright, 2) for i in showcase]
-    hud = [hud_tile(hud_grid(levels[i]), dim, bright) for i in showcase]
+    rows = [
+        [tile(levels[i], dim, bright, 2) for i in showcase],
+        [hud_tile(hud_grid(levels[i], rows=HUD_ROWS), dim, bright) for i in showcase],
+        [hud_tile(hud_grid(levels[i], rows=WIDE_ROWS), dim, bright) for i in showcase],
+    ]
     gap = 12
-    width = max(sum(g.width for g in big) + gap * (len(big) - 1),
-                sum(h.width for h in hud) + gap * (len(hud) - 1))
-    height = big[0].height + gap + hud[0].height
+    width = max(sum(t.width for t in row) + gap * (len(row) - 1) for row in rows)
+    height = sum(row[0].height for row in rows) + gap * (len(rows) - 1)
     strip = Image.new("RGB", (width, height), (7, 18, 28))
-    x = 0
-    for g in big:
-        strip.paste(g, (x, 0))
-        x += g.width + gap
-    x = 0
-    for h in hud:
-        strip.paste(h, (x, big[0].height + gap))
-        x += h.width + gap
+    y = 0
+    for row in rows:
+        x = 0
+        for t in row:
+            strip.paste(t, (x, y))
+            x += t.width + gap
+        y += row[0].height + gap
     strip.save(path)
 
 
@@ -275,10 +279,11 @@ func decodeOrbFrames() [][]uint8 {{
           f"{max(delays)} ms longest frame")
     print(f"greens: dim #{dim[0]:02x}{dim[1]:02x}{dim[2]:02x}, "
           f"bright #{bright[0]:02x}{bright[1]:02x}{bright[2]:02x}")
-    hud = hud_grid(levels[0])
-    rows, cols = hud.shape
-    print(f"hud: {int((hud > 0).sum())} of {cols * rows} dots lit at {cols} by "
-          f"{rows}, one empty dot between (pitch {HUD_PITCH})")
+    for name, count in (("home", HUD_ROWS), ("wide", WIDE_ROWS)):
+        hud = hud_grid(levels[0], rows=count)
+        rows, cols = hud.shape
+        print(f"hud {name}: {int((hud > 0).sum())} of {cols * rows} dots lit at "
+              f"{cols} by {rows}, one empty dot between (pitch {HUD_PITCH})")
     print(f"wrote {OUT.name} ({OUT.stat().st_size} bytes) and {PREVIEW.name}")
 
 
