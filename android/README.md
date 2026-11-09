@@ -1641,6 +1641,26 @@ to sixty seconds. The status tile therefore also carries the app's own
      the orphan law stands so every dot still wears a filament.
   5. The version bump is versionCode 82 / versionName 2.3.15.
 
+**Version 4.0.17, versionCode 126.**
+
+  Owner order 2026-11-09. The phone now keeps the same hard daily stop on
+  relay requests that the Windows console keeps. Every read in the app leaves
+  through one door, `Watcher.get`, and that door reserves a request against
+  today's count before it opens a socket: once the count reaches the cap the
+  app sends nothing more until the day rolls over at 00:00 UTC (05:00 PKT),
+  and the status tile says the allowance is spent instead of blaming the
+  relay. The count is per UTC day, written to the app's own preferences
+  before each request leaves, so a restart or a crash cannot hand back
+  requests the day has already spent.
+
+  The phone's share is 8,000 a day, not the console's 90,000: the free tier
+  allows 100,000, the console already holds its own hard line at 90,000, and
+  the last 2,000 belong to the relay. Two caps of 90,000 would add up to
+  180,000, which is the one number that would still exhaust the shared
+  allowance.
+
+  The version bump is versionCode 126 / versionName 4.0.17.
+
 **Version 4.0.16, versionCode 125.**
 
   Owner order 2026-11-07, second pass. The SECTORS tile is part of the theme
