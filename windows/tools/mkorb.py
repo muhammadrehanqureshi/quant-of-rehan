@@ -113,27 +113,61 @@ def wrap(text, width=96):
     return "\n".join(text[i:i + width] for i in range(0, len(text), width))
 
 
+HUD_COLS, HUD_ROWS = 76, 56
+HUD_COVER = 0.35
+
+
+def hud_grid(frame, cols=HUD_COLS, rows=HUD_ROWS):
+    """What orbGrid draws: mean coverage decides the dot, the peak its shade."""
+    size = frame.shape[0]
+    out = np.zeros((rows, cols), dtype=np.uint8)
+    for y in range(rows):
+        sy0 = y * size // rows
+        sy1 = max(sy0 + 1, (y + 1) * size // rows)
+        for x in range(cols):
+            sx0 = x * size // cols
+            sx1 = max(sx0 + 1, (x + 1) * size // cols)
+            cell = frame[sy0:sy1, sx0:sx1]
+            if float(cell.mean()) < HUD_COVER:
+                continue
+            out[y, x] = 2 if int(cell.max()) >= 2 else 1
+    return out
+
+
+def tile(grid, dim, bright, scale):
+    rows, cols = grid.shape
+    img = Image.new("RGB", (cols * scale, rows * scale), (7, 18, 28))
+    pixels = img.load()
+    for y in range(rows):
+        for x in range(cols):
+            value = grid[y, x]
+            if value == 0:
+                continue
+            colour = bright if value >= 2 else dim
+            for dy in range(scale):
+                for dx in range(scale):
+                    pixels[x * scale + dx, y * scale + dy] = colour
+    return img
+
+
 def draw_preview(levels, dim, bright, path):
-    scale = 4
-    count = len(levels)
-    showcase = [0, count // 4] if count > 1 else [0]
-    gap = 4 * scale
-    strip = Image.new("RGB", (RASTER * scale * len(showcase) + gap * (len(showcase) - 1),
-                              RASTER * scale), (7, 18, 28))
-    for slot, index in enumerate(showcase):
-        frame = Image.new("RGB", (RASTER * scale, RASTER * scale), (7, 18, 28))
-        pixels = frame.load()
-        grid = levels[index]
-        for y in range(RASTER):
-            for x in range(RASTER):
-                value = grid[y, x]
-                if value == 0:
-                    continue
-                colour = bright if value >= 2 else dim
-                for dy in range(scale):
-                    for dx in range(scale):
-                        pixels[x * scale + dx, y * scale + dy] = colour
-        strip.paste(frame, (slot * (RASTER * scale + gap), 0))
+    """The GIF's own raster on top, the console's dot grid underneath."""
+    showcase = [0, len(levels) // 4] if len(levels) > 1 else [0]
+    big = [tile(levels[i], dim, bright, 2) for i in showcase]
+    hud = [tile(hud_grid(levels[i]), dim, bright, 6) for i in showcase]
+    gap = 12
+    width = max(sum(g.width for g in big) + gap * (len(big) - 1),
+                sum(h.width for h in hud) + gap * (len(hud) - 1))
+    height = big[0].height + gap + hud[0].height
+    strip = Image.new("RGB", (width, height), (7, 18, 28))
+    x = 0
+    for g in big:
+        strip.paste(g, (x, 0))
+        x += g.width + gap
+    x = 0
+    for h in hud:
+        strip.paste(h, (x, big[0].height + gap))
+        x += h.width + gap
     strip.save(path)
 
 
@@ -220,6 +254,9 @@ func decodeOrbFrames() [][]uint8 {{
           f"{max(delays)} ms longest frame")
     print(f"greens: dim #{dim[0]:02x}{dim[1]:02x}{dim[2]:02x}, "
           f"bright #{bright[0]:02x}{bright[1]:02x}{bright[2]:02x}")
+    hud_lit = int((hud_grid(levels[0]) > 0).sum())
+    print(f"hud: {hud_lit} of {HUD_COLS * HUD_ROWS} dots lit at "
+          f"{HUD_COLS} by {HUD_ROWS}, cover {HUD_COVER}")
     print(f"wrote {OUT.name} ({OUT.stat().st_size} bytes) and {PREVIEW.name}")
 
 
