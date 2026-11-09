@@ -35,11 +35,14 @@ func (a *App) orbMode() OrbMode {
 // orbGreen says whether the quant mark wears the GIF's refined green. Owner
 // order 2026-11-09 (build 29): green from 08:55 to 16:00 Monday to Thursday
 // and from 08:55 to 17:00 on Friday, red outside those windows and all weekend.
-// The clock decides, so the Friday break stays green and the post-market end
-// does not keep the red away past the owner's cut-off.
+// A PSX holiday is not a market day, so it is red all day too, and the relay's
+// own trading-day flag can only add a red day, never turn one green.
 func (a *App) orbGreen() bool {
 	p := a.karachiNow().In(pkt)
-	if isWeekend(p) {
+	if isWeekend(p) || isPsxHoliday(p) {
+		return false
+	}
+	if a.market != nil && a.market.PhaseKnown() && !a.market.TradingDay {
 		return false
 	}
 	start := scanOpen // 08:55

@@ -3,17 +3,15 @@ package main
 import "math"
 
 // The quant mark is the owner's refined dial from
-// windows/assets/orb-online-green-refined.gif: the actual 55 by 50 dot matrix
-// sampled into orbpattern.go, not a drawing of rings that resembles it. Every
-// cell holds a 2 by 4 grid of Braille dots, and nothing is filled, so the
-// panel's own background shows through between the dots.
+// windows/assets/orb-online-green-refined.gif: every frame of the GIF, sampled
+// into orbpattern.go on the same 55 by 50 dot grid, played back at the GIF's
+// own delay. Every cell holds a 2 by 4 grid of Braille dots, and nothing is
+// filled, so the panel's own background shows through between the dots.
 //
-// Owner order 2026-11-09 (build 29): the dial turns and carries a moving
-// highlight, its four brightness levels are painted in four green shades in
-// the market window and four red shades outside it, and the whole mark is ten
-// percent larger than build 28's matrix. The matrix is still the GIF's own
-// dots; loading all 160 frames would cost hundreds of megabytes, so the motion
-// comes from rotating the sampled frame and sweeping a glint across it.
+// Owner order 2026-11-09 (build 31): the mark is the GIF itself, dot for dot,
+// with the GIF's own TWO green shades (the earlier four were invented), the
+// GIF's own rotation instead of a drawn glint, two red shades outside the
+// market, and the ten percent enlargement of build 29.
 
 var cellAspect = defaultCellAspect
 
@@ -47,36 +45,35 @@ func clamp01(x float64) float64 {
 	return x
 }
 
-// The dial's colours. Each palette has four stops: dim, mid, pale and hot.
-// The owner asked for different shades, not a single flat green or red.
-var (
-	hudGreenDim  = RGB{0, 110, 55}
-	hudGreenMid  = RGB{18, 220, 112}
-	hudGreenPale = RGB{132, 255, 190}
-	hudGreenHot  = RGB{120, 255, 200}
+// rgbFromHex turns the generated 0xRRGGBB palette into a console colour.
+func rgbFromHex(v uint32) RGB {
+	return RGB{uint8(v >> 16), uint8(v >> 8), uint8(v)}
+}
 
-	hudRedDim  = RGB{125, 0, 0}
-	hudRedMid  = RGB{255, 4, 4}
-	hudRedPale = RGB{255, 64, 64}
-	hudRedHot  = RGB{255, 180, 180}
+// The dial's colours are exactly two per palette, because the GIF has exactly
+// two green shades. The greens are the GIF's own measured pixels; the reds are
+// the same two brightness steps in the owner's red (order 2026-11-09: "there
+// are 2 different shades of GREEN so in the same way there are 2 different
+// shades of RED").
+var (
+	hudGreenDim    = rgbFromHex(orbGreenDim)
+	hudGreenBright = rgbFromHex(orbGreenBright)
+
+	hudRedDim    = RGB{150, 8, 8}
+	hudRedBright = RGB{255, 64, 64}
 )
 
-// hudInk gives the ink for one tone. The four GIF brightness levels map onto
-// four distinct shades, so the matrix keeps its depth in either palette.
+// hudInk gives the ink for one dot. A dim dot is the dim shade, a bright dot
+// is the bright one; there is no third or fourth tint.
 func hudInk(tone float64, green bool) RGB {
-	dim, mid, pale, hot := hudRedDim, hudRedMid, hudRedPale, hudRedHot
+	dim, bright := hudRedDim, hudRedBright
 	if green {
-		dim, mid, pale, hot = hudGreenDim, hudGreenMid, hudGreenPale, hudGreenHot
+		dim, bright = hudGreenDim, hudGreenBright
 	}
-	t := clamp01(tone)
-	switch {
-	case t <= 1.0/3.0:
-		return mix(dim, mid, t*3)
-	case t <= 2.0/3.0:
-		return mix(mid, pale, (t-1.0/3.0)*3)
-	default:
-		return mix(pale, hot, (t-2.0/3.0)*3)
+	if clamp01(tone) >= 0.5 {
+		return bright
 	}
+	return dim
 }
 
 // ringHalfBlocks turns the mark back to two pixels per cell, drawn with the
@@ -90,7 +87,7 @@ var ringHalfBlocks bool
 // The box is the panel's inner rectangle; no cell of margin is reserved, because
 // the home panel's fourteen inner rows are exactly enough for the enlarged dial.
 func orbDrawSize(w, h int) (int, int) {
-	if len(orbLevels) != orbCols*orbRows || w <= 0 || h <= 0 {
+	if len(orbFrames) == 0 || len(orbFrames[0]) != orbCols*orbRows || w <= 0 || h <= 0 {
 		return 0, 0
 	}
 	aspect := cellAspect
@@ -127,52 +124,72 @@ func orbDrawSize(w, h int) (int, int) {
 	return outW, outH
 }
 
-// orbLevelAt samples the GIF's 55 by 50 grid at a fractional dot coordinate.
-func orbLevelAt(x, y float64) uint8 {
-	ix := int(math.Round(x))
-	iy := int(math.Round(y))
-	if ix < 0 || iy < 0 || ix >= orbCols || iy >= orbRows {
+// orbFrameIndex picks the GIF frame on screen after t seconds, honouring each
+// frame's own delay, and loops forever.
+func orbFrameIndex(t float64, count int) int {
+	if count <= 1 {
 		return 0
 	}
-	return orbLevels[iy*orbCols+ix]
+	millis := int(t * 1000)
+	if millis < 0 {
+		millis = 0
+	}
+	total := 0
+	for _, delay := range orbDelays {
+		if delay > 0 {
+			total += delay
+		}
+	}
+	if total <= 0 {
+		return (millis / 80) % count
+	}
+	millis %= total
+	elapsed := 0
+	for index, delay := range orbDelays {
+		if delay <= 0 {
+			delay = 80
+		}
+		elapsed += delay
+		if millis < elapsed {
+			return index
+		}
+	}
+	return count - 1
 }
 
-// orbGrid places the sampled matrix in a grid of w by h cells. The GIF's 55 by
-// 50 dots are square as a picture; a terminal dot is half a column wide and a
+// orbGrid places one GIF frame in a grid of w by h cells. The GIF's 55 by 50
+// dots are square as a picture; a terminal dot is half a column wide and a
 // quarter of a cell tall, so the rows are stretched to keep the orb round at
-// the measured cell shape. The matrix turns slowly and a glint sweeps around
-// it; the four brightness levels remain the source of every shade.
+// the measured cell shape. The dots and the motion are both the GIF's own:
+// the frame index follows the source delay, and nothing is rotated, waved or
+// glinted on top of it (owner order 2026-11-09).
 func orbGrid(w, h int, t float64) *dotGrid {
 	g := newDotGrid(w, h)
 	dw, dh := orbDrawSize(w, h)
 	if dw < 1 || dh < 1 {
 		return g
 	}
+	frame := orbFrames[orbFrameIndex(t, len(orbFrames))]
 	ox, oy := (g.w-dw)/2, (g.h-dh)/2
-	angle := t * 0.42
-	ca, sa := math.Cos(angle), math.Sin(angle)
-	cx, cy := float64(orbCols-1)/2, float64(orbRows-1)/2
 	for y := 0; y < dh; y++ {
+		sy := int((float64(y) + 0.5) * float64(orbRows) / float64(dh))
+		if sy < 0 || sy >= orbRows {
+			continue
+		}
 		for x := 0; x < dw; x++ {
-			// Read the source through the inverse rotation, so the GIF's dots
-			// themselves turn instead of a drawing being redrawn.
-			dx := (float64(x) - float64(dw-1)/2) * float64(orbCols) / float64(dw)
-			dy := (float64(y) - float64(dh-1)/2) * float64(orbRows) / float64(dh)
-			sx := cx + dx*ca - dy*sa
-			sy := cy + dx*sa + dy*ca
-			level := orbLevelAt(sx, sy)
+			sx := int((float64(x) + 0.5) * float64(orbCols) / float64(dw))
+			if sx < 0 || sx >= orbCols {
+				continue
+			}
+			level := frame[sy*orbCols+sx]
 			if level == 0 {
 				continue
 			}
-			tone := float64(level) / 3
-			// A slow shade wave makes the four levels breathe without losing
-			// the GIF's own density.
-			wave := 0.5 + 0.5*math.Sin(t*2.1+float64(x)*0.33-float64(y)*0.21)
-			tone *= 0.72 + 0.28*wave
-			// A narrow glint sweeps around the mark, like the highlight in the
-			// source animation. The brightest dots reach the hot shade.
-			glint := math.Pow(math.Max(0, math.Cos(math.Atan2(dy, dx)-t*1.4)), 14)
-			tone = math.Min(1, tone+glint*0.55)
+			// The two GIF shades, kept apart by the ink threshold.
+			tone := 0.25
+			if level >= 2 {
+				tone = 1.0
+			}
 			g.set(ox+x, oy+y, float32(tone))
 		}
 	}

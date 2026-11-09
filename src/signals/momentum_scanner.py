@@ -748,7 +748,7 @@ def signal_message(candidate: dict, market: dict, entry: float,
     return (
         "QUANT LONG SIGNAL - PAPER REFERENCE\n\n"
         f"Symbol: {candidate['symbol']}\n"
-        f"Score: {candidate['score']:.2f}\n"
+        f"Score: {candidate['score']:.0f}/100\n"
         f"Entry price: {entry:.4f}\n"
         f"Target: {target_price(entry):.4f} (+{config.TARGET_PCT * 100:.1f}% gross)\n"
         f"Stop Loss: {stop:.4f}\n"
@@ -772,6 +772,8 @@ def call_watch_message(result, quality, market: dict, as_of) -> str:
     """
     ranked = result.ranked[:3]
     median = market.get("median_return")
+    universe = int(getattr(result.quality, "symbols_expected", 0) or 0)
+    best = ranked[0] if ranked else None
     lines = [
         "ENGINE CALLS - WATCH, UNVALIDATED",
         "",
@@ -781,7 +783,16 @@ def call_watch_message(result, quality, market: dict, as_of) -> str:
          f"{config.MAX_MARKET_DROP * 100:+.2f}%)"),
         f"Coverage: {result.coverage_text} of {config.SCANNER_VERSION}",
         "",
-        "WATCH ROWS (ranked top, score for the day; measured on this",
+    ]
+    # Owner order 2026-11-09: every candidate is scored out of 100 and the best
+    # name of the whole KMIALL universe is stated first.
+    if best is not None:
+        lines.append(
+            f"BEST OF {universe} KMIALL SHARES: {best['symbol']} "
+            f"{best.get('score'):.0f}/100")
+        lines.append("")
+    lines += [
+        "WATCH ROWS (ranked top, score for the day out of 100; measured on this",
         "session's bars; entry/target/stop are the paper law's own math,",
         "given for reference only, never a confirmed entry):",
         "",
@@ -793,7 +804,7 @@ def call_watch_message(result, quality, market: dict, as_of) -> str:
         target = row.get("target")
         rr = row.get("net_reward_risk")
         lines.append(
-            f"- {row['symbol']}  score {row.get('score'):.4f} | strategy "
+            f"- {row['symbol']}  score {row.get('score'):.0f}/100 | strategy "
             f"{row.get('strategy')}{ref} | ref target "
             f"{target:.4f} | ref stop {stop:.4f} | net R/R {rr:.2f}")
     lines += [
