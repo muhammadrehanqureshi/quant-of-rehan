@@ -15,14 +15,25 @@ name: KMIALL intraday momentum scan
 #   10:47 UTC = 15:47 PKT   finalize (Mon-Thu, strictly after the 15:30 close)
 #   11:47 UTC = 16:47 PKT   finalize (Friday, strictly after the 16:30 close)
 #
+# Owner order 2026-11-09 adds five pre/post backstop scans, so a day's volume
+# can never be left UNCLEAR when a band loop fails to start:
+#
+#   04:20 UTC = 09:20 PKT   pre-open scan, Mon-Thu (09:15 to 09:30)
+#   04:10 UTC = 09:10 PKT   pre-open scan, Friday (09:00 to 09:15)
+#   09:20 UTC = 14:20 PKT   second pre-open scan, Friday (14:15 to 14:30)
+#   10:40 UTC = 15:40 PKT   post-market scan, Mon-Thu (15:35 to 15:50)
+#   11:40 UTC = 16:40 PKT   post-market scan, Friday (16:35 to 16:50)
+#
 # The scan never starts outside the session, and the finalize never starts
 # before the close. tests/test_rebuild_schedule.py re-derives every one of
 # these conversions and fails the build if a cron ever drifts.
 #
-# Budget: 25 scheduled fires a week. Only a fire inside a live PSX band does
-# real work, and the sleep gate below runs before setup-python, before the pip
-# install and before the bar fetch, so a weekend, a holiday and every
-# non-session slot bill about one minute instead of eleven.
+# Budget: 36 scheduled fires a week, of which 11 are the pre-market and
+# post-market backstops added by the owner's order of 2026-11-09. Only a fire
+# inside a live PSX band or inside one of those windows does real work, and the
+# sleep gate below runs before setup-python, before the pip install and before
+# the bar fetch, so a weekend, a holiday and every non-session slot bill about
+# one minute instead of eleven.
 #
 # A working fire used to bill 11 to 14 minutes AND end "cancelled" without ever
 # reaching the scan step: one polite pass over the 319 symbol universe needs
@@ -44,6 +55,17 @@ on:
     - cron: "7 11 * * 5"      # 16:07 PKT Friday session 2
     - cron: "47 10 * * 1-4"   # 15:47 PKT finalize
     - cron: "47 11 * * 5"     # 16:47 PKT Friday finalize
+    # Owner order 2026-11-09: the pre-market and post-market windows must be
+    # scanned on every market day, so a band loop that never starts (or one
+    # that dies before its post-close window) can never leave the day's volume
+    # UNCLEAR. These are backstops, not the primary path: the session loop in
+    # intraday-session.yml still scans those windows every second. Each fire
+    # is gated by the one session law, so a mistimed event costs a minute.
+    - cron: "20 4 * * 1-4"    # 09:20 PKT, Mon-Thu pre-open (09:15 to 09:30)
+    - cron: "10 4 * * 5"      # 09:10 PKT, Friday pre-open (09:00 to 09:15)
+    - cron: "20 9 * * 5"      # 14:20 PKT, Friday second pre-open (14:15 to 14:30)
+    - cron: "40 10 * * 1-4"   # 15:40 PKT, Mon-Thu post-market (15:35 to 15:50)
+    - cron: "40 11 * * 5"     # 16:40 PKT, Friday post-market (16:35 to 16:50)
   workflow_dispatch:
     inputs:
       slot:

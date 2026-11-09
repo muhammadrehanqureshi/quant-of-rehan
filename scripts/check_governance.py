@@ -79,6 +79,15 @@ FORBIDDEN_TRAILERS = (
     "signed-off-by:",
 )
 
+# SO-25 (owner order, 2026-11-09): no agent is ever a contributor. The owner is
+# the only author in every ref, and no author or committer may carry one of
+# these names. GitHub's own merge machinery is a committer, never an author,
+# so only the author field is held to the owner-only rule.
+AGENT_IDENTITY_MARKERS = (
+    "freebuff", "codebuff", "buffy", "copilot", "claude", "chatgpt",
+    "anthropic", "openai",
+)
+
 # SO-8: Karachi is the only timezone this system may speak.
 KARACHI_REQUIRED_SNIPPETS = ("UTC+5", "Asia/Karachi")
 
@@ -129,6 +138,10 @@ REQUIRED_GOVERNANCE_SNIPPETS = [
     # keeps the session's own checks there too, so its only local actions are
     # edits and git/gh and the machine stays idle while it works.
     "The agent's own session runs no local computation",
+    # Owner order 2026-11-09 (SO-25): the owner is the only contributor, in
+    # every ref, and no agent identity is ever an author or a committer.
+    "The owner is the only contributor, in every ref",
+    "don't include yourself as the contributor",
     "Don't ever hammer my PC at all ever",
     "the agent's only local actions are file edits and the `git` and `gh` "
     "commands",
@@ -173,6 +186,10 @@ LITERAL_WAIT = re.compile(
 )
 
 REQUIRED_AGENTS_SNIPPETS = [
+    # Owner order 2026-11-09 (SO-25): the contributor rule sits with the
+    # machine law, so a session reads it before it writes its first commit.
+    "The contributor rule: only the owner",
+    "don't include yourself as the contributor",
     # Owner order 2026-10-21 (SO-22): the rule sits next to the machine rule,
     # because idling is what an eager session does next, and it must survive
     # every rewrite of this file.
@@ -527,6 +544,59 @@ def check_commit_messages(errors: list) -> None:
                 break
 
 
+def check_owner_identity(errors: list) -> None:
+    """SO-25: the owner is the only contributor, in every reachable ref.
+
+    The order of 2026-11-09 widened SO-7 from the pull request's own commits to
+    the whole repository: a commit an agent wrote on a side ref still appears in
+    the contributor graph. Every author reachable from any local ref must be the
+    owner, and no author or committer may carry an agent identity. GitHub's
+    merge button commits as `GitHub <noreply@github.com>`; it is a committer on
+    the way to master, never a contributor, so that side is only checked
+    against the agent names.
+    """
+    try:
+        out = subprocess.run(
+            # HEAD is named as well as --all: a pull request checkout is
+            # usually a detached HEAD, which is not a ref and would otherwise
+            # make this check read nothing at all.
+            ["git", "log", "--all", "HEAD",
+             "--format=%H%x09%an%x09%ae%x09%cn%x09%ce"],
+            capture_output=True, text=True, encoding="utf-8",
+            errors="replace", timeout=60, check=True,
+        ).stdout
+    except (subprocess.SubprocessError, OSError):
+        return  # not a checkout, or git is unavailable; CI covers it
+    owner_ids = ((OWNER_NAME, OWNER_EMAIL), (OWNER_NAME, OWNER_EMAIL_ALT))
+    seen: set = set()
+    for line in out.splitlines():
+        parts = line.split("\t")
+        if len(parts) < 5:
+            continue
+        sha, an, ae, cn, ce = (part.strip() for part in parts[:5])
+        identity = (an, ae, cn, ce)
+        if identity in seen:
+            continue
+        seen.add(identity)
+        author = f"{an} <{ae}>"
+        if (an, ae) not in owner_ids:
+            errors.append(
+                f"[SO-25] commit {sha} is authored by {author}, not by the "
+                f"owner {OWNER_NAME} <{OWNER_EMAIL}>; the owner is the only "
+                f"contributor in every ref (owner order 2026-11-09)"
+            )
+        for field, value in (("author", author), ("committer", f"{cn} <{ce}>")):
+            low = value.lower()
+            for marker in AGENT_IDENTITY_MARKERS:
+                if marker in low:
+                    errors.append(
+                        f"[SO-25] commit {sha} carries the agent identity "
+                        f"{value!r} as {field}; no agent is a contributor "
+                        f"(owner order 2026-11-09)"
+                    )
+                    break
+
+
 def check_karachi_pin(errors: list) -> None:
     """SO-8: any module that builds session times must pin UTC+5 explicitly."""
     for p in iter_text_files():
@@ -682,6 +752,7 @@ def main() -> int:
     check_governance_doc(errors)
     check_em_dashes(errors)
     check_commit_messages(errors)
+    check_owner_identity(errors)
     check_karachi_pin(errors)
     check_backtests_in_cloud(errors)
     check_cloud_only(errors)
@@ -698,7 +769,8 @@ def main() -> int:
     print("GOVERNANCE CHECK PASSED (SO-13 cadence and free-minute law included): "
           "secrets clean, footprint honesty intact, "
           "standing orders present, SO-7 style and identity verified, "
-          "SO-7a no agent attribution verified, SO-8 Karachi pin verified, "
+          "SO-7a no agent attribution verified, SO-25 owner-only contributor "
+          "in every ref verified, SO-8 Karachi pin verified, "
           "SO-21 backtests cloud-only enforced, SO-12 cloud-only recurring "
           "work enforced, SO-20 tape before scanner, KV quota removed, "
           "SO-22 no clock wait in the agent's tooling, "

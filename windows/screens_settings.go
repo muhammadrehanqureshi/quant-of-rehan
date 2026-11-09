@@ -71,8 +71,9 @@ func (a *App) drawSettings(c *Canvas, x, y, w, h int) {
 	}
 	info("RELAY", a.relay.Base, th.Text)
 	info("VERSION", appVersion+" (Windows build "+hudBuild+")", th.Hot)
-	info("REQUESTS TODAY", commaInt(a.reqToday())+" of 100,000 on the free tier.", th.Text)
-	info("", "The count resets at 05:00 PKT.", th.Text)
+	info("REQUESTS TODAY", commaInt(a.reqToday())+" of 90,000 allowed.", th.Text)
+	info("", "The app stops at 90,000 of Cloudflare's 100,000 a day, so the day", th.Text)
+	info("", "is never exhausted. The count resets at 05:00 PKT.", th.Text)
 	info("SCANNING", "Every second from 08:55 until the post-market closes.", th.Text)
 	info("", "That is 15:49 Monday to Thursday and 16:49 on Friday.", th.Text)
 	info("SETTINGS FILE", settingsPath(), th.Soft)
