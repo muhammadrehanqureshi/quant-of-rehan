@@ -1724,16 +1724,17 @@ class StatusPulseTest(unittest.TestCase):
         """
         watcher = WATCHER.read_text(encoding="utf-8")
         worker = (ROOT / "cloud" / "worker.js").read_text(encoding="utf-8")
-        self.assertIn("private static void applyLiveQuotes(Market market, String base)",
-                      watcher)
-        self.assertIn('get(base + "/quotes", null)', watcher)
+        self.assertIn(
+            "private static void applyLiveQuotes(Context c, Market market, String base)",
+            watcher)
+        self.assertIn('get(c, base + "/quotes", null)', watcher)
         self.assertIn("if (index != null && index.optBoolean(\"fresh\", false))", watcher)
         self.assertIn("!quote.optBoolean(\"fresh\", false)", watcher)
         self.assertIn(
             "async function applyLiveQuotes(env, snapshot, quotes, now, "
             "ackDay)", worker)
         full = watcher[watcher.index("static void fetchStatus("):][:1200]
-        self.assertIn("applyLiveQuotes(market, base);", full)
+        self.assertIn("applyLiveQuotes(c, market, base);", full)
         live = watcher[watcher.index("static void fetchLive("):]
         live = live[:live.index("static void fetchStatus(")]
         # Owner order 2026-10-22 (second report on the lag): the card read is
@@ -1742,13 +1743,52 @@ class StatusPulseTest(unittest.TestCase):
         self.assertIn("marketJob = CARD_POOL.submit(() -> fetchMarket(c, base));",
                       live)
         self.assertIn("Market market = marketJob.get(9, TimeUnit.SECONDS);", live)
-        self.assertNotIn("applyLiveQuotes(market, base);", live)
+        self.assertNotIn("applyLiveQuotes(c, market, base);", live)
         # Owner order 2026-11-05 (seventh pass, the relay's daily Durable
         # Object budget): the status and signal read rides every fifth tick,
         # so one phone tick is one relay request for the card alone.
         self.assertIn("static final long HEAD_GAP_MS = 5000;", watcher)
         self.assertIn("headDue ? HEALTH_POOL.submit", live)
         self.assertIn("head = lastHead;", live)
+
+    def test_the_phone_stops_itself_at_its_share_of_the_daily_allowance(self):
+        """Owner order 2026-11-09: the phone keeps the console's hard stop.
+
+        The Windows console already refuses every request at 90,000 a day
+        (reqHardCap). Two processes that each capped at 90,000 could still
+        spend 180,000 of a 100,000 allowance, so the phone takes the share
+        that keeps the total under the line: 8,000 for the app and 2,000 for
+        the relay. The count is per UTC day and it is written to the app's own
+        preferences BEFORE the socket opens, so a restart cannot hand back
+        requests the day has already spent.
+        """
+        watcher = WATCHER.read_text(encoding="utf-8")
+        console = (ROOT / "windows" / "app.go").read_text(encoding="utf-8")
+        self.assertIn("const reqHardCap = 90000", console)
+        self.assertIn("static final long DAILY_REQUEST_CAP = 8000;", watcher)
+        console_cap = int(console.split("const reqHardCap = ")[1].split("\n")[0])
+        phone_cap = int(watcher.split("DAILY_REQUEST_CAP = ")[1].split(";")[0])
+        self.assertLess(console_cap + phone_cap, 100000,
+                        "the two caps together must stay under the free allowance")
+        # Every relay read in the class leaves through one door, and that door
+        # refuses before it opens a socket.
+        door = watcher[watcher.index("private static JSONObject get("):
+                       watcher.index("private static JSONObject healthWithRetry(")]
+        self.assertIn("if (!reserveRequest(c)) {", door)
+        self.assertIn("throw new DailyCapSpent();", door)
+        self.assertLess(door.index("throw new DailyCapSpent();"),
+                        door.index("openConnection()"))
+        # The count is written before the request leaves, keyed by the UTC day.
+        reserve = watcher[watcher.index("static boolean reserveRequest(Context c) {"):
+                          watcher.index("private static JSONObject get(")]
+        self.assertIn("putString(CAP_DAY_KEY, capDay)", reserve)
+        self.assertIn("putLong(CAP_COUNT_KEY, capCount)", reserve)
+        self.assertIn('java.util.TimeZone.getTimeZone("UTC")', watcher)
+        # A spent cap is never worded as a relay fault, and the retrying health
+        # read does not keep knocking on a door the cap has closed.
+        self.assertIn("if (cause instanceof DailyCapSpent) {", watcher)
+        self.assertIn("allowance is spent", watcher)
+        self.assertIn("if (e instanceof DailyCapSpent) {", watcher)
 
     def test_the_market_card_is_read_on_each_live_display_refresh(self):
         """The app polls the current relay card each second while open.
