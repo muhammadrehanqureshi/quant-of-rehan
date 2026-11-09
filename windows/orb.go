@@ -23,22 +23,16 @@ const defaultCellAspect = 2.22
 // state, so the owner can inspect it while the market is closed.
 const hudForceLive = true
 
-// orbDotPitch is the number of console dots between two dots of the mark. Two
-// leaves one empty dot in each direction, and that is what makes the mark read
-// as dots: the GIF's own stipple sits at a 14 pixel pitch, finer than the
-// panel's dots, so drawing it one console dot per GIF dot closes every gap and
-// turns the stipple into a filled shape (owner order 2026-11-09).
-const orbDotPitch = 2
+// orbDotPitch is the number of console dots between two dots of the mark. One
+// puts a dot on every pixel of the grid, which is how the GIF draws itself: its
+// stipple is one dot per point with the file's own gaps between them, and the
+// owner asked for exactly that render instead of a thinned copy of it.
+const orbDotPitch = 1
 
 // orbScale is the mark's share of its tile. It was cut by ten percent once,
 // then the owner asked for more dots and a bigger mark, so it fills the tile
 // again and only the lattice decides how many dots there are.
 const orbScale = 1.0
-
-// orbBands is how many rings of shade the mark carries from the middle out. It
-// is the ring rhythm the owner asked for, counted so a small panel and a wide
-// one both show eight clear bands.
-const orbBands = 8
 
 // OrbMode says whether the quant is online. The ink comes from orbGreen; the
 // mode is kept for the rest of the HUD and the existing tests.
@@ -196,12 +190,6 @@ func orbFrameIndex(t float64, count int) int {
 	return count - 1
 }
 
-// orbDotCover is how much of a lattice point the GIF has to fill before the
-// panel draws that point. It keeps a dark band in the artwork dark without
-// thinning the stipple: owner order 2026-11-09 asked for more dots, so it sits
-// at the GIF's own density instead of the strict 0.35 of the first cut.
-const orbDotCover = 0.25
-
 // orbGrid places one GIF frame in a grid of w by h cells, dot for dot. Each
 // point of the lattice takes the brightest cell of the GIF it covers, so the
 // stipple, its two greens and the gaps between its dots all come from the file,
@@ -215,9 +203,6 @@ func orbGrid(w, h int, t float64) *dotGrid {
 		return g
 	}
 	frame := orbFrames[orbFrameIndex(t, len(orbFrames))]
-	// orbBands rings of alternating shade from the middle out, so a small panel
-	// and a wide one both show the same rhythm instead of one flat tint.
-	band := max(2, int(math.Round(float64(cols)/2/float64(orbBands))))
 	ox := (g.w - cols*orbDotPitch) / 2
 	oy := (g.h - rows*orbDotPitch) / 2
 	for j := 0; j < rows; j++ {
@@ -238,24 +223,23 @@ func orbGrid(w, h int, t float64) *dotGrid {
 			if sx1 > orbRaster {
 				sx1 = orbRaster
 			}
-			total, cells := 0, 0
+			peak := uint8(0)
 			for sy := sy0; sy < sy1; sy++ {
 				row := frame[sy*orbRaster : (sy+1)*orbRaster]
 				for sx := sx0; sx < sx1; sx++ {
-					total += int(row[sx])
-					cells++
+					if row[sx] > peak {
+						peak = row[sx]
+					}
 				}
 			}
-			if cells == 0 || float64(total)/float64(cells) < orbDotCover {
+			if peak == 0 {
 				continue
 			}
-			// Owner order 2026-11-09: the two shades alternate by concentric
-			// band, dark at the middle and lighter outward, so the mark reads as
-			// rings of shade instead of one flat tint. The innermost visible ring
-			// is the dim shade, the next the bright one, and so on outward.
-			radius := math.Hypot(float64(i)-(float64(cols)-1)/2, float64(j)-(float64(rows)-1)/2)
+			// Owner order 2026-11-09 (latest): the two shades are the GIF's own
+			// per dot, so the mark keeps the file's own mix of light and dark
+			// dots instead of one tint or a drawn rhythm.
 			tone := 0.25
-			if int(radius/float64(band))%2 == 0 {
+			if peak >= 2 {
 				tone = 1.0
 			}
 			g.set(ox+i*orbDotPitch, oy+j*orbDotPitch, float32(tone))
