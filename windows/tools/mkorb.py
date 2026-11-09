@@ -118,15 +118,17 @@ HUD_PITCH = 1       # one console dot per GIF dot, as the GIF draws itself
 HUD_ROWS = 56       # the 120 by 30 home panel offers 56 dots down
 HUD_WIDE_ROWS = 104
 HUD_ASPECT = 1.11   # cellAspect / 2: a square source stays square on screen
+HUD_BANDS = 5       # orbBands: dark inside, light next, and so outward
 
 
 def hud_grid(frame, rows=HUD_ROWS, aspect=HUD_ASPECT):
-    """What orbGrid draws: one console dot per grid point, each taking the
-    brightest cell of the GIF it covers, so the dots, their gaps and their
-    shades are the file's own."""
+    """What orbGrid draws: one console dot per grid point the GIF covers, and
+    its shade from the concentric bands, dark at the middle and light next."""
     size = frame.shape[0]
     rows = max(1, rows)
     cols = max(1, round(rows * aspect))
+    band = max(1, round(cols / 2 / HUD_BANDS))
+    cx, cy = (cols - 1) / 2, (rows - 1) / 2
     out = np.zeros((rows, cols), dtype=np.uint8)
     for j in range(rows):
         sy0 = j * size // rows
@@ -134,7 +136,10 @@ def hud_grid(frame, rows=HUD_ROWS, aspect=HUD_ASPECT):
         for i in range(cols):
             sx0 = i * size // cols
             sx1 = max(sx0 + 1, (i + 1) * size // cols)
-            out[j, i] = int(frame[sy0:sy1, sx0:sx1].max())
+            if int(frame[sy0:sy1, sx0:sx1].max()) == 0:
+                continue
+            dark = int(math.hypot(i - cx, j - cy) / band) % 2 == 0
+            out[j, i] = 1 if dark else 2
     return out
 
 
@@ -201,11 +206,51 @@ def draw_preview(levels, dim, bright, path):
     strip.save(path)
 
 
+def lit_box(frames, lit_at):
+    """The box the artwork occupies, made square. The GIF's frame carries
+    margins of its own and is not exactly square around the dial, which is why
+    the mark drew wider than it was tall; cropping to the dial's own box makes
+    it draw as a circle."""
+    top, bottom, left, right = None, None, None, None
+    for frame in frames:
+        mask = luminance(frame) > lit_at
+        rows = np.where(mask.any(axis=1))[0]
+        cols = np.where(mask.any(axis=0))[0]
+        if rows.size == 0 or cols.size == 0:
+            continue
+        top = int(rows[0]) if top is None else min(top, int(rows[0]))
+        bottom = int(rows[-1]) + 1 if bottom is None else max(bottom, int(rows[-1]) + 1)
+        left = int(cols[0]) if left is None else min(left, int(cols[0]))
+        right = int(cols[-1]) + 1 if right is None else max(right, int(cols[-1]) + 1)
+    if top is None:
+        return None
+    side = max(bottom - top, right - left)
+    cx, cy = (left + right) / 2, (top + bottom) / 2
+    return (int(round(cx - side / 2)), int(round(cy - side / 2)), side)
+
+
+def crop_square(frame, box):
+    """The dial's own square, padded with the frame's background if it reaches
+    past the edge."""
+    if box is None:
+        return frame
+    left, top, side = box
+    fill = frame.getpixel((0, 0))
+    out = Image.new("RGB", (side, side), fill)
+    sx0, sy0 = max(0, left), max(0, top)
+    sx1, sy1 = min(frame.width, left + side), min(frame.height, top + side)
+    if sx1 > sx0 and sy1 > sy0:
+        out.paste(frame.crop((sx0, sy0, sx1, sy1)), (sx0 - left, sy0 - top))
+    return out
+
+
 def main():
     frames, delays = load_frames()
     if not frames:
         raise SystemExit("the GIF has no frames")
     background, dim_lum, bright_lum, dim, bright = palette(frames[0])
+    box = lit_box(frames, (background + dim_lum) / 2)
+    frames = [crop_square(frame, box) for frame in frames]
     levels = [quantise(sample(f), background, dim_lum, bright_lum) for f in frames]
     blob = zlib.compress(b"".join(pack(frame) for frame in levels), 9)
     payload = base64.b64encode(blob).decode("ascii")
