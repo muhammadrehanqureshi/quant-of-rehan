@@ -110,9 +110,8 @@ func TestOldSessionRebuildsOrderFlowFromStoredQuotes(t *testing.T) {
 		Ver:     sessionVer,
 		SavedAt: time.Date(2026, 11, 6, 15, 30, 0, 0, pkt),
 		Session: "2026-11-06",
-		Market:  &Market{Date: "2026-11-06"},
-		Prices:  map[string]Quote{"KEL": {Price: 5.79}},
-		Quotes:  &Quotes{OK: true, Items: map[string]LiveQuote{"KEL": {Price: 5.79, Volume: 21000, Fresh: true}}},
+		Market: &Market{Date: "2026-11-06"},
+		Quotes: &Quotes{OK: true, Items: map[string]LiveQuote{"KEL": {Price: 5.79, Volume: 21000, Fresh: true}}},
 	}
 	if err := saveSession(sessionPath(cfgPath), snap); err != nil {
 		t.Fatalf("save: %v", err)
