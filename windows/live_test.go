@@ -533,7 +533,9 @@ func TestTelemetryKeepsBuyingSellingAndUnclearApart(t *testing.T) {
 	}}
 	flowRow := ""
 	for _, row := range rowsOf(a) {
-		if strings.Contains(row, "FLOW") {
+		// The navigation line says `3 ORDER FLOW`; the telemetry label is the
+		// bare `FLOW`, so the two are never confused.
+		if strings.Contains(row, "FLOW") && !strings.Contains(row, "ORDER FLOW") {
 			flowRow = row
 		}
 	}
