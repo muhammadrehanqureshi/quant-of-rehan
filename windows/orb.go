@@ -30,9 +30,10 @@ const hudForceLive = true
 // turns the stipple into a filled shape (owner order 2026-11-09).
 const orbDotPitch = 2
 
-// orbScale is the owner's ten percent reduction of build 32's first size: the
-// mark was crowding its tile (order 2026-11-09).
-const orbScale = 0.90
+// orbScale is the mark's share of its tile. It was cut by ten percent once,
+// then the owner asked for more dots and a bigger mark, so it fills the tile
+// again and only the lattice decides how many dots there are.
+const orbScale = 1.0
 
 // orbBands is how many rings of shade the mark carries from the middle out. It
 // is the ring rhythm the owner asked for, counted so a small panel and a wide
@@ -196,9 +197,10 @@ func orbFrameIndex(t float64, count int) int {
 }
 
 // orbDotCover is how much of a lattice point the GIF has to fill before the
-// panel draws that point. It is what keeps a dark band in the artwork dark
-// instead of turning every point the GIF brushes into a dot.
-const orbDotCover = 0.35
+// panel draws that point. It keeps a dark band in the artwork dark without
+// thinning the stipple: owner order 2026-11-09 asked for more dots, so it sits
+// at the GIF's own density instead of the strict 0.35 of the first cut.
+const orbDotCover = 0.25
 
 // orbGrid places one GIF frame in a grid of w by h cells, dot for dot. Each
 // point of the lattice takes the brightest cell of the GIF it covers, so the
