@@ -21,8 +21,12 @@ const defaultCellAspect = 2.22
 // state, so the owner can inspect it while the market is closed.
 const hudForceLive = true
 
-// orbGrowth is the owner's ten percent enlargement over build 28.
-const orbGrowth = 1.10
+// orbDotPitch is the number of console dots between two dots of the mark. Two
+// leaves one empty dot in each direction, and that is what makes the mark read
+// as dots: the GIF's own stipple sits at a 14 pixel pitch, finer than the
+// panel's dots, so drawing it one console dot per GIF dot closes every gap and
+// turns the stipple into a filled shape (owner order 2026-11-09).
+const orbDotPitch = 2
 
 // OrbMode says whether the quant is online. The ink comes from orbGreen; the
 // mode is kept for the rest of the HUD and the existing tests.
@@ -81,13 +85,12 @@ func hudInk(tone float64, green bool) RGB {
 // draw Braille.
 var ringHalfBlocks bool
 
-// orbDrawSize is the dot-matrix size that fits a w by h cell box. One
-// terminal dot is half a cell wide and a quarter of a cell tall, so a dot is
-// cellAspect/2 times as tall as it is wide; a square GIF therefore needs that
-// many more dots across than down, and the picture keeps its own proportions.
-// The box is the panel's inner rectangle: at the 120 by 30 home size the old
-// one cell margin on each side clamped the dial shorter than the tile.
-func orbDrawSize(w, h int) (int, int) {
+// orbDotGrid is the lattice the panel draws: one dot of the mark per lattice
+// point, one empty console dot between points, and as many points as the w by h
+// cell box holds. A terminal dot is half a cell wide and a quarter of a cell
+// tall, so a dot is cellAspect/2 times as tall as it is wide and a square
+// source needs that many more points across than down to stay square on screen.
+func orbDotGrid(w, h int) (cols, rows int) {
 	if len(orbFrames) == 0 || w <= 0 || h <= 0 {
 		return 0, 0
 	}
@@ -102,19 +105,33 @@ func orbDrawSize(w, h int) (int, int) {
 	if across > 1.6 {
 		across = 1.6
 	}
-	maxW, maxH := 2*w, 4*h
-	dh := maxH
-	if limit := int(math.Round(float64(dh) * across)); limit > maxW {
-		dh = int(math.Round(float64(maxW) / across))
+	rows = (4 * h) / orbDotPitch
+	if limit := int(float64(2*w) / float64(orbDotPitch) / across); limit < rows {
+		rows = limit
 	}
-	dw := int(math.Round(float64(dh) * across))
-	if dw > maxW {
-		dw = maxW
+	if rows > orbRaster {
+		rows = orbRaster
 	}
-	if dw < 1 || dh < 1 {
+	if rows < 1 {
 		return 0, 0
 	}
-	return dw, dh
+	cols = int(math.Round(float64(rows) * across))
+	if cols > orbRaster {
+		cols = orbRaster
+	}
+	if cols < 1 || cols*orbDotPitch > 2*w {
+		return 0, 0
+	}
+	return cols, rows
+}
+
+// orbDrawSize is the box the mark fills on the panel, in console dots.
+func orbDrawSize(w, h int) (int, int) {
+	cols, rows := orbDotGrid(w, h)
+	if cols < 1 || rows < 1 {
+		return 0, 0
+	}
+	return cols * orbDotPitch, rows * orbDotPitch
 }
 
 // orbFrameIndex picks the GIF frame on screen after t seconds, honouring each
@@ -150,40 +167,38 @@ func orbFrameIndex(t float64, count int) int {
 	return count - 1
 }
 
-// orbDotCover is how much of a panel dot the GIF has to fill before that dot
-// lights. A dot of the GIF's stipple covers about two fifths of a panel dot at
-// the 120 by 30 home size, so a stricter rule than "any lit pixel" is what
-// keeps the gaps between the GIF's dots open instead of closing them into
-// strokes.
+// orbDotCover is how much of a lattice point the GIF has to fill before the
+// panel draws that point. It is what keeps a dark band in the artwork dark
+// instead of turning every point the GIF brushes into a dot.
 const orbDotCover = 0.35
 
-// orbGrid places one GIF frame in a grid of w by h cells. The frame is the
-// owner's GIF itself, sampled at orbRaster by orbRaster dots; each panel dot
-// takes the brightest source cell it covers, so no dot of the picture is lost
-// in the resize and the gaps between the GIF's own dots stay open. The dots
-// and the motion are both the source's: the frame index follows each frame's
-// own delay, and nothing is rotated, waved or glinted on top of it (owner
-// order 2026-11-09).
+// orbGrid places one GIF frame in a grid of w by h cells, dot for dot. Each
+// point of the lattice takes the brightest cell of the GIF it covers, so the
+// stipple, its two greens and the gaps between its dots all come from the file,
+// and the points are spaced orbDotPitch apart so those gaps survive the panel's
+// finer dot grid. The frame index follows each frame's own delay, and nothing
+// is rotated, waved or glinted on top of it (owner order 2026-11-09).
 func orbGrid(w, h int, t float64) *dotGrid {
 	g := newDotGrid(w, h)
-	dw, dh := orbDrawSize(w, h)
-	if dw < 1 || dh < 1 {
+	cols, rows := orbDotGrid(w, h)
+	if cols < 1 || rows < 1 {
 		return g
 	}
 	frame := orbFrames[orbFrameIndex(t, len(orbFrames))]
-	ox, oy := (g.w-dw)/2, (g.h-dh)/2
-	for y := 0; y < dh; y++ {
-		sy0 := y * orbRaster / dh
-		sy1 := (y + 1) * orbRaster / dh
+	ox := (g.w - cols*orbDotPitch) / 2
+	oy := (g.h - rows*orbDotPitch) / 2
+	for j := 0; j < rows; j++ {
+		sy0 := j * orbRaster / rows
+		sy1 := (j + 1) * orbRaster / rows
 		if sy1 <= sy0 {
 			sy1 = sy0 + 1
 		}
 		if sy1 > orbRaster {
 			sy1 = orbRaster
 		}
-		for x := 0; x < dw; x++ {
-			sx0 := x * orbRaster / dw
-			sx1 := (x + 1) * orbRaster / dw
+		for i := 0; i < cols; i++ {
+			sx0 := i * orbRaster / cols
+			sx1 := (i + 1) * orbRaster / cols
 			if sx1 <= sx0 {
 				sx1 = sx0 + 1
 			}
@@ -205,12 +220,12 @@ func orbGrid(w, h int, t float64) *dotGrid {
 			if cells == 0 || float64(total)/float64(cells) < orbDotCover {
 				continue
 			}
-			// The two GIF shades, taken from the strongest pixel the dot covers.
+			// The two GIF shades, taken from the strongest cell the dot covers.
 			tone := 0.25
 			if peak >= 2 {
 				tone = 1.0
 			}
-			g.set(ox+x, oy+y, float32(tone))
+			g.set(ox+i*orbDotPitch, oy+j*orbDotPitch, float32(tone))
 		}
 	}
 	return g

@@ -113,25 +113,46 @@ def wrap(text, width=96):
     return "\n".join(text[i:i + width] for i in range(0, len(text), width))
 
 
-HUD_COLS, HUD_ROWS = 76, 56
-HUD_COVER = 0.35
+HUD_PITCH = 2      # one empty console dot between dots, so a dot stays a dot
+HUD_ROWS = 28      # the 120 by 30 home panel offers 56 dots down, halved
+HUD_ASPECT = 1.11  # cellAspect / 2: a square source stays square on screen
+HUD_COVER = 0.35   # orbDotCover: how much of a point the GIF must fill
 
 
-def hud_grid(frame, cols=HUD_COLS, rows=HUD_ROWS):
-    """What orbGrid draws: mean coverage decides the dot, the peak its shade."""
+def hud_grid(frame, rows=HUD_ROWS, aspect=HUD_ASPECT):
+    """What orbGrid draws: one dot per lattice point, one empty dot between."""
     size = frame.shape[0]
+    cols = max(1, round(rows * aspect))
     out = np.zeros((rows, cols), dtype=np.uint8)
-    for y in range(rows):
-        sy0 = y * size // rows
-        sy1 = max(sy0 + 1, (y + 1) * size // rows)
-        for x in range(cols):
-            sx0 = x * size // cols
-            sx1 = max(sx0 + 1, (x + 1) * size // cols)
-            cell = frame[sy0:sy1, sx0:sx1]
-            if float(cell.mean()) < HUD_COVER:
+    for j in range(rows):
+        sy0 = j * size // rows
+        sy1 = max(sy0 + 1, (j + 1) * size // rows)
+        for i in range(cols):
+            sx0 = i * size // cols
+            sx1 = max(sx0 + 1, (i + 1) * size // cols)
+            block = frame[sy0:sy1, sx0:sx1]
+            if float(block.mean()) < HUD_COVER:
                 continue
-            out[y, x] = 2 if int(cell.max()) >= 2 else 1
+            out[j, i] = int(block.max())
     return out
+
+
+def hud_tile(grid, dim, bright, cell=8, dot=4):
+    """The console's own lattice: a dot of four pixels with four between."""
+    rows, cols = grid.shape
+    img = Image.new("RGB", (cols * HUD_PITCH * cell, rows * HUD_PITCH * cell), (7, 18, 28))
+    pixels = img.load()
+    for j in range(rows):
+        for i in range(cols):
+            value = grid[j, i]
+            if value == 0:
+                continue
+            colour = bright if value >= 2 else dim
+            x0, y0 = i * HUD_PITCH * cell, j * HUD_PITCH * cell
+            for dy in range(dot):
+                for dx in range(dot):
+                    pixels[x0 + dx, y0 + dy] = colour
+    return img
 
 
 def tile(grid, dim, bright, scale):
@@ -154,7 +175,7 @@ def draw_preview(levels, dim, bright, path):
     """The GIF's own raster on top, the console's dot grid underneath."""
     showcase = [0, len(levels) // 4] if len(levels) > 1 else [0]
     big = [tile(levels[i], dim, bright, 2) for i in showcase]
-    hud = [tile(hud_grid(levels[i]), dim, bright, 6) for i in showcase]
+    hud = [hud_tile(hud_grid(levels[i]), dim, bright) for i in showcase]
     gap = 12
     width = max(sum(g.width for g in big) + gap * (len(big) - 1),
                 sum(h.width for h in hud) + gap * (len(hud) - 1))
@@ -254,9 +275,10 @@ func decodeOrbFrames() [][]uint8 {{
           f"{max(delays)} ms longest frame")
     print(f"greens: dim #{dim[0]:02x}{dim[1]:02x}{dim[2]:02x}, "
           f"bright #{bright[0]:02x}{bright[1]:02x}{bright[2]:02x}")
-    hud_lit = int((hud_grid(levels[0]) > 0).sum())
-    print(f"hud: {hud_lit} of {HUD_COLS * HUD_ROWS} dots lit at "
-          f"{HUD_COLS} by {HUD_ROWS}, cover {HUD_COVER}")
+    hud = hud_grid(levels[0])
+    rows, cols = hud.shape
+    print(f"hud: {int((hud > 0).sum())} of {cols * rows} dots lit at {cols} by "
+          f"{rows}, one empty dot between (pitch {HUD_PITCH})")
     print(f"wrote {OUT.name} ({OUT.stat().st_size} bytes) and {PREVIEW.name}")
 
 
