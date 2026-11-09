@@ -140,5 +140,79 @@ class CommitMessageTest(unittest.TestCase):
                             for e in found), found)
 
 
+@unittest.skipUnless(GIT, "git is required to exercise the identity check")
+class OwnerIdentityTest(unittest.TestCase):
+    """SO-25: the whole repository, not only the pull request's own commits."""
+
+    def setUp(self):
+        self._dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self._dir.cleanup)
+        self.repo = Path(self._dir.name)
+        self.cwd = os.getcwd()
+        self.git("init", "-q")
+        self.git("config", "user.name", "Mr. Rehan")
+        self.git("config", "user.email",
+                 "muhammadrehanqureshi@users.noreply.github.com")
+        (self.repo / "a.txt").write_text("one", encoding="utf-8")
+        self.git("add", "-A")
+        self.git("commit", "-q", "-m", "Sandbox: the owner's first commit")
+
+    def git(self, *args):
+        return subprocess.run([GIT, *args], cwd=self.repo, capture_output=True,
+                              text=True, check=True)
+
+    def errors(self) -> list:
+        cg = checker()
+        found: list = []
+        os.chdir(self.repo)
+        self.addCleanup(os.chdir, self.cwd)
+        cg.check_owner_identity(found)
+        return found
+
+    def tree(self) -> str:
+        return self.git("rev-parse", "HEAD^{tree}").stdout.strip()
+
+    def commit_as(self, name: str, email: str, committer: tuple) -> str:
+        cname, cemail = committer
+        env = {**os.environ, "GIT_AUTHOR_NAME": name,
+               "GIT_AUTHOR_EMAIL": email, "GIT_COMMITTER_NAME": cname,
+               "GIT_COMMITTER_EMAIL": cemail}
+        return subprocess.run(
+            [GIT, "commit-tree", self.tree(), "-m", "Sandbox: a side ref"],
+            cwd=self.repo, capture_output=True, text=True, check=True,
+            env=env).stdout.strip()
+
+    def test_the_owner_only_history_passes(self):
+        self.assertEqual(self.errors(), [])
+
+    def test_an_agent_authored_commit_on_a_side_ref_is_reported(self):
+        # A ref outside every branch is still a ref: this is exactly the shape
+        # found in the owner's checkout on 2026-11-09.
+        commit = self.commit_as("Freebuff", "desktop@freebuff.local",
+                                ("Freebuff", "desktop@freebuff.local"))
+        self.git("update-ref", "refs/freebuff/base/sandbox", commit)
+        found = self.errors()
+        self.assertTrue(any("[SO-25]" in e and "not by the owner" in e
+                            for e in found), found)
+        self.assertTrue(any("agent identity" in e for e in found), found)
+
+    def test_another_human_author_on_a_side_ref_is_reported(self):
+        commit = self.commit_as("Someone Else", "else@example.com",
+                                ("Mr. Rehan",
+                                 "muhammadrehanqureshi@users.noreply.github.com"))
+        self.git("update-ref", "refs/heads/side", commit)
+        found = self.errors()
+        self.assertTrue(any("not by the owner" in e for e in found), found)
+
+    def test_a_github_merge_committer_is_not_an_agent(self):
+        # The merge button commits as GitHub; that is a committer, not a
+        # contributor, so it must not fail the owner-only author rule.
+        commit = self.commit_as("Mr. Rehan",
+                                "muhammadrehanqureshi@users.noreply.github.com",
+                                ("GitHub", "noreply@github.com"))
+        self.git("update-ref", "refs/heads/merged", commit)
+        self.assertEqual(self.errors(), [])
+
+
 if __name__ == "__main__":
     unittest.main()

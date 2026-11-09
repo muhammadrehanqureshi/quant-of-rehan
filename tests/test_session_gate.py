@@ -367,7 +367,10 @@ class TestSchedulePlan(unittest.TestCase):
         import re
         crons = re.findall(r'^\s*-\s*cron:\s*"([^"]+)"',
                            self.WORKFLOW.read_text(encoding="utf-8"), re.M)
-        self.assertEqual(len(crons), 7, "the workflow should still declare 7 crons")
+        # 7 in-band and finalize slots, plus the five pre/post backstops the
+        # owner ordered on 2026-11-09.
+        self.assertEqual(len(crons), 12,
+                         "the workflow should declare 12 crons")
         for cron in crons:
             with self.subTest(cron=cron):
                 self.assertIn(gate.normalise_schedule(cron), gate.SCHEDULE_PLAN)
@@ -384,7 +387,13 @@ class TestSchedulePlan(unittest.TestCase):
                            ("37 6 * * 1-5", "11:30"),
                            ("7 8 * * 1-4", "13:00"),
                            ("37 9 * * 1-5", "14:30"),
-                           ("7 11 * * 5", "16:00")):
+                           ("7 11 * * 5", "16:00"),
+                           # Owner order 2026-11-09 pre/post backstops.
+                           ("20 4 * * 1-4", "09:20"),
+                           ("10 4 * * 5", "09:10"),
+                           ("20 9 * * 5", "14:20"),
+                           ("40 10 * * 1-4", "15:40"),
+                           ("40 11 * * 5", "16:40")):
             with self.subTest(cron=cron):
                 self.assertEqual(gate.plan_for(cron),
                                  (gate.PURPOSE_SCAN, slot))

@@ -177,6 +177,8 @@ Short answer: the app asks the relay once a second and shows every answer the in
 
 The free tier allows 100,000 requests per UTC day (the counter resets at 05:00 Karachi). The pace: `/quotes` every second inside the scanning window, `/market` and `/signals` every 5 seconds, `/health` every 15 seconds, `/prices` every 2 seconds only while Scanner or Search is open, and every 30 seconds (never later than the next 08:55) outside the window or when the relay says it is not a trading day. A console left open for 24 hours uses about **44,700 requests** on the Home screen on a Monday to Thursday and **49,500** on a Friday. With Scanner or Search open all day that becomes about **59,200** and **65,600**. The phone app polls every second too while it is on screen, so leave the phone off the Home screen when the console is running if you are close to the cap. Telemetry shows today's count and turns amber at 80,000.
 
+The app stops itself at **90,000**. That is a hard stop, not a warning: once the count reaches it the app sends nothing at all until the counter resets at 05:00 PKT, keeps the last answer on screen and shows the cap in telemetry and in Settings. The remaining 10,000 of the day belong to the phone app and the relay's own work, so the allowance is never exhausted.
+
 ## Things that differ from the phone, on purpose
 
 * The signal card also shows the symbol, and its stock live.

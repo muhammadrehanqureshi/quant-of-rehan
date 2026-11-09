@@ -475,11 +475,14 @@ func (a *App) drawLeft(c *Canvas, x, y, w, h int) {
 	}
 	// REQ
 	rq := a.reqToday()
-	rc := th.Text
-	if rq > 80000 {
+	rc, note := th.Text, " of 100,000 today"
+	switch {
+	case rq >= reqHardCap:
+		rc, note = th.Bad, " of 100,000 today, paused until 05:00 PKT"
+	case rq > 80000:
 		rc = th.Warn
 	}
-	label(6, "REQ", []Span{{commaInt(rq), rc, false}, {" of 100,000 today", th.Soft, false}})
+	label(6, "REQ", []Span{{commaInt(rq), rc, false}, {note, th.Soft, false}})
 }
 
 // ---------- home ----------

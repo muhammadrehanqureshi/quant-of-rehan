@@ -414,13 +414,12 @@ def scheduled_as_of(slot: str, day=None) -> datetime:
 
 
 def session_legal(as_of: datetime) -> bool:
-    """The scanner may only run in the MARKET state (SO-8).
+    """The scanner's window law (SO-8).
 
-    Band and state aware: the Friday midday break is not a session, and the
-    owner's order of 2026-10-11 rules out the pre-market and post-market
-    windows entirely, so a scheduled scan that lands in any of them is
-    refused rather than run against a shut market. The law itself lives in
-    src/data/sessions.py.
+    Band and state aware: the Friday midday break is not a session. The
+    owner's order of 2026-10-21 restored the pre-market and post-market
+    windows, so this defers to is_scan_window, the one answer in
+    src/data/sessions.py, rather than restating the law here.
     """
     return is_scan_window(as_of)
 
@@ -1144,7 +1143,12 @@ def main(argv: list[str] | None = None) -> int:
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--scan", action="store_true")
     mode.add_argument("--finalize", action="store_true")
-    parser.add_argument("--slot", choices=("10:00", "11:30", "13:00", "14:30", "16:00"))
+    parser.add_argument("--slot", choices=(
+        "10:00", "11:30", "13:00", "14:30", "16:00",
+        # Owner order 2026-11-09: the pre-market and post-market backstop
+        # slots from SCHEDULE_PLAN, so those windows are scanned even when
+        # the band loop never starts.
+        "09:20", "09:10", "14:20", "15:40", "16:40"))
     # Owner order 2026-11-05: the backfill finalize names its own past
     # session day; empty stays today.
     parser.add_argument("--day", type=str, default=None)
