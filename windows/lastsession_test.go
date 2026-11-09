@@ -102,3 +102,52 @@ func TestEmptyRelayAnswersKeepTheStoredTable(t *testing.T) {
 		t.Fatalf("an empty market card erased the stored day: %+v", a.market)
 	}
 }
+
+func TestOldSessionRebuildsOrderFlowFromStoredQuotes(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "settings.json")
+	snap := &sessionSnapshot{
+		Ver:     sessionVer,
+		SavedAt: time.Date(2026, 11, 6, 15, 30, 0, 0, pkt),
+		Session: "2026-11-06",
+		Market:  &Market{Date: "2026-11-06"},
+		Prices:  map[string]Quote{"KEL": {Price: 5.79}},
+		Quotes:  &Quotes{OK: true, Items: map[string]LiveQuote{"KEL": {Price: 5.79, Volume: 21000, Fresh: true}}},
+	}
+	if err := saveSession(sessionPath(cfgPath), snap); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+	cfg := defaultSettings()
+	cfg.Notify = false
+	a := NewApp(cfg, cfgPath, NewRelay(defaultRelay))
+	if a.of == nil || len(a.of.Rows) != 1 {
+		t.Fatalf("the stored prices did not rebuild the order flow: %+v", a.of)
+	}
+	if a.of.Rows[0].Symbol != "KEL" || a.of.Rows[0].Volume == nil || *a.of.Rows[0].Volume != 21000 {
+		t.Fatalf("the rebuilt row lost its stored volume: %+v", a.of.Rows[0])
+	}
+	if a.of.Rows[0].Buy != nil || a.of.Rows[0].Sell != nil {
+		t.Fatal("an old snapshot has no measured split; the rebuild must not invent B or S")
+	}
+}
+
+func TestLastSessionRestoresOrderFlow(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "settings.json")
+	snap := &sessionSnapshot{
+		Ver:       sessionVer,
+		SavedAt:   time.Date(2026, 11, 6, 15, 30, 0, 0, pkt),
+		Session:   "2026-11-06",
+		Market:    &Market{Date: "2026-11-06"},
+		OrderFlow: &OrderFlow{Day: "2026-11-06", Rows: []FlowRow{{Symbol: "KEL"}}},
+	}
+	if err := saveSession(sessionPath(cfgPath), snap); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+	cfg := defaultSettings()
+	cfg.Notify = false
+	a := NewApp(cfg, cfgPath, NewRelay(defaultRelay))
+	if a.of == nil || len(a.of.Rows) != 1 || a.of.Rows[0].Symbol != "KEL" {
+		t.Fatalf("the stored order flow was not restored: %+v", a.of)
+	}
+}

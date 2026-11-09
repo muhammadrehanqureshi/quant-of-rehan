@@ -1,7 +1,11 @@
-# Quant of Rehan for Windows (console edition), build 28
+# Quant of Rehan for Windows (console edition), build 29
 
 A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.16**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
+
+## What is new in build 29
+
+* **Build 29.** The quant mark now turns and carries a moving highlight; its four GIF brightness levels are painted in four green shades from 08:55 to 16:00 Monday to Thursday and 08:55 to 17:00 on Friday, and in four red shades outside those windows. The mark is 10 percent larger than build 28. The index line is `PSX'S KMIALL INDEX` in the build's own font again. The footer actions read `DETAILS`, `NEXT`, `REFRESH` and `QUIT`. The closed status says `Market is closed and the quant is sleeping now.` Telemetry's `NEXT` no longer carries the word `Scanner`; the alerts heading is `ALERTS LOG`; the ORDER FLOW field stands alone without the word `SEARCH` before it; and the `T` volume is blue beside the green buy, red sell and yellow unclassified values. The last stored session now includes the ORDER FLOW table, so reopening the window restores it with the card, scanner, signal and sectors.
 
 ## What is new in build 28
 

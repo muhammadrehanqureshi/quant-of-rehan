@@ -6,7 +6,7 @@ import "time"
 const appVersion = "4.0.16"
 
 // hudBuild is the build number of this Windows HUD port.
-const hudBuild = "28"
+const hudBuild = "29"
 
 // scripSearchHint is the same search line on every desktop search box.
 const scripSearchHint = "Search for a KMIALL scrip"
@@ -17,20 +17,12 @@ const scripSearchHint = "Search for a KMIALL scrip"
 // height is fixed by the console.
 const headerTitle = "◆ QUANT OF REHAN ◆"
 
-// headerTag is the index line under the title. Owner order 2026-11-07: the
-// full line is back, INDEX included; build 18's shortened line is withdrawn.
-// Owner order 2026-11-08 (build 25): the line keeps the build's own font, so
-// build 23's small-capital letterforms are gone. A Windows console draws one
-// glyph size per window, so the line is set in the same font, unbolded and in
-// the soft ink, instead of being given a second typeface.
-// Owner order 2026-11-08 (build 27): the font size is reduced again, so the
-// small-capital line is back, the same words in the console's smallest
-// letterforms. The plain text stays for the tests and the rest of the code.
+// headerTag is the index line under the title. Owner order 2026-11-09 (build
+// 29): the line is in the same console font as the rest of the build, so the
+// small-capital letterforms of build 27 are gone. A Windows console draws one
+// glyph size per window, so this is the plain line, unbolded and in the soft
+// ink, exactly like the other labels.
 const headerTag = "PSX'S KMIALL INDEX"
-
-// headerTagSmall is the same eighteen cells set in Unicode small capitals, a
-// size below the title without changing the console's single font size.
-const headerTagSmall = "ᴘꜱx'ꜱ ᴋᴍɪᴀʟʟ ɪɴᴅᴇx"
 
 // pkt is Pakistan time, fixed UTC+5 (no daylight saving), same as the session law.
 var pkt = time.FixedZone("PKT", 5*3600)

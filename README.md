@@ -1,6 +1,6 @@
 # Quant of Rehan
 
-![Quant of Rehan](assets/quant-of-rehan-logo.png)
+![Quant of Rehan](assets/QoR.png)
 
 [![Governance Guard](https://github.com/muhammadrehanqureshi/quant-of-rehan/actions/workflows/governance-guard.yml/badge.svg)](https://github.com/muhammadrehanqureshi/quant-of-rehan/actions/workflows/governance-guard.yml)
 [![Android App](https://github.com/muhammadrehanqureshi/quant-of-rehan/actions/workflows/android-apk.yml/badge.svg)](https://github.com/muhammadrehanqureshi/quant-of-rehan/actions/workflows/android-apk.yml)

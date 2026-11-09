@@ -131,6 +131,36 @@ func TestOrderFlowScreenShowsBSUTSeparately(t *testing.T) {
 	}
 }
 
+func TestTotalVolumeIsBlue(t *testing.T) {
+	a := newTestApp(t)
+	c := NewCanvas(80, 1, a.th.Panel)
+	b, s, total := int64(1500), int64(750), int64(2250)
+	a.putBST(c, 0, 0, &b, &s, &total)
+	found := false
+	for _, ce := range c.Cells {
+		if ce.FG == totalBlue {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatal("the T volume is not painted in the owner's blue")
+	}
+}
+
+func TestOrderFlowSearchFieldHasNoLabel(t *testing.T) {
+	a := orderFlowApp(t, 122, 30, sampleOrderFlow)
+	for _, row := range a.render().PlainRows() {
+		if strings.Contains(row, scripSearchHint) {
+			if strings.Contains(row, "SEARCH") {
+				t.Fatalf("the ORDER FLOW field still has a SEARCH label: %q", row)
+			}
+			return
+		}
+	}
+	t.Fatal("the ORDER FLOW search field is not on screen")
+}
+
 func TestOrderFlowEmptyAndFailedStates(t *testing.T) {
 	a := demoApp(t, 122, 30)
 	a.of, a.ofErr = nil, ""
