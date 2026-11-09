@@ -256,6 +256,33 @@ func (f *Flow) sums(now time.Time, sf *symFlow) (buy, sell int64, buyV, sellV fl
 	return
 }
 
+// WindowSides totals one window across every stock: the shares that printed on
+// each side and, kept apart, the shares that could not be sided. Owner order
+// 2026-11-09: buying and selling are never added into one number, and the
+// unclear remainder never joins either side.
+func (f *Flow) WindowSides(now time.Time, window time.Duration) (buy, sell, unclear int64) {
+	from := now.Add(-window)
+	for _, sf := range f.sym {
+		if sf == nil {
+			continue
+		}
+		for _, e := range sf.evts {
+			if e.t.Before(from) {
+				continue
+			}
+			switch {
+			case e.side > 0:
+				buy += e.dv
+			case e.side < 0:
+				sell += e.dv
+			default:
+				unclear += e.dv
+			}
+		}
+	}
+	return
+}
+
 // evaluate decides whether one side of one stock earns a flag now.
 func (f *Flow) evaluate(now time.Time, sym string, sf *symFlow, q LiveQuote, side int) *Flag {
 	buy, sell, buyV, sellV, nBuy, nSell := f.sums(now, sf)

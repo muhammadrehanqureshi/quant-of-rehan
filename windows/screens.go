@@ -471,20 +471,23 @@ func (a *App) drawLeft(c *Canvas, x, y, w, h int) {
 	// SCAN
 	sw, sc := a.scanStatus()
 	label(4, "SCAN", []Span{{sw, sc, true}})
-	// FLOW. Owner order 2026-11-09 (later): the label is FLOW again and the
-	// green words BUY & SELL sit in front of the per-minute value.
-	switch {
-	case a.cfg.BigBuy || a.cfg.BigSell:
-		val := compactNum(float64(a.cfg.BigBuyValue)) + "/min  " + plural(a.flagCount, "flag")
-		side := "BUY & SELL"
-		switch {
-		case a.cfg.BigSell && !a.cfg.BigBuy:
-			side = "SELL"
-		case a.cfg.BigBuy && !a.cfg.BigSell:
-			side = "BUY"
+	// FLOW. Owner order 2026-11-09 (latest): buying, selling and unclear are
+	// three separate numbers. The two sides are never printed as one figure and
+	// U never joins either of them; U appears only when some volume in the
+	// window could not be sided.
+	if a.cfg.BigBuy || a.cfg.BigSell {
+		buy, sell, unclear := a.flow.WindowSides(a.karachiNow(), time.Minute)
+		spans := []Span{
+			{"BUY ", th.Good, true}, {compactNum(float64(buy)), th.Text, false},
+			{"  SELL ", th.Bad, true}, {compactNum(float64(sell)), th.Text, false},
 		}
-		label(5, "FLOW", []Span{{side, th.Good, true}, {"  " + val, th.Text, false}})
-	default:
+		if unclear > 0 {
+			spans = append(spans,
+				Span{"  U ", th.Warn, true},
+				Span{compactNum(float64(unclear)), th.Text, false})
+		}
+		label(5, "FLOW", spans)
+	} else {
 		label(5, "FLOW", []Span{{"OFF", th.Bad, true}})
 	}
 	// REQ

@@ -513,6 +513,43 @@ func TestWinLossTile(t *testing.T) {
 	}
 }
 
+// Owner order 2026-11-09: buying, selling and unclear stay three separate
+// numbers on the telemetry row. A side is never printed as a combined figure
+// and U never joins either of them.
+func TestTelemetryKeepsBuyingSellingAndUnclearApart(t *testing.T) {
+	a := newTestApp(t)
+	a.w, a.h = 120, 30
+	a.link, a.checking = true, false
+	a.market = marketIn("OPEN")
+	a.cfg.BigBuy, a.cfg.BigSell = true, true
+	a.now = time.Date(2026, 11, 2, 10, 0, 0, 0, pkt)
+	if a.flow == nil {
+		a.flow = NewFlow(defaultFlowCfg(10_000_000))
+	}
+	a.flow.sym["AAA"] = &symFlow{evts: []flowEvt{
+		{t: a.now.Add(-10 * time.Second), dv: 600, px: 10, side: 1},
+		{t: a.now.Add(-9 * time.Second), dv: 300, px: 10, side: -1},
+		{t: a.now.Add(-8 * time.Second), dv: 100, px: 10, side: 0},
+	}}
+	flowRow := ""
+	for _, row := range rowsOf(a) {
+		if strings.Contains(row, "FLOW") {
+			flowRow = row
+		}
+	}
+	if flowRow == "" {
+		t.Fatal("the telemetry FLOW row is missing")
+	}
+	if strings.Contains(flowRow, "&") {
+		t.Errorf("the FLOW row still combines the two sides: %q", flowRow)
+	}
+	for _, want := range []string{"BUY", "SELL", "U", "600", "300", "100"} {
+		if !strings.Contains(flowRow, want) {
+			t.Errorf("the FLOW row is missing %q: %q", want, flowRow)
+		}
+	}
+}
+
 func TestTelemetryTellsTheTruthAboutScanning(t *testing.T) {
 	a := newTestApp(t)
 	a.w, a.h = 120, 30
