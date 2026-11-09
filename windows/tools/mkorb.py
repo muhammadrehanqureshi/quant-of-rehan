@@ -114,22 +114,19 @@ def wrap(text, width=96):
     return "\n".join(text[i:i + width] for i in range(0, len(text), width))
 
 
-HUD_PITCH = 2      # one empty console dot between dots, so a dot stays a dot
-HUD_ROWS = 28      # the 120 by 30 home panel offers 56 dots down, halved
-HUD_ASPECT = 1.11  # cellAspect / 2: a square source stays square on screen
-HUD_COVER = 0.25   # orbDotCover: how much of a point the GIF must fill
-HUD_SCALE = 1.00   # orbScale: the mark fills its tile
-HUD_BANDS = 8      # orbBands: rings of alternating shade from the middle out
+HUD_PITCH = 1       # one console dot per GIF dot, as the GIF draws itself
+HUD_ROWS = 56       # the 120 by 30 home panel offers 56 dots down
+HUD_WIDE_ROWS = 104
+HUD_ASPECT = 1.11   # cellAspect / 2: a square source stays square on screen
 
 
 def hud_grid(frame, rows=HUD_ROWS, aspect=HUD_ASPECT):
-    """What orbGrid draws: one dot per lattice point, one empty dot between,
-    and the two shades alternating ring by ring from the middle outward."""
+    """What orbGrid draws: one console dot per grid point, each taking the
+    brightest cell of the GIF it covers, so the dots, their gaps and their
+    shades are the file's own."""
     size = frame.shape[0]
-    rows = max(1, round(rows * HUD_SCALE))
+    rows = max(1, rows)
     cols = max(1, round(rows * aspect))
-    band = max(2, round(cols / 2 / HUD_BANDS))
-    cx, cy = (cols - 1) / 2, (rows - 1) / 2
     out = np.zeros((rows, cols), dtype=np.uint8)
     for j in range(rows):
         sy0 = j * size // rows
@@ -137,15 +134,12 @@ def hud_grid(frame, rows=HUD_ROWS, aspect=HUD_ASPECT):
         for i in range(cols):
             sx0 = i * size // cols
             sx1 = max(sx0 + 1, (i + 1) * size // cols)
-            block = frame[sy0:sy1, sx0:sx1]
-            if float(block.mean()) < HUD_COVER:
-                continue
-            out[j, i] = 2 if int(math.hypot(i - cx, j - cy) / band) % 2 == 0 else 1
+            out[j, i] = int(frame[sy0:sy1, sx0:sx1].max())
     return out
 
 
-def hud_tile(grid, dim, bright, cell=8, dot=4):
-    """The console's own lattice: a dot of four pixels with four between."""
+def hud_tile(grid, dim, bright, cell=6):
+    """The console's own pixels: one square per dot, neighbours touching."""
     rows, cols = grid.shape
     img = Image.new("RGB", (cols * HUD_PITCH * cell, rows * HUD_PITCH * cell), (7, 18, 28))
     pixels = img.load()
@@ -156,8 +150,8 @@ def hud_tile(grid, dim, bright, cell=8, dot=4):
                 continue
             colour = bright if value >= 2 else dim
             x0, y0 = i * HUD_PITCH * cell, j * HUD_PITCH * cell
-            for dy in range(dot):
-                for dx in range(dot):
+            for dy in range(cell):
+                for dx in range(cell):
                     pixels[x0 + dx, y0 + dy] = colour
     return img
 
@@ -178,8 +172,6 @@ def tile(grid, dim, bright, scale):
     return img
 
 
-WIDE_ROWS = 52  # a 60 cell wide column at a 180 column window
-
 
 def shade(colour, factor):
     """darken() in orb.go: the panel's shades are the GIF's, taken down."""
@@ -193,7 +185,7 @@ def draw_preview(levels, dim, bright, path):
     rows = [
         [tile(levels[i], dim, bright, 2) for i in showcase],
         [hud_tile(hud_grid(levels[i], rows=HUD_ROWS), hud_dim, hud_bright) for i in showcase],
-        [hud_tile(hud_grid(levels[i], rows=WIDE_ROWS), hud_dim, hud_bright) for i in showcase],
+        [hud_tile(hud_grid(levels[i], rows=HUD_WIDE_ROWS), hud_dim, hud_bright) for i in showcase],
     ]
     gap = 12
     width = max(sum(t.width for t in row) + gap * (len(row) - 1) for row in rows)
@@ -292,7 +284,7 @@ func decodeOrbFrames() [][]uint8 {{
           f"{max(delays)} ms longest frame")
     print(f"greens: dim #{dim[0]:02x}{dim[1]:02x}{dim[2]:02x}, "
           f"bright #{bright[0]:02x}{bright[1]:02x}{bright[2]:02x}")
-    for name, count in (("home", HUD_ROWS), ("wide", WIDE_ROWS)):
+    for name, count in (("home", HUD_ROWS), ("wide", HUD_WIDE_ROWS)):
         hud = hud_grid(levels[0], rows=count)
         rows, cols = hud.shape
         print(f"hud {name}: {int((hud > 0).sum())} of {cols * rows} dots lit at "
