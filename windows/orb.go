@@ -43,7 +43,17 @@ const orbScale = 1.0
 // times the old 13 row radius, which is what needs, and fills, the tile's 14
 // rows. The later orders of the same day ask for ten percent more twice
 // again, so 1.11 * 1.1 * 1.1 is 1.3431, and nothing else about the orb moves.
-const OrbGrow = 1.3431
+// Owner order 2026-11-10 (latest): the mark is the source's own orb at the
+// source's own size. The two later ten percent grows (1.3431) are withdrawn,
+// because the owner says the orb still is not the one he handed over:
+// QoR-orb-source draws it at orbGrow 1.11, and its README measures that as the
+// ten percent bigger size it was cut for.
+const OrbGrow = 1.11
+
+// orbXShrink narrows the mark across, and only across. Owner order 2026-11-10:
+// five percent less on the horizontal side, with the height left exactly as
+// the source draws it.
+const orbXShrink = 0.95
 
 // orbBaseRows is the row count the source measures its radius against.
 const orbBaseRows = 13

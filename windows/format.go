@@ -163,9 +163,23 @@ func friendlyNext(s string) string {
 	case "OPEN":
 		return fmt.Sprintf("%s, %02d:%02d", day.Format("Mon 02 Jan"), scanOpen/60, scanOpen%60)
 	case "CLOSE":
-		return "Closes " + day.Format("Mon 02 Jan") + ", " + parts[2]
+		return "Closes " + day.Format("Mon 02 Jan") + ", " + sessionCloseAt(day, parts[2])
 	}
 	return s
+}
+
+// sessionCloseAt is the close the NEXT line reports. Owner order 2026-11-10:
+// the day's close is 16:00 Monday to Thursday and 17:00 on Friday. A Friday
+// answer before 13:00 is the exchange's midday break at 12:00, and it keeps its
+// own time because the market reopens that afternoon.
+func sessionCloseAt(day time.Time, relay string) string {
+	if day.Weekday() == time.Friday {
+		if relay < "13:00" {
+			return relay
+		}
+		return "17:00"
+	}
+	return "16:00"
 }
 
 // sentence ends s with a full stop unless it already ends in a mark that

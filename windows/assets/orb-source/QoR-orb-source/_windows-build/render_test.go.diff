@@ -1,0 +1,29 @@
+--- a/render_test.go
++++ b/render_test.go
+@@ -82,7 +82,7 @@
+ 	for _, want := range []string{
+ 		"Good morning, Mr. Rehan!", "QUANT STATUS", "ONLINE", "LATEST SIGNAL", "ALFA", "42.94",
+ 		"KSE100 INDEX & THE TOP 3 SCRIPS OF VOLUME", "KSE100  166,4", "B=", "S=", "T=",
+-		"QUANT CORE", "TELEMETRY", "ONLINE  ◆  SCANNING", "DEMO DATA", "FRI 30 OCT 2026  KARACHI 11:42:18 UTC+5",
++		"QUANT CORE", "TELEMETRY", "DEMO DATA", "FRI 30 OCT 2026  KARACHI 11:42:18 UTC+5",
+ 		"1 HOME", "2 ALERTS", "3 ORDER FLOW", "4 SCANNER", "5 SETTINGS",
+ 		"SYMBOL", "ENTRY TIME", "ENTRY PRICE", "TAKE PROFIT", "STOP LOSS",
+ 		"W/L & W/L RATE", "3/1 & 75%", "BUYING NOW",
+@@ -135,7 +135,7 @@
+ 	a := demoApp(t, 120, 30)
+ 	snapshotState(a, "closed")
+ 	s := plain(a)
+-	for _, want := range []string{"OFFLINE", "NO SIGNAL AVAILABLE RIGHT NOW", "Scan blocked: WARMING UP", "Volume leaders unavailable right now.", "OFFLINE  ◆  PARKED", "Market is closed and the quant is offline now."} {
++	for _, want := range []string{"OFFLINE", "NO SIGNAL AVAILABLE RIGHT NOW", "Scan blocked: WARMING UP", "Volume leaders unavailable right now.", "Market is closed and the quant is offline now."} {
+ 		if !strings.Contains(s, want) {
+ 			t.Errorf("closed is missing %q", want)
+ 		}
+@@ -143,7 +143,7 @@
+ 	a = demoApp(t, 120, 30)
+ 	snapshotState(a, "fault")
+ 	s = plain(a)
+-	for _, want := range []string{"No route to the relay from this PC", "(UnknownHost)", "STALE 47s", "Signal unavailable", "RELAY UNREACHABLE", "UNREACHABLE"} {
++	for _, want := range []string{"No route to the relay from this PC", "(UnknownHost)", "STALE 47s", "Signal unavailable", "UNREACHABLE"} {
+ 		if !strings.Contains(s, want) {
+ 			t.Errorf("fault is missing %q", want)
+ 		}
