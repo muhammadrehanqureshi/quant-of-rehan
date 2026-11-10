@@ -396,7 +396,7 @@ func flowColumns(rows []FlowRow) ([8]flowCell, int) {
 		set(i, commaFloat(*p, 2))
 	}
 	for _, r := range rows {
-		flt(0, r.Price)
+		set(0, commaFloat(r.Price, 2))
 		if r.ChangePct != nil {
 			set(1, changeText(*r.ChangePct))
 		} else {
