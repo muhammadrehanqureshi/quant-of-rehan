@@ -803,9 +803,9 @@ const barBlock = '▬'
 const shareBarBoxes = 10
 
 // shareBarBoxW is how many cells wide one box is. Owner order 2026-11-10
-// (latest): each box is two cells, so the whole bar is twenty cells long and
-// the box count stays ten.
-const shareBarBoxW = 2
+// (latest): one cell, so the bar is exactly ten boxes. A box two cells wide
+// read as twenty boxes on the owner's screen, not as ten longer ones.
+const shareBarBoxW = 1
 
 // shareBarWidth is the field a labelled bar asks for: its ten boxes at two
 // cells each, one space and the four cells a "100%" needs.
