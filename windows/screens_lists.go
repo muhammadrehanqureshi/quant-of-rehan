@@ -796,12 +796,11 @@ func (a *App) drawFlowList(c *Canvas, ix, head, top, iw, rows, barX int) {
 	a.scrollbar(c, barX, top, a.lvScan.view*2, &a.lvScan)
 }
 
-// Owner order 2026-11-10 (latest): the bar stands in the middle of its own row
-// and has no separator in it. The half block (▄) sat on the floor of the row,
-// and the middle bar glyph (▬) is narrower than its cell in the console font,
-// which drew a thin line between every two cells. A bar that is both centred and
-// unbroken can only fill the cell, so it is the full block.
-const barBlock = '█'
+// Owner order 2026-11-10 (latest): the bar is a thin line, and no block glyph
+// stands inside it. The bar is the heavy horizontal rule: it is drawn in the
+// middle of the row, its cells join edge to edge, and it is a line rather than a
+// block, so the bar never grows to a cell's height and never carries a seam.
+const barBlock = '━'
 
 // shareBarBoxes is how many boxes a buy versus sell bar holds: one box per ten
 // percent, each box a single cell. Owner order 2026-11-10 (latest): the
