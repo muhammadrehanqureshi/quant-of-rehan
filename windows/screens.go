@@ -815,36 +815,6 @@ func (a *App) putBST(c *Canvas, x, y int, buy, sell, total *int64, keys ...strin
 	return vx - x
 }
 
-// putBSTFixed writes B, S, U and T with each number right aligned in a field of
-// its own, so the same label starts on the same cell on every row; putBST packs
-// them tight and each row then begins its S wherever its own B ended.
-func (a *App) putBSTFixed(c *Canvas, x, y int, buy, sell, total *int64, keys ...string) int {
-	th := a.th
-	const numW = 12
-	vx := x
-	put := func(s string, fg RGB, bold bool) {
-		vx += a.flashText(c, vx, y, s, fg, bold, keys...)
-	}
-	if buy != nil && sell != nil {
-		put("B=", th.Soft, false)
-		put(padLeft(commaInt(*buy), numW), th.Good, true)
-		put(", S=", th.Soft, false)
-		put(padLeft(commaInt(*sell), numW), th.Bad, true)
-		if total != nil {
-			un := *total - *buy - *sell
-			if un < 0 {
-				un = 0
-			}
-			put(", U=", th.Soft, false)
-			put(padLeft(commaInt(un), 3), th.Warn, un > 0)
-			put(" & T=", th.Soft, false)
-			put(commaInt(*total), totalBlue, false)
-		}
-		return vx - x
-	}
-	return a.putBST(c, x, y, buy, sell, total, keys...)
-}
-
 func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 	th := a.th
 	ix, iy, iw, ih := a.panel(c, x, y, w, h, "KSE100 INDEX & THE TOP 3 SCRIPS OF VOLUME", "")
@@ -964,10 +934,11 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 		}
 		// Owner order 2026-11-10: the row reads B, S, U, T, then the live price
 		// and its change, and the bar closes the line after them.
-		// Owner order 2026-11-10 (latest): every leader row lines its B, S, U
-		// and T up on the same cells, so the block is symmetrical however many
-		// digits each number has.
-		used := a.putBSTFixed(c, ix+3, row, buy, sell, vol, volKey, pxKey)
+		// Owner order 2026-11-10 (latest): the fixed field padding is withdrawn.
+		// Each number sits hard against its own "=", so the row reads B=1,234
+		// with no gap after the sign; symmetry is the labels' own, not a column
+		// of padded digits.
+		used := a.putBST(c, ix+3, row, buy, sell, vol, volKey, pxKey)
 		// Owner order 2026-11-10 (latest): the price, the change and the bar are
 		// pushed to the tile's far right and right aligned at one edge, so all
 		// three leaders line up and nothing floats in the middle of the row. The

@@ -197,23 +197,9 @@ func TestOrderFlowSortKeepsUnmeasuredAtTheBottom(t *testing.T) {
 }
 
 // After the bar there is one space and then the percentage, however many
-// digits it has.
+// digits it has. Owner order 2026-11-10 (latest): a scrip list carries no bar,
+// so this is measured on the bar itself rather than on a scanner row.
 func TestPercentFollowsTheBarWithOneSpace(t *testing.T) {
-	// The bar's glyph is whatever barBlock is, so the pattern follows it.
-	mark := regexp.QuoteMeta(string(barBlock))
-	good := regexp.MustCompile(mark + ` +\d{1,3}%`)
-	bad := regexp.MustCompile(mark + `\d`)
-	for _, ch := range []int{2, 3} {
-		a := busyApp(t, 122, 30, 6)
-		a.screen, a.scanChoice = scrScanner, ch
-		s := plain(a)
-		if !good.MatchString(s) {
-			t.Errorf("scanner choice %d: no bar followed by one space and a percentage:\n%s", ch, s)
-		}
-		if bad.MatchString(s) {
-			t.Errorf("scanner choice %d: the gap after a bar is not one space: %q", ch, bad.FindString(s))
-		}
-	}
 	// 100%, 98% and 7% all follow their bars, right aligned in four cells.
 	for _, share := range []float64{1, 0.98, 0.07} {
 		c := NewCanvas(40, 1, RGB{})
@@ -491,12 +477,18 @@ func TestShareBarHasTenBoxesOfTwoCells(t *testing.T) {
 	}
 }
 
-func TestOrderFlowBarColumnIsCalledBars(t *testing.T) {
+// Owner order 2026-11-10 (latest): the ORDER FLOW table carries no bar and no
+// BARS or % column. The only bars in the build are the LATEST SIGNAL tile's and
+// the KSE100 leaders'.
+func TestOrderFlowHasNoBarColumn(t *testing.T) {
 	a := demoApp(t, 160, 45)
 	a.screen = scrOrderFlow
 	s := plain(a)
-	if !strings.Contains(s, "BARS") {
-		t.Errorf("the order flow bar column is not called BARS:\n%s", s)
+	if strings.Contains(s, "BARS") {
+		t.Errorf("the order flow bar column is still there:\n%s", s)
+	}
+	if strings.ContainsRune(s, barBlock) {
+		t.Errorf("order flow still draws a bar:\n%s", s)
 	}
 	if strings.Contains(s, "BUY SHARE") {
 		t.Errorf("the old BUY SHARE heading is still there")
