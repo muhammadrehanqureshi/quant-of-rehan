@@ -4471,9 +4471,13 @@ public class MainActivity extends Activity {
                     spans.add(new int[]{unclearFrom, sb.length(), R.color.yellow});
                 }
                 // Owner order 2026-11-07: the bracket closes after T, and the
-                // ampersand takes the place the closing bracket held.
+                // ampersand takes the place the closing bracket held. Owner
+                // order 2026-11-10 (later): the KSE100 tile never shares T with
+                // the split, so the first line ends on the ampersand and T
+                // opens the next one, the same shape the sector reveal, the
+                // search card and the volume page already use.
                 if (row.hasVolume()) {
-                    sb.append(" & T=");
+                    sb.append(" &\nT=");
                     int totalFrom = sb.length();
                     sb.append(String.format(Locale.US, "%,d", row.volume));
                     spans.add(new int[]{totalFrom, sb.length(), R.color.blue});
@@ -4490,7 +4494,10 @@ public class MainActivity extends Activity {
                     sb.append(String.format(Locale.US, "%,d", row.unclassified));
                     spans.add(new int[]{unclearFrom, sb.length(), R.color.yellow});
                     if (row.hasVolume()) {
-                        sb.append(" & T=");
+                        // Owner order 2026-11-10 (later): T takes its own line
+                        // here too, so a leader group has one shape on every
+                        // page of the app.
+                        sb.append(" &\nT=");
                         int totalFrom = sb.length();
                         sb.append(String.format(Locale.US, "%,d", row.volume));
                         spans.add(new int[]{totalFrom, sb.length(), R.color.blue});

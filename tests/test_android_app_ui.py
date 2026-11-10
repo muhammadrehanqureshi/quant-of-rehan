@@ -665,7 +665,10 @@ class SettingsControlTest(unittest.TestCase):
         leaders = self.main[self.main.index(
             "private SpannableString leadersText("):]
         leaders = leaders[:leaders.index("private void toast(")]
-        self.assertIn('sb.append(" & T=");', leaders)
+        # Owner order 2026-11-10 (later): the KSE100 tile's T starts its own
+        # line, the first line ending on the ampersand.
+        self.assertIn('sb.append(" &\\nT=");', leaders)
+        self.assertNotIn('sb.append(" & T=");', leaders)
         self.assertIn("spans.add(new int[]{unclearFrom, sb.length(), "
                       "R.color.yellow});", leaders)
         # The other surfaces keep their own shape; only this card moved the
