@@ -73,9 +73,11 @@ func (a *App) render() *Canvas {
 	if a.w >= 100 && a.hasRing() {
 		// The mark is drawn one console dot per GIF dot with one empty dot
 		// between, so the GIF's 55 dot wide stipple needs 55 cells of width to
-		// show dot for dot. The column widens with the window for that reason
-		// and stops at 60 cells, keeping 40 at the 120 column home size.
-		lw := min(max(a.w/3, 40), 60)
+		// show dot for dot. Owner order 2026-11-10 (latest): the column is four
+		// cells narrower across and stops at 56, and the mark is scaled into the
+		// width it is given rather than cropped, so nothing on either tile is
+		// cut off.
+		lw := min(max(a.w/3-4, 38), 56)
 		a.drawLeft(c, 1, top, lw, rows)
 		rx = lw + 2
 		rw = a.w - rx - 1
