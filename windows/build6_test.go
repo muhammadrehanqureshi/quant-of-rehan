@@ -198,9 +198,10 @@ func TestOrderFlowSortKeepsUnmeasuredAtTheBottom(t *testing.T) {
 
 // After the bar there is one space and then the percentage, however many
 // digits it has.
-func TestPercentFollowsTheBarWithOneSpace(t *testing.T) {
-	good := regexp.MustCompile(`[█│] \d{1,3}%`)
-	bad := regexp.MustCompile(`[█│]  +\d|[█│]\d`)
+func TestPercentFollowsTheBarWithOneSpace(t *testing.T) {	good := regexp.MustCompile(`[█│] \d{1,3}%`)
+	// Only the percentage that follows a bar is checked: the separator glyph
+	// also appears where a right-aligned number starts, and that is not a bar.
+	bad := regexp.MustCompile(`[█│]  +\d{1,3}%|[█│]\d{1,3}%`)
 	for _, ch := range []int{2, 3} {
 		a := busyApp(t, 122, 30, 6)
 		a.screen, a.scanChoice = scrScanner, ch
