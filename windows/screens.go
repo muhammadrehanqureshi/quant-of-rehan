@@ -999,8 +999,10 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 			// Owner order 2026-11-10 (latest): PKR sits one space from its own
 			// price. The price stays right aligned at its own edge, so the label
 			// moves and the number does not; the old ten cell field left five
-			// empty cells between the two.
-			pkrLeft := priceRight - runeLen(px) + 1 - 4
+			// empty cells between the two. flashRight's cell is the one after its
+			// last character, so the price covers [priceRight-len, priceRight-1]
+			// and PKR stands four cells to its left, leaving exactly one space.
+			pkrLeft := priceRight - runeLen(px) - 4
 			priceBlock := 4 + runeLen(px) + chgW + 1
 			showPrice := func(pkr, pxRight, chgRight int) {
 				// The label is written without its trailing space and the price
