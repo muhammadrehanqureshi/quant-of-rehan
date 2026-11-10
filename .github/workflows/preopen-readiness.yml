@@ -1,0 +1,133 @@
+name: Pre-open readiness
+
+# Owner order 2026-11-10: Quant of Rehan must be ready before the market opens,
+# and a broken feed must never wait for the owner to notice it. Two checks a
+# trading morning, both on the clock and neither depending on the PC:
+#
+#   03:45 UTC = 08:45 PKT  the relay answers, names its build, and agrees the
+#                          day is a trading day with a pre-open before 09:32
+#   04:20 UTC = 09:20 PKT  the store already holds the day's frames, which is
+#                          what the 08:55 recorder is for
+#
+# The 2026-11-10 incident: every quote push was refused with a 400 for an hour
+# and the card read NO FEED while the index kept moving. A readiness gate that
+# reads the store it will trade from would have named that at 09:20. A failure
+# here sends one deduped owner email with the relay's own numbers and the check
+# that failed; a healthy morning sends nothing.
+on:
+  schedule:
+    - cron: "45 3 * * 1-5"   # 08:45 PKT
+    - cron: "20 4 * * 1-5"   # 09:20 PKT
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  ready:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt --retries 5 --timeout 60
+
+      - name: Check the relay before the open
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python - <<'PY' > /tmp/readiness
+          import json
+          import urllib.request
+          from datetime import datetime
+          from zoneinfo import ZoneInfo
+
+          BASE = "https://quant-of-rehan-relay.mrmrehanqureshi.workers.dev"
+          now = datetime.now(ZoneInfo("Asia/Karachi"))
+          minute = now.hour * 60 + now.minute
+          strict = minute >= 9 * 60 + 15  # 09:15 PKT onward: frames must exist
+
+
+          def read(path):
+              with urllib.request.urlopen(BASE + path, timeout=30) as response:
+                  return json.load(response)
+
+
+          try:
+              health = read("/health")
+          except Exception as exc:  # noqa: BLE001 - the alert names the type
+              print("Quant of Rehan is NOT ready: the relay did not answer /health "
+                    f"({type(exc).__name__}) at {now:%H:%M} PKT. No quote can be "
+                    "stored while the relay is down, so the open has no feed. "
+                    "This alert repeats at most once a day.")
+              raise SystemExit(0)
+
+          state = health.get("market_state") or {}
+          phase = str(state.get("phase") or "")
+          trading = bool(state.get("trading_day"))
+          problems = []
+
+          if not health.get("version"):
+              problems.append("the relay does not name the build it is running")
+
+          if not trading:
+              # A weekend, a holiday or a closed day: nothing to be ready for.
+              print("ready")
+              raise SystemExit(0)
+
+          if phase not in {"PRE_OPEN", "OPEN", "PRE_MARKET"}:
+              problems.append(
+                  f"the session clock reads {phase or 'unknown'} on a trading day")
+
+          if strict:
+              try:
+                  quotes = read("/quotes")
+              except Exception as exc:  # noqa: BLE001
+                  problems.append(f"/quotes did not answer ({type(exc).__name__})")
+                  quotes = {}
+              rows = quotes.get("quotes") or []
+              priced = [row for row in rows if (row.get("volume") or 0) > 0]
+              if not rows:
+                  problems.append(
+                      "the quote store holds no rows, so no symbol's volume can "
+                      "be split and the card shows NO FEED")
+              elif quotes.get("stale"):
+                  problems.append(
+                      f"the quote store is stale (last push {quotes.get('updated_at')})")
+              elif not priced:
+                  problems.append(
+                      f"all {len(rows)} stored rows carry zero volume, so no "
+                      "trade has been recorded")
+
+          if problems:
+              print(
+                  "Quant of Rehan is NOT ready before the open at "
+                  f"{now:%H:%M} PKT on {now:%Y-%m-%d}:\n- "
+                  + "\n- ".join(problems)
+                  + f"\nRelay build {health.get('version')}, phase {phase}, "
+                  f"relay clock {health.get('karachi_now')}. "
+                  "This alert repeats at most once a day."
+              )
+          else:
+              print("ready")
+          PY
+          if [ -s /tmp/readiness ] && [ "$(cat /tmp/readiness)" != "ready" ]; then
+            python - <<'PY'
+          from datetime import datetime
+          from pathlib import Path
+          from zoneinfo import ZoneInfo
+
+          from src.notify.owner_email import send
+
+          text = Path("/tmp/readiness").read_text(encoding="utf-8").strip()
+          if text:
+              day = datetime.now(ZoneInfo("Asia/Karachi")).date().isoformat()
+              send(text, f"preopen-ready:{day}")
+          PY
+          fi

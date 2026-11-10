@@ -35,6 +35,9 @@ sys.path.insert(0, str(ROOT))
 from src.data.sessions import now_karachi  # noqa: E402
 from src.notify import owner_email  # noqa: E402
 FLAG = ROOT / "data" / "feed_capture" / "ohlc_low_coverage.flag"
+#: Owner order 2026-11-10: the publisher leaves this behind when the relay
+#: refuses a quote push, with the relay's own status and words in it.
+REFUSED = ROOT / "data" / "feed_capture" / "relay_refused.flag"
 
 
 def run_url() -> str:
@@ -89,6 +92,28 @@ def capture_health_message() -> str:
 # symbols by their own names, so the fallback is a pure shell.
 
 
+def refused_message() -> str:
+    status = detail = at = ""
+    try:
+        data = json.loads(REFUSED.read_text(encoding="utf-8"))
+        status = str(data.get("status") or "")
+        detail = str(data.get("detail") or "").strip()
+        at = str(data.get("at") or "")
+    except (OSError, ValueError):
+        pass
+    return (
+        "Quant of Rehan: the relay refused the capture's quote push"
+        + (f" ({status})" if status else "") + ".\n"
+        + (f"At: {at}\n" if at else "")
+        + (f"Relay said: {detail}\n" if detail else "")
+        + "No quote reached the store, so the card and the split saw an empty "
+          "feed until this was fixed. The publisher keeps trying and clears "
+          "this flag on the first push the relay accepts. Nothing was "
+          "fabricated and nothing was padded."
+        + run_url()
+    )
+
+
 def send(text: str) -> bool:
     """Deliver one deduped ops alert (owner email only, 2026-10-29).
 
@@ -119,6 +144,13 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
 
     if args.capture_health:
+        if REFUSED.is_file():
+            send(refused_message())
+            try:
+                REFUSED.unlink()
+            except OSError:
+                pass
+            return 0
         if not FLAG.is_file():
             print("capture healthy: no alert needed")
             return 0
