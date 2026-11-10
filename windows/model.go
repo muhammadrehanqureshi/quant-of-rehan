@@ -9,14 +9,15 @@ const appVersion = "4.0.16"
 // 2026-11-10: the bar and size build is 3.0.1, the toast encoding fix that
 // follows it is 3.0.2, the return to build 21's bars is 3.0.3, the short
 // centred bar that stays inside its own box is 3.0.4, the ten box flat bar
-// with the price before it on the KSE100 tile is 3.0.5, and the longer bar with
-// the right aligned tile row is 3.0.6.
-const hudBuild = "3.0.6"
+// with the price before it on the KSE100 tile is 3.0.5, the longer bar with the
+// right aligned tile row is 3.0.6, and the source orb, the new close times and
+// the BUY= FLOW row are 3.0.7.
+const hudBuild = "3.0.7"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no
 // ported app version beside it.
-const appVersionLabel = "2.8"
+const appVersionLabel = hudBuild
 
 // scripSearchHint is the same search line on every desktop search box.
 const scripSearchHint = "Search for a KMIALL scrip"

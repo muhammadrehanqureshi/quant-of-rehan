@@ -166,7 +166,10 @@ func newRingGeom(w, h, sx, sy, ss int, st radarState) *ringGeom {
 // alphas reads every layer at the sample (ox, oy) of pixel (i, j), where ox and
 // oy run from -0.5 to 0.5 across the pixel, into a.
 func (g *ringGeom) alphas(i, j int, ox, oy float64, a []float64) {
-	x := (float64(i)+0.5+ox)*g.pw - g.cx
+	// Owner order 2026-11-10: the mark is five percent narrower, horizontally
+	// only. Dividing the column distance (the centre divides with it) shrinks
+	// the width and leaves the height alone.
+	x := ((float64(i)+0.5+ox)*g.pw - g.cx) / orbXShrink
 	y := (float64(j)+0.5+oy)*g.ph - g.cy
 	X, Y := ringCanvas/2+x*g.k, ringCanvas/2+y*g.k
 	for n := range ringLayers {

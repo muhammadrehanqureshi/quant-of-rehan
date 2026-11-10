@@ -263,14 +263,15 @@ func (a *App) demoTick(now time.Time) {
 	_ = strconv.Itoa
 }
 
-// demoSessionEnd is when the trading band that the demo clock sits in ends:
-// 15:30 Monday to Thursday, and on Friday 12:00 or 16:30 for the two bands.
+// demoSessionEnd is when the trading day that the demo clock sits in ends.
+// Owner order 2026-11-10: 16:00 Monday to Thursday and 17:00 on Friday, with
+// Friday morning's answer staying at the 12:00 midday break.
 func demoSessionEnd(pk time.Time) string {
 	if pk.Weekday() != time.Friday {
-		return "15:30"
+		return "16:00"
 	}
 	if pk.Hour() < 12 {
 		return "12:00"
 	}
-	return "16:30"
+	return "17:00"
 }

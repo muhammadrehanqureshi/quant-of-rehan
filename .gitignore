@@ -58,3 +58,7 @@ web/dist/
 # Desktop terminal build output (PyInstaller)
 /dist/
 /build/
+
+# The owner's orb source zip is handed over, not committed (7.7 MB of build
+# helpers). Its ring layers are already in windows/assets/ring.
+windows/assets/orb-source/

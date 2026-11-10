@@ -123,7 +123,7 @@ func TestScreensShowTheAppsText(t *testing.T) {
 	a.screen = scrSettings
 	set := plain(a)
 	for _, want := range []string{"RELAY STATUS", "NOTIFICATIONS", "JARVIS CYAN", "PURPLE & YELLOW", "BLACK & WHITE",
-		"GREEN & YELLOW", "NAVY BLUE & WHITE", "ORANGE & WHITE", "VERSION", "2.8", "REQUESTS TODAY",
+		"GREEN & YELLOW", "NAVY BLUE & WHITE", "ORANGE & WHITE", "VERSION", "3.0.7", "REQUESTS TODAY",
 		"Every second from 08:55 until the post-market closes.",
 		"BIG BUYING FLAG", "BIG SELLING FLAG", "SOUND", "BIG ORDER SIZE", "TEST BUYING ALERT", "TEST SELLING ALERT"} {
 		if !strings.Contains(set, want) {
@@ -300,8 +300,8 @@ func TestDemoNextEventFollowsTheSessionLaw(t *testing.T) {
 		at   time.Time
 		want string
 	}{
-		{time.Date(2026, 10, 30, 14, 40, 0, 0, pkt), "16:30"},
-		{time.Date(2026, 11, 2, 10, 0, 0, 0, pkt), "15:30"},
+		{time.Date(2026, 10, 30, 14, 40, 0, 0, pkt), "17:00"},
+		{time.Date(2026, 11, 2, 10, 0, 0, 0, pkt), "16:00"},
 	} {
 		if got := demoSessionEnd(c.at); got != c.want {
 			t.Errorf("%v: %s, want %s", c.at, got, c.want)
@@ -316,7 +316,7 @@ func TestFriendlyNextShowsTheScanStart(t *testing.T) {
 	if got := friendlyNext("OPEN 2026-11-10 09:32"); got != "Tue 10 Nov, 08:55" {
 		t.Errorf("next open: %q", got)
 	}
-	if got := friendlyNext("CLOSE 2026-11-10 15:30"); got != "Closes Tue 10 Nov, 15:30" {
+	if got := friendlyNext("CLOSE 2026-11-10 15:30"); got != "Closes Tue 10 Nov, 16:00" {
 		t.Errorf("next close: %q", got)
 	}
 }

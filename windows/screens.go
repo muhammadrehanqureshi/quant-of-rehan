@@ -477,14 +477,12 @@ func (a *App) drawLeft(c *Canvas, x, y, w, h int) {
 	// window could not be sided.
 	if a.cfg.BigBuy || a.cfg.BigSell {
 		buy, sell, unclear := a.flow.WindowSides(a.karachiNow(), time.Minute)
+		// Owner order 2026-11-10: the row reads BUY=..., SELL=... & U=..., and U
+		// is always written, zero included, so the three figures never move.
 		spans := []Span{
-			{"BUY ", th.Good, true}, {compactNum(float64(buy)), th.Text, false},
-			{"  SELL ", th.Bad, true}, {compactNum(float64(sell)), th.Text, false},
-		}
-		if unclear > 0 {
-			spans = append(spans,
-				Span{"  U ", th.Warn, true},
-				Span{compactNum(float64(unclear)), th.Text, false})
+			{"BUY=", th.Good, true}, {compactNum(float64(buy)), th.Text, false},
+			{", SELL=", th.Bad, true}, {compactNum(float64(sell)), th.Text, false},
+			{" & U=", th.Warn, true}, {compactNum(float64(unclear)), th.Text, false},
 		}
 		label(5, "FLOW", spans)
 	} else {
