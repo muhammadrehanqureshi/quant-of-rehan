@@ -259,9 +259,9 @@ class QuoteFlow:
             flow.baseline = volume
             # Owner report 2026-11-10: the seed used to stamp the frame's own
             # time as a fresh baseline, so a prefix that had been unsided since
-            # the open looked like it had re-baselined at 15:30, and the
-            # remaining unclear volume could not be traced to the frame that
-            # created it. The relay row already names the baseline it carries,
+            # the open looked like a fresh re-baseline after the close, and
+            # the remaining unclear volume could not be traced to the frame
+            # that created it. The relay row already names the baseline it carries,
             # so adopt that provenance whole and fall back to the frame's own
             # stamp only when the row names none.
             stored_at = str(row.get("flow_baseline_at") or "").strip()
