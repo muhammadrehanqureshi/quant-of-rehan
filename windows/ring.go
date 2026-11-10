@@ -169,7 +169,7 @@ func (g *ringGeom) alphas(i, j int, ox, oy float64, a []float64) {
 	// Owner order 2026-11-10: the mark is five percent narrower, horizontally
 	// only. Dividing the column distance (the centre divides with it) shrinks
 	// the width and leaves the height alone.
-	x := ((float64(i)+0.5+ox)*g.pw - g.cx) / orbXShrink
+	x := (float64(i) + 0.5 + ox) * g.pw - g.cx
 	y := (float64(j)+0.5+oy)*g.ph - g.cy
 	X, Y := ringCanvas/2+x*g.k, ringCanvas/2+y*g.k
 	for n := range ringLayers {

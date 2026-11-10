@@ -795,22 +795,22 @@ func (a *App) drawFlowList(c *Canvas, ix, head, top, iw, rows, barX int) {
 	a.scrollbar(c, barX, top, a.lvScan.view*2, &a.lvScan)
 }
 
-// Owner order 2026-11-10 (latest, second time): each bar is half the cell's
-// height and sits on the cell's own centre line, so the green and red read as
-// one centred band inside the boxes instead of a solid wall of colour. The
-// full block filled the whole cell and was too heavy.
-const barBlock = '▬'
+// Owner order 2026-11-10 (latest): each bar is half a cell tall and fills the
+// cell's whole width, so the bar runs as one unbroken band. The middle bar
+// glyph (▬) left a thin line between two cells; the half block (▄) is
+// edge to edge, so the separators the owner reported are gone and the height is
+// still half a cell.
+const barBlock = '▄'
 
 // shareBarBoxes is how many boxes a buy versus sell bar holds: one box per ten
 // percent, each box a single cell. Owner order 2026-11-10 (latest): the
 // seventeen cell span with tabs inside it is withdrawn for ten single cells.
 const shareBarBoxes = 10
 
-// shareBarSpan is the cells ten boxes cover: two cells each, side by side, so
-// the bar is a solid run with no gap between the boxes. Owner order
-// 2026-11-10 (latest): the bar is longer across and the box count does not
-// move, so every box is two cells wide and the ten boxes are twenty cells.
-const shareBarSpan = shareBarBoxes * 2
+// shareBarSpan is the cells the ten boxes cover. Owner order 2026-11-10
+// (latest): every bar is ten percent shorter than its 20 cells, which is 18
+// cells, and the box count does not move, so the ten boxes share those 18.
+const shareBarSpan = shareBarBoxes * 2 * 9 / 10
 
 // shareBarWidth is the field a labelled bar asks for: its span, one space and
 // the four cells a "100%" needs.
@@ -831,15 +831,22 @@ func (a *App) shareBarOnly(c *Canvas, x, y, w int, buyShare float64) int {
 }
 
 // drawShareBar is the buy versus sell bar: ten boxes, one box per ten percent,
-// each box a single cell of one flat colour. Owner order 2026-11-10 (latest):
-// the darker every-second-box shade is withdrawn, so there is exactly one green
-// and one red, and the boxes number ten rather than seventeen. The percentage
-// is optional for the KSE100 tile, where the row carries its own change.
+// one flat colour, and the percentage after it. Owner order 2026-11-10
+// (latest): one green and one red, ten boxes, and 18 cells across instead of
+// 20, so the bar is ten percent shorter. The boxes still number ten, so each
+// one takes its share of the 18 cells (the first eight are two cells and the
+// last two one), and nothing is drawn between them. The percentage is optional
+// for the rows that carry their own change.
 func (a *App) drawShareBar(c *Canvas, x, y, w int, buyShare float64, label bool) int {
 	th := a.th
+	// The bar is 18 cells; a caller with less room (the ALERTS boards pass the
+	// ten cells of a compact bar) gets a bar of exactly the room it has.
 	span := shareBarSpan
-	if w > 0 && w-5 < span && label {
-		span = max(shareBarBoxes, w-5)
+	if w > 0 && w < span {
+		span = w
+		if label && w-5 >= shareBarBoxes {
+			span = w - 5
+		}
 	}
 	green := int(math.Round(buyShare * float64(shareBarBoxes)))
 	if green < 0 {
@@ -848,15 +855,18 @@ func (a *App) drawShareBar(c *Canvas, x, y, w int, buyShare float64, label bool)
 	if green > shareBarBoxes {
 		green = shareBarBoxes
 	}
-	// Ten boxes, two cells each, touching: twice the length, no gap anywhere
-	// and still exactly ten boxes.
+	// Ten boxes over the span, touching and unbroken: each box takes its
+	// slice of the cells and no separator is drawn between them.
 	for i := 0; i < shareBarBoxes; i++ {
 		ink := th.Bad
 		if i < green {
 			ink = th.Good
 		}
-		c.Put(x+2*i, y, barBlock, ink, false)
-		c.Put(x+2*i+1, y, barBlock, ink, false)
+		from := i * span / shareBarBoxes
+		to := (i + 1) * span / shareBarBoxes
+		for k := from; k < to; k++ {
+			c.Put(x+k, y, barBlock, ink, false)
+		}
 	}
 	width := span
 	if label {
@@ -967,23 +977,33 @@ func (a *App) drawBoardPanel(c *Canvas, x, y, w, h int, side int) {
 		c.Text(ix+4, ry, 2, star, th.Warn, true)
 		c.Text(ix+6, ry, 8, b.Symbol, th.Hot, true)
 		a.flashText(c, ix+15, ry, padRight(commaFloat(b.Price, 2), 9), th.Text, true, pxKey)
-		if cw >= 44 && b.ChangePct != nil {
+		// Owner order 2026-11-10 (latest): both boards carry their bar, so the
+		// bar is drawn before anything else is given the room. The buying board
+		// keeps its PKR value and shortens its bar to make room for it; the
+		// selling board carries no PKR value at all.
+		vx := ix + 25
+		if b.ChangePct != nil && cw-25 >= shareBarSpan+9 {
 			a.flashText(c, ix+25, ry, padRight(changeText(*b.ChangePct), 9), a.dirColor(*b.ChangePct), true, pxKey)
+			vx = ix + 35
 		}
-		vx := ix + 35
-		if cw < 44 {
-			vx = ix + 25
-		}
-		// Owner order 2026-11-10 (latest): the PKR value stays on the row and the
-		// bar is drawn only when there is room for both, so the value is never
-		// the field that gets dropped.
 		barW := 0
-		if cw-vx >= 10+shareBarWidth {
+		switch room := cw - vx; {
+		case room >= shareBarWidth:
 			barW = shareBarWidth
-			a.shareBar(c, ix+cw-barW, ry, barW, b.Share)
+		case room >= shareBarSpan:
+			barW = shareBarSpan
+		case room >= shareBarBoxes:
+			barW = shareBarBoxes
 		}
-		if cw-vx >= 9 {
-			c.Spans(vx, ry, cw-barW-vx, []Span{{"PKR ", th.Soft, false}, {compactNum(b.BuyValue), good, true}})
+		pkr := side != sideSell && barW > 0 && cw-vx-barW >= 9
+		if side != sideSell && !pkr && cw-vx >= shareBarBoxes+9 {
+			barW, pkr = shareBarBoxes, true
+		}
+		if barW > 0 {
+			a.drawShareBar(c, ix+cw-barW, ry, barW, b.Share, barW >= shareBarWidth)
+		}
+		if pkr {
+			c.Spans(vx, ry, cw-vx-barW, []Span{{"PKR ", th.Soft, false}, {compactNum(b.BuyValue), good, true}})
 		}
 	}
 	a.scrollbar(c, x+w-2, iy, ih, lv)
