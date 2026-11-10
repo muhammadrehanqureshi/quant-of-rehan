@@ -172,6 +172,39 @@ class QuoteFlowTest(unittest.TestCase):
         self.assertEqual(quote["buy_volume"] + quote["sell_volume"]
                          + quote["flow_baseline"], 1100)
 
+    def test_a_seed_keeps_the_baseline_the_relay_names(self):
+        """Owner report 2026-11-10: the unclear prefix must stay traceable.
+
+        A band that starts at 15:35 adopted the day's pair and told the owner
+        the baseline was created at 15:30, because the seed stamped the frame's
+        own time over the relay's provenance. A prefix that had been unsided
+        since the open looked like a fresh, unexplained re-baseline. The seed
+        now carries the relay row's own baseline time, first sighting and
+        reason, so any remaining U points at the frame that made it.
+        """
+        seeded = quote_flow.QuoteFlow()
+        seeded.seed([
+            {"symbol": "OGDC", "volume": 1000, "buy_volume": 600,
+             "sell_volume": 150, "flow_baseline": 250,
+             "flow_baseline_at": "2026-11-10T09:20:04+05:00",
+             "flow_first_seen_at": "2026-11-10T09:15:01+05:00",
+             "flow_baseline_reason": "preopen_zero_seed",
+             "observed_at": "2026-11-10T15:35:02+05:00",
+             "split_method": "quote_rule"},
+            {"symbol": "PRL", "volume": 500, "buy_volume": 100,
+             "sell_volume": 400, "split_method": "quote_rule"},
+        ])
+        quote = seeded.observe(row(86.0, 85.9, 86.0, 1100, symbol="OGDC"))
+        self.assertEqual(quote["flow_baseline_at"],
+                         "2026-11-10T09:20:04+05:00")
+        self.assertEqual(quote["flow_first_seen_at"],
+                         "2026-11-10T09:15:01+05:00")
+        self.assertEqual(quote["flow_baseline_reason"], "preopen_zero_seed")
+        # A row that names no provenance still reads as a seed.
+        unnamed = seeded.observe(row(12.0, 11.9, 12.0, 520, symbol="PRL"))
+        self.assertEqual(unnamed["flow_baseline_reason"], "seed")
+        self.assertIsNone(unnamed["flow_baseline_at"])
+
 
 if __name__ == "__main__":
     unittest.main()
