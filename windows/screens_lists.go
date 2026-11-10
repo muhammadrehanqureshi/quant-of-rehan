@@ -451,10 +451,10 @@ func (a *App) drawSearchTile(c *Canvas, x, y, w, h int) {
 		t := int64(math.Round(*in.Volume))
 		tot = &t
 	}
-	w := a.putBST(c, dx, dy+2, buy, sell, tot)
+	used := a.putBST(c, dx, dy+2, buy, sell, tot)
 	// Owner order 2026-11-10 (latest): the chosen stock's bar is back on the
 	// search tile, at the right edge of its own volume row.
-	if buy != nil && sell != nil && *buy+*sell > 0 && dw-w-2 >= shareBarWidth {
+	if buy != nil && sell != nil && *buy+*sell > 0 && dw-used-2 >= shareBarWidth {
 		a.shareBar(c, dx+dw-shareBarWidth, dy+2, shareBarWidth,
 			float64(*buy)/float64(*buy+*sell))
 	}
