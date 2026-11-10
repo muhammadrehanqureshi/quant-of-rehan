@@ -32,9 +32,9 @@ func TestBSTLineSaysUZero(t *testing.T) {
 	}
 }
 
-// Owner order 2026-11-10: the bars are half a cell tall and keep their 17 cells,
-// with the ten boxes still countable.
-func TestBarsAreHalfHeightAndFullLength(t *testing.T) {
+// Owner order 2026-11-10: the bars are half a cell tall, and the later order of
+// the same day makes every one of them ten boxes centred in its span.
+func TestBarsAreHalfHeightTenBoxes(t *testing.T) {
 	a := demoApp(t, 100, 30)
 	c := NewCanvas(40, 1, RGB{})
 	a.shareBar(c, 2, 0, 22, 0.5)
@@ -42,11 +42,42 @@ func TestBarsAreHalfHeightAndFullLength(t *testing.T) {
 	if barBlock != '▄' {
 		t.Fatalf("the bar is %q, not a half cell", barBlock)
 	}
-	if n := strings.Count(row, string(barBlock)); n != 17 {
-		t.Fatalf("the bar has %d cells, want its unchanged 17: %q", n, row)
+	if n := strings.Count(row, string(barBlock)); n != shareBarBoxes {
+		t.Fatalf("the bar has %d boxes, want %d: %q", n, shareBarBoxes, row)
 	}
 	if strings.ContainsRune(row, '█') {
 		t.Fatalf("a full cell is still in the bar: %q", row)
+	}
+}
+
+// Owner order 2026-11-10 (later): the three volume leaders carry the same bar
+// the order flow carries, and the price follows the T volume rather than
+// leading the row.
+func TestLeaderBarsAreOrderFlowBarsAndPriceFollowsT(t *testing.T) {
+	rows := rowsOf(busyApp(t, 158, 41, 3))
+	inMarket, priced := false, 0
+	for _, r := range rows {
+		switch {
+		case strings.Contains(r, "THE TOP 3 SCRIPS OF VOLUME"):
+			inMarket = true
+			continue
+		case strings.Contains(r, "BUYING NOW"):
+			inMarket = false
+		}
+		if !inMarket {
+			continue
+		}
+		ti, pi := strings.Index(r, "& T="), strings.Index(r, "PKR ")
+		if ti < 0 || pi < 0 {
+			continue
+		}
+		priced++
+		if pi < ti {
+			t.Fatalf("the price leads the volume: %q", r)
+		}
+	}
+	if priced == 0 {
+		t.Fatal("no leader line carries both a T volume and a price")
 	}
 }
 

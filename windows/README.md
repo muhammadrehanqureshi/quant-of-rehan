@@ -5,6 +5,7 @@ One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of 
 
 ## What is new in build 34
 
+* **Build 35.** The same own-source orb is ten percent bigger again (`OrbGrow` 1.221) and nothing else about it moves. Every buy versus sell bar is ten boxes, one per ten percent, centred in its own span instead of sharing an uneven seventeen cells, so dominance is counted box by box on every screen. The three volume leaders carry that same bar in place of the varying-height meter, and put `PKR` and the change after the `T` volume, so a row reads B, S, U, T and then the live price.
 * **Build 34.** The orb is the owner's own source (`QoR-orb-source.zip`): `ring.go`, `ring_data.go` and the six layer pictures under `assets/ring` are that source, so the mark is its six turning layers, its own dot lighting, its own green and its still red, at its own `OrbGrow` of 1.11. The buy and sell bars are half a cell tall and still 17 cells long, with their ten tabs and a seam at each tab's edge, so the ten boxes count apart. Every `B=` and `S=` line carries `U=` before its `& T=`, on HOME, the SEARCH tile and the scanner lists, so B + S + U = T reads in one glance. The top three scrips put `PKR` and the change on the volume's own line, in front of B, S, U and T. The dot meters on the KSE100 tile, the top three scrips and the SEARCH tile are gone: short green and red bars stand where the dots did.
 
 ## What is new in build 33

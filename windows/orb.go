@@ -41,8 +41,9 @@ const orbScale = 1.0
 // Owner order 2026-11-10: the mark is the owner's own orb source, copied in as
 // ring.go, ring_data.go and assets/ring. OrbGrow is that source's size: 1.11
 // times the old 13 row radius, which is what needs, and fills, the tile's 14
-// rows.
-const OrbGrow = 1.11
+// rows. The later order of the same day asks for ten percent more again, so
+// 1.11 * 1.1 is 1.221, and nothing else about the orb moves.
+const OrbGrow = 1.221
 
 // orbBaseRows is the row count the source measures its radius against.
 const orbBaseRows = 13
@@ -357,10 +358,13 @@ func drawOrb(c *Canvas, x0, y0, w, h int, t float64, mode OrbMode, green bool, t
 	// The source's own size when the tile has the 32 by 14 cells that needs; a
 	// smaller tile fits the ring to itself instead, exactly as the source does.
 	if !ringHalfBlocks && w >= orbSourceCols && h >= orbSourceRows {
+		// The ten percent bigger mark can want more room than a small tile has.
+		// It is drawn at the room it finds rather than falling back to the old
+		// GIF: the size is the only thing about the orb that may change.
 		want := OrbRadius(OrbGrow)
 		room := math.Min(float64(w)/2, float64(h)*cellAspect/2)
-		if want <= room {
-			ringRadius = want
+		if room >= 3 {
+			ringRadius = math.Min(want, room)
 			defer func() { ringRadius = 0 }()
 		}
 	}
