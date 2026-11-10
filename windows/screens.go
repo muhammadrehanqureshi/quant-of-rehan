@@ -1023,9 +1023,10 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 				showPrice(end-priceBlock, end-chgW-1, end)
 			default:
 				// Very short: the numbers follow the volumes, as they did before.
+				pw := runeLen(px)
 				pkr := ix + 3 + used + 2
-				if pkr+4+priceW < ix+iw {
-					showPrice(pkr, pkr+4+priceW, pkr+4+priceW+1+chgW)
+				if pkr+4+pw < ix+iw {
+					showPrice(pkr, pkr+4+pw-1, pkr+4+pw+chgW)
 				}
 			}
 		}
