@@ -110,9 +110,12 @@ func TestAlertsBoardIsNumberedAndScrolls(t *testing.T) {
 	}
 }
 
-// B, S and T are written one way on every screen: B=1, S=2 & T=3.
+// B, S and T are written one way on every screen: B=1, S=2 & T=3. The KSE100
+// tile is the one place the owner asked to be symmetrical: each number is right
+// aligned in a field of its own there, so every leader's S= starts on the same
+// cell and the block carries padding spaces. Every other screen packs it tight.
 func TestBSTFormatEverywhere(t *testing.T) {
-	good := regexp.MustCompile(`B=[\d,]+, S=[\d,]+, U=[\d,]+ & T=[\d,]+`)
+	good := regexp.MustCompile(`B=\s*[\d,]+, S=\s*[\d,]+, U=\s*[\d,]+ & T=\s*[\d,]+`)
 	bad := regexp.MustCompile(`B=[\d,]+\s{2,}S=|S=[\d,]+\s{2,}T=|\(B=|\)\s*$`)
 	for _, c := range []struct {
 		name string

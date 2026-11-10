@@ -802,14 +802,20 @@ const barBlock = '▬'
 // seventeen cell span with tabs inside it is withdrawn for ten single cells.
 const shareBarBoxes = 10
 
-// shareBarBoxW is how many cells wide one box is. Owner order 2026-11-10
-// (latest): one cell, so the bar is exactly ten boxes. A box two cells wide
-// read as twenty boxes on the owner's screen, not as ten longer ones.
-const shareBarBoxW = 1
+// shareBarPitch is the cells from one box's start to the next. Owner order
+// 2026-11-10 (latest): every box is fifteen percent longer, which lengthens the
+// whole bar, and the box count stays exactly ten. A terminal cell is the
+// smallest thing that can be drawn, so the step is a fraction of a cell and each
+// box's start is rounded to the nearest cell, giving ten boxes over eleven cells
+// instead of ten.
+const shareBarPitch = 1.15
 
-// shareBarWidth is the field a labelled bar asks for: its ten boxes at two
-// cells each, one space and the four cells a "100%" needs.
-const shareBarWidth = shareBarBoxes*shareBarBoxW + 5
+// shareBarSpan is the cells ten boxes cover at that pitch: round(9 * 1.15) + 1.
+const shareBarSpan = 11
+
+// shareBarWidth is the field a labelled bar asks for: its span, one space and
+// the four cells a "100%" needs.
+const shareBarWidth = shareBarSpan + 5
 
 // shareBar draws a buy versus sell bar: ten boxes of one cell, then one space,
 // then the percentage, so "98%" and "100%" both sit the same distance from the
@@ -840,13 +846,9 @@ func (a *App) shareBarOnly(c *Canvas, x, y, w int, buyShare float64) int {
 // is optional for the KSE100 tile, where the row carries its own change.
 func (a *App) drawShareBar(c *Canvas, x, y, w int, buyShare float64, label bool) int {
 	th := a.th
-	cells := w
-	if label {
-		cells = w - 5
-	}
-	boxW := shareBarBoxW
-	if cells < shareBarBoxes*boxW {
-		boxW = 1
+	span := shareBarSpan
+	if w > 0 && w-5 < span && label {
+		span = max(shareBarBoxes, w-5)
 	}
 	green := int(math.Round(buyShare * float64(shareBarBoxes)))
 	if green < 0 {
@@ -855,16 +857,21 @@ func (a *App) drawShareBar(c *Canvas, x, y, w int, buyShare float64, label bool)
 	if green > shareBarBoxes {
 		green = shareBarBoxes
 	}
+	// Ten boxes on their own pitch: at the full span each start is 1.15 cells
+	// further on than the last, and a narrower field falls back to one cell per
+	// box so the count never changes and nothing overflows.
 	for i := 0; i < shareBarBoxes; i++ {
 		ink := th.Bad
 		if i < green {
 			ink = th.Good
 		}
-		for j := 0; j < boxW; j++ {
-			c.Put(x+i*boxW+j, y, barBlock, ink, false)
+		at := x + i
+		if span == shareBarSpan {
+			at = x + int(math.Round(float64(i)*shareBarPitch))
 		}
+		c.Put(at, y, barBlock, ink, false)
 	}
-	width := shareBarBoxes * boxW
+	width := span
 	if label {
 		// Owner order 2026-11-10 (latest): the percentage is right aligned in
 		// four cells, so 7%, 47% and 100% all end at the same place and the

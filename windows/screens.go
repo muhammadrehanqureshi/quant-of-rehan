@@ -515,12 +515,13 @@ func (a *App) drawHome(c *Canvas, x, y, w, h int) {
 	// STOP LOSS, one under the other. When that would leave the market tile too
 	// short for the blank line above its note (a window under 33 rows), the same
 	// five go in two columns instead, so nothing is squeezed.
-	sigH := 7
+	// Six rows now that SCORE joined the card, so the tile is two rows taller.
+	sigH := 8
 	const marketFull = 14 // two rows of index, a spacer, three leaders, buying, a gap and the note
 	if mh := y + h - (gy + sigH + gap); mh < marketFull && w >= 60 {
-		sigH = 5
+		sigH = 6
 	}
-	a.drawSignal(c, x, gy, w, sigH, sigH == 5)
+	a.drawSignal(c, x, gy, w, sigH, sigH == 6)
 	my := gy + sigH + gap
 	if mh := y + h - my; mh >= 6 {
 		a.drawMarket(c, x, my, w, mh)
@@ -696,19 +697,25 @@ func (a *App) drawSignal(c *Canvas, x, y, w, h int, twoCol bool) {
 		c.Text(col, row, lw, k, th.Soft, false)
 		c.Text(col+lw, row, max(0, ix+iw-col-lw), v, vc, true)
 	}
+	// Owner order 2026-11-10: SCORE sits directly below ENTRY PRICE. It is the
+	// card's own "Score: 72/100" line and nothing is invented when the card
+	// carries none: it says not reported, the same as every other missing field.
+	score := signalScore(a.signals)
 	if twoCol {
 		mid := ix + iw/2
 		put(ix, iy, "SYMBOL", sym, th.Hot)
 		put(ix, iy+1, "ENTRY TIME", f.Time, th.Text)
 		put(ix, iy+2, "ENTRY PRICE", f.Entry, th.Text)
+		put(ix, iy+3, "SCORE", score, th.Accent)
 		put(mid, iy+1, "TAKE PROFIT", f.Exit, th.Good)
 		put(mid, iy+2, "STOP LOSS", f.Stop, th.Bad)
 	} else {
 		put(ix, iy, "SYMBOL", sym, th.Hot)
 		put(ix, iy+1, "ENTRY TIME", f.Time, th.Text)
 		put(ix, iy+2, "ENTRY PRICE", f.Entry, th.Text)
-		put(ix, iy+3, "TAKE PROFIT", f.Exit, th.Good)
-		put(ix, iy+4, "STOP LOSS", f.Stop, th.Bad)
+		put(ix, iy+3, "SCORE", score, th.Accent)
+		put(ix, iy+4, "TAKE PROFIT", f.Exit, th.Good)
+		put(ix, iy+5, "STOP LOSS", f.Stop, th.Bad)
 	}
 	// The signal's own stock, live, at the right of the top row: price and where
 	// it stands today.
@@ -806,6 +813,36 @@ func (a *App) putBST(c *Canvas, x, y int, buy, sell, total *int64, keys ...strin
 		put(commaInt(*total), totalBlue, false)
 	}
 	return vx - x
+}
+
+// putBSTFixed writes B, S, U and T with each number right aligned in a field of
+// its own, so the same label starts on the same cell on every row; putBST packs
+// them tight and each row then begins its S wherever its own B ended.
+func (a *App) putBSTFixed(c *Canvas, x, y int, buy, sell, total *int64, keys ...string) int {
+	th := a.th
+	const numW = 12
+	vx := x
+	put := func(s string, fg RGB, bold bool) {
+		vx += a.flashText(c, vx, y, s, fg, bold, keys...)
+	}
+	if buy != nil && sell != nil {
+		put("B=", th.Soft, false)
+		put(padLeft(commaInt(*buy), numW), th.Good, true)
+		put(", S=", th.Soft, false)
+		put(padLeft(commaInt(*sell), numW), th.Bad, true)
+		if total != nil {
+			un := *total - *buy - *sell
+			if un < 0 {
+				un = 0
+			}
+			put(", U=", th.Soft, false)
+			put(padLeft(commaInt(un), 3), th.Warn, un > 0)
+			put(" & T=", th.Soft, false)
+			put(commaInt(*total), totalBlue, false)
+		}
+		return vx - x
+	}
+	return a.putBST(c, x, y, buy, sell, total, keys...)
 }
 
 func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
@@ -927,7 +964,10 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 		}
 		// Owner order 2026-11-10: the row reads B, S, U, T, then the live price
 		// and its change, and the bar closes the line after them.
-		used := a.putBST(c, ix+3, row, buy, sell, vol, volKey, pxKey)
+		// Owner order 2026-11-10 (latest): every leader row lines its B, S, U
+		// and T up on the same cells, so the block is symmetrical however many
+		// digits each number has.
+		used := a.putBSTFixed(c, ix+3, row, buy, sell, vol, volKey, pxKey)
 		// Owner order 2026-11-10 (latest): the price, the change and the bar are
 		// pushed to the tile's far right and right aligned at one edge, so all
 		// three leaders line up and nothing floats in the middle of the row. The
@@ -940,7 +980,7 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 		if l.Price != nil {
 			const chgW, priceW = 8, 10
 			end := ix + iw - 1
-			bw := shareBarBoxes * shareBarBoxW
+			bw := shareBarSpan
 			floor := ix + 3 + used + 1
 			priceBlock := 4 + priceW + chgW + 1
 			barStart := end - bw
