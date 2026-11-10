@@ -353,6 +353,30 @@ func ringDots(c *Canvas, x0, y0, w, h int, st radarState, pal radarPal) bool {
 	return true
 }
 
+// radarPal is the colour set of one state: the dim line work, the main ink and
+// the brightest highlight, plus the gain its tones are read through. These are
+// the source's own three stops.
+type radarPal struct {
+	dim, mid, hot RGB
+	gain          float64
+}
+
+// at is the ink for a tone from 0 to 1.
+func (p radarPal) at(tone float64) RGB {
+	tone = clamp01(tone * p.gain)
+	if tone < 0.5 {
+		return mix(p.dim, p.mid, tone/0.5)
+	}
+	return mix(p.mid, p.hot, (tone-0.5)/0.5)
+}
+
+// radarState is what animates: the seconds of motion, which turn the layers.
+// When moving is false every layer rests at the angle the picture drew it.
+type radarState struct {
+	t      float64
+	moving bool
+}
+
 // ringStateFor is the motion of the source orb at t seconds: green means the
 // quant is online and every layer turns, red means it is offline and nothing
 // moves at all, exactly as the source draws it.
