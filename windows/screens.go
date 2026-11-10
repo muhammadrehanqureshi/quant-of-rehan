@@ -918,9 +918,13 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 		}
 		pxKey, volKey := "px:"+l.Symbol, "vol:"+l.Symbol
 		c.Spans(ix, row, textW, []Span{{strconv.Itoa(i+1) + ". ", th.Soft, false}, {l.Symbol, th.Hot, true}})
-		if sparkW > 0 {
-			if h := a.symHist[l.Symbol]; h != nil && len(h.v) >= 3 {
-				barMeter(c, ix+iw-sparkW, row, sparkW, 2, h.v, th.Good, th.Bad, th.Panel)
+		// Owner order 2026-11-10 (later): the varying height meter in front of
+		// each of the three scrips is gone. The same green and red ten-box bar
+		// the order flow uses stands where it was, so the same reading looks
+		// the same on every screen.
+		if sparkW > 0 && l.HasSplit() {
+			if total := *l.Buy + *l.Sell; total > 0 {
+				a.shareBar(c, ix+iw-sparkW, row, sparkW, float64(*l.Buy)/float64(total))
 			}
 		}
 		row++
@@ -932,20 +936,18 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 		if l.HasVolume() {
 			vol = l.Volume
 		}
-		// Owner order 2026-11-10: the price and its change sit on the volume's
-		// own line, in front of B, S, U and T, instead of on the row above it.
-		vx := ix + 3
+		// Owner order 2026-11-10 (later): the price and its change follow the T
+		// volume on the same line instead of leading it, so the row reads B, S,
+		// U, T and then the live price.
+		used := a.putBST(c, ix+3, row, buy, sell, vol, volKey, pxKey)
 		if l.Price != nil {
+			vx := ix + 3 + used + 2
 			vx += a.flashText(c, vx, row, "PKR ", th.Soft, false)
 			vx += a.flashText(c, vx, row, commaFloat(*l.Price, 2), th.Text, true, pxKey)
+			if l.ChangePct != nil {
+				a.flashText(c, vx+1, row, changeText(*l.ChangePct), a.dirColor(*l.ChangePct), true, pxKey)
+			}
 		}
-		if l.ChangePct != nil {
-			vx += a.flashText(c, vx, row, " "+changeText(*l.ChangePct), a.dirColor(*l.ChangePct), true, pxKey)
-		}
-		if vx > ix+3 {
-			vx += 2
-		}
-		a.putBST(c, vx, row, buy, sell, vol, volKey, pxKey)
 		row++
 		// Spare rows are shared out as a blank line between leaders.
 		if left := len(leaders) - i - 1; limit-row-2*left > left {

@@ -465,29 +465,20 @@ func TestFetchOrderFlowFallsBackToFlowAndAcceptsALargeBody(t *testing.T) {
 	}
 }
 
-// Owner order 2026-11-07: ten tabs in every bar, one per ten percent, and the
-// bar keeps its previous 17-cell span.
-func TestShareBarHasTenTabs(t *testing.T) {
+// Owner order 2026-11-10 (later): every bar is ten boxes, one per ten percent,
+// centred in its own span, so buyers and sellers are counted box by box.
+func TestShareBarHasTenBoxes(t *testing.T) {
 	a := demoApp(t, 100, 30)
 	c := NewCanvas(40, 1, RGB{})
 	a.shareBar(c, 2, 0, 22, 0.5)
 	row := c.PlainRows()[0]
-	if n := strings.Count(row, "▄"); n != 17 {
-		t.Fatalf("the bar has %d cells, want the previous 17: %q", n, row)
+	if n := strings.Count(row, "▄"); n != shareBarBoxes {
+		t.Fatalf("the bar has %d boxes, want %d: %q", n, shareBarBoxes, row)
 	}
-	widths := shareBarTabWidths(17)
-	if len(widths) != shareBarTabs {
-		t.Fatalf("the bar has %d tabs, want %d", len(widths), shareBarTabs)
-	}
-	sum := 0
-	for _, w := range widths {
-		if w < 1 {
-			t.Fatalf("a tab has width %d; every tab needs a cell", w)
-		}
-		sum += w
-	}
-	if sum != 17 {
-		t.Fatalf("the tabs cover %d cells, want 17", sum)
+	// The span is 17 cells (22 less the five the percentage needs), so ten
+	// boxes centred in it start three cells in from the bar's own x.
+	if got := strings.Index(row, "▄"); got != 5 {
+		t.Fatalf("the bar starts at cell %d, want the centre of its span at 5: %q", got, row)
 	}
 }
 

@@ -791,39 +791,18 @@ func (a *App) drawFlowList(c *Canvas, ix, head, top, iw, rows, barX int) {
 
 // barBlock is the lower half of a cell. Owner order 2026-11-10: the bars are
 // half their old height, so they take this rune and the panel above them shows
-// through. The span stays the unchanged 17 cells and the ten boxes stay ten, so
-// the bar loses height and nothing else.
+// through.
 const barBlock = '▄'
 
-// shareBarTabs is the number of ten percent tabs in every buy versus sell
-// bar. Owner order 2026-11-07: ten tabs, and the bar keeps its previous
-// 17-cell span, so the tabs share the old length instead of shrinking it to
-// ten cells.
-const shareBarTabs = 10
-
-// shareBarTabWidths splits total cells into at most tabs tabs, spreading the
-// cells from the left. Every cell belongs to one tab, so the bar has no holes.
-// At 17 cells and ten tabs the widths are 2,2,2,1,2,2,1,2,2,1.
-func shareBarTabWidths(total int) []int {
-	if total <= 0 {
-		return nil
-	}
-	n := shareBarTabs
-	if total < n {
-		n = total
-	}
-	widths := make([]int, n)
-	for i := 0; i < total; i++ {
-		widths[i*n/total]++
-	}
-	return widths
-}
+// shareBarBoxes is how many boxes every buy versus sell bar holds. Owner order
+// 2026-11-10 (later): the uneven tabs are gone and the bar is ten boxes, so
+// buyers and sellers are read box by box at a glance.
+const shareBarBoxes = 10
 
 // shareBar draws a buy versus sell bar of w columns, half a cell tall (owner
-// order 2026-11-10 halved its height). The coloured part keeps its previous
-// 17-cell span, split into ten ten-percent tabs, each with a seam at its edge;
-// one space follows it, then the percentage, so "98%" and "100%" both sit the
-// same distance from the right edge.
+// order 2026-11-10 halved its height). Ten boxes sit centred in the bar's span,
+// then one space, then the percentage, so "98%" and "100%" both sit the same
+// distance from the last box.
 func (a *App) shareBar(c *Canvas, x, y, w int, buyShare float64) {
 	a.shareBarRune(c, x, y, w, buyShare, barBlock)
 }
@@ -836,44 +815,42 @@ func (a *App) shareBarMid(c *Canvas, x, y, w int, buyShare float64) {
 	a.shareBarRune(c, x, y, w, buyShare, barBlock)
 }
 
-// shareBarRune draws the bar with the caller's character, always followed by
-// one space and the percentage. The ten tabs are coloured at ten percent steps,
-// while their widths share the full old span.
+// shareBarRune draws the bar with the caller's character: ten boxes, each one
+// cell, centred in the bar's own span and always followed by one space and the
+// percentage. Owner order 2026-11-10 (later): one box per ten percent of the
+// buy side, so dominance is counted rather than guessed, and the short bar sits
+// in the middle of the space it was always drawn in instead of against its left
+// edge.
 func (a *App) shareBarRune(c *Canvas, x, y, w int, buyShare float64, ch rune) {
 	th := a.th
-	full := max(1, w-5)
-	widths := shareBarTabWidths(full)
-	green := int(math.Round(buyShare * float64(len(widths))))
+	// Five cells belong to the percentage, so the bar is centred in what is
+	// left. A bar narrower than ten cells keeps one box per cell it has.
+	span := max(1, w-5)
+	boxes := shareBarBoxes
+	if span < boxes {
+		boxes = span
+	}
+	start := x + (span-boxes)/2
+	green := int(math.Round(buyShare * float64(boxes)))
 	if green < 0 {
 		green = 0
 	}
-	if green > len(widths) {
-		green = len(widths)
+	if green > boxes {
+		green = boxes
 	}
-	at := x
-	for i, tw := range widths {
+	for i := 0; i < boxes; i++ {
 		ink := mix(th.Panel, th.Bad, 0.8)
 		if i < green {
 			ink = th.Good
 		}
-		// One shade per tab, so the ten boxes stay countable without a hole
-		// between the cells of the same box.
+		// One shade per box, so the ten boxes stay countable without a gap
+		// between them.
 		if i%2 == 1 {
 			ink = mix(ink, th.Panel, 0.22)
 		}
-		for j := 0; j < tw; j++ {
-			cell := ink
-			// The last cell of every box is a seam, drawn a step darker into
-			// the panel, so the ten health boxes count apart at a glance and
-			// still cost the bar no length.
-			if j == tw-1 {
-				cell = mix(ink, th.Panel, 0.45)
-			}
-			c.Put(at+j, y, ch, cell, false)
-		}
-		at += tw
+		c.Put(start+i, y, ch, ink, false)
 	}
-	c.Text(x+full+1, y, 4, strconv.FormatFloat(math.Round(buyShare*100), 'f', 0, 64)+"%", th.Soft, false)
+	c.Text(start+boxes+1, y, 4, strconv.FormatFloat(math.Round(buyShare*100), 'f', 0, 64)+"%", th.Soft, false)
 }
 
 // ---------- alerts ----------
