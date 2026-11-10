@@ -1,7 +1,11 @@
-# Quant of Rehan for Windows (console edition), build 33
+# Quant of Rehan for Windows (console edition), build 34
 
 A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.16**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
+
+## What is new in build 34
+
+* **Build 34.** The orb is the owner's own source (`QoR-orb-source.zip`): `ring.go`, `ring_data.go` and the six layer pictures under `assets/ring` are that source, so the mark is its six turning layers, its own dot lighting, its own green and its still red, at its own `OrbGrow` of 1.11. The buy and sell bars are half a cell tall and still 17 cells long, with their ten tabs and a seam at each tab's edge, so the ten boxes count apart. Every `B=` and `S=` line carries `U=` before its `& T=`, on HOME, the SEARCH tile and the scanner lists, so B + S + U = T reads in one glance. The top three scrips put `PKR` and the change on the volume's own line, in front of B, S, U and T. The dot meters on the KSE100 tile, the top three scrips and the SEARCH tile are gone: short green and red bars stand where the dots did.
 
 ## What is new in build 33
 
@@ -131,7 +135,7 @@ One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of 
 
 | Screen | Keys | What it shows |
 |---|---|---|
-| 1 HOME | 1, F1 | Greeting, ONLINE or OFFLINE pill with its sentence, W/L tile, LATEST SIGNAL (SYMBOL, ENTRY TIME, ENTRY PRICE, TAKE PROFIT, STOP LOSS, with the stock live), KSE100 INDEX & THE TOP 3 SCRIPS OF VOLUME with live prices, B, S & T and a chart each, who is being bought hardest right now |
+| 1 HOME | 1, F1 | Greeting, ONLINE or OFFLINE pill with its sentence, W/L tile, LATEST SIGNAL (SYMBOL, ENTRY TIME, ENTRY PRICE, TAKE PROFIT, STOP LOSS, with the stock live), KSE100 INDEX & THE TOP 3 SCRIPS OF VOLUME with live prices on the volume's own line, B, S, U & T and a short green and red bar each, who is being bought hardest right now |
 | 2 ALERTS | 2, F2 | BIG BUYING NOW in green and BIG SELLING NOW in red, side by side (stacked when narrow), and the ALERT LOG with times, BUY or SELL and the sentence. LEFT and RIGHT pick the list the keys scroll | |
 | 3 ORDER FLOW | 3, F3 | Every KMIALL stock with price, change, bid, ask, B, S, U and T. `/` focuses the search box and filters the list as you type, ESC clears it. O (or a click on the heading chips) changes the order. UP, DOWN, PAGE UP, PAGE DOWN and the wheel scroll |
 | 4 SCANNER | 4, F4 | The SEARCH tile, then the numbered SECTORS, then the scanner: PRICES RISING FAST, MORE BUYERS & LESS SELLERS and BIG BUYING & SELLING NOW (LIVE FLOW). The sector tile grows to show every group it can and the wheel scrolls the rest; every group and every scrip carries its number. The search box says `Search for a KMIALL scrip`. Type to search, UP and DOWN choose a match, ENTER opens it in the tile. A clicked sector lists its scrips in place; BACKSPACE brings all sectors back. With the box empty, LEFT and RIGHT change the sort |

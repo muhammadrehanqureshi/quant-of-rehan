@@ -428,11 +428,7 @@ func (a *App) drawSearchTile(c *Canvas, x, y, w, h int) {
 			}
 		}
 		if hs := a.symHist[a.selectedSym]; hs != nil && len(hs.v) >= 3 && dy+4 <= bottom && dw >= 50 {
-			col := th.Good
-			if hs.v[len(hs.v)-1] < hs.v[0] {
-				col = th.Bad
-			}
-			sparkline(c, dx+dw-min(dw-30, 26), dy, min(dw-30, 26), 2, hs.v, col, th.Panel)
+			barMeter(c, dx+dw-min(dw-30, 26), dy, min(dw-30, 26), 2, hs.v, th.Good, th.Bad, th.Panel)
 		}
 	}
 	if dy+2 >= bottom {
@@ -793,10 +789,11 @@ func (a *App) drawFlowList(c *Canvas, ix, head, top, iw, rows, barX int) {
 	a.scrollbar(c, barX, top, a.lvScan.view*2, &a.lvScan)
 }
 
-// barBlock fills the whole cell, so neighbouring cells of one tab join and the
-// bar's only separators are its ten tab shades. Owner order 2026-11-07: ten
-// boxes, each longer, over the bar's unchanged 17-cell span.
-const barBlock = '█'
+// barBlock is the lower half of a cell. Owner order 2026-11-10: the bars are
+// half their old height, so they take this rune and the panel above them shows
+// through. The span stays the unchanged 17 cells and the ten boxes stay ten, so
+// the bar loses height and nothing else.
+const barBlock = '▄'
 
 // shareBarTabs is the number of ten percent tabs in every buy versus sell
 // bar. Owner order 2026-11-07: ten tabs, and the bar keeps its previous
@@ -822,10 +819,11 @@ func shareBarTabWidths(total int) []int {
 	return widths
 }
 
-// shareBar draws a buy versus sell bar of w columns, seven eighths of a cell
-// tall. The coloured part keeps its previous 17-cell span, split into ten
-// ten-percent tabs; one space follows it, then the percentage, so "98%" and
-// "100%" both sit the same distance from the right edge.
+// shareBar draws a buy versus sell bar of w columns, half a cell tall (owner
+// order 2026-11-10 halved its height). The coloured part keeps its previous
+// 17-cell span, split into ten ten-percent tabs, each with a seam at its edge;
+// one space follows it, then the percentage, so "98%" and "100%" both sit the
+// same distance from the right edge.
 func (a *App) shareBar(c *Canvas, x, y, w int, buyShare float64) {
 	a.shareBarRune(c, x, y, w, buyShare, barBlock)
 }
@@ -864,7 +862,14 @@ func (a *App) shareBarRune(c *Canvas, x, y, w int, buyShare float64, ch rune) {
 			ink = mix(ink, th.Panel, 0.22)
 		}
 		for j := 0; j < tw; j++ {
-			c.Put(at+j, y, ch, ink, false)
+			cell := ink
+			// The last cell of every box is a seam, drawn a step darker into
+			// the panel, so the ten health boxes count apart at a glance and
+			// still cost the bar no length.
+			if j == tw-1 {
+				cell = mix(ink, th.Panel, 0.45)
+			}
+			c.Put(at+j, y, ch, cell, false)
 		}
 		at += tw
 	}

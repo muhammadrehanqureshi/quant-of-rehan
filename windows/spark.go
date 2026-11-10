@@ -136,9 +136,9 @@ func (s *series) push(x float64, limit int) {
 	}
 }
 
-// sparkline draws vals as a line chart in the cell box (x, y, w, h): a crisp
-// braille line over a soft area that fades toward the bottom. It returns false
-// when there is too little data.
+// Owner order 2026-11-10 removed the dot meter: barMeter in barmeter.go stands
+// where the braille line and its fading area used to. This is kept only so an
+// older caller cannot quietly come back to dots.
 func sparkline(c *Canvas, x, y, w, h int, vals []float64, line, panel RGB) bool {
 	if len(vals) < 3 || w < 2 || h < 1 {
 		return false
