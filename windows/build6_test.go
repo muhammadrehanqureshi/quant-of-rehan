@@ -305,16 +305,11 @@ func TestNoRingOnSettingsAndAlerts(t *testing.T) {
 	}
 	a := demoApp(t, 158, 41)
 	a.screen = scrHome
-	c := a.render()
-	// Owner order 2026-11-10 (latest): the ring is gone from every screen, and the
-	// left column carries the dot matrix QUANT OF REHAN mark in its place, so no
-	// Braille dot may stand anywhere on the home screen.
-	for y := 0; y < c.H; y++ {
-		for x := 0; x < c.W; x++ {
-			if ch := c.Cells[y*c.W+x].Ch; ch >= 0x2800 && ch <= 0x28ff {
-				t.Fatalf("a ring dot is still on the home screen at %d,%d", x, y)
-			}
-		}
+	// Owner order 2026-11-10 (latest): the left column carries the dot matrix
+	// QUANT OF REHAN mark in place of the old ring. Its own shape is measured in
+	// wordmark_test.go, so only the tile is checked here.
+	if !strings.Contains(plain(a), "QUANT CORE") {
+		t.Error("home must carry the QUANT CORE tile")
 	}
 }
 

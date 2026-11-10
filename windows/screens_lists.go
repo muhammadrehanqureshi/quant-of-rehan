@@ -796,10 +796,12 @@ func (a *App) drawFlowList(c *Canvas, ix, head, top, iw, rows, barX int) {
 	a.scrollbar(c, barX, top, a.lvScan.view*2, &a.lvScan)
 }
 
-// Owner order 2026-11-10 (latest): the bar is a thin line, and no block glyph
-// stands inside it. The bar is the heavy horizontal rule: it is drawn in the
-// middle of the row, its cells join edge to edge, and it is a line rather than a
-// block, so the bar never grows to a cell's height and never carries a seam.
+// Owner order 2026-11-10 (latest): the bar is a thin line, no block glyph stands
+// inside it, and only its height is raised, never its length. The bar is the
+// heavy horizontal rule, drawn in the middle of the row with its cells joined
+// edge to edge. A character cell has no ten percent step in height, so the step
+// up is the glyph's bold weight: the same rule, the same advance width, and a
+// heavier stroke, which is the nearest the console has to ten percent taller.
 const barBlock = '━'
 
 // shareBarBoxes is how many boxes a buy versus sell bar holds: one box per ten
@@ -865,7 +867,9 @@ func (a *App) drawShareBar(c *Canvas, x, y, w int, buyShare float64, label bool)
 		from := i * span / shareBarBoxes
 		to := (i + 1) * span / shareBarBoxes
 		for k := from; k < to; k++ {
-			c.Put(x+k, y, barBlock, ink, false)
+			// Owner order 2026-11-10 (latest): the bold weight is the ten percent
+			// taller bar. The cell and the length are unchanged.
+			c.Put(x+k, y, barBlock, ink, true)
 		}
 	}
 	width := span
