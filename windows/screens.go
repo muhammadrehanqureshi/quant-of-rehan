@@ -842,9 +842,7 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 		n := c.Text(ix, row, textW, "KSE100  ", th.Soft, false)
 		n += a.flashText(c, ix+n, row, commaFloat(v, 2), th.Text, true, "idx")
 		n += a.flashText(c, ix+n+2, row, change, dir, true, "idx") + 2
-		if sparkW > 0 && len(a.idxHist.v) >= 3 && end-row >= 2 {
-			barMeter(c, ix+iw-sparkW, row, sparkW, 2, a.idxHist.v, th.Good, th.Bad, th.Panel)
-		}
+		// Owner order 2026-11-10 (later): no bar stands in front of the index.
 		row++
 		meta := ""
 		if a.market != nil && a.market.Members > 0 {
@@ -918,15 +916,8 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 		}
 		pxKey, volKey := "px:"+l.Symbol, "vol:"+l.Symbol
 		c.Spans(ix, row, textW, []Span{{strconv.Itoa(i+1) + ". ", th.Soft, false}, {l.Symbol, th.Hot, true}})
-		// Owner order 2026-11-10 (later): the varying height meter in front of
-		// each of the three scrips is gone. The same green and red ten-box bar
-		// the order flow uses stands where it was, so the same reading looks
-		// the same on every screen.
-		if sparkW > 0 && l.HasSplit() {
-			if total := *l.Buy + *l.Sell; total > 0 {
-				a.shareBar(c, ix+iw-sparkW, row, sparkW, float64(*l.Buy)/float64(total))
-			}
-		}
+		// Owner order 2026-11-10 (later): no bar stands in front of a stock's
+		// name either. The green and red bar belongs on the percentage line.
 		row++
 		var buy, sell *int64
 		if l.HasSplit() {
@@ -942,6 +933,17 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 		used := a.putBST(c, ix+3, row, buy, sell, vol, volKey, pxKey)
 		if l.Price != nil {
 			vx := ix + 3 + used + 2
+			// Owner order 2026-11-10 (later): the green and red bar stands in
+			// front of the percentage line, on the same row and before PKR.
+			if l.HasSplit() {
+				if total := *l.Buy + *l.Sell; total > 0 {
+					if room := ix + iw - vx - 24; room >= 12 {
+						vx += a.shareBarOnly(c, vx, row, min(29, room),
+							float64(*l.Buy)/float64(total))
+						vx += 2
+					}
+				}
+			}
 			vx += a.flashText(c, vx, row, "PKR ", th.Soft, false)
 			vx += a.flashText(c, vx, row, commaFloat(*l.Price, 2), th.Text, true, pxKey)
 			if l.ChangePct != nil {

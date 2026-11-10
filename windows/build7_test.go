@@ -32,21 +32,28 @@ func TestBSTLineSaysUZero(t *testing.T) {
 	}
 }
 
-// Owner order 2026-11-10: the bars are half a cell tall, and the later order of
-// the same day makes every one of them ten boxes centred in its span.
-func TestBarsAreHalfHeightTenBoxes(t *testing.T) {
+// Owner order 2026-11-10 (later): the bar fills its own box, so the colour is
+// centred in the box rather than sitting along its bottom edge, and each box
+// carries one solid colour.
+func TestBarsFillTheirBoxWithSolidColour(t *testing.T) {
 	a := demoApp(t, 100, 30)
 	c := NewCanvas(40, 1, RGB{})
 	a.shareBar(c, 2, 0, 22, 0.5)
 	row := c.PlainRows()[0]
-	if barBlock != '▄' {
-		t.Fatalf("the bar is %q, not a half cell", barBlock)
+	if barBlock != '█' {
+		t.Fatalf("the bar is %q, not a full cell", barBlock)
 	}
-	if n := strings.Count(row, string(barBlock)); n != shareBarBoxes {
-		t.Fatalf("the bar has %d boxes, want %d: %q", n, shareBarBoxes, row)
+	if strings.ContainsRune(row, '▄') {
+		t.Fatalf("a half cell is still in the bar: %q", row)
 	}
-	if strings.ContainsRune(row, '█') {
-		t.Fatalf("a full cell is still in the bar: %q", row)
+	inks := map[RGB]bool{}
+	for _, ce := range c.Cells {
+		if ce.Ch == barBlock {
+			inks[ce.FG] = true
+		}
+	}
+	if len(inks) != 2 {
+		t.Fatalf("the bar painted %d inks, want only the green and the red", len(inks))
 	}
 }
 
