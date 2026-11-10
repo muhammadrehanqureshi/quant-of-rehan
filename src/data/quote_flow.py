@@ -257,9 +257,20 @@ class QuoteFlow:
             flow = SymbolFlow(symbol)
             flow.volume = volume
             flow.baseline = volume
-            flow.baseline_at = str(row.get("observed_at") or "") or None
-            flow.first_seen_at = flow.baseline_at
-            flow.baseline_reason = "seed"
+            # Owner report 2026-11-10: the seed used to stamp the frame's own
+            # time as a fresh baseline, so a prefix that had been unsided since
+            # the open looked like it had re-baselined at 15:30, and the
+            # remaining unclear volume could not be traced to the frame that
+            # created it. The relay row already names the baseline it carries,
+            # so adopt that provenance whole and fall back to the frame's own
+            # stamp only when the row names none.
+            stored_at = str(row.get("flow_baseline_at") or "").strip()
+            flow.baseline_at = stored_at or (str(row.get("observed_at") or "")
+                                             or None)
+            flow.first_seen_at = (str(row.get("flow_first_seen_at") or "").strip()
+                                  or flow.baseline_at)
+            flow.baseline_reason = (str(row.get("flow_baseline_reason") or "")
+                                    .strip() or "seed")
             if row.get("split_method") == METHOD_QUOTE_RULE:
                 try:
                     buy = int(float(row.get("buy_volume")))
