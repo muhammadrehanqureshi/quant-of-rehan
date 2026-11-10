@@ -168,9 +168,9 @@ func wordmarkDots(scale int) []string {
 	return out
 }
 
-// brailleBit is the bit each dot of a Braille cell carries, indexed by its row
-// in the cell and then its column.
-var brailleBit = [4][2]byte{{0x01, 0x08}, {0x02, 0x10}, {0x04, 0x20}, {0x40, 0x80}}
+// wordmarkBraille is the bit each dot of a Braille cell carries, indexed by its
+// row in the cell and then its column.
+var wordmarkBraille = [4][2]byte{{0x01, 0x08}, {0x02, 0x10}, {0x04, 0x20}, {0x40, 0x80}}
 
 // wordmarkVisible is the sweep: the mark appears from the left edge across the
 // tile, is held whole for a moment, then disappears from the left edge across,
@@ -234,7 +234,7 @@ func drawWordmark(c *Canvas, x0, y0, w, h int, t float64, green bool, th *Theme)
 						continue
 					}
 					if dx < len(line) && line[dx] == '#' {
-						bits |= brailleBit[row][col]
+						bits |= wordmarkBraille[row][col]
 					}
 				}
 			}

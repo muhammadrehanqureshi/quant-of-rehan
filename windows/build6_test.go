@@ -305,7 +305,6 @@ func TestNoRingOnSettingsAndAlerts(t *testing.T) {
 	}
 	a := demoApp(t, 158, 41)
 	a.screen = scrHome
-	c := a.render()
 	// Owner order 2026-11-10 (latest): the left column carries the dot matrix
 	// QUANT OF REHAN mark in place of the old ring. Its own shape is measured in
 	// wordmark_test.go, so only the tile is checked here.
