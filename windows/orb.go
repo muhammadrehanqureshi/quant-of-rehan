@@ -29,10 +29,14 @@ const hudForceLive = true
 // owner asked for exactly that render instead of a thinned copy of it.
 const orbDotPitch = 1
 
-// orbScale is the mark's share of its tile: it filled the tile, then the owner
-// asked for five percent less and then another five (order 2026-11-09), so the
-// lattice is taken down by that much and nothing else about it changes.
-const orbScale = 0.90
+// orbScale is the mark's share of its tile. The owner first asked for five
+// percent less and then another five (order 2026-11-09), which is the 0.90 it
+// carried; his order of 2026-11-10 hands over the orb's own source
+// (QoR-orb-source) and asks for that orb instead, whose size is 1.11 times the
+// old 13 row radius and which needs all 14 rows of the tile. The tile is 14
+// rows exactly, so filling it is that size: 1.0 / 0.90 is 1.11, the source's
+// own grow factor, and the mark reads the ten percent bigger it was drawn for.
+const orbScale = 1.0
 
 // orbBands is how many rings of shade run from the middle of the mark out. The
 // innermost band is the darker shade, the next the lighter one, and they

@@ -1,7 +1,11 @@
-# Quant of Rehan for Windows (console edition), build 32
+# Quant of Rehan for Windows (console edition), build 33
 
 A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.16**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
+
+## What is new in build 33
+
+* **Build 33.** The quant mark takes its size from its own source. The owner handed over `QoR-orb-source` on 2026-11-10 and ordered that orb in the desktop build; its ring is 1.11 times the old 13 row radius and needs all 14 rows of the tile, which is exactly the ten percent the margin of build 32 had taken off, so the mark is the source's size again (`orbScale` is 1.0). Nothing else about the art moves: the frames are still the owner's GIF, the two shades per colour and the clockwise red are still his, and `tools/mkorb.py` follows with `HUD_SCALE = 1.00`, so `orb-preview.png` is drawn at the size the console draws.
 
 ## What is new in build 32
 

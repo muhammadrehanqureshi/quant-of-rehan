@@ -142,7 +142,7 @@ HUD_ROWS = 56       # the 120 by 30 home panel offers 56 dots down
 HUD_WIDE_ROWS = 104
 HUD_ASPECT = 1.11   # cellAspect / 2: a square source stays square on screen
 HUD_BANDS = 5       # orbBands: dark inside, light next, and so outward
-HUD_SCALE = 0.90    # orbScale: ten percent under the tile in all
+HUD_SCALE = 1.00    # orbScale: the whole tile, the orb source's 1.11 grow
 
 
 def hud_grid(frame, rows=HUD_ROWS, aspect=HUD_ASPECT, banded=True):
