@@ -433,10 +433,14 @@ func TestScanWindow(t *testing.T) {
 		// and Friday's is 08:55 to 17:00.
 		{at(2, 8, 54, 59), false}, {at(2, 8, 55, 0), true}, {at(2, 9, 0, 0), true}, {at(2, 9, 20, 0), true}, {at(2, 12, 0, 0), true},
 		{at(2, 15, 31, 0), true}, {at(2, 15, 48, 59), true}, {at(2, 15, 49, 10), true}, {at(2, 15, 59, 59), true},
-		{at(2, 16, 0, 0), false}, {at(2, 16, 10, 0), false}, {at(2, 23, 0, 0), false},
+		// The window closes at 16:00 and the grace period catches the final
+		// print, so 16:00 itself still scans and 16:01 does not.
+		{at(2, 16, 0, 0), true}, {at(2, 16, 0, 29), true}, {at(2, 16, 1, 0), false}, {at(2, 16, 10, 0), false},
+		{at(2, 23, 0, 0), false},
 		// Friday: the same start, three quarters of an hour later at the end.
 		{at(6, 8, 54, 59), false}, {at(6, 8, 55, 0), true}, {at(6, 9, 0, 0), true}, {at(6, 13, 0, 0), true},
-		{at(6, 16, 48, 59), true}, {at(6, 16, 59, 59), true}, {at(6, 17, 0, 0), false},
+		{at(6, 16, 48, 59), true}, {at(6, 16, 59, 59), true}, {at(6, 17, 0, 0), true},
+		{at(6, 17, 1, 0), false},
 		// The weekend is never scanned.
 		{at(7, 11, 0, 0), false}, {at(8, 11, 0, 0), false},
 	}
