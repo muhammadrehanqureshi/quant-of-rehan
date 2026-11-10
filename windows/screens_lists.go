@@ -423,9 +423,8 @@ func (a *App) drawSearchTile(c *Canvas, x, y, w, h int) {
 				put(dy+1, commaFloat(lq.High, 2), th.Good, false)
 			}
 		}
-		if hs := a.symHist[a.selectedSym]; hs != nil && len(hs.v) >= 3 && dy+4 <= bottom && dw >= 50 {
-			barMeter(c, dx+dw-min(dw-30, 26), dy, min(dw-30, 26), 2, hs.v, th.Good, th.Bad, th.Panel)
-		}
+		// Owner order 2026-11-10 (latest): the column meter that stood in front
+		// of the search field is withdrawn. The search tile carries no bar.
 	}
 	if dy+2 >= bottom {
 		return
@@ -794,12 +793,11 @@ const barBlock = '▬'
 // seventeen cell span with tabs inside it is withdrawn for ten single cells.
 const shareBarBoxes = 10
 
-// shareBarSpan is the cells ten boxes cover: one cell each, side by side, so
+// shareBarSpan is the cells ten boxes cover: two cells each, side by side, so
 // the bar is a solid run with no gap between the boxes. Owner order
-// 2026-11-10 (latest): the fifteen percent pitch is withdrawn. It opened a gap
-// between every pair of boxes, and the bar he asked for is ten boxes touching
-// one another, exactly ten cells wide.
-const shareBarSpan = shareBarBoxes
+// 2026-11-10 (latest): the bar is longer across and the box count does not
+// move, so every box is two cells wide and the ten boxes are twenty cells.
+const shareBarSpan = shareBarBoxes * 2
 
 // shareBarWidth is the field a labelled bar asks for: its span, one space and
 // the four cells a "100%" needs.
@@ -837,13 +835,15 @@ func (a *App) drawShareBar(c *Canvas, x, y, w int, buyShare float64, label bool)
 	if green > shareBarBoxes {
 		green = shareBarBoxes
 	}
-	// Ten boxes, one cell each, touching: no gap anywhere in the bar.
+	// Ten boxes, two cells each, touching: twice the length, no gap anywhere
+	// and still exactly ten boxes.
 	for i := 0; i < shareBarBoxes; i++ {
 		ink := th.Bad
 		if i < green {
 			ink = th.Good
 		}
-		c.Put(x+i, y, barBlock, ink, false)
+		c.Put(x+2*i, y, barBlock, ink, false)
+		c.Put(x+2*i+1, y, barBlock, ink, false)
 	}
 	width := span
 	if label {
@@ -961,10 +961,16 @@ func (a *App) drawBoardPanel(c *Canvas, x, y, w, h int, side int) {
 		if cw < 44 {
 			vx = ix + 25
 		}
-		if vx+12 < ix+cw {
-			c.Spans(vx, ry, ix+cw-vx, []Span{{"PKR ", th.Soft, false}, {compactNum(b.BuyValue), good, true}})
+		barW := 0
+		if cw >= 70 {
+			barW = shareBarWidth
+			// Owner order 2026-11-10 (latest): the bar is back on the boards, ten
+			// boxes two cells wide, at the right edge of the row.
+			a.shareBar(c, ix+cw-barW, ry, barW, b.Share)
 		}
-		// Owner order 2026-11-10 (latest): no bar on the alerts board.
+		if vx+12 < ix+cw-barW {
+			c.Spans(vx, ry, ix+cw-barW-vx, []Span{{"PKR ", th.Soft, false}, {compactNum(b.BuyValue), good, true}})
+		}
 	}
 	a.scrollbar(c, x+w-2, iy, ih, lv)
 }
