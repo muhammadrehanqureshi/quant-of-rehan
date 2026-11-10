@@ -240,7 +240,7 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 		c.Text(ix, row, iw, fit(msg, iw), th.Soft, false)
 		return
 	}
-	wide := iw >= 102
+	wide := iw >= 106
 	per := 2
 	if wide {
 		per = 1
@@ -356,14 +356,19 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 
 // The one-line table's columns, as offsets from the panel's left edge and widths.
 // Price, change, bid, ask, then B, S, U and T.
+// The one-line table's columns, as offsets from the panel's left edge and their
+// widths. Price, change, bid, ask, then B, S, U and T. Owner order 2026-11-10
+// (latest): every column is one content width wide and every pair of columns is
+// separated by the same two cells, so the gap between the columns is the same
+// from the symbol to the total instead of a different step at each one.
 var (
-	colX = [8]int{13, 22, 30, 37, 44, 57, 70, 81}
-	colW = [8]int{9, 8, 7, 7, 13, 13, 11, 14}
+	colX = [8]int{13, 23, 32, 40, 48, 63, 78, 90}
+	colW = [8]int{8, 7, 6, 6, 13, 13, 10, 12}
 )
 
-// flowBarX is where the bar column starts, past the TOTAL column, and its
-// heading sits on that same cell (owner order 2026-11-10, latest).
-const flowBarX = 99
+// flowBarX is where the bar column starts, past the TOTAL column, on the same
+// two cell gutter as every other column, and its heading sits on that cell.
+const flowBarX = 104
 
 // drawFlowCols draws the four volume columns of the one-line table. Each value
 // sits under its header, with U never merged into B or S.

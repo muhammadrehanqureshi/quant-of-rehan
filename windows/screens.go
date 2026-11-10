@@ -823,9 +823,9 @@ func (a *App) putBST(c *Canvas, x, y int, buy, sell, total *int64, keys ...strin
 // it, never between the sign and the digits.
 const (
 	bstBuyX  = 0
-	bstSellX = 16
-	bstUncX  = 33
-	bstTotX  = 47
+	bstSellX = 13
+	bstUncX  = 26
+	bstTotX  = 39
 )
 
 // putBSTCols writes those four fields into their columns and returns the cells
@@ -973,7 +973,7 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 		// cell on every row, and each number sits hard against its own "=". A
 		// narrow tile falls back to the packed form.
 		used := 0
-		if iw >= 118 {
+		if iw >= 96 {
 			used = a.putBSTCols(c, ix+3, row, buy, sell, vol, volKey, pxKey)
 		} else {
 			used = a.putBST(c, ix+3, row, buy, sell, vol, volKey, pxKey)
@@ -988,18 +988,28 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 		// three fields also has a fixed width from that edge, so the price, the
 		// change and the bar land on the same cells on every leader row.
 		if l.Price != nil {
-			const chgW, priceW = 8, 10
+			const chgW = 8
 			end := ix + iw - 1
 			bw := shareBarSpan
 			floor := ix + 3 + used + 1
-			priceBlock := 4 + priceW + chgW + 1
 			barStart := end - bw
 			chgRight := barStart - 2
 			priceRight := chgRight - chgW - 1
-			pkrLeft := priceRight - priceW - 4
+			px := commaFloat(*l.Price, 2)
+			// Owner order 2026-11-10 (latest): PKR sits one space from its own
+			// price. The price stays right aligned at its own edge, so the label
+			// moves and the number does not; the old ten cell field left five
+			// empty cells between the two. flashRight's cell is the one after its
+			// last character, so the price covers [priceRight-len, priceRight-1]
+			// and PKR stands four cells to its left, leaving exactly one space.
+			pkrLeft := priceRight - runeLen(px) - 4
+			priceBlock := 4 + runeLen(px) + chgW + 1
 			showPrice := func(pkr, pxRight, chgRight int) {
-				c.Text(pkr, row, 4, "PKR ", th.Soft, false)
-				a.flashRight(c, pxRight, row, commaFloat(*l.Price, 2), th.Text, true, pxKey)
+				// The label is written without its trailing space and the price
+				// starts four cells along, so exactly one blank cell stands
+				// between them and the row reads "PKR 15.24".
+				c.Text(pkr, row, 3, "PKR", th.Soft, false)
+				a.flashRight(c, pxRight, row, px, th.Text, true, pxKey)
 				if l.ChangePct != nil {
 					a.flashRight(c, chgRight, row, changeText(*l.ChangePct), a.dirColor(*l.ChangePct), true, pxKey)
 				}
@@ -1017,10 +1027,13 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 				// their right aligned places at the tile's edge.
 				showPrice(end-priceBlock, end-chgW-1, end)
 			default:
-				// Very short: the numbers follow the volumes, as they did before.
+				// Very short: PKR and the price follow the volumes, as they did
+				// before, so the row still carries its price beside its T volume.
+				pw := runeLen(px)
 				pkr := ix + 3 + used + 2
-				if pkr+4+priceW < ix+iw {
-					showPrice(pkr, pkr+4+priceW, pkr+4+priceW+1+chgW)
+				if pkr+4+pw <= ix+iw {
+					c.Text(pkr, row, 3, "PKR", th.Soft, false)
+					a.flashText(c, pkr+4, row, px, th.Text, true, pxKey)
 				}
 			}
 		}

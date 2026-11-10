@@ -42,11 +42,10 @@ func TestBarsAreBuild21sShadedTabs(t *testing.T) {
 	c := NewCanvas(40, 1, RGB{})
 	a.shareBar(c, 2, 0, shareBarWidth, 0.5)
 	row := c.PlainRows()[0]
-	// Owner order 2026-11-10 (latest): the bar is short and centred in its own
-	// box, so it is the rule block and never the full cell that touched its
-	// neighbours above and below.
-	if barBlock != '▬' {
-		t.Fatalf("the bar is %q, not the thin centred rule", barBlock)
+	// Owner order 2026-11-10 (latest): the bar is the solid block, so nothing
+	// is drawn inside a box and the bar is one continuous colour.
+	if barBlock != '█' {
+		t.Fatalf("the bar is %q, not the solid block", barBlock)
 	}
 	if strings.ContainsRune(row, '│') {
 		t.Fatalf("a line is drawn between the boxes again: %q", row)
@@ -89,7 +88,22 @@ func TestLeaderBarsAreOrderFlowBarsAndPriceFollowsT(t *testing.T) {
 		}
 	}
 	if priced == 0 {
-		t.Fatal("no leader line carries both a T volume and a price")
+		// Print the whole tile, so a failure names the row that lost its
+		// price or its T volume instead of only saying that one did.
+		var b strings.Builder
+		inside := false
+		for _, r := range rows {
+			switch {
+			case strings.Contains(r, "THE TOP 3 SCRIPS OF VOLUME"):
+				inside = true
+			case strings.Contains(r, "BUYING NOW"):
+				inside = false
+			}
+			if inside {
+				b.WriteString(r + "\n")
+			}
+		}
+		t.Fatalf("no leader line carries both a T volume and a price:\n%s", b.String())
 	}
 }
 

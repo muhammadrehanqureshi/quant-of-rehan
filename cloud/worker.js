@@ -1097,6 +1097,19 @@ function clampPair(candidate, previous) {
     return null;
   }
   if (previous) {
+    // Owner order 2026-11-10 (latest): a total below the stored one is not
+    // a new print. An older frame or a restarted capture can stand a symbol
+    // lower than what is already acknowledged, and following that total
+    // down would carry B and S down with it (volume - previous.sell_volume
+    // falls below previous.buy_volume, so the floor cap would print a
+    // decrease). The acknowledged pair stands instead.
+    const prevVolume = Math.round(Number(previous.volume));
+    const prevBuy = Math.round(Number(previous.buy_volume));
+    const prevSell = Math.round(Number(previous.sell_volume));
+    if (Number.isFinite(prevVolume) && Number.isFinite(prevBuy) &&
+        Number.isFinite(prevSell) && volume < prevVolume) {
+      return { buy: prevBuy, sell: prevSell, volume: prevVolume };
+    }
     // Monotone law: B can only stand at or above its own floor, S can
     // only stand at or above its own floor, and the two must still sum
     // to the row's total. buy is bounded by [prevBuy, volume - prevSell].
