@@ -40,7 +40,7 @@ func TestBSTLineSaysUZero(t *testing.T) {
 func TestBarsAreBuild21sShadedTabs(t *testing.T) {
 	a := demoApp(t, 100, 30)
 	c := NewCanvas(40, 1, RGB{})
-	a.shareBar(c, 2, 0, 22, 0.5)
+	a.shareBar(c, 2, 0, shareBarWidth, 0.5)
 	row := c.PlainRows()[0]
 	// Owner order 2026-11-10 (latest): the bar is short and centred in its own
 	// box, so it is the rule block and never the full cell that touched its

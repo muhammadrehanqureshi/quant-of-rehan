@@ -930,19 +930,31 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 		// Owner order 2026-11-10: the row reads B, S, U, T, then the live price
 		// and its change, and the bar closes the line after them.
 		used := a.putBST(c, ix+3, row, buy, sell, vol, volKey, pxKey)
-		vx := ix + 3 + used + 2
+		// Owner order 2026-11-10 (latest): the price, the change and the bar are
+		// pushed to the tile's far right and right aligned at one edge, so all
+		// three leaders line up and nothing floats in the middle of the row. The
+		// bar keeps the same distance from the price on every row.
 		if l.Price != nil {
-			vx += a.flashText(c, vx, row, "PKR ", th.Soft, false)
-			vx += a.flashText(c, vx, row, commaFloat(*l.Price, 2), th.Text, true, pxKey)
+			right := ix + textW
 			if l.ChangePct != nil {
-				vx += a.flashText(c, vx+1, row, changeText(*l.ChangePct), a.dirColor(*l.ChangePct), true, pxKey) + 1
+				t := " " + changeText(*l.ChangePct)
+				a.flashRight(c, right, row, t, a.dirColor(*l.ChangePct), true, pxKey)
+				right -= runeLen(t)
 			}
-		}
-		// Owner order 2026-11-10 (latest): the bar is last, after the price and
-		// the change, so the KSE100 tile reads volume, price, change, then bar.
-		if l.HasSplit() {
-			if total := *l.Buy + *l.Sell; total > 0 && ix+iw-vx-1 >= shareBarBoxes {
-				a.shareBarOnly(c, vx+1, row, shareBarWidth, float64(*l.Buy)/float64(total))
+			ps := commaFloat(*l.Price, 2)
+			a.flashRight(c, right, row, ps, th.Text, true, pxKey)
+			right -= runeLen(ps)
+			if right-4 > ix {
+				c.Text(right-4, row, 4, "PKR ", th.Soft, false)
+			}
+			right -= 4
+			if l.HasSplit() {
+				if total := *l.Buy + *l.Sell; total > 0 {
+					bw := shareBarBoxes * shareBarBoxW
+					if start := right - 2 - bw; start >= ix+3+used+2 {
+						a.shareBarOnly(c, start, row, bw, float64(*l.Buy)/float64(total))
+					}
+				}
 			}
 		}
 		row++

@@ -802,9 +802,14 @@ const barBlock = '▬'
 // seventeen cell span with tabs inside it is withdrawn for ten single cells.
 const shareBarBoxes = 10
 
-// shareBarWidth is the field a labelled bar asks for: its ten boxes, one space
-// and the four cells a "100%" needs.
-const shareBarWidth = shareBarBoxes + 5
+// shareBarBoxW is how many cells wide one box is. Owner order 2026-11-10
+// (latest): each box is two cells, so the whole bar is twenty cells long and
+// the box count stays ten.
+const shareBarBoxW = 2
+
+// shareBarWidth is the field a labelled bar asks for: its ten boxes at two
+// cells each, one space and the four cells a "100%" needs.
+const shareBarWidth = shareBarBoxes*shareBarBoxW + 5
 
 // shareBar draws a buy versus sell bar: ten boxes of one cell, then one space,
 // then the percentage, so "98%" and "100%" both sit the same distance from the
@@ -835,28 +840,39 @@ func (a *App) shareBarOnly(c *Canvas, x, y, w int, buyShare float64) int {
 // is optional for the KSE100 tile, where the row carries its own change.
 func (a *App) drawShareBar(c *Canvas, x, y, w int, buyShare float64, label bool) int {
 	th := a.th
-	boxes := shareBarBoxes
-	if w > 0 && w-5 < boxes {
-		boxes = max(1, w-5)
+	cells := w
+	if label {
+		cells = w - 5
 	}
-	green := int(math.Round(buyShare * float64(boxes)))
+	boxW := shareBarBoxW
+	if cells < shareBarBoxes*boxW {
+		boxW = 1
+	}
+	green := int(math.Round(buyShare * float64(shareBarBoxes)))
 	if green < 0 {
 		green = 0
 	}
-	if green > boxes {
-		green = boxes
+	if green > shareBarBoxes {
+		green = shareBarBoxes
 	}
-	for i := 0; i < boxes; i++ {
+	for i := 0; i < shareBarBoxes; i++ {
 		ink := th.Bad
 		if i < green {
 			ink = th.Good
 		}
-		c.Put(x+i, y, barBlock, ink, false)
+		for j := 0; j < boxW; j++ {
+			c.Put(x+i*boxW+j, y, barBlock, ink, false)
+		}
 	}
+	width := shareBarBoxes * boxW
 	if label {
-		c.Text(x+boxes+1, y, 4, strconv.FormatFloat(math.Round(buyShare*100), 'f', 0, 64)+"%", th.Soft, false)
+		// Owner order 2026-11-10 (latest): the percentage is right aligned in
+		// four cells, so 7%, 47% and 100% all end at the same place and the
+		// ORDER FLOW header can put a % over them.
+		pct := strconv.FormatFloat(math.Round(buyShare*100), 'f', 0, 64) + "%"
+		c.Text(x+width+1, y, 4, padLeft(pct, 4), th.Soft, false)
 	}
-	return boxes
+	return width
 }
 
 // ---------- alerts ----------
