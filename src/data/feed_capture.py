@@ -700,10 +700,29 @@ class RelayQuotePublisher:
                 # the only place it showed was an empty card on the phone.
                 # One line a minute names it in the runner's own log.
                 self._note_refusal(exc)
+                # Owner incident 2026-11-10: one row the relay refuses for its
+                # own shape wedged the whole feed. The zero-volume baselines
+                # carry no price by definition, the relay's shape check
+                # demanded a positive one, and its 400 was queued for another
+                # try, so every later batch was refused behind that row and
+                # the card read NO FEED for the rest of the session. A 400 is
+                # never retried for a row that carries no price: the relay's
+                # law is fixed in the same change, and this keeps a bad row
+                # from ever doing it again.
+                status = 0
+                response = getattr(exc, "response", None)
+                if response is not None:
+                    status = int(getattr(response, "status_code", 0) or 0)
                 # Keep the latest failed values for a bounded retry. A newer
                 # observation already queued for a symbol always wins.
                 with self._lock:
+                    if status == 400:
+                        for doomed in [s for s, q in self._pending_quotes.items()
+                                       if q.get("flow_only")]:
+                            self._pending_quotes.pop(doomed, None)
                     for row in update["quotes"]:
+                        if status == 400 and row.get("flow_only"):
+                            continue
                         current = self._pending_quotes.get(row["symbol"])
                         if (current is None or
                                 current["observed_at"] < row["observed_at"]):
@@ -727,10 +746,6 @@ class RelayQuotePublisher:
                 # the retry floor at 30 seconds, so the session's request
                 # budget is never spent hammering a relay that is refusing
                 # every push anyway. Data refusals keep the 5-second cap.
-                status = 0
-                response = getattr(exc, "response", None)
-                if response is not None:
-                    status = int(getattr(response, "status_code", 0) or 0)
                 if status >= 500:
                     self._retry_seconds = max(self._retry_seconds,
                                               self.REFUSAL_RETRY_SECONDS)
