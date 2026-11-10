@@ -930,19 +930,50 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 		// Owner order 2026-11-10: the row reads B, S, U, T, then the live price
 		// and its change, and the bar closes the line after them.
 		used := a.putBST(c, ix+3, row, buy, sell, vol, volKey, pxKey)
-		vx := ix + 3 + used + 2
+		// Owner order 2026-11-10 (latest): the price, the change and the bar are
+		// pushed to the tile's far right and right aligned at one edge, so all
+		// three leaders line up and nothing floats in the middle of the row. The
+		// bar keeps the same distance from the price on every row.
+		// The right edge is the tile's inner width, not textW: textW is the
+		// narrow column the symbol line uses, and a price right aligned there
+		// painted over the volumes (CI caught "& TPKR 15.24"). Each of the
+		// three fields also has a fixed width from that edge, so the price, the
+		// change and the bar land on the same cells on every leader row.
 		if l.Price != nil {
-			vx += a.flashText(c, vx, row, "PKR ", th.Soft, false)
-			vx += a.flashText(c, vx, row, commaFloat(*l.Price, 2), th.Text, true, pxKey)
-			if l.ChangePct != nil {
-				vx += a.flashText(c, vx+1, row, changeText(*l.ChangePct), a.dirColor(*l.ChangePct), true, pxKey) + 1
+			const chgW, priceW = 8, 10
+			end := ix + iw - 1
+			bw := shareBarBoxes * shareBarBoxW
+			floor := ix + 3 + used + 1
+			priceBlock := 4 + priceW + chgW + 1
+			barStart := end - bw
+			chgRight := barStart - 2
+			priceRight := chgRight - chgW - 1
+			pkrLeft := priceRight - priceW - 4
+			showPrice := func(pkr, pxRight, chgRight int) {
+				c.Text(pkr, row, 4, "PKR ", th.Soft, false)
+				a.flashRight(c, pxRight, row, commaFloat(*l.Price, 2), th.Text, true, pxKey)
+				if l.ChangePct != nil {
+					a.flashRight(c, chgRight, row, changeText(*l.ChangePct), a.dirColor(*l.ChangePct), true, pxKey)
+				}
 			}
-		}
-		// Owner order 2026-11-10 (latest): the bar is last, after the price and
-		// the change, so the KSE100 tile reads volume, price, change, then bar.
-		if l.HasSplit() {
-			if total := *l.Buy + *l.Sell; total > 0 && ix+iw-vx-1 >= shareBarBoxes {
-				a.shareBarOnly(c, vx+1, row, shareBarWidth, float64(*l.Buy)/float64(total))
+			switch {
+			case pkrLeft >= floor:
+				showPrice(pkrLeft, priceRight, chgRight)
+				if l.HasSplit() {
+					if total := *l.Buy + *l.Sell; total > 0 {
+						a.shareBarOnly(c, barStart, row, bw, float64(*l.Buy)/float64(total))
+					}
+				}
+			case end-priceBlock >= floor:
+				// Short window: the bar steps out and the price and change keep
+				// their right aligned places at the tile's edge.
+				showPrice(end-priceBlock, end-chgW-1, end)
+			default:
+				// Very short: the numbers follow the volumes, as they did before.
+				pkr := ix + 3 + used + 2
+				if pkr+4+priceW < ix+iw {
+					showPrice(pkr, pkr+4+priceW, pkr+4+priceW+1+chgW)
+				}
 			}
 		}
 		row++

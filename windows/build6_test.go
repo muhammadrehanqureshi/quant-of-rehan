@@ -198,10 +198,11 @@ func TestOrderFlowSortKeepsUnmeasuredAtTheBottom(t *testing.T) {
 
 // After the bar there is one space and then the percentage, however many
 // digits it has.
-func TestPercentFollowsTheBarWithOneSpace(t *testing.T) {	// The bar's glyph is whatever barBlock is, so the pattern follows it.
+func TestPercentFollowsTheBarWithOneSpace(t *testing.T) {
+	// The bar's glyph is whatever barBlock is, so the pattern follows it.
 	mark := regexp.QuoteMeta(string(barBlock))
-	good := regexp.MustCompile(mark + ` \d{1,3}%`)
-	bad := regexp.MustCompile(mark + `  +\d{1,3}%|` + mark + `\d{1,3}%`)
+	good := regexp.MustCompile(mark + ` +\d{1,3}%`)
+	bad := regexp.MustCompile(mark + `\d`)
 	for _, ch := range []int{2, 3} {
 		a := busyApp(t, 122, 30, 6)
 		a.screen, a.scanChoice = scrScanner, ch
@@ -213,16 +214,19 @@ func TestPercentFollowsTheBarWithOneSpace(t *testing.T) {	// The bar's glyph is 
 			t.Errorf("scanner choice %d: the gap after a bar is not one space: %q", ch, bad.FindString(s))
 		}
 	}
-	// 100%, 98% and 7% all sit one space after their bars.
+	// 100%, 98% and 7% all follow their bars, right aligned in four cells.
 	for _, share := range []float64{1, 0.98, 0.07} {
 		c := NewCanvas(40, 1, RGB{})
 		a := demoApp(t, 100, 30)
-		a.shareBar(c, 2, 0, 22, share)
+		a.shareBar(c, 2, 0, shareBarWidth, share)
 		row := c.PlainRows()[0]
 		i := strings.LastIndex(row, string(barBlock))
-		n := len(string(barBlock))
-		if i < 0 || row[i+n] != ' ' || row[i+n+1] < '0' || row[i+n+1] > '9' {
-			t.Errorf("share %.2f: %q", share, row)
+		if i < 0 {
+			t.Fatalf("share %.2f: no bar drawn: %q", share, row)
+		}
+		after := row[i+len(string(barBlock)):]
+		if !regexp.MustCompile(`^ +\d{1,3}%`).MatchString(after) {
+			t.Errorf("share %.2f: the percentage does not follow the bar: %q", share, row)
 		}
 	}
 }
@@ -472,14 +476,15 @@ func TestFetchOrderFlowFallsBackToFlowAndAcceptsALargeBody(t *testing.T) {
 // colour. A long span carries two cells per box and nine lines.
 // Owner order 2026-11-10 (latest): build 21's bar is back, so the bar is its
 // 17 cells split into ten tabs, and the widths are build 21's own.
-// Owner order 2026-11-10 (latest): the bar is ten boxes, one cell each.
-func TestShareBarHasTenBoxesOfOneCell(t *testing.T) {
+// Owner order 2026-11-10 (latest): the bar is ten boxes, two cells each, so
+// it is twenty cells long and the box count is still ten.
+func TestShareBarHasTenBoxesOfTwoCells(t *testing.T) {
 	a := demoApp(t, 100, 30)
 	c := NewCanvas(40, 1, RGB{})
 	a.shareBar(c, 2, 0, shareBarWidth, 0.5)
 	row := c.PlainRows()[0]
-	if n := strings.Count(row, string(barBlock)); n != shareBarBoxes {
-		t.Fatalf("the bar is %d cells, want %d boxes: %q", n, shareBarBoxes, row)
+	if n := strings.Count(row, string(barBlock)); n != shareBarBoxes*shareBarBoxW {
+		t.Fatalf("the bar is %d cells, want %d boxes of %d: %q", n, shareBarBoxes, shareBarBoxW, row)
 	}
 	if strings.ContainsAny(row, "│▄▀█") {
 		t.Fatalf("a separator or full cell is in the bar: %q", row)

@@ -257,7 +257,11 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 		}
 		if bw := contentW(&a.lvOF, iw) - flowBarX; bw >= 12 {
 			bw = min(shareBarWidth, bw)
-			c.Text(ix+flowBarX, row, bw, padLeft("BARS", bw), th.Soft, false)
+			// Owner order 2026-11-10 (latest): BARS is over the bars themselves
+			// and % is over the percentage numbers, instead of one word pushed
+			// to the right of the whole column.
+			c.Text(ix+flowBarX, row, max(4, bw-5), "BARS", th.Soft, false)
+			c.Text(ix+flowBarX+bw-1, row, 1, "%", th.Soft, false)
 		}
 		row++
 	}
