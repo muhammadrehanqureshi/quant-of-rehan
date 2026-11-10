@@ -79,6 +79,18 @@ type SignalFields struct {
 	State string
 }
 
+// signalScore reads the card's own "Score: 72/100" line, which
+// scripts/intraday_pipeline.py writes when a candidate carried a score. A card
+// without one says not reported rather than showing a made up number.
+func signalScore(raw string) string {
+	for _, line := range regexp.MustCompile(`\r?\n`).Split(strings.TrimSpace(raw), -1) {
+		if v, ok := afterLabel(line, "Score:"); ok {
+			return v
+		}
+	}
+	return notReported
+}
+
 // parseSignal ports SignalText.compact. The symbol line is a small addition:
 // the phone card never shows which stock a labelled signal is for, and a trade
 // card without its symbol is not much use on a desktop screen.

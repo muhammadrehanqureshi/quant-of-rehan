@@ -11,9 +11,10 @@ const appVersion = "4.0.16"
 // centred bar that stays inside its own box is 3.0.4, the ten box flat bar
 // with the price before it on the KSE100 tile is 3.0.5, the longer bar with the
 // right aligned tile row is 3.0.6, the source orb, the new close times and the
-// BUY= FLOW row are 3.0.7, and the ten box bar, the left aligned ORDER FLOW
-// headings and the bigger orb are 3.0.8.
-const hudBuild = "3.0.8"
+// BUY= FLOW row are 3.0.7, the ten box bar, the left aligned ORDER FLOW
+// headings and the bigger orb are 3.0.8, and the signal SCORE, the longer box
+// pitch and the aligned leader block are 3.0.9.
+const hudBuild = "3.0.9"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no
