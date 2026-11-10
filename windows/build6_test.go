@@ -483,8 +483,8 @@ func TestShareBarHasTenBoxesOfTwoCells(t *testing.T) {
 	c := NewCanvas(40, 1, RGB{})
 	a.shareBar(c, 2, 0, shareBarWidth, 0.5)
 	row := c.PlainRows()[0]
-	if n := strings.Count(row, string(barBlock)); n != shareBarBoxes*shareBarBoxW {
-		t.Fatalf("the bar is %d cells, want %d boxes of %d: %q", n, shareBarBoxes, shareBarBoxW, row)
+	if n := strings.Count(row, string(barBlock)); n != shareBarBoxes {
+		t.Fatalf("the bar is %d boxes, want exactly %d: %q", n, shareBarBoxes, row)
 	}
 	if strings.ContainsAny(row, "│▄▀█") {
 		t.Fatalf("a separator or full cell is in the bar: %q", row)

@@ -980,7 +980,7 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 		if l.Price != nil {
 			const chgW, priceW = 8, 10
 			end := ix + iw - 1
-			bw := shareBarBoxes * shareBarBoxW
+			bw := shareBarSpan
 			floor := ix + 3 + used + 1
 			priceBlock := 4 + priceW + chgW + 1
 			barStart := end - bw
