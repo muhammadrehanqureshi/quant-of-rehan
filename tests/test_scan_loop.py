@@ -376,6 +376,22 @@ class PreMarketQuietTapeTest(unittest.TestCase):
                 loop._capture()
         self.assertIsInstance(ctx.exception, QuietTape)
 
+    def test_the_0855_warmup_waits_instead_of_dying(self):
+        """Owner order 2026-11-10: the scan starts when the pre market starts.
+
+        The 08:55 band job runs twenty minutes before the exchange's 09:15
+        pre-open, when the tape is alive and holds no bars yet. That empty
+        tape used to strike out five times in a row and kill the job before
+        the pre-market began (session job 42752510792 on 2026-11-10), so the
+        pre-open morning is the wait too.
+        """
+        loop = ScanLoop(LoopConfig(dry_run=True), health_path=self.health,
+                        clock=lambda: at(MONDAY, 8, 55))
+        with self._mocks(at(MONDAY, 8, 55)):
+            with self.assertRaises(ScanFault) as ctx:
+                loop._capture()
+        self.assertIsInstance(ctx.exception, QuietTape)
+
     def test_a_market_zero_tape_is_still_a_fault(self):
         # A real quantum change of shape: outside the pre band the same
         # zero-bar tape is a dead input, Blessed, always a fault.
