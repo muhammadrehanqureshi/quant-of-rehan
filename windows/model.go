@@ -6,8 +6,9 @@ import "time"
 const appVersion = "4.0.16"
 
 // hudBuild is the build number of this Windows HUD port. Owner order
-// 2026-11-10: this build is version 3.0.1.
-const hudBuild = "3.0.1"
+// 2026-11-10: the bar and size build is 3.0.1, and the toast encoding fix that
+// follows it is 3.0.2.
+const hudBuild = "3.0.2"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no
