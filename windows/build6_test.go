@@ -457,22 +457,26 @@ func TestFetchOrderFlowFallsBackToFlowAndAcceptsALargeBody(t *testing.T) {
 	}
 }
 
-// Owner order 2026-11-10 (later): every bar is ten solid boxes, one per ten
-// percent, with a line between them and no lighter or darker shade inside a
-// colour. A long span carries two cells per box and nine lines.
-// Owner order 2026-11-10 (latest): build 21's bar is back, so the bar is its
-// 17 cells split into ten tabs, and the widths are build 21's own.
-// Owner order 2026-11-10 (latest): the bar is ten boxes, two cells each, so
-// it is twenty cells long and the box count is still ten.
-func TestShareBarHasTenBoxesOfTwoCells(t *testing.T) {
+// Owner order 2026-11-10 (latest): every bar is ten boxes, is ten percent
+// shorter than the 20 cells it was, and draws no line and leaves no gap between
+// any two cells: one unbroken half height band.
+func TestShareBarIsOneUnbrokenBand(t *testing.T) {
 	a := demoApp(t, 100, 30)
 	c := NewCanvas(40, 1, RGB{})
 	a.shareBar(c, 2, 0, shareBarWidth, 0.5)
 	row := c.PlainRows()[0]
-	if n := strings.Count(row, string(barBlock)); n != shareBarSpan {
-		t.Fatalf("the bar covers %d cells, want exactly %d (ten boxes of two): %q", n, shareBarSpan, row)
+	if shareBarSpan != 18 {
+		t.Fatalf("shareBarSpan is %d, want 18 (ten percent under 20)", shareBarSpan)
 	}
-	if strings.ContainsAny(row, "│▄▀") {
+	rs := []rune(row)
+	if len(rs) < 2+shareBarSpan {
+		t.Fatalf("the row is only %d cells: %q", len(rs), row)
+	}
+	seg := string(rs[2 : 2+shareBarSpan])
+	if n := strings.Count(seg, string(barBlock)); n != shareBarSpan {
+		t.Fatalf("the bar covers %d cells of its %d, so a separator or a gap is in it: %q", n, shareBarSpan, row)
+	}
+	if strings.ContainsAny(row, "│▀▬") {
 		t.Fatalf("a separator or a partial cell is in the bar: %q", row)
 	}
 }
