@@ -5,16 +5,14 @@ import (
 	"strings"
 )
 
-// wordmarkDot is the glyph every lit point of the mark is drawn with, so the
-// three words read as dots rather than as letters made of blocks.
-const wordmarkDot = '•'
-
 // wordmarkWords are the three lines of the mark, one word to a line, in the
 // order they are drawn from the top of the tile down.
 var wordmarkWords = [3]string{"QUANT", "OF", "REHAN"}
 
-// wordmarkFont is the dot grid of every letter the mark needs, five points wide
-// and seven tall, with '#' for a lit point.
+// wordmarkFont is the point grid of every letter the mark needs, five points
+// wide and seven tall, with '#' for a lit point. The points are not cells: each
+// one is turned into a block of dots below, so the letters are drawn in the fine
+// dots the tile's Braille cells carry rather than one whole cell per point.
 var wordmarkFont = map[rune][7]string{
 	'Q': {
 		".###.",
@@ -108,12 +106,13 @@ var wordmarkFont = map[rune][7]string{
 	},
 }
 
-// wordmarkSource builds the whole mark as one dot grid: the three words one
-// under the other, one blank point between two letters and one blank point row
-// between two words. It is 29 points wide and 23 tall.
-func wordmarkSource() []string {
+// wordmarkPoints builds the whole mark as one point grid: the three words one
+// under the other, one blank point between two letters, one blank point row
+// between two words, and every word centred in the grid's own width, so OF
+// stands in the middle of the tile and not against its left edge.
+func wordmarkPoints() []string {
 	const letterH = 7
-	lines := make([][]string, 0, len(wordmarkWords))
+	var lines [][]string
 	width := 0
 	for _, word := range wordmarkWords {
 		rows := make([]string, letterH)
@@ -126,7 +125,7 @@ func wordmarkSource() []string {
 				rows[y] += g[y]
 			}
 		}
-		if n := runeLen(rows[0]); n > width {
+		if n := len(rows[0]); n > width {
 			width = n
 		}
 		lines = append(lines, rows)
@@ -134,7 +133,9 @@ func wordmarkSource() []string {
 	out := make([]string, 0, len(lines)*(letterH+1))
 	for li, rows := range lines {
 		for y := 0; y < letterH; y++ {
-			out = append(out, rows[y]+strings.Repeat(".", width-runeLen(rows[y])))
+			pad := width - len(rows[y])
+			left := pad / 2
+			out = append(out, strings.Repeat(".", left)+rows[y]+strings.Repeat(".", pad-left))
 		}
 		if li < len(lines)-1 {
 			out = append(out, strings.Repeat(".", width))
@@ -143,9 +144,37 @@ func wordmarkSource() []string {
 	return out
 }
 
+// wordmarkDots expands the points so that every point is a block of scale by
+// scale dots. At two the mark is 58 dots wide and 46 tall, which is 29 by 12
+// cells: small in its tile, and fine enough that the letters read as dots. One
+// is the fallback for a tile too short to carry the finer grid.
+func wordmarkDots(scale int) []string {
+	pts := wordmarkPoints()
+	if scale < 1 {
+		scale = 1
+	}
+	out := make([]string, 0, len(pts)*scale)
+	for _, row := range pts {
+		var b strings.Builder
+		for _, ch := range row {
+			for k := 0; k < scale; k++ {
+				b.WriteRune(ch)
+			}
+		}
+		for k := 0; k < scale; k++ {
+			out = append(out, b.String())
+		}
+	}
+	return out
+}
+
+// brailleBit is the bit each dot of a Braille cell carries, indexed by its row
+// in the cell and then its column.
+var brailleBit = [4][2]byte{{0x01, 0x08}, {0x02, 0x10}, {0x04, 0x20}, {0x40, 0x80}}
+
 // wordmarkVisible is the sweep: the mark appears from the left edge across the
 // tile, is held whole for a moment, then disappears from the left edge across,
-// on a five second cycle. It returns the half open band of columns that is lit.
+// on a five second cycle. It returns the half open band of dot columns lit.
 func wordmarkVisible(t float64, w int) (int, int) {
 	const cycle = 5.0
 	p := math.Mod(t, cycle) / cycle
@@ -164,36 +193,54 @@ func wordmarkVisible(t float64, w int) (int, int) {
 }
 
 // drawWordmark paints QUANT OF REHAN in dots into the rectangle (x0,y0,w,h),
-// each word on its own line, with the left to right sweep of wordmarkVisible.
-// The mark is stretched into the room it is given, so it fills the tile on a
-// short window and on a tall one and never draws outside it. green selects the
-// market's green; outside the market window the mark is red, as the orb was.
+// each word on a line of its own and centred, with the left to right sweep of
+// wordmarkVisible. The mark is drawn at its own small size in the middle of the
+// tile rather than stretched to fill it, and never draws outside it. green
+// selects the market's green; outside the market window the mark is red.
 func drawWordmark(c *Canvas, x0, y0, w, h int, t float64, green bool, th *Theme) {
-	src := wordmarkSource()
-	if w < 3 || h < 3 || len(src) == 0 {
+	if w < 6 || h < 4 {
 		return
 	}
-	sh, sw := len(src), runeLen(src[0])
-	if sw == 0 {
+	dots := wordmarkDots(2)
+	dw, dh := len(dots[0]), len(dots)
+	cw, ch := (dw+1)/2, (dh+3)/4
+	if cw > w || ch > h {
+		dots = wordmarkDots(1)
+		dw, dh = len(dots[0]), len(dots)
+		cw, ch = (dw+1)/2, (dh+3)/4
+	}
+	if cw > w || ch > h {
 		return
 	}
 	ink := th.Bad
 	if green {
 		ink = th.Good
 	}
-	from, to := wordmarkVisible(t, w)
-	for j := 0; j < h; j++ {
-		sy := j * sh / h
-		row := []rune(src[sy])
-		for i := 0; i < w; i++ {
-			if i < from || i >= to {
-				continue
+	ox := x0 + (w-cw)/2
+	oy := y0 + (h-ch)/2
+	from, to := wordmarkVisible(t, dw)
+	for by := 0; by < ch; by++ {
+		for bx := 0; bx < cw; bx++ {
+			var bits byte
+			for row := 0; row < 4; row++ {
+				dy := by*4 + row
+				if dy >= dh {
+					break
+				}
+				line := []rune(dots[dy])
+				for col := 0; col < 2; col++ {
+					dx := bx*2 + col
+					if dx >= dw || dx < from || dx >= to {
+						continue
+					}
+					if dx < len(line) && line[dx] == '#' {
+						bits |= brailleBit[row][col]
+					}
+				}
 			}
-			sx := i * sw / w
-			if sx >= len(row) || row[sx] != '#' {
-				continue
+			if bits != 0 {
+				c.Put(ox+bx, oy+by, rune(0x2800+int(bits)), ink, false)
 			}
-			c.Put(x0+i, y0+j, wordmarkDot, ink, false)
 		}
 	}
 }

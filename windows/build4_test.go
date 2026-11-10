@@ -348,10 +348,8 @@ func TestOnlySafeGlyphsOnScreen(t *testing.T) {
 		case r >= 0x2500 && r <= 0x259f, r >= 0x2800 && r <= 0x28ff:
 			return true
 		}
-		// Owner order 2026-11-08: the tagline's Unicode small capitals. Owner
-		// order 2026-11-10 (latest): the bullet, which is the dot the QUANT OF
-		// REHAN mark is drawn with and a glyph Cascadia draws itself.
-		return strings.ContainsRune("·•…▲▼●◆♦♪▪▬▄▀ᴘꜱᴋᴍɪᴀʟɴᴅᴇ", r)
+		// Owner order 2026-11-08: the tagline's Unicode small capitals.
+		return strings.ContainsRune("·…▲▼●◆♦♪▪▬▄▀ᴘꜱᴋᴍɪᴀʟɴᴅᴇ", r)
 	}
 	for _, sz := range [][2]int{{80, 26}, {122, 30}, {160, 45}} {
 		for scr := range screenNames {
