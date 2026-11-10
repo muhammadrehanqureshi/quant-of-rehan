@@ -245,21 +245,23 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 	if wide {
 		per = 1
 	}
+	// The table's columns, measured once for the whole answer so the headings
+	// and every row stand on the same cells.
+	var cols [8]flowCell
+	barX := 0
 	// Column header for the one-line table.
 	if wide {
 		// Owner order 2026-11-10 (latest): every heading sits on the very first
 		// cell of its own column, which is exactly where that column's data
 		// starts, because every column is left aligned on that cell.
-		c.Text(ix, row, 4, "#", th.Soft, false)
-		c.Text(ix+4, row, 8, "SYMBOL", th.Soft, false)
-		for k, hd := range []string{"PRICE", "CHANGE", "BID", "ASK"} {
-			c.Text(ix+colX[k], row, colW[k], hd, th.Soft, false)
+		cols, barX = flowColumns(rows)
+		c.Text(ix+flowSerX, row, flowSerW, "#", th.Soft, false)
+		c.Text(ix+flowSymX, row, flowSymW, "SYMBOL", th.Soft, false)
+		for k, hd := range flowHeads {
+			c.Text(ix+cols[k].x, row, cols[k].w, hd, th.Soft, false)
 		}
-		for k, hd := range []string{"BUYING (B)", "SELLING (S)", "UNCL. (U)", "TOTAL (T)"} {
-			c.Text(ix+colX[4+k], row, colW[4+k], hd, th.Soft, false)
-		}
-		if iw-flowBarX >= shareBarWidth {
-			c.Text(ix+flowBarX, row, shareBarSpan, "BARS", th.Soft, false)
+		if iw-barX >= shareBarWidth {
+			c.Text(ix+barX, row, shareBarSpan, "BARS", th.Soft, false)
 		}
 		row++
 	}
@@ -304,19 +306,19 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 		if wide {
 			// Owner order 2026-11-10 (latest): the serial is left aligned on the
 			// panel edge, so the # heading sits on the first digit of the number.
-			c.Text(ix, row, 4, fmt.Sprintf("%d.", i+1), th.Soft, false)
-			c.Text(ix+4, row, 8, r.Symbol, symCol, true)
+			c.Text(ix+flowSerX, row, flowSerW, fmt.Sprintf("%d.", i+1), th.Soft, false)
+			c.Text(ix+flowSymX, row, flowSymW, r.Symbol, symCol, true)
 			// Owner order 2026-11-10 (latest): every value starts on its column's
 			// first cell, under its own heading.
-			a.flashText(c, ix+colX[0], row, commaFloat(r.Price, 2), th.Text, true, pxKey)
-			a.flashText(c, ix+colX[1], row, chg, chgCol, true, pxKey)
-			c.Text(ix+colX[2], row, colW[2], bidAsk(r.Bid), th.Text, false)
-			c.Text(ix+colX[3], row, colW[3], bidAsk(r.Ask), th.Text, false)
-			a.drawFlowCols(c, ix, row, r, volKey)
-			if cw-flowBarX >= shareBarWidth && r.Measured() && *r.Buy+*r.Sell > 0 {
+			a.flashText(c, ix+cols[0].x, row, commaFloat(r.Price, 2), th.Text, true, pxKey)
+			a.flashText(c, ix+cols[1].x, row, chg, chgCol, true, pxKey)
+			c.Text(ix+cols[2].x, row, cols[2].w, bidAsk(r.Bid), th.Text, false)
+			c.Text(ix+cols[3].x, row, cols[3].w, bidAsk(r.Ask), th.Text, false)
+			a.drawFlowCols(c, ix, row, r, cols, volKey)
+			if cw-barX >= shareBarWidth && r.Measured() && *r.Buy+*r.Sell > 0 {
 				// Owner order 2026-11-10 (latest): the bar is back on ORDER FLOW,
 				// ten boxes two cells wide, so it is longer without one extra box.
-				a.shareBar(c, ix+flowBarX, row, shareBarWidth, float64(*r.Buy)/(float64(*r.Buy)+float64(*r.Sell)))
+				a.shareBar(c, ix+barX, row, shareBarWidth, float64(*r.Buy)/(float64(*r.Buy)+float64(*r.Sell)))
 			}
 			if warn != "" {
 				c.Text(ix+cw-len(warn), row, len(warn), warn, th.Warn, true)
@@ -354,32 +356,89 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 	}
 }
 
-// The one-line table's columns, as offsets from the panel's left edge and widths.
-// Price, change, bid, ask, then B, S, U and T.
-// The one-line table's columns, as offsets from the panel's left edge and their
-// widths. Price, change, bid, ask, then B, S, U and T. Owner order 2026-11-10
-// (latest): every column is one content width wide and every pair of columns is
-// separated by the same two cells, so the gap between the columns is the same
-// from the symbol to the total instead of a different step at each one.
-var (
-	colX = [8]int{13, 23, 32, 40, 48, 63, 78, 90}
-	colW = [8]int{8, 7, 6, 6, 13, 13, 10, 12}
+// The one-line table's geometry. Owner order 2026-11-10 (latest): every column
+// is as wide as its own heading or the widest value it carries, whichever is
+// wider, and every pair of columns is separated by the same two cells. The gap
+// between two columns is therefore the same everywhere in the table, from the
+// serial to the bar, instead of a different step at each one.
+const flowGutter = 2
+
+// The serial and the symbol columns, and the headings of the eight that follow.
+const (
+	flowSerX, flowSerW = 0, 4
+	flowSymX, flowSymW = flowSerX + flowSerW + flowGutter, 8
 )
 
-// flowBarX is where the bar column starts, past the TOTAL column, on the same
-// two cell gutter as every other column, and its heading sits on that cell.
-const flowBarX = 104
+var flowHeads = [8]string{"PRICE", "CHANGE", "BID", "ASK", "BUYING (B)", "SELLING (S)", "UNCL. (U)", "TOTAL (T)"}
+
+// flowCell is one column of the table: the cell it starts on and its width.
+type flowCell struct{ x, w int }
+
+// flowColumns measures the whole answer and returns the eight columns and the
+// cell the bar column starts on. A column is never narrower than its heading.
+func flowColumns(rows []FlowRow) ([8]flowCell, int) {
+	var w [8]int
+	for i, hd := range flowHeads {
+		w[i] = runeLen(hd)
+	}
+	num := func(p *int64) string {
+		if p == nil {
+			return "n/a"
+		}
+		return commaInt(*p)
+	}
+	set := func(i int, s string) { w[i] = max(w[i], runeLen(s)) }
+	flt := func(i int, p *float64) {
+		if p == nil {
+			set(i, "n/a")
+			return
+		}
+		set(i, commaFloat(*p, 2))
+	}
+	for _, r := range rows {
+		flt(0, r.Price)
+		if r.ChangePct != nil {
+			set(1, changeText(*r.ChangePct))
+		} else {
+			set(1, "n/a")
+		}
+		flt(2, r.Bid)
+		flt(3, r.Ask)
+		switch {
+		case r.Measured():
+			set(4, num(r.Buy))
+			set(5, num(r.Sell))
+			set(6, num(r.Unclassified))
+			set(7, num(r.Volume))
+		case r.Method == methodEstimated && r.Buy != nil && r.Sell != nil:
+			set(4, "~"+num(r.Buy))
+			set(5, "~"+num(r.Sell))
+			set(6, "estimate")
+			set(7, num(r.Volume))
+		default:
+			set(4, "no split")
+			set(7, num(r.Volume))
+		}
+	}
+	x := flowSymX + flowSymW + flowGutter
+	var cols [8]flowCell
+	for i := 0; i < 8; i++ {
+		cols[i] = flowCell{x: x, w: w[i]}
+		x += w[i] + flowGutter
+	}
+	return cols, x
+}
 
 // drawFlowCols draws the four volume columns of the one-line table. Each value
 // sits under its header, with U never merged into B or S.
-func (a *App) drawFlowCols(c *Canvas, ix, y int, r FlowRow, volKey string) {
+func (a *App) drawFlowCols(c *Canvas, ix, y int, r FlowRow, cols [8]flowCell, volKey string) {
 	th := a.th
 	cell := func(k int, p *int64, fg RGB, bold bool, prefix string) {
 		s := "n/a"
 		if p != nil {
 			s = commaInt(*p)
 		}
-		a.flashText(c, ix+colX[k], y, prefix+s, fg, bold, volKey)
+		a.flashText(c, ix+cols[k].x, y, prefix+s, fg, bold, volKey)
 	}
 	switch {
 	case r.Measured():
@@ -394,10 +453,10 @@ func (a *App) drawFlowCols(c *Canvas, ix, y int, r FlowRow, volKey string) {
 	case r.Method == methodEstimated && r.Buy != nil && r.Sell != nil:
 		cell(4, r.Buy, mix(th.Good, th.Soft, 0.5), false, "~")
 		cell(5, r.Sell, mix(th.Bad, th.Soft, 0.5), false, "~")
-		c.Text(ix+colX[6], y, colW[6], "estimate", th.Soft, false)
+		c.Text(ix+cols[6].x, y, cols[6].w, "estimate", th.Soft, false)
 		cell(7, r.Volume, totalBlue, false, "")
 	default:
-		c.Text(ix+colX[4], y, colW[4], "no split", th.Soft, false)
+		c.Text(ix+cols[4].x, y, cols[4].w, "no split", th.Soft, false)
 		cell(7, r.Volume, totalBlue, false, "")
 	}
 }

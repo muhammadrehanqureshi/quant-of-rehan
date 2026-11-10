@@ -390,7 +390,10 @@ func (a *App) scanStatus() (string, RGB) {
 
 func (a *App) drawLeft(c *Canvas, x, y, w, h int) {
 	th := a.th
-	const telH = 9
+	// Owner order 2026-11-10 (latest): the telemetry tile is a third taller.
+	// The QUANT CORE tile had room to spare under the mark, so those rows go to
+	// the tile that carries the numbers.
+	const telH = 12
 	orbH := h - telH - 1
 	ix, iy, iw, ih := a.panel(c, x, y, w, orbH, "QUANT CORE", "")
 	drawOrb(c, ix, iy, iw, ih, a.animSeconds(), a.orbMode(), a.orbGreen(), th)
@@ -817,22 +820,43 @@ func (a *App) putBST(c *Canvas, x, y int, buy, sell, total *int64, keys ...strin
 	return vx - x
 }
 
-// The leader row's fixed fields, as offsets from the row's first cell. Owner
-// order 2026-11-10 (latest): B, S, U and T each start on the same cell on every
-// leader row, so the block reads the same on CNERGY, TISL and MLCF no matter
-// how many digits each number carries, and every number sits hard against its
-// own "=" with no gap after the sign. The slack of a short number falls after
-// it, never between the sign and the digits.
-const (
-	bstBuyX  = 0
-	bstSellX = 13
-	bstUncX  = 26
-	bstTotX  = 39
-)
+// bstCols are the leader row's four field offsets, as cells from the row's
+// first cell. Owner order 2026-11-10 (latest): the leaders read exactly like
+// every other B, S, U and T line, with its commas and its "& T=", and each
+// field still starts on the same cell on all three rows. Every number is laid
+// out as wide as the widest of the three, so the commas line up and the block
+// reads as one table instead of three sentences of different lengths.
+type bstCols struct {
+	buy  int // "B="
+	sell int // ", S="
+	unc  int // ", U="
+	tot  int // " & T="
+	wid  int // the widest volume's digits, the width of every volume field
+}
 
-// putBSTCols writes those four fields into their columns and returns the cells
-// the block used. A stock with no measured split falls back to putBST.
-func (a *App) putBSTCols(c *Canvas, x, y int, buy, sell, total *int64, keys ...string) int {
+// bstLeaderCols measures the leaders and returns the columns they share.
+func bstLeaderCols(leaders []Leader) bstCols {
+	bw, sw, uw := 1, 1, 1
+	for _, l := range leaders {
+		if !l.HasSplit() {
+			continue
+		}
+		bw = max(bw, runeLen(commaInt(*l.Buy)))
+		sw = max(sw, runeLen(commaInt(*l.Sell)))
+		if l.HasVolume() {
+			uw = max(uw, runeLen(commaInt(*l.Volume)))
+		}
+	}
+	c := bstCols{wid: uw}
+	c.sell = c.buy + 2 + bw + 4  // B= digits, then ", S="
+	c.unc = c.sell + 2 + sw + 4  // S= digits, then ", U="
+	c.tot = c.unc + 2 + uw + 5   // U= digits, then " & T="
+	return c
+}
+
+// putBSTCols writes those four fields into their shared columns and returns the
+// cells the block used. A stock with no measured split falls back to putBST.
+func (a *App) putBSTCols(c *Canvas, x, y int, buy, sell, total *int64, cols bstCols, keys ...string) int {
 	th := a.th
 	if buy == nil || sell == nil || total == nil {
 		return a.putBST(c, x, y, buy, sell, total, keys...)
@@ -845,11 +869,11 @@ func (a *App) putBSTCols(c *Canvas, x, y int, buy, sell, total *int64, keys ...s
 	if un < 0 {
 		un = 0
 	}
-	put(bstBuyX, "B=", commaInt(*buy), th.Good, true)
-	put(bstSellX, "S=", commaInt(*sell), th.Bad, true)
-	put(bstUncX, "U=", commaInt(un), th.Warn, un > 0)
-	put(bstTotX, "& T=", commaInt(*total), totalBlue, false)
-	return bstTotX + 4 + runeLen(commaInt(*total))
+	put(cols.buy, "B=", commaInt(*buy), th.Good, true)
+	put(cols.sell, ", S=", commaInt(*sell), th.Bad, true)
+	put(cols.unc, ", U=", commaInt(un), th.Warn, un > 0)
+	put(cols.tot, " & T=", commaInt(*total), totalBlue, false)
+	return cols.tot + 5 + cols.wid
 }
 
 func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
@@ -931,6 +955,7 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 		notes = notes[:2]
 	}
 	board := a.boardRows(3)
+	cols := bstLeaderCols(leaders)
 
 	// The bottom of the tile, from the bottom up: the note, one blank line, and
 	// the BUYING NOW line. The blank line and the spacer under the index are
@@ -976,7 +1001,7 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 		// narrow tile falls back to the packed form.
 		used := 0
 		if iw >= 96 {
-			used = a.putBSTCols(c, ix+3, row, buy, sell, vol, volKey, pxKey)
+			used = a.putBSTCols(c, ix+3, row, buy, sell, vol, cols, volKey, pxKey)
 		} else {
 			used = a.putBST(c, ix+3, row, buy, sell, vol, volKey, pxKey)
 		}

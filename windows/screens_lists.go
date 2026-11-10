@@ -420,11 +420,12 @@ func (a *App) drawSearchTile(c *Canvas, x, y, w, h int) {
 				put(dy+1, "VOL ", th.Soft, false)
 				put(dy+1, commaInt(lq.Volume), th.Text, false, volKey)
 			}
+			// Owner order 2026-11-10 (latest): HIGH comes before LOW.
 			if lq.High > 0 && lq.Low > 0 {
-				put(dy+1, "   LOW ", th.Soft, false)
-				put(dy+1, commaFloat(lq.Low, 2), th.Bad, false)
 				put(dy+1, "   HIGH ", th.Soft, false)
 				put(dy+1, commaFloat(lq.High, 2), th.Good, false)
+				put(dy+1, "   LOW ", th.Soft, false)
+				put(dy+1, commaFloat(lq.Low, 2), th.Bad, false)
 			}
 		}
 	}
@@ -795,12 +796,11 @@ func (a *App) drawFlowList(c *Canvas, ix, head, top, iw, rows, barX int) {
 	a.scrollbar(c, barX, top, a.lvScan.view*2, &a.lvScan)
 }
 
-// Owner order 2026-11-10 (latest): each bar is half a cell tall and fills the
-// cell's whole width, so the bar runs as one unbroken band. The middle bar
-// glyph (▬) left a thin line between two cells; the half block (▄) is
-// edge to edge, so the separators the owner reported are gone and the height is
-// still half a cell.
-const barBlock = '▄'
+// Owner order 2026-11-10 (latest): the bar stands in the middle of its own row,
+// not along the bottom edge of it. The half block (▄) sat in the cell's lower
+// half, which put every bar on the floor of its box; the middle bar glyph (▬)
+// is the one whose ink is centred in the cell, so it is the bar again.
+const barBlock = '▬'
 
 // shareBarBoxes is how many boxes a buy versus sell bar holds: one box per ten
 // percent, each box a single cell. Owner order 2026-11-10 (latest): the
@@ -977,33 +977,33 @@ func (a *App) drawBoardPanel(c *Canvas, x, y, w, h int, side int) {
 		c.Text(ix+4, ry, 2, star, th.Warn, true)
 		c.Text(ix+6, ry, 8, b.Symbol, th.Hot, true)
 		a.flashText(c, ix+15, ry, padRight(commaFloat(b.Price, 2), 9), th.Text, true, pxKey)
-		// Owner order 2026-11-10 (latest): both boards carry their bar, so the
-		// bar is drawn before anything else is given the room. The buying board
-		// keeps its PKR value and shortens its bar to make room for it; the
-		// selling board carries no PKR value at all.
+		// Owner order 2026-11-10 (latest): both boards carry their PKR value and
+		// their bar. The bar keeps the row's right edge, the value stands on the
+		// same two cell gutter to its left, and the change steps out first when
+		// the row is narrow, because the value and the bar are the two fields the
+		// owner asked to see. The value is this side's own: bought volume on the
+		// buying board, sold volume on the selling board.
+		const chgW = 9
+		val := b.BuyValue
+		if side == sideSell {
+			val = b.SellValue
+		}
+		pkrTxt := "PKR " + compactNum(val)
 		vx := ix + 25
-		if b.ChangePct != nil && cw-25 >= shareBarSpan+9 {
-			a.flashText(c, ix+25, ry, padRight(changeText(*b.ChangePct), 9), a.dirColor(*b.ChangePct), true, pxKey)
-			vx = ix + 35
+		if b.ChangePct != nil && cw-25-(chgW+2)-runeLen(pkrTxt)-2 >= shareBarSpan {
+			a.flashText(c, ix+25, ry, padRight(changeText(*b.ChangePct), chgW), a.dirColor(*b.ChangePct), true, pxKey)
+			vx = ix + 25 + chgW + 2
 		}
-		barW := 0
-		switch room := cw - vx; {
-		case room >= shareBarWidth:
+		barW := shareBarSpan
+		if cw-(vx-ix)-runeLen(pkrTxt)-2 >= shareBarWidth {
 			barW = shareBarWidth
-		case room >= shareBarSpan:
-			barW = shareBarSpan
-		case room >= shareBarBoxes:
-			barW = shareBarBoxes
 		}
-		pkr := side != sideSell && barW > 0 && cw-vx-barW >= 9
-		if side != sideSell && !pkr && cw-vx >= shareBarBoxes+9 {
-			barW, pkr = shareBarBoxes, true
+		if room := cw - (vx - ix) - runeLen(pkrTxt) - 2; room < barW {
+			barW = max(shareBarBoxes, room)
 		}
-		if barW > 0 {
-			a.drawShareBar(c, ix+cw-barW, ry, barW, b.Share, barW >= shareBarWidth)
-		}
-		if pkr {
-			c.Spans(vx, ry, cw-vx-barW, []Span{{"PKR ", th.Soft, false}, {compactNum(b.BuyValue), good, true}})
+		a.drawShareBar(c, ix+cw-barW, ry, barW, b.Share, barW >= shareBarWidth)
+		if room := cw - barW - (vx - ix) - 2; room > 0 {
+			c.Text(vx, ry, room, fit(pkrTxt, room), good, true)
 		}
 	}
 	a.scrollbar(c, x+w-2, iy, ih, lv)
