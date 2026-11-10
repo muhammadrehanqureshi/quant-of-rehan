@@ -289,12 +289,8 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 		if q.Buy != nil && q.Sell != nil {
 			total = *q.Buy + *q.Sell
 		}
-		// The bar goes on the block's top row, in the free gap between the
-		// symbol and the numbers, so its foot is the block's centre line and
-		// the extra height grows upward from it.
-		if total > 0 && cw >= 74 {
-			a.shareBar(c, ix+24, row, shareBarWidth, float64(*q.Buy)/float64(total))
-		}
+		// Owner order 2026-11-10 (latest): no bar in a scrip list. The only bars
+		// in the build are the LATEST SIGNAL tile's and the KSE100 leaders'.
 		row++
 		if q.Buy != nil && q.Sell != nil {
 			a.putBST(c, ix+5, row, q.Buy, q.Sell, &total, pxKey, "vol:"+s)
@@ -763,11 +759,7 @@ func (a *App) drawFlowList(c *Canvas, ix, head, top, iw, rows, barX int) {
 			flag = " ◆"
 		}
 		c.Spans(ix, row, cw, []Span{{fmt.Sprintf("%3d. ", i+1), th.Soft, false}, {b.Symbol, th.Hot, true}, {flag, th.Warn, true}})
-		if cw >= 70 {
-			// On the block's top row, the foot of the cell is the block's
-			// centre line, so the bar grows upward from it.
-			a.shareBar(c, ix+24, row, shareBarWidth, b.Share)
-		}
+		// Owner order 2026-11-10 (latest): no bar on the live flow board.
 		right := ix + cw
 		if b.ChangePct != nil {
 			t := " " + changeText(*b.ChangePct)
@@ -802,16 +794,12 @@ const barBlock = '▬'
 // seventeen cell span with tabs inside it is withdrawn for ten single cells.
 const shareBarBoxes = 10
 
-// shareBarPitch is the cells from one box's start to the next. Owner order
-// 2026-11-10 (latest): every box is fifteen percent longer, which lengthens the
-// whole bar, and the box count stays exactly ten. A terminal cell is the
-// smallest thing that can be drawn, so the step is a fraction of a cell and each
-// box's start is rounded to the nearest cell, giving ten boxes over eleven cells
-// instead of ten.
-const shareBarPitch = 1.15
-
-// shareBarSpan is the cells ten boxes cover at that pitch: round(9 * 1.15) + 1.
-const shareBarSpan = 11
+// shareBarSpan is the cells ten boxes cover: one cell each, side by side, so
+// the bar is a solid run with no gap between the boxes. Owner order
+// 2026-11-10 (latest): the fifteen percent pitch is withdrawn. It opened a gap
+// between every pair of boxes, and the bar he asked for is ten boxes touching
+// one another, exactly ten cells wide.
+const shareBarSpan = shareBarBoxes
 
 // shareBarWidth is the field a labelled bar asks for: its span, one space and
 // the four cells a "100%" needs.
@@ -821,14 +809,6 @@ const shareBarWidth = shareBarSpan + 5
 // then the percentage, so "98%" and "100%" both sit the same distance from the
 // last box. The bar's height is the rule block's, not the whole cell.
 func (a *App) shareBar(c *Canvas, x, y, w int, buyShare float64) {
-	a.drawShareBar(c, x, y, w, buyShare, true)
-}
-
-// shareBarMid draws the same split through the middle of a single-row box, which
-// is what the ORDER FLOW table has: the bar is centred in the row, not along its
-// top edge. A filled rectangle gives that one-row bar the thickness the owner
-// asked for.
-func (a *App) shareBarMid(c *Canvas, x, y, w int, buyShare float64) {
 	a.drawShareBar(c, x, y, w, buyShare, true)
 }
 
@@ -857,19 +837,13 @@ func (a *App) drawShareBar(c *Canvas, x, y, w int, buyShare float64, label bool)
 	if green > shareBarBoxes {
 		green = shareBarBoxes
 	}
-	// Ten boxes on their own pitch: at the full span each start is 1.15 cells
-	// further on than the last, and a narrower field falls back to one cell per
-	// box so the count never changes and nothing overflows.
+	// Ten boxes, one cell each, touching: no gap anywhere in the bar.
 	for i := 0; i < shareBarBoxes; i++ {
 		ink := th.Bad
 		if i < green {
 			ink = th.Good
 		}
-		at := x + i
-		if span == shareBarSpan {
-			at = x + int(math.Round(float64(i)*shareBarPitch))
-		}
-		c.Put(at, y, barBlock, ink, false)
+		c.Put(x+i, y, barBlock, ink, false)
 	}
 	width := span
 	if label {
@@ -990,9 +964,7 @@ func (a *App) drawBoardPanel(c *Canvas, x, y, w, h int, side int) {
 		if vx+12 < ix+cw {
 			c.Spans(vx, ry, ix+cw-vx, []Span{{"PKR ", th.Soft, false}, {compactNum(b.BuyValue), good, true}})
 		}
-		if cw >= 62 {
-			a.shareBar(c, ix+cw-shareBarWidth, ry, shareBarWidth, b.Share)
-		}
+		// Owner order 2026-11-10 (latest): no bar on the alerts board.
 	}
 	a.scrollbar(c, x+w-2, iy, ih, lv)
 }

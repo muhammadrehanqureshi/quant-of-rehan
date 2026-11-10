@@ -247,24 +247,16 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 	}
 	// Column header for the one-line table.
 	if wide {
-		// Owner order 2026-11-10: every heading starts at the left edge of its
-		// own column, over the first cell of its numbers, instead of being
-		// pushed to the right edge of the column.
+		// Owner order 2026-11-10 (latest): every heading sits on the very first
+		// cell of its own column, which is exactly where that column's data
+		// starts, because every column is left aligned on that cell.
 		c.Text(ix, row, 4, "#", th.Soft, false)
-		c.Text(ix+5, row, 8, "SYMBOL", th.Soft, false)
+		c.Text(ix+4, row, 8, "SYMBOL", th.Soft, false)
 		for k, hd := range []string{"PRICE", "CHANGE", "BID", "ASK"} {
 			c.Text(ix+colX[k], row, colW[k], hd, th.Soft, false)
 		}
 		for k, hd := range []string{"BUYING (B)", "SELLING (S)", "UNCL. (U)", "TOTAL (T)"} {
 			c.Text(ix+colX[4+k], row, colW[4+k], hd, th.Soft, false)
-		}
-		if bw := contentW(&a.lvOF, iw) - flowBarX; bw >= 12 {
-			bw = min(shareBarWidth, bw)
-			// Owner order 2026-11-10 (latest): BARS is over the bars themselves
-			// and % is over the percentage numbers, instead of one word pushed
-			// to the right of the whole column.
-			c.Text(ix+flowBarX, row, max(4, bw-5), "BARS", th.Soft, false)
-			c.Text(ix+flowBarX+bw-1, row, 1, "%", th.Soft, false)
 		}
 		row++
 	}
@@ -308,15 +300,14 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 		}
 		if wide {
 			c.Text(ix, row, 4, fmt.Sprintf("%3d.", i+1), th.Soft, false)
-			c.Text(ix+5, row, 8, r.Symbol, symCol, true)
-			a.flashText(c, ix+colX[0], row, padLeft(commaFloat(r.Price, 2), colW[0]), th.Text, true, pxKey)
-			a.flashText(c, ix+colX[1], row, padLeft(chg, colW[1]), chgCol, true, pxKey)
-			c.Text(ix+colX[2], row, colW[2], padLeft(bidAsk(r.Bid), colW[2]), th.Text, false)
-			c.Text(ix+colX[3], row, colW[3], padLeft(bidAsk(r.Ask), colW[3]), th.Text, false)
+			c.Text(ix+4, row, 8, r.Symbol, symCol, true)
+			// Owner order 2026-11-10 (latest): every value starts on its column's
+			// first cell, under its own heading, and no bar follows the volumes.
+			a.flashText(c, ix+colX[0], row, commaFloat(r.Price, 2), th.Text, true, pxKey)
+			a.flashText(c, ix+colX[1], row, chg, chgCol, true, pxKey)
+			c.Text(ix+colX[2], row, colW[2], bidAsk(r.Bid), th.Text, false)
+			c.Text(ix+colX[3], row, colW[3], bidAsk(r.Ask), th.Text, false)
 			a.drawFlowCols(c, ix, row, r, volKey)
-			if bw := cw - flowBarX; bw >= 12 && r.Measured() && *r.Buy+*r.Sell > 0 {
-				a.shareBarMid(c, ix+flowBarX, row, min(shareBarWidth, bw), float64(*r.Buy)/float64(*r.Buy+*r.Sell))
-			}
 			if warn != "" {
 				c.Text(ix+cw-len(warn), row, len(warn), warn, th.Warn, true)
 			}
@@ -356,11 +347,9 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 // The one-line table's columns, as offsets from the panel's left edge and widths.
 // Price, change, bid, ask, then B, S, U and T.
 var (
-	colX = [8]int{13, 23, 33, 43, 54, 66, 78, 90}
-	colW = [8]int{9, 9, 9, 9, 11, 11, 11, 11}
+	colX = [8]int{13, 22, 30, 37, 44, 57, 70, 81}
+	colW = [8]int{9, 8, 7, 7, 13, 13, 11, 14}
 )
-
-const flowBarX = 102
 
 // drawFlowCols draws the four volume columns of the one-line table. Each value
 // sits under its header, with U never merged into B or S.
@@ -371,7 +360,7 @@ func (a *App) drawFlowCols(c *Canvas, ix, y int, r FlowRow, volKey string) {
 		if p != nil {
 			s = commaInt(*p)
 		}
-		a.flashText(c, ix+colX[k], y, padLeft(prefix+s, colW[k]), fg, bold, volKey)
+		a.flashText(c, ix+colX[k], y, prefix+s, fg, bold, volKey)
 	}
 	switch {
 	case r.Measured():
@@ -386,10 +375,10 @@ func (a *App) drawFlowCols(c *Canvas, ix, y int, r FlowRow, volKey string) {
 	case r.Method == methodEstimated && r.Buy != nil && r.Sell != nil:
 		cell(4, r.Buy, mix(th.Good, th.Soft, 0.5), false, "~")
 		cell(5, r.Sell, mix(th.Bad, th.Soft, 0.5), false, "~")
-		c.Text(ix+colX[6], y, colW[6], padLeft("estimate", colW[6]), th.Soft, false)
+		c.Text(ix+colX[6], y, colW[6], "estimate", th.Soft, false)
 		cell(7, r.Volume, totalBlue, false, "")
 	default:
-		c.Text(ix+colX[4], y, colW[4], padLeft("no split", colW[4]), th.Soft, false)
+		c.Text(ix+colX[4], y, colW[4], "no split", th.Soft, false)
 		cell(7, r.Volume, totalBlue, false, "")
 	}
 }

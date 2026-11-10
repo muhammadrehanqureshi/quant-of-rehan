@@ -530,7 +530,10 @@ func (a *App) interval(name string) time.Duration {
 	case "quotes":
 		d = idle
 		if scan {
-			d = base
+			// Owner order 2026-11-10 (latest): the FEED asks once a second, full
+			// stop. A stored poll interval slower than a second may not slow the
+			// broker feed down, so the feed is capped at one second here.
+			d = min(base, time.Second)
 		}
 	case "market":
 		d = idle
