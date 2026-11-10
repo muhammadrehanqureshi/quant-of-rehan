@@ -566,7 +566,7 @@ class DecisionTest(unittest.TestCase):
         self.assertIn("2026-10-21", detail)
 
     def test_friday_post_market_scans_live(self):
-        # Friday's own post-close window (16:35 to 16:50).
+        # Friday's own post-market window (16:35 to 17:00).
         loop = self.loop(at(FRIDAY, 16, 40))
         self.assertEqual(loop.decide(at(FRIDAY, 16, 40))[0], "scan")
 

@@ -33,14 +33,16 @@ name: KMIALL session scan loop
 #                          sleeps through the 09:30 to 09:32 order-matching
 #                          break)
 #   07:30 UTC = 12:30 PKT  Mon-Thu band 2 (12:30 to 15:30)
-#   10:35 UTC = 15:35 PKT  Mon-Thu post-close (15:35 to 15:55)
+#   10:35 UTC = 15:35 PKT  Mon-Thu post-market, owner order 2026-11-10:
+#                          the loop scans to 16:00 (runs 15:35 to 16:05)
 #   03:55 UTC = 08:55 PKT  Friday band 1 (window opens 08:55 as a recorder
 #                          warm-up, so the pre-open zero gate seeds the day
 #                          before the 09:00 Friday auction; the loop then
 #                          scans 09:17 to 12:00 and holds through the break)
 #   09:10 UTC = 14:10 PKT  Friday band 2 (pre-open recorder warm-up; the
 #                          band opens at 14:32 and runs to 16:30)
-#   11:35 UTC = 16:35 PKT  Friday post-close (16:35 to 16:55; owner
+#   11:35 UTC = 16:35 PKT  Friday post-market (16:35 to 17:05, scanning to
+#                          the owner's 17:00 end; owner
 #                          order 2026-10-31: the loop emails nothing here,
 #                          the market event emails are retired)
 #
@@ -58,7 +60,11 @@ on:
     - cron: "35 10 * * 1-4"    # 15:35 PKT, Mon-Thu post-close
     - cron: "55 3 * * 5"       # 08:55 PKT, Friday pre-open recorder warm-up
     - cron: "10 9 * * 5"       # 14:10 PKT, Friday pre-open warm-up for session 2
-    # Owner order 2026-10-24: Friday's post-close window (16:35 to 16:50)
+    # Owner order 2026-11-10: the scanning window now ends at 16:00 Monday to
+    # Thursday and at 17:00 on Friday, so both post-market loops run to that
+    # end and the pre and post market volume is captured to the last minute.
+    #
+    # Owner order 2026-10-24: Friday's post-close window (16:35 to 17:00)
     # had no loop at all - the band-2 job ends on the 16:30 close's
     # finalize - so the day's post-close banking depended on GitHub crons
     # that had just staged a mass drop. The same 20-minute post-close
@@ -185,10 +191,10 @@ jobs:
             # reach the next band's start, not stop short of it.
             "55 3 * * 1-4") seconds=12960 ;;   # 216 min, ends 12:31
             "30 7 * * 1-4") seconds=10860 ;;   # 181 min, ends 15:31
-            "35 10 * * 1-4") seconds=1200 ;;   # 20 min, post-close to 15:55
+            "35 10 * * 1-4") seconds=1800 ;;   # 30 min, post-market to 16:05
             "55 3 * * 5")   seconds=12960 ;;   # 216 min, ends 12:31
             "10 9 * * 5")   seconds=8400  ;;   # 140 min, ends 16:30
-            "35 11 * * 5")  seconds=1200 ;;   # 20 min, post-close to 16:55
+            "35 11 * * 5")  seconds=1800 ;;   # 30 min, post-market to 17:05
             *)              seconds="${{ inputs.seconds }}" ;;
           esac
           echo "seconds=${seconds}" >> "$GITHUB_OUTPUT"

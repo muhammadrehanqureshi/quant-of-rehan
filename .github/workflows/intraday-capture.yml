@@ -21,8 +21,13 @@ name: KMIALL intraday momentum scan
 #   04:20 UTC = 09:20 PKT   pre-open scan, Mon-Thu (09:15 to 09:30)
 #   04:10 UTC = 09:10 PKT   pre-open scan, Friday (09:00 to 09:15)
 #   09:20 UTC = 14:20 PKT   second pre-open scan, Friday (14:15 to 14:30)
-#   10:40 UTC = 15:40 PKT   post-market scan, Mon-Thu (15:35 to 15:50)
-#   11:40 UTC = 16:40 PKT   post-market scan, Friday (16:35 to 16:50)
+#   10:40 UTC = 15:40 PKT   post-market scan, Mon-Thu (15:35 to 16:00)
+#   11:40 UTC = 16:40 PKT   post-market scan, Friday (16:35 to 17:00)
+#
+# Owner order 2026-11-10: the quant scans 08:55 to 16:00 Monday to Thursday and
+# 08:55 to 17:00 on Friday. The two post-market backstops below therefore sit
+# inside a window that is still open when they fire, and the session loop in
+# intraday-session.yml scans that window to its end every second.
 #
 # The scan never starts outside the session, and the finalize never starts
 # before the close. tests/test_rebuild_schedule.py re-derives every one of
@@ -64,8 +69,8 @@ on:
     - cron: "20 4 * * 1-4"    # 09:20 PKT, Mon-Thu pre-open (09:15 to 09:30)
     - cron: "10 4 * * 5"      # 09:10 PKT, Friday pre-open (09:00 to 09:15)
     - cron: "20 9 * * 5"      # 14:20 PKT, Friday second pre-open (14:15 to 14:30)
-    - cron: "40 10 * * 1-4"   # 15:40 PKT, Mon-Thu post-market (15:35 to 15:50)
-    - cron: "40 11 * * 5"     # 16:40 PKT, Friday post-market (16:35 to 16:50)
+    - cron: "40 10 * * 1-4"   # 15:40 PKT, Mon-Thu post-market (15:35 to 16:00)
+    - cron: "40 11 * * 5"     # 16:40 PKT, Friday post-market (16:35 to 17:00)
   workflow_dispatch:
     inputs:
       slot:

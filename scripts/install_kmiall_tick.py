@@ -9,8 +9,8 @@ src/data/sessions.py (SO-8), never typed in twice:
     Mon-Thu   09:32 to 15:30   every 4 minutes   one band
     Friday    09:17 to 12:00   every 4 minutes   first band
     Friday    14:32 to 16:30   every 4 minutes   second band, after the break
-    Mon-Thu   15:47            once              finalize, after the close
-    Friday    16:47            once              finalize, after the close
+    Mon-Thu   15:57            once              finalize, after the close
+    Friday    16:57            once              finalize, after the close
 
 Nothing at all is registered for the exchange's pre-open windows (Mon-Thu
 09:15 to 09:30; Friday 09:00 to 09:15 and 14:15 to 14:30), the Friday midday
@@ -56,9 +56,11 @@ TASK = "quant-of-rehan-kmiall-tick"
 TICK_SCRIPT = ROOT / "scripts" / "kmiall_tick.py"
 XML_FILE = ROOT / "data" / "task-kmiall-tick.xml"
 
-#: The finalize fires three minutes before its post-close window closes
-#: (15:50 Monday to Thursday, 16:50 on Friday), which is where the GitHub
-#: Actions crons put it too: 15:47 and 16:47 PKT.
+#: The finalize fires three minutes before its post-market window closes, and
+#: under the owner's order of 2026-11-10 that window closes at 16:00 Monday to
+#: Thursday and at 17:00 on Friday, so the task finalizes at 15:57 and 16:57
+#: PKT. The GitHub Actions finalize crons (15:47 and 16:47 PKT) fire earlier in
+#: the same window and remain the cloud's own backstop.
 FINALIZE_MARGIN_MINUTES = 3
 
 WEEKDAY_NAMES = ("Monday", "Tuesday", "Wednesday", "Thursday")

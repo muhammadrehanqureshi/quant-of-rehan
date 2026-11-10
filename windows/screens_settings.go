@@ -77,6 +77,6 @@ func (a *App) drawSettings(c *Canvas, x, y, w, h int) {
 	info("", "The app stops at 90,000 of Cloudflare's 100,000 a day, so the day", th.Text)
 	info("", "is never exhausted. The count resets at 05:00 PKT.", th.Text)
 	info("SCANNING", "Every second from 08:55 until the post-market closes.", th.Text)
-	info("", "That is 15:49 Monday to Thursday and 16:49 on Friday.", th.Text)
+	info("", "That is 16:00 Monday to Thursday and 17:00 on Friday.", th.Text)
 	info("SETTINGS FILE", settingsPath(), th.Soft)
 }

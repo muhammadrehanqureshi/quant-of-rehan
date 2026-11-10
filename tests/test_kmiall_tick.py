@@ -454,9 +454,9 @@ class SessionTriggerTest(unittest.TestCase):
                 at = [m for d, m in fires if d == day]
                 self.assertEqual(len(at), 1, trigger)
             if days == set(self.MON_THU):
-                at, opens, closes = "15:47", "15:35", "15:50"
+                at, opens, closes = "15:57", "15:35", "16:00"
             else:
-                at, opens, closes = "16:47", "16:35", "16:50"
+                at, opens, closes = "16:57", "16:35", "17:00"
             self.assertEqual(self._minute(trigger["start"]), self._minute(at))
             self.assertTrue(self._minute(opens) <= self._minute(at)
                             < self._minute(closes), trigger)
@@ -662,9 +662,9 @@ class TapeFirstCaptureTest(unittest.TestCase):
 
 class FinalizeTest(TickTestCase):
     def test_a_finalized_day_is_not_finalized_twice(self):
-        # After the post-close window (15:35 to 15:50) closes, the tick
+        # After the post-market window (15:35 to 16:00) closes, the tick
         # returns to finalize-only.
-        self.fake_clock(at(MONDAY, 15, 52))
+        self.fake_clock(at(MONDAY, 16, 5))
         state = self.saved_state(MONDAY)
         state.finalized = True
         state.save()
@@ -673,7 +673,7 @@ class FinalizeTest(TickTestCase):
         finalize.assert_not_called()
 
     def test_post_close_finalizes_and_marks_the_day(self):
-        self.fake_clock(at(MONDAY, 15, 52))
+        self.fake_clock(at(MONDAY, 16, 5))
         with patch.object(kmiall_tick, "run_capture", return_value=(True, "ok")), \
                 patch.object(pipeline, "run_finalize",
                              return_value={"outcome": {"outcomes_by_rule": {

@@ -619,7 +619,7 @@ to sixty seconds. The status tile therefore also carries the app's own
   Version 1.8.1, versionCode 35.
 - v1.8.2, owner order 2026-10-21 (afternoon, superseding the 2026-10-11
   watch-only rule): the quant scans the market's own pre-market (09:00-09:15)
-  and post-market (Mon-Thu 15:32-15:49, Friday 16:32-16:49) windows on the
+  and post-market (Mon-Thu 15:32-16:00, Friday 16:32-17:00) windows on the
   live broker feed every second, and the phone's cadence sentence says so:
   "Quant will be scanning the market every second when the market is open,
   and in the pre-market and post-market windows too." The market-open,
@@ -1127,7 +1127,7 @@ to sixty seconds. The status tile therefore also carries the app's own
        beside the yearly holiday list.
     3. The market emails land on the event's own minute: the market
        close, the post-market open (16:32 Friday, 15:32 Mon-Thu) and
-       the post-market close (16:49 Friday, 15:49 Mon-Thu) each carry
+       the post-market close (17:00 Friday, 16:00 Mon-Thu) each carry
        their own cron, with a 5-minute catch-up for a late runner.
        Friday's post-market edges were unwoken before, which is why
        the 16:32 and 16:49 Friday emails never arrived.

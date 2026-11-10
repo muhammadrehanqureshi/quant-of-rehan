@@ -104,7 +104,7 @@ class TestIdleStates(unittest.TestCase):
             at_karachi(2026, 10, 12, 15, 31), "POST_CLOSE")
 
     def test_friday_post_market_scan_window_runs(self):
-        # Owner order 2026-10-21: Friday's own post window (16:35-16:50)
+        # Owner order 2026-10-21: Friday's own post window (16:35-17:00)
         # scans like any other.
         decision = gate.session_gate(at_karachi(2026, 10, 9, 16, 40))
         self.assertTrue(decision.should_run)
@@ -275,7 +275,7 @@ class TestWeekendToOpenTransition(unittest.TestCase):
         (at_karachi(2026, 10, 12, 15, 29), True),   # one minute before close
         (at_karachi(2026, 10, 12, 15, 30), False),  # the 15:30 close
         (at_karachi(2026, 10, 12, 15, 45), True),   # post-market scans (2026-10-21)
-        (at_karachi(2026, 10, 12, 15, 50), False),  # after the post window
+        (at_karachi(2026, 10, 12, 16, 0), False),   # after the post window
         (at_karachi(2026, 10, 12, 20, 0), False),   # Monday evening
     )
 

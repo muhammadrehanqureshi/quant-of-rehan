@@ -429,12 +429,18 @@ func TestScanWindow(t *testing.T) {
 		t    time.Time
 		want bool
 	}{
-		// Monday to Thursday: from 08:55 until the post-market closes at 15:49.
+		// Owner order 2026-11-10: Monday to Thursday the window is 08:55 to 16:00,
+		// and Friday's is 08:55 to 17:00.
 		{at(2, 8, 54, 59), false}, {at(2, 8, 55, 0), true}, {at(2, 9, 0, 0), true}, {at(2, 9, 20, 0), true}, {at(2, 12, 0, 0), true},
-		{at(2, 15, 31, 0), true}, {at(2, 15, 48, 59), true}, {at(2, 15, 49, 10), true}, {at(2, 15, 50, 0), false},
-		{at(2, 16, 10, 0), false}, {at(2, 23, 0, 0), false},
-		// Friday: the same start, but the post-market runs to 16:49.
-		{at(6, 8, 54, 59), false}, {at(6, 8, 55, 0), true}, {at(6, 9, 0, 0), true}, {at(6, 13, 0, 0), true}, {at(6, 16, 48, 59), true}, {at(6, 16, 50, 0), false},
+		{at(2, 15, 31, 0), true}, {at(2, 15, 48, 59), true}, {at(2, 15, 49, 10), true}, {at(2, 15, 59, 59), true},
+		// The window closes at 16:00 and the grace period catches the final
+		// print, so 16:00 itself still scans and 16:01 does not.
+		{at(2, 16, 0, 0), true}, {at(2, 16, 0, 29), true}, {at(2, 16, 1, 0), false}, {at(2, 16, 10, 0), false},
+		{at(2, 23, 0, 0), false},
+		// Friday: the same start, three quarters of an hour later at the end.
+		{at(6, 8, 54, 59), false}, {at(6, 8, 55, 0), true}, {at(6, 9, 0, 0), true}, {at(6, 13, 0, 0), true},
+		{at(6, 16, 48, 59), true}, {at(6, 16, 59, 59), true}, {at(6, 17, 0, 0), true},
+		{at(6, 17, 1, 0), false},
 		// The weekend is never scanned.
 		{at(7, 11, 0, 0), false}, {at(8, 11, 0, 0), false},
 	}
@@ -453,10 +459,10 @@ func TestSessionNamesFollowThePSXLaw(t *testing.T) {
 	}{
 		{at(2, 8, 30), sesClosed}, {at(2, 9, 5), sesPre}, {at(2, 9, 20), sesBetween}, {at(2, 9, 31), sesBetween},
 		{at(2, 9, 32), sesTrading}, {at(2, 15, 29), sesTrading}, {at(2, 15, 30), sesBetween}, {at(2, 15, 32), sesPost},
-		{at(2, 15, 48), sesPost}, {at(2, 15, 49), sesClosed},
+		{at(2, 15, 48), sesPost}, {at(2, 15, 59), sesPost}, {at(2, 16, 0), sesClosed},
 		{at(6, 9, 10), sesPre}, {at(6, 9, 17), sesTrading}, {at(6, 11, 59), sesTrading}, {at(6, 12, 0), sesBreak},
 		{at(6, 14, 31), sesBreak}, {at(6, 14, 32), sesTrading}, {at(6, 16, 29), sesTrading}, {at(6, 16, 32), sesPost},
-		{at(6, 16, 48), sesPost}, {at(6, 16, 49), sesClosed}, {at(7, 11, 0), sesClosed},
+		{at(6, 16, 48), sesPost}, {at(6, 16, 59), sesPost}, {at(6, 17, 0), sesClosed}, {at(7, 11, 0), sesClosed},
 	}
 	for _, c := range cases {
 		if got := sessionAt(c.t); got != c.want {
@@ -577,8 +583,9 @@ func TestAdaptivePolling(t *testing.T) {
 
 // TestDailyBudget adds up the requests a full day of the default pace would
 // use against the free Cloudflare allowance of 100,000 a day. The scanning
-// window runs from 08:55 to 30 seconds after the post-market closes: 15:49:30
-// Monday to Thursday and 16:49:30 on Friday. The console is assumed open for
+// window runs from 08:55 to 30 seconds after the post-market closes: 16:00:30
+// Monday to Thursday and 17:00:30 on Friday (owner order 2026-11-10). The
+// console is assumed open for
 // all 24 hours, with the Scanner or Search screen (the extra prices call) open
 // for the whole of it.
 func TestDailyBudget(t *testing.T) {
@@ -605,8 +612,8 @@ func TestDailyBudget(t *testing.T) {
 		window float64
 		cap    float64
 	}{
-		{"Monday to Thursday", float64(6*3600 + 54*60 + 30), 65000},
-		{"Friday", float64(7*3600 + 54*60 + 30), 70000},
+		{"Monday to Thursday", float64(7*3600 + 5*60 + 30), 65000},
+		{"Friday", float64(8*3600 + 5*60 + 30), 70000},
 	} {
 		idle := 24*3600 - day.window
 		home := total(true, day.window, false) + total(false, idle, false)
