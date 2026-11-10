@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/QoR.png" alt="Quant of Rehan" width="340" />
+  <img src="assets/quant-of-rehan-logo.png" alt="Quant of Rehan" width="440" />
 </p>
 
 <h1 align="center">Quant of Rehan</h1>
@@ -31,6 +31,35 @@ entry minus 1%, target at entry plus 2%, one call a day, and no trade after a
 broad selloff. A candidate only exists on completed minutes; there is no
 momentum or RSI fallback. Entry and exit intent only: nothing reaches a
 broker (SO-1).
+
+## Architecture
+
+Three tiers. The recurring work lives in the cloud (SO-12, SO-23) and the
+screen is the owner's own console; the owner's PC is never a dependency of the
+schedule.
+
+```text
+eClear MKT-FEED REG socket (read only: no order frame is sendable)
+   |
+   v  src/data/feed_capture.py   banks the tape, seeds the day's baseline,
+   |                             publishes one coalesced snapshot a second
+   +-- src/data/quote_flow.py    sides every increment of the venue's own
+   |                             counter with the bid/ask standing when it
+   |                             arrived, and holds each pair monotone
+   v
+cloud/worker.js   Cloudflare Worker + QuoteHub Durable Object
+   /quotes /flow /market /prices /signals /history /ack-upsert
+   |
+   +--> windows/                  the Windows console HUD (Go, one exe)
+   +--> android/                  the phone card
+   +--> charts/ + web/            the research charts
+   +--> .github/workflows         the scan, the capture bands and the builds
+```
+
+One symbol carries one frame. The relay is the only place every surface reads,
+so the newest acknowledged frame wins there and its buying and selling pair is
+clamped monotone against it, and the HUD shows the age of what it is reading
+rather than inventing a fresher number.
 
 ## What is true today
 
@@ -76,6 +105,20 @@ broker (SO-1).
   wire cannot say (the side of an off-quote print) as unknown.
 - **Honest data states**: a broken, thin, stale or volume-less source reports
   DATA BLOCKED with measured coverage, never a market verdict.
+- **The Windows HUD**: [windows/](windows/) is the owner's own console, one Go
+  binary with no runtime dependency. Six screens (HOME, ALERTS, ORDER FLOW,
+  SCANNER, CHARTS, SETTINGS), the KSE100 tile with the three volume leaders,
+  the Orb mark, and a buying-versus-selling bar of ten boxes on every page
+  that carries a split. It shows LINK, the FEED's age, PHASE and NEXT, and it
+  never draws a number it was not given. The `windows-desktop` workflow builds
+  it on a Windows runner; [windows/README.md](windows/README.md) records every
+  build.
+- **One law for the count**: [src/data/feed_capture.py](src/data/feed_capture.py)
+  publishes at most one snapshot a second and never a pair below the highest it
+  has already sent for a symbol that day, and [cloud/worker.js](cloud/worker.js)
+  clamps the acknowledged frame the same way and refuses to follow a smaller
+  total down, so buying and selling volume cannot walk backwards on any
+  surface (owner order 2026-11-10).
 
 ## How it runs
 
@@ -158,6 +201,10 @@ scripts/scan_loop.py              supervised interval scan loop (cloud runner)
 scripts/land.sh                   stage, validate and land one change through a PR
 scripts/check_governance.py       secret, style, identity and SO-8 enforcement
 cloud/worker.js                   Cloudflare relay and edge crons (Karachi math)
+src/data/quote_flow.py            wire-side buy/sell separation and its law
+windows/                          the Windows console HUD (Go, one exe)
+windows/README.md                 the HUD build record, one bullet per build
+windows-desktop.yml               builds the HUD on a Windows runner
 android/                          companion app source
 data/                             gitignored: datasets, journals, forward state
 legacy/                           quarantined code from the deleted sentinel repos
@@ -218,12 +265,14 @@ python scripts/intraday_pipeline.py --finalize
 - [android/README.md](android/README.md), [charts/README.md](charts/README.md),
   [cloud/README.md](cloud/README.md): the three components in full.
 
-## Status, 2026-10-21
+## Status, 2026-11-10
 
-- **Suite green**: the governance-guard run of 2026-10-20 09:59 UTC reports
-  `Ran 1251 tests`, OK, on the merged master.
-- **Every change lands as a pull request**: the `governance-guard` workflow
-  must pass (governance check, the whole unit suite, the worker's JavaScript
-  syntax) before the agent merges with a merge commit.
-- **Signal-only and paper only**: live trading is disabled, and the paper
-  gate needs genuinely accumulated forward sessions before it opens.
+- **Suite green**: every pull request runs `governance-guard` (the governance
+  check, the whole unit suite, the worker's JavaScript) and the HUD's own
+  `build` job, and it merges only when all of them pass.
+- **Every change lands as a pull request**: `scripts/land.sh` opens it, waits
+  on the checks and merges with a merge commit. The owner's approval is
+  standing (SO-24); the checks are never waived.
+- **Signal-only and paper only**: live trading is disabled, and the paper gate
+  needs genuinely accumulated forward sessions before it opens.
+- **Versions**: the HUD is v3.0.13 and the phone app v1.9.13.

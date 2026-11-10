@@ -289,11 +289,15 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 		if q.Buy != nil && q.Sell != nil {
 			total = *q.Buy + *q.Sell
 		}
-		// Owner order 2026-11-10 (latest): no bar in a scrip list. The only bars
-		// in the build are the LATEST SIGNAL tile's and the KSE100 leaders'.
 		row++
 		if q.Buy != nil && q.Sell != nil {
-			a.putBST(c, ix+5, row, q.Buy, q.Sell, &total, pxKey, "vol:"+s)
+			w := a.putBST(c, ix+5, row, q.Buy, q.Sell, &total, pxKey, "vol:"+s)
+			// Owner order 2026-11-10 (latest): the scrip list carries its bar
+			// again, at the right edge of the volume row, never over the volumes.
+			if total > 0 && cw-5-w-2 >= shareBarWidth {
+				a.shareBar(c, ix+cw-shareBarWidth, row, shareBarWidth,
+					float64(*q.Buy)/float64(total))
+			}
 		}
 		row++
 	}
@@ -423,8 +427,6 @@ func (a *App) drawSearchTile(c *Canvas, x, y, w, h int) {
 				put(dy+1, commaFloat(lq.High, 2), th.Good, false)
 			}
 		}
-		// Owner order 2026-11-10 (latest): the column meter that stood in front
-		// of the search field is withdrawn. The search tile carries no bar.
 	}
 	if dy+2 >= bottom {
 		return
@@ -449,7 +451,13 @@ func (a *App) drawSearchTile(c *Canvas, x, y, w, h int) {
 		t := int64(math.Round(*in.Volume))
 		tot = &t
 	}
-	a.putBST(c, dx, dy+2, buy, sell, tot)
+	used := a.putBST(c, dx, dy+2, buy, sell, tot)
+	// Owner order 2026-11-10 (latest): the chosen stock's bar is back on the
+	// search tile, at the right edge of its own volume row.
+	if buy != nil && sell != nil && *buy+*sell > 0 && dw-used-2 >= shareBarWidth {
+		a.shareBar(c, dx+dw-shareBarWidth, dy+2, shareBarWidth,
+			float64(*buy)/float64(*buy+*sell))
+	}
 }
 
 // showing words which part of a list is on screen.
@@ -771,7 +779,14 @@ func (a *App) drawFlowList(c *Canvas, ix, head, top, iw, rows, barX int) {
 		row++
 		buy, sell, tot := b.BuyShares, b.SellShares, b.BuyShares+b.SellShares
 		w := a.putBST(c, ix+5, row, &buy, &sell, &tot, pxKey)
-		if left := cw - 5 - w - 2; left > 12 {
+		barW := 0
+		if tot > 0 && cw-5-w-2 >= shareBarWidth {
+			// Owner order 2026-11-10 (latest): the flow board carries its bar
+			// again, at the right edge of its own volume row.
+			barW = shareBarWidth
+			a.shareBar(c, ix+cw-barW, row, barW, float64(buy)/float64(tot))
+		}
+		if left := cw - 5 - w - 2 - barW; left > 12 {
 			c.Spans(ix+5+w+2, row, left, []Span{{"PKR ", th.Soft, false}, {compactNum(b.BuyValue), th.Good, true},
 				{" bought / ", th.Soft, false}, {compactNum(b.SellValue), th.Bad, true}, {" sold", th.Soft, false}})
 		}
@@ -780,11 +795,11 @@ func (a *App) drawFlowList(c *Canvas, ix, head, top, iw, rows, barX int) {
 	a.scrollbar(c, barX, top, a.lvScan.view*2, &a.lvScan)
 }
 
-// Owner order 2026-11-10 (latest): the bar is one solid block per cell. The
-// thin rule that stood here drew a small dash inside every cell, so the bar
-// read as a row of little boxes with lines in it; the full cell makes the bar
-// one continuous colour with nothing drawn inside it.
-const barBlock = '█'
+// Owner order 2026-11-10 (latest, second time): each bar is half the cell's
+// height and sits on the cell's own centre line, so the green and red read as
+// one centred band inside the boxes instead of a solid wall of colour. The
+// full block filled the whole cell and was too heavy.
+const barBlock = '▬'
 
 // shareBarBoxes is how many boxes a buy versus sell bar holds: one box per ten
 // percent, each box a single cell. Owner order 2026-11-10 (latest): the
