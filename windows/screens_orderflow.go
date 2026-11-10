@@ -129,7 +129,7 @@ func (a *App) ofAge() (string, bool) {
 
 func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 	th := a.th
-	hint := "O changes the order. / searches. UP and DOWN scroll."
+	hint := "/ searches. UP and DOWN scroll."
 	ix, iy, iw, ih := a.panel(c, x, y, w, h, "ORDER FLOW", hint)
 	if a.of == nil {
 		msg := "Reading ORDER FLOW from the relay."
@@ -256,7 +256,7 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 			c.Text(ix+colX[4+k], row, colW[4+k], padLeft(hd, colW[4+k]), th.Soft, false)
 		}
 		if bw := contentW(&a.lvOF, iw) - flowBarX; bw >= 12 {
-			bw = min(22, bw)
+			bw = min(shareBarWidth, bw)
 			c.Text(ix+flowBarX, row, bw, padLeft("BARS", bw), th.Soft, false)
 		}
 		row++
@@ -308,7 +308,7 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 			c.Text(ix+colX[3], row, colW[3], padLeft(bidAsk(r.Ask), colW[3]), th.Text, false)
 			a.drawFlowCols(c, ix, row, r, volKey)
 			if bw := cw - flowBarX; bw >= 12 && r.Measured() && *r.Buy+*r.Sell > 0 {
-				a.shareBarMid(c, ix+flowBarX, row, min(22, bw), float64(*r.Buy)/float64(*r.Buy+*r.Sell))
+				a.shareBarMid(c, ix+flowBarX, row, min(shareBarWidth, bw), float64(*r.Buy)/float64(*r.Buy+*r.Sell))
 			}
 			if warn != "" {
 				c.Text(ix+cw-len(warn), row, len(warn), warn, th.Warn, true)

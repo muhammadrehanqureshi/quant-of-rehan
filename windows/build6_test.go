@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
@@ -473,22 +472,17 @@ func TestFetchOrderFlowFallsBackToFlowAndAcceptsALargeBody(t *testing.T) {
 // colour. A long span carries two cells per box and nine lines.
 // Owner order 2026-11-10 (latest): build 21's bar is back, so the bar is its
 // 17 cells split into ten tabs, and the widths are build 21's own.
-func TestShareBarHasTenTabsOverSeventeenCells(t *testing.T) {
+// Owner order 2026-11-10 (latest): the bar is ten boxes, one cell each.
+func TestShareBarHasTenBoxesOfOneCell(t *testing.T) {
 	a := demoApp(t, 100, 30)
 	c := NewCanvas(40, 1, RGB{})
-	a.shareBar(c, 2, 0, 22, 0.5)
+	a.shareBar(c, 2, 0, shareBarWidth, 0.5)
 	row := c.PlainRows()[0]
-	if n := strings.Count(row, string(barBlock)); n != 17 {
-		t.Fatalf("the bar is %d cells, want build 21's 17: %q", n, row)
+	if n := strings.Count(row, string(barBlock)); n != shareBarBoxes {
+		t.Fatalf("the bar is %d cells, want %d boxes: %q", n, shareBarBoxes, row)
 	}
-	if strings.ContainsAny(row, "│▄▀") {
-		t.Fatalf("a separator or half cell is in the bar: %q", row)
-	}
-	if got := fmt.Sprint(shareBarTabWidths(17)); got != "[2 2 2 1 2 2 1 2 2 1]" {
-		t.Fatalf("tab widths %s, want build 21's [2 2 2 1 2 2 1 2 2 1]", got)
-	}
-	if n := len(shareBarTabWidths(17)); n != shareBarTabs {
-		t.Fatalf("%d tabs, want %d", n, shareBarTabs)
+	if strings.ContainsAny(row, "│▄▀█") {
+		t.Fatalf("a separator or full cell is in the bar: %q", row)
 	}
 }
 
