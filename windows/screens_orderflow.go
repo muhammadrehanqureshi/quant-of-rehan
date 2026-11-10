@@ -247,13 +247,16 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 	}
 	// Column header for the one-line table.
 	if wide {
-		c.Text(ix, row, 4, "  #", th.Soft, false)
+		// Owner order 2026-11-10: every heading starts at the left edge of its
+		// own column, over the first cell of its numbers, instead of being
+		// pushed to the right edge of the column.
+		c.Text(ix, row, 4, "#", th.Soft, false)
 		c.Text(ix+5, row, 8, "SYMBOL", th.Soft, false)
 		for k, hd := range []string{"PRICE", "CHANGE", "BID", "ASK"} {
-			c.Text(ix+colX[k], row, colW[k], padLeft(hd, colW[k]), th.Soft, false)
+			c.Text(ix+colX[k], row, colW[k], hd, th.Soft, false)
 		}
 		for k, hd := range []string{"BUYING (B)", "SELLING (S)", "UNCL. (U)", "TOTAL (T)"} {
-			c.Text(ix+colX[4+k], row, colW[4+k], padLeft(hd, colW[4+k]), th.Soft, false)
+			c.Text(ix+colX[4+k], row, colW[4+k], hd, th.Soft, false)
 		}
 		if bw := contentW(&a.lvOF, iw) - flowBarX; bw >= 12 {
 			bw = min(shareBarWidth, bw)

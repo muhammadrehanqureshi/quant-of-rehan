@@ -48,7 +48,9 @@ const orbScale = 1.0
 // because the owner says the orb still is not the one he handed over:
 // QoR-orb-source draws it at orbGrow 1.11, and its README measures that as the
 // ten percent bigger size it was cut for.
-const OrbGrow = 1.11
+// Owner order 2026-11-10 (latest): ten percent bigger than the source's own
+// 1.11 again, which is 1.221. The mark keeps the five percent narrower width.
+const OrbGrow = 1.221
 
 // orbXShrink narrows the mark across, and only across. Owner order 2026-11-10:
 // five percent less on the horizontal side, with the height left exactly as

@@ -10,13 +10,12 @@ import (
 // percent margin of build 32. The later order of the same day asks for ten
 // percent more again, and nothing else about the orb changes.
 func TestOrbGrowsTenPercentAgain(t *testing.T) {
-	if math.Abs(OrbGrow-1.11) > 1e-9 {
-		t.Fatalf("OrbGrow is %v, want 1.11, the source's own size", OrbGrow)
+	if math.Abs(OrbGrow-1.221) > 1e-9 {
+		t.Fatalf("OrbGrow is %v, want 1.221 (the source's 1.11 grown by ten percent)", OrbGrow)
 	}
-	// Owner order 2026-11-10 (latest): the mark is the source's own size again,
-	// so it is held to 1.11 rather than grown past it.
-	if OrbRadius(OrbGrow) != OrbRadius(1.11) {
-		t.Fatal("the mark is not the source's own size")
+	// Owner order 2026-11-10 (latest): ten percent bigger than the source size.
+	if OrbRadius(OrbGrow) <= OrbRadius(1.11) {
+		t.Fatal("the mark did not grow")
 	}
 }
 func TestMarkTakesTheWholeTile(t *testing.T) {
