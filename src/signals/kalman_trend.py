@@ -35,6 +35,14 @@ Two entries now share that law (owner order 2026-11-06, updated 2026-11-08):
     pullback, and only while the pullback and the entry are nearer the
     day's low than the day's high (src/signals/kalman_vwap_pullback.py).
 
+Owner order 2026-11-09 (Karachi): the running strategy is now the Kalman
+Trend with VWAP on the 5 minute, 15 minute and 1 hour charts AND relative
+strength, and it stays the law until the owner changes it again
+(src/signals/kalman_vwap_rs.py). The entry paths below are unchanged; what
+is new is that both also require the name to be outperforming the
+equal-weight mean of the captured universe. The market leg is measured once
+per scan by the scanner and handed to `candidate`.
+
 When both are legal the higher score is carried and the flip keeps an
 exact tie. The owner's TP/SL law is the whole plan:
   entry  - the bar the trend flips UP (and only while the flip is fresh,
@@ -130,7 +138,8 @@ def best_candidate(built: list[dict]) -> dict:
 
 def candidate(symbol: str, rows: list, session,
               tally: dict | None = None,
-              frames: bool = False) -> dict | None:
+              frames: bool = False,
+              rs_market: dict | None = None) -> dict | None:
     """Return a candidate from either entry law, or None.
 
     Same call shape the scanner and its tests always used. The gates below
@@ -146,6 +155,13 @@ def candidate(symbol: str, rows: list, session,
     live pipeline passes the deployment flag, and a frame that is not ready
     fails closed. The pullback entry needs that agreement by definition, so
     it is refused outright when the frames are not being read.
+
+    Owner order 2026-11-09: `rs_market` is the equal-weight market leg this
+    scan measured (src/signals/kalman_vwap_rs.py). When it is supplied the
+    latest strategy's relative strength gate also applies and the entry
+    carries the new strategy label; when it is None (a replay or a unit test
+    with no cross-section) the law runs without it, exactly as `frames=False`
+    runs the one minute law alone.
     """
     if config.is_etf_symbol(symbol) or session.as_of.tzinfo is None:
         _bump(tally, "etf_or_naive_tz")
@@ -261,6 +277,28 @@ def candidate(symbol: str, rows: list, session,
             _bump(tally, mtf_reason)
             return None
 
+    # Owner order 2026-11-09: the third ingredient of the latest strategy.
+    # The market leg is the one number the scan measured for the whole
+    # universe, so every name in a scan is judged against the same market. A
+    # gate that cannot be measured fails closed with its own reason named
+    # (SO-3), never silently skipped.
+    rs_view = None
+    if config.RS_ENABLED and rs_market is not None:
+        from src.signals import kalman_vwap_rs as kalman_rs
+
+        rs_view, rs_reason = kalman_rs.entry_view(symbol, rows, session,
+                                                  rs_market)
+        if rs_view is None:
+            _bump(tally, rs_reason)
+            return None
+
+    # The label the entry carries: the latest strategy when its full law
+    # spoke, the entry path's own name when the cross-section was not read.
+    flip_label = (config.RS_STRATEGY_VERSION if rs_view is not None
+                  else config.SCANNER_VERSION)
+    pullback_label = (config.RS_STRATEGY_VERSION if rs_view is not None
+                      else pullback.STRATEGY_VERSION)
+
     built: list[dict] = []
     if flip_index is not None:
         flip_bar = rows[flip_index]
@@ -277,7 +315,7 @@ def candidate(symbol: str, rows: list, session,
                          + min(15, age) + min(15, 5 * reward_risk))
         built.append({
             "symbol": symbol, "score": round(flip_score, 2),
-            "strategy": config.SCANNER_VERSION, "side": "LONG",
+            "strategy": flip_label, "side": "LONG",
             "price": {"last": entry}, "stop_loss": stop, "target": target,
             "risk_pct": risk, "net_reward_risk": reward_risk,
             "setup": {
@@ -288,6 +326,8 @@ def candidate(symbol: str, rows: list, session,
                 "hysteresis_log_per_minute": config.KALMAN_FLIP_THRESHOLD,
                 "process_noise_q": config.KALMAN_Q,
                 "observation_noise_r": config.KALMAN_R,
+                "relative_strength": rs_view,
+                "entry_path": "flip",
                 "mtf": view,
             },
             "volume": {"traded_value_estimate": turnover,
@@ -300,12 +340,14 @@ def candidate(symbol: str, rows: list, session,
         built.append({
             "symbol": symbol,
             "score": pullback.score(pullback_setup, reward_risk),
-            "strategy": pullback.STRATEGY_VERSION, "side": "LONG",
+            "strategy": pullback_label, "side": "LONG",
             "price": {"last": entry}, "stop_loss": stop, "target": target,
             "risk_pct": risk, "net_reward_risk": reward_risk,
             "setup": {
                 "slope_per_minute_log": trace[-1]["slope"],
                 "pullback": pullback_setup,
+                "relative_strength": rs_view,
+                "entry_path": "pullback",
                 "hysteresis_log_per_minute": config.KALMAN_FLIP_THRESHOLD,
                 "process_noise_q": config.KALMAN_Q,
                 "observation_noise_r": config.KALMAN_R,

@@ -5,7 +5,9 @@
 The active intraday rules are the owner's Kalman Trend strategies:
 `kalman_trend_flip_v1` (owner order 2026-10-30, which removed ICT/SMC
 outright) and `kalman_vwap_pullback_v2` (owner order 2026-11-06, frame list
-updated 2026-11-08, below).
+updated 2026-11-08, below). The latest law is `kalman_vwap_rs_v3` (owner
+order 2026-11-09, below), which is that three frame law plus relative
+strength and stays in force until the owner changes it.
 See src/signals/kalman_trend.py and src/signals/kalman_vwap_pullback.py for
 the authoritative contracts: entry, stop and exit on the intraday band feed,
 the owner's +2% target, parameters grid-fit in GitHub Actions. Momentum/RSI
@@ -15,6 +17,30 @@ The frozen chronological evidence gate and source-confirmation checks remain.
 All tests, backtests and builds run in GitHub Actions, never on the owner's PC.
 The scheduled session loop requests one-second cycles and preserves one shared
 daily entry claim. No broker orders are transmitted.
+
+## Kalman Trend, VWAP 5m/15m/1h and relative strength, owner order 2026-11-09 (Karachi)
+
+The latest intraday strategy, and the running law until the owner changes it,
+is the Kalman Trend with VWAP on the 5 minute, 15 minute and 1 hour charts
+and relative strength. It is the three frame law below plus one more measured
+gate, labelled `kalman_vwap_rs_v3` with the reader `rs_session_v1`
+(src/signals/kalman_vwap_rs.py). Both entry paths, the fresh one minute flip
+and the pullback resumption, still apply, and the owner's +2% target, -1%
+stop, one call a day and every data-honesty gate are unchanged. The live scan
+measures the market leg once per scan and hands the same number to every
+name, so one scan never compares two names against two different markets.
+
+Relative strength is measured from the session tape alone: the symbol's own
+move, its last completed close against the open of its first completed bar,
+minus the equal-weight mean of that same move across every symbol the capture
+holds. That market leg is the captured cross-section, not the official
+KMIALLSHR level and not a daily file, so the owner's 2026-11-08 withdrawal of
+the daily history still stands; a 20 session RS cannot be measured here and
+is never claimed. The gate wants the difference strictly positive, so the
+called name must be beating the market rather than drifting with it. A
+capture holding fewer than `RS_MIN_MARKET_SYMBOLS` measured names has no
+market leg at all, and the scan says so and opens nothing rather than
+dropping the gate silently.
 
 ## Three frame VWAP pullback, owner order 2026-11-08 (Karachi)
 

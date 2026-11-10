@@ -316,6 +316,29 @@ PULLBACK_RESUME_BARS = int(_number("PULLBACK_RESUME_BARS", 5))
 #: The dip must reach this share of the swing high. Percent in the environment,
 #: stored as a fraction like every other threshold here.
 PULLBACK_MIN_DEPTH_PCT = _number("PULLBACK_MIN_DEPTH_PCT", 0.5) / 100.0
+
+# ------------------ Kalman Trend three frame VWAP plus relative strength
+# Owner order 2026-11-09 (Karachi): the newest intraday strategy is the
+# Kalman Trend with VWAP on the 5 minute, 15 minute and 1 hour charts AND
+# relative strength, and it is the running law until the owner changes it
+# again. The three frame agreement and the two entry paths it governs are
+# unchanged (src/signals/mtf_vwap.py, src/signals/kalman_vwap_pullback.py);
+# what is new is that the name being called must also be outperforming the
+# market it trades in (src/signals/kalman_vwap_rs.py).
+#
+# The market leg is the equal-weight mean session return of every symbol the
+# capture holds, measured from the session tape alone. That is the proxy the
+# 2026-11-08 order left standing: the 20 session RS the daily studies used
+# needs the daily history the same order withdrew, so nothing here reads a
+# daily file and the gate is a measured session number, never an assumed one.
+RS_ENABLED = _flag("RS_ENABLED", True)
+RS_STRATEGY_VERSION = "kalman_vwap_rs_v3"
+#: Relative strength must be strictly above this, as a fraction. Zero is the
+#: owner's own wording: the name must beat the market, not merely match it.
+RS_MIN_RELATIVE_PCT = _number("RS_MIN_RELATIVE_PCT", 0.0) / 100.0
+#: A market leg needs this many measured symbols. A thin capture cannot say
+#: what the market did, so the gate fails closed rather than guessing.
+RS_MIN_MARKET_SYMBOLS = int(_number("RS_MIN_MARKET_SYMBOLS", 20))
 # Legacy momentum constants above are retained only by historical daily-bar
 # research. They have no decision path in the intraday scanner.
 
@@ -642,6 +665,14 @@ def config_snapshot() -> dict:
             "lookback_bars": PULLBACK_LOOKBACK_BARS,
             "resume_bars": PULLBACK_RESUME_BARS,
             "min_depth_pct": round(PULLBACK_MIN_DEPTH_PCT * 100, 4),
+        },
+        "relative_strength": {
+            "enabled": RS_ENABLED,
+            "version": RS_STRATEGY_VERSION,
+            "min_relative_pct": round(RS_MIN_RELATIVE_PCT * 100, 4),
+            "min_market_symbols": RS_MIN_MARKET_SYMBOLS,
+            "basis": "session return minus the equal-weight mean of the "
+                     "captured universe, read from the session tape alone",
         },
         "min_relative_volume": MIN_RELATIVE_VOLUME,
         "min_session_traded_value": MIN_SESSION_TRADED_VALUE,

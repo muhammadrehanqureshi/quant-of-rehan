@@ -38,14 +38,18 @@ broker (SO-1).
   returns exactly one confirmed Kalman Trend long (the fresh flip, or the three
   frame agreement's pullback), NO TRADE, or DATA BLOCKED, with market context
   gating and late-entry refusal instead of any fallback signal.
-- **Two entry laws**: [src/signals/kalman_trend.py](src/signals/kalman_trend.py)
+- **The latest strategy**: [src/signals/kalman_vwap_rs.py](src/signals/kalman_vwap_rs.py)
+  is the running law (`kalman_vwap_rs_v3`, owner order 2026-11-09): the Kalman
+  Trend with VWAP on the 5 minute, 15 minute and 1 hour charts and relative
+  strength. Relative strength is the name's session return minus the
+  equal-weight mean of the captured universe, measured from the session tape
+  alone. Both entry paths stay: [src/signals/kalman_trend.py](src/signals/kalman_trend.py)
   owns the fresh flip (`kalman_trend_flip_v1`), and
   [src/signals/kalman_vwap_pullback.py](src/signals/kalman_vwap_pullback.py)
   owns the three frame VWAP pullback (`kalman_vwap_pullback_v2`), which must
   keep both the dip and the entry in the lower half of the day's range. The
   owner's order of 2026-11-08 set those three frames (5 minute, 15 minute and
-  1 hour) and withdrew the 1 day frame and its daily file; he checks the
-  updated signal on 2026-11-10.
+  1 hour) and withdrew the 1 day frame and its daily file.
 - **One configuration surface**: [src/config.py](src/config.py) holds the
   target, the coverage floor, the Kalman and VWAP parameters, the pullback
   window, the scan cadence and the paper/live switch. Paper is the default;

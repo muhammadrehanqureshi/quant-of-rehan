@@ -7,7 +7,10 @@ for all runners. Two entries can enter, both built by
 src/signals/kalman_trend.py's causal level+slope filter: a fresh confirmed
 upward trend flip, and, when that trend and the four VWAP frames agree, the
 resumption after a completed pullback that sits nearer the day's low than
-its high (src/signals/kalman_vwap_pullback.py).
+its high (src/signals/kalman_vwap_pullback.py). It is the latest strategy
+(owner order 2026-11-09, `kalman_vwap_rs_v3`): when the live deployment
+reads the frames, each entry must also beat the equal-weight market
+(src/signals/kalman_vwap_rs.py).
 The old RSI diagnostic remains solely for reproducing the HCAR postmortem.
 Asia/Karachi, UTC+5. Signal-only, no broker orders and no assured returns.
 """
@@ -651,45 +654,67 @@ def _wilder_rsi(closes: list[float], period: int = 14) -> float | None:
 
 def score_symbol(symbol: str, rows: list[MinuteBar], session: SessionData,
                  tally: dict | None = None,
-                 frames: bool = False) -> dict | None:
+                 frames: bool = False,
+                 rs_market: dict | None = None) -> dict | None:
     """Score one symbol under the Kalman Trend entry laws.
 
     `frames` says whether this deployment reads the 5 minute, 15 minute and
     1 hour VWAP frames (src/signals/mtf_vwap.py). False keeps the replay and
     unit-test path on the one minute law; the live pipeline passes the
-    deployment flag from src/config.py.
+    deployment flag from src/config.py. `rs_market` is the scan's own
+    relative strength market leg (src/signals/kalman_vwap_rs.py), measured
+    once in select_one and handed to every name.
     """
-    return kalman_trend.candidate(symbol, rows, session, tally, frames=frames)
+    return kalman_trend.candidate(symbol, rows, session, tally, frames=frames,
+                                  rs_market=rs_market)
 
 
 def rank_candidates(session: SessionData,
                     ai_prior: dict[str, float] | None = None,
                     tally: dict | None = None,
-                    frames: bool = False) -> list[dict]:
+                    frames: bool = False,
+                    rs_market: dict | None = None) -> list[dict]:
     """Rank confirmed setups; the old daily-model prior has no entry authority.
 
     When `tally` is a dict, it is filled with every gate rejection the whole
     universe produced, so the caller can report WHY nothing or something
-    passed (SO-3: measured, never implied).
+    passed (SO-3: measured, never implied). `rs_market` is the scan's one
+    relative strength market leg, shared by every name.
     """
     ranked = [row for symbol in sorted(session.bars)
               if (row := score_symbol(symbol, session.bars[symbol], session,
-                                      tally, frames=frames)) is not None]
+                                      tally, frames=frames,
+                                      rs_market=rs_market)) is not None]
     return sorted(ranked, key=lambda row: (-row["score"], row["symbol"]))
 
 
 def select_one(session: SessionData, quality: QualityReport,
                ai_prior: dict[str, float] | None = None,
                ai_status: dict | None = None,
-               frames: bool = False) -> ScanResult:
+               frames: bool = False,
+               rs_market: dict | None = None) -> ScanResult:
     """At most one fully confirmed long, never a momentum/RSI fallback."""
     coverage = f"{quality.symbols_with_bars}/{quality.symbols_expected} ({quality.coverage:.1%})"
     if quality.status == DATA_BLOCKED:
         return ScanResult(DATA_BLOCKED, quality.reason, quality, {}, coverage_text=coverage)
     context = market_context(session)
     context["ai"] = {"active": False, "reason": "Kalman flip rules do not use the daily momentum prior"}
+    # Owner order 2026-11-09: the latest strategy's market leg is measured once
+    # here, from this session's own tape, and handed to every name in the scan.
+    # A capture too thin to say what the market did fails closed with the
+    # reason named rather than dropping the gate silently (SO-3).
+    if config.RS_ENABLED and frames and rs_market is None:
+        from src.signals import kalman_vwap_rs as kalman_rs
+
+        rs_market, rs_reason = kalman_rs.market_return(session)
+        if rs_market is None:
+            return ScanResult(
+                NO_TRADE, f"relative strength unavailable: {rs_reason}",
+                quality, context, ranked=[], coverage_text=coverage,
+                gate_tally={rs_reason: 1})
     tally: dict = {}
-    ranked = rank_candidates(session, tally=tally, frames=frames)
+    ranked = rank_candidates(session, tally=tally, frames=frames,
+                             rs_market=rs_market)
     # Broad panic is a risk veto; ordinary weak breadth is not a momentum
     # entry filter on this reversal strategy.
     if context.get("median_return") is None or context["median_return"] < config.MAX_MARKET_DROP:
@@ -738,26 +763,39 @@ def target_price(entry: float) -> float:
 
 def signal_message(candidate: dict, market: dict, entry: float,
                    entry_time: datetime) -> str:
+    setup = candidate.get("setup") or {}
     stop = candidate["stop_loss"]
     strategy = candidate.get("strategy") or config.SCANNER_VERSION
-    if (candidate.get("setup") or {}).get("pullback"):
+    relative = setup.get("relative_strength")
+    if setup.get("pullback"):
         reason = ("pullback resumed after the Kalman trend and the three frame "
                   "VWAP agreed, nearer the daily low than the daily high")
     else:
         reason = "upward Kalman trend flip on the intraday band feed"
-    return (
-        "QUANT LONG SIGNAL - PAPER REFERENCE\n\n"
-        f"Symbol: {candidate['symbol']}\n"
-        f"Score: {candidate['score']:.0f}/100\n"
-        f"Entry price: {entry:.4f}\n"
-        f"Target: {target_price(entry):.4f} (+{config.TARGET_PCT * 100:.1f}% gross)\n"
-        f"Stop Loss: {stop:.4f}\n"
-        f"Reason: {reason}\n"
-        f"Strategy: {strategy}\n"
-        f"Entry time: {entry_time:%H:%M:%S} PKT\n"
-        "Entry is the last completed minute close, not a confirmed fill.\n"
-        "ONE TRADE ONLY. Target is not a guaranteed return."
-    )
+    if isinstance(relative, dict) and relative.get("relative_strength") is not None:
+        reason += "; the name is outperforming the equal-weight market"
+    lines = [
+        "QUANT LONG SIGNAL - PAPER REFERENCE",
+        "",
+        f"Symbol: {candidate['symbol']}",
+        f"Score: {candidate['score']:.0f}/100",
+        f"Entry price: {entry:.4f}",
+        f"Target: {target_price(entry):.4f} (+{config.TARGET_PCT * 100:.1f}% gross)",
+        f"Stop Loss: {stop:.4f}",
+        f"Reason: {reason}",
+        f"Strategy: {strategy}",
+    ]
+    if isinstance(relative, dict) and relative.get("relative_strength") is not None:
+        lines.append(
+            "Relative strength: "
+            f"{relative['relative_strength'] * 100:+.2f} pp over the "
+            "equal-weight market")
+    lines += [
+        f"Entry time: {entry_time:%H:%M:%S} PKT",
+        "Entry is the last completed minute close, not a confirmed fill.",
+        "ONE TRADE ONLY. Target is not a guaranteed return.",
+    ]
+    return "\n".join(lines)
 
 
 def call_watch_message(result, quality, market: dict, as_of) -> str:
