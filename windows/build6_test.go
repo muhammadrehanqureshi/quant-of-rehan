@@ -469,26 +469,25 @@ func TestShareBarHasTenBoxesOfTwoCells(t *testing.T) {
 	c := NewCanvas(40, 1, RGB{})
 	a.shareBar(c, 2, 0, shareBarWidth, 0.5)
 	row := c.PlainRows()[0]
-	if n := strings.Count(row, string(barBlock)); n != shareBarBoxes {
-		t.Fatalf("the bar is %d boxes, want exactly %d: %q", n, shareBarBoxes, row)
+	if n := strings.Count(row, string(barBlock)); n != shareBarSpan {
+		t.Fatalf("the bar covers %d cells, want exactly %d (ten boxes of two): %q", n, shareBarSpan, row)
 	}
 	if strings.ContainsAny(row, "│▄▀█") {
 		t.Fatalf("a separator or full cell is in the bar: %q", row)
 	}
 }
 
-// Owner order 2026-11-10 (latest): the ORDER FLOW table carries no bar and no
-// BARS or % column. The only bars in the build are the LATEST SIGNAL tile's and
-// the KSE100 leaders'.
-func TestOrderFlowHasNoBarColumn(t *testing.T) {
+// Owner order 2026-11-10 (latest): the bar is back on ORDER FLOW, ten boxes two
+// cells wide, with its heading on the bar's own first cell.
+func TestOrderFlowHasABarColumn(t *testing.T) {
 	a := demoApp(t, 160, 45)
 	a.screen = scrOrderFlow
 	s := plain(a)
-	if strings.Contains(s, "BARS") {
-		t.Errorf("the order flow bar column is still there:\n%s", s)
+	if !strings.Contains(s, "BARS") {
+		t.Errorf("the order flow bar column is not called BARS:\n%s", s)
 	}
-	if strings.ContainsRune(s, barBlock) {
-		t.Errorf("order flow still draws a bar:\n%s", s)
+	if !strings.ContainsRune(s, barBlock) {
+		t.Errorf("order flow draws no bar:\n%s", s)
 	}
 	if strings.Contains(s, "BUY SHARE") {
 		t.Errorf("the old BUY SHARE heading is still there")

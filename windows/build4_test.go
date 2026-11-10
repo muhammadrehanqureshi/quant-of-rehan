@@ -115,8 +115,12 @@ func TestAlertsBoardIsNumberedAndScrolls(t *testing.T) {
 // aligned in a field of its own there, so every leader's S= starts on the same
 // cell and the block carries padding spaces. Every other screen packs it tight.
 func TestBSTFormatEverywhere(t *testing.T) {
-	good := regexp.MustCompile(`B=\s*[\d,]+, S=\s*[\d,]+, U=\s*[\d,]+ & T=\s*[\d,]+`)
-	bad := regexp.MustCompile(`B=[\d,]+\s{2,}S=|S=[\d,]+\s{2,}T=|\(B=|\)\s*$`)
+	// Two readings are legal: the packed sentence the lists use, B=1, S=2,
+	// U=0 & T=3, and the fixed columns the KSE100 leaders use, where the fields
+	// are separated by spaces and each label starts on its own cell. Both keep
+	// every number hard against its own "=" sign.
+	good := regexp.MustCompile(`B=[\d,]+[, ]+S=[\d,]+[, ]+U=[\d,]+[, ]+(?:& )?T=[\d,]+`)
+	bad := regexp.MustCompile(`\(B=|\)\s*$`)
 	for _, c := range []struct {
 		name string
 		set  func(a *App)

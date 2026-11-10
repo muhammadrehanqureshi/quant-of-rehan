@@ -815,6 +815,41 @@ func (a *App) putBST(c *Canvas, x, y int, buy, sell, total *int64, keys ...strin
 	return vx - x
 }
 
+// The leader row's fixed fields, as offsets from the row's first cell. Owner
+// order 2026-11-10 (latest): B, S, U and T each start on the same cell on every
+// leader row, so the block reads the same on CNERGY, TISL and MLCF no matter
+// how many digits each number carries, and every number sits hard against its
+// own "=" with no gap after the sign. The slack of a short number falls after
+// it, never between the sign and the digits.
+const (
+	bstBuyX  = 0
+	bstSellX = 16
+	bstUncX  = 33
+	bstTotX  = 47
+)
+
+// putBSTCols writes those four fields into their columns and returns the cells
+// the block used. A stock with no measured split falls back to putBST.
+func (a *App) putBSTCols(c *Canvas, x, y int, buy, sell, total *int64, keys ...string) int {
+	th := a.th
+	if buy == nil || sell == nil || total == nil {
+		return a.putBST(c, x, y, buy, sell, total, keys...)
+	}
+	put := func(at int, label, num string, fg RGB, bold bool) {
+		w := a.flashText(c, x+at, y, label, th.Soft, false, keys...)
+		a.flashText(c, x+at+w, y, num, fg, bold, keys...)
+	}
+	un := *total - *buy - *sell
+	if un < 0 {
+		un = 0
+	}
+	put(bstBuyX, "B=", commaInt(*buy), th.Good, true)
+	put(bstSellX, "S=", commaInt(*sell), th.Bad, true)
+	put(bstUncX, "U=", commaInt(un), th.Warn, un > 0)
+	put(bstTotX, "& T=", commaInt(*total), totalBlue, false)
+	return bstTotX + 4 + runeLen(commaInt(*total))
+}
+
 func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 	th := a.th
 	ix, iy, iw, ih := a.panel(c, x, y, w, h, "KSE100 INDEX & THE TOP 3 SCRIPS OF VOLUME", "")
@@ -934,11 +969,15 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 		}
 		// Owner order 2026-11-10: the row reads B, S, U, T, then the live price
 		// and its change, and the bar closes the line after them.
-		// Owner order 2026-11-10 (latest): the fixed field padding is withdrawn.
-		// Each number sits hard against its own "=", so the row reads B=1,234
-		// with no gap after the sign; symmetry is the labels' own, not a column
-		// of padded digits.
-		used := a.putBST(c, ix+3, row, buy, sell, vol, volKey, pxKey)
+		// Owner order 2026-11-10 (latest): B, S, U and T each start on the same
+		// cell on every row, and each number sits hard against its own "=". A
+		// narrow tile falls back to the packed form.
+		used := 0
+		if iw >= 118 {
+			used = a.putBSTCols(c, ix+3, row, buy, sell, vol, volKey, pxKey)
+		} else {
+			used = a.putBST(c, ix+3, row, buy, sell, vol, volKey, pxKey)
+		}
 		// Owner order 2026-11-10 (latest): the price, the change and the bar are
 		// pushed to the tile's far right and right aligned at one edge, so all
 		// three leaders line up and nothing floats in the middle of the row. The

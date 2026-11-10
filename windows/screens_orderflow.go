@@ -258,6 +258,9 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 		for k, hd := range []string{"BUYING (B)", "SELLING (S)", "UNCL. (U)", "TOTAL (T)"} {
 			c.Text(ix+colX[4+k], row, colW[4+k], hd, th.Soft, false)
 		}
+		if iw-flowBarX >= shareBarWidth {
+			c.Text(ix+flowBarX, row, shareBarSpan, "BARS", th.Soft, false)
+		}
 		row++
 	}
 	foot := 1
@@ -299,15 +302,22 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 			warn = " STALE"
 		}
 		if wide {
-			c.Text(ix, row, 4, fmt.Sprintf("%3d.", i+1), th.Soft, false)
+			// Owner order 2026-11-10 (latest): the serial is left aligned on the
+			// panel edge, so the # heading sits on the first digit of the number.
+			c.Text(ix, row, 4, fmt.Sprintf("%d.", i+1), th.Soft, false)
 			c.Text(ix+4, row, 8, r.Symbol, symCol, true)
 			// Owner order 2026-11-10 (latest): every value starts on its column's
-			// first cell, under its own heading, and no bar follows the volumes.
+			// first cell, under its own heading.
 			a.flashText(c, ix+colX[0], row, commaFloat(r.Price, 2), th.Text, true, pxKey)
 			a.flashText(c, ix+colX[1], row, chg, chgCol, true, pxKey)
 			c.Text(ix+colX[2], row, colW[2], bidAsk(r.Bid), th.Text, false)
 			c.Text(ix+colX[3], row, colW[3], bidAsk(r.Ask), th.Text, false)
 			a.drawFlowCols(c, ix, row, r, volKey)
+			if cw-flowBarX >= shareBarWidth && r.Measured() && *r.Buy+*r.Sell > 0 {
+				// Owner order 2026-11-10 (latest): the bar is back on ORDER FLOW,
+				// ten boxes two cells wide, so it is longer without one extra box.
+				a.shareBar(c, ix+flowBarX, row, shareBarWidth, float64(*r.Buy)/(float64(*r.Buy)+float64(*r.Sell)))
+			}
 			if warn != "" {
 				c.Text(ix+cw-len(warn), row, len(warn), warn, th.Warn, true)
 			}
@@ -350,6 +360,10 @@ var (
 	colX = [8]int{13, 22, 30, 37, 44, 57, 70, 81}
 	colW = [8]int{9, 8, 7, 7, 13, 13, 11, 14}
 )
+
+// flowBarX is where the bar column starts, past the TOTAL column, and its
+// heading sits on that same cell (owner order 2026-11-10, latest).
+const flowBarX = 99
 
 // drawFlowCols draws the four volume columns of the one-line table. Each value
 // sits under its header, with U never merged into B or S.
