@@ -1760,9 +1760,19 @@ function quoteSnapshotShapeError(body) {
   }
   const stamps = [];
   for (const [i, row] of body.quotes.entries()) {
+    // Owner order 2026-11-09: one zero-volume baseline is published per
+    // symbol per day so the day's first print is sided instead of parked in
+    // the unclear remainder. It carries no price by definition, so the
+    // positive price rule cannot apply to it; the symbol, the source and the
+    // stamp still must. Before this, one baseline rejected the whole batch
+    // with a 400 and the feed stayed empty for the rest of the day (owner
+    // incident 2026-11-10).
+    const baseline = row && row.flow_only === true &&
+      Number(row.volume) === 0;
+    const priced = row && Number.isFinite(row.price) && row.price > 0;
     if (!row || typeof row !== "object" || Array.isArray(row) ||
         !/^[A-Z0-9]{1,12}$/.test(String(row.symbol || "")) ||
-        !Number.isFinite(row.price) || row.price <= 0 ||
+        (!priced && !baseline) ||
         typeof row.observed_at !== "string" ||
         !Number.isFinite(Date.parse(row.observed_at))) {
       return `quotes[${i}] requires a valid symbol, positive price and timestamp`;
