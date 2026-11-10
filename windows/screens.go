@@ -394,8 +394,9 @@ func (a *App) drawLeft(c *Canvas, x, y, w, h int) {
 	// The QUANT CORE tile had room to spare under the mark, so those rows go to
 	// the tile that carries the numbers.
 	// Owner order 2026-11-10 (latest): the QUANT CORE tile is a tenth shorter
-	// than it was, and the rows it gives up go to TELEMETRY. Its mark is the dot
-	// matrix QUANT OF REHAN, one word to a line, in place of the orb.
+	// than it was, and the rows it gives up go to TELEMETRY. Its mark is the
+	// QUANT OF REHAN dot matrix, and the owner's newest order puts a turning dot
+	// sphere there for now with the wordmark out.
 	const telBase = 12
 	coreH := (h - telBase - 1) * 9 / 10
 	if coreH < 5 {
@@ -403,7 +404,9 @@ func (a *App) drawLeft(c *Canvas, x, y, w, h int) {
 	}
 	telH := h - coreH - 1
 	ix, iy, iw, ih := a.panel(c, x, y, w, coreH, "QUANT CORE", "")
-	drawWordmark(c, ix, iy, iw, ih, a.animSeconds(), a.orbGreen(), th)
+	// Owner order 2026-11-10 (latest): the wordmark is out for now and the tile
+	// carries a three dimensional dot sphere turning clockwise.
+	drawSphere(c, ix, iy, iw, ih, a.animSeconds(), a.orbGreen(), th)
 
 	tx, ty, tw, _ := a.panel(c, x, y+coreH+1, w, telH, "TELEMETRY", "")
 	const labelW = 7

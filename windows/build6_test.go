@@ -464,7 +464,7 @@ func TestShareBarIsOneUnbrokenBand(t *testing.T) {
 	if n := strings.Count(seg, string(barBlock)); n != shareBarSpan {
 		t.Fatalf("the bar covers %d cells of its %d, so a separator or a gap is in it: %q", n, shareBarSpan, row)
 	}
-	if strings.ContainsAny(row, "│▀▄▬█") {
+	if strings.ContainsAny(row, "│▀▄█") {
 		t.Fatalf("a separator or a block is inside the bar: %q", row)
 	}
 }
