@@ -330,7 +330,10 @@ class TestScannerReadsTheTape(TapeCaptureFixture):
         quality = scanner.assess_quality(session, ["OGDC"])
         text = scanner.scan_blocked_message(quality)
 
-        self.assertIn("SCAN BLOCKED", text)
+        # Owner order 2026-11-10: the card's first line is the headline, so a
+        # countdown never reads as a data failure on the owner's screen.
+        self.assertIn("WARMING UP", text)
+        self.assertNotIn("SCAN BLOCKED", text)
         self.assertIn("MKT-FEED tape", text)
         self.assertIn("Bar history:", text)
         # Five minutes of tape against twenty bars of need is a countdown, not

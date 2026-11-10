@@ -836,8 +836,13 @@ def no_trade_message(quality: QualityReport, market: dict,
 
 def scan_blocked_message(quality: QualityReport) -> str:
     newest = quality.newest_bar.isoformat() if quality.newest_bar else "none"
+    # The tile prints this first line verbatim, so a young tape must not
+    # arrive on the owner's screen under a failure heading. Owner order
+    # 2026-11-10 ("why the scan is blocked ... it should never be blocked"):
+    # a capture that is still filling is WARMING UP, and only a real data
+    # fault is SCAN BLOCKED.
     lines = [
-        "SCAN BLOCKED",
+        "WARMING UP" if quality.warming_up else "SCAN BLOCKED",
         "",
         f"KMIALL coverage: {quality.symbols_with_bars}/{quality.symbols_expected}"
         f" ({quality.coverage:.1%})",

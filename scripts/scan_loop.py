@@ -637,7 +637,16 @@ class ScanLoop:
             # this is the pre band's own quiet, not a dead feed. Counted
             # as a pause, never as a failure, so the breaker that stopped
             # the band at 09:07 today can never fire on it again.
-            if market_state_at(moment) is MarketState.PRE_MARKET:
+            #
+            # Owner order 2026-11-10 ("it should also start the scan when
+            # the pre market starts"): the 08:55 warm-up runs before the
+            # exchange's 09:15 pre-open, and the same empty tape there was
+            # being counted as a fault five times in a row, which killed
+            # the band job before the pre-market ever began. Outside the
+            # trading band the empty tape is the warm-up waiting for its
+            # first print, so it is a pause on every such instant, and
+            # only a live band with no bars is the real fault.
+            if market_state_at(moment) is not MarketState.MARKET:
                 raise QuietTape(
                     f"the tape is alive but holds no bars yet: {note}")
             raise ScanFault(f"the tape is alive but holds no bars yet: {note}")
