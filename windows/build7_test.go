@@ -44,8 +44,11 @@ func TestBarsAreBuild21sShadedTabs(t *testing.T) {
 	c := NewCanvas(40, 1, RGB{})
 	a.shareBar(c, 2, 0, 22, 0.5)
 	row := c.PlainRows()[0]
-	if barBlock != '█' {
-		t.Fatalf("the bar is %q, not a full cell", barBlock)
+	// Owner order 2026-11-10 (latest): the bar is short and centred in its own
+	// box, so it is the rule block and never the full cell that touched its
+	// neighbours above and below.
+	if barBlock != '▬' {
+		t.Fatalf("the bar is %q, not the thin centred rule", barBlock)
 	}
 	if strings.ContainsRune(row, '│') {
 		t.Fatalf("a line is drawn between the boxes again: %q", row)

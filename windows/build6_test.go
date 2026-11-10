@@ -199,8 +199,10 @@ func TestOrderFlowSortKeepsUnmeasuredAtTheBottom(t *testing.T) {
 
 // After the bar there is one space and then the percentage, however many
 // digits it has.
-func TestPercentFollowsTheBarWithOneSpace(t *testing.T) {	good := regexp.MustCompile(`█ \d{1,3}%`)
-	bad := regexp.MustCompile(`█  +\d{1,3}%|█\d{1,3}%`)
+func TestPercentFollowsTheBarWithOneSpace(t *testing.T) {	// The bar's glyph is whatever barBlock is, so the pattern follows it.
+	mark := regexp.QuoteMeta(string(barBlock))
+	good := regexp.MustCompile(mark + ` \d{1,3}%`)
+	bad := regexp.MustCompile(mark + `  +\d{1,3}%|` + mark + `\d{1,3}%`)
 	for _, ch := range []int{2, 3} {
 		a := busyApp(t, 122, 30, 6)
 		a.screen, a.scanChoice = scrScanner, ch
@@ -219,7 +221,8 @@ func TestPercentFollowsTheBarWithOneSpace(t *testing.T) {	good := regexp.MustCom
 		a.shareBar(c, 2, 0, 22, share)
 		row := c.PlainRows()[0]
 		i := strings.LastIndex(row, string(barBlock))
-		if i < 0 || row[i+len("█")] != ' ' || row[i+len("█")+1] < '0' || row[i+len("█")+1] > '9' {
+		n := len(string(barBlock))
+		if i < 0 || row[i+n] != ' ' || row[i+n+1] < '0' || row[i+n+1] > '9' {
 			t.Errorf("share %.2f: %q", share, row)
 		}
 	}
