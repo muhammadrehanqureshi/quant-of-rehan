@@ -112,7 +112,7 @@ func TestAlertsBoardIsNumberedAndScrolls(t *testing.T) {
 
 // B, S and T are written one way on every screen: B=1, S=2 & T=3.
 func TestBSTFormatEverywhere(t *testing.T) {
-	good := regexp.MustCompile(`B=[\d,]+, S=[\d,]+ & T=[\d,]+`)
+	good := regexp.MustCompile(`B=[\d,]+, S=[\d,]+, U=[\d,]+ & T=[\d,]+`)
 	bad := regexp.MustCompile(`B=[\d,]+\s{2,}S=|S=[\d,]+\s{2,}T=|\(B=|\)\s*$`)
 	for _, c := range []struct {
 		name string

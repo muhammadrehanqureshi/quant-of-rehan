@@ -776,7 +776,7 @@ func (a *App) marketNote() string {
 	return "Quant is sleeping till the next market day."
 }
 
-// putBST draws "B=1,234, S=5,678 & T=6,912" at (x, y) the way every list on the
+// putBST draws "B=1,234, S=5,678, U=12 & T=6,912" at (x, y) the way every list on the
 // screen words it, with the live flash on each number. A part that is missing
 // is left out. It returns the width drawn.
 func (a *App) putBST(c *Canvas, x, y int, buy, sell, total *int64, keys ...string) int {
@@ -791,6 +791,15 @@ func (a *App) putBST(c *Canvas, x, y int, buy, sell, total *int64, keys ...strin
 		put(", S=", th.Soft, false)
 		put(commaInt(*sell), th.Bad, true)
 		if total != nil {
+			// Owner order 2026-11-10: U is on every B and S line, so B + S + U
+			// = T can be read at a glance. It is the volume the capture could
+			// not side, and it is never folded into B or S.
+			un := *total - *buy - *sell
+			if un < 0 {
+				un = 0
+			}
+			put(", U=", th.Soft, false)
+			put(commaInt(un), th.Warn, un > 0)
 			put(" & T=", th.Soft, false)
 			put(commaInt(*total), totalBlue, false)
 		}
@@ -834,11 +843,7 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 		n += a.flashText(c, ix+n, row, commaFloat(v, 2), th.Text, true, "idx")
 		n += a.flashText(c, ix+n+2, row, change, dir, true, "idx") + 2
 		if sparkW > 0 && len(a.idxHist.v) >= 3 && end-row >= 2 {
-			col := th.Good
-			if a.idxHist.v[len(a.idxHist.v)-1] < a.idxHist.v[0] {
-				col = th.Bad
-			}
-			sparkline(c, ix+iw-sparkW, row, sparkW, 2, a.idxHist.v, col, th.Panel)
+			barMeter(c, ix+iw-sparkW, row, sparkW, 2, a.idxHist.v, th.Good, th.Bad, th.Panel)
 		}
 		row++
 		meta := ""
@@ -913,24 +918,9 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 		}
 		pxKey, volKey := "px:"+l.Symbol, "vol:"+l.Symbol
 		c.Spans(ix, row, textW, []Span{{strconv.Itoa(i+1) + ". ", th.Soft, false}, {l.Symbol, th.Hot, true}})
-		right := ix + textW
-		if l.ChangePct != nil {
-			s := " " + changeText(*l.ChangePct)
-			a.flashRight(c, right, row, s, a.dirColor(*l.ChangePct), true, pxKey)
-			right -= runeLen(s)
-		}
-		if l.Price != nil {
-			ps := commaFloat(*l.Price, 2)
-			a.flashRight(c, right, row, ps, th.Text, true, pxKey)
-			c.Text(right-runeLen(ps)-4, row, 4, "PKR ", th.Soft, false)
-		}
 		if sparkW > 0 {
 			if h := a.symHist[l.Symbol]; h != nil && len(h.v) >= 3 {
-				col := th.Good
-				if h.v[len(h.v)-1] < h.v[0] {
-					col = th.Bad
-				}
-				sparkline(c, ix+iw-sparkW, row, sparkW, 2, h.v, col, th.Panel)
+				barMeter(c, ix+iw-sparkW, row, sparkW, 2, h.v, th.Good, th.Bad, th.Panel)
 			}
 		}
 		row++
@@ -942,7 +932,20 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 		if l.HasVolume() {
 			vol = l.Volume
 		}
-		a.putBST(c, ix+3, row, buy, sell, vol, volKey, pxKey)
+		// Owner order 2026-11-10: the price and its change sit on the volume's
+		// own line, in front of B, S, U and T, instead of on the row above it.
+		vx := ix + 3
+		if l.Price != nil {
+			vx += a.flashText(c, vx, row, "PKR ", th.Soft, false)
+			vx += a.flashText(c, vx, row, commaFloat(*l.Price, 2), th.Text, true, pxKey)
+		}
+		if l.ChangePct != nil {
+			vx += a.flashText(c, vx, row, " "+changeText(*l.ChangePct), a.dirColor(*l.ChangePct), true, pxKey)
+		}
+		if vx > ix+3 {
+			vx += 2
+		}
+		a.putBST(c, vx, row, buy, sell, vol, volKey, pxKey)
 		row++
 		// Spare rows are shared out as a blank line between leaders.
 		if left := len(leaders) - i - 1; limit-row-2*left > left {
