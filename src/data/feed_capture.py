@@ -658,6 +658,31 @@ class RelayQuotePublisher:
             detail = str(exc) or exc.__class__.__name__
         print(f"relay quote push refused: {detail}", file=sys.stderr, flush=True)
 
+    # Owner order 2026-11-10: a refusal must never be silent again. The
+    # 2026-11-10 incident began with one 400 the relay logged only into a
+    # runner's stdout, and the whole morning's feed was lost while the card
+    # said nothing. Each refusal now leaves the relay's own words in a flag
+    # that scripts/ops_alert.py turns into one owner email for the day; a
+    # successful push clears it, so a recovered feed never keeps alerting.
+    REFUSED_FLAG = CAPTURE_DIR / "relay_refused.flag"
+
+    def _note_refused_flag(self, status: int, detail: str) -> None:
+        try:
+            self.REFUSED_FLAG.parent.mkdir(parents=True, exist_ok=True)
+            self.REFUSED_FLAG.write_text(json.dumps({
+                "at": now_karachi().isoformat(),
+                "status": status,
+                "detail": detail[:400],
+            }), encoding="utf-8")
+        except OSError:
+            pass
+
+    def _clear_refused_flag(self) -> None:
+        try:
+            self.REFUSED_FLAG.unlink()
+        except OSError:
+            pass
+
     def _run(self) -> None:
         import requests
 
@@ -691,6 +716,7 @@ class RelayQuotePublisher:
                 if not body.get("ok"):
                     raise ValueError("relay refused quote update")
                 pending = self._acknowledge(update)
+                self._clear_refused_flag()
                 self._retry_seconds = 1.0
                 if pending:
                     self._wake.set()
@@ -713,6 +739,11 @@ class RelayQuotePublisher:
                 response = getattr(exc, "response", None)
                 if response is not None:
                     status = int(getattr(response, "status_code", 0) or 0)
+                if status >= 400:
+                    body = ""
+                    if response is not None:
+                        body = str(getattr(response, "text", "") or "")[:400]
+                    self._note_refused_flag(status, body)
                 # Keep the latest failed values for a bounded retry. A newer
                 # observation already queued for a symbol always wins.
                 with self._lock:
