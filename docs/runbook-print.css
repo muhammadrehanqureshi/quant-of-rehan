@@ -1,0 +1,167 @@
+/* Print style for RUNBOOK.md, used by .github/workflows/runbook-pdf.yml.
+ * A4 paper, black ink on white, page numbers, and tables that never split a
+ * row across a page. Section headings are kept with the text they introduce,
+ * so a printed copy reads like a checklist and not like a web page.
+ */
+
+@page {
+  size: A4;
+  margin: 18mm 16mm 20mm 16mm;
+  @top-right {
+    content: "Quant of Rehan runbook";
+    font-size: 8.5pt;
+    color: #666;
+  }
+  @bottom-center {
+    content: "Page " counter(page) " of " counter(pages);
+    font-size: 8.5pt;
+    color: #666;
+  }
+}
+
+@page :first {
+  @top-right {
+    content: "";
+  }
+}
+
+html {
+  font-family: "DejaVu Sans", "Liberation Sans", sans-serif;
+  font-size: 10.5pt;
+  line-height: 1.45;
+  color: #111;
+}
+
+body {
+  margin: 0;
+}
+
+h1.title {
+  font-size: 22pt;
+  margin: 0 0 4pt 0;
+  border-bottom: 2.5pt solid #111;
+  padding-bottom: 4pt;
+}
+
+p.subtitle {
+  font-size: 11pt;
+  color: #444;
+  margin: 0 0 14pt 0;
+}
+
+nav#TOC {
+  border: 0.6pt solid #999;
+  background: #f6f6f6;
+  padding: 8pt 10pt;
+  margin: 0 0 14pt 0;
+  page-break-after: always;
+}
+
+nav#TOC ul {
+  list-style: none;
+  margin: 2pt 0;
+  padding-left: 12pt;
+}
+
+nav#TOC a {
+  color: #111;
+  text-decoration: none;
+}
+
+h2 {
+  font-size: 14pt;
+  margin: 16pt 0 6pt 0;
+  border-bottom: 0.8pt solid #bbb;
+  padding-bottom: 2pt;
+  page-break-after: avoid;
+}
+
+h3 {
+  font-size: 11.5pt;
+  margin: 12pt 0 4pt 0;
+  page-break-after: avoid;
+}
+
+p, ul, ol {
+  margin: 4pt 0 7pt 0;
+}
+
+ul, ol {
+  padding-left: 16pt;
+}
+
+li {
+  margin: 2pt 0;
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 8pt 0 12pt 0;
+  font-size: 9pt;
+}
+
+th, td {
+  border: 0.6pt solid #888;
+  padding: 3.5pt 5pt;
+  vertical-align: top;
+  text-align: left;
+}
+
+th {
+  background: #e8e8e8;
+  font-weight: bold;
+}
+
+tr {
+  page-break-inside: avoid;
+}
+
+code {
+  font-family: "DejaVu Sans Mono", "Liberation Mono", monospace;
+  font-size: 9pt;
+  background: #f2f2f2;
+  padding: 0 2pt;
+}
+
+pre {
+  font-family: "DejaVu Sans Mono", "Liberation Mono", monospace;
+  font-size: 8.8pt;
+  line-height: 1.35;
+  background: #f4f4f4;
+  border: 0.6pt solid #ccc;
+  border-left: 2.5pt solid #555;
+  padding: 6pt 8pt;
+  margin: 6pt 0 10pt 0;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  page-break-inside: avoid;
+}
+
+pre code {
+  background: transparent;
+  padding: 0;
+  font-size: inherit;
+}
+
+blockquote {
+  margin: 6pt 0;
+  padding: 3pt 10pt;
+  border-left: 2.5pt solid #999;
+  color: #333;
+}
+
+a {
+  color: #111;
+  text-decoration: underline;
+}
+
+strong {
+  font-weight: bold;
+}
+
+hr {
+  border: 0;
+  border-top: 0.6pt solid #bbb;
+  margin: 12pt 0;
+}

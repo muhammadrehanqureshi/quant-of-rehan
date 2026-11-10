@@ -156,3 +156,56 @@ no email arrived.
   retrying them, and a refusal leaves a flag that becomes one email.
 * **The tell:** index and phase moving while `counts.included` sits at 0. That
   is a store refusing pushes, not a quiet market.
+
+## 9. The scan, the card, and the build you are running
+
+The scan starts at 08:55 PKT and scans from the 09:15 pre-market. Two words on
+the LATEST SIGNAL tile mean two different things, and they are not
+interchangeable.
+
+* **WARMING UP** is normal. The tape is alive and still filling. The strategy
+  will not rank a symbol until it holds 20 completed one-minute bars inside the
+  current band, so no entry can exist before about 09:52. A full entry also
+  needs the 60-minute VWAP frame, which cannot exist before about 10:32. The
+  card prints the minutes it still needs. Nothing is broken and nothing needs
+  starting.
+* **SCAN BLOCKED** is a data fault. The card names the coverage and how many
+  symbols hold the 20 bars. Check `/quotes` and `/flow` as in section 1, then
+  look at the band run below. It never means the market was quiet.
+
+Confirm the day's band is running, at or after 09:15:
+
+```bash
+gh run list --workflow=intraday-session.yml --limit 3
+gh run view <the newest run id> --json jobs \
+  -q '.jobs[].steps[] | [.number,.name,.conclusion] | @tsv'
+```
+
+Healthy at 09:20: the 08:55 run is still in progress and its scan step has no
+conclusion yet. A run that finished before 09:15 with a failure is the fault
+fixed on 2026-11-10 (the pre-open empty tape was counted as five faults); if it
+happens again, section 3 starts a band by hand for the rest of the session.
+
+At 10:00 the card should read NO TRADE with a coverage line, or a signal. A
+card still reading WARMING UP after 10:30 means the tape restarted; a card
+reading SCAN BLOCKED after 10:00 is a data fault, not a slow morning.
+
+The HUD is `QuantOfRehan-build35.exe` in
+`Desktop/QuantOfRehan-Windows/`. The older `.exe` files beside it are kept, so
+the file name is how the running build is known: build 35 carries the bigger
+orb, the ten-box bars and the leader price after `T`.
+
+## 10. This runbook as a PDF
+
+`.github/workflows/runbook-pdf.yml` renders this file to `RUNBOOK.pdf` on
+GitHub Actions, so no document is built on this PC. It runs on every change to
+this file and can be started by hand:
+
+```bash
+gh workflow run runbook-pdf.yml
+gh run list --workflow=runbook-pdf.yml --limit 1
+gh run download <the run id> -n runbook-pdf -D .
+```
+
+The downloaded `RUNBOOK.pdf` is the same text as this page, with page numbers
+and the tables intact, and it needs no terminal and no network to read.

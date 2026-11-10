@@ -1,0 +1,62 @@
+name: Runbook PDF
+
+# Owner order 2026-11-10: a printable copy of RUNBOOK.md, built on Actions so
+# that nothing is rendered on the owner's PC (SO-23). Every run uploads
+# RUNBOOK.pdf as the runbook-pdf artifact; that file is what gets downloaded
+# and kept beside the HUD, so the runbook is readable with no terminal, no
+# relay and no network.
+#
+# It runs when the runbook changes, when its print style changes, and on
+# demand. The PDF is built from the same RUNBOOK.md the repository carries, so
+# the paper copy can never disagree with the page.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [master]
+    paths:
+      - "RUNBOOK.md"
+      - "docs/runbook-print.css"
+      - ".github/workflows/runbook-pdf.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  pdf:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pandoc and WeasyPrint
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends pandoc weasyprint
+          pandoc --version | head -1
+          weasyprint --version
+
+      - name: Build the printable PDF
+        run: |
+          pandoc RUNBOOK.md \
+            --from=gfm \
+            --standalone \
+            --toc \
+            --toc-depth=2 \
+            --css=docs/runbook-print.css \
+            --metadata title="Quant of Rehan: start and verify" \
+            --metadata lang=en \
+            -o RUNBOOK.html
+          weasyprint RUNBOOK.html RUNBOOK.pdf
+
+      - name: Check the PDF was written
+        run: |
+          ls -l RUNBOOK.pdf
+          head -c 5 RUNBOOK.pdf | grep -q '%PDF-' || {
+            echo "RUNBOOK.pdf is not a PDF"; exit 1; }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: runbook-pdf
+          path: RUNBOOK.pdf
+          if-no-files-found: error
