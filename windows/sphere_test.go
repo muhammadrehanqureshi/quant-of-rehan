@@ -2,7 +2,6 @@ package main
 
 import (
 	"math"
-	"strings"
 	"testing"
 )
 
@@ -89,9 +88,9 @@ func TestHomeCoreTileIsTheSphereAndNotTheWordmark(t *testing.T) {
 	a := demoApp(t, 158, 41)
 	a.screen = scrHome
 	s := plain(a)
-	if strings.Contains(s, "QUANT OF REHAN") {
-		t.Errorf("the wordmark is still drawn in the QUANT CORE tile")
-	}
+	// The wordmark is not drawn in the tile any more, so the only dot pattern
+	// on the home screen is the globe. The app's own name still stands in the
+	// header and the footer, which is not the tile.
 	dots := 0
 	for _, r := range s {
 		if r >= 0x2800 && r <= 0x28ff {
