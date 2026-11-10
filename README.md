@@ -1,8 +1,10 @@
 <p align="center">
-  <img src="assets/quant-of-rehan-logo.png" alt="Quant of Rehan" width="440" />
+  <img src="assets/QoR.png" alt="Quant of Rehan" width="380" />
 </p>
 
 <h1 align="center">Quant of Rehan</h1>
+
+<p align="center"><sub><code>assets/QoR.png</code> is the project's official mark: 1024 by 1024, dark plum, the gradient wordmark, the teal line and the ascending green candles.</sub></p>
 
 [![Governance Guard](https://github.com/muhammadrehanqureshi/quant-of-rehan/actions/workflows/governance-guard.yml/badge.svg)](https://github.com/muhammadrehanqureshi/quant-of-rehan/actions/workflows/governance-guard.yml)
 [![Android App](https://github.com/muhammadrehanqureshi/quant-of-rehan/actions/workflows/android-apk.yml/badge.svg)](https://github.com/muhammadrehanqureshi/quant-of-rehan/actions/workflows/android-apk.yml)
