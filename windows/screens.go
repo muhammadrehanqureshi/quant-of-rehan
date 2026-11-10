@@ -988,18 +988,23 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 		// three fields also has a fixed width from that edge, so the price, the
 		// change and the bar land on the same cells on every leader row.
 		if l.Price != nil {
-			const chgW, priceW = 8, 10
+			const chgW = 8
 			end := ix + iw - 1
 			bw := shareBarSpan
 			floor := ix + 3 + used + 1
-			priceBlock := 4 + priceW + chgW + 1
 			barStart := end - bw
 			chgRight := barStart - 2
 			priceRight := chgRight - chgW - 1
-			pkrLeft := priceRight - priceW - 4
+			px := commaFloat(*l.Price, 2)
+			// Owner order 2026-11-10 (latest): PKR sits one space from its own
+			// price. The price stays right aligned at its own edge, so the label
+			// moves and the number does not; the old ten cell field left five
+			// empty cells between the two.
+			pkrLeft := priceRight - runeLen(px) + 1 - 4
+			priceBlock := 4 + runeLen(px) + chgW + 1
 			showPrice := func(pkr, pxRight, chgRight int) {
 				c.Text(pkr, row, 4, "PKR ", th.Soft, false)
-				a.flashRight(c, pxRight, row, commaFloat(*l.Price, 2), th.Text, true, pxKey)
+				a.flashRight(c, pxRight, row, px, th.Text, true, pxKey)
 				if l.ChangePct != nil {
 					a.flashRight(c, chgRight, row, changeText(*l.ChangePct), a.dirColor(*l.ChangePct), true, pxKey)
 				}

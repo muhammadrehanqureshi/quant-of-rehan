@@ -780,13 +780,11 @@ func (a *App) drawFlowList(c *Canvas, ix, head, top, iw, rows, barX int) {
 	a.scrollbar(c, barX, top, a.lvScan.view*2, &a.lvScan)
 }
 
-// Owner order 2026-11-10 (latest): the bar is drawn with the thin horizontal
-// rule block instead of the full cell, so its height is about a third of the
-// cell and it sits on the cell's own centre line. A full cell touched the cell
-// above and below, and neighbouring stocks bled into one another; the rule
-// leaves a clear gap at the top and the bottom of every box, so each stock's
-// bar stays inside its own row.
-const barBlock = '▬'
+// Owner order 2026-11-10 (latest): the bar is one solid block per cell. The
+// thin rule that stood here drew a small dash inside every cell, so the bar
+// read as a row of little boxes with lines in it; the full cell makes the bar
+// one continuous colour with nothing drawn inside it.
+const barBlock = '█'
 
 // shareBarBoxes is how many boxes a buy versus sell bar holds: one box per ten
 // percent, each box a single cell. Owner order 2026-11-10 (latest): the
@@ -803,9 +801,9 @@ const shareBarSpan = shareBarBoxes * 2
 // the four cells a "100%" needs.
 const shareBarWidth = shareBarSpan + 5
 
-// shareBar draws a buy versus sell bar: ten boxes of one cell, then one space,
-// then the percentage, so "98%" and "100%" both sit the same distance from the
-// last box. The bar's height is the rule block's, not the whole cell.
+// shareBar draws a buy versus sell bar: ten boxes of two cells, then one
+// space, then the percentage, so "98%" and "100%" both sit the same distance
+// from the last box.
 func (a *App) shareBar(c *Canvas, x, y, w int, buyShare float64) {
 	a.drawShareBar(c, x, y, w, buyShare, true)
 }
@@ -961,15 +959,16 @@ func (a *App) drawBoardPanel(c *Canvas, x, y, w, h int, side int) {
 		if cw < 44 {
 			vx = ix + 25
 		}
+		// Owner order 2026-11-10 (latest): the PKR value stays on the row and the
+		// bar is drawn only when there is room for both, so the value is never
+		// the field that gets dropped.
 		barW := 0
-		if cw >= 70 {
+		if cw-vx >= 10+shareBarWidth {
 			barW = shareBarWidth
-			// Owner order 2026-11-10 (latest): the bar is back on the boards, ten
-			// boxes two cells wide, at the right edge of the row.
 			a.shareBar(c, ix+cw-barW, ry, barW, b.Share)
 		}
-		if vx+12 < ix+cw-barW {
-			c.Spans(vx, ry, ix+cw-barW-vx, []Span{{"PKR ", th.Soft, false}, {compactNum(b.BuyValue), good, true}})
+		if cw-vx >= 9 {
+			c.Spans(vx, ry, cw-barW-vx, []Span{{"PKR ", th.Soft, false}, {compactNum(b.BuyValue), good, true}})
 		}
 	}
 	a.scrollbar(c, x+w-2, iy, ih, lv)
