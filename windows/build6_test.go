@@ -465,8 +465,8 @@ func TestShareBarIsOneUnbrokenBand(t *testing.T) {
 	c := NewCanvas(40, 1, RGB{})
 	a.shareBar(c, 2, 0, shareBarWidth, 0.5)
 	row := c.PlainRows()[0]
-	if shareBarSpan != 18 {
-		t.Fatalf("shareBarSpan is %d, want 18 (ten percent under 20)", shareBarSpan)
+	if shareBarSpan != 16 {
+		t.Fatalf("shareBarSpan is %d, want 16 (ten percent under 18)", shareBarSpan)
 	}
 	rs := []rune(row)
 	if len(rs) < 2+shareBarSpan {
@@ -476,7 +476,7 @@ func TestShareBarIsOneUnbrokenBand(t *testing.T) {
 	if n := strings.Count(seg, string(barBlock)); n != shareBarSpan {
 		t.Fatalf("the bar covers %d cells of its %d, so a separator or a gap is in it: %q", n, shareBarSpan, row)
 	}
-	if strings.ContainsAny(row, "│▀▄") {
+	if strings.ContainsAny(row, "│▀▄▬") {
 		t.Fatalf("a separator or a partial cell is in the bar: %q", row)
 	}
 }

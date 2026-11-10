@@ -43,10 +43,11 @@ func TestBarsAreBuild21sShadedTabs(t *testing.T) {
 	a.shareBar(c, 2, 0, shareBarWidth, 0.5)
 	row := c.PlainRows()[0]
 	// Owner order 2026-11-10 (latest): the bar stands in the middle of its own
-	// row instead of on the floor of it, so it is the middle bar glyph: half a
-	// cell tall, centred in the cell.
-	if barBlock != '▬' {
-		t.Fatalf("the bar is %q, not the centred half height block", barBlock)
+	// row and carries no separator, so it fills the cell: the middle bar glyph
+	// is narrower than a cell in the console font and drew a line between every
+	// pair, and the half block sat on the floor of the row.
+	if barBlock != '█' {
+		t.Fatalf("the bar is %q, not the full block", barBlock)
 	}
 	if strings.ContainsRune(row, '│') {
 		t.Fatalf("a line is drawn between the boxes again: %q", row)

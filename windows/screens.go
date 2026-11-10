@@ -823,16 +823,19 @@ func (a *App) putBST(c *Canvas, x, y int, buy, sell, total *int64, keys ...strin
 // bstCols are the leader row's four field offsets, as cells from the row's
 // first cell. Owner order 2026-11-10 (latest): the leaders read exactly like
 // every other B, S, U and T line, with its commas and its "& T=", and each
-// field still starts on the same cell on all three rows. Every number is laid
-// out as wide as the widest of the three, so the commas line up and the block
-// reads as one table instead of three sentences of different lengths.
+// field still starts on the same cell on all three rows. The comma sits hard
+// against its own number and the gutter falls after it, so no comma ever floats
+// away from the figure it belongs to.
 type bstCols struct {
 	buy  int // "B="
-	sell int // ", S="
-	unc  int // ", U="
-	tot  int // " & T="
+	sell int // "S=", after B's comma and the gutter
+	unc  int // "U=", after S's comma and the gutter
+	tot  int // "& T=", after U's number and the gutter
 	wid  int // the widest volume's digits, the width of every volume field
 }
+
+// bstPad is the gutter between one field's comma and the next field's label.
+const bstPad = 2
 
 // bstLeaderCols measures the leaders and returns the columns they share.
 func bstLeaderCols(leaders []Leader) bstCols {
@@ -848,9 +851,9 @@ func bstLeaderCols(leaders []Leader) bstCols {
 		}
 	}
 	c := bstCols{wid: uw}
-	c.sell = c.buy + 2 + bw + 4  // B= digits, then ", S="
-	c.unc = c.sell + 2 + sw + 4  // S= digits, then ", U="
-	c.tot = c.unc + 2 + uw + 5   // U= digits, then " & T="
+	c.sell = c.buy + 2 + bw + 1 + bstPad // "B=", the digits, the comma, the gutter
+	c.unc = c.sell + 2 + sw + 1 + bstPad  // "S=", the digits, the comma, the gutter
+	c.tot = c.unc + 2 + uw + bstPad       // "U=" and the digits, then the gutter
 	return c
 }
 
@@ -861,19 +864,22 @@ func (a *App) putBSTCols(c *Canvas, x, y int, buy, sell, total *int64, cols bstC
 	if buy == nil || sell == nil || total == nil {
 		return a.putBST(c, x, y, buy, sell, total, keys...)
 	}
-	put := func(at int, label, num string, fg RGB, bold bool) {
+	field := func(at int, label, num, tail string, fg RGB, bold bool) {
 		w := a.flashText(c, x+at, y, label, th.Soft, false, keys...)
-		a.flashText(c, x+at+w, y, num, fg, bold, keys...)
+		w += a.flashText(c, x+at+w, y, num, fg, bold, keys...)
+		if tail != "" {
+			a.flashText(c, x+at+w, y, tail, th.Soft, false, keys...)
+		}
 	}
 	un := *total - *buy - *sell
 	if un < 0 {
 		un = 0
 	}
-	put(cols.buy, "B=", commaInt(*buy), th.Good, true)
-	put(cols.sell, ", S=", commaInt(*sell), th.Bad, true)
-	put(cols.unc, ", U=", commaInt(un), th.Warn, un > 0)
-	put(cols.tot, " & T=", commaInt(*total), totalBlue, false)
-	return cols.tot + 5 + cols.wid
+	field(cols.buy, "B=", commaInt(*buy), ",", th.Good, true)
+	field(cols.sell, "S=", commaInt(*sell), ",", th.Bad, true)
+	field(cols.unc, "U=", commaInt(un), "", th.Warn, un > 0)
+	field(cols.tot, "& T=", commaInt(*total), "", totalBlue, false)
+	return cols.tot + 4 + cols.wid
 }
 
 func (a *App) drawMarket(c *Canvas, x, y, w, h int) {

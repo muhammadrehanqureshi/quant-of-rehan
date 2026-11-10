@@ -796,11 +796,12 @@ func (a *App) drawFlowList(c *Canvas, ix, head, top, iw, rows, barX int) {
 	a.scrollbar(c, barX, top, a.lvScan.view*2, &a.lvScan)
 }
 
-// Owner order 2026-11-10 (latest): the bar stands in the middle of its own row,
-// not along the bottom edge of it. The half block (▄) sat in the cell's lower
-// half, which put every bar on the floor of its box; the middle bar glyph (▬)
-// is the one whose ink is centred in the cell, so it is the bar again.
-const barBlock = '▬'
+// Owner order 2026-11-10 (latest): the bar stands in the middle of its own row
+// and has no separator in it. The half block (▄) sat on the floor of the row,
+// and the middle bar glyph (▬) is narrower than its cell in the console font,
+// which drew a thin line between every two cells. A bar that is both centred and
+// unbroken can only fill the cell, so it is the full block.
+const barBlock = '█'
 
 // shareBarBoxes is how many boxes a buy versus sell bar holds: one box per ten
 // percent, each box a single cell. Owner order 2026-11-10 (latest): the
@@ -808,9 +809,9 @@ const barBlock = '▬'
 const shareBarBoxes = 10
 
 // shareBarSpan is the cells the ten boxes cover. Owner order 2026-11-10
-// (latest): every bar is ten percent shorter than its 20 cells, which is 18
-// cells, and the box count does not move, so the ten boxes share those 18.
-const shareBarSpan = shareBarBoxes * 2 * 9 / 10
+// (latest): every bar is ten percent shorter than the 18 cells it was, which is
+// 16 cells, and the box count does not move, so the ten boxes share those 16.
+const shareBarSpan = shareBarBoxes * 16 / 10
 
 // shareBarWidth is the field a labelled bar asks for: its span, one space and
 // the four cells a "100%" needs.
