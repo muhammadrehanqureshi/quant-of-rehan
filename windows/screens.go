@@ -823,9 +823,9 @@ func (a *App) putBST(c *Canvas, x, y int, buy, sell, total *int64, keys ...strin
 // it, never between the sign and the digits.
 const (
 	bstBuyX  = 0
-	bstSellX = 16
-	bstUncX  = 33
-	bstTotX  = 47
+	bstSellX = 13
+	bstUncX  = 26
+	bstTotX  = 39
 )
 
 // putBSTCols writes those four fields into their columns and returns the cells
@@ -973,7 +973,7 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 		// cell on every row, and each number sits hard against its own "=". A
 		// narrow tile falls back to the packed form.
 		used := 0
-		if iw >= 118 {
+		if iw >= 96 {
 			used = a.putBSTCols(c, ix+3, row, buy, sell, vol, volKey, pxKey)
 		} else {
 			used = a.putBST(c, ix+3, row, buy, sell, vol, volKey, pxKey)
@@ -1003,7 +1003,10 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 			pkrLeft := priceRight - runeLen(px) + 1 - 4
 			priceBlock := 4 + runeLen(px) + chgW + 1
 			showPrice := func(pkr, pxRight, chgRight int) {
-				c.Text(pkr, row, 4, "PKR ", th.Soft, false)
+				// The label is written without its trailing space and the price
+				// starts four cells along, so exactly one blank cell stands
+				// between them and the row reads "PKR 15.24".
+				c.Text(pkr, row, 3, "PKR", th.Soft, false)
 				a.flashRight(c, pxRight, row, px, th.Text, true, pxKey)
 				if l.ChangePct != nil {
 					a.flashRight(c, chgRight, row, changeText(*l.ChangePct), a.dirColor(*l.ChangePct), true, pxKey)
@@ -1027,7 +1030,7 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 				pw := runeLen(px)
 				pkr := ix + 3 + used + 2
 				if pkr+4+pw <= ix+iw {
-					c.Text(pkr, row, 4, "PKR ", th.Soft, false)
+					c.Text(pkr, row, 3, "PKR", th.Soft, false)
 					a.flashText(c, pkr+4, row, px, th.Text, true, pxKey)
 				}
 			}
