@@ -111,7 +111,9 @@ post-market scanning:
    the fact, so `scripts/install_kmiall_tick.py` derives its triggers from this
    same law: one repeating trigger per band (09:32 to 15:30 Mon-Thu; 09:17 to
    12:00 and 14:32 to 16:30 Friday) at the configured cadence, plus one
-   post-market fire per trading day for the finalize (15:47 and 16:47 PKT),
+   post-market fire per trading day for the finalize (15:57 and 16:57 PKT
+   under the owner's order of 2026-11-10, three minutes before the window's
+   16:00 and 17:00 ends),
    and nothing at all for 09:00 to 09:15, for 12:00 to 14:32 on a Friday, for
    the evening, the night or the weekend.
    `tests/test_kmiall_tick.py::SessionTriggerTest` still fails the build if a
@@ -134,7 +136,7 @@ post-market scanning:
 5. `scripts/intraday_pipeline.py::session_legal` asks `is_scan_window`, so a
    hand-run `--scan` outside `MARKET` is refused too.
 6. `tests/test_sessions_and_schedule.py::TestMarketStateLaw` pins every edge,
-   including 09:15:00, 15:30:00, 15:34:59, 15:35:00 and 15:49:59;
+   including 09:15:00, 15:30:00, 15:34:59, 15:35:00 and 15:59:59;
    `tests/test_kmiall_tick.py::ScanWindowTest` and
    `tests/test_session_gate.py::TestOwnerScanWindowOrder` pin the refusals.
 

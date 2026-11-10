@@ -7,16 +7,17 @@ import "time"
 // trading hours:
 //
 //	Monday to Thursday  pre-market 09:00 to 09:15, trading 09:32 to 15:30,
-//	                    post-market 15:32 to 15:49
+//	                    post-market 15:32 to 16:00
 //	Friday              pre-market 09:00 to 09:15, trading 09:17 to 12:00 and
-//	                    14:32 to 16:30, post-market 16:32 to 16:49
+//	                    14:32 to 16:30, post-market 16:32 to 17:00
 //
 // The quant reads the broker feed every second from 08:55, five minutes before
 // the exchange's pre-open, until the post-market closes, so the gaps between
 // those windows are scanned too. The 08:55 start is the owner's order of
 // 2026-11-07: the day must never begin with volume the capture could not side.
-// Each end is half open: 15:49:00 is already after the post-market, and a short
-// grace period after it catches the final print.
+// Each end is half open: 16:00:00 is already after it on Monday to Thursday
+// and 17:00:00 on Friday, and a short grace period after it catches the final
+// print.
 
 type window struct{ from, to int } // minutes after midnight, half open
 
@@ -24,8 +25,12 @@ var (
 	preWindow     = window{9*60 + 0, 9*60 + 15}
 	weekdayTrade  = []window{{9*60 + 32, 15*60 + 30}}
 	fridayTrade   = []window{{9*60 + 17, 12 * 60}, {14*60 + 32, 16*60 + 30}}
-	weekdayPost   = window{15*60 + 32, 15*60 + 49}
-	fridayPost    = window{16*60 + 32, 16*60 + 49}
+	// Owner order 2026-11-10: the quant scans until 16:00 Monday to Thursday
+	// and until 17:00 on Friday. The exchange still closes at 15:30 and 16:30;
+	// the post-market window is the owner's scanning window and runs to the new
+	// ends, so the pre and post market volume is captured to the last minute.
+	weekdayPost   = window{15*60 + 32, 16 * 60}
+	fridayPost    = window{16*60 + 32, 17 * 60}
 	scanGraceSecs = 30
 
 	// scanOpen is 08:55, five minutes before the exchange's pre-open. The scan
@@ -120,8 +125,9 @@ func sessionAt(t time.Time) string {
 	return sesClosed
 }
 
-// inScanWindow is true on a weekday from 08:55 until the post-market closes
-// (15:49 Monday to Thursday, 16:49 on Friday), plus a short grace period.
+// inScanWindow is true on a weekday from 08:55 until the owner's scanning
+// window closes (16:00 Monday to Thursday, 17:00 on Friday), plus a short
+// grace period.
 func inScanWindow(t time.Time) bool {
 	p := t.In(pkt)
 	if isWeekend(p) {
@@ -168,7 +174,7 @@ func untilScanStart(t time.Time) time.Duration {
 // phaseAt names the part of the day Karachi time t falls in, in the five words
 // the status tile needs. The pre-market runs from 09:00 to the open (so the
 // two minute matching gap is part of it), and the post-market from the close
-// to its end (15:30 to 15:49 Monday to Thursday, 16:30 to 16:49 on Friday).
+// to its end (15:30 to 16:00 Monday to Thursday, 16:30 to 17:00 on Friday).
 func phaseAt(t time.Time) string {
 	p := t.In(pkt)
 	if isWeekend(p) {

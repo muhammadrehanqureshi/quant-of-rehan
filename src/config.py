@@ -441,7 +441,7 @@ TARGET_MULTIPLIER_BY_REGIME = {
 # Owner order 2026-10-11, amended 2026-10-21: scan the whole KMIALL universe
 # every 4 minutes, forever until further notice, including the exchange's
 # pre-open windows (Mon-Thu 09:15-09:30; Friday 09:00-09:15 and 14:15-14:30)
-# and the post-close windows (15:35-15:50, Friday 16:35-16:50). The 4 is the
+# and the post-market windows (15:35-16:00, Friday 16:35-17:00). The 4 is the
 # default here, so a rebuilt task or a fresh clone runs at 4 minutes without
 # any environment change; the tick itself decides with is_scan_window
 # (src/data/sessions.py), never with a second copy of the table.

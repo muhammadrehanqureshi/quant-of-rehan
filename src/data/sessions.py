@@ -44,7 +44,7 @@ still read:
                  09:30; Friday 09:00 to 09:15 and 14:15 to 14:30
     MARKET       inside a band: Mon-Thu 09:32 to 15:30; Friday 09:17 to
                  12:00 and 14:32 to 16:30
-    POST_MARKET  Mon-Thu 15:35 to 15:50; Friday 16:35 to 16:50
+    POST_MARKET  Mon-Thu 15:35 to 16:00; Friday 16:35 to 17:00
     CLOSED       everything else, including the order-matching breaks at
                  09:30-09:32 and 14:30-14:32, the post-close gaps at
                  15:30-15:35 and 16:30-16:35, and the Friday midday break
@@ -117,9 +117,13 @@ Band = tuple[tuple[int, int], tuple[int, int]]
 # and labelled Monday to Thursday minutes as pre-market when the exchange was
 # still shut. 08:55 is a recorder warm-up and is deliberately not one of these
 # windows. PSX publishes a Post-Close Session five minutes after the regular
-# close: 15:35 to 15:50 Monday to Thursday, 16:35 to 16:50 Friday. That is the
-# post-market window this law uses, replacing the old 15:32 to 15:49 and 16:32
-# to 16:49 scan windows.
+# close: 15:35 to 15:50 Monday to Thursday, 16:35 to 16:50 Friday. The
+# post-market window this law uses opens with that session and, by the owner's
+# order of 2026-11-10, runs to the end of the quant's scanning window: 16:00
+# Monday to Thursday and 17:00 on Friday. The exchange's 15:50 and 16:50 ends
+# above are the published session only; the state ends where the owner's
+# scanning ends, so the pre and post market volume is captured to the last
+# minute.
 WEEKDAY_PRE_MARKET_OPEN = (9, 15)
 WEEKDAY_PRE_MARKET_CLOSE = (9, 30)
 FRIDAY_PRE_MARKET_OPEN = (9, 0)
@@ -128,9 +132,9 @@ FRIDAY_SECOND_PRE_MARKET_OPEN = (14, 15)
 FRIDAY_SECOND_PRE_MARKET_CLOSE = (14, 30)
 
 POST_MARKET_OPEN = (15, 35)
-POST_MARKET_CLOSE = (15, 50)
+POST_MARKET_CLOSE = (16, 0)
 FRIDAY_POST_MARKET_OPEN = (16, 35)
-FRIDAY_POST_MARKET_CLOSE = (16, 50)
+FRIDAY_POST_MARKET_CLOSE = (17, 0)
 
 WEEKDAY_BANDS: tuple[Band, ...] = ((WEEKDAY_OPEN, WEEKDAY_CLOSE),)
 FRIDAY_BANDS: tuple[Band, ...] = (
@@ -196,7 +200,8 @@ class MarketState(str, Enum):
     Windows are half-open, [start, end). PRE_MARKET is the exchange's own
     pre-open window: 09:15 to 09:30 Monday to Thursday, 09:00 to 09:15 and
     14:15 to 14:30 on Friday. MARKET is every band, POST_MARKET is 15:35 to
-    15:50 Monday to Thursday and 16:35 to 16:50 on Friday. Every other
+    16:00 Monday to Thursday and 16:35 to 17:00 on Friday (owner order
+    2026-11-10: the scanning window runs to those ends). Every other
     instant, including the order-matching breaks and the five-minute gaps
     after each close, is CLOSED.
 
@@ -391,8 +396,9 @@ def pre_market_window(d: date) -> tuple[tuple[int, int], tuple[int, int]] | None
 def post_market_window(d: date) -> tuple[tuple[int, int], tuple[int, int]] | None:
     """The post-market window for a Karachi date, or None when closed.
 
-    Friday's window follows its own last close (16:35 to 16:50); every
-    other trading day's follows the 15:30 close (15:35 to 15:50).
+    Friday's window follows its own last close (16:35 to 17:00); every
+    other trading day's follows the 15:30 close (15:35 to 16:00). Owner
+    order 2026-11-10: the window ends where the owner's scanning ends.
     """
     if not is_trading_day(d):
         return None

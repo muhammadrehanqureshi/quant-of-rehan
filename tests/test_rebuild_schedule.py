@@ -304,11 +304,14 @@ class TestOutsideSessionGuard(unittest.TestCase):
         self.assertTrue(session_legal(at(WEDNESDAY, 10, 0)))
         self.assertTrue(session_legal(at(FRIDAY, 16, 0)))
         self.assertTrue(session_legal(at(WEDNESDAY, 9, 20)))
-        # Post-close: 15:35 to 15:50 on Mon-Thu (16:35 to 16:50 Friday).
+        # Owner order 2026-11-10: the post-market scans to 16:00 Monday to
+        # Thursday and to 17:00 on Friday.
         self.assertTrue(session_legal(at(WEDNESDAY, 15, 45)))
+        self.assertTrue(session_legal(at(WEDNESDAY, 15, 59)))
         self.assertFalse(session_legal(at(WEDNESDAY, 16, 0)))
         self.assertTrue(session_legal(at(FRIDAY, 16, 40)))
-        self.assertFalse(session_legal(at(FRIDAY, 16, 55)))
+        self.assertTrue(session_legal(at(FRIDAY, 16, 59)))
+        self.assertFalse(session_legal(at(FRIDAY, 17, 0)))
         self.assertFalse(session_legal(at(date(2026, 10, 10), 11, 0)))
 
 
@@ -583,8 +586,8 @@ class TestCloudflareSchedule(unittest.TestCase):
         # Owner order 2026-10-24: six runnable windows per week. The 08:55
         # Mon-Thu window covers pre-market and band 1; the post-close
         # window at 15:35 covers the exchange's Mon-Thu Post-Close Session,
-        # and the 16:35 Friday window covers Friday's own Post-Close Session
-        # (16:35 to 16:50), which the five-window law of 2026-10-21 left
+        # and the 16:35 Friday window covers Friday's own post-market window
+        # (16:35 to 17:00), which the five-window law of 2026-10-21 left
         # unwoken - the Friday emails that never arrived.
         self.assertEqual(
             sorted(windows),

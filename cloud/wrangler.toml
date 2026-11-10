@@ -30,7 +30,7 @@ compatibility_date = "2026-10-01"
 #   wake the afternoon had no publisher and the phone's numbers froze,
 #   measured 2026-10-20. Not a notification edge; the dispatch's own
 #   dedupe key separates it from the morning loop).
-# 10:35 UTC = 15:35 PKT (Mon-Thu post-close window wake: the exchange's
+# 10:35 UTC = 15:35 PKT (Mon-Thu post-market window wake: the exchange's
 #   published Post-Close Session opens at 15:35 and closes at 15:50)
 # 03:55 UTC = 08:55 PKT (Friday pre-open recorder warm-up)
 # 04:17 UTC = 09:17 PKT (Friday session 1 open, packed with the warm-up)
@@ -38,7 +38,7 @@ compatibility_date = "2026-10-01"
 # 09:10 UTC = 14:10 PKT (Friday session 2 pre-open recorder warm-up; the band
 #   opens at 14:32, packed with the warm-up)
 # 09:32 UTC = 14:32 PKT (Friday session 2 open, trading resumes)
-# 11:35 UTC = 16:35 PKT (Friday post-close window wake: 16:35 to 16:50)
+# 11:35 UTC = 16:35 PKT (Friday post-market window wake: 16:35 to 17:00)
 # packed edge list fires at the 12:00 PKT Friday close, the 15:30 Mon-Thu
 # close and the 16:30 PKT Friday close plus harmless extras the worker
 # discards; a six entry list is rejected (Cloudflare error 10072).

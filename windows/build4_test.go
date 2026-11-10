@@ -208,7 +208,7 @@ func TestStatusWordingFollowsThePart(t *testing.T) {
 		{"matching gap", at(2, 9, 31), "PRE_OPEN", "Pre-market is running and the quant is online now.", true},
 		{"open", at(2, 11, 0), "OPEN", "Market is open and the quant is online now.", true},
 		{"post-market", at(2, 15, 40), "POST_CLOSE", "Post-market is running and the quant is online now.", true},
-		{"after the post-market", at(2, 15, 50), "POST_CLOSE", "Market is closed and the quant is sleeping now.", false},
+		{"after the post-market", at(2, 16, 5), "POST_CLOSE", "Market is closed and the quant is sleeping now.", false},
 		{"evening", at(2, 20, 0), "POST_CLOSE", "Market is closed and the quant is sleeping now.", false},
 		{"friday break", at(6, 13, 0), "BREAK", "Market is on a break and the quant is offline now.", false},
 		{"friday second session", at(6, 15, 0), "OPEN", "Market is open and the quant is online now.", true},
@@ -242,9 +242,9 @@ func TestPhaseAtMatchesTheSessionLaw(t *testing.T) {
 		want string
 	}{
 		{at(2, 8, 59), qsClosed}, {at(2, 9, 0), qsPre}, {at(2, 9, 31), qsPre}, {at(2, 9, 32), qsOpen},
-		{at(2, 15, 29), qsOpen}, {at(2, 15, 30), qsPost}, {at(2, 15, 48), qsPost}, {at(2, 15, 49), qsClosed},
+		{at(2, 15, 29), qsOpen}, {at(2, 15, 30), qsPost}, {at(2, 15, 48), qsPost}, {at(2, 15, 59), qsPost}, {at(2, 16, 0), qsClosed},
 		{at(6, 9, 16), qsPre}, {at(6, 9, 17), qsOpen}, {at(6, 12, 0), qsBreak}, {at(6, 14, 31), qsBreak},
-		{at(6, 14, 32), qsOpen}, {at(6, 16, 29), qsOpen}, {at(6, 16, 30), qsPost}, {at(6, 16, 49), qsClosed},
+		{at(6, 14, 32), qsOpen}, {at(6, 16, 29), qsOpen}, {at(6, 16, 30), qsPost}, {at(6, 16, 59), qsPost}, {at(6, 17, 0), qsClosed},
 		{at(7, 11, 0), qsClosed}, {at(8, 11, 0), qsClosed},
 	} {
 		if got := phaseAt(c.t); got != c.want {
