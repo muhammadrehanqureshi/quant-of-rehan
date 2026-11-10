@@ -937,8 +937,8 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 			// front of the percentage line, on the same row and before PKR.
 			if l.HasSplit() {
 				if total := *l.Buy + *l.Sell; total > 0 {
-					if room := ix + iw - vx - 24; room >= 12 {
-						vx += a.shareBarOnly(c, vx, row, min(29, room),
+					if room := ix + iw - vx - 24; room >= 22 {
+						vx += a.shareBarOnly(c, vx, row, min(22, room),
 							float64(*l.Buy)/float64(total))
 						vx += 2
 					}

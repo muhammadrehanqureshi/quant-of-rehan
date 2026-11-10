@@ -293,7 +293,7 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 		// symbol and the numbers, so its foot is the block's centre line and
 		// the extra height grows upward from it.
 		if total > 0 && cw >= 74 {
-			a.shareBar(c, ix+24, row, 34, float64(*q.Buy)/float64(total))
+			a.shareBar(c, ix+24, row, 22, float64(*q.Buy)/float64(total))
 		}
 		row++
 		if q.Buy != nil && q.Sell != nil {
@@ -766,7 +766,7 @@ func (a *App) drawFlowList(c *Canvas, ix, head, top, iw, rows, barX int) {
 		if cw >= 70 {
 			// On the block's top row, the foot of the cell is the block's
 			// centre line, so the bar grows upward from it.
-			a.shareBar(c, ix+24, row, 34, b.Share)
+			a.shareBar(c, ix+24, row, 22, b.Share)
 		}
 		right := ix + cw
 		if b.ChangePct != nil {
@@ -789,24 +789,39 @@ func (a *App) drawFlowList(c *Canvas, ix, head, top, iw, rows, barX int) {
 	a.scrollbar(c, barX, top, a.lvScan.view*2, &a.lvScan)
 }
 
-// Owner order 2026-11-10 (later): the bars fill their own cell, so the colour
-// sits in the middle of the box instead of along its bottom edge, and the box
-// edges are drawn as lines between the boxes.
-const (
-	barBlock = '█'
-	barSep   = '│'
-)
+// Owner order 2026-11-10 (latest): the bars are build 21's bars again. Builds
+// 36 and 37 had replaced them with ten boxes and drawn lines between the boxes,
+// and the owner called that worse than what it replaced. Build 21's bar is one
+// row of whole cells split into ten ten percent tabs, each tab a shade of its
+// own colour, over a 17 cell span; that is what is drawn here, as it was then.
+const barBlock = '█'
 
-// shareBarBoxes is how many boxes every buy versus sell bar holds. Owner order
-// 2026-11-10 (later): the uneven tabs are gone and the bar is ten long boxes,
-// each pair separated by a line, so buyers and sellers are read box by box at a
-// glance. No box is a lighter or darker shade of its colour.
-const shareBarBoxes = 10
+// shareBarTabs is the number of ten percent tabs in every buy versus sell bar:
+// the bar keeps its 17 cell span and the tabs share it.
+const shareBarTabs = 10
 
-// shareBar draws a buy versus sell bar of w columns, half a cell tall (owner
-// order 2026-11-10 halved its height). Ten boxes sit centred in the bar's span,
-// then one space, then the percentage, so "98%" and "100%" both sit the same
-// distance from the last box.
+// shareBarTabWidths splits total cells into at most tabs tabs, spreading the
+// cells from the left. Every cell belongs to one tab, so the bar has no holes.
+// At 17 cells and ten tabs the widths are 2,2,2,1,2,2,1,2,2,1.
+func shareBarTabWidths(total int) []int {
+	if total <= 0 {
+		return nil
+	}
+	n := shareBarTabs
+	if total < n {
+		n = total
+	}
+	widths := make([]int, n)
+	for i := 0; i < total; i++ {
+		widths[i*n/total]++
+	}
+	return widths
+}
+
+// shareBar draws a buy versus sell bar of w columns, one whole cell tall: the
+// bar fills the row from the top of the cell to the bottom, as build 21 drew
+// it. Ten tabs share its 17 cell span, then one space, then the percentage, so
+// "98%" and "100%" both sit the same distance from the last tab.
 func (a *App) shareBar(c *Canvas, x, y, w int, buyShare float64) {
 	a.drawShareBar(c, x, y, w, buyShare, true)
 }
@@ -826,60 +841,42 @@ func (a *App) shareBarOnly(c *Canvas, x, y, w int, buyShare float64) int {
 	return a.drawShareBar(c, x, y, w, buyShare, false)
 }
 
-// drawShareBar draws the bar: ten boxes, a line between every pair, one solid
-// colour per box with no lighter or darker steps, and the whole bar centred in
-// its span. Owner order 2026-11-10 (later): the bar is long again, its boxes
-// are separated by visible lines, and the colour fills each box evenly rather
-// than sitting along the box's bottom edge.
-//
-// A long span carries two cells per box and a line between them (29 cells for
-// the ten boxes); a shorter one carries one cell per box and the same lines
-// when they fit, and one cell per box with no room for a line below that.
+// drawShareBar is build 21's bar, with the percentage made optional for the
+// KSE100 tile, where the bar stands in front of the row's own change instead.
+// The ten tabs are coloured at ten percent steps, their widths share the full
+// old span, and every second tab is a shade darker so the boxes stay countable
+// without a line being drawn between them.
 func (a *App) drawShareBar(c *Canvas, x, y, w int, buyShare float64, label bool) int {
 	th := a.th
-	span := max(1, w)
-	if label {
-		span = max(1, w-5)
-	}
-	green := int(math.Round(buyShare * float64(shareBarBoxes)))
+	full := max(1, w-5)
+	widths := shareBarTabWidths(full)
+	green := int(math.Round(buyShare * float64(len(widths))))
 	if green < 0 {
 		green = 0
 	}
-	if green > shareBarBoxes {
-		green = shareBarBoxes
+	if green > len(widths) {
+		green = len(widths)
 	}
-	boxW, sepW := 1, 0
-	if span >= shareBarBoxes*2+(shareBarBoxes-1) {
-		boxW, sepW = 2, 1
-	} else if span >= shareBarBoxes+(shareBarBoxes-1) {
-		boxW, sepW = 1, 1
-	}
-	used := shareBarBoxes*boxW + (shareBarBoxes-1)*sepW
-	if used > span {
-		sepW = 0
-		used = shareBarBoxes * boxW
-	}
-	start := x + max(0, (span-used)/2)
-	at := start
-	sepInk := mix(th.Panel, th.Soft, 0.6)
-	for i := 0; i < shareBarBoxes; i++ {
-		ink := th.Bad
+	at := x
+	for i, tw := range widths {
+		ink := mix(th.Panel, th.Bad, 0.8)
 		if i < green {
 			ink = th.Good
 		}
-		for j := 0; j < boxW; j++ {
-			c.Put(at, y, barBlock, ink, false)
-			at++
+		// One shade per tab, so the ten tabs stay countable without a hole
+		// between the cells of the same tab.
+		if i%2 == 1 {
+			ink = mix(ink, th.Panel, 0.22)
 		}
-		if i < shareBarBoxes-1 && sepW > 0 {
-			c.Put(at, y, barSep, sepInk, false)
-			at++
+		for j := 0; j < tw; j++ {
+			c.Put(at+j, y, barBlock, ink, false)
 		}
+		at += tw
 	}
 	if label {
-		c.Text(start+used+1, y, 4, strconv.FormatFloat(math.Round(buyShare*100), 'f', 0, 64)+"%", th.Soft, false)
+		c.Text(x+full+1, y, 4, strconv.FormatFloat(math.Round(buyShare*100), 'f', 0, 64)+"%", th.Soft, false)
 	}
-	return used
+	return full
 }
 
 // ---------- alerts ----------
@@ -991,7 +988,7 @@ func (a *App) drawBoardPanel(c *Canvas, x, y, w, h int, side int) {
 			c.Spans(vx, ry, ix+cw-vx, []Span{{"PKR ", th.Soft, false}, {compactNum(b.BuyValue), good, true}})
 		}
 		if cw >= 62 {
-			a.shareBar(c, ix+cw-34, ry, 34, b.Share)
+			a.shareBar(c, ix+cw-22, ry, 22, b.Share)
 		}
 	}
 	a.scrollbar(c, x+w-2, iy, ih, lv)
