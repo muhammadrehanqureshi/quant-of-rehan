@@ -1022,11 +1022,13 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 				// their right aligned places at the tile's edge.
 				showPrice(end-priceBlock, end-chgW-1, end)
 			default:
-				// Very short: the numbers follow the volumes, as they did before.
+				// Very short: PKR and the price follow the volumes, as they did
+				// before, so the row still carries its price beside its T volume.
 				pw := runeLen(px)
 				pkr := ix + 3 + used + 2
-				if pkr+4+pw < ix+iw {
-					showPrice(pkr, pkr+4+pw-1, pkr+4+pw+chgW)
+				if pkr+4+pw <= ix+iw {
+					c.Text(pkr, row, 4, "PKR ", th.Soft, false)
+					a.flashText(c, pkr+4, row, px, th.Text, true, pxKey)
 				}
 			}
 		}

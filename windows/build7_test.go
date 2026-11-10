@@ -88,7 +88,22 @@ func TestLeaderBarsAreOrderFlowBarsAndPriceFollowsT(t *testing.T) {
 		}
 	}
 	if priced == 0 {
-		t.Fatal("no leader line carries both a T volume and a price")
+		// Print the whole tile, so a failure names the row that lost its
+		// price or its T volume instead of only saying that one did.
+		var b strings.Builder
+		inside := false
+		for _, r := range rows {
+			switch {
+			case strings.Contains(r, "THE TOP 3 SCRIPS OF VOLUME"):
+				inside = true
+			case strings.Contains(r, "BUYING NOW"):
+				inside = false
+			}
+			if inside {
+				b.WriteString(r + "\n")
+			}
+		}
+		t.Fatalf("no leader line carries both a T volume and a price:\n%s", b.String())
 	}
 }
 
