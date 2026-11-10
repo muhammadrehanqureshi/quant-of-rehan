@@ -934,26 +934,45 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 		// pushed to the tile's far right and right aligned at one edge, so all
 		// three leaders line up and nothing floats in the middle of the row. The
 		// bar keeps the same distance from the price on every row.
+		// The right edge is the tile's inner width, not textW: textW is the
+		// narrow column the symbol line uses, and a price right aligned there
+		// painted over the volumes (CI caught "& TPKR 15.24"). Each of the
+		// three fields also has a fixed width from that edge, so the price, the
+		// change and the bar land on the same cells on every leader row.
 		if l.Price != nil {
-			right := ix + textW
-			if l.ChangePct != nil {
-				t := " " + changeText(*l.ChangePct)
-				a.flashRight(c, right, row, t, a.dirColor(*l.ChangePct), true, pxKey)
-				right -= runeLen(t)
+			const chgW, priceW = 8, 10
+			end := ix + iw - 1
+			bw := shareBarBoxes * shareBarBoxW
+			floor := ix + 3 + used + 1
+			priceBlock := 4 + priceW + chgW + 1
+			barStart := end - bw
+			chgRight := barStart - 2
+			priceRight := chgRight - chgW - 1
+			pkrLeft := priceRight - priceW - 4
+			showPrice := func(pkr, pxRight, chgRight int) {
+				c.Text(pkr, row, 4, "PKR ", th.Soft, false)
+				a.flashRight(c, pxRight, row, commaFloat(*l.Price, 2), th.Text, true, pxKey)
+				if l.ChangePct != nil {
+					a.flashRight(c, chgRight, row, changeText(*l.ChangePct), a.dirColor(*l.ChangePct), true, pxKey)
+				}
 			}
-			ps := commaFloat(*l.Price, 2)
-			a.flashRight(c, right, row, ps, th.Text, true, pxKey)
-			right -= runeLen(ps)
-			if right-4 > ix {
-				c.Text(right-4, row, 4, "PKR ", th.Soft, false)
-			}
-			right -= 4
-			if l.HasSplit() {
-				if total := *l.Buy + *l.Sell; total > 0 {
-					bw := shareBarBoxes * shareBarBoxW
-					if start := right - 2 - bw; start >= ix+3+used+2 {
-						a.shareBarOnly(c, start, row, bw, float64(*l.Buy)/float64(total))
+			switch {
+			case pkrLeft >= floor:
+				showPrice(pkrLeft, priceRight, chgRight)
+				if l.HasSplit() {
+					if total := *l.Buy + *l.Sell; total > 0 {
+						a.shareBarOnly(c, barStart, row, bw, float64(*l.Buy)/float64(total))
 					}
+				}
+			case end-priceBlock >= floor:
+				// Short window: the bar steps out and the price and change keep
+				// their right aligned places at the tile's edge.
+				showPrice(end-priceBlock, end-chgW-1, end)
+			default:
+				// Very short: the numbers follow the volumes, as they did before.
+				pkr := ix + 3 + used + 2
+				if pkr+4+priceW < ix+iw {
+					showPrice(pkr, pkr+4+priceW, pkr+4+priceW+1+chgW)
 				}
 			}
 		}
