@@ -306,22 +306,15 @@ func TestNoRingOnSettingsAndAlerts(t *testing.T) {
 	a := demoApp(t, 158, 41)
 	a.screen = scrHome
 	c := a.render()
-	// The left column holds the mark and nothing else, so its Braille dots are
-	// the dial's own.
-	dots := 0
+	// Owner order 2026-11-10 (latest): the ring is gone from every screen, and the
+	// left column carries the dot matrix QUANT OF REHAN mark in its place, so no
+	// Braille dot may stand anywhere on the home screen.
 	for y := 0; y < c.H; y++ {
-		for x := 0; x < 41 && x < c.W; x++ {
-			ce := c.Cells[y*c.W+x]
-			if ce.Ch < 0x2800 || ce.Ch > 0x28ff {
-				continue
-			}
-			for m := ce.Ch - 0x2800; m != 0; m &= m - 1 {
-				dots++
+		for x := 0; x < c.W; x++ {
+			if ch := c.Cells[y*c.W+x].Ch; ch >= 0x2800 && ch <= 0x28ff {
+				t.Fatalf("a ring dot is still on the home screen at %d,%d", x, y)
 			}
 		}
-	}
-	if dots < 200 {
-		t.Errorf("home must have the dot matrix dial, it has %d dots in the left column", dots)
 	}
 }
 

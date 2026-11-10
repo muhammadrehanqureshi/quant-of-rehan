@@ -393,12 +393,19 @@ func (a *App) drawLeft(c *Canvas, x, y, w, h int) {
 	// Owner order 2026-11-10 (latest): the telemetry tile is a third taller.
 	// The QUANT CORE tile had room to spare under the mark, so those rows go to
 	// the tile that carries the numbers.
-	const telH = 12
-	orbH := h - telH - 1
-	ix, iy, iw, ih := a.panel(c, x, y, w, orbH, "QUANT CORE", "")
-	drawOrb(c, ix, iy, iw, ih, a.animSeconds(), a.orbMode(), a.orbGreen(), th)
+	// Owner order 2026-11-10 (latest): the QUANT CORE tile is a tenth shorter
+	// than it was, and the rows it gives up go to TELEMETRY. Its mark is the dot
+	// matrix QUANT OF REHAN, one word to a line, in place of the orb.
+	const telBase = 12
+	coreH := (h - telBase - 1) * 9 / 10
+	if coreH < 5 {
+		coreH = 5
+	}
+	telH := h - coreH - 1
+	ix, iy, iw, ih := a.panel(c, x, y, w, coreH, "QUANT CORE", "")
+	drawWordmark(c, ix, iy, iw, ih, a.animSeconds(), a.orbGreen(), th)
 
-	tx, ty, tw, _ := a.panel(c, x, y+orbH+1, w, telH, "TELEMETRY", "")
+	tx, ty, tw, _ := a.panel(c, x, y+coreH+1, w, telH, "TELEMETRY", "")
 	const labelW = 7
 	label := func(row int, k string, v []Span) {
 		c.Text(tx, ty+row, labelW, k, th.Soft, false)
@@ -623,6 +630,11 @@ func (a *App) drawStatus(c *Canvas, x, y, w, h int) {
 		nc = th.Warn
 	}
 	note := a.statusNote()
+	// Owner order 2026-11-10 (latest): when the market is closed, the words that
+	// say so are red, not the yellow they were.
+	if strings.HasPrefix(note, "Market is closed") {
+		nc = th.Bad
+	}
 	px := ix + runeLen(pill) + 2
 	if lines := wrap(note, textW-(px-ix)); len(lines) > 0 && runeLen(note) > textW {
 		// A long relay message wraps under the pill instead of being cut.
