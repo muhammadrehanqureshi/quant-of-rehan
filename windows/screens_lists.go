@@ -789,12 +789,15 @@ func (a *App) drawFlowList(c *Canvas, ix, head, top, iw, rows, barX int) {
 	a.scrollbar(c, barX, top, a.lvScan.view*2, &a.lvScan)
 }
 
-// Owner order 2026-11-10 (latest): the bars are build 21's bars again. Builds
-// 36 and 37 had replaced them with ten boxes and drawn lines between the boxes,
-// and the owner called that worse than what it replaced. Build 21's bar is one
-// row of whole cells split into ten ten percent tabs, each tab a shade of its
-// own colour, over a 17 cell span; that is what is drawn here, as it was then.
-const barBlock = '█'
+// Owner order 2026-11-10 (latest): every stock keeps build 21's bar, ten shaded
+// tabs over a 17 cell span, but the bar is drawn with the thin horizontal rule
+// block instead of the full cell, so its height is about a third of the cell and
+// it sits on the cell's own centre line. A full cell touched the cell above and
+// below, and neighbouring stocks bled into one another; the rule leaves a clear
+// gap at the top and the bottom of every box, so each stock's bar stays inside
+// its own row. Owner order 2026-11-10 (previous): the ten boxes with lines drawn
+// between them are withdrawn.
+const barBlock = '▬'
 
 // shareBarTabs is the number of ten percent tabs in every buy versus sell bar:
 // the bar keeps its 17 cell span and the tabs share it.

@@ -7,8 +7,9 @@ const appVersion = "4.0.16"
 
 // hudBuild is the build number of this Windows HUD port. Owner order
 // 2026-11-10: the bar and size build is 3.0.1, the toast encoding fix that
-// follows it is 3.0.2, and the return to build 21's bars is 3.0.3.
-const hudBuild = "3.0.3"
+// follows it is 3.0.2, the return to build 21's bars is 3.0.3, and the short
+// centred bar that stays inside its own box is 3.0.4.
+const hudBuild = "3.0.4"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no
