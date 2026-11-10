@@ -241,6 +241,22 @@ func TestPhaseLine(t *testing.T) {
 	}
 }
 
+// Owner report 2026-11-10: the change arrow reached the Windows notification
+// as "\u00d4\u00fb\u2593" because powershell.exe reads its input as the system code page.
+// The toast text is plain ASCII now, and the arrow becomes a signed number.
+func TestToastTextIsPlainASCII(t *testing.T) {
+	s := toastScript("SAZEW is getting big buying orders",
+		"Price 1,490.00, \u25b2 5.82% today. \u25c6")
+	for _, r := range s {
+		if r > 127 {
+			t.Fatalf("the toast script carries %q (U+%04X), which powershell.exe cannot read", r, r)
+		}
+	}
+	if !strings.Contains(s, "+5.82% today") {
+		t.Fatalf("the rising change did not become a plus: %q", s)
+	}
+}
+
 func TestToastScriptIsInjectionSafe(t *testing.T) {
 	evil := `x'); Start-Process calc; ('` + "\n" + `"</text><script>` + "\x00"
 	s := toastScript("title '", evil)
