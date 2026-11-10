@@ -41,9 +41,9 @@ const orbScale = 1.0
 // Owner order 2026-11-10: the mark is the owner's own orb source, copied in as
 // ring.go, ring_data.go and assets/ring. OrbGrow is that source's size: 1.11
 // times the old 13 row radius, which is what needs, and fills, the tile's 14
-// rows. The later order of the same day asks for ten percent more again, so
-// 1.11 * 1.1 is 1.221, and nothing else about the orb moves.
-const OrbGrow = 1.221
+// rows. The later orders of the same day ask for ten percent more twice
+// again, so 1.11 * 1.1 * 1.1 is 1.3431, and nothing else about the orb moves.
+const OrbGrow = 1.3431
 
 // orbBaseRows is the row count the source measures its radius against.
 const orbBaseRows = 13

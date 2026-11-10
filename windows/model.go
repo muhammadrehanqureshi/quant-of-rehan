@@ -5,8 +5,9 @@ import "time"
 // appVersion mirrors the Android app this build is ported from.
 const appVersion = "4.0.16"
 
-// hudBuild is the build number of this Windows HUD port.
-const hudBuild = "32"
+// hudBuild is the build number of this Windows HUD port. Owner order
+// 2026-11-10: this build is version 3.0.1.
+const hudBuild = "3.0.1"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no

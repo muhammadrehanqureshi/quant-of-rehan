@@ -293,7 +293,7 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 		// symbol and the numbers, so its foot is the block's centre line and
 		// the extra height grows upward from it.
 		if total > 0 && cw >= 74 {
-			a.shareBar(c, ix+24, row, 22, float64(*q.Buy)/float64(total))
+			a.shareBar(c, ix+24, row, 34, float64(*q.Buy)/float64(total))
 		}
 		row++
 		if q.Buy != nil && q.Sell != nil {
@@ -766,7 +766,7 @@ func (a *App) drawFlowList(c *Canvas, ix, head, top, iw, rows, barX int) {
 		if cw >= 70 {
 			// On the block's top row, the foot of the cell is the block's
 			// centre line, so the bar grows upward from it.
-			a.shareBar(c, ix+24, row, 22, b.Share)
+			a.shareBar(c, ix+24, row, 34, b.Share)
 		}
 		right := ix + cw
 		if b.ChangePct != nil {
@@ -789,14 +789,18 @@ func (a *App) drawFlowList(c *Canvas, ix, head, top, iw, rows, barX int) {
 	a.scrollbar(c, barX, top, a.lvScan.view*2, &a.lvScan)
 }
 
-// barBlock is the lower half of a cell. Owner order 2026-11-10: the bars are
-// half their old height, so they take this rune and the panel above them shows
-// through.
-const barBlock = '▄'
+// Owner order 2026-11-10 (later): the bars fill their own cell, so the colour
+// sits in the middle of the box instead of along its bottom edge, and the box
+// edges are drawn as lines between the boxes.
+const (
+	barBlock = '█'
+	barSep   = '│'
+)
 
 // shareBarBoxes is how many boxes every buy versus sell bar holds. Owner order
-// 2026-11-10 (later): the uneven tabs are gone and the bar is ten boxes, so
-// buyers and sellers are read box by box at a glance.
+// 2026-11-10 (later): the uneven tabs are gone and the bar is ten long boxes,
+// each pair separated by a line, so buyers and sellers are read box by box at a
+// glance. No box is a lighter or darker shade of its colour.
 const shareBarBoxes = 10
 
 // shareBar draws a buy versus sell bar of w columns, half a cell tall (owner
@@ -804,7 +808,7 @@ const shareBarBoxes = 10
 // then one space, then the percentage, so "98%" and "100%" both sit the same
 // distance from the last box.
 func (a *App) shareBar(c *Canvas, x, y, w int, buyShare float64) {
-	a.shareBarRune(c, x, y, w, buyShare, barBlock)
+	a.drawShareBar(c, x, y, w, buyShare, true)
 }
 
 // shareBarMid draws the same split through the middle of a single-row box, which
@@ -812,45 +816,70 @@ func (a *App) shareBar(c *Canvas, x, y, w int, buyShare float64) {
 // top edge. A filled rectangle gives that one-row bar the thickness the owner
 // asked for.
 func (a *App) shareBarMid(c *Canvas, x, y, w int, buyShare float64) {
-	a.shareBarRune(c, x, y, w, buyShare, barBlock)
+	a.drawShareBar(c, x, y, w, buyShare, true)
 }
 
-// shareBarRune draws the bar with the caller's character: ten boxes, each one
-// cell, centred in the bar's own span and always followed by one space and the
-// percentage. Owner order 2026-11-10 (later): one box per ten percent of the
-// buy side, so dominance is counted rather than guessed, and the short bar sits
-// in the middle of the space it was always drawn in instead of against its left
-// edge.
-func (a *App) shareBarRune(c *Canvas, x, y, w int, buyShare float64, ch rune) {
+// shareBarOnly draws the same bar with no percentage after it, for the leaders
+// card, where the percentage is the change the row already carries. It returns
+// the cells used.
+func (a *App) shareBarOnly(c *Canvas, x, y, w int, buyShare float64) int {
+	return a.drawShareBar(c, x, y, w, buyShare, false)
+}
+
+// drawShareBar draws the bar: ten boxes, a line between every pair, one solid
+// colour per box with no lighter or darker steps, and the whole bar centred in
+// its span. Owner order 2026-11-10 (later): the bar is long again, its boxes
+// are separated by visible lines, and the colour fills each box evenly rather
+// than sitting along the box's bottom edge.
+//
+// A long span carries two cells per box and a line between them (29 cells for
+// the ten boxes); a shorter one carries one cell per box and the same lines
+// when they fit, and one cell per box with no room for a line below that.
+func (a *App) drawShareBar(c *Canvas, x, y, w int, buyShare float64, label bool) int {
 	th := a.th
-	// Five cells belong to the percentage, so the bar is centred in what is
-	// left. A bar narrower than ten cells keeps one box per cell it has.
-	span := max(1, w-5)
-	boxes := shareBarBoxes
-	if span < boxes {
-		boxes = span
+	span := max(1, w)
+	if label {
+		span = max(1, w-5)
 	}
-	start := x + (span-boxes)/2
-	green := int(math.Round(buyShare * float64(boxes)))
+	green := int(math.Round(buyShare * float64(shareBarBoxes)))
 	if green < 0 {
 		green = 0
 	}
-	if green > boxes {
-		green = boxes
+	if green > shareBarBoxes {
+		green = shareBarBoxes
 	}
-	for i := 0; i < boxes; i++ {
-		ink := mix(th.Panel, th.Bad, 0.8)
+	boxW, sepW := 1, 0
+	if span >= shareBarBoxes*2+(shareBarBoxes-1) {
+		boxW, sepW = 2, 1
+	} else if span >= shareBarBoxes+(shareBarBoxes-1) {
+		boxW, sepW = 1, 1
+	}
+	used := shareBarBoxes*boxW + (shareBarBoxes-1)*sepW
+	if used > span {
+		sepW = 0
+		used = shareBarBoxes * boxW
+	}
+	start := x + max(0, (span-used)/2)
+	at := start
+	sepInk := mix(th.Panel, th.Soft, 0.6)
+	for i := 0; i < shareBarBoxes; i++ {
+		ink := th.Bad
 		if i < green {
 			ink = th.Good
 		}
-		// One shade per box, so the ten boxes stay countable without a gap
-		// between them.
-		if i%2 == 1 {
-			ink = mix(ink, th.Panel, 0.22)
+		for j := 0; j < boxW; j++ {
+			c.Put(at, y, barBlock, ink, false)
+			at++
 		}
-		c.Put(start+i, y, ch, ink, false)
+		if i < shareBarBoxes-1 && sepW > 0 {
+			c.Put(at, y, barSep, sepInk, false)
+			at++
+		}
 	}
-	c.Text(start+boxes+1, y, 4, strconv.FormatFloat(math.Round(buyShare*100), 'f', 0, 64)+"%", th.Soft, false)
+	if label {
+		c.Text(start+used+1, y, 4, strconv.FormatFloat(math.Round(buyShare*100), 'f', 0, 64)+"%", th.Soft, false)
+	}
+	return used
 }
 
 // ---------- alerts ----------
@@ -962,7 +991,7 @@ func (a *App) drawBoardPanel(c *Canvas, x, y, w, h int, side int) {
 			c.Spans(vx, ry, ix+cw-vx, []Span{{"PKR ", th.Soft, false}, {compactNum(b.BuyValue), good, true}})
 		}
 		if cw >= 62 {
-			a.shareBar(c, ix+cw-22, ry, 22, b.Share)
+			a.shareBar(c, ix+cw-34, ry, 34, b.Share)
 		}
 	}
 	a.scrollbar(c, x+w-2, iy, ih, lv)

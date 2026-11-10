@@ -10,8 +10,8 @@ import (
 // percent margin of build 32. The later order of the same day asks for ten
 // percent more again, and nothing else about the orb changes.
 func TestOrbGrowsTenPercentAgain(t *testing.T) {
-	if math.Abs(OrbGrow-1.221) > 1e-9 {
-		t.Fatalf("OrbGrow is %v, want 1.221 (1.11 times 1.1)", OrbGrow)
+	if math.Abs(OrbGrow-1.3431) > 1e-9 {
+		t.Fatalf("OrbGrow is %v, want 1.3431 (1.11 grown by ten percent twice)", OrbGrow)
 	}
 	if OrbRadius(OrbGrow) <= OrbRadius(1.11) {
 		t.Fatal("the mark did not grow")
