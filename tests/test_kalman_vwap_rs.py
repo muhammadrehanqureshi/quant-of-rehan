@@ -133,7 +133,16 @@ class GateTest(unittest.TestCase):
         self.assertEqual(reason, "rs_not_positive")
 
     def test_a_name_matching_the_market_is_not_enough(self):
-        view, reason = self._view(0.1)
+        # The market leg is the name's own return, so the difference is
+        # exactly zero: the gate wants a name AHEAD of the market, not level
+        # with it.
+        rows = series([100.0, 110.0])
+        session = session_of({"AAA": rows})
+        own = rs.session_return(rows, rs.session_open_of(session),
+                               session.as_of)
+        view, reason = rs.entry_view("AAA", rows, session,
+                                     {"mean_return": own, "symbols": 100})
+
         self.assertIsNone(view)
         self.assertEqual(reason, "rs_not_positive")
 
