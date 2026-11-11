@@ -21,10 +21,11 @@ const appVersion = "4.0.20"
 // unsigned NET DELTA are 3.2.5, the separate SEARCH and SECTORS tiles, the blue
 // cursors, the pre and post market times and the half block bars are 3.2.6, and
 // the centred bars, the day's market times, the single diamond and the denser
-// globe are 3.2.7, the lit globe and the taller bold bars are 3.2.8, and the
-// right aligned telemetry, the B/S/U FLOW row and the ALERTS LOG search are
-// 3.2.9.
-const hudBuild = "3.2.9"
+// globe are 3.2.7, the lit globe and the taller bold bars are 3.2.8, the right
+// aligned telemetry, the B/S/U FLOW row and the ALERTS LOG search are 3.2.9,
+// and the restored 3.2.6 globe, the centred rectangle bars and the day's FLOW
+// sides are 3.3.0.
+const hudBuild = "3.3.0"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no

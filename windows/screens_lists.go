@@ -835,13 +835,13 @@ func (a *App) drawFlowList(c *Canvas, ix, head, top, iw, rows, barX int) {
 // edge to edge with no seam and no small box inside it, and it is drawn on the
 // cell's centre line. The bar's span, row and colours do not move.
 //
-// Owner order 2026-11-11 (ninth pass): the bars are fifteen percent taller. A
-// console cell has no fractional height for a horizontal line, so the rule is
-// drawn in the bold weight, the font's own thicker cut of the same glyph. It
-// keeps the centre line, the seam is closed by the heavier stroke and the span
-// does not move; the rectangle and the half blocks are not used again because
-// they bring the small box or the floor of the cell back.
-const barBlock = '━'
+// Owner order 2026-11-11 (eleventh pass): the bars are taller and stay on the
+// centre line. A console cell has no fifteen percent step for a horizontal
+// line: the centred rectangle is the one glyph taller than the rule, and in the
+// regular weight it spans the cell's width, so the band stays unbroken. The
+// lower and upper blocks are not used because they stand on the floor or the
+// top of the cell.
+const barBlock = '▬'
 
 // shareBarBoxes is how many boxes a buy versus sell bar holds. Owner order
 // 2026-11-11: the bar carries ten boxes and not sixteen, and each box grows in
@@ -907,11 +907,11 @@ func (a *App) drawShareBar(c *Canvas, x, y, w int, buyShare float64, label bool)
 			ink = th.Good
 		}
 		for k := at; k < at+width; k++ {
-			// Owner order 2026-11-11: the centred rule joins its neighbour
-			// edge to edge, leaves no small box inside the bar and never sits on
-			// the floor of the cell. Its span, row and colours are untouched; the
-			// bold weight is the taller cut the ninth pass asked for.
-			c.Put(x+k, y, barBlock, ink, true)
+			// Owner order 2026-11-11: the centred rectangle joins its neighbour
+			// edge to edge in the regular weight, leaves no small box inside the
+			// bar and never sits on the floor of the cell. Its span, row and
+			// colours are untouched.
+			c.Put(x+k, y, barBlock, ink, false)
 		}
 		at += width
 	}

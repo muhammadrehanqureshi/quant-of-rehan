@@ -1,7 +1,6 @@
 package main
 
 import (
-	"math"
 	"strings"
 	"testing"
 )
@@ -51,11 +50,14 @@ func TestOnlyOneDiamondOnTheCursorRow(t *testing.T) {
 	}
 }
 
-// Owner order 2026-11-11: the middle of the orb must be full of dots, so the
-// surface grid carries about twice the points it did in build 3.2.6.
-func TestSphereGridIsDenseEnoughForTheMiddle(t *testing.T) {
-	if n := len(spherePoints()); n < 1800 {
-		t.Fatalf("the globe draws %d dots, too few for a solid ball", n)
+// Owner order 2026-11-11 (eleventh pass): the globe goes back to the build
+// 3.2.6 grid, which read as a 3D sphere; the doubled grid filled every cell and
+// flattened it. The count is pinned in a band so the globe can neither go
+// hollow again nor become a solid mesh.
+func TestSphereGridKeepsTheBuild326Spacing(t *testing.T) {
+	n := len(spherePoints())
+	if n < 1000 || n > 1400 {
+		t.Fatalf("the globe draws %d dots, outside the build 3.2.6 grid", n)
 	}
 }
 
@@ -64,25 +66,23 @@ func sphereLuma(c RGB) float64 {
 	return 0.2126*float64(c.R) + 0.7152*float64(c.G) + 0.0722*float64(c.B)
 }
 
-// Owner order 2026-11-11 (eighth pass): the doubled grid had flattened the
-// globe into one bright mesh, so the ink follows a lamp at the upper left. The
-// lit side must be brighter than the shadow side and the front brighter than
-// the back, and one frame must carry enough shades to be a gradient.
-func TestSphereIsLitFromTheUpperLeft(t *testing.T) {
+// Owner order 2026-11-11 (eleventh pass): the three depth bands are back. The
+// near side is the brightest, the far side the dimmest, and one frame carries
+// the banding that gives the globe its depth.
+func TestSphereShadesByDepth(t *testing.T) {
 	th := themeAt(0)
-	bright, dark := th.Good, mix(th.Good, th.Panel, 0.62)
-	s := math.Sqrt(0.5)
-	lit := sphereInk(spherePoint{x: -0.5, y: -0.5, z: s}, bright, dark)
-	shadow := sphereInk(spherePoint{x: 0.5, y: 0.5, z: s}, bright, dark)
-	if sphereLuma(lit) <= sphereLuma(shadow) {
-		t.Fatalf("the upper left (%.0f) is not brighter than the lower right (%.0f)",
-			sphereLuma(lit), sphereLuma(shadow))
+	near, mid, far := th.Good, mix(th.Good, th.Soft, 0.45), mix(th.Good, th.Soft, 0.78)
+	if got := sphereInk(1, near, mid, far); got != near {
+		t.Fatalf("the front of the globe is not the bright band: %v", got)
 	}
-	front := sphereInk(spherePoint{z: 1}, bright, dark)
-	back := sphereInk(spherePoint{z: -1}, bright, dark)
-	if sphereLuma(front) <= sphereLuma(back) {
-		t.Fatalf("the front (%.0f) is not brighter than the back (%.0f)",
-			sphereLuma(front), sphereLuma(back))
+	if got := sphereInk(0, near, mid, far); got != mid {
+		t.Fatalf("the middle of the globe is not the middle band: %v", got)
+	}
+	if got := sphereInk(-1, near, mid, far); got != far {
+		t.Fatalf("the back of the globe is not the dim band: %v", got)
+	}
+	if !(sphereLuma(near) > sphereLuma(mid) && sphereLuma(mid) > sphereLuma(far)) {
+		t.Fatal("the three bands do not step down from the front to the back")
 	}
 
 	a := demoApp(t, 100, 40)
@@ -94,7 +94,7 @@ func TestSphereIsLitFromTheUpperLeft(t *testing.T) {
 			inks[ce.FG] = true
 		}
 	}
-	if len(inks) < 5 {
-		t.Fatalf("the globe drew %d shade(s), too few for a lit ball", len(inks))
+	if len(inks) < 2 {
+		t.Fatalf("the globe drew %d ink(s), so it has no depth shading", len(inks))
 	}
 }

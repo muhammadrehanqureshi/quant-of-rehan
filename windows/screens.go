@@ -513,12 +513,29 @@ func (a *App) drawLeft(c *Canvas, x, y, w, h int) {
 		{"/", th.Soft, false},
 		{strconv.Itoa(dec), th.Bad, true},
 	})
-	// FLOW. Owner order 2026-11-11 (tenth pass): FLOW stands before NET DELTA,
-	// and its value starts with B=..., S=... & U=..., the three separate sides
-	// the ORDER FLOW table already names that way. U is always written, zero
-	// included, so the three figures never move.
-	if a.cfg.BigBuy || a.cfg.BigSell {
-		buy, sell, unclear := a.flow.WindowSides(a.karachiNow(), time.Minute)
+	// FLOW. Owner order 2026-11-11 (eleventh pass): the row must not read zero
+	// after the closing bell. The live minute is the first read; when it is
+	// empty the relay's day sides take over, so the post market still shows the
+	// day's B, S and U. The three sides stay separate and U is always written.
+	var buy, sell, unclear int64
+	if a.flow != nil {
+		buy, sell, unclear = a.flow.WindowSides(a.karachiNow(), time.Minute)
+	}
+	if buy+sell+unclear == 0 && a.of != nil {
+		tot := a.of.Totals()
+		buy, sell, unclear = tot.Buy, tot.Sell, tot.Unclassified
+	}
+	if buy+sell+unclear == 0 {
+		for _, q := range a.prices {
+			if q.Buy != nil {
+				buy += *q.Buy
+			}
+			if q.Sell != nil {
+				sell += *q.Sell
+			}
+		}
+	}
+	if buy+sell+unclear > 0 || a.cfg.BigBuy || a.cfg.BigSell {
 		label(8, "FLOW", []Span{
 			{"B=", th.Good, true}, {compactNum(float64(buy)), th.Text, false},
 			{", S=", th.Bad, true}, {compactNum(float64(sell)), th.Text, false},
