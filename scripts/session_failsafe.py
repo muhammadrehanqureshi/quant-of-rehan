@@ -17,6 +17,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -43,8 +44,29 @@ def read(path: str, attempts: int = 3, timeout: float = 20.0):
     last: Exception | None = None
     for _ in range(attempts):
         try:
-            with urllib.request.urlopen(BASE + path, timeout=timeout) as response:
+            # A plain urllib request identifies itself as Python, which an
+            # edge rule may refuse; the probe names itself instead, exactly as
+            # the GitHub API calls below already do (owner question
+            # 2026-11-11: is the relay the thing that is down?).
+            request = urllib.request.Request(
+                BASE + path,
+                headers={"User-Agent": "quant-of-rehan-failsafe",
+                         "Accept": "application/json"})
+            with urllib.request.urlopen(request, timeout=timeout) as response:
                 return json.load(response)
+        except urllib.error.HTTPError as exc:
+            # An HTTP status is the relay or the edge answering, not a dead
+            # network: the code and the first words of the body say which, so
+            # the run log can be read without guessing (owner question
+            # 2026-11-11: is Cloudflare the thing that is down?).
+            detail = ""
+            try:
+                detail = exc.read().decode("utf-8", "replace").strip()[:200]
+            except Exception:  # noqa: BLE001 - a body is a bonus, never required
+                detail = ""
+            print(f"failsafe: {path} answered HTTP {exc.code}"
+                  f"{' ' + detail if detail else ''}", flush=True)
+            last = exc
         except Exception as exc:  # noqa: BLE001 - the reason is logged below
             last = exc
     print(f"failsafe: {path} did not answer after {attempts} attempts "
