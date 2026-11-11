@@ -56,6 +56,10 @@ class ReadinessGateTest(unittest.TestCase):
         self.assertIn('cron: "20 4 * * 1-5"', text, "09:20 PKT, frames must exist")
         self.assertIn("/health", text)
         self.assertIn("/quotes", text)
+        self.assertIn("def read(path, attempts=3)", text,
+                      "one busy instant is not an outage: the gate retries")
+        self.assertIn("after three attempts", text,
+                      "the alert states how often the relay was tried")
         self.assertIn("preopen-ready:", text,
                       "the alert is deduped per day, one email at most")
         self.assertNotIn("schtasks", text)
