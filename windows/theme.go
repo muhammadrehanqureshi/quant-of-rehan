@@ -48,7 +48,8 @@ func scale(c RGB, k float64) RGB {
 }
 
 // Theme is one palette. Index 0 is the JARVIS look this port ships with; the
-// other five are the themes from the Android app, keeping their names.
+// other three are the themes from the Android app, keeping their names. Owner
+// order 2026-11-11: GREEN & YELLOW and ORANGE & WHITE are deleted.
 type Theme struct {
 	Name   string
 	BG     RGB // screen
@@ -89,24 +90,10 @@ var themes = []Theme{
 		OnGood: hexc("#f2fbf6"), OnBad: hexc("#fdf3f3"), GoodFill: hexc("#1b6b45"), BadFill: hexc("#8e1f1f"),
 	},
 	{
-		Name: "GREEN & YELLOW",
-		BG:   hexc("#0b2417"), Panel: hexc("#143220"), Field: hexc("#1f4a2e"), Line: hexc("#4a8a63"),
-		Accent: hexc("#d9a441"), Hot: hexc("#f8ce66"), Text: hexc("#eaf6ee"), Soft: hexc("#9cc4ac"),
-		Good: hexc("#43c98a"), Bad: hexc("#d65f66"), Warn: hexc("#f8ce66"),
-		OnGood: hexc("#f2fbf6"), OnBad: hexc("#fdf3f3"), GoodFill: hexc("#1b6b45"), BadFill: hexc("#8e1f1f"),
-	},
-	{
 		Name: "NAVY BLUE & WHITE",
 		BG:   hexc("#0a1330"), Panel: hexc("#131c3d"), Field: hexc("#1e2a55"), Line: hexc("#4458a8"),
 		Accent: hexc("#ffffff"), Hot: hexc("#ffffff"), Text: hexc("#e8ecff"), Soft: hexc("#9aa6d6"),
 		Good: hexc("#43c98a"), Bad: hexc("#d65f66"), Warn: hexc("#f8ce66"),
-		OnGood: hexc("#f2fbf6"), OnBad: hexc("#fdf3f3"), GoodFill: hexc("#1b6b45"), BadFill: hexc("#8e1f1f"),
-	},
-	{
-		Name: "ORANGE & WHITE",
-		BG:   hexc("#2f1307"), Panel: hexc("#3f1b0c"), Field: hexc("#592812"), Line: hexc("#b3612a"),
-		Accent: hexc("#ffffff"), Hot: hexc("#ffe3cf"), Text: hexc("#fff1e8"), Soft: hexc("#e0b9a0"),
-		Good: hexc("#43c98a"), Bad: hexc("#ff6a6a"), Warn: hexc("#ffb830"),
 		OnGood: hexc("#f2fbf6"), OnBad: hexc("#fdf3f3"), GoodFill: hexc("#1b6b45"), BadFill: hexc("#8e1f1f"),
 	},
 }

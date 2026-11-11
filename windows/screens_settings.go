@@ -35,7 +35,9 @@ func (a *App) drawSettings(c *Canvas, x, y, w, h int) {
 	item(6, "TEST BUYING ALERT", []Span{{"Plays the buying tone and a test pop-up.", th.Soft, false}})
 	item(7, "TEST SELLING ALERT", []Span{{"Plays the selling tone and a test pop-up.", th.Soft, false}})
 	row++
-	c.Text(ix, row, iw, "THEMES  THE APP'S COVER & HEADINGS.", th.Accent, true)
+	// Owner order 2026-11-11: the heading is the one word, closed by the
+	// same diamond the title and the chosen row carry.
+	c.Text(ix, row, iw, "◆ THEMES", th.Accent, true)
 	row++
 	for i := range themes {
 		t := &themes[i]
