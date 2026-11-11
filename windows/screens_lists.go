@@ -844,10 +844,10 @@ func (a *App) shareBarOnly(c *Canvas, x, y, w int, buyShare float64) int {
 }
 
 // drawShareBar is the buy versus sell bar: ten boxes, one box per ten percent,
-// and the percentage after it. Owner order 2026-11-11 (second pass): the patch
-// 29 look is restored, so the bar is its 16 cells, one green and one red,
-// every other box one step paler, and no cell is drawn between the boxes. The
-// percentage is optional for the rows that carry their own change.
+// and the percentage after it. Owner order 2026-11-11 (third pass): the bar is
+// its 16 cells with one shade of green and one shade of red, no paler step, and
+// no cell is drawn between the boxes. The percentage is optional for the rows
+// that carry their own change.
 func (a *App) drawShareBar(c *Canvas, x, y, w int, buyShare float64, label bool) int {
 	th := a.th
 	// The bar is 16 cells; a caller with less room (the ALERTS boards pass the
@@ -868,16 +868,13 @@ func (a *App) drawShareBar(c *Canvas, x, y, w int, buyShare float64, label bool)
 	}
 	// Ten boxes over the sixteen cells, touching and unbroken: each box takes
 	// its slice and no gap is drawn between them. Owner order 2026-11-11
-	// (second pass): every other box is one step paler, the patch 29 step that
-	// marks all ten boxes at a glance without changing the length or height.
+	// (third pass): one shade of green and one shade of red, no paler step, so
+	// the bar reads as one band in exactly two inks.
 	at := 0
 	for i, width := range shareBarBoxWidths(span) {
 		ink := th.Bad
 		if i < green {
 			ink = th.Good
-		}
-		if i%2 == 1 {
-			ink = mix(ink, th.Panel, 0.22)
 		}
 		for k := at; k < at+width; k++ {
 			c.Put(x+k, y, barBlock, ink, true)
