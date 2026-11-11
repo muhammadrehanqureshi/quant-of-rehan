@@ -128,8 +128,8 @@ def main(argv: list[str] | None = None) -> int:
             "Quant of Rehan relay did not answer /health three times at "
             f"{moment:%H:%M} PKT on {moment:%Y-%m-%d}. The band loop was "
             "dispatched again from GitHub so the session is still scanned, but "
-            "the card and the order flow cannot update until the relay "
-            "answers. This alert repeats at most once a day."
+            "the card cannot update until the relay answers. This alert "
+            "repeats at most once a day."
         )
     return 0
 
