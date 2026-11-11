@@ -1641,6 +1641,16 @@ to sixty seconds. The status tile therefore also carries the app's own
      the orphan law stands so every dot still wears a filament.
   5. The version bump is versionCode 82 / versionName 2.3.15.
 
+**Version 4.0.20, versionCode 129.**
+
+  Owner order 2026-11-11, third pass. The ORDER FLOW divider now stands the
+  full height of the BID and ASK columns. BIG BUYING & SELLING is sorted by
+  the print's own clock, so the latest transaction leads the board and the
+  earliest sits at the bottom; LAST EIGHT FILLED ORDERS follows the same
+  order.
+
+  The version bump is versionCode 129 / versionName 4.0.20.
+
 **Version 4.0.19, versionCode 128.**
 
   Owner order 2026-11-11, second pass. QUANT STATUS reads PROCESSING...

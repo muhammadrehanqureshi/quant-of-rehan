@@ -632,6 +632,23 @@ class SettingsControlTest(unittest.TestCase):
         self.assertIn("printTime(print.at)", self.main)
         self.assertIn("raw.substring(t + 1, t + 9)", self.main)
 
+    def test_the_big_prints_run_latest_first_by_clock(self):
+        """Owner order 2026-11-11, third pass: the board is a clock, not a
+        size ranking, so the latest print leads and the earliest closes it.
+        LAST EIGHT FILLED ORDERS reads the same list and keeps the same order.
+        """
+        watcher = (ROOT / "android" / "app" / "src" / "main" / "java"
+                   / "pk" / "quantofrehan" / "Watcher.java").read_text(
+            encoding="utf-8")
+        self.assertIn("private static String flowClock(String at)", watcher)
+        self.assertIn(
+            "int byClock = flowClock(b.at).compareTo(flowClock(a.at));",
+            watcher)
+        self.assertIn("return Long.compare(b.value, a.value);", watcher)
+        self.assertNotIn("prints.sort((a, b) -> Long.compare(b.value, a.value));",
+                         watcher)
+        self.assertIn("for (Watcher.BigPrint print : lastPrints)", self.main)
+
     def test_the_selected_book_is_two_coloured_columns(self):
         """Owner order 2026-11-07 ("make two columns, one would contain
         BID & QTY get a vertical line after that then make another column
@@ -662,7 +679,10 @@ class SettingsControlTest(unittest.TestCase):
         self.assertIn("fillFlowPrints(symbol);", selected)
         self.assertIn("LAST EIGHT FILLED ORDERS", selected)
         self.assertNotIn("dp(64)", selected)
+        self.assertIn("Math.max(1, dp(1)), LinearLayout.LayoutParams.MATCH_PARENT);",
+                      selected)
         self.assertIn("bidColumn.addOnLayoutChangeListener(", selected)
+        self.assertIn("columns.post(() -> {", selected)
         self.assertIn("lp.height = height;", selected)
         self.assertIn("shown >= FLOW_RESULTS_SHOWN", selected)
         self.assertNotIn("found.unclassified > 0", selected)
@@ -2225,9 +2245,10 @@ class VersionTest(unittest.TestCase):
         # Owner order 2026-11-09: the phone's own hard daily relay request
         # stop ships as 4.0.17. Owner order 2026-11-11: the themed caret,
         # the diamond scroller and the always-moving orb ship as 4.0.18.
-        # The second pass on 2026-11-11 ships as 4.0.19.
-        self.assertIn('android:versionName="4.0.19"', manifest)
-        self.assertIn('android:versionCode="128"', manifest)
+        # The second pass on 2026-11-11 ships as 4.0.19; the third pass
+        # ships as 4.0.20.
+        self.assertIn('android:versionName="4.0.20"', manifest)
+        self.assertIn('android:versionCode="129"', manifest)
         self.assertNotIn('android:versionName="4.0.15"', manifest)
         self.assertNotIn('android:versionName="4.0.14"', manifest)
         self.assertNotIn('android:versionName="3.7.5"', manifest)
@@ -2444,9 +2465,10 @@ class VersionTest(unittest.TestCase):
         # Owner order 2026-11-09: the phone's own hard daily relay request
         # stop ships as 4.0.17. Owner order 2026-11-11: the themed caret,
         # the diamond scroller and the always-moving orb ship as 4.0.18.
-        # The second pass on 2026-11-11 ships as 4.0.19.
-        self.assertIn('android:versionCode="128"', manifest)
-        self.assertIn('android:versionName="4.0.19"', manifest)
+        # The second pass on 2026-11-11 ships as 4.0.19; the third pass
+        # ships as 4.0.20.
+        self.assertIn('android:versionCode="129"', manifest)
+        self.assertIn('android:versionName="4.0.20"', manifest)
         self.assertNotIn('android:versionName="4.0.15"', manifest)
         self.assertNotIn('android:versionName="3.7.5"', manifest)
         self.assertNotIn('android:versionName="3.7.4"', manifest)

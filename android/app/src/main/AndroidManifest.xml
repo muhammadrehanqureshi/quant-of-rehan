@@ -540,11 +540,16 @@
      NOW, the ORDER FLOW divider ends with the BID and ASK columns, the
      selected scrip's fills are headed LAST EIGHT FILLED ORDERS, and the
      scroller diamond is the app's own 10sp brand diamond.
+
+     versionCode 129 / versionName 4.0.20 belong to the owner's order of
+     2026-11-11, third pass: the ORDER FLOW divider stands the full height of
+     the BID and ASK columns, and BIG BUYING & SELLING runs by the print's
+     own clock, latest at the top and earliest at the bottom.
      -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="pk.quantofrehan"
-    android:versionCode="128"
-    android:versionName="4.0.19">
+    android:versionCode="129"
+    android:versionName="4.0.20">
 
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="30"/>
 
