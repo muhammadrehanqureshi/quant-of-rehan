@@ -51,6 +51,17 @@ func commaFloat(f float64, dec int) string {
 	return b.String()
 }
 
+// signedCompact writes a whole number with its sign, using the compact form.
+func signedCompact(n int64) string {
+	switch {
+	case n > 0:
+		return "+" + compactNum(float64(n))
+	case n < 0:
+		return "-" + compactNum(float64(-n))
+	}
+	return "0"
+}
+
 // arrow returns the direction glyph used across the app.
 func arrow(v float64) string {
 	if v >= 0 {

@@ -238,6 +238,51 @@ func (a *App) isLive() bool {
 	return p == "OPEN" || p == "WARMUP"
 }
 
+// marketBreadth counts the market's advancers and decliners from the freshest
+// whole-market table. The broker feed wins when it has rows, because those are
+// the live changes; otherwise the relay's /prices table stands in.
+func (a *App) marketBreadth() (adv, dec int) {
+	count := func(pct *float64) {
+		if pct == nil {
+			return
+		}
+		switch {
+		case *pct > 0:
+			adv++
+		case *pct < 0:
+			dec++
+		}
+	}
+	if a.quotes != nil && len(a.quotes.Items) > 0 {
+		for _, q := range a.quotes.Items {
+			if q.Fresh {
+				count(q.ChangePct)
+			}
+		}
+		return
+	}
+	for _, q := range a.prices {
+		count(q.ChangePct)
+	}
+	return
+}
+
+// marketNetDelta is the whole market's measured buying minus selling, in
+// shares. It sums the relay's own day pair over every symbol that carries one,
+// and reports false rather than inventing a zero when no pair has arrived.
+func (a *App) marketNetDelta() (int64, bool) {
+	var net int64
+	ok := false
+	for _, q := range a.prices {
+		if q.Buy == nil || q.Sell == nil {
+			continue
+		}
+		net += *q.Buy - *q.Sell
+		ok = true
+	}
+	return net, ok
+}
+
 // karachiNow is the time everything on screen runs on. It is this PC's clock,
 // unless the relay's own clock (read from the Date header of its answers)
 // disagrees by more than two seconds, in which case the relay's clock wins, so
