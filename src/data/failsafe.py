@@ -46,6 +46,8 @@ from src.data.sessions import (
 # capture and never a quiet symbol.
 STALE_SECONDS = 240.0
 
+# SO-8: the clock here is Asia/Karachi (UTC+5), and every window edge is
+# imported from src/data/sessions.py, the one place the pin lives.
 # The 08:55 recorder warm-up, before the exchange publishes its first pre-open
 # window (09:15 Monday to Thursday, 09:00 Friday).
 CAPTURE_WARMUP_OPEN = (8, 55)
