@@ -1641,6 +1641,18 @@ to sixty seconds. The status tile therefore also carries the app's own
      the orphan law stands so every dot still wears a filament.
   5. The version bump is versionCode 82 / versionName 2.3.15.
 
+**Version 4.0.18, versionCode 127.**
+
+  Owner order 2026-11-11. The SECTORS caret now inks from the worn theme,
+  so BLACK & WHITE opens a white caret instead of the fixed yellow one.
+  The BIG BUYING & SELLING platform scroll bar is replaced by the app's
+  own scroller: a diamond in the middle with a fading line above and
+  below it, drawn in the theme's own ink. The thinking orb no longer
+  parks when the market is OFFLINE; it turns for as long as the app is
+  open.
+
+  The version bump is versionCode 127 / versionName 4.0.18.
+
 **Version 4.0.17, versionCode 126.**
 
   Owner order 2026-11-09. The phone now keeps the same hard daily stop on
