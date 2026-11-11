@@ -85,21 +85,18 @@ func TestOrderFlowScreenShowsBSUTSeparately(t *testing.T) {
 	for _, sz := range [][2]int{{122, 30}, {100, 30}, {80, 26}} {
 		a := orderFlowApp(t, sz[0], sz[1], sampleOrderFlow)
 		s := plain(a)
-		for _, want := range []string{"ORDER FLOW", "AAA", "BBB", "CCC", "DDD", "B=", "T="} {
-			if sz[0] >= 102 && (want == "B=" || want == "T=") {
+		for _, want := range []string{"ORDER FLOW", "AAA", "BBB", "CCC", "DDD", "U=", "B=", "T="} {
+			if sz[0] >= 102 && (want == "U=" || want == "B=" || want == "T=") {
 				continue // the wide table has these as column headings
 			}
 			if !strings.Contains(s, want) {
 				t.Errorf("%dx%d: missing %q:\n%s", sz[0], sz[1], want, s)
 			}
 		}
-		for _, want := range []string{"1,000", "600", "300"} {
+		for _, want := range []string{"1,000", "600", "300", "100"} {
 			if !strings.Contains(s, want) {
 				t.Errorf("%dx%d: the numbers must be shown as sent, missing %q", sz[0], sz[1], want)
 			}
-		}
-		if strings.Contains(s, "U=") {
-			t.Errorf("%dx%d: an unclear figure is still on the ORDER FLOW screen", sz[0], sz[1])
 		}
 		if !strings.Contains(s, "~1,200") && !strings.Contains(s, "B~1,200") {
 			t.Errorf("%dx%d: an estimate must be marked with a tilde:\n%s", sz[0], sz[1], s)
@@ -110,12 +107,12 @@ func TestOrderFlowScreenShowsBSUTSeparately(t *testing.T) {
 	}
 	a := orderFlowApp(t, 122, 30, sampleOrderFlow)
 	s := plain(a)
-	for _, want := range []string{"BUYING (B)", "SELLING (S)", "TOTAL (T)", "BID", "ASK", "10.49", "10.51", "no split", "MEASURED 2 stocks"} {
+	for _, want := range []string{"BUYING (B)", "SELLING (S)", "UNCL. (U)", "TOTAL (T)", "BID", "ASK", "10.49", "10.51", "no split", "MEASURED 2 stocks"} {
 		if !strings.Contains(s, want) {
 			t.Errorf("wide table is missing %q:\n%s", want, s)
 		}
 	}
-	// AAA reads buying, selling and the total, with no fourth column.
+	// The unclassified column for AAA is its own 100, and B stays 600.
 	line := ""
 	for _, r := range rowsOf(a) {
 		if strings.Contains(r, "AAA") && strings.Contains(r, "10.49") {
@@ -125,12 +122,12 @@ func TestOrderFlowScreenShowsBSUTSeparately(t *testing.T) {
 	f := strings.Fields(line)
 	at := -1
 	for i, w := range f {
-		if w == "10.51" { // the ask, then B, S and T
+		if w == "10.51" { // the ask, then B, S, U and T
 			at = i
 		}
 	}
-	if at < 0 || len(f) < at+4 || f[at+1] != "600" || f[at+2] != "300" || f[at+3] != "1,000" {
-		t.Errorf("AAA's row must read B 600, S 300, T 1,000, got %q", line)
+	if at < 0 || len(f) < at+5 || f[at+1] != "600" || f[at+2] != "300" || f[at+3] != "100" || f[at+4] != "1,000" {
+		t.Errorf("AAA's row must read B 600, S 300, U 100, T 1,000, got %q", line)
 	}
 }
 

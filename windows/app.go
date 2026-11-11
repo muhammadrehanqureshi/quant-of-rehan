@@ -414,6 +414,31 @@ func (a *App) effectiveLeaders() []Leader {
 	}
 	out := make([]Leader, len(a.market.Leaders))
 	copy(out, a.market.Leaders)
+	// Owner report 2026-11-11: PRL read B 5,769,252 and S 169,063 on the home
+	// tile and B 3,807,688 and S 1,993,909 on ORDER FLOW. The tile was
+	// recomputing the split from the day's price range while ORDER FLOW carried
+	// the relay's measured pair, so the same stock showed two different
+	// answers. There is one pair now: the flow row's own, adopted whole, and the
+	// tile cannot disagree with the board again. Unclassified volume stays
+	// outside both sides.
+	measured := map[string]bool{}
+	if a.of != nil {
+		for i := range out {
+			for _, fr := range a.of.Rows {
+				if fr.Symbol != out[i].Symbol || !fr.Measured() {
+					continue
+				}
+				b, s := *fr.Buy, *fr.Sell
+				out[i].Buy, out[i].Sell = &b, &s
+				if fr.Volume != nil {
+					v := *fr.Volume
+					out[i].Volume = &v
+				}
+				measured[out[i].Symbol] = true
+				break
+			}
+		}
+	}
 	if a.quotes == nil {
 		return out
 	}
@@ -425,15 +450,12 @@ func (a *App) effectiveLeaders() []Leader {
 				c := *q.ChangePct
 				out[i].ChangePct = &c
 			}
-			// Volume and the buy and sell split come from the same live tick, so
-			// they move with the price. The split is the relay's own range
-			// estimate, worked out on the live numbers, not order flow.
-			if q.Volume > 0 {
+			// A fresh tick moves the price and, only when no measured flow row
+			// names this stock, its total. It never re-splits the volume: the
+			// measured pair stands and the range estimate is never a second answer.
+			if q.Volume > 0 && !measured[out[i].Symbol] {
 				v := q.Volume
 				out[i].Volume = &v
-				if b, sl, ok := q.RangeSplit(); ok {
-					out[i].Buy, out[i].Sell = &b, &sl
-				}
 			}
 		}
 	}

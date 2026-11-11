@@ -9,7 +9,7 @@ import (
 
 // flowSorts are the orders the ORDER FLOW list can be in. O (or LEFT and
 // RIGHT) steps through them.
-var flowSorts = []string{"TOTAL VOLUME", "BUYING VOLUME", "SELLING VOLUME", "REST OF TOTAL", "CHANGE", "SYMBOL"}
+var flowSorts = []string{"TOTAL VOLUME", "BUYING VOLUME", "SELLING VOLUME", "UNCLASSIFIED", "CHANGE", "SYMBOL"}
 
 // sortedFlow gives the rows in the chosen order. A row that has no number for
 // the chosen order goes to the bottom, never to the top as a zero.
@@ -70,10 +70,11 @@ func (a *App) sortedFlow() []FlowRow {
 	return rows
 }
 
-// putBSUT draws "B=1,234, S=5,678, T=6,924" for one stock. Owner order
-// 2026-11-11: buying, selling and the total only. A stock whose split is only
-// an estimate has its B and S marked with a tilde, and a stock with no split
-// shows only its total.
+// putBSUT draws "B=1,234, S=5,678, U=12 & T=6,924" for one stock. The three
+// parts of a measured stock are written down exactly as the relay sent them
+// and U is always written, so B + S + U = T can be checked by eye. A stock whose
+// split is only an estimate has its B and S marked with a tilde, and a stock
+// with no split shows only its total.
 func (a *App) putBSUT(c *Canvas, x, y int, r FlowRow, keys ...string) int {
 	th := a.th
 	vx := x
@@ -92,14 +93,20 @@ func (a *App) putBSUT(c *Canvas, x, y int, r FlowRow, keys ...string) int {
 		put(num(r.Buy), th.Good, true)
 		put(", S=", th.Soft, false)
 		put(num(r.Sell), th.Bad, true)
-		put(", T=", th.Soft, false)
+		put(", U=", th.Soft, false)
+		uc := th.Soft
+		if r.Unclassified != nil && *r.Unclassified > 0 {
+			uc = th.Warn
+		}
+		put(num(r.Unclassified), uc, r.Unclassified != nil && *r.Unclassified > 0)
+		put(" & T=", th.Soft, false)
 		put(num(r.Volume), totalBlue, false)
 	case r.Method == methodEstimated && r.Buy != nil && r.Sell != nil:
 		put("B~", th.Soft, false)
 		put(num(r.Buy), mix(th.Good, th.Soft, 0.5), false)
 		put(", S~", th.Soft, false)
 		put(num(r.Sell), mix(th.Bad, th.Soft, 0.5), false)
-		put(", T=", th.Soft, false)
+		put(" & T=", th.Soft, false)
 		put(num(r.Volume), totalBlue, false)
 	default:
 		put("T=", th.Soft, false)
@@ -160,7 +167,8 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 	t2 := []Span{{"MEASURED ", th.Soft, false}, {fmt.Sprintf("%d stocks  ", tot.Measured), th.Text, true},
 		{"B=", th.Soft, false}, {commaInt(tot.Buy), th.Good, true},
 		{", S=", th.Soft, false}, {commaInt(tot.Sell), th.Bad, true},
-		{", T=", th.Soft, false}, {commaInt(tot.MeasuredTotal), totalBlue, false}}
+		{", U=", th.Soft, false}, {commaInt(tot.Unclassified), th.Warn, tot.Unclassified > 0},
+		{" & T=", th.Soft, false}, {commaInt(tot.MeasuredTotal), totalBlue, false}}
 	c.Spans(ix, row, iw, t2)
 	row++
 
@@ -176,8 +184,8 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 		short = append(short, fmt.Sprintf("%d no split", tot.NoSplit))
 	}
 	if tot.Unbalanced > 0 {
-		long = append(long, fmt.Sprintf("%d CHECK: the measured parts do not add to T", tot.Unbalanced))
-		short = append(short, fmt.Sprintf("%d CHECK split<>T", tot.Unbalanced))
+		long = append(long, fmt.Sprintf("%d CHECK: B+S+U is not T", tot.Unbalanced))
+		short = append(short, fmt.Sprintf("%d CHECK B+S+U<>T", tot.Unbalanced))
 	}
 	if len(long) == 0 {
 		long, short = []string{"every stock is measured"}, []string{"all measured"}
@@ -239,7 +247,7 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 	}
 	// The table's columns, measured once for the whole answer so the headings
 	// and every row stand on the same cells.
-	var cols [7]flowCell
+	var cols [8]flowCell
 	barX := 0
 	// Column header for the one-line table.
 	if wide {
@@ -334,10 +342,13 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 	}
 	a.scrollbar(c, x+w-2, top, a.lvOF.view*per, &a.lvOF)
 
-	// Foot: what the large print board saw, when there is room.
+	// Foot: how U is defined, and what the large print board saw when there is room.
 	if foot > 0 {
 		fy := iy + ih - 1
-		line := "B and S are the measured sides; T is the whole volume"
+		line := "U = unclassified: volume the capture could not side, never added to B or S"
+		if runeLen(line) > iw {
+			line = "U = unclassified, never added to B or S"
+		}
 		if of.LargeTotal > 0 {
 			more := fmt.Sprintf("  ·  %d large prints of PKR %s or more today", of.LargeTotal, compactNum(of.LargeThreshold))
 			if runeLen(line)+runeLen(more) <= iw {
@@ -362,14 +373,14 @@ const (
 	flowSymX, flowSymW = flowSerX + flowSerW + flowGutter, 8
 )
 
-var flowHeads = [7]string{"PRICE", "CHANGE", "BID", "ASK", "BUYING (B)", "SELLING (S)", "TOTAL (T)"}
+var flowHeads = [8]string{"PRICE", "CHANGE", "BID", "ASK", "BUYING (B)", "SELLING (S)", "UNCL. (U)", "TOTAL (T)"}
 
 // flowCell is one column of the table: the cell it starts on and its width.
 type flowCell struct{ x, w int }
 
-// flowColumns measures the whole answer and returns the seven columns and the
+// flowColumns measures the whole answer and returns the eight columns and the
 // cell the bar column starts on. A column is never narrower than its heading.
-func flowColumns(rows []FlowRow) ([7]flowCell, int) {
+func flowColumns(rows []FlowRow) ([8]flowCell, int) {
 	var w [8]int
 	for i, hd := range flowHeads {
 		w[i] = runeLen(hd)
@@ -401,28 +412,30 @@ func flowColumns(rows []FlowRow) ([7]flowCell, int) {
 		case r.Measured():
 			set(4, num(r.Buy))
 			set(5, num(r.Sell))
-			set(6, num(r.Volume))
+			set(6, num(r.Unclassified))
+			set(7, num(r.Volume))
 		case r.Method == methodEstimated && r.Buy != nil && r.Sell != nil:
 			set(4, "~"+num(r.Buy))
 			set(5, "~"+num(r.Sell))
-			set(6, num(r.Volume))
+			set(6, "estimate")
+			set(7, num(r.Volume))
 		default:
 			set(4, "no split")
-			set(6, num(r.Volume))
+			set(7, num(r.Volume))
 		}
 	}
 	x := flowSymX + flowSymW + flowGutter
-	var cols [7]flowCell
-	for i := 0; i < 7; i++ {
+	var cols [8]flowCell
+	for i := 0; i < 8; i++ {
 		cols[i] = flowCell{x: x, w: w[i]}
 		x += w[i] + flowGutter
 	}
 	return cols, x
 }
 
-// drawFlowCols draws the three volume columns of the one-line table. Each value
-// sits under its header, with the sides never merged into each other.
-func (a *App) drawFlowCols(c *Canvas, ix, y int, r FlowRow, cols [7]flowCell, volKey string) {
+// drawFlowCols draws the four volume columns of the one-line table. Each value
+// sits under its header, with U never merged into B or S.
+func (a *App) drawFlowCols(c *Canvas, ix, y int, r FlowRow, cols [8]flowCell, volKey string) {
 	th := a.th
 	cell := func(k int, p *int64, fg RGB, bold bool, prefix string) {
 		s := "n/a"
@@ -435,14 +448,20 @@ func (a *App) drawFlowCols(c *Canvas, ix, y int, r FlowRow, cols [7]flowCell, vo
 	case r.Measured():
 		cell(4, r.Buy, th.Good, true, "")
 		cell(5, r.Sell, th.Bad, true, "")
-		cell(6, r.Volume, totalBlue, false, "")
+		uc, ub := th.Soft, false
+		if r.Unclassified != nil && *r.Unclassified > 0 {
+			uc, ub = th.Warn, true
+		}
+		cell(6, r.Unclassified, uc, ub, "")
+		cell(7, r.Volume, totalBlue, false, "")
 	case r.Method == methodEstimated && r.Buy != nil && r.Sell != nil:
 		cell(4, r.Buy, mix(th.Good, th.Soft, 0.5), false, "~")
 		cell(5, r.Sell, mix(th.Bad, th.Soft, 0.5), false, "~")
-		cell(6, r.Volume, totalBlue, false, "")
+		c.Text(ix+cols[6].x, y, cols[6].w, padLeft("estimate", cols[6].w), th.Soft, false)
+		cell(7, r.Volume, totalBlue, false, "")
 	default:
 		c.Text(ix+cols[4].x, y, cols[4].w, padLeft("no split", cols[4].w), th.Soft, false)
-		cell(6, r.Volume, totalBlue, false, "")
+		cell(7, r.Volume, totalBlue, false, "")
 	}
 }
 

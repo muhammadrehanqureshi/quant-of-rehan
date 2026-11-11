@@ -486,16 +486,18 @@ func (a *App) drawLeft(c *Canvas, x, y, w, h int) {
 	// SCAN
 	sw, sc := a.scanStatus()
 	label(4, "SCAN", []Span{{sw, sc, true}})
-	// FLOW. Owner order 2026-11-11: buying, selling and the total only. The two
-	// sides are never printed as one figure, and the volume the capture could
-	// not side stays inside the total with no fourth figure of its own.
+	// FLOW. Owner order 2026-11-09 (latest): buying, selling and unclear are
+	// three separate numbers. The two sides are never printed as one figure and
+	// U never joins either of them; U appears only when some volume in the
+	// window could not be sided.
 	if a.cfg.BigBuy || a.cfg.BigSell {
 		buy, sell, unclear := a.flow.WindowSides(a.karachiNow(), time.Minute)
-		total := buy + sell + unclear
+		// Owner order 2026-11-10: the row reads BUY=..., SELL=... & U=..., and U
+		// is always written, zero included, so the three figures never move.
 		spans := []Span{
 			{"BUY=", th.Good, true}, {compactNum(float64(buy)), th.Text, false},
 			{", SELL=", th.Bad, true}, {compactNum(float64(sell)), th.Text, false},
-			{", TOTAL=", th.Soft, true}, {compactNum(float64(total)), th.Text, false},
+			{" & U=", th.Warn, true}, {compactNum(float64(unclear)), th.Text, false},
 		}
 		label(5, "FLOW", spans)
 	} else {
@@ -799,10 +801,9 @@ func (a *App) marketNote() string {
 	return "Quant is sleeping till the next market day."
 }
 
-// putBST draws "B=1,234, S=5,678, T=6,912" at (x, y) the way every list on the
+// putBST draws "B=1,234, S=5,678, U=12 & T=6,912" at (x, y) the way every list on the
 // screen words it, with the live flash on each number. A part that is missing
-// is left out. It returns the width drawn. Owner order 2026-11-11: buying,
-// selling and the total only, with no unclear figure on any screen.
+// is left out. It returns the width drawn.
 func (a *App) putBST(c *Canvas, x, y int, buy, sell, total *int64, keys ...string) int {
 	th := a.th
 	vx := x
@@ -815,10 +816,16 @@ func (a *App) putBST(c *Canvas, x, y int, buy, sell, total *int64, keys ...strin
 		put(", S=", th.Soft, false)
 		put(commaInt(*sell), th.Bad, true)
 		if total != nil {
-			// Owner order 2026-11-11: buying, selling and the total only. Any
-			// volume the capture could not side stays inside the total and is
-			// never written as a fourth figure.
-			put(", T=", th.Soft, false)
+			// Owner order 2026-11-10: U is on every B and S line, so B + S + U
+			// = T can be read at a glance. It is the volume the capture could
+			// not side, and it is never folded into B or S.
+			un := *total - *buy - *sell
+			if un < 0 {
+				un = 0
+			}
+			put(", U=", th.Soft, false)
+			put(commaInt(un), th.Warn, un > 0)
+			put(" & T=", th.Soft, false)
 			put(commaInt(*total), totalBlue, false)
 		}
 	} else if total != nil {
@@ -828,14 +835,17 @@ func (a *App) putBST(c *Canvas, x, y int, buy, sell, total *int64, keys ...strin
 	return vx - x
 }
 
-// bstCols are the leader row's three field offsets, as cells from the row's
-// first cell. Owner order 2026-11-11: the leaders read buying, selling and the
-// total, with each field on the same cell on all three rows. The comma sits
-// hard against its own number and the gutter falls after it.
+// bstCols are the leader row's four field offsets, as cells from the row's
+// first cell. Owner order 2026-11-10 (latest): the leaders read exactly like
+// every other B, S, U and T line, with its commas and its "& T=", and each
+// field still starts on the same cell on all three rows. The comma sits hard
+// against its own number and the gutter falls after it, so no comma ever floats
+// away from the figure it belongs to.
 type bstCols struct {
 	buy  int // "B="
 	sell int // "S=", after B's comma and the gutter
-	tot  int // "T=", after S's comma and the gutter
+	unc  int // "U=", after S's comma and the gutter
+	tot  int // "& T=", after U's number and the gutter
 	wid  int // the widest volume's digits, the width of every volume field
 }
 
@@ -857,13 +867,13 @@ func bstLeaderCols(leaders []Leader) bstCols {
 	}
 	c := bstCols{wid: uw}
 	c.sell = c.buy + 2 + bw + 1 + bstPad // "B=", the digits, the comma, the gutter
-	c.tot = c.sell + 2 + sw + 1 + bstPad // "S=", the digits, the comma, the gutter
+	c.unc = c.sell + 2 + sw + 1 + bstPad  // "S=", the digits, the comma, the gutter
+	c.tot = c.unc + 2 + uw + bstPad       // "U=" and the digits, then the gutter
 	return c
 }
 
-// putBSTCols writes buying, selling and the total into their shared columns and
-// returns the cells the block used. A stock with no measured split falls back
-// to putBST.
+// putBSTCols writes those four fields into their shared columns and returns the
+// cells the block used. A stock with no measured split falls back to putBST.
 func (a *App) putBSTCols(c *Canvas, x, y int, buy, sell, total *int64, cols bstCols, keys ...string) int {
 	th := a.th
 	if buy == nil || sell == nil || total == nil {
@@ -876,10 +886,15 @@ func (a *App) putBSTCols(c *Canvas, x, y int, buy, sell, total *int64, cols bstC
 			a.flashText(c, x+at+w, y, tail, th.Soft, false, keys...)
 		}
 	}
+	un := *total - *buy - *sell
+	if un < 0 {
+		un = 0
+	}
 	field(cols.buy, "B=", commaInt(*buy), ",", th.Good, true)
 	field(cols.sell, "S=", commaInt(*sell), ",", th.Bad, true)
-	field(cols.tot, "T=", commaInt(*total), "", totalBlue, false)
-	return cols.tot + 2 + cols.wid
+	field(cols.unc, "U=", commaInt(un), "", th.Warn, un > 0)
+	field(cols.tot, "& T=", commaInt(*total), "", totalBlue, false)
+	return cols.tot + 4 + cols.wid
 }
 
 func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
