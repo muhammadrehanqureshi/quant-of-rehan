@@ -2201,9 +2201,10 @@ class VersionTest(unittest.TestCase):
         # Owner order 2026-11-07, second pass: the themed SECTORS tile, the
         # far-right ASK column and the blue total volume ship as 4.0.16.
         # Owner order 2026-11-09: the phone's own hard daily relay request
-        # stop ships as 4.0.17.
-        self.assertIn('android:versionName="4.0.17"', manifest)
-        self.assertIn('android:versionCode="126"', manifest)
+        # stop ships as 4.0.17. Owner order 2026-11-11: the themed caret,
+        # the diamond scroller and the always-moving orb ship as 4.0.18.
+        self.assertIn('android:versionName="4.0.18"', manifest)
+        self.assertIn('android:versionCode="127"', manifest)
         self.assertNotIn('android:versionName="4.0.15"', manifest)
         self.assertNotIn('android:versionName="4.0.14"', manifest)
         self.assertNotIn('android:versionName="3.7.5"', manifest)
@@ -2418,9 +2419,10 @@ class VersionTest(unittest.TestCase):
         # Owner order 2026-11-07, second pass: the themed SECTORS tile, the
         # far-right ASK column and the blue total volume ship as 4.0.16.
         # Owner order 2026-11-09: the phone's own hard daily relay request
-        # stop ships as 4.0.17.
-        self.assertIn('android:versionCode="126"', manifest)
-        self.assertIn('android:versionName="4.0.17"', manifest)
+        # stop ships as 4.0.17. Owner order 2026-11-11: the themed caret,
+        # the diamond scroller and the always-moving orb ship as 4.0.18.
+        self.assertIn('android:versionCode="127"', manifest)
+        self.assertIn('android:versionName="4.0.18"', manifest)
         self.assertNotIn('android:versionName="4.0.15"', manifest)
         self.assertNotIn('android:versionName="3.7.5"', manifest)
         self.assertNotIn('android:versionName="3.7.4"', manifest)
