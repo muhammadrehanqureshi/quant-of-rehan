@@ -132,10 +132,20 @@ func (a *App) scanTable() map[string]Quote {
 			continue
 		}
 		q := Quote{Price: lq.Price, ChangePct: lq.ChangePct}
-		if b, sl, ok := lq.RangeSplit(); ok {
-			q.Buy, q.Sell = &b, &sl
-		} else if old, ok := out[s]; ok {
+		if old, ok := out[s]; ok {
 			q.Buy, q.Sell = old.Buy, old.Sell
+		}
+		// Owner order 2026-11-11: every scrip reads the same measured pair as
+		// the Android app, taken from the relay's flow row. The day-range
+		// estimate is gone from every Windows display.
+		if a.of != nil {
+			for _, fr := range a.of.Rows {
+				if fr.Symbol == s && fr.Measured() {
+					b, sl := *fr.Buy, *fr.Sell
+					q.Buy, q.Sell = &b, &sl
+					break
+				}
+			}
 		}
 		out[s] = q
 	}

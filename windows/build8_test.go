@@ -69,6 +69,17 @@ func TestShareBarStillDrawsItsSixteenCells(t *testing.T) {
 	}
 }
 
+// Owner order 2026-11-11: one measured pair for every scrip, the same one the
+// Android app reads from the relay. No Windows display may derive a split from
+// the day's price range again.
+func TestNoWindowsDisplayUsesTheRangeEstimate(t *testing.T) {
+	for _, name := range []string{"screens_lists.go", "app.go", "screens.go", "screens_orderflow.go"} {
+		if strings.Contains(readWindowSource(t, name), "RangeSplit(") {
+			t.Errorf("%s splits volume from the day range; the relay's measured pair is the only source", name)
+		}
+	}
+}
+
 func TestStatusIsAwakeFromTheScanStart(t *testing.T) {
 	source := readWindowSource(t, "app.go")
 	if !strings.Contains(source, "Market is closed but the quant is online now.") {

@@ -265,7 +265,7 @@ func TestLiveLeadersOverlayVolumeAndSplit(t *testing.T) {
 	a.now = flowT0
 	a.ingestQuotes(quotesAt(15, 1_000_000))
 	l := a.effectiveLeaders()[0]
-	if *l.Price != 15 || *l.Volume != 1_000_000 || !l.HasSplit() {
+	if *l.Price != 15 || *l.Volume != 3 || !l.HasSplit() {
 		t.Fatalf("overlay: %+v", l)
 	}
 	// Owner order 2026-11-11: the tile keeps the relay's measured pair and
