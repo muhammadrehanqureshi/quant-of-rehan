@@ -84,7 +84,7 @@ func TestLeaderBarsAreOrderFlowBarsAndPriceFollowsT(t *testing.T) {
 		if !inMarket {
 			continue
 		}
-		ti, pi := strings.Index(r, "& T="), strings.Index(r, "PKR ")
+		ti, pi := strings.Index(r, "T="), strings.Index(r, "PKR ")
 		if ti < 0 || pi < 0 {
 			continue
 		}

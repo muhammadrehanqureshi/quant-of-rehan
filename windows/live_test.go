@@ -544,7 +544,7 @@ func TestTelemetryKeepsBuyingSellingAndTotal(t *testing.T) {
 	}
 	// Owner order 2026-11-11: the row reads BUY=..., SELL=..., TOTAL=..., where
 	// the total is every share in the window, the sides being its measured part.
-	for _, want := range []string{"BUY=600", "SELL=300", "TOTAL=1,000"} {
+	for _, want := range []string{"BUY=600", "SELL=300", "TOTAL=1K"} {
 		if !strings.Contains(flowRow, want) {
 			t.Errorf("the FLOW row is missing %q: %q", want, flowRow)
 		}

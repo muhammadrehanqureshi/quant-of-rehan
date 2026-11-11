@@ -9,7 +9,7 @@ import (
 
 // flowSorts are the orders the ORDER FLOW list can be in. O (or LEFT and
 // RIGHT) steps through them.
-var flowSorts = []string{"TOTAL VOLUME", "BUYING VOLUME", "SELLING VOLUME", "UNCLASSIFIED", "CHANGE", "SYMBOL"}
+var flowSorts = []string{"TOTAL VOLUME", "BUYING VOLUME", "SELLING VOLUME", "REST OF TOTAL", "CHANGE", "SYMBOL"}
 
 // sortedFlow gives the rows in the chosen order. A row that has no number for
 // the chosen order goes to the bottom, never to the top as a zero.
