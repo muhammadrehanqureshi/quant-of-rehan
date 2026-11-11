@@ -819,11 +819,11 @@ const barBlock = '▬'
 // span itself, and the bar's height, do not move.
 const shareBarBoxes = 10
 
-// shareBarSpan is the cells the ten boxes cover. Owner order 2026-11-10: every
-// bar is ten percent shorter than the 18 cells it was, which is 16 cells.
-// Owner order 2026-11-11: that length is untouched; the ten boxes simply share
-// it, so each box is one or two cells and no cell is added or given up.
-const shareBarSpan = shareBarBoxes * 16 / 10
+// shareBarSpan is the cells the ten boxes cover. Owner order 2026-11-11:
+// ten single-colour boxes, each one cell, with one cell between them, so the
+// bar is 10 boxes + 9 gaps = 19 cells. That is longer than the 16 cells it
+// was, never shorter, and every box wears the same green or the same red.
+const shareBarSpan = 2*shareBarBoxes - 1
 
 // shareBarWidth is the field a labelled bar asks for: its span, one space and
 // the four cells a "100%" needs.
@@ -878,18 +878,12 @@ func (a *App) drawShareBar(c *Canvas, x, y, w int, buyShare float64, label bool)
 		if i < green {
 			ink = th.Good
 		}
-		// Owner report 2026-11-11: the ten boxes were drawn unbroken, so the
-		// bar still read as sixteen cells and the owner saw no change. Every
-		// other box is one step paler now, which marks all ten boxes at a
-		// glance while the length, the height and the glyph stay as ordered.
-		if i%2 == 1 {
-			ink = mix(ink, th.Panel, 0.22)
-		}
 		for k := at; k < at+width; k++ {
-			// Owner order 2026-11-11: the taller glyph is the ten percent step.
+			// Owner order 2026-11-11: one shade per side, no step. The gap after
+			// the box is what makes the ten boxes countable.
 			c.Put(x+k, y, barBlock, ink, true)
 		}
-		at += width
+		at += width + shareBarGap
 	}
 	width := span
 	if label {
@@ -908,7 +902,8 @@ func (a *App) drawShareBar(c *Canvas, x, y, w int, buyShare float64, label bool)
 // the remainder going to the leading boxes: on the sixteen cell bar six boxes
 // are two cells and four are one, and no cell is left over or drawn twice.
 func shareBarBoxWidths(span int) []int {
-	base, extra := span/shareBarBoxes, span%shareBarBoxes
+	room := max(0, span-(shareBarBoxes-1)*shareBarGap)
+	base, extra := max(1, room/shareBarBoxes), room%shareBarBoxes
 	out := make([]int, shareBarBoxes)
 	for i := range out {
 		out[i] = base
@@ -918,6 +913,10 @@ func shareBarBoxWidths(span int) []int {
 	}
 	return out
 }
+
+// shareBarGap is the one cell between two boxes. The span already carries
+// nine of them, so boxWidths and the gaps add back up to the span.
+const shareBarGap = 1
 
 // ---------- alerts ----------
 
