@@ -151,7 +151,9 @@ func newRingGeom(w, h, sx, sy, ss int, st radarState) *ringGeom {
 	for i, l := range ringLayers {
 		ang := 0.0
 		if st.moving {
-			ang = l.spec.degPerSec * st.t * math.Pi / 180
+			// Owner order 2026-11-11: every layer turns fifteen percent slower
+			// than the source's own speed, and nothing else about the turn moves.
+			ang = l.spec.degPerSec * orbSpeedScale * st.t * math.Pi / 180
 		}
 		// The inverse turn: a sample reads the layer where it was before it turned.
 		g.sin[i], g.cos[i] = math.Sincos(ang)

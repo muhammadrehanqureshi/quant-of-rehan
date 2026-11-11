@@ -803,14 +803,16 @@ func (a *App) drawFlowList(c *Canvas, ix, head, top, iw, rows, barX int) {
 // inks and its position are exactly as they were.
 const barBlock = '▬'
 
-// shareBarBoxes is how many boxes a buy versus sell bar holds: one box per ten
-// percent, each box a single cell. Owner order 2026-11-10 (latest): the
-// seventeen cell span with tabs inside it is withdrawn for ten single cells.
+// shareBarBoxes is how many boxes a buy versus sell bar holds. Owner order
+// 2026-11-11: the bar carries ten boxes and not sixteen, and each box grows in
+// length so the ten of them fill exactly the same span the sixteen did. The
+// span itself, and the bar's height, do not move.
 const shareBarBoxes = 10
 
-// shareBarSpan is the cells the ten boxes cover. Owner order 2026-11-10
-// (latest): every bar is ten percent shorter than the 18 cells it was, which is
-// 16 cells, and the box count does not move, so the ten boxes share those 16.
+// shareBarSpan is the cells the ten boxes cover. Owner order 2026-11-10: every
+// bar is ten percent shorter than the 18 cells it was, which is 16 cells.
+// Owner order 2026-11-11: that length is untouched; the ten boxes simply share
+// it, so each box is one or two cells and no cell is added or given up.
 const shareBarSpan = shareBarBoxes * 16 / 10
 
 // shareBarWidth is the field a labelled bar asks for: its span, one space and
@@ -857,19 +859,21 @@ func (a *App) drawShareBar(c *Canvas, x, y, w int, buyShare float64, label bool)
 		green = shareBarBoxes
 	}
 	// Ten boxes over the span, touching and unbroken: each box takes its
-	// slice of the cells and no separator is drawn between them.
-	for i := 0; i < shareBarBoxes; i++ {
+	// slice of the cells and no separator is drawn between them. Owner order
+	// 2026-11-11: the ten boxes cover exactly the cells the sixteen did, so
+	// the bar's length and height do not move and only the box length grows.
+	at := 0
+	for i, width := range shareBarBoxWidths(span) {
 		ink := th.Bad
 		if i < green {
 			ink = th.Good
 		}
-		from := i * span / shareBarBoxes
-		to := (i + 1) * span / shareBarBoxes
-		for k := from; k < to; k++ {
-			// Owner order 2026-11-10 (latest): the taller glyph is the ten percent
-			// step. The cell, the length and the bold weight are unchanged.
+		for k := at; k < at+width; k++ {
+			// Owner order 2026-11-10: the taller glyph is the ten percent step.
+			// The cell, the length and the bold weight are unchanged.
 			c.Put(x+k, y, barBlock, ink, true)
 		}
+		at += width
 	}
 	width := span
 	if label {
@@ -880,6 +884,23 @@ func (a *App) drawShareBar(c *Canvas, x, y, w int, buyShare float64, label bool)
 		c.Text(x+width+1, y, 4, padLeft(pct, 4), th.Soft, false)
 	}
 	return width
+}
+
+// shareBarBoxWidths is the cells each of the ten boxes takes across a bar of
+// span cells. Owner order 2026-11-11: the bar holds ten boxes and not sixteen,
+// and each box grows to fill the same span, so the cells are shared out with
+// the remainder going to the leading boxes: on the sixteen cell bar six boxes
+// are two cells and four are one, and no cell is left over or drawn twice.
+func shareBarBoxWidths(span int) []int {
+	base, extra := span/shareBarBoxes, span%shareBarBoxes
+	out := make([]int, shareBarBoxes)
+	for i := range out {
+		out[i] = base
+		if i < extra {
+			out[i]++
+		}
+	}
+	return out
 }
 
 // ---------- alerts ----------

@@ -364,6 +364,15 @@ func (a *App) statusNoteBase() string {
 	case qsUnknown:
 		return "Market status not reported by the relay yet."
 	}
+	// Owner order 2026-11-11: the scanner starts at 08:55, and from that minute
+	// the quant is awake even though the exchange has not opened. The status may
+	// not call it sleeping while it is scanning, so the awake window is the
+	// scanner's own, from 08:55 to the post-market close.
+	pk := a.karachiNow()
+	if sec := secondOf(pk); sec >= scanOpen*60 &&
+		sec < postWindow(pk).to*60+scanGraceSecs {
+		return "Quant is online now."
+	}
 	return "Market is closed and the quant is sleeping now."
 }
 
