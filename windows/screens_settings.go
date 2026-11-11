@@ -40,7 +40,7 @@ func (a *App) drawSettings(c *Canvas, x, y, w, h int) {
 		bg := a.selectRow(c, ix, row, rowW, cur, func() { a.activateSetting(idx) })
 		mark := ' '
 		if cur {
-			mark = '>'
+			mark = '◆'
 		}
 		c.Set(ix+1, row, mark, th.Hot, bg, true)
 		c.Text(ix+3, row, 22, left, th.Text, cur)
@@ -72,7 +72,7 @@ func (a *App) drawSettings(c *Canvas, x, y, w, h int) {
 		bg := a.selectRow(c, tx, trow, rowW, cur, func() { a.activateSetting(idx) })
 		mark := ' '
 		if cur {
-			mark = '>'
+			mark = '◆'
 		}
 		sel := ' '
 		if a.cfg.Theme == themeNo {

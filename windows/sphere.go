@@ -21,10 +21,10 @@ import (
 
 const (
 	// sphereTurnSeconds is one full clockwise turn of the globe. Owner order
-	// 2026-11-11 (fifth pass): the turn is another fifteen percent slower than
-	// patch 34, so the period is divided by 0.85 again and one turn now takes
-	// about 27.1 seconds, a visibly slow revolve.
-	sphereTurnSeconds = 12.0 / 0.85 / 0.85 / 0.85 / 0.85 / 0.85
+	// 2026-11-11 (sixth pass): the turn is another ten percent slower than
+	// patch 35, so the period is divided by 0.90 and one turn now takes about
+	// 30.1 seconds.
+	sphereTurnSeconds = 12.0 / 0.85 / 0.85 / 0.85 / 0.85 / 0.85 / 0.90
 	// Owner order 2026-11-11: the QUANT CORE globe is the mark the tile draws,
 	// not the ring, so its own size carries the fifteen percent cut.
 	sphereSizeScale = 0.85
