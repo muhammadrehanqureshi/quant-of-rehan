@@ -1,6 +1,7 @@
 package main
 
 import (
+	"math"
 	"strings"
 	"testing"
 )
@@ -55,5 +56,45 @@ func TestOnlyOneDiamondOnTheCursorRow(t *testing.T) {
 func TestSphereGridIsDenseEnoughForTheMiddle(t *testing.T) {
 	if n := len(spherePoints()); n < 1800 {
 		t.Fatalf("the globe draws %d dots, too few for a solid ball", n)
+	}
+}
+
+// sphereLuma is a colour's brightness, used only to compare two shades.
+func sphereLuma(c RGB) float64 {
+	return 0.2126*float64(c.R) + 0.7152*float64(c.G) + 0.0722*float64(c.B)
+}
+
+// Owner order 2026-11-11 (eighth pass): the doubled grid had flattened the
+// globe into one bright mesh, so the ink follows a lamp at the upper left. The
+// lit side must be brighter than the shadow side and the front brighter than
+// the back, and one frame must carry enough shades to be a gradient.
+func TestSphereIsLitFromTheUpperLeft(t *testing.T) {
+	th := themeAt(0)
+	bright, dark := th.Good, mix(th.Good, th.Panel, 0.62)
+	s := math.Sqrt(0.5)
+	lit := sphereInk(spherePoint{x: -0.5, y: -0.5, z: s}, bright, dark)
+	shadow := sphereInk(spherePoint{x: 0.5, y: 0.5, z: s}, bright, dark)
+	if sphereLuma(lit) <= sphereLuma(shadow) {
+		t.Fatalf("the upper left (%.0f) is not brighter than the lower right (%.0f)",
+			sphereLuma(lit), sphereLuma(shadow))
+	}
+	front := sphereInk(spherePoint{z: 1}, bright, dark)
+	back := sphereInk(spherePoint{z: -1}, bright, dark)
+	if sphereLuma(front) <= sphereLuma(back) {
+		t.Fatalf("the front (%.0f) is not brighter than the back (%.0f)",
+			sphereLuma(front), sphereLuma(back))
+	}
+
+	a := demoApp(t, 100, 40)
+	c := NewCanvas(40, 14, RGB{})
+	drawSphere(c, 1, 1, 38, 12, 3.0, true, a.th)
+	inks := map[RGB]bool{}
+	for _, ce := range c.Cells {
+		if ce.Ch >= 0x2800 && ce.Ch <= 0x28ff {
+			inks[ce.FG] = true
+		}
+	}
+	if len(inks) < 5 {
+		t.Fatalf("the globe drew %d shade(s), too few for a lit ball", len(inks))
 	}
 }

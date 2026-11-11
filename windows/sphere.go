@@ -13,11 +13,18 @@ import (
 // The mark is a globe of dots: a latitude and longitude grid on a unit sphere,
 // turned about the vertical axis and projected with a small perspective term,
 // so the meridians crowd together towards the rim the way a real globe's do.
-// Depth is carried by the ink, a point on the near side bright, one on the far
-// side dim, and the middle stepping between them, which is what makes the disc
-// read as a sphere instead of a flat circle. It is drawn as Braille dots, the
-// same dot pattern the rest of the HUD uses, so no block glyph is painted and
-// the panel's own background is the only background.
+// Light is carried by the ink: the surface is lit from the upper left, so the
+// lit side is bright, the terminator steps down and the far side and the rim
+// are dim. That light is what makes the disc read as a sphere instead of a flat
+// circle. It is drawn as Braille dots, the same dot pattern the rest of the HUD
+// uses, so no block glyph is painted and the panel's own background is the only
+// background.
+//
+// Owner order 2026-11-11 (eighth pass): "this one doesn't look like the 3D
+// sphere". The doubled grid had made every cell the same bright ink, so the ink
+// now follows the surface's own light: a lamp at the upper left, a soft
+// terminator and a dark rim. That light is what carries the ball at any dot
+// count, instead of three flat depth bands.
 
 const (
 	// sphereTurnSeconds is one full clockwise turn of the globe. Owner order
@@ -30,7 +37,8 @@ const (
 	// sphereLatStep and sphereLonStep are the grid's spacing in degrees.
 	// Owner order 2026-11-11: the middle of the disc looked empty, so the grid
 	// is doubled: both steps shrink by 0.70, which puts about twice as many dots
-	// on the surface, the front face included, with the depth shading unchanged.
+	// on the surface, the front face included. The lit shade below keeps that
+	// denser surface reading as a ball rather than an even mesh.
 	sphereLatStep = 11.25 * 0.9129 * 0.9325 * 0.9129 * 0.9129 * 0.9129 * 0.9129 * 0.70
 	sphereLonStep = 9.0 * 0.9129 * 0.9325 * 0.9129 * 0.9129 * 0.9129 * 0.9129 * 0.70
 	// spherePerspective is how much the nearer half of the globe grows.
@@ -82,16 +90,33 @@ func sphereRotate(p spherePoint, sin, cos float64) spherePoint {
 	}
 }
 
-// sphereInk is the ink for a point at depth z: the near side bright and the far
-// side dim, so the disc carries its own shading.
-func sphereInk(z float64, near, mid, far RGB) RGB {
-	switch {
-	case z >= 0.45:
-		return near
-	case z >= -0.1:
-		return mid
+// sphereLight is the direction the globe is lit from: the upper left and in
+// front, normalised, in the same axes as spherePoint (y down, z towards the
+// viewer). A fixed lamp is right for a turning globe: the surface turns through
+// the light while the light itself stays where it is.
+var sphereLight = sphereLightDirection()
+
+func sphereLightDirection() spherePoint {
+	const x, y, z = -0.28, -0.38, 0.88
+	n := math.Sqrt(x*x + y*y + z*z)
+	return spherePoint{x: x / n, y: y / n, z: z / n}
+}
+
+// sphereShade is how much light a surface point catches: the lambert term of
+// its normal against sphereLight, lifted by an ambient floor so the shadow side
+// and the rim are dim ink rather than empty space.
+func sphereShade(p spherePoint) float64 {
+	l := p.x*sphereLight.x + p.y*sphereLight.y + p.z*sphereLight.z
+	if l < 0 {
+		l = 0
 	}
-	return far
+	return 0.30 + 0.70*l
+}
+
+// sphereInk blends the theme's dark ink into its bright ink by the shade at p,
+// so the disc carries a lit side, a soft terminator and a dark rim.
+func sphereInk(p spherePoint, bright, dark RGB) RGB {
+	return mix(dark, bright, sphereShade(p))
 }
 
 // drawSphere paints the globe into the rectangle (x0,y0,w,h) of cells, at t
@@ -107,9 +132,9 @@ func drawSphere(c *Canvas, x0, y0, w, h int, t float64, green bool, th *Theme) {
 	if radius < 4 {
 		return
 	}
-	near, mid, far := th.Good, mix(th.Good, th.Soft, 0.45), mix(th.Good, th.Soft, 0.78)
+	bright, dark := th.Good, mix(th.Good, th.Panel, 0.62)
 	if !green {
-		near, mid, far = th.Bad, mix(th.Bad, th.Soft, 0.45), mix(th.Bad, th.Soft, 0.78)
+		bright, dark = th.Bad, mix(th.Bad, th.Panel, 0.62)
 	}
 	sin, cos := math.Sincos(t * 2 * math.Pi / sphereTurnSeconds)
 	dots := spherePoints()
@@ -131,7 +156,7 @@ func drawSphere(c *Canvas, x0, y0, w, h int, t float64, green bool, th *Theme) {
 		}
 		cell := rr*w + cc
 		bits[cell] |= sphereDot[dy&3][dx&1]
-		ink[cell] = sphereInk(p.z, near, mid, far)
+		ink[cell] = sphereInk(p, bright, dark)
 	}
 	for i, b := range bits {
 		if b == 0 {

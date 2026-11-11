@@ -834,6 +834,13 @@ func (a *App) drawFlowList(c *Canvas, ix, head, top, iw, rows, barX int) {
 // the bottom of its box. The heavy horizontal rule is the one glyph that joins
 // edge to edge with no seam and no small box inside it, and it is drawn on the
 // cell's centre line. The bar's span, row and colours do not move.
+//
+// Owner order 2026-11-11 (ninth pass): the bars are fifteen percent taller. A
+// console cell has no fractional height for a horizontal line, so the rule is
+// drawn in the bold weight, the font's own thicker cut of the same glyph. It
+// keeps the centre line, the seam is closed by the heavier stroke and the span
+// does not move; the rectangle and the half blocks are not used again because
+// they bring the small box or the floor of the cell back.
 const barBlock = '━'
 
 // shareBarBoxes is how many boxes a buy versus sell bar holds. Owner order
@@ -902,8 +909,9 @@ func (a *App) drawShareBar(c *Canvas, x, y, w int, buyShare float64, label bool)
 		for k := at; k < at+width; k++ {
 			// Owner order 2026-11-11: the centred rule joins its neighbour
 			// edge to edge, leaves no small box inside the bar and never sits on
-			// the floor of the cell. Its span, row and colours are untouched.
-			c.Put(x+k, y, barBlock, ink, false)
+			// the floor of the cell. Its span, row and colours are untouched; the
+			// bold weight is the taller cut the ninth pass asked for.
+			c.Put(x+k, y, barBlock, ink, true)
 		}
 		at += width
 	}
