@@ -92,6 +92,31 @@ func TestPanelAccentsAreSymmetric(t *testing.T) {
 	}
 }
 
+// Owner order 2026-11-11: the NET DELTA value carries no plus sign when it is
+// positive and keeps its minus when it is negative.
+func TestNetDeltaHasNoPlusSign(t *testing.T) {
+	if got := signedCompact(300); got != "300" {
+		t.Fatalf("a rise reads %q, want 300 with no plus", got)
+	}
+	if got := signedCompact(-300); got != "-300" {
+		t.Fatalf("a fall reads %q, want -300", got)
+	}
+}
+
+// Owner order 2026-11-11: the top and the bottom of the left column are the
+// same height, so the orb and the telemetry sit in matching frames.
+func TestLeftColumnTilesAreSymmetric(t *testing.T) {
+	for _, h := range []int{26, 30, 41, 60} {
+		core, tel := leftTileHeights(h)
+		if core+tel+1 != h {
+			t.Fatalf("h %d: the tiles take %d rows plus the gap, not %d", h, core+tel, h)
+		}
+		if d := core - tel; d < -1 || d > 1 {
+			t.Fatalf("h %d: the tiles are %d and %d rows, so they are not symmetrical", h, core, tel)
+		}
+	}
+}
+
 // Owner order 2026-11-11: the globe turns at half the speed of build 3.2.3.
 func TestSphereTurnIsHalfSpeed(t *testing.T) {
 	if sphereTurnSeconds < 60.0 || sphereTurnSeconds > 60.5 {

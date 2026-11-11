@@ -16,9 +16,10 @@ const appVersion = "4.0.20"
 // pitch and the aligned leader block are 3.0.9, the full dot face, the
 // ten percent slower turn, the unbroken bars and MARKET OPENING are 3.0.38,
 // the 3D orb return, the continuous centred bar rule and the KSE100 breadth
-// thresholds are 3.2.3, and TOP PERFORMERS, the quarter taller bars, the
-// symmetrical frame and the half speed globe are 3.2.4.
-const hudBuild = "3.2.4"
+// thresholds are 3.2.3, TOP PERFORMERS, the symmetrical frame and the half
+// speed globe are 3.2.4, and the matching left tiles, the five eighths bars
+// and the unsigned NET DELTA are 3.2.5.
+const hudBuild = "3.2.5"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no
