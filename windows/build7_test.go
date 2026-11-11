@@ -32,25 +32,21 @@ func TestBSTLineSaysUZero(t *testing.T) {
 	}
 }
 
-// Owner order 2026-11-10 (later): the bar fills its own box, so the colour is
-// centred in the box rather than sitting along its bottom edge, and each box
-// carries one solid colour.
-// Owner order 2026-11-11 (third pass): one shade of green and one shade of red
-// only, no paler step, and no separator or gap drawn between the boxes.
+// Owner order 2026-11-11: the bar is one continuous centred rule in one shade
+// per side, with no separator or small box drawn inside it.
 func TestBarsAreBuild21sShadedTabs(t *testing.T) {
 	a := demoApp(t, 100, 30)
 	c := NewCanvas(40, 1, RGB{})
 	a.shareBar(c, 2, 0, shareBarWidth, 0.5)
 	row := c.PlainRows()[0]
-	// Owner order 2026-11-11 (sixth pass): the bar is half a cell tall and on
-	// the cell's centre line, never a full block that touches the rows above
-	// and below.
-	if barBlock != '▬' {
-		t.Fatalf("the bar is %q, not the centred half-height rectangle", barBlock)
+	// Owner order 2026-11-11: the bar is one continuous centred rule, never a
+	// block, and the glyph leaves no small box inside it.
+	if barBlock != '━' {
+		t.Fatalf("the bar is %q, not the continuous centred rule", barBlock)
 	}
-	for _, block := range "█▄▀■" {
+	for _, block := range "█▀▄■▬" {
 		if block == barBlock {
-			t.Fatal("a full, top or bottom block is inside the bar again")
+			t.Fatal("a block glyph or the old rectangle is inside the bar again")
 		}
 	}
 	if strings.ContainsRune(row, '│') {

@@ -7,7 +7,7 @@ import (
 )
 
 // Owner order 2026-11-11: the telemetry tile carries the exchange's daily
-// market hours, the market's breadth, the advancers and decliners, and the
+// market hours, the KSE100's breadth, the advancers and decliners, and the
 // whole market's net delta, and the old NEXT line is gone.
 func TestTelemetryCarriesMarketHoursBreadthAndDelta(t *testing.T) {
 	a := newTestApp(t)
@@ -15,7 +15,9 @@ func TestTelemetryCarriesMarketHoursBreadthAndDelta(t *testing.T) {
 	a.link, a.checking = true, false
 	a.now = time.Date(2026, 11, 2, 10, 0, 0, 0, pkt)
 	a.market = marketIn("OPEN")
-	a.quotes = &Quotes{FetchedAt: a.now, Items: map[string]LiveQuote{
+	a.quotes = &Quotes{FetchedAt: a.now, Index: &IndexQuote{
+		Value: 166409.25, Change: 1600, ChangePct: 0.96, Fresh: true,
+	}, Items: map[string]LiveQuote{
 		"AAA": {Price: 10, Fresh: true, ChangePct: f64(1.2)},
 		"BBB": {Price: 20, Fresh: true, ChangePct: f64(-0.8)},
 		"CCC": {Price: 30, Fresh: true, ChangePct: f64(2.0)},
@@ -33,6 +35,16 @@ func TestTelemetryCarriesMarketHoursBreadthAndDelta(t *testing.T) {
 		if !strings.Contains(s, want) {
 			t.Errorf("telemetry is missing %q:\n%s", want, s)
 		}
+	}
+	// Owner order 2026-11-11: the KSE100's own point move decides the
+	// telemetry breadth, not the count of advancers.
+	a.quotes.Index.Change = -600
+	if got := plain(a); !strings.Contains(got, "BEARISH") || strings.Contains(got, "BULLISH") {
+		t.Errorf("KSE100 -600 points must read BEARISH:\n%s", got)
+	}
+	a.quotes.Index.Change = 0
+	if got := plain(a); !strings.Contains(got, "FLAT") {
+		t.Errorf("KSE100 flat must read FLAT:\n%s", got)
 	}
 	for _, row := range rowsOf(a) {
 		if strings.Contains(row, "NEXT") && !strings.Contains(row, "TAB NEXT") {

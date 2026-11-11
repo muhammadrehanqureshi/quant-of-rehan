@@ -11,6 +11,11 @@ import (
 const (
 	minW = 80
 	minH = 26
+	// Owner order 2026-11-11: the KSE100's own point move decides the
+	// telemetry breadth. Above +1500 points is BULLISH, below -500 is
+	// BEARISH, and the band between them is FLAT.
+	kseBullishPoints = 1500.0
+	kseBearishPoints = -500.0
 )
 
 func (a *App) animSeconds() float64 {
@@ -494,15 +499,18 @@ func (a *App) drawLeft(c *Canvas, x, y, w, h int) {
 	}
 	fullRow(3, "MARKET OPENING", []Span{{openHM, th.Text, false}})
 	fullRow(4, "MARKET CLOSING", []Span{{closeHM, th.Text, false}})
-	// MARKET BREADTH and ADV/DEC read the whole market table: a stock is an
-	// advancer when its change is above zero and a decliner when below it.
+	// Owner order 2026-11-11: MARKET BREADTH is the KSE100's own point move.
+	// Above +1500 points is BULLISH, below -500 is BEARISH, and the band
+	// between them is FLAT. ADV/DEC still reads the whole market table.
 	adv, dec := a.marketBreadth()
 	breadth, bc := "FLAT", th.Soft
-	switch {
-	case adv > dec:
-		breadth, bc = "BULLISH", th.Good
-	case dec > adv:
-		breadth, bc = "BEARISH", th.Bad
+	if _, change, _, _, _, ok := a.effectiveIndex(); ok {
+		switch {
+		case change > kseBullishPoints:
+			breadth, bc = "BULLISH", th.Good
+		case change < kseBearishPoints:
+			breadth, bc = "BEARISH", th.Bad
+		}
 	}
 	fullRow(5, "MARKET BREADTH", []Span{{breadth, bc, true}})
 	fullRow(6, "ADV/DEC", []Span{
