@@ -7,12 +7,12 @@ import (
 )
 
 // Owner order 2026-11-11: the mark is fifteen percent smaller than the size
-// the owner approved before, which was the source's own 1.11.
-func TestOrbIsFifteenPercentSmaller(t *testing.T) {
-	if math.Abs(OrbGrow-1.11*0.85) > 1e-9 {
-		t.Fatalf("OrbGrow is %v, want 1.11 less fifteen percent", OrbGrow)
+// the owner approved before, then ten percent smaller again.
+func TestOrbIsFifteenThenTenPercentSmaller(t *testing.T) {
+	if math.Abs(OrbGrow-1.11*0.85*0.90) > 1e-9 {
+		t.Fatalf("OrbGrow is %v, want 1.11 less fifteen and then ten percent", OrbGrow)
 	}
-	want := (float64(13)*2.22/2 - 0.5) * 1.11 * 0.85
+	want := (float64(13)*2.22/2 - 0.5) * 1.11 * 0.85 * 0.90
 	if got := OrbRadius(OrbGrow); math.Abs(got-want) > 1e-9 {
 		t.Fatalf("OrbRadius is %v, want %.2f columns", got, want)
 	}
@@ -44,9 +44,9 @@ func TestMarkTakesTheWholeTile(t *testing.T) {
 			}
 		}
 	}
-	// Fifteen percent under the source's size is about twelve of the tile's
-	// fourteen rows, never the whole tile any more.
-	if len(rows) < 11 || len(rows) > 13 {
+	// Fifteen percent under the source's size and then ten percent more is
+	// about ten or eleven of the tile's fourteen rows, never the whole tile.
+	if len(rows) < 9 || len(rows) > 12 {
 		t.Errorf("the mark reaches %d of the tile's 14 rows", len(rows))
 	}
 	if ringRadius != 0 {

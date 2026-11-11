@@ -71,10 +71,13 @@ func TestShareBarStillDrawsItsSixteenCells(t *testing.T) {
 
 func TestStatusIsAwakeFromTheScanStart(t *testing.T) {
 	source := readWindowSource(t, "app.go")
-	if !strings.Contains(source, "Quant is online now.") {
-		t.Fatal("the status note has no awake sentence for the 08:55 start")
+	if !strings.Contains(source, "Market is closed but the quant is online now.") {
+		t.Fatal("the status note has no sentence for the 08:55 gap")
 	}
 	if !strings.Contains(source, "sec >= scanOpen*60") {
-		t.Fatal("the awake sentence is not bounded by the scan start")
+		t.Fatal("the sentence is not bounded by the scan start")
+	}
+	if !strings.Contains(source, "preOpen = 9 * 60") {
+		t.Fatal("the Friday pre-open boundary is not 09:00")
 	}
 }

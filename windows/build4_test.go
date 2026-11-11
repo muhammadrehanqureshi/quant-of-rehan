@@ -204,7 +204,7 @@ func TestStatusWordingFollowsThePart(t *testing.T) {
 		online bool
 	}{
 		{"before the pre-market", at(2, 8, 30), "PRE_OPEN", "Market is closed and the quant is sleeping now.", false},
-		{"pre-market", at(2, 9, 5), "PRE_OPEN", "Pre-market is running and the quant is online now.", true},
+		{"the 08:55 gap", at(2, 9, 5), "PRE_OPEN", "Market is closed but the quant is online now.", true},
 		{"matching gap", at(2, 9, 31), "PRE_OPEN", "Pre-market is running and the quant is online now.", true},
 		{"open", at(2, 11, 0), "OPEN", "Market is open and the quant is online now.", true},
 		{"post-market", at(2, 15, 40), "POST_CLOSE", "Post-market is running and the quant is online now.", true},
