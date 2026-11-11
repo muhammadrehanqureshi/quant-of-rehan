@@ -85,18 +85,21 @@ func TestOrderFlowScreenShowsBSUTSeparately(t *testing.T) {
 	for _, sz := range [][2]int{{122, 30}, {100, 30}, {80, 26}} {
 		a := orderFlowApp(t, sz[0], sz[1], sampleOrderFlow)
 		s := plain(a)
-		for _, want := range []string{"ORDER FLOW", "AAA", "BBB", "CCC", "DDD", "U=", "B=", "T="} {
-			if sz[0] >= 102 && (want == "U=" || want == "B=" || want == "T=") {
+		for _, want := range []string{"ORDER FLOW", "AAA", "BBB", "CCC", "DDD", "B=", "T="} {
+			if sz[0] >= 102 && (want == "B=" || want == "T=") {
 				continue // the wide table has these as column headings
 			}
 			if !strings.Contains(s, want) {
 				t.Errorf("%dx%d: missing %q:\n%s", sz[0], sz[1], want, s)
 			}
 		}
-		for _, want := range []string{"1,000", "600", "300", "100"} {
+		for _, want := range []string{"1,000", "600", "300"} {
 			if !strings.Contains(s, want) {
 				t.Errorf("%dx%d: the numbers must be shown as sent, missing %q", sz[0], sz[1], want)
 			}
+		}
+		if strings.Contains(s, "U=") {
+			t.Errorf("%dx%d: an unclear figure is still on the ORDER FLOW screen", sz[0], sz[1])
 		}
 		if !strings.Contains(s, "~1,200") && !strings.Contains(s, "B~1,200") {
 			t.Errorf("%dx%d: an estimate must be marked with a tilde:\n%s", sz[0], sz[1], s)
