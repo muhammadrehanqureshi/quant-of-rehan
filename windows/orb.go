@@ -31,10 +31,15 @@ const hudForceLive = true
 // Braille dots only, so there is no second renderer any more.
 var ringHalfBlocks bool
 
-// The source's own size, copied: OrbGrow 1.11 and the app's 13 row radius.
+// The source's own size, with the owner's newest order applied to it.
+// Owner order 2026-11-11: the mark is fifteen percent smaller than its current
+// size and turns fifteen percent slower, so both are one factor off the
+// source's own numbers and nothing else about the mark moves.
 const (
-	OrbGrow     = 1.11 // the source's grow factor, which looks 10% bigger
-	orbBaseRows = 13   // the rows the app's first orb had
+	orbSizeScale  = 0.85
+	orbSpeedScale = 0.85
+	OrbGrow       = 1.11 * orbSizeScale
+	orbBaseRows   = 13 // the rows the app's first orb had
 )
 
 // OrbRadius is the source's radius in columns for a grow factor:

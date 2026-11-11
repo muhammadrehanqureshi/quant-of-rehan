@@ -2,19 +2,31 @@ package main
 
 import (
 	"math"
+	"strings"
 	"testing"
 )
 
-// Owner order 2026-11-10 (latest): the mark is the owner's own orb source at
-// the source's own size. OrbGrow is the source's 1.11, and the two later grows
-// invented after the handover are withdrawn.
-func TestOrbIsTheSourceSize(t *testing.T) {
-	if math.Abs(OrbGrow-1.11) > 1e-9 {
-		t.Fatalf("OrbGrow is %v, want the source's 1.11", OrbGrow)
+// Owner order 2026-11-11: the mark is fifteen percent smaller than the size
+// the owner approved before, which was the source's own 1.11.
+func TestOrbIsFifteenPercentSmaller(t *testing.T) {
+	if math.Abs(OrbGrow-1.11*0.85) > 1e-9 {
+		t.Fatalf("OrbGrow is %v, want 1.11 less fifteen percent", OrbGrow)
 	}
-	want := (float64(13)*2.22/2 - 0.5) * 1.11
+	want := (float64(13)*2.22/2 - 0.5) * 1.11 * 0.85
 	if got := OrbRadius(OrbGrow); math.Abs(got-want) > 1e-9 {
-		t.Fatalf("OrbRadius(1.11) is %v, want the source's %.2f columns", got, want)
+		t.Fatalf("OrbRadius is %v, want %.2f columns", got, want)
+	}
+}
+
+// Owner order 2026-11-11: the turn is fifteen percent slower, and the one
+// place that turns a layer reads the factor.
+func TestOrbIsFifteenPercentSlower(t *testing.T) {
+	if math.Abs(orbSpeedScale-0.85) > 1e-9 {
+		t.Fatalf("orbSpeedScale is %v, want 0.85", orbSpeedScale)
+	}
+	source := readWindowSource(t, "ring.go")
+	if !strings.Contains(source, "degPerSec * orbSpeedScale") {
+		t.Fatal("the ring does not apply the slower turn factor")
 	}
 }
 
@@ -32,8 +44,10 @@ func TestMarkTakesTheWholeTile(t *testing.T) {
 			}
 		}
 	}
-	if len(rows) < 13 {
-		t.Errorf("the mark reaches %d of the tile's 14 rows, not the source's size", len(rows))
+	// Fifteen percent under the source's size is about twelve of the tile's
+	// fourteen rows, never the whole tile any more.
+	if len(rows) < 11 || len(rows) > 13 {
+		t.Errorf("the mark reaches %d of the tile's 14 rows", len(rows))
 	}
 	if ringRadius != 0 {
 		t.Errorf("ringRadius was left at %v", ringRadius)
