@@ -32,22 +32,22 @@ func TestBSTLineSaysUZero(t *testing.T) {
 	}
 }
 
-// Owner order 2026-11-11: the bar is one continuous centred rule in one shade
+// Owner order 2026-11-11: the bar is one continuous centred band in one shade
 // per side, with no separator or small box drawn inside it and never on the
-// floor of the cell. The ninth pass asks for fifteen percent more height, and a
-// console cell has no fractional height, so the rule is the bold cut of the
-// same glyph: thicker in the font, still on the cell's centre line.
+// floor of the cell. The eleventh pass asks for more height, and a console cell
+// has no fractional step, so the bar is the centred rectangle in the regular
+// weight, the one centred glyph taller than the rule, still on the centre line.
 func TestBarsAreBuild21sShadedTabs(t *testing.T) {
 	a := demoApp(t, 100, 30)
 	c := NewCanvas(40, 1, RGB{})
 	a.shareBar(c, 2, 0, shareBarWidth, 0.5)
 	row := c.PlainRows()[0]
-	// Owner order 2026-11-11: the bar is the centred rule, never a lower block,
-	// a full block or the old rectangle.
-	if barBlock != '━' {
-		t.Fatalf("the bar is %q, not the centred rule", barBlock)
+	// Owner order 2026-11-11 (eleventh pass): the bar is the centred rectangle,
+	// never a lower or upper block that stands on the floor or the top.
+	if barBlock != '▬' {
+		t.Fatalf("the bar is %q, not the centred rectangle", barBlock)
 	}
-	for _, block := range "▄▅█▀■▬" {
+	for _, block := range "▄▅█▀■" {
 		if block == barBlock {
 			t.Fatal("a lower block, a full block or the old rectangle is inside the bar again")
 		}
@@ -60,8 +60,8 @@ func TestBarsAreBuild21sShadedTabs(t *testing.T) {
 		if ce.Ch != barBlock {
 			continue
 		}
-		if !ce.Bold {
-			t.Fatal("a bar cell is not bold, so the bar is not the taller cut")
+		if ce.Bold {
+			t.Fatalf("a bar cell is bold, which leaves a hairline at the cell seam")
 		}
 		inks[ce.FG] = true
 	}

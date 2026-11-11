@@ -79,3 +79,29 @@ func TestAlertsLogSearchesAScrip(t *testing.T) {
 		t.Fatal("ESC did not restore the whole log")
 	}
 }
+
+// Owner order 2026-11-11 (eleventh pass): after the closing bell the live
+// minute is empty, so TELEMETRY FLOW falls back to the relay's day sides
+// instead of reading B=0, S=0 & U=0.
+func TestTelemetryFlowShowsTheDaysSidesAfterTheClose(t *testing.T) {
+	a := newTestApp(t)
+	a.w, a.h = 120, 34
+	a.link, a.checking = true, false
+	a.cfg.BigBuy, a.cfg.BigSell = true, true
+	a.now = time.Date(2026, 11, 2, 16, 45, 0, 0, pkt)
+	if a.flow == nil {
+		a.flow = NewFlow(defaultFlowCfg(10_000_000))
+	}
+	buy, sell, un := int64(600), int64(300), int64(100)
+	vol := int64(1000)
+	a.of = &OrderFlow{Rows: []FlowRow{{
+		Symbol: "AAA", Buy: &buy, Sell: &sell, Unclassified: &un, Volume: &vol,
+		Method: methodMeasured,
+	}}}
+	s := plain(a)
+	for _, want := range []string{"B=600", "S=300", "& U=100"} {
+		if !strings.Contains(s, want) {
+			t.Errorf("post market FLOW is missing %q:\n%s", want, s)
+		}
+	}
+}
