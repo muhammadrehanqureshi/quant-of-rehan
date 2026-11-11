@@ -868,10 +868,16 @@ func (a *App) drawShareBar(c *Canvas, x, y, w int, buyShare float64, label bool)
 		if i < green {
 			ink = th.Good
 		}
+		// Owner report 2026-11-11: the ten boxes were drawn unbroken, so the
+		// bar still read as sixteen cells. Every other box is drawn in the
+		// normal weight, which makes ten boxes countable at a glance while the
+		// length, the height, the glyph and the two inks stay exactly as
+		// ordered.
+		bold := i%2 == 0
 		for k := at; k < at+width; k++ {
-			// Owner order 2026-11-10: the taller glyph is the ten percent step.
-			// The cell, the length and the bold weight are unchanged.
-			c.Put(x+k, y, barBlock, ink, true)
+			// Owner order 2026-11-11: the taller glyph is the ten percent step,
+			// and the alternating weight marks each of the ten boxes.
+			c.Put(x+k, y, barBlock, ink, bold)
 		}
 		at += width
 	}
