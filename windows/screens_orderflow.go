@@ -261,7 +261,9 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 			// Owner order 2026-11-10 (latest): every value ends on its own
 			// column's right edge, so the gap to the next column is the same two
 			// cells on every row, and the heading sits over that edge.
-			c.Text(ix+cols[k].x, row, cols[k].w, padLeft(hd, cols[k].w), th.Soft, false)
+			// Owner order 2026-11-11: every heading starts on its column's first
+			// cell, so the table reads from the left edge.
+			c.Text(ix+cols[k].x, row, cols[k].w, hd, th.Soft, false)
 		}
 		if iw-barX >= shareBarWidth {
 			c.Text(ix+barX, row, shareBarSpan, "BARS", th.Soft, false)
@@ -313,10 +315,12 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 			c.Text(ix+flowSymX, row, flowSymW, r.Symbol, symCol, true)
 			// Owner order 2026-11-10 (latest): every value starts on its column's
 			// first cell, under its own heading.
-			a.flashText(c, ix+cols[0].x, row, padLeft(commaFloat(r.Price, 2), cols[0].w), th.Text, true, pxKey)
-			a.flashText(c, ix+cols[1].x, row, padLeft(chg, cols[1].w), chgCol, true, pxKey)
-			c.Text(ix+cols[2].x, row, cols[2].w, padLeft(bidAsk(r.Bid), cols[2].w), th.Text, false)
-			c.Text(ix+cols[3].x, row, cols[3].w, padLeft(bidAsk(r.Ask), cols[3].w), th.Text, false)
+			// Owner order 2026-11-11: every value starts on its column's first
+			// cell too, BID and ASK included, so no column floats right.
+			a.flashText(c, ix+cols[0].x, row, commaFloat(r.Price, 2), th.Text, true, pxKey)
+			a.flashText(c, ix+cols[1].x, row, chg, chgCol, true, pxKey)
+			c.Text(ix+cols[2].x, row, cols[2].w, bidAsk(r.Bid), th.Text, false)
+			c.Text(ix+cols[3].x, row, cols[3].w, bidAsk(r.Ask), th.Text, false)
 			a.drawFlowCols(c, ix, row, r, cols, volKey)
 			if cw-barX >= shareBarWidth && r.Measured() && *r.Buy+*r.Sell > 0 {
 				// Owner order 2026-11-10 (latest): the bar is back on ORDER FLOW,
@@ -442,7 +446,7 @@ func (a *App) drawFlowCols(c *Canvas, ix, y int, r FlowRow, cols [8]flowCell, vo
 		if p != nil {
 			s = commaInt(*p)
 		}
-		a.flashText(c, ix+cols[k].x, y, padLeft(prefix+s, cols[k].w), fg, bold, volKey)
+		a.flashText(c, ix+cols[k].x, y, prefix+s, fg, bold, volKey)
 	}
 	switch {
 	case r.Measured():
@@ -460,7 +464,7 @@ func (a *App) drawFlowCols(c *Canvas, ix, y int, r FlowRow, cols [8]flowCell, vo
 		c.Text(ix+cols[6].x, y, cols[6].w, padLeft("estimate", cols[6].w), th.Soft, false)
 		cell(7, r.Volume, totalBlue, false, "")
 	default:
-		c.Text(ix+cols[4].x, y, cols[4].w, padLeft("no split", cols[4].w), th.Soft, false)
+		c.Text(ix+cols[4].x, y, cols[4].w, "no split", th.Soft, false)
 		cell(7, r.Volume, totalBlue, false, "")
 	}
 }

@@ -977,6 +977,16 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 	}
 	board := a.boardRows(3)
 	cols := bstLeaderCols(leaders)
+	// Owner report 2026-11-11: the bottom two leaders put PKR one cell left
+	// of the top one because the price was right aligned and a shorter price
+	// pushed its label right. The price field now starts on the same cell on
+	// every leader, measured from the widest price, exactly as the top row did.
+	pxW := 1
+	for _, l := range leaders {
+		if l.Price != nil {
+			pxW = max(pxW, runeLen(commaFloat(*l.Price, 2)))
+		}
+	}
 
 	// The bottom of the tile, from the bottom up: the note, one blank line, and
 	// the BUYING NOW line. The blank line and the spacer under the index are
@@ -1050,14 +1060,16 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 			// empty cells between the two. flashRight's cell is the one after its
 			// last character, so the price covers [priceRight-len, priceRight-1]
 			// and PKR stands four cells to its left, leaving exactly one space.
-			pkrLeft := priceRight - runeLen(px) - 4
+			pkrLeft := priceRight - pxW - 4
 			priceBlock := 4 + runeLen(px) + chgW + 1
 			showPrice := func(pkr, pxRight, chgRight int) {
 				// The label is written without its trailing space and the price
 				// starts four cells along, so exactly one blank cell stands
 				// between them and the row reads "PKR 15.24".
 				c.Text(pkr, row, 3, "PKR", th.Soft, false)
-				a.flashRight(c, pxRight, row, px, th.Text, true, pxKey)
+				// The price starts one cell after PKR on every leader, so the
+				// label and the number stand on the same cells on all three rows.
+				a.flashText(c, pkr+4, row, px, th.Text, true, pxKey)
 				if l.ChangePct != nil {
 					a.flashRight(c, chgRight, row, changeText(*l.ChangePct), a.dirColor(*l.ChangePct), true, pxKey)
 				}
