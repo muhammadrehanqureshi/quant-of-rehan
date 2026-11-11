@@ -75,8 +75,10 @@ func (a *App) drawSettings(c *Canvas, x, y, w, h int) {
 		if cur {
 			mark = '◆'
 		}
+		// Owner order 2026-11-11: the cursor and the chosen theme share one
+		// diamond, never two side by side.
 		sel := ' '
-		if a.cfg.Theme == themeNo {
+		if a.cfg.Theme == themeNo && !cur {
 			sel = '◆'
 		}
 		// Owner order 2026-11-11: the theme cursor is blue, not white.

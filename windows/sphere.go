@@ -28,11 +28,11 @@ const (
 	// not the ring, so its own size carries the fifteen percent cut.
 	sphereSizeScale = 0.85
 	// sphereLatStep and sphereLonStep are the grid's spacing in degrees.
-	// Owner order 2026-11-11 (fifth pass): the globe carries another twenty
-	// percent more dots than patch 34, so both steps shrink by 1/sqrt(1.2)
-	// again and the surface reads as a solid ball of dots.
-	sphereLatStep = 11.25 * 0.9129 * 0.9325 * 0.9129 * 0.9129 * 0.9129 * 0.9129
-	sphereLonStep = 9.0 * 0.9129 * 0.9325 * 0.9129 * 0.9129 * 0.9129 * 0.9129
+	// Owner order 2026-11-11: the middle of the disc looked empty, so the grid
+	// is doubled: both steps shrink by 0.70, which puts about twice as many dots
+	// on the surface, the front face included, with the depth shading unchanged.
+	sphereLatStep = 11.25 * 0.9129 * 0.9325 * 0.9129 * 0.9129 * 0.9129 * 0.9129 * 0.70
+	sphereLonStep = 9.0 * 0.9129 * 0.9325 * 0.9129 * 0.9129 * 0.9129 * 0.9129 * 0.70
 	// spherePerspective is how much the nearer half of the globe grows.
 	spherePerspective = 0.18
 )

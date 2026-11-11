@@ -32,22 +32,22 @@ func TestBSTLineSaysUZero(t *testing.T) {
 	}
 }
 
-// Owner order 2026-11-11: the bar is one continuous lower half block, the step
-// under the five eighths block, in one shade per side, with no separator or
-// small box drawn inside it.
+// Owner order 2026-11-11: the bar is one continuous centred rule in one shade
+// per side, with no separator or small box drawn inside it and never on the
+// floor of the cell.
 func TestBarsAreBuild21sShadedTabs(t *testing.T) {
 	a := demoApp(t, 100, 30)
 	c := NewCanvas(40, 1, RGB{})
 	a.shareBar(c, 2, 0, shareBarWidth, 0.5)
 	row := c.PlainRows()[0]
-	// Owner order 2026-11-11: the bar is the lower half block, the step under
-	// the five eighths block, and never a full block or the old rectangle.
-	if barBlock != '▄' {
-		t.Fatalf("the bar is %q, not the lower half block", barBlock)
+	// Owner order 2026-11-11: the bar is the centred rule, never a lower block,
+	// a full block or the old rectangle.
+	if barBlock != '━' {
+		t.Fatalf("the bar is %q, not the centred rule", barBlock)
 	}
-	for _, block := range "▅█▀■▬" {
+	for _, block := range "▄▅█▀■▬" {
 		if block == barBlock {
-			t.Fatal("the taller block, a full block or the old rectangle is inside the bar again")
+			t.Fatal("a lower block, a full block or the old rectangle is inside the bar again")
 		}
 	}
 	if strings.ContainsRune(row, '│') {
