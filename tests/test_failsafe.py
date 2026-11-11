@@ -125,6 +125,13 @@ class FailsafeDecisionTest(unittest.TestCase):
 
 class FailsafeWorkflowTest(unittest.TestCase):
 
+    def test_a_queued_band_counts_as_running(self):
+        """GitHub keeps one pending run per group; a retry that lands on top
+        of it cancels the band it was trying to save."""
+        script = (ROOT / "scripts" / "session_failsafe.py").read_text(
+            encoding="utf-8")
+        self.assertIn('for status in ("in_progress", "queued"):', script)
+
     def test_the_workflow_may_dispatch_and_calls_the_one_script(self):
         text = WORKFLOW.read_text(encoding="utf-8")
         self.assertIn("actions: write", text)

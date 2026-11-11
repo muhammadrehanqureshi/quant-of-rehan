@@ -282,9 +282,10 @@ seconds. It is opt-in and fail-open:
 - one dispatch per band per day is recorded in the Durable Object
   (`SCAN:DISPATCH:<day>:<open>`,
   two day TTL), so a retried cron cannot start a second loop;
-- the feed watchdog never forces a start at a band's own open edge, and gives
-  a dispatch ten minutes to publish its first frame, because the pre-open
-  auction can be quiet and a second queued loop must never shadow the first;
+- the feed watchdog never forces a start at a band's own open edge, gives a
+  dispatch ten minutes to publish its first frame, and reads GitHub's run list
+  before forcing, so a queued band is not replaced by a later retry (GitHub
+  keeps one pending run per concurrency group and cancels the older one);
 - only a 204 from GitHub claims the band; a failure leaves the key free and is
   recorded in `SCAN:DISPATCH:LAST` for inspection;
 - the call has a ten second timeout and never blocks the open/close text.

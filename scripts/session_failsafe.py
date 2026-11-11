@@ -95,13 +95,21 @@ def api(token: str, method: str, path: str, body: dict | None = None):
 
 
 def band_running(token: str, repo: str) -> bool:
-    """True when a band job is already in flight, so a second one is skipped."""
-    answer = api(token, "GET",
-                 f"/repos/{repo}/actions/workflows/{WORKFLOW}/runs"
-                 "?status=in_progress&per_page=1")
-    if not isinstance(answer, dict):
-        return False
-    return int(answer.get("total_count") or 0) > 0
+    """True when a band job is already in flight, so a second one is skipped.
+
+    A queued run is in flight too. GitHub keeps one pending run per concurrency
+    group and cancels the older pending run when a newer one arrives, so
+    counting only in_progress replaced a queued 08:55 band with every ten
+    minute retry and none of them started in time for the pre-open.
+    """
+    for status in ("in_progress", "queued"):
+        answer = api(token, "GET",
+                     f"/repos/{repo}/actions/workflows/{WORKFLOW}/runs"
+                     f"?status={status}&per_page=1")
+        if isinstance(answer, dict) \
+                and int(answer.get("total_count") or 0) > 0:
+            return True
+    return False
 
 
 def notify(text: str) -> None:

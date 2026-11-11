@@ -401,6 +401,11 @@ class RelayWorkerContractTest(unittest.TestCase):
         self.assertIn("const FEED_WATCHDOG_DISPATCH_GRACE_MS", self.source)
         self.assertIn('reason: "band just opened"', self.source)
         self.assertIn('reason: "dispatch is fresh"', self.source)
+        # A queued run is in flight too: GitHub cancels the older pending run
+        # when a retry arrives, so the watchdog asks before forcing.
+        self.assertIn("async function bandRunInFlight(env)", self.source)
+        self.assertIn("runs?status=${status}&per_page=1", self.source)
+        self.assertIn('reason: "a band run is already queued"', self.source)
         self.assertIn("function newestFrameAgeMs(snapshot, now)", self.source)
 
         start = self.source.index("async function ensureFeedAlive(env, now)")

@@ -699,6 +699,46 @@ function newestFrameAgeMs(snapshot, now) {
   return Math.max(0, now.getTime() - newest);
 }
 
+// A queued run is in flight too. GitHub keeps one pending run per concurrency
+// group: a dispatch that lands while the 08:55 band is queued cancels that
+// band and replaces it with a later one, which is how a retry storm skips the
+// pre-open it was meant to save. Ask GitHub before forcing another loop.
+// Only the watchdog calls this, only when the feed is stale, and the caller's
+// ten minute cooldown keeps it to one pair of reads per window.
+async function bandRunInFlight(env) {
+  const token = String(env.GH_DISPATCH_TOKEN || "").trim();
+  if (!token) return false;
+  const repo = String(env.GH_REPO || SCAN_REPO_DEFAULT).trim();
+  for (const status of ("in_progress", "queued")) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), SCAN_DISPATCH_TIMEOUT_MS);
+    try {
+      const response = await fetch(
+        `https://api.github.com/repos/${repo}/actions/workflows/`
+          + `${SCAN_WORKFLOW_FILE}/runs?status=${status}&per_page=1`,
+        {
+          signal: controller.signal,
+          headers: {
+            authorization: `Bearer ${token}`,
+            accept: "application/vnd.github+json",
+            "x-github-api-version": "2022-11-28",
+            "user-agent": "quant-of-rehan-relay",
+          },
+        },
+      );
+      if (!response.ok) continue;
+      const answer = await response.json();
+      if (Number((answer && answer.total_count) || 0) > 0) return true;
+    } catch (_) {
+      // A failed read is not evidence that no band is running. The fresh
+      // dispatch grace above still covers the ordinary case.
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  return false;
+}
+
 async function ensureFeedAlive(env, now) {
   const k = karachiView(now.getTime());
   if (!isTradingDay(k)) return { dispatched: false, reason: "not a trading day" };
@@ -746,6 +786,9 @@ async function ensureFeedAlive(env, now) {
     await kvPut(env, key, String(now.getTime()), { expirationTtl: 6 * 3600 });
   } catch (_) {
     // A failed cooldown write must never withhold the dispatch.
+  }
+  if (await bandRunInFlight(env)) {
+    return { dispatched: false, reason: "a band run is already queued" };
   }
   // The ten minute retry wakes (09:20 and 15:40) are what make a missed
   // pre-open or post-market dispatch recoverable: the watchdog still finds
