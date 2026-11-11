@@ -1,0 +1,59 @@
+name: Session failsafe
+
+# Owner order 2026-11-11: "introduce a fail safe for Quant of Rehan. So the
+# Quant of Rehan can possibly never be down and always scan the pre and post
+# market."
+#
+# What already covers the session: the band loop (intraday-session.yml), the
+# per-slot backstop scans (intraday-capture.yml), the relay's watchdog, and the
+# pre-open readiness check. What none of them covers is a schedule GitHub never
+# delivered, or a band that is running while its feed pushes nothing: GitHub
+# reports that job green and the card goes quiet.
+#
+# This fires every ten minutes inside the whole trading day and asks the relay
+# two questions. If the relay is silent, or the newest frame is more than four
+# minutes old while a scan window is open, it dispatches the band loop again on
+# master for thirty minutes. A healthy feed costs two HTTP reads and a GitHub
+# API call, and nothing is dispatched.
+#
+# 03:45 UTC = 08:45 PKT, before the 08:55 band, so a missing 08:55 fire is
+# caught inside the pre-open window rather than after the open.
+# 04:00-10:50 UTC = 09:00-15:50 PKT every ten minutes, the bands and the break.
+# 11:05-11:45 UTC = 16:05-16:45 PKT, the post-market tail.
+
+on:
+  schedule:
+    - cron: "45 3 * * 1-5"
+    - cron: "*/10 4-10 * * 1-5"
+    - cron: "5,15,25,35,45 11 * * 1-5"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+  issues: write
+
+concurrency:
+  group: session-failsafe
+  cancel-in-progress: false
+
+jobs:
+  failsafe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      RELAY_URL: "https://quant-of-rehan-relay.mrmrehanqureshi.workers.dev"
+      GITHUB_TOKEN: ${{ github.token }}
+      OWNER_EMAIL_ISSUE: "81"
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt --retries 5 --timeout 60
+
+      - name: Dispatch the band again when the feed is dead
+        run: python scripts/session_failsafe.py

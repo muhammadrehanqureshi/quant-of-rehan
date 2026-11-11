@@ -35,26 +35,40 @@ jobs:
           import json
           import urllib.request
 
-          url = "https://quant-of-rehan-relay.mrmrehanqureshi.workers.dev/health"
-          try:
-              with urllib.request.urlopen(url, timeout=30) as response:
-                  health = json.load(response)
-          except Exception as exc:
+          # Owner report 2026-11-11: an email every day after the close that
+          # said only "could not read /health: HTTPError". One busy instant on
+          # the edge is not an outage: the guard now tries the same route three
+          # times before it says anything, and it no longer reports a single
+          # failed read of one route as if the relay were down. The alert names
+          # the attempts, so the message states what was actually observed.
+          BASE = "https://quant-of-rehan-relay.mrmrehanqureshi.workers.dev"
+
+          def read(path, attempts=3):
+              last = None
+              for _ in range(attempts):
+                  try:
+                      with urllib.request.urlopen(BASE + path, timeout=20) as response:
+                          return json.load(response)
+                  except Exception as exc:  # noqa: BLE001 - named in the alert
+                      last = exc
+              return {"__error__": type(last).__name__ if last else "unknown"}
+
+          health = read("/health")
+          if "__error__" in health:
               print(
-                  "Quant of Rehan relay budget guard could not read /health: "
-                  f"{type(exc).__name__}. The relay was not changed. This "
-                  "alert repeats at most once per day."
+                  "Quant of Rehan relay budget guard could not read /health "
+                  f"after three attempts ({health['__error__']}). The relay was "
+                  "not changed and no budget is implicated by this check. "
+                  "This alert repeats at most once per day."
               )
               raise SystemExit(0)
 
-          quotes_url = "https://quant-of-rehan-relay.mrmrehanqureshi.workers.dev/quotes"
-          try:
-              with urllib.request.urlopen(quotes_url, timeout=30) as response:
-                  quotes = json.load(response)
-          except Exception as exc:
+          quotes = read("/quotes")
+          if "__error__" in quotes:
               print(
-                  "Quant of Rehan relay feed check could not read /quotes: "
-                  f"{type(exc).__name__}. This alert repeats at most once per day."
+                  "Quant of Rehan relay feed check could not read /quotes "
+                  f"after three attempts ({quotes['__error__']}). The relay was "
+                  "not changed. This alert repeats at most once per day."
               )
               raise SystemExit(0)
           if health.get("market_open") and (
