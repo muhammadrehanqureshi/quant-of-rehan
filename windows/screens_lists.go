@@ -176,10 +176,8 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 		sectorH = min(n+4, 16)
 	}
 	// The gap costs one row. On a short window, keep the ranked list at four
-	// stocks by letting the sector list scroll instead of taking that row. The
-	// smallest sector tile shrinks too, because a seven row tile with no groups
-	// is the row the list needs to keep its fourth stock.
-	if a.scanChoice != 0 && !a.sectorOpen {
+	// stocks by letting the sector list scroll instead of taking that row.
+	if a.scanChoice != 0 && !a.sectorOpen && sectorH > 7 {
 		for sectorH > 5 {
 			sh2 := y + h - sy - sectorH - 1
 			if sh2 < 6 {
@@ -253,6 +251,13 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 		c.Text(ix+5, ry, min(44, iw-5), name, th.Text, a.scanChoice == id)
 	}
 	head := iy + menu + 1 // the row after the menu, or the first row when it is hidden
+	// Owner order 2026-11-11: the blank row between SEARCH and SECTORS costs
+	// the list one row. When that leaves only three stocks, the blank row under
+	// the menu goes first, so the list keeps its four stocks and the sector tile
+	// keeps its three groups.
+	if rows := iy + ih - (head + 1); rows/2 < 4 && head > iy+menu {
+		head--
+	}
 	if a.scanChoice == 0 || head >= iy+ih {
 		return
 	}
