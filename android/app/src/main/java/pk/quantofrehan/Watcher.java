@@ -1008,7 +1008,7 @@ public final class Watcher {
     /** The last order flow the relay served. Empty until the first read. */
     private static volatile List<FlowRow> FLOW =
             java.util.Collections.emptyList();
-    /** The last big prints the relay served, largest first. */
+    /** The last big prints the relay served, latest first. */
     private static volatile List<BigPrint> FLOW_PRINTS =
             java.util.Collections.emptyList();
 
@@ -1026,6 +1026,23 @@ public final class Watcher {
         double price;
         long value;
         String at = "";
+    }
+
+    /**
+     * The print's clock as the big prints board sorts it: HH:mm:ss from
+     * the relay's ISO stamp, or the bare clock when the relay served one.
+     * The board reads newest first, so the earliest print closes the list.
+     */
+    private static String flowClock(String at) {
+        if (at == null) {
+            return "";
+        }
+        String raw = at.trim();
+        int t = raw.indexOf('T');
+        if (t >= 0 && raw.length() >= t + 9) {
+            return raw.substring(t + 1, t + 9);
+        }
+        return raw;
     }
 
     interface FlowCallback {
@@ -1099,9 +1116,17 @@ public final class Watcher {
                         prints.add(out);
                     }
                 }
-                // The newest and largest first: the tile is the session's
-                // big buying and selling, so the biggest print leads it.
-                prints.sort((a, b) -> Long.compare(b.value, a.value));
+                // Owner order 2026-11-11, third pass: the board runs by
+                // the print's own clock, latest at the top and earliest at
+                // the bottom, never by the transaction's size. A shared
+                // clock is broken by value so the order is never arbitrary.
+                prints.sort((a, b) -> {
+                    int byClock = flowClock(b.at).compareTo(flowClock(a.at));
+                    if (byClock != 0) {
+                        return byClock;
+                    }
+                    return Long.compare(b.value, a.value);
+                });
             } catch (Exception e) {
                 // Keep what is on screen and say nothing false about it: an
                 // empty read never becomes an invented print.

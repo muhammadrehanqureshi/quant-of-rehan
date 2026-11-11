@@ -189,7 +189,7 @@ public class MainActivity extends Activity {
      */
     private static final long BREATH_MS = 2200L;
     /** How many stocks the ORDER FLOW page lists before it stops. */
-    /** How many big prints the tile lists, largest first. */
+    /** How many big prints the tile lists, latest first. */
     /** How many scrips the search shows at once. */
     private static final int FLOW_RESULTS_SHOWN = 8;
     /** The ORDER FLOW table: eight real fields from the broker snapshot. */
@@ -3441,7 +3441,7 @@ public class MainActivity extends Activity {
         divider.setBackgroundColor(themeAccentInk);
         divider.setAlpha(0.5f);
         LinearLayout.LayoutParams dividerParams = new LinearLayout.LayoutParams(
-                Math.max(1, dp(1)), Math.max(1, dp(1)));
+                Math.max(1, dp(1)), LinearLayout.LayoutParams.MATCH_PARENT);
         dividerParams.leftMargin = dp(10);
         dividerParams.rightMargin = dp(10);
         columns.addView(divider, dividerParams);
@@ -3467,6 +3467,17 @@ public class MainActivity extends Activity {
                     }
                 });
         orderFlowBook.addView(columns);
+        columns.post(() -> {
+            int height = Math.max(bidColumn.getHeight(), askColumn.getHeight());
+            if (height <= 0) {
+                return;
+            }
+            ViewGroup.LayoutParams lp = divider.getLayoutParams();
+            if (lp != null && lp.height != height) {
+                lp.height = height;
+                divider.setLayoutParams(lp);
+            }
+        });
         orderFlowBook.setVisibility(View.VISIBLE);
     }
 
