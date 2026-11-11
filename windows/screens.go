@@ -404,10 +404,12 @@ func (a *App) drawLeft(c *Canvas, x, y, w, h int) {
 	drawSphere(c, ix, iy, iw, ih, a.animSeconds(), a.orbGreen(), th)
 
 	tx, ty, tw, tih := a.panel(c, x, y+coreH+1, w, telH, "TELEMETRY", "")
+	// Owner order 2026-11-11 (tenth pass): every value ends on the tile's right
+	// edge, so a short word and a long row finish on the same column.
 	const labelW = 7
 	label := func(row int, k string, v []Span) {
 		c.Text(tx, ty+row, labelW, k, th.Soft, false)
-		c.Spans(tx+labelW, ty+row, tw-labelW, v)
+		rightAlign(c, tx+labelW, ty+row, tw-labelW, v)
 	}
 	// fullRow carries a long heading on the left and its value on the tile's
 	// right edge, for the rows whose heading does not fit the label column.
@@ -511,6 +513,20 @@ func (a *App) drawLeft(c *Canvas, x, y, w, h int) {
 		{"/", th.Soft, false},
 		{strconv.Itoa(dec), th.Bad, true},
 	})
+	// FLOW. Owner order 2026-11-11 (tenth pass): FLOW stands before NET DELTA,
+	// and its value starts with B=..., S=... & U=..., the three separate sides
+	// the ORDER FLOW table already names that way. U is always written, zero
+	// included, so the three figures never move.
+	if a.cfg.BigBuy || a.cfg.BigSell {
+		buy, sell, unclear := a.flow.WindowSides(a.karachiNow(), time.Minute)
+		label(8, "FLOW", []Span{
+			{"B=", th.Good, true}, {compactNum(float64(buy)), th.Text, false},
+			{", S=", th.Bad, true}, {compactNum(float64(sell)), th.Text, false},
+			{" & U=", th.Warn, true}, {compactNum(float64(unclear)), th.Text, false},
+		})
+	} else {
+		label(8, "FLOW", []Span{{"OFF", th.Bad, true}})
+	}
 	// NET DELTA is the whole market's measured buying minus selling, in
 	// shares, from the relay's own day pair.
 	if net, ok := a.marketNetDelta(); ok {
@@ -521,39 +537,21 @@ func (a *App) drawLeft(c *Canvas, x, y, w, h int) {
 		case net < 0:
 			nc = th.Bad
 		}
-		fullRow(8, "NET DELTA", []Span{{signedCompact(net), nc, true}})
+		fullRow(9, "NET DELTA", []Span{{signedCompact(net), nc, true}})
 	} else {
-		fullRow(8, "NET DELTA", []Span{{"--", th.Soft, false}})
+		fullRow(9, "NET DELTA", []Span{{"--", th.Soft, false}})
 	}
-	// Owner order 2026-11-11: TOP PERFORMERS follows NET DELTA, and FLOW and
-	// REQ take the rows below it. A short tile keeps FLOW and REQ and drops
-	// only TOP PERFORMERS.
-	flowRow, reqRow := 9, 10
+	// Owner order 2026-11-11: TOP PERFORMERS follows NET DELTA. A short tile
+	// keeps FLOW and REQ and drops only TOP PERFORMERS.
+	reqRow := 10
 	if tih > 11 {
 		names := fit(andList(a.topPerformers()), max(1, tw-16))
 		col := th.Text
 		if names != "--" {
 			col = th.Good
 		}
-		fullRow(9, "TOP PERFORMERS", []Span{{names, col, true}})
-		flowRow, reqRow = 10, 11
-	}
-	// FLOW. Owner order 2026-11-09 (latest): buying, selling and unclear are
-	// three separate numbers. The two sides are never printed as one figure and
-	// U never joins either of them; U appears only when some volume in the
-	// window could not be sided.
-	if a.cfg.BigBuy || a.cfg.BigSell {
-		buy, sell, unclear := a.flow.WindowSides(a.karachiNow(), time.Minute)
-		// Owner order 2026-11-10: the row reads BUY=..., SELL=... & U=..., and U
-		// is always written, zero included, so the three figures never move.
-		spans := []Span{
-			{"BUY=", th.Good, true}, {compactNum(float64(buy)), th.Text, false},
-			{", SELL=", th.Bad, true}, {compactNum(float64(sell)), th.Text, false},
-			{" & U=", th.Warn, true}, {compactNum(float64(unclear)), th.Text, false},
-		}
-		label(flowRow, "FLOW", spans)
-	} else {
-		label(flowRow, "FLOW", []Span{{"OFF", th.Bad, true}})
+		fullRow(10, "TOP PERFORMERS", []Span{{names, col, true}})
+		reqRow = 11
 	}
 	// REQ
 	rq := a.reqToday()

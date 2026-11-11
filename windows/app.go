@@ -145,6 +145,8 @@ type App struct {
 	lvBoard     listView   // the Alerts screen's big buying list
 	lvSell      listView   // the Alerts screen's big selling list
 	lvLog       listView   // the Alerts screen's log
+	alertQuery  string     // the ALERTS LOG search text, upper case
+	alertSearch bool       // the ALERTS LOG search box has the keys
 	alertFocus  int        // 0 big buying list, 1 big selling list, 2 the log
 	focusNext   bool       // the next panel drawn is the focused one
 	alertSplitX int        // the column where the selling list starts, for the wheel
@@ -1096,12 +1098,19 @@ func (a *App) onKey(k Key) {
 		if a.screen == scrOrderFlow && (a.ofSearch || a.ofQuery != "") {
 			a.ofQuery, a.ofSearch = "", false
 			a.lvOF.top()
+		} else if a.screen == scrAlerts && (a.alertSearch || a.alertQuery != "") {
+			a.alertQuery, a.alertSearch = "", false
+			a.lvLog.top()
 		} else {
 			a.setScreen(scrHome)
 		}
 	case KRune:
 		if a.screen == scrOrderFlow && a.ofSearch {
 			a.keyOrderFlow(k)
+			return
+		}
+		if a.screen == scrAlerts && a.alertSearch {
+			a.keyAlerts(k)
 			return
 		}
 		switch k.R {
@@ -1119,6 +1128,9 @@ func (a *App) onKey(k Key) {
 			if a.screen == scrOrderFlow {
 				a.ofSearch = true
 				a.lvOF.top()
+			} else if a.screen == scrAlerts {
+				a.alertSearch = true
+				a.lvLog.top()
 			}
 		case 'q', 'Q':
 			a.quit = true
@@ -1376,6 +1388,35 @@ func (a *App) alertList() *listView {
 }
 
 func (a *App) keyAlerts(k Key) {
+	// While the search box has the keys, letters and digits build the scrip
+	// filter, BACKSPACE and DEL edit it and ENTER puts the keys back on the log.
+	if a.alertSearch {
+		switch k.Kind {
+		case KEnter:
+			a.alertSearch = false
+			return
+		case KBackspace, KDel:
+			if r := []rune(a.alertQuery); len(r) > 0 {
+				a.alertQuery = string(r[:len(r)-1])
+			} else {
+				a.alertSearch = false
+			}
+			a.lvLog.top()
+			return
+		case KRune:
+			r := k.R
+			if r >= 'a' && r <= 'z' {
+				r -= 'a' - 'A'
+			}
+			if (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '.' || r == '-' || r == '_' {
+				if runeLen(a.alertQuery) < 12 {
+					a.alertQuery += string(r)
+				}
+				a.lvLog.top()
+			}
+			return
+		}
+	}
 	switch k.Kind {
 	case KLeft:
 		a.alertFocus = max(0, a.alertFocus-1)
@@ -1395,6 +1436,7 @@ func (a *App) keyAlerts(k Key) {
 		a.alertList().bottom()
 	case KDel, KBackspace:
 		a.flow.Log, a.lvLog = nil, listView{}
+		a.alertQuery, a.alertSearch = "", false
 	case KEnter:
 		a.testFlag(false)
 	}

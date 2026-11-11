@@ -64,7 +64,23 @@ func TestTelemetryCarriesMarketHoursBreadthAndDelta(t *testing.T) {
 	if !(at("PHASE") < at("EVERY SECOND") && at("EVERY SECOND") < at("MARKET OPENING")) {
 		t.Errorf("SCAN does not follow PHASE:\n%s", s)
 	}
-	if !(at("NET DELTA") < at("TOP PERFORMERS") && at("TOP PERFORMERS") < at("BUY=")) {
+	// Owner order 2026-11-11 (tenth pass): FLOW stands directly before NET
+	// DELTA, and TOP PERFORMERS still follows NET DELTA.
+	flow, net, top := -1, -1, -1
+	for i, row := range rowsOf(a) {
+		switch {
+		case strings.Contains(row, "NET DELTA"):
+			net = i
+		case strings.Contains(row, "FLOW") && !strings.Contains(row, "ORDER FLOW"):
+			flow = i
+		case strings.Contains(row, "TOP PERFORMERS"):
+			top = i
+		}
+	}
+	if flow < 0 || net < 0 || flow+1 != net {
+		t.Errorf("FLOW does not stand directly before NET DELTA: FLOW %d, NET DELTA %d\n%s", flow, net, s)
+	}
+	if top >= 0 && top <= net {
 		t.Errorf("TOP PERFORMERS does not follow NET DELTA:\n%s", s)
 	}
 }

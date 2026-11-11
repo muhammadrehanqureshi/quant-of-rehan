@@ -1073,28 +1073,59 @@ func (a *App) drawBoardPanel(c *Canvas, x, y, w, h int, side int) {
 	a.scrollbar(c, x+w-2, iy, ih, lv)
 }
 
+// alertLog is the flag log cut to the scrip being searched. Owner order
+// 2026-11-11 (tenth pass): the ALERTS LOG carries its own SEARCH box, and a
+// scrip typed there shows every alert it has.
+func (a *App) alertLog() []Flag {
+	log := a.flagLog()
+	if a.alertQuery == "" {
+		return log
+	}
+	kept := log[:0]
+	for _, f := range log {
+		if strings.HasPrefix(f.Symbol, a.alertQuery) {
+			kept = append(kept, f)
+		}
+	}
+	return kept
+}
+
 // drawAlertLog is the log of every flag raised, buying and selling, newest first.
 func (a *App) drawAlertLog(c *Canvas, x, y, w, h int) {
 	th := a.th
-	log := a.flagLog()
-	hint := "ENTER plays a test. DEL clears the log."
+	all := a.flagLog()
+	log := a.alertLog()
+	hint := "/ searches. ENTER plays a test. DEL clears the log."
 	title := "ALERTS LOG (" + strconv.Itoa(len(log)) + ")"
+	if a.alertQuery != "" {
+		title = "ALERTS LOG (" + strconv.Itoa(len(log)) + " of " + strconv.Itoa(len(all)) + ")"
+	}
 	a.focusNext = a.alertFocus == 2
 	lx, liy, liw, lih := a.panel(c, x, y, w, h, title, hint)
 	a.addHit(x, y, w, h, func() { a.alertFocus = 2 })
+	bw := a.searchBox(c, lx, liy, min(liw, 40), a.alertQuery, scripSearchHint, a.alertSearch)
+	a.addHit(lx, liy, bw, 1, func() { a.alertFocus, a.alertSearch = 2, true; a.lvLog.top() })
+	const per = 3 // a title and up to two lines of detail
+	listY := liy + 1
 	if len(log) == 0 {
-		for i, ln := range wrap("No flag yet. A flag is raised when a stock is bought or sold in size within a minute and one side is well ahead of the other. "+
-			"It appears here and in the banner at the top, with a Windows notification and a tone. Buying and selling have their own tones. "+
-			"Press ENTER to hear a test.", liw) {
-			if i < lih {
-				c.Text(lx, liy+i, liw, ln, th.Soft, false)
+		msg := "No flag yet. A flag is raised when a stock is bought or sold in size within a minute and one side is well ahead of the other. " +
+			"It appears here and in the banner at the top, with a Windows notification and a tone. Buying and selling have their own tones. " +
+			"Press ENTER to hear a test."
+		if a.alertQuery != "" {
+			msg = fmt.Sprintf("No alert matches %q.", a.alertQuery)
+		}
+		for i, ln := range wrap(msg, liw) {
+			if i < lih-1 {
+				c.Text(lx, listY+i, liw, ln, th.Soft, false)
 			}
 		}
 		return
 	}
-	const per = 3 // a title and up to two lines of detail
-	a.lvLog.set(len(log), lih/per)
-	row := liy
+	if lih < 2 {
+		return
+	}
+	a.lvLog.set(len(log), (lih-1)/per)
+	row := listY
 	lw := contentW(&a.lvLog, liw)
 	for n := 0; n < a.lvLog.view; n++ {
 		i := a.lvLog.off + n
@@ -1126,9 +1157,9 @@ func (a *App) drawAlertLog(c *Canvas, x, y, w, h int) {
 			c.Text(lx+10, row, lw-10, ln, th.Soft, false)
 			row++
 		}
-		row = liy + (n+1)*per
+		row = listY + (n+1)*per
 	}
-	a.scrollbar(c, x+w-2, liy, a.lvLog.view*per, &a.lvLog)
+	a.scrollbar(c, x+w-2, listY, a.lvLog.view*per, &a.lvLog)
 }
 
 // fetchOrDemo loads a symbol's detail the way the search screen does.

@@ -549,10 +549,10 @@ func TestTelemetryKeepsBuyingSellingAndUnclearApart(t *testing.T) {
 	if flowRow == "" {
 		t.Fatal("the telemetry FLOW row is missing")
 	}
-	// Owner order 2026-11-10: the row reads BUY=..., SELL=... & U=..., three
-	// separate figures with the sum never written. The ampersand joins U to the
-	// list, it does not add the sides together.
-	for _, want := range []string{"BUY=600", "SELL=300", "& U=100"} {
+	// Owner order 2026-11-11 (tenth pass): the row reads B=..., S=... & U=...,
+	// three separate figures with the sum never written. The ampersand joins U
+	// to the list, it does not add the sides together.
+	for _, want := range []string{"B=600", "S=300", "& U=100"} {
 		if !strings.Contains(flowRow, want) {
 			t.Errorf("the FLOW row is missing %q: %q", want, flowRow)
 		}
