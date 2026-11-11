@@ -25,6 +25,13 @@ compatibility_date = "2026-10-01"
 # 03:55/04:32 UTC = 08:55/09:32 PKT (Mon-Thu: the 08:55 recorder warm-up
 #   starts the capture before the first trade; the exchange's pre-open window
 #   is 09:15 to 09:30, and 09:32 is the band-open notification edge)
+# 04:20/04:25 UTC = 09:20/09:25 PKT (Mon-Thu pre-open retries: if the 08:55
+#   dispatch was lost, the watchdog starts the capture inside the 09:15 to
+#   09:30 pre-open, where the zero gate still seeds the day at zero)
+# 04:05/04:10 UTC = 09:05/09:10 PKT (Friday pre-open retries inside 09:00 to
+#   09:15)
+# 09:20/09:25 UTC = 14:20/14:25 PKT (Friday second pre-open retries inside
+#   14:15 to 14:30)
 # 07:30 UTC = 12:30 PKT (Mon-Thu AFTERNOON dispatch edge: the session loop
 #   started at the 08:55 warm-up ends at 12:30, so without this
 #   wake the afternoon had no publisher and the phone's numbers froze,
@@ -39,16 +46,20 @@ compatibility_date = "2026-10-01"
 #   opens at 14:32, packed with the warm-up)
 # 09:32 UTC = 14:32 PKT (Friday session 2 open, trading resumes)
 # 11:35 UTC = 16:35 PKT (Friday post-market window wake: 16:35 to 17:00)
+# 10:40/10:50 UTC = 15:40/15:50 PKT (Mon-Thu post-market retries inside
+#   15:35 to 16:00)
+# 11:40/11:50 UTC = 16:40/16:50 PKT (Friday post-market retries inside
+#   16:35 to 17:00)
 # packed edge list fires at the 12:00 PKT Friday close, the 15:30 Mon-Thu
 # close and the 16:30 PKT Friday close plus harmless extras the worker
 # discards; a six entry list is rejected (Cloudflare error 10072).
 [triggers]
 crons = [
-  "32,55 3,4 * * 1-4",
+  "20,25,32,55 3,4 * * 1-4",
   "30 7 * * 1-4",
-  "17,55 3,4 * * 5",
-  "10,32 9 * * 5",
-  "0,30,35 7,10,11 * * 1-5",
+  "5,10,17,55 3,4 * * 5",
+  "10,20,25,32 9 * * 5",
+  "0,30,35,40,50 7,10,11 * * 1-5",
 ]
 
 # No KV namespace, on purpose. Owner order 2026-10-20: no product that

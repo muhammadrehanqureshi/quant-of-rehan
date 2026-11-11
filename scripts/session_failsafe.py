@@ -2,8 +2,8 @@
 
 Owner order 2026-11-11: Quant of Rehan must always scan the pre and post market.
 The workflow that calls this script fires on the clock every ten minutes while a
-window is open; the script decides once, dispatches the band loop if the feed is
-dead or the relay is silent, and exits. It is never a daemon and it sleeps for
+window or the 08:55 pre-open warm-up is open; the script decides once,
+dispatches the band loop if the feed is dead or the relay is silent, and exits. It is never a daemon and it sleeps for
 nothing, so it cannot become work on the owner's PC.
 
 Why a second dispatcher exists at all: the relay's own watchdog restarts a band

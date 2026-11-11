@@ -252,17 +252,21 @@ Bars are kept for 45 days and pruned once a day. Storing began on
 
 | Event | Mon-Thu | Friday | Trigger (UTC) |
 |---|---|---|---|
-| Open | 09:32 PKT | 08:55 PKT (pre-open warm-up; band 09:17) | `32,55 3,4 * * 1-4` / `17,55 3,4 * * 5` |
-| Close | 15:30 PKT | 12:00 PKT (session 1) | `30 10 * * 1-4` / shared below |
-| Open | - | 14:10 PKT (pre-open warm-up; band 14:32) | `10,32 9 * * 5` |
-| Close | - | 16:30 PKT (session 2) | `30 11 * * 5` |
+| Open | 09:32 PKT | 08:55 PKT (pre-open warm-up; band 09:17) | `20,25,32,55 3,4 * * 1-4` / `5,10,17,55 3,4 * * 5` |
+| Close | 15:30 PKT | 12:00 PKT (session 1) | shared below |
+| Open | - | 14:10 PKT (pre-open warm-up; band 14:32) | `10,20,25,32 9 * * 5` |
+| Close | - | 16:30 PKT (session 2) | shared below |
 
-The shared expression also fires at 07:32 and 09:00 UTC. Those are not band
-edges, and the worker's scheduled handler returns without sending unless the
-Karachi minute is within two minutes of a real edge, so each edge is delivered
-exactly once. Six separate expressions are rejected by Cloudflare with error
-10072, and that rejection used to abort the deploy after the code upload,
-leaving the schedules stale while the new worker was already live.
+The shared expression (`0,30,35,40,50 7,10,11 * * 1-5`) also carries the
+pre-open and post-market retries: 09:20/09:25 Mon-Thu, 09:05/09:10 and
+14:20/14:25 Friday, 15:40/15:50 Mon-Thu, and 16:40/16:50 Friday. A retry that
+is not a band edge sends no notification, so each edge is still delivered
+exactly once. What the retries do is let the feed watchdog start the capture
+inside the exchange's pre-open or post-market window when the punctual wake was
+lost; the 09:20 retry is the last one that can still seed the day at zero before
+the 09:30 pre-open ends. Six separate expressions are rejected by Cloudflare
+with error 10072, and that rejection used to abort the deploy after the code
+upload, leaving the schedules stale while the new worker was already live.
 
 ### Punctual scan dispatch (owner audit, 2026-10-19)
 
@@ -278,6 +282,9 @@ seconds. It is opt-in and fail-open:
 - one dispatch per band per day is recorded in the Durable Object
   (`SCAN:DISPATCH:<day>:<open>`,
   two day TTL), so a retried cron cannot start a second loop;
+- the feed watchdog never forces a start at a band's own open edge, and gives
+  a dispatch ten minutes to publish its first frame, because the pre-open
+  auction can be quiet and a second queued loop must never shadow the first;
 - only a 204 from GitHub claims the band; a failure leaves the key free and is
   recorded in `SCAN:DISPATCH:LAST` for inspection;
 - the call has a ten second timeout and never blocks the open/close text.

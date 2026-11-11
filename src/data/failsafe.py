@@ -16,8 +16,11 @@ without opening a socket, so the decision is testable on a fixed clock:
 
 The law:
 
-* outside a PSX trading day or a scan window nothing is dispatched, so a
-  mistimed fire costs nothing;
+* outside a PSX trading day, a scan window or the 08:55 capture warm-up
+  nothing is dispatched, so a mistimed fire costs nothing;
+* the 08:55 warm-up counts as a window too: a capture that starts there still
+  reaches the exchange's pre-open, where the zero gate seeds the day, so a
+  missing band at 08:55 is restarted before 09:15 rather than after 09:30;
 * a relay that did not answer at all is the one case that also alerts, because
   no scan can publish while the relay is down;
 * a feed whose newest frame is older than STALE_SECONDS inside a window is
@@ -31,12 +34,23 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Mapping
 
-from src.data.sessions import is_trading_day, market_state_at
+from src.data.sessions import (
+    as_karachi,
+    is_trading_day,
+    market_state_at,
+    pre_market_window,
+)
 
 # A feed this old inside a scan window is dead. The band pushes every frame it
 # receives, at the broker's own cadence, so four minutes of silence is a dead
 # capture and never a quiet symbol.
 STALE_SECONDS = 240.0
+
+# SO-8: the clock here is Asia/Karachi (UTC+5), and every window edge is
+# imported from src/data/sessions.py, the one place the pin lives.
+# The 08:55 recorder warm-up, before the exchange publishes its first pre-open
+# window (09:15 Monday to Thursday, 09:00 Friday).
+CAPTURE_WARMUP_OPEN = (8, 55)
 
 # How long a dispatched band runs. Long enough for the pre-open window and for
 # the post-market window, and the loop's own pause table stops it scanning the
@@ -79,6 +93,26 @@ def flow_age_seconds(moment: datetime, health: Mapping[str, Any] | None,
     return max(0.0, (moment - then).total_seconds())
 
 
+def capture_warmup(moment: datetime) -> bool:
+    """True inside the 08:55 recorder warm-up before the first pre-open window.
+
+    The 08:55 band starts the broker capture before the exchange publishes its
+    pre-open window. A capture that starts there can still seed every unseen
+    symbol at zero, so a missed 08:55 start is recoverable until the pre-open
+    window opens. After that the day's already traded volume can only stay
+    UNCLEAR.
+    """
+    k = as_karachi(moment)
+    window = pre_market_window(k.date())
+    if window is None:
+        return False
+    start = k.replace(hour=CAPTURE_WARMUP_OPEN[0],
+                      minute=CAPTURE_WARMUP_OPEN[1], second=0, microsecond=0)
+    end = k.replace(hour=window[0][0], minute=window[0][1],
+                    second=0, microsecond=0)
+    return start <= k < end
+
+
 def decide(moment: datetime, health: Mapping[str, Any] | None,
            flow: Mapping[str, Any] | None) -> Decision:
     """Should a band be dispatched again, and is the owner to be emailed?"""
@@ -87,9 +121,11 @@ def decide(moment: datetime, health: Mapping[str, Any] | None,
     if not is_trading_day(moment.date()):
         return Decision(False, "not a PSX trading day", False)
     state = market_state_at(moment)
-    if not state.is_scan_window:
+    warmup = capture_warmup(moment)
+    if not state.is_scan_window and not warmup:
         return Decision(False, "outside every scan window "
                                f"({state.value})", False)
+    where = state.value if state.is_scan_window else "capture warm-up"
     if health is None:
         return Decision(True, "the relay did not answer /health", True)
     if flow is None:
@@ -104,8 +140,8 @@ def decide(moment: datetime, health: Mapping[str, Any] | None,
     if age > STALE_SECONDS:
         return Decision(
             True,
-            f"the newest frame is {age:.0f} s old inside {state.value}",
+            f"the newest frame is {age:.0f} s old inside {where}",
             False,
         )
-    return Decision(False, f"the feed is {age:.0f} s old inside {state.value}",
+    return Decision(False, f"the feed is {age:.0f} s old inside {where}",
                     False)

@@ -678,6 +678,14 @@ async function dispatchBandScan(env, now, band = null, source = "cron", options 
 // window, dispatches the band scan again under a cooldown of its own.
 const FEED_WATCHDOG_STALE_MS = 5 * 60 * 1000;
 const FEED_WATCHDOG_COOLDOWN_MS = 10 * 60 * 1000;
+// A band open is the edge dispatcher's own job. This watchdog runs in the
+// same cron wake and the new band has not published a frame yet, so without
+// this guard it read yesterday's frame as stale and forced a second loop.
+const FEED_WATCHDOG_OPEN_GUARD_MINUTES = 3;
+// A dispatch younger than this is still starting. The pre-open auction can
+// be quiet, so a stale frame alone is not evidence that the band is dead
+// until this grace has passed.
+const FEED_WATCHDOG_DISPATCH_GRACE_MS = 10 * 60 * 1000;
 
 // Milliseconds since the newest frame the hub holds was observed, or null when
 // the hub holds no stamped frame at all (which counts as stale).
@@ -702,6 +710,10 @@ async function ensureFeedAlive(env, now) {
   });
   if (!open.length) return { dispatched: false, reason: "no window open" };
   const window = open[open.length - 1];
+  const windowOpen = window[0][0] * 60 + window[0][1];
+  if (mins - windowOpen <= FEED_WATCHDOG_OPEN_GUARD_MINUTES) {
+    return { dispatched: false, reason: "band just opened" };
+  }
   // The cooldown is read first so a poll in a live window costs one KV read,
   // not a snapshot read, while nothing is wrong.
   const key = `SCAN:WATCHDOG:${dayStamp(k)}:${hmText(window[0])}`;
@@ -720,11 +732,24 @@ async function ensureFeedAlive(env, now) {
     return { dispatched: false, reason: "feed is live",
       age_seconds: Math.round(age / 1000) };
   }
+  // A dispatch that is ten minutes old has had time to start its recorder.
+  // Do not queue a second loop on top of it; an old dispatch with a stale
+  // feed is the case this watchdog exists for.
+  const claim = await readOrNull(
+    env, `SCAN:DISPATCH:${dayStamp(k)}:${hmText(window[0])}`);
+  const claimedAt = Date.parse(String(claim || ""));
+  if (Number.isFinite(claimedAt)
+      && now.getTime() - claimedAt < FEED_WATCHDOG_DISPATCH_GRACE_MS) {
+    return { dispatched: false, reason: "dispatch is fresh" };
+  }
   try {
     await kvPut(env, key, String(now.getTime()), { expirationTtl: 6 * 3600 });
   } catch (_) {
     // A failed cooldown write must never withhold the dispatch.
   }
+  // The ten minute retry wakes (09:20 and 15:40) are what make a missed
+  // pre-open or post-market dispatch recoverable: the watchdog still finds
+  // the window open and the zero gate still has time to seed the day.
   const answer = await dispatchBandScan(env, now, window, "watchdog",
     { force: true });
   return { ...answer, age_seconds: age === null ? null : Math.round(age / 1000) };

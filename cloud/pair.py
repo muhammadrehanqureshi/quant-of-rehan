@@ -56,16 +56,20 @@ SUBDOMAIN = "mrmrehanqureshi"  # workers.dev subdomain of this account
 # without a message. Each edge is still covered by exactly one trigger, so
 # nothing is sent twice.
 CRONS = [
-    "32,55 3,4 * * 1-4",  # Mon-Thu 08:55 PKT recorder warm-up dispatch
-                          # (capture before the first trade) + 09:32 PKT
-                          # band-open edge
+    "20,25,32,55 3,4 * * 1-4",  # Mon-Thu 08:55 PKT recorder warm-up,
+                                # 09:20/09:25 pre-open retries (the zero gate
+                                # is still open until 09:30), 09:32/09:55
+                                # band wakes; 08:20/08:32 are discarded extras
     "30 7 * * 1-4",      # Mon-Thu 12:30 PKT afternoon scan dispatch
-    "17,55 3,4 * * 5",   # Friday 08:55 pre-open warm-up + 09:17 session 1 open
-                         # (09:55 and 10:17 are non-edge extras the worker discards)
-    "10,32 9 * * 5",     # Friday 14:10 second pre-open warm-up + 14:32 open
-                         # (the 14:32 fire keeps the band edge covered)
-    "0,30,35 7,10,11 * * 1-5",  # 12:00/12:31/15:30/16:30 PKT closes,
-                                # 15:35 PKT post-close dispatch wake
+    "5,10,17,55 3,4 * * 5",  # Friday 08:55 pre-open warm-up, 09:05/09:10
+                             # retries, 09:17 session 1 open; 08:05/08:10 are
+                             # discarded extras
+    "10,20,25,32 9 * * 5",   # Friday 14:10 second pre-open warm-up,
+                             # 14:20/14:25 retries, 14:32 open
+    "0,30,35,40,50 7,10,11 * * 1-5",  # 12:00/12:30/15:30/16:30 PKT closes,
+                                      # 15:35 post-close wake, 15:40/15:50
+                                      # Mon-Thu retries, 16:40/16:50 Friday
+                                      # retries
 ]
 
 
