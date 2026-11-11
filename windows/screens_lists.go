@@ -160,10 +160,10 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 	a.sectorY, a.sectorH = 0, 0
 	sh := a.searchTileHeight(w, h)
 	a.drawSearchTile(c, x, y, w, sh)
-	// The SECTORS tile sits directly under the search tile. The blank row the
-	// owner asked for belongs inside SECTORS, after its own search field, and
-	// moving the tile up here leaves the ranked list its four stock rows.
-	sy := y + sh
+	// Owner order 2026-11-11: the SEARCH tile and the SECTORS tile are two
+	// separate tiles, with one blank row between them so their frames never
+	// read as one crowded box.
+	sy := y + sh + 1
 	// The sector tile sits between the search and the ranked list. It grows to
 	// show every group it can while leaving the ranked list at least seven rows,
 	// and it scrolls when there are more groups than rows. A tapped sector opens
@@ -245,11 +245,19 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 		if a.scanChoice == id {
 			chosen = "◆ "
 		}
-		c.Set(ix+1, ry, []rune(mark)[0], th.Hot, bg, true)
+		// Owner order 2026-11-11: the sub menu cursor is blue, not white.
+		c.Set(ix+1, ry, []rune(mark)[0], th.Accent, bg, true)
 		c.Set(ix+3, ry, []rune(chosen)[0], th.Accent, bg, true)
 		c.Text(ix+5, ry, min(44, iw-5), name, th.Text, a.scanChoice == id)
 	}
 	head := iy + menu + 1 // the row after the menu, or the first row when it is hidden
+	// Owner order 2026-11-11: the blank row between SEARCH and SECTORS costs
+	// the list one row. When that leaves only three stocks, the blank row under
+	// the menu goes first, so the list keeps its four stocks and the sector tile
+	// keeps its three groups.
+	if rows := iy + ih - (head + 1); rows/2 < 4 && head > iy+menu {
+		head--
+	}
 	if a.scanChoice == 0 || head >= iy+ih {
 		return
 	}
@@ -492,6 +500,9 @@ func (a *App) showing(l *listView, noun string) string {
 func (a *App) drawSectorTile(c *Canvas, x, y, w, h int) {
 	th := a.th
 	ix, iy, iw, ih := a.panel(c, x, y, w, h, "SECTORS", "")
+	// Owner order 2026-11-11: the SECTORS title carries no diamond logo; the
+	// thin rule of the frame takes its place.
+	c.Put(x+2, y, '─', th.Line, false)
 	a.sectorY, a.sectorH = y, h
 	searchRows := 0
 	if ih > 0 {
@@ -592,6 +603,8 @@ func (a *App) drawSectorOpen(c *Canvas, x, y, w, h int) {
 		return
 	}
 	ix, iy, iw, ih := a.panel(c, x, y, w, h, "SECTORS", "")
+	// Owner order 2026-11-11: the SECTORS title carries no diamond logo.
+	c.Put(x+2, y, '─', th.Line, false)
 	a.drawSectorSearch(c, ix, iy+1, iw, true)
 	// The field is on iy+1, iy+2 is the blank separator, and the table starts
 	// on iy+3.
@@ -607,7 +620,7 @@ func (a *App) drawSectorOpen(c *Canvas, x, y, w, h int) {
 	if len(member) != len(all) {
 		detail += fmt.Sprintf(", %d match", len(member))
 	}
-	c.Spans(ix, iy, iw, []Span{{"◆ " + g.Name, th.Hot, true},
+	c.Spans(ix, iy, iw, []Span{{g.Name, th.Hot, true},
 		{"  ·  ", th.Soft, false},
 		{detail, th.Soft, false}})
 	if len(all) == 0 {
@@ -814,14 +827,13 @@ func (a *App) drawFlowList(c *Canvas, ix, head, top, iw, rows, barX int) {
 	a.scrollbar(c, barX, top, a.lvScan.view*2, &a.lvScan)
 }
 
-// Owner order 2026-11-11: the bar is five eighths of the cell tall, a quarter
-// taller than the half block, and it is a solid lower block so its cells join
-// edge to edge with no small box inside it. The centred rectangle left a box in
-// every cell, the heavy rule stayed too thin at the bold weight and the full
-// block was too tall, so the lower five eighths block is the one glyph that is
-// exactly a quarter taller than the half block and still seamless. The bar's
-// span, row and colours do not move.
-const barBlock = '▅'
+// Owner order 2026-11-11: the bar is half a cell tall, the nearest step under
+// the five eighths block, and it is a solid lower block so its cells join edge
+// to edge with no small box inside it. The centred rectangle left a box in
+// every cell and the full block was too tall, so the half block is the tallest
+// seamless glyph that is not a full block. The bar's span, row and colours do
+// not move.
+const barBlock = '▄'
 
 // shareBarBoxes is how many boxes a buy versus sell bar holds. Owner order
 // 2026-11-11: the bar carries ten boxes and not sixteen, and each box grows in
@@ -887,9 +899,8 @@ func (a *App) drawShareBar(c *Canvas, x, y, w int, buyShare float64, label bool)
 			ink = th.Good
 		}
 		for k := at; k < at+width; k++ {
-			// Owner order 2026-11-11: the lower five eighths block joins its
-			// neighbour edge to edge, leaves no small box inside the bar and
-			// is a quarter taller than the half block. Its span, row and
+			// Owner order 2026-11-11: the half block joins its neighbour edge
+			// to edge and leaves no small box inside the bar. Its span, row and
 			// colours are untouched.
 			c.Put(x+k, y, barBlock, ink, false)
 		}

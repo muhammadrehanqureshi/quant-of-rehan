@@ -42,7 +42,8 @@ func (a *App) drawSettings(c *Canvas, x, y, w, h int) {
 		if cur {
 			mark = '◆'
 		}
-		c.Set(ix+1, row, mark, th.Hot, bg, true)
+		// Owner order 2026-11-11: the setting cursor is blue, not white.
+		c.Set(ix+1, row, mark, th.Accent, bg, true)
 		c.Text(ix+3, row, 22, left, th.Text, cur)
 		c.Spans(ix+26, row, rowW-26, right)
 		row++
@@ -78,7 +79,8 @@ func (a *App) drawSettings(c *Canvas, x, y, w, h int) {
 		if a.cfg.Theme == themeNo {
 			sel = '◆'
 		}
-		c.Set(tx+1, trow, mark, th.Hot, bg, true)
+		// Owner order 2026-11-11: the theme cursor is blue, not white.
+		c.Set(tx+1, trow, mark, th.Accent, bg, true)
 		c.Set(tx+3, trow, sel, th.Accent, bg, true)
 		c.Text(tx+5, trow, 20, t.Name, th.Text, a.cfg.Theme == themeNo)
 		for k, col := range []RGB{t.BG, t.Panel, t.Line, t.Accent, t.Hot} {
