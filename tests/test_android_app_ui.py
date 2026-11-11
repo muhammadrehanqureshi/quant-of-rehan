@@ -526,6 +526,14 @@ class SettingsControlTest(unittest.TestCase):
                          self.layout[scroll_at:list_at])
         self.assertIn('android:layout_height="176dp"',
                       self.layout[scroll_at:list_at])
+        scroller = (ROOT / "android" / "app" / "src" / "main" / "java"
+                    / "pk" / "quantofrehan" / "OrnamentScroller.java"
+                    ).read_text(encoding="utf-8")
+        self.assertIn('private static final String DIAMOND = "\\u25C6";',
+                      scroller)
+        self.assertIn("DIAMOND_SP = 10f", scroller)
+        self.assertIn("COMPLEX_UNIT_SP, DIAMOND_SP", scroller)
+        self.assertNotIn("dp(9f)", scroller)
         self.assertIn("private static final int BIG_PRINTS_ROWS = 8;",
                       self.main)
         self.assertIn("fitBigPrintsWindow();", self.main)
@@ -652,7 +660,10 @@ class SettingsControlTest(unittest.TestCase):
         self.assertIn("SpannableStringBuilder split = flowSplitText(found);",
                       selected)
         self.assertIn("fillFlowPrints(symbol);", selected)
-        self.assertIn("LAST 8 FILLED", selected)
+        self.assertIn("LAST EIGHT FILLED ORDERS", selected)
+        self.assertNotIn("dp(64)", selected)
+        self.assertIn("bidColumn.addOnLayoutChangeListener(", selected)
+        self.assertIn("lp.height = height;", selected)
         self.assertIn("shown >= FLOW_RESULTS_SHOWN", selected)
         self.assertNotIn("found.unclassified > 0", selected)
 
@@ -960,6 +971,17 @@ class StatusTileCopyTest(unittest.TestCase):
         self.assertNotIn("resumeLine", self.watcher)
         self.assertNotIn("nextEvent", self.watcher)
         self.assertNotIn("next_event", self.watcher)
+
+    def test_the_first_status_word_is_processing(self):
+        self.assertIn('name="status_checking">PROCESSING...</string>',
+                      self.strings)
+        self.assertNotIn('name="status_checking">CHECKING</string>',
+                         self.strings)
+        self.assertIn("System status: processing.", self.strings)
+
+    def test_the_unavailable_signal_reads_no_signal_right_now(self):
+        self.assertIn('name="signal_unavailable">NO SIGNAL RIGHT NOW</string>',
+                      self.strings)
 
     def test_the_tile_still_carries_the_condition_sentence(self):
         # The relay's own phase sentence stays: only the resume line is gone.
@@ -2203,8 +2225,9 @@ class VersionTest(unittest.TestCase):
         # Owner order 2026-11-09: the phone's own hard daily relay request
         # stop ships as 4.0.17. Owner order 2026-11-11: the themed caret,
         # the diamond scroller and the always-moving orb ship as 4.0.18.
-        self.assertIn('android:versionName="4.0.18"', manifest)
-        self.assertIn('android:versionCode="127"', manifest)
+        # The second pass on 2026-11-11 ships as 4.0.19.
+        self.assertIn('android:versionName="4.0.19"', manifest)
+        self.assertIn('android:versionCode="128"', manifest)
         self.assertNotIn('android:versionName="4.0.15"', manifest)
         self.assertNotIn('android:versionName="4.0.14"', manifest)
         self.assertNotIn('android:versionName="3.7.5"', manifest)
@@ -2421,8 +2444,9 @@ class VersionTest(unittest.TestCase):
         # Owner order 2026-11-09: the phone's own hard daily relay request
         # stop ships as 4.0.17. Owner order 2026-11-11: the themed caret,
         # the diamond scroller and the always-moving orb ship as 4.0.18.
-        self.assertIn('android:versionCode="127"', manifest)
-        self.assertIn('android:versionName="4.0.18"', manifest)
+        # The second pass on 2026-11-11 ships as 4.0.19.
+        self.assertIn('android:versionCode="128"', manifest)
+        self.assertIn('android:versionName="4.0.19"', manifest)
         self.assertNotIn('android:versionName="4.0.15"', manifest)
         self.assertNotIn('android:versionName="3.7.5"', manifest)
         self.assertNotIn('android:versionName="3.7.4"', manifest)

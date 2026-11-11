@@ -17,8 +17,8 @@ Cloudflare relay, never to the retired chat channel, never to a broker.
   accessibility description, so a screen reader never reads a bare
   "multiplication X" and the state never depends on a font. Since v1.6.9 that
   light breathes only while the market is live: ONLINE pulses, and OFFLINE
-  (a closed market, its midday break, an unreachable relay) and CHECKING hold
-  a still light, because a pulse over a shut market would claim activity
+  (a closed market, its midday break, an unreachable relay) and PROCESSING
+  hold a still light, because a pulse over a shut market would claim activity
   there is none (owner orders 2026-10-13 third note and 2026-10-14 seventh
   note). The pulse itself is a view property animation on the beacon's own
   alpha and scale, which the platform interpolates on the render thread, so
@@ -179,7 +179,7 @@ Cloudflare relay, never to the retired chat channel, never to a broker.
   property animation on that view's alpha and scale, which the platform
   interpolates on the render thread, so no frame of the pulse measures, lays
   out or draws on the UI thread. Only a live market breathes: OFFLINE and
-  CHECKING hold a light that is not moving, and the badge announces the state
+  PROCESSING hold a light that is not moving, and the badge announces the state
   through one spoken description while its two children are decoration for the
   reader.
   Version 1.6.9, versionCode 23.
@@ -1640,6 +1640,17 @@ to sixty seconds. The status tile therefore also carries the app's own
      nearest neighbours under the one 0.42 cap, each pair once, and
      the orphan law stands so every dot still wears a filament.
   5. The version bump is versionCode 82 / versionName 2.3.15.
+
+**Version 4.0.19, versionCode 128.**
+
+  Owner order 2026-11-11, second pass. QUANT STATUS reads PROCESSING...
+  until the relay answers, and the LATEST SIGNAL tile's unavailable state
+  reads NO SIGNAL RIGHT NOW. The ORDER FLOW divider now ends with the BID
+  and ASK columns instead of running below them, the selected scrip's fills
+  are headed LAST EIGHT FILLED ORDERS, and the scroll diamond uses the
+  console's own 10sp brand diamond.
+
+  The version bump is versionCode 128 / versionName 4.0.19.
 
 **Version 4.0.18, versionCode 127.**
 

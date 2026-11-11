@@ -148,10 +148,10 @@
          is a symbol that a screen reader would read as arithmetic. The word
          lives in a string resource so the pill, its accessibility description
          and the layout can never drift apart. -->
-    <string name="status_checking">CHECKING</string>
+    <string name="status_checking">PROCESSING...</string>
     <string name="status_online">ONLINE</string>
     <string name="status_offline">OFFLINE</string>
-    <string name="cd_status_checking">System status: checking. The app has not heard from the relay yet.</string>
+    <string name="cd_status_checking">System status: processing. The app has not heard from the relay yet.</string>
     <string name="cd_status_online">System status: online. The market is trading and the quant is running.</string>
     <string name="cd_status_offline">System status: offline. The market is closed or on its midday break, or the relay cannot be reached.</string>
 
@@ -240,6 +240,6 @@
          reader actually has. -->
     <string name="signal_no_call">NO SIGNAL AVAILABLE RIGHT NOW</string>
     <string name="signal_none">NO SIGNAL AVAILABLE RIGHT NOW</string>
-    <string name="signal_unavailable">Signal unavailable</string>
+    <string name="signal_unavailable">NO SIGNAL RIGHT NOW</string>
 
 </resources>
