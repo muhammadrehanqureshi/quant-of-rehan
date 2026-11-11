@@ -347,10 +347,10 @@ class StallWatchdogTest(unittest.TestCase):
 
     def run_session(self, frames: list[bytes], duration: float = 0.4,
                     limit: float = 0.05):
-        # The stall limit is the config's, so the test drives the same value
-        # production reads rather than a private copy of it.
-        stall = mock.patch.object(feed_capture.config, "TICK_STALL_SECONDS",
-                                 limit)
+        # Production reads stall_limit(): the config's tight limit inside a
+        # scan window and a quiet limit outside it. Pin that function so this
+        # test does not depend on the clock the suite happens to run at.
+        stall = mock.patch.object(feed_capture, "stall_limit", lambda: limit)
         stall.start()
         made: list[_FakeSocket] = []
 
