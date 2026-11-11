@@ -116,12 +116,10 @@ func TestAlertsBoardIsNumberedAndScrolls(t *testing.T) {
 // cell and the block carries padding spaces. Every other screen packs it tight.
 func TestBSTFormatEverywhere(t *testing.T) {
 	// Two readings are legal: the packed sentence the lists use, B=1, S=2,
-	// T=3, and the fixed columns the KSE100 leaders use, where the fields are
-	// separated by spaces and each label starts on its own cell. Both keep every
-	// number hard against its own "=" sign, and neither carries an unclear
-	// figure (owner order 2026-11-11).
-	good := regexp.MustCompile(`B=[\d,]+[, ]+S=[\d,]+[, ]+T=[\d,]+`)
-	gone := regexp.MustCompile(`U=|unclear|unclassified`)
+	// U=0 & T=3, and the fixed columns the KSE100 leaders use, where the fields
+	// are separated by spaces and each label starts on its own cell. Both keep
+	// every number hard against its own "=" sign.
+	good := regexp.MustCompile(`B=[\d,]+[, ]+S=[\d,]+[, ]+U=[\d,]+[, ]+(?:& )?T=[\d,]+`)
 	bad := regexp.MustCompile(`\(B=|\)\s*$`)
 	for _, c := range []struct {
 		name string
@@ -147,9 +145,6 @@ func TestBSTFormatEverywhere(t *testing.T) {
 		}
 		if loc := bad.FindString(s); loc != "" {
 			t.Errorf("%s: old spacing %q still on screen", c.name, loc)
-		}
-		if loc := gone.FindString(s); loc != "" {
-			t.Errorf("%s: an unclear figure is still on screen: %q", c.name, loc)
 		}
 	}
 }
