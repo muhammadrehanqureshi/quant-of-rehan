@@ -17,9 +17,11 @@ const appVersion = "4.0.20"
 // ten percent slower turn, the unbroken bars and MARKET OPENING are 3.0.38,
 // the 3D orb return, the continuous centred bar rule and the KSE100 breadth
 // thresholds are 3.2.3, TOP PERFORMERS, the symmetrical frame and the half
-// speed globe are 3.2.4, and the matching left tiles, the five eighths bars
-// and the unsigned NET DELTA are 3.2.5.
-const hudBuild = "3.2.5"
+// speed globe are 3.2.4, the matching left tiles, the five eighths bars and the
+// unsigned NET DELTA are 3.2.5, and the separate SEARCH and SECTORS tiles, the
+// blue cursors, the pre and post market times and the half block bars are
+// 3.2.6.
+const hudBuild = "3.2.6"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no

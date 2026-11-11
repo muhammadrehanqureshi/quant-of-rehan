@@ -28,7 +28,7 @@ func TestTelemetryCarriesMarketHoursBreadthAndDelta(t *testing.T) {
 	}
 	s := plain(a)
 	for _, want := range []string{
-		"MARKET OPENING", "09:32", "MARKET CLOSING", "15:30",
+		"MARKET OPENING", "PRE 09:00 OPEN 09:32", "MARKET CLOSING", "15:30 POST 16:00",
 		"MARKET BREADTH", "BULLISH", "ADV/DEC", "2/1",
 		"NET DELTA", "-300", "TOP PERFORMERS", "CCC, AAA & BBB",
 	} {
@@ -50,6 +50,22 @@ func TestTelemetryCarriesMarketHoursBreadthAndDelta(t *testing.T) {
 		if strings.Contains(row, "NEXT") && !strings.Contains(row, "TAB NEXT") {
 			t.Errorf("the NEXT line is still in the build: %q", row)
 		}
+	}
+	// Owner order 2026-11-11: SCAN follows PHASE, and TOP PERFORMERS follows
+	// NET DELTA.
+	at := func(sub string) int {
+		for i, row := range rowsOf(a) {
+			if strings.Contains(row, sub) {
+				return i
+			}
+		}
+		return -1
+	}
+	if !(at("PHASE") < at("EVERY SECOND") && at("EVERY SECOND") < at("MARKET OPENING")) {
+		t.Errorf("SCAN does not follow PHASE:\n%s", s)
+	}
+	if !(at("NET DELTA") < at("TOP PERFORMERS") && at("TOP PERFORMERS") < at("BUY=")) {
+		t.Errorf("TOP PERFORMERS does not follow NET DELTA:\n%s", s)
 	}
 }
 

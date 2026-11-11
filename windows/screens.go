@@ -484,15 +484,18 @@ func (a *App) drawLeft(c *Canvas, x, y, w, h int) {
 		pc = th.Warn
 	}
 	label(2, "PHASE", []Span{{ph, pc, true}})
-	// MARKET OPENING and MARKET CLOSING are the exchange's own daily edges:
-	// 09:32 to 15:30 Monday to Thursday, 09:17 to 16:30 on Friday.
-	openHM, closeHM := "--", "--"
+	// Owner order 2026-11-11: SCAN follows PHASE, and the opening and closing
+	// rows carry the pre-market and post-market edges with the exchange's own.
+	sw, sc := a.scanStatus()
+	label(3, "SCAN", []Span{{sw, sc, true}})
+	openHM, closeHM, preHM, postHM := "--", "--", "--", "--"
 	if wins := tradeWindows(a.karachiNow()); len(wins) > 0 {
 		hm := func(m int) string { return fmt.Sprintf("%02d:%02d", m/60, m%60) }
 		openHM, closeHM = hm(wins[0].from), hm(wins[len(wins)-1].to)
+		preHM, postHM = hm(preWindow.from), hm(postWindow(a.karachiNow()).to)
 	}
-	fullRow(3, "MARKET OPENING", []Span{{openHM, th.Text, false}})
-	fullRow(4, "MARKET CLOSING", []Span{{closeHM, th.Text, false}})
+	fullRow(4, "MARKET OPENING", []Span{{"PRE " + preHM + " OPEN " + openHM, th.Text, false}})
+	fullRow(5, "MARKET CLOSING", []Span{{closeHM + " POST " + postHM, th.Text, false}})
 	// Owner order 2026-11-11: MARKET BREADTH is the KSE100's own point move.
 	// Above +1500 points is BULLISH, below -500 is BEARISH, and the band
 	// between them is FLAT. ADV/DEC still reads the whole market table.
@@ -506,8 +509,8 @@ func (a *App) drawLeft(c *Canvas, x, y, w, h int) {
 			breadth, bc = "BEARISH", th.Bad
 		}
 	}
-	fullRow(5, "MARKET BREADTH", []Span{{breadth, bc, true}})
-	fullRow(6, "ADV/DEC", []Span{
+	fullRow(6, "MARKET BREADTH", []Span{{breadth, bc, true}})
+	fullRow(7, "ADV/DEC", []Span{
 		{strconv.Itoa(adv), th.Good, true},
 		{"/", th.Soft, false},
 		{strconv.Itoa(dec), th.Bad, true},
@@ -522,13 +525,23 @@ func (a *App) drawLeft(c *Canvas, x, y, w, h int) {
 		case net < 0:
 			nc = th.Bad
 		}
-		fullRow(7, "NET DELTA", []Span{{signedCompact(net), nc, true}})
+		fullRow(8, "NET DELTA", []Span{{signedCompact(net), nc, true}})
 	} else {
-		fullRow(7, "NET DELTA", []Span{{"--", th.Soft, false}})
+		fullRow(8, "NET DELTA", []Span{{"--", th.Soft, false}})
 	}
-	// SCAN
-	sw, sc := a.scanStatus()
-	label(8, "SCAN", []Span{{sw, sc, true}})
+	// Owner order 2026-11-11: TOP PERFORMERS follows NET DELTA, and FLOW and
+	// REQ take the rows below it. A short tile keeps FLOW and REQ and drops
+	// only TOP PERFORMERS.
+	flowRow, reqRow := 9, 10
+	if tih > 11 {
+		names := fit(andList(a.topPerformers()), max(1, tw-16))
+		col := th.Text
+		if names != "--" {
+			col = th.Good
+		}
+		fullRow(9, "TOP PERFORMERS", []Span{{names, col, true}})
+		flowRow, reqRow = 10, 11
+	}
 	// FLOW. Owner order 2026-11-09 (latest): buying, selling and unclear are
 	// three separate numbers. The two sides are never printed as one figure and
 	// U never joins either of them; U appears only when some volume in the
@@ -542,9 +555,9 @@ func (a *App) drawLeft(c *Canvas, x, y, w, h int) {
 			{", SELL=", th.Bad, true}, {compactNum(float64(sell)), th.Text, false},
 			{" & U=", th.Warn, true}, {compactNum(float64(unclear)), th.Text, false},
 		}
-		label(9, "FLOW", spans)
+		label(flowRow, "FLOW", spans)
 	} else {
-		label(9, "FLOW", []Span{{"OFF", th.Bad, true}})
+		label(flowRow, "FLOW", []Span{{"OFF", th.Bad, true}})
 	}
 	// REQ
 	rq := a.reqToday()
@@ -555,17 +568,7 @@ func (a *App) drawLeft(c *Canvas, x, y, w, h int) {
 	case rq > 80000:
 		rc = th.Warn
 	}
-	label(10, "REQ", []Span{{commaInt(rq), rc, false}, {note, th.Soft, false}})
-	// Owner order 2026-11-11: the tile names the three scrips with the best
-	// day on the whole-market table, written as MEBL, FFC & PRL.
-	if tih > 11 {
-		names := fit(andList(a.topPerformers()), max(1, tw-16))
-		col := th.Text
-		if names != "--" {
-			col = th.Good
-		}
-		fullRow(11, "TOP PERFORMERS", []Span{{names, col, true}})
-	}
+	label(reqRow, "REQ", []Span{{commaInt(rq), rc, false}, {note, th.Soft, false}})
 }
 
 // leftTileHeights splits the left column into the QUANT CORE tile and the
