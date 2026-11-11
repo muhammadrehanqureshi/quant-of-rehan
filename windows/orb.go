@@ -84,16 +84,14 @@ func drawOrb(c *Canvas, x0, y0, w, h int, t float64, mode OrbMode, green bool, t
 	}
 	_ = mode // the ink, not the mode, selects the colour
 	_ = th   // the ring leaves every unlit cell the panel's own background
+	// Owner report 2026-11-11: the mark looked the same size after every cut.
+	// The tile was smaller than the wanted radius, so the clamp below drew the
+	// orb at the tile's size no matter what OrbGrow said. The order is the
+	// orb's size, so the wanted radius is used as it is and the canvas clips
+	// whatever falls outside the tile; the tile no longer decides the size.
 	want := OrbRadius(OrbGrow)
-	room := float64(w) / 2
-	if vertical := float64(h) * cellAspect / 2; vertical < room {
-		room = vertical
-	}
-	if room >= 3 {
+	if want >= 3 {
 		ringRadius = want
-		if room < want {
-			ringRadius = room
-		}
 		defer func() { ringRadius = 0 }()
 	}
 	ringDots(c, x0, y0, w, h, ringStateFor(t, green), ringPalette(green))
