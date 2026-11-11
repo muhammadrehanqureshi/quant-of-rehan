@@ -25,8 +25,8 @@ func TestShareBarHoldsTenBoxesOverTheSameCells(t *testing.T) {
 	if shareBarBoxes != 10 {
 		t.Fatalf("the bar holds %d boxes, want ten", shareBarBoxes)
 	}
-	if shareBarSpan != 16 {
-		t.Fatalf("the bar is %d cells, want its 16 cells untouched", shareBarSpan)
+	if shareBarSpan != 2*shareBarBoxes-1 {
+		t.Fatalf("the bar is %d cells, want ten boxes and nine gaps", shareBarSpan)
 	}
 	widths := shareBarBoxWidths(shareBarSpan)
 	if len(widths) != 10 {
@@ -39,21 +39,21 @@ func TestShareBarHoldsTenBoxesOverTheSameCells(t *testing.T) {
 		}
 		sum += w
 	}
-	if sum != shareBarSpan {
-		t.Fatalf("the ten boxes cover %d cells of the bar's %d: %v",
-			sum, shareBarSpan, widths)
+	if sum+(shareBarBoxes-1)*shareBarGap != shareBarSpan {
+		t.Fatalf("the ten boxes and their gaps cover %d cells of the bar's %d: %v",
+			sum+(shareBarBoxes-1)*shareBarGap, shareBarSpan, widths)
 	}
-	if widths[0] != 2 || widths[len(widths)-1] != 1 {
-		t.Fatalf("the remainder is not on the leading boxes: %v", widths)
+	if widths[0] != 1 || widths[len(widths)-1] != 1 {
+		t.Fatalf("each box must be one cell: %v", widths)
 	}
-	for _, span := range []int{10, 8, 21} {
+	for _, span := range []int{19, 21, 29} {
 		w := shareBarBoxWidths(span)
 		n := 0
 		for _, v := range w {
 			n += v
 		}
-		if n != span {
-			t.Fatalf("span %d: the boxes cover %d cells", span, n)
+		if n+(shareBarBoxes-1)*shareBarGap != span {
+			t.Fatalf("span %d: the boxes and gaps cover %d cells", span, n+(shareBarBoxes-1)*shareBarGap)
 		}
 	}
 }
@@ -63,9 +63,8 @@ func TestShareBarStillDrawsItsSixteenCells(t *testing.T) {
 	c := NewCanvas(40, 1, RGB{})
 	a.shareBar(c, 2, 0, shareBarWidth, 0.5)
 	row := c.PlainRows()[0]
-	if n := strings.Count(row, string(barBlock)); n != shareBarSpan {
-		t.Fatalf("the bar draws %d cells of its %d, so its length moved: %q",
-			n, shareBarSpan, row)
+	if n := strings.Count(row, string(barBlock)); n != shareBarBoxes {
+		t.Fatalf("the bar draws %d boxes, want %d: %q", n, shareBarBoxes, row)
 	}
 }
 
