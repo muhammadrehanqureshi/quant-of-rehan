@@ -815,11 +815,10 @@ func (a *App) drawFlowList(c *Canvas, ix, head, top, iw, rows, barX int) {
 }
 
 // Owner order 2026-11-10 (latest): the bar gained another ten percent of
-// height, and only its height changed. The bar is the medium height rectangle,
-// drawn in the middle of the row with its cells joined edge to edge, so it
-// stands taller than the heavy rule it was while its length, its cells, its two
-// inks and its position are exactly as they were.
-const barBlock = '▬'
+// height, and only its height changed. Owner order 2026-11-11 (fifth pass):
+// the bar is the solid block, so no box and no line is drawn inside it and the
+// band reads unbroken across every one of its cells.
+const barBlock = '█'
 
 // shareBarBoxes is how many boxes a buy versus sell bar holds. Owner order
 // 2026-11-11: the bar carries ten boxes and not sixteen, and each box grows in
