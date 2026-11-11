@@ -445,24 +445,24 @@ func TestFetchOrderFlowFallsBackToFlowAndAcceptsALargeBody(t *testing.T) {
 	}
 }
 
-// Owner order 2026-11-10 (latest): every bar is ten boxes, is ten percent
-// shorter than the 20 cells it was, and draws no line and leaves no gap between
-// any two cells: one unbroken half height band.
+// Owner order 2026-11-11 (second pass): the patch 29 bar is back, so every bar
+// is its 16 cells and ten touching boxes, with no line and no gap between any
+// two cells: one unbroken band, every other box a step paler.
 func TestShareBarIsOneUnbrokenBand(t *testing.T) {
 	a := demoApp(t, 100, 30)
 	c := NewCanvas(40, 1, RGB{})
 	a.shareBar(c, 2, 0, shareBarWidth, 0.5)
 	row := c.PlainRows()[0]
-	if shareBarSpan != 19 {
-		t.Fatalf("shareBarSpan is %d, want ten boxes and nine gaps", shareBarSpan)
+	if shareBarSpan != 16 {
+		t.Fatalf("shareBarSpan is %d, want the sixteen cells of patch 29", shareBarSpan)
 	}
 	rs := []rune(row)
 	if len(rs) < 2+shareBarSpan {
 		t.Fatalf("the row is only %d cells: %q", len(rs), row)
 	}
 	seg := string(rs[2 : 2+shareBarSpan])
-	if n := strings.Count(seg, string(barBlock)); n != shareBarBoxes {
-		t.Fatalf("the bar draws %d boxes, want %d: %q", n, shareBarBoxes, row)
+	if n := strings.Count(seg, string(barBlock)); n != shareBarSpan {
+		t.Fatalf("the bar draws %d cells of its %d, want it unbroken: %q", n, shareBarSpan, row)
 	}
 	if strings.ContainsAny(row, "│▀▄█") {
 		t.Fatalf("a separator or a block is inside the bar: %q", row)

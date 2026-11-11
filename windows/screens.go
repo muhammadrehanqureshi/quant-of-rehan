@@ -1082,6 +1082,17 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 						a.shareBarOnly(c, barStart, row, bw, float64(*l.Buy)/float64(total))
 					}
 				}
+			case l.HasSplit() && *l.Buy+*l.Sell > 0 && barStart > floor &&
+				priceRight-runeLen(px) >= floor:
+				// Owner order 2026-11-11 (second pass): the bar never steps out
+				// of the KSE100 tile. The PKR label gives up its cells first,
+				// while the price, its change and the bar keep their aligned
+				// stations at the tile's right edge.
+				a.flashRight(c, priceRight, row, px, th.Text, true, pxKey)
+				if l.ChangePct != nil {
+					a.flashRight(c, chgRight, row, changeText(*l.ChangePct), a.dirColor(*l.ChangePct), true, pxKey)
+				}
+				a.shareBarOnly(c, barStart, row, bw, float64(*l.Buy)/(float64(*l.Buy)+float64(*l.Sell)))
 			case end-priceBlock >= floor:
 				// Short window: the bar steps out and the price and change keep
 				// their right aligned places at the tile's edge.
