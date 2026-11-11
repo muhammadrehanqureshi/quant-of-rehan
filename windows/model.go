@@ -15,9 +15,10 @@ const appVersion = "4.0.20"
 // headings and the bigger orb are 3.0.8, the signal SCORE, the longer box
 // pitch and the aligned leader block are 3.0.9, the full dot face, the
 // ten percent slower turn, the unbroken bars and MARKET OPENING are 3.0.38,
-// and the 3D orb return, the continuous centred bar rule and the KSE100
-// breadth thresholds are 3.2.3.
-const hudBuild = "3.2.3"
+// the 3D orb return, the continuous centred bar rule and the KSE100 breadth
+// thresholds are 3.2.3, and TOP PERFORMERS, the quarter taller bars, the
+// symmetrical frame and the half speed globe are 3.2.4.
+const hudBuild = "3.2.4"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no

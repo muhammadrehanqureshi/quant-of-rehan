@@ -32,8 +32,9 @@ func TestBSTLineSaysUZero(t *testing.T) {
 	}
 }
 
-// Owner order 2026-11-11: the bar is one continuous centred rule in one shade
-// per side, with no separator or small box drawn inside it.
+// Owner order 2026-11-11: the bar is one continuous centred rule in the bold
+// weight, a quarter taller, in one shade per side, with no separator or small
+// box drawn inside it.
 func TestBarsAreBuild21sShadedTabs(t *testing.T) {
 	a := demoApp(t, 100, 30)
 	c := NewCanvas(40, 1, RGB{})
@@ -57,8 +58,8 @@ func TestBarsAreBuild21sShadedTabs(t *testing.T) {
 		if ce.Ch != barBlock {
 			continue
 		}
-		if ce.Bold {
-			t.Fatalf("a bar cell is bold, which leaves a line at the cell seam")
+		if !ce.Bold {
+			t.Fatalf("a bar cell is regular, so the bar is not a quarter taller")
 		}
 		inks[ce.FG] = true
 	}
