@@ -802,13 +802,17 @@ def call_watch_message(result, quality, market: dict, as_of) -> str:
     """Owner order 2026-10-29: the CALL WATCH text.
 
     Sent everywhere a signal travels. It is NEVER worded as a confirmed
-    entry: the unvalidated verdict is stated first, the watch rows
-    carry their own measured setup from this session's bars (SO-3: nothing
+    entry: the unvalidated verdict is stated first, the watch row
+    carries its own measured setup from this session's bars (SO-3: nothing
     interpolated, nothing forward-filled), and the strict law's own
     refusal is named in the same message so nobody reads a watch as a
     paper position.
+
+    Owner order 2026-11-11: one email, one call. Only the highest ranked
+    name is carried; the rest of the ranked table stays in the session
+    state and is never mailed as extra calls.
     """
-    ranked = result.ranked[:3]
+    ranked = result.ranked[:1]
     median = market.get("median_return")
     universe = int(getattr(result.quality, "symbols_expected", 0) or 0)
     best = ranked[0] if ranked else None
@@ -830,9 +834,9 @@ def call_watch_message(result, quality, market: dict, as_of) -> str:
             f"{best.get('score'):.0f}/100")
         lines.append("")
     lines += [
-        "WATCH ROWS (ranked top, score for the day out of 100; measured on this",
-        "session's bars; entry/target/stop are the paper law's own math,",
-        "given for reference only, never a confirmed entry):",
+        "ONE WATCH CALL (the highest ranked name of the day, score out of 100;",
+        "measured on this session's bars; entry, target and stop are the paper",
+        "law's own math, given for reference only, never a confirmed entry):",
         "",
     ]
     for row in ranked:
@@ -847,7 +851,7 @@ def call_watch_message(result, quality, market: dict, as_of) -> str:
             f"{target:.4f} | ref stop {stop:.4f} | net R/R {rr:.2f}")
     lines += [
         "",
-        "These are WATCH rows, not paper entries: the market veto stands,",
+        "This is one WATCH call, not a paper entry: the market veto stands,",
         "no position opens, and the day's one confirmed paper trade slot",
         "stays free. The Kalman Trend entry laws are untouched.",
     ]

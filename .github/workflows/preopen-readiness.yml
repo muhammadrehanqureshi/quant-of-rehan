@@ -44,6 +44,7 @@ jobs:
         run: |
           python - <<'PY' > /tmp/readiness
           import json
+          import urllib.error
           import urllib.request
           from datetime import datetime
           from zoneinfo import ZoneInfo
@@ -54,18 +55,26 @@ jobs:
           strict = minute >= 9 * 60 + 15  # 09:15 PKT onward: frames must exist
 
 
-          def read(path):
-              with urllib.request.urlopen(BASE + path, timeout=30) as response:
-                  return json.load(response)
+          def read(path, attempts=3):
+              last = None
+              for _ in range(attempts):
+                  try:
+                      with urllib.request.urlopen(BASE + path, timeout=20) as response:
+                          return json.load(response)
+                  except Exception as exc:  # noqa: BLE001 - retried, named below
+                      last = exc
+              raise last
 
 
           try:
               health = read("/health")
           except Exception as exc:  # noqa: BLE001 - the alert names the type
+              detail = (f"HTTP {exc.code}" if isinstance(exc, urllib.error.HTTPError)
+                        else type(exc).__name__)
               print("Quant of Rehan is NOT ready: the relay did not answer /health "
-                    f"({type(exc).__name__}) at {now:%H:%M} PKT. No quote can be "
-                    "stored while the relay is down, so the open has no feed. "
-                    "This alert repeats at most once a day.")
+                    f"after three attempts ({detail}) at {now:%H:%M} PKT. No quote "
+                    "can be stored while the relay is down, so the open has no "
+                    "feed. This alert repeats at most once a day.")
               raise SystemExit(0)
 
           state = health.get("market_state") or {}
@@ -89,7 +98,9 @@ jobs:
               try:
                   quotes = read("/quotes")
               except Exception as exc:  # noqa: BLE001
-                  problems.append(f"/quotes did not answer ({type(exc).__name__})")
+                  detail = (f"HTTP {exc.code}" if isinstance(exc, urllib.error.HTTPError)
+                            else type(exc).__name__)
+                  problems.append(f"/quotes did not answer after three attempts ({detail})")
                   quotes = {}
               rows = quotes.get("quotes") or []
               priced = [row for row in rows if (row.get("volume") or 0) > 0]

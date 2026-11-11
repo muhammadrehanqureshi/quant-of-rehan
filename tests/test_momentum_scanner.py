@@ -408,18 +408,33 @@ class TestOwnerOrderedCallWatch(unittest.TestCase):
                        "strategy": "test", "price": {"last": 100.0},
                        "stop_loss": 99.0, "target": 102.0,
                        "net_reward_risk": 1.9},
-            ranked=[{"symbol": "OGDC", "score": 0.8123,
-                     "strategy": "test", "price": {"last": 100.0},
-                     "stop_loss": 99.0, "target": 102.0,
-                     "net_reward_risk": 1.9}],
+            ranked=[
+                {"symbol": "OGDC", "score": 0.8123,
+                 "strategy": "test", "price": {"last": 100.0},
+                 "stop_loss": 99.0, "target": 102.0,
+                 "net_reward_risk": 1.9},
+                {"symbol": "ECHO", "score": 0.7444,
+                 "strategy": "test", "price": {"last": 50.0},
+                 "stop_loss": 49.5, "target": 51.0,
+                 "net_reward_risk": 1.8},
+                {"symbol": "FABL", "score": 0.7001,
+                 "strategy": "test", "price": {"last": 25.0},
+                 "stop_loss": 24.8, "target": 25.5,
+                 "net_reward_risk": 1.7},
+            ],
             coverage_text="1/1 (100.0%)",
         )
         text = scanner.call_watch_message(result, result.quality,
                                           result.market, SESSION_OPEN)
 
         for needle in ("ENGINE CALLS", "UNVALIDATED", "veto stands",
-                       "OGDC", "not paper entries", "stays free"):
+                       "ONE WATCH CALL", "highest ranked", "OGDC",
+                       "not a paper entry", "stays free"):
             self.assertIn(needle, text)
+        # Owner order 2026-11-11: one email, one call. The rest of the
+        # ranked table is never mailed as extra calls.
+        self.assertNotIn("ECHO", text)
+        self.assertNotIn("FABL", text)
 
 
 if __name__ == "__main__":
