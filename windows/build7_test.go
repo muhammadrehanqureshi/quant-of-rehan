@@ -42,15 +42,14 @@ func TestBarsAreBuild21sShadedTabs(t *testing.T) {
 	c := NewCanvas(40, 1, RGB{})
 	a.shareBar(c, 2, 0, shareBarWidth, 0.5)
 	row := c.PlainRows()[0]
-	// Owner order 2026-11-10 (latest): the bar gained another ten percent of
-	// height, so it is the medium rectangle and not the thin rule; no full
-	// block glyph stands inside it.
-	if barBlock != '▬' {
-		t.Fatalf("the bar is %q, not the medium height rectangle", barBlock)
+	// Owner order 2026-11-11 (fifth pass): the bar is one solid block per cell,
+	// so no box and no line stands inside it and the band reads unbroken.
+	if barBlock != '█' {
+		t.Fatalf("the bar is %q, not the solid block", barBlock)
 	}
-	for _, block := range "█▄▀■" {
+	for _, block := range "▬▄▀■" {
 		if block == barBlock {
-			t.Fatal("a full block glyph is inside the bar again")
+			t.Fatal("a box glyph is inside the bar again")
 		}
 	}
 	if strings.ContainsRune(row, '│') {

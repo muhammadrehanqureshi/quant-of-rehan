@@ -1455,11 +1455,12 @@ func (a *App) testFlag(sell bool) {
 }
 
 // settingsRows: relay, notifications, big buying, big selling, sound, size,
-// test buying, test selling, then the six themes.
-const (
-	settingsItems = 8
-	settingsRows  = settingsItems + 6
-)
+// test buying, test selling, then one row per theme.
+const settingsItems = 8
+
+// settingsRows is the last row the cursor may stand on: one row per theme
+// follows the eight switches.
+var settingsRows = settingsItems + len(themes)
 
 // stepCell moves the radar roundness by dir steps of 0.05. It is changed with [
 // and ] on the home and scanner screens, where the ring is, so it can be judged

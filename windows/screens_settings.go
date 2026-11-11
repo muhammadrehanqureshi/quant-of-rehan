@@ -2,9 +2,36 @@ package main
 
 // ---------- settings ----------
 
+// drawSettings is the SETTINGS page. Owner order 2026-11-11: the page is three
+// tiles stacked in one column instead of one long panel - the switches in
+// SETTINGS, the palette in THEMES, and every read-only fact in its own tile
+// headed BUILD VERSION & RELAY.
 func (a *App) drawSettings(c *Canvas, x, y, w, h int) {
 	th := a.th
-	ix, iy, iw, ih := a.panel(c, x, y, w, h, "SETTINGS", "UP/DOWN + ENTER")
+	settingsH := settingsItems + 2 // the eight switch rows, plus the frame
+	themesH := len(themes) + 2     // one row per theme, plus the frame
+	relayH := h - settingsH - themesH - 2
+	if relayH < 4 {
+		// A short window gives the facts tile its floor first, then the
+		// themes tile, and only then the switches.
+		short := 4 - relayH
+		if take := min(short, themesH-4); take > 0 {
+			themesH -= take
+			relayH += take
+			short -= take
+		}
+		if short > 0 {
+			if take := min(short, settingsH-4); take > 0 {
+				settingsH -= take
+				relayH += take
+			}
+		}
+	}
+	if relayH < 1 {
+		relayH = 1
+	}
+
+	ix, iy, iw, _ := a.panel(c, x, y, w, settingsH, "SETTINGS", "UP/DOWN + ENTER")
 	row := iy
 	rowW := min(iw, 72)
 	item := func(i int, left string, right []Span) {
@@ -34,17 +61,15 @@ func (a *App) drawSettings(c *Canvas, x, y, w, h int) {
 	item(5, "BIG ORDER SIZE", []Span{{"PKR " + compactNum(float64(a.cfg.BigBuyValue)), th.Hot, true}, {" a minute.", th.Soft, false}})
 	item(6, "TEST BUYING ALERT", []Span{{"Plays the buying tone and a test pop-up.", th.Soft, false}})
 	item(7, "TEST SELLING ALERT", []Span{{"Plays the selling tone and a test pop-up.", th.Soft, false}})
-	row++
-	// Owner order 2026-11-11: the heading is the one word, closed by the
-	// same diamond the title and the chosen row carry.
-	c.Text(ix, row, iw, "◆ THEMES", th.Accent, true)
-	row++
+
+	tx, ty, _, _ := a.panel(c, x, y+settingsH+1, w, themesH, "THEMES", "")
+	trow := ty
 	for i := range themes {
 		t := &themes[i]
 		idx := i + settingsItems
 		themeNo := i
 		cur := idx == a.setCursor
-		bg := a.selectRow(c, ix, row, rowW, cur, func() { a.activateSetting(idx) })
+		bg := a.selectRow(c, tx, trow, rowW, cur, func() { a.activateSetting(idx) })
 		mark := ' '
 		if cur {
 			mark = '>'
@@ -53,23 +78,25 @@ func (a *App) drawSettings(c *Canvas, x, y, w, h int) {
 		if a.cfg.Theme == themeNo {
 			sel = '◆'
 		}
-		c.Set(ix+1, row, mark, th.Hot, bg, true)
-		c.Set(ix+3, row, sel, th.Accent, bg, true)
-		c.Text(ix+5, row, 20, t.Name, th.Text, a.cfg.Theme == themeNo)
+		c.Set(tx+1, trow, mark, th.Hot, bg, true)
+		c.Set(tx+3, trow, sel, th.Accent, bg, true)
+		c.Text(tx+5, trow, 20, t.Name, th.Text, a.cfg.Theme == themeNo)
 		for k, col := range []RGB{t.BG, t.Panel, t.Line, t.Accent, t.Hot} {
-			c.Set(ix+27+k*2, row, '█', col, bg, false)
-			c.Set(ix+28+k*2, row, '█', col, bg, false)
+			c.Set(tx+27+k*2, trow, '█', col, bg, false)
+			c.Set(tx+28+k*2, trow, '█', col, bg, false)
 		}
-		row++
+		trow++
 	}
-	row++
+
+	bx, by, bw, bh := a.panel(c, x, y+settingsH+themesH+2, w, relayH, "BUILD VERSION & RELAY", "")
+	brow := by
 	info := func(k, v string, col RGB) {
-		if row >= iy+ih {
+		if brow >= by+bh {
 			return
 		}
-		c.Text(ix, row, 16, k, th.Soft, false)
-		c.Text(ix+16, row, iw-16, fit(v, iw-16), col, false)
-		row++
+		c.Text(bx, brow, 16, k, th.Soft, false)
+		c.Text(bx+16, brow, max(1, bw-16), fit(v, max(1, bw-16)), col, false)
+		brow++
 	}
 	info("RELAY", a.relay.Base, th.Text)
 	// Owner order 2026-11-09: the settings page names the app version alone,
