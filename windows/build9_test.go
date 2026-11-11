@@ -26,7 +26,7 @@ func TestTelemetryCarriesMarketHoursBreadthAndDelta(t *testing.T) {
 	}
 	s := plain(a)
 	for _, want := range []string{
-		"MARKET OPENED", "09:32", "MARKET CLOSING", "15:30",
+		"MARKET OPENING", "09:32", "MARKET CLOSING", "15:30",
 		"MARKET BREADTH", "BULLISH", "ADV/DEC", "2 / 1",
 		"NET DELTA", "-300",
 	} {

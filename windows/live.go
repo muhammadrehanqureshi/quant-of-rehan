@@ -121,17 +121,22 @@ func (a *App) tone(steps []toneStep) {
 	}
 }
 
-// feedState describes the broker feed for the header light: how old the
-// freshest tick is right now, counting on from the moment the answer arrived.
+// feedState describes the broker feed for the feed row: how old the freshest
+// tick is right now, counting on from the moment the answer arrived.
 func (a *App) feedState() (word string, age int, ok bool) {
 	if a.quotes == nil || a.quotes.FetchedAt.IsZero() || a.feedMinAge < 0 {
 		return "NO FEED", 0, false
 	}
 	age = a.feedMinAge + max(0, int(a.now.Sub(a.quotes.FetchedAt).Seconds()))
+	// Owner order 2026-11-11 (seventh pass): the relay calls a market feed
+	// frame fresh until it is ninety seconds old. The HUD uses the same
+	// boundary, so a normal broker burst, which repeats a symbol about every
+	// 24 seconds, is LAGGING rather than a false STALE. A real outage still
+	// reaches STALE after the relay's own freshness window.
 	switch {
 	case age <= 5:
 		return "LIVE", age, true
-	case age <= 30:
+	case age <= 90:
 		return "LAGGING", age, true
 	}
 	return "STALE", age, false

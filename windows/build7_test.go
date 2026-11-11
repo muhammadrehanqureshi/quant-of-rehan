@@ -58,9 +58,13 @@ func TestBarsAreBuild21sShadedTabs(t *testing.T) {
 	}
 	inks := map[RGB]bool{}
 	for _, ce := range c.Cells {
-		if ce.Ch == barBlock {
-			inks[ce.FG] = true
+		if ce.Ch != barBlock {
+			continue
 		}
+		if ce.Bold {
+			t.Fatalf("a bar cell is bold, which leaves a line at the cell seam")
+		}
+		inks[ce.FG] = true
 	}
 	if len(inks) != 2 {
 		t.Fatalf("the bar painted %d ink(s), want exactly one green and one red", len(inks))

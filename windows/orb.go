@@ -38,10 +38,10 @@ var ringHalfBlocks bool
 const (
 	// Owner order 2026-11-11: fifteen percent smaller, then another ten percent
 	// on top of that, and now another fifteen percent again, so the size is
-	// 1.11 * 0.85 * 0.90 * 0.85 and the turn stays at the fifteen percent slower
-	// speed already approved.
+	// 1.11 * 0.85 * 0.90 * 0.85. The ring follows the globe and turns another
+	// ten percent slower than the fifteen percent slower speed already approved.
 	orbSizeScale  = 0.85 * 0.90 * 0.85
-	orbSpeedScale = 0.85
+	orbSpeedScale = 0.85 * 0.90
 	OrbGrow       = 1.11 * orbSizeScale
 	orbBaseRows   = 13 // the rows the app's first orb had
 )

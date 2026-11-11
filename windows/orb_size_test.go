@@ -19,11 +19,12 @@ func TestOrbIsFifteenThenTenThenFifteenPercentSmaller(t *testing.T) {
 	}
 }
 
-// Owner order 2026-11-11: the turn is fifteen percent slower, and the one
-// place that turns a layer reads the factor.
-func TestOrbIsFifteenPercentSlower(t *testing.T) {
-	if math.Abs(orbSpeedScale-0.85) > 1e-9 {
-		t.Fatalf("orbSpeedScale is %v, want 0.85", orbSpeedScale)
+// Owner order 2026-11-11: the turn is another ten percent slower than the
+// fifteen percent slower speed already approved, and the one place that turns
+// a layer reads the factor.
+func TestOrbIsAnotherTenPercentSlower(t *testing.T) {
+	if math.Abs(orbSpeedScale-0.85*0.90) > 1e-9 {
+		t.Fatalf("orbSpeedScale is %v, want 0.85 * 0.90", orbSpeedScale)
 	}
 	source := readWindowSource(t, "ring.go")
 	if !strings.Contains(source, "degPerSec * orbSpeedScale") {
