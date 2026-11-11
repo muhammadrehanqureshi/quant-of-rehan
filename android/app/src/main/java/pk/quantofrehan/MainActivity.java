@@ -354,6 +354,9 @@ public class MainActivity extends Activity {
     private View bigPrintsPanel;
     private TextView bigPrintsList;
     private ScrollView bigPrintsScroll;
+    /** Owner order 2026-11-11: the big prints board's scroll indicator is a
+     *  diamond with two fading lines, in the theme's own ink. */
+    private OrnamentScroller bigPrintsScroller;
     /** The board's own search field and the last prints it holds, so a
      *  keystroke filters the log without asking the relay again (owner
      *  order 2026-11-05, eighth pass). */
@@ -593,16 +596,21 @@ public class MainActivity extends Activity {
                     renderBigPrints(lastPrints);
                 }
             });
-        }
-        if (bigPrintsScroll != null) {
-            // Owner order 2026-11-05: the big prints read in their own scroll
-            // window, so a touch on the list scrolls THE LIST, not the page
-            // underneath it.
-            bigPrintsScroll.setOnTouchListener((v, event) -> {
-                v.getParent().requestDisallowInterceptTouchEvent(true);
-                return false;
-            });
-        }
+        }	        bigPrintsScroller = findViewById(R.id.big_prints_scroller);
+	        if (bigPrintsScroll != null) {
+	            // Owner order 2026-11-05: the big prints read in their own scroll
+	            // window, so a touch on the list scrolls THE LIST, not the page
+	            // underneath it.
+	            bigPrintsScroll.setOnTouchListener((v, event) -> {
+	                v.getParent().requestDisallowInterceptTouchEvent(true);
+	                return false;
+	            });
+	            // Owner order 2026-11-11: the diamond and its two fading lines
+	            // ride the board's own scroll, so they always say where in the
+	            // day's prints the window stands.
+	            bigPrintsScroll.setOnScrollChangeListener(
+	                    (v, sx, sy, ox, oy) -> updateBigPrintsScroller());
+	        }
         // Owner order 2026-11-06: the SECTORS tile's own box and menu. One
         // plate, the closed face stepping aside while the rows show, exactly
         // the law the volume and themes dropdowns keep.
@@ -911,12 +919,16 @@ public class MainActivity extends Activity {
         if (volumeSplitArrow != null) {
             volumeSplitArrow.setImageTintList(
                     ColorStateList.valueOf(themeAccentInk));
-        }
-        if (themeArrow != null) {
-            themeArrow.setImageTintList(
-                    ColorStateList.valueOf(themeAccentInk));
-        }
-    }
+        }	        if (themeArrow != null) {
+	            themeArrow.setImageTintList(
+	                    ColorStateList.valueOf(themeAccentInk));
+	        }
+	        // Owner order 2026-11-11: the SECTORS caret follows the theme too.
+	        if (sectorsArrow != null) {
+	            sectorsArrow.setImageTintList(
+	                    ColorStateList.valueOf(themeAccentInk));
+	        }
+	    }
 
     /** Owner order 2026-11-01: every diamond rule wears the theme's
      *  second colour across the whole app, both hairlines and the
@@ -1381,10 +1393,12 @@ public class MainActivity extends Activity {
         paintBodyInk(findViewById(R.id.scroll_root));
         if (greeting != null) {
             greeting.setTextColor(themeBodyInk);
-        }
-        repaintMenuDividers();
-        repaintDropdownArrows();
-        pinNavTile();
+        }	        repaintMenuDividers();
+	        if (bigPrintsScroller != null) {
+	            bigPrintsScroller.setInk(themeAccentInk);
+	        }
+	        repaintDropdownArrows();
+	        pinNavTile();
     }
 
     /** One rounded plate per theme, built once and reused (v1.9.13). */
@@ -2410,19 +2424,14 @@ public class MainActivity extends Activity {
     private void startHud() {
         if (hudRunning) {
             return;
-        }
-        hudRunning = true;
-        // The market gate owns the loop's pace from the last known badge:
-        // a console that resumes onto a closed market wakes PARKED, and
-        // the next render opens or closes the burn from the true state.
-        if (thinkingOrb != null) {
-            if (orbBurning) {
-                thinkingOrb.start();
-            } else {
-                thinkingOrb.stop();
-            }
-        }
-    }
+        }	        hudRunning = true;
+	        // Owner order 2026-11-11: the orb moves every time the app is open,
+	        // whatever the market state. The badge, not the motion, carries the
+	        // session truth.
+	        if (thinkingOrb != null) {
+	            thinkingOrb.start();
+	        }
+	    }
 
     /**
      * The orb's market gate (owner order 2026-10-23, v1.9.13): burn only
@@ -2435,16 +2444,13 @@ public class MainActivity extends Activity {
     private boolean orbBurning = true;
 
     private void orbGate(boolean online) {
-        orbBurning = online;
-        if (thinkingOrb == null || !hudRunning) {
-            return;
-        }
-        if (online) {
-            thinkingOrb.start();
-        } else {
-            thinkingOrb.stop();
-        }
-    }
+        orbBurning = online;	        if (thinkingOrb == null || !hudRunning) {
+	            return;
+	        }
+	        // Owner order 2026-11-11: an OFFLINE market no longer parks the
+	        // orb. It keeps moving for as long as the app is on screen.
+	        thinkingOrb.start();
+	    }
 
     /** Ends the cycle; the orb parks its frame loop and holds its last frame. */
     private void stopHud() {
@@ -3078,13 +3084,24 @@ public class MainActivity extends Activity {
         int row = bigPrintsList.getLineHeight() + dp(BIG_PRINTS_ROW_AIR_DP);
         int height = BIG_PRINTS_ROWS * row
                 + bigPrintsList.getPaddingTop()
-                + bigPrintsList.getPaddingBottom() + dp(2);
-        ViewGroup.LayoutParams lp = bigPrintsScroll.getLayoutParams();
-        if (lp != null && lp.height != height) {
-            lp.height = height;
-            bigPrintsScroll.setLayoutParams(lp);
-        }
-    }
+                + bigPrintsList.getPaddingBottom() + dp(2);	        ViewGroup.LayoutParams lp = bigPrintsScroll.getLayoutParams();
+	        if (lp != null && lp.height != height) {
+	            lp.height = height;
+	            bigPrintsScroll.setLayoutParams(lp);
+	        }
+	        updateBigPrintsScroller();
+	    }
+
+	    /** Places the diamond at the board's own scroll fraction. */
+	    private void updateBigPrintsScroller() {
+	        if (bigPrintsScroll == null || bigPrintsScroller == null) {
+	            return;
+	        }
+	        View child = bigPrintsScroll.getChildAt(0);
+	        int range = child == null ? 0
+	                : Math.max(0, child.getHeight() - bigPrintsScroll.getHeight());
+	        bigPrintsScroller.setScroll(bigPrintsScroll.getScrollY(), range);
+	    }
 
     /**
      * Owner order 2026-11-06: with nothing to print the board is its own
@@ -3094,13 +3111,13 @@ public class MainActivity extends Activity {
     private void wrapBigPrintsWindow() {
         if (bigPrintsScroll == null) {
             return;
-        }
-        ViewGroup.LayoutParams lp = bigPrintsScroll.getLayoutParams();
-        if (lp != null && lp.height != ViewGroup.LayoutParams.WRAP_CONTENT) {
-            lp.height = ViewGroup.LayoutParams.WRAP_CONTENT;
-            bigPrintsScroll.setLayoutParams(lp);
-        }
-    }
+        }	        ViewGroup.LayoutParams lp = bigPrintsScroll.getLayoutParams();
+	        if (lp != null && lp.height != ViewGroup.LayoutParams.WRAP_CONTENT) {
+	            lp.height = ViewGroup.LayoutParams.WRAP_CONTENT;
+	            bigPrintsScroll.setLayoutParams(lp);
+	        }
+	        updateBigPrintsScroller();
+	    }
 
     /** The print's own clock, HH:mm:ss, from the relay's ISO stamp. */
     private static String printTime(String at) {

@@ -517,15 +517,13 @@ class SettingsControlTest(unittest.TestCase):
         self.assertLess(scroll_at, list_at)
         self.assertIn("<ScrollView", self.layout[scroll_at - 200:scroll_at])
         self.assertLess(list_at, self.layout.index("</ScrollView>", list_at))
-        # Owner order 2026-11-05 (sixth pass, "have a visible scroll bar,
-        # and only display 8 transactions in the tile, and when i scroll I
-        # should be able to see more"): the bar is drawn and never fades,
-        # and the window is sized to exactly eight prints from the text
-        # view's own line height at the screen's density.
-        self.assertIn('android:scrollbars="vertical"',
-                      self.layout[scroll_at:list_at])
-        self.assertIn('android:fadeScrollbars="false"',
-                      self.layout[scroll_at:list_at])
+        # Owner order 2026-11-11: the platform bar is replaced by the
+        # diamond with two fading lines, drawn in the theme's own ink.
+        self.assertIn('pk.quantofrehan.OrnamentScroller', self.layout)
+        self.assertIn('@+id/big_prints_scroller',
+                      self.layout[list_at:list_at + 800])
+        self.assertNotIn('android:scrollbars="vertical"',
+                         self.layout[scroll_at:list_at])
         self.assertIn('android:layout_height="176dp"',
                       self.layout[scroll_at:list_at])
         self.assertIn("private static final int BIG_PRINTS_ROWS = 8;",
@@ -3124,8 +3122,9 @@ class MenuOrdersTest(unittest.TestCase):
         start = self.main.index("private void repaintDropdownArrows() {")
         block = self.main[start:start + 800]
         self.assertEqual(
-            block.count("ColorStateList.valueOf(themeAccentInk)"), 2)
+            block.count("ColorStateList.valueOf(themeAccentInk)"), 3)
         self.assertIn("volumeSplitArrow.setImageTintList", block)
+        self.assertIn("sectorsArrow.setImageTintList", block)
         self.assertIn("themeArrow.setImageTintList", block)
         theme_pass = self.main[self.main.index(
             "private void applyTheme(int index) {"):]
@@ -5131,9 +5130,16 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         render = main[main.index("private void render(boolean online") :]
         render = render[:render.index("private String latestSignalDisplay(")]
         self.assertIn("orbGate(online);", render)
-        # The one state survives a rebuild, so a resume onto a closed
-        # market wakes PARKED and never flashes an open session.
-        self.assertIn("if (orbBurning) {", main)
+        # Owner order 2026-11-11: the orb moves every time the app is open,
+        # so neither the gate nor the resume parks it on a closed market.
+        gate = main[main.index("private void orbGate(boolean online) {"):]
+        gate = gate[:gate.index("private void stopHud()")]
+        self.assertIn("thinkingOrb.start();", gate)
+        self.assertNotIn("thinkingOrb.stop();", gate)
+        start = main[main.index("private void startHud() {"):]
+        start = start[:start.index("private void orbGate(boolean online)")]
+        self.assertIn("thinkingOrb.start();", start)
+        self.assertNotIn("if (orbBurning) {", start)
 
 
 class UniversalRuleGapTest(unittest.TestCase):
