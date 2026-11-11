@@ -513,10 +513,10 @@ func TestWinLossTile(t *testing.T) {
 	}
 }
 
-// Owner order 2026-11-09: buying, selling and unclear stay three separate
-// numbers on the telemetry row. A side is never printed as a combined figure
-// and U never joins either of them.
-func TestTelemetryKeepsBuyingSellingAndUnclearApart(t *testing.T) {
+// Owner order 2026-11-11: the telemetry row carries buying, selling and the
+// total only. A side is never printed as a combined figure and no unclear
+// figure appears beside them.
+func TestTelemetryKeepsBuyingSellingAndTotal(t *testing.T) {
 	a := newTestApp(t)
 	a.w, a.h = 120, 30
 	a.link, a.checking = true, false
@@ -542,13 +542,15 @@ func TestTelemetryKeepsBuyingSellingAndUnclearApart(t *testing.T) {
 	if flowRow == "" {
 		t.Fatal("the telemetry FLOW row is missing")
 	}
-	// Owner order 2026-11-10: the row reads BUY=..., SELL=... & U=..., three
-	// separate figures with the sum never written. The ampersand joins U to the
-	// list, it does not add the sides together.
-	for _, want := range []string{"BUY=600", "SELL=300", "& U=100"} {
+	// Owner order 2026-11-11: the row reads BUY=..., SELL=..., TOTAL=..., where
+	// the total is every share in the window, the sides being its measured part.
+	for _, want := range []string{"BUY=600", "SELL=300", "TOTAL=1K"} {
 		if !strings.Contains(flowRow, want) {
 			t.Errorf("the FLOW row is missing %q: %q", want, flowRow)
 		}
+	}
+	if strings.Contains(flowRow, "U=") {
+		t.Errorf("the FLOW row still carries an unclear figure: %q", flowRow)
 	}
 }
 
