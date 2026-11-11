@@ -843,6 +843,34 @@ class RelayQuotePublisher:
         self._thread = None
 
 
+# Owner report 2026-11-11: the 08:55 recorder connected, the venue greeted it,
+# and then sent nothing until the pre-open auction, which is exactly what a
+# closed exchange does. The five second live limit tore that healthy connection
+# down every ten seconds for twenty minutes, and the pre-open arrived with no
+# frames at all. Outside a scan window a silent venue is the normal state, so
+# the socket is held for this long instead.
+QUIET_STALL_SECONDS = 180.0
+
+
+def stall_limit() -> float:
+    """How long a silent venue may stay silent before the socket is rebuilt.
+
+    Inside a scan window the tight live limit applies, because a silent venue
+    while the exchange is scanning is a dead feed. Outside one, and on a
+    weekend, the recorder waits through the quiet the way the exchange means
+    it to, and the open finds the connection already in place.
+    """
+    from src.data.sessions import market_state_at, now_karachi
+
+    try:
+        moment = now_karachi()
+        if market_state_at(moment).is_scan_window:
+            return float(config.TICK_STALL_SECONDS)
+    except Exception:  # noqa: BLE001 - the law is the safe answer here
+        return float(config.TICK_STALL_SECONDS)
+    return QUIET_STALL_SECONDS
+
+
 class CaptureSession:
     """One capture run: connect, subscribe, bank, reconnect as needed."""
 
@@ -982,11 +1010,17 @@ class CaptureSession:
                     # Raised as a connection fault so the existing backoff owns
                     # the retry rate and a venue that is truly down is not
                     # hammered.
-                    if time.time() - last_tick > config.TICK_STALL_SECONDS:
+                    # Owner report 2026-11-11: before the first auction print
+                    # the venue is silent by design, and reconnecting through
+                    # that silence is what left the pre-open uncaptured. The
+                    # limit is now the session's own: tight in a scan window,
+                    # quiet outside it.
+                    stall = stall_limit()
+                    if time.time() - last_tick > stall:
                         raise ConnectionError(
                             f"the venue pushed no market data for "
                             f"{time.time() - last_tick:.0f}s "
-                            f"(limit {config.TICK_STALL_SECONDS:.0f}s); "
+                            f"(limit {stall:.0f}s); "
                             f"reconnecting for a fresh sweep")
                     if self.counters["messages"] % 50 == 0:
                         self.flush()
