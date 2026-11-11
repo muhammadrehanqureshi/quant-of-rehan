@@ -201,19 +201,15 @@ func (a *App) flashRight(c *Canvas, right, y int, s string, fg RGB, bold bool, k
 
 // ---------- chrome ----------
 
-// drawHeader is the top of the window: the live feed counter on the left, the
-// name centred between two diamonds in the brightest ink, and the date and 24
-// hour clock on the right in a darker shade, with the clock itself green and
-// UTC+5 after it. The index the quant watches is centred on the next line
-// between two thin rules, and the rule with a bright segment sweeping along it
-// closes the header.
+// drawHeader is the top of the window: the name centred between two diamonds
+// in the brightest ink, and the date and 24 hour clock on the right in a
+// darker shade, with the clock itself green and UTC+5 after it. The index the
+// quant watches is centred on the next line between two thin rules, and the
+// rule with a bright segment sweeping along it closes the header. Owner order
+// 2026-11-11: the LIVE/LAGGING counter is gone from the top left.
 func (a *App) drawHeader(c *Canvas) {
 	th := a.th
 	title := headerTitle
-	lt := a.feedLight()
-	if len(lt) > 0 && c.W >= runeLen(title)+spanW(lt)+4 {
-		c.Spans(1, 0, min(c.W-2, spanW(lt)), lt)
-	}
 	c.Text((c.W-runeLen(title))/2, 0, runeLen(title), title, th.Accent, true)
 
 	k := a.karachiNow().In(pkt)
@@ -414,6 +410,12 @@ func (a *App) drawLeft(c *Canvas, x, y, w, h int) {
 		c.Text(tx, ty+row, labelW, k, th.Soft, false)
 		c.Spans(tx+labelW, ty+row, tw-labelW, v)
 	}
+	// fullRow carries a long heading on the left and its value on the tile's
+	// right edge, for the rows whose heading does not fit the label column.
+	fullRow := func(row int, k string, v []Span) {
+		c.Text(tx, ty+row, tw, k, th.Soft, false)
+		rightAlign(c, tx, ty+row, tw, v)
+	}
 	// LINK
 	switch {
 	case a.checking:
@@ -430,7 +432,11 @@ func (a *App) drawLeft(c *Canvas, x, y, w, h int) {
 	// FEED: how old the freshest tick is, counting up each second, and how
 	// many answers per second are arriving.
 	feed := []Span{{"--", th.Soft, false}}
-	if a.quotes != nil && !a.checking {
+	if !a.link && !a.lastMarketOK.IsZero() {
+		// The header counter is gone, but a dead relay still says how old its
+		// last answer is, on the feed row where the staleness belongs.
+		feed = []Span{{"STALE " + strconv.Itoa(max(0, int(a.now.Sub(a.lastMarketOK).Seconds()))) + "s", th.Bad, true}}
+	} else if a.quotes != nil && !a.checking {
 		state, age, ok := a.feedState()
 		fc := th.Good
 		switch {
@@ -465,27 +471,62 @@ func (a *App) drawLeft(c *Canvas, x, y, w, h int) {
 		}
 	}
 	label(1, "FEED", feed)
-	// PHASE
-	ph := a.phase()
+	// PHASE. Owner order 2026-11-11: OPEN while the exchange trades, and PRE
+	// and POST in the exchange's own pre-open and post-close windows.
+	ph := a.quantPhase()
 	if ph == "" {
 		ph = "--"
 	}
 	pc := th.Text
-	if a.isLive() {
+	switch ph {
+	case qsOpen:
 		pc = th.Good
+	case qsPre, qsPost:
+		pc = th.Warn
 	}
 	label(2, "PHASE", []Span{{ph, pc, true}})
-	// NEXT
-	next := "--"
-	if a.head != nil && a.head.NextEvent != "" {
-		next = a.head.NextEvent
-	} else if a.market != nil && a.market.NextEvent != "" {
-		next = a.market.NextEvent
+	// MARKET OPENED and MARKET CLOSING are the exchange's own daily edges:
+	// 09:32 to 15:30 Monday to Thursday, 09:17 to 16:30 on Friday.
+	openHM, closeHM := "--", "--"
+	if wins := tradeWindows(a.karachiNow()); len(wins) > 0 {
+		hm := func(m int) string { return fmt.Sprintf("%02d:%02d", m/60, m%60) }
+		openHM, closeHM = hm(wins[0].from), hm(wins[len(wins)-1].to)
 	}
-	label(3, "NEXT", []Span{{fit(friendlyNext(next), tw-7), th.Text, false}})
+	fullRow(3, "MARKET OPENED", []Span{{openHM, th.Text, false}})
+	fullRow(4, "MARKET CLOSING", []Span{{closeHM, th.Text, false}})
+	// MARKET BREADTH and ADV/DEC read the whole market table: a stock is an
+	// advancer when its change is above zero and a decliner when below it.
+	adv, dec := a.marketBreadth()
+	breadth, bc := "FLAT", th.Soft
+	switch {
+	case adv > dec:
+		breadth, bc = "BULLISH", th.Good
+	case dec > adv:
+		breadth, bc = "BEARISH", th.Bad
+	}
+	fullRow(5, "MARKET BREADTH", []Span{{breadth, bc, true}})
+	fullRow(6, "ADV/DEC", []Span{
+		{strconv.Itoa(adv), th.Good, true},
+		{" / ", th.Soft, false},
+		{strconv.Itoa(dec), th.Bad, true},
+	})
+	// NET DELTA is the whole market's measured buying minus selling, in
+	// shares, from the relay's own day pair.
+	if net, ok := a.marketNetDelta(); ok {
+		nc := th.Text
+		switch {
+		case net > 0:
+			nc = th.Good
+		case net < 0:
+			nc = th.Bad
+		}
+		fullRow(7, "NET DELTA", []Span{{signedCompact(net), nc, true}})
+	} else {
+		fullRow(7, "NET DELTA", []Span{{"--", th.Soft, false}})
+	}
 	// SCAN
 	sw, sc := a.scanStatus()
-	label(4, "SCAN", []Span{{sw, sc, true}})
+	label(8, "SCAN", []Span{{sw, sc, true}})
 	// FLOW. Owner order 2026-11-09 (latest): buying, selling and unclear are
 	// three separate numbers. The two sides are never printed as one figure and
 	// U never joins either of them; U appears only when some volume in the
@@ -499,9 +540,9 @@ func (a *App) drawLeft(c *Canvas, x, y, w, h int) {
 			{", SELL=", th.Bad, true}, {compactNum(float64(sell)), th.Text, false},
 			{" & U=", th.Warn, true}, {compactNum(float64(unclear)), th.Text, false},
 		}
-		label(5, "FLOW", spans)
+		label(9, "FLOW", spans)
 	} else {
-		label(5, "FLOW", []Span{{"OFF", th.Bad, true}})
+		label(9, "FLOW", []Span{{"OFF", th.Bad, true}})
 	}
 	// REQ
 	rq := a.reqToday()
@@ -512,7 +553,7 @@ func (a *App) drawLeft(c *Canvas, x, y, w, h int) {
 	case rq > 80000:
 		rc = th.Warn
 	}
-	label(6, "REQ", []Span{{commaInt(rq), rc, false}, {note, th.Soft, false}})
+	label(10, "REQ", []Span{{commaInt(rq), rc, false}, {note, th.Soft, false}})
 }
 
 // ---------- home ----------

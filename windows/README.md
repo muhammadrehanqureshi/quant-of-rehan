@@ -5,6 +5,7 @@ One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of 
 
 ## What is new in build 34
 
+* **Build 72 (version 3.0.37).** TELEMETRY carries MARKET OPENED and MARKET CLOSING for the day, MARKET BREADTH (BULLISH or BEARISH), ADV/DEC and the whole market's NET DELTA. PHASE now says PRE and POST as well as OPEN, the NEXT line is gone, and the LIVE/LAGGING counter is removed from the top left.
 * **Build 71 (version 3.0.36).** Every bar is half a cell tall and sits on its cell's centre line, so it never touches the row above or below. The SETTINGS and THEMES rows mark the selected row with the diamond instead of `>`. The globe turns another ten percent slower, about 30 seconds a turn.
 * **Build 70 (version 3.0.35).** The bars are one solid block per cell, so no box or line is drawn inside a bar and the band is unbroken. The SETTINGS page is three tiles: SETTINGS with the switches, THEMES with the palette, and BUILD VERSION & RELAY with the relay address, version, request count, scanning window and settings path. The globe turns another fifteen percent slower and carries another twenty percent more dots.
 * **Build 69 (version 3.0.34).** The three CUSTOM SCRIPS BY VOLUME sub menus stay on the scanner when a sector scrip is opened, the sub menu cursor is the diamond instead of `>`, the THEMES heading is just `◆ THEMES`, GREEN & YELLOW and ORANGE & WHITE are deleted, and the globe turns another fifteen percent slower with another twenty percent more dots.
