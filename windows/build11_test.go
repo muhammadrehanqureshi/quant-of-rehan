@@ -14,15 +14,15 @@ func TestTelemetryValuesEndOnTheRightEdge(t *testing.T) {
 	c := NewCanvas(70, 40, a.th.Panel)
 	a.drawLeft(c, 0, 0, 70, 40)
 	coreH, _ := leftTileHeights(40)
-	// The left tile's inner content starts one cell in and ends one cell before
-	// its right border, which is column 68 on this 70 cell tile.
+	// The panel's inner content is inset two cells from the left and two from
+	// the right, so the value column ends at 67 on this 70 cell tile.
+	rows := c.PlainRows()
 	for row := 0; row < 12; row++ {
-		y := coreH + 1 + 1 + row
-		if ch := c.Cells[y*70+68].Ch; ch <= ' ' {
-			t.Fatalf("telemetry row %d does not reach the tile's right edge", row)
+		line := []rune(rows[coreH+2+row])
+		if len(line) <= 67 || line[67] <= ' ' {
+			t.Fatalf("telemetry row %d does not reach the tile's right edge: %q", row, string(line))
 		}
 	}
-	rows := c.PlainRows()
 	flow, net := -1, -1
 	for i, row := range rows {
 		switch {
