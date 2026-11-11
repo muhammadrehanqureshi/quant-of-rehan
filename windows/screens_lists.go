@@ -818,7 +818,8 @@ func (a *App) drawFlowList(c *Canvas, ix, head, top, iw, rows, barX int) {
 // height, and only its height changed. Owner order 2026-11-11 (sixth pass):
 // the bar is half the cell's height and sits on the cell's centre line, so it
 // never touches the row above or below; the glyph is the centred rectangle,
-// which spans the cell's width so the band stays unbroken.
+// drawn in the regular weight so it spans the cell's width and the band stays
+// unbroken.
 const barBlock = '▬'
 
 // shareBarBoxes is how many boxes a buy versus sell bar holds. Owner order
@@ -885,7 +886,10 @@ func (a *App) drawShareBar(c *Canvas, x, y, w int, buyShare float64, label bool)
 			ink = th.Good
 		}
 		for k := at; k < at+width; k++ {
-			c.Put(x+k, y, barBlock, ink, true)
+			// Owner order 2026-11-11 (seventh pass): the regular weight keeps
+			// the centred rectangle full width. The bold face leaves a hairline
+			// at the cell seam; no other property of the bar changes.
+			c.Put(x+k, y, barBlock, ink, false)
 		}
 		at += width
 	}

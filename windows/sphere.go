@@ -21,19 +21,19 @@ import (
 
 const (
 	// sphereTurnSeconds is one full clockwise turn of the globe. Owner order
-	// 2026-11-11 (sixth pass): the turn is another ten percent slower than
-	// patch 35, so the period is divided by 0.90 and one turn now takes about
-	// 30.1 seconds.
-	sphereTurnSeconds = 12.0 / 0.85 / 0.85 / 0.85 / 0.85 / 0.85 / 0.90
+	// 2026-11-11 (seventh pass): the turn is another ten percent slower than
+	// patch 36, so the period is divided by 0.90 again and one turn now takes
+	// about 33.4 seconds.
+	sphereTurnSeconds = 12.0 / 0.85 / 0.85 / 0.85 / 0.85 / 0.85 / 0.90 / 0.90
 	// Owner order 2026-11-11: the QUANT CORE globe is the mark the tile draws,
 	// not the ring, so its own size carries the fifteen percent cut.
 	sphereSizeScale = 0.85
 	// sphereLatStep and sphereLonStep are the grid's spacing in degrees.
-	// Owner order 2026-11-11 (fifth pass): the globe carries another twenty
-	// percent more dots than patch 34, so both steps shrink by 1/sqrt(1.2)
-	// again and the surface reads as a solid ball of dots.
-	sphereLatStep = 11.25 * 0.9129 * 0.9325 * 0.9129 * 0.9129 * 0.9129 * 0.9129
-	sphereLonStep = 9.0 * 0.9129 * 0.9325 * 0.9129 * 0.9129 * 0.9129 * 0.9129
+	// Owner order 2026-11-11 (seventh pass): the globe carries another ten
+	// percent more points, and a dim base dot now fills every Braille
+	// position so the face cannot develop an empty patch.
+	sphereLatStep = 11.25 * 0.9129 * 0.9325 * 0.9129 * 0.9129 * 0.9129 * 0.9129 * 0.90
+	sphereLonStep = 9.0 * 0.9129 * 0.9325 * 0.9129 * 0.9129 * 0.9129 * 0.9129 * 0.90
 	// spherePerspective is how much the nearer half of the globe grows.
 	spherePerspective = 0.18
 )
@@ -121,6 +121,26 @@ func drawSphere(c *Canvas, x0, y0, w, h int, t float64, green bool, th *Theme) {
 	sort.SliceStable(dots, func(i, j int) bool { return dots[i].z < dots[j].z })
 	bits := make([]rune, w*h)
 	ink := make([]RGB, w*h)
+	// Owner order 2026-11-11 (seventh pass): the face is full of dots. A dim
+	// base dot is laid on every Braille position inside the disc before the
+	// turning grid is drawn, so no cell can be empty between its meridians.
+	// The grid above it carries the three dimensional shading.
+	base := mix(th.Good, th.Soft, 0.66)
+	if !green {
+		base = mix(th.Bad, th.Soft, 0.66)
+	}
+	for dy := 0; dy < rows; dy++ {
+		for dx := 0; dx < cols; dx++ {
+			nx := (float64(dx) - cx) / radius
+			ny := (float64(dy) - cy) / radius
+			if nx*nx+ny*ny > 1 {
+				continue
+			}
+			cell := (dy/4)*w + dx/2
+			bits[cell] |= sphereDot[dy&3][dx&1]
+			ink[cell] = base
+		}
+	}
 	for _, p := range dots {
 		scale := 1.0 / (1.0 - spherePerspective*p.z)
 		px := cx + p.x*radius*scale

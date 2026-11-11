@@ -209,11 +209,17 @@ func TestFeedAgeCountsUpEverySecond(t *testing.T) {
 	a.link, a.checking = true, false
 	a.now = flowT0
 	a.ingestQuotes(quotesAt(15, 1_000_000))
-	for i, want := range []string{"LIVE", "LIVE", "LAGGING", "STALE"} {
+	for i, want := range []string{"LIVE", "LIVE", "LAGGING", "LAGGING"} {
 		a.now = flowT0.Add([]time.Duration{0, 4 * time.Second, 12 * time.Second, 45 * time.Second}[i])
 		if got, _, _ := a.feedState(); got != want {
 			t.Errorf("after step %d: %s want %s", i, got, want)
 		}
+	}
+	// The relay's own freshness boundary is ninety seconds; the HUD must not
+	// paint a normal broker burst as STALE before that boundary.
+	a.now = flowT0.Add(91 * time.Second)
+	if got, _, _ := a.feedState(); got != "STALE" {
+		t.Errorf("past the relay boundary: %s want STALE", got)
 	}
 	a.now = flowT0.Add(7 * time.Second)
 	if _, age, _ := a.feedState(); age != 7 {

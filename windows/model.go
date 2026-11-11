@@ -3,7 +3,7 @@ package main
 import "time"
 
 // appVersion mirrors the Android app this build is ported from.
-const appVersion = "4.0.16"
+const appVersion = "4.0.19"
 
 // hudBuild is the build number of this Windows HUD port. Owner order
 // 2026-11-10: the bar and size build is 3.0.1, the toast encoding fix that
@@ -12,9 +12,10 @@ const appVersion = "4.0.16"
 // with the price before it on the KSE100 tile is 3.0.5, the longer bar with the
 // right aligned tile row is 3.0.6, the source orb, the new close times and the
 // BUY= FLOW row are 3.0.7, the ten box bar, the left aligned ORDER FLOW
-// headings and the bigger orb are 3.0.8, and the signal SCORE, the longer box
-// pitch and the aligned leader block are 3.0.9.
-const hudBuild = "3.0.37"
+// headings and the bigger orb are 3.0.8, the signal SCORE, the longer box
+// pitch and the aligned leader block are 3.0.9, and the full dot face, the
+// ten percent slower turn, the unbroken bars and MARKET OPENING are 3.0.38.
+const hudBuild = "3.0.38"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no

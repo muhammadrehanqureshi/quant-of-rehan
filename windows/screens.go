@@ -485,14 +485,14 @@ func (a *App) drawLeft(c *Canvas, x, y, w, h int) {
 		pc = th.Warn
 	}
 	label(2, "PHASE", []Span{{ph, pc, true}})
-	// MARKET OPENED and MARKET CLOSING are the exchange's own daily edges:
+	// MARKET OPENING and MARKET CLOSING are the exchange's own daily edges:
 	// 09:32 to 15:30 Monday to Thursday, 09:17 to 16:30 on Friday.
 	openHM, closeHM := "--", "--"
 	if wins := tradeWindows(a.karachiNow()); len(wins) > 0 {
 		hm := func(m int) string { return fmt.Sprintf("%02d:%02d", m/60, m%60) }
 		openHM, closeHM = hm(wins[0].from), hm(wins[len(wins)-1].to)
 	}
-	fullRow(3, "MARKET OPENED", []Span{{openHM, th.Text, false}})
+	fullRow(3, "MARKET OPENING", []Span{{openHM, th.Text, false}})
 	fullRow(4, "MARKET CLOSING", []Span{{closeHM, th.Text, false}})
 	// MARKET BREADTH and ADV/DEC read the whole market table: a stock is an
 	// advancer when its change is above zero and a decliner when below it.

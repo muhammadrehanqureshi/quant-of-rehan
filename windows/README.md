@@ -1,10 +1,11 @@
-# Quant of Rehan for Windows (console edition), build 34
+# Quant of Rehan for Windows (console edition), build 73
 
-A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.16**, in the look of the first build.
+A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.19**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
 
-## What is new in build 34
+## What is new in build 73
 
+* **Build 73 (version 3.0.38).** The QUANT CORE globe is full of dots: a dim dot fills every Braille position inside the disc, the turning grid carries another ten percent more points, and one turn is another ten percent slower, about 33 seconds. The green and red bars are drawn in the regular weight, so the hairline at each cell seam is gone and their length, height, colour and position are unchanged. TELEMETRY says MARKET OPENING. The FEED row holds LAGGING until the relay's own ninety second freshness boundary, so a normal broker burst is never painted STALE.
 * **Build 72 (version 3.0.37).** TELEMETRY carries MARKET OPENED and MARKET CLOSING for the day, MARKET BREADTH (BULLISH or BEARISH), ADV/DEC and the whole market's NET DELTA. PHASE now says PRE and POST as well as OPEN, the NEXT line is gone, and the LIVE/LAGGING counter is removed from the top left.
 * **Build 71 (version 3.0.36).** Every bar is half a cell tall and sits on its cell's centre line, so it never touches the row above or below. The SETTINGS and THEMES rows mark the selected row with the diamond instead of `>`. The globe turns another ten percent slower, about 30 seconds a turn.
 * **Build 70 (version 3.0.35).** The bars are one solid block per cell, so no box or line is drawn inside a bar and the band is unbroken. The SETTINGS page is three tiles: SETTINGS with the switches, THEMES with the palette, and BUILD VERSION & RELAY with the relay address, version, request count, scanning window and settings path. The globe turns another fifteen percent slower and carries another twenty percent more dots.
