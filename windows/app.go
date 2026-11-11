@@ -450,13 +450,10 @@ func (a *App) effectiveLeaders() []Leader {
 				c := *q.ChangePct
 				out[i].ChangePct = &c
 			}
-			// A fresh tick moves the price and, only when no measured flow row
-			// names this stock, its total. It never re-splits the volume: the
-			// measured pair stands and the range estimate is never a second answer.
-			if q.Volume > 0 && !measured[out[i].Symbol] {
-				v := q.Volume
-				out[i].Volume = &v
-			}
+			// Owner order 2026-11-11: a fresh tick moves the price and the
+			// change only. The volume and its measured pair stay exactly as the
+			// relay and the Android app carry them, so the two builds agree on
+			// every scrip. Unclassified volume is never folded into a side.
 		}
 	}
 	return out
