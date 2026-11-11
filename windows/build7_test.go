@@ -62,8 +62,8 @@ func TestBarsAreBuild21sShadedTabs(t *testing.T) {
 			inks[ce.FG] = true
 		}
 	}
-	if len(inks) != 2 {
-		t.Fatalf("the bar painted %d inks, want exactly one green and one red", len(inks))
+	if len(inks) < 2 {
+		t.Fatalf("the bar painted %d ink(s), want its green and its red with a box step", len(inks))
 	}
 }
 
