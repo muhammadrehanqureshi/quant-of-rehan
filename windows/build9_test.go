@@ -29,8 +29,8 @@ func TestTelemetryCarriesMarketHoursBreadthAndDelta(t *testing.T) {
 	s := plain(a)
 	for _, want := range []string{
 		"MARKET OPENING", "09:32", "MARKET CLOSING", "15:30",
-		"MARKET BREADTH", "BULLISH", "ADV/DEC", "2 / 1",
-		"NET DELTA", "-300",
+		"MARKET BREADTH", "BULLISH", "ADV/DEC", "2/1",
+		"NET DELTA", "-300", "TOP PERFORMERS", "CCC, AAA & BBB",
 	} {
 		if !strings.Contains(s, want) {
 			t.Errorf("telemetry is missing %q:\n%s", want, s)
@@ -71,6 +71,49 @@ func TestTelemetryPhaseUsesPreAndPost(t *testing.T) {
 	a.market.TradingDay = true
 	if got := a.quantPhase(); got != qsPost {
 		t.Fatalf("15:45 phase: %q want %q", got, qsPost)
+	}
+}
+
+// Owner order 2026-11-11: the panel frame is symmetrical top to bottom, with
+// its bright bar at the right end of both edges.
+func TestPanelAccentsAreSymmetric(t *testing.T) {
+	a := newTestApp(t)
+	c := NewCanvas(40, 8, a.th.Panel)
+	a.panel(c, 0, 0, 40, 8, "QUANT CORE", "")
+	rows := c.PlainRows()
+	top, bottom := []rune(rows[0]), []rune(rows[7])
+	for _, i := range []int{36, 37, 38} {
+		if top[i] != '━' || bottom[i] != '━' {
+			t.Fatalf("the edges are not mirrored at column %d: %q / %q", i, rows[0], rows[7])
+		}
+	}
+	if top[1] == '━' || bottom[1] == '━' {
+		t.Fatalf("an accent sits at the left end: %q / %q", rows[0], rows[7])
+	}
+}
+
+// Owner order 2026-11-11: the globe turns at half the speed of build 3.2.3.
+func TestSphereTurnIsHalfSpeed(t *testing.T) {
+	if sphereTurnSeconds < 60.0 || sphereTurnSeconds > 60.5 {
+		t.Fatalf("one turn takes %.2f s, want about 60.1", sphereTurnSeconds)
+	}
+}
+
+// Owner order 2026-11-11: TOP PERFORMERS names the three best scrips of the
+// day, ties by symbol, and never a name without a measured change.
+func TestTopPerformersAreTheDaysBestThree(t *testing.T) {
+	a := newTestApp(t)
+	a.prices = map[string]Quote{
+		"AAA": {ChangePct: f64(1.2)},
+		"BBB": {ChangePct: f64(-0.8)},
+		"CCC": {ChangePct: f64(2.0)},
+		"DDD": {ChangePct: f64(0.4)},
+	}
+	if got := andList(a.topPerformers()); got != "CCC, AAA & DDD" {
+		t.Fatalf("top performers read %q, want CCC, AAA & DDD", got)
+	}
+	if got := andList(nil); got != "--" {
+		t.Fatalf("a day with no measured change reads %q, want --", got)
 	}
 }
 

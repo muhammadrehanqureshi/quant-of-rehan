@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"math"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -107,9 +108,9 @@ func (a *App) render() *Canvas {
 // ---------- building blocks ----------
 
 // panel draws a HUD frame, the way the first build did, and returns the inner
-// rectangle: heavy corners, a thin line, a bright bar at the top right and the
-// bottom left, the title after a diamond in the top edge and the hint, when
-// there is one, at its right end.
+// rectangle: heavy corners, a thin line, a bright bar at the right end of both
+// the top and the bottom edge, the title after a diamond in the top edge and
+// the hint, when there is one, at its right end.
 func (a *App) panel(c *Canvas, x, y, w, h int, title, hint string) (ix, iy, iw, ih int) {
 	th := a.th
 	c.Fill(x, y, w, h, th.Panel)
@@ -126,7 +127,9 @@ func (a *App) panel(c *Canvas, x, y, w, h int, title, hint string) (ix, iy, iw, 
 	c.Put(x+w-1, y+h-1, '┛', ln, false)
 	c.HLine(x+1, y, w-2, '─', ln)
 	c.HLine(x+1, y+h-1, w-2, '─', ln)
-	c.HLine(x+1, y+h-1, 3, '━', th.Accent)
+	// Owner order 2026-11-11: the bright bar sits at the same end of the top
+	// and the bottom edge, so the frame is symmetrical top to bottom.
+	c.HLine(x+w-4, y+h-1, 3, '━', th.Accent)
 	c.HLine(x+w-4, y, 3, '━', th.Accent)
 	for r := y + 1; r < y+h-1; r++ {
 		c.Put(x, r, '│', ln, false)
@@ -409,7 +412,7 @@ func (a *App) drawLeft(c *Canvas, x, y, w, h int) {
 	// carries a three dimensional dot sphere turning clockwise.
 	drawSphere(c, ix, iy, iw, ih, a.animSeconds(), a.orbGreen(), th)
 
-	tx, ty, tw, _ := a.panel(c, x, y+coreH+1, w, telH, "TELEMETRY", "")
+	tx, ty, tw, tih := a.panel(c, x, y+coreH+1, w, telH, "TELEMETRY", "")
 	const labelW = 7
 	label := func(row int, k string, v []Span) {
 		c.Text(tx, ty+row, labelW, k, th.Soft, false)
@@ -515,7 +518,7 @@ func (a *App) drawLeft(c *Canvas, x, y, w, h int) {
 	fullRow(5, "MARKET BREADTH", []Span{{breadth, bc, true}})
 	fullRow(6, "ADV/DEC", []Span{
 		{strconv.Itoa(adv), th.Good, true},
-		{" / ", th.Soft, false},
+		{"/", th.Soft, false},
 		{strconv.Itoa(dec), th.Bad, true},
 	})
 	// NET DELTA is the whole market's measured buying minus selling, in
@@ -562,6 +565,62 @@ func (a *App) drawLeft(c *Canvas, x, y, w, h int) {
 		rc = th.Warn
 	}
 	label(10, "REQ", []Span{{commaInt(rq), rc, false}, {note, th.Soft, false}})
+	// Owner order 2026-11-11: the tile names the three scrips with the best
+	// day on the whole-market table, written as MEBL, FFC & PRL.
+	if tih > 11 {
+		names := fit(andList(a.topPerformers()), max(1, tw-16))
+		col := th.Text
+		if names != "--" {
+			col = th.Good
+		}
+		fullRow(11, "TOP PERFORMERS", []Span{{names, col, true}})
+	}
+}
+
+// topPerformers names the three scrips with the best day so far. The relay's
+// whole-market table is the base and a fresh broker tick replaces its own row,
+// because the broker's change is the live one. The list is ordered by that
+// change, ties by symbol, and a day with no measured change says -- rather than
+// inventing a name.
+func (a *App) topPerformers() []string {
+	pct := map[string]float64{}
+	for sym, q := range a.prices {
+		if q.ChangePct != nil {
+			pct[sym] = *q.ChangePct
+		}
+	}
+	if a.quotes != nil {
+		for sym, q := range a.quotes.Items {
+			if q.Fresh && q.ChangePct != nil {
+				pct[sym] = *q.ChangePct
+			}
+		}
+	}
+	syms := make([]string, 0, len(pct))
+	for sym := range pct {
+		syms = append(syms, sym)
+	}
+	sort.Slice(syms, func(i, j int) bool {
+		if pct[syms[i]] != pct[syms[j]] {
+			return pct[syms[i]] > pct[syms[j]]
+		}
+		return syms[i] < syms[j]
+	})
+	if len(syms) > 3 {
+		syms = syms[:3]
+	}
+	return syms
+}
+
+// andList joins names the way the owner reads them: MEBL, FFC & PRL.
+func andList(names []string) string {
+	switch len(names) {
+	case 0:
+		return "--"
+	case 1:
+		return names[0]
+	}
+	return strings.Join(names[:len(names)-1], ", ") + " & " + names[len(names)-1]
 }
 
 // ---------- home ----------

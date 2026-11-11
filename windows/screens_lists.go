@@ -815,10 +815,11 @@ func (a *App) drawFlowList(c *Canvas, ix, head, top, iw, rows, barX int) {
 }
 
 // Owner order 2026-11-11: the bar is the heavy horizontal rule, drawn in the
-// middle of its own row. The centred rectangle left a small box in every cell
+// middle of its own row in the bold weight, the nearest a character cell has to
+// a quarter more height. The centred rectangle left a small box in every cell
 // and a block glyph fills the cell, so the rule is the one glyph that joins
-// edge to edge with no seam and never rises to a cell's height. The bar's
-// height, span, row and colours do not move.
+// edge to edge with no seam and never rises to a cell's height. The bar's span,
+// row and colours do not move.
 const barBlock = '━'
 
 // shareBarBoxes is how many boxes a buy versus sell bar holds. Owner order
@@ -885,10 +886,11 @@ func (a *App) drawShareBar(c *Canvas, x, y, w int, buyShare float64, label bool)
 			ink = th.Good
 		}
 		for k := at; k < at+width; k++ {
-			// Owner order 2026-11-11: the rule joins its neighbour edge to
-			// edge and leaves no small box inside the bar. Its height, span,
-			// row and colours are untouched.
-			c.Put(x+k, y, barBlock, ink, false)
+			// Owner order 2026-11-11: the bold rule joins its neighbour edge
+			// to edge, leaves no small box inside the bar and is a quarter
+			// taller than the regular rule. Its span, row and colours are
+			// untouched.
+			c.Put(x+k, y, barBlock, ink, true)
 		}
 		at += width
 	}
