@@ -32,18 +32,21 @@ func TestOnlyOneDiamondOnTheCursorRow(t *testing.T) {
 	a.screen, a.scanChoice, a.scanCursor = scrScanner, 1, 0
 	c = NewCanvas(122, 34, a.th.Panel)
 	a.drawScanner(c, 0, 0, 122, 26)
-	found = false
+	// The chosen sort is also the list's heading lower down, and that heading
+	// carries no diamond. The menu row is the one with the cursor, so it must
+	// carry exactly one.
+	menuRows := 0
 	for _, row := range c.PlainRows() {
-		if !strings.Contains(row, scanChoices[0]) {
+		if !strings.Contains(row, scanChoices[0]) || !strings.Contains(row, "◆") {
 			continue
 		}
-		found = true
+		menuRows++
 		if n := strings.Count(row, "◆"); n != 1 {
 			t.Fatalf("the chosen sort row carries %d diamonds: %q", n, row)
 		}
 	}
-	if !found {
-		t.Fatal("the first sort row was not drawn")
+	if menuRows != 1 {
+		t.Fatalf("the chosen sort menu row was drawn %d times", menuRows)
 	}
 }
 
