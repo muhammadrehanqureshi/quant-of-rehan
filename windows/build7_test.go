@@ -34,7 +34,9 @@ func TestBSTLineSaysUZero(t *testing.T) {
 
 // Owner order 2026-11-11: the bar is one continuous centred rule in one shade
 // per side, with no separator or small box drawn inside it and never on the
-// floor of the cell.
+// floor of the cell. The ninth pass asks for fifteen percent more height, and a
+// console cell has no fractional height, so the rule is the bold cut of the
+// same glyph: thicker in the font, still on the cell's centre line.
 func TestBarsAreBuild21sShadedTabs(t *testing.T) {
 	a := demoApp(t, 100, 30)
 	c := NewCanvas(40, 1, RGB{})
@@ -58,8 +60,8 @@ func TestBarsAreBuild21sShadedTabs(t *testing.T) {
 		if ce.Ch != barBlock {
 			continue
 		}
-		if ce.Bold {
-			t.Fatalf("a bar cell is bold, which leaves a line at the cell seam")
+		if !ce.Bold {
+			t.Fatal("a bar cell is not bold, so the bar is not the taller cut")
 		}
 		inks[ce.FG] = true
 	}
