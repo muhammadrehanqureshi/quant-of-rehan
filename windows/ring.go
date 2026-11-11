@@ -259,8 +259,12 @@ const ringGamma = 0.6
 // has one ink for all its dots, so it takes a mix of its brightest dot and the
 // average of its lit dots (dotMax), which also softens the edges.
 const (
-	dotThinLit  = 0.12 // coverage that lights a dot for a hairline layer
-	dotSolidLit = 0.50 // coverage that lights a dot for a solid layer
+	// Owner order 2026-11-11: twenty percent more dots are populated than the
+	// source lit, so both coverage thresholds step down by the same fifth and
+	// the picture fills in without its shape or its layers moving.
+	dotPopulate = 0.80
+	dotThinLit  = 0.12 * dotPopulate // coverage that lights a dot for a hairline layer
+	dotSolidLit = 0.50 * dotPopulate // coverage that lights a dot for a solid layer
 	dotFloor    = 0.34 // the tone of the faintest dot
 	dotTop      = 0.88 // the tone of a dot of a fully opaque layer
 	dotRim      = 0.80 // the share of its tone a dot keeps at the very rim of a shape
