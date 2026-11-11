@@ -35,8 +35,9 @@ func TestBSTLineSaysUZero(t *testing.T) {
 // Owner order 2026-11-10 (later): the bar fills its own box, so the colour is
 // centred in the box rather than sitting along its bottom edge, and each box
 // carries one solid colour.
-// Owner order 2026-11-10 (latest): there is exactly one shade of green and one
-// of red, ten boxes of one cell each, and no separator glyph at all.
+// Owner order 2026-11-11 (second pass): the patch 29 bar is back, so every
+// other box is a step paler, which marks all ten boxes, and no separator or gap
+// is drawn between them.
 func TestBarsAreBuild21sShadedTabs(t *testing.T) {
 	a := demoApp(t, 100, 30)
 	c := NewCanvas(40, 1, RGB{})
@@ -62,8 +63,8 @@ func TestBarsAreBuild21sShadedTabs(t *testing.T) {
 			inks[ce.FG] = true
 		}
 	}
-	if len(inks) == 0 {
-		t.Fatal("the bar painted no ink")
+	if len(inks) < 2 {
+		t.Fatalf("the bar painted %d ink(s), want its green and its red with a box step", len(inks))
 	}
 }
 

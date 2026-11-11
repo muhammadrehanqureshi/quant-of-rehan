@@ -819,11 +819,11 @@ const barBlock = '▬'
 // span itself, and the bar's height, do not move.
 const shareBarBoxes = 10
 
-// shareBarSpan is the cells the ten boxes cover. Owner order 2026-11-11:
-// ten single-colour boxes, each one cell, with one cell between them, so the
-// bar is 10 boxes + 9 gaps = 19 cells. That is longer than the 16 cells it
-// was, never shorter, and every box wears the same green or the same red.
-const shareBarSpan = 2*shareBarBoxes - 1
+// shareBarSpan is the cells the ten boxes cover. Owner order 2026-11-11
+// (second pass): the patch 30 look is undone and the patch 29 bar is back, so
+// the bar is 16 cells again, exactly as long as it was, and the ten boxes
+// share those cells instead of standing apart with a gap between them.
+const shareBarSpan = shareBarBoxes * 16 / 10
 
 // shareBarWidth is the field a labelled bar asks for: its span, one space and
 // the four cells a "100%" needs.
@@ -844,15 +844,13 @@ func (a *App) shareBarOnly(c *Canvas, x, y, w int, buyShare float64) int {
 }
 
 // drawShareBar is the buy versus sell bar: ten boxes, one box per ten percent,
-// one flat colour, and the percentage after it. Owner order 2026-11-10
-// (latest): one green and one red, ten boxes, and 18 cells across instead of
-// 20, so the bar is ten percent shorter. The boxes still number ten, so each
-// one takes its share of the 18 cells (the first eight are two cells and the
-// last two one), and nothing is drawn between them. The percentage is optional
-// for the rows that carry their own change.
+// and the percentage after it. Owner order 2026-11-11 (second pass): the patch
+// 29 look is restored, so the bar is its 16 cells, one green and one red,
+// every other box one step paler, and no cell is drawn between the boxes. The
+// percentage is optional for the rows that carry their own change.
 func (a *App) drawShareBar(c *Canvas, x, y, w int, buyShare float64, label bool) int {
 	th := a.th
-	// The bar is 18 cells; a caller with less room (the ALERTS boards pass the
+	// The bar is 16 cells; a caller with less room (the ALERTS boards pass the
 	// ten cells of a compact bar) gets a bar of exactly the room it has.
 	span := shareBarSpan
 	if w > 0 && w < span {
@@ -868,22 +866,23 @@ func (a *App) drawShareBar(c *Canvas, x, y, w int, buyShare float64, label bool)
 	if green > shareBarBoxes {
 		green = shareBarBoxes
 	}
-	// Ten boxes over the span, touching and unbroken: each box takes its
-	// slice of the cells and no separator is drawn between them. Owner order
-	// 2026-11-11: the ten boxes cover exactly the cells the sixteen did, so
-	// the bar's length and height do not move and only the box length grows.
+	// Ten boxes over the sixteen cells, touching and unbroken: each box takes
+	// its slice and no gap is drawn between them. Owner order 2026-11-11
+	// (second pass): every other box is one step paler, the patch 29 step that
+	// marks all ten boxes at a glance without changing the length or height.
 	at := 0
 	for i, width := range shareBarBoxWidths(span) {
 		ink := th.Bad
 		if i < green {
 			ink = th.Good
 		}
+		if i%2 == 1 {
+			ink = mix(ink, th.Panel, 0.22)
+		}
 		for k := at; k < at+width; k++ {
-			// Owner order 2026-11-11: one shade per side, no step. The gap after
-			// the box is what makes the ten boxes countable.
 			c.Put(x+k, y, barBlock, ink, true)
 		}
-		at += width + shareBarGap
+		at += width
 	}
 	width := span
 	if label {
@@ -902,8 +901,7 @@ func (a *App) drawShareBar(c *Canvas, x, y, w int, buyShare float64, label bool)
 // the remainder going to the leading boxes: on the sixteen cell bar six boxes
 // are two cells and four are one, and no cell is left over or drawn twice.
 func shareBarBoxWidths(span int) []int {
-	room := max(0, span-(shareBarBoxes-1)*shareBarGap)
-	base, extra := max(1, room/shareBarBoxes), room%shareBarBoxes
+	base, extra := span/shareBarBoxes, span%shareBarBoxes
 	out := make([]int, shareBarBoxes)
 	for i := range out {
 		out[i] = base
@@ -913,10 +911,6 @@ func shareBarBoxWidths(span int) []int {
 	}
 	return out
 }
-
-// shareBarGap is the one cell between two boxes. The span already carries
-// nine of them, so boxWidths and the gaps add back up to the span.
-const shareBarGap = 1
 
 // ---------- alerts ----------
 
