@@ -51,15 +51,14 @@ func commaFloat(f float64, dec int) string {
 	return b.String()
 }
 
-// signedCompact writes a whole number with its sign, using the compact form.
+// signedCompact writes a whole number with a minus sign only when it is below
+// zero, using the compact form. Owner order 2026-11-11: a rise carries no plus
+// sign, because the number already reads as positive.
 func signedCompact(n int64) string {
-	switch {
-	case n > 0:
-		return "+" + compactNum(float64(n))
-	case n < 0:
+	if n < 0 {
 		return "-" + compactNum(float64(-n))
 	}
-	return "0"
+	return compactNum(float64(n))
 }
 
 // arrow returns the direction glyph used across the app.

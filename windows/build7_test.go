@@ -32,22 +32,23 @@ func TestBSTLineSaysUZero(t *testing.T) {
 	}
 }
 
-// Owner order 2026-11-11: the bar is one continuous centred rule in the bold
-// weight, a quarter taller, in one shade per side, with no separator or small
-// box drawn inside it.
+// Owner order 2026-11-11: the bar is one continuous lower block five eighths of
+// the cell tall, a quarter taller than the half block, in one shade per side,
+// with no separator or small box drawn inside it.
 func TestBarsAreBuild21sShadedTabs(t *testing.T) {
 	a := demoApp(t, 100, 30)
 	c := NewCanvas(40, 1, RGB{})
 	a.shareBar(c, 2, 0, shareBarWidth, 0.5)
 	row := c.PlainRows()[0]
-	// Owner order 2026-11-11: the bar is one continuous centred rule, never a
-	// block, and the glyph leaves no small box inside it.
-	if barBlock != '━' {
-		t.Fatalf("the bar is %q, not the continuous centred rule", barBlock)
+	// Owner order 2026-11-11: the bar is the lower five eighths block, exactly
+	// a quarter taller than the half block, and never a full block or the old
+	// rectangle.
+	if barBlock != '▅' {
+		t.Fatalf("the bar is %q, not the lower five eighths block", barBlock)
 	}
-	for _, block := range "█▀▄■▬" {
+	for _, block := range "▄█▀■▬" {
 		if block == barBlock {
-			t.Fatal("a block glyph or the old rectangle is inside the bar again")
+			t.Fatal("the half block, a full block or the old rectangle is inside the bar again")
 		}
 	}
 	if strings.ContainsRune(row, '│') {
@@ -58,8 +59,8 @@ func TestBarsAreBuild21sShadedTabs(t *testing.T) {
 		if ce.Ch != barBlock {
 			continue
 		}
-		if !ce.Bold {
-			t.Fatalf("a bar cell is regular, so the bar is not a quarter taller")
+		if ce.Bold {
+			t.Fatalf("a bar cell is bold, which leaves a line at the cell seam")
 		}
 		inks[ce.FG] = true
 	}

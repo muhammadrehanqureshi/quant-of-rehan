@@ -814,13 +814,14 @@ func (a *App) drawFlowList(c *Canvas, ix, head, top, iw, rows, barX int) {
 	a.scrollbar(c, barX, top, a.lvScan.view*2, &a.lvScan)
 }
 
-// Owner order 2026-11-11: the bar is the heavy horizontal rule, drawn in the
-// middle of its own row in the bold weight, the nearest a character cell has to
-// a quarter more height. The centred rectangle left a small box in every cell
-// and a block glyph fills the cell, so the rule is the one glyph that joins
-// edge to edge with no seam and never rises to a cell's height. The bar's span,
-// row and colours do not move.
-const barBlock = '━'
+// Owner order 2026-11-11: the bar is five eighths of the cell tall, a quarter
+// taller than the half block, and it is a solid lower block so its cells join
+// edge to edge with no small box inside it. The centred rectangle left a box in
+// every cell, the heavy rule stayed too thin at the bold weight and the full
+// block was too tall, so the lower five eighths block is the one glyph that is
+// exactly a quarter taller than the half block and still seamless. The bar's
+// span, row and colours do not move.
+const barBlock = '▅'
 
 // shareBarBoxes is how many boxes a buy versus sell bar holds. Owner order
 // 2026-11-11: the bar carries ten boxes and not sixteen, and each box grows in
@@ -886,11 +887,11 @@ func (a *App) drawShareBar(c *Canvas, x, y, w int, buyShare float64, label bool)
 			ink = th.Good
 		}
 		for k := at; k < at+width; k++ {
-			// Owner order 2026-11-11: the bold rule joins its neighbour edge
-			// to edge, leaves no small box inside the bar and is a quarter
-			// taller than the regular rule. Its span, row and colours are
-			// untouched.
-			c.Put(x+k, y, barBlock, ink, true)
+			// Owner order 2026-11-11: the lower five eighths block joins its
+			// neighbour edge to edge, leaves no small box inside the bar and
+			// is a quarter taller than the half block. Its span, row and
+			// colours are untouched.
+			c.Put(x+k, y, barBlock, ink, false)
 		}
 		at += width
 	}

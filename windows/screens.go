@@ -394,19 +394,10 @@ func (a *App) scanStatus() (string, RGB) {
 
 func (a *App) drawLeft(c *Canvas, x, y, w, h int) {
 	th := a.th
-	// Owner order 2026-11-10 (latest): the telemetry tile is a third taller.
-	// The QUANT CORE tile had room to spare under the mark, so those rows go to
-	// the tile that carries the numbers.
-	// Owner order 2026-11-10 (latest): the QUANT CORE tile is a tenth shorter
-	// than it was, and the rows it gives up go to TELEMETRY. Its mark is the
-	// QUANT OF REHAN dot matrix, and the owner's newest order puts a turning dot
-	// sphere there for now with the wordmark out.
-	const telBase = 12
-	coreH := (h - telBase - 1) * 9 / 10
-	if coreH < 5 {
-		coreH = 5
-	}
-	telH := h - coreH - 1
+	// Owner order 2026-11-11: the top tile and the bottom tile are the same
+	// height, so the orb and the numbers sit in matching frames and the ORB/HUD
+	// reads symmetrical from top to bottom.
+	coreH, telH := leftTileHeights(h)
 	ix, iy, iw, ih := a.panel(c, x, y, w, coreH, "QUANT CORE", "")
 	// Owner order 2026-11-10 (latest): the wordmark is out for now and the tile
 	// carries a three dimensional dot sphere turning clockwise.
@@ -575,6 +566,21 @@ func (a *App) drawLeft(c *Canvas, x, y, w, h int) {
 		}
 		fullRow(11, "TOP PERFORMERS", []Span{{names, col, true}})
 	}
+}
+
+// leftTileHeights splits the left column into the QUANT CORE tile and the
+// TELEMETRY tile. Owner order 2026-11-11: the two are symmetrical, with one row
+// of gap between them and at most one row of difference in height.
+func leftTileHeights(h int) (coreH, telH int) {
+	coreH = (h - 1) / 2
+	if coreH < 5 {
+		coreH = 5
+	}
+	telH = h - coreH - 1
+	if telH < 5 {
+		telH = 5
+	}
+	return
 }
 
 // topPerformers names the three scrips with the best day so far. The relay's
