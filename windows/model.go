@@ -14,7 +14,7 @@ const appVersion = "4.0.16"
 // BUY= FLOW row are 3.0.7, the ten box bar, the left aligned ORDER FLOW
 // headings and the bigger orb are 3.0.8, and the signal SCORE, the longer box
 // pitch and the aligned leader block are 3.0.9.
-const hudBuild = "3.0.33"
+const hudBuild = "3.0.34"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no

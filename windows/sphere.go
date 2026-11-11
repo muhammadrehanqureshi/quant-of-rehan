@@ -21,19 +21,19 @@ import (
 
 const (
 	// sphereTurnSeconds is one full clockwise turn of the globe. Owner order
-	// 2026-11-11 (third pass): the turn is another fifteen percent slower than
-	// patch 32, so the period is divided by 0.85 again and one turn now takes
-	// about 19.5 seconds.
-	sphereTurnSeconds = 12.0 / 0.85 / 0.85 / 0.85
+	// 2026-11-11 (fourth pass): the turn is another fifteen percent slower than
+	// patch 33, so the period is divided by 0.85 again and one turn now takes
+	// about 23.0 seconds.
+	sphereTurnSeconds = 12.0 / 0.85 / 0.85 / 0.85 / 0.85
 	// Owner order 2026-11-11: the QUANT CORE globe is the mark the tile draws,
 	// not the ring, so its own size carries the fifteen percent cut.
 	sphereSizeScale = 0.85
 	// sphereLatStep and sphereLonStep are the grid's spacing in degrees.
-	// Owner order 2026-11-11 (third pass): the globe carries another twenty
-	// percent more dots than patch 32, so both steps shrink by 1/sqrt(1.2)
+	// Owner order 2026-11-11 (fourth pass): the globe carries another twenty
+	// percent more dots than patch 33, so both steps shrink by 1/sqrt(1.2)
 	// again and the surface reads as a solid ball of dots.
-	sphereLatStep = 11.25 * 0.9129 * 0.9325 * 0.9129 * 0.9129
-	sphereLonStep = 9.0 * 0.9129 * 0.9325 * 0.9129 * 0.9129
+	sphereLatStep = 11.25 * 0.9129 * 0.9325 * 0.9129 * 0.9129 * 0.9129
+	sphereLonStep = 9.0 * 0.9129 * 0.9325 * 0.9129 * 0.9129 * 0.9129
 	// spherePerspective is how much the nearer half of the globe grows.
 	spherePerspective = 0.18
 )

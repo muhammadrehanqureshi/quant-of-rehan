@@ -373,8 +373,8 @@ func TestMouseOnListsAndSettings(t *testing.T) {
 	if !a.cfg.Notify || a.setCursor != 1 {
 		t.Errorf("notifications row: %v cursor %d", a.cfg.Notify, a.setCursor)
 	}
-	clickText(t, a, "ORANGE & WHITE")
-	if a.cfg.Theme != 5 || a.th != themeAt(5) {
+	clickText(t, a, "NAVY BLUE & WHITE")
+	if a.cfg.Theme != 3 || a.th != themeAt(3) {
 		t.Errorf("theme by click: %d", a.cfg.Theme)
 	}
 	before := a.cfg.BigBuyValue

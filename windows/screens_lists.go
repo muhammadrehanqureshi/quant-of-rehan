@@ -184,10 +184,12 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 				break
 			}
 			ih := sh2 - 2
-			menu := 0
-			if ih >= 11 {
-				menu = 3
-			}
+			// Owner order 2026-11-11 (fourth pass): the three sort rows are
+			// part of the tile and are never traded away to give the sector
+			// list room, so this test always reserves them. A scrip opened
+			// from a sector grows the search tile above, and without this
+			// reservation that growth used to hide all three sub menus.
+			menu := 3
 			rows := ih - menu - 2
 			if rows/2 >= 4 {
 				break
@@ -221,8 +223,9 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 	}
 	ix, iy, iw, ih := a.panel(c, x, sy, w, sh2, "CUSTOM SCRIPS BY VOLUME", hint)
 	menu := 3
-	if ih < 11 {
-		menu = 0 // a short window: the sort is chosen with LEFT and RIGHT only
+	if ih < menu+1 {
+		// Only a tile with no room left at all drops a sort row.
+		menu = max(0, ih-1)
 	}
 	for i, name := range scanChoices {
 		if i >= menu {
@@ -234,7 +237,9 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 		bg := a.selectRow(c, ix, ry, min(iw, 48), cur, func() { a.pickScan(id) })
 		mark := " "
 		if cur {
-			mark = ">"
+			// Owner order 2026-11-11: the sub menu cursor is the diamond,
+			// the same mark the rest of the build selects with.
+			mark = "◆"
 		}
 		chosen := "  "
 		if a.scanChoice == id {
@@ -245,12 +250,15 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 		c.Text(ix+5, ry, min(44, iw-5), name, th.Text, a.scanChoice == id)
 	}
 	head := iy + menu + 1 // the row after the menu, or the first row when it is hidden
-	if a.scanChoice == 0 {
+	if a.scanChoice == 0 || head >= iy+ih {
 		return
 	}
 	c.Text(ix, head, iw, scanChoices[a.scanChoice-1], th.Accent, true)
 	top := head + 1
 	rows := iy + ih - top
+	if rows < 1 {
+		return
+	}
 	if a.scanChoice == 3 {
 		a.drawFlowList(c, ix, head, top, iw, rows, x+w-2)
 		return
