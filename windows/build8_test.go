@@ -17,10 +17,9 @@ func readWindowSource(t *testing.T, name string) string {
 	return string(b)
 }
 
-// Owner order 2026-11-11 (second pass): the patch 29 bar is back, so the green
-// and red bars keep their 16 cells and height and carry ten touching boxes,
-// every other box one step paler. The status note is awake from the 08:55 scan
-// start.
+// Owner order 2026-11-11 (third pass): the green and red bars keep their 16
+// cells and height and carry ten touching boxes in exactly one shade per side.
+// The status note is awake from the 08:55 scan start.
 
 func TestShareBarHoldsTenBoxesOverTheSameCells(t *testing.T) {
 	if shareBarBoxes != 10 {

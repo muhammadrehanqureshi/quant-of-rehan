@@ -447,7 +447,7 @@ func TestFetchOrderFlowFallsBackToFlowAndAcceptsALargeBody(t *testing.T) {
 
 // Owner order 2026-11-11 (second pass): the patch 29 bar is back, so every bar
 // is its 16 cells and ten touching boxes, with no line and no gap between any
-// two cells: one unbroken band, every other box a step paler.
+// two cells: one unbroken band in one shade per side.
 func TestShareBarIsOneUnbrokenBand(t *testing.T) {
 	a := demoApp(t, 100, 30)
 	c := NewCanvas(40, 1, RGB{})
