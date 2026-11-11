@@ -350,6 +350,22 @@ func (a *App) statusNoteBase() string {
 		}
 		return "The relay did not answer in time. Will retry."
 	}
+	// Owner order 2026-11-11: the scanner starts at 08:55, but the exchange's
+	// pre-open does not: Monday to Thursday it starts at 09:15 and on Friday at
+	// 09:00. In that gap the market is shut while the quant is awake, so the
+	// note says exactly that and never calls the pre-market running early.
+	pk := a.karachiNow()
+	if a.market != nil && a.market.TradingDay {
+		// The exchange's own pre-open starts at 09:15 Monday to Thursday and
+		// at 09:00 on Friday, which is the boundary the owner named.
+		preOpen := 9*60 + 15
+		if isFriday(pk) {
+			preOpen = 9 * 60
+		}
+		if sec := secondOf(pk); sec >= scanOpen*60 && sec < preOpen*60 {
+			return "Market is closed but the quant is online now."
+		}
+	}
 	switch a.quantPhase() {
 	case qsOpen:
 		return "Market is open and the quant is online now."
@@ -363,18 +379,6 @@ func (a *App) statusNoteBase() string {
 		return "Market is halted and the quant is offline now."
 	case qsUnknown:
 		return "Market status not reported by the relay yet."
-	}
-	// Owner order 2026-11-11: the scanner starts at 08:55, and from that minute
-	// the quant is awake even though the exchange has not opened. The status may
-	// not call it sleeping while it is scanning, so the awake window is the
-	// scanner's own, from 08:55 to the post-market close.
-	// A weekend and a PSX holiday have the same clock as a trading morning and
-	// no scan at all, so the relay's own trading-day answer gates the sentence.
-	pk := a.karachiNow()
-	if sec := secondOf(pk); sec >= scanOpen*60 &&
-		sec < postWindow(pk).to*60+scanGraceSecs &&
-		a.market != nil && a.market.TradingDay {
-		return "Quant is online now."
 	}
 	return "Market is closed and the quant is sleeping now."
 }

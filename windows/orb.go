@@ -36,7 +36,10 @@ var ringHalfBlocks bool
 // size and turns fifteen percent slower, so both are one factor off the
 // source's own numbers and nothing else about the mark moves.
 const (
-	orbSizeScale  = 0.85
+	// Owner order 2026-11-11: fifteen percent smaller first, then another ten
+	// percent on top of that, so the size is 1.11 * 0.85 * 0.90 and the turn
+	// stays at the fifteen percent slower speed already approved.
+	orbSizeScale  = 0.85 * 0.90
 	orbSpeedScale = 0.85
 	OrbGrow       = 1.11 * orbSizeScale
 	orbBaseRows   = 13 // the rows the app's first orb had
