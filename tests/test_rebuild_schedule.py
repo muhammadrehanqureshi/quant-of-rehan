@@ -558,14 +558,48 @@ class TestCloudflareSchedule(unittest.TestCase):
         self.assertTrue(pair_crons, "cloud/pair.py must declare a CRONS list")
         self.assertEqual(
             sorted(pair_crons),
-            ["0,30,35 7,10,11 * * 1-5",
-             "10,32 9 * * 5",
-             "17,55 3,4 * * 5",
+            ["0,30,35,40,50 7,10,11 * * 1-5",
+             "10,20,25,32 9 * * 5",
+             "20,25,32,55 3,4 * * 1-4",
              "30 7 * * 1-4",
-             "32,55 3,4 * * 1-4"],
+             "5,10,17,55 3,4 * * 5"],
             "cloud/pair.py and cloud/wrangler.toml disagree about "
             "the cron schedule, so the deploy would set something "
             "other than the schedule this suite just proved")
+
+    def test_pre_and_post_windows_have_a_retry_after_the_open(self):
+        """Owner order 2026-11-11: a missed pre or post dispatch must recover
+        inside the window, not after it.
+
+        The 09:20 retry lands inside the 09:15 to 09:30 pre-open, where the
+        capture's zero gate still seeds every unseen symbol. Without it the
+        next wake was 09:32, after the pre-open, and the day's already traded
+        volume stayed UNCLEAR. The post-market retries exist for the same
+        reason on the 15:35 and 16:35 windows.
+        """
+        fires: dict[tuple[int, int], set[int]] = {}
+        for expression in crons_of(WRANGLER):
+            for hour, minute, mask in cron_fires(expression):
+                fires.setdefault((hour, minute), set()).update(mask)
+        retries = (
+            ((4, 20), {1, 2, 3, 4}),   # 09:20 PKT pre-open
+            ((4, 25), {1, 2, 3, 4}),   # 09:25 PKT pre-open, last chance
+            ((4, 5), {5}),             # 09:05 PKT Friday pre-open
+            ((4, 10), {5}),            # 09:10 PKT Friday pre-open
+            ((9, 20), {5}),            # 14:20 PKT Friday second pre-open
+            ((9, 25), {5}),            # 14:25 PKT Friday second pre-open
+            ((10, 40), {1, 2, 3, 4}),  # 15:40 PKT post-market
+            ((10, 50), {1, 2, 3, 4}),  # 15:50 PKT post-market
+            ((11, 40), {5}),           # 16:40 PKT Friday post-market
+            ((11, 50), {5}),           # 16:50 PKT Friday post-market
+        )
+        for (hour, minute), weekdays in retries:
+            with self.subTest(retry=(hour, minute)):
+                self.assertTrue(
+                    weekdays <= fires.get((hour, minute), set()),
+                    f"no {hour:02d}:{minute:02d} UTC retry covers weekdays "
+                    f"{sorted(weekdays)}, so a missed pre or post dispatch "
+                    f"can only be recovered after the window")
 
     def test_every_scan_window_has_a_dispatch_wake(self):
         """Every runnable window the session loop offers has a dispatcher wake.

@@ -395,10 +395,16 @@ class RelayWorkerContractTest(unittest.TestCase):
         self.assertIn("async function ensureFeedAlive(env, now)", self.source)
         self.assertIn("const FEED_WATCHDOG_STALE_MS", self.source)
         self.assertIn("const FEED_WATCHDOG_COOLDOWN_MS", self.source)
+        # Owner order 2026-11-11: a wake at the band's own open must not force
+        # a second loop before the first band has published a frame.
+        self.assertIn("const FEED_WATCHDOG_OPEN_GUARD_MINUTES = 3;", self.source)
+        self.assertIn("const FEED_WATCHDOG_DISPATCH_GRACE_MS", self.source)
+        self.assertIn('reason: "band just opened"', self.source)
+        self.assertIn('reason: "dispatch is fresh"', self.source)
         self.assertIn("function newestFrameAgeMs(snapshot, now)", self.source)
 
         start = self.source.index("async function ensureFeedAlive(env, now)")
-        body = self.source[start:start + 2600]
+        body = self.source[start:start + 3600]
         for want in ("dispatchWindowsFor(k)", "newestFrameAgeMs(snapshot, now)",
                      "FEED_WATCHDOG_STALE_MS", "FEED_WATCHDOG_COOLDOWN_MS",
                      "force: true"):

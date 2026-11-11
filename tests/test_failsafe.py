@@ -62,6 +62,26 @@ class FailsafeDecisionTest(unittest.TestCase):
         self.assertFalse(decision.alert)
         self.assertIn("old inside PRE_MARKET", decision.reason)
 
+    def test_a_missing_capture_before_the_pre_open_dispatches(self):
+        # 09:00 Wednesday is still CLOSED by the market state law, but the
+        # 08:55 warm-up is open. Starting here still reaches the 09:15 zero
+        # gate; waiting for 09:20 loses the auction's first prints.
+        moment = at(WEDNESDAY, 9, 0)
+        decision = failsafe.decide(
+            moment, {"market_feed": {"age_seconds": 900}},
+            flow_stamped(moment, 900))
+        self.assertTrue(decision.dispatch)
+        self.assertFalse(decision.alert)
+        self.assertIn("capture warm-up", decision.reason)
+
+    def test_a_fresh_capture_in_the_warmup_dispatches_nothing(self):
+        moment = at(WEDNESDAY, 9, 0)
+        decision = failsafe.decide(
+            moment, {"market_feed": {"age_seconds": 2}},
+            flow_stamped(moment, 2))
+        self.assertFalse(decision.dispatch)
+        self.assertIn("capture warm-up", decision.reason)
+
     def test_a_stale_feed_in_the_post_market_dispatches(self):
         moment = at(WEDNESDAY, 15, 45)
         decision = failsafe.decide(
