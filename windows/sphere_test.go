@@ -42,13 +42,6 @@ func TestSphereTurnsClockwise(t *testing.T) {
 	}
 }
 
-func TestSphereTurnsAnotherTenPercentSlower(t *testing.T) {
-	want := 12.0 / math.Pow(0.85, 5) / math.Pow(0.90, 2)
-	if math.Abs(sphereTurnSeconds-want) > 1e-9 {
-		t.Fatalf("one turn is %.3f seconds, want %.3f", sphereTurnSeconds, want)
-	}
-}
-
 func TestSphereDrawsShadedDots(t *testing.T) {
 	a := demoApp(t, 100, 40)
 	c := NewCanvas(40, 14, RGB{})
@@ -71,22 +64,6 @@ func TestSphereDrawsShadedDots(t *testing.T) {
 	}
 	if len(inks) < 2 {
 		t.Fatalf("the globe drew %d ink(s), so it has no depth shading", len(inks))
-	}
-}
-
-// Owner order 2026-11-11 (seventh pass): every cell of the face carries a
-// dot, so the sphere cannot show a bare patch between its meridians.
-func TestSphereFaceIsFullOfDots(t *testing.T) {
-	a := demoApp(t, 100, 40)
-	c := NewCanvas(40, 14, RGB{})
-	drawSphere(c, 1, 1, 38, 12, 3.0, true, a.th)
-	for y := 4; y <= 8; y++ {
-		for x := 15; x <= 25; x++ {
-			ch := c.Cells[y*c.W+x].Ch
-			if ch < 0x2800 || ch > 0x28ff {
-				t.Fatalf("the face is empty at %d,%d: %q", x, y, string(ch))
-			}
-		}
 	}
 }
 

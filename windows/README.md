@@ -1,10 +1,11 @@
-# Quant of Rehan for Windows (console edition), build 73
+# Quant of Rehan for Windows (console edition), build 74
 
-A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.19**, in the look of the first build.
+A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.20**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
 
-## What is new in build 73
+## What is new in build 74
 
+* **Build 74 (version 3.2.3).** The QUANT CORE globe goes back to the 3D sphere of build 72: the full base-dot face, the extra grid points and the extra slowdown are gone, and the depth shading is back, with the near side bright and the far side dim. The green and red bars keep their height, length, colours and row, and each bar is one continuous centred rule with no small box inside it and no block glyph. TELEMETRY's MARKET BREADTH reads the KSE100's own point move: above +1500 points is BULLISH, below -500 is BEARISH, and the band between them is FLAT.
 * **Build 73 (version 3.0.38).** The QUANT CORE globe is full of dots: a dim dot fills every Braille position inside the disc, the turning grid carries another ten percent more points, and one turn is another ten percent slower, about 33 seconds. The green and red bars are drawn in the regular weight, so the hairline at each cell seam is gone and their length, height, colour and position are unchanged. TELEMETRY says MARKET OPENING. The FEED row holds LAGGING until the relay's own ninety second freshness boundary, so a normal broker burst is never painted STALE.
 * **Build 72 (version 3.0.37).** TELEMETRY carries MARKET OPENED and MARKET CLOSING for the day, MARKET BREADTH (BULLISH or BEARISH), ADV/DEC and the whole market's NET DELTA. PHASE now says PRE and POST as well as OPEN, the NEXT line is gone, and the LIVE/LAGGING counter is removed from the top left.
 * **Build 71 (version 3.0.36).** Every bar is half a cell tall and sits on its cell's centre line, so it never touches the row above or below. The SETTINGS and THEMES rows mark the selected row with the diamond instead of `>`. The globe turns another ten percent slower, about 30 seconds a turn.

@@ -814,13 +814,12 @@ func (a *App) drawFlowList(c *Canvas, ix, head, top, iw, rows, barX int) {
 	a.scrollbar(c, barX, top, a.lvScan.view*2, &a.lvScan)
 }
 
-// Owner order 2026-11-10 (latest): the bar gained another ten percent of
-// height, and only its height changed. Owner order 2026-11-11 (sixth pass):
-// the bar is half the cell's height and sits on the cell's centre line, so it
-// never touches the row above or below; the glyph is the centred rectangle,
-// drawn in the regular weight so it spans the cell's width and the band stays
-// unbroken.
-const barBlock = '▬'
+// Owner order 2026-11-11: the bar is the heavy horizontal rule, drawn in the
+// middle of its own row. The centred rectangle left a small box in every cell
+// and a block glyph fills the cell, so the rule is the one glyph that joins
+// edge to edge with no seam and never rises to a cell's height. The bar's
+// height, span, row and colours do not move.
+const barBlock = '━'
 
 // shareBarBoxes is how many boxes a buy versus sell bar holds. Owner order
 // 2026-11-11: the bar carries ten boxes and not sixteen, and each box grows in
@@ -886,9 +885,9 @@ func (a *App) drawShareBar(c *Canvas, x, y, w int, buyShare float64, label bool)
 			ink = th.Good
 		}
 		for k := at; k < at+width; k++ {
-			// Owner order 2026-11-11 (seventh pass): the regular weight keeps
-			// the centred rectangle full width. The bold face leaves a hairline
-			// at the cell seam; no other property of the bar changes.
+			// Owner order 2026-11-11: the rule joins its neighbour edge to
+			// edge and leaves no small box inside the bar. Its height, span,
+			// row and colours are untouched.
 			c.Put(x+k, y, barBlock, ink, false)
 		}
 		at += width
