@@ -879,15 +879,15 @@ func (a *App) drawShareBar(c *Canvas, x, y, w int, buyShare float64, label bool)
 			ink = th.Good
 		}
 		// Owner report 2026-11-11: the ten boxes were drawn unbroken, so the
-		// bar still read as sixteen cells. Every other box is drawn in the
-		// normal weight, which makes ten boxes countable at a glance while the
-		// length, the height, the glyph and the two inks stay exactly as
-		// ordered.
-		bold := i%2 == 0
+		// bar still read as sixteen cells and the owner saw no change. Every
+		// other box is one step paler now, which marks all ten boxes at a
+		// glance while the length, the height and the glyph stay as ordered.
+		if i%2 == 1 {
+			ink = mix(ink, th.Panel, 0.22)
+		}
 		for k := at; k < at+width; k++ {
-			// Owner order 2026-11-11: the taller glyph is the ten percent step,
-			// and the alternating weight marks each of the ten boxes.
-			c.Put(x+k, y, barBlock, ink, bold)
+			// Owner order 2026-11-11: the taller glyph is the ten percent step.
+			c.Put(x+k, y, barBlock, ink, true)
 		}
 		at += width
 	}

@@ -22,9 +22,14 @@ import (
 const (
 	// sphereTurnSeconds is one full clockwise turn of the globe.
 	sphereTurnSeconds = 12.0
+	// Owner order 2026-11-11: the QUANT CORE globe is the mark the tile draws,
+	// not the ring, so its own size carries the fifteen percent cut.
+	sphereSizeScale = 0.85
 	// sphereLatStep and sphereLonStep are the grid's spacing in degrees.
-	sphereLatStep = 11.25
-	sphereLonStep = 9.0
+	// Owner order 2026-11-11: the globe carries twenty percent more dots, so
+	// both steps shrink by 1/sqrt(1.2) and the surface gains a fifth more points.
+	sphereLatStep = 11.25 * 0.9129
+	sphereLonStep = 9.0 * 0.9129
 	// spherePerspective is how much the nearer half of the globe grows.
 	spherePerspective = 0.18
 )
@@ -95,7 +100,7 @@ func drawSphere(c *Canvas, x0, y0, w, h int, t float64, green bool, th *Theme) {
 	}
 	cols, rows := w*2, h*4
 	cx, cy := float64(cols-1)/2.0, float64(rows-1)/2.0
-	radius := math.Min(float64(cols)/2.0, float64(rows)/2.0) - 1
+	radius := (math.Min(float64(cols)/2.0, float64(rows)/2.0) - 1) * sphereSizeScale
 	if radius < 4 {
 		return
 	}
