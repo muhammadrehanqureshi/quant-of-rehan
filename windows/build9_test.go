@@ -28,7 +28,7 @@ func TestTelemetryCarriesMarketHoursBreadthAndDelta(t *testing.T) {
 	}
 	s := plain(a)
 	for _, want := range []string{
-		"MARKET OPENING", "PRE 09:00 OPEN 09:32", "MARKET CLOSING", "15:30 POST 16:00",
+		"MARKET OPENING", "09:15", "MARKET CLOSING", "16:00",
 		"MARKET BREADTH", "BULLISH", "ADV/DEC", "2/1",
 		"NET DELTA", "-300", "TOP PERFORMERS", "CCC, AAA & BBB",
 	} {
@@ -66,6 +66,23 @@ func TestTelemetryCarriesMarketHoursBreadthAndDelta(t *testing.T) {
 	}
 	if !(at("NET DELTA") < at("TOP PERFORMERS") && at("TOP PERFORMERS") < at("BUY=")) {
 		t.Errorf("TOP PERFORMERS does not follow NET DELTA:\n%s", s)
+	}
+}
+
+// Owner order 2026-11-11: the closing row follows the day, so Friday keeps its
+// own 17:00 end while Monday to Thursday close at 16:00.
+func TestMarketClosingFollowsTheDay(t *testing.T) {
+	a := newTestApp(t)
+	a.w, a.h = 120, 34
+	a.link, a.checking = true, false
+	a.market = marketIn("OPEN")
+	a.now = time.Date(2026, 11, 6, 10, 0, 0, 0, pkt) // a Friday
+	if got := plain(a); !strings.Contains(got, "MARKET CLOSING") || !strings.Contains(got, "17:00") {
+		t.Fatalf("Friday must close at 17:00:\n%s", got)
+	}
+	a.now = time.Date(2026, 11, 2, 10, 0, 0, 0, pkt) // a Monday
+	if got := plain(a); !strings.Contains(got, "MARKET CLOSING") || !strings.Contains(got, "16:00") {
+		t.Fatalf("Monday must close at 16:00:\n%s", got)
 	}
 }
 

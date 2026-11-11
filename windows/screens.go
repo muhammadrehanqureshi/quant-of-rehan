@@ -484,18 +484,14 @@ func (a *App) drawLeft(c *Canvas, x, y, w, h int) {
 		pc = th.Warn
 	}
 	label(2, "PHASE", []Span{{ph, pc, true}})
-	// Owner order 2026-11-11: SCAN follows PHASE, and the opening and closing
-	// rows carry the pre-market and post-market edges with the exchange's own.
+	// Owner order 2026-11-11: SCAN follows PHASE. MARKET OPENING is the
+	// exchange's own 09:15 and MARKET CLOSING is the day's own end, 16:00
+	// Monday to Thursday and 17:00 on Friday, with no pre and post captions.
 	sw, sc := a.scanStatus()
 	label(3, "SCAN", []Span{{sw, sc, true}})
-	openHM, closeHM, preHM, postHM := "--", "--", "--", "--"
-	if wins := tradeWindows(a.karachiNow()); len(wins) > 0 {
-		hm := func(m int) string { return fmt.Sprintf("%02d:%02d", m/60, m%60) }
-		openHM, closeHM = hm(wins[0].from), hm(wins[len(wins)-1].to)
-		preHM, postHM = hm(preWindow.from), hm(postWindow(a.karachiNow()).to)
-	}
-	fullRow(4, "MARKET OPENING", []Span{{"PRE " + preHM + " OPEN " + openHM, th.Text, false}})
-	fullRow(5, "MARKET CLOSING", []Span{{closeHM + " POST " + postHM, th.Text, false}})
+	hm := func(m int) string { return fmt.Sprintf("%02d:%02d", m/60, m%60) }
+	fullRow(4, "MARKET OPENING", []Span{{hm(preWindow.to), th.Text, false}})
+	fullRow(5, "MARKET CLOSING", []Span{{hm(postWindow(a.karachiNow()).to), th.Text, false}})
 	// Owner order 2026-11-11: MARKET BREADTH is the KSE100's own point move.
 	// Above +1500 points is BULLISH, below -500 is BEARISH, and the band
 	// between them is FLAT. ADV/DEC still reads the whole market table.
