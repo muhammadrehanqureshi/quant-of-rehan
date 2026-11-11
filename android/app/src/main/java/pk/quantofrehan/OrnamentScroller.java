@@ -4,9 +4,11 @@ import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.LinearGradient;
 import android.graphics.Paint;
-import android.graphics.Path;
+import android.graphics.Rect;
 import android.graphics.Shader;
+import android.graphics.Typeface;
 import android.util.AttributeSet;
+import android.util.TypedValue;
 import android.view.View;
 
 /**
@@ -15,12 +17,19 @@ import android.view.View;
  * board's own scroll fraction, the lines run from it to the top and the bottom
  * of the track and fade away from it, and every stroke wears the ink of the
  * theme the console is wearing.
+ *
+ * The diamond is the console's own brand glyph at the same 10sp QorDiamond
+ * uses, not a hand-sized path, so the scroller can never draw a bigger diamond
+ * than the rules across the rest of the app.
  */
 public class OrnamentScroller extends View {
 
+    private static final String DIAMOND = "\u25C6";
+    private static final float DIAMOND_SP = 10f;
+
     private final Paint linePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint diamondPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final Path diamond = new Path();
+    private final Rect diamondBounds = new Rect();
     private int offset;
     private int range;
     private int ink = 0xFFFFFFFF;
@@ -54,20 +63,23 @@ public class OrnamentScroller extends View {
         }
         float w = getWidth();
         float h = getHeight();
-        float d = Math.min(w, dp(9f));
+        diamondPaint.setTextSize(TypedValue.applyDimension(
+                TypedValue.COMPLEX_UNIT_SP, DIAMOND_SP,
+                getResources().getDisplayMetrics()));
+        diamondPaint.setTypeface(Typeface.DEFAULT);
+        diamondPaint.setTextAlign(Paint.Align.LEFT);
+        diamondPaint.setColor(ink);
+        diamondPaint.getTextBounds(DIAMOND, 0, DIAMOND.length(),
+                diamondBounds);
+        float d = diamondBounds.height();
         float cx = w / 2f;
         float t = Math.min(1f, (float) offset / range);
         float cy = d / 2f + t * (h - d);
 
-        diamond.reset();
-        diamond.moveTo(cx, cy - d / 2f);
-        diamond.lineTo(cx + d / 2f, cy);
-        diamond.lineTo(cx, cy + d / 2f);
-        diamond.lineTo(cx - d / 2f, cy);
-        diamond.close();
-        diamondPaint.setColor(ink);
-        diamondPaint.setStyle(Paint.Style.FILL);
-        canvas.drawPath(diamond, diamondPaint);
+        // Centre the glyph's ink, not its advance box, on the track.
+        float x = cx - (diamondBounds.left + diamondBounds.right) / 2f;
+        float baseline = cy - (diamondBounds.top + diamondBounds.bottom) / 2f;
+        canvas.drawText(DIAMOND, x, baseline, diamondPaint);
 
         linePaint.setStrokeWidth(Math.max(1f, dp(1.5f)));
         linePaint.setColor(ink);

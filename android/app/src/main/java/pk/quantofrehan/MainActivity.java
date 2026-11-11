@@ -3432,22 +3432,40 @@ public class MainActivity extends Activity {
         columns.setLayoutParams(new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT));
-        columns.addView(flowBookColumn("BID", row.bid, row.bidSize,
-                        R.color.green, false),
+        LinearLayout bidColumn = flowBookColumn("BID", row.bid, row.bidSize,
+                R.color.green, false);
+        columns.addView(bidColumn,
                 new LinearLayout.LayoutParams(0,
                         LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
         View divider = new View(this);
         divider.setBackgroundColor(themeAccentInk);
         divider.setAlpha(0.5f);
         LinearLayout.LayoutParams dividerParams = new LinearLayout.LayoutParams(
-                Math.max(1, dp(1)), dp(64));
+                Math.max(1, dp(1)), Math.max(1, dp(1)));
         dividerParams.leftMargin = dp(10);
         dividerParams.rightMargin = dp(10);
         columns.addView(divider, dividerParams);
-        columns.addView(flowBookColumn("ASK", row.ask, row.askSize,
-                        R.color.red, true),
+        LinearLayout askColumn = flowBookColumn("ASK", row.ask, row.askSize,
+                R.color.red, true);
+        columns.addView(askColumn,
                 new LinearLayout.LayoutParams(0,
                         LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        // Owner order 2026-11-11: the line covers the BID and ASK columns
+        // only. A fixed 64dp ran below the QTY line, so the divider now takes
+        // the measured height of the book's own column.
+        bidColumn.addOnLayoutChangeListener(
+                (v, left, top, right, bottom, oldLeft, oldTop, oldRight,
+                 oldBottom) -> {
+                    int height = bottom - top;
+                    if (height <= 0) {
+                        return;
+                    }
+                    ViewGroup.LayoutParams lp = divider.getLayoutParams();
+                    if (lp != null && lp.height != height) {
+                        lp.height = height;
+                        divider.setLayoutParams(lp);
+                    }
+                });
         orderFlowBook.addView(columns);
         orderFlowBook.setVisibility(View.VISIBLE);
     }
@@ -3510,7 +3528,7 @@ public class MainActivity extends Activity {
                     && print.side.trim().toUpperCase(Locale.US).startsWith("S");
             double price = print.price > 0 ? print.price
                     : (print.shares > 0 ? (double) print.value / print.shares : 0d);
-            sb.append(shown == 0 ? "LAST 8 FILLED" : "");
+            sb.append(shown == 0 ? "LAST EIGHT FILLED ORDERS" : "");
             sb.append('\n');
             int from = sb.length();
             String at = printTime(print.at);
