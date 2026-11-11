@@ -87,7 +87,7 @@ def decide(moment: datetime, health: Mapping[str, Any] | None,
     if not is_trading_day(moment.date()):
         return Decision(False, "not a PSX trading day", False)
     state = market_state_at(moment)
-    if not state.is_scan_window():
+    if not state.is_scan_window:
         return Decision(False, "outside every scan window "
                                f"({state.value})", False)
     if health is None:
