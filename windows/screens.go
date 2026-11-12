@@ -1208,9 +1208,12 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 		if l.Price != nil {
 			const chgW = 8
 			end := ix + iw - 1
-			bw := shareBarSpan
+			// Owner order 2026-11-12 (latest): the bar's field carries its
+			// NET DELTA too, so the leader line's last field is the labelled
+			// bar and the price and the change step left by its width.
+			bw := shareBarWidth
 			floor := ix + 3 + used + 1
-			barStart := end - bw
+			barStart := end - bw + 1
 			chgRight := barStart - 2
 			priceRight := chgRight - chgW - 1
 			px := commaFloat(*l.Price, 2)
@@ -1240,7 +1243,9 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 				if l.HasSplit() {
 					if total := *l.Buy + *l.Sell; total > 0 {
 						bb, bs := a.pairOf(l.Symbol, *l.Buy, *l.Sell)
-						a.shareBarOnly(c, barStart, row, bw, bb, bs)
+						// Owner order 2026-11-12 (latest): every bar in the build
+						// carries its NET DELTA, the leaders row included.
+						a.shareBar(c, barStart, row, bw, bb, bs)
 					}
 				}
 			case end-priceBlock >= floor:

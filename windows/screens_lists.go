@@ -367,7 +367,9 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 		if q.Price > 0 {
 			const chgW = 8
 			end := ix + cw - 1
-			barStart := end - shareBarSpan
+			// Owner order 2026-11-12 (latest): the bar carries its NET DELTA
+			// here too, so the field takes the bar and its figure at once.
+			barStart := end - shareBarWidth + 1
 			chgRight := barStart - 2
 			priceRight := chgRight - chgW - 1
 			px := commaFloat(q.Price, 2)
@@ -390,7 +392,7 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 				if q.Buy != nil && q.Sell != nil {
 					if total := *q.Buy + *q.Sell; total > 0 {
 						bb, bs := a.pairOf(s, *q.Buy, *q.Sell)
-						a.shareBarOnly(c, barStart, row, shareBarSpan, bb, bs)
+						a.shareBar(c, barStart, row, shareBarWidth, bb, bs)
 					}
 				}
 			case end-4-runeLen(px)-chgW-1 >= ix+3+used+1:
@@ -1143,19 +1145,21 @@ func (a *App) drawBoardPanel(c *Canvas, x, y, w, h int, side int) {
 			a.flashText(c, ix+25, ry, padRight(changeText(*b.ChangePct), chgW), a.dirColor(*b.ChangePct), true, pxKey)
 			vx = ix + 25 + chgW + 2
 		}
-		barW := shareBarSpan
-		if cw-(vx-ix)-runeLen(pkrTxt)-2 >= shareBarWidth {
-			barW = shareBarWidth
-		}
+		// Owner order 2026-11-12 (latest): every bar in the build carries its
+		// NET DELTA, both boards included, so a board row can never show a bar
+		// with no figure beside it. The field keeps room for the label before
+		// it gives cells away, so the bar shrinks and the figure never leaves.
+		const minBar = shareBarBoxes + shareBarGap + shareNetW
+		barW := shareBarWidth
 		if room := cw - (vx - ix) - runeLen(pkrTxt) - 2; room < barW {
-			barW = max(shareBarBoxes, room)
+			barW = max(minBar, room)
 		}
 		// Owner order 2026-11-12 (latest): both boards draw the one bar, so a
 		// selling board is red because the sellers are in front, never green
 		// because that board's own side is selling, and the pair is the same
 		// measured day pair every other page prints for the scrip.
 		bb, bs := a.pairOf(b.Symbol, b.BuyShares, b.SellShares)
-		a.drawShareBar(c, ix+cw-barW, ry, barW, bb, bs, barW >= shareBarWidth)
+		a.drawShareBar(c, ix+max(0, cw-barW), ry, barW, bb, bs, true)
 		if room := cw - barW - (vx - ix) - 2; room > 0 {
 			c.Text(vx, ry, room, fit(pkrTxt, room), good, true)
 		}
