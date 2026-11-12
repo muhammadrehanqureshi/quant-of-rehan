@@ -113,7 +113,7 @@ func (a *App) openSymbol(sym string) {
 
 // ---------- scanner ----------
 
-var scanChoices = [3]string{"PRICES RISING FAST", "MORE BUYERS & LESS SELLERS", "BIG BUYING & SELLING NOW (LIVE FLOW)"}
+var scanChoices = [2]string{"PRICES RISING FAST", "MORE BUYERS & LESS SELLERS"}
 
 // scanTable is the table the first two sorts rank. The broker feed wins: when
 // a symbol is in /quotes with a fresh tick, that is what is ranked, so the list
@@ -184,12 +184,12 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 				break
 			}
 			ih := sh2 - 2
-			// Owner order 2026-11-11 (fourth pass): the three sort rows are
-			// part of the tile and are never traded away to give the sector
-			// list room, so this test always reserves them. A scrip opened
-			// from a sector grows the search tile above, and without this
-			// reservation that growth used to hide all three sub menus.
-			menu := 3
+			// Owner order 2026-11-11 (fourth pass): the sort rows are part of
+			// the tile and are never traded away to give the sector list room,
+			// so this test always reserves them. A scrip opened from a sector
+			// grows the search tile above, and without this reservation that
+			// growth used to hide both sub menus.
+			menu := len(scanChoices)
 			rows := ih - menu - 2
 			if rows/2 >= 4 {
 				break
@@ -222,7 +222,7 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 		hint = "ESC clears the search"
 	}
 	ix, iy, iw, ih := a.panel(c, x, sy, w, sh2, "CUSTOM SCRIPS BY VOLUME", hint)
-	menu := 3
+	menu := len(scanChoices)
 	if ih < menu+1 {
 		// Only a tile with no room left at all drops a sort row.
 		menu = max(0, ih-1)
@@ -267,10 +267,6 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 	top := head + 1
 	rows := iy + ih - top
 	if rows < 1 {
-		return
-	}
-	if a.scanChoice == 3 {
-		a.drawFlowList(c, ix, head, top, iw, rows, x+w-2)
 		return
 	}
 	tbl := a.scanTable()
@@ -769,66 +765,6 @@ func (a *App) sectorGroups() []Sector {
 	return a.sectors.Items
 }
 
-// drawFlowList lists the stocks moving hardest on either side in the last
-// minute, every one of them, with the list scrolling when they do not all fit.
-func (a *App) drawFlowList(c *Canvas, ix, head, top, iw, rows, barX int) {
-	th := a.th
-	board := a.flowRows(200)
-	if len(board) == 0 {
-		msg := "No stock is being bought or sold in size right now."
-		if !a.trading() {
-			msg = "This list fills while the market is trading."
-		}
-		c.Text(ix, top, iw, msg, th.Soft, false)
-		return
-	}
-	a.lvScan.set(len(board), rows/2)
-	rightAlign(c, ix, head, iw, []Span{{a.showing(&a.lvScan, "stock"), th.Soft, false}})
-	c.Text(ix+runeLen(scanChoices[2])+2, head, iw, "·  last 60 seconds", th.Soft, false)
-	row := top
-	cw := contentW(&a.lvScan, iw)
-	for n := 0; n < a.lvScan.view; n++ {
-		i := a.lvScan.off + n
-		if i >= len(board) {
-			break
-		}
-		b := board[i]
-		pxKey := "px:" + b.Symbol
-		a.zebra(c, ix, row, cw, 2, i, b.Symbol)
-		flag := ""
-		if b.Flagged {
-			flag = " ◆"
-		}
-		c.Spans(ix, row, cw, []Span{{fmt.Sprintf("%3d. ", i+1), th.Soft, false}, {b.Symbol, th.Hot, true}, {flag, th.Warn, true}})
-		// Owner order 2026-11-10 (latest): no bar on the live flow board.
-		right := ix + cw
-		if b.ChangePct != nil {
-			t := " " + changeText(*b.ChangePct)
-			a.flashRight(c, right, row, t, a.dirColor(*b.ChangePct), true, pxKey)
-			right -= runeLen(t)
-		}
-		ps := commaFloat(b.Price, 2)
-		a.flashRight(c, right, row, ps, th.Text, true, pxKey)
-		c.Text(right-runeLen(ps)-4, row, 4, "PKR ", th.Soft, false)
-		row++
-		buy, sell, tot := b.BuyShares, b.SellShares, b.BuyShares+b.SellShares
-		w := a.putBST(c, ix+5, row, &buy, &sell, &tot, pxKey)
-		barW := 0
-		if tot > 0 && cw-5-w-2 >= shareBarWidth {
-			// Owner order 2026-11-10 (latest): the flow board carries its bar
-			// again, at the right edge of its own volume row.
-			barW = shareBarWidth
-			a.shareBar(c, ix+cw-barW, row, barW, float64(buy)/float64(tot))
-		}
-		if left := cw - 5 - w - 2 - barW; left > 12 {
-			c.Spans(ix+5+w+2, row, left, []Span{{"PKR ", th.Soft, false}, {compactNum(b.BuyValue), th.Good, true},
-				{" bought / ", th.Soft, false}, {compactNum(b.SellValue), th.Bad, true}, {" sold", th.Soft, false}})
-		}
-		row++
-	}
-	a.scrollbar(c, barX, top, a.lvScan.view*2, &a.lvScan)
-}
-
 // Owner order 2026-11-11: the bar sits on the cell's centre line again. The
 // lower blocks put it on the floor of the cell, so every bar read as a bar at
 // the bottom of its box. The heavy horizontal rule is the one glyph that joins
@@ -841,6 +777,11 @@ func (a *App) drawFlowList(c *Canvas, ix, head, top, iw, rows, barX int) {
 // regular weight it spans the cell's width, so the band stays unbroken. The
 // lower and upper blocks are not used because they stand on the floor or the
 // top of the cell.
+//
+// Owner order 2026-11-12: the bar is one solid band now. Each cell carries its
+// ink as the background as well as on the glyph, so the cell seam and the small
+// bars the owner saw inside the band are gone, and the band stands at the full
+// height of the cell. The span, row, label and two inks do not move.
 const barBlock = '▬'
 
 // shareBarBoxes is how many boxes a buy versus sell bar holds. Owner order
@@ -907,11 +848,11 @@ func (a *App) drawShareBar(c *Canvas, x, y, w int, buyShare float64, label bool)
 			ink = th.Good
 		}
 		for k := at; k < at+width; k++ {
-			// Owner order 2026-11-11: the centred rectangle joins its neighbour
-			// edge to edge in the regular weight, leaves no small box inside the
-			// bar and never sits on the floor of the cell. Its span, row and
-			// colours are untouched.
-			c.Put(x+k, y, barBlock, ink, false)
+			// Owner order 2026-11-12: the cell carries its ink as the background
+			// as well, so the rectangle's cell seam and every small bar inside
+			// the band disappear and the bar is one solid full-cell band. Its
+			// span, row, label and two inks are untouched.
+			c.Set(x+k, y, barBlock, ink, ink, false)
 		}
 		at += width
 	}

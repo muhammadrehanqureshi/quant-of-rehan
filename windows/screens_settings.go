@@ -102,10 +102,11 @@ func (a *App) drawSettings(c *Canvas, x, y, w, h int) {
 		c.Text(bx+16, brow, max(1, bw-16), fit(v, max(1, bw-16)), col, false)
 		brow++
 	}
-	info("RELAY", a.relay.Base, th.Text)
+	// Owner order 2026-11-12: VERSION stands before RELAY in the facts tile.
 	// Owner order 2026-11-09: the settings page names the app version alone,
 	// with no Windows build number and no ported app version beside it.
 	info("VERSION", appVersionLabel, th.Hot)
+	info("RELAY", a.relay.Base, th.Text)
 	info("REQUESTS TODAY", commaInt(a.reqToday())+" of 90,000 allowed.", th.Text)
 	info("", "The app stops at 90,000 of Cloudflare's 100,000 a day, so the day", th.Text)
 	info("", "is never exhausted. The count resets at 05:00 PKT.", th.Text)

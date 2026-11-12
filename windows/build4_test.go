@@ -25,61 +25,6 @@ func busyApp(t *testing.T, w, h, n int) *App {
 	return a
 }
 
-func TestScannerFlowListScrollsAndNeverCutsAnItem(t *testing.T) {
-	a := busyApp(t, 122, 30, 30)
-	a.screen, a.scanChoice = scrScanner, 3
-	if s := plain(a); !strings.Contains(s, "  1. S01") {
-		t.Fatalf("the first stock must be numbered 1:\n%s", s)
-	}
-	view := a.lvScan.view
-	if view < 4 || view >= 30 {
-		t.Fatalf("the list should show a few stocks and scroll for the rest, view %d", view)
-	}
-	// Every shown item has both of its rows: a title row and a B, S and T row.
-	rows := rowsOf(a)
-	titles, bst := 0, 0
-	for _, r := range rows {
-		if regexp.MustCompile(`^.*\s\d+\. S\d\d`).MatchString(r) && strings.Contains(r, "PKR") {
-			titles++
-		}
-		if strings.Contains(r, "B=") {
-			bst++
-		}
-	}
-	if titles != view || bst != view {
-		t.Errorf("view %d: %d title rows and %d B, S & T rows", view, titles, bst)
-	}
-	a.onKey(Key{Kind: KEnd})
-	last := plain(a)
-	if !strings.Contains(last, " 30. S30") || strings.Contains(last, "  1. S01") {
-		t.Errorf("End must reach stock 30:\n%s", last)
-	}
-	a.onKey(Key{Kind: KHome})
-	if !strings.Contains(plain(a), "  1. S01") {
-		t.Errorf("Home must come back to stock 1")
-	}
-	a.onKey(Key{Kind: KPgDn})
-	if a.lvScan.off != view-1 {
-		t.Errorf("page down moves one page less a row of overlap: %d", a.lvScan.off)
-	}
-	a.onKey(Key{Kind: KUp})
-	if a.lvScan.off != view-2 {
-		t.Errorf("up moves one stock: %d", a.lvScan.off)
-	}
-	for i := 0; i < 100; i++ {
-		a.onKey(Key{Kind: KMouse, X: 60, Y: 20, Btn: MouseWheelDown})
-	}
-	if a.lvScan.off != 30-view {
-		t.Errorf("the wheel stops at the end: %d", a.lvScan.off)
-	}
-	for i := 0; i < 100; i++ {
-		a.onKey(Key{Kind: KMouse, X: 60, Y: 20, Btn: MouseWheelUp})
-	}
-	if a.lvScan.off != 0 {
-		t.Errorf("the wheel stops at the top: %d", a.lvScan.off)
-	}
-}
-
 func TestAlertsBoardIsNumberedAndScrolls(t *testing.T) {
 	a := busyApp(t, 122, 30, 25)
 	a.screen = scrAlerts
@@ -128,7 +73,6 @@ func TestBSTFormatEverywhere(t *testing.T) {
 		{"home", func(a *App) {}},
 		{"scanner rising", func(a *App) { a.screen, a.scanChoice = scrScanner, 1 }},
 		{"scanner buyers", func(a *App) { a.screen, a.scanChoice = scrScanner, 2 }},
-		{"scanner flow", func(a *App) { a.screen, a.scanChoice = scrScanner, 3 }},
 		{"search", func(a *App) {
 			a.screen = scrScanner
 			for _, r := range "alf" {
@@ -357,7 +301,7 @@ func TestOnlySafeGlyphsOnScreen(t *testing.T) {
 				a := busyApp(t, sz[0], sz[1], 8)
 				a.screen = screenID(scr)
 				if scr == int(scrScanner) {
-					a.scanChoice = 3
+					a.scanChoice = 2
 				}
 				snapshotState(a, st)
 				for y, row := range rowsOf(a) {

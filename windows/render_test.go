@@ -113,12 +113,8 @@ func TestScreensShowTheAppsText(t *testing.T) {
 	a.scanChoice = 1
 	scan = plain(a)
 	checkOrder("rising fast", rankedSpeedSymbols(a.scanTable()), scan)
-	a.scanChoice = 3
-	flow := plain(a)
-	for _, want := range []string{"BIG BUYING & SELLING NOW (LIVE FLOW)", "bought", "ECHO"} {
-		if !strings.Contains(flow, want) {
-			t.Errorf("flow list is missing %q", want)
-		}
+	if strings.Contains(scan, "BIG BUYING & SELLING NOW (LIVE FLOW)") {
+		t.Errorf("the flow sort is still on the scanner:\n%s", scan)
 	}
 	a.screen = scrSettings
 	set := plain(a)
@@ -128,6 +124,16 @@ func TestScreensShowTheAppsText(t *testing.T) {
 		"BIG BUYING FLAG", "BIG SELLING FLAG", "SOUND", "BIG ORDER SIZE", "TEST BUYING ALERT", "TEST SELLING ALERT"} {
 		if !strings.Contains(set, want) {
 			t.Errorf("settings is missing %q", want)
+		}
+	}
+	factsAt := strings.Index(set, "BUILD VERSION & RELAY")
+	if factsAt < 0 {
+		t.Errorf("the settings page has no facts tile")
+	} else {
+		rest := set[factsAt+len("BUILD VERSION & RELAY"):]
+		v, r := strings.Index(rest, "VERSION"), strings.Index(rest, "RELAY")
+		if v < 0 || r < 0 || v > r {
+			t.Errorf("VERSION must come before RELAY in the facts tile:\n%s", set)
 		}
 	}
 }

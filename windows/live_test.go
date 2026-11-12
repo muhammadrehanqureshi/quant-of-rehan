@@ -368,9 +368,8 @@ func TestMouseOnListsAndSettings(t *testing.T) {
 	if a.scanChoice != 2 {
 		t.Errorf("scanner choice by click: %d", a.scanChoice)
 	}
-	clickText(t, a, "BIG BUYING & SELLING NOW (LIVE FLOW)")
-	if a.scanChoice != 3 {
-		t.Errorf("flow sort by click: %d", a.scanChoice)
+	if strings.Contains(plain(a), "BIG BUYING & SELLING NOW (LIVE FLOW)") {
+		t.Errorf("the flow sort is still on the scanner")
 	}
 
 	a.screen = scrSettings
