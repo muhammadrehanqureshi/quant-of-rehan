@@ -2246,9 +2246,11 @@ class VersionTest(unittest.TestCase):
         # stop ships as 4.0.17. Owner order 2026-11-11: the themed caret,
         # the diamond scroller and the always-moving orb ship as 4.0.18.
         # The second pass on 2026-11-11 ships as 4.0.19; the third pass
-        # ships as 4.0.20.
-        self.assertIn('android:versionName="4.0.20"', manifest)
-        self.assertIn('android:versionCode="129"', manifest)
+        # ships as 4.0.20. Owner order 2026-11-12: the phone's CUSTOM
+        # SCRIPS OF VOL. menu names all six sorts the console carries, and
+        # it ships as 4.0.21.
+        self.assertIn('android:versionName="4.0.21"', manifest)
+        self.assertIn('android:versionCode="130"', manifest)
         self.assertNotIn('android:versionName="4.0.15"', manifest)
         self.assertNotIn('android:versionName="4.0.14"', manifest)
         self.assertNotIn('android:versionName="3.7.5"', manifest)
@@ -2466,9 +2468,10 @@ class VersionTest(unittest.TestCase):
         # stop ships as 4.0.17. Owner order 2026-11-11: the themed caret,
         # the diamond scroller and the always-moving orb ship as 4.0.18.
         # The second pass on 2026-11-11 ships as 4.0.19; the third pass
-        # ships as 4.0.20.
-        self.assertIn('android:versionCode="129"', manifest)
-        self.assertIn('android:versionName="4.0.20"', manifest)
+        # ships as 4.0.20. Owner order 2026-11-12: the phone's CUSTOM
+        # SCRIPS OF VOL. menu names all six sorts and ships as 4.0.21.
+        self.assertIn('android:versionCode="130"', manifest)
+        self.assertIn('android:versionName="4.0.21"', manifest)
         self.assertNotIn('android:versionName="4.0.15"', manifest)
         self.assertNotIn('android:versionName="3.7.5"', manifest)
         self.assertNotIn('android:versionName="3.7.4"', manifest)
@@ -3532,8 +3535,22 @@ class MenuOrdersTest(unittest.TestCase):
         self.assertIn(
             'name="volume_split_caption">MORE BUYERS &amp; LESS SELLERS<',
             self.strings)
-        self.assertLess(self.strings.index('"volume_speed_caption"'),
-                        self.strings.index('"volume_split_caption"'))
+        # Owner order 2026-11-12: the console's four sorts are the menu's
+        # rows 3 to 6, in the console's own order, each named in the
+        # console's own words.
+        for caption in (
+                'name="volume_seller_caption">MORE SELLERS &amp; LESS BUYERS<',
+                'name="volume_quiet_caption">ALMOST NO VOLUME AT ALL<',
+                'name="volume_lower_lock_caption">SCRIPS WITH LOWER LOCK<',
+                'name="volume_upper_lock_caption">SCRIPS WITH UPPER LOCK<'):
+            self.assertIn(caption, self.strings)
+        order = ['"volume_speed_caption"', '"volume_split_caption"',
+                 '"volume_seller_caption"', '"volume_quiet_caption"',
+                 '"volume_lower_lock_caption"',
+                 '"volume_upper_lock_caption"']
+        for earlier, later in zip(order, order[1:]):
+            self.assertLess(self.strings.index(earlier),
+                            self.strings.index(later))
         self.assertLess(self.layout.index("@+id/tile_volume"),
                         self.layout.index("@+id/tile_market"))
         # v2.2.1: ONE dropdown ("make only one drop down menu"), and BOTH
@@ -3568,9 +3585,22 @@ class MenuOrdersTest(unittest.TestCase):
         self.assertIn("rankedSpeedSymbols(", self.main)
         self.assertIn("private void paintVolumeReveal()", self.main)
         # v2.3.11: row 0 is the SELECT CUSTOM SCRIPS placeholder, so the
-        # riser ranking moved to row 1 and the B/S split to row 2.
-        self.assertIn("volumeSplitChoice == 2", self.main)
+        # riser ranking moved to row 1 and the B/S split to row 2. Owner
+        # order 2026-11-12: the four console sorts join them as rows 3 to
+        # 6, and one helper maps a row to its ranking.
         self.assertIn("volumeSplitChoice < 1", self.main)
+        self.assertIn("rankedVolumeSymbols(volumeSplitChoice, quotes)",
+                      self.main)
+        for call in ("case 2:", "case 3:", "case 4:", "case 5:",
+                     "case 6:"):
+            self.assertIn(call, self.main)
+        for call in ("rankedSplitSymbols(quotes)",
+                     "rankedSellerSymbols(quotes)",
+                     "rankedQuietSymbols(quotes)",
+                     "rankedLockSymbols(quotes, true)",
+                     "rankedLockSymbols(quotes, false)",
+                     "rankedSpeedSymbols(quotes)"):
+            self.assertIn(call, self.main)
         # The tile is the scanner page's own content now: one boolean owns
         # its visibility, in the one scanner toggle, and the search toggle
         # no longer touches it.

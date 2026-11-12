@@ -1,6 +1,6 @@
 # Quant of Rehan for Windows (console edition), build 94
 
-A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.20**, in the look of the first build.
+A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.21**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
 
 ## What is new in build 94
