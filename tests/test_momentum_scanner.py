@@ -22,13 +22,16 @@ import tempfile
 import unittest
 from datetime import date, datetime, timedelta
 from pathlib import Path
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from src import config  # noqa: E402
 from src.data.sessions import KARACHI, open_time  # noqa: E402
+from src.signals import kalman_trend  # noqa: E402
 from src.signals import momentum_scanner as scanner  # noqa: E402
+from src.signals import mtf_vwap  # noqa: E402
 
 
 WEDNESDAY = date(2026, 10, 7)      # Mon-Thu session: 09:32 to 15:30 PKT
@@ -378,16 +381,26 @@ class TestOwnerOrderedCallWatch(unittest.TestCase):
     def test_veto_over_a_ranked_setup_delivers_a_watch(self):
         from tests.kalman_fixture import setup_rows
         bars = {"OGDC": setup_rows(scanner, SESSION_OPEN)}
-        session = session_of(bars, 43)
-        quality = scanner.assess_quality(session, ["OGDC"])
+        # A market leg needs a cross section, so the scan carries the quiet
+        # tail beside the one name the fixture moves.
+        for index in range(20):
+            bars[f"QUIET{index:02d}"] = minute_rows(150)
+        session = session_of(bars, 131)
+        quality = scanner.assess_quality(session, list(bars))
         assert quality.status != scanner.DATA_BLOCKED, quality.reason
         scanner.market_context = lambda s: {
             "median_return": -0.05, "info_score": 1.0}
 
-        config.OWNER_ORDERED_CALLS = True
-        watch = scanner.select_one(session, quality)
-        config.OWNER_ORDERED_CALLS = False
-        plain = scanner.select_one(session, quality)
+        with patch.object(kalman_trend, "filter_series",
+                          lambda closes, q, r, threshold: [
+                              {"level": 0.0, "slope": 1e-4, "state": 1,
+                               "flip_up": index == 0}
+                              for index in range(len(closes))]), \
+                patch.object(mtf_vwap, "kalman_state", lambda bars: 1):
+            config.OWNER_ORDERED_CALLS = True
+            watch = scanner.select_one(session, quality, frames=True)
+            config.OWNER_ORDERED_CALLS = False
+            plain = scanner.select_one(session, quality, frames=True)
 
         self.assertEqual(watch.status, scanner.CALL_WATCH)
         self.assertTrue(watch.ranked)

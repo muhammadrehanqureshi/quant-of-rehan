@@ -50,7 +50,9 @@ sys.path.insert(0, str(ROOT))
 from src import config  # noqa: E402
 from src.data.sessions import KARACHI, open_time  # noqa: E402
 from src.research import session_history  # noqa: E402
+from src.signals import kalman_trend  # noqa: E402
 from src.signals import momentum_scanner as scanner  # noqa: E402
+from src.signals import mtf_vwap  # noqa: E402
 from src.signals import trade_state  # noqa: E402
 from src.signals.trade_state import State  # noqa: E402
 from scripts import intraday_pipeline as pipeline  # noqa: E402
@@ -59,8 +61,9 @@ from scripts.intraday_pipeline import run_finalize, run_scan  # noqa: E402
 FRIDAY = date(2026, 10, 9)      # open 09:17, close 16:30 Karachi
 OPEN_AT = datetime.combine(FRIDAY, __import__("datetime").time(*open_time(FRIDAY)),
                            tzinfo=KARACHI)
-# The clock the pipeline sees. Pinned so the suite is weekday independent.
-FIXED_NOW = datetime(2026, 10, 9, 10, 0, tzinfo=KARACHI)
+# The clock the pipeline sees. Pinned so the suite is weekday independent,
+# and after the capture's own last bar so the finalize reads a finished tape.
+FIXED_NOW = datetime(2026, 10, 9, 11, 41, tzinfo=KARACHI)
 WINNER = "OGDC"
 REAL_FORWARD = ROOT / "data" / "forward"
 
@@ -194,7 +197,7 @@ class RelayRecorder:
 from kalman_fixture import setup_values
 
 
-def build_capture(path: Path, symbols: list[str], minutes: int = 60) -> Path:
+def build_capture(path: Path, symbols: list[str], minutes: int = 150) -> Path:
     with path.open("w", encoding="utf-8") as handle:
         for symbol in symbols:
             bars = []
@@ -208,7 +211,7 @@ def build_capture(path: Path, symbols: list[str], minutes: int = 60) -> Path:
     return path
 
 
-def build_tape(path: Path, symbols: list[str], minutes: int = 60) -> Path:
+def build_tape(path: Path, symbols: list[str], minutes: int = 150) -> Path:
     """Four prints per minute reproduce real OHLC, not venue daily highs."""
     return build_tape_window(path, symbols, OPEN_AT, minutes)
 
@@ -274,6 +277,22 @@ class PipelineCycleTest(unittest.TestCase):
         clock_patcher = patch.object(pipeline, "now_karachi", lambda: FIXED_NOW)
         clock_patcher.start()
         self.addCleanup(clock_patcher.stop)
+
+        # The trend legs are not what this test measures: it drives the whole
+        # paper cycle. They are pinned up here, while the VWAP, the z score,
+        # the market leg, the owner's plan and every data gate run for real on
+        # the synthetic capture.
+        trend_patcher = patch.object(kalman_trend, "filter_series",
+                                     lambda closes, q, r, threshold: [
+                                         {"level": 0.0, "slope": 1e-4,
+                                          "state": 1,
+                                          "flip_up": index == 0}
+                                         for index in range(len(closes))])
+        trend_patcher.start()
+        self.addCleanup(trend_patcher.stop)
+        frame_patcher = patch.object(mtf_vwap, "kalman_state", lambda bars: 1)
+        frame_patcher.start()
+        self.addCleanup(frame_patcher.stop)
 
         self.before = _snapshot_dir(REAL_FORWARD)
 
@@ -390,7 +409,9 @@ class PipelineCycleTest(unittest.TestCase):
         text.encode("ascii")
 
     def test_full_paper_cycle(self):
-        first = self.scan("10:00")
+        # 11:28 is the first slot with enough tape for the one hour frame and
+        # a price still stretched below the fifteen minute VWAP.
+        first = self.scan("11:28")
         quality = first["data_quality"]
 
         self.assertEqual(quality["status"], "OK")
@@ -425,7 +446,7 @@ class PipelineCycleTest(unittest.TestCase):
 
         # a later scan must not enter a second trade, and must not pretend the
         # day is a market NO TRADE either
-        second = self.scan("10:15")
+        second = self.scan("11:40")
         self.assertEqual(second["trade_state"]["trades_today"], 1)
         self.assertEqual(second["trade_state"]["symbol"], WINNER)
         self.assertNotEqual(second["status"], scanner.NO_TRADE)
@@ -500,26 +521,26 @@ class PipelineCycleTest(unittest.TestCase):
         stop or target sentence, never on the entry sentence.
         """
         with patch.object(pipeline, "email_signal", return_value=True):
-            first = self.scan("10:00")
+            first = self.scan("11:28")
             self.assertEqual(first["status"], scanner.TRADE)
             entry = first["candidate"]["price"]["last"]
             stop = round(entry * (1 - config.KALMAN_STOP_PCT), 4)
 
             stop_capture = Path(self._dir.name) / "stop.ndjson"
-            build_capture(stop_capture, self.symbols(), 60)
+            build_capture(stop_capture, self.symbols(), 150)
             rows = []
             for line in stop_capture.read_text(encoding="utf-8").splitlines():
                 row = json.loads(line)
                 if row["symbol"] == WINNER:
                     for bar in row["bars"]:
-                        if bar["t"] == "10:00":
+                        if bar["t"] == "11:28":
                             bar.update(o=entry,
                                        h=round(entry * 1.005, 4),
                                        l=round(entry * 0.98, 4),
                                        c=round(entry * 0.985, 4))
                 rows.append(json.dumps(row))
             stop_capture.write_text("\n".join(rows) + "\n", encoding="utf-8")
-            second = self.scan("10:02", stop_capture)
+            second = self.scan("11:30", stop_capture)
 
         self.assertEqual(second["trade_state"]["exit_reason"], "STOP_HIT")
         cards = [payload["signals"] for _, route, payload in self.relay.calls

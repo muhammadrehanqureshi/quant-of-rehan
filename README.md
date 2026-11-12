@@ -65,31 +65,24 @@ rather than inventing a fresher number.
 
 ## What is true today
 
-- **One scanner**: [src/signals/momentum_scanner.py](src/signals/momentum_scanner.py)
-  returns exactly one confirmed Kalman Trend long (the fresh flip, or the three
-  frame agreement's pullback), NO TRADE, or DATA BLOCKED, with market context
-  gating and late-entry refusal instead of any fallback signal.
-- **The latest strategy**: [src/signals/hybrid_arb_mr.py](src/signals/hybrid_arb_mr.py)
-  is the newest entry law (`kalman_vwap_hybrid_sa_mr_v1`, owner order
-  2026-11-12): the Kalman Trend with VWAP on the 5 minute, 15 minute and 1 hour
-  charts and a hybrid statistical arbitrage and mean reversion model. It calls
-  a name stretched at least `HYBRID_Z_MIN` standard deviations below the 15
-  minute frame's VWAP while the 5 minute frame's Kalman state has turned up and
-  the name lags the scan's own equal-weight market leg, the cheap side of the
-  pair, and it is a third entry path inside the one scanner, never a second
-  engine.
-- **The law it joins**: [src/signals/kalman_vwap_rs.py](src/signals/kalman_vwap_rs.py)
-  is the running three frame law (`kalman_vwap_rs_v3`, owner order 2026-11-09): the Kalman
-  Trend with VWAP on the 5 minute, 15 minute and 1 hour charts and relative
-  strength. Relative strength is the name's session return minus the
-  equal-weight mean of the captured universe, measured from the session tape
-  alone. Both entry paths stay: [src/signals/kalman_trend.py](src/signals/kalman_trend.py)
-  owns the fresh flip (`kalman_trend_flip_v1`), and
-  [src/signals/kalman_vwap_pullback.py](src/signals/kalman_vwap_pullback.py)
-  owns the three frame VWAP pullback (`kalman_vwap_pullback_v2`), which must
-  keep both the dip and the entry in the lower half of the day's range. The
-  owner's order of 2026-11-08 set those three frames (5 minute, 15 minute and
-  1 hour) and withdrew the 1 day frame and its daily file.
+- **One scanner, one strategy**: [src/signals/momentum_scanner.py](src/signals/momentum_scanner.py)
+  returns exactly one confirmed long under the one running law, NO TRADE, or
+  DATA BLOCKED, with market context gating and late-entry refusal instead of
+  any fallback signal.
+- **The one strategy**: [src/signals/hybrid_arb_mr.py](src/signals/hybrid_arb_mr.py)
+  is the running law (`kalman_vwap_hybrid_sa_mr_v1`, owner order 2026-11-12):
+  the Kalman Trend with VWAP on the 5 minute, 15 minute and 1 hour charts and a
+  hybrid statistical arbitrage and mean reversion model. It calls a name
+  stretched at least `HYBRID_Z_MIN` standard deviations below the 15 minute
+  frame's VWAP while the 5 minute frame's Kalman state has turned up and the
+  name lags the scan's own equal weight market leg, the cheap side of the pair.
+  The owner's order of 2026-11-12 removed every previous strategy: the fresh
+  one minute flip, the three frame VWAP pullback and the relative strength
+  gate are gone from the tree, `kalman_trend.py` builds no entry from them, and
+  only the market leg measurement survives ([src/signals/market_leg.py](src/signals/market_leg.py))
+  because the running law reads it. The owner's order of 2026-11-08 set the
+  three frames (5 minute, 15 minute and 1 hour) and withdrew the 1 day frame
+  and its daily file.
 - **One configuration surface**: [src/config.py](src/config.py) holds the
   target, the coverage floor, the Kalman and VWAP parameters, the pullback
   window, the scan cadence and the paper/live switch. Paper is the default;

@@ -1,16 +1,17 @@
 # Intraday Forward Validation System
 
-## Active strategy, 2026-10-30 (Karachi)
+## Active strategy, 2026-11-12 (Karachi)
 
-The active intraday rules are the owner's Kalman Trend strategies:
-`kalman_trend_flip_v1` (owner order 2026-10-30, which removed ICT/SMC
-outright) and `kalman_vwap_pullback_v2` (owner order 2026-11-06, frame list
-updated 2026-11-08, below). The newest law is
-`kalman_vwap_hybrid_sa_mr_v1` (owner order 2026-11-12, below), the hybrid
-statistical arbitrage and mean reversion entry beside those two; before it,
-`kalman_vwap_rs_v3` (owner order 2026-11-09, below) was that three frame law
-plus relative strength.
-See src/signals/kalman_trend.py and src/signals/kalman_vwap_pullback.py for
+The only intraday strategy is `kalman_vwap_hybrid_sa_mr_v1` (owner order
+2026-11-12, below): the Kalman Trend with VWAP on the 5 minute, 15 minute and
+1 hour charts and the hybrid statistical arbitrage and mean reversion model.
+The previous strategies are removed, not disabled: the fresh one minute flip
+(`kalman_trend_flip_v1`), the three frame VWAP pullback
+(`kalman_vwap_pullback_v2`) and the relative strength gate
+(`kalman_vwap_rs_v3`) have no module, no constant and no code path left. What
+survives from the last of them is the market leg measurement only
+(src/signals/market_leg.py), because the running law reads it.
+See src/signals/kalman_trend.py and src/signals/hybrid_arb_mr.py for
 the authoritative contracts: entry, stop and exit on the intraday band feed,
 the owner's +2% target, parameters grid-fit in GitHub Actions. Momentum/RSI
 gates and daily-model routing no longer decide entries. Historical
@@ -22,8 +23,8 @@ daily entry claim. No broker orders are transmitted.
 
 ## Kalman Trend, VWAP 5m/15m/1h and hybrid statistical arbitrage with mean reversion, owner order 2026-11-12 (Karachi)
 
-The newest intraday strategy, and a third entry path inside the one scanner,
-is labelled `kalman_vwap_hybrid_sa_mr_v1` with the reader `hybrid_sa_mr_v1`
+The running intraday strategy, and the only strategy the scanner can build an
+entry from, is labelled `kalman_vwap_hybrid_sa_mr_v1` with the reader `hybrid_sa_mr_v1`
 (src/signals/hybrid_arb_mr.py). It keeps the Kalman Trend and the VWAP on
 the 5 minute, 15 minute and 1 hour charts and adds a hybrid statistical
 arbitrage and mean reversion model: the price must sit at least
@@ -39,7 +40,7 @@ frame or an unmeasured market fails closed with its reason named; the frames,
 the z score and the market lag are all measured from completed bars of the
 session tape alone, so no daily history returns.
 
-## Kalman Trend, VWAP 5m/15m/1h and relative strength, owner order 2026-11-09 (Karachi)
+## Kalman Trend, VWAP 5m/15m/1h and relative strength, owner order 2026-11-09 (withdrawn 2026-11-12, kept as the record)
 
 The latest intraday strategy, and the running law until the owner changes it,
 is the Kalman Trend with VWAP on the 5 minute, 15 minute and 1 hour charts
@@ -63,7 +64,7 @@ capture holding fewer than `RS_MIN_MARKET_SYMBOLS` measured names has no
 market leg at all, and the scan says so and opens nothing rather than
 dropping the gate silently.
 
-## Three frame VWAP pullback, owner order 2026-11-08 (Karachi)
+## Three frame VWAP pullback, owner order 2026-11-08 (withdrawn 2026-11-12, kept as the record)
 
 The updated intraday signal is the Kalman Trend with VWAP on the 5 minute,
 15 minute and 1 hour charts, and the pullback is the entry. Price crossing

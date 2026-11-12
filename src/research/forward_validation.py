@@ -50,13 +50,12 @@ MAX_MONITOR_LOSING_STREAK = 8
 #: interval. Adding it makes the family-wise correction STRICTER (the alpha
 #: is divided across the registered rules), never weaker.
 LIVE_RULE = config.SCANNER_VERSION
-# Owner order 2026-11-09: the running law is now the Kalman Trend with the
-# three VWAP frames and relative strength (`kalman_vwap_rs_v3`). It is
-# registered beside the flip so a row it produced is scored under its own
-# name rather than folded into the flip's record, and the family-wise
-# correction stays as strict as it was: adding a rule can only tighten it.
-REGISTERED_RULES = tuple(dict.fromkeys((*CANDIDATE_RULES, LIVE_RULE,
-                                        config.RS_STRATEGY_VERSION)))
+# Owner order 2026-11-12: the one running law is the Kalman Trend with the
+# three VWAP frames and the hybrid statistical arbitrage and mean reversion
+# model (`kalman_vwap_hybrid_sa_mr_v1`). Every previous strategy is removed,
+# so only the live rule is registered beside the frozen historical cohorts,
+# and a row is always scored under the scanner version that produced it.
+REGISTERED_RULES = tuple(dict.fromkeys((*CANDIDATE_RULES, LIVE_RULE)))
 
 
 def _stamp(value: str) -> datetime:

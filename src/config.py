@@ -254,7 +254,14 @@ def is_etf_symbol(symbol: str) -> bool:
 
     return eligibility.is_etf(symbol)
 
-SCANNER_VERSION = "kalman_trend_flip_v1"
+# The scanner's identity is the one law it runs. Owner order 2026-11-12
+# (Karachi): the previous strategies (the fresh flip, the three frame VWAP
+# pullback and the relative strength gate) are removed, and the only strategy
+# is the Kalman Trend with the three VWAP frames and the hybrid statistical
+# arbitrage and mean reversion model (src/signals/hybrid_arb_mr.py). The name
+# is kept as a constant because the relay, the journal and the research gate
+# file every signal under it.
+SCANNER_VERSION = "kalman_vwap_hybrid_sa_mr_v1"
 
 # The Kalman Trend, the owner's sole intraday strategy (owner order
 # 2026-10-30). The filter numbers below are the starting pair; the tuned
@@ -298,47 +305,16 @@ MTF_TIMEFRAMES = (5, 15, 60)
 MTF_VWAP_LOOKBACK = {5: 12, 15: 12, 60: 12}
 MTF_MIN_BARS = {5: 3, 15: 2, 60: 2}
 
-# ----------------------------- Kalman Trend three frame VWAP pullback
-# Owner order 2026-11-08 (the updated intraday signal he checks on Nov 10):
-# a second intraday entry beside the fresh one minute flip. When the one
-# minute Kalman Trend is up and the 5 minute, 15 minute and 1 hour VWAP
-# frames agree, the alignment is not itself the entry: the entry is the
-# resumption after the pullback that follows it, and only while both the
-# pullback's low and the entry sit nearer the day's low than its high
-# (src/signals/kalman_vwap_pullback.py). The owner's +2% target, -1% stop,
-# one call a day and every data-honesty gate are unchanged.
-PULLBACK_ENABLED = _flag("PULLBACK_ENABLED", True)
-PULLBACK_STRATEGY_VERSION = "kalman_vwap_pullback_v2"
-#: How many of the current band's completed minutes may hold the pullback.
-PULLBACK_LOOKBACK_BARS = int(_number("PULLBACK_LOOKBACK_BARS", 30))
-#: A resumption older than this many bars is history, not an entry.
-PULLBACK_RESUME_BARS = int(_number("PULLBACK_RESUME_BARS", 5))
-#: The dip must reach this share of the swing high. Percent in the environment,
-#: stored as a fraction like every other threshold here.
-PULLBACK_MIN_DEPTH_PCT = _number("PULLBACK_MIN_DEPTH_PCT", 0.5) / 100.0
-
-# ------------------ Kalman Trend three frame VWAP plus relative strength
-# Owner order 2026-11-09 (Karachi): the newest intraday strategy is the
-# Kalman Trend with VWAP on the 5 minute, 15 minute and 1 hour charts AND
-# relative strength, and it is the running law until the owner changes it
-# again. The three frame agreement and the two entry paths it governs are
-# unchanged (src/signals/mtf_vwap.py, src/signals/kalman_vwap_pullback.py);
-# what is new is that the name being called must also be outperforming the
-# market it trades in (src/signals/kalman_vwap_rs.py).
-#
-# The market leg is the equal-weight mean session return of every symbol the
-# capture holds, measured from the session tape alone. That is the proxy the
-# 2026-11-08 order left standing: the 20 session RS the daily studies used
-# needs the daily history the same order withdrew, so nothing here reads a
-# daily file and the gate is a measured session number, never an assumed one.
-RS_ENABLED = _flag("RS_ENABLED", True)
-RS_STRATEGY_VERSION = "kalman_vwap_rs_v3"
-#: Relative strength must be strictly above this, as a fraction. Zero is the
-#: owner's own wording: the name must beat the market, not merely match it.
-RS_MIN_RELATIVE_PCT = _number("RS_MIN_RELATIVE_PCT", 0.0) / 100.0
+# ------------------------------- the scan's own market leg
+# Owner order 2026-11-12 (Karachi): the relative strength strategy is removed
+# with the other previous strategies. What survives is the measured market
+# leg the one running law reads to know which side of the pair is cheap
+# (src/signals/market_leg.py). It is not a strategy: it opens nothing and it
+# is never a gate on its own. Measured from the session tape alone, as the
+# 2026-11-08 order requires, so no daily history returns.
 #: A market leg needs this many measured symbols. A thin capture cannot say
-#: what the market did, so the gate fails closed rather than guessing.
-RS_MIN_MARKET_SYMBOLS = int(_number("RS_MIN_MARKET_SYMBOLS", 20))
+#: what the market did, so the measurement fails closed rather than guessing.
+MARKET_LEG_MIN_SYMBOLS = int(_number("MARKET_LEG_MIN_SYMBOLS", 20))
 
 # --------------- the hybrid statistical arbitrage and mean reversion law
 # Owner order 2026-11-12 (Karachi): a new intraday strategy joins the book,
@@ -680,20 +656,10 @@ def config_snapshot() -> dict:
             "vwap_lookback": {str(k): v for k, v in MTF_VWAP_LOOKBACK.items()},
             "min_bars": {str(k): v for k, v in MTF_MIN_BARS.items()},
         },
-        "pullback": {
-            "enabled": PULLBACK_ENABLED,
-            "version": PULLBACK_STRATEGY_VERSION,
-            "lookback_bars": PULLBACK_LOOKBACK_BARS,
-            "resume_bars": PULLBACK_RESUME_BARS,
-            "min_depth_pct": round(PULLBACK_MIN_DEPTH_PCT * 100, 4),
-        },
-        "relative_strength": {
-            "enabled": RS_ENABLED,
-            "version": RS_STRATEGY_VERSION,
-            "min_relative_pct": round(RS_MIN_RELATIVE_PCT * 100, 4),
-            "min_market_symbols": RS_MIN_MARKET_SYMBOLS,
-            "basis": "session return minus the equal-weight mean of the "
-                     "captured universe, read from the session tape alone",
+        "market_leg": {
+            "min_market_symbols": MARKET_LEG_MIN_SYMBOLS,
+            "basis": "equal-weight mean session return of the captured "
+                     "universe, read from the session tape alone",
         },
         "hybrid_stat_arb_mean_reversion": {
             "enabled": HYBRID_ENABLED,

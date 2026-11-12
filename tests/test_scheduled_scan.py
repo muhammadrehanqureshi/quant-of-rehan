@@ -59,7 +59,9 @@ from src.data.scan_scheduler import (  # noqa: E402
     run_scanner_schedule,
 )
 from src.data.sessions import KARACHI, open_time  # noqa: E402
+from src.signals import kalman_trend  # noqa: E402
 from src.signals import momentum_scanner as scanner  # noqa: E402
+from src.signals import mtf_vwap  # noqa: E402
 from src.signals import trade_state  # noqa: E402
 from src.signals.trade_state import State  # noqa: E402
 from scripts import intraday_pipeline as pipeline  # noqa: E402
@@ -137,6 +139,23 @@ class ScheduledScanTest(unittest.IsolatedAsyncioTestCase):
         self.addCleanup(self._dir.cleanup)
         root = Path(self._dir.name)
         self.tape = GrowingTape(root / "tape.ndjson", _universe())
+
+        # The trend filter is not what this test measures: it drives the
+        # scheduler, the bar source and the real pipeline. The one running
+        # law's trend legs are therefore pinned up here, while its VWAP, its
+        # z score, its market leg and every data gate still run for real on
+        # the growing tape.
+        trend_patcher = patch.object(kalman_trend, "filter_series",
+                                     lambda closes, q, r, threshold: [
+                                         {"level": 0.0, "slope": 1e-4,
+                                          "state": 1,
+                                          "flip_up": index == 0}
+                                         for index in range(len(closes))])
+        trend_patcher.start()
+        self.addCleanup(trend_patcher.stop)
+        frame_patcher = patch.object(mtf_vwap, "kalman_state", lambda bars: 1)
+        frame_patcher.start()
+        self.addCleanup(frame_patcher.stop)
 
         # The pipeline writes the observation, the session lock and the gate
         # into trade_state.ROOT, so redirecting it there keeps the owner's real
@@ -226,7 +245,7 @@ class ScheduledScanTest(unittest.IsolatedAsyncioTestCase):
         self.clock_start = OPEN_AT + timedelta(minutes=1)
         self.clock.now = self.clock_start
         report, fires = await self.run_schedule(
-            stop_after=OPEN_AT + timedelta(minutes=52))
+            stop_after=OPEN_AT + timedelta(minutes=145))
 
         scans = [(slot, moment) for action, slot, moment in fires
                  if action == "scan"]
@@ -252,7 +271,7 @@ class ScheduledScanTest(unittest.IsolatedAsyncioTestCase):
 
         # The virtual clock stopped where the test asked, so the schedule ran
         # the whole window without a real sleep.
-        self.assertGreaterEqual(self.clock.now, OPEN_AT + timedelta(minutes=52))
+        self.assertGreaterEqual(self.clock.now, OPEN_AT + timedelta(minutes=145))
         self.assertGreater(report.scans, 0)
         self.assertEqual(report.failures, 0)
 
