@@ -34,6 +34,16 @@ jobs:
           python - <<'PY' > /tmp/relay_budget_message
           import json
           import urllib.request
+          from datetime import datetime
+          from zoneinfo import ZoneInfo
+
+          now = datetime.now(ZoneInfo("Asia/Karachi"))
+          minute = now.hour * 60 + now.minute
+          # Owner order 2026-11-12: the budget is only at risk while the day's
+          # tape is running. A scheduled fire GitHub delivers after 15:50 PKT
+          # is a late fire, not a relay fault, so it must not email the owner.
+          if minute < 9 * 60 or minute >= 15 * 60 + 50:
+              raise SystemExit(0)
 
           # Owner report 2026-11-11: an email every day after the close that
           # said only "could not read /health: HTTPError". One busy instant on

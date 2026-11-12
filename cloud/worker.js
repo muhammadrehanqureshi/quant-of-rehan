@@ -432,16 +432,15 @@ function bandsFor(k) {
 // warm-ups, not pre-market sessions: they start the capture before the first
 // trade, while the scanner itself waits for the exchange's published
 // pre-open window (Mon-Thu 09:15 to 09:30, Friday 09:00 to 09:15 and 14:15 to
-// 14:30). The third window is the quant's scanning window: it opens with the
-// exchange's published Post-Close Session at 15:35 (16:35 on Friday) and runs
-// to the owner's own end, 16:00 Monday to Thursday and 17:00 on Friday (owner
-// order 2026-11-10). The pre and post market volume is captured to the last
-// minute of that window.
+// 14:30). The third window is the quant's scanning window: it opens at 15:32
+// (16:32 on Friday) and runs to the feed's last post-close print, 15:49 Monday
+// to Thursday and 16:49 on Friday (owner order 2026-11-12). The pre and post
+// market volume is captured to the last minute of that window.
 const WEEKDAY_WINDOWS = [[[8, 55], [12, 30]], [[12, 30], [15, 30]],
-                         [[15, 35], [16, 0]]];
+                         [[15, 32], [15, 49]]];
 
 const FRIDAY_WINDOWS = [[[8, 55], [12, 30]], [[14, 10], [16, 30]],
-                        [[16, 35], [17, 0]]];
+                        [[16, 32], [16, 49]]];
 
 function dispatchWindowsFor(k) {
   if (!isTradingDay(k)) return [];
@@ -541,7 +540,7 @@ async function ensureBandStart(env, now) {
   }
   // Owner order 2026-11-05 ("always update the signal at the end of the
   // day whether it's winning or losing"): the post-close finalize windows
-  // (Mon-Thu 15:35 to 16:00, Friday 16:35 to 17:00) sit OUTSIDE bandsFor,
+  // (Mon-Thu 15:32 to 15:49, Friday 16:32 to 16:49) sit OUTSIDE bandsFor,
   // so the pillow above could never start one - the day's paper trade
   // waited on GitHub's cron, and when GitHub drops schedules the day's W
   // or L never lands (GLAXO 2026-11-04 is that defect). These windows get
@@ -1086,15 +1085,15 @@ const PRE_OPEN_WINDOWS = {
   4: [[9 * 60 + 15, 9 * 60 + 30]],
   5: [[9 * 60, 9 * 60 + 15], [14 * 60 + 15, 14 * 60 + 30]],
 };
-// Owner order 2026-11-10: the quant scans from 08:55 until 16:00 Monday to
-// Thursday and until 17:00 on Friday, so the post-market frames it captures
-// are accepted for that whole window.
+// Owner order 2026-11-12: the quant scans the post-market from 15:32 to 15:49
+// Monday to Thursday and 16:32 to 16:49 on Friday, so the frames it captures
+// in that window are accepted and a tail after it is still refused.
 const POST_CLOSE_WINDOWS = {
-  1: [[15 * 60 + 35, 16 * 60]],
-  2: [[15 * 60 + 35, 16 * 60]],
-  3: [[15 * 60 + 35, 16 * 60]],
-  4: [[15 * 60 + 35, 16 * 60]],
-  5: [[16 * 60 + 35, 17 * 60]],
+  1: [[15 * 60 + 32, 15 * 60 + 49]],
+  2: [[15 * 60 + 32, 15 * 60 + 49]],
+  3: [[15 * 60 + 32, 15 * 60 + 49]],
+  4: [[15 * 60 + 32, 15 * 60 + 49]],
+  5: [[16 * 60 + 32, 16 * 60 + 49]],
 };
 function frameSessionClock(quote) {
   const at = Date.parse(quote && quote.observed_at ? quote.observed_at : "");

@@ -37,19 +37,19 @@ compatibility_date = "2026-10-01"
 #   wake the afternoon had no publisher and the phone's numbers froze,
 #   measured 2026-10-20. Not a notification edge; the dispatch's own
 #   dedupe key separates it from the morning loop).
-# 10:35 UTC = 15:35 PKT (Mon-Thu post-market window wake: the exchange's
-#   published Post-Close Session opens at 15:35 and closes at 15:50)
+# 10:32 UTC = 15:32 PKT (Mon-Thu post-market window wake: the quant scans
+#   from 15:32 to 15:49, the feed's last post-close print)
 # 03:55 UTC = 08:55 PKT (Friday pre-open recorder warm-up)
 # 04:17 UTC = 09:17 PKT (Friday session 1 open, packed with the warm-up)
 # 07:00 UTC = 12:00 PKT (Friday session 1 close, midday break begins)
 # 09:10 UTC = 14:10 PKT (Friday session 2 pre-open recorder warm-up; the band
 #   opens at 14:32, packed with the warm-up)
 # 09:32 UTC = 14:32 PKT (Friday session 2 open, trading resumes)
-# 11:35 UTC = 16:35 PKT (Friday post-market window wake: 16:35 to 17:00)
-# 10:40/10:50 UTC = 15:40/15:50 PKT (Mon-Thu post-market retries inside
-#   15:35 to 16:00)
-# 11:40/11:50 UTC = 16:40/16:50 PKT (Friday post-market retries inside
-#   16:35 to 17:00)
+# 11:32 UTC = 16:32 PKT (Friday post-market window wake: 16:32 to 16:49)
+# 10:40/10:45 UTC = 15:40/15:45 PKT (Mon-Thu post-market retries inside
+#   15:32 to 15:49)
+# 11:40/11:45 UTC = 16:40/16:45 PKT (Friday post-market retries inside
+#   16:32 to 16:49)
 # packed edge list fires at the 12:00 PKT Friday close, the 15:30 Mon-Thu
 # close and the 16:30 PKT Friday close plus harmless extras the worker
 # discards; a six entry list is rejected (Cloudflare error 10072).
@@ -59,7 +59,7 @@ crons = [
   "30 7 * * 1-4",
   "5,10,17,55 3,4 * * 5",
   "10,20,25,32 9 * * 5",
-  "0,30,35,40,50 7,10,11 * * 1-5",
+  "0,30,32,40,45 7,10,11 * * 1-5",
 ]
 
 # No KV namespace, on purpose. Owner order 2026-10-20: no product that

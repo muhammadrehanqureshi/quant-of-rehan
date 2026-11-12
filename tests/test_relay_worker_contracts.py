@@ -611,7 +611,7 @@ class RelayWorkerContractTest(unittest.TestCase):
     def test_the_poll_pillow_wakes_the_post_close_finalize(self):
         """Owner order 2026-11-05 ("always update the signal at the end of
         the day whether it's winning or losing"): the post-close finalize
-        windows (Mon-Thu 15:35 to 16:00, Friday 16:35 to 17:00) sit
+        windows (Mon-Thu 15:32 to 15:49, Friday 16:32 to 16:49) sit
         OUTSIDE bandsFor, so the band pillow could never start one. With
         GitHub's cron dropped, the day's open paper trade waited and its
         W or L never landed - GLAXO 2026-11-04 is that defect. The same
@@ -781,12 +781,12 @@ class RelayWorkerContractTest(unittest.TestCase):
         # window table, never bandsFor, or the 12:30 edge can never dispatch.
         # Owner order 2026-10-21: the table now opens at 08:55 as a recorder
         # warm-up (the exchange's pre-open window is later) and carries the
-        # owner's 15:35 to 16:00 scanning window as its third entry.
+        # owner's 15:32 to 15:49 scanning window as its third entry.
         self.assertIn("const WEEKDAY_WINDOWS = [[[8, 55], [12, 30]], [[12, 30], [15, 30]],",
                       self.source)
         self.assertIn("const FRIDAY_WINDOWS = [[[8, 55], [12, 30]],",
                       self.source)
-        self.assertIn("[[15, 35], [16, 0]]", self.source)
+        self.assertIn("[[15, 32], [15, 49]]", self.source)
         self.assertIn("function dispatchWindowsFor(k) {", self.source)
         self.assertIn("for (const band of dispatchWindowsFor(k))", self.source)
         # The consumer that would have silently frozen the afternoon must be

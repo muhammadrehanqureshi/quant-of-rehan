@@ -18,12 +18,15 @@ it. That asymmetry is the whole design:
 
 Purpose: a scan sleeps outside a scan window, a finalize sleeps until the close
 ------------------------------------------------------------------------
-The workflow does two different jobs on the same clock. A **scan** is only
+The workflow does three different jobs on the same clock. A **scan** is only
 meaningful inside a live band. A **finalize** is only meaningful *after* the
 last close - its crons fire at 15:47 and 16:47 PKT, well outside every band -
 so gating it on "is a band live" would silently kill the daily outcome. The
 finalize path therefore runs on the session law alone, with no network call,
-once the trading day has closed.
+once the trading day has closed. A **warm-up** is the 08:55 and 14:10 band-loop
+start: the recorder must open before the exchange's pre-open, so it runs on a
+trading day even though no band is live yet, and the loop's own gate holds the
+scanner asleep until the window opens. It still sleeps after the last close.
 
 All clock times below are Asia/Karachi wall clock, pinned to a fixed
 UTC+5 offset by src/data/sessions.py (SO-8); nothing here builds a market
@@ -33,16 +36,18 @@ Order, first match wins
 -----------------------
 1. ``--force`` .................... RUN, a deliberate manual dispatch
 2. weekend or PSX holiday ......... SLEEP, and no network call at all
-3. purpose is finalize ............ RUN once the trading day has closed
+3. purpose is warm-up ............. RUN on a trading day before the last
+                                    close, SLEEP after it
+4. purpose is finalize ............ RUN once the trading day has closed
                                     (the post-market window counts as
                                     closed), SLEEP until then
-4. pre-market or post-market ...... RUN for a scan when the session law
+5. pre-market or post-market ...... RUN for a scan when the session law
                                     says the window scans (owner order
                                     2026-10-21, live broker feed, probe
                                     disabled), SLEEP when it does not
-5. outside every band today ....... SLEEP (pre-open, the Friday midday break,
+6. outside every band today ....... SLEEP (pre-open, the Friday midday break,
                                     post-close)
-6. inside a band:
+7. inside a band:
      probe CLOSED / SUSPENDED ..... SLEEP, the exchange is shut
      probe OPEN ................... RUN, verified
      probe UNKNOWN ................ RUN, unverified, the law decided
@@ -98,7 +103,8 @@ PROBE_DISABLED = "DISABLED"
 #: What the fire is for.
 PURPOSE_SCAN = "scan"
 PURPOSE_FINALIZE = "finalize"
-PURPOSES = (PURPOSE_SCAN, PURPOSE_FINALIZE)
+PURPOSE_WARMUP = "warmup"
+PURPOSES = (PURPOSE_SCAN, PURPOSE_FINALIZE, PURPOSE_WARMUP)
 
 #: The workflow's cron -> work mapping, kept here rather than only inside YAML
 #: so it is unit tested (tests/test_session_gate.py) and so the gate is the one
@@ -233,7 +239,19 @@ def session_gate(moment=None, *, probe: bool | None = None,
         return decide(False, f"{day.isoformat()} is not a PSX trading day "
                              f"(weekend or PSX holiday)", PROBE_DISABLED)
 
-    # 2. A finalize is about a session that has ENDED. It reads the captured
+    # 2. A recorder warm-up starts the band loop before the exchange's
+    #    pre-open, where the loop's own gate waits for the scan window. It is
+    #    allowed on a trading day until the last close; after that it would
+    #    only hold a runner open on a shut market.
+    if purpose == PURPOSE_WARMUP:
+        if phase is MarketPhase.POST_CLOSE:
+            return decide(False, f"{phase.value}: the recorder warm-up is "
+                                 f"outside the trading day", PROBE_DISABLED)
+        return decide(True, "recorder warm-up: the loop starts now and its "
+                            "own gate waits for the next scan window",
+                      PROBE_DISABLED)
+
+    # 3. A finalize is about a session that has ENDED. It reads the captured
     #    bars, so it needs no network and must not be skipped for being late.
     if purpose == PURPOSE_FINALIZE:
         if phase is MarketPhase.POST_CLOSE:
@@ -244,7 +262,7 @@ def session_gate(moment=None, *, probe: bool | None = None,
         return decide(False, f"{phase.value}: {day.isoformat()} has not closed "
                              f"yet ({session_window_text(day)})", PROBE_DISABLED)
 
-    # 3. Owner order 2026-10-21 (superseding the 2026-10-11 order): the
+    # 4. Owner order 2026-10-21 (superseding the 2026-10-11 order): the
     #    pre/post windows scan on the live broker feed when the session law
     #    says so. The gate defers to is_scan_window, the ONE answer, so a
     #    future law change needs a future edit in one file only.
@@ -262,12 +280,12 @@ def session_gate(moment=None, *, probe: bool | None = None,
                       f"windows are never scanned (owner order 2026-10-11); "
                       f"next band {upcoming or 'unknown'}", PROBE_DISABLED)
 
-    # 4. A scan is only meaningful inside a live band.
+    # 5. A scan is only meaningful inside a live band.
     if not law_open:
         return decide(False, f"{phase.value}: outside every session band "
                              f"({session_window_text(day)})", PROBE_DISABLED)
 
-    # 5. The law says a band is live. Verify it against the exchange.
+    # 6. The law says a band is live. Verify it against the exchange.
     if not probe:
         return decide(True, f"{phase.value} inside {session_window_text(day)}; "
                             f"session law only (probe disabled)", PROBE_DISABLED)
@@ -288,7 +306,7 @@ def session_gate(moment=None, *, probe: bool | None = None,
             observed.status, observed.raw_state, verified=True,
             probe_note=observed.note)
 
-    # 6. The law is the authority and the portal could not be read. Run, and
+    # 7. The law is the authority and the portal could not be read. Run, and
     #    say plainly that nobody corroborated it.
     return decide(
         True,
