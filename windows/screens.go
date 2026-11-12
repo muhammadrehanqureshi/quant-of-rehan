@@ -333,7 +333,9 @@ func (a *App) drawNav(c *Canvas, y int) {
 	case scrScanner:
 		hints = []string{"TAB NEXT  ESC CLEAR  CTRL+C QUIT", "ESC CLEAR  CTRL+C QUIT", "CTRL+C QUIT"}
 	case scrHome:
-		hints = []string{"D DETAILS  TAB NEXT  R REFRESH  Q QUIT", "D DETAILS  R REFRESH  Q QUIT", "D DETAILS  Q QUIT", "Q QUIT"}
+		// Owner order 2026-11-12 (latest): the D DETAILS hint is withdrawn from
+		// the home footer. D itself still flips the card to its raw text.
+		hints = []string{"TAB NEXT  R REFRESH  Q QUIT", "R REFRESH  Q QUIT", "Q QUIT"}
 	case scrOrderFlow:
 		hints = []string{"TAB NEXT  R REFRESH  Q QUIT", "R REFRESH  Q QUIT", "Q QUIT"}
 	}

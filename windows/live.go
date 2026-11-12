@@ -265,14 +265,43 @@ func (a *App) wheel(d int) {
 
 // ---------- big buying board ----------
 
+// boardFloor is the money a stock must have traded on a board's own side in the
+// window before the board names it. Owner order 2026-11-12 (latest): both
+// boards read "PKR 1M or above orders", so a 50k minute has no row at all.
+const boardFloor = 1_000_000
+
+// aboveFloor keeps the rows that traded at least boardFloor on the board's own
+// side, so the list and the heading can never disagree.
+func aboveFloor(rows []FlowStat, side int) []FlowStat {
+	out := make([]FlowStat, 0, len(rows))
+	for _, r := range rows {
+		v := r.BuyValue
+		if side == sideSell {
+			v = r.SellValue
+		}
+		if v >= boardFloor {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
+// capRows keeps at most limit rows, and every row when limit is zero.
+func capRows(rows []FlowStat, limit int) []FlowStat {
+	if limit > 0 && len(rows) > limit {
+		rows = rows[:limit]
+	}
+	return rows
+}
+
 // boardRows lists who is being bought hardest right now, from the flow engine.
 func (a *App) boardRows(limit int) []FlowStat {
-	return a.flow.Board(a.now, a.quotes, limit)
+	return capRows(aboveFloor(a.flow.Board(a.now, a.quotes, 0), sideBuy), limit)
 }
 
 // sellRows lists who is being sold hardest right now.
 func (a *App) sellRows(limit int) []FlowStat {
-	return a.flow.BoardSide(a.now, a.quotes, limit, sideSell)
+	return capRows(aboveFloor(a.flow.BoardSide(a.now, a.quotes, 0, sideSell), sideSell), limit)
 }
 
 // flowRows lists the stocks moving most on either side, for the combined

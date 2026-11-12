@@ -490,16 +490,18 @@ func (f *Flow) Flagged(now time.Time, sym string) bool {
 	return sf != nil && !sf.lastAlert().IsZero() && now.Sub(sf.lastAlert()) < 10*time.Minute
 }
 
-// compactNum writes 18400000 as 18.4M, 1250 as 1.25K and 3.1e9 as 3.10B.
+// compactNum writes 18400000 as 18.4M, 1250 as 1.25k and 3.1e9 as 3.10B. A
+// whole million drops its decimal, so a million reads 1M and ten million 10M.
+// Owner order 2026-11-12 (latest): the thousand mark is a lower case k.
 func compactNum(v float64) string {
 	a := math.Abs(v)
 	switch {
 	case a >= 1e9:
 		return strconv.FormatFloat(v/1e9, 'f', 2, 64) + "B"
 	case a >= 1e6:
-		return strconv.FormatFloat(v/1e6, 'f', 1, 64) + "M"
+		return strings.TrimRight(strings.TrimRight(strconv.FormatFloat(v/1e6, 'f', 1, 64), "0"), ".") + "M"
 	case a >= 1e3:
-		return strings.TrimRight(strings.TrimRight(strconv.FormatFloat(v/1e3, 'f', 2, 64), "0"), ".") + "K"
+		return strings.TrimRight(strings.TrimRight(strconv.FormatFloat(v/1e3, 'f', 2, 64), "0"), ".") + "k"
 	}
 	return strconv.FormatFloat(v, 'f', 0, 64)
 }

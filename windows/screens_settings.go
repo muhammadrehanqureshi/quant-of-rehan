@@ -76,19 +76,17 @@ func (a *App) drawSettings(c *Canvas, x, y, w, h int) {
 		if cur {
 			mark = '◆'
 		}
-		// Owner order 2026-11-11: the cursor and the chosen theme share one
-		// diamond, never two side by side.
-		sel := ' '
-		if a.cfg.Theme == themeNo && !cur {
-			sel = '◆'
-		}
+		// Owner order 2026-11-12 (latest): the chosen theme carries no second
+		// diamond - the cursor's own mark is the only one in the tile - and the
+		// name stands on the SETTINGS tile's own column, one cell after the
+		// cursor, so the two tiles read down one line. The chips take the
+		// column the SETTINGS values take.
 		// Owner order 2026-11-11: the theme cursor is blue, not white.
 		c.Set(tx+1, trow, mark, th.Accent, bg, true)
-		c.Set(tx+3, trow, sel, th.Accent, bg, true)
-		c.Text(tx+5, trow, 20, t.Name, th.Text, a.cfg.Theme == themeNo)
+		c.Text(tx+3, trow, 22, t.Name, th.Text, a.cfg.Theme == themeNo)
 		for k, col := range []RGB{t.BG, t.Panel, t.Line, t.Accent, t.Hot} {
+			c.Set(tx+26+k*2, trow, '█', col, bg, false)
 			c.Set(tx+27+k*2, trow, '█', col, bg, false)
-			c.Set(tx+28+k*2, trow, '█', col, bg, false)
 		}
 		trow++
 	}
