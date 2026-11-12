@@ -383,7 +383,7 @@ class TestOwnerOrderedCallWatch(unittest.TestCase):
         bars = {"OGDC": setup_rows(scanner, SESSION_OPEN)}
         # A market leg needs a cross section, so the scan carries the quiet
         # tail beside the one name the fixture moves.
-        for index in range(20):
+        for index in range(70):
             bars[f"QUIET{index:02d}"] = minute_rows(150)
         session = session_of(bars, 131)
         quality = scanner.assess_quality(session, list(bars))

@@ -11,13 +11,16 @@ import sys
 import unittest
 from datetime import date, datetime, timedelta
 from pathlib import Path
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from src.data.sessions import KARACHI  # noqa: E402
 from src.signals import ai_model  # noqa: E402
+from src.signals import kalman_trend  # noqa: E402
 from src.signals import momentum_scanner as scanner  # noqa: E402
+from src.signals import mtf_vwap  # noqa: E402
 
 HAVE_DATA = ai_model.EVENTS_PATH.is_file() and ai_model.PANEL_PATH.is_file()
 HAVE_MODEL = ai_model.MODEL_PATH.is_file()
@@ -199,23 +202,49 @@ class RoutingTest(unittest.TestCase):
         self.assertEqual(plain, [])
         self.assertEqual(annotated, [])
 
-    def test_annotation_adds_nothing_the_flip_rules_do_not_allow(self):
+    def test_annotation_adds_nothing_the_running_law_does_not_allow(self):
         """An attached prior annotates; it never rewrites the roster.
 
-        On a session whose flip is strategy-legal, ranking with and
+        On a session the one running law calls legal, ranking with and
         without the momentum prior must return the identical rows: the
-        prior's weight moves no name past a gate and adds no column of
-        its own left behind by the flip rules (under the owner's fixed
-        +2%/-1% TP/SL law the linear climb's own fresh flip is legal, so
-        both modes carry the same candidate).
+        prior's weight moves no name past a gate and adds no column of its
+        own. The trend legs are pinned up because they are not what this
+        test measures; the VWAP, the z score and the market leg run for
+        real on the fixture's washout tape.
         """
-        session = one_session(
-            datetime(2026, 10, 8, 10, 0, tzinfo=KARACHI),
-            [100 + index * 0.05 for index in range(40)])
-        plain = scanner.rank_candidates(session)
-        annotated = scanner.rank_candidates(session, {"AAA": 0.9})
+        from tests.kalman_fixture import setup_values
+
+        as_of = datetime(2026, 10, 8, 11, 43, tzinfo=KARACHI)
+        open_at = as_of.replace(hour=9, minute=32, second=0, microsecond=0)
+        bars = {}
+        for symbol in ["AAA"] + [f"QUIET{index:02d}" for index in range(70)]:
+            rows = []
+            for index in range(131):
+                if symbol == "AAA":
+                    op, hi, lo, close, volume = setup_values(index)
+                else:
+                    op, hi, lo, close, volume = (100, 100.01, 99.99, 100, 5000)
+                rows.append(scanner.MinuteBar(open_at + timedelta(minutes=index),
+                                              op, hi, lo, close, volume))
+            bars[symbol] = rows
+        session = scanner.SessionData(
+            day=as_of.date(), as_of=as_of, bars=bars, volume_available=True,
+            bars_seen=131 * len(bars), bars_rejected=0, duplicate_bars=0)
+        market = {"mean_return": 0.0, "symbols": 25}
+        with patch.object(kalman_trend, "filter_series",
+                          lambda closes, q, r, threshold: [
+                              {"level": 0.0, "slope": 1e-4, "state": 1,
+                               "flip_up": index == 0}
+                              for index in range(len(closes))]), \
+                patch.object(mtf_vwap, "kalman_state", lambda bars: 1):
+            plain = scanner.rank_candidates(session, frames=True,
+                                            rs_market=market)
+            annotated = scanner.rank_candidates(session,
+                                                ai_prior={"AAA": 0.9},
+                                                frames=True,
+                                                rs_market=market)
         self.assertEqual(plain, annotated)
-        self.assertTrue(plain, "the fixture's fresh flip stayed legal")
+        self.assertTrue(plain, "the fixture stayed legal for the one law")
         for row in annotated:
             self.assertFalse(
                 "ai_probability" in row or "ai_percentile" in row,

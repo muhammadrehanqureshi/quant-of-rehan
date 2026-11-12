@@ -731,8 +731,11 @@ def run_scan(slot: str, capture: Path | None = None,
         return payload
 
     ai_status = {"active": False, "reason": "Kalman flip rules have no daily-model routing"}
+    # The only strategy reads the three VWAP frames, so the frames are always
+    # read here: passing the deployment flag would let a scan run a law it
+    # cannot evaluate (owner order 2026-11-12).
     result = scanner.select_one(session, quality,
-                                frames=config.MTF_REQUIRE_FRAMES)
+                                frames=config.MTF_ENABLED)
     context = result.market
 
     # Owner order 2026-10-31 ("ML engine/concept that will be self learning.
