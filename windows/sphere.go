@@ -50,7 +50,7 @@ type spherePoint struct{ x, y, z float64 }
 // area, which keeps the spacing even from pole to pole, and the turn uses the
 // same vertical axis and depth bands as before.
 func spherePoints() []spherePoint {
-	const golden = math.Pi * (3 - math.Sqrt(5))
+	golden := math.Pi * (3 - math.Sqrt(5))
 	pts := make([]spherePoint, 0, sphereDots)
 	for i := 0; i < sphereDots; i++ {
 		y := 1 - (float64(i)+0.5)*2/float64(sphereDots)
