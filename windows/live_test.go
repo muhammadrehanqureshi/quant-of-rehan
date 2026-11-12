@@ -249,6 +249,22 @@ func TestUpdatesPerSecond(t *testing.T) {
 	}
 }
 
+// The one second snapshot carries the index too, so the header's KSE100 line
+// moves at the feed's pace rather than the five second card's.
+func TestSnapshotIndexLandsOnTheCard(t *testing.T) {
+	a := newTestApp(t)
+	a.market = marketIn("OPEN")
+	a.now = flowT0
+	q := quotesAt(15, 1_000_000)
+	q.Index = &IndexQuote{Value: 166000.5, Change: -120.25, ChangePct: -0.07, AsOf: "11:42:10", Fresh: true}
+	a.ingestQuotes(q)
+	if !a.market.HasIndex() || *a.market.IndexValue != 166000.5 ||
+		*a.market.IndexChange != -120.25 || *a.market.IndexPct != -0.07 ||
+		a.market.IndexAsOf != "11:42:10" {
+		t.Fatalf("the snapshot index did not reach the card: %+v", a.market)
+	}
+}
+
 // Polling is timed from when a request left, so one second is one second.
 func TestPollingIsTimedFromTheSend(t *testing.T) {
 	a := newTestApp(t)

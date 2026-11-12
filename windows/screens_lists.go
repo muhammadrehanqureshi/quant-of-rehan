@@ -868,11 +868,13 @@ func (a *App) sectorGroups() []Sector {
 // small box or line inside it, and it never reaches the top or the bottom of
 // its box.
 //
-// Owner order 2026-11-12 (latest): the owner asked for the fuller bar to be
-// reverted, so every bar is the centred rectangle in the bold cut again. Its
-// span, its ten boxes, its row and its two inks do not change, and nothing is
-// drawn inside it.
-const barBlock = '▬'
+// Owner order 2026-11-12 (latest): the owner sees a box edge between the cells
+// of every bar, so the bar is the heavy rule in the bold cut. Every other glyph
+// the console can draw as a bar is narrower than its cell - the rectangle and
+// the square leave a gap at each side, which is the seam - while the rule
+// reaches both edges and joins its neighbours into one line. Its span, its ten
+// boxes, its row and its two inks do not change, and nothing is drawn inside.
+const barBlock = '━'
 
 // shareBarBoxes is how many boxes a buy versus sell bar holds. Owner order
 // 2026-11-11: the bar carries ten boxes and not sixteen, and each box grows in

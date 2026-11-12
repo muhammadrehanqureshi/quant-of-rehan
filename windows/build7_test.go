@@ -39,15 +39,15 @@ func TestBarsAreBuild21sShadedTabs(t *testing.T) {
 	c := NewCanvas(40, 1, RGB{})
 	a.shareBar(c, 2, 0, shareBarWidth, 5, 5)
 	row := c.PlainRows()[0]
-	// Owner order 2026-11-12 (latest): the bar is the centred rectangle again,
-	// never a lower or upper block that stands on the floor or the top, and
-	// never the full block.
-	if barBlock != '▬' {
-		t.Fatalf("the bar is %q, not the centred rectangle", barBlock)
+	// Owner order 2026-11-12 (latest): the bar is the heavy rule, the one glyph
+	// that is full width in the console font, so no cell seam shows inside it.
+	// It is never a block or a rectangle, whose own width leaves the seams.
+	if barBlock != '━' {
+		t.Fatalf("the bar is %q, not the heavy rule", barBlock)
 	}
-	for _, block := range "▄▅█▀■━" {
+	for _, block := range "▄▅█▀■▬" {
 		if block == barBlock {
-			t.Fatal("a block, the full block or the old heavy rule is inside the bar again")
+			t.Fatal("a block or a rectangle is inside the bar again")
 		}
 	}
 	if strings.ContainsRune(row, '│') {

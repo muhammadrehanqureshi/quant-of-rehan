@@ -75,6 +75,7 @@ func (a *App) ingestQuotes(q *Quotes) {
 	}
 	a.feed = quoteAges(q)
 	a.feedMinAge = a.feed.Min
+	a.applySnapshotIndex(q)
 	a.rebuildSymbols()
 	a.flow.Buy, a.flow.Sell = a.cfg.BigBuy, a.cfg.BigSell
 	if a.cfg.BigBuy || a.cfg.BigSell {
@@ -82,6 +83,24 @@ func (a *App) ingestQuotes(q *Quotes) {
 			a.flagCount++
 			a.raiseFlag(fl)
 		}
+	}
+}
+
+// applySnapshotIndex puts the KSE100 reading from the one second snapshot onto
+// the card, which is what the header draws. The card's own answer arrives every
+// five seconds; the snapshot arrives every second and carries the same reading
+// from the same hub, so the index line no longer waits for the slower route.
+// Owner order 2026-11-12 (latest): the owner reported a five second lag, and
+// the index was the one live number read at the card's pace. The source name
+// and the leaders stay the card's, and no extra request is spent.
+func (a *App) applySnapshotIndex(q *Quotes) {
+	if q == nil || q.Index == nil || a.market == nil {
+		return
+	}
+	v, c, p := q.Index.Value, q.Index.Change, q.Index.ChangePct
+	a.market.IndexValue, a.market.IndexChange, a.market.IndexPct = &v, &c, &p
+	if q.Index.AsOf != "" {
+		a.market.IndexAsOf = q.Index.AsOf
 	}
 }
 
