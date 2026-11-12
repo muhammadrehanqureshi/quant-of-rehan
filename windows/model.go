@@ -29,9 +29,10 @@ const appVersion = "4.0.20"
 // heavy-rule bars and the even 900 dot globe are 3.3.2, the KSE100 style
 // CUSTOM SCRIPS OF VOLUME with its six sorts, the fifteen second LIVE window,
 // the clock on the index line, the 15:49 and 16:49 close and the 100,000
-// request tile are 3.3.3, and the ten percent taller bold bar, the one column
-// sort list and the trimmed RELAY and REQUESTS rows are 3.3.4.
-const hudBuild = "3.3.4"
+// request tile are 3.3.3, the ten percent taller bold bar, the one column sort
+// list and the trimmed RELAY and REQUESTS rows are 3.3.4, and the clock above
+// the index line and the traded volume gate on TOP PERFORMERS are 3.3.5.
+const hudBuild = "3.3.5"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no

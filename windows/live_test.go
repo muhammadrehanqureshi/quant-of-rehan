@@ -94,7 +94,7 @@ func TestHeaderClockTicksEverySecond(t *testing.T) {
 	for i := 0; i < 3; i++ {
 		a.now = time.Date(2026, 11, 2, 11, 0, i, 0, pkt)
 		want := fmt.Sprintf("MON 02 NOV 2026 11:00:0%d UTC+5", i)
-		if row := rowsOf(a)[1]; !strings.HasSuffix(strings.TrimRight(row, " "), want) {
+		if row := rowsOf(a)[0]; !strings.HasSuffix(strings.TrimRight(row, " "), want) {
 			t.Errorf("second %d: top row is %q, want it to end with %q", i, row, want)
 		}
 	}
@@ -107,15 +107,15 @@ func TestHeaderClockIsGreenButUTCDoesNotFollow(t *testing.T) {
 	a.animT = -1
 	a.now = time.Date(2026, 11, 2, 11, 0, 7, 0, pkt)
 	c := a.render()
-	row := c.PlainRows()[1]
-	// The index line carries the rules' box glyphs, which are three bytes each,
-	// so the cell is counted in runes from the row's own start, on row one.
+	row := c.PlainRows()[0]
+	// The title's diamonds are three bytes each, so the cell is counted in runes
+	// from the row's own start, on row zero.
 	cellOf := func(sub string) int {
 		i := strings.Index(row, sub)
 		if i < 0 {
-			t.Fatalf("the index line has no %q: %q", sub, row)
+			t.Fatalf("the top row has no %q: %q", sub, row)
 		}
-		return c.W + len([]rune(row[:i]))
+		return len([]rune(row[:i]))
 	}
 	if got := c.Cells[cellOf("11:00:07")].FG; got != a.th.Good {
 		t.Errorf("the clock is %v, want green %v", got, a.th.Good)
@@ -140,8 +140,8 @@ func TestOnlyOneClockOnHome(t *testing.T) {
 			hits = append(hits, fmt.Sprintf("row %d: %s", y, m))
 		}
 	}
-	if len(hits) != 1 || !strings.HasPrefix(hits[0], "row 1:") {
-		t.Errorf("want one clock on the index line, row 1, got %v", hits)
+	if len(hits) != 1 || !strings.HasPrefix(hits[0], "row 0:") {
+		t.Errorf("want one clock above the index line, on row 0, got %v", hits)
 	}
 }
 
