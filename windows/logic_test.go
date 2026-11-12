@@ -514,10 +514,10 @@ func TestFirstScanOfTheDayIsOnTime(t *testing.T) {
 	a := newTestApp(t)
 	a.market = marketIn("CLOSED")
 	// Ten seconds before 09:00 the slow check must not sleep past the start.
-	a.now = time.Date(2026, 11, 2, 8, 54, 50, 0, pkt)
+	a.now = time.Date(2026, 11, 2, 8, 59, 50, 0, pkt)
 	for _, n := range []string{"quotes", "market", "signals", "health"} {
 		if got := a.interval(n); got != 10*time.Second {
-			t.Errorf("%s at 08:54:50: %v, want 10s", n, got)
+			t.Errorf("%s at 08:59:50: %v, want 10s", n, got)
 		}
 	}
 	// Friday evening: the next start is Monday 09:00, so the check stays slow.
@@ -525,7 +525,7 @@ func TestFirstScanOfTheDayIsOnTime(t *testing.T) {
 	if got := a.interval("quotes"); got != 30*time.Second {
 		t.Errorf("Friday evening: %v", got)
 	}
-	if u := untilScanStart(a.now); u != 60*time.Hour+55*time.Minute {
+	if u := untilScanStart(a.now); u != 61*time.Hour {
 		t.Errorf("until Monday 09:00 from Friday 20:00: %v", u)
 	}
 }
