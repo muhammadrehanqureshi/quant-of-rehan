@@ -238,7 +238,7 @@ func TestCompactNum(t *testing.T) {
 	for _, c := range []struct {
 		in   float64
 		want string
-	}{{950, "950"}, {1250, "1.25K"}, {18_400_000, "18.4M"}, {3.1e9, "3.10B"}, {10_000_000, "10.0M"}, {1000, "1K"}} {
+	}{{950, "950"}, {1250, "1.25k"}, {18_400_000, "18.4M"}, {3.1e9, "3.10B"}, {10_000_000, "10M"}, {1000, "1k"}, {1_000_000, "1M"}} {
 		if got := compactNum(c.in); got != c.want {
 			t.Errorf("compactNum(%v) = %q want %q", c.in, got, c.want)
 		}

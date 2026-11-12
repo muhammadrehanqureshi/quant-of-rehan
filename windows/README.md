@@ -1,10 +1,11 @@
-# Quant of Rehan for Windows (console edition), build 97
+# Quant of Rehan for Windows (console edition), build 98
 
 A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.21**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
 
-## What is new in build 97
+## What is new in build 98
 
+* **Build 98 (version 3.4.7).** The THEMES tile reads down the SETTINGS tile's own column: a theme's name stands one cell after the cursor mark and the colour chips take the column the SETTINGS values take, so the two tiles line up, and the chosen theme carries no second diamond. The HOME footer loses `D DETAILS`; D still flips the card to its raw text. BIG BUYING NOW and BIG SELLING NOW read `PKR 1M or above orders`, and the boards keep that promise: no stock below PKR 1M on that side in the minute is listed. Thousands print as `k`, and a whole million drops its decimal, so a million reads `1M` and ten million reads `10M`.
 * **Build 97 (version 3.4.6).** The application icon is the owner's new `QoR.png` of 2026-11-12: 2048 by 2048, committed byte for byte as `assets/icon-source.png` and embedded from it, and the same bytes now stand as `assets/QoR.png`, the project's official mark in the README. The Go test pins the new source hash, so no later build can swap, recolour or redraw it.
 * **Build 96 (version 3.4.5).** The ALERTS LOG frame reads `Press "/" to search. DEL clears the log.`, with the test sentence withdrawn. The CUSTOM SCRIPS OF VOLUME frame reads `Press LEFT & RIGHT arrow keys` and no longer offers the sort menu in words.
 * **Build 95 (version 3.4.4).** ORDER FLOW's frame reads `Press "/" to search` instead of `UP and DOWN scroll`, and every page with a search box says the same: ORDER FLOW, the ALERTS LOG, and the SEARCH tile on SCANNER. The slash puts the keys in the page's own box on all three. On SCANNER it leaves the keys on the SEARCH tile and never types itself, and the SECTORS tile's own field takes the keys from a click on it.

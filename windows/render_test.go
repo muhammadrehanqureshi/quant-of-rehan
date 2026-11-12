@@ -357,7 +357,10 @@ func TestFooterKeysAreColoured(t *testing.T) {
 	a.screen = scrHome
 	c = a.render()
 	check(c, "1 HOME", a.th.Good, false)
-	check(c, "D DETAILS", a.th.Good, false)
+	// Owner order 2026-11-12 (latest): the home footer carries no D DETAILS.
+	if strings.Contains(strings.Join(c.PlainRows(), "\n"), "D DETAILS") {
+		t.Fatal("the home footer still carries D DETAILS")
+	}
 	check(c, "R REFRESH", a.th.Good, false)
 	check(c, "Q QUIT", a.th.Bad, false)
 }

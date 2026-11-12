@@ -1073,7 +1073,9 @@ func (a *App) drawBoardPanel(c *Canvas, x, y, w, h int, side int) {
 	}
 	hint := "The flag is off."
 	if on {
-		hint = "From PKR " + compactNum(float64(a.cfg.BigBuyValue)) + " a minute"
+		// Owner order 2026-11-12 (latest): the heading names the floor the
+		// board really keeps, so no row can be smaller than the words.
+		hint = "PKR " + compactNum(boardFloor) + " or above orders"
 	}
 	_ = word
 	a.focusNext = a.alertFocus == focus
