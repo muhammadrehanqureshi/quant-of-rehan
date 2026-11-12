@@ -20,7 +20,9 @@ func TestTelemetryCarriesMarketHoursBreadthAndDelta(t *testing.T) {
 	}, Items: map[string]LiveQuote{
 		"AAA": {Price: 10, Fresh: true, ChangePct: f64(1.2)},
 		"BBB": {Price: 20, Fresh: true, ChangePct: f64(-0.8)},
-		"CCC": {Price: 30, Fresh: true, ChangePct: f64(2.0)},
+		// A performer needs traded volume behind it, so CCC carries its day's
+		// total as the real feed does.
+		"CCC": {Price: 30, Fresh: true, ChangePct: f64(2.0), Volume: 2_000_000},
 	}}
 	a.prices = map[string]Quote{
 		"AAA": {Price: 10, ChangePct: f64(1.2), Buy: i64(700), Sell: i64(200)},
@@ -178,10 +180,13 @@ func TestSphereTurnIsHalfSpeed(t *testing.T) {
 func TestTopPerformersAreTheDaysBestThree(t *testing.T) {
 	a := newTestApp(t)
 	a.prices = map[string]Quote{
-		"AAA": {ChangePct: f64(1.2)},
-		"BBB": {ChangePct: f64(-0.8)},
-		"CCC": {ChangePct: f64(2.0)},
-		"DDD": {ChangePct: f64(0.4)},
+		"AAA":  {ChangePct: f64(1.2), Buy: i64(700), Sell: i64(300)},
+		"BBB":  {ChangePct: f64(-0.8), Buy: i64(400), Sell: i64(100)},
+		"CCC":  {ChangePct: f64(2.0), Buy: i64(500), Sell: i64(200)},
+		"DDD":  {ChangePct: f64(0.4), Buy: i64(100), Sell: i64(900)},
+		// Owner report 2026-11-12: a scrip with a change and no traded volume
+		// must never top the list, which is what AASM did.
+		"AASM": {ChangePct: f64(9.9)},
 	}
 	if got := andList(a.topPerformers()); got != "CCC, AAA & DDD" {
 		t.Fatalf("top performers read %q, want CCC, AAA & DDD", got)

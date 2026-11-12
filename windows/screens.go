@@ -230,17 +230,10 @@ func (a *App) drawHeader(c *Canvas) {
 	// Owner order 2026-11-07: one space between the date and the time, the time
 	// itself green, and the UTC+5 tag still in the darker shade.
 	ink := mix(th.Soft, th.BG, 0.28)
-	stamp := []Span{{date + " ", ink, false}, {clock, th.Good, true}, {" UTC+5", ink, false}}
-	stampW := 0
-	for _, sp := range stamp {
-		stampW += runeLen(sp.S)
-	}
-	// Owner order 2026-11-12: the date and the clock are lowered onto the
-	// PSX'S KMIALL INDEX line, so they stand in the middle of that line's height
-	// at the top right corner instead of above it on the title's row. The right
-	// rule ends before them, so the two never touch.
-	rightAlign(c, 0, 1, c.W-1, stamp)
-	clockFrom := c.W - 1 - stampW
+	// Owner order 2026-11-12 (latest): the date and the clock stand above the
+	// PSX'S KMIALL INDEX line, on the top row and at the window's right edge,
+	// so the index line keeps its rules to the edge and never cuts the clock.
+	rightAlign(c, 0, 0, c.W-1, []Span{{date + " ", ink, false}, {clock, th.Good, true}, {" UTC+5", ink, false}})
 
 	tag := headerTag
 	if a.demo {
@@ -254,8 +247,8 @@ func (a *App) drawHeader(c *Canvas) {
 	if tagX >= 3 {
 		c.HLine(0, 1, tagX-2, '─', rule)
 	}
-	if end := tagX + runeLen(tag) + 2; end < clockFrom-2 {
-		c.HLine(end, 1, clockFrom-2-end, '─', rule)
+	if end := tagX + runeLen(tag) + 2; end < c.W-1 {
+		c.HLine(end, 1, c.W-1-end, '─', rule)
 	}
 
 	// Rule with a bright segment sweeping along it.
@@ -612,23 +605,50 @@ func leftTileHeights(h int) (coreH, telH int) {
 // because the broker's change is the live one. The list is ordered by that
 // change, ties by symbol, and a day with no measured change says -- rather than
 // inventing a name.
+//
+// Owner report 2026-11-12: AASM stood at the top of this list with a change and
+// no data behind it. A relay row can carry a change for a scrip that has not
+// traded at all, so a name is only eligible when the day has traded volume
+// behind it: the flow table's, the broker feed's, or the relay's own pair.
 func (a *App) topPerformers() []string {
 	pct := map[string]float64{}
+	traded := map[string]int64{}
 	for sym, q := range a.prices {
 		if q.ChangePct != nil {
 			pct[sym] = *q.ChangePct
 		}
+		if q.Buy != nil && q.Sell != nil {
+			traded[sym] = *q.Buy + *q.Sell
+		}
 	}
 	if a.quotes != nil {
 		for sym, q := range a.quotes.Items {
-			if q.Fresh && q.ChangePct != nil {
+			if !q.Fresh {
+				continue
+			}
+			if q.ChangePct != nil {
 				pct[sym] = *q.ChangePct
+			}
+			if q.Volume > 0 {
+				traded[sym] = q.Volume
+			}
+		}
+	}
+	if a.of != nil {
+		for _, fr := range a.of.Rows {
+			switch {
+			case fr.Volume != nil && *fr.Volume > 0:
+				traded[fr.Symbol] = *fr.Volume
+			case fr.Measured():
+				traded[fr.Symbol] = *fr.Buy + *fr.Sell
 			}
 		}
 	}
 	syms := make([]string, 0, len(pct))
 	for sym := range pct {
-		syms = append(syms, sym)
+		if traded[sym] > 0 {
+			syms = append(syms, sym)
+		}
 	}
 	sort.Slice(syms, func(i, j int) bool {
 		if pct[syms[i]] != pct[syms[j]] {
