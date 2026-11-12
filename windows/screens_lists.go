@@ -244,10 +244,9 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 	}
 	// The sort instruction rides in the panel hint so the menu and the list keep
 	// the row back that the sector search above took.
+	// Owner order 2026-11-12 (latest): the UP, DOWN, PGUP, PGDN hint is
+	// withdrawn, and the arrow keys keep working exactly as they did.
 	hint := "Sort: click one, or press LEFT or RIGHT"
-	if a.scanChoice > 0 {
-		hint = "UP, DOWN, PGUP, PGDN or the wheel scroll"
-	}
 	if a.searchText != "" {
 		hint = "ESC clears the search"
 	}
@@ -869,14 +868,11 @@ func (a *App) sectorGroups() []Sector {
 // small box or line inside it, and it never reaches the top or the bottom of
 // its box.
 //
-// Owner order 2026-11-12 (latest): the owner asked for twice the height of the
-// rectangle and for the bar to stay centred, so every bar is the full block in
-// the bold cut. It fills its cell top to bottom and joins its neighbours edge
-// to edge, with the same span, the same ten boxes, the same row and the same two
-// inks, and nothing drawn inside it. It is the tallest glyph a console has; the
-// square between it and the rectangle is narrower than the cell and would break
-// the band into separate boxes.
-const barBlock = '█'
+// Owner order 2026-11-12 (latest): the owner asked for the fuller bar to be
+// reverted, so every bar is the centred rectangle in the bold cut again. Its
+// span, its ten boxes, its row and its two inks do not change, and nothing is
+// drawn inside it.
+const barBlock = '▬'
 
 // shareBarBoxes is how many boxes a buy versus sell bar holds. Owner order
 // 2026-11-11: the bar carries ten boxes and not sixteen, and each box grows in
@@ -890,13 +886,18 @@ const shareBarBoxes = 10
 // share those cells instead of standing apart with a gap between them.
 const shareBarSpan = shareBarBoxes * 16 / 10
 
-// shareNetW is the cells a bar gives to its NET DELTA, right aligned, so a
-// sign and a compact figure sit in the same place on every row.
+// shareNetW is the cells a bar gives to its NET DELTA, left aligned like every
+// other value, so a sign and a compact figure start on the same cell.
 const shareNetW = 9
 
-// shareBarWidth is the field a labelled bar asks for: its span, one space and
+// shareBarGap is the gutter between two columns. Owner order 2026-11-12
+// (latest): every column on ORDER FLOW is separated by the same two cells, the
+// bar's own NET DELTA included, so no pair of columns is tighter than another.
+const shareBarGap = 2
+
+// shareBarWidth is the field a labelled bar asks for: its span, the gutter and
 // the NET DELTA after it.
-const shareBarWidth = shareBarSpan + 1 + shareNetW
+const shareBarWidth = shareBarSpan + shareBarGap + shareNetW
 
 // pairOf is the one buy and sell pair every bar in the build reads, so a scrip
 // draws the same bar on the scanner, on both ALERTS boards, on the search tile,
@@ -951,8 +952,8 @@ func (a *App) drawShareBar(c *Canvas, x, y, w int, buy, sell int64, label bool) 
 	span := shareBarSpan
 	if w > 0 && w < span {
 		span = w
-		if label && w-shareNetW-1 >= shareBarBoxes {
-			span = w - shareNetW - 1
+		if label && w-shareNetW-shareBarGap >= shareBarBoxes {
+			span = w - shareNetW - shareBarGap
 		}
 	}
 	green := int(math.Round(share * float64(shareBarBoxes)))
@@ -994,9 +995,10 @@ func (a *App) drawShareBar(c *Canvas, x, y, w int, buy, sell int64, label bool) 
 			ink, bold = th.Bad, true
 		}
 		// Owner order 2026-11-12 (latest): the NET DELTA starts on its column's
-		// first cell, like every other value on ORDER FLOW, so it stands under
-		// the first letter of its own heading.
-		c.Text(x+width+1, y, shareNetW, signedCompact(net), ink, bold)
+		// first cell, like every other value on ORDER FLOW, one full gutter after
+		// the bar, so the gap between the bar and its figure is the same two
+		// cells as the gap between every other pair of columns.
+		c.Text(x+width+shareBarGap, y, shareNetW, signedCompact(net), ink, bold)
 	}
 	return width
 }

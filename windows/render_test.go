@@ -122,7 +122,7 @@ func TestScreensShowTheAppsText(t *testing.T) {
 		"NAVY BLUE & WHITE", "VERSION", appVersionLabel, "REQUESTS TODAY",
 		"The requests reset at 05:00 PKT.",
 		"Every second from 09:00 until the post-market closes.",
-		"That is at 15:49 from Monday to Thursday & at 16:49 on Friday.",
+		"That is at 15:49 from Monday to Thursday and at 16:49 on Friday.",
 		"BIG BUYING FLAG", "BIG SELLING FLAG", "SOUND", "BIG ORDER SIZE", "TEST BUYING ALERT", "TEST SELLING ALERT"} {
 		if !strings.Contains(set, want) {
 			t.Errorf("settings is missing %q", want)

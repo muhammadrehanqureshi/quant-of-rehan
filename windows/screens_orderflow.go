@@ -271,7 +271,7 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 			// Owner order 2026-11-12 (latest): the bar's own column, then a NET
 			// DELTA column of its own after it, over the value every row writes.
 			c.Text(ix+barX, row, shareBarSpan, "BARS", th.Soft, false)
-			c.Text(ix+barX+shareBarSpan+1, row, shareNetW, "NET DELTA", th.Soft, false)
+			c.Text(ix+barX+shareBarSpan+shareBarGap, row, shareNetW, "NET DELTA", th.Soft, false)
 		}
 		row++
 	}
@@ -398,7 +398,8 @@ const (
 	flowSymX, flowSymW = flowSerX + flowSerW + flowGutter, 8
 )
 
-var flowHeads = [8]string{"PRICE", "CHANGE", "BID", "ASK", "BUYING (B)", "SELLING (S)", "UNCL. (U)", "TOTAL (T)"}
+// Owner order 2026-11-12 (latest): the unclassified column is written in full.
+var flowHeads = [8]string{"PRICE", "CHANGE", "BID", "ASK", "BUYING (B)", "SELLING (S)", "UNCLEAR (U)", "TOTAL (T)"}
 
 // flowCell is one column of the table: the cell it starts on and its width.
 type flowCell struct{ x, w int }
