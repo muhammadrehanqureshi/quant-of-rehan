@@ -55,7 +55,7 @@ compatibility_date = "2026-10-01"
 # discards; a six entry list is rejected (Cloudflare error 10072).
 [triggers]
 crons = [
-  "0,20,25,32 4 * * 1-4",
+  "15,20,25,32 4 * * 1-4",
   "30 7 * * 1-4",
   "0,5,10,17 4 * * 5",
   "10,20,25,32 9 * * 5",

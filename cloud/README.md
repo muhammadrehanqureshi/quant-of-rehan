@@ -252,7 +252,7 @@ Bars are kept for 45 days and pruned once a day. Storing began on
 
 | Event | Mon-Thu | Friday | Trigger (UTC) |
 |---|---|---|---|
-| Open | 09:32 PKT | 09:00 PKT (pre-open warm-up; band 09:17) | `0,20,25,32 4 * * 1-4` / `0,5,10,17 4 * * 5` |
+| Open | 09:32 PKT | 09:00 PKT (pre-open capture; band 09:17) | `15,20,25,32 4 * * 1-4` / `0,5,10,17 4 * * 5` |
 | Close | 15:30 PKT | 12:00 PKT (session 1) | shared below |
 | Open | - | 14:10 PKT (pre-open warm-up; band 14:32) | `10,20,25,32 9 * * 5` |
 | Close | - | 16:30 PKT (session 2) | shared below |
