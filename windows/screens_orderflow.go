@@ -129,7 +129,9 @@ func (a *App) ofAge() (string, bool) {
 
 func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 	th := a.th
-	hint := "/ searches. UP and DOWN scroll."
+	// Owner order 2026-11-12 (latest): the "/ searches" hint is withdrawn from
+	// the page, here and under the search box.
+	hint := "UP and DOWN scroll."
 	ix, iy, iw, ih := a.panel(c, x, y, w, h, "ORDER FLOW", hint)
 	if a.of == nil {
 		msg := "Reading ORDER FLOW from the relay."
@@ -300,10 +302,23 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 			}
 			return commaFloat(*p, 2)
 		}
+		// Owner report 2026-11-12 (latest): PIM read one price on the scanner and
+		// another here, because each page read its own feed. A fresh broker quote
+		// now moves the price and the change together on this page too, so a
+		// scrip's price and percentage are one pair wherever they are shown.
+		px, pct := r.Price, r.ChangePct
+		if a.quotes != nil {
+			if lq, ok := a.quotes.Items[r.Symbol]; ok && lq.Fresh && lq.Price > 0 {
+				px = lq.Price
+				if lq.ChangePct != nil {
+					pct = lq.ChangePct
+				}
+			}
+		}
 		chg := ""
 		chgCol := th.Soft
-		if r.ChangePct != nil {
-			chg, chgCol = changeText(*r.ChangePct), a.dirColor(*r.ChangePct)
+		if pct != nil {
+			chg, chgCol = changeText(*pct), a.dirColor(*pct)
 		}
 		warn := ""
 		if !r.Balanced() {
@@ -320,7 +335,7 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 			// first cell, under its own heading.
 			// Owner order 2026-11-11: every value starts on its column's first
 			// cell too, BID and ASK included, so no column floats right.
-			a.flashText(c, ix+cols[0].x, row, commaFloat(r.Price, 2), th.Text, true, pxKey)
+			a.flashText(c, ix+cols[0].x, row, commaFloat(px, 2), th.Text, true, pxKey)
 			a.flashText(c, ix+cols[1].x, row, chg, chgCol, true, pxKey)
 			c.Text(ix+cols[2].x, row, cols[2].w, bidAsk(r.Bid), th.Text, false)
 			c.Text(ix+cols[3].x, row, cols[3].w, bidAsk(r.Ask), th.Text, false)
@@ -338,7 +353,7 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 		} else {
 			c.Spans(ix, row, cw, []Span{{fmt.Sprintf("%3d. ", i+1), th.Soft, false}, {r.Symbol, symCol, true}})
 			vx := ix + 14
-			vx += a.flashText(c, vx, row, "PKR "+commaFloat(r.Price, 2), th.Text, true, pxKey)
+			vx += a.flashText(c, vx, row, "PKR "+commaFloat(px, 2), th.Text, true, pxKey)
 			vx += 2
 			vx += a.flashText(c, vx, row, chg, chgCol, true, pxKey)
 			c.Spans(vx+2, row, ix+cw-vx-2, []Span{{"BID ", th.Soft, false}, {bidAsk(r.Bid), th.Text, false}, {"  ASK ", th.Soft, false}, {bidAsk(r.Ask), th.Text, false}})
@@ -493,7 +508,7 @@ func (a *App) drawFlowSearch(c *Canvas, ix, y, iw int) {
 		c.Text(ix+2+fw, y, 12, fmt.Sprintf("%d match", len(a.sortedFlow())), th.Soft, false)
 	}
 	if iw > 70 {
-		rightAlign(c, ix, y, iw, []Span{{"/ searches  ESC clears", th.Soft, false}})
+		rightAlign(c, ix, y, iw, []Span{{"ESC clears", th.Soft, false}})
 	}
 	a.addHit(ix, y, iw, 1, func() { a.ofSearch = true; a.lvOF.top() })
 }

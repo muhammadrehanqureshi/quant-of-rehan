@@ -34,8 +34,9 @@ const appVersion = "4.0.20"
 // the index line and the traded volume gate on TOP PERFORMERS are 3.3.5, and
 // the one bar on every page, green for the buyers' share and red for the
 // sellers', with the NET DELTA after it and in a column of its own on ORDER
-// FLOW, is 3.3.6.
-const hudBuild = "3.3.6"
+// FLOW, is 3.3.6, and the withdrawn / searches hint, the left aligned NET
+// DELTA and the one live price and change pair on ORDER FLOW are 3.3.7.
+const hudBuild = "3.3.7"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no

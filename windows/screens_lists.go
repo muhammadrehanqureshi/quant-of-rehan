@@ -961,7 +961,10 @@ func (a *App) drawShareBar(c *Canvas, x, y, w int, buy, sell int64, label bool) 
 		case net < 0:
 			ink, bold = th.Bad, true
 		}
-		c.Text(x+width+1, y, shareNetW, padLeft(signedCompact(net), shareNetW), ink, bold)
+		// Owner order 2026-11-12 (latest): the NET DELTA starts on its column's
+		// first cell, like every other value on ORDER FLOW, so it stands under
+		// the first letter of its own heading.
+		c.Text(x+width+1, y, shareNetW, signedCompact(net), ink, bold)
 	}
 	return width
 }
