@@ -203,7 +203,7 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 	}
 	// The gap costs one row. On a short window, keep the ranked list at four
 	// stocks by letting the sector list scroll instead of taking that row.
-	if a.scanChoice != 0 && !a.sectorOpen && sectorH > 7 {
+	if a.scanChoice != 0 && !a.sectorOpen && sectorH > 5 {
 		for sectorH > 5 {
 			sh2 := y + h - sy - sectorH - 1
 			if sh2 < 6 {
@@ -214,10 +214,14 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 			// the tile and are never traded away to give the sector list room,
 			// so this test always reserves them. A scrip opened from a sector
 			// grows the search tile above, and without this reservation that
-			// growth used to hide both sub menus.
-			menu := (len(scanChoices) + 1) / 2
+			// growth used to hide the sub menus.
+			//
+			// Owner order 2026-11-12 (latest): the six sorts stand in one
+			// column, so the sector list gives up two of its rows when the three
+			// scrips would not otherwise fit.
+			menu := len(scanChoices)
 			rows := ih - menu - 2
-			if rows/2 >= 4 {
+			if rows/2 >= 3 {
 				break
 			}
 			sectorH--
@@ -248,9 +252,9 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 		hint = "ESC clears the search"
 	}
 	ix, iy, iw, ih := a.panel(c, x, sy, w, sh2, "CUSTOM SCRIPS OF VOLUME", hint)
-	// Owner order 2026-11-12: the six sorts stand in two columns of three, so
-	// the sub menus never take the rows the three scrips below them need.
-	menu := (len(scanChoices) + 1) / 2
+	// Owner order 2026-11-12 (latest): every sort stands in the one left hand
+	// column, the new ones under the two that were already there.
+	menu := len(scanChoices)
 	if ih < menu+1 {
 		// Only a tile with no room left at all drops a sort row.
 		menu = max(0, ih-1)
@@ -258,16 +262,14 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 	if menu == 0 {
 		return
 	}
-	colW := max(1, iw/2)
 	for i, name := range scanChoices {
-		col := i / menu
-		if col > 1 {
+		if i >= menu {
 			break
 		}
-		cx, ry := ix+col*colW, iy+i%menu
+		ry := iy + i
 		id := i + 1
 		cur := i == a.scanCursor
-		bg := a.selectRow(c, cx, ry, min(colW, 48), cur, func() { a.pickScan(id) })
+		bg := a.selectRow(c, ix, ry, min(iw, 48), cur, func() { a.pickScan(id) })
 		mark := " "
 		if cur {
 			// Owner order 2026-11-11: the sub menu cursor is the diamond,
@@ -281,9 +283,9 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 			chosen = "◆ "
 		}
 		// Owner order 2026-11-11: the sub menu cursor is blue, not white.
-		c.Set(cx+1, ry, []rune(mark)[0], th.Accent, bg, true)
-		c.Set(cx+3, ry, []rune(chosen)[0], th.Accent, bg, true)
-		c.Text(cx+5, ry, max(1, min(40, colW-5)), name, th.Text, a.scanChoice == id)
+		c.Set(ix+1, ry, []rune(mark)[0], th.Accent, bg, true)
+		c.Set(ix+3, ry, []rune(chosen)[0], th.Accent, bg, true)
+		c.Text(ix+5, ry, max(1, min(44, iw-5)), name, th.Text, a.scanChoice == id)
 	}
 	head := iy + menu + 1 // the row after the menu, or the first row when it is hidden
 	// Owner order 2026-11-12: each sort names three scrips and each scrip takes
@@ -848,25 +850,20 @@ func (a *App) sectorGroups() []Sector {
 // edge to edge with no seam and no small box inside it, and it is drawn on the
 // cell's centre line. The bar's span, row and colours do not move.
 //
-// Owner order 2026-11-11 (eleventh pass): the bars are taller and stay on the
-// centre line. A console cell has no fifteen percent step for a horizontal
-// line: the centred rectangle is the one glyph taller than the rule, and in the
-// regular weight it spans the cell's width, so the band stays unbroken. The
-// lower and upper blocks are not used because they stand on the floor or the
-// top of the cell.
+// The lower and upper blocks are not used because they stand on the floor or
+// the top of the cell.
 //
 // Owner order 2026-11-12: the full-cell fill was too tall. The bar is the heavy
 // rule again: the one centred glyph that joins edge to edge with no seam and no
 // small box or line inside it, and it never reaches the top or the bottom of
 // its box.
 //
-// Owner order 2026-11-12 (latest): the owner asked for the bars to be fifteen
-// percent taller. A console cell is one fixed height and has no fifteen percent
-// step: the only taller glyphs are the rectangle, which leaves a hairline at
-// every cell seam, and the full block, which he has already ruled out as too
-// tall. The bold cut was tried in build 79 and leaves the same hairline. The
-// bar therefore keeps the centred heavy rule, the one seamless glyph that is
-// taller than a plain line and still leaves its box's top and bottom clear.
+// Owner order 2026-11-12 (latest): the bar is ten percent taller, drawn in the
+// bold cut of the same centred heavy rule. A console cell is one fixed height
+// and no glyph is ten percent taller than the rule, so the bold cut is the one
+// step up the console offers for one glyph: the stroke grows, the glyph, its
+// span, its row and its two inks stay exactly where they are, nothing is drawn
+// inside the bar, and its box's top and bottom stay clear.
 const barBlock = '━'
 
 // shareBarBoxes is how many boxes a buy versus sell bar holds. Owner order
@@ -933,12 +930,9 @@ func (a *App) drawShareBar(c *Canvas, x, y, w int, buyShare float64, label bool)
 			ink = th.Good
 		}
 		for k := at; k < at+width; k++ {
-			// Owner order 2026-11-12: the full-cell band was too tall, and the
-			// bold cut leaves a hairline at the cell seam, so the bar stays the
-			// regular cut of the heavy rule: centred, edge to edge, with no
-			// seam and no box inside it. Span, row, label and two inks are
-			// untouched.
-			c.Put(x+k, y, barBlock, ink, false)
+			// Owner order 2026-11-12 (latest): the bold cut is the taller weight
+			// of the same centred rule. Nothing else about the bar changes.
+			c.Put(x+k, y, barBlock, ink, true)
 		}
 		at += width
 	}

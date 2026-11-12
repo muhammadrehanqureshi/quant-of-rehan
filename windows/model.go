@@ -26,11 +26,12 @@ const appVersion = "4.0.20"
 // and the restored 3.2.6 globe, the centred rectangle bars and the day's FLOW
 // sides are 3.3.0, the seamless full-cell bars, the two scanner sorts, the
 // VERSION before RELAY order and the leader PKR label are 3.3.1, the centred
-// heavy-rule bars and the even 900 dot globe are 3.3.2, and the KSE100 style
+// heavy-rule bars and the even 900 dot globe are 3.3.2, the KSE100 style
 // CUSTOM SCRIPS OF VOLUME with its six sorts, the fifteen second LIVE window,
 // the clock on the index line, the 15:49 and 16:49 close and the 100,000
-// request tile are 3.3.3.
-const hudBuild = "3.3.3"
+// request tile are 3.3.3, and the ten percent taller bold bar, the one column
+// sort list and the trimmed RELAY and REQUESTS rows are 3.3.4.
+const hudBuild = "3.3.4"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no

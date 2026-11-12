@@ -47,7 +47,10 @@ func TestFetchSectorsReadsTheRelayContract(t *testing.T) {
 }
 
 func TestScannerShowsSectorsAndCyclesThem(t *testing.T) {
-	a := demoApp(t, 122, 30)
+	// Owner order 2026-11-12: the six sorts stand in one column, and a short
+	// window gives the scrip list its three rows before the sector list. At this
+	// height both fit, so the three groups and the three scrips are on screen.
+	a := demoApp(t, 122, 36)
 	a.screen = scrScanner
 	a.sectors = nil // the demo has its own invented groups
 	s := plain(a)
