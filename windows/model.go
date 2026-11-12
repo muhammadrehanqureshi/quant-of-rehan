@@ -40,8 +40,9 @@ const appVersion = "4.0.20"
 // change column on the scanner and the withdrawn ESC clears note are 3.3.8,
 // and the three withdrawn hints, the withdrawn scrip count and the capital feed
 // note are 3.3.9, the centred rectangle bars are 3.4.0, and the diamond in the
-// search list, the withdrawn search prompt and the full block bars are 3.4.1.
-const hudBuild = "3.4.1"
+// search list, the withdrawn search prompt and the full block bars are 3.4.1,
+// and the rectangle bars, the UNCLEAR column and the one gutter are 3.4.2.
+const hudBuild = "3.4.2"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no

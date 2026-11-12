@@ -1,10 +1,11 @@
-# Quant of Rehan for Windows (console edition), build 92
+# Quant of Rehan for Windows (console edition), build 93
 
 A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.20**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
 
-## What is new in build 92
+## What is new in build 93
 
+* **Build 93 (version 3.4.2).** Every bar is the centred rectangle again, the full block withdrawn. SETTINGS writes `and` instead of `&` after Thursday on its scanning line. The CUSTOM SCRIPS OF VOLUME tile carries no UP, DOWN, PGUP, PGDN hint, and the arrow keys still drive the search matches and the scrips list exactly as before. ORDER FLOW names its unclassified column `UNCLEAR (U)` in full, and the gutter between every pair of its columns, the bar and its own NET DELTA included, is the same two cells.
 * **Build 92 (version 3.4.1).** The SEARCH tile's match list marks the row you scroll through with the diamond, the same mark every other list in the build selects with, whether the cursor moved by key or by wheel. The `>` prompt is withdrawn from every search box, so the typed text starts on the field's own first cell. Every green and red bar is the full block in the bold cut, twice the height of the rectangle it replaces and the tallest glyph a console has, still centred in its cell on the same row, with the same span, the same ten boxes and the same two inks.
 * **Build 91 (version 3.4.0).** Every green and red bar is the centred rectangle `▬` in the bold cut, about three times the height of the heavy rule it replaces, the tallest glyph that still leaves the top and the bottom of its cell clear. Its ten boxes, its sixteen cells, its row and its two inks are unchanged, the NET DELTA still follows it, and nothing is drawn inside it.
 * **Build 90 (version 3.3.9).** ORDER FLOW's hint reads `UP and DOWN scroll` with no full stop. The CUSTOM SCRIPS OF VOLUME heading carries no `1 to 3 of 3 scrips` count. The KSE100 tile's note about the broker feed is set in capitals. SETTINGS withdraws the `UP/DOWN + ENTER` hint from the right of its frame.

@@ -107,7 +107,7 @@ func TestOrderFlowScreenShowsBSUTSeparately(t *testing.T) {
 	}
 	a := orderFlowApp(t, 122, 30, sampleOrderFlow)
 	s := plain(a)
-	for _, want := range []string{"BUYING (B)", "SELLING (S)", "UNCL. (U)", "TOTAL (T)", "BID", "ASK", "10.49", "10.51", "no split", "MEASURED 2 stocks"} {
+	for _, want := range []string{"BUYING (B)", "SELLING (S)", "UNCLEAR (U)", "TOTAL (T)", "BID", "ASK", "10.49", "10.51", "no split", "MEASURED 2 stocks"} {
 		if !strings.Contains(s, want) {
 			t.Errorf("wide table is missing %q:\n%s", want, s)
 		}
@@ -196,10 +196,10 @@ func TestOrderFlowSortKeepsUnmeasuredAtTheBottom(t *testing.T) {
 	}
 }
 
-// After the bar there is one space and then the NET DELTA, signed, however
-// many digits it has. Owner order 2026-11-12 (latest): the percentage is gone
-// from every bar and the difference between the two sides takes its place.
-func TestNetDeltaFollowsTheBarWithOneSpace(t *testing.T) {
+// After the bar there is one full gutter and then the NET DELTA, signed,
+// however many digits it has. Owner order 2026-11-12 (latest): the gutter is
+// the same two cells every other pair of ORDER FLOW columns keeps.
+func TestNetDeltaFollowsTheBarAtTheSameGutter(t *testing.T) {
 	// 100, -96 and -86 all follow their bars, right aligned in one field.
 	for _, pair := range [][2]int64{{100, 0}, {2, 98}, {7, 93}} {
 		c := NewCanvas(48, 1, RGB{})
@@ -464,7 +464,7 @@ func TestShareBarIsOneUnbrokenBand(t *testing.T) {
 	if n := strings.Count(seg, string(barBlock)); n != shareBarSpan {
 		t.Fatalf("the bar draws %d cells of its %d, want it unbroken: %q", n, shareBarSpan, row)
 	}
-	if strings.ContainsAny(row, "│▀▄▅■") {
+	if strings.ContainsAny(row, "│▀▄▅█■") {
 		t.Fatalf("a separator or a block is inside the bar: %q", row)
 	}
 }
