@@ -1,10 +1,11 @@
-# Quant of Rehan for Windows (console edition), build 82
+# Quant of Rehan for Windows (console edition), build 83
 
 A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.20**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
 
-## What is new in build 82
+## What is new in build 83
 
+* **Build 83 (version 3.3.2).** The full-cell band was too tall, so every green and red bar is the centred heavy rule again: it joins edge to edge with no seam and no small box or line inside it. The QUANT CORE globe now spreads 900 dots by the golden angle, fewer than build 82 and even from pole to pole, with the same clockwise turn and three depth bands. The scanner's two sorts, the KSE100 PKR labels and VERSION before RELAY stay.
 * **Build 82 (version 3.3.1).** Every green and red bar is one solid band: each cell carries its ink as its background as well as on its glyph, so the cell seams and the small bars inside the band are gone, and the band stands at the full height of the cell on the same row, span, colours and percentage. The scanner's CUSTOM SCRIPS BY VOLUME tile carries its two sorts, PRICES RISING FAST and MORE BUYERS & LESS SELLERS; the BIG BUYING & SELLING NOW (LIVE FLOW) row is removed. SETTINGS puts VERSION before RELAY. The KSE100 tile's top three leaders keep PKR beside every current price, and the bar gives way first on a narrow tile.
 * **Build 81 (version 3.3.0).** The QUANT CORE globe returns to the build 3.2.6 sphere: the readable latitude and longitude grid and the three depth bands, because the doubled grid and the lit shade had flattened it. Every green and red bar is the centred rectangle in the regular weight, taller than the rule and still on the cell's centre line, with no separator and no seam. TELEMETRY FLOW reads the relay's day sides for B, S and U when the live minute is empty, so it no longer reads zero after the closing bell.
 * **Build 80 (version 3.2.9).** Every TELEMETRY value ends on the tile's right edge, so PHASE, SCAN, FLOW and REQ finish on the same column as the market rows. FLOW stands directly before NET DELTA and reads `B=..., S=... & U=...`, the three separate sides, with TOP PERFORMERS still following NET DELTA. The ALERTS LOG carries its own SEARCH box: the slash key focuses it, typing a scrip keeps only that scrip's alerts, the title counts the matches against the whole log, and ESC clears the search and restores every alert.

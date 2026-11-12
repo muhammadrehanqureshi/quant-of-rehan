@@ -50,14 +50,13 @@ func TestOnlyOneDiamondOnTheCursorRow(t *testing.T) {
 	}
 }
 
-// Owner order 2026-11-11 (eleventh pass): the globe goes back to the build
-// 3.2.6 grid, which read as a 3D sphere; the doubled grid filled every cell and
-// flattened it. The count is pinned in a band so the globe can neither go
-// hollow again nor become a solid mesh.
-func TestSphereGridKeepsTheBuild326Spacing(t *testing.T) {
+// Owner order 2026-11-12: the globe carries fewer dots, evenly spaced over the
+// sphere. The Fibonacci lattice replaces the latitude rings that looked
+// inconsistent at terminal size.
+func TestSphereKeepsAnEvenDotGrid(t *testing.T) {
 	n := len(spherePoints())
-	if n < 1000 || n > 1400 {
-		t.Fatalf("the globe draws %d dots, outside the build 3.2.6 grid", n)
+	if n < 850 || n > 950 {
+		t.Fatalf("the globe draws %d dots, want the 900 dot even lattice", n)
 	}
 }
 

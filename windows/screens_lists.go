@@ -778,11 +778,11 @@ func (a *App) sectorGroups() []Sector {
 // lower and upper blocks are not used because they stand on the floor or the
 // top of the cell.
 //
-// Owner order 2026-11-12: the bar is one solid band now. Each cell carries its
-// ink as the background as well as on the glyph, so the cell seam and the small
-// bars the owner saw inside the band are gone, and the band stands at the full
-// height of the cell. The span, row, label and two inks do not move.
-const barBlock = '▬'
+// Owner order 2026-11-12: the full-cell fill was too tall. The bar is the heavy
+// rule again: the one centred glyph that joins edge to edge with no seam and no
+// small box or line inside it. A console cell has no smaller centred solid
+// step, so the rule is the only way to keep the band seamless.
+const barBlock = '━'
 
 // shareBarBoxes is how many boxes a buy versus sell bar holds. Owner order
 // 2026-11-11: the bar carries ten boxes and not sixteen, and each box grows in
@@ -848,11 +848,11 @@ func (a *App) drawShareBar(c *Canvas, x, y, w int, buyShare float64, label bool)
 			ink = th.Good
 		}
 		for k := at; k < at+width; k++ {
-			// Owner order 2026-11-12: the cell carries its ink as the background
-			// as well, so the rectangle's cell seam and every small bar inside
-			// the band disappear and the bar is one solid full-cell band. Its
-			// span, row, label and two inks are untouched.
-			c.Set(x+k, y, barBlock, ink, ink, false)
+			// Owner order 2026-11-12: the full-cell band was too tall. The
+			// heavy rule is the one centred glyph that joins edge to edge with
+			// no seam and no box inside it; its span, row, label and two inks
+			// are untouched.
+			c.Put(x+k, y, barBlock, ink, false)
 		}
 		at += width
 	}
