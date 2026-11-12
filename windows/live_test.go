@@ -108,18 +108,19 @@ func TestHeaderClockIsGreenButUTCDoesNotFollow(t *testing.T) {
 	a.now = time.Date(2026, 11, 2, 11, 0, 7, 0, pkt)
 	c := a.render()
 	row := c.PlainRows()[1]
-	timeAt := strings.Index(row, "11:00:07")
-	if timeAt < 0 {
-		t.Fatalf("the top row has no clock: %q", row)
+	// The index line carries the rules' box glyphs, which are three bytes each,
+	// so the cell is counted in runes from the row's own start, on row one.
+	cellOf := func(sub string) int {
+		i := strings.Index(row, sub)
+		if i < 0 {
+			t.Fatalf("the index line has no %q: %q", sub, row)
+		}
+		return c.W + len([]rune(row[:i]))
 	}
-	if got := c.Cells[timeAt].FG; got != a.th.Good {
+	if got := c.Cells[cellOf("11:00:07")].FG; got != a.th.Good {
 		t.Errorf("the clock is %v, want green %v", got, a.th.Good)
 	}
-	utcAt := strings.Index(row, "UTC+5")
-	if utcAt < 0 {
-		t.Fatalf("the top row has no UTC+5 tag: %q", row)
-	}
-	if got := c.Cells[utcAt].FG; got == a.th.Good {
+	if got := c.Cells[cellOf("UTC+5")].FG; got == a.th.Good {
 		t.Errorf("UTC+5 is green too; it must stay in the darker shade")
 	}
 }
