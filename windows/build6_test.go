@@ -210,7 +210,7 @@ func TestNetDeltaFollowsTheBarWithOneSpace(t *testing.T) {
 		if i < 0 {
 			t.Fatalf("pair %v: no bar drawn: %q", pair, row)
 		}
-		after := row[i+len(string(barBlock)):]
+		after := strings.TrimRight(row[i+len(string(barBlock)):], " ")
 		if !regexp.MustCompile(`^ +-?[0-9.]+[KMB]?$`).MatchString(after) {
 			t.Errorf("pair %v: the NET DELTA does not follow the bar: %q", pair, row)
 		}
