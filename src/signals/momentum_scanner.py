@@ -1,16 +1,14 @@
-"""The authoritative intraday scanner: the Kalman Trend, only strategy family.
+"""The authoritative intraday scanner: one strategy, the one the owner named.
 
-Owner order 2026-10-30: the ICT/SMC strategy is removed and the Kalman
-Trend is the only strategy family the intraday signals run on. The capture
-validation and the public SessionData/ScanResult contracts stay stable
-for all runners. Two entries can enter, both built by
-src/signals/kalman_trend.py's causal level+slope filter: a fresh confirmed
-upward trend flip, and, when that trend and the four VWAP frames agree, the
-resumption after a completed pullback that sits nearer the day's low than
-its high (src/signals/kalman_vwap_pullback.py). It is the latest strategy
-(owner order 2026-11-09, `kalman_vwap_rs_v3`): when the live deployment
-reads the frames, each entry must also beat the equal-weight market
-(src/signals/kalman_vwap_rs.py).
+Owner order 2026-11-12 (Karachi): every previous strategy is removed and the
+only strategy is the Kalman Trend with VWAP on the 5 minute, 15 minute and 1
+hour charts and the hybrid statistical arbitrage and mean reversion model
+(src/signals/hybrid_arb_mr.py). The capture validation and the public
+SessionData/ScanResult contracts stay stable for all runners. The scanner
+builds its single entry through src/signals/kalman_trend.py's causal
+level+slope trend clock, and reads the scan's own market leg
+(src/signals/market_leg.py) once per scan: the law calls the side of the pair
+that lags the market, never a leader.
 The old RSI diagnostic remains solely for reproducing the HCAR postmortem.
 Asia/Karachi, UTC+5. Signal-only, no broker orders and no assured returns.
 """
@@ -659,11 +657,12 @@ def score_symbol(symbol: str, rows: list[MinuteBar], session: SessionData,
     """Score one symbol under the Kalman Trend entry laws.
 
     `frames` says whether this deployment reads the 5 minute, 15 minute and
-    1 hour VWAP frames (src/signals/mtf_vwap.py). False keeps the replay and
-    unit-test path on the one minute law; the live pipeline passes the
-    deployment flag from src/config.py. `rs_market` is the scan's own
-    relative strength market leg (src/signals/kalman_vwap_rs.py), measured
-    once in select_one and handed to every name.
+    1 hour VWAP frames (src/signals/mtf_vwap.py). The one running law cannot
+    be evaluated without them, so False means no entry at all and the reason
+    is named; the live pipeline passes the deployment flag from
+    src/config.py. `rs_market` is the scan's own market leg
+    (src/signals/market_leg.py), measured once in select_one and handed to
+    every name.
     """
     return kalman_trend.candidate(symbol, rows, session, tally, frames=frames,
                                   rs_market=rs_market)
@@ -699,17 +698,18 @@ def select_one(session: SessionData, quality: QualityReport,
         return ScanResult(DATA_BLOCKED, quality.reason, quality, {}, coverage_text=coverage)
     context = market_context(session)
     context["ai"] = {"active": False, "reason": "Kalman flip rules do not use the daily momentum prior"}
-    # Owner order 2026-11-09: the latest strategy's market leg is measured once
-    # here, from this session's own tape, and handed to every name in the scan.
-    # A capture too thin to say what the market did fails closed with the
-    # reason named rather than dropping the gate silently (SO-3).
-    if config.RS_ENABLED and frames and rs_market is None:
-        from src.signals import kalman_vwap_rs as kalman_rs
+    # Owner order 2026-11-12: the one running law reads the scan's own market
+    # leg, measured once here from this session's tape and handed to every name
+    # in the scan. A capture too thin to say what the market did fails closed
+    # with the reason named rather than dropping the measurement silently
+    # (SO-3).
+    if frames and rs_market is None:
+        from src.signals import market_leg
 
-        rs_market, rs_reason = kalman_rs.market_return(session)
+        rs_market, rs_reason = market_leg.market_return(session)
         if rs_market is None:
             return ScanResult(
-                NO_TRADE, f"relative strength unavailable: {rs_reason}",
+                NO_TRADE, f"market leg unavailable: {rs_reason}",
                 quality, context, ranked=[], coverage_text=coverage,
                 gate_tally={rs_reason: 1})
     tally: dict = {}

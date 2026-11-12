@@ -123,12 +123,15 @@ class LawTest(unittest.TestCase):
 
 
 class CandidateContractTest(unittest.TestCase):
-    def test_without_frames_the_one_minute_law_still_answers(self):
+    def test_without_frames_the_law_refuses_and_names_it(self):
+        """The one running law cannot be evaluated without its frames."""
         from tests.kalman_fixture import setup_rows
 
         rows = setup_rows(scanner, SESSION_OPEN)
-        result = kalman_trend.candidate("OGDC", rows, session_of(rows))
-        self.assertIsNotNone(result)
+        tally: dict = {}
+        result = kalman_trend.candidate("OGDC", rows, session_of(rows), tally)
+        self.assertIsNone(result)
+        self.assertIn("hybrid_frames_not_read", tally)
 
     def test_when_the_frames_are_read_a_short_session_fails_closed(self):
         from tests.kalman_fixture import setup_rows
@@ -138,7 +141,7 @@ class CandidateContractTest(unittest.TestCase):
         result = kalman_trend.candidate("OGDC", rows, session_of(rows), tally,
                                         frames=True)
         self.assertIsNone(result)
-        self.assertIn("mtf_60m_not_ready", tally)
+        self.assertTrue(any(key.startswith("hybrid_") for key in tally), tally)
 
 
 if __name__ == "__main__":

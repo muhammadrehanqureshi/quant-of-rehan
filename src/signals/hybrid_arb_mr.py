@@ -171,7 +171,7 @@ def entry_view(symbol: str, rows: list, session, market: dict | None,
 
 def _session_return(rows: list, session) -> float | None:
     """The name's own move over its completed bars, causally."""
-    from src.signals.kalman_vwap_rs import session_return, session_open_of
+    from src.signals.market_leg import session_return, session_open_of
 
     return session_return(rows, session_open_of(session), session.as_of)
 
