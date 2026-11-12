@@ -93,12 +93,15 @@ func (a *App) drawSettings(c *Canvas, x, y, w, h int) {
 
 	bx, by, bw, bh := a.panel(c, x, y+settingsH+themesH+2, w, relayH, "BUILD VERSION & RELAY", "")
 	brow := by
+	// Owner order 2026-11-12 (latest): the facts read down the same column the
+	// SETTINGS and THEMES tiles read down, three cells in from the frame, with
+	// their values on one column after the key field like the other two tiles.
 	info := func(k, v string, col RGB) {
 		if brow >= by+bh {
 			return
 		}
-		c.Text(bx, brow, 16, k, th.Soft, false)
-		c.Text(bx+16, brow, max(1, bw-16), fit(v, max(1, bw-16)), col, false)
+		c.Text(bx+3, brow, 16, k, th.Soft, false)
+		c.Text(bx+19, brow, max(1, bw-19), fit(v, max(1, bw-19)), col, false)
 		brow++
 	}
 	// Owner order 2026-11-12: VERSION stands before RELAY in the facts tile.
