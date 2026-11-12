@@ -489,4 +489,9 @@ func TestOrderFlowHasABarColumn(t *testing.T) {
 	if strings.Contains(s, "BUY SHARE") {
 		t.Errorf("the old BUY SHARE heading is still there")
 	}
+	// Owner order 2026-11-12 (latest): the hint is withdrawn from both of the
+	// page's own lines.
+	if strings.Contains(s, "/ searches") {
+		t.Errorf("the / searches hint is still on ORDER FLOW:\n%s", s)
+	}
 }

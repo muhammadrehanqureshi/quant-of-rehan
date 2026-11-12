@@ -1,10 +1,11 @@
-# Quant of Rehan for Windows (console edition), build 87
+# Quant of Rehan for Windows (console edition), build 88
 
 A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.20**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
 
-## What is new in build 87
+## What is new in build 88
 
+* **Build 88 (version 3.3.7).** The `/ searches` hint is withdrawn from ORDER FLOW, both from the panel's own line and from under its search box, which now read `UP and DOWN scroll.` and `ESC clears`. Every NET DELTA value on ORDER FLOW starts on its column's first cell, under the first letter of its heading, like every other value in that table. A fresh broker quote moves the price and the change together on ORDER FLOW as well, so one scrip reads the same price and the same percentage on the scanner, the boards, the search tile and the flow table instead of one page carrying a newer price than another.
 * **Build 87 (version 3.3.6).** Every bar in the build is the same bar: the green is always the buyers' share of the classified volume and the red is always the sellers', so a bar shows which side is in front on every page, and the two ALERTS boards no longer draw their own side in green, which made a heavy seller read as a buyer. The percentage after a bar is gone and its NET DELTA takes its place, buy minus sell, signed and coloured by the side that is ahead. ORDER FLOW carries that figure in a column of its own, `NET DELTA`, after `BARS`, over every row's value.
 * **Build 86 (version 3.3.5).** The date and clock stand above the PSX'S KMIALL INDEX line again, on the top row at the window's right edge, so the index line keeps its rules to the edge and never cuts the clock. TOP PERFORMERS names only scrips with traded volume behind the day, from the flow table, the broker feed or the relay's own pair, so a relay row that carries a change for a scrip with no data can no longer top the list.
 * **Build 85 (version 3.3.4).** Every green and red bar is ten percent taller, drawn in the bold cut of the same centred heavy rule: the glyph, its span, its row, its label and its two inks do not move, nothing is drawn inside the bar and its box's top and bottom stay clear. SETTINGS keeps the relay's address alone on the RELAY row, `REQUESTS TODAY` reads `N of 100,000.`, and the line under it reads `The requests reset at 05:00 PKT.` CUSTOM SCRIPS OF VOLUME puts all six sorts in the one left hand column, the four new ones under the two that were already there, and the sector list gives up two rows when a sort is chosen so its three scrips still show.
