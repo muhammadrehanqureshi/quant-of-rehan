@@ -66,8 +66,8 @@ CRONS = [
                              # discarded extras
     "10,20,25,32 9 * * 5",   # Friday 14:10 second pre-open warm-up,
                              # 14:20/14:25 retries, 14:32 open
-    "0,30,32,40,45 7,10,11 * * 1-5",  # 12:00/12:30/15:30/16:30 PKT closes,
-                                      # 15:32 post-close wake, 15:40/15:45
+    "0,30,33,40,45 7,10,11 * * 1-5",  # 12:00/12:30/15:30/16:30 PKT closes,
+                                      # 15:33 post-close wake, 15:40/15:45
                                       # Mon-Thu retries, 16:40/16:45 Friday
                                       # retries
 ]

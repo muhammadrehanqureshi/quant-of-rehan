@@ -560,7 +560,7 @@ class TestCloudflareSchedule(unittest.TestCase):
         self.assertTrue(pair_crons, "cloud/pair.py must declare a CRONS list")
         self.assertEqual(
             sorted(pair_crons),
-            ["0,30,35,40,50 7,10,11 * * 1-5",
+            ["0,30,33,40,45 7,10,11 * * 1-5",
              "10,20,25,32 9 * * 5",
              "20,25,32,55 3,4 * * 1-4",
              "30 7 * * 1-4",
