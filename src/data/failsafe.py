@@ -48,9 +48,9 @@ STALE_SECONDS = 240.0
 
 # SO-8: the clock here is Asia/Karachi (UTC+5), and every window edge is
 # imported from src/data/sessions.py, the one place the pin lives.
-# The 08:55 recorder warm-up, before the exchange publishes its first pre-open
-# window (09:15 Monday to Thursday, 09:00 Friday).
-CAPTURE_WARMUP_OPEN = (8, 55)
+# The 09:00 recorder warm-up (owner order 2026-11-12, it was 08:55), the first
+# pre-open window on every market day.
+CAPTURE_WARMUP_OPEN = (9, 0)
 
 # How long a dispatched band runs. Long enough for the pre-open window and for
 # the post-market window, and the loop's own pause table stops it scanning the

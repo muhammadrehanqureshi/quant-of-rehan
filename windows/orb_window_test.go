@@ -75,7 +75,7 @@ func TestOrbIsGreenOnlyInTheOwnersClockWindow(t *testing.T) {
 		want bool
 	}{
 		{"monday before", time.Date(2026, 11, 2, 8, 54, 59, 0, pkt), false},
-		{"monday start", time.Date(2026, 11, 2, 8, 55, 0, 0, pkt), true},
+		{"monday start", time.Date(2026, 11, 2, 9, 0, 0, 0, pkt), true},
 		{"monday pre-market", time.Date(2026, 11, 2, 9, 15, 0, 0, pkt), true},
 		{"monday session", time.Date(2026, 11, 2, 10, 0, 0, 0, pkt), true},
 		{"monday late", time.Date(2026, 11, 2, 15, 48, 59, 0, pkt), true},

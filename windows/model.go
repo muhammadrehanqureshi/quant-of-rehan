@@ -35,8 +35,10 @@ const appVersion = "4.0.20"
 // the one bar on every page, green for the buyers' share and red for the
 // sellers', with the NET DELTA after it and in a column of its own on ORDER
 // FLOW, is 3.3.6, and the withdrawn / searches hint, the left aligned NET
-// DELTA and the one live price and change pair on ORDER FLOW are 3.3.7.
-const hudBuild = "3.3.7"
+// DELTA and the one live price and change pair on ORDER FLOW are 3.3.7, and
+// the one measured pair behind every bar, the 09:00 scan start, the fixed
+// change column on the scanner and the withdrawn ESC clears note are 3.3.8.
+const hudBuild = "3.3.8"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no

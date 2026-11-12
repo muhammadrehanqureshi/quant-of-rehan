@@ -39,8 +39,8 @@ func (a *App) orbMode() OrbMode {
 }
 
 // orbGreen says whether the quant mark wears the GIF's refined green. Owner
-// order 2026-11-12: green from 08:55 to 15:49 Monday to Thursday and from
-// 08:55 to 16:49 on Friday, red outside those windows and all weekend.
+// order 2026-11-12: green from 09:00 to 15:49 Monday to Thursday and from
+// 09:00 to 16:49 on Friday, red outside those windows and all weekend.
 // A PSX holiday is not a market day, so it is red all day too, and the relay's
 // own trading-day flag can only add a red day, never turn one green.
 func (a *App) orbGreen() bool {
@@ -51,7 +51,7 @@ func (a *App) orbGreen() bool {
 	if a.market != nil && a.market.PhaseKnown() && !a.market.TradingDay {
 		return false
 	}
-	start := scanOpen // 08:55
+	start := scanOpen // 09:00
 	end := 15*60 + 49
 	if isFriday(p) {
 		end = 16*60 + 49
@@ -388,7 +388,7 @@ func (a *App) scanStatus() (string, RGB) {
 		// Owner order 2026-11-09: a closed trading day names itself.
 		return "MARKET IS CLOSED TODAY", th.Soft
 	case secondOf(p) < scanOpen*60:
-		return "STARTS AT 08:55", th.Soft
+		return "STARTS AT 09:00", th.Soft
 	}
 	return "DONE FOR TODAY", th.Soft
 }
@@ -1237,7 +1237,8 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 				showPrice(pkrLeft, priceRight, chgRight)
 				if l.HasSplit() {
 					if total := *l.Buy + *l.Sell; total > 0 {
-						a.shareBarOnly(c, barStart, row, bw, *l.Buy, *l.Sell)
+						bb, bs := a.pairOf(l.Symbol, *l.Buy, *l.Sell)
+						a.shareBarOnly(c, barStart, row, bw, bb, bs)
 					}
 				}
 			case end-priceBlock >= floor:

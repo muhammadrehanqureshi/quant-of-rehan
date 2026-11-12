@@ -157,8 +157,8 @@ func plural(n int, noun string) string {
 
 // friendlyNext words the relay's next event, such as "OPEN 2026-11-02 09:32",
 // the way a person would say it. An OPEN is the next scanning window, which
-// starts at scanOpen (08:55), not the exchange's 09:32 opening bell, so the
-// telemetry says "Mon 02 Nov, 08:55". A CLOSE keeps the relay's time.
+// starts at scanOpen (09:00), not the exchange's 09:32 opening bell, so the
+// telemetry says "Mon 02 Nov, 09:00". A CLOSE keeps the relay's time.
 // Anything it does not recognise is shown as the relay sent it.
 func friendlyNext(s string) string {
 	parts := strings.Fields(s)

@@ -373,7 +373,11 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 				c.Text(pkr, row, 3, "PKR", th.Soft, false)
 				a.flashText(c, pxAt, row, px, th.Text, true, pxKey)
 				if q.ChangePct != nil {
-					a.flashRight(c, chgAt, row, changeText(*q.ChangePct), a.dirColor(*q.ChangePct), true, pxKey)
+					// Owner report 2026-11-12 (latest): PIM's price and its percentage
+					// sat further apart than 14.00's, because the change was right
+					// aligned and a digit wider. It starts on a fixed cell now, so the
+					// gap after the price is the same on every row of the list.
+					a.flashText(c, chgAt-chgW, row, fit(changeText(*q.ChangePct), chgW), a.dirColor(*q.ChangePct), true, pxKey)
 				}
 			}
 			// Owner order 2026-11-12: the bar gives way first on a narrow row;
@@ -383,7 +387,8 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 				showPrice(priceRight-pxW-4, priceRight-pxW, chgRight)
 				if q.Buy != nil && q.Sell != nil {
 					if total := *q.Buy + *q.Sell; total > 0 {
-						a.shareBarOnly(c, barStart, row, shareBarSpan, *q.Buy, *q.Sell)
+						bb, bs := a.pairOf(s, *q.Buy, *q.Sell)
+						a.shareBarOnly(c, barStart, row, shareBarSpan, bb, bs)
 					}
 				}
 			case end-4-runeLen(px)-chgW-1 >= ix+3+used+1:
@@ -559,7 +564,8 @@ func (a *App) drawSearchTile(c *Canvas, x, y, w, h int) {
 	// Owner order 2026-11-10 (latest): the chosen stock's bar is back on the
 	// search tile, at the right edge of its own volume row.
 	if buy != nil && sell != nil && *buy+*sell > 0 && dw-used-2 >= shareBarWidth {
-		a.shareBar(c, dx+dw-shareBarWidth, dy+2, shareBarWidth, *buy, *sell)
+		bb, bs := a.pairOf(a.selectedSym, *buy, *sell)
+		a.shareBar(c, dx+dw-shareBarWidth, dy+2, shareBarWidth, bb, bs)
 	}
 }
 
@@ -885,6 +891,24 @@ const shareNetW = 9
 // the NET DELTA after it.
 const shareBarWidth = shareBarSpan + 1 + shareNetW
 
+// pairOf is the one buy and sell pair every bar in the build reads, so a scrip
+// draws the same bar on the scanner, on both ALERTS boards, on the search tile,
+// on the KSE100 leaders and on ORDER FLOW. Owner order 2026-11-12 (latest): the
+// relay's measured day pair from the flow table wins, because that is the pair
+// the whole build prints as B and S. A scrip with no measured row, or a build
+// with no flow table yet, keeps the pair its own row carries, which is the only
+// pair it has.
+func (a *App) pairOf(sym string, buy, sell int64) (int64, int64) {
+	if a.of != nil {
+		for _, fr := range a.of.Rows {
+			if fr.Symbol == sym && fr.Measured() {
+				return *fr.Buy, *fr.Sell
+			}
+		}
+	}
+	return buy, sell
+}
+
 // shareBar draws a buy versus sell bar: ten boxes of two cells, then one
 // space, then the NET DELTA, so the two sides' strength and the difference
 // between them read in one glance.
@@ -1110,8 +1134,10 @@ func (a *App) drawBoardPanel(c *Canvas, x, y, w, h int, side int) {
 		}
 		// Owner order 2026-11-12 (latest): both boards draw the one bar, so a
 		// selling board is red because the sellers are in front, never green
-		// because that board's own side is selling.
-		a.drawShareBar(c, ix+cw-barW, ry, barW, b.BuyShares, b.SellShares, barW >= shareBarWidth)
+		// because that board's own side is selling, and the pair is the same
+		// measured day pair every other page prints for the scrip.
+		bb, bs := a.pairOf(b.Symbol, b.BuyShares, b.SellShares)
+		a.drawShareBar(c, ix+cw-barW, ry, barW, bb, bs, barW >= shareBarWidth)
 		if room := cw - barW - (vx - ix) - 2; room > 0 {
 			c.Text(vx, ry, room, fit(pkrTxt, room), good, true)
 		}
