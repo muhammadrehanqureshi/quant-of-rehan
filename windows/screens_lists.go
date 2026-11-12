@@ -865,13 +865,12 @@ func (a *App) sectorGroups() []Sector {
 // small box or line inside it, and it never reaches the top or the bottom of
 // its box.
 //
-// Owner order 2026-11-12 (latest): the bar is ten percent taller, drawn in the
-// bold cut of the same centred heavy rule. A console cell is one fixed height
-// and no glyph is ten percent taller than the rule, so the bold cut is the one
-// step up the console offers for one glyph: the stroke grows, the glyph, its
-// span, its row and its two inks stay exactly where they are, nothing is drawn
-// inside the bar, and its box's top and bottom stay clear.
-const barBlock = '━'
+// Owner order 2026-11-12 (latest): the owner chose the rectangle over the rule,
+// so every bar is the centred rectangle in the bold cut. It is about three
+// times the height of the heavy rule and it is the tallest glyph that still
+// leaves the top and the bottom of the cell clear: its span, its ten boxes, its
+// row and its two inks do not change, and nothing is drawn inside it.
+const barBlock = '▬'
 
 // shareBarBoxes is how many boxes a buy versus sell bar holds. Owner order
 // 2026-11-11: the bar carries ten boxes and not sixteen, and each box grows in
@@ -968,8 +967,9 @@ func (a *App) drawShareBar(c *Canvas, x, y, w int, buy, sell int64, label bool) 
 			ink = th.Good
 		}
 		for k := at; k < at+width; k++ {
-			// Owner order 2026-11-12 (latest): the bold cut is the taller weight
-			// of the same centred rule. Nothing else about the bar changes.
+			// Owner order 2026-11-12 (latest): the centred rectangle in the bold
+			// cut, the taller glyph the owner chose. Nothing else about the bar
+			// changes.
 			c.Put(x+k, y, barBlock, ink, true)
 		}
 		at += width

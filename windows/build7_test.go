@@ -39,14 +39,15 @@ func TestBarsAreBuild21sShadedTabs(t *testing.T) {
 	c := NewCanvas(40, 1, RGB{})
 	a.shareBar(c, 2, 0, shareBarWidth, 5, 5)
 	row := c.PlainRows()[0]
-	// Owner order 2026-11-12: the bar is the centred heavy rule, never a
-	// lower or upper block that stands on the floor or the top.
-	if barBlock != '━' {
-		t.Fatalf("the bar is %q, not the centred heavy rule", barBlock)
+	// Owner order 2026-11-12 (latest): the bar is the centred rectangle, never a
+	// lower or upper block that stands on the floor or the top, and never the
+	// full block.
+	if barBlock != '▬' {
+		t.Fatalf("the bar is %q, not the centred rectangle", barBlock)
 	}
-	for _, block := range "▄▅█▀■▬" {
+	for _, block := range "▄▅█▀■━" {
 		if block == barBlock {
-			t.Fatal("a lower block, a full block or the old rectangle is inside the bar again")
+			t.Fatal("a block, the full block or the old heavy rule is inside the bar again")
 		}
 	}
 	if strings.ContainsRune(row, '│') {
@@ -57,9 +58,8 @@ func TestBarsAreBuild21sShadedTabs(t *testing.T) {
 		if ce.Ch != barBlock {
 			continue
 		}
-		// Owner order 2026-11-12: the bar is ten percent taller, drawn in the
-		// bold cut of the same rule, the console's one taller weight for one
-		// glyph. Span, row, glyph and inks do not move.
+		// Owner order 2026-11-12 (latest): the bar is the centred rectangle in the
+		// bold cut. Span, row and inks do not move.
 		if !ce.Bold {
 			t.Fatalf("a bar cell is regular weight, not the taller bold cut")
 		}
