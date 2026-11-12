@@ -39,10 +39,19 @@ func TestTitleIsTheTopLine(t *testing.T) {
 func TestFooterActionsAreUppercase(t *testing.T) {
 	a := demoApp(t, 122, 30)
 	s := plain(a)
-	for _, want := range []string{"D DETAILS", "TAB NEXT", "R REFRESH", "Q QUIT"} {
+	for _, want := range []string{"TAB NEXT", "R REFRESH", "Q QUIT"} {
 		if !strings.Contains(s, want) {
 			t.Errorf("the footer is missing %q:\n%s", want, s)
 		}
+	}
+	// Owner order 2026-11-12 (latest): the D DETAILS hint is off the footer,
+	// and the D key itself still flips the card to its raw text.
+	if strings.Contains(s, "D DETAILS") {
+		t.Errorf("the footer still carries D DETAILS:\n%s", s)
+	}
+	a.onKey(Key{Kind: KRune, R: 'd'})
+	if !a.showRaw {
+		t.Fatal("D must still flip the card to its raw text")
 	}
 }
 
@@ -468,7 +477,7 @@ func TestAlertsScreenListsTheLogAndBoard(t *testing.T) {
 	a := demoApp(t, 120, 30)
 	a.screen = scrAlerts
 	s := plain(a)
-	for _, want := range []string{"BIG BUYING NOW", "BIG SELLING NOW", "ALERTS LOG (", "ECHO is getting big buying orders", "From PKR 10.0M a minute", "BUY FLOW", "BUY BLOCK"} {
+	for _, want := range []string{"BIG BUYING NOW", "BIG SELLING NOW", "ALERTS LOG (", "ECHO is getting big buying orders", "PKR 1M or above orders", "BUY FLOW", "BUY BLOCK"} {
 		if !strings.Contains(s, want) {
 			t.Errorf("alerts screen is missing %q", want)
 		}
