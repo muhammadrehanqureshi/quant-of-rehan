@@ -19,25 +19,24 @@ name: KMIALL session scan loop
 #
 # Why four windows instead of one job: a GitHub job may not exceed six hours,
 # and Mon-Thu 09:32 to 15:30 is 5h58m before any setup is billed. The longest
-# window here is 216 minutes (08:55 to 12:31), inside the job's 240-minute
+# window here is 211 minutes (09:00 to 12:31), inside the job's 240-minute
 # timeout, and the loop pauses in the warm-up, in the Friday
 # midday break and outside the session, so a window that starts at a band edge
 # and ends at the next one never scans a shut market. The scheduled per-slot
 # fires and the post-close finalize in intraday-capture.yml stay as they are:
 # they are the backstop if a session job dies mid-band.
 #
-#   03:55 UTC = 08:55 PKT  Mon-Thu band 1 (window opens 08:55 as a recorder
+#   04:00 UTC = 09:00 PKT  Mon-Thu band 1 (window opens 09:00 as a recorder
 #                          warm-up, not a pre-market session; the loop's own
-#                          sleep gate keeps 08:55 to 09:15 off, scans the
+#                          sleep gate keeps 09:00 to 09:15 off, scans the
 #                          exchange's 09:15 to 09:30 pre-open window, and
 #                          sleeps through the 09:30 to 09:32 order-matching
 #                          break)
 #   07:30 UTC = 12:30 PKT  Mon-Thu band 2 (12:30 to 15:30)
 #   10:32 UTC = 15:32 PKT  Mon-Thu post-market, owner order 2026-11-12:
 #                          the loop scans to 15:49 (runs 15:32 to 15:49)
-#   03:55 UTC = 08:55 PKT  Friday band 1 (window opens 08:55 as a recorder
-#                          warm-up, so the pre-open zero gate seeds the day
-#                          before the 09:00 Friday auction; the loop then
+#   04:00 UTC = 09:00 PKT  Friday band 1 (window opens at the 09:00 Friday
+#                          auction; the loop then
 #                          scans 09:17 to 12:00 and holds through the break)
 #   09:10 UTC = 14:10 PKT  Friday band 2 (pre-open recorder warm-up; the
 #                          band opens at 14:32 and runs to 16:30)
@@ -55,10 +54,10 @@ name: KMIALL session scan loop
 
 on:
   schedule:
-    - cron: "55 3 * * 1-4"     # 08:55 PKT, Mon-Thu band 1
+    - cron: "0 4 * * 1-4"      # 09:00 PKT, Mon-Thu band 1
     - cron: "30 7 * * 1-4"     # 12:30 PKT, Mon-Thu afternoon band
     - cron: "32 10 * * 1-4"    # 15:32 PKT, Mon-Thu post-close
-    - cron: "55 3 * * 5"       # 08:55 PKT, Friday pre-open recorder warm-up
+    - cron: "0 4 * * 5"        # 09:00 PKT, Friday pre-open recorder warm-up
     - cron: "10 9 * * 5"       # 14:10 PKT, Friday pre-open warm-up for session 2
     # Owner order 2026-11-12: the scanning window now ends at 15:49 Monday to
     # Thursday and at 16:49 on Friday, the feed's last post-close print, so the
@@ -148,9 +147,9 @@ jobs:
       # and still reported success. A scheduled fire now names its own cron so
       # the gate can decide with the session law, exactly as intraday-capture
       # already does; a manual dispatch keeps the deliberate override. The
-      # 08:55 and 14:10 recorder warm-ups ask for the warm-up purpose: the loop
+      # 09:00 and 14:10 recorder warm-ups ask for the warm-up purpose: the loop
       # starts now and its own gate waits for the exchange's window. Without
-      # this the outer gate slept at 08:55 and the morning band never ran.
+      # this the outer gate slept at the start and the morning band never ran.
       - name: Session gate (sleep outside the PSX session)
         id: gate
         run: |
@@ -158,7 +157,7 @@ jobs:
             python -m src.data.session_gate --check --force --purpose scan
           else
             case "${{ github.event.schedule }}" in
-              "55 3 * * 1-4"|"55 3 * * 5"|"10 9 * * 5")
+              "0 4 * * 1-4"|"0 4 * * 5"|"10 9 * * 5")
                 python -m src.data.session_gate --check --purpose warmup
                 ;;
               *)
@@ -194,15 +193,15 @@ jobs:
           # A cron changes only when the runner wakes, never what the loop is
           # allowed to see; the loop itself ends at the band's own close.
           case "${{ github.event.schedule }}" in
-            # 08:55 + 216 min = 12:31, and 12:30 + 181 min = 15:31. Band 1
+            # 09:00 + 211 min = 12:31, and 12:30 + 181 min = 15:31. Band 1
             # used to be 181 min, which ended its loop at 11:56 and left the
             # relay unpushed from 11:56 until the 12:30 band: the owner saw
             # that as "the data is delayed by many seconds". The length must
             # reach the next band's start, not stop short of it.
-            "55 3 * * 1-4") seconds=12960 ;;   # 216 min, ends 12:31
+            "0 4 * * 1-4")  seconds=12660 ;;   # 211 min, ends 12:31
             "30 7 * * 1-4") seconds=10860 ;;   # 181 min, ends 15:31
             "32 10 * * 1-4") seconds=1020 ;;   # 17 min, post-market to 15:49
-            "55 3 * * 5")   seconds=12960 ;;   # 216 min, ends 12:31
+            "0 4 * * 5")    seconds=12660 ;;   # 211 min, ends 12:31
             "10 9 * * 5")   seconds=8400  ;;   # 140 min, ends 16:30
             "32 11 * * 5")  seconds=1020 ;;   # 17 min, post-market to 16:49
             *)              seconds="${{ inputs.seconds }}" ;;

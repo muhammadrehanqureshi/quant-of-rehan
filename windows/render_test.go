@@ -121,7 +121,7 @@ func TestScreensShowTheAppsText(t *testing.T) {
 	for _, want := range []string{"RELAY STATUS", "NOTIFICATIONS", "JARVIS CYAN", "PURPLE & YELLOW", "BLACK & WHITE",
 		"NAVY BLUE & WHITE", "VERSION", appVersionLabel, "REQUESTS TODAY",
 		"The requests reset at 05:00 PKT.",
-		"Every second from 08:55 until the post-market closes.",
+		"Every second from 09:00 until the post-market closes.",
 		"That is at 15:49 from Monday to Thursday & at 16:49 on Friday.",
 		"BIG BUYING FLAG", "BIG SELLING FLAG", "SOUND", "BIG ORDER SIZE", "TEST BUYING ALERT", "TEST SELLING ALERT"} {
 		if !strings.Contains(set, want) {
@@ -317,11 +317,11 @@ func TestDemoNextEventFollowsTheSessionLaw(t *testing.T) {
 	}
 }
 
-// Owner order 2026-11-07: the next event is the scanner going live at 08:55,
+// Owner order 2026-11-07: the next event is the scanner going live at 09:00,
 // not the exchange's 09:32 opening bell. The relay's date is kept, so a holiday
 // is still the relay's holiday.
 func TestFriendlyNextShowsTheScanStart(t *testing.T) {
-	if got := friendlyNext("OPEN 2026-11-10 09:32"); got != "Tue 10 Nov, 08:55" {
+	if got := friendlyNext("OPEN 2026-11-10 09:32"); got != "Tue 10 Nov, 09:00" {
 		t.Errorf("next open: %q", got)
 	}
 	if got := friendlyNext("CLOSE 2026-11-10 15:30"); got != "Closes Tue 10 Nov, 15:49" {

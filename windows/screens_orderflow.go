@@ -345,7 +345,8 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 				// ten boxes two cells wide, so it is longer without one extra box.
 				// Owner order 2026-11-12 (latest): the NET DELTA stands in its own
 				// column after the bar, buy minus sell, signed.
-				a.shareBar(c, ix+barX, row, shareBarWidth, *r.Buy, *r.Sell)
+				bb, bs := a.pairOf(r.Symbol, *r.Buy, *r.Sell)
+				a.shareBar(c, ix+barX, row, shareBarWidth, bb, bs)
 			}
 			if warn != "" {
 				c.Text(ix+cw-len(warn), row, len(warn), warn, th.Warn, true)
@@ -507,9 +508,8 @@ func (a *App) drawFlowSearch(c *Canvas, ix, y, iw int) {
 	if a.ofQuery != "" {
 		c.Text(ix+2+fw, y, 12, fmt.Sprintf("%d match", len(a.sortedFlow())), th.Soft, false)
 	}
-	if iw > 70 {
-		rightAlign(c, ix, y, iw, []Span{{"ESC clears", th.Soft, false}})
-	}
+	// Owner order 2026-11-12 (latest): the ESC clears note is withdrawn from the
+	// right of the search box as well, so the line carries nothing but the box.
 	a.addHit(ix, y, iw, 1, func() { a.ofSearch = true; a.lvOF.top() })
 }
 
