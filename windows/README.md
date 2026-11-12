@@ -1,10 +1,11 @@
-# Quant of Rehan for Windows (console edition), build 96
+# Quant of Rehan for Windows (console edition), build 97
 
 A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.21**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
 
-## What is new in build 96
+## What is new in build 97
 
+* **Build 97 (version 3.4.6).** The application icon is the owner's new `QoR.png` of 2026-11-12: 2048 by 2048, committed byte for byte as `assets/icon-source.png` and embedded from it, and the same bytes now stand as `assets/QoR.png`, the project's official mark in the README. The Go test pins the new source hash, so no later build can swap, recolour or redraw it.
 * **Build 96 (version 3.4.5).** The ALERTS LOG frame reads `Press "/" to search. DEL clears the log.`, with the test sentence withdrawn. The CUSTOM SCRIPS OF VOLUME frame reads `Press LEFT & RIGHT arrow keys` and no longer offers the sort menu in words.
 * **Build 95 (version 3.4.4).** ORDER FLOW's frame reads `Press "/" to search` instead of `UP and DOWN scroll`, and every page with a search box says the same: ORDER FLOW, the ALERTS LOG, and the SEARCH tile on SCANNER. The slash puts the keys in the page's own box on all three. On SCANNER it leaves the keys on the SEARCH tile and never types itself, and the SECTORS tile's own field takes the keys from a click on it.
 * **Build 94 (version 3.4.3).** Every bar is the heavy rule in the bold cut again: the rectangle and the square are narrower than a console cell, which is the seam between the boxes, and the rule is the one glyph that reaches both edges and joins into a single line. Its span, its ten boxes, its row and its two inks do not change. The KSE100 reading is taken from the one second `/quotes` snapshot instead of the five second card, so the index line and its change move at the feed's own pace; the leaders and the source name stay the card's.
