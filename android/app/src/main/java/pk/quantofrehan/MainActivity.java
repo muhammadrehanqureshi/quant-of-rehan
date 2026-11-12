@@ -1512,11 +1512,16 @@ public class MainActivity extends Activity {
         // starts empty: one law with buildThemeMenu's own rebuild.
         menuDividers.clear();
         // The rows are the captions, in v2.2.5's own order (the rising
-        // prices first); the index to ranking mapping lives at
-        // paintVolumeReveal alone: row i is volumeSplitChoice i + 1.
+        // prices first) and then the console's four sorts in its own
+        // order (owner order 2026-11-12); the index to ranking mapping
+        // lives at rankedVolumeSymbols alone: row i is choice i + 1.
         volumeChoices = new String[]{
                 getString(R.string.volume_speed_caption),
-                getString(R.string.volume_split_caption)};
+                getString(R.string.volume_split_caption),
+                getString(R.string.volume_seller_caption),
+                getString(R.string.volume_quiet_caption),
+                getString(R.string.volume_lower_lock_caption),
+                getString(R.string.volume_upper_lock_caption)};
         for (int i = 0; i < volumeChoices.length; i++) {
             final int index = i;
             TextView row = menuRow(volumeChoices[index],
@@ -1605,13 +1610,12 @@ public class MainActivity extends Activity {
         java.util.Map<String, Watcher.Quote> quotes = Watcher.quotes();
         // v2.2.5: row 1 is the scanner's riser entry (PRICES RISING FAST),
         // row 2 the busiest B/S ranking (MORE BUYERS & LESS SELLERS); row
-        // 0 is the SELECT CUSTOM SCRIPS placeholder. Since v2.3.7 both
-        // carry the same sentence: the quantity bracket with
-        // the green buy and the red sell, and the money line with the now
-        // coloured arrow, so no menu prints a format of its own.
-        List<String> ranked = volumeSplitChoice == 2
-                ? rankedSplitSymbols(quotes)
-                : rankedSpeedSymbols(quotes);
+        // 0 is the SELECT CUSTOM SCRIPS placeholder. Owner order
+        // 2026-11-12 adds the console's four sorts as rows 3 to 6. All six
+        // carry the same sentence: the quantity bracket with the green buy
+        // and the red sell, and the money line with the now coloured arrow,
+        // so no menu prints a format of its own.
+        List<String> ranked = rankedVolumeSymbols(volumeSplitChoice, quotes);
         SpannableStringBuilder styled = volumeRevealText(quotes, ranked);
         if (styled.length() == 0) {
             volumeReveal.setVisibility(View.GONE);
@@ -1701,6 +1705,137 @@ public class MainActivity extends Activity {
             int bySpeed = Double.compare(moveB, moveA);
             if (bySpeed != 0) {
                 return bySpeed;
+            }
+            return a.compareTo(b);
+        });
+        return symbols.subList(0, Math.min(symbols.size(), 3));
+    }
+
+    /**
+     * The traded total a scrip is ranked by: the relay's own total when it
+     * carries one, otherwise the measured buy and sell pair. A row with
+     * neither cannot be ranked, so it answers null and is never read as a
+     * zero (SO-3: a missing number is not a number).
+     */
+    private static Long rankedVolume(Watcher.Quote quote) {
+        if (quote == null) {
+            return null;
+        }
+        if (quote.volume != null) {
+            return quote.volume;
+        }
+        if (quote.buy != null && quote.sell != null) {
+            return quote.buy + quote.sell;
+        }
+        return null;
+    }
+
+    /**
+     * The six CUSTOM SCRIPS OF VOL. sorts (owner order 2026-11-12), in the
+     * console's own order: the two the app already carried, then the four
+     * that shipped with the console's build 84. Row 0 is the SELECT CUSTOM
+     * SCRIPS placeholder and names no ranking.
+     */
+    private List<String> rankedVolumeSymbols(
+            int choice, java.util.Map<String, Watcher.Quote> quotes) {
+        switch (choice) {
+            case 2:
+                return rankedSplitSymbols(quotes);
+            case 3:
+                return rankedSellerSymbols(quotes);
+            case 4:
+                return rankedQuietSymbols(quotes);
+            case 5:
+                return rankedLockSymbols(quotes, true);
+            case 6:
+                return rankedLockSymbols(quotes, false);
+            default:
+                return rankedSpeedSymbols(quotes);
+        }
+    }
+
+    /**
+     * MORE SELLERS & LESS BUYERS (owner order 2026-11-12): the mirror of the
+     * buyers' menu. Only rows with both sides reported whose sellers
+     * outweigh their buyers are rows at all, and they rank by the sell side
+     * itself - the biggest seller prints lead - ties by symbol, top three.
+     */
+    private List<String> rankedSellerSymbols(java.util.Map<String, Watcher.Quote> quotes) {
+        List<String> symbols = new ArrayList<>();
+        for (java.util.Map.Entry<String, Watcher.Quote> entry : quotes.entrySet()) {
+            Watcher.Quote quote = entry.getValue();
+            if (quote.buy != null && quote.sell != null && quote.sell > quote.buy) {
+                symbols.add(entry.getKey());
+            }
+        }
+        symbols.sort((a, b) -> {
+            Watcher.Quote qa = quotes.get(a);
+            Watcher.Quote qb = quotes.get(b);
+            int bySell = Long.compare(qb.sell, qa.sell);
+            if (bySell != 0) {
+                return bySell;
+            }
+            return a.compareTo(b);
+        });
+        return symbols.subList(0, Math.min(symbols.size(), 3));
+    }
+
+    /**
+     * ALMOST NO VOLUME AT ALL (owner order 2026-11-12): the lightest traded
+     * total leads, ties by symbol, top three. A scrip with no measured total
+     * at all has no pair to show, so it is left out rather than ranked as a
+     * zero.
+     */
+    private List<String> rankedQuietSymbols(java.util.Map<String, Watcher.Quote> quotes) {
+        List<String> symbols = new ArrayList<>();
+        for (java.util.Map.Entry<String, Watcher.Quote> entry : quotes.entrySet()) {
+            Long total = rankedVolume(entry.getValue());
+            if (total != null && total > 0) {
+                symbols.add(entry.getKey());
+            }
+        }
+        symbols.sort((a, b) -> {
+            long ta = rankedVolume(quotes.get(a));
+            long tb = rankedVolume(quotes.get(b));
+            int bySize = Long.compare(ta, tb);
+            if (bySize != 0) {
+                return bySize;
+            }
+            return a.compareTo(b);
+        });
+        return symbols.subList(0, Math.min(symbols.size(), 3));
+    }
+
+    /**
+     * SCRIPS WITH LOWER LOCK and SCRIPS WITH UPPER LOCK (owner order
+     * 2026-11-12): a scrip is at its lock when its day move is at or beyond
+     * the app's own CAPPED_MOVE_MARK in that direction, and the three named
+     * are the heaviest by volume, ties by symbol. A scrip with no move on
+     * the relay's answer cannot be called locked (SO-3).
+     */
+    private List<String> rankedLockSymbols(
+            java.util.Map<String, Watcher.Quote> quotes, boolean down) {
+        List<String> symbols = new ArrayList<>();
+        for (java.util.Map.Entry<String, Watcher.Quote> entry : quotes.entrySet()) {
+            Double move = entry.getValue().changePct;
+            if (move == null) {
+                continue;
+            }
+            if (down) {
+                if (move > -CAPPED_MOVE_MARK) {
+                    continue;
+                }
+            } else if (move < CAPPED_MOVE_MARK) {
+                continue;
+            }
+            symbols.add(entry.getKey());
+        }
+        symbols.sort((a, b) -> {
+            Long va = rankedVolume(quotes.get(a));
+            Long vb = rankedVolume(quotes.get(b));
+            int bySize = Long.compare(vb == null ? 0L : vb, va == null ? 0L : va);
+            if (bySize != 0) {
+                return bySize;
             }
             return a.compareTo(b);
         });

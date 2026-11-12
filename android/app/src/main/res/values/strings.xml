@@ -56,6 +56,13 @@
          the ranking is, never that a split is order flow (SO-3). -->
     <string name="volume_speed_caption">PRICES RISING FAST</string>
     <string name="volume_split_caption">MORE BUYERS &amp; LESS SELLERS</string>
+    <!-- Owner order 2026-11-12: the phone carries the console's four
+         other sorts, in the console's own order, so the one menu names
+         all six rankings the KMIALL feed can answer. -->
+    <string name="volume_seller_caption">MORE SELLERS &amp; LESS BUYERS</string>
+    <string name="volume_quiet_caption">ALMOST NO VOLUME AT ALL</string>
+    <string name="volume_lower_lock_caption">SCRIPS WITH LOWER LOCK</string>
+    <string name="volume_upper_lock_caption">SCRIPS WITH UPPER LOCK</string>
     <!-- v2.3.11 owner order: the volume menu's pilot row and the closed
          box's default cap. -->
     <string name="volume_placeholder_scrips">SELECT CUSTOM SCRIPS</string>

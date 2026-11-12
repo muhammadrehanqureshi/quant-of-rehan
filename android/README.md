@@ -1641,6 +1641,19 @@ to sixty seconds. The status tile therefore also carries the app's own
      the orphan law stands so every dot still wears a filament.
   5. The version bump is versionCode 82 / versionName 2.3.15.
 
+**Version 4.0.21, versionCode 130.**
+
+  Owner order 2026-11-12. The CUSTOM SCRIPS OF VOL. menu names all six sorts
+  the console carries, in the console's own order: PRICES RISING FAST and MORE
+  BUYERS & LESS SELLERS, then MORE SELLERS & LESS BUYERS, ALMOST NO VOLUME AT
+  ALL, SCRIPS WITH LOWER LOCK and SCRIPS WITH UPPER LOCK. Every sort ranks its
+  three scrips from the map the search rows already refresh, so the menu still
+  costs no request of its own, and every sort prints the leaders card's own
+  sentence, the quantity bracket with the green buy, the red sell and the
+  yellow unreported volume, and the money line under T.
+
+  The version bump is versionCode 130 / versionName 4.0.21.
+
 **Version 4.0.20, versionCode 129.**
 
   Owner order 2026-11-11, third pass. The ORDER FLOW divider now stands the

@@ -3,7 +3,7 @@ package main
 import "time"
 
 // appVersion mirrors the Android app this build is ported from.
-const appVersion = "4.0.20"
+const appVersion = "4.0.21"
 
 // hudBuild is the build number of this Windows HUD port. Owner order
 // 2026-11-10: the bar and size build is 3.0.1, the toast encoding fix that
