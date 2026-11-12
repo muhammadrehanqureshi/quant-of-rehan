@@ -350,7 +350,7 @@ class TestTheOneSecondSessionWorkflow(unittest.TestCase):
                 pkt = datetime(2026, 10, 5, hour, minute, tzinfo=KARACHI) \
                     + timedelta(hours=5, days=weekday - 1)
                 day = pkt.date()
-                if expression in ('0 4 * * 1-4', '0 4 * * 5',
+                if expression in ('15 4 * * 1-4', '0 4 * * 5',
                                   '10 9 * * 5'):
                     # The deliberate early lead, held asleep until the open.
                     continue
@@ -560,10 +560,10 @@ class TestCloudflareSchedule(unittest.TestCase):
         self.assertTrue(pair_crons, "cloud/pair.py must declare a CRONS list")
         self.assertEqual(
             sorted(pair_crons),
-            ["0,20,25,32 4 * * 1-4",
-             "0,30,33,40,45 7,10,11 * * 1-5",
+            ["0,30,33,40,45 7,10,11 * * 1-5",
              "0,5,10,17 4 * * 5",
              "10,20,25,32 9 * * 5",
+             "15,20,25,32 4 * * 1-4",
              "30 7 * * 1-4"],
             "cloud/pair.py and cloud/wrangler.toml disagree about "
             "the cron schedule, so the deploy would set something "
@@ -627,8 +627,8 @@ class TestCloudflareSchedule(unittest.TestCase):
         # unwoken - the Friday emails that never arrived.
         self.assertEqual(
             sorted(windows),
-            [(9, 0, frozenset({1, 2, 3, 4})),
-             (9, 0, frozenset({5})),
+            [(9, 0, frozenset({5})),
+             (9, 15, frozenset({1, 2, 3, 4})),
              (12, 30, frozenset({1, 2, 3, 4})),
              (14, 10, frozenset({5})),
              (15, 32, frozenset({1, 2, 3, 4})),
@@ -644,7 +644,7 @@ class TestCloudflareSchedule(unittest.TestCase):
         # Owner order 2026-10-21: the pre and post windows are live scan
         # windows too, so the dispatch table carries them.
         self.assertIn(
-            "const WEEKDAY_WINDOWS = [[[9, 0], [12, 30]], "
+            "const WEEKDAY_WINDOWS = [[[9, 15], [12, 30]], "
             "[[12, 30], [15, 30]],", source)
         self.assertIn(
             "const FRIDAY_WINDOWS = [[[9, 0], [12, 30]], "

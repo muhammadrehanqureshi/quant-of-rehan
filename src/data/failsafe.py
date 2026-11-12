@@ -16,11 +16,11 @@ without opening a socket, so the decision is testable on a fixed clock:
 
 The law:
 
-* outside a PSX trading day, a scan window or the 08:55 capture warm-up
-  nothing is dispatched, so a mistimed fire costs nothing;
-* the 08:55 warm-up counts as a window too: a capture that starts there still
-  reaches the exchange's pre-open, where the zero gate seeds the day, so a
-  missing band at 08:55 is restarted before 09:15 rather than after 09:30;
+* outside a PSX trading day or a scan window nothing is dispatched, so a
+  mistimed fire costs nothing;
+* the capture opens with the exchange's own pre-open (09:15 Monday to Thursday,
+  09:00 on Friday, owner order 2026-11-12), which the session law already calls
+  a scan window, so no lead time before it is a window of its own;
 * a relay that did not answer at all is the one case that also alerts, because
   no scan can publish while the relay is down;
 * a feed whose newest frame is older than STALE_SECONDS inside a window is
@@ -35,10 +35,8 @@ from datetime import datetime
 from typing import Any, Mapping
 
 from src.data.sessions import (
-    as_karachi,
     is_trading_day,
     market_state_at,
-    pre_market_window,
 )
 
 # A feed this old inside a scan window is dead. The band pushes every frame it
@@ -48,9 +46,9 @@ STALE_SECONDS = 240.0
 
 # SO-8: the clock here is Asia/Karachi (UTC+5), and every window edge is
 # imported from src/data/sessions.py, the one place the pin lives.
-# The 09:00 recorder warm-up (owner order 2026-11-12, it was 08:55), the first
-# pre-open window on every market day.
-CAPTURE_WARMUP_OPEN = (9, 0)
+# Owner order 2026-11-12 (latest): the recorder starts with the exchange's own
+# pre-open, 09:15 Monday to Thursday and 09:00 on Friday, so there is no lead
+# window before it for a warmer-up band to cover.
 
 # How long a dispatched band runs. Long enough for the pre-open window and for
 # the post-market window, and the loop's own pause table stops it scanning the
@@ -94,23 +92,14 @@ def flow_age_seconds(moment: datetime, health: Mapping[str, Any] | None,
 
 
 def capture_warmup(moment: datetime) -> bool:
-    """True inside the 08:55 recorder warm-up before the first pre-open window.
+    """False at every moment: the recorder starts with the pre-open itself.
 
-    The 08:55 band starts the broker capture before the exchange publishes its
-    pre-open window. A capture that starts there can still seed every unseen
-    symbol at zero, so a missed 08:55 start is recoverable until the pre-open
-    window opens. After that the day's already traded volume can only stay
-    UNCLEAR.
+    Owner order 2026-11-12 (latest): the capture begins at 09:15 Monday to
+    Thursday and at 09:00 on Friday, the exchange's own pre-open, so no minute
+    before it is a warm-up any more. The session law already treats those
+    pre-open windows as scan windows, which is what decide() reads.
     """
-    k = as_karachi(moment)
-    window = pre_market_window(k.date())
-    if window is None:
-        return False
-    start = k.replace(hour=CAPTURE_WARMUP_OPEN[0],
-                      minute=CAPTURE_WARMUP_OPEN[1], second=0, microsecond=0)
-    end = k.replace(hour=window[0][0], minute=window[0][1],
-                    second=0, microsecond=0)
-    return start <= k < end
+    return False
 
 
 def decide(moment: datetime, health: Mapping[str, Any] | None,
