@@ -304,13 +304,15 @@ class TestOutsideSessionGuard(unittest.TestCase):
         self.assertTrue(session_legal(at(WEDNESDAY, 10, 0)))
         self.assertTrue(session_legal(at(FRIDAY, 16, 0)))
         self.assertTrue(session_legal(at(WEDNESDAY, 9, 20)))
-        # Owner order 2026-11-10: the post-market scans to 16:00 Monday to
-        # Thursday and to 17:00 on Friday.
-        self.assertTrue(session_legal(at(WEDNESDAY, 15, 45)))
-        self.assertTrue(session_legal(at(WEDNESDAY, 15, 59)))
+        # Owner order 2026-11-12: the post-market scans 15:32 to 15:49
+        # Monday to Thursday and 16:32 to 16:49 on Friday.
+        self.assertTrue(session_legal(at(WEDNESDAY, 15, 32)))
+        self.assertTrue(session_legal(at(WEDNESDAY, 15, 48)))
+        self.assertFalse(session_legal(at(WEDNESDAY, 15, 49)))
         self.assertFalse(session_legal(at(WEDNESDAY, 16, 0)))
-        self.assertTrue(session_legal(at(FRIDAY, 16, 40)))
-        self.assertTrue(session_legal(at(FRIDAY, 16, 59)))
+        self.assertTrue(session_legal(at(FRIDAY, 16, 32)))
+        self.assertTrue(session_legal(at(FRIDAY, 16, 48)))
+        self.assertFalse(session_legal(at(FRIDAY, 16, 49)))
         self.assertFalse(session_legal(at(FRIDAY, 17, 0)))
         self.assertFalse(session_legal(at(date(2026, 10, 10), 11, 0)))
 
@@ -327,7 +329,7 @@ class TestTheOneSecondSessionWorkflow(unittest.TestCase):
 
     def test_each_band_starts_a_loop_inside_a_real_window(self):
         """One window per band, both post-market windows included (owner
-        order 2026-10-24: Friday's post-close window at 16:35 is the
+        order 2026-10-24: Friday's post-close window at 16:32 is the
         sixth runnable window; the five-window law of 2026-10-21 never
         woke the Friday post-close loop at all, which is why Friday's
         16:35 and 16:50 emails never reached the owner). The Mon-Thu
@@ -341,7 +343,7 @@ class TestTheOneSecondSessionWorkflow(unittest.TestCase):
                          "one window per band plus the post-market windows:\n"
                          "Mon-Thu band 1, band 2 and post-market, plus Friday's "
                          "band 1, band 2 and the Friday post-close window at "
-                         "16:35 (owner order 2026-10-24)")
+                         "16:32 (owner order 2026-10-24)")
         for expression in crons:
             minute, hour, mask = parse_cron(expression)
             for weekday in weekdays_of(mask):
@@ -558,7 +560,7 @@ class TestCloudflareSchedule(unittest.TestCase):
         self.assertTrue(pair_crons, "cloud/pair.py must declare a CRONS list")
         self.assertEqual(
             sorted(pair_crons),
-            ["0,30,35,40,50 7,10,11 * * 1-5",
+            ["0,30,33,40,45 7,10,11 * * 1-5",
              "10,20,25,32 9 * * 5",
              "20,25,32,55 3,4 * * 1-4",
              "30 7 * * 1-4",
@@ -575,7 +577,7 @@ class TestCloudflareSchedule(unittest.TestCase):
         capture's zero gate still seeds every unseen symbol. Without it the
         next wake was 09:32, after the pre-open, and the day's already traded
         volume stayed UNCLEAR. The post-market retries exist for the same
-        reason on the 15:35 and 16:35 windows.
+        reason on the 15:32 and 16:32 windows.
         """
         fires: dict[tuple[int, int], set[int]] = {}
         for expression in crons_of(WRANGLER):
@@ -589,9 +591,9 @@ class TestCloudflareSchedule(unittest.TestCase):
             ((9, 20), {5}),            # 14:20 PKT Friday second pre-open
             ((9, 25), {5}),            # 14:25 PKT Friday second pre-open
             ((10, 40), {1, 2, 3, 4}),  # 15:40 PKT post-market
-            ((10, 50), {1, 2, 3, 4}),  # 15:50 PKT post-market
+            ((10, 45), {1, 2, 3, 4}),  # 15:45 PKT post-market
             ((11, 40), {5}),           # 16:40 PKT Friday post-market
-            ((11, 50), {5}),           # 16:50 PKT Friday post-market
+            ((11, 45), {5}),           # 16:45 PKT Friday post-market
         )
         for (hour, minute), weekdays in retries:
             with self.subTest(retry=(hour, minute)):
@@ -619,9 +621,9 @@ class TestCloudflareSchedule(unittest.TestCase):
                 windows.append(((hour + 5) % 24, minute, frozenset(weekdays)))
         # Owner order 2026-10-24: six runnable windows per week. The 08:55
         # Mon-Thu window covers pre-market and band 1; the post-close
-        # window at 15:35 covers the exchange's Mon-Thu Post-Close Session,
-        # and the 16:35 Friday window covers Friday's own post-market window
-        # (16:35 to 17:00), which the five-window law of 2026-10-21 left
+        # window at 15:32 covers the exchange's Mon-Thu Post-Close Session,
+        # and the 16:32 Friday window covers Friday's own post-market window
+        # (16:32 to 16:49), which the five-window law of 2026-10-21 left
         # unwoken - the Friday emails that never arrived.
         self.assertEqual(
             sorted(windows),
@@ -629,11 +631,11 @@ class TestCloudflareSchedule(unittest.TestCase):
              (8, 55, frozenset({5})),
              (12, 30, frozenset({1, 2, 3, 4})),
              (14, 10, frozenset({5})),
-             (15, 35, frozenset({1, 2, 3, 4})),
-             (16, 35, frozenset({5}))],
+             (15, 32, frozenset({1, 2, 3, 4})),
+             (16, 32, frozenset({5}))],
             "the session loop must offer exactly the six runnable windows: "
             "Mon-Thu pre/band1, band 2 and post-close, Friday band 1 and "
-            "band 2, and Friday's own post-close window at 16:35 "
+            "band 2, and Friday's own post-close window at 16:32 "
             "(owner order 2026-10-24)")
 
         # The worker's dispatcher table must carry the same window list, and

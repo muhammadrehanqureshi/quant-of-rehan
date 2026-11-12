@@ -99,12 +99,12 @@ class TestIdleStates(unittest.TestCase):
         self.assertIn("2026-10-21", decision.reason)
 
     def test_the_post_close_gap_after_the_close_is_idle(self):
-        # 15:30-15:35 is the gap before the exchange's Post-Close Session.
+        # 15:30-15:32 is the gap before the post-market scan window.
         self.assert_sleeps_without_network(
             at_karachi(2026, 10, 12, 15, 31), "POST_CLOSE")
 
     def test_friday_post_market_scan_window_runs(self):
-        # Owner order 2026-10-21: Friday's own post window (16:35-17:00)
+        # Owner order 2026-10-21: Friday's own post window (16:32-16:49)
         # scans like any other.
         decision = gate.session_gate(at_karachi(2026, 10, 9, 16, 40))
         self.assertTrue(decision.should_run)
@@ -355,6 +355,37 @@ class TestFinalizePurpose(unittest.TestCase):
                                      purpose=gate.PURPOSE_FINALIZE)
         self.assertFalse(decision.should_run)
         self.assertIn("not a PSX trading day", decision.reason)
+
+
+class TestWarmupPurpose(unittest.TestCase):
+    """The 08:55 and 14:10 band-loop starts must not be slept by the outer gate.
+
+    Owner order 2026-11-12: the pre-market scans 09:15 to 09:30 and the live
+    band 09:32 to 15:30. The band loop has to start at 08:55 to be alive for
+    both; its own gate holds the scanner until 09:15. A plain scan purpose slept
+    at 08:55 because no band is live, so the morning loop never started.
+    """
+
+    def test_warmup_runs_before_the_pre_open(self):
+        decision = gate.session_gate(at_karachi(2026, 10, 12, 8, 55),
+                                     purpose=gate.PURPOSE_WARMUP)
+        self.assertTrue(decision.should_run)
+        self.assertIn("warm-up", decision.reason)
+
+    def test_warmup_runs_on_the_friday_break_before_session_two(self):
+        decision = gate.session_gate(at_karachi(2026, 10, 9, 14, 10),
+                                     purpose=gate.PURPOSE_WARMUP)
+        self.assertTrue(decision.should_run)
+
+    def test_warmup_sleeps_after_the_last_close(self):
+        decision = gate.session_gate(at_karachi(2026, 10, 12, 15, 50),
+                                     purpose=gate.PURPOSE_WARMUP)
+        self.assertFalse(decision.should_run)
+
+    def test_warmup_sleeps_on_a_weekend(self):
+        decision = gate.session_gate(at_karachi(2026, 10, 10, 8, 55),
+                                     purpose=gate.PURPOSE_WARMUP)
+        self.assertFalse(decision.should_run)
 
 
 class TestSchedulePlan(unittest.TestCase):

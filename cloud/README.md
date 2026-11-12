@@ -257,9 +257,10 @@ Bars are kept for 45 days and pruned once a day. Storing began on
 | Open | - | 14:10 PKT (pre-open warm-up; band 14:32) | `10,20,25,32 9 * * 5` |
 | Close | - | 16:30 PKT (session 2) | shared below |
 
-The shared expression (`0,30,35,40,50 7,10,11 * * 1-5`) also carries the
-pre-open and post-market retries: 09:20/09:25 Mon-Thu, 09:05/09:10 and
-14:20/14:25 Friday, 15:40/15:50 Mon-Thu, and 16:40/16:50 Friday. A retry that
+The shared expression (`0,30,33,40,45 7,10,11 * * 1-5`) also carries the
+pre-open and post-market wake and retries: 09:20/09:25 Mon-Thu, 09:05/09:10
+and 14:20/14:25 Friday, 15:33/15:40/15:45 Mon-Thu, and 16:33/16:40/16:45
+Friday. A retry that
 is not a band edge sends no notification, so each edge is still delivered
 exactly once. What the retries do is let the feed watchdog start the capture
 inside the exchange's pre-open or post-market window when the punctual wake was

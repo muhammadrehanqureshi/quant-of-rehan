@@ -57,10 +57,10 @@ TICK_SCRIPT = ROOT / "scripts" / "kmiall_tick.py"
 XML_FILE = ROOT / "data" / "task-kmiall-tick.xml"
 
 #: The finalize fires three minutes before its post-market window closes, and
-#: under the owner's order of 2026-11-10 that window closes at 16:00 Monday to
-#: Thursday and at 17:00 on Friday, so the task finalizes at 15:57 and 16:57
-#: PKT. The GitHub Actions finalize crons (15:47 and 16:47 PKT) fire earlier in
-#: the same window and remain the cloud's own backstop.
+#: under the owner's order of 2026-11-12 that window closes at 15:49 Monday to
+#: Thursday and at 16:49 on Friday, so the task finalizes at 15:46 and 16:46
+#: PKT. The GitHub Actions finalize crons (15:47 and 16:47 PKT) fire just after
+#: and remain the cloud's own backstop.
 FINALIZE_MARGIN_MINUTES = 3
 
 WEEKDAY_NAMES = ("Monday", "Tuesday", "Wednesday", "Thursday")
