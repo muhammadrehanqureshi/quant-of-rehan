@@ -383,7 +383,7 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 				showPrice(priceRight-pxW-4, priceRight-pxW, chgRight)
 				if q.Buy != nil && q.Sell != nil {
 					if total := *q.Buy + *q.Sell; total > 0 {
-						a.shareBarOnly(c, barStart, row, shareBarSpan, float64(*q.Buy)/float64(total))
+						a.shareBarOnly(c, barStart, row, shareBarSpan, *q.Buy, *q.Sell)
 					}
 				}
 			case end-4-runeLen(px)-chgW-1 >= ix+3+used+1:
@@ -559,8 +559,7 @@ func (a *App) drawSearchTile(c *Canvas, x, y, w, h int) {
 	// Owner order 2026-11-10 (latest): the chosen stock's bar is back on the
 	// search tile, at the right edge of its own volume row.
 	if buy != nil && sell != nil && *buy+*sell > 0 && dw-used-2 >= shareBarWidth {
-		a.shareBar(c, dx+dw-shareBarWidth, dy+2, shareBarWidth,
-			float64(*buy)/float64(*buy+*sell))
+		a.shareBar(c, dx+dw-shareBarWidth, dy+2, shareBarWidth, *buy, *sell)
 	}
 }
 
@@ -878,41 +877,54 @@ const shareBarBoxes = 10
 // share those cells instead of standing apart with a gap between them.
 const shareBarSpan = shareBarBoxes * 16 / 10
 
+// shareNetW is the cells a bar gives to its NET DELTA, right aligned, so a
+// sign and a compact figure sit in the same place on every row.
+const shareNetW = 9
+
 // shareBarWidth is the field a labelled bar asks for: its span, one space and
-// the four cells a "100%" needs.
-const shareBarWidth = shareBarSpan + 5
+// the NET DELTA after it.
+const shareBarWidth = shareBarSpan + 1 + shareNetW
 
 // shareBar draws a buy versus sell bar: ten boxes of two cells, then one
-// space, then the percentage, so "98%" and "100%" both sit the same distance
-// from the last box.
-func (a *App) shareBar(c *Canvas, x, y, w int, buyShare float64) {
-	a.drawShareBar(c, x, y, w, buyShare, true)
+// space, then the NET DELTA, so the two sides' strength and the difference
+// between them read in one glance.
+func (a *App) shareBar(c *Canvas, x, y, w int, buy, sell int64) {
+	a.drawShareBar(c, x, y, w, buy, sell, true)
 }
 
-// shareBarOnly draws the same bar with no percentage after it, for the leaders
-// card, where the percentage is the change the row already carries. It returns
-// the cells used.
-func (a *App) shareBarOnly(c *Canvas, x, y, w int, buyShare float64) int {
-	return a.drawShareBar(c, x, y, w, buyShare, false)
+// shareBarOnly draws the same bar with no NET DELTA after it, for the leaders
+// card and the scanner, where the row already carries its own volumes. It
+// returns the cells used.
+func (a *App) shareBarOnly(c *Canvas, x, y, w int, buy, sell int64) int {
+	return a.drawShareBar(c, x, y, w, buy, sell, false)
 }
 
-// drawShareBar is the buy versus sell bar: ten boxes, one box per ten percent,
-// and the percentage after it. Owner order 2026-11-11 (third pass): the bar is
-// its 16 cells with one shade of green and one shade of red, no paler step, and
-// no cell is drawn between the boxes. The percentage is optional for the rows
-// that carry their own change.
-func (a *App) drawShareBar(c *Canvas, x, y, w int, buyShare float64, label bool) int {
+// drawShareBar is the one buy versus sell bar the whole build draws. Owner
+// order 2026-11-12 (latest): the green is always the buyers' share of the
+// classified volume and the red is always the sellers', on every page and on
+// both ALERTS boards, so a bar can never mean one side here and the other side
+// there, and the side it shows is always the side that is in front. The share
+// is buy/(buy+sell) and the label is the NET DELTA, buy-sell, signed, so a row
+// says both who is dominant and by how much. Owner order 2026-11-11 (third
+// pass): one shade of green and one shade of red, no paler step, and no cell
+// drawn between the boxes.
+func (a *App) drawShareBar(c *Canvas, x, y, w int, buy, sell int64, label bool) int {
 	th := a.th
+	total := buy + sell
+	share := 0.5
+	if total > 0 {
+		share = float64(buy) / float64(total)
+	}
 	// The bar is 16 cells; a caller with less room (the ALERTS boards pass the
 	// ten cells of a compact bar) gets a bar of exactly the room it has.
 	span := shareBarSpan
 	if w > 0 && w < span {
 		span = w
-		if label && w-5 >= shareBarBoxes {
-			span = w - 5
+		if label && w-shareNetW-1 >= shareBarBoxes {
+			span = w - shareNetW - 1
 		}
 	}
-	green := int(math.Round(buyShare * float64(shareBarBoxes)))
+	green := int(math.Round(share * float64(shareBarBoxes)))
 	if green < 0 {
 		green = 0
 	}
@@ -938,11 +950,18 @@ func (a *App) drawShareBar(c *Canvas, x, y, w int, buyShare float64, label bool)
 	}
 	width := span
 	if label {
-		// Owner order 2026-11-10 (latest): the percentage is right aligned in
-		// four cells, so 7%, 47% and 100% all end at the same place and the
-		// ORDER FLOW header can put a % over them.
-		pct := strconv.FormatFloat(math.Round(buyShare*100), 'f', 0, 64) + "%"
-		c.Text(x+width+1, y, 4, padLeft(pct, 4), th.Soft, false)
+		// Owner order 2026-11-12 (latest): the percentage is gone and the NET
+		// DELTA takes its place, signed and right aligned in the same cells,
+		// green when the buyers are ahead and red when the sellers are.
+		net := buy - sell
+		ink, bold := th.Soft, false
+		switch {
+		case net > 0:
+			ink, bold = th.Good, true
+		case net < 0:
+			ink, bold = th.Bad, true
+		}
+		c.Text(x+width+1, y, shareNetW, padLeft(signedCompact(net), shareNetW), ink, bold)
 	}
 	return width
 }
@@ -1086,7 +1105,10 @@ func (a *App) drawBoardPanel(c *Canvas, x, y, w, h int, side int) {
 		if room := cw - (vx - ix) - runeLen(pkrTxt) - 2; room < barW {
 			barW = max(shareBarBoxes, room)
 		}
-		a.drawShareBar(c, ix+cw-barW, ry, barW, b.Share, barW >= shareBarWidth)
+		// Owner order 2026-11-12 (latest): both boards draw the one bar, so a
+		// selling board is red because the sellers are in front, never green
+		// because that board's own side is selling.
+		a.drawShareBar(c, ix+cw-barW, ry, barW, b.BuyShares, b.SellShares, barW >= shareBarWidth)
 		if room := cw - barW - (vx - ix) - 2; room > 0 {
 			c.Text(vx, ry, room, fit(pkrTxt, room), good, true)
 		}

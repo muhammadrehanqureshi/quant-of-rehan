@@ -266,7 +266,10 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 			c.Text(ix+cols[k].x, row, cols[k].w, hd, th.Soft, false)
 		}
 		if iw-barX >= shareBarWidth {
+			// Owner order 2026-11-12 (latest): the bar's own column, then a NET
+			// DELTA column of its own after it, over the value every row writes.
 			c.Text(ix+barX, row, shareBarSpan, "BARS", th.Soft, false)
+			c.Text(ix+barX+shareBarSpan+1, row, shareNetW, "NET DELTA", th.Soft, false)
 		}
 		row++
 	}
@@ -325,7 +328,9 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 			if cw-barX >= shareBarWidth && r.Measured() && *r.Buy+*r.Sell > 0 {
 				// Owner order 2026-11-10 (latest): the bar is back on ORDER FLOW,
 				// ten boxes two cells wide, so it is longer without one extra box.
-				a.shareBar(c, ix+barX, row, shareBarWidth, float64(*r.Buy)/(float64(*r.Buy)+float64(*r.Sell)))
+				// Owner order 2026-11-12 (latest): the NET DELTA stands in its own
+				// column after the bar, buy minus sell, signed.
+				a.shareBar(c, ix+barX, row, shareBarWidth, *r.Buy, *r.Sell)
 			}
 			if warn != "" {
 				c.Text(ix+cw-len(warn), row, len(warn), warn, th.Warn, true)
