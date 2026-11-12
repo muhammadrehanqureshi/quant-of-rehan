@@ -246,7 +246,8 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 	// the row back that the sector search above took.
 	// Owner order 2026-11-12 (latest): the UP, DOWN, PGUP, PGDN hint is
 	// withdrawn, and the arrow keys keep working exactly as they did.
-	hint := "Sort: click one, or press LEFT or RIGHT"
+	// Owner order 2026-11-12 (latest): the hint names the arrows alone.
+	hint := "Press LEFT & RIGHT arrow keys"
 	if a.searchText != "" {
 		hint = "ESC clears the search"
 	}
@@ -1182,7 +1183,9 @@ func (a *App) drawAlertLog(c *Canvas, x, y, w, h int) {
 	th := a.th
 	all := a.flagLog()
 	log := a.alertLog()
-	hint := pressSearchHint + " ENTER plays a test. DEL clears the log."
+	// Owner order 2026-11-12 (latest): the key line closes after the search
+	// sentence, and the test sentence is withdrawn from the log's frame.
+	hint := pressSearchHint + ". DEL clears the log."
 	title := "ALERTS LOG (" + strconv.Itoa(len(log)) + ")"
 	if a.alertQuery != "" {
 		title = "ALERTS LOG (" + strconv.Itoa(len(log)) + " of " + strconv.Itoa(len(all)) + ")"
