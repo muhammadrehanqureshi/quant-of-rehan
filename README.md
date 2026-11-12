@@ -4,7 +4,7 @@
 
 <h1 align="center">Quant of Rehan</h1>
 
-<p align="center"><sub><code>assets/QoR.png</code> is the project's official mark: 1024 by 1024, dark plum, the gradient wordmark, the teal line and the ascending green candles.</sub></p>
+<p align="center"><sub><code>assets/QoR.png</code> is the project's official mark: the owner's own picture, 2048 by 2048, and the same bytes are pinned as <code>windows/assets/icon-source.png</code>, so the README and the console's own icon carry one image (owner order 2026-11-12).</sub></p>
 
 [![Governance Guard](https://github.com/muhammadrehanqureshi/quant-of-rehan/actions/workflows/governance-guard.yml/badge.svg)](https://github.com/muhammadrehanqureshi/quant-of-rehan/actions/workflows/governance-guard.yml)
 [![Android App](https://github.com/muhammadrehanqureshi/quant-of-rehan/actions/workflows/android-apk.yml/badge.svg)](https://github.com/muhammadrehanqureshi/quant-of-rehan/actions/workflows/android-apk.yml)
@@ -277,4 +277,4 @@ python scripts/intraday_pipeline.py --finalize
   standing (SO-24); the checks are never waived.
 - **Signal-only and paper only**: live trading is disabled, and the paper gate
   needs genuinely accumulated forward sessions before it opens.
-- **Versions**: the HUD is v3.4.5 and the phone app v4.0.21.
+- **Versions**: the HUD is v3.4.6 and the phone app v4.0.21.
