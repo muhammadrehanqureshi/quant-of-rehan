@@ -178,8 +178,8 @@ func friendlyNext(s string) string {
 	return s
 }
 
-// sessionCloseAt is the close the NEXT line reports. Owner order 2026-11-10:
-// the day's close is 16:00 Monday to Thursday and 17:00 on Friday. A Friday
+// sessionCloseAt is the close the NEXT line reports. Owner order 2026-11-12:
+// the day's close is 15:49 Monday to Thursday and 16:49 on Friday. A Friday
 // answer before 13:00 is the exchange's midday break at 12:00, and it keeps its
 // own time because the market reopens that afternoon.
 func sessionCloseAt(day time.Time, relay string) string {
@@ -187,9 +187,9 @@ func sessionCloseAt(day time.Time, relay string) string {
 		if relay < "13:00" {
 			return relay
 		}
-		return "17:00"
+		return "16:49"
 	}
-	return "16:00"
+	return "15:49"
 }
 
 // sentence ends s with a full stop unless it already ends in a mark that

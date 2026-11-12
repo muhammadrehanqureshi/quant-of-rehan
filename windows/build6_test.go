@@ -324,7 +324,7 @@ func TestScannerHasTheSearchTileOnTop(t *testing.T) {
 		if strings.Contains(r, "SEARCH") && ts < 0 {
 			ts = i
 		}
-		if strings.Contains(r, "CUSTOM SCRIPS BY VOLUME") {
+		if strings.Contains(r, "CUSTOM SCRIPS OF VOLUME") {
 			tc = i
 		}
 	}
@@ -345,7 +345,7 @@ func TestScannerHasTheSearchTileOnTop(t *testing.T) {
 		t.Fatalf("enter opens the symbol in the tile: %v %q", a.screen, a.selectedSym)
 	}
 	s := plain(a)
-	for _, want := range []string{"ALFA", "3,410,000", "1,250,000", "4,660,000", "CUSTOM SCRIPS BY VOLUME"} {
+	for _, want := range []string{"ALFA", "3,410,000", "1,250,000", "4,660,000", "CUSTOM SCRIPS OF VOLUME"} {
 		if !strings.Contains(s, want) {
 			t.Errorf("scanner with a symbol open is missing %q", want)
 		}

@@ -186,9 +186,9 @@ func TestPhaseAtMatchesTheSessionLaw(t *testing.T) {
 		want string
 	}{
 		{at(2, 8, 59), qsClosed}, {at(2, 9, 0), qsPre}, {at(2, 9, 31), qsPre}, {at(2, 9, 32), qsOpen},
-		{at(2, 15, 29), qsOpen}, {at(2, 15, 30), qsPost}, {at(2, 15, 48), qsPost}, {at(2, 15, 59), qsPost}, {at(2, 16, 0), qsClosed},
+		{at(2, 15, 29), qsOpen}, {at(2, 15, 30), qsPost}, {at(2, 15, 48), qsPost}, {at(2, 15, 49), qsClosed}, {at(2, 16, 0), qsClosed},
 		{at(6, 9, 16), qsPre}, {at(6, 9, 17), qsOpen}, {at(6, 12, 0), qsBreak}, {at(6, 14, 31), qsBreak},
-		{at(6, 14, 32), qsOpen}, {at(6, 16, 29), qsOpen}, {at(6, 16, 30), qsPost}, {at(6, 16, 59), qsPost}, {at(6, 17, 0), qsClosed},
+		{at(6, 14, 32), qsOpen}, {at(6, 16, 29), qsOpen}, {at(6, 16, 30), qsPost}, {at(6, 16, 48), qsPost}, {at(6, 16, 49), qsClosed}, {at(6, 17, 0), qsClosed},
 		{at(7, 11, 0), qsClosed}, {at(8, 11, 0), qsClosed},
 	} {
 		if got := phaseAt(c.t); got != c.want {

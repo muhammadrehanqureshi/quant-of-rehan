@@ -113,12 +113,23 @@ func (a *App) openSymbol(sym string) {
 
 // ---------- scanner ----------
 
-var scanChoices = [2]string{"PRICES RISING FAST", "MORE BUYERS & LESS SELLERS"}
+// scanChoices are the six CUSTOM SCRIPS OF VOLUME sorts. Owner order 2026-11-12:
+// the heading reads OF VOLUME, the two existing sorts keep their places, and
+// four more are added. Each names three scrips, and every one of them is
+// decided by volume.
+var scanChoices = [6]string{
+	"PRICES RISING FAST",
+	"MORE BUYERS & LESS SELLERS",
+	"MORE SELLERS & LESS BUYERS",
+	"ALMOST NO VOLUME AT ALL",
+	"SCRIPS WITH LOWER LOCK",
+	"SCRIPS WITH UPPER LOCK",
+}
 
-// scanTable is the table the first two sorts rank. The broker feed wins: when
-// a symbol is in /quotes with a fresh tick, that is what is ranked, so the list
-// moves with the market. The relay's /prices table fills in anything the
-// feed does not carry. Buy and sell come from the relay's range estimate.
+// scanTable is the table the six sorts rank. The broker feed wins: when a
+// symbol is in /quotes with a fresh tick, that is what is ranked, so the list
+// moves with the market. The relay's /prices table fills in anything the feed
+// does not carry. Buy, sell and volume come from the measured flow row.
 func (a *App) scanTable() map[string]Quote {
 	out := make(map[string]Quote, len(a.prices))
 	for s, q := range a.prices {
@@ -132,8 +143,15 @@ func (a *App) scanTable() map[string]Quote {
 			continue
 		}
 		q := Quote{Price: lq.Price, ChangePct: lq.ChangePct}
+		if lq.Volume > 0 {
+			v := lq.Volume
+			q.Volume = &v
+		}
 		if old, ok := out[s]; ok {
 			q.Buy, q.Sell = old.Buy, old.Sell
+			if q.Volume == nil {
+				q.Volume = old.Volume
+			}
 		}
 		// Owner order 2026-11-11: every scrip reads the same measured pair as
 		// the Android app, taken from the relay's flow row. The day-range
@@ -143,9 +161,17 @@ func (a *App) scanTable() map[string]Quote {
 				if fr.Symbol == s && fr.Measured() {
 					b, sl := *fr.Buy, *fr.Sell
 					q.Buy, q.Sell = &b, &sl
+					// Owner order 2026-11-12: the scanner ranks and draws the
+					// measured capture's own total, so B + S + U = T on every row.
+					total := b + sl
+					q.Volume = &total
 					break
 				}
 			}
+		}
+		if q.Volume == nil && q.Buy != nil && q.Sell != nil {
+			total := *q.Buy + *q.Sell
+			q.Volume = &total
 		}
 		out[s] = q
 	}
@@ -189,7 +215,7 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 			// so this test always reserves them. A scrip opened from a sector
 			// grows the search tile above, and without this reservation that
 			// growth used to hide both sub menus.
-			menu := len(scanChoices)
+			menu := (len(scanChoices) + 1) / 2
 			rows := ih - menu - 2
 			if rows/2 >= 4 {
 				break
@@ -221,20 +247,27 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 	if a.searchText != "" {
 		hint = "ESC clears the search"
 	}
-	ix, iy, iw, ih := a.panel(c, x, sy, w, sh2, "CUSTOM SCRIPS BY VOLUME", hint)
-	menu := len(scanChoices)
+	ix, iy, iw, ih := a.panel(c, x, sy, w, sh2, "CUSTOM SCRIPS OF VOLUME", hint)
+	// Owner order 2026-11-12: the six sorts stand in two columns of three, so
+	// the sub menus never take the rows the three scrips below them need.
+	menu := (len(scanChoices) + 1) / 2
 	if ih < menu+1 {
 		// Only a tile with no room left at all drops a sort row.
 		menu = max(0, ih-1)
 	}
+	if menu == 0 {
+		return
+	}
+	colW := max(1, iw/2)
 	for i, name := range scanChoices {
-		if i >= menu {
+		col := i / menu
+		if col > 1 {
 			break
 		}
-		ry := iy + i
+		cx, ry := ix+col*colW, iy+i%menu
 		id := i + 1
 		cur := i == a.scanCursor
-		bg := a.selectRow(c, ix, ry, min(iw, 48), cur, func() { a.pickScan(id) })
+		bg := a.selectRow(c, cx, ry, min(colW, 48), cur, func() { a.pickScan(id) })
 		mark := " "
 		if cur {
 			// Owner order 2026-11-11: the sub menu cursor is the diamond,
@@ -248,16 +281,16 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 			chosen = "◆ "
 		}
 		// Owner order 2026-11-11: the sub menu cursor is blue, not white.
-		c.Set(ix+1, ry, []rune(mark)[0], th.Accent, bg, true)
-		c.Set(ix+3, ry, []rune(chosen)[0], th.Accent, bg, true)
-		c.Text(ix+5, ry, min(44, iw-5), name, th.Text, a.scanChoice == id)
+		c.Set(cx+1, ry, []rune(mark)[0], th.Accent, bg, true)
+		c.Set(cx+3, ry, []rune(chosen)[0], th.Accent, bg, true)
+		c.Text(cx+5, ry, max(1, min(40, colW-5)), name, th.Text, a.scanChoice == id)
 	}
 	head := iy + menu + 1 // the row after the menu, or the first row when it is hidden
-	// Owner order 2026-11-11: the blank row between SEARCH and SECTORS costs
-	// the list one row. When that leaves only three stocks, the blank row under
-	// the menu goes first, so the list keeps its four stocks and the sector tile
-	// keeps its three groups.
-	if rows := iy + ih - (head + 1); rows/2 < 4 && head > iy+menu {
+	// Owner order 2026-11-12: each sort names three scrips and each scrip takes
+	// two rows, its name and its KSE100 style values. When the blank row under
+	// the menu would leave fewer than three, that row goes first, so the list
+	// keeps its three scrips and the sector tile keeps its groups.
+	if rows := iy + ih - (head + 1); rows/2 < 3 && head > iy+menu {
 		head--
 	}
 	if a.scanChoice == 0 || head >= iy+ih {
@@ -266,7 +299,7 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 	c.Text(ix, head, iw, scanChoices[a.scanChoice-1], th.Accent, true)
 	top := head + 1
 	rows := iy + ih - top
-	if rows < 1 {
+	if rows < 2 {
 		return
 	}
 	tbl := a.scanTable()
@@ -277,10 +310,19 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 		return
 	}
 	var syms []string
-	if a.scanChoice == 1 {
+	switch a.scanChoice {
+	case 1:
 		syms = rankedSpeedSymbols(tbl)
-	} else {
+	case 2:
 		syms = rankedSplitSymbols(tbl)
+	case 3:
+		syms = rankedSellerSymbols(tbl)
+	case 4:
+		syms = rankedQuietSymbols(tbl)
+	case 5:
+		syms = rankedLowerLockSymbols(tbl)
+	case 6:
+		syms = rankedUpperLockSymbols(tbl)
 	}
 	if len(syms) == 0 {
 		c.Text(ix, top, iw, "No scrip qualifies right now.", th.Soft, false)
@@ -290,6 +332,17 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 	rightAlign(c, ix, head, iw, []Span{{a.showing(&a.lvScan, "scrip"), th.Soft, false}})
 	row := top
 	cw := contentW(&a.lvScan, iw)
+	// Owner order 2026-11-12: the values on every scrip are the KSE100 tile's
+	// own, in its own columns. B, S, U and T start on the same cell on every
+	// scrip, the price follows the widest one, and the change and the bar close
+	// the line, exactly as the three leaders on the KSE100 tile line up.
+	cols := bstLeaderCols(scanLeaders(syms, tbl))
+	pxW := 1
+	for _, s := range syms {
+		if q := tbl[s]; q.Price > 0 {
+			pxW = max(pxW, runeLen(commaFloat(q.Price, 2)))
+		}
+	}
 	for n := 0; n < a.lvScan.view; n++ {
 		i := a.lvScan.off + n
 		if i >= len(syms) {
@@ -297,35 +350,59 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 		}
 		s := syms[i]
 		q := tbl[s]
-		pxKey := "px:" + s
+		pxKey, volKey := "px:"+s, "vol:"+s
 		a.zebra(c, ix, row, cw, 2, i, s)
-		c.Spans(ix, row, cw, []Span{{fmt.Sprintf("%3d. ", i+1), th.Soft, false}, {s, th.Hot, true}})
-		right := ix + cw
-		if q.ChangePct != nil {
-			t := " " + changeText(*q.ChangePct)
-			a.flashRight(c, right, row, t, a.dirColor(*q.ChangePct), true, pxKey)
-			right -= runeLen(t)
-		}
-		ps := commaFloat(q.Price, 2)
-		a.flashRight(c, right, row, ps, th.Text, true, pxKey)
-		c.Text(right-runeLen(ps)-4, row, 4, "PKR ", th.Soft, false)
-		var total int64
-		if q.Buy != nil && q.Sell != nil {
-			total = *q.Buy + *q.Sell
-		}
+		c.Spans(ix, row, cw, []Span{{fmt.Sprintf("%d. ", i+1), th.Soft, false}, {s, th.Hot, true}})
 		row++
-		if q.Buy != nil && q.Sell != nil {
-			w := a.putBST(c, ix+5, row, q.Buy, q.Sell, &total, pxKey, "vol:"+s)
-			// Owner order 2026-11-10 (latest): the scrip list carries its bar
-			// again, at the right edge of the volume row, never over the volumes.
-			if total > 0 && cw-5-w-2 >= shareBarWidth {
-				a.shareBar(c, ix+cw-shareBarWidth, row, shareBarWidth,
-					float64(*q.Buy)/float64(total))
+		used := 0
+		if cw >= 96 {
+			used = a.putBSTCols(c, ix+3, row, q.Buy, q.Sell, q.Volume, cols, volKey, pxKey)
+		} else {
+			used = a.putBST(c, ix+3, row, q.Buy, q.Sell, q.Volume, volKey, pxKey)
+		}
+		if q.Price > 0 {
+			const chgW = 8
+			end := ix + cw - 1
+			barStart := end - shareBarSpan
+			chgRight := barStart - 2
+			priceRight := chgRight - chgW - 1
+			px := commaFloat(q.Price, 2)
+			showPrice := func(pkr, pxAt, chgAt int) {
+				c.Text(pkr, row, 3, "PKR", th.Soft, false)
+				a.flashText(c, pxAt, row, px, th.Text, true, pxKey)
+				if q.ChangePct != nil {
+					a.flashRight(c, chgAt, row, changeText(*q.ChangePct), a.dirColor(*q.ChangePct), true, pxKey)
+				}
+			}
+			// Owner order 2026-11-12: the bar gives way first on a narrow row;
+			// PKR and its price never leave the line.
+			switch {
+			case priceRight-pxW-4 >= ix+3+used+1:
+				showPrice(priceRight-pxW-4, priceRight-pxW, chgRight)
+				if q.Buy != nil && q.Sell != nil {
+					if total := *q.Buy + *q.Sell; total > 0 {
+						a.shareBarOnly(c, barStart, row, shareBarSpan, float64(*q.Buy)/float64(total))
+					}
+				}
+			case end-4-runeLen(px)-chgW-1 >= ix+3+used+1:
+				pkr := end - 4 - runeLen(px) - chgW - 1
+				showPrice(pkr, pkr+4, end)
 			}
 		}
 		row++
 	}
 	a.scrollbar(c, x+w-2, top, a.lvScan.view*2, &a.lvScan)
+}
+
+// scanLeaders turns the three ranked quotes into the rows bstLeaderCols
+// measures, so the scanner shares the KSE100 tile's own value columns.
+func scanLeaders(syms []string, tbl map[string]Quote) []Leader {
+	out := make([]Leader, 0, len(syms))
+	for _, s := range syms {
+		q := tbl[s]
+		out = append(out, Leader{Symbol: s, Buy: q.Buy, Sell: q.Sell, Volume: q.Volume})
+	}
+	return out
 }
 
 // searchTileHeight is how tall the search tile is: three rows with nothing
@@ -780,8 +857,16 @@ func (a *App) sectorGroups() []Sector {
 //
 // Owner order 2026-11-12: the full-cell fill was too tall. The bar is the heavy
 // rule again: the one centred glyph that joins edge to edge with no seam and no
-// small box or line inside it. A console cell has no smaller centred solid
-// step, so the rule is the only way to keep the band seamless.
+// small box or line inside it, and it never reaches the top or the bottom of
+// its box.
+//
+// Owner order 2026-11-12 (latest): the owner asked for the bars to be fifteen
+// percent taller. A console cell is one fixed height and has no fifteen percent
+// step: the only taller glyphs are the rectangle, which leaves a hairline at
+// every cell seam, and the full block, which he has already ruled out as too
+// tall. The bold cut was tried in build 79 and leaves the same hairline. The
+// bar therefore keeps the centred heavy rule, the one seamless glyph that is
+// taller than a plain line and still leaves its box's top and bottom clear.
 const barBlock = '━'
 
 // shareBarBoxes is how many boxes a buy versus sell bar holds. Owner order
@@ -848,10 +933,11 @@ func (a *App) drawShareBar(c *Canvas, x, y, w int, buyShare float64, label bool)
 			ink = th.Good
 		}
 		for k := at; k < at+width; k++ {
-			// Owner order 2026-11-12: the full-cell band was too tall. The
-			// heavy rule is the one centred glyph that joins edge to edge with
-			// no seam and no box inside it; its span, row, label and two inks
-			// are untouched.
+			// Owner order 2026-11-12: the full-cell band was too tall, and the
+			// bold cut leaves a hairline at the cell seam, so the bar stays the
+			// regular cut of the heavy rule: centred, edge to edge, with no
+			// seam and no box inside it. Span, row, label and two inks are
+			// untouched.
 			c.Put(x+k, y, barBlock, ink, false)
 		}
 		at += width
