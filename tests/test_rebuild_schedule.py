@@ -627,8 +627,8 @@ class TestCloudflareSchedule(unittest.TestCase):
         # unwoken - the Friday emails that never arrived.
         self.assertEqual(
             sorted(windows),
-            [(9, 15, frozenset({1, 2, 3, 4})),
-             (9, 0, frozenset({5})),
+            [(9, 0, frozenset({5})),
+             (9, 15, frozenset({1, 2, 3, 4})),
              (12, 30, frozenset({1, 2, 3, 4})),
              (14, 10, frozenset({5})),
              (15, 32, frozenset({1, 2, 3, 4})),
