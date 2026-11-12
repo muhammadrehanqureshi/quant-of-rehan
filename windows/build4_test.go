@@ -293,7 +293,7 @@ func TestOnlySafeGlyphsOnScreen(t *testing.T) {
 			return true
 		}
 		// Owner order 2026-11-08: the tagline's Unicode small capitals.
-		return strings.ContainsRune("·…▲▼●◆♦♪▪▬▄▀ᴘꜱᴋᴍɪᴀʟɴᴅᴇ", r)
+		return strings.ContainsRune("·…▲▼●◆♦♪▪▬▄▀█ᴘꜱᴋᴍɪᴀʟɴᴅᴇ", r)
 	}
 	for _, sz := range [][2]int{{80, 26}, {122, 30}, {160, 45}} {
 		for scr := range screenNames {

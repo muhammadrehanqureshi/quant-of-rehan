@@ -447,10 +447,11 @@ func (a *App) searchBox(c *Canvas, x, y, w int, text, hint string, focused bool)
 	if text == "" {
 		c.Text(x+2, y, max(1, bw-3), fit(hint, max(1, bw-3)), th.Soft, false)
 	} else {
-		c.Text(x+1, y, 1, ">", th.Accent, true)
-		c.Text(x+3, y, max(1, bw-4), fit(text, max(1, bw-4)), th.Hot, true)
+		// Owner order 2026-11-12 (latest): the ">" prompt is withdrawn from every
+		// search box, so the typed text starts on the field's own first cell.
+		c.Text(x+1, y, max(1, bw-2), fit(text, max(1, bw-2)), th.Hot, true)
 		if focused && int(a.animSeconds()*2)%2 == 0 {
-			c.Set(x+3+min(runeLen(text), max(1, bw-4)), y, '█', th.Accent, field, false)
+			c.Set(x+1+min(runeLen(text), max(1, bw-2)-1), y, '█', th.Accent, field, false)
 		}
 	}
 	return bw
@@ -492,8 +493,11 @@ func (a *App) drawSearchTile(c *Canvas, x, y, w, h int) {
 			a.searchCursor = idx
 			a.pickSymbol(sym)
 		})
+		// Owner order 2026-11-12 (latest): the row being scrolled through carries
+		// the diamond, the same mark every other list in the build selects with,
+		// and so does the scrip that is open in the tile.
 		marker := " "
-		if s == a.selectedSym {
+		if i == a.searchCursor || s == a.selectedSym {
 			marker = "◆"
 		}
 		c.Set(ix+1, row+i, []rune(marker)[0], th.Accent, bg, true)
@@ -865,12 +869,14 @@ func (a *App) sectorGroups() []Sector {
 // small box or line inside it, and it never reaches the top or the bottom of
 // its box.
 //
-// Owner order 2026-11-12 (latest): the owner chose the rectangle over the rule,
-// so every bar is the centred rectangle in the bold cut. It is about three
-// times the height of the heavy rule and it is the tallest glyph that still
-// leaves the top and the bottom of the cell clear: its span, its ten boxes, its
-// row and its two inks do not change, and nothing is drawn inside it.
-const barBlock = '▬'
+// Owner order 2026-11-12 (latest): the owner asked for twice the height of the
+// rectangle and for the bar to stay centred, so every bar is the full block in
+// the bold cut. It fills its cell top to bottom and joins its neighbours edge
+// to edge, with the same span, the same ten boxes, the same row and the same two
+// inks, and nothing drawn inside it. It is the tallest glyph a console has; the
+// square between it and the rectangle is narrower than the cell and would break
+// the band into separate boxes.
+const barBlock = '█'
 
 // shareBarBoxes is how many boxes a buy versus sell bar holds. Owner order
 // 2026-11-11: the bar carries ten boxes and not sixteen, and each box grows in
