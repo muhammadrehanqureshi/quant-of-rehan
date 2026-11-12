@@ -37,7 +37,7 @@ func TestBSTLineSaysUZero(t *testing.T) {
 func TestBarsAreBuild21sShadedTabs(t *testing.T) {
 	a := demoApp(t, 100, 30)
 	c := NewCanvas(40, 1, RGB{})
-	a.shareBar(c, 2, 0, shareBarWidth, 0.5)
+	a.shareBar(c, 2, 0, shareBarWidth, 5, 5)
 	row := c.PlainRows()[0]
 	// Owner order 2026-11-12: the bar is the centred heavy rule, never a
 	// lower or upper block that stands on the floor or the top.

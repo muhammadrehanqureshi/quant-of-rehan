@@ -1237,7 +1237,7 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 				showPrice(pkrLeft, priceRight, chgRight)
 				if l.HasSplit() {
 					if total := *l.Buy + *l.Sell; total > 0 {
-						a.shareBarOnly(c, barStart, row, bw, float64(*l.Buy)/float64(total))
+						a.shareBarOnly(c, barStart, row, bw, *l.Buy, *l.Sell)
 					}
 				}
 			case end-priceBlock >= floor:

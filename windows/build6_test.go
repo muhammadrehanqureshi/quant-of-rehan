@@ -196,23 +196,23 @@ func TestOrderFlowSortKeepsUnmeasuredAtTheBottom(t *testing.T) {
 	}
 }
 
-// After the bar there is one space and then the percentage, however many
-// digits it has. Owner order 2026-11-10 (latest): a scrip list carries no bar,
-// so this is measured on the bar itself rather than on a scanner row.
-func TestPercentFollowsTheBarWithOneSpace(t *testing.T) {
-	// 100%, 98% and 7% all follow their bars, right aligned in four cells.
-	for _, share := range []float64{1, 0.98, 0.07} {
-		c := NewCanvas(40, 1, RGB{})
+// After the bar there is one space and then the NET DELTA, signed, however
+// many digits it has. Owner order 2026-11-12 (latest): the percentage is gone
+// from every bar and the difference between the two sides takes its place.
+func TestNetDeltaFollowsTheBarWithOneSpace(t *testing.T) {
+	// 100, -96 and -86 all follow their bars, right aligned in one field.
+	for _, pair := range [][2]int64{{100, 0}, {2, 98}, {7, 93}} {
+		c := NewCanvas(48, 1, RGB{})
 		a := demoApp(t, 100, 30)
-		a.shareBar(c, 2, 0, shareBarWidth, share)
+		a.shareBar(c, 2, 0, shareBarWidth, pair[0], pair[1])
 		row := c.PlainRows()[0]
 		i := strings.LastIndex(row, string(barBlock))
 		if i < 0 {
-			t.Fatalf("share %.2f: no bar drawn: %q", share, row)
+			t.Fatalf("pair %v: no bar drawn: %q", pair, row)
 		}
 		after := row[i+len(string(barBlock)):]
-		if !regexp.MustCompile(`^ +\d{1,3}%`).MatchString(after) {
-			t.Errorf("share %.2f: the percentage does not follow the bar: %q", share, row)
+		if !regexp.MustCompile(`^ +-?[0-9.]+[KMB]?$`).MatchString(after) {
+			t.Errorf("pair %v: the NET DELTA does not follow the bar: %q", pair, row)
 		}
 	}
 }
@@ -451,7 +451,7 @@ func TestFetchOrderFlowFallsBackToFlowAndAcceptsALargeBody(t *testing.T) {
 func TestShareBarIsOneUnbrokenBand(t *testing.T) {
 	a := demoApp(t, 100, 30)
 	c := NewCanvas(40, 1, RGB{})
-	a.shareBar(c, 2, 0, shareBarWidth, 0.5)
+	a.shareBar(c, 2, 0, shareBarWidth, 5, 5)
 	row := c.PlainRows()[0]
 	if shareBarSpan != 16 {
 		t.Fatalf("shareBarSpan is %d, want the sixteen cells of patch 29", shareBarSpan)
@@ -477,6 +477,11 @@ func TestOrderFlowHasABarColumn(t *testing.T) {
 	s := plain(a)
 	if !strings.Contains(s, "BARS") {
 		t.Errorf("the order flow bar column is not called BARS:\n%s", s)
+	}
+	// Owner order 2026-11-12 (latest): the NET DELTA has a column of its own
+	// after the bar, so the difference stands over every row's value.
+	if !strings.Contains(s, "NET DELTA") {
+		t.Errorf("the order flow NET DELTA column is missing:\n%s", s)
 	}
 	if !strings.ContainsRune(s, barBlock) {
 		t.Errorf("order flow draws no bar:\n%s", s)
