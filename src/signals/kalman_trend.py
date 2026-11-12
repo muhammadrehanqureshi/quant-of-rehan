@@ -264,7 +264,30 @@ def candidate(symbol: str, rows: list, session,
         if pullback_setup is None:
             _bump(tally, pullback_reason)
 
-    if flip_index is None and pullback_setup is None:
+    # Owner order 2026-11-12: entry path 3, the hybrid statistical arbitrage
+    # and mean reversion law (src/signals/hybrid_arb_mr.py). The one minute
+    # trend must be up, exactly like the other two laws; every other gate lives
+    # in the module. The frames and the market leg are both required, so a
+    # replay or a unit test with no frame context runs the one minute law
+    # alone, the same way `frames=False` already treats the pullback.
+    hybrid_setup: dict | None = None
+    hybrid = None
+    if not config.HYBRID_ENABLED:
+        pass
+    elif not (config.MTF_ENABLED and frames):
+        pass
+    elif trace[-1]["state"] != 1:
+        _bump(tally, "hybrid_trend_not_up")
+    else:
+        from src.signals import hybrid_arb_mr as hybrid_module
+
+        hybrid = hybrid_module
+        hybrid_setup, hybrid_reason = hybrid.entry_view(
+            symbol, rows, session, rs_market, hourly_rows=mtf_rows)
+        if hybrid_setup is None:
+            _bump(tally, hybrid_reason)
+
+    if flip_index is None and pullback_setup is None and hybrid_setup is None:
         return None
 
     view = None
@@ -360,5 +383,30 @@ def candidate(symbol: str, rows: list, session,
                            "inside the three frame agreement, with the pullback "
                            "and the entry nearer the daily low than the daily "
                            "high; paper reference, not a fill",
+        })
+    if hybrid_setup is not None and hybrid is not None:
+        built.append({
+            "symbol": symbol,
+            "score": hybrid.score(hybrid_setup, reward_risk),
+            "strategy": hybrid.STRATEGY_VERSION, "side": "LONG",
+            "price": {"last": entry}, "stop_loss": stop, "target": target,
+            "risk_pct": risk, "net_reward_risk": reward_risk,
+            "setup": {
+                "slope_per_minute_log": trace[-1]["slope"],
+                "hybrid": hybrid_setup,
+                "relative_strength": rs_view,
+                "entry_path": "hybrid_sa_mr",
+                "hysteresis_log_per_minute": config.KALMAN_FLIP_THRESHOLD,
+                "process_noise_q": config.KALMAN_Q,
+                "observation_noise_r": config.KALMAN_R,
+                "mtf": view,
+            },
+            "volume": {"traded_value_estimate": turnover,
+                       "volume_source": "captured bar volume"},
+            "last_bar": last.timestamp.isoformat(), "bars": len(rows),
+            "entry_basis": "latest completed close after a stretch below the "
+                           "mean frame's VWAP, with the fast frame turned up "
+                           "and the name lagging the scan's own market leg; "
+                           "paper reference, not a fill",
         })
     return best_candidate(built)

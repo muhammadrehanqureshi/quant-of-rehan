@@ -339,6 +339,27 @@ RS_MIN_RELATIVE_PCT = _number("RS_MIN_RELATIVE_PCT", 0.0) / 100.0
 #: A market leg needs this many measured symbols. A thin capture cannot say
 #: what the market did, so the gate fails closed rather than guessing.
 RS_MIN_MARKET_SYMBOLS = int(_number("RS_MIN_MARKET_SYMBOLS", 20))
+
+# --------------- the hybrid statistical arbitrage and mean reversion law
+# Owner order 2026-11-12 (Karachi): a new intraday strategy joins the book,
+# the Kalman Trend with the VWAP on the 5 minute, 15 minute and 1 hour charts
+# AND a hybrid statistical arbitrage and mean reversion model
+# (src/signals/hybrid_arb_mr.py). It is a third entry law inside the ONE
+# scanner, never a second engine: the price must be stretched BELOW the mean
+# frame's VWAP by the configured z score while the fast frame's Kalman state
+# has turned up and the name lags the scan's own market leg, and the entry
+# takes the owner's one risk plan (-1% stop, +2% target).
+HYBRID_ENABLED = _flag("HYBRID_ENABLED", True)
+HYBRID_STRATEGY_VERSION = "kalman_vwap_hybrid_sa_mr_v1"
+#: The frame whose VWAP is the mean the price reverts to.
+HYBRID_MEAN_FRAME_MINUTES = int(_number("HYBRID_MEAN_FRAME_MINUTES", 15))
+#: How many standard deviations of that frame's own closes the price must sit
+#: below the mean before the stretch counts.
+HYBRID_Z_MIN = _number("HYBRID_Z_MIN", 1.0)
+#: How far behind the equal-weight market leg the name must be, as a fraction.
+HYBRID_LAG_MIN_PCT = _number("HYBRID_LAG_MIN_PCT", 0.2) / 100.0
+#: The faster frame that must have turned up before a reversion is taken.
+HYBRID_FAST_FRAME_MINUTES = int(_number("HYBRID_FAST_FRAME_MINUTES", 5))
 # Legacy momentum constants above are retained only by historical daily-bar
 # research. They have no decision path in the intraday scanner.
 
@@ -673,6 +694,17 @@ def config_snapshot() -> dict:
             "min_market_symbols": RS_MIN_MARKET_SYMBOLS,
             "basis": "session return minus the equal-weight mean of the "
                      "captured universe, read from the session tape alone",
+        },
+        "hybrid_stat_arb_mean_reversion": {
+            "enabled": HYBRID_ENABLED,
+            "version": HYBRID_STRATEGY_VERSION,
+            "mean_frame_minutes": HYBRID_MEAN_FRAME_MINUTES,
+            "fast_frame_minutes": HYBRID_FAST_FRAME_MINUTES,
+            "z_min": HYBRID_Z_MIN,
+            "lag_min_pct": round(HYBRID_LAG_MIN_PCT * 100, 4),
+            "basis": "z score of the last close against the mean frame's "
+                     "VWAP in that frame's own standard deviations, on the "
+                     "side of the name that lags the scan's market leg",
         },
         "min_relative_volume": MIN_RELATIVE_VOLUME,
         "min_session_traded_value": MIN_SESSION_TRADED_VALUE,

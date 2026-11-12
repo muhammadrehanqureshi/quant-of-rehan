@@ -5,9 +5,11 @@
 The active intraday rules are the owner's Kalman Trend strategies:
 `kalman_trend_flip_v1` (owner order 2026-10-30, which removed ICT/SMC
 outright) and `kalman_vwap_pullback_v2` (owner order 2026-11-06, frame list
-updated 2026-11-08, below). The latest law is `kalman_vwap_rs_v3` (owner
-order 2026-11-09, below), which is that three frame law plus relative
-strength and stays in force until the owner changes it.
+updated 2026-11-08, below). The newest law is
+`kalman_vwap_hybrid_sa_mr_v1` (owner order 2026-11-12, below), the hybrid
+statistical arbitrage and mean reversion entry beside those two; before it,
+`kalman_vwap_rs_v3` (owner order 2026-11-09, below) was that three frame law
+plus relative strength.
 See src/signals/kalman_trend.py and src/signals/kalman_vwap_pullback.py for
 the authoritative contracts: entry, stop and exit on the intraday band feed,
 the owner's +2% target, parameters grid-fit in GitHub Actions. Momentum/RSI
@@ -17,6 +19,25 @@ The frozen chronological evidence gate and source-confirmation checks remain.
 All tests, backtests and builds run in GitHub Actions, never on the owner's PC.
 The scheduled session loop requests one-second cycles and preserves one shared
 daily entry claim. No broker orders are transmitted.
+
+## Kalman Trend, VWAP 5m/15m/1h and hybrid statistical arbitrage with mean reversion, owner order 2026-11-12 (Karachi)
+
+The newest intraday strategy, and a third entry path inside the one scanner,
+is labelled `kalman_vwap_hybrid_sa_mr_v1` with the reader `hybrid_sa_mr_v1`
+(src/signals/hybrid_arb_mr.py). It keeps the Kalman Trend and the VWAP on
+the 5 minute, 15 minute and 1 hour charts and adds a hybrid statistical
+arbitrage and mean reversion model: the price must sit at least
+`HYBRID_Z_MIN` standard deviations below the 15 minute frame's VWAP, the 5
+minute frame's Kalman state must have turned up, and the name must be lagging
+the equal-weight market leg the scan measured by at least
+`HYBRID_LAG_MIN_PCT`. That lag is the cheap side of the pair, so the law
+buys a stretched, under-owned laggard on the reversion rather than chasing a
+leader. The one minute Kalman trend must be up as for every other law, the
+owner's +2% target, -1% stop and one call a day are unchanged, and the whole
+three frame agreement still has to hold before any entry is built. A missing
+frame or an unmeasured market fails closed with its reason named; the frames,
+the z score and the market lag are all measured from completed bars of the
+session tape alone, so no daily history returns.
 
 ## Kalman Trend, VWAP 5m/15m/1h and relative strength, owner order 2026-11-09 (Karachi)
 

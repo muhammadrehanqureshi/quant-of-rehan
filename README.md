@@ -69,8 +69,17 @@ rather than inventing a fresher number.
   returns exactly one confirmed Kalman Trend long (the fresh flip, or the three
   frame agreement's pullback), NO TRADE, or DATA BLOCKED, with market context
   gating and late-entry refusal instead of any fallback signal.
-- **The latest strategy**: [src/signals/kalman_vwap_rs.py](src/signals/kalman_vwap_rs.py)
-  is the running law (`kalman_vwap_rs_v3`, owner order 2026-11-09): the Kalman
+- **The latest strategy**: [src/signals/hybrid_arb_mr.py](src/signals/hybrid_arb_mr.py)
+  is the newest entry law (`kalman_vwap_hybrid_sa_mr_v1`, owner order
+  2026-11-12): the Kalman Trend with VWAP on the 5 minute, 15 minute and 1 hour
+  charts and a hybrid statistical arbitrage and mean reversion model. It calls
+  a name stretched at least `HYBRID_Z_MIN` standard deviations below the 15
+  minute frame's VWAP while the 5 minute frame's Kalman state has turned up and
+  the name lags the scan's own equal-weight market leg, the cheap side of the
+  pair, and it is a third entry path inside the one scanner, never a second
+  engine.
+- **The law it joins**: [src/signals/kalman_vwap_rs.py](src/signals/kalman_vwap_rs.py)
+  is the running three frame law (`kalman_vwap_rs_v3`, owner order 2026-11-09): the Kalman
   Trend with VWAP on the 5 minute, 15 minute and 1 hour charts and relative
   strength. Relative strength is the name's session return minus the
   equal-weight mean of the captured universe, measured from the session tape
