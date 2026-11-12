@@ -126,31 +126,15 @@ func TestScreensShowTheAppsText(t *testing.T) {
 			t.Errorf("settings is missing %q", want)
 		}
 	}
-	facts, seenVersion, seenRelay := false, false, false
-	for _, r := range rowsOf(a) {
-		if strings.Contains(r, "BUILD VERSION & RELAY") {
-			facts = true
-			continue
+	factsAt := strings.Index(set, "BUILD VERSION & RELAY")
+	if factsAt < 0 {
+		t.Errorf("the settings page has no facts tile")
+	} else {
+		rest := set[factsAt+len("BUILD VERSION & RELAY"):]
+		v, r := strings.Index(rest, "VERSION"), strings.Index(rest, "RELAY")
+		if v < 0 || r < 0 || v > r {
+			t.Errorf("VERSION must come before RELAY in the facts tile:\n%s", set)
 		}
-		if !facts {
-			continue
-		}
-		trim := strings.TrimSpace(r)
-		if strings.HasPrefix(trim, "VERSION") {
-			seenVersion = true
-			if seenRelay {
-				t.Errorf("VERSION must come before RELAY in the facts tile")
-			}
-		}
-		if strings.HasPrefix(trim, "RELAY") {
-			seenRelay = true
-			if !seenVersion {
-				t.Errorf("VERSION must come before RELAY in the facts tile")
-			}
-		}
-	}
-	if !seenVersion || !seenRelay {
-		t.Errorf("the facts tile is missing VERSION or RELAY")
 	}
 }
 
