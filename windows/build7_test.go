@@ -32,9 +32,8 @@ func TestBSTLineSaysUZero(t *testing.T) {
 	}
 }
 
-// Owner order 2026-11-12: the full-cell fill was too tall. The bar is the heavy
-// rule again: centred, edge to edge, with no seam and no small box or line
-// inside it. A console cell has no smaller centred solid step.
+// Owner order 2026-11-12: the bar is the centred heavy rule, edge to edge, with
+// no small box or line inside it, drawn in the bold cut as the taller weight.
 func TestBarsAreBuild21sShadedTabs(t *testing.T) {
 	a := demoApp(t, 100, 30)
 	c := NewCanvas(40, 1, RGB{})
@@ -58,8 +57,11 @@ func TestBarsAreBuild21sShadedTabs(t *testing.T) {
 		if ce.Ch != barBlock {
 			continue
 		}
-		if ce.Bold {
-			t.Fatalf("a bar cell is bold, which leaves a hairline at the cell seam")
+		// Owner order 2026-11-12: the bar is ten percent taller, drawn in the
+		// bold cut of the same rule, the console's one taller weight for one
+		// glyph. Span, row, glyph and inks do not move.
+		if !ce.Bold {
+			t.Fatalf("a bar cell is regular weight, not the taller bold cut")
 		}
 		inks[ce.FG] = true
 	}

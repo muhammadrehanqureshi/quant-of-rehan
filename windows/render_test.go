@@ -120,18 +120,13 @@ func TestScreensShowTheAppsText(t *testing.T) {
 	set := plain(a)
 	for _, want := range []string{"RELAY STATUS", "NOTIFICATIONS", "JARVIS CYAN", "PURPLE & YELLOW", "BLACK & WHITE",
 		"NAVY BLUE & WHITE", "VERSION", appVersionLabel, "REQUESTS TODAY",
-		"current requests of 100,000", "The requests reset at 05:00 PKT",
+		"The requests reset at 05:00 PKT.",
 		"Every second from 08:55 until the post-market closes.",
+		"That is at 15:49 from Monday to Thursday & at 16:49 on Friday.",
 		"BIG BUYING FLAG", "BIG SELLING FLAG", "SOUND", "BIG ORDER SIZE", "TEST BUYING ALERT", "TEST SELLING ALERT"} {
 		if !strings.Contains(set, want) {
 			t.Errorf("settings is missing %q", want)
 		}
-	}
-	// The scanning caption sits below the fold at 120x30, as its predecessor
-	// always has; a taller window shows every line of the facts tile.
-	a.w, a.h = 140, 36
-	if tall := plain(a); !strings.Contains(tall, "That is at 15:49 from Monday to Thursday & at 16:49 on Friday.") {
-		t.Errorf("the facts tile does not state the 15:49 and 16:49 close:\n%s", tall)
 	}
 	factsAt := strings.Index(set, "BUILD VERSION & RELAY")
 	if factsAt < 0 {

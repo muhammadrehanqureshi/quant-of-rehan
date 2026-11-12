@@ -105,15 +105,12 @@ func (a *App) drawSettings(c *Canvas, x, y, w, h int) {
 	// Owner order 2026-11-12: VERSION stands before RELAY in the facts tile.
 	// Owner order 2026-11-09: the settings page names the app version alone,
 	// with no Windows build number and no ported app version beside it.
+	// Owner order 2026-11-12 (latest): the RELAY row carries the relay's address
+	// and nothing else, and the reset stands on the line under the count.
 	info("VERSION", appVersionLabel, th.Hot)
 	info("RELAY", a.relay.Base, th.Text)
-	// Owner order 2026-11-12: the daily allowance and its reset stand before the
-	// count, and the scanning window closes at 15:49 and 16:49.
-	info("", "current requests of 100,000", th.Text)
-	info("", "The requests reset at 05:00 PKT", th.Text)
-	// Owner order 2026-11-12: the count reads against Cloudflare's own
-	// 100,000, the same way the TELEMETRY REQ row words it.
-	info("REQUESTS TODAY", commaInt(a.reqToday())+" of 100,000 today.", th.Text)
+	info("REQUESTS TODAY", commaInt(a.reqToday())+" of 100,000.", th.Text)
+	info("", "The requests reset at 05:00 PKT.", th.Text)
 	info("SCANNING", "Every second from 08:55 until the post-market closes.", th.Text)
 	info("", "That is at 15:49 from Monday to Thursday & at 16:49 on Friday.", th.Text)
 	info("SETTINGS FILE", settingsPath(), th.Soft)
