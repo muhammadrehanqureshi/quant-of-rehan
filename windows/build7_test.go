@@ -32,22 +32,20 @@ func TestBSTLineSaysUZero(t *testing.T) {
 	}
 }
 
-// Owner order 2026-11-11: the bar is one continuous centred band in one shade
-// per side, with no separator or small box drawn inside it and never on the
-// floor of the cell. The eleventh pass asks for more height, and a console cell
-// has no fractional step, so the bar is the centred rectangle in the regular
-// weight, the one centred glyph taller than the rule, still on the centre line.
+// Owner order 2026-11-12: the full-cell fill was too tall. The bar is the heavy
+// rule again: centred, edge to edge, with no seam and no small box or line
+// inside it. A console cell has no smaller centred solid step.
 func TestBarsAreBuild21sShadedTabs(t *testing.T) {
 	a := demoApp(t, 100, 30)
 	c := NewCanvas(40, 1, RGB{})
 	a.shareBar(c, 2, 0, shareBarWidth, 0.5)
 	row := c.PlainRows()[0]
-	// Owner order 2026-11-11 (eleventh pass): the bar is the centred rectangle,
-	// never a lower or upper block that stands on the floor or the top.
-	if barBlock != '▬' {
-		t.Fatalf("the bar is %q, not the centred rectangle", barBlock)
+	// Owner order 2026-11-12: the bar is the centred heavy rule, never a
+	// lower or upper block that stands on the floor or the top.
+	if barBlock != '━' {
+		t.Fatalf("the bar is %q, not the centred heavy rule", barBlock)
 	}
-	for _, block := range "▄▅█▀■" {
+	for _, block := range "▄▅█▀■▬" {
 		if block == barBlock {
 			t.Fatal("a lower block, a full block or the old rectangle is inside the bar again")
 		}
@@ -62,9 +60,6 @@ func TestBarsAreBuild21sShadedTabs(t *testing.T) {
 		}
 		if ce.Bold {
 			t.Fatalf("a bar cell is bold, which leaves a hairline at the cell seam")
-		}
-		if ce.BG != ce.FG {
-			t.Fatalf("a bar cell keeps the panel background, so its cell seam is visible")
 		}
 		inks[ce.FG] = true
 	}

@@ -10,9 +10,10 @@ import (
 // remove the QUANT OF REHAN from the QUANT CORE for now, and make this 3D
 // sphere in the same dots pattern."
 //
-// The mark is a globe of dots: a latitude and longitude grid on a unit sphere,
+// The mark is a globe of dots: an even golden-angle lattice on a unit sphere,
 // turned about the vertical axis and projected with a small perspective term,
-// so the meridians crowd together towards the rim the way a real globe's do.
+// so the disc keeps the depth of a real globe without the uneven rings of a
+// latitude and longitude grid at terminal size.
 // Depth is carried by the ink, a point on the near side bright, one on the far
 // side dim, and the middle stepping between them, which is what makes the disc
 // read as a sphere instead of a flat circle. It is drawn as Braille dots, the
@@ -27,12 +28,10 @@ const (
 	// Owner order 2026-11-11: the QUANT CORE globe is the mark the tile draws,
 	// not the ring, so its own size carries the fifteen percent cut.
 	sphereSizeScale = 0.85
-	// sphereLatStep and sphereLonStep are the grid's spacing in degrees.
-	// Owner order 2026-11-11 (eleventh pass): the globe goes back to the build
-	// 3.2.6 grid, because the doubled grid filled every cell and flattened the
-	// ball. The readable meridian net and the three depth bands are back.
-	sphereLatStep = 11.25 * 0.9129 * 0.9325 * 0.9129 * 0.9129 * 0.9129 * 0.9129
-	sphereLonStep = 9.0 * 0.9129 * 0.9325 * 0.9129 * 0.9129 * 0.9129 * 0.9129
+	// sphereDots is the number of dots on the globe. Owner order 2026-11-12:
+	// fewer dots than the build 3.2.6 latitude grid, spread by a Fibonacci
+	// lattice so the spacing stays even over the whole sphere.
+	sphereDots = 900
 	// spherePerspective is how much the nearer half of the globe grows.
 	spherePerspective = 0.18
 )
@@ -45,28 +44,19 @@ var sphereDot = [4][2]rune{{0x01, 0x08}, {0x02, 0x10}, {0x04, 0x20}, {0x40, 0x80
 // viewer, all on the unit sphere.
 type spherePoint struct{ x, y, z float64 }
 
-// spherePoints is the grid the globe is built from. Every ring of latitude
-// carries as many meridians as its own circumference can hold, so the dots
-// stand at an even spacing over the whole surface and the grid closes up
-// towards the poles exactly as a real meridian net does.
+// spherePoints is the globe's dot set. Owner order 2026-11-12: the latitude
+// rings made an uneven pattern at terminal size, so the dots are spread by the
+// golden angle over the whole sphere. Every point sits in its own band of equal
+// area, which keeps the spacing even from pole to pole, and the turn uses the
+// same vertical axis and depth bands as before.
 func spherePoints() []spherePoint {
-	var pts []spherePoint
-	for lat := -90 + sphereLatStep; lat <= 90-sphereLatStep+1e-9; lat += sphereLatStep {
-		rad := lat * math.Pi / 180
-		ring := math.Cos(rad)
-		height := math.Sin(rad)
-		n := int(math.Round(360 * ring / sphereLonStep))
-		if n < 3 {
-			n = 3
-		}
-		for i := 0; i < n; i++ {
-			lon := 2 * math.Pi * float64(i) / float64(n)
-			pts = append(pts, spherePoint{
-				x: ring * math.Sin(lon),
-				y: -height,
-				z: ring * math.Cos(lon),
-			})
-		}
+	const golden = math.Pi * (3 - math.Sqrt(5))
+	pts := make([]spherePoint, 0, sphereDots)
+	for i := 0; i < sphereDots; i++ {
+		y := 1 - (float64(i)+0.5)*2/float64(sphereDots)
+		r := math.Sqrt(math.Max(0, 1-y*y))
+		a := golden * float64(i)
+		pts = append(pts, spherePoint{x: math.Cos(a) * r, y: -y, z: math.Sin(a) * r})
 	}
 	return pts
 }
