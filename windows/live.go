@@ -133,8 +133,14 @@ func (a *App) feedState() (word string, age int, ok bool) {
 	// boundary, so a normal broker burst, which repeats a symbol about every
 	// 24 seconds, is LAGGING rather than a false STALE. A real outage still
 	// reaches STALE after the relay's own freshness window.
+	//
+	// Owner order 2026-11-12: the owner measured the wire at five seconds live
+	// and six seconds lagging, an eleven second burst. The five second window
+	// sat inside that burst, so the light flipped on every cycle. The window is
+	// fifteen seconds now, longer than the whole burst, so one cycle reads LIVE
+	// from end to end and only a feed that has genuinely paused turns LAGGING.
 	switch {
-	case age <= 5:
+	case age <= 15:
 		return "LIVE", age, true
 	case age <= 90:
 		return "LAGGING", age, true

@@ -94,7 +94,7 @@ func TestScreensShowTheAppsText(t *testing.T) {
 	a.screen = scrScanner
 	a.scanChoice = 2
 	scan := plain(a)
-	for _, want := range []string{"CUSTOM SCRIPS BY VOLUME", "PRICES RISING FAST", "MORE BUYERS & LESS SELLERS", "SECTORS", "scrips"} {
+	for _, want := range []string{"CUSTOM SCRIPS OF VOLUME", "PRICES RISING FAST", "MORE BUYERS & LESS SELLERS", "MORE SELLERS & LESS BUYERS", "ALMOST NO VOLUME AT ALL", "SCRIPS WITH LOWER LOCK", "SCRIPS WITH UPPER LOCK", "SECTORS", "scrips"} {
 		if !strings.Contains(scan, want) {
 			t.Errorf("scanner is missing %q", want)
 		}
@@ -120,7 +120,9 @@ func TestScreensShowTheAppsText(t *testing.T) {
 	set := plain(a)
 	for _, want := range []string{"RELAY STATUS", "NOTIFICATIONS", "JARVIS CYAN", "PURPLE & YELLOW", "BLACK & WHITE",
 		"NAVY BLUE & WHITE", "VERSION", appVersionLabel, "REQUESTS TODAY",
+		"current requests of 100,000", "The requests reset at 05:00 PKT",
 		"Every second from 08:55 until the post-market closes.",
+		"That is at 15:49 from Monday to Thursday & at 16:49 on Friday.",
 		"BIG BUYING FLAG", "BIG SELLING FLAG", "SOUND", "BIG ORDER SIZE", "TEST BUYING ALERT", "TEST SELLING ALERT"} {
 		if !strings.Contains(set, want) {
 			t.Errorf("settings is missing %q", want)
@@ -306,8 +308,8 @@ func TestDemoNextEventFollowsTheSessionLaw(t *testing.T) {
 		at   time.Time
 		want string
 	}{
-		{time.Date(2026, 10, 30, 14, 40, 0, 0, pkt), "17:00"},
-		{time.Date(2026, 11, 2, 10, 0, 0, 0, pkt), "16:00"},
+		{time.Date(2026, 10, 30, 14, 40, 0, 0, pkt), "16:49"},
+		{time.Date(2026, 11, 2, 10, 0, 0, 0, pkt), "15:49"},
 	} {
 		if got := demoSessionEnd(c.at); got != c.want {
 			t.Errorf("%v: %s, want %s", c.at, got, c.want)
@@ -322,7 +324,7 @@ func TestFriendlyNextShowsTheScanStart(t *testing.T) {
 	if got := friendlyNext("OPEN 2026-11-10 09:32"); got != "Tue 10 Nov, 08:55" {
 		t.Errorf("next open: %q", got)
 	}
-	if got := friendlyNext("CLOSE 2026-11-10 15:30"); got != "Closes Tue 10 Nov, 16:00" {
+	if got := friendlyNext("CLOSE 2026-11-10 15:30"); got != "Closes Tue 10 Nov, 15:49" {
 		t.Errorf("next close: %q", got)
 	}
 }

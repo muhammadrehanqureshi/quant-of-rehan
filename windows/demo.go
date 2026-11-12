@@ -264,14 +264,14 @@ func (a *App) demoTick(now time.Time) {
 }
 
 // demoSessionEnd is when the trading day that the demo clock sits in ends.
-// Owner order 2026-11-10: 16:00 Monday to Thursday and 17:00 on Friday, with
+// Owner order 2026-11-12: 15:49 Monday to Thursday and 16:49 on Friday, with
 // Friday morning's answer staying at the 12:00 midday break.
 func demoSessionEnd(pk time.Time) string {
 	if pk.Weekday() != time.Friday {
-		return "16:00"
+		return "15:49"
 	}
 	if pk.Hour() < 12 {
 		return "12:00"
 	}
-	return "17:00"
+	return "16:49"
 }

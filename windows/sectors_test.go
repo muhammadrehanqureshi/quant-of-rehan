@@ -69,7 +69,7 @@ func TestScannerShowsSectorsAndCyclesThem(t *testing.T) {
 			t.Errorf("the open sector is missing %q:\n%s", want, opened)
 		}
 	}
-	if !strings.Contains(opened, "CUSTOM SCRIPS BY VOLUME") {
+	if !strings.Contains(opened, "CUSTOM SCRIPS OF VOLUME") {
 		t.Errorf("the open sector hid the CUSTOM SCRIPS tile:\n%s", opened)
 	}
 	// Owner order 2026-11-07: BACKSPACE brings every sector back, in place.
@@ -115,7 +115,7 @@ func TestSectorSearchFiltersGroupsAndScrips(t *testing.T) {
 	if len(vis) != 1 || a.sectorGroups()[vis[0]].Name != "CEMENT" {
 		t.Fatalf("CEM must filter to CEMENT: %v", vis)
 	}
-	if s := plain(a); !strings.Contains(s, "CUSTOM SCRIPS BY VOLUME") {
+	if s := plain(a); !strings.Contains(s, "CUSTOM SCRIPS OF VOLUME") {
 		t.Fatalf("the sector search hid the CUSTOM SCRIPS tile:\n%s", s)
 	}
 	a.onKey(Key{Kind: KEnter})

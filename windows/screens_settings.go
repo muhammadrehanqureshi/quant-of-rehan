@@ -107,10 +107,14 @@ func (a *App) drawSettings(c *Canvas, x, y, w, h int) {
 	// with no Windows build number and no ported app version beside it.
 	info("VERSION", appVersionLabel, th.Hot)
 	info("RELAY", a.relay.Base, th.Text)
-	info("REQUESTS TODAY", commaInt(a.reqToday())+" of 90,000 allowed.", th.Text)
-	info("", "The app stops at 90,000 of Cloudflare's 100,000 a day, so the day", th.Text)
-	info("", "is never exhausted. The count resets at 05:00 PKT.", th.Text)
+	// Owner order 2026-11-12: the daily allowance and its reset stand before the
+	// count, and the scanning window closes at 15:49 and 16:49.
+	info("", "current requests of 100,000", th.Text)
+	info("", "The requests reset at 05:00 PKT", th.Text)
+	// Owner order 2026-11-12: the count reads against Cloudflare's own
+	// 100,000, the same way the TELEMETRY REQ row words it.
+	info("REQUESTS TODAY", commaInt(a.reqToday())+" of 100,000 today.", th.Text)
 	info("SCANNING", "Every second from 08:55 until the post-market closes.", th.Text)
-	info("", "That is 16:00 Monday to Thursday and 17:00 on Friday.", th.Text)
+	info("", "That is at 15:49 from Monday to Thursday & at 16:49 on Friday.", th.Text)
 	info("SETTINGS FILE", settingsPath(), th.Soft)
 }

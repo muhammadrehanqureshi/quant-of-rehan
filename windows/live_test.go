@@ -94,7 +94,7 @@ func TestHeaderClockTicksEverySecond(t *testing.T) {
 	for i := 0; i < 3; i++ {
 		a.now = time.Date(2026, 11, 2, 11, 0, i, 0, pkt)
 		want := fmt.Sprintf("MON 02 NOV 2026 11:00:0%d UTC+5", i)
-		if row := rowsOf(a)[0]; !strings.HasSuffix(strings.TrimRight(row, " "), want) {
+		if row := rowsOf(a)[1]; !strings.HasSuffix(strings.TrimRight(row, " "), want) {
 			t.Errorf("second %d: top row is %q, want it to end with %q", i, row, want)
 		}
 	}
@@ -107,7 +107,7 @@ func TestHeaderClockIsGreenButUTCDoesNotFollow(t *testing.T) {
 	a.animT = -1
 	a.now = time.Date(2026, 11, 2, 11, 0, 7, 0, pkt)
 	c := a.render()
-	row := c.PlainRows()[0]
+	row := c.PlainRows()[1]
 	timeAt := strings.Index(row, "11:00:07")
 	if timeAt < 0 {
 		t.Fatalf("the top row has no clock: %q", row)
@@ -139,8 +139,8 @@ func TestOnlyOneClockOnHome(t *testing.T) {
 			hits = append(hits, fmt.Sprintf("row %d: %s", y, m))
 		}
 	}
-	if len(hits) != 1 || !strings.HasPrefix(hits[0], "row 0:") {
-		t.Errorf("want one clock on row 0, got %v", hits)
+	if len(hits) != 1 || !strings.HasPrefix(hits[0], "row 1:") {
+		t.Errorf("want one clock on the index line, row 1, got %v", hits)
 	}
 }
 
@@ -209,8 +209,10 @@ func TestFeedAgeCountsUpEverySecond(t *testing.T) {
 	a.link, a.checking = true, false
 	a.now = flowT0
 	a.ingestQuotes(quotesAt(15, 1_000_000))
+	// Owner order 2026-11-12: the LIVE window is fifteen seconds, longer than
+	// the eleven second broker burst, so one cycle no longer flips the light.
 	for i, want := range []string{"LIVE", "LIVE", "LAGGING", "LAGGING"} {
-		a.now = flowT0.Add([]time.Duration{0, 4 * time.Second, 12 * time.Second, 45 * time.Second}[i])
+		a.now = flowT0.Add([]time.Duration{0, 4 * time.Second, 16 * time.Second, 45 * time.Second}[i])
 		if got, _, _ := a.feedState(); got != want {
 			t.Errorf("after step %d: %s want %s", i, got, want)
 		}
@@ -225,12 +227,12 @@ func TestFeedAgeCountsUpEverySecond(t *testing.T) {
 	if _, age, _ := a.feedState(); age != 7 {
 		t.Errorf("age: %d", age)
 	}
-	a.now = flowT0.Add(8 * time.Second)
+	a.now = flowT0.Add(16 * time.Second)
 	light := ""
 	for _, sp := range a.feedLight() {
 		light += sp.S
 	}
-	if !strings.Contains(light, "LAGGING 8s") {
+	if !strings.Contains(light, "LAGGING 16s") {
 		t.Errorf("feed light: %q", light)
 	}
 }

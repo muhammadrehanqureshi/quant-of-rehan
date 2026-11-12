@@ -39,8 +39,8 @@ func (a *App) orbMode() OrbMode {
 }
 
 // orbGreen says whether the quant mark wears the GIF's refined green. Owner
-// order 2026-11-09 (build 29): green from 08:55 to 16:00 Monday to Thursday
-// and from 08:55 to 17:00 on Friday, red outside those windows and all weekend.
+// order 2026-11-12: green from 08:55 to 15:49 Monday to Thursday and from
+// 08:55 to 16:49 on Friday, red outside those windows and all weekend.
 // A PSX holiday is not a market day, so it is red all day too, and the relay's
 // own trading-day flag can only add a red day, never turn one green.
 func (a *App) orbGreen() bool {
@@ -52,9 +52,9 @@ func (a *App) orbGreen() bool {
 		return false
 	}
 	start := scanOpen // 08:55
-	end := 16 * 60
+	end := 15*60 + 49
 	if isFriday(p) {
-		end = 17 * 60
+		end = 16*60 + 49
 	}
 	m := minuteOf(p)
 	return m >= start && m < end
@@ -230,7 +230,17 @@ func (a *App) drawHeader(c *Canvas) {
 	// Owner order 2026-11-07: one space between the date and the time, the time
 	// itself green, and the UTC+5 tag still in the darker shade.
 	ink := mix(th.Soft, th.BG, 0.28)
-	rightAlign(c, 0, 0, c.W-1, []Span{{date + " ", ink, false}, {clock, th.Good, true}, {" UTC+5", ink, false}})
+	stamp := []Span{{date + " ", ink, false}, {clock, th.Good, true}, {" UTC+5", ink, false}}
+	stampW := 0
+	for _, sp := range stamp {
+		stampW += runeLen(sp.S)
+	}
+	// Owner order 2026-11-12: the date and the clock are lowered onto the
+	// PSX'S KMIALL INDEX line, so they stand in the middle of that line's height
+	// at the top right corner instead of above it on the title's row. The right
+	// rule ends before them, so the two never touch.
+	rightAlign(c, 0, 1, c.W-1, stamp)
+	clockFrom := c.W - 1 - stampW
 
 	tag := headerTag
 	if a.demo {
@@ -244,8 +254,8 @@ func (a *App) drawHeader(c *Canvas) {
 	if tagX >= 3 {
 		c.HLine(0, 1, tagX-2, '─', rule)
 	}
-	if end := tagX + runeLen(tag) + 2; end < c.W-1 {
-		c.HLine(end, 1, c.W-1-end, '─', rule)
+	if end := tagX + runeLen(tag) + 2; end < clockFrom-2 {
+		c.HLine(end, 1, clockFrom-2-end, '─', rule)
 	}
 
 	// Rule with a bright segment sweeping along it.
@@ -487,8 +497,8 @@ func (a *App) drawLeft(c *Canvas, x, y, w, h int) {
 	}
 	label(2, "PHASE", []Span{{ph, pc, true}})
 	// Owner order 2026-11-11: SCAN follows PHASE. MARKET OPENING is the
-	// exchange's own 09:15 and MARKET CLOSING is the day's own end, 16:00
-	// Monday to Thursday and 17:00 on Friday, with no pre and post captions.
+	// exchange's own 09:15 and MARKET CLOSING is the day's own end, 15:49
+	// Monday to Thursday and 16:49 on Friday, with no pre and post captions.
 	sw, sc := a.scanStatus()
 	label(3, "SCAN", []Span{{sw, sc, true}})
 	hm := func(m int) string { return fmt.Sprintf("%02d:%02d", m/60, m%60) }

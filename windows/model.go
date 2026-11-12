@@ -25,9 +25,12 @@ const appVersion = "4.0.20"
 // aligned telemetry, the B/S/U FLOW row and the ALERTS LOG search are 3.2.9,
 // and the restored 3.2.6 globe, the centred rectangle bars and the day's FLOW
 // sides are 3.3.0, the seamless full-cell bars, the two scanner sorts, the
-// VERSION before RELAY order and the leader PKR label are 3.3.1, and the
-// centred heavy-rule bars and the even 900 dot globe are 3.3.2.
-const hudBuild = "3.3.2"
+// VERSION before RELAY order and the leader PKR label are 3.3.1, the centred
+// heavy-rule bars and the even 900 dot globe are 3.3.2, and the KSE100 style
+// CUSTOM SCRIPS OF VOLUME with its six sorts, the fifteen second LIVE window,
+// the clock on the index line, the 15:49 and 16:49 close and the 100,000
+// request tile are 3.3.3.
+const hudBuild = "3.3.3"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no
@@ -133,12 +136,17 @@ type Head struct {
 // Online is true only when the relay answers and a session is live.
 func (h *Head) Online() bool { return h.Reachable && h.MarketOpen }
 
-// Quote is one row of the /prices table.
+// Quote is one row of the /prices table, with the broker feed's traded total
+// laid over it when the feed carries one.
 type Quote struct {
 	Price     float64
 	ChangePct *float64
 	Buy       *int64
 	Sell      *int64
+	// Volume is the traded total the scanner ranks a scrip by and draws as its
+	// T. It is the measured buy and sell pair when the capture sided the row,
+	// otherwise the broker feed's own volume.
+	Volume *int64
 }
 
 // LiveQuote is one row of the /quotes broker feed.
