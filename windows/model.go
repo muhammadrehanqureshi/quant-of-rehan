@@ -37,8 +37,10 @@ const appVersion = "4.0.20"
 // FLOW, is 3.3.6, and the withdrawn / searches hint, the left aligned NET
 // DELTA and the one live price and change pair on ORDER FLOW are 3.3.7, and
 // the one measured pair behind every bar, the 09:00 scan start, the fixed
-// change column on the scanner and the withdrawn ESC clears note are 3.3.8.
-const hudBuild = "3.3.8"
+// change column on the scanner and the withdrawn ESC clears note are 3.3.8,
+// and the three withdrawn hints, the withdrawn scrip count and the capital feed
+// note are 3.3.9.
+const hudBuild = "3.3.9"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no

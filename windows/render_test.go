@@ -94,7 +94,7 @@ func TestScreensShowTheAppsText(t *testing.T) {
 	a.screen = scrScanner
 	a.scanChoice = 2
 	scan := plain(a)
-	for _, want := range []string{"CUSTOM SCRIPS OF VOLUME", "PRICES RISING FAST", "MORE BUYERS & LESS SELLERS", "MORE SELLERS & LESS BUYERS", "ALMOST NO VOLUME AT ALL", "SCRIPS WITH LOWER LOCK", "SCRIPS WITH UPPER LOCK", "SECTORS", "scrips"} {
+	for _, want := range []string{"CUSTOM SCRIPS OF VOLUME", "PRICES RISING FAST", "MORE BUYERS & LESS SELLERS", "MORE SELLERS & LESS BUYERS", "ALMOST NO VOLUME AT ALL",       "SCRIPS WITH LOWER LOCK", "SCRIPS WITH UPPER LOCK", "SECTORS"} {
 		if !strings.Contains(scan, want) {
 			t.Errorf("scanner is missing %q", want)
 		}

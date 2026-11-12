@@ -226,7 +226,7 @@ func TestHomeHasOneBlankLineBeforeTheFeedNote(t *testing.T) {
 			if strings.Contains(r, "BUYING NOW") {
 				b = i
 			}
-			if strings.Contains(r, "Data from the broker's feed") || strings.Contains(r, "Demo mode: every number here") {
+			if strings.Contains(r, "DATA FROM THE BROKER'S FEED") || strings.Contains(r, "Demo mode: every number here") {
 				n = i // the demo says its own sentence in the same place
 			}
 		}
