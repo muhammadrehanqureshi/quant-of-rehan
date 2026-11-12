@@ -63,6 +63,9 @@ func TestBarsAreBuild21sShadedTabs(t *testing.T) {
 		if ce.Bold {
 			t.Fatalf("a bar cell is bold, which leaves a hairline at the cell seam")
 		}
+		if ce.BG != ce.FG {
+			t.Fatalf("a bar cell keeps the panel background, so its cell seam is visible")
+		}
 		inks[ce.FG] = true
 	}
 	if len(inks) != 2 {
@@ -113,6 +116,34 @@ func TestLeaderBarsAreOrderFlowBarsAndPriceFollowsT(t *testing.T) {
 			}
 		}
 		t.Fatalf("no leader line carries both a T volume and a price:\n%s", b.String())
+	}
+}
+
+// Owner order 2026-11-12: the KSE100 tile keeps PKR beside every current price.
+// The bar may step out of a narrow tile, but the currency label never does.
+func TestKSE100LeadersKeepPKR(t *testing.T) {
+	for _, sz := range [][2]int{{120, 30}, {122, 30}, {158, 41}} {
+		a := busyApp(t, sz[0], sz[1], 3)
+		inside, priced := false, 0
+		for _, r := range rowsOf(a) {
+			switch {
+			case strings.Contains(r, "KSE100 INDEX & THE TOP 3 SCRIPS OF VOLUME"):
+				inside = true
+				continue
+			case strings.Contains(r, "BUYING NOW"):
+				inside = false
+			}
+			if !inside || !strings.Contains(r, "& T=") {
+				continue
+			}
+			priced++
+			if !strings.Contains(r, "PKR ") {
+				t.Errorf("%dx%d: a leader price lost its PKR: %q", sz[0], sz[1], r)
+			}
+		}
+		if priced == 0 {
+			t.Fatalf("%dx%d: no leader row carries a T volume", sz[0], sz[1])
+		}
 	}
 }
 

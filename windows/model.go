@@ -24,8 +24,9 @@ const appVersion = "4.0.20"
 // globe are 3.2.7, the lit globe and the taller bold bars are 3.2.8, the right
 // aligned telemetry, the B/S/U FLOW row and the ALERTS LOG search are 3.2.9,
 // and the restored 3.2.6 globe, the centred rectangle bars and the day's FLOW
-// sides are 3.3.0.
-const hudBuild = "3.3.0"
+// sides are 3.3.0, and the seamless full-cell bars, the two scanner sorts, the
+// VERSION before RELAY order and the leader PKR label are 3.3.1.
+const hudBuild = "3.3.1"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no

@@ -113,12 +113,8 @@ func TestScreensShowTheAppsText(t *testing.T) {
 	a.scanChoice = 1
 	scan = plain(a)
 	checkOrder("rising fast", rankedSpeedSymbols(a.scanTable()), scan)
-	a.scanChoice = 3
-	flow := plain(a)
-	for _, want := range []string{"BIG BUYING & SELLING NOW (LIVE FLOW)", "bought", "ECHO"} {
-		if !strings.Contains(flow, want) {
-			t.Errorf("flow list is missing %q", want)
-		}
+	if strings.Contains(scan, "BIG BUYING & SELLING NOW (LIVE FLOW)") {
+		t.Errorf("the flow sort is still on the scanner:\n%s", scan)
 	}
 	a.screen = scrSettings
 	set := plain(a)
@@ -129,6 +125,32 @@ func TestScreensShowTheAppsText(t *testing.T) {
 		if !strings.Contains(set, want) {
 			t.Errorf("settings is missing %q", want)
 		}
+	}
+	facts, seenVersion, seenRelay := false, false, false
+	for _, r := range rowsOf(a) {
+		if strings.Contains(r, "BUILD VERSION & RELAY") {
+			facts = true
+			continue
+		}
+		if !facts {
+			continue
+		}
+		trim := strings.TrimSpace(r)
+		if strings.HasPrefix(trim, "VERSION") {
+			seenVersion = true
+			if seenRelay {
+				t.Errorf("VERSION must come before RELAY in the facts tile")
+			}
+		}
+		if strings.HasPrefix(trim, "RELAY") {
+			seenRelay = true
+			if !seenVersion {
+				t.Errorf("VERSION must come before RELAY in the facts tile")
+			}
+		}
+	}
+	if !seenVersion || !seenRelay {
+		t.Errorf("the facts tile is missing VERSION or RELAY")
 	}
 }
 
