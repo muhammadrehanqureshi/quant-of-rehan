@@ -1,10 +1,11 @@
-# Quant of Rehan for Windows (console edition), build 94
+# Quant of Rehan for Windows (console edition), build 95
 
 A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.21**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
 
-## What is new in build 94
+## What is new in build 95
 
+* **Build 95 (version 3.4.4).** ORDER FLOW's frame reads `Press "/" to search` instead of `UP and DOWN scroll`, and every page with a search box says the same: ORDER FLOW, the ALERTS LOG, and the SEARCH tile on SCANNER. The slash puts the keys in the page's own box on all three. On SCANNER it leaves the keys on the SEARCH tile and never types itself, and the SECTORS tile's own field takes the keys from a click on it.
 * **Build 94 (version 3.4.3).** Every bar is the heavy rule in the bold cut again: the rectangle and the square are narrower than a console cell, which is the seam between the boxes, and the rule is the one glyph that reaches both edges and joins into a single line. Its span, its ten boxes, its row and its two inks do not change. The KSE100 reading is taken from the one second `/quotes` snapshot instead of the five second card, so the index line and its change move at the feed's own pace; the leaders and the source name stay the card's.
 * **Build 93 (version 3.4.2).** Every bar is the centred rectangle again, the full block withdrawn. SETTINGS writes `and` instead of `&` after Thursday on its scanning line. The CUSTOM SCRIPS OF VOLUME tile carries no UP, DOWN, PGUP, PGDN hint, and the arrow keys still drive the search matches and the scrips list exactly as before. ORDER FLOW names its unclassified column `UNCLEAR (U)` in full, and the gutter between every pair of its columns, the bar and its own NET DELTA included, is the same two cells.
 * **Build 92 (version 3.4.1).** The SEARCH tile's match list marks the row you scroll through with the diamond, the same mark every other list in the build selects with, whether the cursor moved by key or by wheel. The `>` prompt is withdrawn from every search box, so the typed text starts on the field's own first cell. Every green and red bar is the full block in the bold cut, twice the height of the rectangle it replaces and the tallest glyph a console has, still centred in its cell on the same row, with the same span, the same ten boxes and the same two inks.

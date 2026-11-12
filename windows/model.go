@@ -42,8 +42,9 @@ const appVersion = "4.0.21"
 // note are 3.3.9, the centred rectangle bars are 3.4.0, and the diamond in the
 // search list, the withdrawn search prompt and the full block bars are 3.4.1,
 // and the rectangle bars, the UNCLEAR column and the one gutter are 3.4.2, and
-// the seamless bars and the one second index are 3.4.3.
-const hudBuild = "3.4.3"
+// the seamless bars and the one second index are 3.4.3, and the slash search
+// key on every page that has a search box is 3.4.4.
+const hudBuild = "3.4.4"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no
@@ -52,6 +53,10 @@ const appVersionLabel = hudBuild
 
 // scripSearchHint is the same search line on every desktop search box.
 const scripSearchHint = "Search for a KMIALL scrip"
+
+// pressSearchHint names the key that gives a page's search box the keys, on
+// every page that has one (owner order 2026-11-12: the slash is that key).
+const pressSearchHint = "Press \"/\" to search"
 
 // A terminal has one font size for the whole window, so the title is set in the
 // theme's accent and closed by a diamond on either side. The owner asked for the

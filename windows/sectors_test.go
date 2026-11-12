@@ -94,16 +94,66 @@ func TestScannerShowsSectorsAndCyclesThem(t *testing.T) {
 	}
 }
 
-// Owner order 2026-11-07: the SECTORS tile has its own search box. Slash gives
-// it the keys, it filters the groups, ENTER opens the first match, and the same
-// box filters the open group's scrips.
+// Owner order 2026-11-12 (latest): the slash puts the keys in the page's own
+// search box on every page that has one, and every one of those pages names
+// the key on its frame.
+func TestSlashTakesTheKeysOnEverySearchPage(t *testing.T) {
+	a := demoApp(t, 140, 40)
+	// ORDER FLOW: the box takes the keys and the frame names the key, with the
+	// scroll hint gone.
+	a.screen = scrOrderFlow
+	_ = a.render()
+	a.onKey(Key{Kind: KRune, R: '/'})
+	if !a.ofSearch {
+		t.Fatal("slash must give ORDER FLOW's search box the keys")
+	}
+	if s := plain(a); !strings.Contains(s, pressSearchHint) || strings.Contains(s, "UP and DOWN scroll") {
+		t.Fatalf("ORDER FLOW's frame must name the key and not the arrows:\n%s", s)
+	}
+	// ALERTS: the same key, the same line.
+	a.screen = scrAlerts
+	_ = a.render()
+	a.onKey(Key{Kind: KRune, R: '/'})
+	if !a.alertSearch {
+		t.Fatal("slash must give the ALERTS search box the keys")
+	}
+	if s := plain(a); !strings.Contains(s, pressSearchHint) {
+		t.Fatalf("the ALERTS frame must name the key:\n%s", s)
+	}
+	// SCANNER: the slash hands the keys back from the SECTORS box to the page's
+	// own SEARCH box, never types itself, and the tile names the key while the
+	// box is empty.
+	a.screen = scrScanner
+	a.sectorSearch = true
+	a.onKey(Key{Kind: KRune, R: '/'})
+	if a.sectorSearch {
+		t.Fatal("slash must hand the keys back to the page's own SEARCH box")
+	}
+	if a.searchText != "" {
+		t.Fatalf("the slash typed itself: %q", a.searchText)
+	}
+	if s := plain(a); !strings.Contains(s, pressSearchHint) {
+		t.Fatalf("the SEARCH tile must name the key while the box is empty:\n%s", s)
+	}
+	for _, r := range "PIA" {
+		a.onKey(Key{Kind: KRune, R: r})
+	}
+	if a.searchText != "PIA" {
+		t.Fatalf("the SEARCH box holds %q, want PIA", a.searchText)
+	}
+}
+
+// Owner order 2026-11-07: the SECTORS tile has its own search box. It filters
+// the groups, ENTER opens the first match, and the same box filters the open
+// group's scrips. Owner order 2026-11-12 (latest): the slash belongs to the
+// page's own SEARCH box, so this box takes the keys from a click on its field.
 func TestSectorSearchFiltersGroupsAndScrips(t *testing.T) {
 	a := demoApp(t, 122, 30)
 	a.screen = scrScanner
-	_ = a.render() // draw once so the tile has a size and the slash key can focus it
-	a.onKey(Key{Kind: KRune, R: '/'})
+	_ = a.render() // draw once so the tile has a size and its field has a hit
+	a.sectorSearch = true // what a click on the field does
 	if !a.sectorSearch {
-		t.Fatal("slash must focus the SECTORS search box")
+		t.Fatal("the SECTORS search box must take the keys")
 	}
 	if s := plain(a); !strings.Contains(s, "Search for a sector") {
 		t.Fatalf("the SECTORS tile has no search box:\n%s", s)
@@ -128,7 +178,7 @@ func TestSectorSearchFiltersGroupsAndScrips(t *testing.T) {
 	if a.sectorQuery != "" || a.sectorSearch {
 		t.Fatalf("opening a group must clear its search: %q %v", a.sectorQuery, a.sectorSearch)
 	}
-	a.onKey(Key{Kind: KRune, R: '/'})
+	a.sectorSearch = true // the click again, the only way into this box
 	for _, r := range "CH" {
 		a.onKey(Key{Kind: KRune, R: r})
 	}

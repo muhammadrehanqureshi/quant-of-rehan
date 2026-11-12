@@ -1250,12 +1250,12 @@ func (a *App) keyScanner(k Key) {
 			a.setScreen(screenID(r - '1'))
 			return
 		}
-		// Owner order 2026-11-07: the SECTORS tile has its own search box.
-		// The slash key focuses it while the top search is empty.
-		if r == '/' && !searching && a.sectorH > 0 {
-			a.sectorSearch = true
-			a.lvSector.top()
-			a.lvSectorStk.top()
+		// Owner order 2026-11-12 (latest): the slash is the page's own search
+		// key, so on SCANNER it leaves the keys on the SEARCH box and never
+		// types itself. The SECTORS box takes the keys from a click on its
+		// field, which is the way in that order leaves it.
+		if r == '/' {
+			a.sectorSearch = false
 			return
 		}
 		if (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '.' || r == '-' || r == '_' {
@@ -1338,6 +1338,12 @@ func (a *App) keySectorSearch(k Key) {
 		}
 	case KRune:
 		r := k.R
+		// Owner order 2026-11-12 (latest): the slash always means the page's
+		// own SEARCH box, so it hands the keys back instead of filtering here.
+		if r == '/' {
+			a.sectorSearch = false
+			return
+		}
 		if r >= 'a' && r <= 'z' {
 			r -= 'a' - 'A'
 		}

@@ -461,7 +461,10 @@ func (a *App) searchBox(c *Canvas, x, y, w int, text, hint string, focused bool)
 // buying and selling.
 func (a *App) drawSearchTile(c *Canvas, x, y, w, h int) {
 	th := a.th
-	hint := ""
+	// Owner order 2026-11-12 (latest): the page's search box wears the key
+	// that puts the keys in it while it is empty, and the match count once
+	// there is something to choose.
+	hint := pressSearchHint
 	if a.searchText != "" {
 		hint = "UP and DOWN choose, ENTER opens"
 	}
@@ -647,8 +650,8 @@ func (a *App) drawSectorTile(c *Canvas, x, y, w, h int) {
 
 // drawSectorSearch draws the SECTORS tile's own field below the title, in the
 // same filled box SCANNER uses. The field is a hit region: clicking it gives
-// the box the keys, and the slash key does the same while the top scrip search
-// is empty.
+// this box the keys. Owner order 2026-11-12 (latest): the slash key belongs to
+// the page's own SEARCH box, so the click is this field's only way in.
 func (a *App) drawSectorSearch(c *Canvas, x, y, w int, scrips bool) {
 	hint := "Search for a sector"
 	if scrips {
@@ -1179,7 +1182,7 @@ func (a *App) drawAlertLog(c *Canvas, x, y, w, h int) {
 	th := a.th
 	all := a.flagLog()
 	log := a.alertLog()
-	hint := "/ searches. ENTER plays a test. DEL clears the log."
+	hint := pressSearchHint + " ENTER plays a test. DEL clears the log."
 	title := "ALERTS LOG (" + strconv.Itoa(len(log)) + ")"
 	if a.alertQuery != "" {
 		title = "ALERTS LOG (" + strconv.Itoa(len(log)) + " of " + strconv.Itoa(len(all)) + ")"
