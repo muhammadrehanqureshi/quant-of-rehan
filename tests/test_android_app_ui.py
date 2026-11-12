@@ -2468,9 +2468,10 @@ class VersionTest(unittest.TestCase):
         # stop ships as 4.0.17. Owner order 2026-11-11: the themed caret,
         # the diamond scroller and the always-moving orb ship as 4.0.18.
         # The second pass on 2026-11-11 ships as 4.0.19; the third pass
-        # ships as 4.0.20.
-        self.assertIn('android:versionCode="129"', manifest)
-        self.assertIn('android:versionName="4.0.20"', manifest)
+        # ships as 4.0.20. Owner order 2026-11-12: the phone's CUSTOM
+        # SCRIPS OF VOL. menu names all six sorts and ships as 4.0.21.
+        self.assertIn('android:versionCode="130"', manifest)
+        self.assertIn('android:versionName="4.0.21"', manifest)
         self.assertNotIn('android:versionName="4.0.15"', manifest)
         self.assertNotIn('android:versionName="3.7.5"', manifest)
         self.assertNotIn('android:versionName="3.7.4"', manifest)
