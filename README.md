@@ -20,19 +20,21 @@ No order placement, no broker trading integration: signals and research only.
 
 ## The strategy in one paragraph
 
-Scan the current KMIALL universe for the Kalman Trend in one of two shapes.
-The first is a fresh upward flip of the one minute Kalman filter: the flip is
-the entry and the last completed minute's close is the price. The second is
-the pullback: when the one minute trend is already up and the 5 minute, 15
-minute and 1 hour VWAP frames agree, do not enter on the agreement itself.
-Wait for the pullback, take its resumption, and only while both the
-pullback's low and the entry sit nearer the day's low than the day's high.
-When both shapes are legal on one symbol, the higher score is carried. Either
-way the plan is the owner's law: paper entry at the observed price, stop at
-entry minus 1%, target at entry plus 2%, one call a day, and no trade after a
-broad selloff. A candidate only exists on completed minutes; there is no
-momentum or RSI fallback. Entry and exit intent only: nothing reaches a
-broker (SO-1).
+Scan the current KMIALL universe for one setup, the one the owner named: the
+Kalman Trend with VWAP on the 5 minute, 15 minute and 1 hour charts and the
+hybrid statistical arbitrage and mean reversion model. The one minute Kalman
+trend must be up and the 5 minute frame's Kalman state must have turned up.
+The mean reversion half asks the last close to sit at least `HYBRID_Z_MIN`
+standard deviations below the 15 minute frame's own VWAP, measured against
+that frame's own dispersion so a quiet scrip needs a smaller move than a
+violent one. The statistical arbitrage half asks the name to be lagging the
+scan's equal weight market leg by `HYBRID_LAG_MIN_PCT`, which is the cheap
+side of the pair: the law buys a stretched laggard on the reversion, never a
+leader it is chasing. The plan is the owner's law either way: paper entry at
+the last completed close, stop at entry minus 1%, target at entry plus 2%,
+one call a day, and no trade after a broad selloff. A candidate only exists
+on completed minutes; there is no momentum fallback, no RSI fallback and no
+second strategy. Entry and exit intent only: nothing reaches a broker (SO-1).
 
 ## Architecture
 
@@ -84,9 +86,10 @@ rather than inventing a fresher number.
   three frames (5 minute, 15 minute and 1 hour) and withdrew the 1 day frame
   and its daily file.
 - **One configuration surface**: [src/config.py](src/config.py) holds the
-  target, the coverage floor, the Kalman and VWAP parameters, the pullback
-  window, the scan cadence and the paper/live switch. Paper is the default;
-  live is off.
+  target, the coverage floor, the Kalman and VWAP parameters, the hybrid
+  thresholds (`HYBRID_Z_MIN`, `HYBRID_LAG_MIN_PCT` and the two frame choices),
+  the market leg minimum, the scan cadence and the paper/live switch. Paper
+  is the default; live is off.
 - **One daily trade state**: [src/signals/trade_state.py](src/signals/trade_state.py),
   with a hard one-trade-per-day lock that survives a restart.
 - **One market clock**: Asia/Karachi UTC+5 forever (SO-8), in
@@ -157,7 +160,7 @@ QOR_OWNER_REQUESTED_LOCAL_RUN=scripts/kmiall_tick.py python scripts/kmiall_tick.
 
 ## The phone app
 
-`android/` is the companion console: v1.9.13 (versionCode 54), the owner's own
+`android/` is the companion console: v4.0.21 (versionCode 130), the owner's own
 faces and palette, built with aapt2 and D8, no Gradle. It shows the status
 pill with the relay's own phase sentence, the latest signal, and the market
 card (KSE100 points and percentage, then the three volume leaders with their
@@ -187,8 +190,11 @@ Full detail in [charts/README.md](charts/README.md) and
 
 ```
 src/config.py                     the ONE configuration surface
-src/signals/momentum_scanner.py   the ONE scanner (ICT/SMC gates, one winner)
-src/signals/smc.py                sweep, market structure shift, FVG retest
+src/signals/momentum_scanner.py   the ONE scanner (one law, one winner)
+src/signals/hybrid_arb_mr.py       the ONE strategy: Kalman, three VWAP frames, hybrid stat arb and mean reversion
+src/signals/kalman_trend.py       the causal trend clock and the one entry builder
+src/signals/mtf_vwap.py           the 5 minute, 15 minute and 1 hour VWAP frames
+src/signals/market_leg.py         the scan's measured equal weight market leg
 src/signals/trade_state.py        the persisted daily state and trade lock
 src/signals/contracts.py          the typed boundary: models, faults, ingest guard
 src/data/sessions.py              Karachi-pinned clock, session law, owner texts
@@ -269,8 +275,13 @@ python scripts/intraday_pipeline.py --finalize
 - [android/README.md](android/README.md), [charts/README.md](charts/README.md),
   [cloud/README.md](cloud/README.md): the three components in full.
 
-## Status, 2026-11-10
+## Status, 2026-11-12
 
+- **One strategy only**: the fresh one minute flip, the three frame VWAP
+  pullback and the relative strength strategy were removed on the owner's
+  order of 2026-11-12. The only entry law is the Kalman Trend with the three
+  VWAP frames and the hybrid statistical arbitrage and mean reversion model
+  (`kalman_vwap_hybrid_sa_mr_v1`), and the scan now always reads its frames.
 - **Suite green**: every pull request runs `governance-guard` (the governance
   check, the whole unit suite, the worker's JavaScript) and the HUD's own
   `build` job, and it merges only when all of them pass.
