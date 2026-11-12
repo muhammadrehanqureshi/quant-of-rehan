@@ -792,19 +792,19 @@ class PipelineCycleTest(unittest.TestCase):
         posted = self.relay.routes().count("/research/observation")
         self.assertGreaterEqual(posted, 2)
 
-        # 11:48 prices the capture's last bar in once (the scanner measuring a
-        # longer tape IS a data change, which the archive should store); 11:52
+        # 11:47 prices the capture's last bar in (the scanner measuring a
+        # longer tape IS a data change, which the archive should store); 11:48
         # then sees the exact same bars, the same done trade, the same ranked
         # list and the same settled market, so ONLY the clock moved and the
-        # archive must not be restated. (Friday's midday break starts at 12:00,
-        # so both slots are inside the same band.)
+        # archive must not be restated. Both slots stay inside the tape's
+        # freshness window, so neither is a stale-tape block.
         with contextlib.redirect_stdout(io.StringIO()):
-            run_scan("11:48", self.capture)
+            run_scan("11:47", self.capture)
             settled = self.relay.routes().count("/research/observation")
             self.assertGreaterEqual(
                 settled, posted,
                 "the settled scan never reached the archive at all")
-            run_scan("11:52", self.capture)
+            run_scan("11:48", self.capture)
         self.assertEqual(
             self.relay.routes().count("/research/observation"), settled,
             "an unchanged verdict was restated to the KV archive")
@@ -1071,7 +1071,7 @@ class LateFireScanTest(unittest.TestCase):
         capture = build_tape(Path(self._dir.name) / "on_time_tape.ndjson",
                              self.symbols(), minutes=50)
         with contextlib.redirect_stdout(io.StringIO()):
-            payload = run_scan("11:28", capture)
+            payload = run_scan("10:00", capture)
         self.assertEqual(payload.get("as_of_basis"), "scheduled_slot")
         self.assertEqual(
             payload.get("as_of"),
