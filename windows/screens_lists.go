@@ -331,7 +331,9 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 		return
 	}
 	a.lvScan.set(len(syms), rows/2)
-	rightAlign(c, ix, head, iw, []Span{{a.showing(&a.lvScan, "scrip"), th.Soft, false}})
+	// Owner order 2026-11-12 (latest): the "1 to 3 of 3 scrips" count is
+	// withdrawn from the sort's heading line, which now carries the sort's own
+	// name and nothing else.
 	row := top
 	cw := contentW(&a.lvScan, iw)
 	// Owner order 2026-11-12: the values on every scrip are the KSE100 tile's

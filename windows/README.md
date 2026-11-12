@@ -1,10 +1,11 @@
-# Quant of Rehan for Windows (console edition), build 89
+# Quant of Rehan for Windows (console edition), build 90
 
 A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.20**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
 
-## What is new in build 89
+## What is new in build 90
 
+* **Build 90 (version 3.3.9).** ORDER FLOW's hint reads `UP and DOWN scroll` with no full stop. The CUSTOM SCRIPS OF VOLUME heading carries no `1 to 3 of 3 scrips` count. The KSE100 tile's note about the broker feed is set in capitals. SETTINGS withdraws the `UP/DOWN + ENTER` hint from the right of its frame.
 * **Build 89 (version 3.3.8).** Every bar in the build reads one pair now: the relay's measured day BUYING and SELLING from the flow table, so the same scrip draws the same bar on the scanner, on both ALERTS boards, on the search tile, on the KSE100 leaders and in the ORDER FLOW table, and the only question a bar answers is which side owns more of that pair. The scanning window opens at 09:00 instead of 08:55, in SETTINGS, in the session law, in the relay's dispatch table and its own crons, and in the intraday session workflow's schedule, so the build, the relay and GitHub Actions keep the same start. On the scanner the change starts on a fixed cell instead of ending on one, so the gap between a price and its percentage is the same on every row. The `ESC clears` note is withdrawn from the right of ORDER FLOW's search box.
 * **Build 88 (version 3.3.7).** The `/ searches` hint is withdrawn from ORDER FLOW, both from the panel's own line and from under its search box, which now read `UP and DOWN scroll.` and `ESC clears`. Every NET DELTA value on ORDER FLOW starts on its column's first cell, under the first letter of its heading, like every other value in that table. A fresh broker quote moves the price and the change together on ORDER FLOW as well, so one scrip reads the same price and the same percentage on the scanner, the boards, the search tile and the flow table instead of one page carrying a newer price than another.
 * **Build 87 (version 3.3.6).** Every bar in the build is the same bar: the green is always the buyers' share of the classified volume and the red is always the sellers', so a bar shows which side is in front on every page, and the two ALERTS boards no longer draw their own side in green, which made a heavy seller read as a buyer. The percentage after a bar is gone and its NET DELTA takes its place, buy minus sell, signed and coloured by the side that is ahead. ORDER FLOW carries that figure in a column of its own, `NET DELTA`, after `BARS`, over every row's value.

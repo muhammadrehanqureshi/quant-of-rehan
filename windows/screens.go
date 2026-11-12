@@ -951,9 +951,9 @@ func (a *App) marketNote() string {
 	case a.demo:
 		return "Demo mode: every number here is invented."
 	case a.quotes != nil && a.scanning():
-		return "Data from the broker's feed is being updated every second."
+		return "DATA FROM THE BROKER'S FEED IS BEING UPDATED EVERY SECOND."
 	case a.quotes != nil && len(a.quotes.Items) > 0:
-		return "The last data the broker's feed sent."
+		return "THE LAST DATA THE BROKER'S FEED SENT."
 	}
 	// Owner order 2026-11-09: the idle line under the KSE100 tile.
 	return "Quant is sleeping till the next market day."

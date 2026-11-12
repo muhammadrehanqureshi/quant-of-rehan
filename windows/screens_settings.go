@@ -31,7 +31,8 @@ func (a *App) drawSettings(c *Canvas, x, y, w, h int) {
 		relayH = 1
 	}
 
-	ix, iy, iw, _ := a.panel(c, x, y, w, settingsH, "SETTINGS", "UP/DOWN + ENTER")
+	// Owner order 2026-11-12 (latest): the UP/DOWN + ENTER hint is withdrawn.
+	ix, iy, iw, _ := a.panel(c, x, y, w, settingsH, "SETTINGS", "")
 	row := iy
 	rowW := min(iw, 72)
 	item := func(i int, left string, right []Span) {

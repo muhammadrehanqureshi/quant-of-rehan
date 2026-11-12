@@ -131,7 +131,7 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 	th := a.th
 	// Owner order 2026-11-12 (latest): the "/ searches" hint is withdrawn from
 	// the page, here and under the search box.
-	hint := "UP and DOWN scroll."
+	hint := "UP and DOWN scroll"
 	ix, iy, iw, ih := a.panel(c, x, y, w, h, "ORDER FLOW", hint)
 	if a.of == nil {
 		msg := "Reading ORDER FLOW from the relay."
