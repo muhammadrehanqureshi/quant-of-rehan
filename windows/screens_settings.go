@@ -100,8 +100,11 @@ func (a *App) drawSettings(c *Canvas, x, y, w, h int) {
 		if brow >= by+bh {
 			return
 		}
-		c.Text(bx+3, brow, 16, k, th.Soft, false)
-		c.Text(bx+19, brow, max(1, bw-19), fit(v, max(1, bw-19)), col, false)
+		// Owner order 2026-11-13: the facts read on the SETTINGS and THEMES
+		// cells exactly, key three cells in and value on the column those two
+		// tiles put their values on, so all three tiles line up.
+		c.Text(bx+3, brow, 22, k, th.Soft, false)
+		c.Text(bx+26, brow, max(1, bw-26), fit(v, max(1, bw-26)), col, false)
 		brow++
 	}
 	// Owner order 2026-11-12: VERSION stands before RELAY in the facts tile.
