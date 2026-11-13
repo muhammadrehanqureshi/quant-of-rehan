@@ -77,7 +77,7 @@ def _trade_frame() -> pd.DataFrame:
             "ts": stamp,
             "open": 100.0,
             "high": 102.0 if i == 1 else 100.8,
-            "low": 99.0 if i == 1 else 99.8,
+            "low": 99.5 if i == 1 else 99.8,
             "close": 100.5,
             "volume": 1000.0,
             "regular": True,
