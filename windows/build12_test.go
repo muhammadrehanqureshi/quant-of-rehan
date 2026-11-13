@@ -3,7 +3,19 @@ package main
 import (
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
+
+// col is the cell a substring starts on. PlainRows builds a string, so a byte
+// index would count the frame's three byte glyphs three times and make two
+// aligned tiles look two cells apart.
+func col(row, sub string) int {
+	at := strings.Index(row, sub)
+	if at < 0 {
+		return -1
+	}
+	return utf8.RuneCountInString(row[:at])
+}
 
 // Owner order 2026-11-13: the BUILD VERSION & RELAY tile puts its values on the
 // very column SETTINGS and THEMES use, so the three tiles read down one line.
@@ -16,7 +28,7 @@ func TestFactsValuesStandOnTheSettingsColumn(t *testing.T) {
 	want := -1
 	for _, r := range rows {
 		if strings.Contains(r, "RELAY STATUS") {
-			want = strings.Index(r, "Opens the relay's health page.")
+			want = col(r, "Opens the relay's health page.")
 		}
 	}
 	if want < 0 {
@@ -28,8 +40,8 @@ func TestFactsValuesStandOnTheSettingsColumn(t *testing.T) {
 		switch {
 		case strings.Contains(r, "BUILD VERSION"):
 			continue
-		case strings.Contains(r, "VERSION "):
-			if at := strings.Index(r, appVersionLabel); at >= 0 {
+		case strings.Contains(r, "VERSION ") || strings.Contains(r, "VERSION\t"):
+			if at := col(r, appVersionLabel); at >= 0 {
 				checked++
 				if at != want {
 					t.Errorf("VERSION value starts at %d, SETTINGS at %d: %q",
@@ -37,16 +49,18 @@ func TestFactsValuesStandOnTheSettingsColumn(t *testing.T) {
 				}
 			}
 		case strings.Contains(r, "REQUESTS TODAY"):
-			if at := strings.Index(r, "of 100,000."); at > 0 {
-				j := at - 1 // the space between the count and the word
-				for j > 0 && (r[j-1] >= '0' && r[j-1] <= '9' || r[j-1] == ',') {
-					j--
-				}
-				checked++
-				if j != want {
-					t.Errorf("REQUESTS value starts at %d, SETTINGS at %d: %q",
-						j, want, r)
-				}
+			at := strings.Index(r, "of 100,000.")
+			if at < 0 {
+				continue
+			}
+			j := at - 1 // the space between the count and the word
+			for j > 0 && (r[j-1] >= '0' && r[j-1] <= '9' || r[j-1] == ',') {
+				j--
+			}
+			checked++
+			if got := utf8.RuneCountInString(r[:j]); got != want {
+				t.Errorf("REQUESTS value starts at %d, SETTINGS at %d: %q",
+					got, want, r)
 			}
 		}
 	}
@@ -89,19 +103,22 @@ func TestKSE100LeadersLineUpAndCarryTheirBar(t *testing.T) {
 		if !inside {
 			continue
 		}
-		if at := strings.IndexRune(r, barBlock); at >= 0 {
+		barByte := strings.IndexRune(r, barBlock)
+		// A frame's own three cell accent is a run of the bar glyph; a leader
+		// line is the one that carries its serial and symbol before it.
+		if barByte >= 0 && strings.Contains(r[:barByte], ". ") {
 			nameRows++
-			if barAt < 0 {
+			if at := col(r, string(barBlock)); barAt < 0 {
 				barAt = at
 			} else if at != barAt {
 				t.Errorf("a leader bar starts at %d, the first at %d: %q", at, barAt, r)
 			}
-			if !strings.ContainsAny(r[at:], "0123456789") {
+			if !strings.ContainsAny(r[barByte:], "0123456789") {
 				t.Errorf("the bar carries no NET DELTA: %q", r)
 			}
 			continue
 		}
-		if at := strings.Index(r, "PKR "); at >= 0 {
+		if at := col(r, "PKR "); at >= 0 {
 			priceRows++
 			if pkrAt < 0 {
 				pkrAt = at
