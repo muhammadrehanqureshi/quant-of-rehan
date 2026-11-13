@@ -131,6 +131,13 @@ func NewFlow(cfg FlowCfg) *Flow {
 	return &Flow{cfg: cfg, sym: map[string]*symFlow{}, Buy: true, Sell: true}
 }
 
+// addFlag appends one alert. Owner order 2026-11-13: the log is never trimmed
+// during trading hours, so every alert raised while the market is open stays
+// in it.
+func (f *Flow) addFlag(flag Flag) {
+	f.Log = append(f.Log, flag)
+}
+
 // SetValue changes the main threshold, for example from the settings file.
 func (f *Flow) SetValue(minValue int64) { f.cfg = defaultFlowCfg(minValue) }
 
@@ -227,10 +234,7 @@ func (f *Flow) Observe(now time.Time, q *Quotes, trading bool) []Flag {
 		if len(f.rang) > f.cfg.MaxPerMin {
 			out[i].Silent = true
 		}
-		f.Log = append(f.Log, out[i])
-	}
-	if len(f.Log) > 300 {
-		f.Log = f.Log[len(f.Log)-300:]
+		f.addFlag(out[i])
 	}
 	return out
 }

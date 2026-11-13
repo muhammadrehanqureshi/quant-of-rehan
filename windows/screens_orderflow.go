@@ -386,11 +386,8 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 	if foot > 0 {
 		fy := iy + ih - 1
 		// Owner order 2026-11-13: the heading above the column is UNCLEAR, so the
-		// foot says UNCLEAR too and the table carries one word for one thing.
-		line := "U = UNCLEAR: volume the capture could not side, never added to B or S"
-		if runeLen(line) > iw {
-			line = "U = UNCLEAR, never added to B or S"
-		}
+		// foot says UNCLEAR too and names the feed and both totals in full.
+		line := "U = UNCLEAR: The volume that the feed could not capture, U is never added to either B or S."
 		if of.LargeTotal > 0 {
 			more := fmt.Sprintf("  ·  %d large prints of PKR %s or more today", of.LargeTotal, compactNum(of.LargeThreshold))
 			if runeLen(line)+runeLen(more) <= iw {

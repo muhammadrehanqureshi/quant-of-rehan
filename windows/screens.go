@@ -364,7 +364,7 @@ func (a *App) drawNav(c *Canvas, y int) {
 	}
 }
 
-// hintSpans colours the key tokens in the footer: D, R and TAB green, ESC
+// hintSpans colours the key tokens in the footer: D, P, R and TAB green, ESC
 // yellow, Q and CTRL+C red. Every coloured key is bold. The rest of the hint
 // stays in the soft ink, and the spacing is preserved exactly.
 func hintSpans(s string, th *Theme) []Span {
@@ -375,7 +375,7 @@ func hintSpans(s string, th *Theme) []Span {
 			out = append(out, Span{" ", th.Soft, false})
 		}
 		switch f {
-		case "D", "R", "TAB":
+		case "D", "P", "R", "TAB":
 			out = append(out, Span{f, th.Good, true})
 		case "ESC":
 			out = append(out, Span{f, th.Warn, true})

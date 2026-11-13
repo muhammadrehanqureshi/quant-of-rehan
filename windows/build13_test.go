@@ -176,8 +176,11 @@ func TestAlertsPageCarriesThreePriceSlots(t *testing.T) {
 	if !strings.Contains(s, "PRICE ALERTS") {
 		t.Fatalf("the ALERTS page has no PRICE ALERTS tile:\n%s", s)
 	}
-	if n := strings.Count(s, "EMPTY. Press P"); n != priceAlertSlots {
+	if n := strings.Count(s, "EMPTY."); n != priceAlertSlots {
 		t.Fatalf("want %d empty slots, got %d", priceAlertSlots, n)
+	}
+	if strings.Contains(s, "Press P to give") {
+		t.Fatal("the empty slots still tell the owner to press P")
 	}
 	a.startPriceEdit(2)
 	if !strings.Contains(plain(a), "PRICE ALERT 3 OF 3") {

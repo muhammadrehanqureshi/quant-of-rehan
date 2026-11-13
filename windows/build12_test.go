@@ -79,8 +79,8 @@ func TestOrderFlowFootSaysUnclear(t *testing.T) {
 	if strings.Contains(s, "U = unclassified") {
 		t.Errorf("the foot still says unclassified:\n%s", s)
 	}
-	if !strings.Contains(s, "U = UNCLEAR") {
-		t.Errorf("the foot does not say U = UNCLEAR:\n%s", s)
+	if !strings.Contains(s, "U = UNCLEAR: The volume that the feed could not capture, U is never added to either B or S.") {
+		t.Errorf("the foot does not carry the full U = UNCLEAR sentence:\n%s", s)
 	}
 }
 

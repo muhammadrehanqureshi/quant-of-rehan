@@ -1295,8 +1295,8 @@ func (a *App) drawAlertLog(c *Canvas, x, y, w, h int) {
 	th := a.th
 	all := a.flagLog()
 	log := a.alertLog()
-	// Owner order 2026-11-12 (latest): the key line closes after the search
-	// sentence, and the test sentence is withdrawn from the log's frame.
+	// Owner order 2026-11-13: the log carries no sentence under its search
+	// box, and one blank row stands between the box and the list.
 	hint := pressSearchHint
 	title := "ALERTS LOG (" + strconv.Itoa(len(log)) + ")"
 	if a.alertQuery != "" {
@@ -1308,25 +1308,11 @@ func (a *App) drawAlertLog(c *Canvas, x, y, w, h int) {
 	bw := a.searchBox(c, lx, liy, min(liw, 40), a.alertQuery, scripSearchHint, a.alertSearch)
 	a.addHit(lx, liy, bw, 1, func() { a.alertFocus, a.alertSearch = 2, true; a.lvLog.top() })
 	const per = 3 // a title and up to two lines of detail
-	listY := liy + 1
-	if len(log) == 0 {
-		msg := "No flag yet. A flag is raised when a stock is bought or sold in size within a minute and one side is well ahead of the other. " +
-			"It appears here and in the banner at the top, with a Windows notification and a tone. Buying and selling have their own tones. " +
-			"Press ENTER to hear a test."
-		if a.alertQuery != "" {
-			msg = fmt.Sprintf("No alert matches %q.", a.alertQuery)
-		}
-		for i, ln := range wrap(msg, liw) {
-			if i < lih-1 {
-				c.Text(lx, listY+i, liw, ln, th.Soft, false)
-			}
-		}
+	listY := liy + 2
+	if lih < 3 {
 		return
 	}
-	if lih < 2 {
-		return
-	}
-	a.lvLog.set(len(log), (lih-1)/per)
+	a.lvLog.set(len(log), (lih-2)/per)
 	row := listY
 	lw := contentW(&a.lvLog, liw)
 	for n := 0; n < a.lvLog.view; n++ {
