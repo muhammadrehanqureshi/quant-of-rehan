@@ -6,3 +6,6 @@
 pandas>=2.2,<3.1
 numpy>=1.26,<3
 requests>=2.31
+# The five year intraday archive is stored as parquet partitions
+# (scripts/build_intraday_history.py); pandas needs an engine to write them.
+pyarrow>=15,<26

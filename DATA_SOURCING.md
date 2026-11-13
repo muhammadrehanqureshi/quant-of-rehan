@@ -57,6 +57,44 @@ history and no intraday series is claimed from the portal, because neither is
 served. The registry entry `session_snapshot` holds that state, and
 `charts/adapters/portal.py` is the only reader of it.
 
+## 3b. The five year intraday archive (measured 2026-11-13)
+
+The owner asked for five years of 5m, 15m, 30m and 1h bars for every KMIALL
+scrip, back to 2021-11-13, and named two free chart sites. What was measured
+before anything was built:
+
+| Endpoint | Answer measured 2026-11-13 |
+|---|---|
+| eClear `GetOHLCData` (the broker's own servlet) | one current session only, and dead on the wire since 2026-10-12: it cannot backfill five years |
+| `chart.scstrade.com/config` | the UDF datafeed behind SCS Trade's chart page: exchange PSX, resolutions 1, 5, 15, 30, 60, 120, 180, 240, D, W |
+| `chart.scstrade.com/history?symbol=OGDC&resolution=5&from=1636761600&to=1794000000` | `s:"ok"`, arrays `t,o,h,l,c,v`, first bar 2021-11-15, volume present on every bar |
+| `chart.scstrade.com/history` at resolution 60 for one session | native hourly buckets are clock aligned (09:00, 10:00, ...), the first includes the pre-open auction, the last the post-close session |
+| `api.finhisaab.com/api/v1/companies/OGDC/price-history?period=5Y` | HTTP 401 without an account: not a usable free source, so FinHisaab is not read |
+
+No key, login or token is involved in the SCS datafeed, and it is the same
+feed the chart page the owner named fetches from. It is read here through
+[src/data/scs_chart.py](src/data/scs_chart.py), which asks for 5m as the base
+and derives 15m, 30m and 1h as clock aligned buckets; the builder checks
+those against the feed's own native buckets on a sample of symbols every year
+and records the agreement in `manifest-{year}.json`.
+
+The bars include the pre-open and post-close sessions, so every row carries a
+`regular` flag that is true only inside the exchange's trading bands
+(src/data/sessions.py). Prices are as traded: no split or bonus adjustment is
+applied by this archive, and the manifest says so.
+
+How it is built and read:
+
+- `.github/workflows/intraday-history.yml`, manual dispatch, one job per
+year (`2021` to `2026`), each a few minutes, with a probe mode (`limit=5`);
+- `scripts/build_intraday_history.py` writes one parquet partition per
+timeframe per year under the gitignored `data/history/` and uploads the same
+files to the private R2 bucket under `history/{year}/`;
+- `src/data/intraday_history.py` is the reader a backtest uses, and it raises
+on a missing year instead of silently training on a shorter study;
+- the archive is never committed and never redistributed. It exists for the
+owner's own research, like the EOD crawl in section 8.3.
+
 ## 4. The real paths to genuine order flow
 
 ### Path A: Forward capture from the read-only broker feed: approved for capture
@@ -211,6 +249,11 @@ source; its timing and redistribution rights have not been independently
 verified. Structural bar checks do not establish either. Research snapshots
 stay paper-only unless the owner confirms both source rights and data latency
 in the two GitHub Actions variables described above.
+
+The five year intraday archive of section 3b comes from an unauthenticated
+broker chart feed. Its terms of use are not published in a form this project
+can verify, so the archive is treated as private research data: gitignored,
+never committed and never redistributed.
 
 ## 6. Secrets: canonical names (values never in this repo)
 

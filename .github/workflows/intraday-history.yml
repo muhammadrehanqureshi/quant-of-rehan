@@ -1,0 +1,83 @@
+# SO-21 / SO-23: this build computes in Actions, never on the owner's PC.
+#
+# Owner request 2026-11-13: five years of 5m, 15m, 30m and 1h bars for every
+# KMIALL scrip, for strategy backtests. The broker's live servlet cannot
+# backfill, so the archive is read from the SCS Trade chart datafeed that
+# feeds the chart page he named (see src/data/scs_chart.py and
+# DATA_SOURCING.md section 3b).
+#
+# One job per calendar year, so a year is retried alone and no partition ever
+# needs merging. Manual dispatch only: this is a build, not a cadence.
+#
+# The dataset is gitignored and never committed. Each job keeps its year as
+# an artifact and, when the R2 secrets are present, uploads the same files to
+# the private bucket under history/{year}/.
+name: intraday-history
+
+on:
+  workflow_dispatch:
+    inputs:
+      years:
+        description: "JSON array of years to build"
+        type: string
+        default: "[2021,2022,2023,2024,2025,2026]"
+      limit:
+        description: "first N symbols, 0 = the whole KMIALL universe (probe mode)"
+        type: string
+        default: "0"
+      workers:
+        description: "parallel readers; keep at 2 to stay polite to the feed"
+        type: string
+        default: "2"
+      check_native:
+        description: "symbols whose derived buckets are checked against the feed's native ones"
+        type: string
+        default: "3"
+      skip_r2:
+        description: "true = keep the data as artifacts only"
+        type: choice
+        options: ["false", "true"]
+        default: "false"
+
+permissions:
+  contents: read
+
+jobs:
+  archive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        year: ${{ fromJSON(github.event.inputs.years) }}
+    env:
+      PYTHONUNBUFFERED: "1"
+      CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+      CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt --retries 5 --timeout 60
+
+      - name: Build the year
+        run: |
+          python scripts/build_intraday_history.py \
+            --year ${{ matrix.year }} \
+            --limit ${{ inputs.limit }} \
+            --workers ${{ inputs.workers }} \
+            --check-native ${{ inputs.check_native }} \
+            ${{ inputs.skip_r2 == 'true' && '--skip-r2' || '' }}
+
+      - name: Keep the partition
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: intraday-history-${{ matrix.year }}
+          path: data/history
+          if-no-files-found: warn
+          retention-days: 90

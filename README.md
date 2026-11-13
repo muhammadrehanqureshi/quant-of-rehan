@@ -127,6 +127,29 @@ rather than inventing a fresher number.
   total down, so buying and selling volume cannot walk backwards on any
   surface (owner order 2026-11-10).
 
+## The five year intraday archive
+
+`data/history/` holds 5m, 15m, 30m and 1h bars for every KMIALL scrip back to
+2021-11-15, so a strategy can be tested on real intraday bars instead of
+forward-captured sessions. The source is the SCS Trade chart datafeed, which
+is free and unauthenticated and carries volume on every bar; the broker's own
+OHLC servlet serves only the current session, so it cannot backfill. See
+[DATA_SOURCING.md](DATA_SOURCING.md) section 3b for the measured endpoints.
+
+The archive is gitignored and never committed. Build one year (or all of them)
+in Actions, then read it with the loader:
+
+```bash
+gh workflow run intraday-history.yml -f years='[2021,2022,2023,2024,2025,2026]'
+python -c "from src.data.intraday_history import load; print(load('5m', years=[2025]).head())"
+```
+
+Each parquet partition carries `symbol, ts, open, high, low, close, volume,
+regular`. `regular` is true only inside the exchange's trading bands; the
+pre-open auction and post-close bars are kept and flagged. Prices are as
+traded, with no split or bonus adjustment, and `regular_only=True` filters a
+study to the session.
+
 ## How it runs
 
 Everything recurring lives in the cloud and never on the owner's PC (SO-12,
