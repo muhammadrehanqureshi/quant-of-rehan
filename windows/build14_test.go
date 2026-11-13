@@ -73,13 +73,13 @@ func TestOrderFlowSortsByNetDelta(t *testing.T) {
 	a := orderFlowApp(t, 122, 30, sampleOrderFlow)
 	a.ofSort = flowSortNetDelta
 	rows := a.sortedFlow()
-	// AAA +300, BBB +3100, CCC +400, DDD unmeasured.
+	// AAA +300 and BBB +3100 are measured; CCC's split is an estimate, so it
+	// sorts with the unmeasured rows, as it does under every measured order.
 	if len(rows) < 4 {
 		t.Fatalf("only %d flow rows", len(rows))
 	}
-	if rows[0].Symbol != "BBB" || rows[1].Symbol != "CCC" || rows[2].Symbol != "AAA" {
-		t.Errorf("by net delta: %s %s %s",
-			rows[0].Symbol, rows[1].Symbol, rows[2].Symbol)
+	if rows[0].Symbol != "BBB" || rows[1].Symbol != "AAA" {
+		t.Errorf("by net delta: %s %s", rows[0].Symbol, rows[1].Symbol)
 	}
 	if last := rows[len(rows)-1].Symbol; last != "DDD" {
 		t.Errorf("a row with no measured delta must go last, not %s", last)

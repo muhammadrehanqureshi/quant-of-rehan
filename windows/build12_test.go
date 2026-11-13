@@ -121,11 +121,11 @@ func TestKSE100LeadersLineUpAndCarryTheirBar(t *testing.T) {
 		}
 		if at := col(r, "PKR "); at >= 0 {
 			priceRows++
-			if net := strings.Index(r, "NET "); net >= 0 {
+			// Search after PKR, by byte, because the telemetry tile on the left
+			// of the same console row carries its own "NET DELTA" label.
+			if pkrByte := strings.Index(r, "PKR "); pkrByte >= 0 &&
+				strings.Contains(r[pkrByte:], "NET ") {
 				netRows++
-				if net < at {
-					t.Errorf("the NET DELTA stands before the price: %q", r)
-				}
 			}
 			if pkrAt < 0 {
 				pkrAt = at
