@@ -120,11 +120,11 @@ def load(timeframe: str, years: list[int] | None = None,
 
 def karachi_index(frame: pd.DataFrame) -> pd.DatetimeIndex:
     """The bars' Karachi wall-clock stamps, from epoch seconds and fixed UTC+5."""
-    return pd.to_datetime(frame["ts"].astype("int64") + PKT_OFFSET_SECONDS,
-                          unit="s")
+    return pd.DatetimeIndex(pd.to_datetime(
+        frame["ts"].astype("int64") + PKT_OFFSET_SECONDS, unit="s"))
 
 
 def sessions(frame: pd.DataFrame) -> pd.Series:
     """Bars per Karachi date, for a quick coverage look before a study."""
     stamps = karachi_index(frame)
-    return stamps.dt.date.value_counts().sort_index()
+    return pd.Series(pd.DatetimeIndex(stamps).date).value_counts().sort_index()
