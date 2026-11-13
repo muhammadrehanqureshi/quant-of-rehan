@@ -104,6 +104,11 @@ def window_for(year: int, start: str | None, end: str | None) -> tuple[int, int]
     following = datetime(year + 1, 1, 1, tzinfo=KARACHI)
     lo = int(first.timestamp())
     hi = int(following.timestamp())
+    # The current year ends at today's midnight, so its coverage is measured
+    # against the sessions that have happened, not against December's empties.
+    today = now_karachi().replace(hour=0, minute=0, second=0, microsecond=0)
+    if year == today.year:
+        hi = min(hi, int(today.timestamp()))
     if start:
         lo = max(lo, int(datetime.fromisoformat(start).replace(
             tzinfo=KARACHI).timestamp()))
