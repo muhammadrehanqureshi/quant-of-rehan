@@ -146,9 +146,13 @@ class FailsafeWorkflowTest(unittest.TestCase):
         self.assertNotIn("time.sleep(", source)
 
     def test_the_budget_guard_retries_before_it_emails(self):
+        """Three tries through the shared reader, never a bare urllib call."""
         text = GUARD.read_text(encoding="utf-8")
-        self.assertIn("def read(path, attempts=3)", text)
+        self.assertIn('read_json(BASE, "/health", attempts=3)', text)
         self.assertIn("after three attempts", text)
+        self.assertIn("from src.data.relay_http import read_json", text,
+                      "a browser style identity, or Cloudflare answers 403")
+        self.assertNotIn("urllib.request.urlopen(BASE", text)
 
 
 if __name__ == "__main__":
