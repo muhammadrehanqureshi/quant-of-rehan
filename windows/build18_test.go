@@ -40,20 +40,31 @@ func TestAlertsLogHasNoWordsUnderTheSearchBox(t *testing.T) {
 func TestAlertsLogLeavesOneBlankRowAfterTheSearchBox(t *testing.T) {
 	a := demoApp(t, 120, 34)
 	a.screen = scrAlerts
-	searchAt, entryAt := -1, -1
-	for i, row := range rowsOf(a) {
-		if searchAt < 0 && strings.Contains(row, scripSearchHint) {
+	rows := rowsOf(a)
+	searchAt := -1
+	for i, row := range rows {
+		if strings.Contains(row, scripSearchHint) {
 			searchAt = i
+			break
 		}
-		if entryAt < 0 && strings.Contains(row, "ECHO is getting big buying orders") {
+	}
+	if searchAt < 0 {
+		t.Fatal("the ALERTS LOG search box is missing")
+	}
+	log := a.flagLog()
+	if len(log) == 0 {
+		t.Fatal("the demo log is empty")
+	}
+	first := log[0].Text
+	entryAt := -1
+	for i := searchAt + 1; i < len(rows); i++ {
+		if strings.Contains(rows[i], first) {
 			entryAt = i
+			break
 		}
 	}
-	if searchAt < 0 || entryAt < 0 {
-		t.Fatalf("search row %d, first alert row %d", searchAt, entryAt)
-	}
-	if entryAt-searchAt != 2 {
-		t.Fatalf("the first alert is %d rows under the search box, want one blank row", entryAt-searchAt)
+	if entryAt != searchAt+2 {
+		t.Fatalf("the first alert starts %d rows under the search box, want one blank row", entryAt-searchAt)
 	}
 }
 
