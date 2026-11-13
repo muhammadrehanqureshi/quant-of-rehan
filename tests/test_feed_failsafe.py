@@ -56,8 +56,12 @@ class ReadinessGateTest(unittest.TestCase):
         self.assertIn('cron: "20 4 * * 1-5"', text, "09:20 PKT, frames must exist")
         self.assertIn("/health", text)
         self.assertIn("/quotes", text)
-        self.assertIn("def read(path, attempts=3)", text,
+        self.assertIn('read_json(BASE, "/health", attempts=3)', text,
                       "one busy instant is not an outage: the gate retries")
+        self.assertIn("from src.data.relay_http import read_json", text,
+                      "the reader names itself, or Cloudflare answers 403")
+        self.assertNotIn("urllib.request.urlopen(BASE", text,
+                         "a default Python user agent is refused by the edge")
         self.assertIn("after three attempts", text,
                       "the alert states how often the relay was tried")
         self.assertIn("preopen-ready:", text,

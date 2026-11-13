@@ -210,7 +210,9 @@ def check_relay(report: Report, live: bool) -> None:
     report.add(s, "relay url", PASS, base)
 
     def get(route: str, auth: bool = True, timeout: int = 25):
-        headers = {"x-admin-token": token} if (auth and token) else {}
+        from src.data.relay_http import relay_headers
+
+        headers = relay_headers({"x-admin-token": token} if (auth and token) else {})
         try:
             return requests.get(base + route, headers=headers, timeout=timeout)
         except Exception as exc:  # noqa: BLE001

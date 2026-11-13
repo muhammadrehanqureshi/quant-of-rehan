@@ -33,9 +33,10 @@ jobs:
         run: |
           python - <<'PY' > /tmp/relay_budget_message
           import json
-          import urllib.request
           from datetime import datetime
           from zoneinfo import ZoneInfo
+
+          from src.data.relay_http import read_json
 
           now = datetime.now(ZoneInfo("Asia/Karachi"))
           minute = now.hour * 60 + now.minute
@@ -53,31 +54,25 @@ jobs:
           # the attempts, so the message states what was actually observed.
           BASE = "https://quant-of-rehan-relay.mrmrehanqureshi.workers.dev"
 
-          def read(path, attempts=3):
-              last = None
-              for _ in range(attempts):
-                  try:
-                      with urllib.request.urlopen(BASE + path, timeout=20) as response:
-                          return json.load(response)
-                  except Exception as exc:  # noqa: BLE001 - named in the alert
-                      last = exc
-              return {"__error__": type(last).__name__ if last else "unknown"}
-
-          health = read("/health")
-          if "__error__" in health:
+          # Owner report 2026-11-12: the readiness mail called an edge refusal
+          # (HTTP 403, the default Python user agent) a dead relay. Every read
+          # here goes through src/data/relay_http.py, which sends the project's
+          # browser style prefix and names the status and body it saw.
+          health, health_trouble = read_json(BASE, "/health", attempts=3)
+          if health is None:
               print(
                   "Quant of Rehan relay budget guard could not read /health "
-                  f"after three attempts ({health['__error__']}). The relay was "
+                  f"after three attempts ({health_trouble}). The relay was "
                   "not changed and no budget is implicated by this check. "
                   "This alert repeats at most once per day."
               )
               raise SystemExit(0)
 
-          quotes = read("/quotes")
-          if "__error__" in quotes:
+          quotes, quotes_trouble = read_json(BASE, "/quotes", attempts=3)
+          if quotes is None:
               print(
                   "Quant of Rehan relay feed check could not read /quotes "
-                  f"after three attempts ({quotes['__error__']}). The relay was "
+                  f"after three attempts ({quotes_trouble}). The relay was "
                   "not changed. This alert repeats at most once per day."
               )
               raise SystemExit(0)
