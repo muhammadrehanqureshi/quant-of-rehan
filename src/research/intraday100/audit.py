@@ -1,6 +1,7 @@
 """Data-quality audit for the 5m/15m/30m/60m archive.
 
-The audit does not fill, repair or resample anything. It counts what exists,
+All session times are Asia/Karachi, a fixed UTC+5. The audit does not fill,
+repair or resample anything. It counts what exists,
 what is missing, and which records are structurally impossible, so the
 strategy layer can exclude a symbol or a year instead of pretending the
 archive is uniform.
