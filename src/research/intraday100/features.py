@@ -96,7 +96,7 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
     The loop is per symbol, which keeps every rolling calculation inside one
     instrument and makes accidental cross-symbol leakage impossible.
     """
-    out = df.copy()
+    out = df.reset_index(drop=True).copy()
     n = len(out)
     arrays: dict[str, np.ndarray] = {
         name: np.full(n, np.nan, dtype=np.float32) for name in FEATURE_COLUMNS
@@ -160,13 +160,15 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
 
         bb_mid = _rolling(close, 20, "mean")
         bb_std = _rolling(close, 20, "std")
-        bb_width = bb_std / bb_mid
+        with np.errstate(divide="ignore", invalid="ignore"):
+            bb_width = bb_std / bb_mid
         arrays["bb_mid"][idx] = bb_mid
         arrays["bb_std"][idx] = bb_std
         arrays["bb_width"][idx] = bb_width
         arrays["bb_width_med"][idx] = _rolling(bb_width, 100, "median", shift=1)
 
-        zscore = (close - bb_mid) / bb_std
+        with np.errstate(divide="ignore", invalid="ignore"):
+            zscore = (close - bb_mid) / bb_std
         arrays["zscore"][idx] = zscore
         with np.errstate(divide="ignore", invalid="ignore"):
             arrays["close_pos"][idx] = (close - low) / (high - low)
