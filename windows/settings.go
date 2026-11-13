@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -25,6 +26,9 @@ type Settings struct {
 	Sound           bool   `json:"sound"`         // play a tone with each flag and alert
 	BigBuyValue     int64  `json:"big_buy_value"` // PKR bought in a minute to count as big
 	CellShape       int    `json:"cell_shape"`    // terminal cell height over width, in hundredths (222 is 2.22)
+	// Owner order 2026-11-13: the three PRICE ALERT slots live here, so they
+	// survive a restart. They are the owner's own numbers, never a secret.
+	PriceAlerts [priceAlertSlots]PriceAlert `json:"price_alerts"`
 }
 
 // settingsVer is bumped when a stored default must be replaced. Version 2 is
@@ -99,6 +103,13 @@ func loadSettings(path string) Settings {
 	}
 	if s.PollMS > 60000 {
 		s.PollMS = 60000
+	}
+	for i := range s.PriceAlerts {
+		p := &s.PriceAlerts[i]
+		p.Symbol = strings.ToUpper(strings.TrimSpace(p.Symbol))
+		if p.Symbol == "" || p.Target <= 0 || p.Target > 1_000_000 {
+			*p = PriceAlert{}
+		}
 	}
 	return s
 }

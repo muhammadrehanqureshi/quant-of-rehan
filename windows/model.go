@@ -47,8 +47,10 @@ const appVersion = "4.0.21"
 // 2026-11-12 are 3.4.5, the owner's new icon picture is 3.4.6, the themes
 // column, the home footer and the board floor are 3.4.7, and the facts column
 // with a NET DELTA on every bar is 3.4.8, and the leader bar back on the
-// KSE100 tile with one price column is 3.4.9.
-const hudBuild = "3.4.9"
+// KSE100 tile with one price column is 3.4.9, and the three PRICE ALERT slots
+// with their own chime on the ALERTS page and the F6 calculator on the SCANNER
+// page are 3.5.0.
+const hudBuild = "3.5.0"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no

@@ -77,6 +77,7 @@ func (a *App) ingestQuotes(q *Quotes) {
 	a.feedMinAge = a.feed.Min
 	a.applySnapshotIndex(q)
 	a.rebuildSymbols()
+	a.checkPriceAlerts()
 	a.flow.Buy, a.flow.Sell = a.cfg.BigBuy, a.cfg.BigSell
 	if a.cfg.BigBuy || a.cfg.BigSell {
 		for _, fl := range a.flow.Observe(a.now, q, a.trading()) {
@@ -246,8 +247,12 @@ func (a *App) wheel(d int) {
 			a.lvScan.scroll(d * 2)
 		}
 	case scrAlerts:
-		// The wheel scrolls the list the pointer is over.
+		// The wheel scrolls the list the pointer is over. The PRICE ALERTS tile
+		// sits above the log, so it is asked before the log's own row.
 		switch {
+		case a.priceH > 0 && a.hoverY >= a.priceY && a.hoverY < a.priceY+a.priceH:
+			a.alertFocus = 3
+			a.priceCursor = min(max(0, a.priceCursor+d), priceAlertSlots-1)
 		case a.hoverY >= a.alertSplit:
 			a.alertFocus = 2
 		case a.hoverX >= a.alertSplitX:
@@ -255,7 +260,9 @@ func (a *App) wheel(d int) {
 		default:
 			a.alertFocus = 0
 		}
-		a.alertList().scroll(d * 2)
+		if a.alertFocus != 3 {
+			a.alertList().scroll(d * 2)
+		}
 	case scrOrderFlow:
 		a.lvOF.scroll(d * 3)
 	case scrSettings:

@@ -1034,6 +1034,18 @@ func shareBarBoxWidths(span int) []int {
 // board side by side (stacked in a narrow window), and the alert log below.
 func (a *App) drawAlerts(c *Canvas, x, y, w, h int) {
 	boardH := min(12, max(7, h/2-1))
+	// Owner order 2026-11-13: the PRICE ALERTS tile sits between the boards and
+	// the log and takes its five rows from the boards' spare rows first, so the
+	// ALERTS LOG keeps the twelve rows the owner reads it at. The boards never
+	// go under their own floor of seven, and a window with no room at all keeps
+	// the boards and the log rather than cutting a tile in half.
+	priceH := 5
+	for boardH > 7 && h-boardH-7 < 12 {
+		boardH--
+	}
+	if h-boardH-7 < 5 {
+		priceH = 0
+	}
 	if w >= 84 {
 		lw := w / 2
 		rw := w - lw - 1
@@ -1050,6 +1062,12 @@ func (a *App) drawAlerts(c *Canvas, x, y, w, h int) {
 	}
 	a.alertSplit = y + boardH
 	ly := y + boardH + 1
+	a.priceY, a.priceH = 0, 0
+	if priceH > 0 {
+		a.priceY, a.priceH = ly, priceH
+		a.drawPriceTile(c, x, ly, w, priceH)
+		ly += priceH + 1
+	}
 	lh := y + h - ly
 	if lh < 5 {
 		return
@@ -1234,8 +1252,11 @@ func (a *App) drawAlertLog(c *Canvas, x, y, w, h int) {
 			sc = th.Bad
 		}
 		kind := "FLOW"
-		if f.Kind == "block" {
+		switch f.Kind {
+		case "block":
 			kind = "BLOCK"
+		case "price":
+			kind = "PRICE"
 		}
 		sp := []Span{{f.Time.In(pkt).Format("15:04:05") + "  ", th.Soft, false},
 			{padRight(f.Side+" "+kind, 11), sc, true}, {f.Text, th.Hot, true}}
