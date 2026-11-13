@@ -22,9 +22,10 @@ compatibility_date = "2026-10-01"
 # The worker's band table (worker.js) is the same table
 # src/data/sessions.py computes, and the parity test fails if they drift.
 #
-# 03:55/04:32 UTC = 08:55/09:32 PKT (Mon-Thu: the 08:55 recorder warm-up
-#   starts the capture before the first trade; the exchange's pre-open window
-#   is 09:15 to 09:30, and 09:32 is the band-open notification edge)
+# 03:55/04:32 UTC = 08:55/09:32 PKT (Mon-Thu: owner order 2026-11-13, the
+#   08:55 recorder warm-up starts the capture before the exchange's 09:15
+#   pre-open, so the first pre-market print is captured; 09:32 is the
+#   band-open notification edge)
 # 04:20/04:25 UTC = 09:20/09:25 PKT (Mon-Thu pre-open retries: if the 08:55
 #   dispatch was lost, the watchdog starts the capture inside the 09:15 to
 #   09:30 pre-open, where the zero gate still seeds the day at zero)
@@ -59,7 +60,7 @@ compatibility_date = "2026-10-01"
 # discards; a six entry list is rejected (Cloudflare error 10072).
 [triggers]
 crons = [
-  "15,20,25,32 4 * * 1-4",
+  "55,15,20,25,32 3,4 * * 1-4",
   "30 7 * * 1-4",
   "55,5,10,17 3,4 * * 5",
   "10,20,25,32 9 * * 5",

@@ -8,8 +8,13 @@ import (
 )
 
 // flowSorts are the orders the ORDER FLOW list can be in. O (or LEFT and
-// RIGHT) steps through them.
-var flowSorts = []string{"TOTAL VOLUME", "BUYING VOLUME", "SELLING VOLUME", "UNCLASSIFIED", "CHANGE", "SYMBOL"}
+// RIGHT) steps through them, and every chip is a click target. Owner order
+// 2026-11-13: NET DELTA is one of them, highest positive first, and ENTER on
+// the page puts the list in that order.
+var flowSorts = []string{"TOTAL VOLUME", "BUYING VOLUME", "SELLING VOLUME", "UNCLASSIFIED", "NET DELTA", "CHANGE", "SYMBOL"}
+
+// flowSortNetDelta is the NET DELTA order's index in flowSorts.
+const flowSortNetDelta = 4
 
 // sortedFlow gives the rows in the chosen order. A row that has no number for
 // the chosen order goes to the bottom, never to the top as a zero.
@@ -46,7 +51,11 @@ func (a *App) sortedFlow() []FlowRow {
 			if r.Measured() && r.Unclassified != nil {
 				return float64(*r.Unclassified), true
 			}
-		case 4:
+		case flowSortNetDelta:
+			if r.Measured() {
+				return float64(*r.Buy - *r.Sell), true
+			}
+		case 5:
 			if r.ChangePct != nil {
 				return *r.ChangePct, true
 			}
@@ -54,7 +63,7 @@ func (a *App) sortedFlow() []FlowRow {
 		return 0, false
 	}
 	sort.SliceStable(rows, func(i, j int) bool {
-		if a.ofSort == 5 {
+		if a.ofSort == len(flowSorts)-1 {
 			return rows[i].Symbol < rows[j].Symbol
 		}
 		ki, oi := key(rows[i])
@@ -272,6 +281,13 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 			// DELTA column of its own after it, over the value every row writes.
 			c.Text(ix+barX, row, shareBarSpan, "BARS", th.Soft, false)
 			c.Text(ix+barX+shareBarSpan+shareBarGap, row, shareNetW, "NET DELTA", th.Soft, false)
+			// Owner order 2026-11-13: clicking the NET DELTA heading, like its
+			// own order chip, puts the list in delta order, highest positive
+			// first.
+			a.addHit(ix+barX+shareBarSpan+shareBarGap, row, shareNetW, 1, func() {
+				a.ofSort = flowSortNetDelta
+				a.lvOF.top()
+			})
 		}
 		row++
 	}

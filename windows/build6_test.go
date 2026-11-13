@@ -184,21 +184,22 @@ func TestOrderFlowSortKeepsUnmeasuredAtTheBottom(t *testing.T) {
 	if last := rows[len(rows)-1].Symbol; last != "CCC" && last != "DDD" {
 		t.Errorf("rows with no measured buying go last, not first as zeros: %s", last)
 	}
-	a.ofSort = 5
+	a.ofSort = len(flowSorts) - 1
 	if a.sortedFlow()[0].Symbol != "AAA" {
 		t.Errorf("by symbol")
 	}
 	for i := 0; i < len(flowSorts)*2; i++ {
 		a.onKey(Key{Kind: KRune, R: 'o'})
 	}
-	if a.ofSort != 5 {
+	if a.ofSort != len(flowSorts)-1 {
 		t.Errorf("o steps through the orders and wraps: %d", a.ofSort)
 	}
 }
 
-// After the bar there is one full gutter and then the NET DELTA, signed,
-// however many digits it has. Owner order 2026-11-12 (latest): the gutter is
-// the same two cells every other pair of ORDER FLOW columns keeps.
+// After the bar there is one full gutter and then the NET DELTA as a
+// magnitude, however many digits it has. Owner order 2026-11-13: the sign is
+// gone and the ink carries the side. Owner order 2026-11-12 (latest): the
+// gutter is the same two cells every other pair of ORDER FLOW columns keeps.
 func TestNetDeltaFollowsTheBarAtTheSameGutter(t *testing.T) {
 	// 100, -96 and -86 all follow their bars, right aligned in one field.
 	for _, pair := range [][2]int64{{100, 0}, {2, 98}, {7, 93}} {

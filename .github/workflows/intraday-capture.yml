@@ -19,10 +19,11 @@ name: KMIALL intraday momentum scan
 # can never be left UNCLEAR when a band loop fails to start:
 #
 #   04:20 UTC = 09:20 PKT   pre-open scan, Mon-Thu (09:15 to 09:30)
-#   04:10 UTC = 09:10 PKT   pre-open scan, Friday (09:00 to 09:15); the
-#                           primary Friday recorder opens at 08:55, before
-#                           the 09:00 pre-open (owner order 2026-11-13), so
-#                           this is only the backstop inside the window
+#   04:10 UTC = 09:10 PKT   pre-open scan, Friday (09:00 to 09:15). The
+#                           primary recorder opens at 08:55 every day, before
+#                           the first pre-open (09:15 Mon-Thu, 09:00 Friday;
+#                           owner order 2026-11-13), so these are only the
+#                           backstops inside the windows
 #   09:20 UTC = 14:20 PKT   second pre-open scan, Friday (14:15 to 14:30)
 #   10:40 UTC = 15:40 PKT   post-market scan, Mon-Thu (15:32 to 15:49)
 #   11:40 UTC = 16:40 PKT   post-market scan, Friday (16:32 to 16:49)

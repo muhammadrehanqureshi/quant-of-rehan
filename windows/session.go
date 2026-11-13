@@ -11,11 +11,12 @@ import "time"
 //	Friday              pre-market 09:00 to 09:15, trading 09:17 to 12:00 and
 //	                    14:32 to 16:30, post-market 16:32 to 16:49
 //
-// The quant reads the broker feed every second from 09:00, the exchange's own
-// pre-open, until the post-market closes, so the gaps between those windows are
-// scanned too. Owner order 2026-11-12 (latest): the start is 09:00, the same
-// start the relay and the GitHub Actions bands keep; it was 08:55 under the
-// 2026-11-07 order.
+// The quant reads the broker feed every second from 08:55, five minutes before
+// the exchange's first pre-open, until the post-market closes, so the gaps
+// between those windows are scanned too and the first pre-market print is
+// never missed. Owner order 2026-11-13 (latest): the start is 08:55 every
+// trading day, the same start the relay dispatch, the Worker's crons and the
+// GitHub Actions band keep; it was 09:00 under the 2026-11-12 order.
 // Each end is half open: 15:49:00 is already after it on Monday to Thursday
 // and 16:49:00 on Friday, and a short grace period after it catches the final
 // print.
@@ -34,10 +35,12 @@ var (
 	fridayPost    = window{16*60 + 32, 16*60 + 49}
 	scanGraceSecs = 30
 
-	// scanOpen is 09:00, the exchange's own pre-open. Owner order 2026-11-12
-	// (latest): the scan starts at 09:00 on every trading day, in this build
-	// and in the cloud bands, instead of the 08:55 of the 2026-11-07 order.
-	scanOpen = 9 * 60
+	// scanOpen is 08:55, the recorder warm-up before the exchange's first
+	// pre-open. Owner order 2026-11-13 (latest): the scan starts at 08:55 on
+	// every trading day, in this build, in the relay dispatch and in the
+	// GitHub Actions band, so the pre-market tape is captured from its first
+	// minute.
+	scanOpen = 8*60 + 55
 )
 
 // PSX holidays, mirroring PSX_HOLIDAYS_2026 in src/data/sessions.py. The 9th
@@ -126,7 +129,7 @@ func sessionAt(t time.Time) string {
 	return sesClosed
 }
 
-// inScanWindow is true on a weekday from 09:00 until the owner's scanning
+// inScanWindow is true on a weekday from 08:55 until the owner's scanning
 // window closes (15:49 Monday to Thursday, 16:49 on Friday), plus a short
 // grace period.
 func inScanWindow(t time.Time) bool {
@@ -162,7 +165,7 @@ func untilScanStart(t time.Time) time.Duration {
 		return 0
 	}
 	p := t.In(pkt)
-	day := time.Date(p.Year(), p.Month(), p.Day(), 9, 0, 0, 0, pkt)
+	day := time.Date(p.Year(), p.Month(), p.Day(), scanOpen/60, scanOpen%60, 0, 0, pkt)
 	if !day.After(p) {
 		day = day.AddDate(0, 0, 1)
 	}

@@ -54,7 +54,7 @@ func TestScannerShowsSectorsAndCyclesThem(t *testing.T) {
 	a.screen = scrScanner
 	a.sectors = nil // the demo has its own invented groups
 	s := plain(a)
-	for _, want := range []string{"SECTORS", "AUTOMOBILE", "ALFA", "1. AUTOMOBILE"} {
+	for _, want := range []string{"SECTORS", "AUTOMOBILE", "ALFA", "1."} {
 		if !strings.Contains(s, want) {
 			t.Errorf("scanner is missing %q", want)
 		}

@@ -32,7 +32,7 @@ func TestTelemetryCarriesMarketHoursBreadthAndDelta(t *testing.T) {
 	for _, want := range []string{
 		"MARKET OPENING", "09:15", "MARKET CLOSING", "15:49",
 		"MARKET BREADTH", "BULLISH", "ADV/DEC", "2/1",
-		"NET DELTA", "-300", "TOP PERFORMERS", "CCC, AAA & BBB",
+		"NET DELTA", "300", "TOP PERFORMERS", "CCC, AAA & BBB",
 	} {
 		if !strings.Contains(s, want) {
 			t.Errorf("telemetry is missing %q:\n%s", want, s)
@@ -143,14 +143,17 @@ func TestPanelAccentsAreSymmetric(t *testing.T) {
 	}
 }
 
-// Owner order 2026-11-11: the NET DELTA value carries no plus sign when it is
-// positive and keeps its minus when it is negative.
-func TestNetDeltaHasNoPlusSign(t *testing.T) {
+// Owner order 2026-11-13: NET DELTA carries no sign at all. A rise and a fall
+// both read as their magnitude; the ink says which side is ahead.
+func TestNetDeltaCarriesNoSign(t *testing.T) {
 	if got := signedCompact(300); got != "300" {
-		t.Fatalf("a rise reads %q, want 300 with no plus", got)
+		t.Fatalf("a rise reads %q, want 300", got)
 	}
-	if got := signedCompact(-300); got != "-300" {
-		t.Fatalf("a fall reads %q, want -300", got)
+	if got := signedCompact(-300); got != "300" {
+		t.Fatalf("a fall reads %q, want 300 with no minus", got)
+	}
+	if got := signedCompact(0); got != "0" {
+		t.Fatalf("a level reads %q, want 0", got)
 	}
 }
 

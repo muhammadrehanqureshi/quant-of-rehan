@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"math"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -631,6 +632,7 @@ func (a *App) drawSectorTile(c *Canvas, x, y, w, h int) {
 	// The list is never snapped back to the chosen group: the wheel may scroll
 	// the groups freely, even when the chosen one is the first row.
 	cw := contentW(&a.lvSector, iw)
+	tbl := a.scanTable()
 	for n := 0; n < a.lvSector.view; n++ {
 		i := a.lvSector.off + n
 		if i >= len(vis) {
@@ -645,8 +647,23 @@ func (a *App) drawSectorTile(c *Canvas, x, y, w, h int) {
 			mark = "◆ "
 		}
 		c.Set(ix+1, ry, []rune(mark)[0], th.Accent, bg, true)
-		name := fmt.Sprintf("%2d. %s", idx+1, g.Name)
-		c.Text(ix+3, ry, max(1, cw-3), fit(name, max(1, cw-3)), th.Text, idx == a.sectorChoice)
+		// Owner order 2026-11-13: every group carries its overall percentage in
+		// front of its name, in the colour of its side, and the rows above it
+		// are the groups that percentage ranks higher.
+		pct, cnt := sectorChangeIn(tbl, g)
+		pctText, pctInk := "    --", th.Soft
+		if cnt > 0 {
+			pctText = fmt.Sprintf("%+6.2f%%", pct)
+			if pct < 0 {
+				pctInk = th.Bad
+			} else if pct > 0 {
+				pctInk = th.Good
+			}
+		}
+		c.Text(ix+3, ry, 3, fmt.Sprintf("%2d.", i+1), th.Soft, false)
+		c.Text(ix+7, ry, 7, pctText, pctInk, true)
+		nameW := max(1, cw-15)
+		c.Text(ix+15, ry, nameW, fit(g.Name, nameW), th.Text, idx == a.sectorChoice)
 	}
 	a.scrollbar(c, ix+iw-1, listY, a.lvSector.view, &a.lvSector)
 }
@@ -713,9 +730,13 @@ func (a *App) drawSectorOpen(c *Canvas, x, y, w, h int) {
 	if len(member) != len(all) {
 		detail += fmt.Sprintf(", %d match", len(member))
 	}
-	c.Spans(ix, iy, iw, []Span{{g.Name, th.Hot, true},
-		{"  ·  ", th.Soft, false},
-		{detail, th.Soft, false}})
+	spans := []Span{{g.Name, th.Hot, true}}
+	if v, n := a.sectorChange(g); n > 0 {
+		spans = append(spans, Span{"  ·  ", th.Soft, false},
+			Span{fmt.Sprintf("%+.2f%%", v), a.dirColor(v), true})
+	}
+	spans = append(spans, Span{"  ·  ", th.Soft, false}, Span{detail, th.Soft, false})
+	c.Spans(ix, iy, iw, spans)
 	if len(all) == 0 {
 		c.Text(ix, iy+3, iw, "None of this sector's scrips is in KMIALLSHR right now.", th.Soft, false)
 		return
@@ -783,21 +804,23 @@ func (a *App) sectorQueryText() string {
 	return strings.ToUpper(strings.TrimSpace(a.sectorQuery))
 }
 
-// visibleSectorIndices are the groups the SECTORS search box lets through, as
-// indices into sectorGroups. A group matches when its name starts with the
-// query or when any scrip it carries does, so typing CHRL finds CEMENT too.
+// visibleSectorIndices are the groups the tile lists, ordered by the day's
+// overall percentage, highest first. Owner order 2026-11-13: the SCANNER's
+// sectors read in descending order of their aggregate change, so the strongest
+// group is the first row. A group with no priced scrip yet sorts after every
+// measured one, and equal percentages fall back to the alphabetical order the
+// relay sends. The indices stay the groups' own, so a click still opens the
+// group the row names. A group matches the search when its name starts with
+// the query or when any scrip it carries does, so typing CHRL finds CEMENT.
 func (a *App) visibleSectorIndices() []int {
 	groups := a.sectorGroups()
 	q := a.sectorQueryText()
-	if q == "" {
-		out := make([]int, len(groups))
-		for i := range out {
-			out[i] = i
-		}
-		return out
-	}
 	var out []int
 	for i, g := range groups {
+		if q == "" {
+			out = append(out, i)
+			continue
+		}
 		if strings.HasPrefix(g.Name, q) {
 			out = append(out, i)
 			continue
@@ -809,7 +832,48 @@ func (a *App) visibleSectorIndices() []int {
 			}
 		}
 	}
+	tbl := a.scanTable()
+	pct := make(map[int]float64, len(out))
+	measured := make(map[int]bool, len(out))
+	for _, i := range out {
+		v, n := sectorChangeIn(tbl, groups[i])
+		pct[i], measured[i] = v, n > 0
+	}
+	sort.SliceStable(out, func(x, y int) bool {
+		i, j := out[x], out[y]
+		if measured[i] != measured[j] {
+			return measured[i]
+		}
+		if measured[i] && pct[i] != pct[j] {
+			return pct[i] > pct[j]
+		}
+		return groups[i].Name < groups[j].Name
+	})
 	return out
+}
+
+// sectorChangeIn is a group's overall day percentage: the equal weight mean of
+// its members' own change, read from one scan table, which is the figure the
+// SCANNER prints in front of the group and sorts the list by. The count is how
+// many members carry a percentage; at zero the group has no figure and sorts
+// last.
+func sectorChangeIn(tbl map[string]Quote, g Sector) (float64, int) {
+	sum, n := 0.0, 0
+	for _, sym := range g.Symbols {
+		if q, ok := tbl[sym]; ok && q.ChangePct != nil {
+			sum += *q.ChangePct
+			n++
+		}
+	}
+	if n == 0 {
+		return 0, 0
+	}
+	return sum / float64(n), n
+}
+
+// sectorChange is sectorChangeIn against the live table, for a single group.
+func (a *App) sectorChange(g Sector) (float64, int) {
+	return sectorChangeIn(a.scanTable(), g)
 }
 
 // visibleSectorMembers are the open group's scrips that match the box.
@@ -944,8 +1008,9 @@ func (a *App) shareBarOnly(c *Canvas, x, y, w int, buy, sell int64) int {
 // classified volume and the red is always the sellers', on every page and on
 // both ALERTS boards, so a bar can never mean one side here and the other side
 // there, and the side it shows is always the side that is in front. The share
-// is buy/(buy+sell) and the label is the NET DELTA, buy-sell, signed, so a row
-// says both who is dominant and by how much. Owner order 2026-11-11 (third
+// is buy/(buy+sell) and the label is the NET DELTA, buy-sell, as a magnitude:
+// the ink carries the side and the figure carries the size. Owner order
+// 2026-11-13: the minus is gone from the whole build. Owner order 2026-11-11 (third
 // pass): one shade of green and one shade of red, no paler step, and no cell
 // drawn between the boxes.
 func (a *App) drawShareBar(c *Canvas, x, y, w int, buy, sell int64, label bool) int {

@@ -39,8 +39,8 @@ func (a *App) orbMode() OrbMode {
 }
 
 // orbGreen says whether the quant mark wears the GIF's refined green. Owner
-// order 2026-11-12: green from 09:00 to 15:49 Monday to Thursday and from
-// 09:00 to 16:49 on Friday, red outside those windows and all weekend.
+// order 2026-11-13: green from 08:55 to 15:49 Monday to Thursday and from
+// 08:55 to 16:49 on Friday, red outside those windows and all weekend.
 // A PSX holiday is not a market day, so it is red all day too, and the relay's
 // own trading-day flag can only add a red day, never turn one green.
 func (a *App) orbGreen() bool {
@@ -51,7 +51,7 @@ func (a *App) orbGreen() bool {
 	if a.market != nil && a.market.PhaseKnown() && !a.market.TradingDay {
 		return false
 	}
-	start := scanOpen // 09:00
+	start := scanOpen // 08:55
 	end := 15*60 + 49
 	if isFriday(p) {
 		end = 16*60 + 49
@@ -400,7 +400,7 @@ func (a *App) scanStatus() (string, RGB) {
 		// Owner order 2026-11-09: a closed trading day names itself.
 		return "MARKET IS CLOSED TODAY", th.Soft
 	case secondOf(p) < scanOpen*60:
-		return "STARTS AT 09:00", th.Soft
+		return fmt.Sprintf("STARTS AT %02d:%02d", scanOpen/60, scanOpen%60), th.Soft
 	}
 	return "DONE FOR TODAY", th.Soft
 }
@@ -502,12 +502,17 @@ func (a *App) drawLeft(c *Canvas, x, y, w, h int) {
 	}
 	label(2, "PHASE", []Span{{ph, pc, true}})
 	// Owner order 2026-11-11: SCAN follows PHASE. MARKET OPENING is the
-	// exchange's own 09:15 and MARKET CLOSING is the day's own end, 15:49
-	// Monday to Thursday and 16:49 on Friday, with no pre and post captions.
+	// exchange's own first pre-open: 09:15 Monday to Thursday and 09:00 on
+	// Friday (owner order 2026-11-13). MARKET CLOSING is the day's own end,
+	// 15:49 Monday to Thursday and 16:49 on Friday, with no captions.
 	sw, sc := a.scanStatus()
 	label(3, "SCAN", []Span{{sw, sc, true}})
 	hm := func(m int) string { return fmt.Sprintf("%02d:%02d", m/60, m%60) }
-	fullRow(4, "MARKET OPENING", []Span{{hm(preWindow.to), th.Text, false}})
+	openMin := preWindow.to
+	if isFriday(a.karachiNow()) {
+		openMin = preWindow.from
+	}
+	fullRow(4, "MARKET OPENING", []Span{{hm(openMin), th.Text, false}})
 	fullRow(5, "MARKET CLOSING", []Span{{hm(postWindow(a.karachiNow()).to), th.Text, false}})
 	// Owner order 2026-11-11: MARKET BREADTH is the KSE100's own point move.
 	// Above +1500 points is BULLISH, below -500 is BEARISH, and the band
@@ -1197,9 +1202,22 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 	const chgW = 8
 	edge := ix + iw - 1
 	pkrX := ix + 3 + usedMax + 2
+	// Owner order 2026-11-13: NET DELTA moves off the name line to the price
+	// line, right aligned at the tile's edge, so the bar stands alone on the
+	// name line and no figure cuts into it. The field is measured once, so all
+	// three rows put it on the same cells, and the change keeps clear of it.
+	netW := 0
+	for _, l := range leaders[:nL] {
+		if l.HasSplit() {
+			netW = max(netW, runeLen("NET "+signedCompact(*l.Buy-*l.Sell)))
+		}
+	}
 	chgRight := edge
+	if netW > 0 {
+		chgRight = edge - netW - 2
+	}
 	chgX := chgRight - chgW + 1
-	barStart := edge - shareBarWidth + 1
+	barStart := edge - shareBarSpan + 1
 
 	// The bottom of the tile, from the bottom up: the note, one blank line, and
 	// the BUYING NOW line. The blank line and the spacer under the index are
@@ -1226,13 +1244,12 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 		}
 		pxKey, volKey := "px:"+l.Symbol, "vol:"+l.Symbol
 		c.Spans(ix, row, textW, []Span{{strconv.Itoa(i+1) + ". ", th.Soft, false}, {l.Symbol, th.Hot, true}})
-		// Owner order 2026-11-13: the bar and its NET DELTA are back on the tile,
-		// on the name line, which is the one line with room for them. The field
-		// is measured once above the loop, so all three rows carry it on the same
-		// cells and the figure reads down one column.
+		// Owner order 2026-11-13: the bar stands alone on the name line, in the
+		// same cells on every leader row, so the three lengths read down one
+		// column instead of ending where a delta begins.
 		if l.HasSplit() && barStart > ix+3+runeLen(l.Symbol)+2 {
 			if bb, bs := a.pairOf(l.Symbol, *l.Buy, *l.Sell); bb+bs > 0 {
-				a.shareBar(c, barStart, row, shareBarWidth, bb, bs)
+				a.shareBarOnly(c, barStart, row, shareBarSpan, bb, bs)
 			}
 		}
 		row++
@@ -1255,15 +1272,16 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 		} else {
 			used = a.putBST(c, ix+3, row, buy, sell, vol, volKey, pxKey)
 		}
-		// Owner order 2026-11-10 (latest): the price, the change and the bar are
+		// Owner order 2026-11-10 (latest): the price, the change and the delta are
 		// pushed to the tile's far right and right aligned at one edge, so all
 		// three leaders line up and nothing floats in the middle of the row. The
-		// bar keeps the same distance from the price on every row.
+		// NET DELTA keeps its own field at the edge on every row.
 		// The right edge is the tile's inner width, not textW: textW is the
 		// narrow column the symbol line uses, and a price right aligned there
 		// painted over the volumes (CI caught "& TPKR 15.24"). Each of the
 		// three fields also has a fixed width from that edge, so the price, the
 		// change and the bar land on the same cells on every leader row.
+		pxEnd := 0
 		if l.Price != nil {
 			px := commaFloat(*l.Price, 2)
 			if pkrX+4+pxW <= edge {
@@ -1272,6 +1290,7 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 				// widest volume line leaves and the field is the widest price.
 				c.Text(pkrX, row, 3, "PKR", th.Soft, false)
 				a.flashText(c, pkrX+4, row, px, th.Text, true, pxKey)
+				pxEnd = pkrX + 4 + runeLen(px)
 				if l.ChangePct != nil && chgX > pkrX+4+pxW {
 					a.flashRight(c, chgRight, row, changeText(*l.ChangePct), a.dirColor(*l.ChangePct), true, pxKey)
 				}
@@ -1280,7 +1299,21 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 				// volumes, as they always have, and the change gives way first.
 				c.Text(at, row, 3, "PKR", th.Soft, false)
 				a.flashText(c, at+4, row, px, th.Text, true, pxKey)
+				pxEnd = at + 4 + runeLen(px)
 			}
+		}
+		// The leader's own NET DELTA closes the price line, under the end of the
+		// bar, so it never sits between the bar and the percentage.
+		if netW > 0 && l.HasSplit() && edge-netW+1 > pxEnd {
+			net := *l.Buy - *l.Sell
+			nc := th.Soft
+			switch {
+			case net > 0:
+				nc = th.Good
+			case net < 0:
+				nc = th.Bad
+			}
+			c.Text(edge-netW+1, row, netW, "NET "+signedCompact(net), nc, true)
 		}
 		row++
 		// Spare rows are shared out as a blank line between leaders.

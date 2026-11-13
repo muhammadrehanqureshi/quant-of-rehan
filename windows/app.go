@@ -1534,7 +1534,15 @@ func (a *App) keyOrderFlow(k Key) {
 		a.ofQuery, a.ofSearch = "", false
 		a.lvOF.top()
 	case KEnter:
-		a.ofSearch = false
+		// Owner order 2026-11-13: ENTER on the page orders the stocks by NET
+		// DELTA, highest positive first. While a search is typed, ENTER keeps
+		// its old job and closes the field.
+		if a.ofQuery == "" {
+			a.ofSort = flowSortNetDelta
+			a.lvOF.top()
+		} else {
+			a.ofSearch = false
+		}
 	case KBackspace:
 		if r := []rune(a.ofQuery); len(r) > 0 {
 			a.ofQuery = string(r[:len(r)-1])

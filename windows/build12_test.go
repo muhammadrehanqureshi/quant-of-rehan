@@ -83,15 +83,16 @@ func TestOrderFlowFootSaysUnclear(t *testing.T) {
 	}
 }
 
-// Owner order 2026-11-13: the three KSE100 leaders carry their bar and NET DELTA
-// again, on the name line, and the label, the price and the change stand on one
-// set of columns on every row whatever digits they carry.
+// Owner order 2026-11-13: the bar stands alone on each leader's name line and
+// the NET DELTA sits at the right of the price line, so the bar, the percentage
+// and the delta no longer crowd one row. The label, the price and the change
+// still stand on one set of columns whatever digits they carry.
 func TestKSE100LeadersLineUpAndCarryTheirBar(t *testing.T) {
 	a := busyApp(t, 158, 41, 3)
 	rows := rowsOf(a)
 	inside := false
 	barAt, pkrAt := -1, -1
-	nameRows, priceRows := 0, 0
+	nameRows, priceRows, netRows := 0, 0, 0
 	for _, r := range rows {
 		switch {
 		case strings.Contains(r, "KSE100 INDEX & THE TOP 3 SCRIPS OF VOLUME"):
@@ -113,13 +114,19 @@ func TestKSE100LeadersLineUpAndCarryTheirBar(t *testing.T) {
 			} else if at != barAt {
 				t.Errorf("a leader bar starts at %d, the first at %d: %q", at, barAt, r)
 			}
-			if !strings.ContainsAny(r[barByte:], "0123456789") {
-				t.Errorf("the bar carries no NET DELTA: %q", r)
+			if strings.ContainsAny(r[barByte:], "0123456789") {
+				t.Errorf("the name line still carries a figure after the bar: %q", r)
 			}
 			continue
 		}
 		if at := col(r, "PKR "); at >= 0 {
 			priceRows++
+			// Search after PKR, by byte, because the telemetry tile on the left
+			// of the same console row carries its own "NET DELTA" label.
+			if pkrByte := strings.Index(r, "PKR "); pkrByte >= 0 &&
+				strings.Contains(r[pkrByte:], "NET ") {
+				netRows++
+			}
 			if pkrAt < 0 {
 				pkrAt = at
 			} else if at != pkrAt {
@@ -133,6 +140,10 @@ func TestKSE100LeadersLineUpAndCarryTheirBar(t *testing.T) {
 	}
 	if priceRows < 2 {
 		t.Fatalf("only %d leader price lines were found:\n%s", priceRows,
+			strings.Join(rows, "\n"))
+	}
+	if netRows < 2 {
+		t.Fatalf("only %d leader price lines carry a NET DELTA:\n%s", netRows,
 			strings.Join(rows, "\n"))
 	}
 	if pkrAt <= 0 {
