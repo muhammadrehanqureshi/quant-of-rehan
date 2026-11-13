@@ -25,6 +25,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from src.data import failsafe  # noqa: E402
+from src.data.relay_http import relay_headers  # noqa: E402
 from src.data.sessions import now_karachi  # noqa: E402
 
 BASE = (os.environ.get("RELAY_URL")
@@ -44,14 +45,13 @@ def read(path: str, attempts: int = 3, timeout: float = 20.0):
     last: Exception | None = None
     for _ in range(attempts):
         try:
-            # A plain urllib request identifies itself as Python, which an
-            # edge rule may refuse; the probe names itself instead, exactly as
-            # the GitHub API calls below already do (owner question
-            # 2026-11-11: is the relay the thing that is down?).
+            # A plain urllib request identifies itself as Python, which
+            # Cloudflare's browser integrity check refuses with HTTP 403 and
+            # "error code: 1010" (owner alert 2026-11-12: a readiness mail
+            # called that a dead relay). The shared header helper carries the
+            # same browser style prefix the HUD sends.
             request = urllib.request.Request(
-                BASE + path,
-                headers={"User-Agent": "quant-of-rehan-failsafe",
-                         "Accept": "application/json"})
+                BASE + path, headers=relay_headers())
             with urllib.request.urlopen(request, timeout=timeout) as response:
                 return json.load(response)
         except urllib.error.HTTPError as exc:

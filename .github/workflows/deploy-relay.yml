@@ -74,7 +74,12 @@ jobs:
         run: |
           want="${GITHUB_SHA}"
           for _ in 1 2 3 4 5 6; do
+            # A browser style user agent: Cloudflare's browser integrity
+            # check refuses curl's own signature with HTTP 403 and
+            # "error code: 1010", which would read as a failed deploy.
             body=$(curl -fsS --max-time 30 \
+              -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) QuantOfRehan-RelayReader/1.0" \
+              -H "Accept: application/json" \
               https://quant-of-rehan-relay.mrmrehanqureshi.workers.dev/health || true)
             if ! printf '%s' "$body" | grep -q '"ok": true'; then
               sleep 10

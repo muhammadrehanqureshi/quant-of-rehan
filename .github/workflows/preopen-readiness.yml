@@ -43,36 +43,26 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           python - <<'PY' > /tmp/readiness
-          import json
-          import urllib.error
-          import urllib.request
           from datetime import datetime
           from zoneinfo import ZoneInfo
+
+          from src.data.relay_http import read_json
 
           BASE = "https://quant-of-rehan-relay.mrmrehanqureshi.workers.dev"
           now = datetime.now(ZoneInfo("Asia/Karachi"))
           minute = now.hour * 60 + now.minute
           strict = minute >= 9 * 60 + 15  # 09:15 PKT onward: frames must exist
 
-
-          def read(path, attempts=3):
-              last = None
-              for _ in range(attempts):
-                  try:
-                      with urllib.request.urlopen(BASE + path, timeout=20) as response:
-                          return json.load(response)
-                  except Exception as exc:  # noqa: BLE001 - retried, named below
-                      last = exc
-              raise last
-
-
-          try:
-              health = read("/health")
-          except Exception as exc:  # noqa: BLE001 - the alert names the type
-              detail = (f"HTTP {exc.code}" if isinstance(exc, urllib.error.HTTPError)
-                        else type(exc).__name__)
+          # Owner report 2026-11-12: this check mailed "the relay did not answer
+          # /health (HTTP 403)" while the edge was serving the phone and every
+          # push. A default Python user agent is refused by Cloudflare's
+          # browser integrity check with that exact 403, so every read goes
+          # through src/data/relay_http.py, which sends the project's browser
+          # style prefix and names the status and body it actually saw.
+          health, trouble = read_json(BASE, "/health", attempts=3)
+          if health is None:
               print("Quant of Rehan is NOT ready: the relay did not answer /health "
-                    f"after three attempts ({detail}) at {now:%H:%M} PKT. No quote "
+                    f"after three attempts ({trouble}) at {now:%H:%M} PKT. No quote "
                     "can be stored while the relay is down, so the open has no "
                     "feed. This alert repeats at most once a day.")
               raise SystemExit(0)
@@ -95,12 +85,9 @@ jobs:
                   f"the session clock reads {phase or 'unknown'} on a trading day")
 
           if strict:
-              try:
-                  quotes = read("/quotes")
-              except Exception as exc:  # noqa: BLE001
-                  detail = (f"HTTP {exc.code}" if isinstance(exc, urllib.error.HTTPError)
-                            else type(exc).__name__)
-                  problems.append(f"/quotes did not answer after three attempts ({detail})")
+              quotes, trouble = read_json(BASE, "/quotes", attempts=3)
+              if quotes is None:
+                  problems.append(f"/quotes did not answer after three attempts ({trouble})")
                   quotes = {}
               rows = quotes.get("quotes") or []
               priced = [row for row in rows if (row.get("volume") or 0) > 0]

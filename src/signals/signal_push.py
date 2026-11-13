@@ -139,15 +139,18 @@ def relay_preflight(url: str, token: str, timeout_s: float = 15.0) -> str:
     """
     import requests
 
+    from src.data.relay_http import relay_headers
+
     try:
-        health = requests.get(url + "/health", timeout=timeout_s).json()
+        health = requests.get(url + "/health", timeout=timeout_s,
+                              headers=relay_headers()).json()
     except (requests.RequestException, ValueError) as exc:
         return f"the relay did not answer /health ({type(exc).__name__})"
     if not health.get("ok"):
         return "the relay answered /health with a fault"
     try:
         r = requests.get(url + "/signals", timeout=timeout_s,
-                         headers={"x-admin-token": token})
+                         headers=relay_headers({"x-admin-token": token}))
     except requests.RequestException as exc:
         return f"the relay did not answer /signals ({type(exc).__name__})"
     if r.status_code == 200 and r.json().get("ok"):
