@@ -208,6 +208,46 @@ def _push_key(day: date, key: str, local: Path, creds: tuple[str, str]) -> dict:
     return result
 
 
+def put_object(key: str, payload: bytes,
+               content_type: str = "application/octet-stream") -> dict:
+    """PUT one object under an arbitrary key, for archives too big for a day.
+
+    The band store is a rolling 45 day window; an archive that must survive
+    years lives under its own prefix (the research archive uses `history/`),
+    which prune() never matches because it only deletes `day=YYYY-MM-DD/`
+    keys. Never raises: a failed upload is a named reason the caller reports.
+    """
+    creds = _credential()
+    if creds is None:
+        return {"ok": False, "reason": "no CF_API_TOKEN/CF_ACCOUNT_ID credential"}
+    url = bucket_url() + "/" + quote(key, safe="")
+    headers = _headers(creds[0])
+    headers["content-type"] = content_type
+    result = _call(method="PUT", url=url, headers=headers, data=payload,
+                   timeout=900)
+    result["key"] = key
+    result["bytes"] = len(payload)
+    if result["ok"]:
+        result["reason"] = f"uploaded {len(payload)} bytes"
+    else:
+        result["reason"] = f"HTTP {result.get('status')}"
+    return result
+
+
+def get_object(key: str) -> dict:
+    """GET one object by key. A 404 is a named absence, never an empty body."""
+    creds = _credential()
+    if creds is None:
+        return {"ok": False, "reason": "no CF_API_TOKEN/CF_ACCOUNT_ID credential"}
+    url = bucket_url() + "/" + quote(key, safe="")
+    result = _call(method="GET", url=url, headers=_headers(creds[0]), timeout=600)
+    if result.get("status") == 404:
+        return {"ok": False, "reason": "not found", "status": 404}
+    if not result["ok"]:
+        return {"ok": False, "reason": f"HTTP {result.get('status')}"}
+    return {"ok": True, "body": result["body"], "bytes": len(result["body"])}
+
+
 def push(day: date = None) -> dict:
     """Push the day's whole state. Best effort; returns a summary dict.
 

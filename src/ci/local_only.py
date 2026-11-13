@@ -88,6 +88,8 @@ BACKTEST_SCRIPTS = {
     "scripts/backtest_10y.py": "the ten-year whole-panel backtest",
     "scripts/backtest_mean_reversion.py":
         "the ten-year mean-reversion (snapback) backtest",
+    "scripts/build_intraday_history.py":
+        "the five-year 5m/15m/30m/1h archive build",
 }
 
 REFUSAL = (
