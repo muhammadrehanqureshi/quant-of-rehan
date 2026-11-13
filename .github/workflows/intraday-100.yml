@@ -18,6 +18,11 @@ on:
         description: "Actions run that holds the six intraday-history artifacts"
         type: string
         default: "43369506273"
+      timeframe:
+        description: "native pilot timeframe"
+        type: choice
+        options: [5m, 15m, 30m, 60m]
+        default: 5m
 
 permissions:
   contents: read
@@ -147,7 +152,8 @@ jobs:
         run: |
           python scripts/intraday100.py pilot \
             --data data/history \
-            --out data/research/intraday100
+            --out data/research/intraday100 \
+            --timeframe "${{ inputs.timeframe }}"
           test -s data/research/intraday100/PILOT_RESULTS.json
           test -s data/research/intraday100/PILOT_TRADES.csv
 
@@ -155,7 +161,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: intraday100-pilot-${{ github.run_id }}
+          name: intraday100-pilot-${{ inputs.timeframe }}-${{ github.run_id }}
           path: data/research/intraday100
           if-no-files-found: warn
           retention-days: 90
