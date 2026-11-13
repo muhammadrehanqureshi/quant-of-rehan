@@ -30,6 +30,11 @@ var (
 	toneBigSell = []toneStep{{1319, 110}, {988, 110}, {659, 190}} // falling, E6 B5 E5
 	toneEvent   = []toneStep{{880, 140}, {660, 180}}              // falling pair
 	toneSignal  = []toneStep{{988, 100}, {1319, 100}, {1568, 100}, {1319, 100}, {1568, 220}}
+	// Owner order 2026-11-13: the price alert's own chime, two even notes and a
+	// long third, so it is never mistaken for a big buying or selling flag.
+	// Windows plays it through the same Beep call PowerShell's [console]::beep
+	// makes, so nothing has to be installed and no sound file is shipped.
+	tonePrice = []toneStep{{1047, 90}, {1319, 90}, {1047, 90}, {1568, 280}}
 )
 
 func xmlEscape(s string) string {

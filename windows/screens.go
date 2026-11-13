@@ -100,6 +100,14 @@ func (a *App) render() *Canvas {
 	case scrSettings:
 		a.drawSettings(c, rx, top, rw, rows)
 	}
+	// The two forms float over the page, so they fit every window size the
+	// build draws.
+	if a.calcOpen {
+		a.drawCalculator(c)
+	}
+	if a.priceEdit >= 0 {
+		a.drawPriceEditor(c)
+	}
 	a.drawNav(c, a.h-1)
 	a.drawHeader(c) // last, so the banner sits on top and wins the click
 	return c
@@ -284,7 +292,7 @@ func (a *App) drawHeader(c *Canvas) {
 		}
 		c.Text(1, by, c.W-2, fit(txt, c.W-2), fg, true)
 		a.addHit(0, by, c.W, 1, func() {
-			if a.bannerKind == "flow" {
+			if a.bannerKind == "flow" || a.bannerKind == "price" {
 				a.setScreen(scrAlerts)
 			}
 			a.bannerUntil = time.Time{}
@@ -331,7 +339,9 @@ func (a *App) drawNav(c *Canvas, y int) {
 	hints := []string{"TAB NEXT  R REFRESH  Q QUIT", "R REFRESH  Q QUIT", "Q QUIT"}
 	switch a.screen {
 	case scrScanner:
-		hints = []string{"TAB NEXT  ESC CLEAR  CTRL+C QUIT", "ESC CLEAR  CTRL+C QUIT", "CTRL+C QUIT"}
+		hints = []string{"F6 CALC  TAB NEXT  ESC CLEAR  CTRL+C QUIT", "TAB NEXT  ESC CLEAR  CTRL+C QUIT", "CTRL+C QUIT"}
+	case scrAlerts:
+		hints = []string{"P PRICE ALERT  TAB NEXT  R REFRESH  Q QUIT", "TAB NEXT  R REFRESH  Q QUIT", "Q QUIT"}
 	case scrHome:
 		// Owner order 2026-11-12 (latest): the D DETAILS hint is withdrawn from
 		// the home footer. D itself still flips the card to its raw text.

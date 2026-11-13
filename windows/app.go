@@ -75,6 +75,7 @@ type App struct {
 	notifyTouched bool
 	flowTouched   bool // big buying, sound or size changed in Settings
 	cellTouched   bool // the radar roundness changed with [ or ]
+	alertsTouched bool // a price alert slot was set, cleared or rang
 	relay         *Relay
 	th            *Theme
 
@@ -152,6 +153,23 @@ type App struct {
 	alertSplitX int        // the column where the selling list starts, for the wheel
 	alertSplit  int        // the row where the log panel starts, for the wheel
 
+	// price alerts, owner order 2026-11-13: the three slots live in cfg, the
+	// cursor and the editor live here. priceEdit is -1 when the form is closed.
+	priceCursor int
+	priceEdit   int
+	priceField  int // 0 the scrip, 1 the price
+	priceSym    string
+	priceBuf    string
+	priceMsg    string
+	priceY      int // the PRICE ALERTS tile's top row, for the wheel
+	priceH      int // and its height
+
+	// the SCANNER page calculator, F6: two boxes and the total they make.
+	calcOpen  bool
+	calcField int // 0 the price, 1 the quantity
+	calcPrice string
+	calcQty   string
+
 	// mouse
 	hits           []hit
 	hoverX, hoverY int
@@ -208,6 +226,7 @@ func NewApp(cfg Settings, cfgPath string, relay *Relay) *App {
 		hoverX:   -1, hoverY: -1,
 		prices:     map[string]Quote{},
 		scanCursor: 0,
+		priceEdit:  -1,
 	}
 	a.flow = NewFlow(defaultFlowCfg(cfg.BigBuyValue))
 	a.flow.Allow = a.inUniverse
@@ -994,6 +1013,9 @@ func (a *App) save() {
 	if a.cellTouched {
 		out.CellShape = a.cfg.CellShape
 	}
+	if a.alertsTouched {
+		out.PriceAlerts = a.cfg.PriceAlerts
+	}
 	_ = saveSettings(a.cfgPath, out)
 	a.persist = out
 	a.dirty = false
@@ -1039,6 +1061,8 @@ func (a *App) setScreen(s screenID) {
 		return
 	}
 	a.sectorSearch = false
+	a.priceEdit, a.priceMsg = -1, ""
+	a.calcOpen = false
 	a.screen = s
 	switch s {
 	case scrScanner:
@@ -1055,6 +1079,20 @@ func (a *App) cycle(d int) {
 }
 
 func (a *App) onKey(k Key) {
+	if k.Kind == KCtrlC {
+		a.quit = true
+		return
+	}
+	// The two forms own every key while they are open, so a digit always lands
+	// in the box in hand and never jumps to another page.
+	if a.priceEdit >= 0 {
+		a.keyPriceEdit(k)
+		return
+	}
+	if a.calcOpen {
+		a.keyCalc(k)
+		return
+	}
 	switch k.Kind {
 	case KCtrlC:
 		a.quit = true
@@ -1073,6 +1111,13 @@ func (a *App) onKey(k Key) {
 		return
 	case KF5:
 		a.setScreen(scrSettings)
+		return
+	case KF6:
+		// Owner order 2026-11-13: the calculator is F6 because every letter
+		// on the scanner belongs to the search box.
+		if a.screen == scrScanner {
+			a.openCalc()
+		}
 		return
 	case KMouse:
 		a.onMouse(k)
@@ -1143,6 +1188,11 @@ func (a *App) onKey(k Key) {
 		case 'o', 'O':
 			if a.screen == scrOrderFlow {
 				a.stepFlowSort(1)
+			}
+		case 'p', 'P':
+			if a.screen == scrAlerts {
+				a.alertFocus = 3
+				a.startPriceEdit(a.priceCursor)
 			}
 		case '[':
 			a.stepCell(-1, false)
@@ -1427,24 +1477,54 @@ func (a *App) keyAlerts(k Key) {
 	case KLeft:
 		a.alertFocus = max(0, a.alertFocus-1)
 	case KRight:
-		a.alertFocus = min(2, a.alertFocus+1)
+		a.alertFocus = min(3, a.alertFocus+1)
 	case KUp:
-		a.alertList().scroll(-1)
+		if a.alertFocus == 3 {
+			a.priceCursor = max(0, a.priceCursor-1)
+		} else {
+			a.alertList().scroll(-1)
+		}
 	case KDown:
-		a.alertList().scroll(1)
+		if a.alertFocus == 3 {
+			a.priceCursor = min(priceAlertSlots-1, a.priceCursor+1)
+		} else {
+			a.alertList().scroll(1)
+		}
 	case KPgUp:
-		a.alertList().page(-1)
+		if a.alertFocus != 3 {
+			a.alertList().page(-1)
+		}
 	case KPgDn:
-		a.alertList().page(1)
+		if a.alertFocus != 3 {
+			a.alertList().page(1)
+		}
 	case KHome:
-		a.alertList().top()
+		if a.alertFocus == 3 {
+			a.priceCursor = 0
+		} else {
+			a.alertList().top()
+		}
 	case KEnd:
-		a.alertList().bottom()
+		if a.alertFocus == 3 {
+			a.priceCursor = priceAlertSlots - 1
+		} else {
+			a.alertList().bottom()
+		}
 	case KDel, KBackspace:
-		a.flow.Log, a.lvLog = nil, listView{}
-		a.alertQuery, a.alertSearch = "", false
+		// The price tile's DEL empties the slot in hand; the log keeps its own
+		// DEL on the log panel.
+		if a.alertFocus == 3 {
+			a.clearPriceAlert(a.priceCursor)
+		} else {
+			a.flow.Log, a.lvLog = nil, listView{}
+			a.alertQuery, a.alertSearch = "", false
+		}
 	case KEnter:
-		a.testFlag(false)
+		if a.alertFocus == 3 {
+			a.startPriceEdit(a.priceCursor)
+		} else {
+			a.testFlag(false)
+		}
 	}
 }
 
