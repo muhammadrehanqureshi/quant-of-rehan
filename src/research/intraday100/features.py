@@ -17,7 +17,7 @@ FEATURE_COLUMNS = (
     "don_hi20", "don_lo20", "don_hi55", "don_lo55",
     "atr", "atr_pct", "rsi14",
     "vwap", "prev_vwap", "dist_vwap",
-    "rel_vol", "vol_med5",
+    "rel_vol", "vol_med5", "turnover", "median_turnover20",
     "bb_mid", "bb_std", "bb_width", "bb_width_med",
     "zscore", "close_pos", "range_pct",
     "or_high", "or_low", "bar_in_band",
@@ -157,6 +157,13 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
         arrays["vol_med5"][idx] = vol_med5
         with np.errstate(divide="ignore", invalid="ignore"):
             arrays["rel_vol"][idx] = volume / vol_med5
+
+        # Turnover in PKR, and its prior 20-bar median, is the liquidity
+        # screen. The entry decision never sees the entry bar's volume, which
+        # would be future information at the open.
+        turnover = close * volume
+        arrays["turnover"][idx] = turnover
+        arrays["median_turnover20"][idx] = _rolling(turnover, 20, "median", shift=1)
 
         bb_mid = _rolling(close, 20, "mean")
         bb_std = _rolling(close, 20, "std")

@@ -80,6 +80,8 @@ def _trade_frame() -> pd.DataFrame:
             "low": 99.5 if i == 1 else 99.8,
             "close": 100.5,
             "volume": 1000.0,
+            "median_turnover20": 50_000_000.0,
+            "prev_close": 100.0,
             "regular": True,
             "valid_bar": True,
             "band_key": 1,
