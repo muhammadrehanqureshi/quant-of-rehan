@@ -313,7 +313,7 @@ func (a *App) drawPriceEditor(c *Canvas) {
 	} else {
 		price = a.priceBuf
 	}
-	a.inputRow(c, ix, iy, iw, "SYMBOL", sym, a.priceField == 0)
+	a.inputRow(c, ix, iy, iw, "SCRIP", sym, a.priceField == 0)
 	a.inputRow(c, ix, iy+2, iw, "PRICE", price, a.priceField == 1)
 	msg := a.priceMsg
 	if msg == "" {

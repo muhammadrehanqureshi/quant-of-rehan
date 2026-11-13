@@ -18,42 +18,31 @@ func readWindowSource(t *testing.T, name string) string {
 }
 
 // Owner order 2026-11-11 (third pass): the green and red bars keep their 16
-// cells and height and carry ten touching boxes in exactly one shade per side.
-// The status note is awake from the 08:55 scan start.
+// cells and height, with ten cells on a compact bar. Owner order 2026-11-13:
+// the split follows those cells, not the ten boxes, so the bar carries the
+// buyers' exact share. The status note is awake from the 08:55 scan start.
 
 func TestShareBarHoldsTenBoxesOverTheSameCells(t *testing.T) {
 	if shareBarBoxes != 10 {
-		t.Fatalf("the bar holds %d boxes, want ten", shareBarBoxes)
+		t.Fatalf("the compact bar holds %d boxes, want ten", shareBarBoxes)
 	}
 	if shareBarSpan != 16 {
 		t.Fatalf("the bar is %d cells, want its 16 cells untouched", shareBarSpan)
 	}
-	widths := shareBarBoxWidths(shareBarSpan)
-	if len(widths) != 10 {
-		t.Fatalf("the bar drew %d boxes", len(widths))
-	}
-	sum := 0
-	for _, w := range widths {
-		if w < 1 {
-			t.Fatalf("a box is %d cells long: %v", w, widths)
-		}
-		sum += w
-	}
-	if sum != shareBarSpan {
-		t.Fatalf("the ten boxes cover %d cells of the bar's %d: %v",
-			sum, shareBarSpan, widths)
-	}
-	if widths[0] != 2 || widths[len(widths)-1] != 1 {
-		t.Fatalf("the remainder is not on the leading boxes: %v", widths)
-	}
-	for _, span := range []int{10, 8, 21} {
-		w := shareBarBoxWidths(span)
-		n := 0
-		for _, v := range w {
-			n += v
-		}
-		if n != span {
-			t.Fatalf("span %d: the boxes cover %d cells", span, n)
+	for _, c := range []struct {
+		buy, sell int64
+		span, want int
+	}{
+		{5, 5, shareBarSpan, 8},
+		{884017, 1376954, shareBarSpan, 6},
+		{1376954, 884017, shareBarSpan, 10},
+		{0, 100, shareBarSpan, 0},
+		{100, 0, shareBarSpan, 16},
+		{5, 5, 10, 5},
+	} {
+		if got := shareGreenCells(c.buy, c.sell, c.span); got != c.want {
+			t.Fatalf("%d buys and %d sells on %d cells drew %d green, want %d",
+				c.buy, c.sell, c.span, got, c.want)
 		}
 	}
 }

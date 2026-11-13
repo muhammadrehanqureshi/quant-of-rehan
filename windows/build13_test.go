@@ -210,8 +210,11 @@ func TestCalculatorShowsTheMoneyTheSharesNeed(t *testing.T) {
 		t.Fatalf("the calculator's digits must not switch pages: screen %d", a.screen)
 	}
 	a.onKey(Key{Kind: KEsc})
-	if a.calcOpen || strings.Contains(plain(a), "POSITION CALCULATOR") {
-		t.Fatal("ESC must close the calculator")
+	if a.calcOpen {
+		t.Fatal("ESC must take the keys out of the calculator")
+	}
+	if !strings.Contains(plain(a), "POSITION CALCULATOR") {
+		t.Fatal("the calculator tile must stay under CUSTOM SCRIPS when it has no keys")
 	}
 	// The boxes keep what was typed, so F6 reopens the same sum.
 	a.onKey(Key{Kind: KF6})
