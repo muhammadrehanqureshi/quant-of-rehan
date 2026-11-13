@@ -61,9 +61,12 @@ CRONS = [
                                 # 09:20/09:25 pre-open retries (the zero gate
                                 # is still open until 09:30), 09:32 band wake
     "30 7 * * 1-4",      # Mon-Thu 12:30 PKT afternoon scan dispatch
-    "0,5,10,17 4 * * 5",     # Friday 09:00 pre-open capture (owner order
-                             # 2026-11-12, it was 08:55), 09:05/09:10 retries,
-                             # 09:17 session 1 open
+    "55,5,10,17 3,4 * * 5",  # Friday 08:55 pre-open capture (owner order
+                             # 2026-11-13: five minutes before the 09:00
+                             # pre-open, so the capture starts first),
+                             # 09:05/09:10 retries, 09:17 session 1 open. The
+                             # 08:05/08:10/08:17 fires are discarded as
+                             # non-edges by the worker's own check.
     "10,20,25,32 9 * * 5",   # Friday 14:10 second pre-open warm-up,
                              # 14:20/14:25 retries, 14:32 open
     "0,30,33,40,45 7,10,11 * * 1-5",  # 12:00/12:30/15:30/16:30 PKT closes,

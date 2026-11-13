@@ -350,7 +350,7 @@ class TestTheOneSecondSessionWorkflow(unittest.TestCase):
                 pkt = datetime(2026, 10, 5, hour, minute, tzinfo=KARACHI) \
                     + timedelta(hours=5, days=weekday - 1)
                 day = pkt.date()
-                if expression in ('15 4 * * 1-4', '0 4 * * 5',
+                if expression in ('15 4 * * 1-4', '55 3 * * 5',
                                   '10 9 * * 5'):
                     # The deliberate early lead, held asleep until the open.
                     continue
@@ -561,10 +561,10 @@ class TestCloudflareSchedule(unittest.TestCase):
         self.assertEqual(
             sorted(pair_crons),
             ["0,30,33,40,45 7,10,11 * * 1-5",
-             "0,5,10,17 4 * * 5",
              "10,20,25,32 9 * * 5",
              "15,20,25,32 4 * * 1-4",
-             "30 7 * * 1-4"],
+             "30 7 * * 1-4",
+             "55,5,10,17 3,4 * * 5"],
             "cloud/pair.py and cloud/wrangler.toml disagree about "
             "the cron schedule, so the deploy would set something "
             "other than the schedule this suite just proved")
@@ -619,15 +619,17 @@ class TestCloudflareSchedule(unittest.TestCase):
         for expression in crons_of(SESSION_WORKFLOW):
             for hour, minute, weekdays in cron_fires(expression):
                 windows.append(((hour + 5) % 24, minute, frozenset(weekdays)))
-        # Owner order 2026-10-24: six runnable windows per week. The 09:00
-        # Mon-Thu window covers pre-market and band 1; the post-close
+        # Owner order 2026-10-24: six runnable windows per week. The 08:55
+        # Friday window opens before the exchange's 09:00 pre-open (owner
+        # order 2026-11-13); the 09:15 Mon-Thu window covers pre-market and
+        # band 1; the post-close
         # window at 15:32 covers the exchange's Mon-Thu Post-Close Session,
         # and the 16:32 Friday window covers Friday's own post-market window
         # (16:32 to 16:49), which the five-window law of 2026-10-21 left
         # unwoken - the Friday emails that never arrived.
         self.assertEqual(
             sorted(windows),
-            [(9, 0, frozenset({5})),
+            [(8, 55, frozenset({5})),
              (9, 15, frozenset({1, 2, 3, 4})),
              (12, 30, frozenset({1, 2, 3, 4})),
              (14, 10, frozenset({5})),
@@ -647,7 +649,7 @@ class TestCloudflareSchedule(unittest.TestCase):
             "const WEEKDAY_WINDOWS = [[[9, 15], [12, 30]], "
             "[[12, 30], [15, 30]],", source)
         self.assertIn(
-            "const FRIDAY_WINDOWS = [[[9, 0], [12, 30]], "
+            "const FRIDAY_WINDOWS = [[[8, 55], [12, 30]], "
             "[[14, 10], [16, 30]],", source)
         worker_wakes: dict[int, dict[int, set[int]]] = {}
         for expression in crons_of(WRANGLER):
@@ -693,6 +695,42 @@ class TestScheduleRobustness(unittest.TestCase):
                 self.assertIn(
                     f'"{expression}"', text,
                     f"{expression} has no arm in the slot mapping step")
+
+
+class TestFridayCaptureStartsBeforeThePreOpen(unittest.TestCase):
+    """Owner order 2026-11-13: the Friday pre-open opens at 09:00, so the
+    capture must already be running when it does.
+
+    The session loop's first Friday fire is the recorder warm-up. It fired at
+    09:00, exactly on the pre-open, so the first ten minutes of pre-market
+    volume could only be reported as UNCLEAR. It now fires at 08:55, the same
+    five minute lead the 14:10 warm-up gives the 14:15 second pre-open, and the
+    relay's own dispatch window opens with it.
+    """
+
+    def test_the_recorder_opens_five_minutes_before_the_friday_pre_open(self):
+        self.assertEqual(market_state_at(at(FRIDAY, 8, 54)),
+                         MarketState.CLOSED)
+        self.assertEqual(market_state_at(at(FRIDAY, 9, 0)),
+                         MarketState.PRE_MARKET,
+                         "the exchange's Friday pre-open starts at 09:00")
+        crons = crons_of(SESSION_WORKFLOW)
+        self.assertIn("55 3 * * 5", crons)
+        self.assertNotIn("0 4 * * 5", crons,
+                         "09:00 PKT is the pre-open itself, not before it")
+        minute, hour, mask = parse_cron("55 3 * * 5")
+        self.assertEqual((hour + 5) % 24, 8, "03:55 UTC is 08:55 PKT")
+        self.assertEqual(minute, 55)
+        self.assertEqual(weekdays_of(mask), [5])
+
+    def test_the_relay_dispatch_window_opens_with_the_recorder(self):
+        source = (ROOT / "cloud" / "worker.js").read_text(encoding="utf-8")
+        self.assertIn("const FRIDAY_WINDOWS = [[[8, 55], [12, 30]],", source)
+        wakes = {((hour + 5) % 24, minute)
+                 for expression in crons_of(WRANGLER)
+                 for hour, minute, _days in cron_fires(expression)}
+        self.assertIn((8, 55), wakes,
+                      "no relay wake stands on the 08:55 window open")
 
 
 class TestRetiredEngineContainment(unittest.TestCase):

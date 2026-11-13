@@ -39,7 +39,11 @@ compatibility_date = "2026-10-01"
 #   dedupe key separates it from the morning loop).
 # 10:33 UTC = 15:33 PKT (Mon-Thu post-market window wake: the quant scans
 #   from 15:32 to 15:49, the feed's last post-close print)
-# 03:55 UTC = 08:55 PKT (Friday pre-open recorder warm-up)
+# 03:55 UTC = 08:55 PKT (Friday pre-open recorder warm-up; owner order
+#   2026-11-13: the capture starts five minutes before the exchange's 09:00
+#   pre-open, so no pre-market print is missed. The same expression also
+#   fires at 08:05/08:10/08:17, which the worker discards, and carries the
+#   09:05/09:10 retries)
 # 04:17 UTC = 09:17 PKT (Friday session 1 open, packed with the warm-up)
 # 07:00 UTC = 12:00 PKT (Friday session 1 close, midday break begins)
 # 09:10 UTC = 14:10 PKT (Friday session 2 pre-open recorder warm-up; the band
@@ -57,7 +61,7 @@ compatibility_date = "2026-10-01"
 crons = [
   "15,20,25,32 4 * * 1-4",
   "30 7 * * 1-4",
-  "0,5,10,17 4 * * 5",
+  "55,5,10,17 3,4 * * 5",
   "10,20,25,32 9 * * 5",
   "0,30,33,40,45 7,10,11 * * 1-5",
 ]
