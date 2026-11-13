@@ -78,9 +78,11 @@ and derives 15m, 30m, 1h and 1D. The 1D row is grouped by **Karachi session
 date**, not by UTC date, stamped at 00:00 PKT on that date, and aggregates
 the regular-session 5m bars. The pre-open and post-close bars stay in the
 intraday frames, not in the official daily open, high, low, close and volume.
-The builder checks the intraday buckets and the daily series against the
-feed's own native series on a sample of symbols every year and records the
-agreement in `manifest-{year}.json`.
+The builder checks the intraday buckets against the feed's own native series
+on a sample of symbols every year and records the agreement in
+`manifest-{year}.json`. The feed's native D series was sampled too, but its
+open, close and some volumes do not reproduce the same session's intraday
+bars, so 1D is the regular-session 5m aggregate rather than that series.
 
 The bars include the pre-open and post-close sessions, so every row carries a
 `regular` flag that is true only inside the exchange's trading bands

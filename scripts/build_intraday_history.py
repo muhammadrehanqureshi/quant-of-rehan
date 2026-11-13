@@ -176,6 +176,8 @@ def build_symbol(symbol: str, start: int, end: int, resolutions: list[int],
     daily = scs_chart.daily(bars, regular_only=True)
     result["daily_checks"] = scs_chart.validate_daily(daily)
     daily_faults = scs_chart.problems_daily(daily)
+    if len(daily) == 0:
+        daily_faults.append("no regular-session bars")
     if daily_faults:
         result["status"] = "faulted"
         result["faults"].extend(f"daily {fault}" for fault in daily_faults)
@@ -195,14 +197,6 @@ def build_symbol(symbol: str, start: int, end: int, resolutions: list[int],
                 result["native"][f"{resolution}m"] = compare(series, native)
             except scs_chart.FeedError as exc:
                 result["native"][f"{resolution}m"] = {"error": str(exc)[:160]}
-    if native_check:
-        try:
-            native_daily = scs_chart.fetch_window(session, symbol, "D",
-                                                  start, end)
-            result["native"][DAILY_TIMEFRAME] = scs_chart.compare_daily(
-                daily, native_daily)
-        except scs_chart.FeedError as exc:
-            result["native"][DAILY_TIMEFRAME] = {"error": str(exc)[:160]}
     return result
 
 
@@ -282,6 +276,10 @@ def summarise(rows: list[dict], window: tuple[int, int], year: int,
             "prices": "as traded, no split or bonus adjustment",
             "timezone": "Asia/Karachi (UTC+5); ts is UTC epoch seconds, "
                         f"and a 1D row is stamped at Karachi midnight for its session date",
+            "daily_definition": "regular-session 5m bars aggregated by Karachi "
+                                "date; the feed's native D series was sampled but "
+                                "is not used because it does not reproduce the "
+                                "intraday session",
             "first_bar_measured": scs_chart.FIRST_BAR_DATE,
             "sessions": "regular flag marks the exchange's trading bands; "
                         "pre-open and post-close bars are kept",
