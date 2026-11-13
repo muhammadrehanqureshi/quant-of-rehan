@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"strconv"
 	"strings"
 )
@@ -66,33 +65,32 @@ func calcAmount(priceText, qtyText string) (float64, bool) {
 	return p * q, true
 }
 
-// drawCalculator is the form: the two boxes, the rule, the total.
-func (a *App) drawCalculator(c *Canvas) {
+// drawCalculatorTile draws the calculator in its own tile under CUSTOM SCRIPS
+// OF VOLUME: the price and the quantity side by side, the total under them.
+// The tile always stands, with the last values, whether or not it has the keys.
+func (a *App) drawCalculatorTile(c *Canvas, x, y, w, h int) {
 	th := a.th
-	w := min(52, a.w-4)
-	h := 10
-	if w < 24 || h > a.h-2 {
+	if w < 24 || h < 4 {
 		return
 	}
-	x, y := (a.w-w)/2, (a.h-h)/2
-	ix, iy, iw, _ := a.panel(c, x, y, w, h, "POSITION CALCULATOR", "F6 or ESC closes")
-	a.inputRow(c, ix, iy, iw, "PRICE", a.calcPrice, a.calcField == 0)
-	a.inputRow(c, ix, iy+2, iw, "QUANTITY", a.calcQty, a.calcField == 1)
-	c.HLine(ix, iy+4, iw, '─', mix(th.Line, th.Panel, 0.3))
+	hint := "Click or F6 to type"
+	if a.calcOpen {
+		hint = "TAB next  ESC leaves"
+	}
+	a.focusNext = a.calcOpen
+	ix, iy, iw, _ := a.panel(c, x, y, w, h, "POSITION CALCULATOR", hint)
+	a.addHit(x, y, w, h, func() { a.openCalc() })
+	gap := 2
+	half := (iw - gap) / 2
+	a.inputRow(c, ix, iy, half, "PRICE", a.calcPrice, a.calcOpen && a.calcField == 0)
+	a.inputRow(c, ix+half+gap, iy, iw-half-gap, "QUANTITY", a.calcQty, a.calcOpen && a.calcField == 1)
 	total, ok := calcAmount(a.calcPrice, a.calcQty)
-	c.Text(ix, iy+5, 12, "TOTAL", th.Soft, true)
+	c.Text(ix, iy+1, 12, "TOTAL", th.Soft, true)
 	amount := "PKR -"
 	if ok {
 		amount = "PKR " + commaFloat(total, 2)
 	}
-	c.Text(ix+12, iy+5, max(1, iw-12), amount, th.Good, true)
-	hint := "The total is the price times the quantity."
-	if ok {
-		if q, err := strconv.ParseFloat(strings.TrimSpace(a.calcQty), 64); err == nil {
-			hint = fmt.Sprintf("%s shares at PKR %s", commaFloat(q, 0), commaFloat(total/q, 2))
-		}
-	}
-	c.Text(ix, iy+7, iw, fit(hint, iw), th.Soft, false)
+	c.Text(ix+12, iy+1, max(1, iw-12), amount, th.Good, true)
 }
 
 // inputRow draws one labelled field of an overlay form: a filled box, the text

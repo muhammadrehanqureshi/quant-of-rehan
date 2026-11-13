@@ -192,21 +192,39 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 	// read as one crowded box.
 	sy := y + sh + 1
 	// The sector tile sits between the search and the ranked list. It grows to
-	// show every group it can while leaving the ranked list at least seven rows,
-	// and it scrolls when there are more groups than rows. A tapped sector opens
-	// its scrips inside this tile, and the CUSTOM SCRIPS tile below stays on
-	// screen, so the two lists can be read together.
+	// show every group it can while leaving the ranked list at least six rows,
+	// and it scrolls when there are more groups than rows. Owner order
+	// 2026-11-13: the tile shows six groups at most; the rest scroll. A tapped
+	// sector opens its scrips inside this tile, and the CUSTOM SCRIPS tile below
+	// stays on screen, so the two lists can be read together.
 	sectorH := 7
 	if a.sectorOpen {
-		sectorH = min(max(len(a.visibleSectorMembers())+4, 9), 16)
+		sectorH = min(max(len(a.visibleSectorMembers())+4, 9), 10)
 	} else if n := len(a.visibleSectorIndices()); n > 0 {
-		sectorH = min(n+4, 16)
+		sectorH = min(n+4, 10)
+	}
+	// Owner order 2026-11-13: the calculator is a tile of its own under the
+	// CUSTOM SCRIPS tile. It takes four rows at the bottom of the page and the
+	// scrips list keeps the room above it. A window too short for the tile and
+	// the lists hides the tile rather than cutting the scanner's own rows.
+	calcH := 4
+	if !a.calcOpen && y+h-sy-sectorH-1-calcH < 14 {
+		calcH = 0
+	}
+	calcReserve := calcH
+	if calcH > 0 {
+		if y+h-sy-sectorH-1-calcH >= 17 {
+			calcReserve++
+		}
+		defer a.drawCalculatorTile(c, x, y+h-calcH, w, calcH)
 	}
 	// The gap costs one row. On a short window, keep the ranked list at four
-	// stocks by letting the sector list scroll instead of taking that row.
-	if a.scanChoice != 0 && !a.sectorOpen && sectorH > 5 {
+	// stocks by letting the sector list scroll instead of taking that row. The
+	// calculator already owns the rows it needs, so this old trade only runs
+	// when the tile is hidden.
+	if calcH == 0 && a.scanChoice != 0 && !a.sectorOpen && sectorH > 5 {
 		for sectorH > 5 {
-			sh2 := y + h - sy - sectorH - 1
+			sh2 := y + h - sy - sectorH - 1 - calcReserve
 			if sh2 < 6 {
 				break
 			}
@@ -228,10 +246,10 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 			sectorH--
 		}
 	}
-	if avail := y + h - sy; avail-sectorH < 7 {
-		sectorH = max(5, avail-7)
+	if avail := y + h - sy; avail-sectorH-calcReserve < 6 {
+		sectorH = max(5, avail-calcReserve-6)
 	}
-	if y+h-sy >= sectorH+7 {
+	if y+h-sy >= sectorH+1+calcReserve+6 {
 		if a.sectorOpen {
 			a.drawSectorOpen(c, x, sy, w, sectorH)
 		} else {
@@ -239,7 +257,7 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 		}
 		sy += sectorH + 1
 	}
-	sh2 := y + h - sy
+	sh2 := y + h - sy - calcReserve
 	if sh2 < 6 {
 		return
 	}
@@ -392,8 +410,7 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 				showPrice(priceRight-pxW-4, priceRight-pxW, chgRight)
 				if q.Buy != nil && q.Sell != nil {
 					if total := *q.Buy + *q.Sell; total > 0 {
-						bb, bs := a.pairOf(s, *q.Buy, *q.Sell)
-						a.shareBar(c, barStart, row, shareBarWidth, bb, bs)
+						a.shareBar(c, barStart, row, shareBarWidth, *q.Buy, *q.Sell)
 					}
 				}
 			case end-4-runeLen(px)-chgW-1 >= ix+3+used+1:
@@ -576,8 +593,7 @@ func (a *App) drawSearchTile(c *Canvas, x, y, w, h int) {
 	// Owner order 2026-11-10 (latest): the chosen stock's bar is back on the
 	// search tile, at the right edge of its own volume row.
 	if buy != nil && sell != nil && *buy+*sell > 0 && dw-used-2 >= shareBarWidth {
-		bb, bs := a.pairOf(a.selectedSym, *buy, *sell)
-		a.shareBar(c, dx+dw-shareBarWidth, dy+2, shareBarWidth, bb, bs)
+		a.shareBar(c, dx+dw-shareBarWidth, dy+2, shareBarWidth, *buy, *sell)
 	}
 }
 
@@ -971,27 +987,9 @@ const shareBarGap = 2
 // the NET DELTA after it.
 const shareBarWidth = shareBarSpan + shareBarGap + shareNetW
 
-// pairOf is the one buy and sell pair every bar in the build reads, so a scrip
-// draws the same bar on the scanner, on both ALERTS boards, on the search tile,
-// on the KSE100 leaders and on ORDER FLOW. Owner order 2026-11-12 (latest): the
-// relay's measured day pair from the flow table wins, because that is the pair
-// the whole build prints as B and S. A scrip with no measured row, or a build
-// with no flow table yet, keeps the pair its own row carries, which is the only
-// pair it has.
-func (a *App) pairOf(sym string, buy, sell int64) (int64, int64) {
-	if a.of != nil {
-		for _, fr := range a.of.Rows {
-			if fr.Symbol == sym && fr.Measured() {
-				return *fr.Buy, *fr.Sell
-			}
-		}
-	}
-	return buy, sell
-}
-
-// shareBar draws a buy versus sell bar: ten boxes of two cells, then one
-// space, then the NET DELTA, so the two sides' strength and the difference
-// between them read in one glance.
+// shareBar draws a buy versus sell bar: its sixteen cells split at the buyers'
+// exact share, then one gutter, then the NET DELTA, so the two sides' strength
+// and the difference between them read in one glance.
 func (a *App) shareBar(c *Canvas, x, y, w int, buy, sell int64) {
 	a.drawShareBar(c, x, y, w, buy, sell, true)
 }
@@ -1016,9 +1014,8 @@ func (a *App) shareBarOnly(c *Canvas, x, y, w int, buy, sell int64) int {
 func (a *App) drawShareBar(c *Canvas, x, y, w int, buy, sell int64, label bool) int {
 	th := a.th
 	total := buy + sell
-	share := 0.5
-	if total > 0 {
-		share = float64(buy) / float64(total)
+	if total <= 0 {
+		return 0
 	}
 	// The bar is 16 cells; a caller with less room (the ALERTS boards pass the
 	// ten cells of a compact bar) gets a bar of exactly the room it has.
@@ -1029,36 +1026,26 @@ func (a *App) drawShareBar(c *Canvas, x, y, w int, buy, sell int64, label bool) 
 			span = w - shareNetW - shareBarGap
 		}
 	}
-	green := int(math.Round(share * float64(shareBarBoxes)))
-	if green < 0 {
-		green = 0
-	}
-	if green > shareBarBoxes {
-		green = shareBarBoxes
-	}
-	// Ten boxes over the sixteen cells, touching and unbroken: each box takes
-	// its slice and no gap is drawn between them. Owner order 2026-11-11
-	// (third pass): one shade of green and one shade of red, no paler step, so
-	// the bar reads as one band in exactly two inks.
-	at := 0
-	for i, width := range shareBarBoxWidths(span) {
+	// Owner order 2026-11-13: the split stands on the bar's own cells, not on
+	// the ten boxes. Rounding to four of ten boxes drew 39 percent of buying as
+	// eight of sixteen green cells, a false 50/50; the same share is six green
+	// cells here. One shade of green and one shade of red, no paler step.
+	green := shareGreenCells(buy, sell, span)
+	for k := 0; k < span; k++ {
+		// Owner order 2026-11-12 (latest): the centred rectangle in the bold
+		// cut, the taller glyph the owner chose. Nothing else about the bar
+		// changes.
 		ink := th.Bad
-		if i < green {
+		if k < green {
 			ink = th.Good
 		}
-		for k := at; k < at+width; k++ {
-			// Owner order 2026-11-12 (latest): the centred rectangle in the bold
-			// cut, the taller glyph the owner chose. Nothing else about the bar
-			// changes.
-			c.Put(x+k, y, barBlock, ink, true)
-		}
-		at += width
+		c.Put(x+k, y, barBlock, ink, true)
 	}
 	width := span
 	if label {
 		// Owner order 2026-11-12 (latest): the percentage is gone and the NET
-		// DELTA takes its place, signed and right aligned in the same cells,
-		// green when the buyers are ahead and red when the sellers are.
+		// DELTA takes its place as a magnitude in the same cells, green when the
+		// buyers are ahead and red when the sellers are.
 		net := buy - sell
 		ink, bold := th.Soft, false
 		switch {
@@ -1076,21 +1063,26 @@ func (a *App) drawShareBar(c *Canvas, x, y, w int, buy, sell int64, label bool) 
 	return width
 }
 
-// shareBarBoxWidths is the cells each of the ten boxes takes across a bar of
-// span cells. Owner order 2026-11-11: the bar holds ten boxes and not sixteen,
-// and each box grows to fill the same span, so the cells are shared out with
-// the remainder going to the leading boxes: on the sixteen cell bar six boxes
-// are two cells and four are one, and no cell is left over or drawn twice.
-func shareBarBoxWidths(span int) []int {
-	base, extra := span/shareBarBoxes, span%shareBarBoxes
-	out := make([]int, shareBarBoxes)
-	for i := range out {
-		out[i] = base
-		if i < extra {
-			out[i]++
-		}
+// shareGreenCells is the green cells a buy and sell pair earns on a bar of
+// span cells. Owner order 2026-11-13: the pair is split on the bar's own cells,
+// so the bar carries the buyers' exact share instead of rounding it to one of
+// ten boxes.
+func shareGreenCells(buy, sell int64, span int) int {
+	if buy <= 0 || span <= 0 {
+		return 0
 	}
-	return out
+	total := buy + sell
+	if total <= 0 {
+		return 0
+	}
+	green := int(math.Round(float64(buy) / float64(total) * float64(span)))
+	if green < 0 {
+		return 0
+	}
+	if green > span {
+		return span
+	}
+	return green
 }
 
 // ---------- alerts ----------
@@ -1241,8 +1233,7 @@ func (a *App) drawBoardPanel(c *Canvas, x, y, w, h int, side int) {
 		// selling board is red because the sellers are in front, never green
 		// because that board's own side is selling, and the pair is the same
 		// measured day pair every other page prints for the scrip.
-		bb, bs := a.pairOf(b.Symbol, b.BuyShares, b.SellShares)
-		a.drawShareBar(c, ix+max(0, cw-barW), ry, barW, bb, bs, true)
+		a.drawShareBar(c, ix+max(0, cw-barW), ry, barW, b.BuyShares, b.SellShares, true)
 		if room := cw - barW - (vx - ix) - 2; room > 0 {
 			c.Text(vx, ry, room, fit(pkrTxt, room), good, true)
 		}

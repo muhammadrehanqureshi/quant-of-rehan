@@ -361,8 +361,7 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 				// ten boxes two cells wide, so it is longer without one extra box.
 				// Owner order 2026-11-12 (latest): the NET DELTA stands in its own
 				// column after the bar, buy minus sell, signed.
-				bb, bs := a.pairOf(r.Symbol, *r.Buy, *r.Sell)
-				a.shareBar(c, ix+barX, row, shareBarWidth, bb, bs)
+				a.shareBar(c, ix+barX, row, shareBarWidth, *r.Buy, *r.Sell)
 			}
 			if warn != "" {
 				c.Text(ix+cw-len(warn), row, len(warn), warn, th.Warn, true)

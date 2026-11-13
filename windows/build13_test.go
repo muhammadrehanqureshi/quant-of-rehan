@@ -186,7 +186,7 @@ func TestAlertsPageCarriesThreePriceSlots(t *testing.T) {
 }
 
 func TestCalculatorShowsTheMoneyTheSharesNeed(t *testing.T) {
-	a := demoApp(t, 120, 30)
+	a := demoApp(t, 122, 36)
 	a.screen = scrScanner
 	a.onKey(Key{Kind: KF6})
 	if !a.calcOpen {
@@ -210,8 +210,11 @@ func TestCalculatorShowsTheMoneyTheSharesNeed(t *testing.T) {
 		t.Fatalf("the calculator's digits must not switch pages: screen %d", a.screen)
 	}
 	a.onKey(Key{Kind: KEsc})
-	if a.calcOpen || strings.Contains(plain(a), "POSITION CALCULATOR") {
-		t.Fatal("ESC must close the calculator")
+	if a.calcOpen {
+		t.Fatal("ESC must take the keys out of the calculator")
+	}
+	if !strings.Contains(plain(a), "POSITION CALCULATOR") {
+		t.Fatal("the calculator tile must stay under CUSTOM SCRIPS when it has no keys")
 	}
 	// The boxes keep what was typed, so F6 reopens the same sum.
 	a.onKey(Key{Kind: KF6})
@@ -233,7 +236,7 @@ func TestCalculatorNeedsBothBoxes(t *testing.T) {
 	if v, ok := calcAmount("10.50", "100"); !ok || v != 1050 {
 		t.Fatalf("10.50 at 100 shares: %v %v", v, ok)
 	}
-	a := demoApp(t, 120, 30)
+	a := demoApp(t, 122, 36)
 	a.screen = scrScanner
 	a.openCalc()
 	for _, r := range "abc" {

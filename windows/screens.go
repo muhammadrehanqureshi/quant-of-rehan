@@ -102,9 +102,6 @@ func (a *App) render() *Canvas {
 	}
 	// The two forms float over the page, so they fit every window size the
 	// build draws.
-	if a.calcOpen {
-		a.drawCalculator(c)
-	}
 	if a.priceEdit >= 0 {
 		a.drawPriceEditor(c)
 	}
@@ -339,7 +336,7 @@ func (a *App) drawNav(c *Canvas, y int) {
 	hints := []string{"TAB NEXT  R REFRESH  Q QUIT", "R REFRESH  Q QUIT", "Q QUIT"}
 	switch a.screen {
 	case scrScanner:
-		hints = []string{"F6 CALC  TAB NEXT  ESC CLEAR  CTRL+C QUIT", "TAB NEXT  ESC CLEAR  CTRL+C QUIT", "CTRL+C QUIT"}
+		hints = []string{"TAB NEXT  ESC CLEAR  CTRL+C QUIT", "TAB NEXT  ESC CLEAR  CTRL+C QUIT", "CTRL+C QUIT"}
 	case scrAlerts:
 		hints = []string{"P PRICE ALERT  TAB NEXT  R REFRESH  Q QUIT", "TAB NEXT  R REFRESH  Q QUIT", "Q QUIT"}
 	case scrHome:
@@ -1248,8 +1245,8 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 		// same cells on every leader row, so the three lengths read down one
 		// column instead of ending where a delta begins.
 		if l.HasSplit() && barStart > ix+3+runeLen(l.Symbol)+2 {
-			if bb, bs := a.pairOf(l.Symbol, *l.Buy, *l.Sell); bb+bs > 0 {
-				a.shareBarOnly(c, barStart, row, shareBarSpan, bb, bs)
+			if *l.Buy+*l.Sell > 0 {
+				a.shareBarOnly(c, barStart, row, shareBarSpan, *l.Buy, *l.Sell)
 			}
 		}
 		row++
