@@ -26,7 +26,7 @@ FileNotFoundError, not an empty frame that a strategy would silently train on
 from __future__ import annotations
 
 import json
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from pathlib import Path
 
 import pandas as pd

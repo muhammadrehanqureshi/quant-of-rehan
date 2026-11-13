@@ -34,7 +34,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
 import threading
 import time
@@ -54,7 +53,6 @@ from src.data.sessions import KARACHI, now_karachi, session_bands  # noqa: E402
 
 DEFAULT_OUT = ROOT / "data" / "history"
 DEFAULT_UNIVERSE = ROOT / "src" / "data" / "universe_kmiall.json"
-DEFAULT_YEARS = (2021, 2022, 2023, 2024, 2025, 2026)
 #: The feed's first bar, measured 2026-11-13. Asking for 2021 from January
 #: would make the 2021 manifest report coverage against ten dead months.
 ARCHIVE_START = date(2021, 11, 13)
@@ -276,6 +274,7 @@ def summarise(rows: list[dict], window: tuple[int, int], year: int,
 
 
 def main(argv: list[str] | None = None) -> int:
+    guard_cloud_backtest("scripts/build_intraday_history.py")
     parser = argparse.ArgumentParser(
         description="build one year of the five year PSX intraday archive")
     parser.add_argument("--year", type=int, required=True)
@@ -292,8 +291,6 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--skip-r2", action="store_true")
     parser.add_argument("--r2-prefix", default="history")
     args = parser.parse_args(argv)
-
-    guard_cloud_backtest("scripts/build_intraday_history.py")
 
     resolutions = sorted({int(part) for part in args.resolutions.split(",")
                           if part.strip()})

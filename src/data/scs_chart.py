@@ -44,7 +44,7 @@ repository and never redistributed.
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import date, datetime
 from typing import Callable
 
@@ -56,8 +56,6 @@ from src.data.sessions import KARACHI, band_bounds, session_bands
 
 BASE_URL = "https://chart.scstrade.com"
 HISTORY_PATH = "/history"
-SYMBOLS_PATH = "/symbols"
-SEARCH_PATH = "/search"
 CHART_PAGE = "https://www.scstrade.com/TechnicalAnalysis/TA_RealTimeCharting.aspx"
 USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -67,7 +65,6 @@ USER_AGENT = (
 #: The base resolution the archive stores. Every other timeframe is derived
 #: from it, so one download serves all four.
 BASE_RESOLUTION = 5
-RESAMPLED = (15, 30, 60)
 
 #: Polite pacing: one request at a time per worker, this long between them.
 PACING_SECONDS = 0.35
@@ -87,11 +84,6 @@ COVERAGE_TOLERANCE_DAYS = 10
 #: The first bar the feed holds, measured on 2026-11-13. An archive that asks
 #: for earlier years would report coverage against days the source never had.
 FIRST_BAR_DATE = "2021-11-15"
-
-#: Columns every stored frame carries.
-FRAME_COLUMNS = ("symbol", "ts", "open", "high", "low", "close", "volume",
-                 "regular")
-
 
 class FeedError(RuntimeError):
     """The feed answered something this reader refuses to interpret."""
@@ -172,13 +164,6 @@ def _request_json(session: requests.Session, path: str, params: dict,
         if attempt + 1 < RETRIES:
             time.sleep(BACKOFF_SECONDS[min(attempt, len(BACKOFF_SECONDS) - 1)])
     raise FeedError(f"{path} failed after {RETRIES} attempts: {last}")
-
-
-def symbol_info(session: requests.Session, symbol: str,
-                timeout: float = TIMEOUT_SECONDS) -> dict | None:
-    """The feed's own description of a scrip, or None when it does not know it."""
-    payload = _request_json(session, SYMBOLS_PATH, {"symbol": symbol}, timeout)
-    return payload if isinstance(payload, dict) else None
 
 
 def fetch_bars(session: requests.Session, symbol: str, resolution: int,
@@ -408,17 +393,3 @@ def coverage(bars: Bars, start: int, end: int) -> dict:
     }
 
 
-@dataclass
-class FetchLog:
-    """Counters a builder prints: requests made and how each window answered."""
-
-    requests: int = 0
-    empty_windows: int = 0
-    splits: int = 0
-    failures: list[str] = field(default_factory=list)
-
-    def note(self, symbol: str, resolution: int, start: int, end: int,
-             bars: int) -> None:
-        self.requests += 1
-        if bars == 0:
-            self.empty_windows += 1
