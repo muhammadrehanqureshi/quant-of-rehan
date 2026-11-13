@@ -114,8 +114,8 @@ Every one of the 40 cells is net negative.
 
 ## Why the full 100 was not executed
 
-The pilot was deliberately a gate, not a formality. It covered nine of
-the ten families: trend (A), momentum (B), mean reversion (C), volume and
+The pilot was deliberately a gate, not a formality. It covered eight of
+the nine families: trend (A), momentum (B), mean reversion (C), volume and
 liquidity (D), volatility (E), market structure (F), statistical (G) and
 hybrids (I). The machine-learning family (H) was not represented. Ten
 hand-built rules across those families, at four timeframes, all lost
