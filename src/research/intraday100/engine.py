@@ -33,9 +33,12 @@ class ExitRule:
     target_atr: float = 1.5
     stop_atr: float = 1.0
     max_hold_bars: int = 12
-    target_min: float = 0.005
-    target_max: float = 0.030
-    stop_min: float = 0.003
+    # A target below the round-trip cost is not a trade; it is a guaranteed
+    # net loss. These floors are deliberately above the 0.748 percent
+    # baseline cost, and the gap and liquidity screens below are mandatory.
+    target_min: float = 0.015
+    target_max: float = 0.040
+    stop_min: float = 0.008
     stop_max: float = 0.020
 
 
@@ -57,6 +60,8 @@ def simulate_strategy(
     cost_side_bps: float = COST_SIDE_BPS,
     spread_side_bps: float = SPREAD_SIDE_BPS,
     bar_seconds: int = 300,
+    min_turnover_pkr: float = 1_000_000.0,
+    max_open_gap: float = 0.15,
 ) -> pd.DataFrame:
     """Simulate one strategy and return its trade ledger."""
     signal = np.asarray(mask, dtype=bool)
@@ -81,6 +86,9 @@ def simulate_strategy(
     band_end = df["band_end"].to_numpy(dtype=np.int64)
     day_ord = df["day_ord"].to_numpy(dtype=np.int64)
     atr_pct = df["atr_pct"].to_numpy(dtype=np.float64)
+    volume = df["volume"].to_numpy(dtype=np.float64)
+    median_turnover = df["median_turnover20"].to_numpy(dtype=np.float64)
+    prev_close = df["prev_close"].to_numpy(dtype=np.float64)
 
     positions = np.flatnonzero(valid)
     candidates = pd.DataFrame({
@@ -122,6 +130,16 @@ def simulate_strategy(
             if ts[j] + bar_seconds > band_end[j]:
                 continue
             if not np.isfinite(open_[j]) or open_[j] <= 0 or not np.isfinite(atr_pct[i]):
+                continue
+            # Liquidity and unadjusted-gap screens. Both use information
+            # observable at the signal close or at the entry open, never the
+            # entry bar's completed volume.
+            if volume[i] <= 0 or not np.isfinite(median_turnover[i]):
+                continue
+            if median_turnover[i] < min_turnover_pkr:
+                continue
+            if (np.isfinite(prev_close[j]) and prev_close[j] > 0
+                    and abs(open_[j] / prev_close[j] - 1.0) > max_open_gap):
                 continue
 
             entry = float(open_[j])
