@@ -784,7 +784,7 @@ class RelayWorkerContractTest(unittest.TestCase):
         # owner's 15:32 to 15:49 scanning window as its third entry.
         self.assertIn("const WEEKDAY_WINDOWS = [[[9, 15], [12, 30]], [[12, 30], [15, 30]],",
                       self.source)
-        self.assertIn("const FRIDAY_WINDOWS = [[[9, 0], [12, 30]],",
+        self.assertIn("const FRIDAY_WINDOWS = [[[8, 55], [12, 30]],",
                       self.source)
         self.assertIn("[[15, 32], [15, 49]]", self.source)
         self.assertIn("function dispatchWindowsFor(k) {", self.source)

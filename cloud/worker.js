@@ -427,21 +427,21 @@ function bandsFor(k) {
 // marketPhase, /health and the phone texts keep reading bandsFor, whose
 // parity with src/data/sessions.py is tested.
 // Owner order 2026-10-21: the pre-open and post-market windows are LIVE scan
-// windows too (banking broker ticks at one second). Owner order 2026-11-12
-// (latest): the first dispatch is the exchange's own pre-open, 09:15 PKT
-// Monday to Thursday and 09:00 on Friday; it was 08:55 and then 09:00 on every
-// day. That dispatch and the 14:10 PKT Friday one start the capture, not a
-// pre-market
-// trade, while the scanner itself waits for the exchange's published
-// pre-open window (Mon-Thu 09:15 to 09:30, Friday 09:00 to 09:15 and 14:15 to
-// 14:30). The third window is the quant's scanning window: it opens at 15:32
+// windows too (banking broker ticks at one second). Owner order 2026-11-13
+// (latest): Friday's first dispatch is 08:55 PKT, five minutes before the
+// exchange's 09:00 pre-open, so the capture begins before the pre-market
+// opens and no pre-market print is missed; Monday to Thursday keeps its 09:15
+// dispatch, on its own pre-open. That dispatch and the 14:10 PKT Friday one
+// start the capture, not a pre-market trade, while the scanner itself waits
+// for the exchange's published pre-open window (Mon-Thu 09:15 to 09:30,
+// Friday 09:00 to 09:15 and 14:15 to 14:30). The third window is the quant's scanning window: it opens at 15:32
 // (16:32 on Friday) and runs to the feed's last post-close print, 15:49 Monday
 // to Thursday and 16:49 on Friday (owner order 2026-11-12). The pre and post
 // market volume is captured to the last minute of that window.
 const WEEKDAY_WINDOWS = [[[9, 15], [12, 30]], [[12, 30], [15, 30]],
                          [[15, 32], [15, 49]]];
 
-const FRIDAY_WINDOWS = [[[9, 0], [12, 30]], [[14, 10], [16, 30]],
+const FRIDAY_WINDOWS = [[[8, 55], [12, 30]], [[14, 10], [16, 30]],
                         [[16, 32], [16, 49]]];
 
 function dispatchWindowsFor(k) {
