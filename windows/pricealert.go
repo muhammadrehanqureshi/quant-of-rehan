@@ -231,7 +231,7 @@ func (a *App) raisePriceAlert(p PriceAlert) {
 	if a.cfg.Notify {
 		sendToast("PRICE ALERT", body)
 	}
-	a.flow.Log = append(a.flow.Log, Flag{
+	a.flow.addFlag(Flag{
 		Time:   a.now,
 		Symbol: p.Symbol,
 		Kind:   "price",
@@ -240,9 +240,6 @@ func (a *App) raisePriceAlert(p PriceAlert) {
 		Text:   p.Symbol + " hit its price alert",
 		Detail: body,
 	})
-	if n := len(a.flow.Log); n > 300 {
-		a.flow.Log = a.flow.Log[n-300:]
-	}
 }
 
 // drawPriceTile is the PRICE ALERTS tile under the two boards.
@@ -264,7 +261,7 @@ func (a *App) drawPriceTile(c *Canvas, x, y, w, h int) {
 		c.Set(ix+1, ry, mark, th.Accent, bg, true)
 		c.Text(ix+3, ry, 3, strconv.Itoa(i+1)+".", th.Soft, false)
 		if !p.Set() {
-			c.Text(ix+7, ry, max(1, iw-7), fit("EMPTY. Press P to give a scrip and its price.", max(1, iw-7)), th.Soft, false)
+			c.Text(ix+7, ry, max(1, iw-7), fit("EMPTY.", max(1, iw-7)), th.Soft, false)
 			continue
 		}
 		c.Text(ix+7, ry, 9, p.Symbol, th.Hot, true)
@@ -318,7 +315,7 @@ func (a *App) drawPriceEditor(c *Canvas) {
 	msg := a.priceMsg
 	if msg == "" {
 		if a.priceField == 0 {
-			msg = "Type the KMIALL scrip, then ENTER."
+			msg = "Type a KMIALL scrip, then ENTER."
 		} else {
 			msg = "Type the price. A target below the market rings on the way down."
 		}

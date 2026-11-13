@@ -57,8 +57,10 @@ const appVersion = "4.0.21"
 // percentages, the numbered sort menu, the calculator hints and the KSE100
 // column repair are 3.5.3, and the relay's live status, the search tile's one
 // volume line, the arrowed sector percentages, the equal ALERTS boards and the
-// red break orb are 3.5.4.
-const hudBuild = "3.5.4"
+// red break orb are 3.5.4, and the green P footer key, the quiet ALERTS LOG
+// with its blank row, the uncut log and the full ORDER FLOW U sentence are
+// 3.5.5.
+const hudBuild = "3.5.5"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no
