@@ -26,9 +26,10 @@ func TestFactsValuesStandOnTheSettingsColumn(t *testing.T) {
 	a.screen = scrSettings
 	rows := rowsOf(a)
 	want := -1
+	status, _ := a.relayStatus()
 	for _, r := range rows {
 		if strings.Contains(r, "RELAY STATUS") {
-			want = col(r, "Opens the relay's health page.")
+			want = col(r, status)
 		}
 	}
 	if want < 0 {

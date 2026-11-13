@@ -51,6 +51,15 @@ func (a *App) orbGreen() bool {
 	if a.market != nil && a.market.PhaseKnown() && !a.market.TradingDay {
 		return false
 	}
+	// Owner order 2026-11-13: the mark is red while the exchange is on its
+	// midday break, and red while the relay reports a halt. The clock window
+	// alone is not enough: Friday's 12:00 break sits inside it.
+	if ph := a.quantPhase(); ph == qsBreak || ph == qsHalted {
+		return false
+	}
+	if sessionAt(p) == sesBreak {
+		return false
+	}
 	start := scanOpen // 08:55
 	end := 15*60 + 49
 	if isFriday(p) {

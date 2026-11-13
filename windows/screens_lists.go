@@ -544,7 +544,7 @@ func (a *App) drawSearchTile(c *Canvas, x, y, w, h int) {
 		return
 	}
 	if lq, ok := a.liveQuote(a.selectedSym); ok {
-		pxKey, volKey := "px:"+a.selectedSym, "vol:"+a.selectedSym
+		pxKey := "px:" + a.selectedSym
 		vx := dx
 		put := func(row int, s string, fg RGB, bold bool, keys ...string) {
 			vx += a.flashText(c, vx, row, s, fg, bold, keys...)
@@ -557,13 +557,12 @@ func (a *App) drawSearchTile(c *Canvas, x, y, w, h int) {
 		}
 		if dy+1 < bottom {
 			vx = dx
-			if lq.Volume > 0 {
-				put(dy+1, "VOL ", th.Soft, false)
-				put(dy+1, commaInt(lq.Volume), th.Text, false, volKey)
-			}
+			// Owner order 2026-11-13: VOL is withdrawn from the search tile.
+			// The B, S, U and T line already carries the volume under HIGH and
+			// LOW, so printing VOL here repeated it in a different place.
 			// Owner order 2026-11-10 (latest): HIGH comes before LOW.
 			if lq.High > 0 && lq.Low > 0 {
-				put(dy+1, "   HIGH ", th.Soft, false)
+				put(dy+1, "HIGH ", th.Soft, false)
 				put(dy+1, commaFloat(lq.High, 2), th.Good, false)
 				put(dy+1, "   LOW ", th.Soft, false)
 				put(dy+1, commaFloat(lq.Low, 2), th.Bad, false)
@@ -671,9 +670,13 @@ func (a *App) drawSectorTile(c *Canvas, x, y, w, h int) {
 		// the far right of the tile, in the colour of its side, and the rows
 		// above it are the groups that percentage ranks higher.
 		pct, cnt := sectorChangeIn(tbl, g)
-		pctText, pctInk := "    --", th.Soft
+		pctText, pctInk := "--", th.Soft
 		if cnt > 0 {
-			pctText = fmt.Sprintf("%+6.2f%%", pct)
+			// Owner order 2026-11-13: the direction is an arrow, never a
+			// plus or minus sign. The value is right aligned in the same
+			// nine cells the scanner gives its NET DELTA, so the two right
+			// hand columns end on one edge.
+			pctText = changeText(pct)
 			if pct < 0 {
 				pctInk = th.Bad
 			} else if pct > 0 {
@@ -681,11 +684,11 @@ func (a *App) drawSectorTile(c *Canvas, x, y, w, h int) {
 			}
 		}
 		c.Text(ix+3, ry, 3, fmt.Sprintf("%2d.", i+1), th.Soft, false)
-		const pctW = 7
+		pctW := shareNetW
 		pctX := ix + cw - pctW
 		nameW := max(1, pctX-(ix+7)-2)
 		c.Text(ix+7, ry, nameW, fit(g.Name, nameW), th.Text, idx == a.sectorChoice)
-		c.Text(pctX, ry, pctW, pctText, pctInk, true)
+		rightAlign(c, pctX, ry, pctW, []Span{{pctText, pctInk, true}})
 	}
 	a.scrollbar(c, ix+iw-1, listY, a.lvSector.view, &a.lvSector)
 }
@@ -755,7 +758,7 @@ func (a *App) drawSectorOpen(c *Canvas, x, y, w, h int) {
 	spans := []Span{{g.Name, th.Hot, true}}
 	if v, n := a.sectorChange(g); n > 0 {
 		spans = append(spans, Span{"  ·  ", th.Soft, false},
-			Span{fmt.Sprintf("%+.2f%%", v), a.dirColor(v), true})
+			Span{changeText(v), a.dirColor(v), true})
 	}
 	spans = append(spans, Span{"  ·  ", th.Soft, false}, Span{detail, th.Soft, false})
 	c.Spans(ix, iy, iw, spans)
@@ -1110,11 +1113,13 @@ func (a *App) drawAlerts(c *Canvas, x, y, w, h int) {
 		priceH = 0
 	}
 	if w >= 84 {
-		lw := w / 2
-		rw := w - lw - 1
-		a.drawBoardPanel(c, x, y, lw, boardH, sideBuy)
-		a.drawBoardPanel(c, x+lw+1, y, rw, boardH, sideSell)
-		a.alertSplitX = x + lw + 1
+		// Owner order 2026-11-13: both boards are the same width, so the PKR
+		// values, the changes and the bars end on one column. The old split
+		// made the selling board one cell narrower, which moved its values.
+		bw := (w - 1) / 2
+		a.drawBoardPanel(c, x, y, bw, boardH, sideBuy)
+		a.drawBoardPanel(c, x+bw+1, y, bw, boardH, sideSell)
+		a.alertSplitX = x + bw + 1
 	} else {
 		side := sideBuy
 		if a.alertFocus == 1 {
@@ -1221,28 +1226,33 @@ func (a *App) drawBoardPanel(c *Canvas, x, y, w, h int, side int) {
 			val = b.SellValue
 		}
 		pkrTxt := "PKR " + compactNum(val)
-		vx := ix + 25
-		if b.ChangePct != nil && cw-25-(chgW+2)-runeLen(pkrTxt)-2 >= shareBarSpan {
+		// Owner order 2026-11-13: the board bar shows only the B versus S
+		// dominance. The NET DELTA label is gone from these two boards; the
+		// PKR value is right aligned on a fixed column instead. The bar still
+		// reads the row's own measured pair, never the board's chosen side.
+		barW := shareBarSpan
+		if barW > cw {
+			barW = cw
+		}
+		barX := ix + cw - barW
+		pkrFieldW := 10
+		pkrX := barX - 2 - pkrFieldW
+		if pkrX < ix+25 {
+			pkrX = ix + 25
+			pkrFieldW = max(1, barX-2-pkrX)
+		}
+		if pkrFieldW < 1 {
+			pkrFieldW = 1
+		}
+		if b.ChangePct != nil && pkrX-(ix+25) >= chgW+2 {
 			a.flashText(c, ix+25, ry, padRight(changeText(*b.ChangePct), chgW), a.dirColor(*b.ChangePct), true, pxKey)
-			vx = ix + 25 + chgW + 2
 		}
-		// Owner order 2026-11-12 (latest): every bar in the build carries its
-		// NET DELTA, both boards included, so a board row can never show a bar
-		// with no figure beside it. The field keeps room for the label before
-		// it gives cells away, so the bar shrinks and the figure never leaves.
-		const minBar = shareBarBoxes + shareBarGap + shareNetW
-		barW := shareBarWidth
-		if room := cw - (vx - ix) - runeLen(pkrTxt) - 2; room < barW {
-			barW = max(minBar, room)
-		}
+		rightAlign(c, pkrX, ry, pkrFieldW, []Span{{pkrTxt, good, true}})
 		// Owner order 2026-11-12 (latest): both boards draw the one bar, so a
 		// selling board is red because the sellers are in front, never green
 		// because that board's own side is selling, and the pair is the same
 		// measured day pair every other page prints for the scrip.
-		a.drawShareBar(c, ix+max(0, cw-barW), ry, barW, b.BuyShares, b.SellShares, true)
-		if room := cw - barW - (vx - ix) - 2; room > 0 {
-			c.Text(vx, ry, room, fit(pkrTxt, room), good, true)
-		}
+		a.drawShareBar(c, barX, ry, barW, b.BuyShares, b.SellShares, false)
 	}
 	a.scrollbar(c, x+w-2, iy, ih, lv)
 }
