@@ -91,8 +91,10 @@ class ResampleTest(unittest.TestCase):
     def test_resample_does_not_cross_the_friday_break(self):
         # Friday 2026-11-06: bands 09:17-12:00 and 14:32-16:30.
         morning = _bars("2026-11-06", count=30, price=100.0)  # 09:30 to 11:55
-        afternoon = _bars("2026-11-06", count=12, price=200.0)
-        afternoon.ts += int(timedelta(hours=5, minutes=2).total_seconds())
+        raw = _bars("2026-11-06", count=12, price=200.0)
+        shift = int(timedelta(hours=5, minutes=2).total_seconds())
+        afternoon = scs_chart.Bars(raw.ts + shift, raw.open, raw.high, raw.low,
+                                   raw.close, raw.volume)
         bars = scs_chart.Bars(
             np.concatenate([morning.ts, afternoon.ts]),
             np.concatenate([morning.open, afternoon.open]),

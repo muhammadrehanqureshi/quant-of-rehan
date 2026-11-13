@@ -234,20 +234,6 @@ def put_object(key: str, payload: bytes,
     return result
 
 
-def get_object(key: str) -> dict:
-    """GET one object by key. A 404 is a named absence, never an empty body."""
-    creds = _credential()
-    if creds is None:
-        return {"ok": False, "reason": "no CF_API_TOKEN/CF_ACCOUNT_ID credential"}
-    url = bucket_url() + "/" + quote(key, safe="")
-    result = _call(method="GET", url=url, headers=_headers(creds[0]), timeout=600)
-    if result.get("status") == 404:
-        return {"ok": False, "reason": "not found", "status": 404}
-    if not result["ok"]:
-        return {"ok": False, "reason": f"HTTP {result.get('status')}"}
-    return {"ok": True, "body": result["body"], "bytes": len(result["body"])}
-
-
 def push(day: date = None) -> dict:
     """Push the day's whole state. Best effort; returns a summary dict.
 
