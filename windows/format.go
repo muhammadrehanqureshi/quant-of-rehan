@@ -51,14 +51,11 @@ func commaFloat(f float64, dec int) string {
 	return b.String()
 }
 
-// signedCompact writes a whole number with a minus sign only when it is below
-// zero, using the compact form. Owner order 2026-11-11: a rise carries no plus
-// sign, because the number already reads as positive.
+// signedCompact writes a NET DELTA as a magnitude, never with a sign. Owner
+// order 2026-11-13: the minus is dropped from the whole build; the side is
+// carried by the ink, green when buyers are ahead and red when sellers are.
 func signedCompact(n int64) string {
-	if n < 0 {
-		return "-" + compactNum(float64(-n))
-	}
-	return compactNum(float64(n))
+	return compactNum(math.Abs(float64(n)))
 }
 
 // arrow returns the direction glyph used across the app.
@@ -157,8 +154,8 @@ func plural(n int, noun string) string {
 
 // friendlyNext words the relay's next event, such as "OPEN 2026-11-02 09:32",
 // the way a person would say it. An OPEN is the next scanning window, which
-// starts at scanOpen (09:00), not the exchange's 09:32 opening bell, so the
-// telemetry says "Mon 02 Nov, 09:00". A CLOSE keeps the relay's time.
+// starts at scanOpen (08:55), not the exchange's 09:32 opening bell, so the
+// telemetry says "Mon 02 Nov, 08:55". A CLOSE keeps the relay's time.
 // Anything it does not recognise is shown as the relay sent it.
 func friendlyNext(s string) string {
 	parts := strings.Fields(s)

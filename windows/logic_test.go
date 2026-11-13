@@ -459,16 +459,16 @@ func TestScanWindow(t *testing.T) {
 		t    time.Time
 		want bool
 	}{
-		// Owner order 2026-11-12 (latest): Monday to Thursday the window is 09:00
-		// to 15:49, and Friday's is 09:00 to 16:49.
-		{at(2, 8, 59, 59), false}, {at(2, 9, 0, 0), true}, {at(2, 9, 20, 0), true}, {at(2, 12, 0, 0), true},
+		// Owner order 2026-11-13 (latest): every trading day the window is 08:55
+		// to the day's close, 15:49 Monday to Thursday and 16:49 on Friday.
+		{at(2, 8, 54, 59), false}, {at(2, 8, 55, 0), true}, {at(2, 9, 0, 0), true}, {at(2, 9, 20, 0), true}, {at(2, 12, 0, 0), true},
 		{at(2, 15, 31, 0), true}, {at(2, 15, 48, 59), true}, {at(2, 15, 49, 0), true},
 		// The window closes at 15:49 and the grace period catches the final
 		// print, so 15:49:29 still scans and 15:49:30 does not.
 		{at(2, 15, 49, 29), true}, {at(2, 15, 49, 30), false}, {at(2, 16, 0, 0), false},
 		{at(2, 23, 0, 0), false},
 		// Friday: the same start, an hour later at the end.
-		{at(6, 8, 59, 59), false}, {at(6, 9, 0, 0), true}, {at(6, 13, 0, 0), true},
+		{at(6, 8, 54, 59), false}, {at(6, 8, 55, 0), true}, {at(6, 9, 0, 0), true}, {at(6, 13, 0, 0), true},
 		{at(6, 16, 48, 59), true}, {at(6, 16, 49, 0), true}, {at(6, 16, 49, 29), true}, {at(6, 16, 49, 30), false},
 		{at(6, 17, 0, 0), false},
 		// The weekend is never scanned.
@@ -513,20 +513,20 @@ func TestSessionNamesFollowThePSXLaw(t *testing.T) {
 func TestFirstScanOfTheDayIsOnTime(t *testing.T) {
 	a := newTestApp(t)
 	a.market = marketIn("CLOSED")
-	// Ten seconds before 09:00 the slow check must not sleep past the start.
-	a.now = time.Date(2026, 11, 2, 8, 59, 50, 0, pkt)
+	// Ten seconds before 08:55 the slow check must not sleep past the start.
+	a.now = time.Date(2026, 11, 2, 8, 54, 50, 0, pkt)
 	for _, n := range []string{"quotes", "market", "signals", "health"} {
 		if got := a.interval(n); got != 10*time.Second {
-			t.Errorf("%s at 08:59:50: %v, want 10s", n, got)
+			t.Errorf("%s at 08:54:50: %v, want 10s", n, got)
 		}
 	}
-	// Friday evening: the next start is Monday 09:00, so the check stays slow.
+	// Friday evening: the next start is Monday 08:55, so the check stays slow.
 	a.now = time.Date(2026, 11, 6, 20, 0, 0, 0, pkt)
 	if got := a.interval("quotes"); got != 30*time.Second {
 		t.Errorf("Friday evening: %v", got)
 	}
-	if u := untilScanStart(a.now); u != 61*time.Hour {
-		t.Errorf("until Monday 09:00 from Friday 20:00: %v", u)
+	if u := untilScanStart(a.now); u != 60*time.Hour+55*time.Minute {
+		t.Errorf("until Monday 08:55 from Friday 20:00: %v", u)
 	}
 }
 
@@ -613,8 +613,8 @@ func TestAdaptivePolling(t *testing.T) {
 
 // TestDailyBudget adds up the requests a full day of the default pace would
 // use against the free Cloudflare allowance of 100,000 a day. The scanning
-// window runs from 09:00 to 30 seconds after the post-market closes: 15:49:30
-// Monday to Thursday and 16:49:30 on Friday (owner order 2026-11-12). The
+// window runs from 08:55 to 30 seconds after the post-market closes: 15:49:30
+// Monday to Thursday and 16:49:30 on Friday (owner order 2026-11-13). The
 // console is assumed open for
 // all 24 hours, with the Scanner or Search screen (the extra prices call) open
 // for the whole of it.

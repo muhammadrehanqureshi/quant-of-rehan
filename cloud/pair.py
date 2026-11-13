@@ -56,10 +56,13 @@ SUBDOMAIN = "mrmrehanqureshi"  # workers.dev subdomain of this account
 # without a message. Each edge is still covered by exactly one trigger, so
 # nothing is sent twice.
 CRONS = [
-    "15,20,25,32 4 * * 1-4",    # Mon-Thu 09:15 PKT pre-open capture (owner
-                                # order 2026-11-12, it was 08:55 then 09:00),
-                                # 09:20/09:25 pre-open retries (the zero gate
-                                # is still open until 09:30), 09:32 band wake
+    "55,15,20,25,32 3,4 * * 1-4",  # Mon-Thu 08:55 PKT pre-open capture
+                                # (owner order 2026-11-13: five minutes before
+                                # the 09:15 pre-open), 09:15/09:20/09:25
+                                # pre-open retries (the zero gate is still
+                                # open until 09:30), 09:32 band wake. The
+                                # 08:15/08:20/08:25/08:32 fires are discarded
+                                # as non-edges by the worker's own check.
     "30 7 * * 1-4",      # Mon-Thu 12:30 PKT afternoon scan dispatch
     "55,5,10,17 3,4 * * 5",  # Friday 08:55 pre-open capture (owner order
                              # 2026-11-13: five minutes before the 09:00

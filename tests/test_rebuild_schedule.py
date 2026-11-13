@@ -350,7 +350,7 @@ class TestTheOneSecondSessionWorkflow(unittest.TestCase):
                 pkt = datetime(2026, 10, 5, hour, minute, tzinfo=KARACHI) \
                     + timedelta(hours=5, days=weekday - 1)
                 day = pkt.date()
-                if expression in ('15 4 * * 1-4', '55 3 * * 5',
+                if expression in ('55 3 * * 1-4', '55 3 * * 5',
                                   '10 9 * * 5'):
                     # The deliberate early lead, held asleep until the open.
                     continue
@@ -562,8 +562,8 @@ class TestCloudflareSchedule(unittest.TestCase):
             sorted(pair_crons),
             ["0,30,33,40,45 7,10,11 * * 1-5",
              "10,20,25,32 9 * * 5",
-             "15,20,25,32 4 * * 1-4",
              "30 7 * * 1-4",
+             "55,15,20,25,32 3,4 * * 1-4",
              "55,5,10,17 3,4 * * 5"],
             "cloud/pair.py and cloud/wrangler.toml disagree about "
             "the cron schedule, so the deploy would set something "
@@ -619,26 +619,27 @@ class TestCloudflareSchedule(unittest.TestCase):
         for expression in crons_of(SESSION_WORKFLOW):
             for hour, minute, weekdays in cron_fires(expression):
                 windows.append(((hour + 5) % 24, minute, frozenset(weekdays)))
-        # Owner order 2026-10-24: six runnable windows per week. The 08:55
-        # Friday window opens before the exchange's 09:00 pre-open (owner
-        # order 2026-11-13); the 09:15 Mon-Thu window covers pre-market and
-        # band 1; the post-close
-        # window at 15:32 covers the exchange's Mon-Thu Post-Close Session,
-        # and the 16:32 Friday window covers Friday's own post-market window
+        # Owner order 2026-10-24: six runnable windows per week. Owner order
+        # 2026-11-13: the first window opens at 08:55 on every trading day,
+        # five minutes before the exchange's first pre-open (09:15 Mon-Thu,
+        # 09:00 Friday), so the recorder never misses the first print; the
+        # 12:30 window covers the afternoon band, the 14:10 Friday window the
+        # second pre-open, the 15:32 window the exchange's Mon-Thu Post-Close
+        # Session, and the 16:32 Friday window Friday's own post-market window
         # (16:32 to 16:49), which the five-window law of 2026-10-21 left
         # unwoken - the Friday emails that never arrived.
         self.assertEqual(
             sorted(windows),
-            [(8, 55, frozenset({5})),
-             (9, 15, frozenset({1, 2, 3, 4})),
+            [(8, 55, frozenset({1, 2, 3, 4})),
+             (8, 55, frozenset({5})),
              (12, 30, frozenset({1, 2, 3, 4})),
              (14, 10, frozenset({5})),
              (15, 32, frozenset({1, 2, 3, 4})),
              (16, 32, frozenset({5}))],
             "the session loop must offer exactly the six runnable windows: "
-            "Mon-Thu pre/band1, band 2 and post-close, Friday band 1 and "
-            "band 2, and Friday's own post-close window at 16:32 "
-            "(owner order 2026-10-24)")
+            "every day's 08:55 recorder warm-up, Mon-Thu band 2 and "
+            "post-close, Friday band 2 and Friday's own post-close window at "
+            "16:32 (owner order 2026-10-24)")
 
         # The worker's dispatcher table must carry the same window list, and
         # every one of them needs a cron wake inside its 3-minute grace.
@@ -646,7 +647,7 @@ class TestCloudflareSchedule(unittest.TestCase):
         # Owner order 2026-10-21: the pre and post windows are live scan
         # windows too, so the dispatch table carries them.
         self.assertIn(
-            "const WEEKDAY_WINDOWS = [[[9, 15], [12, 30]], "
+            "const WEEKDAY_WINDOWS = [[[8, 55], [12, 30]], "
             "[[12, 30], [15, 30]],", source)
         self.assertIn(
             "const FRIDAY_WINDOWS = [[[8, 55], [12, 30]], "

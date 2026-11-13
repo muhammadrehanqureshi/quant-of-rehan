@@ -49,8 +49,10 @@ const appVersion = "4.0.21"
 // with a NET DELTA on every bar is 3.4.8, and the leader bar back on the
 // KSE100 tile with one price column is 3.4.9, and the three PRICE ALERT slots
 // with their own chime on the ALERTS page and the F6 calculator on the SCANNER
-// page are 3.5.0.
-const hudBuild = "3.5.0"
+// page are 3.5.0, and the 08:55 scan start, the Friday 09:00 market opening,
+// the scanner's sector percentages, the ORDER FLOW NET DELTA order and the
+// KSE100 layout with an unsigned NET DELTA are 3.5.1.
+const hudBuild = "3.5.1"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no
