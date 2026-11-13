@@ -76,10 +76,11 @@ feed the chart page the owner named fetches from. It is read here through
 [src/data/scs_chart.py](src/data/scs_chart.py), which asks for 5m as the base
 and derives 15m, 30m, 1h and 1D. The 1D row is grouped by **Karachi session
 date**, not by UTC date, stamped at 00:00 PKT on that date, and aggregates
-every 5m bar of the session including the pre-open and post-close bars. The
-builder checks the intraday buckets and the daily series against the feed's
-own native series on a sample of symbols every year and records the agreement
-in `manifest-{year}.json`.
+the regular-session 5m bars. The pre-open and post-close bars stay in the
+intraday frames, not in the official daily open, high, low, close and volume.
+The builder checks the intraday buckets and the daily series against the
+feed's own native series on a sample of symbols every year and records the
+agreement in `manifest-{year}.json`.
 
 The bars include the pre-open and post-close sessions, so every row carries a
 `regular` flag that is true only inside the exchange's trading bands
