@@ -34,6 +34,7 @@ from src.research.intraday100 import (  # noqa: E402
     CGT_RATE,
     COST_SIDE_BPS,
     SPREAD_SIDE_BPS,
+    TIMEFRAME_SECONDS,
     TRADE_FRACTION,
 )
 from src.research.intraday100.audit import (  # noqa: E402
@@ -148,10 +149,13 @@ def run_pilot(
     years: tuple[int, ...] | None,
     max_rows: int | None,
     include_locked_test: bool,
+    timeframe: str = "5m",
 ) -> dict[str, Any]:
     out_dir.mkdir(parents=True, exist_ok=True)
-    bar_seconds = 300
-    frame = load_prepared(data_root, "5m", years=years, max_rows=max_rows)
+    if timeframe not in TIMEFRAME_SECONDS:
+        raise SystemExit(f"unsupported pilot timeframe: {timeframe}")
+    bar_seconds = TIMEFRAME_SECONDS[timeframe]
+    frame = load_prepared(data_root, timeframe, years=years, max_rows=max_rows)
     frame_end = date.max
     if not include_locked_test:
         # The locked test is not touched by the pilot. The full catalog will
@@ -224,7 +228,7 @@ def run_pilot(
         "generated_utc": datetime.utcnow().isoformat() + "Z",
         "dataset": {
             "path": str(data_root),
-            "timeframe": "5m",
+            "timeframe": timeframe,
             "rows_loaded": int(len(frame)),
             "symbols": int(frame["symbol"].nunique()),
             "first_date": _pkt_date(frame["ts"].min()).isoformat(),
@@ -253,7 +257,8 @@ def run_pilot(
                 "locked_test": [TEST_START.isoformat(), TEST_END.isoformat()],
             },
         },
-        "strategies": [_spec_payload(s) for s in PILOT_STRATEGIES],
+        "strategies": [{**_spec_payload(s), "timeframe": timeframe}
+                       for s in PILOT_STRATEGIES],
         "summaries": summaries,
         "ranking_by_validation_expectancy": [
             {"rank": i + 1, "strategy_id": s["strategy_id"], "name": s["name"],
@@ -275,7 +280,8 @@ def run_pilot(
         json.dumps(_jsonable(payload), indent=2, sort_keys=True), encoding="utf-8"
     )
     (out_dir / "PILOT_STRATEGY_SPECS.csv").write_text(
-        pd.DataFrame([_spec_payload(s) for s in PILOT_STRATEGIES]).to_csv(index=False),
+        pd.DataFrame([{**_spec_payload(s), "timeframe": timeframe}
+                      for s in PILOT_STRATEGIES]).to_csv(index=False),
         encoding="utf-8",
     )
     if not trades_frame.empty:
@@ -325,6 +331,7 @@ def _write_pilot_markdown(path: Path, payload: dict[str, Any]) -> None:
     lines.append("## Data")
     lines.append("")
     d = payload["dataset"]
+    lines.append(f"- Timeframe: {d['timeframe']}")
     lines.append(f"- Rows loaded: {d['rows_loaded']:,}")
     lines.append(f"- Symbols: {d['symbols']}")
     lines.append(f"- Dates: {d['first_date']} to {d['last_date']}")
@@ -394,6 +401,8 @@ def main(argv: list[str] | None = None) -> int:
     pilot_parser.add_argument("--years", default="", help="comma separated years")
     pilot_parser.add_argument("--max-rows", type=int, default=None)
     pilot_parser.add_argument("--include-locked-test", action="store_true")
+    pilot_parser.add_argument("--timeframe", default="5m",
+                              choices=sorted(TIMEFRAME_SECONDS))
 
     args = parser.parse_args(argv)
     out_dir = Path(args.out)
@@ -408,6 +417,7 @@ def main(argv: list[str] | None = None) -> int:
             years=years,
             max_rows=args.max_rows,
             include_locked_test=args.include_locked_test,
+            timeframe=args.timeframe,
         )
         return 0
     parser.error("unknown stage")
