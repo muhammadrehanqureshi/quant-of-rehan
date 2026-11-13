@@ -13,8 +13,10 @@ Measured 2026-11-13, read only, no key and no login:
 The first bar is 2021-11-15 and bars carry the venue's own traded volume. The feed offers 1, 5, 15, 30, 60, 120, 180, 240, D and W resolutions; this module
 reads 5 as the base and derives 15, 30, 60 and 1D. The intraday buckets are
 clock aligned; the daily row is grouped by Karachi session date and stamped at
-that date's midnight PKT. The builder checks both against the feed's own
-native series on a sample and records the agreement in its manifest.
+that date's midnight PKT. The builder checks the intraday buckets against the
+feed's own native series on a sample and records the agreement in its
+manifest. The feed's native D series is not used: sampled values do not
+reproduce the same session's 5m bars.
 
 This is the datafeed behind the chart page the owner named,
 https://www.scstrade.com/TechnicalAnalysis/TA_RealTimeCharting.aspx. It is
