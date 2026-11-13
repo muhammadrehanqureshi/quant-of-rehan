@@ -75,6 +75,20 @@ func TestSectorPercentagesUseArrows(t *testing.T) {
 	}
 }
 
+// Owner order 2026-11-13: every bar reads the measured day pair from the scan
+// table, not the board's last-minute pair, so the same scrip draws the same
+// bar on the ALERTS boards and the scanner.
+func TestAlertBarsUseTheScannerPair(t *testing.T) {
+	buy, sell := int64(200), int64(50)
+	tbl := map[string]Quote{"AAA": {Buy: &buy, Sell: &sell}}
+	if gotBuy, gotSell := barPair(tbl, "AAA", 1, 99); gotBuy != buy || gotSell != sell {
+		t.Errorf("the board bar took %d/%d instead of the scanner's %d/%d", gotBuy, gotSell, buy, sell)
+	}
+	if gotBuy, gotSell := barPair(nil, "AAA", 1, 99); gotBuy != 1 || gotSell != 99 {
+		t.Errorf("the fallback pair is %d/%d, want 1/99", gotBuy, gotSell)
+	}
+}
+
 // Owner order 2026-11-13: the two ALERTS boards are equal width, so the PKR
 // values and the bars end on one column, and their bars carry no NET DELTA
 // label: the only question a bar answers is which side owns the B/S pair.

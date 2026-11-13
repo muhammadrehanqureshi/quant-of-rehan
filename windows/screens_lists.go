@@ -1094,6 +1094,17 @@ func shareGreenCells(buy, sell int64, span int) int {
 	return green
 }
 
+// barPair returns the one buy and sell pair a bar may draw: the measured day
+// pair from the scan table when it has one, and the caller's own pair only as
+// a fallback. Owner order 2026-11-13: every bar in the build answers the same
+// question, which side owns more of the same B and S volumes.
+func barPair(tbl map[string]Quote, sym string, buy, sell int64) (int64, int64) {
+	if q, ok := tbl[sym]; ok && q.Buy != nil && q.Sell != nil {
+		return *q.Buy, *q.Sell
+	}
+	return buy, sell
+}
+
 // ---------- alerts ----------
 
 // drawAlerts is the Alerts screen: the big buying board and the big selling
@@ -1197,6 +1208,10 @@ func (a *App) drawBoardPanel(c *Canvas, x, y, w, h int, side int) {
 	}
 	lv.set(len(board), ih)
 	cw := contentW(lv, iw)
+	// Owner order 2026-11-13: one bar pair for the whole build. The boards
+	// rank their rows on the last minute, but each bar reads the measured day
+	// B and S pair the scanner, the search tile and the KSE100 leaders use.
+	tbl := a.scanTable()
 	for n := 0; n < lv.view; n++ {
 		i := lv.off + n
 		if i >= len(board) {
@@ -1252,7 +1267,8 @@ func (a *App) drawBoardPanel(c *Canvas, x, y, w, h int, side int) {
 		// selling board is red because the sellers are in front, never green
 		// because that board's own side is selling, and the pair is the same
 		// measured day pair every other page prints for the scrip.
-		a.drawShareBar(c, barX, ry, barW, b.BuyShares, b.SellShares, false)
+		barBuy, barSell := barPair(tbl, b.Symbol, b.BuyShares, b.SellShares)
+		a.drawShareBar(c, barX, ry, barW, barBuy, barSell, false)
 	}
 	a.scrollbar(c, x+w-2, iy, ih, lv)
 }
