@@ -482,9 +482,13 @@ func TestAlertsScreenListsTheLogAndBoard(t *testing.T) {
 			t.Errorf("alerts screen is missing %q", want)
 		}
 	}
+	before := len(a.flow.Log)
 	a.onKey(Key{Kind: KDel})
-	if len(a.flow.Log) != 0 || !strings.Contains(plain(a), "No flag yet.") {
-		t.Errorf("delete clears the log")
+	if len(a.flow.Log) != before || strings.Contains(plain(a), "No flag yet.") {
+		t.Errorf("DEL must not delete the ALERTS LOG")
+	}
+	if strings.Contains(plain(a), "DEL clears the log") {
+		t.Errorf("the ALERTS LOG still advertises a delete")
 	}
 	a.cfg.BigBuy = false
 	a.cfg.BigSell = false

@@ -303,8 +303,12 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 		}
 		// Owner order 2026-11-11: the sub menu cursor is blue, not white.
 		c.Set(ix+1, ry, []rune(mark)[0], th.Accent, bg, true)
-		c.Set(ix+3, ry, []rune(chosen)[0], th.Accent, bg, true)
-		c.Text(ix+5, ry, max(1, min(44, iw-5)), name, th.Text, a.scanChoice == id)
+		// Owner order 2026-11-13: the six sorts carry their sequence numbers,
+		// the same `1.` to `6.` the SECTORS tile uses, between the cursor and
+		// the chosen sort's diamond.
+		c.Text(ix+3, ry, 3, fmt.Sprintf("%2d.", id), th.Soft, false)
+		c.Set(ix+7, ry, []rune(chosen)[0], th.Accent, bg, true)
+		c.Text(ix+9, ry, max(1, min(44, iw-9)), name, th.Text, a.scanChoice == id)
 	}
 	head := iy + menu + 1 // the row after the menu, or the first row when it is hidden
 	// Owner order 2026-11-12: each sort names three scrips and each scrip takes
@@ -663,9 +667,9 @@ func (a *App) drawSectorTile(c *Canvas, x, y, w, h int) {
 			mark = "◆ "
 		}
 		c.Set(ix+1, ry, []rune(mark)[0], th.Accent, bg, true)
-		// Owner order 2026-11-13: every group carries its overall percentage in
-		// front of its name, in the colour of its side, and the rows above it
-		// are the groups that percentage ranks higher.
+		// Owner order 2026-11-13: every group carries its overall percentage at
+		// the far right of the tile, in the colour of its side, and the rows
+		// above it are the groups that percentage ranks higher.
 		pct, cnt := sectorChangeIn(tbl, g)
 		pctText, pctInk := "    --", th.Soft
 		if cnt > 0 {
@@ -677,9 +681,11 @@ func (a *App) drawSectorTile(c *Canvas, x, y, w, h int) {
 			}
 		}
 		c.Text(ix+3, ry, 3, fmt.Sprintf("%2d.", i+1), th.Soft, false)
-		c.Text(ix+7, ry, 7, pctText, pctInk, true)
-		nameW := max(1, cw-15)
-		c.Text(ix+15, ry, nameW, fit(g.Name, nameW), th.Text, idx == a.sectorChoice)
+		const pctW = 7
+		pctX := ix + cw - pctW
+		nameW := max(1, pctX-(ix+7)-2)
+		c.Text(ix+7, ry, nameW, fit(g.Name, nameW), th.Text, idx == a.sectorChoice)
+		c.Text(pctX, ry, pctW, pctText, pctInk, true)
 	}
 	a.scrollbar(c, ix+iw-1, listY, a.lvSector.view, &a.lvSector)
 }
@@ -1265,7 +1271,7 @@ func (a *App) drawAlertLog(c *Canvas, x, y, w, h int) {
 	log := a.alertLog()
 	// Owner order 2026-11-12 (latest): the key line closes after the search
 	// sentence, and the test sentence is withdrawn from the log's frame.
-	hint := pressSearchHint + ". DEL clears the log."
+	hint := pressSearchHint
 	title := "ALERTS LOG (" + strconv.Itoa(len(log)) + ")"
 	if a.alertQuery != "" {
 		title = "ALERTS LOG (" + strconv.Itoa(len(log)) + " of " + strconv.Itoa(len(all)) + ")"

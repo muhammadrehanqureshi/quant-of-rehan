@@ -1511,13 +1511,11 @@ func (a *App) keyAlerts(k Key) {
 			a.alertList().bottom()
 		}
 	case KDel, KBackspace:
-		// The price tile's DEL empties the slot in hand; the log keeps its own
-		// DEL on the log panel.
+		// Owner order 2026-11-13: the price tile's DEL empties the slot in hand.
+		// The ALERTS LOG is never deleted from this page. BACKSPACE and DEL in
+		// its search box still edit the search text above.
 		if a.alertFocus == 3 {
 			a.clearPriceAlert(a.priceCursor)
-		} else {
-			a.flow.Log, a.lvLog = nil, listView{}
-			a.alertQuery, a.alertSearch = "", false
 		}
 	case KEnter:
 		if a.alertFocus == 3 {

@@ -1017,8 +1017,8 @@ type bstCols struct {
 	buy  int // "B="
 	sell int // "S=", after B's comma and the gutter
 	unc  int // "U=", after S's comma and the gutter
-	tot  int // "& T=", after U's number and the gutter
-	wid  int // the widest volume's digits, the width of every volume field
+	tot  int // "& T=", after U's own digits and the gutter
+	wid  int // the widest total volume's digits
 }
 
 // bstPad is the gutter between one field's comma and the next field's label.
@@ -1026,7 +1026,7 @@ const bstPad = 2
 
 // bstLeaderCols measures the leaders and returns the columns they share.
 func bstLeaderCols(leaders []Leader) bstCols {
-	bw, sw, uw := 1, 1, 1
+	bw, sw, uw, tw := 1, 1, 1, 1
 	for _, l := range leaders {
 		if !l.HasSplit() {
 			continue
@@ -1034,13 +1034,18 @@ func bstLeaderCols(leaders []Leader) bstCols {
 		bw = max(bw, runeLen(commaInt(*l.Buy)))
 		sw = max(sw, runeLen(commaInt(*l.Sell)))
 		if l.HasVolume() {
-			uw = max(uw, runeLen(commaInt(*l.Volume)))
+			un := *l.Volume - *l.Buy - *l.Sell
+			if un < 0 {
+				un = 0
+			}
+			uw = max(uw, runeLen(commaInt(un)))
+			tw = max(tw, runeLen(commaInt(*l.Volume)))
 		}
 	}
-	c := bstCols{wid: uw}
+	c := bstCols{wid: tw}
 	c.sell = c.buy + 2 + bw + 1 + bstPad // "B=", the digits, the comma, the gutter
 	c.unc = c.sell + 2 + sw + 1 + bstPad  // "S=", the digits, the comma, the gutter
-	c.tot = c.unc + 2 + uw + bstPad       // "U=" and the digits, then the gutter
+	c.tot = c.unc + 2 + uw + bstPad       // "U=" and its own digits, then the gutter
 	return c
 }
 
@@ -1198,7 +1203,6 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 	}
 	const chgW = 8
 	edge := ix + iw - 1
-	pkrX := ix + 3 + usedMax + 2
 	// Owner order 2026-11-13: NET DELTA moves off the name line to the price
 	// line, right aligned at the tile's edge, so the bar stands alone on the
 	// name line and no figure cuts into it. The field is measured once, so all
@@ -1215,6 +1219,10 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 	}
 	chgX := chgRight - chgW + 1
 	barStart := edge - shareBarSpan + 1
+	// Owner order 2026-11-13: PKR, the change and the NET DELTA stand as one
+	// group at the right, each on a measured column, so the price no longer
+	// floats on its own and a short price cannot push the change away.
+	pkrX := max(ix+3+usedMax+2, chgX-2-(4+pxW))
 
 	// The bottom of the tile, from the bottom up: the note, one blank line, and
 	// the BUYING NOW line. The blank line and the spacer under the index are

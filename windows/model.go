@@ -53,8 +53,10 @@ const appVersion = "4.0.21"
 // the scanner's sector percentages, the ORDER FLOW NET DELTA order and the
 // KSE100 layout with an unsigned NET DELTA are 3.5.1, and the bar split on its
 // own cells, the SCRIP label, the calculator tile below CUSTOM SCRIPS and the
-// six sector rows are 3.5.2.
-const hudBuild = "3.5.2"
+// six sector rows are 3.5.2, and the protected ALERTS LOG, the right hand sector
+// percentages, the numbered sort menu, the calculator hints and the KSE100
+// column repair are 3.5.3.
+const hudBuild = "3.5.3"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no
