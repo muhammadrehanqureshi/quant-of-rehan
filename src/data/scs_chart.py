@@ -1,6 +1,6 @@
 """Five year PSX intraday archive reader: the SCS Trade chart datafeed.
 
-Owner request 2026-11-13: five years of 5m, 15m, 30m and 1h bars for every
+Owner request 2026-11-13: five years of 5m, 15m, 30m, 1h and 1D bars for every
 KMIALL scrip, for strategy backtests.
 
 Measured 2026-11-13, read only, no key and no login:
@@ -10,11 +10,11 @@ Measured 2026-11-13, read only, no key and no login:
     {"t":[...], "o":[...], "h":[...], "l":[...], "c":[...], "v":[...],
      "s":"ok"}
 
-The first bar is 2021-11-15 and bars carry the venue's own traded volume. The
-feed offers 1, 5, 15, 30, 60, 120, 180, 240, D and W resolutions; this module
-reads 5 as the base and derives 15, 30 and 60 as clock aligned buckets. The
-builder checks those against the feed's own native buckets on a sample and
-records the agreement in its manifest.
+The first bar is 2021-11-15 and bars carry the venue's own traded volume. The feed offers 1, 5, 15, 30, 60, 120, 180, 240, D and W resolutions; this module
+reads 5 as the base and derives 15, 30, 60 and 1D. The intraday buckets are
+clock aligned; the daily row is grouped by Karachi session date and stamped at
+that date's midnight PKT. The builder checks both against the feed's own
+native series on a sample and records the agreement in its manifest.
 
 This is the datafeed behind the chart page the owner named,
 https://www.scstrade.com/TechnicalAnalysis/TA_RealTimeCharting.aspx. It is
@@ -63,7 +63,7 @@ USER_AGENT = (
 )
 
 #: The base resolution the archive stores. Every other timeframe is derived
-#: from it, so one download serves all four.
+#: from it, so one download serves all five.
 BASE_RESOLUTION = 5
 
 #: Polite pacing: one request at a time per worker, this long between them.
@@ -112,8 +112,17 @@ class Bars:
         return Bars(i.copy(), f.copy(), f.copy(), f.copy(), f.copy(),
                     i.copy(), status, requests_made)
 
-    def frame(self, symbol: str) -> pd.DataFrame:
-        """The stored rows: epoch seconds, prices, volume and the session flag."""
+    def frame(self, symbol: str, regular: np.ndarray | None = None) -> pd.DataFrame:
+        """The stored rows: epoch seconds, prices, volume and the session flag.
+
+        Intraday frames derive the flag from their timestamps. A daily frame
+        passes an explicit all-true flag, because one Karachi midnight stamp
+        represents a whole trading session and is not itself inside a band.
+        """
+        flags = regular_mask(self.ts) if regular is None else np.asarray(
+            regular, dtype=bool)
+        if flags.size != len(self):
+            raise ValueError("regular flag length does not match the bars")
         return pd.DataFrame({
             "symbol": np.full(len(self), symbol, dtype=object),
             "ts": self.ts.astype(np.int64),
@@ -122,7 +131,7 @@ class Bars:
             "low": self.low.astype(np.float32),
             "close": self.close.astype(np.float32),
             "volume": self.volume.astype(np.int64),
-            "regular": regular_mask(self.ts),
+            "regular": flags,
         })
 
 
@@ -166,13 +175,17 @@ def _request_json(session: requests.Session, path: str, params: dict,
     raise FeedError(f"{path} failed after {RETRIES} attempts: {last}")
 
 
-def fetch_bars(session: requests.Session, symbol: str, resolution: int,
+def fetch_bars(session: requests.Session, symbol: str, resolution: int | str,
                start: int, end: int,
                timeout: float = TIMEOUT_SECONDS) -> Bars:
-    """Every bar the feed holds for one symbol, resolution and window."""
+    """Every bar the feed holds for one symbol, resolution and window.
+
+    Intraday resolutions are integer minutes. The feed's own daily series is
+    the string resolution ``D``; both use the same UDF payload shape.
+    """
     payload = _request_json(session, HISTORY_PATH, {
         "symbol": symbol,
-        "resolution": str(int(resolution)),
+        "resolution": str(resolution),
         "from": int(start),
         "to": int(end),
     }, timeout)
@@ -234,7 +247,7 @@ def merge(first: Bars, second: Bars) -> Bars:
     )
 
 
-def fetch_window(session: requests.Session, symbol: str, resolution: int,
+def fetch_window(session: requests.Session, symbol: str, resolution: int | str,
                  start: int, end: int,
                  on_fetch: Callable[[str, int, int, int, int], None] | None = None,
                  min_split_days: int = MIN_SPLIT_SPAN_DAYS) -> Bars:
@@ -301,6 +314,102 @@ def resample(bars: Bars, minutes: int) -> Bars:
         bars.requests_made,
     )
     return out
+
+
+def daily(bars: Bars) -> Bars:
+    """One bar per Karachi trading date, stamped at that date's midnight PKT.
+
+    The group key is the Karachi calendar date, not the UTC date. A 5m bar at
+    09:35 PKT and a post-close bar at 15:45 PKT therefore belong to the same
+    Karachi session. Open is the first bar's open, high and low are the
+    session extremes, close is the last bar's close, and volume is summed.
+
+    The archive keeps the pre-open and post-close bars in the daily aggregate,
+    exactly as it keeps them intraday; ``regular`` is true for every daily row
+    because the row is the session itself, not an instant inside a band.
+    """
+    if len(bars) == 0:
+        return Bars.empty(bars.status, bars.requests_made)
+    # Karachi is UTC+5, so this is the Karachi epoch day number.
+    day_ord = (bars.ts.astype(np.int64) + 5 * 3600) // 86400
+    edges = np.flatnonzero(np.r_[True, day_ord[1:] != day_ord[:-1]])
+    last = np.r_[edges[1:] - 1, len(bars) - 1]
+    midnight = day_ord[edges] * 86400 - 5 * 3600
+    out = Bars(
+        midnight.astype(np.int64),
+        bars.open[edges].astype(np.float64),
+        np.maximum.reduceat(bars.high, edges).astype(np.float64),
+        np.minimum.reduceat(bars.low, edges).astype(np.float64),
+        bars.close[last].astype(np.float64),
+        np.add.reduceat(bars.volume, edges).astype(np.int64),
+        bars.status,
+        bars.requests_made,
+    )
+    return out
+
+
+def validate_daily(bars: Bars) -> dict:
+    """Structural checks for a daily series, including its midnight stamp."""
+    issues = {
+        "bars": len(bars),
+        "duplicate_day": 0,
+        "impossible_ohlc": 0,
+        "non_positive_price": 0,
+        "negative_volume": 0,
+        "not_midnight_pkt": 0,
+    }
+    if len(bars) == 0:
+        return issues
+    issues["duplicate_day"] = int(np.sum(np.diff(bars.ts) == 0))
+    high_ok = bars.high >= np.maximum.reduce([bars.open, bars.close, bars.low])
+    low_ok = bars.low <= np.minimum.reduce([bars.open, bars.close, bars.high])
+    issues["impossible_ohlc"] = int(np.sum(~(high_ok & low_ok)))
+    issues["non_positive_price"] = int(np.sum(
+        (bars.open <= 0) | (bars.high <= 0) | (bars.low <= 0) | (bars.close <= 0)))
+    issues["negative_volume"] = int(np.sum(bars.volume < 0))
+    issues["not_midnight_pkt"] = int(np.sum((bars.ts + 5 * 3600) % 86400 != 0))
+    return issues
+
+
+def compare_daily(derived: Bars, native: Bars) -> dict:
+    """Compare a derived daily series with the feed's own daily series by date.
+
+    The feed may stamp its daily bar at UTC midnight while this archive stamps
+    at Karachi midnight. The comparison therefore keys on the Karachi session
+    date, never on raw epoch equality.
+    """
+    out = {"derived_bars": len(derived), "native_bars": len(native),
+           "common": 0, "exact": 0, "agreement_pct": None}
+    if len(derived) == 0 or len(native) == 0:
+        return out
+
+    def by_day(bars: Bars) -> dict[int, tuple[float, float, float, float, int]]:
+        days = (bars.ts.astype(np.int64) + 5 * 3600) // 86400
+        return {
+            int(day): (float(bars.open[i]), float(bars.high[i]),
+                       float(bars.low[i]), float(bars.close[i]),
+                       int(bars.volume[i]))
+            for i, day in enumerate(days)
+        }
+
+    left = by_day(derived)
+    right = by_day(native)
+    common = sorted(set(left) & set(right))
+    out["common"] = len(common)
+    for day in common:
+        a, b = left[day], right[day]
+        if (np.isclose(a[:4], b[:4], atol=1e-4).all() and a[4] == b[4]):
+            out["exact"] += 1
+    out["agreement_pct"] = round(100.0 * out["exact"] / len(common), 3)
+    return out
+
+
+def problems_daily(bars: Bars) -> list[str]:
+    """Human readable daily faults, empty when the series is sound."""
+    found = validate_daily(bars)
+    keys = ("duplicate_day", "impossible_ohlc", "non_positive_price",
+            "negative_volume", "not_midnight_pkt")
+    return [f"{key}={found[key]}" for key in keys if found[key]]
 
 
 def regular_mask(ts: np.ndarray) -> np.ndarray:

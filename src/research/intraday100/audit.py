@@ -214,7 +214,9 @@ def data_quality_markdown(audit: dict[str, Any]) -> str:
     lines: list[str] = []
     lines.append("# Data Quality Report")
     lines.append("")
-    lines.append("PSX KMIALL intraday archive, five years and four native timeframes.")
+    lines.append("PSX KMIALL intraday archive, five years and four intraday timeframes. "
+                 "The archive also carries a 1D partition; this audit is scoped to the "
+                 "intraday frames the pilot reads.")
     lines.append("")
     lines.append("## Scope and hard limitations")
     lines.append("")

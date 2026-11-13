@@ -1,10 +1,11 @@
 # SO-21 / SO-23: this build computes in Actions, never on the owner's PC.
 #
-# Owner request 2026-11-13: five years of 5m, 15m, 30m and 1h bars for every
-# KMIALL scrip, for strategy backtests. The broker's live servlet cannot
+# Owner request 2026-11-13: five years of 5m, 15m, 30m, 1h and 1D bars for
+# every KMIALL scrip, for strategy backtests. The broker's live servlet cannot
 # backfill, so the archive is read from the SCS Trade chart datafeed that
 # feeds the chart page he named (see src/data/scs_chart.py and
-# DATA_SOURCING.md section 3b).
+# DATA_SOURCING.md section 3b). The 1D partition is derived by Karachi
+# session date and verified against the feed's own daily series.
 #
 # One job per calendar year, so a year is retried alone and no partition ever
 # needs merging. Manual dispatch only: this is a build, not a cadence.
@@ -41,6 +42,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   archive:
@@ -79,5 +81,46 @@ jobs:
         with:
           name: intraday-history-${{ matrix.year }}
           path: data/history
+          if-no-files-found: warn
+          retention-days: 90
+
+  verify:
+    # The build jobs cover one year each. This job joins every partition and
+    # proves that the daily and higher intraday timeframes reproduce from 5m,
+    # including the Karachi session date, before any archive is handed over.
+    needs: archive
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt --retries 5 --timeout 60
+
+      - name: Join the yearly partitions
+        uses: actions/download-artifact@v7
+        with:
+          pattern: intraday-history-*
+          path: data/history
+          merge-multiple: true
+
+      - name: Verify every timeframe against 5m
+        run: |
+          python scripts/verify_intraday_history.py \
+            --data data/history \
+            --out data/research/intraday_history_verification.json
+          test -s data/research/intraday_history_verification.json
+          cat data/research/intraday_history_verification.json
+
+      - name: Keep the verification evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: intraday-history-verification-${{ github.run_id }}
+          path: data/research/intraday_history_verification.json
           if-no-files-found: warn
           retention-days: 90

@@ -12,7 +12,7 @@ from __future__ import annotations
 import json
 import tempfile
 import unittest
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import numpy as np
@@ -110,6 +110,59 @@ class ResampleTest(unittest.TestCase):
         self.assertAlmostEqual(float(out.open[-2]), 200.0, places=6)
         self.assertEqual(int(out.volume[-2]), 6 * 500)
         self.assertEqual(int(out.volume[2]), 12 * 500)
+
+
+class DailyTest(unittest.TestCase):
+    def test_daily_uses_the_karachi_session_date(self):
+        bars = _bars("2026-11-02", count=12)
+        out = scs_chart.daily(bars)
+        self.assertEqual(len(out), 1)
+        midnight = datetime(2026, 11, 2, tzinfo=KARACHI)
+        self.assertEqual(int(out.ts[0]), int(midnight.timestamp()))
+        self.assertAlmostEqual(float(out.open[0]), 100.0, places=6)
+        self.assertAlmostEqual(float(out.high[0]), 101.0, places=6)
+        self.assertAlmostEqual(float(out.low[0]), 99.0, places=6)
+        self.assertAlmostEqual(float(out.close[0]), 100.5, places=6)
+        self.assertEqual(int(out.volume[0]), 12 * 500)
+        frame = out.frame("TEST", np.ones(len(out), dtype=bool))
+        self.assertTrue(bool(frame["regular"].all()))
+
+    def test_daily_keeps_two_sessions_apart(self):
+        first = _bars("2026-11-02", count=12)
+        second = _bars("2026-11-03", count=6, price=200.0)
+        bars = scs_chart.Bars(
+            np.concatenate([first.ts, second.ts]),
+            np.concatenate([first.open, second.open]),
+            np.concatenate([first.high, second.high]),
+            np.concatenate([first.low, second.low]),
+            np.concatenate([first.close, second.close]),
+            np.concatenate([first.volume, second.volume]),
+        )
+        out = scs_chart.daily(bars)
+        self.assertEqual(len(out), 2)
+        self.assertAlmostEqual(float(out.open[1]), 200.0, places=6)
+        self.assertEqual(int(out.volume[1]), 6 * 500)
+
+    def test_daily_validation_rejects_a_non_midnight_stamp(self):
+        bars = _bars(count=12)
+        out = scs_chart.daily(bars)
+        shifted = scs_chart.Bars(out.ts + 300, out.open, out.high, out.low,
+                                 out.close, out.volume)
+        self.assertEqual(scs_chart.validate_daily(shifted)["not_midnight_pkt"], 1)
+        self.assertEqual(scs_chart.problems_daily(shifted),
+                         ["not_midnight_pkt=1"])
+
+    def test_daily_comparison_keys_on_the_karachi_date(self):
+        out = scs_chart.daily(_bars(count=12))
+        native_ts = np.array([
+            int(datetime(2026, 11, 2, tzinfo=timezone.utc).timestamp())
+        ], dtype=np.int64)
+        native = scs_chart.Bars(native_ts, out.open, out.high, out.low,
+                                out.close, out.volume)
+        compared = scs_chart.compare_daily(out, native)
+        self.assertEqual(compared["common"], 1)
+        self.assertEqual(compared["exact"], 1)
+        self.assertEqual(compared["agreement_pct"], 100.0)
 
 
 class SessionFlagTest(unittest.TestCase):

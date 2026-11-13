@@ -129,8 +129,8 @@ rather than inventing a fresher number.
 
 ## The five year intraday archive
 
-`data/history/` holds 5m, 15m, 30m and 1h bars for every KMIALL scrip back to
-2021-11-15, so a strategy can be tested on real intraday bars instead of
+`data/history/` holds 5m, 15m, 30m, 1h and 1D bars for every KMIALL scrip back
+to 2021-11-15, so a strategy can be tested on real bars instead of
 forward-captured sessions. The source is the SCS Trade chart datafeed, which
 is free and unauthenticated and carries volume on every bar; the broker's own
 OHLC servlet serves only the current session, so it cannot backfill. See
@@ -146,9 +146,13 @@ python -c "from src.data.intraday_history import load; print(load('5m', years=[2
 
 Each parquet partition carries `symbol, ts, open, high, low, close, volume,
 regular`. `regular` is true only inside the exchange's trading bands; the
-pre-open auction and post-close bars are kept and flagged. Prices are as
-traded, with no split or bonus adjustment, and `regular_only=True` filters a
-study to the session.
+pre-open auction and post-close bars are kept and flagged. A 1D row is stamped
+at 00:00 Karachi on its session date and aggregates every 5m bar of that
+Karachi date, so its local date is stable even when the UTC date is the
+evening before. Prices are as traded, with no split or bonus adjustment, and
+`regular_only=True` filters an intraday study to the session. The archive
+workflow's `verify` job reproduces 1D/15m/30m/60m from 5m and fails on any
+row, stamp or value mismatch before the data is used.
 
 ## How it runs
 

@@ -1,4 +1,4 @@
-"""Reader for the five year PSX intraday archive.
+"""Reader for the five year PSX archive, five timeframes.
 
 Built by scripts/build_intraday_history.py from the SCS Trade chart datafeed
 (src/data/scs_chart.py) into the gitignored data/history/ tree, one parquet
@@ -8,16 +8,19 @@ partition per timeframe per year:
     data/history/15m/15m-2024.parquet
     data/history/30m/30m-2024.parquet
     data/history/60m/60m-2024.parquet
+    data/history/1D/1D-2024.parquet
     data/history/manifest-2024.json
 
 Columns: symbol, ts (epoch seconds, UTC), open, high, low, close, volume and
 `regular`, true only inside the exchange's trading bands. Karachi is
 Asia/Karachi, a fixed UTC+5, so the local stamp is `ts + 5h`;
-`karachi_index` builds it.
+`karachi_index` builds it. A 1D row is stamped at 00:00 Karachi on its session
+date, so its `ts` is the previous UTC evening.
 
 A backtest filters `regular` when it wants the trading session alone. The
 archive keeps the pre-open and post-close bars, because throwing evidence
-away is worse than a flag.
+away is worse than a flag. The 1D partition aggregates all 5m bars of the
+Karachi session, including those auction and post-close bars.
 
 This reader never returns data it does not have: a missing year is a named
 FileNotFoundError, not an empty frame that a strategy would silently train on
@@ -33,7 +36,7 @@ import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[2]
 ARCHIVE_ROOT = ROOT / "data" / "history"
-TIMEFRAMES = ("5m", "15m", "30m", "60m")
+TIMEFRAMES = ("5m", "15m", "30m", "60m", "1D")
 SCHEMA = ("symbol", "ts", "open", "high", "low", "close", "volume", "regular")
 PKT_OFFSET_SECONDS = 5 * 3600
 

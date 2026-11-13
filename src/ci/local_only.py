@@ -89,7 +89,9 @@ BACKTEST_SCRIPTS = {
     "scripts/backtest_mean_reversion.py":
         "the ten-year mean-reversion (snapback) backtest",
     "scripts/build_intraday_history.py":
-        "the five-year 5m/15m/30m/1h archive build",
+        "the five-year 5m/15m/30m/1h/1D archive build",
+    "scripts/verify_intraday_history.py":
+        "the five-timeframe intraday archive verification",
     "scripts/intraday100.py":
         "the PSX intraday 100-strategy research audit and pilot",
 }
