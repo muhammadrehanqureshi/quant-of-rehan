@@ -115,7 +115,7 @@ class ResampleTest(unittest.TestCase):
 class DailyTest(unittest.TestCase):
     def test_daily_uses_the_karachi_session_date(self):
         bars = _bars("2026-11-02", count=12)
-        out = scs_chart.daily(bars)
+        out = scs_chart.daily(bars, regular_only=False)
         self.assertEqual(len(out), 1)
         midnight = datetime(2026, 11, 2, tzinfo=KARACHI)
         self.assertEqual(int(out.ts[0]), int(midnight.timestamp()))
@@ -126,6 +126,14 @@ class DailyTest(unittest.TestCase):
         self.assertEqual(int(out.volume[0]), 12 * 500)
         frame = out.frame("TEST", np.ones(len(out), dtype=bool))
         self.assertTrue(bool(frame["regular"].all()))
+
+    def test_regular_daily_drops_the_auction_bar(self):
+        # 09:30 is before the 09:32 regular open, so the regular daily bar
+        # starts at 09:35 and excludes the first 500 shares.
+        out = scs_chart.daily(_bars("2026-11-02", count=12), regular_only=True)
+        self.assertEqual(len(out), 1)
+        self.assertEqual(int(out.volume[0]), 11 * 500)
+        self.assertAlmostEqual(float(out.open[0]), 100.0, places=6)
 
     def test_daily_keeps_two_sessions_apart(self):
         first = _bars("2026-11-02", count=12)
@@ -138,14 +146,14 @@ class DailyTest(unittest.TestCase):
             np.concatenate([first.close, second.close]),
             np.concatenate([first.volume, second.volume]),
         )
-        out = scs_chart.daily(bars)
+        out = scs_chart.daily(bars, regular_only=False)
         self.assertEqual(len(out), 2)
         self.assertAlmostEqual(float(out.open[1]), 200.0, places=6)
         self.assertEqual(int(out.volume[1]), 6 * 500)
 
     def test_daily_validation_rejects_a_non_midnight_stamp(self):
         bars = _bars(count=12)
-        out = scs_chart.daily(bars)
+        out = scs_chart.daily(bars, regular_only=False)
         shifted = scs_chart.Bars(out.ts + 300, out.open, out.high, out.low,
                                  out.close, out.volume)
         self.assertEqual(scs_chart.validate_daily(shifted)["not_midnight_pkt"], 1)
@@ -153,7 +161,7 @@ class DailyTest(unittest.TestCase):
                          ["not_midnight_pkt=1"])
 
     def test_daily_comparison_keys_on_the_karachi_date(self):
-        out = scs_chart.daily(_bars(count=12))
+        out = scs_chart.daily(_bars(count=12), regular_only=False)
         native_ts = np.array([
             int(datetime(2026, 11, 2, tzinfo=timezone.utc).timestamp())
         ], dtype=np.int64)

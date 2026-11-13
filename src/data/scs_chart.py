@@ -316,7 +316,7 @@ def resample(bars: Bars, minutes: int) -> Bars:
     return out
 
 
-def daily(bars: Bars) -> Bars:
+def daily(bars: Bars, regular_only: bool = False) -> Bars:
     """One bar per Karachi trading date, stamped at that date's midnight PKT.
 
     The group key is the Karachi calendar date, not the UTC date. A 5m bar at
@@ -324,24 +324,34 @@ def daily(bars: Bars) -> Bars:
     Karachi session. Open is the first bar's open, high and low are the
     session extremes, close is the last bar's close, and volume is summed.
 
-    The archive keeps the pre-open and post-close bars in the daily aggregate,
-    exactly as it keeps them intraday; ``regular`` is true for every daily row
-    because the row is the session itself, not an instant inside a band.
+    ``regular_only`` drops the pre-open auction and post-close bars before the
+    aggregate. The archive uses that mode because the feed's own daily series
+    is the regular session, and a daily strategy must see the same open, high,
+    low, close and volume the exchange's day carries.
     """
     if len(bars) == 0:
         return Bars.empty(bars.status, bars.requests_made)
+    keep = regular_mask(bars.ts) if regular_only else np.ones(len(bars), dtype=bool)
+    if not keep.any():
+        return Bars.empty(bars.status, bars.requests_made)
+    ts = bars.ts[keep]
+    op = bars.open[keep]
+    hi = bars.high[keep]
+    lo = bars.low[keep]
+    cl = bars.close[keep]
+    vol = bars.volume[keep]
     # Karachi is UTC+5, so this is the Karachi epoch day number.
-    day_ord = (bars.ts.astype(np.int64) + 5 * 3600) // 86400
+    day_ord = (ts.astype(np.int64) + 5 * 3600) // 86400
     edges = np.flatnonzero(np.r_[True, day_ord[1:] != day_ord[:-1]])
-    last = np.r_[edges[1:] - 1, len(bars) - 1]
+    last = np.r_[edges[1:] - 1, len(ts) - 1]
     midnight = day_ord[edges] * 86400 - 5 * 3600
     out = Bars(
         midnight.astype(np.int64),
-        bars.open[edges].astype(np.float64),
-        np.maximum.reduceat(bars.high, edges).astype(np.float64),
-        np.minimum.reduceat(bars.low, edges).astype(np.float64),
-        bars.close[last].astype(np.float64),
-        np.add.reduceat(bars.volume, edges).astype(np.int64),
+        op[edges].astype(np.float64),
+        np.maximum.reduceat(hi, edges).astype(np.float64),
+        np.minimum.reduceat(lo, edges).astype(np.float64),
+        cl[last].astype(np.float64),
+        np.add.reduceat(vol, edges).astype(np.int64),
         bars.status,
         bars.requests_made,
     )
@@ -396,11 +406,32 @@ def compare_daily(derived: Bars, native: Bars) -> dict:
     right = by_day(native)
     common = sorted(set(left) & set(right))
     out["common"] = len(common)
+    samples = []
     for day in common:
         a, b = left[day], right[day]
         if (np.isclose(a[:4], b[:4], atol=1e-4).all() and a[4] == b[4]):
             out["exact"] += 1
+        elif len(samples) < 3:
+            samples.append({
+                "date": datetime.fromtimestamp(day * 86400 - 5 * 3600,
+                                               tz=KARACHI).date().isoformat(),
+                "derived": list(a),
+                "native": list(b),
+            })
     out["agreement_pct"] = round(100.0 * out["exact"] / len(common), 3)
+    out["samples"] = samples
+    shifted = {}
+    for offset in (-1, 0, 1):
+        count = 0
+        for day in common:
+            other = day + offset
+            if other not in right:
+                continue
+            a, b = left[day], right[other]
+            if (np.isclose(a[:4], b[:4], atol=1e-4).all() and a[4] == b[4]):
+                count += 1
+        shifted[str(offset)] = count
+    out["exact_by_day_offset"] = shifted
     return out
 
 

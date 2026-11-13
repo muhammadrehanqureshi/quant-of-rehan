@@ -103,8 +103,8 @@ def _structural(frame: pd.DataFrame, year: int, timeframe: str,
 
 
 def _daily_aggregate(base: pd.DataFrame) -> pd.DataFrame:
-    """The expected 1D rows from all 5m bars, keyed by Karachi session day."""
-    frame = base.copy()
+    """The expected 1D rows from regular 5m bars, keyed by Karachi session day."""
+    frame = base[base["regular"]].copy()
     frame["day"] = ((frame["ts"].astype("int64") + 5 * 3600) // 86400).astype("int64")
     frame = frame.sort_values(["symbol", "ts"], kind="mergesort")
     grouped = frame.groupby(["symbol", "day"], sort=False, observed=True)

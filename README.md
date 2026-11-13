@@ -147,9 +147,10 @@ python -c "from src.data.intraday_history import load; print(load('5m', years=[2
 Each parquet partition carries `symbol, ts, open, high, low, close, volume,
 regular`. `regular` is true only inside the exchange's trading bands; the
 pre-open auction and post-close bars are kept and flagged. A 1D row is stamped
-at 00:00 Karachi on its session date and aggregates every 5m bar of that
-Karachi date, so its local date is stable even when the UTC date is the
-evening before. Prices are as traded, with no split or bonus adjustment, and
+at 00:00 Karachi on its session date and aggregates that date's regular-session
+5m bars, so the daily open, high, low, close and volume are the exchange day's
+values; the auction and post-close rows stay in the intraday frames. Prices are
+as traded, with no split or bonus adjustment, and
 `regular_only=True` filters an intraday study to the session. The archive
 workflow's `verify` job reproduces 1D/15m/30m/60m from 5m and fails on any
 row, stamp or value mismatch before the data is used.

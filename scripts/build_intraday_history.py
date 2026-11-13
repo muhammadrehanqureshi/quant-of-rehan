@@ -173,7 +173,7 @@ def build_symbol(symbol: str, start: int, end: int, resolutions: list[int],
         result["faults"].extend(fault_list)
         return result
 
-    daily = scs_chart.daily(bars)
+    daily = scs_chart.daily(bars, regular_only=True)
     result["daily_checks"] = scs_chart.validate_daily(daily)
     daily_faults = scs_chart.problems_daily(daily)
     if daily_faults:
