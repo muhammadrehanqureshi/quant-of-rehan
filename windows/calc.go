@@ -75,15 +75,15 @@ func (a *App) drawCalculatorTile(c *Canvas, x, y, w, h int) {
 	}
 	hint := "Click or F6 to type"
 	if a.calcOpen {
-		hint = "TAB next  ESC leaves"
+		hint = "TAB next, ESC leaves"
 	}
 	a.focusNext = a.calcOpen
 	ix, iy, iw, _ := a.panel(c, x, y, w, h, "POSITION CALCULATOR", hint)
 	a.addHit(x, y, w, h, func() { a.openCalc() })
 	gap := 2
 	half := (iw - gap) / 2
-	a.inputRow(c, ix, iy, half, "PRICE", a.calcPrice, a.calcOpen && a.calcField == 0)
-	a.inputRow(c, ix+half+gap, iy, iw-half-gap, "QUANTITY", a.calcQty, a.calcOpen && a.calcField == 1)
+	a.inputRow(c, ix, iy, half, "PRICE", a.calcPrice, "Enter price", a.calcOpen && a.calcField == 0)
+	a.inputRow(c, ix+half+gap, iy, iw-half-gap, "QUANTITY", a.calcQty, "Enter qty", a.calcOpen && a.calcField == 1)
 	total, ok := calcAmount(a.calcPrice, a.calcQty)
 	c.Text(ix, iy+1, 12, "TOTAL", th.Soft, true)
 	amount := "PKR -"
@@ -95,7 +95,7 @@ func (a *App) drawCalculatorTile(c *Canvas, x, y, w, h int) {
 
 // inputRow draws one labelled field of an overlay form: a filled box, the text
 // in it and, while it has the keys, the blinking block at its end.
-func (a *App) inputRow(c *Canvas, x, y, w int, label, text string, active bool) {
+func (a *App) inputRow(c *Canvas, x, y, w int, label, text, placeholder string, active bool) {
 	th := a.th
 	c.Text(x, y, 10, label, th.Soft, false)
 	bx := x + 12
@@ -108,7 +108,7 @@ func (a *App) inputRow(c *Canvas, x, y, w int, label, text string, active bool) 
 		c.Set(bx+k, y, ' ', th.Text, field, false)
 	}
 	if text == "" {
-		c.Text(bx+1, y, bw-2, "type here", mix(th.Soft, th.Panel, 0.25), false)
+		c.Text(bx+1, y, bw-2, placeholder, mix(th.Soft, th.Panel, 0.25), false)
 	} else {
 		c.Text(bx+1, y, bw-2, fit(text, bw-2), th.Hot, true)
 	}
