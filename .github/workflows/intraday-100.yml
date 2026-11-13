@@ -1,0 +1,161 @@
+# Cloud-only research workflow for the PSX intraday 100-strategy assignment.
+#
+# SO-21: this is manual dispatch only. A schedule here would turn a research
+# sweep into an unattended cadence, which the repository governance check
+# rejects. The archived data lives in Actions artifacts from the archive run,
+# never on the owner's PC and never in a checkout.
+name: intraday-100
+
+on:
+  workflow_dispatch:
+    inputs:
+      task:
+        description: "research stage"
+        type: choice
+        options: [audit, pilot, both]
+        default: audit
+      artifact_run_id:
+        description: "Actions run that holds the six intraday-history artifacts"
+        type: string
+        default: "43369506273"
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: intraday-100-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Restore the five-year archive cache
+        id: history
+        uses: actions/cache/restore@v4
+        with:
+          path: data/history
+          key: intraday-history-${{ inputs.artifact_run_id }}-v1
+
+      - name: Fetch the archive from the archive run
+        if: steps.history.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          mkdir -p data/raw data/history
+          gh run download "${{ inputs.artifact_run_id }}" \
+            --repo "${{ github.repository }}" \
+            --pattern 'intraday-history-*' \
+            --dir data/raw
+          shopt -s nullglob
+          parts=(data/raw/intraday-history-*)
+          if [ ${#parts[@]} -eq 0 ]; then
+            echo "::error::no intraday-history artifacts found in run ${{ inputs.artifact_run_id }}"
+            exit 1
+          fi
+          for part in "${parts[@]}"; do
+            cp -r "$part"/. data/history/
+          done
+          test -f data/history/manifest-2026.json
+          du -sh data/history
+
+      - name: Save the archive cache
+        if: steps.history.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: data/history
+          key: intraday-history-${{ inputs.artifact_run_id }}-v1
+
+      - name: Confirm every yearly manifest exists
+        run: |
+          set -euo pipefail
+          for year in 2021 2022 2023 2024 2025 2026; do
+            test -f "data/history/manifest-${year}.json" || {
+              echo "::error::manifest-${year}.json is missing; the archive run was incomplete"
+              exit 1
+            }
+          done
+
+  audit:
+    needs: prepare
+    if: inputs.task == 'audit' || inputs.task == 'both'
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt --retries 5 --timeout 60
+
+      - name: Restore the five-year archive cache
+        uses: actions/cache/restore@v4
+        with:
+          path: data/history
+          key: intraday-history-${{ inputs.artifact_run_id }}-v1
+
+      - name: Audit the archive
+        run: |
+          python scripts/intraday100.py audit \
+            --data data/history \
+            --out data/research/intraday100
+          test -s data/research/intraday100/DATA_QUALITY_REPORT.md
+
+      - name: Keep the audit evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: intraday100-audit-${{ github.run_id }}
+          path: data/research/intraday100
+          if-no-files-found: warn
+          retention-days: 90
+
+  pilot:
+    needs: prepare
+    if: inputs.task == 'pilot' || inputs.task == 'both'
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt --retries 5 --timeout 60
+
+      - name: Restore the five-year archive cache
+        uses: actions/cache/restore@v4
+        with:
+          path: data/history
+          key: intraday-history-${{ inputs.artifact_run_id }}-v1
+
+      - name: Run the ten-strategy pilot
+        run: |
+          python scripts/intraday100.py pilot \
+            --data data/history \
+            --out data/research/intraday100
+          test -s data/research/intraday100/PILOT_RESULTS.json
+          test -s data/research/intraday100/PILOT_TRADES.csv
+
+      - name: Keep the pilot evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: intraday100-pilot-${{ github.run_id }}
+          path: data/research/intraday100
+          if-no-files-found: warn
+          retention-days: 90
