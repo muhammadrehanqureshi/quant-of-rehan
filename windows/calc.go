@@ -70,7 +70,7 @@ func calcAmount(priceText, qtyText string) (float64, bool) {
 // The tile always stands, with the last values, whether or not it has the keys.
 func (a *App) drawCalculatorTile(c *Canvas, x, y, w, h int) {
 	th := a.th
-	if w < 24 || h < 5 {
+	if w < 24 || h < 4 {
 		return
 	}
 	hint := "Click or F6 to type"
@@ -85,12 +85,12 @@ func (a *App) drawCalculatorTile(c *Canvas, x, y, w, h int) {
 	a.inputRow(c, ix, iy, half, "PRICE", a.calcPrice, a.calcOpen && a.calcField == 0)
 	a.inputRow(c, ix+half+gap, iy, iw-half-gap, "QUANTITY", a.calcQty, a.calcOpen && a.calcField == 1)
 	total, ok := calcAmount(a.calcPrice, a.calcQty)
-	c.Text(ix, iy+2, 12, "TOTAL", th.Soft, true)
+	c.Text(ix, iy+1, 12, "TOTAL", th.Soft, true)
 	amount := "PKR -"
 	if ok {
 		amount = "PKR " + commaFloat(total, 2)
 	}
-	c.Text(ix+12, iy+2, max(1, iw-12), amount, th.Good, true)
+	c.Text(ix+12, iy+1, max(1, iw-12), amount, th.Good, true)
 }
 
 // inputRow draws one labelled field of an overlay form: a filled box, the text

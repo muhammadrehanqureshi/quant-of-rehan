@@ -186,7 +186,7 @@ func TestAlertsPageCarriesThreePriceSlots(t *testing.T) {
 }
 
 func TestCalculatorShowsTheMoneyTheSharesNeed(t *testing.T) {
-	a := demoApp(t, 120, 30)
+	a := demoApp(t, 122, 36)
 	a.screen = scrScanner
 	a.onKey(Key{Kind: KF6})
 	if !a.calcOpen {
@@ -236,7 +236,7 @@ func TestCalculatorNeedsBothBoxes(t *testing.T) {
 	if v, ok := calcAmount("10.50", "100"); !ok || v != 1050 {
 		t.Fatalf("10.50 at 100 shares: %v %v", v, ok)
 	}
-	a := demoApp(t, 120, 30)
+	a := demoApp(t, 122, 36)
 	a.screen = scrScanner
 	a.openCalc()
 	for _, r := range "abc" {

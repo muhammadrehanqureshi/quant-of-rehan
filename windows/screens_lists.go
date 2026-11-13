@@ -191,18 +191,6 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 	// separate tiles, with one blank row between them so their frames never
 	// read as one crowded box.
 	sy := y + sh + 1
-	// Owner order 2026-11-13: the calculator is a tile of its own under the
-	// CUSTOM SCRIPS tile. It keeps its five rows at the bottom of the page and
-	// the scrips list keeps the room above it.
-	calcH := 5
-	if y+h-sy < calcH+1+6 {
-		calcH = 0
-	}
-	calcReserve := 0
-	if calcH > 0 {
-		calcReserve = calcH + 1
-		defer a.drawCalculatorTile(c, x, y+h-calcH, w, calcH)
-	}
 	// The sector tile sits between the search and the ranked list. It grows to
 	// show every group it can while leaving the ranked list at least six rows,
 	// and it scrolls when there are more groups than rows. Owner order
@@ -215,9 +203,26 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 	} else if n := len(a.visibleSectorIndices()); n > 0 {
 		sectorH = min(n+4, 10)
 	}
+	// Owner order 2026-11-13: the calculator is a tile of its own under the
+	// CUSTOM SCRIPS tile. It takes four rows at the bottom of the page and the
+	// scrips list keeps the room above it. A window too short for the tile and
+	// the lists hides the tile rather than cutting the scanner's own rows.
+	calcH := 4
+	if !a.calcOpen && y+h-sy-sectorH-1-calcH < 14 {
+		calcH = 0
+	}
+	calcReserve := calcH
+	if calcH > 0 {
+		if y+h-sy-sectorH-1-calcH >= 17 {
+			calcReserve++
+		}
+		defer a.drawCalculatorTile(c, x, y+h-calcH, w, calcH)
+	}
 	// The gap costs one row. On a short window, keep the ranked list at four
-	// stocks by letting the sector list scroll instead of taking that row.
-	if a.scanChoice != 0 && !a.sectorOpen && sectorH > 5 {
+	// stocks by letting the sector list scroll instead of taking that row. The
+	// calculator already owns the rows it needs, so this old trade only runs
+	// when the tile is hidden.
+	if calcH == 0 && a.scanChoice != 0 && !a.sectorOpen && sectorH > 5 {
 		for sectorH > 5 {
 			sh2 := y + h - sy - sectorH - 1 - calcReserve
 			if sh2 < 6 {
