@@ -55,8 +55,10 @@ const appVersion = "4.0.21"
 // own cells, the SCRIP label, the calculator tile below CUSTOM SCRIPS and the
 // six sector rows are 3.5.2, and the protected ALERTS LOG, the right hand sector
 // percentages, the numbered sort menu, the calculator hints and the KSE100
-// column repair are 3.5.3.
-const hudBuild = "3.5.3"
+// column repair are 3.5.3, and the relay's live status, the search tile's one
+// volume line, the arrowed sector percentages, the equal ALERTS boards and the
+// red break orb are 3.5.4.
+const hudBuild = "3.5.4"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no

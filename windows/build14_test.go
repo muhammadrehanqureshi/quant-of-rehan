@@ -55,10 +55,13 @@ func TestScannerOrdersSectorsByOverallPercentage(t *testing.T) {
 		t.Fatalf("sectors read %v, want %v (highest percentage first)", got, want)
 	}
 	s := plain(a)
-	for _, pct := range []string{"+2.50%", "+0.50%", "-1.50%"} {
+	for _, pct := range []string{"▲ 2.50%", "▲ 0.50%", "▼ 1.50%"} {
 		if !strings.Contains(s, pct) {
 			t.Errorf("the sector list is missing %q:\n%s", pct, s)
 		}
+	}
+	if strings.Contains(s, "+2.50%") || strings.Contains(s, "-1.50%") {
+		t.Errorf("the sector list still carries a sign instead of an arrow:\n%s", s)
 	}
 	// The strongest group's row comes before the weakest.
 	if strings.Index(s, "AUTOMOBILE") > strings.Index(s, "CEMENT") {

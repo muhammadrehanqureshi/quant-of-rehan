@@ -154,7 +154,7 @@ func TestStatusWordingFollowsThePart(t *testing.T) {
 		{"post-market", at(2, 15, 40), "POST_CLOSE", "Post-market is running and the quant is online now.", true},
 		{"after the post-market", at(2, 16, 5), "POST_CLOSE", "Market is closed and the quant is sleeping now.", false},
 		{"evening", at(2, 20, 0), "POST_CLOSE", "Market is closed and the quant is sleeping now.", false},
-		{"friday break", at(6, 13, 0), "BREAK", "Market is on a break and the quant is offline now.", false},
+		{"friday break", at(6, 13, 0), "BREAK", "Market is on a break. Quant is sleeping now.", false},
 		{"friday second session", at(6, 15, 0), "OPEN", "Market is open and the quant is online now.", true},
 		{"friday post-market", at(6, 16, 40), "POST_CLOSE", "Post-market is running and the quant is online now.", true},
 		{"weekend", at(7, 11, 0), "CLOSED", "Market is closed and the quant is sleeping now.", false},

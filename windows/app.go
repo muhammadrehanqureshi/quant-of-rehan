@@ -440,7 +440,7 @@ func (a *App) statusNoteBase() string {
 	case qsPost:
 		return "Post-market is running and the quant is online now."
 	case qsBreak:
-		return "Market is on a break and the quant is offline now."
+		return "Market is on a break. Quant is sleeping now."
 	case qsHalted:
 		return "Market is halted and the quant is offline now."
 	case qsUnknown:

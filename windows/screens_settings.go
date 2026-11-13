@@ -6,6 +6,21 @@ package main
 // tiles stacked in one column instead of one long panel - the switches in
 // SETTINGS, the palette in THEMES, and every read-only fact in its own tile
 // headed BUILD VERSION & RELAY.
+// relayStatus is the state the RELAY STATUS row shows: checking before the
+// first answer, offline when the relay cannot be reached, fault when it
+// answers but reports a fault, and online when it is healthy.
+func (a *App) relayStatus() (string, RGB) {
+	switch {
+	case a.checking:
+		return "CHECKING", a.th.Warn
+	case !a.link:
+		return "OFFLINE", a.th.Bad
+	case a.head != nil && !a.head.Reachable:
+		return "FAULT", a.th.Bad
+	}
+	return "ONLINE", a.th.Good
+}
+
 func (a *App) drawSettings(c *Canvas, x, y, w, h int) {
 	th := a.th
 	settingsH := settingsItems + 2 // the eight switch rows, plus the frame
@@ -55,7 +70,11 @@ func (a *App) drawSettings(c *Canvas, x, y, w, h int) {
 		}
 		return []Span{{"OFF", th.Bad, true}, {extra, th.Soft, false}}
 	}
-	item(0, "RELAY STATUS", []Span{{"Opens the relay's health page.", th.Soft, false}})
+	// Owner order 2026-11-13: the RELAY STATUS row carries the relay's
+	// current state, not a sentence about what clicking it does. The row is
+	// still the hit region that opens the health page.
+	relayStatus, relayInk := a.relayStatus()
+	item(0, "RELAY STATUS", []Span{{relayStatus, relayInk, true}})
 	item(1, "NOTIFICATIONS", onoff(a.cfg.Notify, "  Windows pop-ups and the banner."))
 	item(2, "BIG BUYING FLAG", onoff(a.cfg.BigBuy, "  Alerts you when buyers dominate."))
 	item(3, "BIG SELLING FLAG", onoff(a.cfg.BigSell, "  Alerts you when sellers dominate."))
