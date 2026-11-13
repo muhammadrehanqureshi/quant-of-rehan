@@ -370,9 +370,11 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 	// Foot: how U is defined, and what the large print board saw when there is room.
 	if foot > 0 {
 		fy := iy + ih - 1
-		line := "U = unclassified: volume the capture could not side, never added to B or S"
+		// Owner order 2026-11-13: the heading above the column is UNCLEAR, so the
+		// foot says UNCLEAR too and the table carries one word for one thing.
+		line := "U = UNCLEAR: volume the capture could not side, never added to B or S"
 		if runeLen(line) > iw {
-			line = "U = unclassified, never added to B or S"
+			line = "U = UNCLEAR, never added to B or S"
 		}
 		if of.LargeTotal > 0 {
 			more := fmt.Sprintf("  ·  %d large prints of PKR %s or more today", of.LargeTotal, compactNum(of.LargeThreshold))

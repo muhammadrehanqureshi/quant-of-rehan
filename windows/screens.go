@@ -1032,6 +1032,30 @@ func bstLeaderCols(leaders []Leader) bstCols {
 	return c
 }
 
+// leaderBSTWidth is the cells putBST or putBSTCols will use for one leader. It
+// writes nothing, so the tile can set one price column for all three rows
+// before it paints the first of them.
+func leaderBSTWidth(l Leader, cols bstCols, wide bool) int {
+	if wide && l.HasSplit() && l.HasVolume() {
+		return cols.tot + 4 + cols.wid
+	}
+	if !l.HasSplit() {
+		if l.HasVolume() {
+			return 2 + runeLen(commaInt(*l.Volume))
+		}
+		return 0
+	}
+	w := 2 + runeLen(commaInt(*l.Buy)) + 3 + runeLen(commaInt(*l.Sell))
+	if l.HasVolume() {
+		un := *l.Volume - *l.Buy - *l.Sell
+		if un < 0 {
+			un = 0
+		}
+		w += 4 + runeLen(commaInt(un)) + 5 + runeLen(commaInt(*l.Volume))
+	}
+	return w
+}
+
 // putBSTCols writes those four fields into their shared columns and returns the
 // cells the block used. A stock with no measured split falls back to putBST.
 func (a *App) putBSTCols(c *Canvas, x, y int, buy, sell, total *int64, cols bstCols, keys ...string) int {
@@ -1147,12 +1171,30 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 			pxW = max(pxW, runeLen(commaFloat(*l.Price, 2)))
 		}
 	}
+	nL := min(len(leaders), 3)
+	// Owner order 2026-11-13: the three leaders share one set of columns. The
+	// widest volume line sets the cell PKR starts on, the widest price sets the
+	// price field, and the change is right aligned at the tile's inner edge, so
+	// the label, the price and its change stand on the same cells on all three
+	// rows whatever digits they carry. The bar and its NET DELTA stand on the
+	// name line: 27 cells of bar cannot share the volume line with a full B, S,
+	// U and T at any window the HUD opens, which is how the tile lost them.
+	wide := iw >= 96
+	usedMax := 0
+	for _, l := range leaders[:nL] {
+		usedMax = max(usedMax, leaderBSTWidth(l, cols, wide))
+	}
+	const chgW = 8
+	edge := ix + iw - 1
+	pkrX := ix + 3 + usedMax + 2
+	chgRight := edge
+	chgX := chgRight - chgW + 1
+	barStart := edge - shareBarWidth + 1
 
 	// The bottom of the tile, from the bottom up: the note, one blank line, and
 	// the BUYING NOW line. The blank line and the spacer under the index are
 	// dropped, in that order of loss, only when the window is too short to keep
 	// the three leaders and everything else.
-	nL := min(len(leaders), 3)
 	bottom := len(notes)
 	if len(board) > 0 {
 		bottom++
@@ -1174,8 +1216,15 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 		}
 		pxKey, volKey := "px:"+l.Symbol, "vol:"+l.Symbol
 		c.Spans(ix, row, textW, []Span{{strconv.Itoa(i+1) + ". ", th.Soft, false}, {l.Symbol, th.Hot, true}})
-		// Owner order 2026-11-10 (later): no bar stands in front of a stock's
-		// name either. The green and red bar belongs on the percentage line.
+		// Owner order 2026-11-13: the bar and its NET DELTA are back on the tile,
+		// on the name line, which is the one line with room for them. The field
+		// is measured once above the loop, so all three rows carry it on the same
+		// cells and the figure reads down one column.
+		if l.HasSplit() && barStart > ix+3+runeLen(l.Symbol)+2 {
+			if bb, bs := a.pairOf(l.Symbol, *l.Buy, *l.Sell); bb+bs > 0 {
+				a.shareBar(c, barStart, row, shareBarWidth, bb, bs)
+			}
+		}
 		row++
 		var buy, sell *int64
 		if l.HasSplit() {
@@ -1206,62 +1255,21 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 		// three fields also has a fixed width from that edge, so the price, the
 		// change and the bar land on the same cells on every leader row.
 		if l.Price != nil {
-			const chgW = 8
-			end := ix + iw - 1
-			// Owner order 2026-11-12 (latest): the bar's field carries its
-			// NET DELTA too, so the leader line's last field is the labelled
-			// bar and the price and the change step left by its width.
-			bw := shareBarWidth
-			floor := ix + 3 + used + 1
-			barStart := end - bw + 1
-			chgRight := barStart - 2
-			priceRight := chgRight - chgW - 1
 			px := commaFloat(*l.Price, 2)
-			// Owner order 2026-11-10 (latest): PKR sits one space from its own
-			// price. The price stays right aligned at its own edge, so the label
-			// moves and the number does not; the old ten cell field left five
-			// empty cells between the two. flashRight's cell is the one after its
-			// last character, so the price covers [priceRight-len, priceRight-1]
-			// and PKR stands four cells to its left, leaving exactly one space.
-			pkrLeft := priceRight - pxW - 4
-			priceBlock := 4 + runeLen(px) + chgW + 1
-			showPrice := func(pkr, pxRight, chgRight int) {
-				// The label is written without its trailing space and the price
-				// starts four cells along, so exactly one blank cell stands
-				// between them and the row reads "PKR 15.24".
-				c.Text(pkr, row, 3, "PKR", th.Soft, false)
-				// The price starts one cell after PKR on every leader, so the
-				// label and the number stand on the same cells on all three rows.
-				a.flashText(c, pkr+4, row, px, th.Text, true, pxKey)
-				if l.ChangePct != nil {
+			if pkrX+4+pxW <= edge {
+				// Owner order 2026-11-13: PKR and its price start on the same cells
+				// on all three rows, because the label sits on the column the
+				// widest volume line leaves and the field is the widest price.
+				c.Text(pkrX, row, 3, "PKR", th.Soft, false)
+				a.flashText(c, pkrX+4, row, px, th.Text, true, pxKey)
+				if l.ChangePct != nil && chgX > pkrX+4+pxW {
 					a.flashRight(c, chgRight, row, changeText(*l.ChangePct), a.dirColor(*l.ChangePct), true, pxKey)
 				}
-			}
-			switch {
-			case pkrLeft >= floor:
-				showPrice(pkrLeft, priceRight, chgRight)
-				if l.HasSplit() {
-					if total := *l.Buy + *l.Sell; total > 0 {
-						bb, bs := a.pairOf(l.Symbol, *l.Buy, *l.Sell)
-						// Owner order 2026-11-12 (latest): every bar in the build
-						// carries its NET DELTA, the leaders row included.
-						a.shareBar(c, barStart, row, bw, bb, bs)
-					}
-				}
-			case end-priceBlock >= floor:
-				// Owner order 2026-11-12: PKR never gives up its cells. When
-				// the bar cannot fit beside it, the price and the change stay
-				// at the tile's right edge and the bar steps out instead.
-				showPrice(end-priceBlock, end-chgW-1, end)
-			default:
-				// Very short: PKR and the price follow the volumes, as they did
-				// before, so the row still carries its price beside its T volume.
-				pw := runeLen(px)
-				pkr := ix + 3 + used + 2
-				if pkr+4+pw <= ix+iw {
-					c.Text(pkr, row, 3, "PKR", th.Soft, false)
-					a.flashText(c, pkr+4, row, px, th.Text, true, pxKey)
-				}
+			} else if at := ix + 3 + used + 2; at+4+runeLen(px) <= edge {
+				// A window too narrow for both: PKR and the price follow the
+				// volumes, as they always have, and the change gives way first.
+				c.Text(at, row, 3, "PKR", th.Soft, false)
+				a.flashText(c, at+4, row, px, th.Text, true, pxKey)
 			}
 		}
 		row++
