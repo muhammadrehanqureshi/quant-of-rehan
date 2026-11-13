@@ -249,13 +249,23 @@ def summarise(rows: list[dict], window: tuple[int, int], year: int,
     for r in with_bars:
         for tf, info in r["native"].items():
             bucket = native.setdefault(tf, {"symbols": 0, "compared": 0,
-                                            "exact": 0, "per_symbol": []})
+                                            "exact": 0, "per_symbol": [],
+                                            "samples": [],
+                                            "exact_by_day_offset": {}})
             if info.get("agreement_pct") is not None:
                 bucket["symbols"] += 1
                 bucket["compared"] += int(info.get("common") or 0)
                 bucket["exact"] += int(info.get("exact") or 0)
                 bucket["per_symbol"].append({"symbol": r["symbol"],
                                              "pct": info["agreement_pct"]})
+                for sample in (info.get("samples") or [])[:3]:
+                    if len(bucket["samples"]) < 3:
+                        bucket["samples"].append({"symbol": r["symbol"],
+                                                  **sample})
+                for offset, count in (info.get("exact_by_day_offset") or {}).items():
+                    bucket["exact_by_day_offset"][str(offset)] = (
+                        bucket["exact_by_day_offset"].get(str(offset), 0)
+                        + int(count))
     for tf, info in native.items():
         info["agreement_pct"] = (round(100.0 * info["exact"] / info["compared"], 3)
                                  if info["compared"] else None)
