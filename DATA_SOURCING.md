@@ -59,9 +59,9 @@ served. The registry entry `session_snapshot` holds that state, and
 
 ## 3b. The five year intraday archive (measured 2026-11-13)
 
-The owner asked for five years of 5m, 15m, 30m and 1h bars for every KMIALL
-scrip, back to 2021-11-13, and named two free chart sites. What was measured
-before anything was built:
+The owner asked for five years of 5m, 15m, 30m, 1h and 1D bars for every
+KMIALL scrip, back to 2021-11-13, and named two free chart sites. What was
+measured before anything was built:
 
 | Endpoint | Answer measured 2026-11-13 |
 |---|---|
@@ -74,9 +74,12 @@ before anything was built:
 No key, login or token is involved in the SCS datafeed, and it is the same
 feed the chart page the owner named fetches from. It is read here through
 [src/data/scs_chart.py](src/data/scs_chart.py), which asks for 5m as the base
-and derives 15m, 30m and 1h as clock aligned buckets; the builder checks
-those against the feed's own native buckets on a sample of symbols every year
-and records the agreement in `manifest-{year}.json`.
+and derives 15m, 30m, 1h and 1D. The 1D row is grouped by **Karachi session
+date**, not by UTC date, stamped at 00:00 PKT on that date, and aggregates
+every 5m bar of the session including the pre-open and post-close bars. The
+builder checks the intraday buckets and the daily series against the feed's
+own native series on a sample of symbols every year and records the agreement
+in `manifest-{year}.json`.
 
 The bars include the pre-open and post-close sessions, so every row carries a
 `regular` flag that is true only inside the exchange's trading bands
@@ -86,12 +89,16 @@ applied by this archive, and the manifest says so.
 How it is built and read:
 
 - `.github/workflows/intraday-history.yml`, manual dispatch, one job per
-year (`2021` to `2026`), each a few minutes, with a probe mode (`limit=5`);
+  year (`2021` to `2026`), each a few minutes, with a probe mode (`limit=5`),
+  followed by a `verify` job that joins all years and reproduces every
+  timeframe from 5m;
 - `scripts/build_intraday_history.py` writes one parquet partition per
-timeframe per year under the gitignored `data/history/` and uploads the same
-files to the private R2 bucket under `history/{year}/`;
-- `src/data/intraday_history.py` is the reader a backtest uses, and it raises
-on a missing year instead of silently training on a shorter study;
+  timeframe per year (`5m`, `15m`, `30m`, `60m`, `1D`) under the gitignored
+  `data/history/` and uploads the same files to the private R2 bucket under
+  `history/{year}/`;
+- `src/data/intraday_history.py` is the reader a backtest uses for all five
+  timeframes, and it raises on a missing year instead of silently training on
+  a shorter study;
 - the archive is never committed and never redistributed. It exists for the
 owner's own research, like the EOD crawl in section 8.3.
 

@@ -59,6 +59,22 @@ class ArchiveTest(unittest.TestCase):
             self.assertEqual(len(every_bar), 6)
             self.assertEqual(int((~every_bar["regular"]).sum()), 2)
 
+    def test_one_day_partition_uses_karachi_midnight(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / "1D").mkdir()
+            midnight = int(datetime(2026, 11, 2, tzinfo=KARACHI).timestamp())
+            pd.DataFrame([{
+                "symbol": "OGDC", "ts": midnight, "open": 100.0,
+                "high": 101.0, "low": 99.0, "close": 100.5,
+                "volume": 6000, "regular": True,
+            }]).to_parquet(root / "1D" / "1D-2026.parquet", index=False)
+            self.assertEqual(archive.TIMEFRAMES, ("5m", "15m", "30m", "60m", "1D"))
+            table = archive.load("1D", years=[2026], root=root)
+            self.assertEqual(len(table), 1)
+            self.assertEqual(archive.karachi_index(table)[0].strftime("%Y-%m-%d %H:%M"),
+                             "2026-11-02 00:00")
+
     def test_a_missing_year_is_named_not_skipped(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)

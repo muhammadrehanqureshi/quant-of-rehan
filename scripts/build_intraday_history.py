@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build one year of the five year PSX intraday archive (CLOUD-ONLY).
 
-Owner request 2026-11-13: five years of 5m, 15m, 30m and 1h bars for every
+Owner request 2026-11-13: five years of 5m, 15m, 30m, 1h and 1D bars for every
 KMIALL scrip, for strategy backtests. The broker's own live servlet cannot
 backfill (DATA_SOURCING.md section 4), so the archive is read from the SCS
 Trade chart datafeed (src/data/scs_chart.py), which is free, unauthenticated
@@ -14,7 +14,8 @@ partitions never need merging.
 What it writes, under the gitignored data/history/:
 
     {tf}/{tf}-{year}.parquet    symbol, ts, open, high, low, close, volume,
-                                regular; one row per bar, sorted
+                                regular; one row per bar, sorted; 1D rows
+                                are stamped at Karachi midnight
     manifest-{year}.json        provenance, per symbol coverage, structural
                                 checks and the native bucket agreement
 
@@ -56,6 +57,7 @@ DEFAULT_UNIVERSE = ROOT / "src" / "data" / "universe_kmiall.json"
 #: The feed's first bar, measured 2026-11-13. Asking for 2021 from January
 #: would make the 2021 manifest report coverage against ten dead months.
 ARCHIVE_START = date(2021, 11, 13)
+DAILY_TIMEFRAME = "1D"
 WORKERS = 2
 MIN_SYMBOL_COVERAGE = 0.50
 MAX_FAULT_SHARE = 0.05
@@ -146,8 +148,8 @@ def build_symbol(symbol: str, start: int, end: int, resolutions: list[int],
     """Fetch one symbol for the window, validate it and resample it."""
     session = _session()
     result = {"symbol": symbol, "status": "ok", "frames": {},
-              "checks": {}, "coverage": {}, "native": {}, "faults": [],
-              "requests": 0}
+              "checks": {}, "daily_checks": {}, "coverage": {},
+              "native": {}, "faults": [], "requests": 0}
     try:
         bars = scs_chart.fetch_window(session, symbol, scs_chart.BASE_RESOLUTION,
                                       start, end)
@@ -170,6 +172,17 @@ def build_symbol(symbol: str, start: int, end: int, resolutions: list[int],
         result["status"] = "faulted"
         result["faults"].extend(fault_list)
         return result
+
+    daily = scs_chart.daily(bars)
+    result["daily_checks"] = scs_chart.validate_daily(daily)
+    daily_faults = scs_chart.problems_daily(daily)
+    if daily_faults:
+        result["status"] = "faulted"
+        result["faults"].extend(f"daily {fault}" for fault in daily_faults)
+        return result
+    result["frames"][DAILY_TIMEFRAME] = daily.frame(
+        symbol, np.ones(len(daily), dtype=bool))
+
     result["coverage"] = scs_chart.coverage(bars, start, end)
     for resolution in resolutions:
         series = bars if resolution == scs_chart.BASE_RESOLUTION else \
@@ -182,6 +195,14 @@ def build_symbol(symbol: str, start: int, end: int, resolutions: list[int],
                 result["native"][f"{resolution}m"] = compare(series, native)
             except scs_chart.FeedError as exc:
                 result["native"][f"{resolution}m"] = {"error": str(exc)[:160]}
+    if native_check:
+        try:
+            native_daily = scs_chart.fetch_window(session, symbol, "D",
+                                                  start, end)
+            result["native"][DAILY_TIMEFRAME] = scs_chart.compare_daily(
+                daily, native_daily)
+        except scs_chart.FeedError as exc:
+            result["native"][DAILY_TIMEFRAME] = {"error": str(exc)[:160]}
     return result
 
 
@@ -213,6 +234,10 @@ def summarise(rows: list[dict], window: tuple[int, int], year: int,
     for r in rows:
         for key, value in (r["checks"] or {}).items():
             checks[key] = checks.get(key, 0) + int(value)
+    daily_checks = {}
+    for r in rows:
+        for key, value in (r.get("daily_checks") or {}).items():
+            daily_checks[key] = daily_checks.get(key, 0) + int(value)
     trading_days = 0
     d = datetime.fromtimestamp(start, tz=KARACHI).date()
     last = datetime.fromtimestamp(end, tz=KARACHI).date()
@@ -243,8 +268,10 @@ def summarise(rows: list[dict], window: tuple[int, int], year: int,
             "auth": "none",
             "base_resolution": "5m",
             "derived_resolutions": [f"{r}m" for r in resolutions
-                                    if r != scs_chart.BASE_RESOLUTION],
+                                    if r != scs_chart.BASE_RESOLUTION] + [DAILY_TIMEFRAME],
             "prices": "as traded, no split or bonus adjustment",
+            "timezone": "Asia/Karachi (UTC+5); ts is UTC epoch seconds, "
+                        f"and a 1D row is stamped at Karachi midnight for its session date",
             "first_bar_measured": scs_chart.FIRST_BAR_DATE,
             "sessions": "regular flag marks the exchange's trading bands; "
                         "pre-open and post-close bars are kept",
@@ -273,6 +300,7 @@ def summarise(rows: list[dict], window: tuple[int, int], year: int,
             "below_50": sum(1 for s in shares if s < 50.0),
         },
         "checks": checks,
+        "daily_checks": daily_checks,
         "native_check": native,
         "requests": sum(int(r["requests"]) for r in rows),
     }
@@ -358,8 +386,9 @@ def main(argv: list[str] | None = None) -> int:
         return 3
 
     written = {}
-    for resolution in resolutions:
-        tf = f"{resolution}m"
+    timeframes = [f"{resolution}m" for resolution in resolutions]
+    timeframes.append(DAILY_TIMEFRAME)
+    for tf in timeframes:
         frames = [r["frames"][tf] for r in rows if tf in r["frames"]]
         written[tf] = write_parquet(frames, out_dir / tf / f"{tf}-{args.year}.parquet")
     manifest["files"] = written
@@ -395,7 +424,7 @@ def main(argv: list[str] | None = None) -> int:
 
     print(json.dumps({k: manifest[k] for k in
                       ("year", "ok", "symbols", "coverage_pct", "checks",
-                       "files", "r2", "elapsed_seconds")
+                       "daily_checks", "files", "r2", "elapsed_seconds")
                       if k in manifest}, indent=2), flush=True)
     return 0 if manifest["ok"] else 2
 
