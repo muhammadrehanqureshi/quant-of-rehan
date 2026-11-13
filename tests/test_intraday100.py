@@ -63,7 +63,11 @@ class SessionBandTests(unittest.TestCase):
 
 
 def _trade_frame() -> pd.DataFrame:
-    stamps = [_ts(2024, 1, 1, 9, 35 + i * 5) for i in range(6)]
+    stamps = [
+        _ts(2024, 1, 1, 9, 35), _ts(2024, 1, 1, 9, 40),
+        _ts(2024, 1, 1, 9, 45), _ts(2024, 1, 1, 9, 50),
+        _ts(2024, 1, 1, 9, 55), _ts(2024, 1, 1, 10, 0),
+    ]
     # 09:35 to 10:00; all bars fit before 15:30.
     band_end = _ts(2024, 1, 1, 15, 30)
     rows = []
