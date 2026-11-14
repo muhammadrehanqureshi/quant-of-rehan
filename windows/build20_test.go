@@ -48,8 +48,11 @@ func TestOrderFlowNetDeltaPercentColumn(t *testing.T) {
 	}
 	hx := strings.Index(rows[head], "NET DELTA %")
 	vx := strings.Index(rows[bbb], "63.27%")
-	if hx != vx {
-		t.Fatalf("the heading starts on %d and its value on %d, so the column is not aligned", hx, vx)
+	// The row's bar glyph is multibyte, so compare cells, not bytes.
+	hc := runeLen(rows[head][:hx])
+	vc := runeLen(rows[bbb][:vx])
+	if hc != vc {
+		t.Fatalf("the heading starts on cell %d and its value on %d, so the column is not aligned", hc, vc)
 	}
 	if ds := plain(a); !strings.Contains(ds, "33.33%") {
 		t.Errorf("AAA's 300 over 900 must read 33.33%%:\n%s", ds)
