@@ -61,16 +61,19 @@ def build(results: Path, out: Path, tfs: tuple[str, ...], min_trades: int,
         "t3_all_three": int(merged["t3_all"].sum()),
     }
     show = merged.head(top)
+    label = " + ".join(tfs)
+    heading = f"{label} together" if len(tfs) > 1 else label
+    noun = "timeframes" if len(tfs) > 1 else "timeframe"
     cols = ["id", "name", "min_rank", "min_exp", "min_t", "positive_all", "t3_all"]
     lines = [
-        "# 5m + 15m + 30m together",
+        f"# {heading}",
         "",
-        f"* strategies with a usable result on all three timeframes: {stats['strategies_all_three']}",
-        f"* positive net return on all three: {stats['positive_all_three']}",
-        f"* t statistic at least 3 on all three: {stats['t3_all_three']}",
+        f"* strategies with a usable result on all requested {noun}: {stats['strategies_all_three']}",
+        f"* positive net return on all requested {noun}: {stats['positive_all_three']}",
+        f"* t statistic at least 3 on all requested {noun}: {stats['t3_all_three']}",
         "",
-        "A strategy enters this table only if its best combination exists on 5m, 15m and 30m "
-        "with at least the minimum trade count. `min_rank` is the weakest of the three rank scores, "
+        f"A strategy enters this table only if its best combination exists on {label} "
+        "with at least the minimum trade count. `min_rank` is the weakest of the requested rank scores, "
         "so the table is ordered by the timeframe that is hardest to satisfy.",
         "",
         "| " + " | ".join(cols) + " |",
@@ -88,8 +91,8 @@ def build(results: Path, out: Path, tfs: tuple[str, ...], min_trades: int,
                 cells.append(str(value))
         lines.append("| " + " | ".join(cells) + " |")
     (out / "MULTITF.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
-    print(f"cross-timeframe rows: {len(merged)}, positive all three: {stats['positive_all_three']}, "
-          f"t>=3 all three: {stats['t3_all_three']}", flush=True)
+    print(f"cross-timeframe rows: {len(merged)}, positive all requested: {stats['positive_all_three']}, "
+          f"t>=3 all requested: {stats['t3_all_three']}", flush=True)
     return merged, stats
 
 

@@ -93,6 +93,7 @@ ragged candles are widened to contain their body, duplicate timestamps are remov
 * A trailing stop trails the highest high of COMPLETED bars, so a candle cannot raise the stop and hit it in the same bar.
 * One position per symbol at a time. Intraday trades are flat by the last bar of the session, except the strategies marked
   `[overnight]` in `STRATEGIES.md`. Maximum hold when nothing else fires: 5m 36 bars, 15m 24, 30m 14, 1h 7, 1d 5.
+  The swing profiles hold for 30 completed daily bars when nothing else fires.
 * Costs are the QoR repository's law: 22.4 bps per side (commission, SST, levies), 10 bps slippage per side, and 15 percent capital gains
   tax on a winning trade. A losing trade gets no refund.
 
@@ -101,6 +102,19 @@ Exit profiles (`--profiles`):
 * `law`: take profit +2 percent, stop loss -1 percent. QoR's own rule.
 * `atr`: stop 1.5 ATR under the entry (clipped to 0.4 to 4 percent), target twice the stop.
 * `trail`: no target, a chandelier trailing stop 2.5 ATR under the highest high (clipped to 0.4 to 6 percent).
+
+Swing profiles (`1d` only):
+
+* `swing`: take profit +10 percent, stop loss -5 percent.
+* `swingatr`: stop 2.5 ATR under the entry (clipped to 1.5 to 8 percent), target three times the stop.
+* `swingtrail`: no target, a chandelier trailing stop 3 ATR (clipped to 1.5 to 10 percent).
+
+Run swing on its own, never mixed with the intraday profiles:
+
+```
+python -m kmiall100.run --data data --out results/shard_0 --shard 0/10 --tfs 1d \
+  --profiles swing,swingatr,swingtrail --grid
+```
 
 ## 6. Read this before you trust a number
 
@@ -159,7 +173,7 @@ signals, so any strategy that cannot beat S091 on the same exit profile is not a
 
 ```
 python tools/fetch_data.py data
-python -m kmiall100.run --data data --out results/shard_0 --shard 0/10 --grid
+python -m kmiall100.run --data data --out results/shard_0 --shard 0/10 --grid    # intraday defaults
 python -m kmiall100.merge results --out report
 python tools/make_catalog.py        # rewrites STRATEGIES.md and strategies_catalog.csv from the code
 python -m pytest tests -q           # run by the workflow, you do not need to run it yourself
