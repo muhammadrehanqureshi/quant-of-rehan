@@ -102,12 +102,21 @@ Exit profiles (`--profiles`):
 * `law`: take profit +2 percent, stop loss -1 percent. QoR's own rule.
 * `atr`: stop 1.5 ATR under the entry (clipped to 0.4 to 4 percent), target twice the stop.
 * `trail`: no target, a chandelier trailing stop 2.5 ATR under the highest high (clipped to 0.4 to 6 percent).
+* `daylow`: take profit +1.2 percent, stop at the session low known at the signal bar, no trail. Intraday only.
+  The final low of the day is never used, so the stop cannot look ahead.
 
 Swing profiles (`1d` only):
 
 * `swing`: take profit +10 percent, stop loss -5 percent.
 * `swingatr`: stop 2.5 ATR under the entry (clipped to 1.5 to 8 percent), target three times the stop.
 * `swingtrail`: no target, a chandelier trailing stop 3 ATR (clipped to 1.5 to 10 percent).
+
+Run the day-low exit on an intraday run:
+
+```
+python -m kmiall100.run --data data --out results/shard_0 --shard 0/10 --tfs 5m,15m,30m \
+  --profiles daylow --grid
+```
 
 Run swing on its own, never mixed with the intraday profiles:
 

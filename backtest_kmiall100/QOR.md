@@ -45,6 +45,17 @@ reports how many strategies are positive on every requested timeframe and how
 many reach t 3 or more on all of them. For a swing run the requested list is
 just `1d`, so the table is the daily leaderboard.
 
+## Day-low dispatch
+
+```
+gh workflow run kmiall100-backtest.yml -f data_run_id=43403044554 \
+  -f shards=10 -f tfs=5m,15m,30m -f profiles=daylow \
+  -f grid=true -f min_trades=100
+```
+
+`daylow` takes profit at 1.2 percent and stops at the session low known at
+the signal bar. It is intraday only; the final low of the day is never used.
+
 ## Swing dispatch
 
 ```

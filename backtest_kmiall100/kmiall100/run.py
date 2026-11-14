@@ -41,8 +41,9 @@ from .strategies import REGISTRY as _R                              # noqa: E402
 
 DEFAULT_HOLD = {"5m": 36, "15m": 24, "30m": 14, "1h": 7, "1d": 5}
 PROFILES = ("law", "atr", "trail")
+DAYLOW_PROFILE = "daylow"
 SWING_PROFILES = ("swing", "swingatr", "swingtrail")
-ALL_PROFILES = PROFILES + SWING_PROFILES
+ALL_PROFILES = PROFILES + (DAYLOW_PROFILE,) + SWING_PROFILES
 SWING_HOLD = 30                 # daily bars, about six trading weeks
 NO_TP = 10.0
 
@@ -67,11 +68,25 @@ def pick_strategies(ids: Optional[str], shard: Tuple[int, int]) -> List[str]:
     return [s for k, s in enumerate(allids) if k % n == i]
 
 
-def profile_arrays(name: str, sig: np.ndarray, x: Ctx):
+def profile_arrays(name: str, sig: np.ndarray, x: Ctx, o: np.ndarray | None = None):
     """Per signal take profit, stop and trail fractions for one exit profile."""
     m = len(sig)
     if name == "law":
         return np.full(m, 0.02), np.full(m, 0.01), np.zeros(m)
+    if name == "daylow":
+        # The stop is the session low known at the signal bar, expressed as a
+        # fraction of the next bar's open plus the engine's entry slippage.
+        # The final low of the day is never used.
+        if o is None:
+            raise ValueError("daylow needs the open prices")
+        ep = np.full(m, np.nan)
+        nxt = sig + 1
+        valid = nxt < len(x.c)
+        ep[valid] = o[nxt[valid]] * (1.0 + E.SLIP_SIDE)
+        low = x.day_lo_sofar()[sig]
+        with np.errstate(divide="ignore", invalid="ignore"):
+            sl = 1.0 - low / ep
+        return np.full(m, 0.012), sl, np.zeros(m)
     if name == "swing":
         return np.full(m, 0.10), np.full(m, 0.05), np.zeros(m)
     atrp = x.atrp()[sig]
@@ -171,7 +186,7 @@ def run_series(tf: str, sym: str, sid_num: int, df: pd.DataFrame, idx_df: Option
             if len(idx) == 0:
                 continue
             for pf in profiles:
-                tp_f, sl_f, tr_f = profile_arrays(pf, idx, x)
+                tp_f, sl_f, tr_f = profile_arrays(pf, idx, x, o)
                 ok = np.isfinite(sl_f) & (sl_f > 0)
                 ii, tpf, slf, trf = idx[ok], tp_f[ok], sl_f[ok], tr_f[ok]
                 if len(ii) == 0:
@@ -204,7 +219,8 @@ def main(argv=None):
     ap.add_argument("--shard", default="0/1", help="i/N, this job takes every Nth strategy")
     ap.add_argument("--strategies", default="", help="comma list of ids, default all")
     ap.add_argument("--profiles", default=",".join(PROFILES),
-                    help="law (TP 2 pct, SL 1 pct), atr, trail, swing (TP 10 pct, SL 5 pct), swingatr, swingtrail")
+                    help="law (TP 2 pct, SL 1 pct), atr, trail, daylow (TP 1.2 pct, SL today's low), "
+                         "swing (TP 10 pct, SL 5 pct), swingatr, swingtrail")
     ap.add_argument("--grid", action="store_true", help="also run each strategy's parameter variants")
     ap.add_argument("--symbols", default="", help="comma list, default every file found")
     ap.add_argument("--index", default="", help="index symbol name, default the one that looks like KMIALL")
@@ -225,6 +241,8 @@ def main(argv=None):
             raise SystemExit("swing profiles hold for weeks, so they run on 1d alone")
         if len(profiles) != sum(p in SWING_PROFILES for p in profiles):
             raise SystemExit("swing profiles cannot be mixed with intraday profiles")
+    if DAYLOW_PROFILE in profiles and "1d" in tfs:
+        raise SystemExit("daylow uses the session low, so it runs on intraday timeframes only")
     ids = pick_strategies(a.strategies, shard)
     strategies = [REGISTRY[i] for i in ids]
     only = {s.strip().upper() for s in a.symbols.split(",") if s.strip()} or None
