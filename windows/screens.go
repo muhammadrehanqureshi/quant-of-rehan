@@ -978,10 +978,8 @@ func (a *App) marketNote() string {
 	switch {
 	case a.demo:
 		return "Demo mode: every number here is invented."
-	case a.quotes != nil && a.scanning():
-		return "DATA FROM THE BROKER'S FEED IS BEING UPDATED EVERY SECOND."
-	case a.quotes != nil && len(a.quotes.Items) > 0:
-		return "THE LAST DATA THE BROKER'S FEED SENT."
+	case a.quotes != nil && (a.scanning() || len(a.quotes.Items) > 0):
+		return "LAST DATA FROM THE BROKER'S FEED."
 	}
 	// Owner order 2026-11-09: the idle line under the KSE100 tile.
 	return "Quant is sleeping till the next market day."
@@ -1217,9 +1215,9 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 	}
 	const chgW = 8
 	// Owner order 2026-11-14 (latest): the leader values and their bar move
-	// farther left as one measured group, leaving room for the full NET DELTA
-	// label without breaking any of the columns they share.
-	edge := ix + iw - 8
+	// five cells right as one measured group, and the full NET DELTA label
+	// still keeps every shared column intact.
+	edge := ix + iw - 3
 	// Owner order 2026-11-13: NET DELTA moves off the name line to the price
 	// line, right aligned at the tile's edge, so the bar stands alone on the
 	// name line and no figure cuts into it. The field is measured once, so all
