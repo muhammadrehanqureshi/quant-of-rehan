@@ -5,9 +5,9 @@ import (
 	"strings"
 )
 
-// Owner order 2026-11-13: the calculator on the SCANNER page. It asks for the
-// price and the quantity, and shows the money those shares need. F6 opens and
-// closes it, so the search box keeps every letter it had.
+// Owner order 2026-11-14: the calculator on the SCANNER page. It asks for the
+// price and the quantity, and shows the money those shares need. C opens it
+// and ESC leaves it.
 func (a *App) openCalc() {
 	a.calcOpen, a.calcField = true, 0
 	a.priceEdit, a.priceMsg = -1, ""
@@ -25,7 +25,7 @@ func (a *App) calcBuf() *string {
 // box, ESC closes.
 func (a *App) keyCalc(k Key) {
 	switch k.Kind {
-	case KEsc, KF6:
+	case KEsc:
 		a.calcOpen = false
 	case KEnter:
 		if a.calcField == 0 {
@@ -73,7 +73,7 @@ func (a *App) drawCalculatorTile(c *Canvas, x, y, w, h int) {
 	if w < 24 || h < 4 {
 		return
 	}
-	hint := "Click or F6 to type"
+	hint := "Press \"C\" to calculate"
 	if a.calcOpen {
 		hint = "TAB next, ESC leaves"
 	}

@@ -460,7 +460,9 @@ func (a *App) searchTileHeight(w, h int) int {
 // scanner, the SECTORS tile and ORDER FLOW. It returns the field's width.
 func (a *App) searchBox(c *Canvas, x, y, w int, text, hint string, focused bool) int {
 	th := a.th
-	bw := min(w, 40)
+	// Owner order 2026-11-14: every search box is 20 percent shorter than
+	// its old 40 cells, and its empty hint sits on the box's own centre.
+	bw := min(w, 32)
 	if bw < 1 {
 		bw = 1
 	}
@@ -469,7 +471,7 @@ func (a *App) searchBox(c *Canvas, x, y, w int, text, hint string, focused bool)
 		c.Set(x+k, y, ' ', th.Text, field, false)
 	}
 	if text == "" {
-		c.Text(x+2, y, max(1, bw-3), fit(hint, max(1, bw-3)), th.Soft, false)
+		centerText(c, x, y, bw, hint, th.Soft, false)
 	} else {
 		// Owner order 2026-11-12 (latest): the ">" prompt is withdrawn from every
 		// search box, so the typed text starts on the field's own first cell.

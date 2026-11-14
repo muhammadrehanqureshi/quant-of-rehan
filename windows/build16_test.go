@@ -65,12 +65,12 @@ func TestCalculatorTileWording(t *testing.T) {
 	a := demoApp(t, 122, 36)
 	a.screen = scrScanner
 	s := plain(a)
-	for _, want := range []string{"Enter price", "Enter qty"} {
+	for _, want := range []string{"Enter price", "Enter qty", "Press \"C\" to calculate"} {
 		if !strings.Contains(s, want) {
 			t.Errorf("the calculator tile is missing %q", want)
 		}
 	}
-	a.onKey(Key{Kind: KF6})
+	a.onKey(Key{Kind: KRune, R: 'C'})
 	if !strings.Contains(plain(a), "TAB next, ESC leaves") {
 		t.Error("the calculator hint does not carry the comma")
 	}

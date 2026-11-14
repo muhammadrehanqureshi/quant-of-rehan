@@ -246,7 +246,7 @@ func (a *App) raisePriceAlert(p PriceAlert) {
 func (a *App) drawPriceTile(c *Canvas, x, y, w, h int) {
 	th := a.th
 	a.focusNext = a.alertFocus == 3
-	ix, iy, iw, ih := a.panel(c, x, y, w, h, "PRICE ALERTS", "P sets a slot, DEL clears it")
+	ix, iy, iw, ih := a.panel(c, x, y, w, h, "PRICE ALERTS", "Press \"A\" to set alerts, \"del clears them\"")
 	a.addHit(x, y, w, h, func() { a.alertFocus = 3 })
 	for i := 0; i < priceAlertSlots && i < ih; i++ {
 		p := a.cfg.PriceAlerts[i]
@@ -261,7 +261,7 @@ func (a *App) drawPriceTile(c *Canvas, x, y, w, h int) {
 		c.Set(ix+1, ry, mark, th.Accent, bg, true)
 		c.Text(ix+3, ry, 3, strconv.Itoa(i+1)+".", th.Soft, false)
 		if !p.Set() {
-			c.Text(ix+7, ry, max(1, iw-7), fit("EMPTY.", max(1, iw-7)), th.Soft, false)
+			c.Text(ix+7, ry, max(1, iw-7), fit("EMPTY", max(1, iw-7)), th.Soft, false)
 			continue
 		}
 		c.Text(ix+7, ry, 9, p.Symbol, th.Hot, true)

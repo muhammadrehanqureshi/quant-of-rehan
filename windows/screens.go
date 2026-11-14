@@ -347,7 +347,7 @@ func (a *App) drawNav(c *Canvas, y int) {
 	case scrScanner:
 		hints = []string{"TAB NEXT  ESC CLEAR  CTRL+C QUIT", "TAB NEXT  ESC CLEAR  CTRL+C QUIT", "CTRL+C QUIT"}
 	case scrAlerts:
-		hints = []string{"P PRICE ALERT  TAB NEXT  R REFRESH  Q QUIT", "TAB NEXT  R REFRESH  Q QUIT", "Q QUIT"}
+		hints = []string{"A PRICE ALERT  TAB NEXT  R REFRESH  Q QUIT", "TAB NEXT  R REFRESH  Q QUIT", "Q QUIT"}
 	case scrHome:
 		// Owner order 2026-11-12 (latest): the D DETAILS hint is withdrawn from
 		// the home footer. D itself still flips the card to its raw text.
@@ -375,7 +375,7 @@ func hintSpans(s string, th *Theme) []Span {
 			out = append(out, Span{" ", th.Soft, false})
 		}
 		switch f {
-		case "D", "P", "R", "TAB":
+		case "A", "D", "P", "R", "TAB":
 			out = append(out, Span{f, th.Good, true})
 		case "ESC":
 			out = append(out, Span{f, th.Warn, true})

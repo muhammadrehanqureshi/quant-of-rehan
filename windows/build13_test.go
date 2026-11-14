@@ -176,8 +176,11 @@ func TestAlertsPageCarriesThreePriceSlots(t *testing.T) {
 	if !strings.Contains(s, "PRICE ALERTS") {
 		t.Fatalf("the ALERTS page has no PRICE ALERTS tile:\n%s", s)
 	}
-	if n := strings.Count(s, "EMPTY."); n != priceAlertSlots {
+	if n := strings.Count(s, "EMPTY"); n != priceAlertSlots {
 		t.Fatalf("want %d empty slots, got %d", priceAlertSlots, n)
+	}
+	if strings.Contains(s, "EMPTY.") {
+		t.Fatal("the empty slots still carry a full stop")
 	}
 	if strings.Contains(s, "Press P to give") {
 		t.Fatal("the empty slots still tell the owner to press P")
@@ -191,9 +194,9 @@ func TestAlertsPageCarriesThreePriceSlots(t *testing.T) {
 func TestCalculatorShowsTheMoneyTheSharesNeed(t *testing.T) {
 	a := demoApp(t, 122, 36)
 	a.screen = scrScanner
-	a.onKey(Key{Kind: KF6})
+	a.onKey(Key{Kind: KRune, R: 'c'})
 	if !a.calcOpen {
-		t.Fatal("F6 must open the calculator on the SCANNER page")
+		t.Fatal("C must open the calculator on the SCANNER page")
 	}
 	for _, r := range "12.5" {
 		a.onKey(Key{Kind: KRune, R: r})
@@ -219,8 +222,8 @@ func TestCalculatorShowsTheMoneyTheSharesNeed(t *testing.T) {
 	if !strings.Contains(plain(a), "POSITION CALCULATOR") {
 		t.Fatal("the calculator tile must stay under CUSTOM SCRIPS when it has no keys")
 	}
-	// The boxes keep what was typed, so F6 reopens the same sum.
-	a.onKey(Key{Kind: KF6})
+	// The boxes keep what was typed, so C reopens the same sum.
+	a.onKey(Key{Kind: KRune, R: 'C'})
 	if !strings.Contains(plain(a), "PKR 5,000.00") {
 		t.Fatal("reopening the calculator must keep the two boxes")
 	}
