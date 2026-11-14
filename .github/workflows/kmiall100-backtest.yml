@@ -3,8 +3,12 @@
 # The kit is vendored under backtest_kmiall100/. The data is the five year
 # intraday archive already built and kept as artifacts by the successful
 # intraday-history run 43403044554. A prepare job joins the yearly partitions
-# for 5m, 15m and 30m into the long parquet files the kit reads, then every
-# shard runs all three timeframes in the same backtest job.
+# for the requested timeframes into the long parquet files the kit reads, then
+# every shard runs them in the same backtest job.
+#
+# Intraday and swing are separate modes. An intraday run must include 5m, 15m
+# and 30m together. A swing run uses 1d alone with the swing profiles, so its
+# wider targets and multi-week holds are not applied to intraday bars.
 #
 # Manual dispatch only. Nothing here is scheduled.
 name: kmiall100 multi-timeframe backtest
@@ -22,7 +26,7 @@ on:
         description: "timeframes to run together"
         default: "5m,15m,30m"
       profiles:
-        description: "exit profiles: law,atr,trail"
+        description: "exit profiles: law,atr,trail or swing,swingatr,swingtrail"
         default: "law,atr,trail"
       grid:
         description: "also run each strategy's parameter variants"
@@ -83,7 +87,7 @@ jobs:
           need("DATA_RUN_ID", os.environ["DATA_RUN_ID"], r"[0-9]{6,}")
           need("SHARDS", os.environ["SHARDS"], r"[0-9]{1,2}")
           need("TFS", os.environ["TFS"], r"(5m|15m|30m|1h|1d)(,(5m|15m|30m|1h|1d))*")
-          need("PROFILES", os.environ["PROFILES"], r"(law|atr|trail)(,(law|atr|trail))*")
+          need("PROFILES", os.environ["PROFILES"], r"(law|atr|trail|swing|swingatr|swingtrail)(,(law|atr|trail|swing|swingatr|swingtrail))*")
           need("GRID", os.environ["GRID"], r"true|false")
           need("MIN_TRADES", os.environ["MIN_TRADES"], r"[0-9]{1,5}")
           need("STRATEGIES", os.environ["STRATEGIES"], r"(|S[0-9]{3}(,S[0-9]{3})*)")
@@ -91,8 +95,13 @@ jobs:
           if not 1 <= n <= 20:
               sys.exit("shards must be 1 to 20")
           tfs = os.environ["TFS"].split(",")
-          if not {"5m", "15m", "30m"}.issubset(set(tfs)):
-              sys.exit("this run must include 5m, 15m and 30m together")
+          profiles = os.environ["PROFILES"].split(",")
+          swing = [p for p in profiles if p in ("swing", "swingatr", "swingtrail")]
+          if swing:
+              if tfs != ["1d"] or len(profiles) != len(swing):
+                  sys.exit("swing profiles run on 1d alone and cannot be mixed with intraday profiles")
+          elif not {"5m", "15m", "30m"}.issubset(set(tfs)):
+              sys.exit("an intraday run must include 5m, 15m and 30m together")
           with open(os.environ["GITHUB_OUTPUT"], "a") as f:
               f.write("shards=" + json.dumps(list(range(n))) + "\n")
           PY
@@ -116,7 +125,7 @@ jobs:
           merge-multiple: true
           run-id: ${{ inputs.data_run_id }}
           github-token: ${{ github.token }}
-      - name: Join 5m, 15m and 30m into the kit's long files
+      - name: Join the requested timeframes into the kit's long files
         run: |
           python scripts/prepare_kmiall100_data.py \
             --history data/history \
@@ -198,7 +207,7 @@ jobs:
         with:
           pattern: kmiall100-result-*
           path: results
-      - name: Merge, rank and build the 5m + 15m + 30m view
+      - name: Merge, rank and build the cross-timeframe view
         env:
           MIN_TRADES: ${{ inputs.min_trades }}
         run: |

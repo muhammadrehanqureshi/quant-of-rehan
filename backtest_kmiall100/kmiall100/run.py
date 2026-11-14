@@ -41,6 +41,9 @@ from .strategies import REGISTRY as _R                              # noqa: E402
 
 DEFAULT_HOLD = {"5m": 36, "15m": 24, "30m": 14, "1h": 7, "1d": 5}
 PROFILES = ("law", "atr", "trail")
+SWING_PROFILES = ("swing", "swingatr", "swingtrail")
+ALL_PROFILES = PROFILES + SWING_PROFILES
+SWING_HOLD = 30                 # daily bars, about six trading weeks
 NO_TP = 10.0
 
 
@@ -69,16 +72,26 @@ def profile_arrays(name: str, sig: np.ndarray, x: Ctx):
     m = len(sig)
     if name == "law":
         return np.full(m, 0.02), np.full(m, 0.01), np.zeros(m)
+    if name == "swing":
+        return np.full(m, 0.10), np.full(m, 0.05), np.zeros(m)
     atrp = x.atrp()[sig]
     atrp = np.where(np.isfinite(atrp), atrp, 0.01)
     if name == "atr":
         sl = np.clip(1.5 * atrp, 0.004, 0.04)
         return 2.0 * sl, sl, np.zeros(m)
+    if name == "swingatr":
+        sl = np.clip(2.5 * atrp, 0.015, 0.08)
+        return 3.0 * sl, sl, np.zeros(m)
+    if name == "swingtrail":
+        tr = np.clip(3.0 * atrp, 0.015, 0.10)
+        return np.full(m, NO_TP), tr, tr
     tr = np.clip(2.5 * atrp, 0.004, 0.06)
     return np.full(m, NO_TP), tr, tr
 
 
-def hold_for(s, tf: str) -> int:
+def hold_for(s, tf: str, profile: str | None = None) -> int:
+    if profile in SWING_PROFILES:
+        return SWING_HOLD
     if s.hold and tf in s.hold:
         return int(s.hold[tf])
     if s.overnight:
@@ -143,7 +156,6 @@ def run_series(tf: str, sym: str, sid_num: int, df: pd.DataFrame, idx_df: Option
             counts["skipped_no_index"] += 1
             continue
         flat_eod = x.intraday and not s.overnight
-        mh = hold_for(s, tf)
         for vname, params in variants_for(s, use_grid):
             try:
                 sig = np.asarray(s.fn(x, **params), dtype=bool)
@@ -164,6 +176,7 @@ def run_series(tf: str, sym: str, sid_num: int, df: pd.DataFrame, idx_df: Option
                 ii, tpf, slf, trf = idx[ok], tp_f[ok], sl_f[ok], tr_f[ok]
                 if len(ii) == 0:
                     continue
+                mh = hold_for(s, tf, pf)
                 _, en, ex, epx, xpx, out, _, _ = E.simulate(o, h, l, c, v, x.is_eod, ii, tpf, slf, trf, mh,
                                                             flat_eod, dummy, False, E.SLIP_SIDE)
                 if len(en) == 0:
@@ -190,7 +203,8 @@ def main(argv=None):
     ap.add_argument("--tfs", default=",".join(ALL_TFS), help="comma list of 5m,15m,30m,1h,1d")
     ap.add_argument("--shard", default="0/1", help="i/N, this job takes every Nth strategy")
     ap.add_argument("--strategies", default="", help="comma list of ids, default all")
-    ap.add_argument("--profiles", default=",".join(PROFILES), help="law (TP 2 pct, SL 1 pct), atr, trail")
+    ap.add_argument("--profiles", default=",".join(PROFILES),
+                    help="law (TP 2 pct, SL 1 pct), atr, trail, swing (TP 10 pct, SL 5 pct), swingatr, swingtrail")
     ap.add_argument("--grid", action="store_true", help="also run each strategy's parameter variants")
     ap.add_argument("--symbols", default="", help="comma list, default every file found")
     ap.add_argument("--index", default="", help="index symbol name, default the one that looks like KMIALL")
@@ -203,9 +217,14 @@ def main(argv=None):
     throttle = guard.Throttle(a.cpu_cap) if MODE == "local" else None
     shard = parse_shard(a.shard)
     tfs = [t for t in a.tfs.split(",") if t in ALL_TFS]
-    profiles = [p for p in a.profiles.split(",") if p in PROFILES]
+    profiles = [p for p in a.profiles.split(",") if p in ALL_PROFILES]
     if not tfs or not profiles:
         raise SystemExit("nothing to run: check --tfs and --profiles")
+    if any(p in SWING_PROFILES for p in profiles):
+        if set(tfs) != {"1d"}:
+            raise SystemExit("swing profiles hold for weeks, so they run on 1d alone")
+        if len(profiles) != sum(p in SWING_PROFILES for p in profiles):
+            raise SystemExit("swing profiles cannot be mixed with intraday profiles")
     ids = pick_strategies(a.strategies, shard)
     strategies = [REGISTRY[i] for i in ids]
     only = {s.strip().upper() for s in a.symbols.split(",") if s.strip()} or None
@@ -217,6 +236,9 @@ def main(argv=None):
         raise SystemExit(f"no data files found under {a.data}")
     print(f"[kmiall100 {__version__}] mode={MODE} shard={a.shard} strategies={len(ids)} tfs={tfs} profiles={profiles} "
           f"grid={a.grid} sources={len(srcs)}", flush=True)
+    if any(p in SWING_PROFILES for p in profiles):
+        print(f"swing profiles: {', '.join(p for p in profiles if p in SWING_PROFILES)}, max hold {SWING_HOLD} daily bars",
+              flush=True)
 
     acc: Dict[tuple, Acc] = {}
     errs: List[str] = []

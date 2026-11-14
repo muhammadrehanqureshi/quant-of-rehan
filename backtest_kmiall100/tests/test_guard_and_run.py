@@ -63,6 +63,27 @@ def test_local_override_runs_one_core_at_lowest_priority(synth_dir, tmp_path):
     assert r.returncode == 0 and "mode=local" in r.stdout
 
 
+def test_swing_profiles_run_on_daily_bars(synth_dir, tmp_path):
+    out = tmp_path / "swing"
+    r = subprocess.run([sys.executable, "-m", "kmiall100.run", "--data", str(synth_dir), "--out", str(out),
+                        "--tfs", "1d", "--strategies", "S001", "--min-trades", "5",
+                        "--profiles", "swing,swingatr,swingtrail"],
+                       env=_env(GITHUB_ACTIONS="true"), capture_output=True, text=True, cwd=ROOT)
+    assert r.returncode == 0, r.stderr[-800:]
+    s = pd.read_csv(out / "summary.csv")
+    assert set(s["profile"]) == {"swing", "swingatr", "swingtrail"}
+    assert (s["n"] > 0).all()
+    meta = json.loads((out / "meta.json").read_text())
+    assert meta["tfs"] == ["1d"] and meta["profiles"] == ["swing", "swingatr", "swingtrail"]
+
+
+def test_swing_profiles_refuse_intraday_bars(synth_dir, tmp_path):
+    r = subprocess.run([sys.executable, "-m", "kmiall100.run", "--data", str(synth_dir), "--out", str(tmp_path / "no"),
+                        "--tfs", "30m", "--strategies", "S001", "--profiles", "swing"],
+                       env=_env(GITHUB_ACTIONS="true"), capture_output=True, text=True, cwd=ROOT)
+    assert r.returncode != 0 and "1d alone" in r.stderr
+
+
 def test_metrics_basic_numbers():
     sys.path.insert(0, str(ROOT))
     from kmiall100 import metrics as M

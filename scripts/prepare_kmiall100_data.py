@@ -27,8 +27,12 @@ def prepare(history: Path, out: Path, tfs: list[str]) -> dict:
     out.mkdir(parents=True, exist_ok=True)
     report: dict[str, dict] = {}
     for tf in tfs:
-        folder = history / tf
-        paths = sorted(folder.glob(f"{tf}-*.parquet"))
+        # The archive names the daily folder 1D and the hourly folder 60m,
+        # while the kit calls them 1d and 1h. Map both sides explicitly so a
+        # Linux runner does not depend on case-insensitive filenames.
+        source = {"1d": ("1D", "1D"), "1h": ("60m", "60m")}.get(tf, (tf, tf))
+        folder = history / source[0]
+        paths = sorted(folder.glob(f"{source[1]}-*.parquet"))
         years = sorted(int(p.stem.split("-")[-1]) for p in paths)
         missing = [y for y in EXPECTED_YEARS if y not in years]
         if missing:
