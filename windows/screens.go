@@ -375,7 +375,7 @@ func hintSpans(s string, th *Theme) []Span {
 			out = append(out, Span{" ", th.Soft, false})
 		}
 		switch f {
-		case "D", "P", "R", "TAB":
+		case "A", "D", "P", "R", "TAB":
 			out = append(out, Span{f, th.Good, true})
 		case "ESC":
 			out = append(out, Span{f, th.Warn, true})

@@ -752,9 +752,10 @@ func TestKeyNavigation(t *testing.T) {
 	if a.screen != scrHome {
 		t.Fatalf("second esc goes home: %v", a.screen)
 	}
-	// Long input is capped, odd characters are ignored.
+	// Long input is capped, odd characters are ignored. C is the calculator
+	// key now, so the cap is filled with the other letters.
 	a.setScreen(scrScanner)
-	for _, c := range "abcdefghijklmnopqrstuvwxyz" {
+	for _, c := range "abdefghijklmnopqrstuvwxyz" {
 		press(r(c))
 	}
 	press(r('!'))
