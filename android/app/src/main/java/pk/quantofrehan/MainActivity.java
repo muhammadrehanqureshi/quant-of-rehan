@@ -205,6 +205,9 @@ public class MainActivity extends Activity {
     private static final int BIG_PRINTS_ROWS = 8;
     /** The 3dp the board's text view puts between two prints. */
     private static final int BIG_PRINTS_ROW_AIR_DP = 3;
+    /** Owner order 2026-11-13: the SECTORS window shows six rows before it
+     *  scrolls, like the big prints board's own fixed window. */
+    private static final int SECTOR_ROWS = 6;
 
     /**
      * The dim end of the breath, as a fraction of full opacity. It never
@@ -374,6 +377,10 @@ public class MainActivity extends Activity {
     private ImageView sectorsArrow;
     private TextView sectorsReveal;
     private View sectorsFieldGroup;
+    /** Owner order 2026-11-13: the SECTORS menu is a fixed six-row window
+     *  with the same diamond scroller the big prints board carries. */
+    private ScrollView sectorsScroll;
+    private OrnamentScroller sectorsScroller;
     private final java.util.Map<String, List<String>> sectorRows =
             new java.util.LinkedHashMap<>();
     private String sectorChoice = "";
@@ -621,6 +628,8 @@ public class MainActivity extends Activity {
         sectorsArrow = findViewById(R.id.sectors_arrow);
         sectorsReveal = findViewById(R.id.sectors_reveal);
         sectorsFieldGroup = findViewById(R.id.sectors_field_group);
+        sectorsScroll = findViewById(R.id.sectors_scroll);
+        sectorsScroller = findViewById(R.id.sectors_scroller);
         if (sectorsSpinner != null) {
             sectorsBoxLabel = sectorsSpinner.getText().toString();
             sectorsSpinner.setOnClickListener(v ->
@@ -629,6 +638,14 @@ public class MainActivity extends Activity {
         if (sectorsArrow != null) {
             sectorsArrow.setOnClickListener(v ->
                     showSectorMenu(!sectorMenuOpen));
+        }
+        if (sectorsScroll != null) {
+            sectorsScroll.setOnTouchListener((v, event) -> {
+                v.getParent().requestDisallowInterceptTouchEvent(true);
+                return false;
+            });
+            sectorsScroll.setOnScrollChangeListener(
+                    (v, sx, sy, ox, oy) -> updateSectorScroller());
         }
         // Owner order 2026-11-04: he types a scrip and reads its flow, so
         // the list filters on every keystroke, the search page's own law.
@@ -1397,6 +1414,9 @@ public class MainActivity extends Activity {
 	        if (bigPrintsScroller != null) {
 	            bigPrintsScroller.setInk(themeAccentInk);
 	        }
+	        if (sectorsScroller != null) {
+	            sectorsScroller.setInk(themeAccentInk);
+	        }
 	        repaintDropdownArrows();
 	        pinNavTile();
     }
@@ -1891,12 +1911,15 @@ public class MainActivity extends Activity {
                     sb.setSpan(new ForegroundColorSpan(getColor(R.color.yellow)),
                             unclearFrom, sb.length(), 0);
                 }
-                sb.append(quote.unclassified != null && quote.volume != null ? " &" : ")");
+                if (quote.unclassified != null && quote.volume != null) {
+                    sb.append(" &");
+                }
                 if (quote.volume != null) {
                     sb.append('\n').append("T=");
                     colorTotal(sb, quote.volume);
-                    sb.append(')');
                 }
+                appendNetDelta(sb, quote.buy, quote.sell);
+                sb.append(')');
             } else if (quote.unclassified != null || quote.volume != null) {
                 // No measured pair: the known U keeps the first line and T
                 // takes the next. A missing U is not invented.
@@ -1960,12 +1983,49 @@ public class MainActivity extends Activity {
     }
 
     /**
+     * Owner order 2026-11-13: NET DELTA follows T wherever a volume is
+     * printed. It is buy minus sell, written without a sign or an arrow;
+     * a positive delta is green and a falling one is red.
+     */
+    private void appendNetDelta(SpannableStringBuilder sb, Long buy, Long sell) {
+        if (buy == null || sell == null) {
+            return;
+        }
+        long delta = buy - sell;
+        sb.append("  NET DELTA=");
+        int from = sb.length();
+        sb.append(String.format(Locale.US, "%,d", Math.abs(delta)));
+        sb.setSpan(new ForegroundColorSpan(getColor(
+                        delta >= 0 ? R.color.green : R.color.red)),
+                from, sb.length(), 0);
+    }
+
+    /** The same NET DELTA for the leaders card's span list. */
+    private void appendNetDelta(StringBuilder sb, List<int[]> spans,
+                                Long buy, Long sell) {
+        if (buy == null || sell == null) {
+            return;
+        }
+        long delta = buy - sell;
+        sb.append("  NET DELTA=");
+        int from = sb.length();
+        sb.append(String.format(Locale.US, "%,d", Math.abs(delta)));
+        spans.add(new int[]{from, sb.length(),
+                delta >= 0 ? R.color.green : R.color.red});
+    }
+
+    /**
      * One inline menu row (v2.3.16), the console's own face: one body
      * line, one ink, the dropdownLine inks it carries when it names a
      * ticker and a quote, and the air that makes it a menu row of its
      * own - not the platform row the Spinner styled.
      */
     private TextView menuRow(String line) {
+        return menuRow(dropdownLine(line));
+    }
+
+    /** The same row for a line that already carries its own spans. */
+    private TextView menuRow(CharSequence line) {
         TextView row = new TextView(this);
         row.setTextSize(13f);
         row.setTextColor(themeBodyInk);
@@ -1983,7 +2043,7 @@ public class MainActivity extends Activity {
         // menu reads as thick as the box it opened from and never as
         // one thinner list of lines beside its own caret.
         row.setMinimumHeight(dp(43));
-        row.setText(dropdownLine(line));
+        row.setText(line);
         return row;
     }
 
@@ -3170,28 +3230,9 @@ public class MainActivity extends Activity {
                 sb.append('\n');
             }
             shown++;
-            // The relay words the side "SELL" or "BUY"; a side that opens
-            // with S is the sale, so both spellings read right.
-            boolean sale = print.side != null
-                    && print.side.trim().toUpperCase(Locale.US).startsWith("S");
-            double price = print.price > 0 ? print.price
-                    : (print.shares > 0 ? (double) print.value / print.shares : 0d);
-            // Owner order 2026-11-05, ninth pass: the quantity wears the
-            // console's (letter=number) bracket, and the print's own time
-            // closes the line, so a buy and a sale both say when they
-            // happened, not only what they were.
-            int from = sb.length();
-            sb.append(String.format(Locale.US, "(%s=%,d) ",
-                    sale ? "S" : "B", print.shares));
-            sb.append(String.format(Locale.US, "%s %s at PKR %,.2f",
-                    print.symbol, sale ? "sold" : "bought", price));
-            sb.setSpan(new ForegroundColorSpan(
-                            getColor(sale ? R.color.red : R.color.green)),
-                    from, sb.length(), 0);
-            String at = printTime(print.at);
-            if (!at.isEmpty()) {
-                sb.append(' ').append(at);
-            }
+            // Owner order 2026-11-13: both print boards use one sentence,
+            // the quantity, scrip, side, price and the print's own time.
+            appendPrintSentence(sb, print);
         }
         if (shown == 0) {
             bigPrintsList.setText(R.string.big_prints_none_match);
@@ -3253,6 +3294,37 @@ public class MainActivity extends Activity {
 	        }
 	        updateBigPrintsScroller();
 	    }
+
+    /**
+     * One print in the owner's sentence for both boards: the shares, the
+     * scrip, the side, the price and the print's own time. The side sentence
+     * wears the side's colour; the time wears the worn theme's body ink, so
+     * it never reads as another green or red number.
+     */
+    private void appendPrintSentence(SpannableStringBuilder sb,
+                                     Watcher.BigPrint print) {
+        boolean sale = print.side != null
+                && print.side.trim().toUpperCase(Locale.US).startsWith("S");
+        double price = print.price > 0 ? print.price
+                : (print.shares > 0 ? (double) print.value / print.shares : 0d);
+        String symbol = print.symbol == null ? ""
+                : print.symbol.trim().toUpperCase(Locale.US);
+        int from = sb.length();
+        sb.append(String.format(Locale.US, "%,d SHARES OF %s WERE %s AT PKR %,.2f",
+                print.shares, symbol, sale ? "SOLD" : "BOUGHT", price));
+        sb.setSpan(new ForegroundColorSpan(
+                        getColor(sale ? R.color.red : R.color.green)),
+                from, sb.length(), 0);
+        String at = printTime(print.at);
+        if (!at.isEmpty()) {
+            sb.append(" AT ");
+            int timeFrom = sb.length();
+            sb.append(at);
+            sb.setSpan(new ForegroundColorSpan(themeBodyInk),
+                    timeFrom, sb.length(), 0);
+        }
+        sb.append('.');
+    }
 
     /** The print's own clock, HH:mm:ss, from the relay's ISO stamp. */
     private static String printTime(String at) {
@@ -3442,12 +3514,15 @@ public class MainActivity extends Activity {
                 sb.setSpan(new ForegroundColorSpan(getColor(R.color.yellow)),
                         unclearFrom, sb.length(), 0);
             }
-            sb.append(row.unclassified != null && row.volume != null ? " &" : ")");
+            if (row.unclassified != null && row.volume != null) {
+                sb.append(" &");
+            }
             if (row.volume != null) {
                 sb.append('\n').append("T=");
                 colorTotal(sb, row.volume);
-                sb.append(')');
             }
+            appendNetDelta(sb, row.buy, row.sell);
+            sb.append(')');
         } else if (row.unclassified != null || row.volume != null) {
             if (row.unclassified != null) {
                 sb.append("(U=");
@@ -3670,22 +3745,9 @@ public class MainActivity extends Activity {
             if (print.symbol == null || !print.symbol.equalsIgnoreCase(symbol)) {
                 continue;
             }
-            boolean sale = print.side != null
-                    && print.side.trim().toUpperCase(Locale.US).startsWith("S");
-            double price = print.price > 0 ? print.price
-                    : (print.shares > 0 ? (double) print.value / print.shares : 0d);
             sb.append(shown == 0 ? "LAST EIGHT FILLED ORDERS" : "");
             sb.append('\n');
-            int from = sb.length();
-            String at = printTime(print.at);
-            if (!at.isEmpty()) {
-                sb.append(at).append("  ");
-            }
-            sb.append(String.format(Locale.US, "(%s=%,d) PKR %,.2f",
-                    sale ? "S" : "B", print.shares, price));
-            sb.setSpan(new ForegroundColorSpan(
-                            getColor(sale ? R.color.red : R.color.green)),
-                    from, sb.length(), 0);
+            appendPrintSentence(sb, print);
             if (++shown >= FLOW_RESULTS_SHOWN) {
                 break;
             }
@@ -3717,8 +3779,23 @@ public class MainActivity extends Activity {
         }
         sectorMenuOpen = open;
         if (sectorsMenu != null) {
-            sectorsMenu.setVisibility(open ? View.VISIBLE : View.GONE);
             if (open) {
+                // Owner order 2026-11-13: reopening the box re-reads the
+                // day's percentages, so the best sector always leads.
+                fillSectorMenu();
+            }
+            sectorsMenu.setVisibility(open ? View.VISIBLE : View.GONE);
+            if (sectorsScroll != null) {
+                sectorsScroll.setVisibility(open ? View.VISIBLE : View.GONE);
+            }
+            if (sectorsScroller != null) {
+                sectorsScroller.setVisibility(open ? View.VISIBLE : View.GONE);
+            }
+            if (open) {
+                fitSectorWindow();
+                if (sectorsScroll != null) {
+                    sectorsScroll.scrollTo(0, 0);
+                }
                 revealMenu(sectorsMenu);
             }
         }
@@ -3767,15 +3844,41 @@ public class MainActivity extends Activity {
         }));
     }
 
-    /** One row per sector, in the relay's own alphabetical order. */
+    /**
+     * One row per sector, best percentage first (owner order 2026-11-13).
+     * The percentage is the equal-weight mean of the quoted scrips' day
+     * moves, with the up or down arrow; a sector whose scrips have no live
+     * move is listed last and prints no invented percentage (SO-3).
+     */
     private void fillSectorMenu() {
         if (sectorsMenu == null) {
             return;
         }
         sectorsMenu.removeAllViews();
+        java.util.Map<String, Watcher.Quote> quotes = Watcher.quotes();
+        java.util.Map<String, Double> performance = new java.util.HashMap<>();
+        for (String name : sectorRows.keySet()) {
+            performance.put(name, sectorPerformance(name, quotes));
+        }
+        List<String> names = new ArrayList<>(sectorRows.keySet());
+        names.sort((a, b) -> {
+            Double pa = performance.get(a);
+            Double pb = performance.get(b);
+            if (pa == null && pb == null) {
+                return a.compareTo(b);
+            }
+            if (pa == null) {
+                return 1;
+            }
+            if (pb == null) {
+                return -1;
+            }
+            int byMove = Double.compare(pb, pa);
+            return byMove != 0 ? byMove : a.compareTo(b);
+        });
         boolean first = true;
         int number = 0;
-        for (String name : sectorRows.keySet()) {
+        for (String name : names) {
             // Owner report 2026-11-06: the sector list separates its rows
             // with the same 1dp line every other dropdown draws, one line
             // between each pair and none above the first.
@@ -3785,11 +3888,97 @@ public class MainActivity extends Activity {
             first = false;
             // Owner order 2026-11-06, eleventh pass: the sectors carry
             // their number in sequence too, 1. to n.
-            TextView row = menuRow(String.format(Locale.US, "%d. %s",
-                    ++number, name));
+            TextView row = menuRow(sectorMenuLabel(++number, name,
+                    performance.get(name)));
             row.setOnClickListener(v -> chooseSector(name));
             sectorsMenu.addView(row);
         }
+        sectorsMenu.post(this::fitSectorWindow);
+    }
+
+    /** The equal-weight day move of one sector's quoted scrips. */
+    private Double sectorPerformance(String name,
+                                     java.util.Map<String, Watcher.Quote> quotes) {
+        List<String> symbols = sectorRows.get(name);
+        if (symbols == null || symbols.isEmpty()) {
+            return null;
+        }
+        double sum = 0d;
+        int quoted = 0;
+        for (String symbol : symbols) {
+            Watcher.Quote quote = quotes.get(symbol);
+            if (quote != null && quote.changePct != null) {
+                sum += quote.changePct;
+                quoted++;
+            }
+        }
+        return quoted == 0 ? null : sum / quoted;
+    }
+
+    /** One sector's numbered menu line, with its move and arrow when known. */
+    private CharSequence sectorMenuLabel(int number, String name, Double move) {
+        String label = String.format(Locale.US, "%d. %s", number, name);
+        if (move == null) {
+            return label;
+        }
+        String tail = String.format(Locale.US, "  %s %.2f%%",
+                move >= 0 ? "\u25B2" : "\u25BC", Math.abs(move));
+        SpannableString line = new SpannableString(label + tail);
+        int from = label.length() + 2;
+        line.setSpan(new ForegroundColorSpan(getColor(
+                        move >= 0 ? R.color.green : R.color.red)),
+                from, line.length(), 0);
+        line.setSpan(new TypefaceSpan(ARROW_FACE), from, from + 1, 0);
+        return line;
+    }
+
+    /** Six rows in the window, the rest a scroll away. */
+    private void fitSectorWindow() {
+        if (sectorsScroll == null || sectorsMenu == null) {
+            return;
+        }
+        int rows = Math.min(SECTOR_ROWS, sectorRows.size());
+        int height = 0;
+        int seen = 0;
+        for (int i = 0; i < sectorsMenu.getChildCount() && seen < rows; i++) {
+            View child = sectorsMenu.getChildAt(i);
+            if (child.getVisibility() != View.VISIBLE) {
+                continue;
+            }
+            int measured = child.getMeasuredHeight();
+            if (measured <= 0) {
+                measured = child instanceof TextView ? dp(43) : dp(15);
+            }
+            height += measured;
+            ViewGroup.LayoutParams lp = child.getLayoutParams();
+            if (lp instanceof LinearLayout.LayoutParams) {
+                LinearLayout.LayoutParams params = (LinearLayout.LayoutParams) lp;
+                height += params.topMargin + params.bottomMargin;
+            }
+            if (child instanceof TextView) {
+                seen++;
+            }
+        }
+        if (height <= 0) {
+            height = dp(43) * Math.max(1, rows);
+        }
+        ViewGroup.LayoutParams lp = sectorsScroll.getLayoutParams();
+        if (lp != null && lp.height != height) {
+            lp.height = height;
+            sectorsScroll.setLayoutParams(lp);
+        }
+        updateSectorScroller();
+    }
+
+    /** Places the SECTORS diamond at the menu's own scroll fraction. */
+    private void updateSectorScroller() {
+        if (sectorsScroll == null || sectorsScroller == null) {
+            return;
+        }
+        View child = sectorsScroll.getChildAt(0);
+        int range = child == null ? 0
+                : Math.max(0, child.getHeight() - sectorsScroll.getHeight());
+        sectorsScroller.setScroll(sectorsScroll.getScrollY(), range);
     }
 
     /** Pick a sector: the box wears its name and its scrips print below. */
@@ -3865,12 +4054,15 @@ public class MainActivity extends Activity {
                     sb.setSpan(new ForegroundColorSpan(getColor(R.color.yellow)),
                             unclearFrom, sb.length(), 0);
                 }
-                sb.append(quote.unclassified != null && quote.volume != null ? " &" : ")");
+                if (quote.unclassified != null && quote.volume != null) {
+                    sb.append(" &");
+                }
                 if (quote.volume != null) {
                     sb.append('\n').append("T=");
                     colorTotal(sb, quote.volume);
-                    sb.append(')');
                 }
+                appendNetDelta(sb, quote.buy, quote.sell);
+                sb.append(')');
             } else if (quote.unclassified != null || quote.volume != null) {
                 sb.append('\n');
                 if (quote.unclassified != null) {
@@ -4335,6 +4527,8 @@ public class MainActivity extends Activity {
         int unclearTo = -1;
         int totalFrom = -1;
         int totalTo = -1;
+        int netFrom = -1;
+        int netTo = -1;
         if (quote.buy != null && quote.sell != null) {
             // Owner order 2026-11-05, eighth pass: measured B and S, the
             // unclear remainder as U, never folded into a side.
@@ -4358,8 +4552,13 @@ public class MainActivity extends Activity {
                 totalFrom = sb.length();
                 sb.append(String.format(Locale.US, "%,d", quote.volume));
                 totalTo = sb.length();
-                sb.append(')');
             }
+            long delta = quote.buy - quote.sell;
+            sb.append("  NET DELTA=");
+            netFrom = sb.length();
+            sb.append(String.format(Locale.US, "%,d", Math.abs(delta)));
+            netTo = sb.length();
+            sb.append(')');
         } else if (quote.unclassified != null || quote.volume != null) {
             // No measured pair: the known U keeps the first line and T
             // takes the next. A missing U is not invented.
@@ -4404,6 +4603,12 @@ public class MainActivity extends Activity {
         if (totalFrom >= 0) {
             sp.setSpan(new ForegroundColorSpan(getColor(R.color.blue)),
                     totalFrom, totalTo, 0);
+        }
+        if (netFrom >= 0) {
+            long delta = quote.buy - quote.sell;
+            sp.setSpan(new ForegroundColorSpan(getColor(
+                            delta >= 0 ? R.color.green : R.color.red)),
+                    netFrom, netTo, 0);
         }
         if (moveFrom >= 0) {
             sp.setSpan(new ForegroundColorSpan(getColor(
@@ -4663,6 +4868,7 @@ public class MainActivity extends Activity {
                     sb.append(String.format(Locale.US, "%,d", row.volume));
                     spans.add(new int[]{totalFrom, sb.length(), R.color.blue});
                 }
+                appendNetDelta(sb, spans, row.buy, row.sell);
                 sb.append(')');
             } else if (row.unclassified != null || row.hasVolume()) {
                 // No measured pair: the known U keeps the first line and T

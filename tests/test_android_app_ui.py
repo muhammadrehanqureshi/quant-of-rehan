@@ -625,12 +625,52 @@ class SettingsControlTest(unittest.TestCase):
         self.assertNotIn("quote.unclassified > 0", self.main)
         self.assertNotIn("row.unclassified > 0", self.main)
 
-    def test_the_big_prints_name_the_side_and_the_time(self):
-        """Owner order 2026-11-05: a print leads with its side in the
-        console's (B=...) bracket and closes with the time it traded."""
-        self.assertIn('"(%s=%,d) "', self.main)
+    def test_both_boards_share_the_print_sentence_and_theme_time(self):
+        """Owner order 2026-11-13: ORDER FLOW and BIG BUYING & SELLING use
+        one sentence, and the time wears the theme's body ink rather than
+        the side's green or red."""
+        self.assertIn("appendPrintSentence(sb, print);", self.main)
+        self.assertEqual(self.main.count("appendPrintSentence(sb, print);"), 2)
+        self.assertIn('"%,d SHARES OF %s WERE %s AT PKR %,.2f"', self.main)
+        self.assertIn('sale ? "SOLD" : "BOUGHT"', self.main)
+        self.assertIn('sb.append(" AT ");', self.main)
+        self.assertIn("new ForegroundColorSpan(themeBodyInk)", self.main)
         self.assertIn("printTime(print.at)", self.main)
         self.assertIn("raw.substring(t + 1, t + 9)", self.main)
+        self.assertNotIn('"(%s=%,d) "', self.main)
+
+    def test_net_delta_follows_the_total_on_every_volume_line(self):
+        """Owner order 2026-11-13: NET DELTA follows T wherever volume
+        prints, with no sign or arrow, green when positive and red when
+        falling."""
+        self.assertIn("private void appendNetDelta(SpannableStringBuilder",
+                      self.main)
+        self.assertIn("appendNetDelta(sb, quote.buy, quote.sell);", self.main)
+        self.assertIn("appendNetDelta(sb, row.buy, row.sell);", self.main)
+        self.assertIn("appendNetDelta(sb, spans, row.buy, row.sell);",
+                      self.main)
+        self.assertIn('sb.append("  NET DELTA=");', self.main)
+        self.assertIn("Math.abs(delta)", self.main)
+        self.assertIn("delta >= 0 ? R.color.green : R.color.red", self.main)
+        self.assertNotIn("NET DELTA=+", self.main)
+        self.assertNotIn("NET DELTA=-", self.main)
+        watcher = (ROOT / "android" / "app" / "src" / "main" / "java"
+                   / "pk" / "quantofrehan" / "Watcher.java").read_text(
+            encoding="utf-8")
+        self.assertIn('sb.append("  NET DELTA=");', watcher)
+        self.assertIn("c.getColor(delta >= 0 ? R.color.green : R.color.red)",
+                      watcher)
+
+    def test_the_large_print_window_keeps_the_whole_day(self):
+        """Owner report 2026-11-13: prints before noon vanished once the
+        relay's 200 print window filled. The window is the day now."""
+        worker = (ROOT / "cloud" / "worker.js").read_text(encoding="utf-8")
+        self.assertIn("const LARGE_PRINT_MAX = 2000;", worker)
+        self.assertNotIn("const LARGE_PRINT_MAX = 200;", worker)
+        watcher = (ROOT / "android" / "app" / "src" / "main" / "java"
+                   / "pk" / "quantofrehan" / "Watcher.java").read_text(
+            encoding="utf-8")
+        self.assertIn("MAX_BODY_CHARS = 2 * 1024 * 1024;", watcher)
 
     def test_the_big_prints_run_latest_first_by_clock(self):
         """Owner order 2026-11-11, third pass: the board is a clock, not a
@@ -705,8 +745,8 @@ class SettingsControlTest(unittest.TestCase):
         self.assertIn('append("T=");', self.main)
         self.assertIn("row.unclassified != null", self.main)
         self.assertIn("quote.unclassified != null", self.main)
-        # The big print board's own bracket is untouched: it is one sided.
-        self.assertIn('"(%s=%,d) "', self.main)
+        # Both print boards share the one sentence now, not the old bracket.
+        self.assertIn("appendPrintSentence(sb, print);", self.main)
 
     def test_the_empty_big_prints_board_is_sentence_height(self):
         """Owner order 2026-11-06 ("the BIG BUYING & SELLING tile is too
@@ -733,6 +773,7 @@ class SettingsControlTest(unittest.TestCase):
         self.assertIn('android:text="@string/label_sectors"', self.layout)
         for view in ("@+id/tile_sectors", "@+id/sectors_spinner",
                      "@+id/sectors_menu", "@+id/sectors_arrow",
+                     "@+id/sectors_scroll", "@+id/sectors_scroller",
                      "@+id/sectors_reveal", "@+id/rule_sectors"):
             self.assertIn(view, self.layout)
         self.assertGreater(self.layout.index("@+id/tile_sectors"),
@@ -750,12 +791,25 @@ class SettingsControlTest(unittest.TestCase):
         # Owner report 2026-11-06: one 1dp line between each pair of sector
         # rows, exactly the line every other dropdown draws.
         self.assertIn("sectorsMenu.addView(menuDivider());", self.main)
+        # Owner order 2026-11-13: the menu is a six-row window with the big
+        # prints board's diamond scroller, sorted by the sector's own
+        # percentage, and every known percentage carries its arrow.
+        self.assertIn("private static final int SECTOR_ROWS = 6;", self.main)
+        self.assertIn("sectorsMenu.post(this::fitSectorWindow);", self.main)
+        self.assertIn("names.sort((a, b) -> {", self.main)
+        self.assertIn("Double.compare(pb, pa)", self.main)
+        self.assertIn("TextView row = menuRow(sectorMenuLabel(++number, name,",
+                      self.main)
+        self.assertIn("performance.get(name)));", self.main)
+        self.assertIn('move >= 0 ? "\\u25B2" : "\\u25BC"', self.main)
+        self.assertIn("private Double sectorPerformance(", self.main)
         # Owner order 2026-11-06, eleventh pass: the sectors and their
         # stocks carry their numbers in sequence.
-        self.assertIn('menuRow(String.format(Locale.US, "%d. %s",', self.main)
-        self.assertIn("++number, name));", self.main)
         self.assertIn('String.format(Locale.US, "%d. %s", i + 1, symbol)',
                       self.main)
+        # Owner order 2026-11-13: a tapped sector centres like KSE100.
+        reveal = element(self.layout, 'android:id="@+id/sectors_reveal"')
+        self.assertIn('android:gravity="center"', reveal)
         # And a tapped sector always lists its stocks: a scrip with no live
         # quote yet says so instead of vanishing.
         self.assertIn("R.string.sector_waiting", self.main)
@@ -2249,8 +2303,8 @@ class VersionTest(unittest.TestCase):
         # ships as 4.0.20. Owner order 2026-11-12: the phone's CUSTOM
         # SCRIPS OF VOL. menu names all six sorts the console carries, and
         # it ships as 4.0.21.
-        self.assertIn('android:versionName="4.0.21"', manifest)
-        self.assertIn('android:versionCode="130"', manifest)
+        self.assertIn('android:versionName="4.3.8"', manifest)
+        self.assertIn('android:versionCode="131"', manifest)
         self.assertNotIn('android:versionName="4.0.15"', manifest)
         self.assertNotIn('android:versionName="4.0.14"', manifest)
         self.assertNotIn('android:versionName="3.7.5"', manifest)
@@ -2470,8 +2524,11 @@ class VersionTest(unittest.TestCase):
         # The second pass on 2026-11-11 ships as 4.0.19; the third pass
         # ships as 4.0.20. Owner order 2026-11-12: the phone's CUSTOM
         # SCRIPS OF VOL. menu names all six sorts and ships as 4.0.21.
-        self.assertIn('android:versionCode="130"', manifest)
-        self.assertIn('android:versionName="4.0.21"', manifest)
+        # Owner order 2026-11-13: the shared print sentence, themed print
+        # time, retained large prints, the six-row sorted SECTORS window and
+        # NET DELTA ship as 4.3.8.
+        self.assertIn('android:versionCode="131"', manifest)
+        self.assertIn('android:versionName="4.3.8"', manifest)
         self.assertNotIn('android:versionName="4.0.15"', manifest)
         self.assertNotIn('android:versionName="3.7.5"', manifest)
         self.assertNotIn('android:versionName="3.7.4"', manifest)

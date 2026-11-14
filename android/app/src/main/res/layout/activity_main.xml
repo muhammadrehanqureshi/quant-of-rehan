@@ -544,12 +544,35 @@
                         android:textColor="@color/text_bright"
                         android:textSize="13sp"/>
 
-                    <LinearLayout
-                        android:id="@+id/sectors_menu"
+                    <FrameLayout
+                        android:id="@+id/sectors_menu_frame"
                         android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="vertical"
-                        android:visibility="gone"/>
+                        android:layout_height="wrap_content">
+
+                        <!-- Owner order 2026-11-13: six sectors fit the open
+                             box, and the diamond scroller reaches the rest. -->
+                        <ScrollView
+                            android:id="@+id/sectors_scroll"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:nestedScrollingEnabled="false"
+                            android:paddingRight="14dp"
+                            android:scrollbars="none">
+
+                            <LinearLayout
+                                android:id="@+id/sectors_menu"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="vertical"
+                                android:visibility="gone"/>
+                        </ScrollView>
+
+                        <pk.quantofrehan.OrnamentScroller
+                            android:id="@+id/sectors_scroller"
+                            android:layout_width="14dp"
+                            android:layout_height="match_parent"
+                            android:layout_gravity="end|top"/>
+                    </FrameLayout>
 
                     <ImageView
                         android:id="@+id/sectors_arrow"
@@ -569,6 +592,10 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
+                android:layout_marginLeft="-10dp"
+                android:layout_marginRight="-10dp"
+                android:gravity="center"
+                android:letterSpacing="-0.035"
                 android:visibility="gone"/>
         </LinearLayout>
 

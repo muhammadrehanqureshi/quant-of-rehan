@@ -552,11 +552,19 @@
      SCRIPS WITH LOWER LOCK and SCRIPS WITH UPPER LOCK standing under the two
      the app already had, each ranking three scrips from the same map the
      search rows refresh.
+
+     versionCode 131 / versionName 4.3.8 belong to the owner's order of
+     2026-11-13: ORDER FLOW and BIG BUYING & SELLING share one print sentence
+     and the print time wears the theme ink; the relay keeps the day's 2,000
+     large prints; SECTORS is a six-row scrolling window sorted by its own
+     percentage, with the up or down arrow; the chosen sector centres like
+     the KSE100 tile; NET DELTA follows T wherever volume prints; and the
+     version is 4.3.8.
      -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="pk.quantofrehan"
-    android:versionCode="130"
-    android:versionName="4.0.21">
+    android:versionCode="131"
+    android:versionName="4.3.8">
 
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="30"/>
 

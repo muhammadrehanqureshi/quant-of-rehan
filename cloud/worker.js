@@ -905,7 +905,9 @@ const MARKET_TTL_MS = 5 * 60 * 1000;
 // SINGLE transaction, buying or selling. It was 1,000,000, which the owner
 // read as ordinary size, not a big trade.
 const LARGE_PRINT_PKR = 10_000_000;
-const LARGE_PRINT_MAX = 200;
+// Owner order 2026-11-13: the morning's prints disappeared once 200 had
+// accumulated, so the board now keeps the whole day's 2,000 print window.
+const LARGE_PRINT_MAX = 2000;
 
 // The KMIALL universe the session captures (319 names today). The live
 // snapshot only carries symbols that published a frame, so the complete

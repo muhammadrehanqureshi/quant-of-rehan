@@ -88,7 +88,7 @@ public final class Watcher {
      * bad response exhaust the heap and kill the app, which is exactly the
      * "broker feed data spike" failure this cap exists to prevent.
      */
-    private static final int MAX_BODY_CHARS = 512 * 1024;
+    private static final int MAX_BODY_CHARS = 2 * 1024 * 1024;
 
     /** A stalled relay read must never hold the one-second screen for the
      *  old 12 second ceiling. The relay answers a small JSON card in well
@@ -1369,13 +1369,17 @@ public final class Watcher {
                     int sellTo = sb.length();
                     int unclearFrom = -1;
                     int unclearTo = -1;
+                    int netFrom = -1;
+                    int netTo = -1;
                     if (unclear != null) {
                         sb.append(", U=");
                         unclearFrom = sb.length();
                         sb.append(String.format(java.util.Locale.US, "%,.0f", unclear));
                         unclearTo = sb.length();
                     }
-                    sb.append(unclear != null && total != null ? " &" : ")");
+                    if (unclear != null && total != null) {
+                        sb.append(" &");
+                    }
                     if (total != null) {
                         // Owner order 2026-11-06: B, S and U share the first
                         // line; the venue's own total T starts the next one.
@@ -1383,8 +1387,16 @@ public final class Watcher {
                         totalFrom = sb.length();
                         sb.append(String.format(java.util.Locale.US, "%,.0f", total));
                         totalTo = sb.length();
-                        sb.append(')');
                     }
+                    // Owner order 2026-11-13: NET DELTA follows T here too,
+                    // with no sign and the side's own colour.
+                    long delta = Math.round(buy) - Math.round(sell);
+                    sb.append("  NET DELTA=");
+                    netFrom = sb.length();
+                    sb.append(String.format(java.util.Locale.US, "%,d",
+                            Math.abs(delta)));
+                    netTo = sb.length();
+                    sb.append(')');
                     styled = new android.text.SpannableString(sb);
                     styled.setSpan(new android.text.style.ForegroundColorSpan(
                             c.getColor(R.color.green)), buyFrom, buyTo, 0);
@@ -1402,6 +1414,9 @@ public final class Watcher {
                                 c.getColor(R.color.blue)),
                                 totalFrom, totalTo, 0);
                     }
+                    styled.setSpan(new android.text.style.ForegroundColorSpan(
+                            c.getColor(delta >= 0 ? R.color.green : R.color.red)),
+                            netFrom, netTo, 0);
                 } else if (unclear != null || total != null) {
                     // No measured pair: the known U keeps the first line and
                     // the venue's total T takes its own next line. A missing
