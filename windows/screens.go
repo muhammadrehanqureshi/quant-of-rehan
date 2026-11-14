@@ -1216,10 +1216,10 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 		usedMax = max(usedMax, leaderBSTWidth(l, cols, wide))
 	}
 	const chgW = 8
-	// Owner order 2026-11-14: the leader values and their bar move a little
-	// left as one measured group, so the wide gap between the volumes and the
-	// price closes without breaking any of the columns they share.
-	edge := ix + iw - 5
+	// Owner order 2026-11-14 (latest): the leader values and their bar move
+	// farther left as one measured group, leaving room for the full NET DELTA
+	// label without breaking any of the columns they share.
+	edge := ix + iw - 8
 	// Owner order 2026-11-13: NET DELTA moves off the name line to the price
 	// line, right aligned at the tile's edge, so the bar stands alone on the
 	// name line and no figure cuts into it. The field is measured once, so all
@@ -1227,7 +1227,7 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 	netW := 0
 	for _, l := range leaders[:nL] {
 		if l.HasSplit() {
-			netW = max(netW, runeLen("NET "+signedCompact(*l.Buy-*l.Sell)))
+			netW = max(netW, runeLen("NET DELTA "+signedCompact(*l.Buy-*l.Sell)))
 		}
 	}
 	chgRight := edge
@@ -1335,7 +1335,7 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 			case net < 0:
 				nc = th.Bad
 			}
-			c.Text(edge-netW+1, row, netW, "NET "+signedCompact(net), nc, true)
+			c.Text(edge-netW+1, row, netW, "NET DELTA "+signedCompact(net), nc, true)
 		}
 		row++
 		// Spare rows are shared out as a blank line between leaders.
