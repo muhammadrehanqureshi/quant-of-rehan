@@ -191,6 +191,12 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 	// separate tiles, with one blank row between them so their frames never
 	// read as one crowded box.
 	sy := y + sh + 1
+	// The new breathing rows inside the search tile cost two rows. On the
+	// shortest windows the gap between the search and sector tiles gives one
+	// back, so the ranked list keeps all three scrips.
+	if h-sh < 25 {
+		sy = y + sh
+	}
 	// The sector tile sits between the search and the ranked list. It grows to
 	// show every group it can while leaving the ranked list at least six rows,
 	// and it scrolls when there are more groups than rows. Owner order
@@ -210,7 +216,7 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 	// scrips list keeps the room above it. A window too short for the tile and
 	// the lists hides the tile rather than cutting the scanner's own rows.
 	calcH := 4
-	if !a.calcOpen && y+h-sy-sectorH-1-calcH < 14 {
+	if !a.calcOpen && y+h-sy-sectorH-1-calcH < 13 {
 		calcH = 0
 	}
 	calcReserve := calcH
