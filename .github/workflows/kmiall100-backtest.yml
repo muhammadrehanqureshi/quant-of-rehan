@@ -26,7 +26,7 @@ on:
         description: "timeframes to run together"
         default: "5m,15m,30m"
       profiles:
-        description: "exit profiles: law,atr,trail or swing,swingatr,swingtrail"
+        description: "exit profiles: law,atr,trail,daylow or swing,swingatr,swingtrail"
         default: "law,atr,trail"
       grid:
         description: "also run each strategy's parameter variants"
@@ -87,7 +87,7 @@ jobs:
           need("DATA_RUN_ID", os.environ["DATA_RUN_ID"], r"[0-9]{6,}")
           need("SHARDS", os.environ["SHARDS"], r"[0-9]{1,2}")
           need("TFS", os.environ["TFS"], r"(5m|15m|30m|1h|1d)(,(5m|15m|30m|1h|1d))*")
-          need("PROFILES", os.environ["PROFILES"], r"(law|atr|trail|swing|swingatr|swingtrail)(,(law|atr|trail|swing|swingatr|swingtrail))*")
+          need("PROFILES", os.environ["PROFILES"], r"(law|atr|trail|daylow|swing|swingatr|swingtrail)(,(law|atr|trail|daylow|swing|swingatr|swingtrail))*")
           need("GRID", os.environ["GRID"], r"true|false")
           need("MIN_TRADES", os.environ["MIN_TRADES"], r"[0-9]{1,5}")
           need("STRATEGIES", os.environ["STRATEGIES"], r"(|S[0-9]{3}(,S[0-9]{3})*)")
@@ -102,6 +102,8 @@ jobs:
                   sys.exit("swing profiles run on 1d alone and cannot be mixed with intraday profiles")
           elif not {"5m", "15m", "30m"}.issubset(set(tfs)):
               sys.exit("an intraday run must include 5m, 15m and 30m together")
+          if "daylow" in profiles and "1d" in tfs:
+              sys.exit("daylow uses the session low, so it runs on intraday timeframes only")
           with open(os.environ["GITHUB_OUTPUT"], "a") as f:
               f.write("shards=" + json.dumps(list(range(n))) + "\n")
           PY
