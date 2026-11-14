@@ -1,0 +1,222 @@
+# SO-21 / SO-23: this backtest runs in GitHub Actions, never on the owner's PC.
+#
+# The kit is vendored under backtest_kmiall100/. The data is the five year
+# intraday archive already built and kept as artifacts by the successful
+# intraday-history run 43403044554. A prepare job joins the yearly partitions
+# for 5m, 15m and 30m into the long parquet files the kit reads, then every
+# shard runs all three timeframes in the same backtest job.
+#
+# Manual dispatch only. Nothing here is scheduled.
+name: kmiall100 multi-timeframe backtest
+
+on:
+  workflow_dispatch:
+    inputs:
+      data_run_id:
+        description: "intraday-history run that holds the six yearly artifacts"
+        default: "43403044554"
+      shards:
+        description: "parallel jobs, 1 to 20"
+        default: "10"
+      tfs:
+        description: "timeframes to run together"
+        default: "5m,15m,30m"
+      profiles:
+        description: "exit profiles: law,atr,trail"
+        default: "law,atr,trail"
+      grid:
+        description: "also run each strategy's parameter variants"
+        type: choice
+        options: ["true", "false"]
+        default: "true"
+      min_trades:
+        description: "minimum trades for a result to count"
+        default: "100"
+      strategies:
+        description: "comma list of strategy ids, empty means all"
+        default: ""
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: kmiall100-backtest-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      shards: ${{ steps.m.outputs.shards }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backtest_kmiall100/requirements-dev.txt
+      - name: Install the kit and its test dependencies
+        run: python -m pip install -r backtest_kmiall100/requirements-dev.txt
+      - name: Check the kit before it touches the archive
+        working-directory: backtest_kmiall100
+        run: python -m pytest tests -q
+      - name: Validate the inputs and build the shard list
+        id: m
+        env:
+          DATA_RUN_ID: ${{ inputs.data_run_id }}
+          SHARDS: ${{ inputs.shards }}
+          TFS: ${{ inputs.tfs }}
+          PROFILES: ${{ inputs.profiles }}
+          GRID: ${{ inputs.grid }}
+          MIN_TRADES: ${{ inputs.min_trades }}
+          STRATEGIES: ${{ inputs.strategies }}
+        run: |
+          python - <<'PY'
+          import json, os, re, sys
+
+          def need(name, value, pat):
+              if not re.fullmatch(pat, value or ""):
+                  sys.exit(f"bad input {name}: {value!r}")
+
+          need("DATA_RUN_ID", os.environ["DATA_RUN_ID"], r"[0-9]{6,}")
+          need("SHARDS", os.environ["SHARDS"], r"[0-9]{1,2}")
+          need("TFS", os.environ["TFS"], r"(5m|15m|30m|1h|1d)(,(5m|15m|30m|1h|1d))*")
+          need("PROFILES", os.environ["PROFILES"], r"(law|atr|trail)(,(law|atr|trail))*")
+          need("GRID", os.environ["GRID"], r"true|false")
+          need("MIN_TRADES", os.environ["MIN_TRADES"], r"[0-9]{1,5}")
+          need("STRATEGIES", os.environ["STRATEGIES"], r"(|S[0-9]{3}(,S[0-9]{3})*)")
+          n = int(os.environ["SHARDS"])
+          if not 1 <= n <= 20:
+              sys.exit("shards must be 1 to 20")
+          tfs = os.environ["TFS"].split(",")
+          if not {"5m", "15m", "30m"}.issubset(set(tfs)):
+              sys.exit("this run must include 5m, 15m and 30m together")
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write("shards=" + json.dumps(list(range(n))) + "\n")
+          PY
+
+  data:
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Install the data join dependencies
+        run: python -m pip install pandas pyarrow numpy
+      - name: Restore the six yearly archive artifacts from the cloud run
+        uses: actions/download-artifact@v7
+        with:
+          pattern: intraday-history-20*
+          path: data/history
+          merge-multiple: true
+          run-id: ${{ inputs.data_run_id }}
+          github-token: ${{ github.token }}
+      - name: Join 5m, 15m and 30m into the kit's long files
+        run: |
+          python scripts/prepare_kmiall100_data.py \
+            --history data/history \
+            --out data/kmiall100 \
+            --tfs "${{ inputs.tfs }}"
+          cat data/kmiall100/manifest.json
+      - name: Keep the prepared dataset for every shard
+        uses: actions/upload-artifact@v7
+        with:
+          name: kmiall100-data
+          path: data/kmiall100
+          if-no-files-found: error
+          retention-days: 14
+
+  run:
+    needs: [plan, data]
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    strategy:
+      fail-fast: false
+      max-parallel: 10
+      matrix:
+        shard: ${{ fromJSON(needs.plan.outputs.shards) }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backtest_kmiall100/requirements.txt
+      - name: Install the backtest dependencies
+        run: python -m pip install -r backtest_kmiall100/requirements.txt
+      - name: Bring the prepared archive into this shard
+        uses: actions/download-artifact@v7
+        with:
+          name: kmiall100-data
+          path: data/kmiall100
+      - name: Run this shard on all three timeframes
+        env:
+          SHARD: ${{ matrix.shard }}
+          SHARDS: ${{ inputs.shards }}
+          TFS: ${{ inputs.tfs }}
+          PROFILES: ${{ inputs.profiles }}
+          GRID: ${{ inputs.grid }}
+          STRATEGIES: ${{ inputs.strategies }}
+          MIN_TRADES: ${{ inputs.min_trades }}
+        working-directory: backtest_kmiall100
+        run: |
+          ARGS=(--data ../data/kmiall100 --out "../results/shard_${SHARD}" \
+                --shard "${SHARD}/${SHARDS}" --tfs "$TFS" \
+                --profiles "$PROFILES" --min-trades "$MIN_TRADES" \
+                --time-budget-min 300)
+          if [ "$GRID" = "true" ]; then ARGS+=(--grid); fi
+          if [ -n "$STRATEGIES" ]; then ARGS+=(--strategies "$STRATEGIES"); fi
+          python -m kmiall100.run "${ARGS[@]}"
+      - name: Keep this shard
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: kmiall100-result-${{ matrix.shard }}
+          path: results/shard_${{ matrix.shard }}
+          if-no-files-found: warn
+          retention-days: 30
+
+  merge:
+    needs: [plan, run]
+    if: always() && needs.plan.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Install the merge dependencies
+        run: python -m pip install pandas pyarrow numpy
+      - name: Bring every shard together
+        uses: actions/download-artifact@v7
+        with:
+          pattern: kmiall100-result-*
+          path: results
+      - name: Merge, rank and build the 5m + 15m + 30m view
+        env:
+          MIN_TRADES: ${{ inputs.min_trades }}
+        run: |
+          PYTHONPATH=backtest_kmiall100 python -m kmiall100.merge results \
+            --out report --min-trades "$MIN_TRADES"
+          python scripts/kmiall100_multitf.py \
+            --results report/all_results.csv \
+            --out report \
+            --tfs "${{ inputs.tfs }}" \
+            --min-trades "$MIN_TRADES"
+      - name: Show both reports on the run page
+        run: |
+          cat report/REPORT.md >> "$GITHUB_STEP_SUMMARY"
+          cat report/MULTITF.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Keep the report
+        uses: actions/upload-artifact@v7
+        with:
+          name: kmiall100-report
+          path: report
+          if-no-files-found: error
+          retention-days: 90
