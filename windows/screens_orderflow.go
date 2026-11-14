@@ -259,6 +259,7 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 	}
 	row++ // one blank row under the chips
 	a.drawFlowSearch(c, ix, row, iw)
+	row++ // one blank row under the search box
 	row++
 
 	rows := a.sortedFlow()

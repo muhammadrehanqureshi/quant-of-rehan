@@ -59,8 +59,8 @@ func TestScannerShowsSixSectorsAndTheCalculatorTile(t *testing.T) {
 	}
 	a.sectors = &Sectors{OK: true, Items: items}
 	s := plain(a)
-	if a.sectorH != 10 {
-		t.Fatalf("the SECTORS tile is %d rows, want ten for its six list rows", a.sectorH)
+	if a.sectorH != 11 {
+		t.Fatalf("the SECTORS tile is %d rows, want eleven for its gap and six list rows", a.sectorH)
 	}
 	if a.lvSector.view != 6 {
 		t.Fatalf("the SECTORS tile shows %d groups, want six", a.lvSector.view)
