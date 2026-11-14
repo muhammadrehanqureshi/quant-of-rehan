@@ -164,7 +164,7 @@ type App struct {
 	priceY      int // the PRICE ALERTS tile's top row, for the wheel
 	priceH      int // and its height
 
-	// the SCANNER page calculator, F6: two boxes and the total they make.
+	// the SCANNER page calculator, C: two boxes and the total they make.
 	calcOpen  bool
 	calcField int // 0 the price, 1 the quantity
 	calcPrice string
@@ -1112,13 +1112,6 @@ func (a *App) onKey(k Key) {
 	case KF5:
 		a.setScreen(scrSettings)
 		return
-	case KF6:
-		// Owner order 2026-11-13: the calculator is F6 because every letter
-		// on the scanner belongs to the search box.
-		if a.screen == scrScanner {
-			a.openCalc()
-		}
-		return
 	case KMouse:
 		a.onMouse(k)
 		return
@@ -1189,7 +1182,9 @@ func (a *App) onKey(k Key) {
 			if a.screen == scrOrderFlow {
 				a.stepFlowSort(1)
 			}
-		case 'p', 'P':
+		case 'a', 'A', 'p', 'P':
+			// Owner order 2026-11-14: the PRICE ALERTS tile names A, so A
+			// opens the form; P stays as the old alias.
 			if a.screen == scrAlerts {
 				a.alertFocus = 3
 				a.startPriceEdit(a.priceCursor)
@@ -1306,6 +1301,12 @@ func (a *App) keyScanner(k Key) {
 		// field, which is the way in that order leaves it.
 		if r == '/' {
 			a.sectorSearch = false
+			return
+		}
+		// Owner order 2026-11-14: C opens the POSITION CALCULATOR on the
+		// SCANNER page, and F6 no longer does.
+		if r == 'C' {
+			a.openCalc()
 			return
 		}
 		if (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '.' || r == '-' || r == '_' {

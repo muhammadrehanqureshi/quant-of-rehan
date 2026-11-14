@@ -365,7 +365,7 @@ func TestFooterKeysAreColoured(t *testing.T) {
 	check(c, "Q QUIT", a.th.Bad, false)
 	a.screen = scrAlerts
 	c = a.render()
-	check(c, "P PRICE ALERT", a.th.Good, false)
+	check(c, "A PRICE ALERT", a.th.Good, false)
 }
 
 func TestAlertLogDetailIsWrappedNotCut(t *testing.T) {

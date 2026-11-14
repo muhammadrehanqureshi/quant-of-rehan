@@ -48,7 +48,7 @@ const appVersion = "4.0.21"
 // column, the home footer and the board floor are 3.4.7, and the facts column
 // with a NET DELTA on every bar is 3.4.8, and the leader bar back on the
 // KSE100 tile with one price column is 3.4.9, and the three PRICE ALERT slots
-// with their own chime on the ALERTS page and the F6 calculator on the SCANNER
+// with their own chime on the ALERTS page and the C calculator on the SCANNER
 // page are 3.5.0, and the 08:55 scan start, the Friday 09:00 market opening,
 // the scanner's sector percentages, the ORDER FLOW NET DELTA order and the
 // KSE100 layout with an unsigned NET DELTA are 3.5.1, and the bar split on its
@@ -59,8 +59,9 @@ const appVersion = "4.0.21"
 // volume line, the arrowed sector percentages, the equal ALERTS boards and the
 // red break orb are 3.5.4, and the green P footer key, the quiet ALERTS LOG
 // with its blank row, the uncut log and the full ORDER FLOW U sentence are
-// 3.5.5.
-const hudBuild = "3.5.5"
+// 3.5.5, and the 20 percent shorter search boxes with their centred hints, the
+// C calculator key and the A price-alert key are 3.5.6.
+const hudBuild = "3.5.6"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no
