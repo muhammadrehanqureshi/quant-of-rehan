@@ -5,24 +5,18 @@ import (
 	"testing"
 )
 
-// Owner order 2026-11-14: every search box is 20 percent shorter than its old
-// 40 cells, and the empty hint sits on the box's own centre.
-func TestSearchBoxIsTwentyPercentShorterAndCentred(t *testing.T) {
+// Owner order 2026-11-14 (latest): the empty hint starts on the box's left
+// cell, and no padding is left on its right.
+func TestSearchHintStartsLeftAndFitsTheBox(t *testing.T) {
 	a := demoApp(t, 120, 30)
 	c := NewCanvas(120, 4, RGB{})
 	bw := a.searchBox(c, 0, 0, 40, "", scripSearchHint, false)
-	if bw != 32 {
-		t.Fatalf("the search box is %d cells, want 32 (20 percent under 40)", bw)
+	if bw != runeLen(scripSearchHint) {
+		t.Fatalf("the empty box is %d cells, want the hint's %d", bw, runeLen(scripSearchHint))
 	}
-	row := c.PlainRows()[0]
-	at := strings.Index(row, scripSearchHint)
-	if at < 0 {
-		t.Fatalf("the hint is missing:\n%s", row)
-	}
-	left := at
-	right := bw - (at + len(scripSearchHint))
-	if left-right > 1 || right-left > 1 {
-		t.Fatalf("the hint is not centred: %d cells left, %d right", left, right)
+	row := []rune(c.PlainRows()[0])
+	if got := string(row[:bw]); got != scripSearchHint {
+		t.Fatalf("the hint does not fill the box from its left cell: %q", got)
 	}
 }
 
@@ -58,7 +52,7 @@ func TestPriceAlertsReadEmptyAndOpenOnA(t *testing.T) {
 	if strings.Contains(s, "EMPTY.") {
 		t.Fatal("an EMPTY slot still carries a full stop")
 	}
-	if !strings.Contains(s, `Press "A" to set alerts, "del clears them"`) {
+	if !strings.Contains(s, `Press "A" to set alerts, ("del" clears them)`) {
 		t.Fatal("the PRICE ALERTS tile does not carry the owner's sentence")
 	}
 	a.onKey(Key{Kind: KRune, R: 'a'})
@@ -67,8 +61,8 @@ func TestPriceAlertsReadEmptyAndOpenOnA(t *testing.T) {
 	}
 }
 
-func TestWindowsBuildIs108(t *testing.T) {
-	if hudBuild != "3.5.7" {
-		t.Fatalf("hudBuild is %q, want 3.5.7", hudBuild)
+func TestWindowsBuildIs109(t *testing.T) {
+	if hudBuild != "3.5.8" {
+		t.Fatalf("hudBuild is %q, want 3.5.8", hudBuild)
 	}
 }

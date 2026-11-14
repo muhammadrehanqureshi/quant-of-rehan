@@ -599,12 +599,12 @@ func TestTelemetryTellsTheTruthAboutScanning(t *testing.T) {
 		t.Errorf("10:00 on a Monday: %q", w)
 	}
 	a.now = time.Date(2026, 11, 7, 11, 0, 0, 0, pkt) // Saturday
-	if w, _ := a.scanStatus(); w != "OFF AT THE WEEKEND" {
+	if w, _ := a.scanStatus(); w != "OFF ON THE WEEKEND" {
 		t.Errorf("Saturday: %q", w)
 	}
 	// The weekend names itself even when the relay also reports the day closed.
 	a.market.TradingDay = false
-	if w, _ := a.scanStatus(); w != "OFF AT THE WEEKEND" {
+	if w, _ := a.scanStatus(); w != "OFF ON THE WEEKEND" {
 		t.Errorf("Saturday, closed day: %q", w)
 	}
 	// Owner order 2026-11-09: a weekday the exchange has closed says so.

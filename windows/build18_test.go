@@ -6,18 +6,27 @@ import (
 	"time"
 )
 
-// Owner order 2026-11-13: the PRICE ALERTS form asks for a scrip, not the one
-// scrip it might have been thinking of.
-func TestPriceAlertFormAsksForAScrip(t *testing.T) {
+// Owner order 2026-11-14: the PRICE ALERTS form leaves its boxes to say
+// "Type here", carries no ESC line and no words along its bottom.
+func TestPriceAlertFormIsQuiet(t *testing.T) {
 	a := demoApp(t, 120, 30)
 	a.screen = scrAlerts
 	a.startPriceEdit(0)
 	s := plain(a)
-	if !strings.Contains(s, "Type a KMIALL scrip, then ENTER.") {
-		t.Fatalf("the form does not ask for a scrip:\n%s", s)
+	if n := strings.Count(s, "Type here"); n != 2 {
+		t.Fatalf("want Type here in both boxes, got %d:\n%s", n, s)
 	}
-	if strings.Contains(s, "Type the KMIALL scrip") {
-		t.Fatal("the form still says the KMIALL scrip")
+	if strings.Contains(s, "type here") {
+		t.Fatal("the form still carries the lower case placeholder")
+	}
+	for _, gone := range []string{
+		"ESC cancels",
+		"Type a KMIALL scrip, then ENTER.",
+		"Type the price. A target below the market rings on the way down.",
+	} {
+		if strings.Contains(s, gone) {
+			t.Errorf("the form still carries %q:\n%s", gone, s)
+		}
 	}
 }
 

@@ -246,7 +246,7 @@ func (a *App) raisePriceAlert(p PriceAlert) {
 func (a *App) drawPriceTile(c *Canvas, x, y, w, h int) {
 	th := a.th
 	a.focusNext = a.alertFocus == 3
-	ix, iy, iw, ih := a.panel(c, x, y, w, h, "PRICE ALERTS", "Press \"A\" to set alerts, \"del clears them\"")
+	ix, iy, iw, ih := a.panel(c, x, y, w, h, "PRICE ALERTS", "Press \"A\" to set alerts, (\"del\" clears them)")
 	a.addHit(x, y, w, h, func() { a.alertFocus = 3 })
 	for i := 0; i < priceAlertSlots && i < ih; i++ {
 		p := a.cfg.PriceAlerts[i]
@@ -292,44 +292,25 @@ func (a *App) drawPriceTile(c *Canvas, x, y, w, h int) {
 // drawPriceEditor is the two field form that sets one slot: the scrip, then the
 // price. It floats over the screen so it fits any window.
 func (a *App) drawPriceEditor(c *Canvas) {
-	th := a.th
 	if a.priceEdit < 0 {
 		return
 	}
 	w := min(54, a.w-4)
-	h := 9
+	h := 6
 	if w < 24 || h > a.h-2 {
 		return
 	}
 	x, y := (a.w-w)/2, (a.h-h)/2
 	title := fmt.Sprintf("PRICE ALERT %d OF %d", a.priceEdit+1, priceAlertSlots)
-	ix, iy, iw, _ := a.panel(c, x, y, w, h, title, "ESC cancels")
+	ix, iy, iw, _ := a.panel(c, x, y, w, h, title, "")
 	sym, price := a.priceSym, a.storedTarget()
 	if a.priceField == 0 {
 		sym = a.priceBuf
 	} else {
 		price = a.priceBuf
 	}
-	a.inputRow(c, ix, iy, iw, "SCRIP", sym, "type here", a.priceField == 0)
-	a.inputRow(c, ix, iy+2, iw, "PRICE", price, "type here", a.priceField == 1)
-	msg := a.priceMsg
-	if msg == "" {
-		if a.priceField == 0 {
-			msg = "Type a KMIALL scrip, then ENTER."
-		} else {
-			msg = "Type the price. A target below the market rings on the way down."
-		}
-	}
-	ink := th.Soft
-	if a.priceMsg != "" {
-		ink = th.Warn
-	}
-	for i, ln := range wrap(msg, max(1, iw)) {
-		if i > 1 {
-			break
-		}
-		c.Text(ix, iy+4+i, iw, ln, ink, false)
-	}
+	a.inputRow(c, ix, iy, iw, "SCRIP", sym, "Type here", a.priceField == 0)
+	a.inputRow(c, ix, iy+2, iw, "PRICE", price, "Type here", a.priceField == 1)
 }
 
 // storedTarget is the slot's price as text, for the row that is not in hand.
