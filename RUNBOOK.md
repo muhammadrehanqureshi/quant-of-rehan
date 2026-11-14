@@ -123,7 +123,7 @@ the part that survives the runner.
 |---|---|---|
 | Pre-open readiness | 08:45 and 09:20 PKT, trading days | Checks the relay, the clock and the store, and emails only a failure |
 | Feed watchdog in the relay | every cron wake and every `/signals` poll | If the newest stored frame is older than five minutes inside an open window, it starts the band scan again, with a ten minute cooldown |
-| Band loops | 08:55, 12:30, 15:35 PKT, and the Friday pair | Keep the tape alive for the whole session with this PC off |
+| Band loops | 08:55, 12:30, 15:32 PKT, and the Friday pair | Keep the tape alive for the whole session with this PC off |
 | Capture backstops | 09:20, 10:07, 11:37, 13:07, 14:37, 15:40, 15:47 PKT | A scheduled pass even if a band loop never started |
 | Refusal flag | within a minute of a refused push | One email a day with the relay's own words, cleared by the first accepted push |
 
@@ -159,7 +159,9 @@ no email arrived.
 
 ## 9. The scan, the card, and the build you are running
 
-The scan starts at 08:55 PKT and scans from the 09:15 pre-market. Two words on
+The scan starts at 08:55 PKT and scans from the 09:15 pre-market. On Monday
+that is twenty minutes of recorder warm-up before the first pre-open print,
+which is expected: the 08:55 job is early on purpose, not late. Two words on
 the LATEST SIGNAL tile mean two different things, and they are not
 interchangeable.
 
@@ -190,10 +192,10 @@ At 10:00 the card should read NO TRADE with a coverage line, or a signal. A
 card still reading WARMING UP after 10:30 means the tape restarted; a card
 reading SCAN BLOCKED after 10:00 is a data fault, not a slow morning.
 
-The HUD is `QuantOfRehan-build35.exe` in
-`Desktop/QuantOfRehan-Windows/`. The older `.exe` files beside it are kept, so
-the file name is how the running build is known: build 35 carries the bigger
-orb, the ten-box bars and the leader price after `T`.
+The current HUD is `QuantOfRehan-build111.exe` on the Desktop, with its
+`QuantOfRehan-build111-SHA256SUMS.txt` beside it. It is build 111, version
+3.5.10. The file name is how the running build is known; the hash proves the
+file matches the one Actions built.
 
 ## 10. This runbook as a PDF
 

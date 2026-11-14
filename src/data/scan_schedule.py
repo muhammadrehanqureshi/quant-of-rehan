@@ -136,8 +136,8 @@ def decide(moment: datetime,
         if is_scan_window(moment):
             return ACTION_SCAN, (f"{STATE_PRE_MARKET}: pre-market scanning is "
                                  f"on (owner order 2026-10-21), live broker feed")
-        return ACTION_WAIT, (f"{STATE_PRE_MARKET}: the pre-market window is "
-                             f"never scanned (owner order 2026-10-11)")
+        return ACTION_WAIT, (f"{STATE_PRE_MARKET}: outside the pre-market "
+                             f"scan window (owner order 2026-10-21)")
 
     if phase == PHASE_CLOSED:
         return ACTION_WAIT, (f"{PHASE_CLOSED}: not a PSX trading day "

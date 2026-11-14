@@ -276,9 +276,9 @@ def session_gate(moment=None, *, probe: bool | None = None,
                           f"broker feed, next band {upcoming or 'unknown'}",
                           PROBE_DISABLED)
         return decide(False,
-                      f"{scan_state.value}: the pre-market and post-market "
-                      f"windows are never scanned (owner order 2026-10-11); "
-                      f"next band {upcoming or 'unknown'}", PROBE_DISABLED)
+                      f"{scan_state.value}: the pre/post scan window is not "
+                      f"open now (owner order 2026-10-21); next band "
+                      f"{upcoming or 'unknown'}", PROBE_DISABLED)
 
     # 5. A scan is only meaningful inside a live band.
     if not law_open:

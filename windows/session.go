@@ -11,8 +11,9 @@ import "time"
 //	Friday              pre-market 09:00 to 09:15, trading 09:17 to 12:00 and
 //	                    14:32 to 16:30, post-market 16:32 to 16:49
 //
-// The quant reads the broker feed every second from 08:55, five minutes before
-// the exchange's first pre-open, until the post-market closes, so the gaps
+// The quant reads the broker feed every second from 08:55, twenty minutes
+// before Monday to Thursday's 09:15 pre-open and five before Friday's 09:00,
+// until the post-market closes, so the gaps
 // between those windows are scanned too and the first pre-market print is
 // never missed. Owner order 2026-11-13 (latest): the start is 08:55 every
 // trading day, the same start the relay dispatch, the Worker's crons and the

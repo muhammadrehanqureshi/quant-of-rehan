@@ -4,10 +4,12 @@ How Quant of Rehan decides **whether a scheduled fire should do any work**, and
 what keeps the 2,000 minute Actions ceiling and the Cloudflare edge quiet while
 the exchange is shut.
 
-Owner orders implemented 2026-10-10 (the sleep gate) and 2026-10-11 (the four
-market states, the never-scan rule and the scan cadence: one second in the
-cloud since the owner's order of 2026-10-19 (amending SO-13's 30 seconds);
-4 minutes on the local tick he can still ask for). Sources:
+Owner orders implemented 2026-10-10 (the sleep gate), 2026-10-11 (the four
+market states and the scan cadence), 2026-10-21 (pre/post scanning) and
+2026-11-13 (the 08:55 recorder start). The cloud scans every second since the
+2026-10-19 order (amending SO-13's 30 seconds). The morning warm-up is 08:55
+PKT, twenty minutes before Monday to Thursday's 09:15 pre-open and five
+minutes before Friday's 09:00 pre-open. Sources:
 `src/data/session_gate.py`, `src/data/market_probe.py`, `src/data/sessions.py`,
 `src/config.py`, `scripts/kmiall_tick.py`, `.github/workflows/intraday-capture.yml`.
 
@@ -37,15 +39,17 @@ First match wins.
 |---|---|---|---|
 | 1 | `--force` (a human dispatched the run) | **RUN** | no |
 | 2 | weekend or PSX holiday | **SLEEP** | **no** |
-| 3 | purpose is `finalize` and the day has closed | **RUN** | no |
-| 4 | a scan in the pre-market or post-market window | **SLEEP** (owner order 2026-10-11) | **no** |
-| 5 | outside every band (pre-open, Friday midday break, post-close) | **SLEEP** | no |
-| 6 | inside a band, probe reports the exchange **open** | **RUN**, verified | 1 request |
-| 7 | inside a band, probe positively reports **shut** | **SLEEP** (halt or delayed open) | 1 request |
-| 8 | inside a band, probe **unreadable** | **RUN**, unverified | 1 request |
+| 3 | purpose is `warmup` on a trading day before the last close | **RUN** | no |
+| 4 | purpose is `finalize` and the day has closed | **RUN** | no |
+| 5 | a scan in the pre-market or post-market window | **RUN** (owner order 2026-10-21) | **no** |
+| 6 | outside every band (pre-open, Friday midday break, post-close) | **SLEEP** | no |
+| 7 | inside a band, probe reports the exchange **open** | **RUN**, verified | 1 request |
+| 8 | inside a band, probe positively reports **shut** | **SLEEP** (halt or delayed open) | 1 request |
+| 9 | inside a band, probe **unreadable** | **RUN**, unverified | 1 request |
 
-Only index 6 opens a socket and gets a scan. Everything else is decided from
-the law alone, which is why an idle fire is cheap.
+Only a live-band scan opens the portal probe. The warm-up, finalize and the
+pre/post windows run on the session law alone, which is why an idle fire is
+cheap and the 08:55 warm-up can start before the exchange's first pre-open.
 
 ## 2.1 The owner's four market states, and where scanning is allowed
 
@@ -102,43 +106,29 @@ run and a synchronous run cannot disagree about when to scan, when to pause,
 or what a verdict means. `tests/test_scheduled_scan.py` pins the grid and the
 signal end to end on simulated market data.
 
-Enforcement is layered, so no single edit can quietly re-enable pre-market or
-post-market scanning:
+Enforcement is layered, so no window drifts from the current orders:
 
-0. **The job's own triggers exclude those windows, and they now live in the
-   cloud.** Owner order 2026-10-11 asked for execution to be *disabled* in the
-   pre-market, post-market and Friday break windows, not merely paused after
-   the fact, so `scripts/install_kmiall_tick.py` derives its triggers from this
-   same law: one repeating trigger per band (09:32 to 15:30 Mon-Thu; 09:17 to
-   12:00 and 14:32 to 16:30 Friday) at the configured cadence, plus one
-   post-market fire per trading day for the finalize (15:57 and 16:57 PKT
-   under the owner's order of 2026-11-10, three minutes before the window's
-   16:00 and 17:00 ends),
-   and nothing at all for 09:00 to 09:15, for 12:00 to 14:32 on a Friday, for
-   the evening, the night or the weekend.
-   `tests/test_kmiall_tick.py::SessionTriggerTest` still fails the build if a
-   trigger ever lands outside a band. Owner order 2026-10-14 (SO-12) moved
-   where those triggers run: the Windows task is disabled, the installer
-   refuses to register it again, and the definition is kept as the written
-   shape of the session law that the GitHub Actions crons mirror.
+0. **The cloud owns every trigger.** Owner order 2026-10-14 (SO-12) retired
+   the Windows task and made the installer refuse to register it again. The
+   GitHub crons carry the 08:55 recorder warm-up, the session bands, the
+   pre/post windows and the finalize; the local task definition remains only
+   as the written shape of the session law.
 1. `market_state_at` is the law; the windows live in `src/data/sessions.py`
    beside the bands (SO-8).
-2. `src/data/scan_schedule.py` is the one pause table both local runners read
+2. `src/data/scan_schedule.py` is the one pause table both runners read
    (`decide()` returns scan, finalize or wait and names the state that
    decided), so the tick and the supervised loop cannot drift apart on it.
-3. `src/data/session_gate.py` refuses a scan in either window with an explicit
-   row in the decision table above, *separate* from the band check.
+3. `src/data/session_gate.py` runs the 08:55 warm-up before the pre-open, runs
+   a scan inside the pre/post windows, and keeps finalize on its own purpose.
 4. `scripts/kmiall_tick.py` and `scripts/scan_loop.py` check the state before
-   they scan; the tick reports `PRE_MARKET` and pauses, and treats
-   `POST_MARKET` as finalize-only. Both are cloud-only since SO-12 (owner
-   order 2026-10-14): a real process starting on the owner's PC is refused,
-   and the GitHub Actions job carries the scanning.
+   they scan; the tick reports `PRE_MARKET` and waits, while the cloud loop
+   captures the pre/post tape. Both are cloud-only since SO-12.
 5. `scripts/intraday_pipeline.py::session_legal` asks `is_scan_window`, so a
-   hand-run `--scan` outside `MARKET` is refused too.
+   hand-run `--scan` outside a legal scan window is refused.
 6. `tests/test_sessions_and_schedule.py::TestMarketStateLaw` pins every edge,
    including 09:15:00, 15:30:00, 15:34:59, 15:35:00 and 15:59:59;
-   `tests/test_kmiall_tick.py::ScanWindowTest` and
-   `tests/test_session_gate.py::TestOwnerScanWindowOrder` pin the refusals.
+   `tests/test_session_gate.py::TestWarmupPurpose` pins the 08:55 start, and
+   `TestOwnerScanWindowOrder` pins the pre/post windows.
 
 The finalize crons fire at 15:47 and 16:47 PKT, which is *inside* the
 post-market window: a finalize values the session that has just closed and is
