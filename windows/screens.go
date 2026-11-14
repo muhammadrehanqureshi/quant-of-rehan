@@ -399,7 +399,7 @@ func (a *App) scanStatus() (string, RGB) {
 	}
 	p := a.karachiNow().In(pkt)
 	if isWeekend(p) {
-		return "OFF AT THE WEEKEND", th.Soft
+		return "OFF ON THE WEEKEND", th.Soft
 	}
 	switch {
 	case a.market != nil && a.market.PhaseKnown() && !a.market.TradingDay:
@@ -514,12 +514,17 @@ func (a *App) drawLeft(c *Canvas, x, y, w, h int) {
 	sw, sc := a.scanStatus()
 	label(3, "SCAN", []Span{{sw, sc, true}})
 	hm := func(m int) string { return fmt.Sprintf("%02d:%02d", m/60, m%60) }
-	openMin := preWindow.to
-	if isFriday(a.karachiNow()) {
-		openMin = preWindow.from
+	open, close := "N/A", "N/A"
+	if !isWeekend(a.karachiNow()) {
+		openMin := preWindow.to
+		if isFriday(a.karachiNow()) {
+			openMin = preWindow.from
+		}
+		open = hm(openMin)
+		close = hm(postWindow(a.karachiNow()).to)
 	}
-	fullRow(4, "MARKET OPENING", []Span{{hm(openMin), th.Text, false}})
-	fullRow(5, "MARKET CLOSING", []Span{{hm(postWindow(a.karachiNow()).to), th.Text, false}})
+	fullRow(4, "MARKET OPENING", []Span{{open, th.Text, false}})
+	fullRow(5, "MARKET CLOSING", []Span{{close, th.Text, false}})
 	// Owner order 2026-11-11: MARKET BREADTH is the KSE100's own point move.
 	// Above +1500 points is BULLISH, below -500 is BEARISH, and the band
 	// between them is FLAT. ADV/DEC still reads the whole market table.
@@ -1211,7 +1216,10 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 		usedMax = max(usedMax, leaderBSTWidth(l, cols, wide))
 	}
 	const chgW = 8
-	edge := ix + iw - 1
+	// Owner order 2026-11-14: the leader values and their bar move a little
+	// left as one measured group, so the wide gap between the volumes and the
+	// price closes without breaking any of the columns they share.
+	edge := ix + iw - 5
 	// Owner order 2026-11-13: NET DELTA moves off the name line to the price
 	// line, right aligned at the tile's edge, so the bar stands alone on the
 	// name line and no figure cuts into it. The field is measured once, so all

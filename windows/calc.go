@@ -112,7 +112,9 @@ func (a *App) inputRow(c *Canvas, x, y, w int, label, text, placeholder string, 
 	} else {
 		c.Text(bx+1, y, bw-2, fit(text, bw-2), th.Hot, true)
 	}
-	if active && int(a.animSeconds()*2)%2 == 0 {
+	// The cursor waits until something is typed, so it never covers the first
+	// letter of the placeholder.
+	if active && text != "" && int(a.animSeconds()*2)%2 == 0 {
 		c.Set(bx+1+min(runeLen(text), bw-3), y, '█', th.Accent, field, false)
 	}
 }

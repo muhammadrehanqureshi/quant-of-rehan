@@ -61,8 +61,10 @@ const appVersion = "4.0.21"
 // with its blank row, the uncut log and the full ORDER FLOW U sentence are
 // 3.5.5, and the 20 percent shorter search boxes with their centred hints, the
 // C calculator key and the A price-alert key are 3.5.6, and the ORDER FLOW
-// NET DELTA % column and sort are 3.5.7.
-const hudBuild = "3.5.7"
+// NET DELTA % column and sort are 3.5.7, and the weekend telemetry, the left
+// fitted search hints, the quieter PRICE ALERTS form and the KSE100 inset are
+// 3.5.8.
+const hudBuild = "3.5.8"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no
