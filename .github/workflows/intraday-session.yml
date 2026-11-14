@@ -27,7 +27,7 @@ name: KMIALL session scan loop
 # they are the backstop if a session job dies mid-band.
 #
 #   03:55 UTC = 08:55 PKT  Mon-Thu band 1 (owner order 2026-11-13: the
-#                          recorder opens five minutes before the exchange's
+#                          recorder opens twenty minutes before the exchange's
 #                          09:15 pre-open, so every pre-market print is in the
 #                          tape; the loop scans the 09:15 to 09:30 pre-open
 #                          window, and sleeps through the 09:30 to 09:32
@@ -57,7 +57,7 @@ name: KMIALL session scan loop
 on:
   schedule:
     - cron: "55 3 * * 1-4"     # 08:55 PKT, Mon-Thu pre-open recorder warm-up,
-                               # five minutes before the 09:15 pre-open
+                               # twenty minutes before the 09:15 pre-open
     - cron: "30 7 * * 1-4"     # 12:30 PKT, Mon-Thu afternoon band
     - cron: "32 10 * * 1-4"    # 15:32 PKT, Mon-Thu post-close
     - cron: "55 3 * * 5"       # 08:55 PKT, Friday pre-open recorder warm-up,
@@ -154,9 +154,10 @@ jobs:
       # 08:55 and 14:10 recorder warm-ups ask for the warm-up purpose: the loop
       # starts now and its own gate waits for the exchange's window. Without
       # this the outer gate slept at the start and the morning band never ran.
-      # Owner order 2026-11-13: every trading day's warm-up is 08:55, five
-      # minutes before the exchange's first pre-open (09:15 Monday to Thursday,
-      # 09:00 on Friday), so the capture begins before the first print.
+      # Owner order 2026-11-13: every trading day's warm-up is 08:55, twenty
+      # minutes before Monday to Thursday's 09:15 pre-open and five minutes
+      # before Friday's 09:00 pre-open, so the capture begins before the first
+      # print.
       - name: Session gate (sleep outside the PSX session)
         id: gate
         run: |

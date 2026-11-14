@@ -113,8 +113,8 @@ rather than inventing a fresher number.
 - **Honest data states**: a broken, thin, stale or volume-less source reports
   DATA BLOCKED with measured coverage, never a market verdict.
 - **The Windows HUD**: [windows/](windows/) is the owner's own console, one Go
-  binary with no runtime dependency. Six screens (HOME, ALERTS, ORDER FLOW,
-  SCANNER, CHARTS, SETTINGS), the KSE100 tile with the three volume leaders,
+  binary with no runtime dependency. Five screens (HOME, ALERTS, ORDER FLOW,
+  SCANNER, SETTINGS), the KSE100 tile with the three volume leaders,
   the Orb mark, and a buying-versus-selling bar of ten boxes on every page
   that carries a split. It shows LINK, the FEED's age, PHASE and NEXT, and it
   never draws a number it was not given. The `windows-desktop` workflow builds
@@ -172,6 +172,20 @@ owner order 2026-10-19). Both paths run with this machine switched off.
 One scan serves both readers: the same run, observation and data-quality
 report feed the phone card and the intraday paper strategy, so there is no
 second, cheaper scan for the app.
+
+### Monday morning
+
+The first fire on a trading Monday is **08:55 PKT (03:55 UTC)**, twenty
+minutes before the exchange's 09:15 pre-open. The warm-up gate starts the
+recorder and the session loop at 08:55; the loop's own gate holds scanning
+until the pre-open opens, and the first pre-market print is captured. Friday
+keeps the same 08:55 start, five minutes before its 09:00 pre-open.
+
+The same start is hardcoded in `src/data/sessions.py`, `session_gate.py`,
+`cloud/worker.js`, `intraday-session.yml` and the Windows HUD. The 08:45
+readiness job checks the relay; the 09:20 job checks that frames are already
+stored. A green 08:55 run that is still in progress at 09:15 is the healthy
+shape, not a late job.
 
 Backtesting runs on Actions minutes by the owner's 2026-10-19 order, not on
 the PC; the declared backtest entry points each call `guard_cloud_backtest`,
@@ -299,11 +313,13 @@ python scripts/intraday_pipeline.py --finalize
 - [DASHBOARD_ARCHITECTURE.md](DASHBOARD_ARCHITECTURE.md): the private console
   design on the owner's broker feed, with the measured capability matrix that
   decides what a footprint view may claim.
+- [RUNBOOK.md](RUNBOOK.md): the before-open checks, the hand-start commands and
+  what to do when the feed or relay stops.
 - [PROJECT_REPORT.md](PROJECT_REPORT.md): the long-form build record.
 - [android/README.md](android/README.md), [charts/README.md](charts/README.md),
   [cloud/README.md](cloud/README.md): the three components in full.
 
-## Status, 2026-11-12
+## Status, 2026-11-14
 
 - **One strategy only**: the fresh one minute flip, the three frame VWAP
   pullback and the relative strength strategy were removed on the owner's
@@ -318,4 +334,4 @@ python scripts/intraday_pipeline.py --finalize
   standing (SO-24); the checks are never waived.
 - **Signal-only and paper only**: live trading is disabled, and the paper gate
   needs genuinely accumulated forward sessions before it opens.
-- **Versions**: the HUD is v3.5.0 and the phone app v4.3.8.
+- **Versions**: the HUD is v3.5.10 (build 111) and the phone app v4.3.8.

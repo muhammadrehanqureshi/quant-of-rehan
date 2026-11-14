@@ -621,8 +621,9 @@ class TestCloudflareSchedule(unittest.TestCase):
                 windows.append(((hour + 5) % 24, minute, frozenset(weekdays)))
         # Owner order 2026-10-24: six runnable windows per week. Owner order
         # 2026-11-13: the first window opens at 08:55 on every trading day,
-        # five minutes before the exchange's first pre-open (09:15 Mon-Thu,
-        # 09:00 Friday), so the recorder never misses the first print; the
+        # twenty minutes before the exchange's Mon-Thu pre-open (09:15) and
+        # five before Friday's (09:00), so the recorder never misses the first
+        # print; the
         # 12:30 window covers the afternoon band, the 14:10 Friday window the
         # second pre-open, the 15:32 window the exchange's Mon-Thu Post-Close
         # Session, and the 16:32 Friday window Friday's own post-market window

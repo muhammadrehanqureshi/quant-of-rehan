@@ -57,7 +57,7 @@ SUBDOMAIN = "mrmrehanqureshi"  # workers.dev subdomain of this account
 # nothing is sent twice.
 CRONS = [
     "55,15,20,25,32 3,4 * * 1-4",  # Mon-Thu 08:55 PKT pre-open capture
-                                # (owner order 2026-11-13: five minutes before
+                                # (owner order 2026-11-13: twenty minutes before
                                 # the 09:15 pre-open), 09:15/09:20/09:25
                                 # pre-open retries (the zero gate is still
                                 # open until 09:30), 09:32 band wake. The

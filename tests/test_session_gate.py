@@ -372,6 +372,17 @@ class TestWarmupPurpose(unittest.TestCase):
         self.assertTrue(decision.should_run)
         self.assertIn("warm-up", decision.reason)
 
+    def test_next_monday_0855_warmup_then_0915_scan(self):
+        """Monday 16 Nov 2026: the 08:55 fire runs, and 09:15 is the pre-open."""
+        warm = gate.session_gate(at_karachi(2026, 11, 16, 8, 55),
+                                 purpose=gate.PURPOSE_WARMUP)
+        self.assertTrue(warm.should_run)
+        self.assertIn("warm-up", warm.reason)
+        scan = gate.session_gate(at_karachi(2026, 11, 16, 9, 15))
+        self.assertTrue(scan.should_run)
+        self.assertIn("PRE_MARKET", scan.reason)
+        self.assertIn("2026-10-21", scan.reason)
+
     def test_warmup_runs_on_the_friday_break_before_session_two(self):
         decision = gate.session_gate(at_karachi(2026, 10, 9, 14, 10),
                                      purpose=gate.PURPOSE_WARMUP)
