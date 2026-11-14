@@ -188,7 +188,7 @@ QOR_OWNER_REQUESTED_LOCAL_RUN=scripts/kmiall_tick.py python scripts/kmiall_tick.
 
 ## The phone app
 
-`android/` is the companion console: v4.0.21 (versionCode 130), the owner's own
+`android/` is the companion console: v4.3.8 (versionCode 131), the owner's own
 faces and palette, built with aapt2 and D8, no Gradle. It shows the status
 pill with the relay's own phase sentence, the latest signal, and the market
 card (KSE100 points and percentage, then the three volume leaders with their
@@ -318,4 +318,4 @@ python scripts/intraday_pipeline.py --finalize
   standing (SO-24); the checks are never waived.
 - **Signal-only and paper only**: live trading is disabled, and the paper gate
   needs genuinely accumulated forward sessions before it opens.
-- **Versions**: the HUD is v3.5.0 and the phone app v4.0.21.
+- **Versions**: the HUD is v3.5.0 and the phone app v4.3.8.

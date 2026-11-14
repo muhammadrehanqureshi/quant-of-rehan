@@ -1641,6 +1641,20 @@ to sixty seconds. The status tile therefore also carries the app's own
      the orphan law stands so every dot still wears a filament.
   5. The version bump is versionCode 82 / versionName 2.3.15.
 
+**Version 4.3.8, versionCode 131.**
+
+  Owner order 2026-11-13. ORDER FLOW and BIG BUYING & SELLING now use one
+  print sentence: "(quantity) SHARES OF (scrip) WERE BOUGHT AT PKR (price) AT
+  (time)." and the sold form. The time wears the worn theme's body ink rather
+  than the side's green or red. The relay keeps 2,000 large prints, so the
+  morning no longer vanishes once the old 200 print window filled. SECTORS is
+  sorted by the equal-weight day move of its quoted members, best first, with
+  the up or down arrow and the percentage; its menu is a six-row window with
+  the same diamond scroller as the big prints board. A tapped sector's list is
+  centred like the KSE100 leaders. NET DELTA follows T on every surface that
+  prints volume, written without a sign or an arrow, green when positive and
+  red when negative. The version bump is versionCode 131 / versionName 4.3.8.
+
 **Version 4.0.21, versionCode 130.**
 
   Owner order 2026-11-12. The CUSTOM SCRIPS OF VOL. menu names all six sorts
