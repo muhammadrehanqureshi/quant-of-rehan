@@ -18,7 +18,7 @@ func TestTelemetryWeekendReadsOffAndNA(t *testing.T) {
 	found := map[string]bool{}
 	for _, row := range rowsOf(a) {
 		switch {
-		case strings.Contains(row, "SCAN"):
+		case strings.Contains(row, "SCAN") && !strings.Contains(row, "SCANNER"):
 			if !strings.Contains(row, "OFF ON THE WEEKEND") {
 				t.Errorf("the weekend scan row does not name the weekend: %q", row)
 			}
