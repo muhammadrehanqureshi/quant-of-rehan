@@ -5,18 +5,18 @@ import (
 	"testing"
 )
 
-// Owner order 2026-11-14 (latest): the empty hint starts on the box's left
-// cell, and no padding is left on its right.
-func TestSearchHintStartsLeftAndFitsTheBox(t *testing.T) {
+// Owner order 2026-11-14 (latest): one cell of padding stands on each side
+// of the empty hint.
+func TestSearchHintHasOneCellOnEachSide(t *testing.T) {
 	a := demoApp(t, 120, 30)
 	c := NewCanvas(120, 4, RGB{})
 	bw := a.searchBox(c, 0, 0, 40, "", scripSearchHint, false)
-	if bw != runeLen(scripSearchHint) {
-		t.Fatalf("the empty box is %d cells, want the hint's %d", bw, runeLen(scripSearchHint))
+	if bw != runeLen(scripSearchHint)+2 {
+		t.Fatalf("the empty box is %d cells, want the hint's %d plus two", bw, runeLen(scripSearchHint))
 	}
 	row := []rune(c.PlainRows()[0])
-	if got := string(row[:bw]); got != scripSearchHint {
-		t.Fatalf("the hint does not fill the box from its left cell: %q", got)
+	if got, want := string(row[:bw]), " "+scripSearchHint+" "; got != want {
+		t.Fatalf("the hint's padding is %q, want %q", got, want)
 	}
 }
 
@@ -52,8 +52,11 @@ func TestPriceAlertsReadEmptyAndOpenOnA(t *testing.T) {
 	if strings.Contains(s, "EMPTY.") {
 		t.Fatal("an EMPTY slot still carries a full stop")
 	}
-	if !strings.Contains(s, `Press "A" to set alerts, ("del" clears them)`) {
+	if !strings.Contains(s, `Press "A" to set alerts, "del" clears them`) {
 		t.Fatal("the PRICE ALERTS tile does not carry the owner's sentence")
+	}
+	if strings.Contains(s, `("del" clears them)`) {
+		t.Fatal("the PRICE ALERTS tile still carries the brackets")
 	}
 	a.onKey(Key{Kind: KRune, R: 'a'})
 	if a.priceEdit < 0 {
@@ -61,8 +64,8 @@ func TestPriceAlertsReadEmptyAndOpenOnA(t *testing.T) {
 	}
 }
 
-func TestWindowsBuildIs109(t *testing.T) {
-	if hudBuild != "3.5.8" {
-		t.Fatalf("hudBuild is %q, want 3.5.8", hudBuild)
+func TestWindowsBuildIs110(t *testing.T) {
+	if hudBuild != "3.5.9" {
+		t.Fatalf("hudBuild is %q, want 3.5.9", hudBuild)
 	}
 }

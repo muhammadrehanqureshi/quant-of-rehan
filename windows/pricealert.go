@@ -246,7 +246,7 @@ func (a *App) raisePriceAlert(p PriceAlert) {
 func (a *App) drawPriceTile(c *Canvas, x, y, w, h int) {
 	th := a.th
 	a.focusNext = a.alertFocus == 3
-	ix, iy, iw, ih := a.panel(c, x, y, w, h, "PRICE ALERTS", "Press \"A\" to set alerts, (\"del\" clears them)")
+	ix, iy, iw, ih := a.panel(c, x, y, w, h, "PRICE ALERTS", "Press \"A\" to set alerts, \"del\" clears them")
 	a.addHit(x, y, w, h, func() { a.alertFocus = 3 })
 	for i := 0; i < priceAlertSlots && i < ih; i++ {
 		p := a.cfg.PriceAlerts[i]

@@ -63,8 +63,9 @@ const appVersion = "4.0.21"
 // C calculator key and the A price-alert key are 3.5.6, and the ORDER FLOW
 // NET DELTA % column and sort are 3.5.7, and the weekend telemetry, the left
 // fitted search hints, the quieter PRICE ALERTS form and the KSE100 inset are
-// 3.5.8.
-const hudBuild = "3.5.8"
+// 3.5.8, and the padded search hints, the unbracketed alert sentence and the
+// full NET DELTA label are 3.5.9.
+const hudBuild = "3.5.9"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no

@@ -1,10 +1,11 @@
-# Quant of Rehan for Windows (console edition), build 109
+# Quant of Rehan for Windows (console edition), build 110
 
 A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.21**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
 
-## What is new in build 109
+## What is new in build 110
 
+* **Build 110 (version 3.5.9).** Every search box keeps one cell of space on each side of its words. The PRICE ALERTS tile reads `Press "A" to set alerts, "del" clears them`, with no brackets. The KSE100 leader price, percentage and NET DELTA group moves farther left and carries the full `NET DELTA` label instead of `NET`.
 * **Build 109 (version 3.5.8).** TELEMETRY reads `OFF ON THE WEEKEND` on Saturday and Sunday, and MARKET OPENING and MARKET CLOSING both read `N/A` then. An empty search box starts its hint on the box's left cell and ends with its last letter, with no padding on the right. The PRICE ALERTS tile reads `Press "A" to set alerts, ("del" clears them)`. The price-alert form's boxes read `Type here`, and its ESC line and bottom instruction lines are gone. The KSE100 leader values and their bars move a little left as one aligned group.
 * **Build 108 (version 3.5.7).** ORDER FLOW carries a `NET DELTA %` column after `NET DELTA`, so the owner reads both the absolute gap and the share of classified volume behind it. The percentage is `(B - S) / (B + S)`, absolute with the leading side's green or red ink, and it has its own order chip and clickable heading in the sort list. Only ORDER FLOW draws it.
 * **Build 107 (version 3.5.6).** Every search box is 20 percent shorter, 32 cells instead of 40, and its empty hint is centred on the box: `Search for a KMIALL scrip` and `Search for a sector`. The POSITION CALCULATOR reads `Press "C" to calculate`, and C opens it instead of F6. The PRICE ALERTS slots read `EMPTY` with no full stop, and the tile reads `Press "A" to set alerts, "del clears them"`; A opens the alert form, and P remains an alias.

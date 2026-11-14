@@ -460,12 +460,11 @@ func (a *App) searchTileHeight(w, h int) int {
 // scanner, the SECTORS tile and ORDER FLOW. It returns the field's width.
 func (a *App) searchBox(c *Canvas, x, y, w int, text, hint string, focused bool) int {
 	th := a.th
-	// Owner order 2026-11-14 (latest): the empty hint starts on the box's
-	// own left cell and the box ends with its last letter, so no padding is
-	// left on the right. Typed text keeps the field as wide as it needs.
+	// Owner order 2026-11-14 (latest): one cell of padding stands on each
+	// side of the search words. Typed text keeps the field as wide as it needs.
 	bw := min(w, 32)
 	if text == "" {
-		bw = min(bw, max(1, runeLen(hint)))
+		bw = min(bw, max(3, runeLen(hint)+2))
 	} else {
 		bw = min(bw, max(3, runeLen(text)+2))
 	}
@@ -477,7 +476,7 @@ func (a *App) searchBox(c *Canvas, x, y, w int, text, hint string, focused bool)
 		c.Set(x+k, y, ' ', th.Text, field, false)
 	}
 	if text == "" {
-		c.Text(x, y, bw, fit(hint, bw), th.Soft, false)
+		c.Text(x+1, y, max(1, bw-2), fit(hint, max(1, bw-2)), th.Soft, false)
 	} else {
 		// Owner order 2026-11-12 (latest): the ">" prompt is withdrawn from every
 		// search box, so the typed text starts on the field's own first cell.
