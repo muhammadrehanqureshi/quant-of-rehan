@@ -74,7 +74,7 @@ func TestStartRestoresTheLastSession(t *testing.T) {
 	if len(a.symbols) == 0 {
 		t.Fatal("the search list has no symbols after the restore")
 	}
-	if !strings.Contains(a.statusNote(), "06 NOV 2026") {
+	if !strings.Contains(a.statusNote(), "Showing the last stored session of 06 NOV 2026.") {
 		t.Fatalf("the status note does not name the stored day: %q", a.statusNote())
 	}
 }

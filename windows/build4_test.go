@@ -343,19 +343,19 @@ func TestRelayClockFollowsTheEdgeWhenThePCIsWrong(t *testing.T) {
 	}
 }
 
-// The footnote of the market tile is the one sentence the owner asked for, and
-// it says so only while the feed is being read every second.
+// The footnote of the market tile is the one sentence the owner asked for
+// whenever broker-feed data is on the tile.
 func TestMarketFootnote(t *testing.T) {
 	a := newTestApp(t)
 	a.now = time.Date(2026, 11, 2, 11, 0, 0, 0, pkt)
 	a.market = marketIn("OPEN")
 	a.quotes = quotesAt(15, 1_000_000)
-	if got := a.marketNote(); got != "DATA FROM THE BROKER'S FEED IS BEING UPDATED EVERY SECOND." {
+	if got := a.marketNote(); got != "LAST DATA FROM THE BROKER'S FEED." {
 		t.Errorf("live footnote: %q", got)
 	}
 	a.now = time.Date(2026, 11, 2, 20, 0, 0, 0, pkt)
 	a.market = marketIn("POST_CLOSE")
-	if got := a.marketNote(); got != "THE LAST DATA THE BROKER'S FEED SENT." {
+	if got := a.marketNote(); got != "LAST DATA FROM THE BROKER'S FEED." {
 		t.Errorf("closed footnote: %q", got)
 	}
 	a.quotes = nil

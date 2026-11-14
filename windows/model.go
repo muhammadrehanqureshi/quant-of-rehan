@@ -64,8 +64,9 @@ const appVersion = "4.0.21"
 // NET DELTA % column and sort are 3.5.7, and the weekend telemetry, the left
 // fitted search hints, the quieter PRICE ALERTS form and the KSE100 inset are
 // 3.5.8, and the padded search hints, the unbracketed alert sentence and the
-// full NET DELTA label are 3.5.9.
-const hudBuild = "3.5.9"
+// full NET DELTA label are 3.5.9, and the stored-session sentence, the KSE100
+// right shift and its broker-feed footer are 3.5.10.
+const hudBuild = "3.5.10"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no

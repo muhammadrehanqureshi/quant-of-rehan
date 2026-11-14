@@ -398,7 +398,7 @@ func (a *App) relayDate() string {
 func (a *App) statusNote() string {
 	note := a.statusNoteBase()
 	if !a.sessionAt.IsZero() && !sameSessionDay(a.sessionDate, a.karachiNow()) {
-		note += " Showing the last stored session, " + a.storedSessionDay() + "."
+		note += " Showing the last stored session of " + a.storedSessionDay() + "."
 	}
 	return note
 }
