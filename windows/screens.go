@@ -1214,10 +1214,15 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 		usedMax = max(usedMax, leaderBSTWidth(l, cols, wide))
 	}
 	const chgW = 8
-	// Owner order 2026-11-14 (latest): the leader values and their bar move
-	// five cells right as one measured group, and the full NET DELTA label
-	// still keeps every shared column intact.
+	// Owner order 2026-11-14: the bar and the leader values share this
+	// measured right edge; the price group's two cell shift is applied at
+	// valRight below. The full NET DELTA label keeps every shared column
+	// intact.
 	edge := ix + iw - 3
+	// Owner order 2026-11-14 (latest): the live price and percentage and the
+	// NET DELTA all move two cells right together. The NET DELTA now ends on
+	// the tile's last inner cell, and the change keeps its two cell gutter.
+	valRight := edge + 2
 	// Owner order 2026-11-13: NET DELTA moves off the name line to the price
 	// line, right aligned at the tile's edge, so the bar stands alone on the
 	// name line and no figure cuts into it. The field is measured once, so all
@@ -1228,9 +1233,9 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 			netW = max(netW, runeLen("NET DELTA "+signedCompact(*l.Buy-*l.Sell)))
 		}
 	}
-	chgRight := edge
+	chgRight := valRight
 	if netW > 0 {
-		chgRight = edge - netW - 2
+		chgRight = valRight - netW - 2
 	}
 	chgX := chgRight - chgW + 1
 	barStart := edge - shareBarSpan + 1
@@ -1324,7 +1329,7 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 		}
 		// The leader's own NET DELTA closes the price line, under the end of the
 		// bar, so it never sits between the bar and the percentage.
-		if netW > 0 && l.HasSplit() && edge-netW+1 > pxEnd {
+		if netW > 0 && l.HasSplit() && valRight-netW+1 > pxEnd {
 			net := *l.Buy - *l.Sell
 			nc := th.Soft
 			switch {
@@ -1333,7 +1338,7 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 			case net < 0:
 				nc = th.Bad
 			}
-			c.Text(edge-netW+1, row, netW, "NET DELTA "+signedCompact(net), nc, true)
+			c.Text(valRight-netW+1, row, netW, "NET DELTA "+signedCompact(net), nc, true)
 		}
 		row++
 		// Spare rows are shared out as a blank line between leaders.

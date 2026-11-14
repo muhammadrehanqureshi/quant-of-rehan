@@ -192,9 +192,9 @@ At 10:00 the card should read NO TRADE with a coverage line, or a signal. A
 card still reading WARMING UP after 10:30 means the tape restarted; a card
 reading SCAN BLOCKED after 10:00 is a data fault, not a slow morning.
 
-The current HUD is `QuantOfRehan-build111.exe` on the Desktop, with its
-`QuantOfRehan-build111-SHA256SUMS.txt` beside it. It is build 111, version
-3.5.10. The file name is how the running build is known; the hash proves the
+The current HUD is `QuantOfRehan-build112.exe` on the Desktop, with its
+`QuantOfRehan-build112-SHA256SUMS.txt` beside it. It is build 112, version
+3.5.11. The file name is how the running build is known; the hash proves the
 file matches the one Actions built.
 
 ## 10. This runbook as a PDF

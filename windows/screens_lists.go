@@ -191,6 +191,12 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 	// separate tiles, with one blank row between them so their frames never
 	// read as one crowded box.
 	sy := y + sh + 1
+	// The new breathing rows inside the search tile cost two rows. On the
+	// shortest windows the gap between the search and sector tiles gives one
+	// back, so the ranked list keeps all three scrips.
+	if h-sh < 25 {
+		sy = y + sh
+	}
 	// The sector tile sits between the search and the ranked list. It grows to
 	// show every group it can while leaving the ranked list at least six rows,
 	// and it scrolls when there are more groups than rows. Owner order
@@ -201,14 +207,16 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 	if a.sectorOpen {
 		sectorH = min(max(len(a.visibleSectorMembers())+4, 9), 10)
 	} else if n := len(a.visibleSectorIndices()); n > 0 {
-		sectorH = min(n+4, 10)
+		// The field's two breathing rows take one row from the old tile, so
+		// the height grows by one and the six groups still fit.
+		sectorH = min(n+5, 11)
 	}
 	// Owner order 2026-11-13: the calculator is a tile of its own under the
 	// CUSTOM SCRIPS tile. It takes four rows at the bottom of the page and the
 	// scrips list keeps the room above it. A window too short for the tile and
 	// the lists hides the tile rather than cutting the scanner's own rows.
 	calcH := 4
-	if !a.calcOpen && y+h-sy-sectorH-1-calcH < 14 {
+	if !a.calcOpen && y+h-sy-sectorH-1-calcH < 13 {
 		calcH = 0
 	}
 	calcReserve := calcH
@@ -265,8 +273,9 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 	// the row back that the sector search above took.
 	// Owner order 2026-11-12 (latest): the UP, DOWN, PGUP, PGDN hint is
 	// withdrawn, and the arrow keys keep working exactly as they did.
-	// Owner order 2026-11-12 (latest): the hint names the arrows alone.
-	hint := "Press LEFT & RIGHT arrow keys"
+	// Owner order 2026-11-14 (latest): the hint carries the owner's exact
+	// words and the keys in capitals.
+	hint := "Press " + `"LEFT & RIGHT ARROW KEYS"` + " to move."
 	if a.searchText != "" {
 		hint = "ESC clears the search"
 	}
@@ -443,7 +452,7 @@ func scanLeaders(syms []string, tbl map[string]Quote) []Leader {
 // more than a third of the screen.
 func (a *App) searchTileHeight(w, h int) int {
 	if a.searchText == "" && a.selectedSym == "" {
-		return 3
+		return 5 // one blank row before and after the field
 	}
 	m := len(a.matches())
 	need := max(m, 1)
@@ -453,7 +462,7 @@ func (a *App) searchTileHeight(w, h int) int {
 	if w < 64 {
 		need += 4 // the details go under the matches
 	}
-	return min(3+need+1, max(5, h/3+1))
+	return min(5+need, max(7, h/3+1))
 }
 
 // searchBox draws the one filled field every search uses: SEARCH on the
@@ -501,17 +510,19 @@ func (a *App) drawSearchTile(c *Canvas, x, y, w, h int) {
 		hint = "UP and DOWN choose, ENTER opens"
 	}
 	ix, iy, iw, ih := a.panel(c, x, y, w, h, "SEARCH", hint)
-	a.searchBox(c, ix, iy, min(iw, 40), a.searchText, scripSearchHint, true)
+	// Owner order 2026-11-14 (latest): every search box keeps one blank
+	// row before it and one after it.
+	a.searchBox(c, ix, iy+1, min(iw, 40), a.searchText, scripSearchHint, true)
 	if a.searchText == "" && a.selectedSym == "" {
 		return
 	}
 	if len(a.symbols) == 0 {
-		c.Text(ix, iy+2, iw, "Symbols load with the next relay answer.", th.Soft, false)
+		c.Text(ix, iy+3, iw, "Symbols load with the next relay answer.", th.Soft, false)
 		return
 	}
 	m := a.matches()
 	q := strings.ToUpper(strings.TrimSpace(a.searchText))
-	row := iy + 2
+	row := iy + 3
 	if len(m) == 0 && q != "" {
 		c.Text(ix, row, iw, "No KMIALL scrip starts with "+q+".", th.Soft, false)
 		return
@@ -626,9 +637,10 @@ func (a *App) drawSectorTile(c *Canvas, x, y, w, h int) {
 	a.sectorY, a.sectorH = y, h
 	searchRows := 0
 	if ih > 0 {
-		a.drawSectorSearch(c, ix, iy, iw, false)
-		// One row for the field and one blank row before the list begins.
-		searchRows = 2
+		// Owner order 2026-11-14 (latest): one blank row stands before and
+		// after every search box, the SECTORS field included.
+		a.drawSectorSearch(c, ix, iy+1, iw, false)
+		searchRows = 3
 	}
 	listY := iy + searchRows
 	listRows := max(1, ih-searchRows)
@@ -1302,8 +1314,8 @@ func (a *App) drawAlertLog(c *Canvas, x, y, w, h int) {
 	th := a.th
 	all := a.flagLog()
 	log := a.alertLog()
-	// Owner order 2026-11-13: the log carries no sentence under its search
-	// box, and one blank row stands between the box and the list.
+	// Owner order 2026-11-14 (latest): one blank row stands before the ALERTS
+	// LOG search box as well as after it.
 	hint := pressSearchHint
 	title := "ALERTS LOG (" + strconv.Itoa(len(log)) + ")"
 	if a.alertQuery != "" {
@@ -1312,14 +1324,15 @@ func (a *App) drawAlertLog(c *Canvas, x, y, w, h int) {
 	a.focusNext = a.alertFocus == 2
 	lx, liy, liw, lih := a.panel(c, x, y, w, h, title, hint)
 	a.addHit(x, y, w, h, func() { a.alertFocus = 2 })
-	bw := a.searchBox(c, lx, liy, min(liw, 40), a.alertQuery, scripSearchHint, a.alertSearch)
-	a.addHit(lx, liy, bw, 1, func() { a.alertFocus, a.alertSearch = 2, true; a.lvLog.top() })
+	searchY := liy + 1
+	bw := a.searchBox(c, lx, searchY, min(liw, 40), a.alertQuery, scripSearchHint, a.alertSearch)
+	a.addHit(lx, searchY, bw, 1, func() { a.alertFocus, a.alertSearch = 2, true; a.lvLog.top() })
 	const per = 3 // a title and up to two lines of detail
-	listY := liy + 2
-	if lih < 3 {
+	listY := searchY + 2
+	if lih < 4 {
 		return
 	}
-	a.lvLog.set(len(log), (lih-2)/per)
+	a.lvLog.set(len(log), (lih-3)/per)
 	row := listY
 	lw := contentW(&a.lvLog, liw)
 	for n := 0; n < a.lvLog.view; n++ {

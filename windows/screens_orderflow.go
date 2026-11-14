@@ -258,7 +258,9 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 		cx += runeLen(lab) + 2
 	}
 	row++ // one blank row under the chips
+	row++ // one blank row above the search box
 	a.drawFlowSearch(c, ix, row, iw)
+	row++ // one blank row under the search box
 	row++
 
 	rows := a.sortedFlow()
