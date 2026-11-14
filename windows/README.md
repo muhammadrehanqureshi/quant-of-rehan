@@ -1,10 +1,11 @@
-# Quant of Rehan for Windows (console edition), build 107
+# Quant of Rehan for Windows (console edition), build 108
 
 A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.21**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
 
-## What is new in build 107
+## What is new in build 108
 
+* **Build 108 (version 3.5.7).** ORDER FLOW carries a `NET DELTA %` column after `NET DELTA`, so the owner reads both the absolute gap and the share of classified volume behind it. The percentage is `(B - S) / (B + S)`, absolute with the leading side's green or red ink, and it has its own order chip and clickable heading in the sort list. Only ORDER FLOW draws it.
 * **Build 107 (version 3.5.6).** Every search box is 20 percent shorter, 32 cells instead of 40, and its empty hint is centred on the box: `Search for a KMIALL scrip` and `Search for a sector`. The POSITION CALCULATOR reads `Press "C" to calculate`, and C opens it instead of F6. The PRICE ALERTS slots read `EMPTY` with no full stop, and the tile reads `Press "A" to set alerts, "del clears them"`; A opens the alert form, and P remains an alias.
 * **Build 106 (version 3.5.5).** The PRICE ALERTS tile's empty slots read `EMPTY.` and no longer tell the owner to press P. P is green in the ALERTS footer. The price-alert form asks for `a KMIALL scrip`. The ALERTS LOG carries no sentence under its search box and leaves one blank row before the first alert. The log is never trimmed: every alert raised during trading hours stays in it. ORDER FLOW's foot reads `U = UNCLEAR: The volume that the feed could not capture, U is never added to either B or S.`
 * **Build 105 (version 3.5.4).** SETTINGS shows the relay's current status (`ONLINE`, `OFFLINE`, `CHECKING` or `FAULT`) on the RELAY STATUS row instead of the sentence about its health page. The SEARCH tile drops the separate VOL line; the B, S, U and T line under HIGH and LOW is the one volume reading. SECTORS percentages use up and down arrows instead of plus and minus signs and share the scanner's nine cell NET DELTA column, so the right hand values end on one edge. BIG BUYING NOW and BIG SELLING NOW are the same width and right align their PKR values; their bars carry only the B versus S dominance. The QUANT CORE orb turns red during the exchange's midday break, and QUANT STATUS says the quant is sleeping during it.

@@ -60,8 +60,9 @@ const appVersion = "4.0.21"
 // red break orb are 3.5.4, and the green P footer key, the quiet ALERTS LOG
 // with its blank row, the uncut log and the full ORDER FLOW U sentence are
 // 3.5.5, and the 20 percent shorter search boxes with their centred hints, the
-// C calculator key and the A price-alert key are 3.5.6.
-const hudBuild = "3.5.6"
+// C calculator key and the A price-alert key are 3.5.6, and the ORDER FLOW
+// NET DELTA % column and sort are 3.5.7.
+const hudBuild = "3.5.7"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no

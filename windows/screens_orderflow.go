@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"math"
 	"sort"
 	"strings"
 	"time"
@@ -11,10 +12,27 @@ import (
 // RIGHT) steps through them, and every chip is a click target. Owner order
 // 2026-11-13: NET DELTA is one of them, highest positive first, and ENTER on
 // the page puts the list in that order.
-var flowSorts = []string{"TOTAL VOLUME", "BUYING VOLUME", "SELLING VOLUME", "UNCLASSIFIED", "NET DELTA", "CHANGE", "SYMBOL"}
+var flowSorts = []string{"TOTAL VOLUME", "BUYING VOLUME", "SELLING VOLUME", "UNCLASSIFIED", "NET DELTA", "NET DELTA %", "CHANGE", "SYMBOL"}
 
-// flowSortNetDelta is the NET DELTA order's index in flowSorts.
-const flowSortNetDelta = 4
+// flowSortNetDelta and flowSortNetDeltaPct are the two NET DELTA orders'
+// indexes in flowSorts.
+const (
+	flowSortNetDelta    = 4
+	flowSortNetDeltaPct = 5
+)
+
+// netDeltaPct is the NET DELTA as a share of the classified volume. A row
+// with no measured pair, or with no classified volume, has no percentage.
+func netDeltaPct(r FlowRow) (float64, bool) {
+	if !r.Measured() {
+		return 0, false
+	}
+	total := *r.Buy + *r.Sell
+	if total <= 0 {
+		return 0, false
+	}
+	return float64(*r.Buy-*r.Sell) / float64(total) * 100, true
+}
 
 // sortedFlow gives the rows in the chosen order. A row that has no number for
 // the chosen order goes to the bottom, never to the top as a zero.
@@ -55,7 +73,11 @@ func (a *App) sortedFlow() []FlowRow {
 			if r.Measured() {
 				return float64(*r.Buy - *r.Sell), true
 			}
-		case 5:
+		case flowSortNetDeltaPct:
+			if pct, ok := netDeltaPct(r); ok {
+				return pct, true
+			}
+		case 6:
 			if r.ChangePct != nil {
 				return *r.ChangePct, true
 			}
@@ -260,12 +282,16 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 	// and every row stand on the same cells.
 	var cols [8]flowCell
 	barX := 0
+	pctX := 0
+	showNetPct := false
 	// Column header for the one-line table.
 	if wide {
 		// Owner order 2026-11-10 (latest): every heading sits on the very first
 		// cell of its own column, which is exactly where that column's data
 		// starts, because every column is left aligned on that cell.
 		cols, barX = flowColumns(rows)
+		pctX = barX + shareBarWidth + shareBarGap
+		showNetPct = pctX+flowNetPctW <= iw-2
 		c.Text(ix+flowSerX, row, flowSerW, "#", th.Soft, false)
 		c.Text(ix+flowSymX, row, flowSymW, "SYMBOL", th.Soft, false)
 		for k, hd := range flowHeads {
@@ -288,6 +314,15 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 				a.ofSort = flowSortNetDelta
 				a.lvOF.top()
 			})
+			if showNetPct {
+				// Owner order 2026-11-14: the percentage has its own column
+				// after NET DELTA and its own order.
+				c.Text(ix+pctX, row, flowNetPctW, "NET DELTA %", th.Soft, false)
+				a.addHit(ix+pctX, row, flowNetPctW, 1, func() {
+					a.ofSort = flowSortNetDeltaPct
+					a.lvOF.top()
+				})
+			}
 		}
 		row++
 	}
@@ -363,6 +398,20 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 				// column after the bar, buy minus sell, signed.
 				a.shareBar(c, ix+barX, row, shareBarWidth, *r.Buy, *r.Sell)
 			}
+			if showNetPct {
+				txt, ink, bold := "--", th.Soft, false
+				if pct, ok := netDeltaPct(r); ok {
+					txt = fmt.Sprintf("%.2f%%", math.Abs(pct))
+					ink, bold = th.Soft, true
+					switch {
+					case pct > 0:
+						ink = th.Good
+					case pct < 0:
+						ink = th.Bad
+					}
+				}
+				c.Text(ix+pctX, row, flowNetPctW, txt, ink, bold)
+			}
 			if warn != "" {
 				c.Text(ix+cw-len(warn), row, len(warn), warn, th.Warn, true)
 			}
@@ -405,6 +454,10 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 // one column to the next is those same two cells on every row, not a wider one
 // after a short number and a narrower one after a long one.
 const flowGutter = 2
+
+// flowNetPctW is the width of the NET DELTA % column. Its heading is the
+// widest thing the column holds.
+const flowNetPctW = 11
 
 // The serial and the symbol columns, and the headings of the eight that follow.
 const (
