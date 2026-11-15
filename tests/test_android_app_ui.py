@@ -5286,9 +5286,11 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         self.assertNotIn("Thread.sleep",
                          orb.replace("Thread.sleep(wait);", ""))
         self.assertNotIn("Service", orb)
-        # start() and stop() are still the only public controls, wired to
-        # MainActivity's startHud, stopHud and the market gate.
-        self.assertEqual(orb.count("public void "), 2)
+        # start() and stop() are the animation controls, wired to
+        # MainActivity's startHud, stopHud and the market gate; setThemeInk
+        # is the third public control, called by the theme pass.
+        self.assertEqual(orb.count("public void "), 3)
+        self.assertIn("public void setThemeInk(int color)", orb)
 
     def test_the_orb_stops_when_the_market_stops(self):
         # Owner order 2026-10-23 (v1.9.13): the feature stops animating
