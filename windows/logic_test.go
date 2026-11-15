@@ -764,7 +764,9 @@ func TestKeyNavigation(t *testing.T) {
 		t.Fatalf("cap: %q", a.searchText)
 	}
 	a.clearSearch()
-	press(Key{Kind: KDown})
+	// Owner order 2026-11-15: the CUSTOM SCRIPS selection moves with LEFT and
+	// RIGHT, and ENTER opens the one the arrows reached.
+	press(Key{Kind: KRight})
 	press(Key{Kind: KEnter})
 	if a.scanChoice != 2 {
 		t.Fatalf("scanner choice: %d", a.scanChoice)

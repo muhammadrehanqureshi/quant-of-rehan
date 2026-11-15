@@ -70,8 +70,10 @@ const appVersion = "4.0.21"
 // arrow-key instruction are 3.5.11, and the W/L record on LATEST SIGNAL, the
 // KSE100 bar on the percentage row without NET DELTA, the quiet ALERTS and
 // calculator frames, the bare PSX'S KMIALL INDEX line and the CUSTOM SCRIPS
-// hint without its full stop are 3.6.2.
-const hudBuild = "3.6.2"
+// hint without its full stop are 3.6.2, and the SECTORS UP and DOWN selection,
+// the CUSTOM SCRIPS LEFT and RIGHT selection, ENTER on either tile and the one
+// fixed B, S, U and T column set are 3.6.3.
+const hudBuild = "3.6.3"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no
@@ -84,6 +86,10 @@ const scripSearchHint = "Search for a KMIALL scrip"
 // pressSearchHint names the key that gives a page's search box the keys, on
 // every page that has one (owner order 2026-11-12: the slash is that key).
 const pressSearchHint = "Press \"/\" to search"
+
+// sectorMoveHint names the keys that move the SECTORS selection, in the
+// owner's own words (order 2026-11-15).
+const sectorMoveHint = `Press "DOWN & UP ARROW KEYS" to move`
 
 // A terminal has one font size for the whole window, so the title is set in the
 // theme's accent and closed by a diamond on either side. The owner asked for the
