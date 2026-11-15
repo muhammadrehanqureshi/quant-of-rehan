@@ -979,7 +979,7 @@ public final class Watcher {
      * buy + sell + unclassified == total on every row this app prints.
      *
      * The big-print fields are the relay's own large-print board at its
-     * threshold (PKR 10,000,000 a single transaction since 2026-11-04), so a
+     * threshold (PKR 1,000,000 a single transaction since 2026-11-15), so a
      * BIG number the page shows is a transaction the relay actually saw, not
      * an average of one.
      */
@@ -1045,6 +1045,100 @@ public final class Watcher {
         return raw;
     }
 
+    /**
+     * Owner order 2026-11-15: a print's clock is Karachi's regular-session
+     * clock, never the raw text's zone. The relay can serve an ISO stamp in
+     * UTC or a bare clock; both are converted here. A stamp outside the
+     * regular session (Mon-Thu 09:32 to 15:30, Friday 09:17 to 16:30) is not
+     * a filled regular-session order, so it is refused rather than printed
+     * as a 23:55 trade.
+     */
+    private static String normalizedPrintAt(String at) {
+        if (at == null) {
+            return null;
+        }
+        String raw = at.trim();
+        if (raw.isEmpty()) {
+            return null;
+        }
+        java.util.TimeZone karachi = java.util.TimeZone.getTimeZone("Asia/Karachi");
+        java.util.Date parsed = null;
+        if (raw.matches("\\d{2}:\\d{2}:\\d{2}")) {
+            try {
+                String[] bits = raw.split(":");
+                java.util.Calendar k = java.util.Calendar.getInstance(karachi);
+                k.set(java.util.Calendar.HOUR_OF_DAY, Integer.parseInt(bits[0]));
+                k.set(java.util.Calendar.MINUTE, Integer.parseInt(bits[1]));
+                k.set(java.util.Calendar.SECOND, Integer.parseInt(bits[2]));
+                k.set(java.util.Calendar.MILLISECOND, 0);
+                parsed = k.getTime();
+            } catch (Exception ignored) {
+                return null;
+            }
+        } else {
+            String iso = raw;
+            int dot = iso.indexOf('.');
+            if (dot > 0) {
+                int zone = -1;
+                for (int i = dot + 1; i < iso.length(); i++) {
+                    char c = iso.charAt(i);
+                    if (c == '+' || c == '-' || c == 'Z') {
+                        zone = i;
+                        break;
+                    }
+                }
+                iso = zone > 0 ? iso.substring(0, dot) + iso.substring(zone)
+                        : iso.substring(0, dot);
+            }
+            String[] patterns = {
+                    "yyyy-MM-dd'T'HH:mm:ssXXX",
+                    "yyyy-MM-dd'T'HH:mm:ssZ",
+                    "yyyy-MM-dd'T'HH:mm:ssX",
+                    "yyyy-MM-dd'T'HH:mm:ss'Z'",
+                    "yyyy-MM-dd'T'HH:mm:ss"};
+            for (String pattern : patterns) {
+                try {
+                    java.text.SimpleDateFormat f = new java.text.SimpleDateFormat(
+                            pattern, java.util.Locale.US);
+                    f.setLenient(false);
+                    if (pattern.endsWith("'Z'")) {
+                        f.setTimeZone(java.util.TimeZone.getTimeZone("UTC"));
+                    } else if (!pattern.endsWith("XXX") && !pattern.endsWith("Z")
+                            && !pattern.endsWith("X")) {
+                        f.setTimeZone(karachi);
+                    }
+                    parsed = f.parse(iso);
+                    if (parsed != null) {
+                        break;
+                    }
+                } catch (Exception ignored) {
+                    // Try the next shape; a stamp no shape reads is refused.
+                }
+            }
+        }
+        if (parsed == null) {
+            return null;
+        }
+        java.util.Calendar k = java.util.Calendar.getInstance(karachi);
+        k.setTime(parsed);
+        int dow = k.get(java.util.Calendar.DAY_OF_WEEK);
+        if (dow == java.util.Calendar.SATURDAY
+                || dow == java.util.Calendar.SUNDAY) {
+            return null;
+        }
+        int minute = k.get(java.util.Calendar.HOUR_OF_DAY) * 60
+                + k.get(java.util.Calendar.MINUTE);
+        int open = dow == java.util.Calendar.FRIDAY ? 9 * 60 + 17 : 9 * 60 + 32;
+        int close = dow == java.util.Calendar.FRIDAY ? 16 * 60 + 30 : 15 * 60 + 30;
+        if (minute < open || minute > close) {
+            return null;
+        }
+        java.text.SimpleDateFormat out = new java.text.SimpleDateFormat(
+                "yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.US);
+        out.setTimeZone(karachi);
+        return out.format(parsed);
+    }
+
     interface FlowCallback {
         void onFlow(List<FlowRow> rows, List<BigPrint> prints);
     }
@@ -1100,6 +1194,7 @@ public final class Watcher {
                 JSONObject large = body.optJSONObject("large");
                 JSONArray feed = large == null ? null : large.optJSONArray("prints");
                 if (feed != null) {
+                    java.util.Set<String> seen = new java.util.HashSet<>();
                     for (int i = 0; i < feed.length(); i++) {
                         JSONObject print = feed.optJSONObject(i);
                         if (print == null) continue;
@@ -1109,8 +1204,18 @@ public final class Watcher {
                         out.shares = amount(print, "shares");
                         out.price = print.optDouble("price", 0d);
                         out.value = amount(print, "value_pkr");
-                        out.at = print.optString("at", "");
-                        if (out.symbol.isEmpty() || out.shares <= 0 || out.value <= 0) {
+                        // Owner order 2026-11-15: the print is stamped in
+                        // Karachi regular-session time, and a stamp outside
+                        // that band is refused instead of printed as a
+                        // night trade. Exact repeats are collapsed.
+                        out.at = normalizedPrintAt(print.optString("at", ""));
+                        if (out.symbol.isEmpty() || out.shares <= 0
+                                || out.value <= 0 || out.at == null) {
+                            continue;
+                        }
+                        String key = out.symbol + "|" + out.side + "|"
+                                + out.shares + "|" + out.price + "|" + out.at;
+                        if (!seen.add(key)) {
                             continue;
                         }
                         prints.add(out);
@@ -1388,6 +1493,9 @@ public final class Watcher {
                         sb.append(String.format(java.util.Locale.US, "%,.0f", total));
                         totalTo = sb.length();
                     }
+                    // Owner order 2026-11-15: the bracket closes after T,
+                    // then NET DELTA prints outside it.
+                    sb.append(')');
                     // Owner order 2026-11-13: NET DELTA follows T here too,
                     // with no sign and the side's own colour.
                     long delta = Math.round(buy) - Math.round(sell);
@@ -1396,7 +1504,6 @@ public final class Watcher {
                     sb.append(String.format(java.util.Locale.US, "%,d",
                             Math.abs(delta)));
                     netTo = sb.length();
-                    sb.append(')');
                     styled = new android.text.SpannableString(sb);
                     styled.setSpan(new android.text.style.ForegroundColorSpan(
                             c.getColor(R.color.green)), buyFrom, buyTo, 0);

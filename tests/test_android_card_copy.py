@@ -12,8 +12,8 @@ open", not "during market open".
 
 Owner order 2026-10-13: the volumes are bracketed as one group. "(" opens at
 the B indicator (or at the exchange's total when the relay sent no split) and
-")" closes after the T volume, and the ticker keeps exactly one space before
-the group.
+")" closes after the T volume, with NET DELTA outside the bracket (owner
+order 2026-11-15), and the ticker keeps exactly one space before the group.
 
 Owner order 2026-10-13 (third note): that sentence leaves the market card's
 foot and stands below the last diamond rule; the fifth note sets the gap

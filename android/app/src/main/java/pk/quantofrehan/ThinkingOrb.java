@@ -245,10 +245,14 @@ public class ThinkingOrb extends View {
      */
     private static final float MOTION_SCALE = 1.3f;
 
-    /** The node ink, warm gold in the sun's own family (v2.2.1). */
+    /** The default node ink, warm gold in the sun's own family (v2.2.1). */
     private static final int NODE_COLOR = 0xFFFFD166;
-    /** The link ink, the orangish/yellow the owner ordered (v2.2.1). */
+    /** The default link ink, the orangish/yellow the owner ordered (v2.2.1). */
     private static final int LINK_COLOR = 0xFFFFA62B;
+    /** Owner order 2026-11-15: the revolving web wears the worn theme's
+     *  second colour, so black and white draws white and purple draws gold. */
+    private int nodeColor = NODE_COLOR;
+    private int linkColor = LINK_COLOR;
 
     private final Paint linkPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint nodePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -909,11 +913,22 @@ public class ThinkingOrb extends View {
         return i;
     }
 
+    /** Owner order 2026-11-15: a theme pick re-inks the revolving lines and
+     *  their nodes in the theme's second colour, with no rebuild of the sun. */
+    public void setThemeInk(int color) {
+        nodeColor = color;
+        linkColor = color;
+        linkPaint.setColor(linkColor);
+        if (built) {
+            invalidate();
+        }
+    }
+
     /** The paints: the rendered ball, its glow, and the cloud's inks. */
     private void buildInks() {
         linkPaint.setStyle(Paint.Style.STROKE);
         linkPaint.setStrokeCap(Paint.Cap.ROUND);
-        linkPaint.setColor(LINK_COLOR);
+        linkPaint.setColor(linkColor);
         nodePaint.setStyle(Paint.Style.FILL);
         // The sun is the rendered sphere: the ball bitmap is drawn scaled
         // with filtering, its alpha the wake's. No shader of ours repaints
@@ -1951,7 +1966,7 @@ public class ThinkingOrb extends View {
             float size = nodeRadius * (0.6f + 0.9f * toward);
             int alpha = (int) ((95f + 160f * toward) * wake);
             nodePaint.setAlpha(Math.min(255, alpha));
-            nodePaint.setColor(NODE_COLOR);
+            nodePaint.setColor(nodeColor);
             canvas.drawCircle(screenX[n], screenY[n], size, nodePaint);
         }
     }

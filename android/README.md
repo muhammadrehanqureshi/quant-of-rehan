@@ -1641,6 +1641,20 @@ to sixty seconds. The status tile therefore also carries the app's own
      the orphan law stands so every dot still wears a filament.
   5. The version bump is versionCode 82 / versionName 2.3.15.
 
+**Version 4.3.9, versionCode 132.**
+
+  Owner order 2026-11-15. The orb's revolving lines and nodes now wear the
+  worn theme's second colour, so black and white draws white instead of the
+  old hardcoded yellow. The KSE100 leaders fill a missing B/S split from the
+  live quote map or the ORDER FLOW rows. Every volume group closes after T and
+  prints NET DELTA outside the bracket. ORDER FLOW prints are converted to
+  Karachi time and only regular-session fills survive; exact repeats are
+  collapsed. The selected stock line is centred. BIG BUYING & SELLING shows
+  only prints above PKR 1,000,000, and the relay keeps a 1,000,000 floor. The
+  SECTORS caret is gone, sector rows are centred, and every dropdown row is
+  25 percent shorter (43dp to 32dp, 7dp air to 5dp). The version bump is
+  versionCode 132 / versionName 4.3.9.
+
 **Version 4.3.8, versionCode 131.**
 
   Owner order 2026-11-13. ORDER FLOW and BIG BUYING & SELLING now use one
