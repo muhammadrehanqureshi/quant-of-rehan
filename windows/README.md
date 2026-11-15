@@ -1,10 +1,11 @@
-# Quant of Rehan for Windows (console edition), build 113
+# Quant of Rehan for Windows (console edition), build 114
 
 A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.21**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
 
-## What is new in build 113
+## What is new in build 114
 
+* **Build 114 (version 3.6.3).** The SECTORS selection moves with UP and DOWN, and the tile reads `Press "DOWN & UP ARROW KEYS" to move`. CUSTOM SCRIPS OF VOLUME moves with LEFT and RIGHT only, not UP and DOWN, and ENTER opens whichever tile the arrows last moved. Every CUSTOM SCRIPS sub menu uses one fixed set of B, S, U and T columns, so S, U and T start on the same cell from row to row and from sort to sort.
 * **Build 113 (version 3.6.2).** The W/L & W/L RATE record moves from QUANT STATUS to the foot of the LATEST SIGNAL tile. The KSE100 tile drops NET DELTA, and the bar moves onto the percentage row at the tile's right edge, so it no longer stands above the top three scrips. Clicking a tile on ALERTS no longer highlights its frame, and neither does opening the POSITION CALCULATOR on SCANNER. The lines on either side of PSX'S KMIALL INDEX are withdrawn, and CUSTOM SCRIPS OF VOLUME reads `Press "LEFT & RIGHT ARROW KEYS" to move` with no full stop.
 * **Build 112 (version 3.5.11).** The KSE100 leader price, percentage and NET DELTA group moves two cells right. Every search box carries one blank row before it and one after it, including the gap above the ALERTS LOG field. CUSTOM SCRIPS OF VOLUME reads `Press "LEFT & RIGHT ARROW KEYS" to move.`
 * **Build 111 (version 3.5.10).** QUANT STATUS reads `Showing the last stored session of 13 NOV 2026`. The KSE100 leader price, percentage and NET DELTA group moves five cells right, and the KSE100 footer reads `LAST DATA FROM THE BROKER'S FEED.`

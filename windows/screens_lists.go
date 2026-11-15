@@ -372,7 +372,7 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 	// own, in its own columns. B, S, U and T start on the same cell on every
 	// scrip, the price follows the widest one, and the change and the bar close
 	// the line, exactly as the three leaders on the KSE100 tile line up.
-	cols := bstLeaderCols(scanLeaders(syms, tbl))
+	cols := scanBSTCols(tbl)
 	pxW := 1
 	for _, s := range syms {
 		if q := tbl[s]; q.Price > 0 {
@@ -390,12 +390,10 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 		a.zebra(c, ix, row, cw, 2, i, s)
 		c.Spans(ix, row, cw, []Span{{fmt.Sprintf("%d. ", i+1), th.Soft, false}, {s, th.Hot, true}})
 		row++
-		used := 0
-		if cw >= 96 {
-			used = a.putBSTCols(c, ix+3, row, q.Buy, q.Sell, q.Volume, cols, volKey, pxKey)
-		} else {
-			used = a.putBST(c, ix+3, row, q.Buy, q.Sell, q.Volume, volKey, pxKey)
-		}
+		// Owner order 2026-11-15: every sort uses one fixed set of B, S, U
+		// and T columns, at every window width. The old narrow fallback packed
+		// the values, so S, U and T started on different cells from row to row.
+		used := a.putBSTCols(c, ix+3, row, q.Buy, q.Sell, q.Volume, cols, volKey, pxKey)
 		if q.Price > 0 {
 			const chgW = 8
 			end := ix + cw - 1
@@ -436,15 +434,15 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 	a.scrollbar(c, x+w-2, top, a.lvScan.view*2, &a.lvScan)
 }
 
-// scanLeaders turns the three ranked quotes into the rows bstLeaderCols
-// measures, so the scanner shares the KSE100 tile's own value columns.
-func scanLeaders(syms []string, tbl map[string]Quote) []Leader {
-	out := make([]Leader, 0, len(syms))
-	for _, s := range syms {
-		q := tbl[s]
-		out = append(out, Leader{Symbol: s, Buy: q.Buy, Sell: q.Sell, Volume: q.Volume})
+// scanBSTCols measures the whole scan table, not only the three scrips a sort
+// happens to show, so every sort opens on the same B, S, U and T cells and the
+// columns stay put when the owner moves from one sub menu to another.
+func scanBSTCols(tbl map[string]Quote) bstCols {
+	leaders := make([]Leader, 0, len(tbl))
+	for s, q := range tbl {
+		leaders = append(leaders, Leader{Symbol: s, Buy: q.Buy, Sell: q.Sell, Volume: q.Volume})
 	}
-	return out
+	return bstLeaderCols(leaders)
 }
 
 // searchTileHeight is how tall the search tile is: three rows with nothing
@@ -630,7 +628,7 @@ func (a *App) showing(l *listView, noun string) string {
 // group. The box filters by sector name or by any scrip it carries.
 func (a *App) drawSectorTile(c *Canvas, x, y, w, h int) {
 	th := a.th
-	ix, iy, iw, ih := a.panel(c, x, y, w, h, "SECTORS", "")
+	ix, iy, iw, ih := a.panel(c, x, y, w, h, "SECTORS", sectorMoveHint)
 	// Owner order 2026-11-11: the SECTORS title carries no diamond logo; the
 	// thin rule of the frame takes its place.
 	c.Put(x+2, y, '─', th.Line, false)
@@ -665,6 +663,16 @@ func (a *App) drawSectorTile(c *Canvas, x, y, w, h int) {
 	}
 	if a.sectorChoice >= len(groups) || a.sectorChoice < 0 {
 		a.sectorChoice = 0
+	}
+	chosenVisible := false
+	for _, idx := range vis {
+		if idx == a.sectorChoice {
+			chosenVisible = true
+			break
+		}
+	}
+	if !chosenVisible {
+		a.sectorChoice = vis[0]
 	}
 	a.lvSector.set(len(vis), listRows)
 	// The list is never snapped back to the chosen group: the wheel may scroll
@@ -756,7 +764,7 @@ func (a *App) drawSectorOpen(c *Canvas, x, y, w, h int) {
 	if h < 4 {
 		return
 	}
-	ix, iy, iw, ih := a.panel(c, x, y, w, h, "SECTORS", "")
+	ix, iy, iw, ih := a.panel(c, x, y, w, h, "SECTORS", sectorMoveHint)
 	// Owner order 2026-11-11: the SECTORS title carries no diamond logo.
 	c.Put(x+2, y, '─', th.Line, false)
 	a.drawSectorSearch(c, ix, iy+1, iw, true)
@@ -815,8 +823,36 @@ func (a *App) drawSectorOpen(c *Canvas, x, y, w, h int) {
 	a.scrollbar(c, ix+iw-1, iy+3, a.lvSectorStk.view, &a.lvSectorStk)
 }
 
+// moveSectorChoice moves the SECTORS selection by d rows of the visible list,
+// keeping the selected group inside the six-row window. Owner order
+// 2026-11-15: the SECTORS selection is moved by UP and DOWN only.
+func (a *App) moveSectorChoice(d int) {
+	vis := a.visibleSectorIndices()
+	if len(vis) == 0 {
+		return
+	}
+	pos := 0
+	for i, idx := range vis {
+		if idx == a.sectorChoice {
+			pos = i
+			break
+		}
+	}
+	pos = min(max(0, pos+d), len(vis)-1)
+	a.sectorChoice = vis[pos]
+	if a.lvSector.view > 0 {
+		if pos < a.lvSector.off {
+			a.lvSector.off = pos
+		}
+		if pos >= a.lvSector.off+a.lvSector.view {
+			a.lvSector.off = pos - a.lvSector.view + 1
+		}
+	}
+}
+
 // openSector opens group i in the SECTORS tile without leaving the scanner.
 func (a *App) openSector(i int) {
+	a.scanFocus = 0
 	groups := a.sectorGroups()
 	if i < 0 || i >= len(groups) {
 		return

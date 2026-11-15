@@ -133,6 +133,7 @@ type App struct {
 	sectors      *Sectors   // the latest /sectors answer
 	sectorsErr   string     // why the last sector read failed, for the screen
 	sectorChoice int        // which sector group the scanner tile shows
+	scanFocus    int        // 0 the SECTORS tile, 1 the CUSTOM SCRIPS tile
 	sectorQuery  string     // the SECTORS tile's own search text, upper case
 	sectorSearch bool       // the SECTORS search box has the keys
 	lvSector     listView   // the scanner's sector drop down
@@ -1209,10 +1210,11 @@ func (a *App) onKey(k Key) {
 // keyScanner handles the scanner screen with its search tile. Letters and
 // digits typed here go to the search box, or to the SECTORS box while that has
 // the keys. UP and DOWN move through the matches while there is a search, and
-// scroll the list otherwise. LEFT and RIGHT change the sort. ENTER picks the
-// highlighted match, or the highlighted sort when nothing is typed. BACKSPACE
-// first closes an open sector, then edits the search and clears the sort when
-// the box is empty. ESC clears the search, and goes Home when there is none.
+// move the SECTORS selection otherwise. LEFT and RIGHT move the CUSTOM SCRIPS
+// selection, never UP and DOWN. ENTER opens the tile the arrows last moved: the
+// highlighted sector, or the highlighted sort. BACKSPACE first closes an open
+// sector, then edits the search and clears the sort when the box is empty. ESC
+// clears the search, and goes Home when there is none.
 func (a *App) keyScanner(k Key) {
 	if a.sectorSearch {
 		a.keySectorSearch(k)
@@ -1229,19 +1231,27 @@ func (a *App) keyScanner(k Key) {
 			a.setScreen(scrHome)
 		}
 	case KLeft:
-		a.pickScan(max(1, a.scanChoice-1))
+		a.scanFocus = 1
+		if a.scanCursor > 0 {
+			a.scanCursor--
+		}
 	case KRight:
-		a.pickScan(min(len(scanChoices), a.scanChoice+1))
+		a.scanFocus = 1
+		if a.scanCursor < len(scanChoices)-1 {
+			a.scanCursor++
+		}
 	case KUp:
 		switch {
 		case searching:
 			if a.searchCursor > 0 {
 				a.searchCursor--
 			}
-		case a.scanChoice > 0:
-			a.lvScan.scroll(-1)
-		case a.scanCursor > 0:
-			a.scanCursor--
+		case a.sectorOpen:
+			a.scanFocus = 0
+			a.lvSectorStk.scroll(-1)
+		default:
+			a.scanFocus = 0
+			a.moveSectorChoice(-1)
 		}
 	case KDown:
 		switch {
@@ -1249,10 +1259,12 @@ func (a *App) keyScanner(k Key) {
 			if a.searchCursor < len(a.matches())-1 {
 				a.searchCursor++
 			}
-		case a.scanChoice > 0:
-			a.lvScan.scroll(1)
-		case a.scanCursor < len(scanChoices)-1:
-			a.scanCursor++
+		case a.sectorOpen:
+			a.scanFocus = 0
+			a.lvSectorStk.scroll(1)
+		default:
+			a.scanFocus = 0
+			a.moveSectorChoice(1)
 		}
 	case KPgUp:
 		a.lvScan.page(-1)
@@ -1263,12 +1275,15 @@ func (a *App) keyScanner(k Key) {
 	case KEnd:
 		a.lvScan.bottom()
 	case KEnter:
-		if searching {
+		switch {
+		case searching:
 			a.pickMatch()
-		} else if i := a.hoveredSector(); i >= 0 {
-			a.openSector(i)
-		} else {
-			a.pickScan(a.scanCursor + 1)
+		case a.scanFocus == 1 && len(scanChoices) > 0:
+			a.pickScan(min(a.scanCursor, len(scanChoices)-1) + 1)
+		case a.hoveredSector() >= 0:
+			a.openSector(a.hoveredSector())
+		case !a.sectorOpen && len(a.sectorGroups()) > 0:
+			a.openSector(a.sectorChoice)
 		}
 	case KBackspace:
 		if a.sectorOpen {
@@ -1426,6 +1441,7 @@ func (a *App) pickMatch() {
 }
 
 func (a *App) pickScan(c int) {
+	a.scanFocus = 1
 	a.scanChoice = c
 	a.lvScan = listView{}
 	if c > 0 {
