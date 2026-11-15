@@ -5,53 +5,46 @@ import (
 	"testing"
 )
 
-// Owner order 2026-11-14 (latest): the KSE100 live price, its percentage and
-// NET DELTA move two cells right together, so the widest delta ends on the
-// tile's last inner cell and the percentage keeps its two cell gutter.
-func TestKSE100ValuesMoveTwoCellsRight(t *testing.T) {
+// Owner order 2026-11-15: the KSE100 bar ends on the tile's last inner cell
+// and shares the percentage's row, with NET DELTA withdrawn.
+func TestKSE100BarEndsAtTheTilesInnerEdge(t *testing.T) {
 	a := busyApp(t, 158, 41, 3)
 	rows := rowsOf(a)
+	inside := false
 	found := 0
-	maxNetEnd, maxNetBorder := -1, -1
 	for _, row := range rows {
+		switch {
+		case strings.Contains(row, "KSE100 INDEX & THE TOP 3 SCRIPS OF VOLUME"):
+			inside = true
+			continue
+		case strings.Contains(row, "BUYING NOW"):
+			inside = false
+		}
+		if !inside {
+			continue
+		}
 		pkr := strings.Index(row, "PKR ")
-		if pkr < 0 {
+		if pkr < 0 || !strings.Contains(row[pkr:], "%") {
 			continue
 		}
-		rest := row[pkr:]
-		j := strings.Index(rest, "NET DELTA ")
-		if j < 0 {
-			continue
-		}
-		netStart := pkr + j
 		border := strings.LastIndex(row, "│")
-		if border <= netStart {
+		if border <= pkr {
 			continue
 		}
-		netStartCell := runeLen(row[:netStart])
-		netEndCell := netStartCell + runeLen(strings.TrimRight(row[netStart:border], " "))
+		barEnd := runeLen(strings.TrimRight(row[:border], " "))
 		borderCell := runeLen(row[:border])
-		if netEndCell > maxNetEnd {
-			maxNetEnd, maxNetBorder = netEndCell, borderCell
-		}
-		pct := strings.LastIndex(row[:netStart], "%")
-		if pct < 0 {
-			t.Fatalf("a leader price line has no percentage: %q", row)
-		}
-		pctEndCell := runeLen(row[:pct+1])
-		if netStartCell-pctEndCell != 3 {
-			t.Errorf("the percentage and NET DELTA gap changed: %d cells: %q",
-				netStartCell-pctEndCell, row)
+		// barEnd is one past the last bar cell, and the border is two cells
+		// after the last inner cell, so a bar that fills that cell ends on
+		// borderCell-1.
+		if barEnd != borderCell-1 {
+			t.Errorf("the bar ends on cell %d, the tile's last inner cell ends on %d: %q",
+				barEnd-1, borderCell-2, row)
 		}
 		found++
 	}
 	if found < 2 {
-		t.Fatalf("only %d leader price lines carried a value group:\n%s",
+		t.Fatalf("only %d leader percentage rows carried a bar:\n%s",
 			found, strings.Join(rows, "\n"))
-	}
-	if maxNetEnd != maxNetBorder-1 {
-		t.Fatalf("the widest NET DELTA ends on cell %d, the tile's last inner cell is %d",
-			maxNetEnd, maxNetBorder-1)
 	}
 }
 
@@ -112,7 +105,7 @@ func TestCustomScripsNamesTheArrowKeys(t *testing.T) {
 	a := demoApp(t, 120, 42)
 	a.screen = scrScanner
 	s := plain(a)
-	want := "Press " + `"` + "LEFT & RIGHT ARROW KEYS" + `"` + " to move."
+	want := "Press " + `"` + "LEFT & RIGHT ARROW KEYS" + `"` + " to move"
 	if !strings.Contains(s, want) {
 		t.Fatalf("the CUSTOM SCRIPS instruction is missing:\n%s", s)
 	}

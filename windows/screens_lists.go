@@ -273,9 +273,9 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 	// the row back that the sector search above took.
 	// Owner order 2026-11-12 (latest): the UP, DOWN, PGUP, PGDN hint is
 	// withdrawn, and the arrow keys keep working exactly as they did.
-	// Owner order 2026-11-14 (latest): the hint carries the owner's exact
-	// words and the keys in capitals.
-	hint := "Press " + `"LEFT & RIGHT ARROW KEYS"` + " to move."
+	// Owner order 2026-11-15: the hint carries the owner's exact words, the
+	// keys in capitals, and no full stop after "to move".
+	hint := "Press " + `"LEFT & RIGHT ARROW KEYS"` + " to move"
 	if a.searchText != "" {
 		hint = "ESC clears the search"
 	}
@@ -1177,11 +1177,12 @@ func (a *App) drawAlerts(c *Canvas, x, y, w, h int) {
 // over the last minute.
 func (a *App) drawBoardPanel(c *Canvas, x, y, w, h int, side int) {
 	th := a.th
-	title, word, on, focus := "BIG BUYING NOW", "buyers", a.cfg.BigBuy, 0
+	title, word, on := "BIG BUYING NOW", "buyers", a.cfg.BigBuy
 	lv := &a.lvBoard
 	good := th.Good
 	rows := a.boardRows
 	flagKey := "B"
+	focus := 0
 	if side == sideSell {
 		title, word, on, focus = "BIG SELLING NOW", "sellers", a.cfg.BigSell, 1
 		lv = &a.lvSell
@@ -1196,7 +1197,8 @@ func (a *App) drawBoardPanel(c *Canvas, x, y, w, h int, side int) {
 		hint = "PKR " + compactNum(boardFloor) + " or above orders"
 	}
 	_ = word
-	a.focusNext = a.alertFocus == focus
+	// Owner order 2026-11-15: clicking an ALERTS tile no longer highlights its
+	// frame. The hit still moves the page's keyboard focus.
 	ix, iy, iw, ih := a.panel(c, x, y, w, h, title, hint)
 	// Owner order 2026-11-07: the buying heading is green and the selling
 	// heading is red, even when the focused panel would otherwise be hot.
@@ -1321,7 +1323,7 @@ func (a *App) drawAlertLog(c *Canvas, x, y, w, h int) {
 	if a.alertQuery != "" {
 		title = "ALERTS LOG (" + strconv.Itoa(len(log)) + " of " + strconv.Itoa(len(all)) + ")"
 	}
-	a.focusNext = a.alertFocus == 2
+	// Owner order 2026-11-15: the ALERTS LOG frame does not highlight on a click.
 	lx, liy, liw, lih := a.panel(c, x, y, w, h, title, hint)
 	a.addHit(x, y, w, h, func() { a.alertFocus = 2 })
 	searchY := liy + 1

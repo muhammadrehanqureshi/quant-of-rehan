@@ -1,10 +1,11 @@
-# Quant of Rehan for Windows (console edition), build 112
+# Quant of Rehan for Windows (console edition), build 113
 
 A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.21**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
 
-## What is new in build 112
+## What is new in build 113
 
+* **Build 113 (version 3.6.2).** The W/L & W/L RATE record moves from QUANT STATUS to the foot of the LATEST SIGNAL tile. The KSE100 tile drops NET DELTA, and the bar moves onto the percentage row at the tile's right edge, so it no longer stands above the top three scrips. Clicking a tile on ALERTS no longer highlights its frame, and neither does opening the POSITION CALCULATOR on SCANNER. The lines on either side of PSX'S KMIALL INDEX are withdrawn, and CUSTOM SCRIPS OF VOLUME reads `Press "LEFT & RIGHT ARROW KEYS" to move` with no full stop.
 * **Build 112 (version 3.5.11).** The KSE100 leader price, percentage and NET DELTA group moves two cells right. Every search box carries one blank row before it and one after it, including the gap above the ALERTS LOG field. CUSTOM SCRIPS OF VOLUME reads `Press "LEFT & RIGHT ARROW KEYS" to move.`
 * **Build 111 (version 3.5.10).** QUANT STATUS reads `Showing the last stored session of 13 NOV 2026`. The KSE100 leader price, percentage and NET DELTA group moves five cells right, and the KSE100 footer reads `LAST DATA FROM THE BROKER'S FEED.`
 * **Build 110 (version 3.5.9).** Every search box keeps one cell of space on each side of its words. The PRICE ALERTS tile reads `Press "A" to set alerts, "del" clears them`, with no brackets. The KSE100 leader price, percentage and NET DELTA group moves farther left and carries the full `NET DELTA` label instead of `NET`.

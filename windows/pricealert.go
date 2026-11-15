@@ -245,7 +245,8 @@ func (a *App) raisePriceAlert(p PriceAlert) {
 // drawPriceTile is the PRICE ALERTS tile under the two boards.
 func (a *App) drawPriceTile(c *Canvas, x, y, w, h int) {
 	th := a.th
-	a.focusNext = a.alertFocus == 3
+	// Owner order 2026-11-15: clicking the PRICE ALERTS tile no longer
+	// highlights its frame; the click still moves the page's keyboard focus.
 	ix, iy, iw, ih := a.panel(c, x, y, w, h, "PRICE ALERTS", "Press \"A\" to set alerts, \"del\" clears them")
 	a.addHit(x, y, w, h, func() { a.alertFocus = 3 })
 	for i := 0; i < priceAlertSlots && i < ih; i++ {

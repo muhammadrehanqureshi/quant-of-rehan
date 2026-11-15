@@ -67,8 +67,11 @@ const appVersion = "4.0.21"
 // full NET DELTA label are 3.5.9, the stored-session sentence, the KSE100
 // right shift and its broker-feed footer are 3.5.10, and the KSE100 value
 // group's two cell shift, the blank rows around every search box and the full
-// arrow-key instruction are 3.5.11.
-const hudBuild = "3.5.11"
+// arrow-key instruction are 3.5.11, and the W/L record on LATEST SIGNAL, the
+// KSE100 bar on the percentage row without NET DELTA, the quiet ALERTS and
+// calculator frames, the bare PSX'S KMIALL INDEX line and the CUSTOM SCRIPS
+// hint without its full stop are 3.6.2.
+const hudBuild = "3.6.2"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no
