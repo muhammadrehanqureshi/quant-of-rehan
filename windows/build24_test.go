@@ -33,9 +33,12 @@ func TestKSE100BarEndsAtTheTilesInnerEdge(t *testing.T) {
 		}
 		barEnd := runeLen(strings.TrimRight(row[:border], " "))
 		borderCell := runeLen(row[:border])
-		if barEnd != borderCell-2 {
-			t.Errorf("the bar ends on cell %d, the tile's last inner cell is %d: %q",
-				barEnd, borderCell-2, row)
+		// barEnd is one past the last bar cell, and the border is two cells
+		// after the last inner cell, so a bar that fills that cell ends on
+		// borderCell-1.
+		if barEnd != borderCell-1 {
+			t.Errorf("the bar ends on cell %d, the tile's last inner cell ends on %d: %q",
+				barEnd-1, borderCell-2, row)
 		}
 		found++
 	}
