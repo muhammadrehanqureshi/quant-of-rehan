@@ -662,7 +662,7 @@ class SettingsControlTest(unittest.TestCase):
         self.assertIn('sb.append("  NET DELTA=");', self.main)
         # Owner order 2026-11-15: every builder closes the bracket first.
         flow = self.main[self.main.index("private SpannableStringBuilder flowSplitText("):]
-        flow = flow[:flow.index("private void colorQuantity")]
+        flow = flow[:flow.index("private CharSequence flowRowText")]
         self.assertLess(flow.index("sb.append(')');"),
                         flow.index("appendNetDelta(sb, row.buy"))
         self.assertIn("Math.abs(delta)", self.main)
@@ -3393,8 +3393,8 @@ class MenuOrdersTest(unittest.TestCase):
         """
         self.assertIn("private TextView menuRow(String line, "
                       "boolean first, boolean last) {", self.main)
-        self.assertIn("first ? dp(14) : dp(7), dp(14),", self.main)
-        self.assertIn("last ? dp(14) : dp(7));", self.main)
+        self.assertIn("first ? dp(10) : dp(5), dp(14),", self.main)
+        self.assertIn("last ? dp(10) : dp(5));", self.main)
         # Both builders pass the row's edge position: the first option is
         # row 0 and the last is the final row of its own menu.
         for builder, count in (("buildThemeMenu",
@@ -3571,12 +3571,12 @@ class MenuOrdersTest(unittest.TestCase):
         self.assertIn("private View menuDivider() {", self.main)
         self.assertIn("LinearLayout.LayoutParams.MATCH_PARENT, dp(1));",
                       self.main)
-        self.assertIn("params.setMargins(dp(10), dp(7), dp(14), dp(7));",
+        self.assertIn("params.setMargins(dp(10), dp(5), dp(14), dp(5));",
                       self.main,
                       "the line starts at the 10dp wording column, same air")
-        # A row's own padding is the matching 7dp top and bottom, so the
-        # line-to-option distance is the same 14dp on both sides.
-        self.assertIn("row.setPadding(dp(10), dp(7), dp(14), dp(7));",
+        # A row's own padding is the matching 5dp top and bottom, so the
+        # line-to-option distance is the same 10dp on both sides.
+        self.assertIn("row.setPadding(dp(10), dp(5), dp(14), dp(5));",
                       self.main)
         # Both menus obey one law: every option with an option above it
         # gains the line first.
@@ -4848,7 +4848,7 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         main = MAIN.read_text(encoding="utf-8")
         # The rows' leading air is the closed box's own 10dp column again,
         # since the caret is back at the trailing edge.
-        self.assertIn("row.setPadding(dp(10), dp(7), dp(14), dp(7));", main)
+        self.assertIn("row.setPadding(dp(10), dp(5), dp(14), dp(5));", main)
         # The tile's lift is the screen's own share, read from the
         # display's own metrics on the carrier the tile rides: 3% now,
         # which is the ordered 4% below the v3.1.0 law's 7%. v3.6.1
