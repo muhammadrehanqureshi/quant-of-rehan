@@ -392,6 +392,11 @@ public class MainActivity extends Activity {
     /** A tap that asked for the list before it had arrived: the menu opens
      *  the moment that answer lands (owner order 2026-11-06). */
     private boolean sectorMenuPending;
+    /** The last market card, so a late split can repaint the same frame. */
+    private Watcher.Market lastMarket;
+    /** The split fallback's own bound, so a missing pair never turns the
+     *  home tick into a second request every second. */
+    private int splitRefreshTries;
     /** True while the ORDER FLOW page replaces the console, under the same
      *  one-page-at-a-time law the search and scanner pages keep. */
     private boolean orderFlowOpen;
@@ -3177,6 +3182,11 @@ public class MainActivity extends Activity {
         Watcher.fetchFlow(this, (rows, prints) -> runOnUiThread(() -> {
             flowRows = rows == null ? new ArrayList<>() : new ArrayList<>(rows);
             flowRows.sort((a, b) -> a.symbol.compareTo(b.symbol));
+            // Owner order 2026-11-15: a late flow answer fills KSE100's
+            // missing B/S and NET DELTA at once, not one live tick later.
+            if (lastMarket != null && !orderFlowOpen) {
+                renderMarket(lastMarket);
+            }
             renderBigPrints(prints);
             if (orderFlowInput != null) {
                 renderFlowResults(orderFlowInput.getText().toString().trim()
@@ -3934,7 +3944,7 @@ public class MainActivity extends Activity {
 
     /** Six rows in the window, the rest a scroll away. */
     private void fitSectorWindow() {
-        if (sectorsScroll == null || sectorsMenu == null) {
+        if (sectorsScroll == null || sectorsMenu == null || !sectorMenuOpen) {
             return;
         }
         int rows = Math.min(SECTOR_ROWS, sectorRows.size());
@@ -4745,6 +4755,7 @@ public class MainActivity extends Activity {
             marketLeaders.setText(getString(R.string.market_leaders_waiting));
             return;
         }
+        lastMarket = market;
 
         if (market.hasIndex()) {
             // hasIndex() guarantees all three are non-null, so the unboxing
@@ -4786,7 +4797,33 @@ public class MainActivity extends Activity {
         } else {
             fillLeaderSplits(leaders);
             marketLeaders.setText(leadersText(leaders));
+            refreshMissingLeaderSplits(leaders);
         }
+    }
+
+    /**
+     * Owner order 2026-11-15: KSE100's top three need a B/S pair and a NET
+     * DELTA. The market card can arrive with only U and T while the split
+     * lives in the day's ORDER FLOW answer, so a missing pair asks that one
+     * source once. The throttle keeps a genuinely pair-less market from
+     * turning every one-second card tick into a second request.
+     */
+    private void refreshMissingLeaderSplits(List<Watcher.Leader> leaders) {
+        boolean missing = false;
+        for (Watcher.Leader leader : leaders) {
+            if (leader != null && !leader.hasSplit()) {
+                missing = true;
+                break;
+            }
+        }
+        if (!missing) {
+            return;
+        }
+        if (splitRefreshTries >= 3) {
+            return;
+        }
+        splitRefreshTries++;
+        refreshOrderFlow();
     }
 
     /**
@@ -4803,6 +4840,9 @@ public class MainActivity extends Activity {
                 continue;
             }
             Watcher.Quote quote = quotes.get(leader.symbol);
+            if (quote == null) {
+                quote = quotes.get(leader.symbol.toUpperCase(Locale.US));
+            }
             if (quote != null) {
                 if (!leader.hasSplit() && quote.buy != null && quote.sell != null) {
                     leader.buy = quote.buy;
@@ -4816,7 +4856,8 @@ public class MainActivity extends Activity {
             }
             if (!leader.hasSplit()) {
                 for (Watcher.FlowRow row : flowRows) {
-                    if (row == null || !leader.symbol.equals(row.symbol)) {
+                    if (row == null
+                            || !leader.symbol.equalsIgnoreCase(row.symbol)) {
                         continue;
                     }
                     if (row.buy != null && row.sell != null) {

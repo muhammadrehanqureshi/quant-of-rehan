@@ -569,11 +569,16 @@
      refused; the selected ORDER FLOW stock is centred; BIG BUYING & SELLING
      is above PKR 1,000,000; the SECTORS caret is gone, its rows are centred,
      and every sub menu is 25 percent shorter; and the version is 4.3.9.
+
+     versionCode 133 / versionName 4.4.0 belong to the owner's order of
+     2026-11-15: the SECTORS scroll stays hidden until its menu opens, so
+     the closed face is tappable again; and the KSE100 leaders ask the ORDER
+     FLOW split source for a missing B/S pair, so B, S and NET DELTA return.
      -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="pk.quantofrehan"
-    android:versionCode="132"
-    android:versionName="4.3.9">
+    android:versionCode="133"
+    android:versionName="4.4.0">
 
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="30"/>
 
