@@ -226,9 +226,10 @@ func (a *App) flashRight(c *Canvas, right, y int, s string, fg RGB, bold bool, k
 // drawHeader is the top of the window: the name centred between two diamonds
 // in the brightest ink, and the date and 24 hour clock on the right in a
 // darker shade, with the clock itself green and UTC+5 after it. The index the
-// quant watches is centred on the next line between two thin rules, and the
-// rule with a bright segment sweeping along it closes the header. Owner order
-// 2026-11-11: the LIVE/LAGGING counter is gone from the top left.
+// quant watches is centred on the next line, and the rule with a bright
+// segment sweeping along it closes the header. Owner order 2026-11-11: the
+// LIVE/LAGGING counter is gone from the top left. Owner order 2026-11-15: the
+// thin rules on either side of the index line are withdrawn.
 func (a *App) drawHeader(c *Canvas) {
 	th := a.th
 	title := headerTitle
@@ -246,7 +247,7 @@ func (a *App) drawHeader(c *Canvas) {
 	ink := mix(th.Soft, th.BG, 0.28)
 	// Owner order 2026-11-12 (latest): the date and the clock stand above the
 	// PSX'S KMIALL INDEX line, on the top row and at the window's right edge,
-	// so the index line keeps its rules to the edge and never cuts the clock.
+	// so the index line never cuts the clock.
 	rightAlign(c, 0, 0, c.W-1, []Span{{date + " ", ink, false}, {clock, th.Good, true}, {" UTC+5", ink, false}})
 
 	tag := headerTag
@@ -256,14 +257,8 @@ func (a *App) drawHeader(c *Canvas) {
 	tag = fit(tag, c.W)
 	tagX := max(0, (c.W-runeLen(tag))/2)
 	c.Text(tagX, 1, runeLen(tag), tag, th.Soft, false)
-	// Thin rules on both sides of the index line, with a space around the words.
-	rule := mix(th.Line, th.BG, 0.25)
-	if tagX >= 3 {
-		c.HLine(0, 1, tagX-2, '─', rule)
-	}
-	if end := tagX + runeLen(tag) + 2; end < c.W-1 {
-		c.HLine(end, 1, c.W-1-end, '─', rule)
-	}
+	// Owner order 2026-11-15: the thin rules on either side of the index line
+	// are withdrawn; PSX'S KMIALL INDEX stands alone above the sweeping rule.
 
 	// Rule with a bright segment sweeping along it.
 	c.HLine(0, 2, c.W, '━', th.Line)
@@ -776,16 +771,9 @@ func (a *App) drawStatus(c *Canvas, x, y, w, h int) {
 	th := a.th
 	ix, iy, iw, _ := a.panel(c, x, y, w, h, "QUANT STATUS", "")
 
-	// The record tile sits at the right of the panel.
-	wl := a.winLossSpans()
-	tileW := max(spanW(wl), runeLen("W/L & W/L RATE"))
-	showTile := iw >= 60
+	// Owner order 2026-11-15: the W/L record moved to the LATEST SIGNAL tile,
+	// so the status sentence has the whole panel.
 	textW := iw
-	if showTile {
-		textW = iw - tileW - 3
-		rightAlign(c, ix, iy, iw, []Span{{"W/L & W/L RATE", th.Soft, false}})
-		rightAlign(c, ix, iy+1, iw, wl)
-	}
 
 	word, fill, ink := "CHECKING", mix(th.Panel, th.Warn, 0.35), th.Text
 	dot := th.Warn
@@ -880,7 +868,7 @@ func (a *App) drawSignal(c *Canvas, x, y, w, h int, twoCol bool) {
 			}
 		}
 		lines := wrap(reason, iw-7)
-		for i := 0; i < len(lines) && i < ih-1; i++ {
+		for i := 0; i < len(lines) && i < ih-2; i++ {
 			lead := "       "
 			if i == 0 {
 				lead = "RELAY  "
@@ -888,6 +876,7 @@ func (a *App) drawSignal(c *Canvas, x, y, w, h int, twoCol bool) {
 			c.Text(ix, iy+1+i, 7, lead, th.Line, false)
 			c.Text(ix+7, iy+1+i, iw-7, lines[i], th.Soft, false)
 		}
+		a.drawWinLossRecord(c, ix, iy+ih-1, iw)
 		return
 	}
 	// The five fields, with these exact words.
@@ -940,6 +929,17 @@ func (a *App) drawSignal(c *Canvas, x, y, w, h int, twoCol bool) {
 			c.Spans(right-runeLen(ps)-spanW(sp), iy, spanW(sp), sp)
 		}
 	}
+	a.drawWinLossRecord(c, ix, iy+ih-1, iw)
+}
+
+// drawWinLossRecord is the closed signal record, moved from QUANT STATUS to
+// the foot of the LATEST SIGNAL tile. The label and the wins, losses and rate
+// share the tile's right edge, clear of the card's own fields.
+func (a *App) drawWinLossRecord(c *Canvas, x, y, w int) {
+	th := a.th
+	sp := []Span{{"W/L & W/L RATE  ", th.Soft, false}}
+	sp = append(sp, a.winLossSpans()...)
+	rightAlign(c, x, y, w, sp)
 }
 
 // feedLight is the broker feed's own age, counting each second, shown at the
@@ -1205,44 +1205,38 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 	// widest volume line sets the cell PKR starts on, the widest price sets the
 	// price field, and the change is right aligned at the tile's inner edge, so
 	// the label, the price and its change stand on the same cells on all three
-	// rows whatever digits they carry. The bar and its NET DELTA stand on the
-	// name line: 27 cells of bar cannot share the volume line with a full B, S,
-	// U and T at any window the HUD opens, which is how the tile lost them.
+	// rows whatever digits they carry. On a wide tile the bar shares the price
+	// line; a narrow tile keeps it on the name line, where the room is.
 	wide := iw >= 96
 	usedMax := 0
 	for _, l := range leaders[:nL] {
 		usedMax = max(usedMax, leaderBSTWidth(l, cols, wide))
 	}
 	const chgW = 8
-	// Owner order 2026-11-14: the bar and the leader values share this
-	// measured right edge; the price group's two cell shift is applied at
-	// valRight below. The full NET DELTA label keeps every shared column
-	// intact.
-	edge := ix + iw - 3
-	// Owner order 2026-11-14 (latest): the live price and percentage and the
-	// NET DELTA all move two cells right together. The NET DELTA now ends on
-	// the tile's last inner cell, and the change keeps its two cell gutter.
-	valRight := edge + 2
-	// Owner order 2026-11-13: NET DELTA moves off the name line to the price
-	// line, right aligned at the tile's edge, so the bar stands alone on the
-	// name line and no figure cuts into it. The field is measured once, so all
-	// three rows put it on the same cells, and the change keeps clear of it.
-	netW := 0
+	// Owner order 2026-11-15: NET DELTA is withdrawn from the KSE100 tile, so
+	// the bar takes the right edge of the percentage row. The bar and the
+	// percentage stand on the same line; only a window too narrow for the
+	// volumes, the PKR group and the bar keeps the bar on the name line above.
+	edge := ix + iw - 1
+	barStart := edge - shareBarSpan + 1
+	chgRight := barStart - 3
+	chgX := chgRight - chgW + 1
+	pkrX := max(ix+3+usedMax+2, chgX-2-(4+pxW))
+	hasBar := false
 	for _, l := range leaders[:nL] {
-		if l.HasSplit() {
-			netW = max(netW, runeLen("NET DELTA "+signedCompact(*l.Buy-*l.Sell)))
+		if l.HasSplit() && *l.Buy+*l.Sell > 0 {
+			hasBar = true
 		}
 	}
-	chgRight := valRight
-	if netW > 0 {
-		chgRight = valRight - netW - 2
+	barOnPrice := hasBar && barStart >= ix+3+usedMax+4 &&
+		chgX >= ix+3+usedMax+2 && pkrX+4+pxW <= chgX-2
+	if !barOnPrice {
+		// Narrow tile: keep the price group and its percentage on the price
+		// line and put the bar back on the name line, where the room is.
+		chgRight = edge
+		chgX = chgRight - chgW + 1
+		pkrX = max(ix+3+usedMax+2, chgX-2-(4+pxW))
 	}
-	chgX := chgRight - chgW + 1
-	barStart := edge - shareBarSpan + 1
-	// Owner order 2026-11-13: PKR, the change and the NET DELTA stand as one
-	// group at the right, each on a measured column, so the price no longer
-	// floats on its own and a short price cannot push the change away.
-	pkrX := max(ix+3+usedMax+2, chgX-2-(4+pxW))
 
 	// The bottom of the tile, from the bottom up: the note, one blank line, and
 	// the BUYING NOW line. The blank line and the spacer under the index are
@@ -1269,10 +1263,9 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 		}
 		pxKey, volKey := "px:"+l.Symbol, "vol:"+l.Symbol
 		c.Spans(ix, row, textW, []Span{{strconv.Itoa(i+1) + ". ", th.Soft, false}, {l.Symbol, th.Hot, true}})
-		// Owner order 2026-11-13: the bar stands alone on the name line, in the
-		// same cells on every leader row, so the three lengths read down one
-		// column instead of ending where a delta begins.
-		if l.HasSplit() && barStart > ix+3+runeLen(l.Symbol)+2 {
+		// Narrow tile only: the bar stands on the name line in the same cells on
+		// every leader row. On a wide tile it shares the percentage row below.
+		if !barOnPrice && l.HasSplit() && barStart > ix+3+runeLen(l.Symbol)+2 {
 			if *l.Buy+*l.Sell > 0 {
 				a.shareBarOnly(c, barStart, row, shareBarSpan, *l.Buy, *l.Sell)
 			}
@@ -1297,16 +1290,14 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 		} else {
 			used = a.putBST(c, ix+3, row, buy, sell, vol, volKey, pxKey)
 		}
-		// Owner order 2026-11-10 (latest): the price, the change and the delta are
-		// pushed to the tile's far right and right aligned at one edge, so all
-		// three leaders line up and nothing floats in the middle of the row. The
-		// NET DELTA keeps its own field at the edge on every row.
+		// Owner order 2026-11-10 (latest): the price and the change are pushed
+		// to the tile's far right and right aligned at one edge, so all three
+		// leaders line up and nothing floats in the middle of the row.
 		// The right edge is the tile's inner width, not textW: textW is the
 		// narrow column the symbol line uses, and a price right aligned there
-		// painted over the volumes (CI caught "& TPKR 15.24"). Each of the
-		// three fields also has a fixed width from that edge, so the price, the
-		// change and the bar land on the same cells on every leader row.
-		pxEnd := 0
+		// painted over the volumes (CI caught "& TPKR 15.24"). Each field also
+		// has a fixed width from that edge, so the price, the change and the bar
+		// land on the same cells on every leader row.
 		if l.Price != nil {
 			px := commaFloat(*l.Price, 2)
 			if pkrX+4+pxW <= edge {
@@ -1315,7 +1306,6 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 				// widest volume line leaves and the field is the widest price.
 				c.Text(pkrX, row, 3, "PKR", th.Soft, false)
 				a.flashText(c, pkrX+4, row, px, th.Text, true, pxKey)
-				pxEnd = pkrX + 4 + runeLen(px)
 				if l.ChangePct != nil && chgX > pkrX+4+pxW {
 					a.flashRight(c, chgRight, row, changeText(*l.ChangePct), a.dirColor(*l.ChangePct), true, pxKey)
 				}
@@ -1324,21 +1314,13 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 				// volumes, as they always have, and the change gives way first.
 				c.Text(at, row, 3, "PKR", th.Soft, false)
 				a.flashText(c, at+4, row, px, th.Text, true, pxKey)
-				pxEnd = at + 4 + runeLen(px)
 			}
 		}
-		// The leader's own NET DELTA closes the price line, under the end of the
-		// bar, so it never sits between the bar and the percentage.
-		if netW > 0 && l.HasSplit() && valRight-netW+1 > pxEnd {
-			net := *l.Buy - *l.Sell
-			nc := th.Soft
-			switch {
-			case net > 0:
-				nc = th.Good
-			case net < 0:
-				nc = th.Bad
-			}
-			c.Text(valRight-netW+1, row, netW, "NET DELTA "+signedCompact(net), nc, true)
+		// Owner order 2026-11-15: the bar closes the percentage row on a wide
+		// tile. NET DELTA is gone, so the bar sits beside the figure it splits
+		// instead of standing above it on the name line.
+		if barOnPrice && l.HasSplit() && *l.Buy+*l.Sell > 0 {
+			a.shareBarOnly(c, barStart, row, shareBarSpan, *l.Buy, *l.Sell)
 		}
 		row++
 		// Spare rows are shared out as a blank line between leaders.

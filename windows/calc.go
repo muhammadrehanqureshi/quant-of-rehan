@@ -77,7 +77,8 @@ func (a *App) drawCalculatorTile(c *Canvas, x, y, w, h int) {
 	if a.calcOpen {
 		hint = "TAB next, ESC leaves"
 	}
-	a.focusNext = a.calcOpen
+	// Owner order 2026-11-15: opening the calculator no longer highlights the
+	// tile's frame. The click still opens it and the boxes still take the keys.
 	ix, iy, iw, _ := a.panel(c, x, y, w, h, "POSITION CALCULATOR", hint)
 	a.addHit(x, y, w, h, func() { a.openCalc() })
 	gap := 2

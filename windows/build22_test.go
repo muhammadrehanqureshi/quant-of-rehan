@@ -5,31 +5,33 @@ import (
 	"testing"
 )
 
-// Owner order 2026-11-14 (latest): the KSE100 leader price line carries the
-// full NET DELTA label, and every leader puts it on the same cell.
-func TestKSE100LeadersCarryFullNetDelta(t *testing.T) {
+// Owner order 2026-11-15: NET DELTA is withdrawn from the KSE100 tile. The
+// bar takes the right edge of the percentage row in its place.
+func TestKSE100LeadersCarryNoNetDelta(t *testing.T) {
 	a := busyApp(t, 158, 41, 3)
-	at := -1
+	inside := false
 	found := 0
 	for _, row := range rowsOf(a) {
+		switch {
+		case strings.Contains(row, "KSE100 INDEX & THE TOP 3 SCRIPS OF VOLUME"):
+			inside = true
+			continue
+		case strings.Contains(row, "BUYING NOW"):
+			inside = false
+		}
+		if !inside {
+			continue
+		}
 		pkr := strings.Index(row, "PKR ")
 		if pkr < 0 {
 			continue
 		}
-		rest := row[pkr:]
-		j := strings.Index(rest, "NET DELTA ")
-		if j < 0 {
-			continue
-		}
-		cell := runeLen(row[:pkr+j])
-		if at < 0 {
-			at = cell
-		} else if cell != at {
-			t.Errorf("NET DELTA starts on cell %d, the first on %d: %q", cell, at, row)
-		}
 		found++
+		if strings.Contains(row[pkr:], "NET DELTA") {
+			t.Errorf("the KSE100 leader still carries NET DELTA: %q", row)
+		}
 	}
 	if found < 2 {
-		t.Fatalf("only %d leader price lines carry NET DELTA:\n%s", found, plain(a))
+		t.Fatalf("only %d leader price lines were found:\n%s", found, plain(a))
 	}
 }
