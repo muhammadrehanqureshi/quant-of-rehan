@@ -822,6 +822,16 @@ class SettingsControlTest(unittest.TestCase):
         # percentage, and every known percentage carries its arrow.
         self.assertIn("private static final int SECTOR_ROWS = 6;", self.main)
         self.assertIn("sectorsMenu.post(this::fitSectorWindow);", self.main)
+        # Owner order 2026-11-15: the closed scroll must not cover the face.
+        self.assertIn('android:visibility="gone"',
+                      element(self.layout, 'android:id="@+id/sectors_scroll"'))
+        self.assertIn('android:visibility="gone"',
+                      element(self.layout, 'android:id="@+id/sectors_scroller"'))
+        self.assertIn("!sectorMenuOpen", self.main)
+        # Owner order 2026-11-15: a missing KSE100 B/S asks ORDER FLOW once.
+        self.assertIn("private void refreshMissingLeaderSplits(", self.main)
+        self.assertIn("lastMarket = market;", self.main)
+        self.assertIn("renderMarket(lastMarket);", self.main)
         self.assertIn("names.sort((a, b) -> {", self.main)
         self.assertIn("Double.compare(pb, pa)", self.main)
         self.assertIn("TextView row = menuRow(sectorMenuLabel(++number, name,",
@@ -2329,8 +2339,8 @@ class VersionTest(unittest.TestCase):
         # ships as 4.0.20. Owner order 2026-11-12: the phone's CUSTOM
         # SCRIPS OF VOL. menu names all six sorts the console carries, and
         # it ships as 4.0.21.
-        self.assertIn('android:versionName="4.3.9"', manifest)
-        self.assertIn('android:versionCode="132"', manifest)
+        self.assertIn('android:versionName="4.4.0"', manifest)
+        self.assertIn('android:versionCode="133"', manifest)
         self.assertNotIn('android:versionName="4.0.15"', manifest)
         self.assertNotIn('android:versionName="4.0.14"', manifest)
         self.assertNotIn('android:versionName="3.7.5"', manifest)
@@ -2554,9 +2564,10 @@ class VersionTest(unittest.TestCase):
         # time, retained large prints, the six-row sorted SECTORS window and
         # NET DELTA ship as 4.3.8. Owner order 2026-11-15: the theme-inked
         # orb, the 1M board, the Karachi print clock and the shorter menus
-        # ship as 4.3.9.
-        self.assertIn('android:versionCode="132"', manifest)
-        self.assertIn('android:versionName="4.3.9"', manifest)
+        # ship as 4.3.9. Owner order 2026-11-15: the tappable SECTORS face
+        # and the KSE100 B/S fallback ship as 4.4.0.
+        self.assertIn('android:versionCode="133"', manifest)
+        self.assertIn('android:versionName="4.4.0"', manifest)
         self.assertNotIn('android:versionName="4.0.15"', manifest)
         self.assertNotIn('android:versionName="3.7.5"', manifest)
         self.assertNotIn('android:versionName="3.7.4"', manifest)

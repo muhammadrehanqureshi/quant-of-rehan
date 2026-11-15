@@ -1641,6 +1641,15 @@ to sixty seconds. The status tile therefore also carries the app's own
      the orphan law stands so every dot still wears a filament.
   5. The version bump is versionCode 82 / versionName 2.3.15.
 
+**Version 4.4.0, versionCode 133.**
+
+  Owner order 2026-11-15. The SECTORS scroll view is hidden while the menu is
+  closed, so it no longer covers the SELECT A SECTOR face and swallows the tap;
+  the open menu sizes itself only after it is open. The KSE100 leaders now ask
+  the ORDER FLOW split source when their B/S pair is missing, merging it by a
+  case-insensitive symbol match, so B, S and NET DELTA return to the card. The
+  version bump is versionCode 133 / versionName 4.4.0.
+
 **Version 4.3.9, versionCode 132.**
 
   Owner order 2026-11-15. The orb's revolving lines and nodes now wear the

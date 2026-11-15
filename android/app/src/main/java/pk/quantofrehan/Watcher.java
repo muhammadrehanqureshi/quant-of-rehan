@@ -496,7 +496,8 @@ public final class Watcher {
                     JSONObject row = tops.optJSONObject(i);
                     if (row == null) continue;
                     Leader leader = new Leader();
-                    leader.symbol = row.optString("symbol", "");
+                    leader.symbol = row.optString("symbol", "")
+                            .trim().toUpperCase(java.util.Locale.US);
                     leader.volume = integerOrNull(row, "volume");
                     leader.price = numberOrNull(row, "price");
                     leader.changePct = numberOrNull(row, "change_pct");

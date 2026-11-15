@@ -559,7 +559,8 @@
                             android:layout_height="wrap_content"
                             android:nestedScrollingEnabled="false"
                             android:paddingRight="14dp"
-                            android:scrollbars="none">
+                            android:scrollbars="none"
+                            android:visibility="gone">
 
                             <LinearLayout
                                 android:id="@+id/sectors_menu"
@@ -573,7 +574,8 @@
                             android:id="@+id/sectors_scroller"
                             android:layout_width="14dp"
                             android:layout_height="match_parent"
-                            android:layout_gravity="end|top"/>
+                            android:layout_gravity="end|top"
+                            android:visibility="gone"/>
                     </FrameLayout>
 
                 </FrameLayout>
