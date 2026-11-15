@@ -203,6 +203,9 @@ public class MainActivity extends Activity {
      *  board's window holds exactly eight prints; the visible bar scrolls
      *  the rest of the day into view. */
     private static final int BIG_PRINTS_ROWS = 8;
+    /** Owner order 2026-11-15: the BIG BUYING & SELLING tile shows only
+     *  prints above PKR 1,000,000. */
+    private static final long BIG_PRINT_FLOOR_PKR = 1_000_000L;
     /** The 3dp the board's text view puts between two prints. */
     private static final int BIG_PRINTS_ROW_AIR_DP = 3;
     /** Owner order 2026-11-13: the SECTORS window shows six rows before it
@@ -374,7 +377,6 @@ public class MainActivity extends Activity {
     private View ruleSectors;
     private TextView sectorsSpinner;
     private LinearLayout sectorsMenu;
-    private ImageView sectorsArrow;
     private TextView sectorsReveal;
     private View sectorsFieldGroup;
     /** Owner order 2026-11-13: the SECTORS menu is a fixed six-row window
@@ -625,7 +627,6 @@ public class MainActivity extends Activity {
         ruleSectors = findViewById(R.id.rule_sectors);
         sectorsSpinner = findViewById(R.id.sectors_spinner);
         sectorsMenu = findViewById(R.id.sectors_menu);
-        sectorsArrow = findViewById(R.id.sectors_arrow);
         sectorsReveal = findViewById(R.id.sectors_reveal);
         sectorsFieldGroup = findViewById(R.id.sectors_field_group);
         sectorsScroll = findViewById(R.id.sectors_scroll);
@@ -633,10 +634,6 @@ public class MainActivity extends Activity {
         if (sectorsSpinner != null) {
             sectorsBoxLabel = sectorsSpinner.getText().toString();
             sectorsSpinner.setOnClickListener(v ->
-                    showSectorMenu(!sectorMenuOpen));
-        }
-        if (sectorsArrow != null) {
-            sectorsArrow.setOnClickListener(v ->
                     showSectorMenu(!sectorMenuOpen));
         }
         if (sectorsScroll != null) {
@@ -938,11 +935,6 @@ public class MainActivity extends Activity {
                     ColorStateList.valueOf(themeAccentInk));
         }	        if (themeArrow != null) {
 	            themeArrow.setImageTintList(
-	                    ColorStateList.valueOf(themeAccentInk));
-	        }
-	        // Owner order 2026-11-11: the SECTORS caret follows the theme too.
-	        if (sectorsArrow != null) {
-	            sectorsArrow.setImageTintList(
 	                    ColorStateList.valueOf(themeAccentInk));
 	        }
 	    }
@@ -1325,6 +1317,11 @@ public class MainActivity extends Activity {
         // draw from the theme this pass names, never one pass late.
         themeAccentInk = getColor(accent);
         themeBodyInk = getColor(body);
+        // Owner order 2026-11-15: the orb's revolving web wears the same
+        // second colour as the theme's rules and headings.
+        if (thinkingOrb != null) {
+            thinkingOrb.setThemeInk(themeAccentInk);
+        }
         int bgColor = getColor(bg);
         View root = findViewById(R.id.scroll_root);
         if (root != null) {
@@ -1918,8 +1915,8 @@ public class MainActivity extends Activity {
                     sb.append('\n').append("T=");
                     colorTotal(sb, quote.volume);
                 }
-                appendNetDelta(sb, quote.buy, quote.sell);
                 sb.append(')');
+                appendNetDelta(sb, quote.buy, quote.sell);
             } else if (quote.unclassified != null || quote.volume != null) {
                 // No measured pair: the known U keeps the first line and T
                 // takes the next. A missing U is not invented.
@@ -2034,15 +2031,11 @@ public class MainActivity extends Activity {
         // v3.7.2 (owner order 2026-11-01): the caret is back at the
         // trailing edge, so the wording returns to the closed box's own
         // 10dp column. The row's right air is the caret's 14dp station.
-        row.setPadding(dp(10), dp(7), dp(14), dp(7));
-        // v3.4.0 (owner order 2026-10-30, "the drop down menu got
-        // thinner and the drop down/drop up icon gets on the middle,
-        // it should be on the top"): a menu row stands at the closed
-        // box's own field height law, the one 43dp every field box
-        // wears (v2.3.18's 29 * 1.5 = 43.5, floored to 43), so an open
-        // menu reads as thick as the box it opened from and never as
-        // one thinner list of lines beside its own caret.
-        row.setMinimumHeight(dp(43));
+        row.setPadding(dp(10), dp(5), dp(14), dp(5));
+        // Owner order 2026-11-15: every sub menu is 25 percent shorter
+        // than the 43dp row it wore (43 * 0.75 = 32.25, floored to 32).
+        // The vertical air follows the same cut, 7dp to 5dp.
+        row.setMinimumHeight(dp(32));
         row.setText(line);
         return row;
     }
@@ -2066,7 +2059,7 @@ public class MainActivity extends Activity {
         View line = new View(this);
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, dp(1));
-        params.setMargins(dp(10), dp(7), dp(14), dp(7));
+        params.setMargins(dp(10), dp(5), dp(14), dp(5));
         line.setLayoutParams(params);
         line.setBackgroundColor(edgeInk());
         menuDividers.add(line);
@@ -2097,8 +2090,8 @@ public class MainActivity extends Activity {
     // from its nearest line above and below, in BOTH menus.
     private TextView menuRow(String line, boolean first, boolean last) {
         TextView row = menuRow(line);
-        row.setPadding(dp(10), first ? dp(14) : dp(7), dp(14),
-                last ? dp(14) : dp(7));
+        row.setPadding(dp(10), first ? dp(10) : dp(5), dp(14),
+                last ? dp(10) : dp(5));
         return row;
     }
 
@@ -3218,6 +3211,10 @@ public class MainActivity extends Activity {
         SpannableStringBuilder sb = new SpannableStringBuilder();
         int shown = 0;
         for (Watcher.BigPrint print : lastPrints) {
+            // Owner order 2026-11-15: this board is the above PKR 1M board.
+            if (print.value <= BIG_PRINT_FLOOR_PKR) {
+                continue;
+            }
             if (!query.isEmpty() && (print.symbol == null
                     || !print.symbol.toUpperCase(Locale.US).contains(query))) {
                 continue;
@@ -3235,7 +3232,9 @@ public class MainActivity extends Activity {
             appendPrintSentence(sb, print);
         }
         if (shown == 0) {
-            bigPrintsList.setText(R.string.big_prints_none_match);
+            bigPrintsList.setText(query.isEmpty()
+                    ? R.string.big_prints_none
+                    : R.string.big_prints_none_match);
             wrapBigPrintsWindow();
             return;
         }
@@ -3521,8 +3520,8 @@ public class MainActivity extends Activity {
                 sb.append('\n').append("T=");
                 colorTotal(sb, row.volume);
             }
-            appendNetDelta(sb, row.buy, row.sell);
             sb.append(')');
+            appendNetDelta(sb, row.buy, row.sell);
         } else if (row.unclassified != null || row.volume != null) {
             if (row.unclassified != null) {
                 sb.append("(U=");
@@ -3802,8 +3801,6 @@ public class MainActivity extends Activity {
         if (sectorsSpinner != null) {
             sectorsSpinner.setVisibility(open ? View.GONE : View.VISIBLE);
         }
-        rotateDropdownArrow(sectorsArrow, open);
-        centerDropdownCaret(sectorsArrow, sectorsSpinner, sectorsMenu);
         if (open) {
             showVolumeMenu(false);
             showThemeMenu(false);
@@ -3890,6 +3887,9 @@ public class MainActivity extends Activity {
             // their number in sequence too, 1. to n.
             TextView row = menuRow(sectorMenuLabel(++number, name,
                     performance.get(name)));
+            // Owner order 2026-11-15: every sector sits in the centre of
+            // its own box, the first one included.
+            row.setGravity(Gravity.CENTER);
             row.setOnClickListener(v -> chooseSector(name));
             sectorsMenu.addView(row);
         }
@@ -3947,7 +3947,7 @@ public class MainActivity extends Activity {
             }
             int measured = child.getMeasuredHeight();
             if (measured <= 0) {
-                measured = child instanceof TextView ? dp(43) : dp(15);
+                measured = child instanceof TextView ? dp(32) : dp(15);
             }
             height += measured;
             ViewGroup.LayoutParams lp = child.getLayoutParams();
@@ -3960,7 +3960,7 @@ public class MainActivity extends Activity {
             }
         }
         if (height <= 0) {
-            height = dp(43) * Math.max(1, rows);
+            height = dp(32) * Math.max(1, rows);
         }
         ViewGroup.LayoutParams lp = sectorsScroll.getLayoutParams();
         if (lp != null && lp.height != height) {
@@ -4061,8 +4061,8 @@ public class MainActivity extends Activity {
                     sb.append('\n').append("T=");
                     colorTotal(sb, quote.volume);
                 }
-                appendNetDelta(sb, quote.buy, quote.sell);
                 sb.append(')');
+                appendNetDelta(sb, quote.buy, quote.sell);
             } else if (quote.unclassified != null || quote.volume != null) {
                 sb.append('\n');
                 if (quote.unclassified != null) {
@@ -4546,19 +4546,21 @@ public class MainActivity extends Activity {
                 sb.append(String.format(Locale.US, "%,d", quote.unclassified));
                 unclearTo = sb.length();
             }
-            sb.append(quote.unclassified != null && quote.volume != null ? " &" : ")");
+            if (quote.unclassified != null && quote.volume != null) {
+                sb.append(" &");
+            }
             if (quote.volume != null) {
                 sb.append('\n').append("T=");
                 totalFrom = sb.length();
                 sb.append(String.format(Locale.US, "%,d", quote.volume));
                 totalTo = sb.length();
             }
+            sb.append(')');
             long delta = quote.buy - quote.sell;
             sb.append("  NET DELTA=");
             netFrom = sb.length();
             sb.append(String.format(Locale.US, "%,d", Math.abs(delta)));
             netTo = sb.length();
-            sb.append(')');
         } else if (quote.unclassified != null || quote.volume != null) {
             // No measured pair: the known U keeps the first line and T
             // takes the next. A missing U is not invented.
@@ -4782,7 +4784,53 @@ public class MainActivity extends Activity {
                 marketLeaders.setText(getString(R.string.market_unavailable));
             }
         } else {
+            fillLeaderSplits(leaders);
             marketLeaders.setText(leadersText(leaders));
+        }
+    }
+
+    /**
+     * Owner order 2026-11-15: the KSE100 card must print B and S for its top
+     * three. The market card's own leader rows can arrive before their split;
+     * the live quote map and the ORDER FLOW rows already carry the measured
+     * pair, so a missing pair is filled from them. Nothing is guessed: a
+     * leader with no pair in either source still prints only what it has.
+     */
+    private void fillLeaderSplits(List<Watcher.Leader> leaders) {
+        java.util.Map<String, Watcher.Quote> quotes = Watcher.quotes();
+        for (Watcher.Leader leader : leaders) {
+            if (leader == null || leader.symbol == null) {
+                continue;
+            }
+            Watcher.Quote quote = quotes.get(leader.symbol);
+            if (quote != null) {
+                if (!leader.hasSplit() && quote.buy != null && quote.sell != null) {
+                    leader.buy = quote.buy;
+                    leader.sell = quote.sell;
+                    leader.unclassified = quote.unclassified;
+                    leader.splitMethod = "quote_rule";
+                }
+                if (!leader.hasVolume() && quote.volume != null) {
+                    leader.volume = quote.volume;
+                }
+            }
+            if (!leader.hasSplit()) {
+                for (Watcher.FlowRow row : flowRows) {
+                    if (row == null || !leader.symbol.equals(row.symbol)) {
+                        continue;
+                    }
+                    if (row.buy != null && row.sell != null) {
+                        leader.buy = row.buy;
+                        leader.sell = row.sell;
+                        leader.unclassified = row.unclassified;
+                        leader.splitMethod = "quote_rule";
+                    }
+                    if (!leader.hasVolume() && row.volume != null) {
+                        leader.volume = row.volume;
+                    }
+                    break;
+                }
+            }
         }
     }
 
@@ -4868,8 +4916,10 @@ public class MainActivity extends Activity {
                     sb.append(String.format(Locale.US, "%,d", row.volume));
                     spans.add(new int[]{totalFrom, sb.length(), R.color.blue});
                 }
-                appendNetDelta(sb, spans, row.buy, row.sell);
+                // Owner order 2026-11-15: T closes the bracket before the
+                // net figure prints.
                 sb.append(')');
+                appendNetDelta(sb, spans, row.buy, row.sell);
             } else if (row.unclassified != null || row.hasVolume()) {
                 // No measured pair: the known U keeps the first line and T
                 // rides the same bracket after the ampersand (owner order

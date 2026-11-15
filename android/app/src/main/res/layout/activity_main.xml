@@ -341,6 +341,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="10dp"
+                android:gravity="center"
                 android:visibility="gone"/>
 
             <!-- Owner order 2026-11-07: the scrip's book is two columns now,
@@ -362,6 +363,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="10dp"
+                android:gravity="center"
                 android:visibility="gone"/>
         </LinearLayout>
 
@@ -574,15 +576,6 @@
                             android:layout_gravity="end|top"/>
                     </FrameLayout>
 
-                    <ImageView
-                        android:id="@+id/sectors_arrow"
-                        android:layout_width="20dp"
-                        android:layout_height="20dp"
-                        android:layout_gravity="end|top"
-                        android:layout_marginTop="11dp"
-                        android:layout_marginEnd="14dp"
-                        android:contentDescription="@string/cd_dropdown"
-                        android:src="@drawable/dropdown_arrow"/>
                 </FrameLayout>
             </LinearLayout>
 

@@ -560,11 +560,20 @@
      percentage, with the up or down arrow; the chosen sector centres like
      the KSE100 tile; NET DELTA follows T wherever volume prints; and the
      version is 4.3.8.
+
+     versionCode 132 / versionName 4.3.9 belong to the owner's order of
+     2026-11-15: the orb's revolving web wears the theme's second colour; the
+     KSE100 leaders fill a missing B/S split from the live quote and ORDER
+     FLOW rows; NET DELTA prints outside the closed T bracket everywhere; a
+     print's clock is Karachi regular-session time and impossible hours are
+     refused; the selected ORDER FLOW stock is centred; BIG BUYING & SELLING
+     is above PKR 1,000,000; the SECTORS caret is gone, its rows are centred,
+     and every sub menu is 25 percent shorter; and the version is 4.3.9.
      -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="pk.quantofrehan"
-    android:versionCode="131"
-    android:versionName="4.3.8">
+    android:versionCode="132"
+    android:versionName="4.3.9">
 
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="30"/>
 

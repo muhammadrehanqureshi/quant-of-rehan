@@ -637,6 +637,16 @@ class SettingsControlTest(unittest.TestCase):
         self.assertIn("new ForegroundColorSpan(themeBodyInk)", self.main)
         self.assertIn("printTime(print.at)", self.main)
         self.assertIn("raw.substring(t + 1, t + 9)", self.main)
+        # Owner order 2026-11-15: the print clock is normalized to Karachi
+        # regular-session time and an impossible hour is refused.
+        watcher = (ROOT / "android" / "app" / "src" / "main" / "java"
+                   / "pk" / "quantofrehan" / "Watcher.java").read_text(
+            encoding="utf-8")
+        self.assertIn("private static String normalizedPrintAt(String at)",
+                      watcher)
+        self.assertIn("out.at = normalizedPrintAt(print.optString(\"at\", \"\"));",
+                      watcher)
+        self.assertIn("Asia/Karachi", watcher)
         self.assertNotIn('"(%s=%,d) "', self.main)
 
     def test_net_delta_follows_the_total_on_every_volume_line(self):
@@ -650,6 +660,11 @@ class SettingsControlTest(unittest.TestCase):
         self.assertIn("appendNetDelta(sb, spans, row.buy, row.sell);",
                       self.main)
         self.assertIn('sb.append("  NET DELTA=");', self.main)
+        # Owner order 2026-11-15: every builder closes the bracket first.
+        flow = self.main[self.main.index("private SpannableStringBuilder flowSplitText("):]
+        flow = flow[:flow.index("private CharSequence flowRowText")]
+        self.assertLess(flow.index("sb.append(')');"),
+                        flow.index("appendNetDelta(sb, row.buy"))
         self.assertIn("Math.abs(delta)", self.main)
         self.assertIn("delta >= 0 ? R.color.green : R.color.red", self.main)
         self.assertNotIn("NET DELTA=+", self.main)
@@ -667,6 +682,11 @@ class SettingsControlTest(unittest.TestCase):
         worker = (ROOT / "cloud" / "worker.js").read_text(encoding="utf-8")
         self.assertIn("const LARGE_PRINT_MAX = 2000;", worker)
         self.assertNotIn("const LARGE_PRINT_MAX = 200;", worker)
+        # Owner order 2026-11-15: the big board is above PKR 1M.
+        self.assertIn("const LARGE_PRINT_PKR = 1_000_000;", worker)
+        self.assertIn("private static final long BIG_PRINT_FLOOR_PKR = 1_000_000L;",
+                      self.main)
+        self.assertIn("if (print.value <= BIG_PRINT_FLOOR_PKR)", self.main)
         watcher = (ROOT / "android" / "app" / "src" / "main" / "java"
                    / "pk" / "quantofrehan" / "Watcher.java").read_text(
             encoding="utf-8")
@@ -745,6 +765,9 @@ class SettingsControlTest(unittest.TestCase):
         self.assertIn('append("T=");', self.main)
         self.assertIn("row.unclassified != null", self.main)
         self.assertIn("quote.unclassified != null", self.main)
+        # Owner order 2026-11-15: T closes the bracket, then NET DELTA.
+        self.assertLess(leaders.index("sb.append(')');"),
+                        leaders.index("appendNetDelta(sb, spans"))
         # Both print boards share the one sentence now, not the old bracket.
         self.assertIn("appendPrintSentence(sb, print);", self.main)
 
@@ -772,10 +795,13 @@ class SettingsControlTest(unittest.TestCase):
         """
         self.assertIn('android:text="@string/label_sectors"', self.layout)
         for view in ("@+id/tile_sectors", "@+id/sectors_spinner",
-                     "@+id/sectors_menu", "@+id/sectors_arrow",
-                     "@+id/sectors_scroll", "@+id/sectors_scroller",
-                     "@+id/sectors_reveal", "@+id/rule_sectors"):
+                     "@+id/sectors_menu", "@+id/sectors_scroll",
+                     "@+id/sectors_scroller", "@+id/sectors_reveal",
+                     "@+id/rule_sectors"):
             self.assertIn(view, self.layout)
+        # Owner order 2026-11-15: the SECTORS tile carries no caret.
+        self.assertNotIn("@+id/sectors_arrow", self.layout)
+        self.assertNotIn("sectorsArrow", self.main)
         self.assertGreater(self.layout.index("@+id/tile_sectors"),
                            self.layout.index("@+id/big_prints_panel"))
         strings = STRINGS.read_text(encoding="utf-8")
@@ -2303,8 +2329,8 @@ class VersionTest(unittest.TestCase):
         # ships as 4.0.20. Owner order 2026-11-12: the phone's CUSTOM
         # SCRIPS OF VOL. menu names all six sorts the console carries, and
         # it ships as 4.0.21.
-        self.assertIn('android:versionName="4.3.8"', manifest)
-        self.assertIn('android:versionCode="131"', manifest)
+        self.assertIn('android:versionName="4.3.9"', manifest)
+        self.assertIn('android:versionCode="132"', manifest)
         self.assertNotIn('android:versionName="4.0.15"', manifest)
         self.assertNotIn('android:versionName="4.0.14"', manifest)
         self.assertNotIn('android:versionName="3.7.5"', manifest)
@@ -2526,9 +2552,11 @@ class VersionTest(unittest.TestCase):
         # SCRIPS OF VOL. menu names all six sorts and ships as 4.0.21.
         # Owner order 2026-11-13: the shared print sentence, themed print
         # time, retained large prints, the six-row sorted SECTORS window and
-        # NET DELTA ship as 4.3.8.
-        self.assertIn('android:versionCode="131"', manifest)
-        self.assertIn('android:versionName="4.3.8"', manifest)
+        # NET DELTA ship as 4.3.8. Owner order 2026-11-15: the theme-inked
+        # orb, the 1M board, the Karachi print clock and the shorter menus
+        # ship as 4.3.9.
+        self.assertIn('android:versionCode="132"', manifest)
+        self.assertIn('android:versionName="4.3.9"', manifest)
         self.assertNotIn('android:versionName="4.0.15"', manifest)
         self.assertNotIn('android:versionName="3.7.5"', manifest)
         self.assertNotIn('android:versionName="3.7.4"', manifest)
@@ -3230,9 +3258,9 @@ class MenuOrdersTest(unittest.TestCase):
         start = self.main.index("private void repaintDropdownArrows() {")
         block = self.main[start:start + 800]
         self.assertEqual(
-            block.count("ColorStateList.valueOf(themeAccentInk)"), 3)
+            block.count("ColorStateList.valueOf(themeAccentInk)"), 2)
         self.assertIn("volumeSplitArrow.setImageTintList", block)
-        self.assertIn("sectorsArrow.setImageTintList", block)
+        self.assertNotIn("sectorsArrow.setImageTintList", block)
         self.assertIn("themeArrow.setImageTintList", block)
         theme_pass = self.main[self.main.index(
             "private void applyTheme(int index) {"):]
@@ -3365,8 +3393,8 @@ class MenuOrdersTest(unittest.TestCase):
         """
         self.assertIn("private TextView menuRow(String line, "
                       "boolean first, boolean last) {", self.main)
-        self.assertIn("first ? dp(14) : dp(7), dp(14),", self.main)
-        self.assertIn("last ? dp(14) : dp(7));", self.main)
+        self.assertIn("first ? dp(10) : dp(5), dp(14),", self.main)
+        self.assertIn("last ? dp(10) : dp(5));", self.main)
         # Both builders pass the row's edge position: the first option is
         # row 0 and the last is the final row of its own menu.
         for builder, count in (("buildThemeMenu",
@@ -3543,12 +3571,12 @@ class MenuOrdersTest(unittest.TestCase):
         self.assertIn("private View menuDivider() {", self.main)
         self.assertIn("LinearLayout.LayoutParams.MATCH_PARENT, dp(1));",
                       self.main)
-        self.assertIn("params.setMargins(dp(10), dp(7), dp(14), dp(7));",
+        self.assertIn("params.setMargins(dp(10), dp(5), dp(14), dp(5));",
                       self.main,
                       "the line starts at the 10dp wording column, same air")
-        # A row's own padding is the matching 7dp top and bottom, so the
-        # line-to-option distance is the same 14dp on both sides.
-        self.assertIn("row.setPadding(dp(10), dp(7), dp(14), dp(7));",
+        # A row's own padding is the matching 5dp top and bottom, so the
+        # line-to-option distance is the same 10dp on both sides.
+        self.assertIn("row.setPadding(dp(10), dp(5), dp(14), dp(5));",
                       self.main)
         # Both menus obey one law: every option with an option above it
         # gains the line first.
@@ -4760,9 +4788,8 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         * both caret anchors: the mount's trailing edge, 14dp in (11dp of
           top air as the first layout's floor), aimed at the first
           option's own text line, never the middle of the plate;
-        * every menu row stands at the closed box's own field height
-          law, the one universal 43dp, so an open menu reads as thick
-          as the face it opened from;
+        * every menu row is 32dp tall after the 2026-11-15 25 percent
+          cut, with 5dp vertical air;
         * the selected highlight disc is the worn theme's own accent
           pair (white on navy, black and orange, the shipped gold on
           purple), and the icons tile's height is a LAW of 74dp - the
@@ -4783,8 +4810,11 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         row = main.index("private TextView menuRow(String line) {")
         menu_end = main.index("private void showVolumeMenu", row)
         window = main[row:menu_end]
-        self.assertEqual(main.count("row.setMinimumHeight(dp(43));"), 1)
-        self.assertIn("row.setMinimumHeight(dp(43));", window)
+        # Owner order 2026-11-15: every sub menu is 25 percent shorter,
+        # 43dp to 32dp, in one place.
+        self.assertEqual(main.count("row.setMinimumHeight(dp(32));"), 1)
+        self.assertIn("row.setMinimumHeight(dp(32));", window)
+        self.assertNotIn("row.setMinimumHeight(dp(43));", main)
         # The per-theme disc: built once per theme, the same oval law
         # nav_circle keeps, the worn accent's fill and its brightened
         # ring; the purple build still gets the shipped XML drawable.
@@ -4818,7 +4848,7 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         main = MAIN.read_text(encoding="utf-8")
         # The rows' leading air is the closed box's own 10dp column again,
         # since the caret is back at the trailing edge.
-        self.assertIn("row.setPadding(dp(10), dp(7), dp(14), dp(7));", main)
+        self.assertIn("row.setPadding(dp(10), dp(5), dp(14), dp(5));", main)
         # The tile's lift is the screen's own share, read from the
         # display's own metrics on the carrier the tile rides: 3% now,
         # which is the ordered 4% below the v3.1.0 law's 7%. v3.6.1
@@ -5215,6 +5245,14 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         # nodes and the orangish/yellow links he named - one decision each.
         self.assertIn("NODE_COLOR = 0xFFFFD166", orb)
         self.assertIn("LINK_COLOR = 0xFFFFA62B", orb)
+        # Owner order 2026-11-15: the revolving web wears the worn theme's
+        # second colour instead of the hardcoded yellow.
+        self.assertIn("public void setThemeInk(int color)", orb)
+        self.assertIn("linkPaint.setColor(linkColor);", orb)
+        self.assertIn("nodePaint.setColor(nodeColor);", orb)
+        self.assertNotIn("nodePaint.setColor(NODE_COLOR);", orb)
+        self.assertIn("thinkingOrb.setThemeInk(themeAccentInk);",
+                      MAIN.read_text(encoding="utf-8"))
         self.assertNotIn("GLOW_SCALE", orb)
         self.assertNotIn("BRIGHT_SCALE", orb)
         self.assertNotIn("P1 = 1.3f", orb)
@@ -5248,9 +5286,11 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         self.assertNotIn("Thread.sleep",
                          orb.replace("Thread.sleep(wait);", ""))
         self.assertNotIn("Service", orb)
-        # start() and stop() are still the only public controls, wired to
-        # MainActivity's startHud, stopHud and the market gate.
-        self.assertEqual(orb.count("public void "), 2)
+        # start() and stop() are the animation controls, wired to
+        # MainActivity's startHud, stopHud and the market gate; setThemeInk
+        # is the third public control, called by the theme pass.
+        self.assertEqual(orb.count("public void "), 3)
+        self.assertIn("public void setThemeInk(int color)", orb)
 
     def test_the_orb_stops_when_the_market_stops(self):
         # Owner order 2026-10-23 (v1.9.13): the feature stops animating

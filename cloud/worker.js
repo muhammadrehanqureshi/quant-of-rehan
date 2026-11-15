@@ -901,10 +901,10 @@ const MARKET_TTL_MS = 5 * 60 * 1000;
 // unit is one relay update: an increase of at least this much value in the
 // venue counter, sided by the quote that arrived with it. The label on the
 // answer says exactly that; it never claims an individual broker order.
-// Owner order 2026-11-04: a big print is at least PKR 10,000,000 spent in a
-// SINGLE transaction, buying or selling. It was 1,000,000, which the owner
-// read as ordinary size, not a big trade.
-const LARGE_PRINT_PKR = 10_000_000;
+// Owner order 2026-11-15: the BIG BUYING & SELLING board is every print
+// above PKR 1,000,000 spent in a SINGLE transaction, buying or selling. The
+// relay keeps the floor at 1,000,000 and the app filters strictly above it.
+const LARGE_PRINT_PKR = 1_000_000;
 // Owner order 2026-11-13: the morning's prints disappeared once 200 had
 // accumulated, so the board now keeps the whole day's 2,000 print window.
 const LARGE_PRINT_MAX = 2000;
@@ -2273,7 +2273,7 @@ async function flowAnswer(env, now) {
       split: "quote_rule: every observed increment of the venue counter is sided once by the bid/ask of the frame that carried it; buy and sell never decrease",
       coverage: "regular-session frames for the named Karachi day; a symbol with no frame that day appears in missing, never with an invented number",
       unclassified: "shares traded before the capture or hub first observed the symbol, plus increments the wire did not decide; they are reported separately and never guessed into buy or sell",
-      large: "one relay update carrying at least PKR 10,000,000 on one side; the broker wire has no individual order id, so this is a large observed increment, not a claimed order ticket",
+      large: "one relay update carrying at least PKR 1,000,000 on one side; the broker wire has no individual order id, so this is a large observed increment, not a claimed order ticket",
     },
   };
 }
