@@ -1101,41 +1101,34 @@ func leaderBSTWidth(l Leader, cols bstCols, wide bool) int {
 
 // putBSTCols writes those four fields into their shared columns and returns the
 // cells the block used. A stock with no measured split falls back to putBST.
-func (a *App) putBSTCols(c *Canvas, x, y int, buy, sell, total *int64, cols bstCols, uRight bool, keys ...string) int {
+func (a *App) putBSTCols(c *Canvas, x, y int, buy, sell, total *int64, cols bstCols, keys ...string) int {
 	th := a.th
 	if buy == nil || sell == nil || total == nil {
 		return a.putBST(c, x, y, buy, sell, total, keys...)
 	}
-	// Owner order 2026-11-16: each number is right aligned inside its own
-	// measured column. S, U and T therefore start and end on the same cells
-	// from row to row even when B has fewer digits than the widest scrip.
-	field := func(at, width int, label, num, tail string, fg RGB, bold, right bool) {
+	// Owner order 2026-11-16: no padding stands between a label and its number.
+	// The labels keep their measured columns, so the numbers begin at the same
+	// cell on every row, and the comma hugs the digits it belongs to.
+	field := func(at, width int, label, num, tail string, fg RGB, bold bool) {
 		lw := runeLen(label)
 		a.flashText(c, x+at, y, label, th.Soft, false, keys...)
-		pad := 0
-		if right {
-			pad = max(0, width-runeLen(num))
-		}
-		if pad > 0 {
-			a.flashText(c, x+at+lw, y, strings.Repeat(" ", pad), th.Soft, false, keys...)
-		}
-		a.flashText(c, x+at+lw+pad, y, num, fg, bold, keys...)
+		a.flashText(c, x+at+lw, y, num, fg, bold, keys...)
 		if tail != "" {
-			a.flashText(c, x+at+lw+width, y, tail, th.Soft, false, keys...)
+			a.flashText(c, x+at+lw+runeLen(num), y, tail, th.Soft, false, keys...)
 		}
 	}
 	un := *total - *buy - *sell
 	if un < 0 {
 		un = 0
 	}
-	field(cols.buy, cols.bw, "B=", commaInt(*buy), ",", th.Good, true, true)
-	field(cols.sell, cols.sw, "S=", commaInt(*sell), ",", th.Bad, true, true)
+	field(cols.buy, cols.bw, "B=", commaInt(*buy), ",", th.Good, true)
+	field(cols.sell, cols.sw, "S=", commaInt(*sell), ",", th.Bad, true)
 	// Owner order 2026-11-16: U sits against its own label on every row. A
 	// small U (usually 0) no longer floats to the right and leaves the top
 	// row reading differently from the rows below it. The & T= column stays
 	// fixed, so only the gap after U varies.
-	field(cols.unc, cols.uw, "U=", commaInt(un), "", th.Warn, un > 0, uRight)
-	field(cols.tot, cols.wid, "& T=", commaInt(*total), "", totalBlue, false, true)
+	field(cols.unc, cols.uw, "U=", commaInt(un), "", th.Warn, un > 0)
+	field(cols.tot, cols.wid, "& T=", commaInt(*total), "", totalBlue, false)
 	return cols.tot + 4 + cols.wid
 }
 
@@ -1317,7 +1310,7 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 		// narrow tile falls back to the packed form.
 		used := 0
 		if iw >= 96 {
-			used = a.putBSTCols(c, ix+3, row, buy, sell, vol, cols, false, volKey, pxKey)
+			used = a.putBSTCols(c, ix+3, row, buy, sell, vol, cols, volKey, pxKey)
 		} else {
 			used = a.putBST(c, ix+3, row, buy, sell, vol, volKey, pxKey)
 		}

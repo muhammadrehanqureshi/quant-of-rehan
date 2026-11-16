@@ -81,8 +81,9 @@ const appVersion = "4.0.21"
 // boards and the KSE100 price and U alignment. Build 120 is 3.7.5, the scan
 // clock and the quote watchdog that keep pre, live and post moving. Build 121
 // is 3.7.6, the priced ALERT boards, the owner's alert sentence and the wider
-// ORDER FLOW percentage.
-const hudBuild = "3.7.6"
+// ORDER FLOW percentage. Build 122 is 3.7.7, the aligned B/S/U/T fields, the
+// fixed sector arrow column and the equal ALERT boards.
+const hudBuild = "3.7.7"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no

@@ -393,7 +393,7 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 		// Owner order 2026-11-15: every sort uses one fixed set of B, S, U
 		// and T columns, at every window width. The old narrow fallback packed
 		// the values, so S, U and T started on different cells from row to row.
-		used := a.putBSTCols(c, ix+3, row, q.Buy, q.Sell, q.Volume, cols, true, volKey, pxKey)
+		used := a.putBSTCols(c, ix+3, row, q.Buy, q.Sell, q.Volume, cols, volKey, pxKey)
 		if q.Price > 0 {
 			const chgW = 8
 			// Owner order 2026-11-16: the current price, its percentage and
@@ -701,10 +701,8 @@ func (a *App) drawSectorTile(c *Canvas, x, y, w, h int) {
 		pct, cnt := sectorChangeIn(tbl, g)
 		pctText, pctInk := "--", th.Soft
 		if cnt > 0 {
-			// Owner order 2026-11-13: the direction is an arrow, never a
-			// plus or minus sign. The value is right aligned in the same
-			// nine cells the scanner gives its NET DELTA, so the two right
-			// hand columns end on one edge.
+			// Owner order 2026-11-16: the direction arrow holds one fixed column,
+			// so a wider 10.00% cannot push its arrow one cell left of the rest.
 			pctText = changeText(pct)
 			if pct < 0 {
 				pctInk = th.Bad
@@ -717,7 +715,8 @@ func (a *App) drawSectorTile(c *Canvas, x, y, w, h int) {
 		pctX := ix + cw - pctW
 		nameW := max(1, pctX-(ix+7)-2)
 		c.Text(ix+7, ry, nameW, fit(g.Name, nameW), th.Text, idx == a.sectorChoice)
-		rightAlign(c, pctX, ry, pctW, []Span{{pctText, pctInk, true}})
+		c.Text(pctX, ry, pctW, pctText, pctInk, cnt > 0)
+
 	}
 	a.scrollbar(c, ix+iw-1, listY, a.lvSector.view, &a.lvSector)
 }
@@ -1086,11 +1085,13 @@ func (a *App) drawShareBar(c *Canvas, x, y, w int, buy, sell int64, label bool) 
 	// The bar is 16 cells; a caller with less room (the ALERTS boards pass the
 	// ten cells of a compact bar) gets a bar of exactly the room it has.
 	span := shareBarSpan
-	if w > 0 && w < span {
+	if label && w > 0 && w-shareNetW-shareBarGap >= shareBarBoxes && w-shareNetW-shareBarGap < shareBarSpan {
+		// A narrower ORDER FLOW table gives cells to the NET DELTA % column.
+		// The bar and its heading then shorten together, and the NET DELTA still
+		// starts on the cell its heading starts on.
+		span = w - shareNetW - shareBarGap
+	} else if w > 0 && w < span {
 		span = w
-		if label && w-shareNetW-shareBarGap >= shareBarBoxes {
-			span = w - shareNetW - shareBarGap
-		}
 	}
 	// Owner order 2026-11-13: the split stands on the bar's own cells, not on
 	// the ten boxes. Rounding to four of ten boxes drew 39 percent of buying as
@@ -1180,14 +1181,18 @@ func (a *App) drawAlerts(c *Canvas, x, y, w, h int) {
 	if h-boardH-7 < 5 {
 		priceH = 0
 	}
-	if w >= 84 {
-		// Owner order 2026-11-13: both boards are the same width, so the share
-		// quantities, the changes and the bars end on one column. The old split
-		// made the selling board one cell narrower, which moved its values.
-		bw := (w - 1) / 2
+			if w >= 84 {
+		// Owner order 2026-11-16: both boards are exactly equal and together
+		// fill the page width. An even width takes a two cell gutter, an odd
+		// width one, so neither board loses its right hand cell.
+		gap := 1
+		if w%2 == 0 {
+			gap = 2
+		}
+		bw := (w - gap) / 2
 		a.drawBoardPanel(c, x, y, bw, boardH, sideBuy)
-		a.drawBoardPanel(c, x+bw+1, y, bw, boardH, sideSell)
-		a.alertSplitX = x + bw + 1
+		a.drawBoardPanel(c, x+bw+gap, y, bw, boardH, sideSell)
+		a.alertSplitX = x + bw + gap
 	} else {
 		side := sideBuy
 		if a.alertFocus == 1 {
