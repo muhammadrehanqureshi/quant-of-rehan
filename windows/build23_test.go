@@ -17,7 +17,7 @@ func TestStoredSessionAndFeedFooterWords(t *testing.T) {
 		t.Fatalf("stored session words: %q", got)
 	}
 	a.quotes = quotesAt(15, 1_000_000)
-	if got := a.marketNote(); got != "LAST DATA FROM THE BROKER'S FEED." {
+	if got := a.marketNote(); got != "DATA FROM THE BROKER'S FEED IS BEING SCANNED EVERY SECOND." {
 		t.Fatalf("KSE100 footer: %q", got)
 	}
 }

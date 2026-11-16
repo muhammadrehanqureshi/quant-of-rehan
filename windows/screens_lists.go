@@ -1215,14 +1215,14 @@ func (a *App) drawAlerts(c *Canvas, x, y, w, h int) {
 // over the last minute.
 func (a *App) drawBoardPanel(c *Canvas, x, y, w, h int, side int) {
 	th := a.th
-	title, word, on := "BIG BUYING NOW", "buyers", a.cfg.BigBuy
+	title, on := "BIG BUYING NOW", a.cfg.BigBuy
 	lv := &a.lvBoard
 	good := th.Good
 	rows := a.boardRows
 	flagKey := "B"
 	focus := 0
 	if side == sideSell {
-		title, word, on, focus = "BIG SELLING NOW", "sellers", a.cfg.BigSell, 1
+		title, on, focus = "BIG SELLING NOW", a.cfg.BigSell, 1
 		lv = &a.lvSell
 		good = th.Bad
 		rows = a.sellRows
@@ -1230,11 +1230,9 @@ func (a *App) drawBoardPanel(c *Canvas, x, y, w, h int, side int) {
 	}
 	hint := "The flag is off."
 	if on {
-		// Owner order 2026-11-16: the heading names the share floor the board
-		// really keeps, so no row can be smaller than the words.
-		hint = compactNum(float64(boardFloorShares)) + " shares or above"
+		// Owner order 2026-11-16: both boards name the 50k share floor they keep.
+		hint = "QTY " + compactNum(float64(boardFloorShares)) + " and above"
 	}
-	_ = word
 	// Owner order 2026-11-15: clicking an ALERTS tile no longer highlights its
 	// frame. The hit still moves the page's keyboard focus.
 	ix, iy, iw, ih := a.panel(c, x, y, w, h, title, hint)
@@ -1254,10 +1252,9 @@ func (a *App) drawBoardPanel(c *Canvas, x, y, w, h int, side int) {
 	}
 	board := rows(200)
 	if len(board) == 0 {
-		msg := "Watching every broker tick. Nothing is being traded in size right now."
-		if !a.trading() {
-			msg = "Watching the feed. It is counted while the market is trading."
-		}
+		// Owner order 2026-11-16: the broker-tick sentence is withdrawn; the
+		// heading above already names the quantity the board keeps.
+		msg := "Nothing is being traded in size right now."
 		for i, ln := range wrap(msg, iw) {
 			if i < ih {
 				c.Text(ix, iy+i, iw, ln, th.Soft, false)

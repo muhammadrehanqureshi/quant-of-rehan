@@ -147,14 +147,16 @@ func TestStatusWordingFollowsThePart(t *testing.T) {
 	}{
 		{"before the pre-market", at(2, 8, 30), "PRE_OPEN", "Market is closed and the quant is sleeping now.", false},
 		{"the 08:55 gap", at(2, 9, 5), "PRE_OPEN", "Market is closed but the quant is online now.", true},
-		{"matching gap", at(2, 9, 31), "PRE_OPEN", "Pre-market is running and the quant is online now.", true},
+		{"matching gap starts", at(2, 9, 30), "PRE_OPEN", "Market will be opened at 09:32.", true},
+		{"matching gap", at(2, 9, 31), "PRE_OPEN", "Market will be opened at 09:32.", true},
+		{"market opens", at(2, 9, 32), "OPEN", "Market is open and the quant is online now.", true},
 		{"open", at(2, 11, 0), "OPEN", "Market is open and the quant is online now.", true},
-		{"post-market", at(2, 15, 40), "POST_CLOSE", "Post-market is running and the quant is online now.", true},
+		{"post-market", at(2, 15, 40), "POST_CLOSE", "Post-market session is on and the quant is online now.", true},
 		{"after the post-market", at(2, 16, 5), "POST_CLOSE", "Market is closed and the quant is sleeping now.", false},
 		{"evening", at(2, 20, 0), "POST_CLOSE", "Market is closed and the quant is sleeping now.", false},
 		{"friday break", at(6, 13, 0), "BREAK", "Market is on a break. Quant is sleeping now.", false},
 		{"friday second session", at(6, 15, 0), "OPEN", "Market is open and the quant is online now.", true},
-		{"friday post-market", at(6, 16, 40), "POST_CLOSE", "Post-market is running and the quant is online now.", true},
+		{"friday post-market", at(6, 16, 40), "POST_CLOSE", "Post-market session is on and the quant is online now.", true},
 		{"weekend", at(7, 11, 0), "CLOSED", "Market is closed and the quant is sleeping now.", false},
 	} {
 		a := newTestApp(t)
@@ -347,12 +349,24 @@ func TestMarketFootnote(t *testing.T) {
 	a := newTestApp(t)
 	a.now = time.Date(2026, 11, 2, 11, 0, 0, 0, pkt)
 	a.market = marketIn("OPEN")
+	a.market.TradingDay = true
 	a.quotes = quotesAt(15, 1_000_000)
-	if got := a.marketNote(); got != "LAST DATA FROM THE BROKER'S FEED." {
+	if got := a.marketNote(); got != "DATA FROM THE BROKER'S FEED IS BEING SCANNED EVERY SECOND." {
 		t.Errorf("live footnote: %q", got)
 	}
-	a.now = time.Date(2026, 11, 2, 20, 0, 0, 0, pkt)
+	a.now = time.Date(2026, 11, 2, 9, 20, 0, 0, pkt)
+	a.market = marketIn("PRE_OPEN")
+	a.market.TradingDay = true
+	if got := a.marketNote(); got != "Pre-market session is on and the quant is online now." {
+		t.Errorf("pre-market footnote: %q", got)
+	}
+	a.now = time.Date(2026, 11, 2, 15, 40, 0, 0, pkt)
 	a.market = marketIn("POST_CLOSE")
+	a.market.TradingDay = true
+	if got := a.marketNote(); got != "Post-market session is on and the quant is online now." {
+		t.Errorf("post-market footnote: %q", got)
+	}
+	a.now = time.Date(2026, 11, 2, 20, 0, 0, 0, pkt)
 	if got := a.marketNote(); got != "LAST DATA FROM THE BROKER'S FEED." {
 		t.Errorf("closed footnote: %q", got)
 	}
