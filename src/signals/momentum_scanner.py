@@ -1,14 +1,13 @@
 """The authoritative intraday scanner: one strategy, the one the owner named.
 
-Owner order 2026-11-12 (Karachi): every previous strategy is removed and the
-only strategy is the Kalman Trend with VWAP on the 5 minute, 15 minute and 1
-hour charts and the hybrid statistical arbitrage and mean reversion model
-(src/signals/hybrid_arb_mr.py). The capture validation and the public
+Owner order 2026-11-16 (Karachi): the previous hybrid law is removed and the
+only strategy is the Kalman Trend with VWAP on the 5 minute, 15 minute and 30
+minute charts and the z-score price-VWAP spread as its statistical base
+(src/signals/kalman_zscore_vwap.py). The capture validation and the public
 SessionData/ScanResult contracts stay stable for all runners. The scanner
 builds its single entry through src/signals/kalman_trend.py's causal
-level+slope trend clock, and reads the scan's own market leg
-(src/signals/market_leg.py) once per scan: the law calls the side of the pair
-that lags the market, never a leader.
+level+slope trend clock; the 15 and 30 minute frames confirm the regime and
+the 5 minute spread is the z-scored dislocation.
 The old RSI diagnostic remains solely for reproducing the HCAR postmortem.
 Asia/Karachi, UTC+5. Signal-only, no broker orders and no assured returns.
 """
@@ -652,69 +651,46 @@ def _wilder_rsi(closes: list[float], period: int = 14) -> float | None:
 
 def score_symbol(symbol: str, rows: list[MinuteBar], session: SessionData,
                  tally: dict | None = None,
-                 frames: bool = False,
-                 rs_market: dict | None = None) -> dict | None:
-    """Score one symbol under the Kalman Trend entry laws.
+                 frames: bool = False) -> dict | None:
+    """Score one symbol under the Kalman Trend and z-score spread law.
 
     `frames` says whether this deployment reads the 5 minute, 15 minute and
-    1 hour VWAP frames (src/signals/mtf_vwap.py). The one running law cannot
-    be evaluated without them, so False means no entry at all and the reason
-    is named; the live pipeline passes the deployment flag from
-    src/config.py. `rs_market` is the scan's own market leg
-    (src/signals/market_leg.py), measured once in select_one and handed to
-    every name.
+    30 minute VWAP frames (src/signals/mtf_vwap.py). The one running law
+    cannot be evaluated without them, so False means no entry at all and the
+    reason is named; the live pipeline passes the deployment flag from
+    src/config.py.
     """
-    return kalman_trend.candidate(symbol, rows, session, tally, frames=frames,
-                                  rs_market=rs_market)
+    return kalman_trend.candidate(symbol, rows, session, tally, frames=frames)
 
 
 def rank_candidates(session: SessionData,
                     ai_prior: dict[str, float] | None = None,
                     tally: dict | None = None,
-                    frames: bool = False,
-                    rs_market: dict | None = None) -> list[dict]:
+                    frames: bool = False) -> list[dict]:
     """Rank confirmed setups; the old daily-model prior has no entry authority.
 
     When `tally` is a dict, it is filled with every gate rejection the whole
     universe produced, so the caller can report WHY nothing or something
-    passed (SO-3: measured, never implied). `rs_market` is the scan's one
-    relative strength market leg, shared by every name.
+    passed (SO-3: measured, never implied).
     """
     ranked = [row for symbol in sorted(session.bars)
               if (row := score_symbol(symbol, session.bars[symbol], session,
-                                      tally, frames=frames,
-                                      rs_market=rs_market)) is not None]
+                                      tally, frames=frames)) is not None]
     return sorted(ranked, key=lambda row: (-row["score"], row["symbol"]))
 
 
 def select_one(session: SessionData, quality: QualityReport,
                ai_prior: dict[str, float] | None = None,
                ai_status: dict | None = None,
-               frames: bool = False,
-               rs_market: dict | None = None) -> ScanResult:
+               frames: bool = False) -> ScanResult:
     """At most one fully confirmed long, never a momentum/RSI fallback."""
     coverage = f"{quality.symbols_with_bars}/{quality.symbols_expected} ({quality.coverage:.1%})"
     if quality.status == DATA_BLOCKED:
         return ScanResult(DATA_BLOCKED, quality.reason, quality, {}, coverage_text=coverage)
     context = market_context(session)
-    context["ai"] = {"active": False, "reason": "Kalman flip rules do not use the daily momentum prior"}
-    # Owner order 2026-11-12: the one running law reads the scan's own market
-    # leg, measured once here from this session's tape and handed to every name
-    # in the scan. A capture too thin to say what the market did fails closed
-    # with the reason named rather than dropping the measurement silently
-    # (SO-3).
-    if frames and rs_market is None:
-        from src.signals import market_leg
-
-        rs_market, rs_reason = market_leg.market_return(session)
-        if rs_market is None:
-            return ScanResult(
-                NO_TRADE, f"market leg unavailable: {rs_reason}",
-                quality, context, ranked=[], coverage_text=coverage,
-                gate_tally={rs_reason: 1})
+    context["ai"] = {"active": False, "reason": "Kalman and z-score spread rules do not use the daily momentum prior"}
     tally: dict = {}
-    ranked = rank_candidates(session, tally=tally, frames=frames,
-                             rs_market=rs_market)
+    ranked = rank_candidates(session, tally=tally, frames=frames)
     # Broad panic is a risk veto; ordinary weak breadth is not a momentum
     # entry filter on this reversal strategy.
     if context.get("median_return") is None or context["median_return"] < config.MAX_MARKET_DROP:
@@ -766,14 +742,15 @@ def signal_message(candidate: dict, market: dict, entry: float,
     setup = candidate.get("setup") or {}
     stop = candidate["stop_loss"]
     strategy = candidate.get("strategy") or config.SCANNER_VERSION
-    relative = setup.get("relative_strength")
-    if setup.get("pullback"):
-        reason = ("pullback resumed after the Kalman trend and the three frame "
-                  "VWAP agreed, nearer the daily low than the daily high")
+    zview = setup.get("zscore") or {}
+    z = zview.get("z")
+    fast = (zview.get("frames") or {}).get("5m") or {}
+    if z is not None and fast.get("vwap") is not None:
+        reason = (f"Kalman trend up with 5m, 15m and 30m aligned; the 5m "
+                  f"price-VWAP spread is {z:+.2f} sigma versus its own "
+                  f"trailing mean (VWAP {fast['vwap']})")
     else:
-        reason = "upward Kalman trend flip on the intraday band feed"
-    if isinstance(relative, dict) and relative.get("relative_strength") is not None:
-        reason += "; the name is outperforming the equal-weight market"
+        reason = "Kalman trend up with the 5m, 15m and 30m VWAP frames aligned"
     lines = [
         "QUANT LONG SIGNAL - PAPER REFERENCE",
         "",
@@ -785,11 +762,6 @@ def signal_message(candidate: dict, market: dict, entry: float,
         f"Reason: {reason}",
         f"Strategy: {strategy}",
     ]
-    if isinstance(relative, dict) and relative.get("relative_strength") is not None:
-        lines.append(
-            "Relative strength: "
-            f"{relative['relative_strength'] * 100:+.2f} pp over the "
-            "equal-weight market")
     lines += [
         f"Entry time: {entry_time:%H:%M:%S} PKT",
         "Entry is the last completed minute close, not a confirmed fill.",

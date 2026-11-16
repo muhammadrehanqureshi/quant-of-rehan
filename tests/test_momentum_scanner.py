@@ -381,7 +381,8 @@ class TestOwnerOrderedCallWatch(unittest.TestCase):
     def test_veto_over_a_ranked_setup_delivers_a_watch(self):
         from tests.kalman_fixture import setup_rows
         bars = {"OGDC": setup_rows(scanner, SESSION_OPEN)}
-        # A market leg needs a cross section, so the scan carries the quiet
+        # The z-score law needs a cross section of completed frames, so the
+        # scan carries the quiet
         # tail beside the one name the fixture moves.
         for index in range(70):
             bars[f"QUIET{index:02d}"] = minute_rows(150)

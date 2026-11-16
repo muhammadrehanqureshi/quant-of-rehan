@@ -143,8 +143,7 @@ class ScheduledScanTest(unittest.IsolatedAsyncioTestCase):
         # The trend filter is not what this test measures: it drives the
         # scheduler, the bar source and the real pipeline. The one running
         # law's trend legs are therefore pinned up here, while its VWAP, its
-        # z score, its market leg and every data gate still run for real on
-        # the growing tape.
+        # z score and every data gate still run for real on the growing tape.
         trend_patcher = patch.object(kalman_trend, "filter_series",
                                      lambda closes, q, r, threshold: [
                                          {"level": 0.0, "slope": 1e-4,

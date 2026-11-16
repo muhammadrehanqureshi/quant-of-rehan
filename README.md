@@ -21,20 +21,20 @@ No order placement, no broker trading integration: signals and research only.
 ## The strategy in one paragraph
 
 Scan the current KMIALL universe for one setup, the one the owner named: the
-Kalman Trend with VWAP on the 5 minute, 15 minute and 1 hour charts and the
-hybrid statistical arbitrage and mean reversion model. The one minute Kalman
-trend must be up and the 5 minute frame's Kalman state must have turned up.
-The mean reversion half asks the last close to sit at least `HYBRID_Z_MIN`
-standard deviations below the 15 minute frame's own VWAP, measured against
-that frame's own dispersion so a quiet scrip needs a smaller move than a
-violent one. The statistical arbitrage half asks the name to be lagging the
-scan's equal weight market leg by `HYBRID_LAG_MIN_PCT`, which is the cheap
-side of the pair: the law buys a stretched laggard on the reversion, never a
-leader it is chasing. The plan is the owner's law either way: paper entry at
-the last completed close, stop at entry minus 1%, target at entry plus 2%,
-one call a day, and no trade after a broad selloff. A candidate only exists
-on completed minutes; there is no momentum fallback, no RSI fallback and no
-second strategy. Entry and exit intent only: nothing reaches a broker (SO-1).
+Kalman Trend with VWAP on the 5 minute, 15 minute and 30 minute charts, with
+the z-score of the price minus VWAP spread as the mathematical base. The one
+minute Kalman trend must be up, the 5 minute Kalman state must be up, and the
+15 and 30 minute frames must both have Kalman state up and a close above
+their own VWAP. The 5 minute spread must then sit at least `ZSCORE_Z_MIN`
+standard deviations below its own trailing mean, measured against that
+spread's own dispersion so a quiet scrip needs a smaller move than a violent
+one. That is the statistical-arbitrage entry: buy a measured dislocation
+inside a rising multi-timeframe regime. The plan is the owner's law either
+way: paper entry at the last completed close, stop at entry minus 1%, target
+at entry plus 2%, one call a day, and no trade after a broad selloff. A
+candidate only exists on completed minutes; there is no momentum fallback, no
+RSI fallback and no second strategy. Entry and exit intent only: nothing
+reaches a broker (SO-1).
 
 ## Architecture
 
@@ -71,25 +71,23 @@ rather than inventing a fresher number.
   returns exactly one confirmed long under the one running law, NO TRADE, or
   DATA BLOCKED, with market context gating and late-entry refusal instead of
   any fallback signal.
-- **The one strategy**: [src/signals/hybrid_arb_mr.py](src/signals/hybrid_arb_mr.py)
-  is the running law (`kalman_vwap_hybrid_sa_mr_v1`, owner order 2026-11-12):
-  the Kalman Trend with VWAP on the 5 minute, 15 minute and 1 hour charts and a
-  hybrid statistical arbitrage and mean reversion model. It calls a name
-  stretched at least `HYBRID_Z_MIN` standard deviations below the 15 minute
-  frame's VWAP while the 5 minute frame's Kalman state has turned up and the
-  name lags the scan's own equal weight market leg, the cheap side of the pair.
-  The owner's order of 2026-11-12 removed every previous strategy: the fresh
-  one minute flip, the three frame VWAP pullback and the relative strength
-  gate are gone from the tree, `kalman_trend.py` builds no entry from them, and
-  only the market leg measurement survives ([src/signals/market_leg.py](src/signals/market_leg.py))
-  because the running law reads it. The owner's order of 2026-11-08 set the
-  three frames (5 minute, 15 minute and 1 hour) and withdrew the 1 day frame
-  and its daily file.
+- **The one strategy**: [src/signals/kalman_zscore_vwap.py](src/signals/kalman_zscore_vwap.py)
+  is the running law (`kalman_vwap_zscore_sa_v1`, owner order 2026-11-16):
+  the Kalman Trend with VWAP on the 5, 15 and 30 minute charts and the z-score
+  of the price minus VWAP spread as its statistical base. The 15 and 30 minute
+  frames must stay above VWAP with Kalman state up, and the 5 minute spread
+  must be at least `ZSCORE_Z_MIN` trailing standard deviations below its own
+  mean. The owner's order of 2026-11-16 removed the previous hybrid statistical
+  arbitrage and mean reversion law, the market leg it read, the relative
+  strength gate, the three frame pullback and the fresh one minute flip: their
+  modules and constants are gone and `kalman_trend.py` builds no entry from
+  them. The 5 minute, 15 minute and 30 minute frames are read from the session
+  tape alone; the 1 day frame and its daily file remain withdrawn.
 - **One configuration surface**: [src/config.py](src/config.py) holds the
-  target, the coverage floor, the Kalman and VWAP parameters, the hybrid
-  thresholds (`HYBRID_Z_MIN`, `HYBRID_LAG_MIN_PCT` and the two frame choices),
-  the market leg minimum, the scan cadence and the paper/live switch. Paper
-  is the default; live is off.
+  target, the coverage floor, the Kalman and VWAP parameters, the z-score
+  thresholds (`ZSCORE_Z_MIN`, `ZSCORE_SIGNAL_FRAME_MINUTES`,
+  `ZSCORE_MIN_SPREADS` and the three frame choices), the scan cadence and the
+  paper/live switch. Paper is the default; live is off.
 - **One daily trade state**: [src/signals/trade_state.py](src/signals/trade_state.py),
   with a hard one-trade-per-day lock that survives a restart.
 - **One market clock**: Asia/Karachi UTC+5 forever (SO-8), in
@@ -236,10 +234,9 @@ Full detail in [charts/README.md](charts/README.md) and
 ```
 src/config.py                     the ONE configuration surface
 src/signals/momentum_scanner.py   the ONE scanner (one law, one winner)
-src/signals/hybrid_arb_mr.py       the ONE strategy: Kalman, three VWAP frames, hybrid stat arb and mean reversion
+src/signals/kalman_zscore_vwap.py the ONE strategy: Kalman, 5m/15m/30m VWAP and the z-score spread
 src/signals/kalman_trend.py       the causal trend clock and the one entry builder
-src/signals/mtf_vwap.py           the 5 minute, 15 minute and 1 hour VWAP frames
-src/signals/market_leg.py         the scan's measured equal weight market leg
+src/signals/mtf_vwap.py           the 5 minute, 15 minute and 30 minute VWAP frames
 src/signals/trade_state.py        the persisted daily state and trade lock
 src/signals/contracts.py          the typed boundary: models, faults, ingest guard
 src/data/sessions.py              Karachi-pinned clock, session law, owner texts
@@ -324,11 +321,12 @@ python scripts/intraday_pipeline.py --finalize
 
 ## Status, 2026-11-14
 
-- **One strategy only**: the fresh one minute flip, the three frame VWAP
-  pullback and the relative strength strategy were removed on the owner's
-  order of 2026-11-12. The only entry law is the Kalman Trend with the three
-  VWAP frames and the hybrid statistical arbitrage and mean reversion model
-  (`kalman_vwap_hybrid_sa_mr_v1`), and the scan now always reads its frames.
+- **One strategy only**: the hybrid statistical arbitrage and mean reversion
+  law, the market leg it read, the relative strength gate, the three frame
+  VWAP pullback and the fresh one minute flip are removed. The only entry law
+  is the Kalman Trend with the 5, 15 and 30 minute VWAP frames and the
+  z-score price-VWAP spread (`kalman_vwap_zscore_sa_v1`), and the scan always
+  reads its frames.
 - **Suite green**: every pull request runs `governance-guard` (the governance
   check, the whole unit suite, the worker's JavaScript) and the HUD's own
   `build` job, and it merges only when all of them pass.

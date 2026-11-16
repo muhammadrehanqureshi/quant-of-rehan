@@ -254,14 +254,13 @@ def is_etf_symbol(symbol: str) -> bool:
 
     return eligibility.is_etf(symbol)
 
-# The scanner's identity is the one law it runs. Owner order 2026-11-12
-# (Karachi): the previous strategies (the fresh flip, the three frame VWAP
-# pullback and the relative strength gate) are removed, and the only strategy
-# is the Kalman Trend with the three VWAP frames and the hybrid statistical
-# arbitrage and mean reversion model (src/signals/hybrid_arb_mr.py). The name
-# is kept as a constant because the relay, the journal and the research gate
-# file every signal under it.
-SCANNER_VERSION = "kalman_vwap_hybrid_sa_mr_v1"
+# The scanner's identity is the one law it runs. Owner order 2026-11-16
+# (Karachi): the previous hybrid law is removed, and the only strategy is the
+# Kalman Trend with the 5 minute, 15 minute and 30 minute VWAP frames and the
+# z-score price-VWAP spread as its statistical-arbitrage base
+# (src/signals/kalman_zscore_vwap.py). The name is kept as a constant because
+# the relay, the journal and the research gate file every signal under it.
+SCANNER_VERSION = "kalman_vwap_zscore_sa_v1"
 
 # The Kalman Trend, the owner's sole intraday strategy (owner order
 # 2026-10-30). The filter numbers below are the starting pair; the tuned
@@ -285,11 +284,10 @@ KALMAN_MAX_SIGNAL_AGE_SECONDS = 60
 KALMAN_LAST_ENTRY_MINUTES = 30
 
 # ------------------------------------------------- multi-timeframe VWAP
-# Owner order 2026-11-08 (which supersedes the four frame wording of
-# 2026-11-03): VWAP joins the Kalman Trend on the 5 minute, 15 minute and 1
-# hour charts. The one minute tape stays the execution clock and the trend
-# gate; these three frames are the regime the entry must agree with, each by
-# its own VWAP and Kalman state (src/signals/mtf_vwap.py).
+# Owner order 2026-11-16: VWAP joins the Kalman Trend on the 5 minute, 15
+# minute and 30 minute charts. The one minute tape stays the execution clock
+# and the trend gate; these three frames are the regime the entry must agree
+# with, each by its own VWAP and Kalman state (src/signals/mtf_vwap.py).
 #
 # The 1 day frame and the data/mtf_daily.csv.gz file it needed are withdrawn
 # by the same order. The law now reads the session tape alone, so a missing
@@ -301,41 +299,26 @@ MTF_ENABLED = _flag("MTF_ENABLED", True)
 # on frames that a short fixture cannot hold. The live pipeline passes this
 # flag to the scanner, so the three frame law is never half-applied.
 MTF_REQUIRE_FRAMES = _flag("MTF_REQUIRE_FRAMES", False)
-MTF_TIMEFRAMES = (5, 15, 60)
-MTF_VWAP_LOOKBACK = {5: 12, 15: 12, 60: 12}
-MTF_MIN_BARS = {5: 3, 15: 2, 60: 2}
+MTF_TIMEFRAMES = (5, 15, 30)
+MTF_VWAP_LOOKBACK = {5: 12, 15: 12, 30: 12}
+MTF_MIN_BARS = {5: 3, 15: 2, 30: 2}
 
-# ------------------------------- the scan's own market leg
-# Owner order 2026-11-12 (Karachi): the relative strength strategy is removed
-# with the other previous strategies. What survives is the measured market
-# leg the one running law reads to know which side of the pair is cheap
-# (src/signals/market_leg.py). It is not a strategy: it opens nothing and it
-# is never a gate on its own. Measured from the session tape alone, as the
-# 2026-11-08 order requires, so no daily history returns.
-#: A market leg needs this many measured symbols. A thin capture cannot say
-#: what the market did, so the measurement fails closed rather than guessing.
-MARKET_LEG_MIN_SYMBOLS = int(_number("MARKET_LEG_MIN_SYMBOLS", 20))
-
-# --------------- the hybrid statistical arbitrage and mean reversion law
-# Owner order 2026-11-12 (Karachi): a new intraday strategy joins the book,
-# the Kalman Trend with the VWAP on the 5 minute, 15 minute and 1 hour charts
-# AND a hybrid statistical arbitrage and mean reversion model
-# (src/signals/hybrid_arb_mr.py). It is a third entry law inside the ONE
-# scanner, never a second engine: the price must be stretched BELOW the mean
-# frame's VWAP by the configured z score while the fast frame's Kalman state
-# has turned up and the name lags the scan's own market leg, and the entry
-# takes the owner's one risk plan (-1% stop, +2% target).
-HYBRID_ENABLED = _flag("HYBRID_ENABLED", True)
-HYBRID_STRATEGY_VERSION = "kalman_vwap_hybrid_sa_mr_v1"
-#: The frame whose VWAP is the mean the price reverts to.
-HYBRID_MEAN_FRAME_MINUTES = int(_number("HYBRID_MEAN_FRAME_MINUTES", 15))
-#: How many standard deviations of that frame's own closes the price must sit
-#: below the mean before the stretch counts.
-HYBRID_Z_MIN = _number("HYBRID_Z_MIN", 1.0)
-#: How far behind the equal-weight market leg the name must be, as a fraction.
-HYBRID_LAG_MIN_PCT = _number("HYBRID_LAG_MIN_PCT", 0.2) / 100.0
-#: The faster frame that must have turned up before a reversion is taken.
-HYBRID_FAST_FRAME_MINUTES = int(_number("HYBRID_FAST_FRAME_MINUTES", 5))
+# ------------------- the z-score price-VWAP spread strategy
+# Owner order 2026-11-16 (Karachi): the Kalman Trend with VWAP on the 5, 15
+# and 30 minute charts, and the z-score of the price minus VWAP spread as the
+# mathematical base (src/signals/kalman_zscore_vwap.py). The one minute trend
+# is the execution clock; the 15 and 30 minute frames must stay above their
+# VWAP with Kalman state +1 while the 5 minute spread is stretched below its
+# trailing mean. The new law is the ONE entry law, not a second engine.
+ZSCORE_ENABLED = _flag("ZSCORE_ENABLED", True)
+ZSCORE_STRATEGY_VERSION = "kalman_vwap_zscore_sa_v1"
+#: The frame whose price-VWAP spread is standardised for the entry.
+ZSCORE_SIGNAL_FRAME_MINUTES = int(_number("ZSCORE_SIGNAL_FRAME_MINUTES", 5))
+#: How many trailing standard deviations below the mean spread the signal
+#: frame must sit before the dislocation counts.
+ZSCORE_Z_MIN = _number("ZSCORE_Z_MIN", 1.0)
+#: The minimum number of earlier spreads used for the mean and sigma.
+ZSCORE_MIN_SPREADS = int(_number("ZSCORE_MIN_SPREADS", 4))
 # Legacy momentum constants above are retained only by historical daily-bar
 # research. They have no decision path in the intraday scanner.
 
@@ -656,21 +639,16 @@ def config_snapshot() -> dict:
             "vwap_lookback": {str(k): v for k, v in MTF_VWAP_LOOKBACK.items()},
             "min_bars": {str(k): v for k, v in MTF_MIN_BARS.items()},
         },
-        "market_leg": {
-            "min_market_symbols": MARKET_LEG_MIN_SYMBOLS,
-            "basis": "equal-weight mean session return of the captured "
-                     "universe, read from the session tape alone",
-        },
-        "hybrid_stat_arb_mean_reversion": {
-            "enabled": HYBRID_ENABLED,
-            "version": HYBRID_STRATEGY_VERSION,
-            "mean_frame_minutes": HYBRID_MEAN_FRAME_MINUTES,
-            "fast_frame_minutes": HYBRID_FAST_FRAME_MINUTES,
-            "z_min": HYBRID_Z_MIN,
-            "lag_min_pct": round(HYBRID_LAG_MIN_PCT * 100, 4),
-            "basis": "z score of the last close against the mean frame's "
-                     "VWAP in that frame's own standard deviations, on the "
-                     "side of the name that lags the scan's market leg",
+        "zscore_spread_stat_arb": {
+            "enabled": ZSCORE_ENABLED,
+            "version": ZSCORE_STRATEGY_VERSION,
+            "signal_frame_minutes": ZSCORE_SIGNAL_FRAME_MINUTES,
+            "z_min": ZSCORE_Z_MIN,
+            "min_spreads": ZSCORE_MIN_SPREADS,
+            "basis": "z score of the current price minus rolling VWAP "
+                     "spread against that spread's own trailing mean and "
+                     "standard deviation, with the 15 and 30 minute "
+                     "frames above VWAP and every Kalman state up",
         },
         "min_relative_volume": MIN_RELATIVE_VOLUME,
         "min_session_traded_value": MIN_SESSION_TRADED_VALUE,

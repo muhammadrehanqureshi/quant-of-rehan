@@ -1,4 +1,4 @@
-"""Tests for the 2026-11-08 three frame VWAP plus Kalman law.
+"""Tests for the 5m/15m/30m VWAP plus Kalman frame law.
 
 The law is pure: completed one minute bars in, a frame agreement or a named
 refusal out. No network, no daily file and no clock.
@@ -93,7 +93,7 @@ class LawTest(unittest.TestCase):
 
         self.assertEqual(reason, "ok")
         self.assertEqual(view["rule"], mtf_vwap.MTF_VERSION)
-        self.assertEqual(set(view["frames"]), {"5m", "15m", "60m"})
+        self.assertEqual(set(view["frames"]), {"5m", "15m", "30m"})
         for frame in view["frames"].values():
             self.assertEqual(frame["kalman_state"], 1)
             self.assertTrue(frame["above_vwap"])
@@ -104,15 +104,15 @@ class LawTest(unittest.TestCase):
         self.assertEqual(reason, "ok")
         self.assertEqual(
             mtf_vwap.summary(view),
-            "MTF 5m +1 above VWAP | 15m +1 above VWAP | 1h +1 above VWAP")
+            "MTF 5m +1 above VWAP | 15m +1 above VWAP | 30m +1 above VWAP")
         self.assertEqual(mtf_vwap.summary(None), "")
         self.assertEqual(mtf_vwap.summary({"frames": {"5m": {}}}), "")
 
-    def test_the_one_hour_frame_needs_two_completed_hours(self):
+    def test_the_thirty_minute_frame_needs_two_completed_bars(self):
         rows = minute_rows(50)
         view, reason = mtf_vwap.evaluate(rows, session_of(rows))
         self.assertIsNone(view)
-        self.assertEqual(reason, "mtf_60m_not_ready")
+        self.assertEqual(reason, "mtf_30m_not_ready")
 
     def test_the_law_reads_the_session_tape_alone(self):
         """Owner order 2026-11-08: the 1 day frame and its file are gone."""
@@ -131,17 +131,17 @@ class CandidateContractTest(unittest.TestCase):
         tally: dict = {}
         result = kalman_trend.candidate("OGDC", rows, session_of(rows), tally)
         self.assertIsNone(result)
-        self.assertIn("hybrid_frames_not_read", tally)
+        self.assertIn("zscore_frames_not_read", tally)
 
     def test_when_the_frames_are_read_a_short_session_fails_closed(self):
         from tests.kalman_fixture import setup_rows
 
-        rows = setup_rows(scanner, SESSION_OPEN)
+        rows = setup_rows(scanner, SESSION_OPEN, count=50)
         tally: dict = {}
         result = kalman_trend.candidate("OGDC", rows, session_of(rows), tally,
                                         frames=True)
         self.assertIsNone(result)
-        self.assertTrue(any(key.startswith("hybrid_") for key in tally), tally)
+        self.assertTrue(any(key.startswith("zscore_") for key in tally), tally)
 
 
 if __name__ == "__main__":

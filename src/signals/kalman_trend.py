@@ -1,14 +1,14 @@
-"""The one running intraday law: the Kalman Trend, the three VWAP frames and
-the hybrid statistical arbitrage and mean reversion model.
+"""The one running intraday law: the Kalman Trend, the 5m/15m/30m VWAP frames
+and the z-score price-VWAP spread.
 
-Owner order 2026-11-12 (Karachi): the previous entry strategies are removed
-and the only strategy is the one he named, the Kalman Trend with VWAP on the
-5 minute, 15 minute and 1 hour charts AND the hybrid statistical arbitrage
-and mean reversion model (src/signals/hybrid_arb_mr.py). The fresh one minute
-flip entry (`kalman_trend_flip_v1`), the three frame VWAP pullback
-(`kalman_vwap_pullback_v2`) and the relative strength gate
-(`kalman_vwap_rs_v3`) are withdrawn outright: their modules are gone, their
-constants are gone, and nothing in this file can build an entry from them.
+Owner order 2026-11-16 (Karachi): the previous hybrid law is removed and the
+only strategy is the Kalman Trend with VWAP on the 5 minute, 15 minute and 30
+minute charts, whose mathematical base is the z-score of the price minus VWAP
+spread (src/signals/kalman_zscore_vwap.py). The fresh one minute flip entry,
+the three frame VWAP pullback, the relative strength gate and the hybrid
+statistical arbitrage/mean reversion law are withdrawn outright: their
+modules and constants are gone, and nothing in this file can build an entry
+from them.
 
 What is left is the engine the law needs:
 
@@ -17,12 +17,12 @@ What is left is the engine the law needs:
   * every data honesty gate: the ETF refusal, the naive timestamp refusal,
     the band clock, the completed bar rule, the freshness rule, the gap
     restart, the price and turnover floors and the owner's fixed risk plan;
-  * one entry: the hybrid law, measured on the session tape alone.
+  * one entry: the z-score spread law, measured on the session tape alone.
 
 The owner's TP/SL law is the whole plan: entry at the latest completed close,
 stop at the owner's fixed -1% under it, target at his +2%, one call a day
 (src/signals/trade_state.py). There is no second strategy, no fallback and no
-hidden prior: when the hybrid law has no legal entry the scanner answers no
+hidden prior: when the z-score law has no legal entry the scanner answers no
 entry, with the refusing gate named (SO-3).
 
 Asia/Karachi, UTC+5. Signal-only: no broker orders (SO-1).
@@ -88,34 +88,27 @@ def filter_series(closes: list[float], q: float, r: float,
 
 def candidate(symbol: str, rows: list, session,
               tally: dict | None = None,
-              frames: bool = False,
-              rs_market: dict | None = None) -> dict | None:
+              frames: bool = False) -> dict | None:
     """Return the one legal candidate of the running law, or None.
 
     Same call shape the scanner and its tests always used. Every gate below is
     the data honesty the whole system shares (ETF anonymity, the band clock,
     completed bars, positive prices, a real tape volume, the price and
     turnover floors, freshness, no continuity across a gap) plus the owner's
-    fixed +2% / -1% plan. The STRATEGY is the hybrid law and only it.
+    fixed +2% / -1% plan. The STRATEGY is the z-score spread law and only it.
 
-    `frames` says whether this deployment reads the 5 minute, 15 minute and 1
-    hour VWAP frames (src/signals/mtf_vwap.py). The law cannot be evaluated
+    `frames` says whether this deployment reads the 5 minute, 15 minute and 30
+    minute VWAP frames (src/signals/mtf_vwap.py). The law cannot be evaluated
     without them, so a deployment that is not reading them (a replay or a
     unit fixture with no higher timeframe history) has no entry at all and
     names that reason; the live pipeline passes the deployment flag.
-
-    `rs_market` is the equal weight market leg this scan measured
-    (src/signals/market_leg.py), handed to every name by the scanner so one
-    scan never compares two names against two different markets. The hybrid
-    law's lag gate reads it; without it the scan has no market and the law
-    fails closed.
     """
     if config.is_etf_symbol(symbol) or session.as_of.tzinfo is None:
         _bump(tally, "etf_or_naive_tz")
         return None
-    # Keep the whole session for the 1 hour frame before the current band's
-    # own rows are trimmed below: a Friday afternoon band must still see the
-    # morning's hourly bars across the exchange's midday break.
+    # Keep the whole session for the 30 minute frame before the current
+    # band's own rows are trimmed below: a Friday afternoon band must still
+    # see the morning's completed bars across the exchange's midday break.
     mtf_rows = list(rows)
     band = current_band(session.as_of)
     if band is None:
@@ -178,48 +171,48 @@ def candidate(symbol: str, rows: list, session,
     net_reward = config.TARGET_PCT - config.round_trip_cost()
     reward_risk = net_reward / (risk + config.round_trip_cost())
 
-    # The one entry law. The frames and the market leg are both required: a
-    # replay, a unit fixture with no higher timeframe history, or a scan whose
-    # capture was too thin to measure the market fails closed with its reason
-    # named rather than running a law it cannot evaluate (SO-3).
-    if not config.HYBRID_ENABLED:
-        _bump(tally, "hybrid_law_disabled")
+    # The one entry law. The frames are required: a replay or a unit fixture
+    # with no higher timeframe history fails closed with its reason named
+    # rather than running a law it cannot evaluate (SO-3).
+    if not config.ZSCORE_ENABLED:
+        _bump(tally, "zscore_law_disabled")
         return None
     if not (config.MTF_ENABLED and frames):
-        _bump(tally, "hybrid_frames_not_read")
+        _bump(tally, "zscore_frames_not_read")
         return None
     if trace[-1]["state"] != 1:
-        _bump(tally, "hybrid_trend_not_up")
+        _bump(tally, "zscore_trend_not_up")
         return None
 
-    from src.signals import hybrid_arb_mr as hybrid
+    from src.signals import kalman_zscore_vwap as zscore
 
-    setup, reason = hybrid.entry_view(symbol, rows, session, rs_market,
-                                      hourly_rows=mtf_rows)
+    setup, reason = zscore.entry_view(symbol, rows, session,
+                                      session_rows=mtf_rows)
     if setup is None:
         _bump(tally, reason)
         return None
 
     return {
         "symbol": symbol,
-        "score": hybrid.score(setup, reward_risk),
-        "strategy": hybrid.STRATEGY_VERSION, "side": "LONG",
+        "score": zscore.score(setup, reward_risk),
+        "strategy": zscore.STRATEGY_VERSION, "side": "LONG",
         "price": {"last": entry}, "stop_loss": stop, "target": target,
         "risk_pct": risk, "net_reward_risk": reward_risk,
         "setup": {
-            "hybrid": setup,
-            "entry_path": "hybrid_sa_mr",
+            "zscore": setup,
+            "entry_path": "zscore_spread",
             "slope_per_minute_log": trace[-1]["slope"],
             "hysteresis_log_per_minute": config.KALMAN_FLIP_THRESHOLD,
             "process_noise_q": config.KALMAN_Q,
             "observation_noise_r": config.KALMAN_R,
-            "mtf": {"rule": "vwap_mtf_v2", "frames": setup.get("frames")},
+            "mtf": {"rule": "vwap_mtf_v3", "frames": setup.get("frames")},
         },
         "volume": {"traded_value_estimate": turnover,
                    "volume_source": "captured bar volume"},
         "last_bar": last.timestamp.isoformat(), "bars": len(rows),
-        "entry_basis": "latest completed close after a stretch below the mean "
-                       "frame's VWAP, with the fast frame turned up and the "
-                       "name lagging the scan's own market leg; paper "
-                       "reference, not a fill",
+        "entry_basis": "latest completed close after the 5 minute price-VWAP "
+                       "spread fell by the configured z score below its own "
+                       "trailing mean, with 5m, 15m and 30m Kalman states up and "
+                       "the slower frames above VWAP; paper reference, not a "
+                       "fill",
     }
