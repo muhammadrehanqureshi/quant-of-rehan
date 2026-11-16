@@ -1,17 +1,15 @@
 # Intraday Forward Validation System
 
-## Active strategy, 2026-11-12 (Karachi)
+## Active strategy, 2026-11-16 (Karachi)
 
-The only intraday strategy is `kalman_vwap_hybrid_sa_mr_v1` (owner order
-2026-11-12, below): the Kalman Trend with VWAP on the 5 minute, 15 minute and
-1 hour charts and the hybrid statistical arbitrage and mean reversion model.
-The previous strategies are removed, not disabled: the fresh one minute flip
-(`kalman_trend_flip_v1`), the three frame VWAP pullback
-(`kalman_vwap_pullback_v2`) and the relative strength gate
-(`kalman_vwap_rs_v3`) have no module, no constant and no code path left. What
-survives from the last of them is the market leg measurement only
-(src/signals/market_leg.py), because the running law reads it.
-See src/signals/kalman_trend.py and src/signals/hybrid_arb_mr.py for
+The only intraday strategy is `kalman_vwap_zscore_sa_v1` (owner order
+2026-11-16, below): the Kalman Trend with VWAP on the 5 minute, 15 minute and
+30 minute charts, and the z-score of the price minus VWAP spread as the
+mathematical base. The previous strategies are removed, not disabled: the
+hybrid statistical arbitrage and mean reversion law, the market leg it read,
+the relative strength gate, the three frame VWAP pullback and the fresh one
+minute flip have no module, no constant and no code path left.
+See src/signals/kalman_trend.py and src/signals/kalman_zscore_vwap.py for
 the authoritative contracts: entry, stop and exit on the intraday band feed,
 the owner's +2% target, parameters grid-fit in GitHub Actions. Momentum/RSI
 gates and daily-model routing no longer decide entries. Historical
@@ -21,24 +19,22 @@ All tests, backtests and builds run in GitHub Actions, never on the owner's PC.
 The scheduled session loop requests one-second cycles and preserves one shared
 daily entry claim. No broker orders are transmitted.
 
-## Kalman Trend, VWAP 5m/15m/1h and hybrid statistical arbitrage with mean reversion, owner order 2026-11-12 (Karachi)
+## Kalman Trend, VWAP 5m/15m/30m and z-score spread, owner order 2026-11-16 (Karachi)
 
 The running intraday strategy, and the only strategy the scanner can build an
-entry from, is labelled `kalman_vwap_hybrid_sa_mr_v1` with the reader `hybrid_sa_mr_v1`
-(src/signals/hybrid_arb_mr.py). It keeps the Kalman Trend and the VWAP on
-the 5 minute, 15 minute and 1 hour charts and adds a hybrid statistical
-arbitrage and mean reversion model: the price must sit at least
-`HYBRID_Z_MIN` standard deviations below the 15 minute frame's VWAP, the 5
-minute frame's Kalman state must have turned up, and the name must be lagging
-the equal-weight market leg the scan measured by at least
-`HYBRID_LAG_MIN_PCT`. That lag is the cheap side of the pair, so the law
-buys a stretched, under-owned laggard on the reversion rather than chasing a
-leader. The one minute Kalman trend must be up as for every other law, the
-owner's +2% target, -1% stop and one call a day are unchanged, and the whole
-three frame agreement still has to hold before any entry is built. A missing
-frame or an unmeasured market fails closed with its reason named; the frames,
-the z score and the market lag are all measured from completed bars of the
-session tape alone, so no daily history returns.
+entry from, is labelled `kalman_vwap_zscore_sa_v1` with the reader
+`kalman_zscore_vwap_v1` (src/signals/kalman_zscore_vwap.py). It keeps the
+Kalman Trend and the VWAP on the 5 minute, 15 minute and 30 minute charts and
+uses the z-score of the price minus VWAP spread as its statistical base. The
+one minute Kalman trend must be up, the 5 minute Kalman state must be up, and
+the 15 and 30 minute frames must both have Kalman state up and a close above
+their own VWAP. The 5 minute spread must then sit at least `ZSCORE_Z_MIN`
+trailing standard deviations below its own mean, where every spread in that
+trailing series was measured against the rolling VWAP available at its bar.
+The owner's +2% target, -1% stop and one call a day are unchanged. A missing
+frame or an unmeasurable spread fails closed with its reason named; the
+frames and the z score are measured from completed bars of the session tape
+alone, so no daily history returns.
 
 ## Kalman Trend, VWAP 5m/15m/1h and relative strength, owner order 2026-11-09 (withdrawn 2026-11-12, kept as the record)
 

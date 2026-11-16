@@ -116,8 +116,8 @@ jobs:
       # are untouched: no position opens, no one-trade claim is taken
       # (src/config.py OWNER_ORDERED_CALLS).
       OWNER_ORDERED_CALLS: "1"
-      # Owner order 2026-11-08: the intraday signal must agree with the 5
-      # minute, 15 minute and 1 hour VWAP frames, read from the session tape.
+      # Owner order 2026-11-16: the intraday signal must agree with the 5
+      # minute, 15 minute and 30 minute VWAP frames, read from the session tape.
       MTF_REQUIRE_FRAMES: "1"
       OWNER_EMAIL_ISSUE: "81"
       RELAY_ADMIN_TOKEN: ${{ secrets.RELAY_ADMIN_TOKEN }}

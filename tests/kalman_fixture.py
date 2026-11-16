@@ -1,16 +1,15 @@
 """Synthetic tape for the one running law, used by plumbing tests only.
 
-Owner order 2026-11-12: the only strategy is the Kalman Trend with the three
-VWAP frames and the hybrid statistical arbitrage and mean reversion model.
-Its entry needs a price stretched below the 15 minute frame's VWAP while the
-fast frame has turned up, so this tape is shaped for exactly that:
+Owner order 2026-11-16: the only strategy is the Kalman Trend with the 5, 15
+and 30 minute VWAP frames and the z-score price-VWAP spread. Its entry needs
+the 5 minute spread stretched below its trailing mean while the slower frames
+remain above VWAP, so this tape is shaped for exactly that:
 
-  * minutes 0 to 89 flat at 100.00, which is the mean the price reverts to;
-  * minutes 90 to 119 down 0.10 a minute to 97.00, the washout that leaves the
-    price stretched below the fifteen minute VWAP;
-  * minutes 120 to 129 up 0.12 a minute to 98.20, the turn;
+  * minutes 0 to 89 rise 0.05 a minute to 104.45, the uptrend;
+  * minutes 90 to 119 ease 0.04 a minute to 103.25, the measured 5m dip;
+  * minutes 120 to 129 turn up 0.02 a minute to 103.45;
   * from minute 130 up 0.30 a minute, so the owner's +2% target taken at the
-    entry near 98.20 is honestly touched inside the capture.
+    entry near 103.75 is honestly touched inside the capture.
 
 The numbers are a fixture, never a data claim or performance evidence. A
 consumer that needs the real trend reads it from its own tape; the plumbing
@@ -18,28 +17,28 @@ tests patch the trend filter and say so.
 """
 from datetime import timedelta
 
-#: Minutes of flat tape before the washout.
+#: Minutes of rising tape before the dip.
 FLAT_UNTIL = 90
-#: Minutes the washout lasts.
+#: Minutes the dip lasts.
 DROP_MINUTES = 30
 #: The first minute the tape turns back up.
 TURN_START = FLAT_UNTIL + DROP_MINUTES
 #: The first minute of the hard climb that reaches the paper target.
 TAIL_START = TURN_START + 10
-#: A capture long enough to hold the one hour frame and the whole target run.
+#: A capture long enough to hold the 30 minute frame and the target run.
 FULL_MINUTES = 150
 
 
 def setup_values(minute: int) -> tuple:
     """(open, high, low, close, volume) for one minute of the fixture."""
     if minute < FLAT_UNTIL:
-        price = 100.00
+        price = 100.00 + 0.05 * minute
     elif minute < TURN_START:
-        price = 100.00 - 0.10 * (minute - FLAT_UNTIL + 1)
+        price = 104.45 - 0.04 * (minute - FLAT_UNTIL + 1)
     elif minute < TAIL_START:
-        price = 97.00 + 0.12 * (minute - TURN_START + 1)
+        price = 103.25 + 0.02 * (minute - TURN_START + 1)
     else:
-        price = 98.20 + 0.30 * (minute - TAIL_START + 1)
+        price = 103.45 + 0.30 * (minute - TAIL_START + 1)
     return (round(price - 0.02, 4), round(price + 0.04, 4),
             round(price - 0.05, 4), price, 15000)
 

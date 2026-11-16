@@ -209,7 +209,7 @@ class RoutingTest(unittest.TestCase):
         without the momentum prior must return the identical rows: the
         prior's weight moves no name past a gate and adds no column of its
         own. The trend legs are pinned up because they are not what this
-        test measures; the VWAP, the z score and the market leg run for
+        test measures; the VWAP and the z score run for
         real on the fixture's washout tape.
         """
         from tests.kalman_fixture import setup_values
@@ -230,19 +230,16 @@ class RoutingTest(unittest.TestCase):
         session = scanner.SessionData(
             day=as_of.date(), as_of=as_of, bars=bars, volume_available=True,
             bars_seen=131 * len(bars), bars_rejected=0, duplicate_bars=0)
-        market = {"mean_return": 0.0, "symbols": 25}
         with patch.object(kalman_trend, "filter_series",
                           lambda closes, q, r, threshold: [
                               {"level": 0.0, "slope": 1e-4, "state": 1,
                                "flip_up": index == 0}
                               for index in range(len(closes))]), \
                 patch.object(mtf_vwap, "kalman_state", lambda bars: 1):
-            plain = scanner.rank_candidates(session, frames=True,
-                                            rs_market=market)
+            plain = scanner.rank_candidates(session, frames=True)
             annotated = scanner.rank_candidates(session,
                                                 ai_prior={"AAA": 0.9},
-                                                frames=True,
-                                                rs_market=market)
+                                                frames=True)
         self.assertEqual(plain, annotated)
         self.assertTrue(plain, "the fixture stayed legal for the one law")
         for row in annotated:

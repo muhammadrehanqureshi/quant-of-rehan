@@ -280,8 +280,8 @@ class PipelineCycleTest(unittest.TestCase):
 
         # The trend legs are not what this test measures: it drives the whole
         # paper cycle. They are pinned up here, while the VWAP, the z score,
-        # the market leg, the owner's plan and every data gate run for real on
-        # the synthetic capture.
+        # the owner's plan and every data gate run for real on the synthetic
+        # capture.
         trend_patcher = patch.object(kalman_trend, "filter_series",
                                      lambda closes, q, r, threshold: [
                                          {"level": 0.0, "slope": 1e-4,
