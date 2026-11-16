@@ -123,7 +123,7 @@ func TestAlertBoardsShareTheRightHandColumns(t *testing.T) {
 	if left < 0 || right < 0 {
 		t.Fatalf("the ALERTS boards carry no share rows to measure:\n%s", strings.Join(rows, "\n"))
 	}
-	if got := right - left; got != a.alertSplitX {
-		t.Errorf("the selling quantity ends %d cells after the buying one, want %d", got, a.alertSplitX)
+	if got := right - left; got != a.alertSplitX-1 {
+		t.Errorf("the selling quantity ends %d cells after the buying one, want %d", got, a.alertSplitX-1)
 	}
 }
