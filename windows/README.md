@@ -1,10 +1,11 @@
-# Quant of Rehan for Windows (console edition), build 122
+# Quant of Rehan for Windows (console edition), build 123
 
 A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.21**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
 
-## What is new in build 122
+## What is new in build 123
 
+* **Build 123 (version 3.7.8).** The FEED row follows the values, not only the relay's timestamp: a table that stands still for five seconds reads `LAGGING` with its age, and returns to `LIVE` on the next real price, volume or observed timestamp change. CUSTOM SCRIPS OF VOLUME carries one diamond, on the cursor's left edge. Every B, S, U and T field has the same two cell gutter after it, throughout the build, with no blanks before the next label and no field cut off.
 * **Build 122 (version 3.7.7).** B, S, U and T numbers sit directly against their `=` label, with no leading pad, and each comma hugs its own digits. ORDER FLOW's NET DELTA now starts on the same cell as its heading when the bar shortens for NET DELTA %. The SECTORS direction arrow keeps one fixed column, so 10.00% no longer moves its arrow left. BIG BUYING NOW and BIG SELLING NOW are equal and fill the same right edge as PRICE ALERTS and ALERTS LOG.
 * **Build 121 (version 3.7.6).** BIG BUYING NOW and BIG SELLING NOW name each scrip's current price as `PKR 114.65` and drop the `sh` suffix from the quantity. The ALERTS LOG, the flashing banner and the Windows notification read one sentence: `100k shares of PRL were bought at PKR 114.65 ▲ 5.08%.` Every one-second order at or above 100k shares still raises its own alert. ORDER FLOW's SYMBOL order is removed, and `NET DELTA %` stays visible on narrower tables by shortening the bar rather than dropping the column.
 * **Build 120 (version 3.7.5).** The scan follows the Karachi session clock, so pre-market, live and post-market scanning cannot be switched off by a stale or wrong metadata answer. The quote feed has a watchdog: an old answer or a hung request sends the next `/quotes` ask at once, clears the failure backoff, and retries a failed answer after one second while scanning. A software stall can no longer leave FEED frozen while LINK and KSE100 stay live.

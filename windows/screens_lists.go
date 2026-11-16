@@ -304,20 +304,15 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 			// the same mark the rest of the build selects with.
 			mark = "◆"
 		}
-		// Owner order 2026-11-11: the cursor and the chosen sort share one
-		// diamond, never two side by side.
-		chosen := "  "
-		if a.scanChoice == id && !cur {
-			chosen = "◆ "
-		}
+		// Owner order 2026-11-16: the CUSTOM SCRIPS list carries one diamond,
+		// on the cursor's own left edge. The chosen sort's inline diamond is
+		// withdrawn, so the list never shows two at once.
 		// Owner order 2026-11-11: the sub menu cursor is blue, not white.
 		c.Set(ix+1, ry, []rune(mark)[0], th.Accent, bg, true)
 		// Owner order 2026-11-13: the six sorts carry their sequence numbers,
-		// the same `1.` to `6.` the SECTORS tile uses, between the cursor and
-		// the chosen sort's diamond.
+		// the same `1.` to `6.` the SECTORS tile uses.
 		c.Text(ix+3, ry, 3, fmt.Sprintf("%2d.", id), th.Soft, false)
-		c.Set(ix+7, ry, []rune(chosen)[0], th.Accent, bg, true)
-		c.Text(ix+9, ry, max(1, min(44, iw-9)), name, th.Text, a.scanChoice == id)
+		c.Text(ix+7, ry, max(1, min(44, iw-7)), name, th.Text, a.scanChoice == id)
 	}
 	head := iy + menu + 1 // the row after the menu, or the first row when it is hidden
 	// Owner order 2026-11-12: each sort names three scrips and each scrip takes
@@ -403,7 +398,7 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 			// here too, so the field takes the bar and its figure at once.
 			barStart := end - shareBarWidth + 1
 			chgRight := barStart - 2
-			priceRight := chgRight - chgW - 1
+			priceRight := chgRight - chgW - 2
 			px := commaFloat(q.Price, 2)
 			showPrice := func(pkr, pxAt, chgAt int) {
 				c.Text(pkr, row, 3, "PKR", th.Soft, false)
@@ -426,8 +421,8 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 						a.shareBar(c, barStart, row, shareBarWidth, *q.Buy, *q.Sell)
 					}
 				}
-			case end-4-runeLen(px)-chgW-1 >= ix+3+used+1:
-				pkr := end - 4 - runeLen(px) - chgW - 1
+			case end-4-runeLen(px)-chgW-2 >= ix+3+used+1:
+				pkr := end - 4 - runeLen(px) - chgW - 2
 				showPrice(pkr, pkr+4, end)
 			}
 		}

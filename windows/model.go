@@ -82,8 +82,10 @@ const appVersion = "4.0.21"
 // clock and the quote watchdog that keep pre, live and post moving. Build 121
 // is 3.7.6, the priced ALERT boards, the owner's alert sentence and the wider
 // ORDER FLOW percentage. Build 122 is 3.7.7, the aligned B/S/U/T fields, the
-// fixed sector arrow column and the equal ALERT boards.
-const hudBuild = "3.7.7"
+// fixed sector arrow column and the equal ALERT boards. Build 123 is 3.7.8,
+// the feed that says LAGGING when its values stand still, the one diamond in
+// CUSTOM SCRIPS and the two cell gutter after every B, S, U and T value.
+const hudBuild = "3.7.8"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no

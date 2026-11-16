@@ -120,7 +120,8 @@ type App struct {
 	flashes     map[string]flash
 	idxHist     series
 	symHist     map[string]*series
-	feedMinAge  int // seconds since the freshest stock ticked, at the answer
+	feedMinAge  int       // seconds since the freshest stock ticked, at the answer
+	feedMoved   time.Time // when a displayed quote last actually changed
 	feed        feedStats
 	answers     []time.Time
 	quoteCount  int64

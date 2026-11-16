@@ -65,43 +65,36 @@ func TestCustomScripsMoveWithLeftAndRightOnly(t *testing.T) {
 	}
 }
 
-// Owner order 2026-11-15: every sort uses one fixed set of B, S, U and T
-// columns, even in a window that used to fall back to packed values.
-func TestScannerValuesShareColumnsAtEveryWidth(t *testing.T) {
+// Owner order 2026-11-16: every B, S, U and T field is followed by the same two
+// cell gutter, and no label carries a leading space of its own.
+func TestScannerValuesUseTheSameGutter(t *testing.T) {
 	a := demoApp(t, 90, 40)
 	a.screen = scrScanner
 	for _, choice := range []int{1, 2} {
 		a.scanChoice = choice
 		a.lvScan = listView{}
 		rows := strings.Split(plain(a), "\n")
-		var b, s, u, tot []int
+		n := 0
 		for _, row := range rows {
 			if !strings.Contains(row, "B=") || !strings.Contains(row, "S=") ||
 				!strings.Contains(row, "U=") || !strings.Contains(row, "& T=") {
 				continue
 			}
+			n++
+			for _, want := range []string{",  S=", ",  U=", "  & T="} {
+				if !strings.Contains(row, want) {
+					t.Errorf("sort %d is missing the two cell gutter %q: %q", choice, want, row)
+				}
+			}
 			for _, label := range []string{"B=", "S=", "U=", "& T="} {
 				at := strings.Index(row, label)
-				if at < 0 {
-					continue
-				}
-				if rest := row[at+len(label):]; strings.HasPrefix(rest, " ") {
+				if at >= 0 && strings.HasPrefix(row[at+len(label):], " ") {
 					t.Errorf("sort %d writes a gap after %s: %q", choice, label, row)
 				}
 			}
-			b = append(b, strings.Index(row, "B="))
-			s = append(s, strings.Index(row, "S="))
-			u = append(u, strings.Index(row, "U="))
-			tot = append(tot, strings.Index(row, "& T="))
 		}
-		if len(b) != 3 {
-			t.Fatalf("sort %d drew %d value rows, want three:\n%s", choice, len(b), strings.Join(rows, "\n"))
-		}
-		for i := 1; i < 3; i++ {
-			if b[i] != b[0] || s[i] != s[0] || u[i] != u[0] || tot[i] != tot[0] {
-				t.Fatalf("sort %d row %d columns B,S,U,T = %d,%d,%d,%d, want %d,%d,%d,%d",
-					choice, i, b[i], s[i], u[i], tot[i], b[0], s[0], u[0], tot[0])
-			}
+		if n != 3 {
+			t.Fatalf("sort %d drew %d value rows, want three:\n%s", choice, n, strings.Join(rows, "\n"))
 		}
 	}
 }

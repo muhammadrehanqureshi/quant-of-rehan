@@ -44,8 +44,32 @@ func (a *App) flashAmount(key string) (k float64, dir int) {
 // extends the charts, feeds the big buying detector and notes the answer's
 // time for the updates per second figure.
 func (a *App) ingestQuotes(q *Quotes) {
+	old := a.quotes
 	a.quotes = q
 	a.quoteCount++
+	// Owner order 2026-11-16: the relay can keep repeating timestamps it calls
+	// fresh while the values stand still. Only a real price, volume or observed
+	// timestamp change may keep the light LIVE.
+	moved := a.feedMoved.IsZero() || old == nil
+	if old != nil {
+		if q.Index != nil && q.Index.Fresh {
+			if old.Index == nil || old.Index.Value != q.Index.Value {
+				moved = true
+			}
+		}
+		for sym, lq := range q.Items {
+			if !lq.Fresh || lq.Price <= 0 {
+				continue
+			}
+			o, ok := old.Items[sym]
+			if !ok || o.Price != lq.Price || o.Volume != lq.Volume || o.ObservedAt != lq.ObservedAt {
+				moved = true
+			}
+		}
+	}
+	if moved {
+		a.feedMoved = a.now
+	}
 	a.answers = append(a.answers, a.now)
 	cut := a.now.Add(-10 * time.Second)
 	i := 0
@@ -148,19 +172,21 @@ func (a *App) feedState() (word string, age int, ok bool) {
 		return "NO FEED", 0, false
 	}
 	age = a.feedMinAge + max(0, int(a.now.Sub(a.quotes.FetchedAt).Seconds()))
+	// A fresh timestamp is not enough: the values themselves must have moved.
+	if !a.feedMoved.IsZero() {
+		age = max(age, max(0, int(a.now.Sub(a.feedMoved).Seconds())))
+	}
 	// Owner order 2026-11-11 (seventh pass): the relay calls a market feed
 	// frame fresh until it is ninety seconds old. The HUD uses the same
 	// boundary, so a normal broker burst, which repeats a symbol about every
 	// 24 seconds, is LAGGING rather than a false STALE. A real outage still
 	// reaches STALE after the relay's own freshness window.
 	//
-	// Owner order 2026-11-12: the owner measured the wire at five seconds live
-	// and six seconds lagging, an eleven second burst. The five second window
-	// sat inside that burst, so the light flipped on every cycle. The window is
-	// fifteen seconds now, longer than the whole burst, so one cycle reads LIVE
-	// from end to end and only a feed that has genuinely paused turns LAGGING.
+	// Owner order 2026-11-16: the owner measured a five to six second pause
+	// while the relay still called its timestamps fresh. The light is honest
+	// now: five seconds without a real value change is LAGGING, not LIVE.
 	switch {
-	case age <= 15:
+	case age <= 5:
 		return "LIVE", age, true
 	case age <= 90:
 		return "LAGGING", age, true
