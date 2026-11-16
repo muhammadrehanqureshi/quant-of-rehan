@@ -426,7 +426,7 @@ func (a *App) statusNoteBase() string {
 	// pre-market. The status names the exact open instead of calling the
 	// pre-market running through the gap.
 	if !isWeekend(pk) && !isFriday(pk) && !isPsxHoliday(pk) {
-		if sec := secondOf(pk); sec >= 9*60+30 && sec < 9*60+32 {
+		if sec := secondOf(pk); sec >= (9*60+30)*60 && sec < (9*60+32)*60 {
 			return "Market will be opened at 09:32."
 		}
 	}
