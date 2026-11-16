@@ -226,6 +226,29 @@ func TestRelayEndpoints(t *testing.T) {
 	}
 }
 
+// Owner order 2026-11-16: the live /quotes answer carries the whole market and
+// the large-print board, so it is larger than the old 512 KB ceiling. A valid
+// answer above that size must parse instead of freezing the FEED row.
+func TestQuotesLargerThanTheOldCeilingAreAccepted(t *testing.T) {
+	pad := strings.Repeat("a", 600<<10)
+	body := `{"ok": true, "pad": "` + pad + `", "quotes": [
+		{"symbol": "AAA", "price": 10.5, "fresh": true, "age_seconds": 7,
+		 "observed_at": "2026-11-16T11:10:00+05:00"}]}`
+	m := newMock(t, map[string]func(http.ResponseWriter, *http.Request){
+		"/quotes": func(w http.ResponseWriter, r *http.Request) {
+			_, _ = w.Write([]byte(body))
+		},
+	})
+	r := NewRelay(m.srv.URL)
+	q, err := r.FetchQuotes(context.Background())
+	if err != nil {
+		t.Fatalf("a 600 KB quotes answer was refused: %v", err)
+	}
+	if lq, ok := q.Items["AAA"]; !ok || lq.AgeSeconds != 7 || !lq.Fresh {
+		t.Fatalf("quotes row did not survive: %+v", q.Items)
+	}
+}
+
 func TestRelayFailures(t *testing.T) {
 	big := bytes.Repeat([]byte("a"), maxBody+10)
 	m := newMock(t, map[string]func(http.ResponseWriter, *http.Request){

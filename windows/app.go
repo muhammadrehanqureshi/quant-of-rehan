@@ -689,9 +689,9 @@ func (a *App) interval(name string) time.Duration {
 			d = b
 		}
 	}
-	// Owner order 2026-11-16: the quotes feed retries inside its own four
-	// second request timeout, so a network blip cannot back it off for a
-	// minute and turn a live feed stale. Other calls keep their longer backoff.
+	// Owner order 2026-11-16: the quotes feed retries four seconds after an
+	// answer, not a minute, so a slow full-market answer cannot turn a live feed
+	// stale. Other calls keep their longer backoff.
 	if name == "quotes" && scan && d > 4*time.Second {
 		d = 4 * time.Second
 	}
@@ -719,7 +719,11 @@ func (a *App) fetch(name string) {
 	limit := 25 * time.Second
 	switch name {
 	case "quotes":
-		limit = 4 * time.Second
+		// Owner order 2026-11-16: a full /quotes answer is now about a
+		// megabyte. Four seconds could not finish it on a slow link, so every
+		// request timed out even though the relay was answering. Fifteen
+		// seconds still fails over quickly, but lets the live answer land.
+		limit = 15 * time.Second
 	case "health":
 		limit = 8 * time.Second
 	}

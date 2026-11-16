@@ -76,8 +76,9 @@ const appVersion = "4.0.21"
 // share-based big-order alert and the calculator and volume-column layout.
 // Build 116 is 3.7.1, the feed light that follows the quotes feed alone.
 // Build 117 is 3.7.2, the session words, the KSE100 footer and the split
-// board and alert floors.
-const hudBuild = "3.7.2"
+// board and alert floors. Build 118 is 3.7.3, the full-market quote answer
+// that no longer freezes the FEED row.
+const hudBuild = "3.7.3"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no
