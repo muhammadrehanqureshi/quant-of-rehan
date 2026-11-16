@@ -396,7 +396,9 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 		used := a.putBSTCols(c, ix+3, row, q.Buy, q.Sell, q.Volume, cols, volKey, pxKey)
 		if q.Price > 0 {
 			const chgW = 8
-			end := ix + cw - 1
+			// Owner order 2026-11-16: the current price, its percentage and
+			// the BARS move one cell left, and only one.
+			end := ix + cw - 2
 			// Owner order 2026-11-12 (latest): the bar carries its NET DELTA
 			// here too, so the field takes the bar and its figure at once.
 			barStart := end - shareBarWidth + 1
@@ -1179,8 +1181,8 @@ func (a *App) drawAlerts(c *Canvas, x, y, w, h int) {
 		priceH = 0
 	}
 	if w >= 84 {
-		// Owner order 2026-11-13: both boards are the same width, so the PKR
-		// values, the changes and the bars end on one column. The old split
+		// Owner order 2026-11-13: both boards are the same width, so the share
+		// quantities, the changes and the bars end on one column. The old split
 		// made the selling board one cell narrower, which moved its values.
 		bw := (w - 1) / 2
 		a.drawBoardPanel(c, x, y, bw, boardH, sideBuy)
@@ -1228,9 +1230,9 @@ func (a *App) drawBoardPanel(c *Canvas, x, y, w, h int, side int) {
 	}
 	hint := "The flag is off."
 	if on {
-		// Owner order 2026-11-12 (latest): the heading names the floor the
-		// board really keeps, so no row can be smaller than the words.
-		hint = "PKR " + compactNum(boardFloor) + " or above orders"
+		// Owner order 2026-11-16: the heading names the share floor the board
+		// really keeps, so no row can be smaller than the words.
+		hint = compactNum(float64(boardFloorShares)) + " shares or above"
 	}
 	_ = word
 	// Owner order 2026-11-15: clicking an ALERTS tile no longer highlights its
@@ -1286,22 +1288,21 @@ func (a *App) drawBoardPanel(c *Canvas, x, y, w, h int, side int) {
 		c.Text(ix+4, ry, 2, star, th.Warn, true)
 		c.Text(ix+6, ry, 8, b.Symbol, th.Hot, true)
 		a.flashText(c, ix+15, ry, padRight(commaFloat(b.Price, 2), 9), th.Text, true, pxKey)
-		// Owner order 2026-11-10 (latest): both boards carry their PKR value and
-		// their bar. The bar keeps the row's right edge, the value stands on the
+		// Owner order 2026-11-16: both boards carry the side's share quantity and
+		// its bar. The bar keeps the row's right edge, the quantity stands on the
 		// same two cell gutter to its left, and the change steps out first when
-		// the row is narrow, because the value and the bar are the two fields the
-		// owner asked to see. The value is this side's own: bought volume on the
-		// buying board, sold volume on the selling board.
+		// the row is narrow, because the quantity and the bar are the two fields
+		// the owner asked to see. The quantity is this side's own: bought shares on
+		// the buying board, sold shares on the selling board.
 		const chgW = 9
-		val := b.BuyValue
+		qty := b.BuyShares
 		if side == sideSell {
-			val = b.SellValue
+			qty = b.SellShares
 		}
-		pkrTxt := "PKR " + compactNum(val)
-		// Owner order 2026-11-13: the board bar shows only the B versus S
-		// dominance. The NET DELTA label is gone from these two boards; the
-		// PKR value is right aligned on a fixed column instead. The bar still
-		// reads the row's own measured pair, never the board's chosen side.
+		qtyTxt := compactNum(float64(qty)) + " sh"
+		// Owner order 2026-11-16: the board's figure is the side's share
+		// quantity, right aligned on its fixed column. The bar still reads the
+		// row's own measured pair, never the board's chosen side.
 		barW := shareBarSpan
 		if barW > cw {
 			barW = cw
@@ -1319,7 +1320,7 @@ func (a *App) drawBoardPanel(c *Canvas, x, y, w, h int, side int) {
 		if b.ChangePct != nil && pkrX-(ix+25) >= chgW+2 {
 			a.flashText(c, ix+25, ry, padRight(changeText(*b.ChangePct), chgW), a.dirColor(*b.ChangePct), true, pxKey)
 		}
-		rightAlign(c, pkrX, ry, pkrFieldW, []Span{{pkrTxt, good, true}})
+		rightAlign(c, pkrX, ry, pkrFieldW, []Span{{qtyTxt, good, true}})
 		// Owner order 2026-11-12 (latest): both boards draw the one bar, so a
 		// selling board is red because the sellers are in front, never green
 		// because that board's own side is selling, and the pair is the same
@@ -1383,8 +1384,10 @@ func (a *App) drawAlertLog(c *Canvas, x, y, w, h int) {
 		if f.Side == "SELL" {
 			sc = th.Bad
 		}
-		kind := "FLOW"
+		kind := "ORDER"
 		switch f.Kind {
+		case "flow":
+			kind = "FLOW"
 		case "block":
 			kind = "BLOCK"
 		case "price":

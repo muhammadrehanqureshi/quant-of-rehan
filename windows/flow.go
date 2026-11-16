@@ -10,8 +10,8 @@ import (
 )
 
 // The flow engine watches the broker feed (/quotes) once a second and flags a
-// stock when large buying, or large selling, is going through the tape and that
-// side dominates.
+// stock when a one-second volume step at or above the share threshold goes
+// through the tape, on the side the tick rule gives it.
 //
 // What it can and cannot see. The feed gives each stock's last price and its
 // running volume for the day, with bid and ask at zero, so there is no order
@@ -24,25 +24,21 @@ import (
 // "big selling orders" means the same on the other side. The ORDER FLOW screen
 // does not use this rule: it shows the relay's own quote-rule split.
 
-// FlowCfg holds the thresholds. Value fields are in PKR.
+// FlowCfg holds the thresholds. Owner order 2026-11-16: big orders are
+// measured in shares, not PKR. MinShares is the smallest one-second volume
+// step that earns its own alert; 0 MaxPerMin means every such order is
+// announced, not only the first few in a minute.
 type FlowCfg struct {
-	Window     time.Duration // how far back the buying is added up
-	MinValue   float64       // bought inside the window to count as big
-	BlockValue float64       // one second's buying that counts as a block print
-	RelMult    float64       // and at least this many times the stock's own average minute
-	MinShare   float64       // buyers' share of classified volume, 0 to 1
-	Cooldown   time.Duration // quiet time before the same stock can flag again
-	MaxPerMin  int           // alerts that may ring in one minute, all stocks
+	Window    time.Duration // how far back the buying board is added up
+	MinShares int64         // shares in one second to count as a big order
+	MaxPerMin int           // 0 means no announcement cap
 }
 
-func defaultFlowCfg(minValue int64) FlowCfg {
-	if minValue <= 0 {
-		minValue = 10_000_000
+func defaultFlowCfg(minShares int64) FlowCfg {
+	if minShares <= 0 {
+		minShares = 100_000
 	}
-	return FlowCfg{
-		Window: 60 * time.Second, MinValue: float64(minValue), BlockValue: 2 * float64(minValue),
-		RelMult: 4, MinShare: 0.70, Cooldown: 5 * time.Minute, MaxPerMin: 6,
-	}
+	return FlowCfg{Window: 60 * time.Second, MinShares: minShares, MaxPerMin: 0}
 }
 
 type flowEvt struct {
@@ -85,9 +81,9 @@ func (s *symFlow) lastAlert() time.Time {
 type Flag struct {
 	Time      time.Time
 	Symbol    string
-	Kind      string  // "flow" or "block"
+	Kind      string  // "order" for a share-sized second, plus "price" alerts elsewhere
 	Side      string  // "BUY" or "SELL"
-	Value     float64 // PKR on the flagged side
+	Value     float64 // the flagged quantity, in shares
 	Shares    int64   // shares on the flagged side
 	Share     float64 // the flagged side's share of the classified volume
 	Price     float64
@@ -139,7 +135,7 @@ func (f *Flow) addFlag(flag Flag) {
 }
 
 // SetValue changes the main threshold, for example from the settings file.
-func (f *Flow) SetValue(minValue int64) { f.cfg = defaultFlowCfg(minValue) }
+func (f *Flow) SetMinShares(minShares int64) { f.cfg = defaultFlowCfg(minShares) }
 
 // Reset forgets every baseline, for example after the relay was unreachable.
 func (f *Flow) Reset() {
@@ -231,7 +227,7 @@ func (f *Flow) Observe(now time.Time, q *Quotes, trading bool) []Flag {
 			k++
 		}
 		f.rang = f.rang[k:]
-		if len(f.rang) > f.cfg.MaxPerMin {
+		if f.cfg.MaxPerMin > 0 && len(f.rang) > f.cfg.MaxPerMin {
 			out[i].Silent = true
 		}
 		f.addFlag(out[i])
@@ -287,66 +283,36 @@ func (f *Flow) WindowSides(now time.Time, window time.Duration) (buy, sell, uncl
 	return
 }
 
-// evaluate decides whether one side of one stock earns a flag now.
+// evaluate decides whether one side of one stock earns an alert now.
+//
+// Owner order 2026-11-16: every one-second volume step at or above
+// MinShares is its own big order, on the side the tick rule gives it. There
+// is no minute aggregate, no relative multiple and no cooldown, so two large
+// orders in consecutive seconds produce two alerts.
 func (f *Flow) evaluate(now time.Time, sym string, sf *symFlow, q LiveQuote, side int) *Flag {
-	buy, sell, buyV, sellV, nBuy, nSell := f.sums(now, sf)
-	own, opp, ownV, n := buy, sell, buyV, nBuy
-	want, word, past, noun := int8(1), "BUY", "Bought", "Buyers"
+	last := lastEvt(sf)
+	if last == nil || now.Sub(last.t) > 2*time.Second {
+		return nil
+	}
+	want, word, past := int8(1), "BUY", "Bought"
 	if side == sideSell {
-		own, opp, ownV, n = sell, buy, sellV, nSell
-		want, word, past, noun = -1, "SELL", "Sold", "Sellers"
+		want, word, past = -1, "SELL", "Sold"
 	}
-	share := 0.0
-	if own+opp > 0 {
-		share = float64(own) / float64(own+opp)
-	}
-	mins := math.Max(10, sessionMinutes(now))
-	avgPerMin := float64(q.Volume) * q.Price / mins
-	thr := math.Max(f.cfg.MinValue, f.cfg.RelMult*avgPerMin)
-
-	kind := ""
-	// A block print: one second of pure one sided trading that is itself large.
-	if last := lastEvt(sf); last != nil && now.Sub(last.t) < 2*time.Second &&
-		float64(last.dv)*last.px >= math.Max(f.cfg.BlockValue, f.cfg.RelMult*avgPerMin) && last.side == want {
-		kind = "block"
-	}
-	// Sustained trading: large, dominant, at least two seconds on that side, and
-	// the price has not been running against it through the window.
-	if kind == "" && ownV >= thr && share >= f.cfg.MinShare && n >= 2 && !movedAgainst(sf, now, f.cfg.Window, want) {
-		kind = "flow"
-	}
-	if kind == "" {
+	if last.side != want || last.dv < f.cfg.MinShares {
 		return nil
 	}
-	val := ownV
-	shares := own
-	if kind == "block" {
-		l := lastEvt(sf)
-		val, shares = float64(l.dv)*l.px, l.dv
-		share = math.Max(share, 1)
-	}
-	// Inside the cooldown the same stock flags again on the same side only when
-	// its trading has tripled since the last flag and a minute has passed.
 	mem := &sf.alert[side]
-	if !mem.at.IsZero() && now.Sub(mem.at) < f.cfg.Cooldown &&
-		(val < 3*mem.val || now.Sub(mem.at) < time.Minute) {
-		return nil
-	}
-	mem.at, mem.val = now, val
-	fl := &Flag{Time: now, Symbol: sym, Kind: kind, Side: word, Value: val, Shares: shares, Share: share, Price: q.Price, ChangePct: q.ChangePct}
-	// Just the stock's name, then what it is getting.
+	mem.at, mem.val = now, float64(last.dv)
+	fl := &Flag{Time: now, Symbol: sym, Kind: "order", Side: word,
+		Value: float64(last.dv), Shares: last.dv, Share: 1,
+		Price: q.Price, ChangePct: q.ChangePct}
 	fl.Text = sym + " is getting big " + map[int]string{sideBuy: "buying", sideSell: "selling"}[side] + " orders"
 	price := commaFloat(q.Price, 2)
 	if q.ChangePct != nil {
 		price += ", " + changeText(*q.ChangePct) + " today"
 	}
-	if kind == "block" {
-		fl.Detail = fmt.Sprintf("A block %s of PKR %s (%s shares) in one trade. Price %s.", map[int]string{sideBuy: "buy", sideSell: "sell"}[side],
-			compactNum(val), compactNum(float64(shares)), price)
-	} else {
-		fl.Detail = fmt.Sprintf("%s PKR %s (%s shares) in %d seconds. %s made up %.0f%% of the volume. Price %s.",
-			past, compactNum(val), compactNum(float64(shares)), int(f.cfg.Window.Seconds()), noun, share*100, price)
-	}
+	fl.Detail = fmt.Sprintf("%s %s shares in one second. Price %s.",
+		past, compactNum(float64(last.dv)), price)
 	return fl
 }
 
@@ -469,11 +435,13 @@ func (f *Flow) BoardSide(now time.Time, q *Quotes, limit int, side int) []FlowSt
 		}
 		out = append(out, st)
 	}
-	val := func(s FlowStat) float64 {
+	// Owner order 2026-11-16: the ALERTS boards rank and filter on share
+	// quantity, so a cheap 50k lot can stand where a costly 1M lot cannot.
+	val := func(s FlowStat) int64 {
 		if side == sideSell {
-			return s.SellValue
+			return s.SellShares
 		}
-		return s.BuyValue
+		return s.BuyShares
 	}
 	sort.Slice(out, func(i, j int) bool {
 		if val(out[i]) != val(out[j]) {

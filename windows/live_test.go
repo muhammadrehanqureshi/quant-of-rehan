@@ -410,30 +410,30 @@ func TestMouseOnListsAndSettings(t *testing.T) {
 	if a.cfg.Theme != 3 || a.th != themeAt(3) {
 		t.Errorf("theme by click: %d", a.cfg.Theme)
 	}
-	before := a.cfg.BigBuyValue
+	before := a.cfg.BigOrderQty
 	clickText(t, a, "BIG ORDER SIZE")
-	if a.cfg.BigBuyValue == before || a.flow.cfg.MinValue != float64(a.cfg.BigBuyValue) {
-		t.Errorf("size by click: %d", a.cfg.BigBuyValue)
+	if a.cfg.BigOrderQty == before || a.flow.cfg.MinShares != a.cfg.BigOrderQty {
+		t.Errorf("size by click: %d", a.cfg.BigOrderQty)
 	}
-	// Enter walks the sizes and wraps from the top back to the bottom.
+	// Enter walks the quantities and wraps from the top back to the bottom.
 	a.setCursor = 5
 	seen := map[int64]bool{}
-	for i := 0; i < len(bigBuyChoices); i++ {
+	for i := 0; i < len(bigOrderChoices); i++ {
 		a.onKey(Key{Kind: KEnter})
-		seen[a.cfg.BigBuyValue] = true
+		seen[a.cfg.BigOrderQty] = true
 	}
-	if len(seen) != len(bigBuyChoices) {
-		t.Errorf("enter must visit every size: %v", seen)
+	if len(seen) != len(bigOrderChoices) {
+		t.Errorf("enter must visit every quantity: %v", seen)
 	}
 	// LEFT and RIGHT step without wrapping.
-	a.cfg.BigBuyValue = bigBuyChoices[0]
+	a.cfg.BigOrderQty = bigOrderChoices[0]
 	a.onKey(Key{Kind: KLeft})
-	if a.cfg.BigBuyValue != bigBuyChoices[0] {
-		t.Errorf("left at the bottom: %d", a.cfg.BigBuyValue)
+	if a.cfg.BigOrderQty != bigOrderChoices[0] {
+		t.Errorf("left at the bottom: %d", a.cfg.BigOrderQty)
 	}
 	a.onKey(Key{Kind: KRight})
-	if a.cfg.BigBuyValue != bigBuyChoices[1] {
-		t.Errorf("right: %d", a.cfg.BigBuyValue)
+	if a.cfg.BigOrderQty != bigOrderChoices[1] {
+		t.Errorf("right: %d", a.cfg.BigOrderQty)
 	}
 
 	// The test alert row raises a banner marked as a test.
@@ -477,7 +477,7 @@ func TestAlertsScreenListsTheLogAndBoard(t *testing.T) {
 	a := demoApp(t, 120, 30)
 	a.screen = scrAlerts
 	s := plain(a)
-	for _, want := range []string{"BIG BUYING NOW", "BIG SELLING NOW", "ALERTS LOG (", "ECHO is getting big buying orders", "PKR 1M or above orders", "BUY FLOW", "BUY BLOCK"} {
+	for _, want := range []string{"BIG BUYING NOW", "BIG SELLING NOW", "ALERTS LOG (", "ECHO is getting big buying orders", "50k shares or above", "BUY FLOW", "BUY ORDER"} {
 		if !strings.Contains(s, want) {
 			t.Errorf("alerts screen is missing %q", want)
 		}
@@ -562,7 +562,7 @@ func TestTelemetryKeepsBuyingSellingAndUnclearApart(t *testing.T) {
 	a.cfg.BigBuy, a.cfg.BigSell = true, true
 	a.now = time.Date(2026, 11, 2, 10, 0, 0, 0, pkt)
 	if a.flow == nil {
-		a.flow = NewFlow(defaultFlowCfg(10_000_000))
+		a.flow = NewFlow(defaultFlowCfg(100_000))
 	}
 	a.flow.sym["AAA"] = &symFlow{evts: []flowEvt{
 		{t: a.now.Add(-10 * time.Second), dv: 600, px: 10, side: 1},

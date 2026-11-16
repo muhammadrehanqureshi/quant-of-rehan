@@ -81,7 +81,7 @@ func TestCalculatorTileWording(t *testing.T) {
 // NET DELTA stand as one group at the right.
 func TestKSE100ColumnsAreTight(t *testing.T) {
 	a := busyApp(t, 158, 41, 3)
-	uToT := regexp.MustCompile(`U=([\d,]+)( +)& T=`)
+	uToT := regexp.MustCompile(`U=\s*([\d,]+)( +)& T=`)
 	inside := false
 	totAt := -1
 	priced := 0

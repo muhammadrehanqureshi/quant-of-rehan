@@ -1030,6 +1030,9 @@ type bstCols struct {
 	sell int // "S=", after B's comma and the gutter
 	unc  int // "U=", after S's comma and the gutter
 	tot  int // "& T=", after U's own digits and the gutter
+	bw   int // B's widest digits
+	sw   int // S's widest digits
+	uw   int // U's widest digits
 	wid  int // the widest total volume's digits
 }
 
@@ -1054,7 +1057,7 @@ func bstLeaderCols(leaders []Leader) bstCols {
 			tw = max(tw, runeLen(commaInt(*l.Volume)))
 		}
 	}
-	c := bstCols{wid: tw}
+	c := bstCols{bw: bw, sw: sw, uw: uw, wid: tw}
 	c.sell = c.buy + 2 + bw + 1 + bstPad // "B=", the digits, the comma, the gutter
 	c.unc = c.sell + 2 + sw + 1 + bstPad  // "S=", the digits, the comma, the gutter
 	c.tot = c.unc + 2 + uw + bstPad       // "U=" and its own digits, then the gutter
@@ -1092,21 +1095,29 @@ func (a *App) putBSTCols(c *Canvas, x, y int, buy, sell, total *int64, cols bstC
 	if buy == nil || sell == nil || total == nil {
 		return a.putBST(c, x, y, buy, sell, total, keys...)
 	}
-	field := func(at int, label, num, tail string, fg RGB, bold bool) {
-		w := a.flashText(c, x+at, y, label, th.Soft, false, keys...)
-		w += a.flashText(c, x+at+w, y, num, fg, bold, keys...)
+	// Owner order 2026-11-16: each number is right aligned inside its own
+	// measured column. S, U and T therefore start and end on the same cells
+	// from row to row even when B has fewer digits than the widest scrip.
+	field := func(at, width int, label, num, tail string, fg RGB, bold bool) {
+		lw := runeLen(label)
+		a.flashText(c, x+at, y, label, th.Soft, false, keys...)
+		pad := width - runeLen(num)
+		if pad > 0 {
+			a.flashText(c, x+at+lw, y, strings.Repeat(" ", pad), th.Soft, false, keys...)
+		}
+		a.flashText(c, x+at+lw+max(0, pad), y, num, fg, bold, keys...)
 		if tail != "" {
-			a.flashText(c, x+at+w, y, tail, th.Soft, false, keys...)
+			a.flashText(c, x+at+lw+width, y, tail, th.Soft, false, keys...)
 		}
 	}
 	un := *total - *buy - *sell
 	if un < 0 {
 		un = 0
 	}
-	field(cols.buy, "B=", commaInt(*buy), ",", th.Good, true)
-	field(cols.sell, "S=", commaInt(*sell), ",", th.Bad, true)
-	field(cols.unc, "U=", commaInt(un), "", th.Warn, un > 0)
-	field(cols.tot, "& T=", commaInt(*total), "", totalBlue, false)
+	field(cols.buy, cols.bw, "B=", commaInt(*buy), ",", th.Good, true)
+	field(cols.sell, cols.sw, "S=", commaInt(*sell), ",", th.Bad, true)
+	field(cols.unc, cols.uw, "U=", commaInt(un), "", th.Warn, un > 0)
+	field(cols.tot, cols.wid, "& T=", commaInt(*total), "", totalBlue, false)
 	return cols.tot + 4 + cols.wid
 }
 

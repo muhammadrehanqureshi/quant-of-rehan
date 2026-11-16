@@ -55,16 +55,14 @@ func TestAlertsBoardIsNumberedAndScrolls(t *testing.T) {
 	}
 }
 
-// B, S and T are written one way on every screen: B=1, S=2 & T=3. The KSE100
-// tile is the one place the owner asked to be symmetrical: each number is right
-// aligned in a field of its own there, so every leader's S= starts on the same
-// cell and the block carries padding spaces. Every other screen packs it tight.
+// B, S and T are written one way on every screen: B=1, S=2 & T=3. Owner order
+// 2026-11-16: the fixed columns right align each number inside its own field, so
+// the fields carry padding spaces after their "=" signs.
 func TestBSTFormatEverywhere(t *testing.T) {
 	// Two readings are legal: the packed sentence the lists use, B=1, S=2,
-	// U=0 & T=3, and the fixed columns the KSE100 leaders use, where the fields
-	// are separated by spaces and each label starts on its own cell. Both keep
-	// every number hard against its own "=" sign.
-	good := regexp.MustCompile(`B=[\d,]+[, ]+S=[\d,]+[, ]+U=[\d,]+[, ]+(?:& )?T=[\d,]+`)
+	// U=0 & T=3, and the fixed columns, where each number is right aligned in
+	// its own field and the labels start on their own cells.
+	good := regexp.MustCompile(`B=\s*[\d,]+[, ]+S=\s*[\d,]+[, ]+U=\s*[\d,]+[, ]+(?:& )?T=\s*[\d,]+`)
 	bad := regexp.MustCompile(`\(B=|\)\s*$`)
 	for _, c := range []struct {
 		name string

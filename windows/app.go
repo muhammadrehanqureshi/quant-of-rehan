@@ -229,7 +229,7 @@ func NewApp(cfg Settings, cfgPath string, relay *Relay) *App {
 		scanCursor: 0,
 		priceEdit:  -1,
 	}
-	a.flow = NewFlow(defaultFlowCfg(cfg.BigBuyValue))
+	a.flow = NewFlow(defaultFlowCfg(cfg.BigOrderQty))
 	a.flow.Allow = a.inUniverse
 	today := utcDay(a.now)
 	if cfg.ReqDay == today {
@@ -1009,7 +1009,7 @@ func (a *App) save() {
 		out.Notify = a.cfg.Notify
 	}
 	if a.flowTouched {
-		out.BigBuy, out.BigSell, out.Sound, out.BigBuyValue = a.cfg.BigBuy, a.cfg.BigSell, a.cfg.Sound, a.cfg.BigBuyValue
+		out.BigBuy, out.BigSell, out.Sound, out.BigOrderQty = a.cfg.BigBuy, a.cfg.BigSell, a.cfg.Sound, a.cfg.BigOrderQty
 	}
 	if a.cellTouched {
 		out.CellShape = a.cfg.CellShape
@@ -1621,18 +1621,18 @@ func (a *App) toggleBigSell() {
 	a.flowTouched, a.dirty = true, true
 }
 
-// stepBigBuy moves the size threshold through bigBuyChoices. The one size
-// applies to buying and to selling.
-func (a *App) stepBigBuy(d int) {
+// stepBigOrder moves the share threshold through bigOrderChoices. The one
+// quantity applies to buying and to selling.
+func (a *App) stepBigOrder(d int) {
 	i := 0
-	for k, v := range bigBuyChoices {
-		if v <= a.cfg.BigBuyValue {
+	for k, v := range bigOrderChoices {
+		if v <= a.cfg.BigOrderQty {
 			i = k
 		}
 	}
-	i = min(max(0, i+d), len(bigBuyChoices)-1)
-	a.cfg.BigBuyValue = bigBuyChoices[i]
-	a.flow.SetValue(a.cfg.BigBuyValue)
+	i = min(max(0, i+d), len(bigOrderChoices)-1)
+	a.cfg.BigOrderQty = bigOrderChoices[i]
+	a.flow.SetMinShares(a.cfg.BigOrderQty)
 	a.flowTouched, a.dirty = true, true
 }
 
@@ -1691,11 +1691,11 @@ func (a *App) keySettings(k Key) {
 		}
 	case KLeft:
 		if a.setCursor == 5 {
-			a.stepBigBuy(-1)
+			a.stepBigOrder(-1)
 		}
 	case KRight:
 		if a.setCursor == 5 {
-			a.stepBigBuy(1)
+			a.stepBigOrder(1)
 		}
 	case KEnter:
 		a.activateSetting(a.setCursor)
@@ -1717,15 +1717,15 @@ func (a *App) activateSetting(i int) {
 	case i == 4:
 		a.toggleSound()
 	case i == 5:
-		// Enter walks the sizes and wraps from the largest back to the smallest.
+		// Enter walks the quantities and wraps from the largest back to the smallest.
 		idx := 0
-		for k, v := range bigBuyChoices {
-			if v <= a.cfg.BigBuyValue {
+		for k, v := range bigOrderChoices {
+			if v <= a.cfg.BigOrderQty {
 				idx = k
 			}
 		}
-		a.cfg.BigBuyValue = bigBuyChoices[(idx+1)%len(bigBuyChoices)]
-		a.flow.SetValue(a.cfg.BigBuyValue)
+		a.cfg.BigOrderQty = bigOrderChoices[(idx+1)%len(bigOrderChoices)]
+		a.flow.SetMinShares(a.cfg.BigOrderQty)
 		a.flowTouched, a.dirty = true, true
 	case i == 6:
 		a.testFlag(false)

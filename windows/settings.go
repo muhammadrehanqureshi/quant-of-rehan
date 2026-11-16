@@ -21,10 +21,10 @@ type Settings struct {
 	LastSignal      string `json:"last_signal"`
 	ReqDay          string `json:"req_day"`
 	ReqCount        int64  `json:"req_count"`
-	BigBuy          bool   `json:"big_buy"`       // flag large buying on the broker feed
-	BigSell         bool   `json:"big_sell"`      // flag large selling on the broker feed
-	Sound           bool   `json:"sound"`         // play a tone with each flag and alert
-	BigBuyValue     int64  `json:"big_buy_value"` // PKR bought in a minute to count as big
+	BigBuy          bool   `json:"big_buy"`      // flag large buying on the broker feed
+	BigSell         bool   `json:"big_sell"`     // flag large selling on the broker feed
+	Sound           bool   `json:"sound"`        // play a tone with each flag and alert
+	BigOrderQty     int64  `json:"big_order_qty"` // shares in one second to count as a big order
 	CellShape       int    `json:"cell_shape"`    // terminal cell height over width, in hundredths (222 is 2.22)
 	// Owner order 2026-11-13: the three PRICE ALERT slots live here, so they
 	// survive a restart. They are the owner's own numbers, never a secret.
@@ -35,7 +35,9 @@ type Settings struct {
 // the first with one second polling and the big buying flag. Version 3 adds the
 // big selling flag and the 2.22 cell shape of a Windows Terminal cell (9 by 20
 // pixels), which replaces the 1.90 that builds 4 and 5 wrote on their own.
-const settingsVer = 3
+// Version 4 replaces the PKR big-buy value with a share quantity, because the
+// owner's 2026-11-16 order measures a big order in shares.
+const settingsVer = 4
 
 // defaultCellShape is the height over width of a Windows Terminal cell at its
 // stock font, 20 pixels over 9.
@@ -49,11 +51,11 @@ const (
 	cellShapeStep = 5
 )
 
-// bigBuyChoices are the thresholds the Settings screen steps through.
-var bigBuyChoices = []int64{5_000_000, 10_000_000, 25_000_000, 50_000_000, 100_000_000}
+// bigOrderChoices are the share thresholds the Settings screen steps through.
+var bigOrderChoices = []int64{50_000, 100_000, 250_000, 500_000, 1_000_000}
 
 func defaultSettings() Settings {
-	return Settings{Ver: settingsVer, Theme: 0, Notify: true, PollMS: 1000, BigBuy: true, Sound: true, BigBuyValue: 10_000_000, CellShape: defaultCellShape, BigSell: true}
+	return Settings{Ver: settingsVer, Theme: 0, Notify: true, PollMS: 1000, BigBuy: true, Sound: true, BigOrderQty: 100_000, CellShape: defaultCellShape, BigSell: true}
 }
 
 func settingsPath() string {
@@ -77,8 +79,8 @@ func loadSettings(path string) Settings {
 		// A file written by build 1 holds the old two second default, and has no
 		// big buying fields. Replace what the old build set on its own.
 		s.PollMS = 1000
-		if s.BigBuyValue == 0 {
-			s.BigBuy, s.Sound, s.BigBuyValue = true, true, 10_000_000
+		if s.BigOrderQty == 0 {
+			s.BigBuy, s.Sound, s.BigOrderQty = true, true, 100_000
 		}
 		s.Ver = settingsVer
 	}
@@ -88,8 +90,8 @@ func loadSettings(path string) Settings {
 		s.BigSell = true
 		s.CellShape = defaultCellShape
 	}
-	if s.BigBuyValue <= 0 {
-		s.BigBuyValue = 10_000_000
+	if s.BigOrderQty <= 0 {
+		s.BigOrderQty = 100_000
 	}
 	if s.CellShape == 0 {
 		s.CellShape = defaultCellShape

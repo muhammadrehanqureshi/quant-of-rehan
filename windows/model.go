@@ -72,8 +72,9 @@ const appVersion = "4.0.21"
 // calculator frames, the bare PSX'S KMIALL INDEX line and the CUSTOM SCRIPS
 // hint without its full stop are 3.6.2, and the SECTORS UP and DOWN selection,
 // the CUSTOM SCRIPS LEFT and RIGHT selection, ENTER on either tile and the one
-// fixed B, S, U and T column set are 3.6.3.
-const hudBuild = "3.6.3"
+// fixed B, S, U and T column set are 3.6.3. Build 115 is 3.7.0, the
+// share-based big-order alert and the calculator and volume-column layout.
+const hudBuild = "3.7.0"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no

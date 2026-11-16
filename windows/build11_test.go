@@ -90,7 +90,7 @@ func TestTelemetryFlowShowsTheDaysSidesAfterTheClose(t *testing.T) {
 	a.cfg.BigBuy, a.cfg.BigSell = true, true
 	a.now = time.Date(2026, 11, 2, 16, 45, 0, 0, pkt)
 	if a.flow == nil {
-		a.flow = NewFlow(defaultFlowCfg(10_000_000))
+		a.flow = NewFlow(defaultFlowCfg(100_000))
 	}
 	buy, sell, un := int64(600), int64(300), int64(100)
 	vol := int64(1000)
