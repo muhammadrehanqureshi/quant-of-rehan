@@ -100,15 +100,13 @@ func TestAlertBoardsShareTheRightHandColumns(t *testing.T) {
 	a.flow.sym["SELLX"] = &symFlow{have: true, t: a.now, px: 10, vol: 250_000,
 		evts: []flowEvt{{t: a.now, dv: 250_000, px: 10, side: -1}}}
 	rows := rowsOf(a)
-	for _, row := range rows {
-		if strings.Contains(row, " sh") {
-			t.Errorf("a board still writes the withdrawn sh suffix: %q", row)
-		}
-	}
 	left, right := -1, -1
 	for _, row := range rows {
-		// A board row carries two bars, one for each board. The share quantity
-		// ends two cells before its own bar's first cell.
+		// A board row carries two prices and two bars, one for each board. The
+		// share quantity ends two cells before its own bar's first cell.
+		if strings.Count(row, "PKR ") < 2 {
+			continue
+		}
 		firstBar := strings.Index(row, string(barBlock))
 		lastBar := strings.LastIndex(row, string(barBlock))
 		if firstBar < 0 || lastBar <= firstBar {

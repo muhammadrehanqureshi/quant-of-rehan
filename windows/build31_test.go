@@ -10,6 +10,10 @@ import (
 // and the share quantity is written without the old sh suffix.
 func TestAlertBoardsPriceAndShareQuantity(t *testing.T) {
 	a := demoApp(t, 160, 40)
+	// The demo snapshot can be all buying. Seed one sell-dominant stock so the
+	// selling board has a priced row too.
+	a.flow.sym["SELLX"] = &symFlow{have: true, t: a.now, px: 10, vol: 250_000,
+		evts: []flowEvt{{t: a.now, dv: 250_000, px: 10, side: -1}}}
 	for _, side := range []int{sideBuy, sideSell} {
 		c := NewCanvas(78, 20, a.th.Panel)
 		a.drawBoardPanel(c, 0, 0, 78, 20, side)
