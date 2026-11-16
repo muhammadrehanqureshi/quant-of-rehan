@@ -190,5 +190,6 @@ func snapshotState(a *App, state string) {
 		a.lastMarketOK = a.now.Add(-47 * time.Second)
 		a.relayErr = "No route to the relay from this PC. Check internet or VPN. (UnknownHost)"
 		a.signals = ""
+		a.quotes = nil
 	}
 }

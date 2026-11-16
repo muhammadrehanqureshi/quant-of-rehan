@@ -681,6 +681,12 @@ func (a *App) interval(name string) time.Duration {
 			d = b
 		}
 	}
+	// Owner order 2026-11-16: the quotes feed retries inside its own four
+	// second request timeout, so a network blip cannot back it off for a
+	// minute and turn a live feed stale. Other calls keep their longer backoff.
+	if name == "quotes" && scan && d > 4*time.Second {
+		d = 4 * time.Second
+	}
 	return d
 }
 
@@ -849,6 +855,12 @@ func (a *App) onMsg(m any) {
 		ok := v.err == nil
 		a.done("quotes", ok)
 		if ok && v.q != nil {
+			// Owner order 2026-11-16: a quotes answer is proof the relay is up.
+			// A failed market or health call may not leave the feed marked
+			// STALE while the one second feed is still arriving.
+			a.checking = false
+			a.link = true
+			a.relayErr = ""
 			// A closed relay can answer with no rows; the last table it sent
 			// stays on screen until a real one arrives.
 			if len(v.q.Items) == 0 && v.q.Index == nil && a.quotes != nil && len(a.quotes.Items) > 0 {
