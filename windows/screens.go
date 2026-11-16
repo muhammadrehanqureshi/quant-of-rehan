@@ -449,9 +449,9 @@ func (a *App) drawLeft(c *Canvas, x, y, w, h int) {
 	// FEED: how old the freshest tick is, counting up each second, and how
 	// many answers per second are arriving.
 	feed := []Span{{"--", th.Soft, false}}
-	if !a.link && !a.lastMarketOK.IsZero() {
-		// The header counter is gone, but a dead relay still says how old its
-		// last answer is, on the feed row where the staleness belongs.
+	if a.quotes == nil && !a.link && !a.lastMarketOK.IsZero() {
+		// No feed answer at all: say how old the relay's last answer is, on the
+		// feed row where the staleness belongs.
 		feed = []Span{{"STALE " + strconv.Itoa(max(0, int(a.now.Sub(a.lastMarketOK).Seconds()))) + "s", th.Bad, true}}
 	} else if a.quotes != nil && !a.checking {
 		state, age, ok := a.feedState()
@@ -949,7 +949,7 @@ func (a *App) feedLight() []Span {
 	switch {
 	case a.checking:
 		return []Span{{"● ", th.Warn, true}, {"LIVE --", th.Soft, true}}
-	case !a.link && !a.lastMarketOK.IsZero():
+	case a.quotes == nil && !a.link && !a.lastMarketOK.IsZero():
 		return []Span{{"● ", th.Bad, true}, {"STALE " + strconv.Itoa(max(0, int(a.now.Sub(a.lastMarketOK).Seconds()))) + "s", th.Bad, true}}
 	case a.quotes != nil:
 		state, age, _ := a.feedState()
