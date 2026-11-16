@@ -715,13 +715,8 @@ func (a *App) drawSectorTile(c *Canvas, x, y, w, h int) {
 		pctX := ix + cw - pctW
 		nameW := max(1, pctX-(ix+7)-2)
 		c.Text(ix+7, ry, nameW, fit(g.Name, nameW), th.Text, idx == a.sectorChoice)
-		if cnt > 0 {
-			dirText, numText, _ := strings.Cut(pctText, " ")
-			c.Text(ix+pctX, ry, 1, dirText, pctInk, true)
-			rightAlign(c, pctX+2, ry, pctW-2, []Span{{numText, pctInk, true}})
-		} else {
-			c.Text(ix+pctX, ry, pctW, "--", th.Soft, false)
-		}
+		c.Text(pctX, ry, pctW, pctText, pctInk, cnt > 0)
+
 	}
 	a.scrollbar(c, ix+iw-1, listY, a.lvSector.view, &a.lvSector)
 }

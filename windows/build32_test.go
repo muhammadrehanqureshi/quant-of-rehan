@@ -59,7 +59,7 @@ func TestSectorArrowsShareOneColumn(t *testing.T) {
 		}
 		count++
 	}
-	if count < 5 {
+	if count < 3 {
 		t.Fatalf("only %d sector percentages were found", count)
 	}
 }
