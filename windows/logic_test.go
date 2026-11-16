@@ -569,8 +569,9 @@ func TestEverySecondInTheScanWindow(t *testing.T) {
 			}
 		}
 	}
-	// A holiday the relay knows about stays slow even inside the window.
-	a.now = time.Date(2026, 11, 2, 11, 0, 0, 0, pkt)
+	// A holiday stays slow even inside the window. The clock and the holiday
+	// law decide, not a metadata flag on an ordinary Monday.
+	a.now = time.Date(2026, 11, 9, 11, 0, 0, 0, pkt)
 	a.market = marketIn("CLOSED")
 	a.market.TradingDay = false
 	if got := a.interval("quotes"); got != 30*time.Second {

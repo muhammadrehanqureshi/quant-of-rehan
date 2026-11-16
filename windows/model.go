@@ -78,8 +78,9 @@ const appVersion = "4.0.21"
 // Build 117 is 3.7.2, the session words, the KSE100 footer and the split
 // board and alert floors. Build 118 is 3.7.3, the full-market quote answer
 // that no longer freezes the FEED row. Build 119 is 3.7.4, the quiet empty
-// boards and the KSE100 price and U alignment.
-const hudBuild = "3.7.4"
+// boards and the KSE100 price and U alignment. Build 120 is 3.7.5, the scan
+// clock and the quote watchdog that keep pre, live and post moving.
+const hudBuild = "3.7.5"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no
