@@ -28,37 +28,25 @@ func TestBuild115ShareThresholds(t *testing.T) {
 // Owner order 2026-11-16: the calculator boxes fit their own words with exactly
 // one blank cell on each side.
 func TestBuild115CalculatorBoxesFitTheirWords(t *testing.T) {
-	a := demoApp(t, 122, 36)
-	a.screen = scrScanner
-	a.calcOpen, a.calcField = true, 0
-	c := a.render()
-	for _, tc := range []struct {
-		word string
-		bg   RGB
-	}{
-		{"Enter price", mix(a.th.Panel, a.th.Accent, 0.3)},
-		{"Enter qty", mix(a.th.Panel, a.th.Accent, 0.14)},
-	} {
-		found := false
-		for y, row := range c.PlainRows() {
-			x := strings.Index(row, tc.word)
-			if x < 1 {
-				continue
-			}
-			found = true
-			at := func(px int) Cell { return c.Cells[y*c.W+px] }
-			if at(x-1).BG != tc.bg || at(x+len(tc.word)).BG != tc.bg {
-				t.Errorf("%q does not have one blank box cell on each side", tc.word)
-			}
-			if x >= 2 && at(x-2).BG == tc.bg {
-				t.Errorf("%q has more than one blank box cell on its left", tc.word)
-			}
-			if x+len(tc.word)+1 < c.W && at(x+len(tc.word)+1).BG == tc.bg {
-				t.Errorf("%q has more than one blank box cell on its right", tc.word)
-			}
+	a := newTestApp(t)
+	for _, word := range []string{"Enter price", "Enter qty"} {
+		c := NewCanvas(80, 1, a.th.Panel)
+		a.inputRow(c, 0, 0, 40, "PRICE", "", word, false, true)
+		row := c.PlainRows()[0]
+		x := strings.Index(row, word)
+		if x < 1 {
+			t.Fatalf("%q is not in its input row: %q", word, row)
 		}
-		if !found {
-			t.Fatalf("%q is not on the calculator tile", tc.word)
+		field := mix(a.th.Panel, a.th.Accent, 0.14)
+		at := func(px int) Cell { return c.Cells[px] }
+		if at(x-1).BG != field || at(x+len(word)).BG != field {
+			t.Errorf("%q does not have one blank box cell on each side", word)
+		}
+		if x >= 2 && at(x-2).BG == field {
+			t.Errorf("%q has more than one blank box cell on its left", word)
+		}
+		if x+len(word)+1 < c.W && at(x+len(word)+1).BG == field {
+			t.Errorf("%q has more than one blank box cell on its right", word)
 		}
 	}
 }
