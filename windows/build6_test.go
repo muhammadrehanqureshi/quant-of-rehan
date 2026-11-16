@@ -184,9 +184,9 @@ func TestOrderFlowSortKeepsUnmeasuredAtTheBottom(t *testing.T) {
 	if last := rows[len(rows)-1].Symbol; last != "CCC" && last != "DDD" {
 		t.Errorf("rows with no measured buying go last, not first as zeros: %s", last)
 	}
-	a.ofSort = len(flowSorts) - 1
-	if a.sortedFlow()[0].Symbol != "AAA" {
-		t.Errorf("by symbol")
+	a.ofSort = 6 // change
+	if a.sortedFlow()[0].ChangePct == nil {
+		t.Errorf("by change")
 	}
 	for i := 0; i < len(flowSorts)*2; i++ {
 		a.onKey(Key{Kind: KRune, R: 'o'})

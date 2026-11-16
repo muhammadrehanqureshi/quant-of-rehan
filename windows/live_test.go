@@ -477,7 +477,7 @@ func TestAlertsScreenListsTheLogAndBoard(t *testing.T) {
 	a := demoApp(t, 120, 30)
 	a.screen = scrAlerts
 	s := plain(a)
-	for _, want := range []string{"BIG BUYING NOW", "BIG SELLING NOW", "ALERTS LOG (", "ECHO is getting big buying orders", "QTY 50k and above", "BUY ORDER"} {
+	for _, want := range []string{"BIG BUYING NOW", "BIG SELLING NOW", "ALERTS LOG (", "shares of", "were bought at PKR", "QTY 50k and above", "BUY ORDER"} {
 		if !strings.Contains(s, want) {
 			t.Errorf("alerts screen is missing %q", want)
 		}
@@ -632,7 +632,7 @@ func TestTelemetryTellsTheTruthAboutScanning(t *testing.T) {
 func TestSnapshotAlertStateShowsBanner(t *testing.T) {
 	a := demoApp(t, 120, 30)
 	snapshotState(a, "alert")
-	if !strings.Contains(rowsOf(a)[1], "is getting big buying orders") {
+	if !strings.Contains(rowsOf(a)[1], "shares of") || !strings.Contains(rowsOf(a)[1], "were bought at PKR") {
 		t.Errorf("alert snapshot: %q", rowsOf(a)[1])
 	}
 }

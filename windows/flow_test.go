@@ -1,7 +1,6 @@
 package main
 
 import (
-	"strings"
 	"testing"
 	"time"
 )
@@ -38,7 +37,7 @@ func TestFlowAlertsEveryOneSecondOrderWithTheOwnersWording(t *testing.T) {
 		t.Fatalf("every 100k share second must alert, got %d: %+v", len(flags), flags)
 	}
 	fl := flags[0]
-	if fl.Text != "ECHO is getting big buying orders" {
+	if fl.Text != "100k shares of ECHO were bought at PKR 15.01." {
 		t.Errorf("text: %q", fl.Text)
 	}
 	if fl.Kind != "order" || fl.Value != 100_000 || fl.Shares != 100_000 {
@@ -47,8 +46,8 @@ func TestFlowAlertsEveryOneSecondOrderWithTheOwnersWording(t *testing.T) {
 	if fl.Time.Sub(flowT0) != time.Second {
 		t.Errorf("the first order flagged after %v", fl.Time.Sub(flowT0))
 	}
-	if !strings.Contains(fl.Detail, "Bought 100k shares in one second") {
-		t.Errorf("detail: %q", fl.Detail)
+	if fl.Detail != "" {
+		t.Errorf("the one sentence must stand alone, detail: %q", fl.Detail)
 	}
 }
 
@@ -64,11 +63,11 @@ func TestFlowFlagsSellingAndHonoursTheSwitch(t *testing.T) {
 		vol += 100_000
 		got = append(got, f.Observe(flowT0.Add(time.Duration(i)*time.Second), feedOf(map[string]LiveQuote{"SELL": lq(px, vol)}), true)...)
 	}
-	if len(got) != 2 || got[0].Side != "SELL" || got[0].Text != "SELL is getting big selling orders" || got[0].Value != 100_000 {
+	if len(got) != 2 || got[0].Side != "SELL" || got[0].Text != "100k shares of SELL were sold at PKR 14.99." || got[0].Value != 100_000 {
 		t.Fatalf("selling must raise a SELL flag for each order: %+v", got)
 	}
-	if !strings.Contains(got[0].Detail, "Sold 100k shares in one second") {
-		t.Errorf("detail: %q", got[0].Detail)
+	if got[0].Detail != "" {
+		t.Errorf("the selling sentence must stand alone, detail: %q", got[0].Detail)
 	}
 	// With the selling flag off, the same tape raises nothing.
 	f = NewFlow(defaultFlowCfg(100_000))
@@ -112,8 +111,8 @@ func TestFlowBigOrderPrint(t *testing.T) {
 	if len(got) != 1 || got[0].Kind != "order" || got[0].Symbol != "BLOK" {
 		t.Fatalf("big order: %+v", got)
 	}
-	if !strings.Contains(got[0].Detail, "Bought 1M shares in one second") {
-		t.Errorf("detail: %q", got[0].Detail)
+	if got[0].Text != "1M shares of BLOK were bought at PKR 50.10." {
+		t.Errorf("text: %q", got[0].Text)
 	}
 }
 

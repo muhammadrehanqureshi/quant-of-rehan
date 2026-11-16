@@ -1,10 +1,11 @@
-# Quant of Rehan for Windows (console edition), build 120
+# Quant of Rehan for Windows (console edition), build 121
 
 A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.21**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
 
-## What is new in build 120
+## What is new in build 121
 
+* **Build 121 (version 3.7.6).** BIG BUYING NOW and BIG SELLING NOW name each scrip's current price as `PKR 114.65` and drop the `sh` suffix from the quantity. The ALERTS LOG, the flashing banner and the Windows notification read one sentence: `100k shares of PRL were bought at PKR 114.65 ▲ 5.08%.` Every one-second order at or above 100k shares still raises its own alert. ORDER FLOW's SYMBOL order is removed, and `NET DELTA %` stays visible on narrower tables by shortening the bar rather than dropping the column.
 * **Build 120 (version 3.7.5).** The scan follows the Karachi session clock, so pre-market, live and post-market scanning cannot be switched off by a stale or wrong metadata answer. The quote feed has a watchdog: an old answer or a hung request sends the next `/quotes` ask at once, clears the failure backoff, and retries a failed answer after one second while scanning. A software stall can no longer leave FEED frozen while LINK and KSE100 stay live.
 * **Build 119 (version 3.7.4).** BIG BUYING NOW and BIG SELLING NOW leave an empty board empty, with no sentence under the heading. The KSE100 price, percentage and bar move one cell left, and every U value sits against its own `U=` label so the top row reads like the rows below it.
 * **Build 118 (version 3.7.3).** The FEED row no longer freezes when `/quotes` grows past 512 KB. The Windows client accepts a 4 MB answer and gives the full-market quote call fifteen seconds instead of four, so the feed keeps updating on a slow link. This is the fix for `STALE` showing while LINK and KSE100 are live.

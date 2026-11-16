@@ -294,8 +294,8 @@ func TestAlertBannerReadsAsSentences(t *testing.T) {
 	a := demoApp(t, 140, 34)
 	snapshotState(a, "alert")
 	row := a.render().PlainRows()[1]
-	if !strings.Contains(row, "big buying orders. Bought ") {
-		t.Errorf("banner should read as two sentences: %q", row)
+	if !strings.Contains(row, "shares of") || !strings.Contains(row, "were bought at PKR") {
+		t.Errorf("banner should read as the owner's alert sentence: %q", row)
 	}
 }
 
@@ -376,8 +376,8 @@ func TestAlertLogDetailIsWrappedNotCut(t *testing.T) {
 	if strings.Contains(s, "…") {
 		t.Errorf("nothing on the alerts screen should be cut with an ellipsis:\n%s", s)
 	}
-	if !strings.Contains(s, "today.") {
-		t.Errorf("the end of the first detail should show:\n%s", s)
+	if !strings.Contains(s, "were bought at PKR") || !strings.Contains(s, "5.08%") && !strings.Contains(s, "4.29%") {
+		t.Errorf("the alert sentence should show in full:\n%s", s)
 	}
 }
 

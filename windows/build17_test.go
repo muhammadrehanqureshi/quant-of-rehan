@@ -3,7 +3,6 @@ package main
 import (
 	"strings"
 	"testing"
-	"unicode/utf8"
 )
 
 // Owner order 2026-11-13: RELAY STATUS carries the relay's current state, not
@@ -102,26 +101,29 @@ func TestAlertBoardsShareTheRightHandColumns(t *testing.T) {
 	rows := rowsOf(a)
 	left, right := -1, -1
 	for _, row := range rows {
-		// A board row carries two share figures, one for each board. The log
-		// detail and the heading carry only one, so a second match identifies
-		// the row.
-		at := strings.Index(row, " sh")
-		if at < 0 {
+		// A board row carries two prices and two bars, one for each board. The
+		// share quantity ends two cells before its own bar's first cell.
+		if strings.Count(row, "PKR ") < 2 {
 			continue
 		}
-		secondRel := strings.Index(row[at+3:], " sh")
-		if secondRel < 0 {
+		runes := []rune(row)
+		var starts []int
+		for i, r := range runes {
+			if r == barBlock && (i == 0 || runes[i-1] != barBlock) {
+				starts = append(starts, i)
+			}
+		}
+		if len(starts) < 2 {
 			continue
 		}
-		second := at + 3 + secondRel
-		left = utf8.RuneCountInString(row[:at+3])
-		right = utf8.RuneCountInString(row[:second+3])
+		left = starts[0] - 3
+		right = starts[1] - 3
 		break
 	}
 	if left < 0 || right < 0 {
 		t.Fatalf("the ALERTS boards carry no share rows to measure:\n%s", strings.Join(rows, "\n"))
 	}
-	if got := right - a.alertSplitX; got != left-1 {
-		t.Errorf("the selling quantity ends %d cells in, the buying one %d", got, left-1)
+	if got := right - left; got != a.alertSplitX-1 {
+		t.Errorf("the selling quantity ends %d cells after the buying one, want %d", got, a.alertSplitX-1)
 	}
 }

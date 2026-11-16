@@ -1279,7 +1279,8 @@ func (a *App) drawBoardPanel(c *Canvas, x, y, w, h int, side int) {
 		c.Text(ix, ry, 4, fmt.Sprintf("%2d.", i+1), th.Soft, false)
 		c.Text(ix+4, ry, 2, star, th.Warn, true)
 		c.Text(ix+6, ry, 8, b.Symbol, th.Hot, true)
-		a.flashText(c, ix+15, ry, padRight(commaFloat(b.Price, 2), 9), th.Text, true, pxKey)
+		// Owner order 2026-11-16: both boards name the current price with PKR.
+		a.flashText(c, ix+15, ry, padRight("PKR "+commaFloat(b.Price, 2), 13), th.Text, true, pxKey)
 		// Owner order 2026-11-16: both boards carry the side's share quantity and
 		// its bar. The bar keeps the row's right edge, the quantity stands on the
 		// same two cell gutter to its left, and the change steps out first when
@@ -1291,7 +1292,9 @@ func (a *App) drawBoardPanel(c *Canvas, x, y, w, h int, side int) {
 		if side == sideSell {
 			qty = b.SellShares
 		}
-		qtyTxt := compactNum(float64(qty)) + " sh"
+		// Owner order 2026-11-16: the board's figure is the share quantity alone;
+		// the old "sh" suffix is withdrawn from both tiles.
+		qtyTxt := compactNum(float64(qty))
 		// Owner order 2026-11-16: the board's figure is the side's share
 		// quantity, right aligned on its fixed column. The bar still reads the
 		// row's own measured pair, never the board's chosen side.
@@ -1309,8 +1312,8 @@ func (a *App) drawBoardPanel(c *Canvas, x, y, w, h int, side int) {
 		if pkrFieldW < 1 {
 			pkrFieldW = 1
 		}
-		if b.ChangePct != nil && pkrX-(ix+25) >= chgW+2 {
-			a.flashText(c, ix+25, ry, padRight(changeText(*b.ChangePct), chgW), a.dirColor(*b.ChangePct), true, pxKey)
+		if b.ChangePct != nil && pkrX-(ix+29) >= chgW+2 {
+			a.flashText(c, ix+29, ry, padRight(changeText(*b.ChangePct), chgW), a.dirColor(*b.ChangePct), true, pxKey)
 		}
 		rightAlign(c, pkrX, ry, pkrFieldW, []Span{{qtyTxt, good, true}})
 		// Owner order 2026-11-12 (latest): both boards draw the one bar, so a
