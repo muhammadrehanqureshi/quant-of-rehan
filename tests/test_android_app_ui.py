@@ -822,6 +822,12 @@ class SettingsControlTest(unittest.TestCase):
         # percentage, and every known percentage carries its arrow.
         self.assertIn("private static final int SECTOR_ROWS = 6;", self.main)
         self.assertIn("sectorsMenu.post(this::fitSectorWindow);", self.main)
+        # Owner order 2026-11-16: the window includes the menu's own edge air,
+        # so its first and last rows are never clipped.
+        self.assertIn("height += sectorsMenu.getPaddingTop()"
+                      " + sectorsMenu.getPaddingBottom();", self.main)
+        self.assertIn('android:paddingLeft="14dp"',
+                      element(self.layout, 'android:id="@+id/sectors_scroll"'))
         # Owner order 2026-11-15: the closed scroll must not cover the face.
         self.assertIn('android:visibility="gone"',
                       element(self.layout, 'android:id="@+id/sectors_scroll"'))
@@ -3395,17 +3401,24 @@ class MenuOrdersTest(unittest.TestCase):
         are not balanced, the other options they all are exactly in the
         middle except for the top and the bottom option, have the same
         displacement for each option on every drop down menu, same goes
-        for custom scrips of volume"): an interior option stands 14dp
-        from the line above it and 14dp from the one below it, so the
-        EDGE options carry the whole 14dp themselves - 14dp of top air on
-        the FIRST option and 14dp of bottom air on the LAST - in both
-        menus, so every option's text floats at one and the same
-        distance from its nearest line above and below it.
+        for custom scrips of volume"), restated 2026-11-16: every option,
+        the first and last included, carries the same 5dp top and bottom
+        padding, and the menu's own 5dp top and bottom air gives the edge
+        rows the same 10dp displacement an interior row gets from its
+        divider. No edge row is taller or shorter than the middle ones.
         """
         self.assertIn("private TextView menuRow(String line, "
                       "boolean first, boolean last) {", self.main)
-        self.assertIn("first ? dp(10) : dp(5), dp(14),", self.main)
-        self.assertIn("last ? dp(10) : dp(5));", self.main)
+        self.assertIn("return menuRow(line);", self.main)
+        self.assertIn("menu.setPadding(0, dp(5), 0, dp(5));", self.main)
+        self.assertIn("row.setGravity(Gravity.CENTER);", self.main)
+        self.assertNotIn("first ? dp(10) : dp(5)", self.main)
+        self.assertNotIn("last ? dp(10) : dp(5)", self.main)
+        for builder in ("buildThemeMenu", "buildVolumeMenu"):
+            with self.subTest(menu=builder):
+                start = self.main.index(f"private void {builder}() {{")
+                block = self.main[start:start + 2500]
+                self.assertIn("padMenu(", block, builder)
         # Both builders pass the row's edge position: the first option is
         # row 0 and the last is the final row of its own menu.
         for builder, count in (("buildThemeMenu",
@@ -3582,12 +3595,12 @@ class MenuOrdersTest(unittest.TestCase):
         self.assertIn("private View menuDivider() {", self.main)
         self.assertIn("LinearLayout.LayoutParams.MATCH_PARENT, dp(1));",
                       self.main)
-        self.assertIn("params.setMargins(dp(10), dp(5), dp(14), dp(5));",
+        self.assertIn("params.setMargins(dp(14), dp(5), dp(14), dp(5));",
                       self.main,
-                      "the line starts at the 10dp wording column, same air")
+                      "the line matches the centred row's 14dp side air")
         # A row's own padding is the matching 5dp top and bottom, so the
         # line-to-option distance is the same 10dp on both sides.
-        self.assertIn("row.setPadding(dp(10), dp(5), dp(14), dp(5));",
+        self.assertIn("row.setPadding(dp(14), dp(5), dp(14), dp(5));",
                       self.main)
         # Both menus obey one law: every option with an option above it
         # gains the line first.
@@ -4859,7 +4872,7 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         main = MAIN.read_text(encoding="utf-8")
         # The rows' leading air is the closed box's own 10dp column again,
         # since the caret is back at the trailing edge.
-        self.assertIn("row.setPadding(dp(10), dp(5), dp(14), dp(5));", main)
+        self.assertIn("row.setPadding(dp(14), dp(5), dp(14), dp(5));", main)
         # The tile's lift is the screen's own share, read from the
         # display's own metrics on the carrier the tile rides: 3% now,
         # which is the ordered 4% below the v3.1.0 law's 7%. v3.6.1
