@@ -22,14 +22,17 @@ import (
 
 const (
 	defaultRelay = "https://quant-of-rehan-relay.mrmrehanqureshi.workers.dev"
-	maxBody      = 524288
+	// Owner order 2026-11-16: /quotes now carries the whole market and the
+	// day's large prints, so the old 512 KB ceiling rejected every live answer
+	// and froze the FEED row while the rest of the HUD stayed live.
+	maxBody = 4 << 20
 	// The relay sits behind Cloudflare, whose browser integrity check refuses
 	// some default client strings (the project report records an HTTP 403 with
 	// error code 1010 for Python's urllib). A browser style prefix avoids it.
 	userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) QuantOfRehan-HUD/" + appVersion
 )
 
-var errPayloadTooLarge = errors.New("relay body exceeded 524288 characters")
+var errPayloadTooLarge = errors.New("relay body exceeded the accepted size")
 
 // Relay talks to the Cloudflare worker. It is read only: every call is a GET.
 type Relay struct {

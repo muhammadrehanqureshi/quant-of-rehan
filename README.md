@@ -337,4 +337,4 @@ python scripts/intraday_pipeline.py --finalize
   standing (SO-24); the checks are never waived.
 - **Signal-only and paper only**: live trading is disabled, and the paper gate
   needs genuinely accumulated forward sessions before it opens.
-- **Versions**: the HUD is v3.7.2 (build 117) and the phone app v4.4.1.
+- **Versions**: the HUD is v3.7.3 (build 118) and the phone app v4.4.1.
