@@ -18,6 +18,6 @@ func TestStoredSessionAndFeedFooterWords(t *testing.T) {
 	}
 	a.quotes = quotesAt(15, 1_000_000)
 	if got := a.marketNote(); got != "LAST DATA FROM THE BROKER'S FEED." {
-		t.Fatalf("KSE100 footer: %q", got)
+		t.Fatalf("weekend KSE100 footer: %q", got)
 	}
 }

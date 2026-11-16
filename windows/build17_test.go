@@ -95,6 +95,10 @@ func TestAlertBarsUseTheScannerPair(t *testing.T) {
 func TestAlertBoardsShareTheRightHandColumns(t *testing.T) {
 	a := demoApp(t, 160, 40)
 	a.screen = scrAlerts
+	// The demo snapshot can be all buying. Seed one sell-dominant stock so both
+	// boards carry a row and the right-hand columns are what is measured.
+	a.flow.sym["SELLX"] = &symFlow{have: true, t: a.now, px: 10, vol: 250_000,
+		evts: []flowEvt{{t: a.now, dv: 250_000, px: 10, side: -1}}}
 	rows := rowsOf(a)
 	left, right := -1, -1
 	for _, row := range rows {

@@ -10,18 +10,24 @@ import (
 func TestBuild115ShareThresholds(t *testing.T) {
 	a := demoApp(t, 130, 34)
 	a.screen = scrSettings
-	if s := plain(a); !strings.Contains(s, "100k shares an order.") {
-		t.Fatalf("SETTINGS does not name the share threshold:\n%s", s)
+	if s := plain(a); !strings.Contains(s, "100k shares") || strings.Contains(s, "an order") {
+		t.Fatalf("SETTINGS does not name the share quantity alone:\n%s", s)
 	}
 	a.screen = scrAlerts
 	s := plain(a)
-	for _, want := range []string{"BIG BUYING NOW", "BIG SELLING NOW", "50k shares or above"} {
+	for _, want := range []string{"BIG BUYING NOW", "BIG SELLING NOW", "QTY 50k and above"} {
 		if !strings.Contains(s, want) {
 			t.Errorf("ALERTS is missing %q:\n%s", want, s)
 		}
 	}
+	if strings.Contains(s, "Watching every broker tick") {
+		t.Errorf("the broker-tick sentence is still on screen:\n%s", s)
+	}
 	if strings.Contains(s, "PKR 1M or above orders") {
 		t.Errorf("the old PKR board floor is still on screen:\n%s", s)
+	}
+	if a.cfg.BigOrderQty != alertFloorShares || a.flow.cfg.MinShares != alertFloorShares {
+		t.Errorf("ALERTS LOG floor is %d/%d, want %d", a.cfg.BigOrderQty, a.flow.cfg.MinShares, alertFloorShares)
 	}
 }
 

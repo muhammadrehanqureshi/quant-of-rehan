@@ -422,6 +422,14 @@ func (a *App) statusNoteBase() string {
 	// 09:00. In that gap the market is shut while the quant is awake, so the
 	// note says exactly that and never calls the pre-market running early.
 	pk := a.karachiNow()
+	// Owner order 2026-11-16: the 09:30-09:32 order-matching gap is not the
+	// pre-market. The status names the exact open instead of calling the
+	// pre-market running through the gap.
+	if !isWeekend(pk) && !isFriday(pk) && !isPsxHoliday(pk) {
+		if sec := secondOf(pk); sec >= (9*60+30)*60 && sec < (9*60+32)*60 {
+			return "Market will be opened at 09:32."
+		}
+	}
 	if a.market != nil && a.market.TradingDay {
 		// The exchange's own pre-open starts at 09:15 Monday to Thursday and
 		// at 09:00 on Friday, which is the boundary the owner named.
@@ -437,9 +445,9 @@ func (a *App) statusNoteBase() string {
 	case qsOpen:
 		return "Market is open and the quant is online now."
 	case qsPre:
-		return "Pre-market is running and the quant is online now."
+		return "Pre-market session is on and the quant is online now."
 	case qsPost:
-		return "Post-market is running and the quant is online now."
+		return "Post-market session is on and the quant is online now."
 	case qsBreak:
 		return "Market is on a break. Quant is sleeping now."
 	case qsHalted:

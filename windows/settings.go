@@ -51,11 +51,17 @@ const (
 	cellShapeStep = 5
 )
 
+// alertFloorShares is the smallest one-second step the ALERTS LOG announces.
+// Owner order 2026-11-16: the boards list 50k and above, while the log and its
+// pop-ups start at 100k and above.
+const alertFloorShares int64 = 100_000
+
 // bigOrderChoices are the share thresholds the Settings screen steps through.
-var bigOrderChoices = []int64{50_000, 100_000, 250_000, 500_000, 1_000_000}
+// The 50k board floor is not an alert threshold, so the choices start at 100k.
+var bigOrderChoices = []int64{alertFloorShares, 250_000, 500_000, 1_000_000}
 
 func defaultSettings() Settings {
-	return Settings{Ver: settingsVer, Theme: 0, Notify: true, PollMS: 1000, BigBuy: true, Sound: true, BigOrderQty: 100_000, CellShape: defaultCellShape, BigSell: true}
+	return Settings{Ver: settingsVer, Theme: 0, Notify: true, PollMS: 1000, BigBuy: true, Sound: true, BigOrderQty: alertFloorShares, CellShape: defaultCellShape, BigSell: true}
 }
 
 func settingsPath() string {
@@ -90,8 +96,10 @@ func loadSettings(path string) Settings {
 		s.BigSell = true
 		s.CellShape = defaultCellShape
 	}
-	if s.BigOrderQty <= 0 {
-		s.BigOrderQty = 100_000
+	if s.BigOrderQty < alertFloorShares {
+		// A file written by build 115 may carry the 50k board floor as its
+		// alert threshold. The log never goes below the ordered 100k.
+		s.BigOrderQty = alertFloorShares
 	}
 	if s.CellShape == 0 {
 		s.CellShape = defaultCellShape
