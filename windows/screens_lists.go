@@ -393,7 +393,7 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 		// Owner order 2026-11-15: every sort uses one fixed set of B, S, U
 		// and T columns, at every window width. The old narrow fallback packed
 		// the values, so S, U and T started on different cells from row to row.
-		used := a.putBSTCols(c, ix+3, row, q.Buy, q.Sell, q.Volume, cols, volKey, pxKey)
+		used := a.putBSTCols(c, ix+3, row, q.Buy, q.Sell, q.Volume, cols, true, volKey, pxKey)
 		if q.Price > 0 {
 			const chgW = 8
 			// Owner order 2026-11-16: the current price, its percentage and
@@ -1252,14 +1252,9 @@ func (a *App) drawBoardPanel(c *Canvas, x, y, w, h int, side int) {
 	}
 	board := rows(200)
 	if len(board) == 0 {
-		// Owner order 2026-11-16: the broker-tick sentence is withdrawn; the
-		// heading above already names the quantity the board keeps.
-		msg := "Nothing is being traded in size right now."
-		for i, ln := range wrap(msg, iw) {
-			if i < ih {
-				c.Text(ix, iy+i, iw, ln, th.Soft, false)
-			}
-		}
+		// Owner order 2026-11-16: the empty sentence is withdrawn too. The
+		// heading above already names the quantity the board keeps, so an empty
+		// board stays empty.
 		return
 	}
 	lv.set(len(board), ih)

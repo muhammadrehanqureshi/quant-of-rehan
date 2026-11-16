@@ -5,9 +5,9 @@ import (
 	"testing"
 )
 
-// Owner order 2026-11-15: the KSE100 bar ends on the tile's last inner cell
-// and shares the percentage's row, with NET DELTA withdrawn.
-func TestKSE100BarEndsAtTheTilesInnerEdge(t *testing.T) {
+// Owner order 2026-11-16: the KSE100 price group, percentage and bar move one
+// cell left, leaving one clear cell before the tile's inner edge.
+func TestKSE100BarStopsOneCellBeforeTheInnerEdge(t *testing.T) {
 	a := busyApp(t, 158, 41, 3)
 	rows := rowsOf(a)
 	inside := false
@@ -34,11 +34,11 @@ func TestKSE100BarEndsAtTheTilesInnerEdge(t *testing.T) {
 		barEnd := runeLen(strings.TrimRight(row[:border], " "))
 		borderCell := runeLen(row[:border])
 		// barEnd is one past the last bar cell, and the border is two cells
-		// after the last inner cell, so a bar that fills that cell ends on
-		// borderCell-1.
-		if barEnd != borderCell-1 {
-			t.Errorf("the bar ends on cell %d, the tile's last inner cell ends on %d: %q",
-				barEnd-1, borderCell-2, row)
+		// after the last inner cell. One clear cell is left before the edge, so
+		// the bar ends on borderCell-2.
+		if barEnd != borderCell-2 {
+			t.Errorf("the bar ends on cell %d, want the cell before the tile's last inner cell %d: %q",
+				barEnd-1, borderCell-3, row)
 		}
 		found++
 	}

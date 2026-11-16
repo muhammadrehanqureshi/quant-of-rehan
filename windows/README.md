@@ -1,10 +1,11 @@
-# Quant of Rehan for Windows (console edition), build 118
+# Quant of Rehan for Windows (console edition), build 119
 
 A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.21**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
 
-## What is new in build 118
+## What is new in build 119
 
+* **Build 119 (version 3.7.4).** BIG BUYING NOW and BIG SELLING NOW leave an empty board empty, with no sentence under the heading. The KSE100 price, percentage and bar move one cell left, and every U value sits against its own `U=` label so the top row reads like the rows below it.
 * **Build 118 (version 3.7.3).** The FEED row no longer freezes when `/quotes` grows past 512 KB. The Windows client accepts a 4 MB answer and gives the full-market quote call fifteen seconds instead of four, so the feed keeps updating on a slow link. This is the fix for `STALE` showing while LINK and KSE100 are live.
 * **Build 117 (version 3.7.2).** QUANT STATUS reads `Market will be opened at 09:32.` through the 09:30-09:32 order-matching gap instead of calling the pre-market running, and the pre and post market sentences read `Pre-market session is on and the quant is online now.` and `Post-market session is on and the quant is online now.` The KSE100 footer names the pre or post market, says `DATA FROM THE BROKER'S FEED IS BEING SCANNED EVERY SECOND.` through pre, live and post, and keeps `LAST DATA FROM THE BROKER'S FEED.` for the shut hours and the weekend. BIG BUYING NOW and BIG SELLING NOW carry `QTY 50k and above` and drop the broker-tick sentence. The ALERTS LOG and its pop-ups start at 100k shares and above, and SETTINGS shows the BIG ORDER SIZE quantity alone with no `an order.`
 * **Build 116 (version 3.7.1).** The FEED light and the Telemetry FEED row follow the one second quotes feed, not the slower market and health calls. A failed metadata request can no longer paint a live feed as `STALE 47s`; the light keeps counting the real tick age, and a successful quotes answer clears the unreachable state at once. A failed quotes call retries on a four second ceiling instead of backing off for a minute, so one network blip cannot turn a live feed stale. A relay that is genuinely unreachable still reaches `STALE` when the quotes themselves stop, and `LINK` still says `UNREACHABLE` on its own row.
