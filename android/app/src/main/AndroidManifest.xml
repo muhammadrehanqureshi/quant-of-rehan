@@ -574,11 +574,17 @@
      2026-11-15: the SECTORS scroll stays hidden until its menu opens, so
      the closed face is tappable again; and the KSE100 leaders ask the ORDER
      FLOW split source for a missing B/S pair, so B, S and NET DELTA return.
+
+     versionCode 134 / versionName 4.4.1 belong to the owner's order of
+     2026-11-16: every dropdown and sector option is one uniform height and
+     centred; the first and last options no longer carry taller padding, the
+     menu's own edge air keeps the divider spacing, and the SECTORS window
+     measures that edge air so its top and bottom rows are never clipped.
      -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="pk.quantofrehan"
-    android:versionCode="133"
-    android:versionName="4.4.0">
+    android:versionCode="134"
+    android:versionName="4.4.1">
 
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="30"/>
 

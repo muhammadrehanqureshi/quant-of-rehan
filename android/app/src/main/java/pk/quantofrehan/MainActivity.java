@@ -1079,6 +1079,7 @@ public class MainActivity extends Activity {
         // The rebuilt menu owns its rows again, so its divider list
         // starts empty; one law with buildVolumeMenu's own rebuild.
         menuDividers.clear();
+        padMenu(themeMenu);
         for (int i = 0; i < THEME_LABELS.length; i++) {
             final int index = i;
             TextView row = menuRow(getString(THEME_LABELS[index]),
@@ -1537,6 +1538,7 @@ public class MainActivity extends Activity {
         // prices first) and then the console's four sorts in its own
         // order (owner order 2026-11-12); the index to ranking mapping
         // lives at rankedVolumeSymbols alone: row i is choice i + 1.
+        padMenu(volumeSplitMenu);
         volumeChoices = new String[]{
                 getString(R.string.volume_speed_caption),
                 getString(R.string.volume_split_caption),
@@ -2032,11 +2034,11 @@ public class MainActivity extends Activity {
         row.setTextSize(13f);
         row.setTextColor(themeBodyInk);
         row.setIncludeFontPadding(false);
-        row.setGravity(Gravity.CENTER_VERTICAL);
-        // v3.7.2 (owner order 2026-11-01): the caret is back at the
-        // trailing edge, so the wording returns to the closed box's own
-        // 10dp column. The row's right air is the caret's 14dp station.
-        row.setPadding(dp(10), dp(5), dp(14), dp(5));
+        // Owner order 2026-11-16: every dropdown and sector option is
+        // centred, horizontally and vertically. Equal side padding keeps
+        // the centre true while the caret keeps its trailing station.
+        row.setGravity(Gravity.CENTER);
+        row.setPadding(dp(14), dp(5), dp(14), dp(5));
         // Owner order 2026-11-15: every sub menu is 25 percent shorter
         // than the 43dp row it wore (43 * 0.75 = 32.25, floored to 32).
         // The vertical air follows the same cut, 7dp to 5dp.
@@ -2049,14 +2051,13 @@ public class MainActivity extends Activity {
      *  options (owner order 2026-10-31, "when I tap on the drop down
      *  menus, make sure you have a line between 2 separate sub menu
      *  options, the difference between the line and all the sub menus
-     *  should be exactly the same"). The line is ONE dp tall, its own
-     *  left air the row's own 10dp column and its right air the row's
-     *  14dp, so the line spans exactly the typing column the options
-     *  print in. Each row's own 7dp top/bottom padding meets the
-     *  line's own 7dp top/bottom air, so the distance above the line
-     *  and below it is the same 14dp, for EVERY pair of adjacent
-     *  options, in BOTH menus. The ink rides the theme's edge and is
-     *  re-inked by one theme pass (menuDividers).
+     *  should be exactly the same"). The line is ONE dp tall; its side
+     *  air matches the centred option row's own 14dp, so the line spans
+     *  exactly the column the options print in. Each row's own 5dp
+     *  top/bottom padding meets the line's own 5dp top/bottom air, so
+     *  the distance above the line and below it is the same 10dp, for
+     *  EVERY pair of adjacent options, in all three menus. The ink rides
+     *  the theme's edge and is re-inked by one theme pass (menuDividers).
      */
     private final List<View> menuDividers = new ArrayList<>();
 
@@ -2064,7 +2065,7 @@ public class MainActivity extends Activity {
         View line = new View(this);
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, dp(1));
-        params.setMargins(dp(10), dp(5), dp(14), dp(5));
+        params.setMargins(dp(14), dp(5), dp(14), dp(5));
         line.setLayoutParams(params);
         line.setBackgroundColor(edgeInk());
         menuDividers.add(line);
@@ -2081,23 +2082,20 @@ public class MainActivity extends Activity {
         }
     }
 
-    // Owner order 2026-10-31 (balance report, BOTH menus): the middle
-    // options were vertically balanced and the first and last were not.
-    // Measured: an interior row stands 14dp from the line above it and
-    // 14dp from the one below - its own 7dp air plus the line's own 7dp
-    // air, at each corner - while the first row stood only 7dp from the
-    // plate's top edge and the last only 7dp from the bottom, because an
-    // edge has no line to share the air with. The fix keeps EVERY
-    // option's same displacement (owner's words): the edge rows carry
-    // the whole 14dp themselves - top air 14 on the FIRST and bottom air
-    // 14 on the LAST - so the plate's edge takes the divider's place and
-    // every option's own text now floats at one and the same distance
-    // from its nearest line above and below, in BOTH menus.
+    // Owner order 2026-11-16: the first and last options no longer carry
+    // their own taller padding. The menu's top and bottom air carries the
+    // edge gap instead, so every option is one height and the top and
+    // bottom rows are never clipped or visibly taller than the middle.
     private TextView menuRow(String line, boolean first, boolean last) {
-        TextView row = menuRow(line);
-        row.setPadding(dp(10), first ? dp(10) : dp(5), dp(14),
-                last ? dp(10) : dp(5));
-        return row;
+        return menuRow(line);
+    }
+
+    /** One open menu's own top and bottom air: the edge rows read the same
+     *  distance as an interior row reads from its divider. */
+    private void padMenu(LinearLayout menu) {
+        if (menu != null) {
+            menu.setPadding(0, dp(5), 0, dp(5));
+        }
     }
 
     /**
@@ -3862,6 +3860,7 @@ public class MainActivity extends Activity {
             return;
         }
         sectorsMenu.removeAllViews();
+        padMenu(sectorsMenu);
         java.util.Map<String, Watcher.Quote> quotes = Watcher.quotes();
         java.util.Map<String, Double> performance = new java.util.HashMap<>();
         for (String name : sectorRows.keySet()) {
@@ -3897,9 +3896,6 @@ public class MainActivity extends Activity {
             // their number in sequence too, 1. to n.
             TextView row = menuRow(sectorMenuLabel(++number, name,
                     performance.get(name)));
-            // Owner order 2026-11-15: every sector sits in the centre of
-            // its own box, the first one included.
-            row.setGravity(Gravity.CENTER);
             row.setOnClickListener(v -> chooseSector(name));
             sectorsMenu.addView(row);
         }
@@ -3972,6 +3968,7 @@ public class MainActivity extends Activity {
         if (height <= 0) {
             height = dp(32) * Math.max(1, rows);
         }
+        height += sectorsMenu.getPaddingTop() + sectorsMenu.getPaddingBottom();
         ViewGroup.LayoutParams lp = sectorsScroll.getLayoutParams();
         if (lp != null && lp.height != height) {
             lp.height = height;

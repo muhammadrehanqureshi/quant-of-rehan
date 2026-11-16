@@ -1641,6 +1641,16 @@ to sixty seconds. The status tile therefore also carries the app's own
      the orphan law stands so every dot still wears a filament.
   5. The version bump is versionCode 82 / versionName 2.3.15.
 
+**Version 4.4.1, versionCode 134.**
+
+  Owner order 2026-11-16. Every dropdown and SECTORS option now carries one
+  uniform height and is centred horizontally and vertically. The first and last
+  options no longer take the taller 10dp edge padding that made them read
+  different from the middle rows; the menu's own 5dp top and bottom air keeps
+  the edge spacing, and the SECTORS window includes that air in its measured
+  height, so its top and bottom rows are never clipped. The version bump is
+  versionCode 134 / versionName 4.4.1.
+
 **Version 4.4.0, versionCode 133.**
 
   Owner order 2026-11-15. The SECTORS scroll view is hidden while the menu is
