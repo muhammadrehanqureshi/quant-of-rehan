@@ -230,7 +230,9 @@ func TestRelayEndpoints(t *testing.T) {
 // the large-print board, so it is larger than the old 512 KB ceiling. A valid
 // answer above that size must parse instead of freezing the FEED row.
 func TestQuotesLargerThanTheOldCeilingAreAccepted(t *testing.T) {
-	pad := strings.Repeat("a", 600<<10)
+	// Five megabytes is past the old four megabyte ceiling too, so a growing
+	// whole-market table cannot bring the frozen FEED back.
+	pad := strings.Repeat("a", 5<<20)
 	body := `{"ok": true, "pad": "` + pad + `", "quotes": [
 		{"symbol": "AAA", "price": 10.5, "fresh": true, "age_seconds": 7,
 		 "observed_at": "2026-11-16T11:10:00+05:00"}]}`
@@ -242,7 +244,7 @@ func TestQuotesLargerThanTheOldCeilingAreAccepted(t *testing.T) {
 	r := NewRelay(m.srv.URL)
 	q, err := r.FetchQuotes(context.Background())
 	if err != nil {
-		t.Fatalf("a 600 KB quotes answer was refused: %v", err)
+		t.Fatalf("a 5 MB quotes answer was refused: %v", err)
 	}
 	if lq, ok := q.Items["AAA"]; !ok || lq.AgeSeconds != 7 || !lq.Fresh {
 		t.Fatalf("quotes row did not survive: %+v", q.Items)

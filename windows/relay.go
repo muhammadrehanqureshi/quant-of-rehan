@@ -22,9 +22,10 @@ import (
 
 const (
 	defaultRelay = "https://quant-of-rehan-relay.mrmrehanqureshi.workers.dev"
-	// Owner order 2026-11-16: /quotes now carries the whole market and the
-	// day's large prints, so the old 512 KB ceiling rejected every live answer
-	// and froze the FEED row while the rest of the HUD stayed live.
+	// Owner order 2026-11-16: the old 512 KB ceiling rejected every live
+	// /quotes answer and froze the FEED row while the rest of the HUD stayed
+	// live. Four megabytes covers the other calls; /quotes gets its own, larger
+	// ceiling below so a growing market table cannot repeat that failure.
 	maxBody = 4 << 20
 	// The relay sits behind Cloudflare, whose browser integrity check refuses
 	// some default client strings (the project report records an HTTP 403 with
@@ -220,6 +221,10 @@ func (r *Relay) get(ctx context.Context, path string) (J, time.Duration, error) 
 // maxFlowBody is the size limit for /orderflow, which carries a row for every
 // KMIALL stock and the large print board.
 const maxFlowBody = 4 << 20
+
+// maxQuotesBody is deliberately four times the whole-market quote answer. A
+// table that keeps growing must never cross a ceiling and freeze the FEED.
+const maxQuotesBody = 16 << 20
 
 var errFlowNotOK = errors.New("the relay's order flow answer did not say ok")
 
@@ -506,7 +511,7 @@ func ParseQuotes(o J) *Quotes {
 }
 
 func (r *Relay) FetchQuotes(ctx context.Context) (*Quotes, error) {
-	o, _, err := r.get(ctx, "/quotes")
+	o, _, err := r.getLimit(ctx, "/quotes", maxQuotesBody)
 	if err != nil {
 		return nil, err
 	}

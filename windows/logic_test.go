@@ -569,8 +569,9 @@ func TestEverySecondInTheScanWindow(t *testing.T) {
 			}
 		}
 	}
-	// A holiday the relay knows about stays slow even inside the window.
-	a.now = time.Date(2026, 11, 2, 11, 0, 0, 0, pkt)
+	// A holiday stays slow even inside the window. The clock and the holiday
+	// law decide, not a metadata flag on an ordinary Monday.
+	a.now = time.Date(2026, 11, 9, 11, 0, 0, 0, pkt)
 	a.market = marketIn("CLOSED")
 	a.market.TradingDay = false
 	if got := a.interval("quotes"); got != 30*time.Second {
@@ -596,12 +597,12 @@ func TestAdaptivePolling(t *testing.T) {
 		t.Errorf("1 failure: %v", got)
 	}
 	a.fails["quotes"] = 1
-	if got := a.interval("quotes"); got != 4*time.Second {
+	if got := a.interval("quotes"); got != time.Second {
 		t.Errorf("1 failure: %v", got)
 	}
 	a.fails["quotes"] = 40
-	if got := a.interval("quotes"); got != 4*time.Second {
-		t.Errorf("many failures: %v, want the quotes retry ceiling", got)
+	if got := a.interval("quotes"); got != time.Second {
+		t.Errorf("many failures: %v, want the one second quotes retry", got)
 	}
 	// A slower poll setting is respected, and the signals pace follows it.
 	a.fails = map[string]int{}

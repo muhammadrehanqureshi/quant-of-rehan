@@ -1,10 +1,11 @@
-# Quant of Rehan for Windows (console edition), build 119
+# Quant of Rehan for Windows (console edition), build 120
 
 A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.21**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
 
-## What is new in build 119
+## What is new in build 120
 
+* **Build 120 (version 3.7.5).** The scan follows the Karachi session clock, so pre-market, live and post-market scanning cannot be switched off by a stale or wrong metadata answer. The quote feed has a watchdog: an old answer or a hung request sends the next `/quotes` ask at once, clears the failure backoff, and retries a failed answer after one second while scanning. A software stall can no longer leave FEED frozen while LINK and KSE100 stay live.
 * **Build 119 (version 3.7.4).** BIG BUYING NOW and BIG SELLING NOW leave an empty board empty, with no sentence under the heading. The KSE100 price, percentage and bar move one cell left, and every U value sits against its own `U=` label so the top row reads like the rows below it.
 * **Build 118 (version 3.7.3).** The FEED row no longer freezes when `/quotes` grows past 512 KB. The Windows client accepts a 4 MB answer and gives the full-market quote call fifteen seconds instead of four, so the feed keeps updating on a slow link. This is the fix for `STALE` showing while LINK and KSE100 are live.
 * **Build 117 (version 3.7.2).** QUANT STATUS reads `Market will be opened at 09:32.` through the 09:30-09:32 order-matching gap instead of calling the pre-market running, and the pre and post market sentences read `Pre-market session is on and the quant is online now.` and `Post-market session is on and the quant is online now.` The KSE100 footer names the pre or post market, says `DATA FROM THE BROKER'S FEED IS BEING SCANNED EVERY SECOND.` through pre, live and post, and keeps `LAST DATA FROM THE BROKER'S FEED.` for the shut hours and the weekend. BIG BUYING NOW and BIG SELLING NOW carry `QTY 50k and above` and drop the broker-tick sentence. The ALERTS LOG and its pop-ups start at 100k shares and above, and SETTINGS shows the BIG ORDER SIZE quantity alone with no `an order.`

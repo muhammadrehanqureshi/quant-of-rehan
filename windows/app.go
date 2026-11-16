@@ -574,22 +574,29 @@ func (a *App) matches() []string {
 // ---------- polling ----------
 
 // scanning says whether the app should be reading the feed every second now:
-// from 08:55 until the post-market closes, on a trading day. The relay's own
-// phase wins while it says the market is trading or on a break, and a day the
-// relay calls a non-trading day (a holiday) is never scanned, so it cannot
-// burn the daily request quota.
+// from 08:55 until the post-market closes, on a trading day. The Karachi clock
+// and the holiday law decide, so a stale or wrong relay flag cannot stop the
+// scan during pre-market, live or post-market. The relay's own phase can only
+// extend the scan while it reports trading or a break.
 func (a *App) scanning() bool {
 	if a.demo {
 		return true
 	}
-	if a.market != nil && a.market.PhaseKnown() && !a.market.TradingDay {
+	// Owner order 2026-11-16: the Karachi session clock is the authority. A bad
+	// or stale metadata answer can no longer switch a live scan off while the
+	// clock says pre-market, trading or post-market.
+	p := a.karachiNow().In(pkt)
+	if isWeekend(p) || isPsxHoliday(p) {
 		return false
+	}
+	if inScanWindow(p) {
+		return true
 	}
 	switch a.phase() {
 	case "OPEN", "WARMUP", "BREAK":
 		return true
 	}
-	return inScanWindow(a.karachiNow())
+	return false
 }
 
 // trading says whether trades can be happening, which is when the big buying
@@ -689,11 +696,11 @@ func (a *App) interval(name string) time.Duration {
 			d = b
 		}
 	}
-	// Owner order 2026-11-16: the quotes feed retries four seconds after an
-	// answer, not a minute, so a slow full-market answer cannot turn a live feed
-	// stale. Other calls keep their longer backoff.
-	if name == "quotes" && scan && d > 4*time.Second {
-		d = 4 * time.Second
+	// Owner order 2026-11-16: the quotes feed retries one second after a failed
+	// answer, not a minute. A live feed never waits out a backoff. Other calls
+	// keep their longer backoff.
+	if name == "quotes" && scan && d > time.Second {
+		d = time.Second
 	}
 	return d
 }
@@ -1047,6 +1054,35 @@ func (a *App) save() {
 	a.lastSave = a.now
 }
 
+// quoteWatchdogAfter is how old the newest quote answer may be before the
+// watchdog asks again immediately.
+const quoteWatchdogAfter = 5 * time.Second
+
+// quoteRequestCeiling is the longest a quotes request may stay in flight before
+// the watchdog frees the slot. It is above the fifteen second request timeout.
+const quoteRequestCeiling = 20 * time.Second
+
+// watchQuotes keeps the one second feed moving through pre-market, live and
+// post-market. It never waits for a later clock time; it only clears a stuck
+// request or a backoff and lets onTick send the next ask now.
+func (a *App) watchQuotes(now time.Time) {
+	if !a.scanning() {
+		return
+	}
+	if a.inflight["quotes"] {
+		if sent, ok := a.sentAt["quotes"]; ok && now.Sub(sent) > quoteRequestCeiling {
+			a.inflight["quotes"] = false
+			a.fails["quotes"] = 0
+			a.next["quotes"] = time.Time{}
+		}
+		return
+	}
+	if a.quotes == nil || a.quotes.FetchedAt.IsZero() || now.Sub(a.quotes.FetchedAt) > quoteWatchdogAfter {
+		a.fails["quotes"] = 0
+		a.next["quotes"] = time.Time{}
+	}
+}
+
 func (a *App) onTick(now time.Time) {
 	a.now = now
 	a.syncReqCount()
@@ -1063,6 +1099,11 @@ func (a *App) onTick(now time.Time) {
 	// the stored session carries the whole table and not just the card.
 	// The order flow is read on every screen too, so the saved session carries
 	// the ORDER FLOW table and not only the card and the scanner.
+	// Owner order 2026-11-16: the quote feed has its own watchdog while the
+	// session is running. If the last answer is old, or a request has hung,
+	// the next one goes out at once with the failure backoff cleared, so the
+	// FEED can never stay frozen behind a metadata or network hiccup.
+	a.watchQuotes(now)
 	names := []string{"market", "health", "signals", "quotes", "prices", "sectors", "orderflow"}
 	for _, n := range names {
 		if !a.inflight[n] && !now.Before(a.next[n]) {
