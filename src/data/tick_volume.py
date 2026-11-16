@@ -393,15 +393,21 @@ def session_flow(path: Path,
             # then attributes every share from the open.
             flow.pre_tape_volume = int(total)
             flow.unclassified_volume += int(total)
-            flow.observed_total = int(total)
+            flow.observed_total = max(flow.observed_total, int(total))
             previous_row[symbol] = tick
             continue
         previous_total = _num(previous.get("volume"))
-        flow.observed_total = int(total)
         if previous_total is None:
+            flow.observed_total = max(flow.observed_total, int(total))
             previous_row[symbol] = tick
             continue
-        delta = int(total) - int(previous_total)
+        # The day's running total may never fall (owner order 2026-11-16).
+        # Measure the next window from the highest total already observed,
+        # not from a backwards row, so a bad print cannot make the tape
+        # under-count the shares that follow it.
+        high_total = max(int(previous_total), flow.observed_total)
+        flow.observed_total = max(flow.observed_total, int(total))
+        delta = int(total) - high_total
         if delta > 0:
             flow.windows += 1
             gap = _window_gap(tick, previous)

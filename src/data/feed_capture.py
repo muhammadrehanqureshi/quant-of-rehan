@@ -485,11 +485,12 @@ class RelayQuotePublisher:
         self._seeded_symbols: set[str] = set()
         self._seed_required = session_has_opened(now_karachi())
         self._seed_failed = False
-        # Owner order 2026-11-10 (latest): the pair published for a symbol can
-        # only grow. B and S are cumulative for the session, so a row carrying
-        # less than one already sent is a restart or a re-baseline, never a
-        # sale, and this publisher will not put it on the wire.
-        self._high_pair: dict[str, tuple[int, int, str]] = {}
+        # Owner order 2026-11-16 (latest): BUYING, SELLING, UNCLEAR and TOTAL
+        # are cumulative for the Karachi trading day and none of the four may
+        # ever fall. A row carrying less than one already sent is a restart or
+        # a re-baseline, never a sale, and this publisher will not put it on
+        # the wire. The tuple is (buy, sell, unclear, total, day).
+        self._high_volume: dict[str, tuple[int, int, int, int, str]] = {}
         self._thread: threading.Thread | None = None
 
         # The owner's PC is never a publisher. Only a cloud session runner
@@ -584,18 +585,16 @@ class RelayQuotePublisher:
         return 0 if answered else -1
 
     def _hold_monotone(self, quote: dict) -> bool:
-        """Refuse to publish a side lower than one already sent today.
+        """Refuse any row that lowers B, S, U or T today.
 
-        Owner order 2026-11-10 (latest): the capture is strict, and buying and
-        selling volumes may never fall on the HUD. The venue's counter is
+        Owner order 2026-11-16: the capture is strict. The venue's counter is
         cumulative and every increment is sided once (src/data/quote_flow.py),
-        so B and S can only grow inside a session. A band restart, a seed the
-        relay could not answer, or a symbol's own re-baseline can still leave a
-        row standing below a pair already published; that row is what the owner
-        saw as a stock's buying and selling numbers going backwards. The floor
-        here is the highest pair sent for the symbol today, and a row whose own
-        total cannot hold that floor is not published at all, so the last
-        honest pair stands.
+        so BUYING, SELLING, UNCLEAR and TOTAL can only grow inside a Karachi
+        trading day. A band restart, a seed the relay could not answer, or a
+        symbol's own re-baseline can still leave a row standing below volumes
+        already published. The floor here is that day's highest (B, S, U, T);
+        if any of the four is lower, the whole row is not published, so the
+        last honest frame stands and no component ever goes backwards.
         """
         symbol = str(quote.get("symbol") or "").strip().upper()
         if not symbol:
@@ -609,19 +608,18 @@ class RelayQuotePublisher:
             volume = int(quote.get("volume") or 0)
         except (TypeError, ValueError):
             return False
-        high = self._high_pair.get(symbol)
-        if high and high[2] == day and (buy < high[0] or sell < high[1]):
-            if volume < high[0] + high[1]:
-                return False
-            buy, sell = max(buy, high[0]), max(sell, high[1])
-            quote["buy_volume"] = buy
-            quote["sell_volume"] = sell
-            quote["split_volume"] = buy + sell
-            quote["measured_buy"] = buy
-            quote["measured_sell"] = sell
-            quote["flow_baseline"] = max(0, volume - buy - sell)
-            quote["flow_baseline_reason"] = "monotone_floor"
-        self._high_pair[symbol] = (buy, sell, day)
+        if buy < 0 or sell < 0 or volume < 0 or buy + sell > volume:
+            return False
+        unclear = volume - buy - sell
+        # The unclear remainder is always carried explicitly, including when
+        # it is zero, so every captured frame states all four numbers.
+        quote["unclassified_volume"] = unclear
+        high = self._high_volume.get(symbol)
+        if high and high[4] == day and (
+                buy < high[0] or sell < high[1] or
+                unclear < high[2] or volume < high[3]):
+            return False
+        self._high_volume[symbol] = (buy, sell, unclear, volume, day)
         return True
 
     def observe(self, record: dict) -> None:

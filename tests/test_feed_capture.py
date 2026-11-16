@@ -63,6 +63,33 @@ class PublisherRetryCapTest(unittest.TestCase):
         self.assertIn("session.post(", source)
 
 
+class CaptureMonotoneVolumeTest(unittest.TestCase):
+    """Owner order 2026-11-16: B, S, U and T can only ever increase."""
+
+    def setUp(self):
+        self.publisher = feed_capture.RelayQuotePublisher.__new__(
+            feed_capture.RelayQuotePublisher)
+        self.publisher._high_volume = {}
+
+    def quote(self, buy, sell, volume):
+        return {"symbol": "KEL", "observed_at": "2026-11-16T10:00:00+05:00",
+                "buy_volume": buy, "sell_volume": sell, "volume": volume}
+
+    def test_all_four_volumes_must_stay_at_or_above_the_day_high(self):
+        first = self.quote(100, 100, 250)
+        self.assertTrue(self.publisher._hold_monotone(first))
+        self.assertEqual(first["unclassified_volume"], 50)
+
+        # B and S grow but U falls from 50 to 20: refused whole.
+        self.assertFalse(self.publisher._hold_monotone(self.quote(120, 120, 260)))
+        # T falls: refused whole.
+        self.assertFalse(self.publisher._hold_monotone(self.quote(100, 100, 249)))
+        # Every component grows (or holds), so the row is published.
+        grown = self.quote(130, 130, 310)
+        self.assertTrue(self.publisher._hold_monotone(grown))
+        self.assertEqual(grown["unclassified_volume"], 50)
+
+
 class CaptureFlowSeedTest(unittest.TestCase):
     """Owner order 2026-11-05: a restarted capture continues the day.
 

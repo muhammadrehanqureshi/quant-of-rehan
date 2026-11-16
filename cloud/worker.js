@@ -1083,6 +1083,10 @@ function regularBandIndexOf(quote) {
 // print to the last post-close print, and no pre-open or post-close
 // volume can fall into the next frame's unclassified baseline. A tail
 // after the post-close window is still refused.
+// Owner order 2026-11-16, hardcoded and mirrored from src/data/sessions.py:
+// Monday to Thursday the pre-market is STRICTLY 09:15-09:30, the live market
+// is 09:32-15:30, and the complete post-market scan is 15:32-15:49. The two
+// two-minute gaps are closed, and Friday's windows below are separate.
 const PRE_OPEN_WINDOWS = {
   1: [[9 * 60 + 15, 9 * 60 + 30]],
   2: [[9 * 60 + 15, 9 * 60 + 30]],
@@ -1165,37 +1169,101 @@ const ACK_SYMBOL_RE = /^[A-Z0-9]{1,12}$/;
 // once per live symbol per 30 seconds; a newer live frame still wins on the
 // reading side, so the phone does not open with a stale card or search row.
 
+// Owner order 2026-11-16: BUYING, SELLING, UNCLEAR and TOTAL are all
+// cumulative for the Karachi trading day, and none of the four may ever
+// decrease. This helper is the one arithmetic for that law. A row may carry
+// no measured pair (the total is then entirely unclear); in that case the
+// previous pair is carried forward and every new share is added to U. If a
+// measured pair would reclassify old unclear shares, the B/S increase is
+// capped so U's own floor stands. The result always satisfies
+// buy + sell + unclassified === volume.
+function clampVolumes(volume, buy, sell, previous) {
+  const total = Math.round(Number(volume));
+  if (!Number.isFinite(total) || total < 0) return null;
+  const hasPair = Number.isFinite(Number(buy)) && Number.isFinite(Number(sell));
+  let candidateBuy = hasPair ? Math.round(Number(buy)) : null;
+  let candidateSell = hasPair ? Math.round(Number(sell)) : null;
+  if (hasPair && (candidateBuy < 0 || candidateSell < 0 ||
+      candidateBuy + candidateSell > total)) {
+    return null;
+  }
+  if (!previous) {
+    const finalBuy = hasPair ? candidateBuy : null;
+    const finalSell = hasPair ? candidateSell : null;
+    return {
+      volume: total,
+      buy: finalBuy,
+      sell: finalSell,
+      unclassified: total - (finalBuy || 0) - (finalSell || 0),
+    };
+  }
+  const prevVolume = Math.round(Number(previous.volume));
+  if (!Number.isFinite(prevVolume) || prevVolume < 0) return null;
+  const prevSplit = splitFromQuote(previous);
+  const prevBuy = prevSplit ? Math.round(Number(prevSplit.buy_volume)) : 0;
+  const prevSell = prevSplit ? Math.round(Number(prevSplit.sell_volume)) : 0;
+  if (!Number.isFinite(prevBuy) || !Number.isFinite(prevSell) ||
+      prevBuy < 0 || prevSell < 0 || prevBuy + prevSell > prevVolume) {
+    return null;
+  }
+  const prevUnclassified = Math.max(0, prevVolume - prevBuy - prevSell);
+  if (total < prevVolume) {
+    return {
+      volume: prevVolume,
+      buy: prevSplit ? prevBuy : null,
+      sell: prevSplit ? prevSell : null,
+      unclassified: prevUnclassified,
+    };
+  }
+  if (!hasPair) {
+    return {
+      volume: total,
+      buy: prevSplit ? prevBuy : null,
+      sell: prevSplit ? prevSell : null,
+      unclassified: total - prevBuy - prevSell,
+    };
+  }
+  // B and S keep their own floors, and together they may claim only the
+  // volume above U's floor. Extra B/S growth beyond that is old unclear
+  // volume being re-labelled, which the owner's law forbids, so it is
+  // scaled back to the new-room budget (the side shares stay as close to
+  // the candidate as the law allows).
+  const room = Math.max(0, total - prevUnclassified);
+  let extraBuy = Math.max(0, candidateBuy - prevBuy);
+  let extraSell = Math.max(0, candidateSell - prevSell);
+  const capacity = Math.max(0, room - prevBuy - prevSell);
+  if (extraBuy + extraSell > capacity) {
+    if (capacity <= 0) {
+      extraBuy = 0;
+      extraSell = 0;
+    } else {
+      extraBuy = Math.floor(extraBuy * capacity / (extraBuy + extraSell));
+      extraSell = capacity - extraBuy;
+    }
+  }
+  const finalBuy = prevBuy + extraBuy;
+  const finalSell = prevSell + extraSell;
+  if (finalBuy + finalSell > total) return null;
+  return {
+    volume: total,
+    buy: finalBuy,
+    sell: finalSell,
+    unclassified: total - finalBuy - finalSell,
+  };
+}
+
 function clampPair(candidate, previous) {
   const volume = Math.round(candidate.volume);
   if (!Number.isFinite(volume) || volume <= 0) return null;
-  let buy = Math.round(candidate.buy_volume);
-  let sell = Math.round(candidate.sell_volume);
+  const buy = Math.round(candidate.buy_volume);
+  const sell = Math.round(candidate.sell_volume);
   if (!Number.isFinite(buy) || !Number.isFinite(sell) ||
       buy < 0 || sell < 0 || buy + sell !== volume) {
     return null;
   }
-  if (previous) {
-    // Owner order 2026-11-10 (latest): a total below the stored one is not
-    // a new print. An older frame or a restarted capture can stand a symbol
-    // lower than what is already acknowledged, and following that total
-    // down would carry B and S down with it (volume - previous.sell_volume
-    // falls below previous.buy_volume, so the floor cap would print a
-    // decrease). The acknowledged pair stands instead.
-    const prevVolume = Math.round(Number(previous.volume));
-    const prevBuy = Math.round(Number(previous.buy_volume));
-    const prevSell = Math.round(Number(previous.sell_volume));
-    if (Number.isFinite(prevVolume) && Number.isFinite(prevBuy) &&
-        Number.isFinite(prevSell) && volume < prevVolume) {
-      return { buy: prevBuy, sell: prevSell, volume: prevVolume };
-    }
-    // Monotone law: B can only stand at or above its own floor, S can
-    // only stand at or above its own floor, and the two must still sum
-    // to the row's total. buy is bounded by [prevBuy, volume - prevSell].
-    buy = Math.min(Math.max(buy, previous.buy_volume),
-      volume - previous.sell_volume);
-    sell = volume - buy;
-  }
-  return { buy, sell, volume };
+  const clamped = clampVolumes(volume, buy, sell, previous);
+  if (!clamped || clamped.buy === null || clamped.sell === null) return null;
+  return { buy: clamped.buy, sell: clamped.sell, volume: clamped.volume };
 }
 
 function ackCandidateFrame(row, day) {
@@ -4831,27 +4899,42 @@ export class QuoteHub {
         // print can extend a day's last bar (SO-3).
         this.accumulateBar(quote);
         const split = splitFromQuote(quote);
-        if (split) {
-          let pair = { volume: split.split_volume,
-                       buy_volume: split.buy_volume,
-                       sell_volume: split.sell_volume };
-          const previous = old ? splitFromQuote(old) : null;
-          if (previous && oldKey && newKey &&
-              oldKey.day === newKey.day) {
-            const clamped = clampPair(pair, previous);
-            if (clamped) {
-              pair = { volume: clamped.volume, buy_volume: clamped.buy,
-                       sell_volume: clamped.sell };
-            }
+        let pair = split ? { buy_volume: split.buy_volume,
+                             sell_volume: split.sell_volume,
+                             source: split.split_source } : null;
+        // Owner order 2026-11-16: B, S, U and T may never decrease inside
+        // one Karachi day. A newer frame whose total fell is already refused
+        // above; here the pair and the unclear remainder get their floors.
+        // When the new frame has no measured pair, the previous pair stands
+        // and all new volume is unclear instead of B/S disappearing.
+        if (old && oldKey && newKey && oldKey.day === newKey.day) {
+          const clamped = clampVolumes(
+            quote.volume,
+            pair ? pair.buy_volume : null,
+            pair ? pair.sell_volume : null,
+            old,
+          );
+          if (!clamped) continue;
+          quote.volume = clamped.volume;
+          if (clamped.buy !== null && clamped.sell !== null) {
+            pair = { buy_volume: clamped.buy,
+                     sell_volume: clamped.sell,
+                     source: pair ? pair.source :
+                       "the previous measured pair stands; new volume is unclassified" };
+            quote.measured_buy = clamped.buy;
+            quote.measured_sell = clamped.sell;
+            quote.flow_baseline = clamped.unclassified;
+            quote.flow_method = "quote_rule";
+          } else {
+            pair = null;
           }
-          // splitFromQuote returns only a measured pair. An old range row
-          // never reaches this branch, so the declared method is always the
-          // wire measurement rather than an estimate.
+        }
+        if (pair) {
           quote.buy_volume = pair.buy_volume;
           quote.sell_volume = pair.sell_volume;
-          quote.split_volume = pair.volume;
+          quote.split_volume = pair.buy_volume + pair.sell_volume;
           quote.split_method = "quote_rule";
-          quote.split_source = split.split_source || quote.split_source ||
+          quote.split_source = pair.source || quote.split_source ||
             "every volume increment sided by the wire's own bid/ask at the poll";
         } else {
           quote.buy_volume = null;
@@ -4861,6 +4944,8 @@ export class QuoteHub {
           quote.split_source =
             "no measured order-flow pair; the total is unclassified";
         }
+        quote.unclassified_volume = Math.max(0, Math.round(Number(quote.volume))
+          - (quote.buy_volume || 0) - (quote.sell_volume || 0));
         quotes.set(quote.symbol, quote);
       }
       // The broker's own KSE100 frame is a chart symbol too. It rides the same

@@ -364,13 +364,13 @@ class RelayWorkerContractTest(unittest.TestCase):
         probe_at = self.source.find('url.pathname === "/update"')
         self.assertGreaterEqual(
             probe_at, 0, "the durable object's POST /update route is gone")
-        update_route = self.source[probe_at:probe_at + 11000]
+        update_route = self.source[probe_at:probe_at + 16000]
         self.assertIn("frameIsTradingSession(quote)", update_route,
                       f"the /update anchor sits at {probe_at}; the store law "
-                      f"is not inside the route's own first 11000 characters")
+                      f"is not inside the route's own first 16000 characters")
         self.assertIn("refused_outside_session", update_route,
                       f"the /update anchor sits at {probe_at}; the refusal "
-                      f"count is not inside the route's own first 11000 chars")
+                      f"count is not inside the route's own first 16000 chars")
         # The acknowledged store lives in the durable object.
         hub = self.source[self.source.index("export class QuoteHub"):]  # the class to the end of the file
         self.assertIn("/ack-upsert", hub)
@@ -504,26 +504,31 @@ class RelayWorkerContractTest(unittest.TestCase):
         self.assertIn("this.ackRowsBySymbol = ackRows", splits)
 
     def test_the_acknowledged_pair_can_only_move_forward(self):
-        """Owner order 2026-10-31: volume decreases are impossible prints.
+        """Owner order 2026-11-16: B, S, U and T never move backwards.
 
-        The clamp's arithmetic is pinned: buy stays at or above its own
-        previous value and below the volume minus the previous sell, so
-        BOTH sides are monotone while their sum stays exactly the row's
-        own total.
+        The clamp's arithmetic is pinned: the previous total is the floor;
+        buy and sell keep their own floors; the unclear remainder keeps its
+        own floor, so B/S growth may only claim genuinely new volume. The
+        row still sums to its own total.
         """
-        clamp_at = self.source.find("function clampPair(candidate")
+        clamp_at = self.source.find("function clampVolumes(volume, buy, sell, previous)")
         self.assertGreaterEqual(
-            clamp_at, 0, "the acknowledged pair's clamp function is gone")
-        clamp = self.source[clamp_at:clamp_at + 2000]
-        self.assertIn("Math.max(buy, previous.buy_volume)", clamp,
-                      f"the clamp anchor sits at {clamp_at}; its monotone "
-                      f"buy floor is not inside its own first 2000 characters")
-        self.assertIn("volume - previous.sell_volume", clamp,
-                      f"the clamp anchor sits at {clamp_at}; its monotone "
-                      f"sell ceiling is not inside its own first 2000 chars")
-        self.assertIn("sell = volume - buy", clamp,
+            clamp_at, 0, "the acknowledged volume clamp function is gone")
+        clamp = self.source[clamp_at:clamp_at + 5000]
+        self.assertIn("const prevUnclassified = Math.max(0, prevVolume - prevBuy - prevSell)",
+                      clamp,
+                      f"the clamp anchor sits at {clamp_at}; its unclear floor "
+                      f"is not inside its own first 5000 characters")
+        self.assertIn("if (total < prevVolume)", clamp,
+                      f"the clamp anchor sits at {clamp_at}; its total floor "
+                      f"is not inside its own first 5000 characters")
+        self.assertIn("total - finalBuy - finalSell", clamp,
                       f"the clamp anchor sits at {clamp_at}; its own sum "
-                      f"law is not inside its first 2000 characters")
+                      f"law is not inside its first 5000 characters")
+        pair_at = self.source.find("function clampPair(candidate")
+        pair = self.source[pair_at:pair_at + 1200]
+        self.assertIn("clampVolumes(volume, buy, sell, previous)", pair,
+                      "the ACK pair bypasses the four-field monotone law")
         # An older total never moves the acknowledged row backwards.
         hub = self.source[self.source.index("export class QuoteHub"):]  # the class to the end of the file
         self.assertIn(
@@ -542,7 +547,8 @@ class RelayWorkerContractTest(unittest.TestCase):
         self.assertIn("oldKey.day === newKey.day", update)
         self.assertNotIn("oldKey.band", update)
         self.assertIn("splitFromQuote(quote)", update)
-        self.assertIn("clampPair(pair, previous)", update)
+        self.assertIn("clampVolumes(", update)
+        self.assertIn("quote.unclassified_volume = Math.max(0", update)
         self.assertIn('"cache-control": "no-store"', self.source)
 
     def test_the_write_budget_is_pinned_not_silent(self):
