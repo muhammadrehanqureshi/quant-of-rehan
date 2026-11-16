@@ -597,12 +597,12 @@ func TestAdaptivePolling(t *testing.T) {
 		t.Errorf("1 failure: %v", got)
 	}
 	a.fails["quotes"] = 1
-	if got := a.interval("quotes"); got != 4*time.Second {
+	if got := a.interval("quotes"); got != time.Second {
 		t.Errorf("1 failure: %v", got)
 	}
 	a.fails["quotes"] = 40
-	if got := a.interval("quotes"); got != 4*time.Second {
-		t.Errorf("many failures: %v, want the quotes retry ceiling", got)
+	if got := a.interval("quotes"); got != time.Second {
+		t.Errorf("many failures: %v, want the one second quotes retry", got)
 	}
 	// A slower poll setting is respected, and the signals pace follows it.
 	a.fails = map[string]int{}
