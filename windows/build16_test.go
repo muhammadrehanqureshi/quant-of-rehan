@@ -83,7 +83,6 @@ func TestKSE100ColumnsAreTight(t *testing.T) {
 	a := busyApp(t, 158, 41, 3)
 	uToT := regexp.MustCompile(`U=\s*([\d,]+)( +)& T=`)
 	inside := false
-	totAt := -1
 	priced := 0
 	for _, row := range rowsOf(a) {
 		switch {
@@ -97,14 +96,8 @@ func TestKSE100ColumnsAreTight(t *testing.T) {
 			continue
 		}
 		if m := uToT.FindStringSubmatch(row); m != nil {
-			if len(m[2]) > 8 {
-				t.Errorf("U=%s leaves %d cells before & T=: %q", m[1], len(m[2]), row)
-			}
-			at := strings.Index(row, "& T=")
-			if totAt < 0 {
-				totAt = at
-			} else if at != totAt {
-				t.Errorf("& T= starts at %d, the first at %d: %q", at, totAt, row)
+			if len(m[2]) != 2 {
+				t.Errorf("U=%s leaves %d cells before & T=, want 2: %q", m[1], len(m[2]), row)
 			}
 		}
 		pkr := strings.Index(row, "PKR ")

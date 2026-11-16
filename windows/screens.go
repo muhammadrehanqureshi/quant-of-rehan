@@ -564,8 +564,8 @@ func (a *App) drawLeft(c *Canvas, x, y, w, h int) {
 	if buy+sell+unclear > 0 || a.cfg.BigBuy || a.cfg.BigSell {
 		label(8, "FLOW", []Span{
 			{"B=", th.Good, true}, {compactNum(float64(buy)), th.Text, false},
-			{", S=", th.Bad, true}, {compactNum(float64(sell)), th.Text, false},
-			{" & U=", th.Warn, true}, {compactNum(float64(unclear)), th.Text, false},
+							{",  S=", th.Bad, true}, {compactNum(float64(sell)), th.Text, false},
+				{"  & U=", th.Warn, true}, {compactNum(float64(unclear)), th.Text, false},
 		})
 	} else {
 		label(8, "FLOW", []Span{{"OFF", th.Bad, true}})
@@ -996,7 +996,7 @@ func (a *App) marketNote() string {
 	return "Quant is sleeping till the next market day."
 }
 
-// putBST draws "B=1,234, S=5,678, U=12 & T=6,912" at (x, y) the way every list on the
+// putBST draws "B=1,234,  S=5,678,  U=12  & T=6,912" at (x, y) the way every list on the
 // screen words it, with the live flash on each number. A part that is missing
 // is left out. It returns the width drawn.
 func (a *App) putBST(c *Canvas, x, y int, buy, sell, total *int64, keys ...string) int {
@@ -1008,7 +1008,7 @@ func (a *App) putBST(c *Canvas, x, y int, buy, sell, total *int64, keys ...strin
 	if buy != nil && sell != nil {
 		put("B=", th.Soft, false)
 		put(commaInt(*buy), th.Good, true)
-		put(", S=", th.Soft, false)
+		put(",  S=", th.Soft, false)
 		put(commaInt(*sell), th.Bad, true)
 		if total != nil {
 			// Owner order 2026-11-10: U is on every B and S line, so B + S + U
@@ -1018,9 +1018,9 @@ func (a *App) putBST(c *Canvas, x, y int, buy, sell, total *int64, keys ...strin
 			if un < 0 {
 				un = 0
 			}
-			put(", U=", th.Soft, false)
+			put(",  U=", th.Soft, false)
 			put(commaInt(un), th.Warn, un > 0)
-			put(" & T=", th.Soft, false)
+			put("  & T=", th.Soft, false)
 			put(commaInt(*total), totalBlue, false)
 		}
 	} else if total != nil {
@@ -1079,22 +1079,23 @@ func bstLeaderCols(leaders []Leader) bstCols {
 // writes nothing, so the tile can set one price column for all three rows
 // before it paints the first of them.
 func leaderBSTWidth(l Leader, cols bstCols, wide bool) int {
-	if wide && l.HasSplit() && l.HasVolume() {
-		return cols.tot + 4 + cols.wid
-	}
+	// Owner order 2026-11-16: every pair of values is separated by the same
+	// two cell gutter, so the row is measured from its own digits, not from a
+	// fixed column table with blanks in it.
+	_ = cols
 	if !l.HasSplit() {
 		if l.HasVolume() {
 			return 2 + runeLen(commaInt(*l.Volume))
 		}
 		return 0
 	}
-	w := 2 + runeLen(commaInt(*l.Buy)) + 3 + runeLen(commaInt(*l.Sell))
+	w := 2 + runeLen(commaInt(*l.Buy)) + 5 + runeLen(commaInt(*l.Sell))
 	if l.HasVolume() {
 		un := *l.Volume - *l.Buy - *l.Sell
 		if un < 0 {
 			un = 0
 		}
-		w += 4 + runeLen(commaInt(un)) + 5 + runeLen(commaInt(*l.Volume))
+		w += 5 + runeLen(commaInt(un)) + 6 + runeLen(commaInt(*l.Volume))
 	}
 	return w
 }
@@ -1102,34 +1103,11 @@ func leaderBSTWidth(l Leader, cols bstCols, wide bool) int {
 // putBSTCols writes those four fields into their shared columns and returns the
 // cells the block used. A stock with no measured split falls back to putBST.
 func (a *App) putBSTCols(c *Canvas, x, y int, buy, sell, total *int64, cols bstCols, keys ...string) int {
-	th := a.th
-	if buy == nil || sell == nil || total == nil {
-		return a.putBST(c, x, y, buy, sell, total, keys...)
-	}
-	// Owner order 2026-11-16: no padding stands between a label and its number.
-	// The labels keep their measured columns, so the numbers begin at the same
-	// cell on every row, and the comma hugs the digits it belongs to.
-	field := func(at, width int, label, num, tail string, fg RGB, bold bool) {
-		lw := runeLen(label)
-		a.flashText(c, x+at, y, label, th.Soft, false, keys...)
-		a.flashText(c, x+at+lw, y, num, fg, bold, keys...)
-		if tail != "" {
-			a.flashText(c, x+at+lw+runeLen(num), y, tail, th.Soft, false, keys...)
-		}
-	}
-	un := *total - *buy - *sell
-	if un < 0 {
-		un = 0
-	}
-	field(cols.buy, cols.bw, "B=", commaInt(*buy), ",", th.Good, true)
-	field(cols.sell, cols.sw, "S=", commaInt(*sell), ",", th.Bad, true)
-	// Owner order 2026-11-16: U sits against its own label on every row. A
-	// small U (usually 0) no longer floats to the right and leaves the top
-	// row reading differently from the rows below it. The & T= column stays
-	// fixed, so only the gap after U varies.
-	field(cols.unc, cols.uw, "U=", commaInt(un), "", th.Warn, un > 0)
-	field(cols.tot, cols.wid, "& T=", commaInt(*total), "", totalBlue, false)
-	return cols.tot + 4 + cols.wid
+	// Owner order 2026-11-16: one fixed two cell gutter follows every value, in
+	// every tile, so no field floats away from the one before it. The fixed
+	// column table is withdrawn; the comma stays hard against its own number.
+	_ = cols
+	return a.putBST(c, x, y, buy, sell, total, keys...)
 }
 
 func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
