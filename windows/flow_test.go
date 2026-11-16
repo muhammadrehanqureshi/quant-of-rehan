@@ -30,113 +30,109 @@ func buy(f *Flow, sym string, secs int, perSec int64, start float64, vol0 int64)
 	return out
 }
 
-func TestFlowFlagsSustainedBuyingWithTheOwnersWording(t *testing.T) {
-	f := NewFlow(defaultFlowCfg(10_000_000))
+func TestFlowAlertsEveryOneSecondOrderWithTheOwnersWording(t *testing.T) {
+	f := NewFlow(defaultFlowCfg(100_000))
 	f.Observe(flowT0, feedOf(map[string]LiveQuote{"ECHO": lq(15, 1_000_000)}), true) // baseline
-	flags := buy(f, "ECHO", 30, 100_000, 15, 1_000_000)                              // PKR 1.5M every second
-	if len(flags) != 1 {
-		t.Fatalf("one flag expected for one burst, got %d: %+v", len(flags), flags)
+	flags := buy(f, "ECHO", 3, 100_000, 15, 1_000_000)
+	if len(flags) != 3 {
+		t.Fatalf("every 100k share second must alert, got %d: %+v", len(flags), flags)
 	}
 	fl := flags[0]
 	if fl.Text != "ECHO is getting big buying orders" {
 		t.Errorf("text: %q", fl.Text)
 	}
-	if fl.Kind != "flow" || fl.Value < 10_000_000 || fl.Share < 0.99 {
+	if fl.Kind != "order" || fl.Value != 100_000 || fl.Shares != 100_000 {
 		t.Errorf("flag: %+v", fl)
 	}
-	// It must not fire before PKR 10M has gone through: at 1.5M a second that
-	// is the seventh second at the earliest.
-	if got := fl.Time.Sub(flowT0).Seconds(); got < 7 || got > 9 {
-		t.Errorf("flagged after %.0f s, want 7 to 9", got)
+	if fl.Time.Sub(flowT0) != time.Second {
+		t.Errorf("the first order flagged after %v", fl.Time.Sub(flowT0))
 	}
-	if !strings.Contains(fl.Detail, "Buyers made up 100%") || !strings.Contains(fl.Detail, "PKR") {
+	if !strings.Contains(fl.Detail, "Bought 100k shares in one second") {
 		t.Errorf("detail: %q", fl.Detail)
 	}
 }
 
 func TestFlowFlagsSellingAndHonoursTheSwitch(t *testing.T) {
-	// Heavy volume while the price falls is selling, and it is flagged as such.
-	f := NewFlow(defaultFlowCfg(10_000_000))
+	// Heavy volume while the price falls is selling, and each 100k share
+	// second is its own order alert.
+	f := NewFlow(defaultFlowCfg(100_000))
 	f.Observe(flowT0, feedOf(map[string]LiveQuote{"SELL": lq(15, 1_000_000)}), true)
 	px, vol := 15.0, int64(1_000_000)
 	var got []Flag
-	for i := 1; i <= 40; i++ {
+	for i := 1; i <= 2; i++ {
 		px -= 0.01
 		vol += 100_000
 		got = append(got, f.Observe(flowT0.Add(time.Duration(i)*time.Second), feedOf(map[string]LiveQuote{"SELL": lq(px, vol)}), true)...)
 	}
-	if len(got) != 1 || got[0].Side != "SELL" || got[0].Text != "SELL is getting big selling orders" || got[0].Value < 10_000_000 {
-		t.Fatalf("selling must raise one SELL flag: %+v", got)
+	if len(got) != 2 || got[0].Side != "SELL" || got[0].Text != "SELL is getting big selling orders" || got[0].Value != 100_000 {
+		t.Fatalf("selling must raise a SELL flag for each order: %+v", got)
 	}
-	if !strings.Contains(got[0].Detail, "Sold PKR") || !strings.Contains(got[0].Detail, "Sellers made up") {
+	if !strings.Contains(got[0].Detail, "Sold 100k shares in one second") {
 		t.Errorf("detail: %q", got[0].Detail)
 	}
 	// With the selling flag off, the same tape raises nothing.
-	f = NewFlow(defaultFlowCfg(10_000_000))
+	f = NewFlow(defaultFlowCfg(100_000))
 	f.Sell = false
 	f.Observe(flowT0, feedOf(map[string]LiveQuote{"SELL": lq(15, 1_000_000)}), true)
 	px, vol = 15.0, 1_000_000
-	for i := 1; i <= 40; i++ {
+	for i := 1; i <= 2; i++ {
 		px -= 0.01
 		vol += 100_000
 		if got := f.Observe(flowT0.Add(time.Duration(i)*time.Second), feedOf(map[string]LiveQuote{"SELL": lq(px, vol)}), true); len(got) != 0 {
 			t.Fatalf("selling flag is off but %+v was raised", got)
 		}
 	}
-	// Small trades going up are not big.
-	f = NewFlow(defaultFlowCfg(10_000_000))
+	// One share under the floor is not a big order.
+	f = NewFlow(defaultFlowCfg(100_000))
 	f.Observe(flowT0, feedOf(map[string]LiveQuote{"TINY": lq(15, 1_000_000)}), true)
-	if got := buy(f, "TINY", 55, 3_000, 15, 1_000_000); len(got) != 0 {
-		t.Fatalf("small buying was flagged: %+v", got)
+	if got := buy(f, "TINY", 3, 99_999, 15, 1_000_000); len(got) != 0 {
+		t.Fatalf("a sub-floor order was flagged: %+v", got)
 	}
 	// The same burst outside the session is not counted at all.
-	f = NewFlow(defaultFlowCfg(10_000_000))
+	f = NewFlow(defaultFlowCfg(100_000))
 	px, vol = 15, 1_000_000
-	for i := 0; i <= 30; i++ {
+	for i := 0; i <= 3; i++ {
 		px += 0.01
 		vol += 100_000
 		if got := f.Observe(flowT0.Add(time.Duration(i)*time.Second), feedOf(map[string]LiveQuote{"NIGHT": lq(px, vol)}), false); len(got) != 0 {
 			t.Fatalf("flagged while not trading: %+v", got)
 		}
 	}
-	if len(f.Board(flowT0.Add(31*time.Second), nil, 5)) != 0 {
+	if len(f.Board(flowT0.Add(4*time.Second), nil, 5)) != 0 {
 		t.Errorf("nothing outside the session may reach the board")
 	}
 }
 
-func TestFlowBlockPrint(t *testing.T) {
-	f := NewFlow(defaultFlowCfg(10_000_000))
+func TestFlowBigOrderPrint(t *testing.T) {
+	f := NewFlow(defaultFlowCfg(100_000))
 	f.Observe(flowT0, feedOf(map[string]LiveQuote{"BLOK": lq(50, 2_000_000)}), true)
 	// A quiet second, then one second with 1,000,000 shares at a higher price.
 	f.Observe(flowT0.Add(time.Second), feedOf(map[string]LiveQuote{"BLOK": lq(50.05, 2_001_000)}), true)
 	got := f.Observe(flowT0.Add(2*time.Second), feedOf(map[string]LiveQuote{"BLOK": lq(50.10, 3_001_000)}), true)
-	if len(got) != 1 || got[0].Kind != "block" || got[0].Symbol != "BLOK" {
-		t.Fatalf("block print: %+v", got)
+	if len(got) != 1 || got[0].Kind != "order" || got[0].Symbol != "BLOK" {
+		t.Fatalf("big order: %+v", got)
 	}
-	if !strings.Contains(got[0].Detail, "A block buy of PKR 50.1M") {
+	if !strings.Contains(got[0].Detail, "Bought 1M shares in one second") {
 		t.Errorf("detail: %q", got[0].Detail)
 	}
 }
 
-func TestFlowCooldownAndEscalation(t *testing.T) {
-	f := NewFlow(defaultFlowCfg(10_000_000))
+func TestFlowAlertsEveryOrderWithoutCooldown(t *testing.T) {
+	f := NewFlow(defaultFlowCfg(100_000))
 	f.Observe(flowT0, feedOf(map[string]LiveQuote{"ECHO": lq(15, 1_000_000)}), true)
-	// A long burst at 1.5M a second: one flag at about 10M, and no second flag
-	// until the buying has tripled and a minute has passed.
-	flags := buy(f, "ECHO", 90, 100_000, 15, 1_000_000)
-	for _, fl := range flags {
-		t.Logf("flag at +%v: PKR %.1fM", fl.Time.Sub(flowT0), fl.Value/1e6)
+	flags := buy(f, "ECHO", 5, 100_000, 15, 1_000_000)
+	if len(flags) != 5 {
+		t.Fatalf("five orders must raise five alerts, got %d: %+v", len(flags), flags)
 	}
-	if len(flags) == 0 || len(flags) > 2 {
-		t.Fatalf("a long burst must flag once, or twice at most, got %d", len(flags))
-	}
-	if len(flags) == 2 && flags[1].Time.Sub(flags[0].Time) < time.Minute {
-		t.Errorf("a second flag came inside a minute")
+	for i, fl := range flags {
+		if want := flowT0.Add(time.Duration(i+1) * time.Second); !fl.Time.Equal(want) {
+			t.Errorf("alert %d at %v, want %v", i, fl.Time, want)
+		}
 	}
 }
 
 func TestFlowGapResetsTheBaseline(t *testing.T) {
-	f := NewFlow(defaultFlowCfg(10_000_000))
+	f := NewFlow(defaultFlowCfg(100_000))
 	f.Observe(flowT0, feedOf(map[string]LiveQuote{"GAP": lq(15, 1_000_000)}), true)
 	// Thirty seconds of silence, then a huge volume jump. Nobody knows how that
 	// volume was split over the gap, so it is not counted as buying.
@@ -151,8 +147,8 @@ func TestFlowGapResetsTheBaseline(t *testing.T) {
 	}
 }
 
-func TestFlowQuietAfterTooManyInAMinute(t *testing.T) {
-	f := NewFlow(defaultFlowCfg(10_000_000))
+func TestFlowNeverSilencesAQualifyingOrder(t *testing.T) {
+	f := NewFlow(defaultFlowCfg(100_000))
 	items0, items := map[string]LiveQuote{}, map[string]LiveQuote{}
 	syms := []string{"S1", "S2", "S3", "S4", "S5", "S6", "S7", "S8", "S9"}
 	for _, s := range syms {
@@ -166,19 +162,17 @@ func TestFlowQuietAfterTooManyInAMinute(t *testing.T) {
 		}
 		all = append(all, f.Observe(flowT0.Add(time.Duration(i)*time.Second), feedOf(copyItems(items)), true)...)
 	}
-	loud, quiet := 0, 0
+	quiet := 0
 	for _, fl := range all {
 		if fl.Silent {
 			quiet++
-		} else {
-			loud++
 		}
 	}
-	if loud != f.cfg.MaxPerMin || quiet == 0 {
-		t.Errorf("loud %d quiet %d, want %d loud then the rest quiet", loud, quiet, f.cfg.MaxPerMin)
+	if quiet != 0 {
+		t.Errorf("%d qualifying orders were silenced", quiet)
 	}
 	if len(f.Log) != len(all) {
-		t.Errorf("quiet flags still belong in the log: %d of %d", len(f.Log), len(all))
+		t.Errorf("every order belongs in the log: %d of %d", len(f.Log), len(all))
 	}
 }
 
@@ -191,7 +185,7 @@ func copyItems(m map[string]LiveQuote) map[string]LiveQuote {
 }
 
 func TestFlowAllowListAndStaleQuotes(t *testing.T) {
-	f := NewFlow(defaultFlowCfg(10_000_000))
+	f := NewFlow(defaultFlowCfg(100_000))
 	f.Allow = func(s string) bool { return s == "KEEP" }
 	f.Observe(flowT0, feedOf(map[string]LiveQuote{"KEEP": lq(15, 1_000_000), "DROP": lq(15, 1_000_000)}), true)
 	px, vol := 15.0, int64(1_000_000)

@@ -75,6 +75,7 @@ func TestScannerValuesShareColumnsAtEveryWidth(t *testing.T) {
 		a.lvScan = listView{}
 		rows := strings.Split(plain(a), "\n")
 		var b, s, u, tot []int
+		var bEnd, sEnd, uEnd, tEnd []int
 		for _, row := range rows {
 			if !strings.Contains(row, "B=") || !strings.Contains(row, "S=") ||
 				!strings.Contains(row, "U=") || !strings.Contains(row, "& T=") {
@@ -84,6 +85,10 @@ func TestScannerValuesShareColumnsAtEveryWidth(t *testing.T) {
 			s = append(s, strings.Index(row, "S="))
 			u = append(u, strings.Index(row, "U="))
 			tot = append(tot, strings.Index(row, "& T="))
+			bEnd = append(bEnd, numberEnd(row, "B="))
+			sEnd = append(sEnd, numberEnd(row, "S="))
+			uEnd = append(uEnd, numberEnd(row, "U="))
+			tEnd = append(tEnd, numberEnd(row, "& T="))
 		}
 		if len(b) != 3 {
 			t.Fatalf("sort %d drew %d value rows, want three:\n%s", choice, len(b), strings.Join(rows, "\n"))
@@ -93,6 +98,28 @@ func TestScannerValuesShareColumnsAtEveryWidth(t *testing.T) {
 				t.Fatalf("sort %d row %d columns B,S,U,T = %d,%d,%d,%d, want %d,%d,%d,%d",
 					choice, i, b[i], s[i], u[i], tot[i], b[0], s[0], u[0], tot[0])
 			}
+			if bEnd[i] != bEnd[0] || sEnd[i] != sEnd[0] || uEnd[i] != uEnd[0] || tEnd[i] != tEnd[0] {
+				t.Fatalf("sort %d row %d number ends B,S,U,T = %d,%d,%d,%d, want %d,%d,%d,%d",
+					choice, i, bEnd[i], sEnd[i], uEnd[i], tEnd[i], bEnd[0], sEnd[0], uEnd[0], tEnd[0])
+			}
 		}
 	}
+}
+
+// numberEnd is the cell after a labelled number, including its trailing comma
+// when it has one. It lets a test compare where the digits END, which is the
+// alignment the owner asked for, not only where their labels start.
+func numberEnd(row, label string) int {
+	i := strings.Index(row, label)
+	if i < 0 {
+		return -1
+	}
+	i += len(label)
+	for i < len(row) && row[i] == ' ' {
+		i++
+	}
+	for i < len(row) && (row[i] >= '0' && row[i] <= '9' || row[i] == ',') {
+		i++
+	}
+	return i
 }

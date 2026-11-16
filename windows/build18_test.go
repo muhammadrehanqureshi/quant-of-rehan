@@ -80,7 +80,7 @@ func TestAlertsLogLeavesOneBlankRowAfterTheSearchBox(t *testing.T) {
 // Owner order 2026-11-13: the ALERTS LOG keeps every alert. The old 300 entry
 // cut deleted the oldest entries while the market was still open.
 func TestAlertsLogKeepsEveryEntry(t *testing.T) {
-	f := NewFlow(defaultFlowCfg(10_000_000))
+	f := NewFlow(defaultFlowCfg(100_000))
 	at := time.Date(2026, 11, 13, 10, 0, 0, 0, pkt)
 	for i := 0; i < 350; i++ {
 		f.addFlag(Flag{Time: at, Symbol: "ECHO", Kind: "flow", Side: "BUY"})

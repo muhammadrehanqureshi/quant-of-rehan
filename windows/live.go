@@ -272,21 +272,21 @@ func (a *App) wheel(d int) {
 
 // ---------- big buying board ----------
 
-// boardFloor is the money a stock must have traded on a board's own side in the
-// window before the board names it. Owner order 2026-11-12 (latest): both
-// boards read "PKR 1M or above orders", so a 50k minute has no row at all.
-const boardFloor = 1_000_000
+// boardFloorShares is the quantity a stock must have traded on a board's own
+// side in the window before the board names it. Owner order 2026-11-16: both
+// ALERTS boards read "50k shares or above", not a PKR amount.
+const boardFloorShares int64 = 50_000
 
-// aboveFloor keeps the rows that traded at least boardFloor on the board's own
-// side, so the list and the heading can never disagree.
+// aboveFloor keeps the rows that traded at least boardFloorShares on the
+// board's own side, so the list and the heading can never disagree.
 func aboveFloor(rows []FlowStat, side int) []FlowStat {
 	out := make([]FlowStat, 0, len(rows))
 	for _, r := range rows {
-		v := r.BuyValue
+		v := r.BuyShares
 		if side == sideSell {
-			v = r.SellValue
+			v = r.SellShares
 		}
-		if v >= boardFloor {
+		if v >= boardFloorShares {
 			out = append(out, r)
 		}
 	}

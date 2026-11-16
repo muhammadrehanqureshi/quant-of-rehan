@@ -294,7 +294,7 @@ func TestAlertBannerReadsAsSentences(t *testing.T) {
 	a := demoApp(t, 140, 34)
 	snapshotState(a, "alert")
 	row := a.render().PlainRows()[1]
-	if !strings.Contains(row, "big buying orders. A block buy") {
+	if !strings.Contains(row, "big buying orders. Bought ") {
 		t.Errorf("banner should read as two sentences: %q", row)
 	}
 }
@@ -385,7 +385,7 @@ func TestSettingsDescriptionsAreNotCut(t *testing.T) {
 	a := demoApp(t, 130, 34)
 	a.screen = scrSettings
 	s := plain(a)
-	for _, want := range []string{"Windows pop-ups and the banner.", "Alerts you when buyers dominate.", "a minute.", "Plays the buying tone and a test pop-up.", "Alerts you when sellers dominate."} {
+	for _, want := range []string{"Windows pop-ups and the banner.", "Alerts you when buyers dominate.", "an order.", "Plays the buying tone and a test pop-up.", "Alerts you when sellers dominate."} {
 		if !strings.Contains(s, want) {
 			t.Errorf("settings text is cut: missing %q", want)
 		}

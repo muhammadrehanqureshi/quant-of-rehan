@@ -1,10 +1,11 @@
-# Quant of Rehan for Windows (console edition), build 114
+# Quant of Rehan for Windows (console edition), build 115
 
 A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.21**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
 
-## What is new in build 114
+## What is new in build 115
 
+* **Build 115 (version 3.7.0).** SETTINGS reads `100k shares an order` for BIG ORDER SIZE, and the setting steps through 50k, 100k, 250k, 500k and 1M shares. Every one-second volume step at or above that quantity is its own alert, so two big orders in two seconds are two alerts. BIG BUYING NOW and BIG SELLING NOW list every stock that traded 50k shares or more on their own side in the last minute, show the share quantity instead of a PKR figure, rank by that quantity, and read `50k shares or above`. CUSTOM SCRIPS OF VOLUME right aligns each B, S, U and T number inside its measured column, so S, U and T hold their cells on every row. The current price, its percentage and the BARS move one cell left. The POSITION CALCULATOR boxes fit `Enter price` and `Enter qty` with one blank cell on each side.
 * **Build 114 (version 3.6.3).** The SECTORS selection moves with UP and DOWN, and the tile reads `Press "DOWN & UP ARROW KEYS" to move`. CUSTOM SCRIPS OF VOLUME moves with LEFT and RIGHT only, not UP and DOWN, and ENTER opens whichever tile the arrows last moved. Every CUSTOM SCRIPS sub menu uses one fixed set of B, S, U and T columns, so S, U and T start on the same cell from row to row and from sort to sort.
 * **Build 113 (version 3.6.2).** The W/L & W/L RATE record moves from QUANT STATUS to the foot of the LATEST SIGNAL tile. The KSE100 tile drops NET DELTA, and the bar moves onto the percentage row at the tile's right edge, so it no longer stands above the top three scrips. Clicking a tile on ALERTS no longer highlights its frame, and neither does opening the POSITION CALCULATOR on SCANNER. The lines on either side of PSX'S KMIALL INDEX are withdrawn, and CUSTOM SCRIPS OF VOLUME reads `Press "LEFT & RIGHT ARROW KEYS" to move` with no full stop.
 * **Build 112 (version 3.5.11).** The KSE100 leader price, percentage and NET DELTA group moves two cells right. Every search box carries one blank row before it and one after it, including the gap above the ALERTS LOG field. CUSTOM SCRIPS OF VOLUME reads `Press "LEFT & RIGHT ARROW KEYS" to move.`
@@ -239,15 +240,11 @@ The tab shows the relay's own numbers, written down as they arrived. Nothing is 
 
 Your relay's `/quotes` gives each stock's last price, the day's high and low and the day's running volume. A buy order that is resting and has not traded cannot be seen by this app or by any app reading only that feed. ORDER FLOW does use the relay's bid and ask for the split of what has traded.
 
-What the flags measure is **executed trading**, once a second: the volume added since the last look is counted as buying if the price ticked up (or held after an uptick) and as selling if it ticked down. A stock is flagged for buying (selling is the mirror image) when, inside the last 60 seconds:
+What the flags measure is **executed trading**, once a second: the volume added since the last look is counted as buying if the price ticked up (or held after an uptick) and as selling if it ticked down. Owner order 2026-11-16 puts the threshold on quantity, not money. Every one-second volume step of 100k shares or more (choose 50k, 100k, 250k, 500k or 1M in Settings) is its own big buying or big selling alert. There is no 60 second aggregate, no relative multiple, no dominance test, no cooldown and no alert cap, so every qualifying order is logged and announced.
 
-1. at least PKR 10 million was bought (choose 5M, 10M, 25M, 50M or 100M in Settings), and at least 4 times the stock's own average minute of the day, so a heavy stock does not flag all day;
-2. buyers are at least 70% of the classified volume, over at least 2 separate seconds;
-3. the price has not fallen through the window (for selling: has not risen).
+The ALERTS boards are separate from the alert threshold. BIG BUYING NOW and BIG SELLING NOW list every stock that traded at least 50k shares on their own side in the last minute, highest quantity first, and print that quantity.
 
-Or a **block**: one second of trading worth at least twice the threshold.
-
-A stock cannot flag again on the same side for 5 minutes unless it triples and a minute has passed. At most 6 alerts ring in one minute; more are written to the log quietly. Volume counted across a gap of more than 20 seconds, or after the day's volume went backwards, is thrown away, because nobody knows how it was split. Nothing is counted outside the session. Once the relay sends the KMIALL table (`/prices`), only those names can flag.
+Volume counted across a gap of more than 20 seconds, or after the day's volume went backwards, is thrown away, because nobody knows how it was split. Nothing is counted outside the session. Once the relay sends the KMIALL table (`/prices`), only those names can flag.
 
 These are alerts that something big is trading, not trade signals and not predictions. Test them on a live day before you trust them, and tune the size to your market.
 

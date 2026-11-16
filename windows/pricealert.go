@@ -310,8 +310,8 @@ func (a *App) drawPriceEditor(c *Canvas) {
 	} else {
 		price = a.priceBuf
 	}
-	a.inputRow(c, ix, iy, iw, "SCRIP", sym, "Type here", a.priceField == 0)
-	a.inputRow(c, ix, iy+2, iw, "PRICE", price, "Type here", a.priceField == 1)
+	a.inputRow(c, ix, iy, iw, "SCRIP", sym, "Type here", a.priceField == 0, false)
+	a.inputRow(c, ix, iy+2, iw, "PRICE", price, "Type here", a.priceField == 1, false)
 }
 
 // storedTarget is the slot's price as text, for the row that is not in hand.

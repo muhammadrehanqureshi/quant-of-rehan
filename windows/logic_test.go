@@ -328,7 +328,7 @@ func TestSettingsRoundTripAndClamp(t *testing.T) {
 	if got = loadSettings(p); got.PollMS != 60000 {
 		t.Errorf("clamp high: %+v", got)
 	}
-	if got = loadSettings(dir + "/missing.json"); got.PollMS != 1000 || !got.Notify || !got.BigBuy || !got.Sound || got.BigBuyValue != 10_000_000 {
+	if got = loadSettings(dir + "/missing.json"); got.PollMS != 1000 || !got.Notify || !got.BigBuy || !got.Sound || got.BigOrderQty != 100_000 {
 		t.Errorf("defaults: %+v", got)
 	}
 }
@@ -343,7 +343,7 @@ func TestSettingsFromBuildOneAreMigrated(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := loadSettings(p)
-	if got.PollMS != 1000 || !got.BigBuy || !got.Sound || got.BigBuyValue != 10_000_000 || got.Ver != settingsVer {
+	if got.PollMS != 1000 || !got.BigBuy || !got.Sound || got.BigOrderQty != 100_000 || got.Ver != settingsVer {
 		t.Errorf("not migrated: %+v", got)
 	}
 	if got.Theme != 3 || got.Notify || got.LastSignal != "x" {

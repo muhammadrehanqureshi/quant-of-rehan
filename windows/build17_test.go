@@ -89,8 +89,8 @@ func TestAlertBarsUseTheScannerPair(t *testing.T) {
 	}
 }
 
-// Owner order 2026-11-13: the two ALERTS boards are equal width, so the PKR
-// values and the bars end on one column, and their bars carry no NET DELTA
+// Owner order 2026-11-16: the two ALERTS boards are equal width, so the share
+// quantities and the bars end on one column, and their bars carry no NET DELTA
 // label: the only question a bar answers is which side owns the B/S pair.
 func TestAlertBoardsShareTheRightHandColumns(t *testing.T) {
 	a := demoApp(t, 160, 40)
@@ -98,25 +98,26 @@ func TestAlertBoardsShareTheRightHandColumns(t *testing.T) {
 	rows := rowsOf(a)
 	left, right := -1, -1
 	for _, row := range rows {
-		// Board rows carry the rank, the symbol and PKR. The log and the
-		// headings have no PKR on the board row itself.
-		at := strings.Index(row, "PKR ")
+		// A board row carries two share figures, one for each board. The log
+		// detail and the heading carry only one, so a second match identifies
+		// the row.
+		at := strings.Index(row, " sh")
 		if at < 0 {
 			continue
 		}
-		secondRel := strings.Index(row[at+1:], "PKR ")
+		secondRel := strings.Index(row[at+3:], " sh")
 		if secondRel < 0 {
 			continue
 		}
-		second := at + 1 + secondRel
-		left = utf8.RuneCountInString(row[:at])
-		right = utf8.RuneCountInString(row[:second])
+		second := at + 3 + secondRel
+		left = utf8.RuneCountInString(row[:at+3])
+		right = utf8.RuneCountInString(row[:second+3])
 		break
 	}
 	if left < 0 || right < 0 {
-		t.Fatalf("the ALERTS boards carry no PKR rows to measure:\n%s", strings.Join(rows, "\n"))
+		t.Fatalf("the ALERTS boards carry no share rows to measure:\n%s", strings.Join(rows, "\n"))
 	}
 	if got := right - a.alertSplitX; got != left-1 {
-		t.Errorf("the selling PKR column is %d cells in, the buying one %d", got, left-1)
+		t.Errorf("the selling quantity ends %d cells in, the buying one %d", got, left-1)
 	}
 }
