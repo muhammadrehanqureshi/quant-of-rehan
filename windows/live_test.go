@@ -632,7 +632,7 @@ func TestTelemetryTellsTheTruthAboutScanning(t *testing.T) {
 func TestSnapshotAlertStateShowsBanner(t *testing.T) {
 	a := demoApp(t, 120, 30)
 	snapshotState(a, "alert")
-	if !strings.Contains(rowsOf(a)[1], "is getting big buying orders") {
+	if !strings.Contains(rowsOf(a)[1], "shares of") || !strings.Contains(rowsOf(a)[1], "were bought at PKR") {
 		t.Errorf("alert snapshot: %q", rowsOf(a)[1])
 	}
 }

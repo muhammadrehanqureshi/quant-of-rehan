@@ -294,8 +294,8 @@ func TestAlertBannerReadsAsSentences(t *testing.T) {
 	a := demoApp(t, 140, 34)
 	snapshotState(a, "alert")
 	row := a.render().PlainRows()[1]
-	if !strings.Contains(row, "big buying orders. Bought ") {
-		t.Errorf("banner should read as two sentences: %q", row)
+	if !strings.Contains(row, "shares of") || !strings.Contains(row, "were bought at PKR") {
+		t.Errorf("banner should read as the owner's alert sentence: %q", row)
 	}
 }
 

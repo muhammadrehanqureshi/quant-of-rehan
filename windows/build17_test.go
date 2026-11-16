@@ -100,28 +100,28 @@ func TestAlertBoardsShareTheRightHandColumns(t *testing.T) {
 	a.flow.sym["SELLX"] = &symFlow{have: true, t: a.now, px: 10, vol: 250_000,
 		evts: []flowEvt{{t: a.now, dv: 250_000, px: 10, side: -1}}}
 	rows := rowsOf(a)
+	for _, row := range rows {
+		if strings.Contains(row, " sh") {
+			t.Errorf("a board still writes the withdrawn sh suffix: %q", row)
+		}
+	}
 	left, right := -1, -1
 	for _, row := range rows {
-		// A board row carries two share figures, one for each board. The log
-		// detail and the heading carry only one, so a second match identifies
-		// the row.
-		at := strings.Index(row, " sh")
-		if at < 0 {
+		// A board row carries two bars, one for each board. The share quantity
+		// ends two cells before its own bar's first cell.
+		firstBar := strings.Index(row, string(barBlock))
+		lastBar := strings.LastIndex(row, string(barBlock))
+		if firstBar < 0 || lastBar <= firstBar {
 			continue
 		}
-		secondRel := strings.Index(row[at+3:], " sh")
-		if secondRel < 0 {
-			continue
-		}
-		second := at + 3 + secondRel
-		left = utf8.RuneCountInString(row[:at+3])
-		right = utf8.RuneCountInString(row[:second+3])
+		left = utf8.RuneCountInString(row[:firstBar]) - 3
+		right = utf8.RuneCountInString(row[:lastBar]) - 3
 		break
 	}
 	if left < 0 || right < 0 {
 		t.Fatalf("the ALERTS boards carry no share rows to measure:\n%s", strings.Join(rows, "\n"))
 	}
-	if got := right - a.alertSplitX; got != left-1 {
-		t.Errorf("the selling quantity ends %d cells in, the buying one %d", got, left-1)
+	if got := right - left; got != a.alertSplitX {
+		t.Errorf("the selling quantity ends %d cells after the buying one, want %d", got, a.alertSplitX)
 	}
 }

@@ -294,9 +294,9 @@ func (f *Flow) evaluate(now time.Time, sym string, sf *symFlow, q LiveQuote, sid
 	if last == nil || now.Sub(last.t) > 2*time.Second {
 		return nil
 	}
-	want, word, past := int8(1), "BUY", "Bought"
+	want, word := int8(1), "BUY"
 	if side == sideSell {
-		want, word, past = -1, "SELL", "Sold"
+		want, word = -1, "SELL"
 	}
 	if last.side != want || last.dv < f.cfg.MinShares {
 		return nil
@@ -306,13 +306,20 @@ func (f *Flow) evaluate(now time.Time, sym string, sf *symFlow, q LiveQuote, sid
 	fl := &Flag{Time: now, Symbol: sym, Kind: "order", Side: word,
 		Value: float64(last.dv), Shares: last.dv, Share: 1,
 		Price: q.Price, ChangePct: q.ChangePct}
-	fl.Text = sym + " is getting big " + map[int]string{sideBuy: "buying", sideSell: "selling"}[side] + " orders"
-	price := commaFloat(q.Price, 2)
-	if q.ChangePct != nil {
-		price += ", " + changeText(*q.ChangePct) + " today"
+	// Owner order 2026-11-16: the alert says the quantity, the scrip, the side
+	// and the current price in one sentence, with the day's direction and
+	// percentage. The log, the banner and the Windows notification all use it.
+	verb := "were bought"
+	if side == sideSell {
+		verb = "were sold"
 	}
-	fl.Detail = fmt.Sprintf("%s %s shares in one second. Price %s.",
-		past, compactNum(float64(last.dv)), price)
+	sentence := fmt.Sprintf("%s shares of %s %s at PKR %s",
+		compactNum(float64(last.dv)), sym, verb, commaFloat(q.Price, 2))
+	if q.ChangePct != nil {
+		sentence += " " + changeText(*q.ChangePct)
+	}
+	fl.Text = sentence + "."
+	fl.Detail = ""
 	return fl
 }
 

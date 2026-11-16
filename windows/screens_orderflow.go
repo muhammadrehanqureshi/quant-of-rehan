@@ -12,7 +12,7 @@ import (
 // RIGHT) steps through them, and every chip is a click target. Owner order
 // 2026-11-13: NET DELTA is one of them, highest positive first, and ENTER on
 // the page puts the list in that order.
-var flowSorts = []string{"TOTAL VOLUME", "BUYING VOLUME", "SELLING VOLUME", "UNCLASSIFIED", "NET DELTA", "NET DELTA %", "CHANGE", "SYMBOL"}
+var flowSorts = []string{"TOTAL VOLUME", "BUYING VOLUME", "SELLING VOLUME", "UNCLASSIFIED", "NET DELTA", "NET DELTA %", "CHANGE"}
 
 // flowSortNetDelta and flowSortNetDeltaPct are the two NET DELTA orders'
 // indexes in flowSorts.
@@ -85,9 +85,6 @@ func (a *App) sortedFlow() []FlowRow {
 		return 0, false
 	}
 	sort.SliceStable(rows, func(i, j int) bool {
-		if a.ofSort == len(flowSorts)-1 {
-			return rows[i].Symbol < rows[j].Symbol
-		}
 		ki, oi := key(rows[i])
 		kj, oj := key(rows[j])
 		switch {
@@ -285,6 +282,7 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 	var cols [8]flowCell
 	barX := 0
 	pctX := 0
+	barFieldW := 0
 	showNetPct := false
 	// Column header for the one-line table.
 	if wide {
@@ -292,8 +290,15 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 		// cell of its own column, which is exactly where that column's data
 		// starts, because every column is left aligned on that cell.
 		cols, barX = flowColumns(rows)
-		pctX = barX + shareBarWidth + shareBarGap
-		showNetPct = pctX+flowNetPctW <= iw-2
+		// Owner order 2026-11-16: NET DELTA % must be on screen. When the
+		// columns and the full bar leave no room, the bar gives cells until
+		// the percentage column fits, instead of dropping the percentage.
+		barFieldW = shareBarWidth
+		if room := iw - 2 - barX - shareBarGap - flowNetPctW; room >= shareNetW+shareBarGap+shareBarBoxes && room < barFieldW {
+			barFieldW = room
+		}
+		pctX = barX + barFieldW + shareBarGap
+		showNetPct = iw-barX >= barFieldW && pctX+flowNetPctW <= iw-2
 		c.Text(ix+flowSerX, row, flowSerW, "#", th.Soft, false)
 		c.Text(ix+flowSymX, row, flowSymW, "SYMBOL", th.Soft, false)
 		for k, hd := range flowHeads {
@@ -304,15 +309,22 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 			// cell, so the table reads from the left edge.
 			c.Text(ix+cols[k].x, row, cols[k].w, hd, th.Soft, false)
 		}
-		if iw-barX >= shareBarWidth {
+		if iw-barX >= barFieldW {
 			// Owner order 2026-11-12 (latest): the bar's own column, then a NET
 			// DELTA column of its own after it, over the value every row writes.
-			c.Text(ix+barX, row, shareBarSpan, "BARS", th.Soft, false)
-			c.Text(ix+barX+shareBarSpan+shareBarGap, row, shareNetW, "NET DELTA", th.Soft, false)
+			barSpan := barFieldW
+			if barSpan > shareBarSpan {
+				barSpan = shareBarSpan
+			}
+			if barFieldW-shareNetW-shareBarGap >= shareBarBoxes {
+				barSpan = barFieldW - shareNetW - shareBarGap
+			}
+			c.Text(ix+barX, row, barSpan, "BARS", th.Soft, false)
+			c.Text(ix+barX+barSpan+shareBarGap, row, shareNetW, "NET DELTA", th.Soft, false)
 			// Owner order 2026-11-13: clicking the NET DELTA heading, like its
 			// own order chip, puts the list in delta order, highest positive
 			// first.
-			a.addHit(ix+barX+shareBarSpan+shareBarGap, row, shareNetW, 1, func() {
+			a.addHit(ix+barX+barSpan+shareBarGap, row, shareNetW, 1, func() {
 				a.ofSort = flowSortNetDelta
 				a.lvOF.top()
 			})
@@ -393,12 +405,12 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 			c.Text(ix+cols[2].x, row, cols[2].w, bidAsk(r.Bid), th.Text, false)
 			c.Text(ix+cols[3].x, row, cols[3].w, bidAsk(r.Ask), th.Text, false)
 			a.drawFlowCols(c, ix, row, r, cols, volKey)
-			if cw-barX >= shareBarWidth && r.Measured() && *r.Buy+*r.Sell > 0 {
+			if iw-barX >= barFieldW && r.Measured() && *r.Buy+*r.Sell > 0 {
 				// Owner order 2026-11-10 (latest): the bar is back on ORDER FLOW,
 				// ten boxes two cells wide, so it is longer without one extra box.
 				// Owner order 2026-11-12 (latest): the NET DELTA stands in its own
 				// column after the bar, buy minus sell, signed.
-				a.shareBar(c, ix+barX, row, shareBarWidth, *r.Buy, *r.Sell)
+				a.shareBar(c, ix+barX, row, barFieldW, *r.Buy, *r.Sell)
 			}
 			if showNetPct {
 				txt, ink, bold := "--", th.Soft, false

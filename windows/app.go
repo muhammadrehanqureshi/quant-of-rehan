@@ -1705,11 +1705,11 @@ func (a *App) stepBigOrder(d int) {
 // can be checked on this PC. It is marked TEST and never enters the log.
 func (a *App) testFlag(sell bool) {
 	fl := Flag{Time: a.now, Symbol: "TEST", Kind: "flow", Side: "BUY",
-		Text:   "TEST is getting big buying orders",
+		Text:   "100k shares of TEST were bought at PKR 114.65 ▲ 5.08%.",
 		Detail: "This is a test of the big buying alert, no real stock is involved."}
 	if sell {
 		fl.Side = "SELL"
-		fl.Text = "TEST is getting big selling orders"
+		fl.Text = "100k shares of TEST were sold at PKR 114.65 ▼ 5.08%."
 		fl.Detail = "This is a test of the big selling alert, no real stock is involved."
 	}
 	a.raiseFlag(fl)
