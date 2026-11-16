@@ -2345,8 +2345,10 @@ class VersionTest(unittest.TestCase):
         # ships as 4.0.20. Owner order 2026-11-12: the phone's CUSTOM
         # SCRIPS OF VOL. menu names all six sorts the console carries, and
         # it ships as 4.0.21.
-        self.assertIn('android:versionName="4.4.0"', manifest)
-        self.assertIn('android:versionCode="133"', manifest)
+        # Owner order 2026-11-16: the uniform centred menu rows and the
+        # uncut SECTORS window ship as 4.4.1, versionCode 134.
+        self.assertIn('android:versionName="4.4.1"', manifest)
+        self.assertIn('android:versionCode="134"', manifest)
         self.assertNotIn('android:versionName="4.0.15"', manifest)
         self.assertNotIn('android:versionName="4.0.14"', manifest)
         self.assertNotIn('android:versionName="3.7.5"', manifest)
@@ -2571,9 +2573,10 @@ class VersionTest(unittest.TestCase):
         # NET DELTA ship as 4.3.8. Owner order 2026-11-15: the theme-inked
         # orb, the 1M board, the Karachi print clock and the shorter menus
         # ship as 4.3.9. Owner order 2026-11-15: the tappable SECTORS face
-        # and the KSE100 B/S fallback ship as 4.4.0.
-        self.assertIn('android:versionCode="133"', manifest)
-        self.assertIn('android:versionName="4.4.0"', manifest)
+        # and the KSE100 B/S fallback ship as 4.4.0. Owner order
+        # 2026-11-16: the balanced, centred menu rows ship as 4.4.1.
+        self.assertIn('android:versionCode="134"', manifest)
+        self.assertIn('android:versionName="4.4.1"', manifest)
         self.assertNotIn('android:versionName="4.0.15"', manifest)
         self.assertNotIn('android:versionName="3.7.5"', manifest)
         self.assertNotIn('android:versionName="3.7.4"', manifest)
