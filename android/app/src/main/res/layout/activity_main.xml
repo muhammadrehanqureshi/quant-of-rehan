@@ -558,6 +558,7 @@
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:nestedScrollingEnabled="false"
+                            android:paddingLeft="14dp"
                             android:paddingRight="14dp"
                             android:scrollbars="none"
                             android:visibility="gone">
