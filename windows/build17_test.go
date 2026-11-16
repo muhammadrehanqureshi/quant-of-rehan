@@ -3,7 +3,6 @@ package main
 import (
 	"strings"
 	"testing"
-	"unicode/utf8"
 )
 
 // Owner order 2026-11-13: RELAY STATUS carries the relay's current state, not
@@ -107,13 +106,18 @@ func TestAlertBoardsShareTheRightHandColumns(t *testing.T) {
 		if strings.Count(row, "PKR ") < 2 {
 			continue
 		}
-		firstBar := strings.Index(row, string(barBlock))
-		lastBar := strings.LastIndex(row, string(barBlock))
-		if firstBar < 0 || lastBar <= firstBar {
+		runes := []rune(row)
+		var starts []int
+		for i, r := range runes {
+			if r == barBlock && (i == 0 || runes[i-1] != barBlock) {
+				starts = append(starts, i)
+			}
+		}
+		if len(starts) < 2 {
 			continue
 		}
-		left = utf8.RuneCountInString(row[:firstBar]) - 3
-		right = utf8.RuneCountInString(row[:lastBar]) - 3
+		left = starts[0] - 3
+		right = starts[1] - 3
 		break
 	}
 	if left < 0 || right < 0 {
