@@ -48,7 +48,13 @@ func TestSectorArrowsShareOneColumn(t *testing.T) {
 		if !inside {
 			continue
 		}
-		at := strings.IndexAny(row, "▲▼")
+		at := -1
+		for i, r := range []rune(row) {
+			if r == '▲' || r == '▼' {
+				at = i
+				break
+			}
+		}
 		if at < 0 || !strings.Contains(row, "%") {
 			continue
 		}
