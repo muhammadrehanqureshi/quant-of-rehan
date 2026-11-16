@@ -663,11 +663,31 @@ def score_symbol(symbol: str, rows: list[MinuteBar], session: SessionData,
     return kalman_trend.candidate(symbol, rows, session, tally, frames=frames)
 
 
+def _signal_z(row: dict) -> float:
+    """The spread z-score a ranked row was built from, for tie-breaking."""
+    view = ((row.get("setup") or {}).get("zscore") or {})
+    try:
+        return abs(float(view.get("z") or 0.0))
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _rank_key(row: dict) -> tuple:
+    """Highest score first; a score tie goes to the deeper measured spread.
+
+    The score is rounded for display, so two different setups can print the
+    same number. Alphabetical order is never allowed to decide which of those
+    two names is called: the stronger z-score spread does.
+    """
+    return (-float(row.get("score") or 0.0), -_signal_z(row),
+            str(row.get("symbol") or ""))
+
+
 def rank_candidates(session: SessionData,
                     ai_prior: dict[str, float] | None = None,
                     tally: dict | None = None,
                     frames: bool = False) -> list[dict]:
-    """Rank confirmed setups; the old daily-model prior has no entry authority.
+    """Rank every scanned KMIALL name, highest score first.
 
     When `tally` is a dict, it is filled with every gate rejection the whole
     universe produced, so the caller can report WHY nothing or something
@@ -676,7 +696,7 @@ def rank_candidates(session: SessionData,
     ranked = [row for symbol in sorted(session.bars)
               if (row := score_symbol(symbol, session.bars[symbol], session,
                                       tally, frames=frames)) is not None]
-    return sorted(ranked, key=lambda row: (-row["score"], row["symbol"]))
+    return sorted(ranked, key=_rank_key)
 
 
 def select_one(session: SessionData, quality: QualityReport,
@@ -715,6 +735,8 @@ def select_one(session: SessionData, quality: QualityReport,
         return ScanResult(NO_TRADE, "no symbol passed the Kalman Trend entry gates",
                           quality, context, ranked=[], coverage_text=coverage,
                           gate_tally=dict(tally))
+    # rank_candidates orders the whole scanned KMIALL universe, so the first
+    # row is the highest score and its tie-break is the stronger spread.
     best = ranked[0]
     return ScanResult(
         TRADE,

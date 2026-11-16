@@ -358,6 +358,55 @@ class TestMessages(unittest.TestCase):
         self.assertIn("KMIALL scanned: 1/2", text)
 
 
+class TestHighestScoreSelection(unittest.TestCase):
+    """The delivered call is the highest score in the scanned KMIALL set."""
+
+    @staticmethod
+    def row(symbol: str, score: float, z: float) -> dict:
+        return {
+            "symbol": symbol, "score": score, "strategy": "test",
+            "setup": {"zscore": {"z": z}},
+            "price": {"last": 100.0}, "stop_loss": 99.0, "target": 102.0,
+            "net_reward_risk": 1.5,
+        }
+
+    def test_select_one_delivers_the_highest_score_not_the_first_symbol(self):
+        symbols = [f"LIQ{index:03d}" for index in range(35)]
+        bars = {symbol: minute_rows(40, step=0.01) for symbol in symbols}
+        session = session_of(bars, 39)
+        quality = scanner.assess_quality(session, symbols)
+        self.assertEqual(quality.status, "OK", quality.reason)
+        rows = {
+            "LIQ000": self.row("LIQ000", 70.0, -1.1),
+            "LIQ001": self.row("LIQ001", 90.0, -1.4),
+        }
+
+        with patch.object(scanner, "score_symbol",
+                          side_effect=lambda symbol, *a, **k: rows.get(symbol)), \
+                patch.object(scanner, "market_context",
+                             return_value={"median_return": 0.01}):
+            result = scanner.select_one(session, quality, frames=True)
+
+        self.assertEqual(result.status, scanner.TRADE)
+        self.assertEqual(result.candidate["symbol"], "LIQ001")
+        self.assertEqual(result.ranked[0]["symbol"], "LIQ001")
+
+    def test_a_score_tie_goes_to_the_deeper_spread_not_the_alphabet(self):
+        bars = {"AAA": minute_rows(40, step=0.01),
+                "ZZZ": minute_rows(40, step=0.01)}
+        session = session_of(bars, 39)
+        rows = {
+            "AAA": self.row("AAA", 92.5, -1.2),
+            "ZZZ": self.row("ZZZ", 92.5, -3.1),
+        }
+
+        with patch.object(scanner, "score_symbol",
+                          side_effect=lambda symbol, *a, **k: rows.get(symbol)):
+            ranked = scanner.rank_candidates(session, frames=True)
+
+        self.assertEqual([row["symbol"] for row in ranked], ["ZZZ", "AAA"])
+
+
 class TestOwnerOrderedCallWatch(unittest.TestCase):
     """Owner order 2026-10-29 ("start sending me signals").
 
