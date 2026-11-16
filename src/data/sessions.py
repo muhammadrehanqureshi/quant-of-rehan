@@ -122,6 +122,11 @@ Band = tuple[tuple[int, int], tuple[int, int]]
 # Thursday and 16:32 to 16:49 on Friday. The feed's last post-close print is at
 # 15:49 (16:49); the extra minutes to 16:00 and 17:00 were scanning a feed that
 # had already stopped, and the relay guard was still checking a closed market.
+# Owner order 2026-11-16, hardcoded: Monday to Thursday the pre-market scan
+# is STRICTLY 09:15-09:30, then the live market scans 09:32-15:30 and the
+# complete post-market scan runs 15:32-15:49. The 09:30-09:32 order-matching
+# break and the 15:30-15:32 post-close gap are CLOSED, never scanned. Friday
+# keeps its own four windows above and is never given these weekday times.
 WEEKDAY_PRE_MARKET_OPEN = (9, 15)
 WEEKDAY_PRE_MARKET_CLOSE = (9, 30)
 FRIDAY_PRE_MARKET_OPEN = (9, 0)

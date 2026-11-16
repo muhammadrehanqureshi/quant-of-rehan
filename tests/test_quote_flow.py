@@ -117,14 +117,22 @@ class QuoteFlowTest(unittest.TestCase):
         self.assertEqual(quote["buy_volume"] + quote["sell_volume"]
                          + quote["flow_baseline"], quote["volume"])
 
-    def test_a_falling_total_is_a_reset_never_a_sale(self):
+    def test_a_falling_total_is_refused_never_a_reset_or_a_sale(self):
+        """Owner order 2026-11-16: B, S, U and T never decrease in a day."""
         self.flow.observe(row(86.0, 85.9, 86.0, 1000))
         self.flow.observe(row(86.0, 85.9, 86.0, 1400))
         quote = self.flow.observe(row(86.0, 85.9, 86.0, 100))
         self.assertEqual(quote["sell_volume"], 0)
+        self.assertEqual(quote["buy_volume"], 400)
+        self.assertEqual(quote["flow_baseline"], 1000)
         self.assertEqual(quote["flow_rules"].get("reset"), 1)
+        # The held total is the high-water mark, so a still-lower row cannot
+        # become a new baseline or a new window.
         after = self.flow.observe(row(86.0, 85.9, 86.0, 250))
-        self.assertEqual(after["buy_volume"], 400 + 150)
+        self.assertEqual(after["buy_volume"], 400)
+        self.assertEqual(after["sell_volume"], 0)
+        self.assertEqual(after["flow_baseline"], 1000)
+        self.assertEqual(self.flow.symbols["PRL"].volume, 1400)
 
     def test_every_observed_share_is_attributed_exactly_once(self):
         book = [(86.0, 85.9, 86.0, 1000),

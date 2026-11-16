@@ -30,8 +30,10 @@ The day's change sign (field [7]) is deliberately never consulted: it is the
 sign of the change, not the side of a trade, and using it is what produced
 the wrong buy and sell numbers this module replaces.
 
-A running total that falls is a day reset or a bad row, never a sale: the
-symbol is re-baselined and the fall is not attributed.
+A running total that falls is a bad row, never a sale and never a reset
+within the same trading day: the fall is counted and refused, and the
+symbol's running total stays at its highest observed value. B, S, U and T
+are therefore monotone for the whole day (owner order 2026-11-16).
 """
 
 from __future__ import annotations
@@ -107,11 +109,12 @@ class SymbolFlow:
             return
         delta = total - self.volume
         if delta < 0:
+            # Owner order 2026-11-16: TOTAL can never decrease inside the
+            # Karachi trading day. A lower row is a restart or a bad print,
+            # not a new baseline; holding the previous total keeps B, S, U
+            # and T all from moving backwards, and the next real increment
+            # is measured from the highest observed total.
             self._count(RULE_RESET)
-            self.volume = total
-            self.baseline += total
-            self.baseline_at = observed_at
-            self.baseline_reason = "reset"
             return
         if delta == 0:
             return

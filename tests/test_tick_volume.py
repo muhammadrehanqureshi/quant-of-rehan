@@ -300,8 +300,13 @@ class WindowClassificationTest(unittest.TestCase):
         ])
         flow = flows["COLG"]
         self.assertEqual(flow.backward_windows, 1)
-        # the fall is refused; the next window is 4000 -> 6000, at the ask
-        self.assertEqual(flow.buy_volume, 2000)
+        # The fall is refused and the total stays at its high-water mark, so
+        # the next window is the 1000 shares from 5000 to 6000, at the ask
+        # (owner order 2026-11-16: T can never decrease within the day).
+        self.assertEqual(flow.buy_volume, 1000)
+        self.assertEqual(flow.total_volume, 6000)
+        self.assertEqual(flow.unclassified_volume, 5000)
+        self.assertEqual(flow.buy_volume + flow.unclassified_volume, 6000)
         self.assertTrue(any("backwards" in note for note in flow.notes))
 
     def test_a_tape_running_from_the_open_reconciles_with_the_day(self):

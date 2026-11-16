@@ -121,11 +121,14 @@ rather than inventing a fresher number.
   it on a Windows runner; [windows/README.md](windows/README.md) records every
   build.
 - **One law for the count**: [src/data/feed_capture.py](src/data/feed_capture.py)
-  publishes at most one snapshot a second and never a pair below the highest it
-  has already sent for a symbol that day, and [cloud/worker.js](cloud/worker.js)
-  clamps the acknowledged frame the same way and refuses to follow a smaller
-  total down, so buying and selling volume cannot walk backwards on any
-  surface (owner order 2026-11-10).
+  publishes at most one snapshot a second and never a frame below the highest
+  BUYING, SELLING, UNCLEAR or TOTAL it has already sent for a symbol that day,
+  and [cloud/worker.js](cloud/worker.js) clamps the acknowledged frame the
+  same way and refuses a smaller total, so none of the four numbers can walk
+  backwards on any surface (owner order 2026-11-16). The Monday to Thursday
+  windows are hardcoded as pre-market 09:15-09:30, live market 09:32-15:30
+  and the complete post-market scan 15:32-15:49; the two-minute gaps are
+  closed, and Friday keeps its own separate windows.
 
 ## The five year intraday archive
 
