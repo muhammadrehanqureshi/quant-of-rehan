@@ -564,8 +564,8 @@ func (a *App) drawLeft(c *Canvas, x, y, w, h int) {
 	if buy+sell+unclear > 0 || a.cfg.BigBuy || a.cfg.BigSell {
 		label(8, "FLOW", []Span{
 			{"B=", th.Good, true}, {compactNum(float64(buy)), th.Text, false},
-							{",  S=", th.Bad, true}, {compactNum(float64(sell)), th.Text, false},
-				{"  & U=", th.Warn, true}, {compactNum(float64(unclear)), th.Text, false},
+			{"  S=", th.Bad, true}, {compactNum(float64(sell)), th.Text, false},
+			{"  &  U=", th.Warn, true}, {compactNum(float64(unclear)), th.Text, false},
 		})
 	} else {
 		label(8, "FLOW", []Span{{"OFF", th.Bad, true}})
@@ -598,10 +598,10 @@ func (a *App) drawLeft(c *Canvas, x, y, w, h int) {
 	}
 	// REQ
 	rq := a.reqToday()
-	rc, note := th.Text, " of 100,000 today"
+	rc, note := th.Text, " of 100,000"
 	switch {
 	case rq >= reqHardCap:
-		rc, note = th.Bad, " of 100,000 today, paused until 05:00 PKT"
+		rc, note = th.Bad, " of 100,000, paused until 05:00 PKT"
 	case rq > 80000:
 		rc = th.Warn
 	}
@@ -996,7 +996,7 @@ func (a *App) marketNote() string {
 	return "Quant is sleeping till the next market day."
 }
 
-// putBST draws "B=1,234,  S=5,678,  U=12  & T=6,912" at (x, y) the way every list on the
+// putBST draws "B=1,234  S=5,678  U=12  &  T=6,912" at (x, y) the way every list on the
 // screen words it, with the live flash on each number. A part that is missing
 // is left out. It returns the width drawn.
 func (a *App) putBST(c *Canvas, x, y int, buy, sell, total *int64, keys ...string) int {
@@ -1008,7 +1008,7 @@ func (a *App) putBST(c *Canvas, x, y int, buy, sell, total *int64, keys ...strin
 	if buy != nil && sell != nil {
 		put("B=", th.Soft, false)
 		put(commaInt(*buy), th.Good, true)
-		put(",  S=", th.Soft, false)
+		put("  S=", th.Soft, false)
 		put(commaInt(*sell), th.Bad, true)
 		if total != nil {
 			// Owner order 2026-11-10: U is on every B and S line, so B + S + U
@@ -1018,9 +1018,9 @@ func (a *App) putBST(c *Canvas, x, y int, buy, sell, total *int64, keys ...strin
 			if un < 0 {
 				un = 0
 			}
-			put(",  U=", th.Soft, false)
+			put("  U=", th.Soft, false)
 			put(commaInt(un), th.Warn, un > 0)
-			put("  & T=", th.Soft, false)
+			put("  &  T=", th.Soft, false)
 			put(commaInt(*total), totalBlue, false)
 		}
 	} else if total != nil {
@@ -1089,13 +1089,13 @@ func leaderBSTWidth(l Leader, cols bstCols, wide bool) int {
 		}
 		return 0
 	}
-	w := 2 + runeLen(commaInt(*l.Buy)) + 5 + runeLen(commaInt(*l.Sell))
+	w := 2 + runeLen(commaInt(*l.Buy)) + 4 + runeLen(commaInt(*l.Sell))
 	if l.HasVolume() {
 		un := *l.Volume - *l.Buy - *l.Sell
 		if un < 0 {
 			un = 0
 		}
-		w += 5 + runeLen(commaInt(un)) + 6 + runeLen(commaInt(*l.Volume))
+		w += 4 + runeLen(commaInt(un)) + 7 + runeLen(commaInt(*l.Volume))
 	}
 	return w
 }
