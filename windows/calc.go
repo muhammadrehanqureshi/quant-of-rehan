@@ -40,6 +40,10 @@ func (a *App) pctBuf() *string {
 
 // keyPct handles the two price boxes of the difference tile.
 func (a *App) keyPct(k Key) {
+	if k.Kind == KRune && (k.R == 'c' || k.R == 'C') {
+		a.openCalc()
+		return
+	}
 	switch k.Kind {
 	case KEsc:
 		a.pctOpen = false
@@ -70,6 +74,10 @@ func (a *App) keyPct(k Key) {
 // keyCalc handles the two boxes: digits and one dot, TAB or ENTER to the next
 // box, ESC closes.
 func (a *App) keyCalc(k Key) {
+	if k.Kind == KF6 {
+		a.openPct()
+		return
+	}
 	switch k.Kind {
 	case KEsc:
 		a.calcOpen = false
