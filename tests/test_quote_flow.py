@@ -134,6 +134,30 @@ class QuoteFlowTest(unittest.TestCase):
         self.assertEqual(after["flow_baseline"], 1000)
         self.assertEqual(self.flow.symbols["PRL"].volume, 1400)
 
+    def test_the_opening_counter_reset_replaces_yesterdays_baseline(self):
+        """Owner report 2026-11-17: a 08:55 frame can carry yesterday's close.
+
+        The first real post-open total is lower than that carry. It is the
+        venue's session counter starting over, not a bad row, so the new
+        total becomes the baseline and the next print is sided normally.
+        """
+        self.flow.seed_preopen(["PRL"], "2026-11-17T08:55:00+05:00")
+        first = self.flow.observe(row(14.0, None, None, 33_900_000,
+                                      observed_at="2026-11-17T08:55:45+05:00"))
+        self.assertEqual(first["flow_baseline"], 33_900_000)
+        reset = self.flow.observe(row(14.0, 13.99, 14.0, 50_000,
+                                      observed_at="2026-11-17T09:33:00+05:00"))
+        self.assertTrue(reset.get("flow_reset"))
+        self.assertEqual(reset["flow_baseline_reason"], "session_reset")
+        self.assertEqual(reset["flow_baseline"], 50_000)
+        self.assertEqual(reset["buy_volume"], 0)
+        self.assertEqual(reset["sell_volume"], 0)
+        after = self.flow.observe(row(14.0, 13.99, 14.0, 60_000,
+                                      observed_at="2026-11-17T09:33:01+05:00"))
+        self.assertNotIn("flow_reset", after)
+        self.assertEqual(after["buy_volume"], 10_000)
+        self.assertEqual(after["flow_baseline"], 50_000)
+
     def test_every_observed_share_is_attributed_exactly_once(self):
         book = [(86.0, 85.9, 86.0, 1000),
                 (86.0, 85.9, 86.0, 1300),

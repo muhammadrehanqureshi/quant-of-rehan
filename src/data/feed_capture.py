@@ -675,6 +675,10 @@ class RelayQuotePublisher:
         # The unclear remainder is always carried explicitly, including when
         # it is zero, so every captured frame states all four numbers.
         quote["unclassified_volume"] = unclear
+        if quote.get("flow_reset"):
+            # The venue started its session counter over. The high-water floor
+            # belongs to yesterday's carried total and must not reject it.
+            self._high_volume.pop(symbol, None)
         high = self._high_volume.get(symbol)
         if high and high[4] == day and (
                 buy < high[0] or sell < high[1] or
