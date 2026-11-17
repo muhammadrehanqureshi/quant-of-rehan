@@ -75,7 +75,8 @@ class WholeDayFlowContractTest(unittest.TestCase):
         """
         self.assertNotIn('bump("baseline_sided")', self.source)
         self.assertIn("function measuredFlowSeed(quote, total)", self.source)
-        self.assertIn("const seed = measuredFlowSeed(quote, total);", self.source)
+        self.assertIn("const seed = reset ? null : measuredFlowSeed(quote, total);",
+                      self.source)
         self.assertIn("baseline: total - buy - sell", self.source)
         self.assertIn("state.buy + state.sell + state.baseline !== total",
                       self.source)
