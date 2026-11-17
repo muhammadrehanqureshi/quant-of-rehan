@@ -3776,6 +3776,11 @@ export class QuoteHub {
     const total = Math.round(Number(quote && quote.volume));
     if (!/^[A-Z0-9]{1,12}$/.test(symbol)) return null;
     if (!Number.isFinite(at) || !Number.isFinite(total) || total < 0) return null;
+    // Owner report 2026-11-17: the warm-up capture saw yesterday's closing
+    // counter before the venue reset it. The first real post-open total is
+    // therefore below it. The capture marks that one frame as a session
+    // reset; the hub drops its carried baseline and starts again from zero.
+    const reset = Boolean(quote && quote.flow_reset);
     const day = dayStamp(karachiView(at));
     await this.loadFlowStats();
     const price = Number(quote.price);
@@ -3784,7 +3789,7 @@ export class QuoteHub {
     if (!this.flowStates) this.loadFlowStates();
     const stored = this.flowStates[symbol];
     let state;
-    if (stored && String(stored.day) === day) {
+    if (stored && String(stored.day) === day && !reset) {
       let rules = {};
       try { rules = JSON.parse(String(stored.rules || "{}")) || {}; }
       catch (_) { rules = {}; }
@@ -3799,7 +3804,7 @@ export class QuoteHub {
       // every share already traded is unclassified. It is never assigned to
       // one side, because that would manufacture a buy or a sell the wire
       // never showed us.
-      const seed = measuredFlowSeed(quote, total);
+      const seed = reset ? null : measuredFlowSeed(quote, total);
       state = seed
         ? { day, volume: total, buy: seed.buy, sell: seed.sell,
             baseline: seed.baseline, bid: 0, ask: 0, last: 0, side: "",
@@ -4849,7 +4854,7 @@ export class QuoteHub {
         const newKey = quoteSessionKey(quote);
         const oldVolume = Math.round(Number(old && old.volume));
         const newVolume = Math.round(Number(quote.volume));
-        if (old && oldKey && newKey &&
+        if (!quote.flow_reset && old && oldKey && newKey &&
             oldKey.day === newKey.day &&
             Number.isFinite(oldVolume) && Number.isFinite(newVolume) &&
             newVolume < oldVolume) {
@@ -4907,7 +4912,7 @@ export class QuoteHub {
         // above; here the pair and the unclear remainder get their floors.
         // When the new frame has no measured pair, the previous pair stands
         // and all new volume is unclear instead of B/S disappearing.
-        if (old && oldKey && newKey && oldKey.day === newKey.day) {
+        if (!quote.flow_reset && old && oldKey && newKey && oldKey.day === newKey.day) {
           const clamped = clampVolumes(
             quote.volume,
             pair ? pair.buy_volume : null,

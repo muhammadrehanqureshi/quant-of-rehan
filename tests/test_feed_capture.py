@@ -95,6 +95,19 @@ class CaptureMonotoneVolumeTest(unittest.TestCase):
         self.assertTrue(self.publisher._hold_monotone(grown))
         self.assertEqual(grown["unclassified_volume"], 50)
 
+    def test_a_session_reset_clears_the_carried_yesterday_floor(self):
+        """Owner report 2026-11-17: the opening counter reset is not a fall."""
+        carried = self.quote(0, 0, 33_900_000)
+        self.assertTrue(self.publisher._hold_monotone(carried))
+        reset = self.quote(0, 0, 50_000)
+        reset["flow_reset"] = True
+        reset["observed_at"] = "2026-11-17T09:33:00+05:00"
+        self.assertTrue(self.publisher._hold_monotone(reset))
+        self.assertEqual(reset["unclassified_volume"], 50_000)
+        after = self.quote(10_000, 0, 60_000)
+        after["observed_at"] = "2026-11-17T09:33:01+05:00"
+        self.assertTrue(self.publisher._hold_monotone(after))
+
 
 class CaptureFlowSeedTest(unittest.TestCase):
     """Owner order 2026-11-05: a restarted capture continues the day.

@@ -75,9 +75,21 @@ class WholeDayFlowContractTest(unittest.TestCase):
         """
         self.assertNotIn('bump("baseline_sided")', self.source)
         self.assertIn("function measuredFlowSeed(quote, total)", self.source)
-        self.assertIn("const seed = measuredFlowSeed(quote, total);", self.source)
+        self.assertIn("const seed = reset ? null : measuredFlowSeed(quote, total);",
+                      self.source)
         self.assertIn("baseline: total - buy - sell", self.source)
         self.assertIn("state.buy + state.sell + state.baseline !== total",
+                      self.source)
+
+    def test_the_hub_honours_a_session_reset(self):
+        """Owner report 2026-11-17: yesterday's carry cannot freeze today."""
+        start = self.source.index("async advanceFlow(quote)")
+        body = self.source[start:start + 2600]
+        self.assertIn('const reset = Boolean(quote && quote.flow_reset);', body)
+        self.assertIn('String(stored.day) === day && !reset', body)
+        self.assertIn('const seed = reset ? null : measuredFlowSeed(quote, total);',
+                      body)
+        self.assertIn('!quote.flow_reset && old && oldKey && newKey &&',
                       self.source)
 
     def test_the_law_never_reads_the_days_change_sign(self):

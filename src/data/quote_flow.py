@@ -39,6 +39,10 @@ are therefore monotone for the whole day (owner order 2026-11-16).
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import datetime
+
+# SO-8: the opening window is Asia/Karachi, UTC+5, never the host clock.
+from src.data.sessions import KARACHI
 
 METHOD_QUOTE_RULE = "quote_rule"
 SOURCE_QUOTE_RULE = (
@@ -80,6 +84,7 @@ class SymbolFlow:
     first_seen_at: str | None = None
     baseline_at: str | None = None
     baseline_reason: str = ""
+    reset_pending: bool = False
 
     def observe(self, price, bid, ask, volume, observed_at=None) -> None:
         last = _number(price)
@@ -109,6 +114,24 @@ class SymbolFlow:
             return
         delta = total - self.volume
         if delta < 0:
+            if self._is_opening_reset(total, observed_at):
+                # Owner report 2026-11-17: the 08:55 warm-up saw yesterday's
+                # closing counter before the venue reset it. Treating that as
+                # today's baseline made the first real post-open total look
+                # like a fall, so every fresh frame was refused and the feed
+                # froze with all volume in U. A fall before 10:30 with no
+                # sided share yet is the session counter itself starting
+                # over: make the new total the baseline, not a sale.
+                self.volume = total
+                self.buy = 0
+                self.sell = 0
+                self.baseline = total
+                self.rules = {}
+                self.side = None
+                self.baseline_at = observed_at
+                self.baseline_reason = "session_reset"
+                self.reset_pending = True
+                return
             # Owner order 2026-11-16: TOTAL can never decrease inside the
             # Karachi trading day. A lower row is a restart or a bad print,
             # not a new baseline; holding the previous total keeps B, S, U
@@ -145,6 +168,24 @@ class SymbolFlow:
         self._count(rule)
         self.side = side
         self.volume = total
+
+    def _is_opening_reset(self, total: int, observed_at) -> bool:
+        """True for the venue's own counter reset at the start of the session."""
+        if self.buy > 0 or self.sell > 0 or total >= self.volume:
+            return False
+        try:
+            moment = datetime.fromisoformat(str(observed_at)).astimezone(KARACHI)
+        except (TypeError, ValueError):
+            return False
+        minute = moment.hour * 60 + moment.minute
+        return 9 * 60 + 15 <= minute <= 10 * 60 + 30
+
+    def take_reset(self) -> str | None:
+        """Return the reset marker once, so the hub resets its own state."""
+        if not self.reset_pending:
+            return None
+        self.reset_pending = False
+        return self.baseline_at
 
     def _side(self, last: float, previous_price: float | None):
         if self.ask and self.ask > 0 and last >= self.ask:
@@ -205,6 +246,11 @@ class QuoteFlow:
         flow.observe(quote.get("price"), quote.get("bid"), quote.get("ask"),
                      quote.get("volume"), quote.get("observed_at"))
         quote.update(flow.payload())
+        if reset_at := flow.take_reset():
+            # The hub owns a second copy of this law. Without the marker it
+            # would keep its own yesterday baseline and refuse the new total.
+            quote["flow_reset"] = True
+            quote["flow_reset_at"] = reset_at
         return quote
 
     def observe_many(self, quotes) -> list:
