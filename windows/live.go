@@ -111,10 +111,10 @@ func (a *App) ingestQuotes(q *Quotes) {
 	}
 }
 
-// applySnapshotIndex puts the KSE100 reading from the one second snapshot onto
-// the card, which is what the header draws. The card's own answer arrives every
-// five seconds; the snapshot arrives every second and carries the same reading
-// from the same hub, so the index line no longer waits for the slower route.
+// applySnapshotIndex puts the KSE100 reading from the live snapshot onto the
+// card, which is what the header draws. The card's own answer arrives every
+// fifteen seconds; the snapshot arrives at the live pace and carries the same
+// reading from the same hub, so the index line never waits for the slower route.
 // Owner order 2026-11-12 (latest): the owner reported a five second lag, and
 // the index was the one live number read at the card's pace. The source name
 // and the leaders stay the card's, and no extra request is spent.
@@ -184,13 +184,15 @@ func (a *App) feedState() (word string, age int, ok bool) {
 	// 24 seconds, is LAGGING rather than a false STALE. A real outage still
 	// reaches STALE after the relay's own freshness window.
 	//
-	// Owner order 2026-11-16: the owner measured a five to six second pause
-	// while the relay still called its timestamps fresh. The light is honest
-	// now: five seconds without a real value change is LAGGING, not LIVE.
-	switch {
-	case age <= 5:
+	// Owner order 2026-11-17: the broker's wire repeats one stock about every
+	// 24 seconds. A LIVE light that expires after five seconds therefore spends
+	// most of every cycle saying LAGGING even though the feed is healthy. LIVE
+	// now covers one full wire cycle plus a small grace period; a real pause
+	// beyond that is LAGGING.
+	if age <= wireCycleSeconds+2 {
 		return "LIVE", age, true
-	case age <= 90:
+	}
+	if age <= 90 {
 		return "LAGGING", age, true
 	}
 	return "STALE", age, false

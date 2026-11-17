@@ -631,6 +631,15 @@ func (a *App) inUniverse(sym string) bool {
 	return ok
 }
 
+// quoteEvery is the live feed's pace while the scan is on. The broker's own
+// wire repeats one stock about every 24 seconds, so a faster poll only repeats
+// the same snapshot and spends the relay's daily request allowance.
+const quoteEvery = 3 * time.Second
+
+// quoteRetry is the shortest retry after a failed quotes answer. It is the
+// same as the normal pace, so a failure cannot make the app hammer the relay.
+const quoteRetry = 3 * time.Second
+
 // idleEvery is how often the app checks the relay outside the scanning
 // window. Nothing moves then, so it is slow, but it is never later than the
 // start of the next window, so the first scan of the day is on time.
@@ -642,11 +651,13 @@ func (a *App) idleEvery() time.Duration {
 	return d
 }
 
-// interval says how long to wait before asking again. While the PSX day is in
-// its scanning window the broker feed is read every second, which is what the
-// phone app does while it is on screen. Outside the window the app waits, so
-// a console left open overnight does not spend the free Cloudflare quota
-// (100,000 requests a day, reset at 05:00 Karachi).
+// interval says how long to wait before asking again. Owner order 2026-11-17:
+// the broker feed is read every three seconds while the PSX day is in its
+// scanning window, and the slower tiles are read at ten to thirty seconds.
+// The broker itself repeats a stock about every 24 seconds, so this loses no
+// real tick and cuts the request count by roughly three times. Outside the
+// window the app waits, so a console left open overnight does not spend the
+// free Cloudflare quota (100,000 requests a day, reset at 05:00 Karachi).
 func (a *App) interval(name string) time.Duration {
 	base := time.Duration(a.cfg.PollMS) * time.Millisecond
 	scan := a.scanning()
@@ -656,41 +667,39 @@ func (a *App) interval(name string) time.Duration {
 	case "quotes":
 		d = idle
 		if scan {
-			// Owner order 2026-11-10 (latest): the FEED asks once a second, full
-			// stop. A stored poll interval slower than a second may not slow the
-			// broker feed down, so the feed is capped at one second here.
-			d = min(base, time.Second)
+			// Owner order 2026-11-17: one live poll every three seconds.
+			d = quoteEvery
 		}
 	case "market":
 		d = idle
 		if scan {
-			d = max(5*time.Second, base)
+			d = max(15*time.Second, base)
 		}
 	case "signals":
 		d = idle
 		if scan {
-			d = max(5*time.Second, 5*base)
+			d = max(15*time.Second, 5*base)
 		}
 	case "health":
 		d = idle
 		if scan {
-			d = 15 * time.Second
+			d = 30 * time.Second
 		}
 	case "prices":
 		d = min(15*time.Second, idle)
 		if scan {
-			d = max(2*time.Second, 2*base)
+			d = max(10*time.Second, 2*base)
 		}
 	case "orderflow":
 		// The relay's snapshot is refreshed in bursts about every 24 seconds, so
-		// asking more often than every 3 seconds only repeats an answer.
+		// a ten second read is already three times faster than the source.
 		d = min(15*time.Second, idle)
 		if scan {
-			d = max(3*time.Second, 3*base)
+			d = max(10*time.Second, 3*base)
 		}
 	case "sectors":
 		// The relay rebuilds this from the same membership list all day, so a
-		// slow refresh is enough even while the feed is polled every second.
+		// slow refresh is enough even while the feed is live.
 		d = min(10*time.Minute, idle)
 		if scan {
 			d = 5 * time.Minute
@@ -705,11 +714,10 @@ func (a *App) interval(name string) time.Duration {
 			d = b
 		}
 	}
-	// Owner order 2026-11-16: the quotes feed retries one second after a failed
-	// answer, not a minute. A live feed never waits out a backoff. Other calls
-	// keep their longer backoff.
-	if name == "quotes" && scan && d > time.Second {
-		d = time.Second
+	// Owner order 2026-11-16: the quotes feed retries at its live pace after a
+	// failed answer, not a minute. Other calls keep their longer backoff.
+	if name == "quotes" && scan && d > quoteRetry {
+		d = quoteRetry
 	}
 	return d
 }
@@ -729,7 +737,7 @@ func (a *App) fetch(name string) {
 	a.inflight[name] = true
 	a.sentAt[name] = a.now
 	r := a.relay
-	// The one second feed must not sit behind a stuck request: it gives up
+	// The live feed must not sit behind a stuck request: it gives up
 	// after 4 seconds and the next ask goes out at once. Slower answers get
 	// longer.
 	limit := 25 * time.Second
@@ -794,8 +802,8 @@ func (a *App) done(name string, ok bool) {
 	} else {
 		a.fails[name]++
 	}
-	// The next ask is timed from when the last one left, so one second polling
-	// is one second, not one second plus the round trip.
+	// The next ask is timed from when the last one left, so the live pace is
+	// the pace itself, not the pace plus the round trip.
 	at := a.sentAt[name].Add(a.interval(name))
 	if at.Before(a.now) {
 		at = a.now
@@ -885,7 +893,7 @@ func (a *App) onMsg(m any) {
 		if ok && v.q != nil {
 			// Owner order 2026-11-16: a quotes answer is proof the relay is up.
 			// A failed market or health call may not leave the feed marked
-			// STALE while the one second feed is still arriving.
+			// STALE while the live feed is still arriving.
 			a.checking = false
 			a.link = true
 			a.relayErr = ""
@@ -1064,14 +1072,15 @@ func (a *App) save() {
 }
 
 // quoteWatchdogAfter is how old the newest quote answer may be before the
-// watchdog asks again immediately.
-const quoteWatchdogAfter = 5 * time.Second
+// watchdog asks again immediately. It sits well above the three second live
+// pace, so normal gaps between polls never trigger an extra request.
+const quoteWatchdogAfter = 15 * time.Second
 
 // quoteRequestCeiling is the longest a quotes request may stay in flight before
 // the watchdog frees the slot. It is above the fifteen second request timeout.
 const quoteRequestCeiling = 20 * time.Second
 
-// watchQuotes keeps the one second feed moving through pre-market, live and
+// watchQuotes keeps the live feed moving through pre-market, live and
 // post-market. It never waits for a later clock time; it only clears a stuck
 // request or a backoff and lets onTick send the next ask now.
 func (a *App) watchQuotes(now time.Time) {

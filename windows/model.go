@@ -94,8 +94,10 @@ const appVersion = "4.0.21"
 // Build 127 is 3.8.2, the two second big-order flash, consecutive ALERTS LOG
 // rows with the current day move, the 08:00 stored-session clear, the
 // calculator pair's new order and gutter, D for PRICE DIFFERENCE and the new
-// FIRST PRICE and SECOND PRICE fields.
-const hudBuild = "3.8.2"
+// FIRST PRICE and SECOND PRICE fields. Build 128 is 3.8.3, the three second
+// live poll, the slower metadata tiles, and a LIVE window that covers one
+// broker cycle instead of expiring after five seconds.
+const hudBuild = "3.8.3"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no

@@ -530,10 +530,10 @@ func TestFirstScanOfTheDayIsOnTime(t *testing.T) {
 	}
 }
 
-// The quotes are read every second whenever the market is in its scanning
+// The quotes are read at the live pace whenever the market is in its scanning
 // window, which covers the pre-market, the session, the Friday break and the
 // post-market, and only slow down outside it.
-func TestEverySecondInTheScanWindow(t *testing.T) {
+func TestLivePollInTheScanWindow(t *testing.T) {
 	a := newTestApp(t) // Monday 10:00 PKT
 	if a.cfg.PollMS != 1000 {
 		t.Fatalf("default poll is %d ms, want 1000", a.cfg.PollMS)
@@ -543,8 +543,8 @@ func TestEverySecondInTheScanWindow(t *testing.T) {
 		if ph == "" {
 			a.market = nil
 		}
-		if got := a.interval("quotes"); got != time.Second {
-			t.Errorf("phase %q at 10:00: quotes every %v, want 1s", ph, got)
+		if got := a.interval("quotes"); got != quoteEvery {
+			t.Errorf("phase %q at 10:00: quotes every %v, want %v", ph, got, quoteEvery)
 		}
 	}
 	for _, clock := range []time.Time{
@@ -555,8 +555,8 @@ func TestEverySecondInTheScanWindow(t *testing.T) {
 	} {
 		a.now = clock
 		a.market = marketIn("CLOSED") // the relay's label for pre and post
-		if got := a.interval("quotes"); got != time.Second {
-			t.Errorf("%s: quotes every %v, want 1s", clock.Format("Mon 15:04"), got)
+		if got := a.interval("quotes"); got != quoteEvery {
+			t.Errorf("%s: quotes every %v, want %v", clock.Format("Mon 15:04"), got, quoteEvery)
 		}
 	}
 	// Outside the window, and at the weekend, the check is slow.
@@ -583,8 +583,8 @@ func TestAdaptivePolling(t *testing.T) {
 	a := newTestApp(t)
 	a.market = marketIn("OPEN")
 	want := map[string]time.Duration{
-		"market": 5 * time.Second, "quotes": time.Second, "signals": 5 * time.Second,
-		"health": 15 * time.Second, "prices": 2 * time.Second,
+		"market": 15 * time.Second, "quotes": quoteEvery, "signals": 15 * time.Second,
+		"health": 30 * time.Second, "prices": 10 * time.Second,
 	}
 	for k, v := range want {
 		if got := a.interval(k); got != v {
@@ -593,16 +593,16 @@ func TestAdaptivePolling(t *testing.T) {
 	}
 	// Failures back off but never beyond a minute.
 	a.fails["market"] = 1
-	if got := a.interval("market"); got != 5*time.Second {
+	if got := a.interval("market"); got != 15*time.Second {
 		t.Errorf("1 failure: %v", got)
 	}
 	a.fails["quotes"] = 1
-	if got := a.interval("quotes"); got != time.Second {
+	if got := a.interval("quotes"); got != quoteEvery {
 		t.Errorf("1 failure: %v", got)
 	}
 	a.fails["quotes"] = 40
-	if got := a.interval("quotes"); got != time.Second {
-		t.Errorf("many failures: %v, want the one second quotes retry", got)
+	if got := a.interval("quotes"); got != quoteRetry {
+		t.Errorf("many failures: %v, want the live quotes retry %v", got, quoteRetry)
 	}
 	// A slower poll setting is respected, and the signals pace follows it.
 	a.fails = map[string]int{}
@@ -659,9 +659,8 @@ func TestDailyBudget(t *testing.T) {
 		}
 	}
 	a.now = time.Date(2026, 11, 2, 11, 0, 0, 0, pkt)
-	if got := 7.8 * 3600 / a.interval("quotes").Seconds(); got != 7.8*3600 {
-		// one quotes call every second for the whole window
-		t.Errorf("quotes are not every second: %.0f", got)
+	if got := 7.8 * 3600 / a.interval("quotes").Seconds(); got != 7.8*3600/quoteEvery.Seconds() {
+		t.Errorf("quotes are not at the live pace: %.0f", got)
 	}
 }
 
