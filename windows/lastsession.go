@@ -36,6 +36,48 @@ func sessionPath(cfgPath string) string {
 	return filepath.Join(filepath.Dir(cfgPath), "last-session.json")
 }
 
+// sessionClearMinute is 08:00, the owner's clear time on every market day. The
+// pre-market begins at 09:00, so the window is empty before it fills today.
+const sessionClearMinute = 8 * 60
+
+// maybeClearSession runs the owner's 08:00 clear once on each market day. A
+// weekend or a PSX holiday keeps the last stored day, because there is no
+// session to prepare for.
+func (a *App) maybeClearSession(now time.Time) {
+	p := now.In(pkt)
+	if !isMarketDay(p) || minuteOf(p) < sessionClearMinute {
+		return
+	}
+	day := p.Format("2006-01-02")
+	if a.sessionClearedDay == day {
+		return
+	}
+	a.sessionClearedDay = day
+	if a.cfgPath != "" {
+		path := sessionPath(a.cfgPath)
+		_ = os.Remove(path)
+		_ = os.Remove(path + ".tmp")
+	}
+	a.clearStoredSession()
+}
+
+// clearStoredSession empties the stored market day in memory as well as on
+// disk. The live feed fills today's answers from the pre-market onward; no
+// yesterday data is left to stand in for them.
+func (a *App) clearStoredSession() {
+	a.market, a.marketOpen = nil, false
+	a.quotes = nil
+	a.prices = map[string]Quote{}
+	a.signals = ""
+	a.sectors = nil
+	a.of = nil
+	a.sessionAt = time.Time{}
+	a.sessionDate = ""
+	a.sessionDirty = false
+	a.lastSessionSave = time.Time{}
+	a.rebuildSymbols()
+}
+
 // sessionDayLabel turns the stored session date into 06 NOV 2026. A form it
 // does not recognise is returned as it stands, never guessed.
 func sessionDayLabel(s string) string {

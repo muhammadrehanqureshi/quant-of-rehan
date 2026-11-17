@@ -28,9 +28,10 @@ func TestPercentChangeFromTheFirstPrice(t *testing.T) {
 	}
 }
 
-// The new tile stands in front of POSITION CALCULATOR, and the two split the
-// page width equally.
-func TestPriceDifferenceStandsBeforeTheCalculator(t *testing.T) {
+// Owner order 2026-11-17: POSITION CALCULATOR stands on the left of the
+// SCANNER's bottom row and PRICE DIFFERENCE on the right, with the page's one
+// cell gutter between them.
+func TestCalculatorStandsBeforePriceDifference(t *testing.T) {
 	a := demoApp(t, 120, 36)
 	a.screen = scrScanner
 	diffRow, diffCol, calcRow, calcCol := -1, -1, -1, -1
@@ -45,9 +46,9 @@ func TestPriceDifferenceStandsBeforeTheCalculator(t *testing.T) {
 	if diffRow < 0 || calcRow < 0 {
 		t.Fatalf("the scanner is missing one of the two tiles:\n%s", strings.Join(rowsOf(a), "\n"))
 	}
-	if diffRow != calcRow || diffCol >= calcCol {
-		t.Fatalf("PRICE DIFFERENCE is at row %d col %d, POSITION CALCULATOR at row %d col %d",
-			diffRow, diffCol, calcRow, calcCol)
+	if diffRow != calcRow || calcCol >= diffCol {
+		t.Fatalf("POSITION CALCULATOR is at row %d col %d, PRICE DIFFERENCE at row %d col %d",
+			calcRow, calcCol, diffRow, diffCol)
 	}
 
 	c := NewCanvas(80, 4, a.th.Panel)
@@ -61,9 +62,14 @@ func TestPriceDifferenceStandsBeforeTheCalculator(t *testing.T) {
 	if len(corners) != 2 {
 		t.Fatalf("the pair drew %d frames, want two: %q", len(corners), c.PlainRows()[0])
 	}
-	const gap = 2
-	if left, right := corners[1]-corners[0]-gap, 80-corners[1]; left != right {
-		t.Fatalf("the two tiles are %d and %d cells wide, want equal", left, right)
+	const gap = 1
+	top := []rune(c.PlainRows()[0])
+	if corners[1] < 2 || top[corners[1]-2] != '┓' || top[corners[1]-1] != ' ' {
+		t.Fatalf("the gutter is not one blank cell between two frames: %q", c.PlainRows()[0])
+	}
+	left, right := corners[1]-gap, 80-corners[1]
+	if left-right > 1 || right-left > 1 {
+		t.Fatalf("the two tiles are %d and %d cells wide, want within one", left, right)
 	}
 }
 
@@ -92,28 +98,36 @@ func TestF6OpensThePriceDifferenceTile(t *testing.T) {
 	}
 }
 
-// Owner order 2026-11-17: one blank row between ALERTS LOG entries, not two.
-func TestAlertsLogLeavesOneBlankRowBetweenEntries(t *testing.T) {
+// Owner order 2026-11-17: no blank row between ALERTS LOG entries, and each
+// row carries the current day move in green or red.
+func TestAlertsLogEntriesAreConsecutiveWithTheirMove(t *testing.T) {
 	a := demoApp(t, 120, 34)
 	a.screen = scrAlerts
+	up, down := 5.08, -1.50
 	a.flow.Log = []Flag{
-		{Time: a.now, Kind: "order", Side: "BUY", Text: "FIRST ALERT"},
-		{Time: a.now.Add(-time.Second), Kind: "order", Side: "SELL", Text: "SECOND ALERT"},
+		{Time: a.now, Symbol: "UP", Kind: "order", Side: "BUY", ChangePct: &up, Text: "FIRST ALERT"},
+		{Time: a.now.Add(-time.Second), Symbol: "DOWN", Kind: "order", Side: "SELL", ChangePct: &down, Text: "SECOND ALERT"},
 	}
 	first, second := -1, -1
+	upSeen, downSeen := false, false
 	for i, row := range rowsOf(a) {
 		if strings.Contains(row, "FIRST ALERT") {
 			first = i
+			upSeen = strings.Contains(row, "▲ 5.08%")
 		}
 		if strings.Contains(row, "SECOND ALERT") {
 			second = i
+			downSeen = strings.Contains(row, "▼ 1.50%")
 		}
 	}
 	if first < 0 || second < 0 {
 		t.Fatalf("the two log entries are missing:\n%s", strings.Join(rowsOf(a), "\n"))
 	}
-	if second-first != 2 {
-		t.Fatalf("the second alert starts %d rows below the first, want one blank row", second-first)
+	if second-first != 1 {
+		t.Fatalf("the second alert starts %d rows below the first, want consecutive rows", second-first)
+	}
+	if !upSeen || !downSeen {
+		t.Fatalf("the log lost a day move: up %v down %v", upSeen, downSeen)
 	}
 }
 

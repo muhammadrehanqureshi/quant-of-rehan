@@ -14,9 +14,9 @@ func (a *App) openCalc() {
 	a.priceEdit, a.priceMsg = -1, ""
 }
 
-// openPct gives the keys to the PRICE DIFFERENCE tile in front of the
-// POSITION CALCULATOR. It is the same two box shape, so TAB or ENTER moves
-// between the first and the second price.
+// openPct gives the keys to the PRICE DIFFERENCE tile beside the POSITION
+// CALCULATOR. It is the same two box shape, so TAB or ENTER moves between the
+// first and the second price.
 func (a *App) openPct() {
 	a.calcOpen = false
 	a.pctOpen, a.pctField = true, 0
@@ -74,7 +74,7 @@ func (a *App) keyPct(k Key) {
 // keyCalc handles the two boxes: digits and one dot, TAB or ENTER to the next
 // box, ESC closes.
 func (a *App) keyCalc(k Key) {
-	if k.Kind == KF6 {
+	if k.Kind == KF6 || (k.Kind == KRune && (k.R == 'd' || k.R == 'D')) {
 		a.openPct()
 		return
 	}
@@ -119,34 +119,31 @@ func calcAmount(priceText, qtyText string) (float64, bool) {
 	return p * q, true
 }
 
-// drawCalcPair puts the owner's two SCANNER tiles on one row: PRICE
-// DIFFERENCE in front, POSITION CALCULATOR after it, each taking half the page
-// width. The pair always stands with its last values, whether or not it has
-// the keys.
+// drawCalcPair puts the owner's two SCANNER tiles on one row: POSITION
+// CALCULATOR on the left, PRICE DIFFERENCE on the right. The pair uses the
+// same one cell gutter as every other gap on the SCANNER page. It always
+// stands with its last values, whether or not it has the keys.
 func (a *App) drawCalcPair(c *Canvas, x, y, w, h int) {
 	if w < 48 {
 		return
 	}
-	gap := 1
-	if w%2 == 0 {
-		gap = 2
-	}
+	const gap = 1
 	left := (w - gap) / 2
-	a.drawPercentTile(c, x, y, left, h)
-	a.drawCalculatorTile(c, x+left+gap, y, w-gap-left, h)
+	a.drawCalculatorTile(c, x, y, left, h)
+	a.drawPercentTile(c, x+left+gap, y, w-gap-left, h)
 }
 
-// drawPercentTile is the first of the two SCANNER tiles: two prices, and the
-// percentage move from the first to the second. F6 gives it the keys, or a
+// drawPercentTile is the second of the two SCANNER tiles: two prices, and the
+// percentage move from the first to the second. D gives it the keys, or a
 // click on the tile does.
 func (a *App) drawPercentTile(c *Canvas, x, y, w, h int) {
 	th := a.th
 	if w < 24 || h < 4 {
 		return
 	}
-	hint := "Press \"F6\" to compare"
+	hint := "Press \"D\" to calculate"
 	if w < 56 {
-		hint = "F6"
+		hint = "D"
 	}
 	if a.pctOpen {
 		hint = "TAB next, ESC leaves"
@@ -156,15 +153,27 @@ func (a *App) drawPercentTile(c *Canvas, x, y, w, h int) {
 	}
 	ix, iy, iw, _ := a.panel(c, x, y, w, h, "PRICE DIFFERENCE", hint)
 	a.addHit(x, y, w, h, func() { a.openPct() })
-	bw := min(12, max(6, (iw-6)/2))
+	// Owner order 2026-11-17: both fields read Enter price with one blank cell
+	// before and after the words, and their labels are the full field names.
+	firstLabel, secondLabel := "FIRST PRICE", "SECOND PRICE"
+	bw := 13
+	if firstLabelLen, secondLabelLen := runeLen(firstLabel), runeLen(secondLabel); firstLabelLen+secondLabelLen+3+2*bw > iw {
+		// Keep both fields on the row on a narrower window, with short labels.
+		firstLabel, secondLabel = "1", "2"
+		bw = min(13, max(6, (iw-6)/2))
+	}
 	if bw < 6 {
 		return
 	}
-	ax, bx := ix+2, ix+6+bw
-	c.Text(ix, iy, 1, "A", th.Soft, true)
-	c.Text(ix+4+bw, iy, 1, "B", th.Soft, true)
-	a.drawInputBox(c, ax, iy, bw, a.pctFirst, "First", a.pctOpen && a.pctField == 0)
-	a.drawInputBox(c, bx, iy, bw, a.pctSecond, "Second", a.pctOpen && a.pctField == 1)
+	fx := ix + runeLen(firstLabel) + 1
+	sx := fx + bw + 1 + runeLen(secondLabel) + 1
+	if sx+bw > ix+iw {
+		return
+	}
+	c.Text(ix, iy, runeLen(firstLabel), firstLabel, th.Soft, true)
+	c.Text(fx+bw+1, iy, runeLen(secondLabel), secondLabel, th.Soft, true)
+	a.drawInputBox(c, fx, iy, bw, a.pctFirst, "Enter price", a.pctOpen && a.pctField == 0)
+	a.drawInputBox(c, sx, iy, bw, a.pctSecond, "Enter price", a.pctOpen && a.pctField == 1)
 	label, col := "DIFF  --", th.Soft
 	if pct, ok := pctChange(a.pctFirst, a.pctSecond); ok {
 		label = "DIFF  " + signedPercent(pct)
@@ -269,11 +278,14 @@ func (a *App) drawCalculatorTile(c *Canvas, x, y, w, h int) {
 	a.drawInputBox(c, qBox, iy, bw, a.calcQty, "Enter qty", a.calcOpen && a.calcField == 1)
 	total, ok := calcAmount(a.calcPrice, a.calcQty)
 	c.Text(ix, iy+1, priceLabel+labelGap, "TOTAL", th.Soft, true)
-	amount := "PKR -"
 	if ok {
-		amount = "PKR " + commaFloat(total, 2)
+		c.Text(pBox, iy+1, max(1, iw-(pBox-ix)), "PKR "+commaFloat(total, 2), th.Good, true)
+	} else {
+		// Owner order 2026-11-17: with nothing to calculate the dash stands in
+		// front of PKR, in the same soft ink as the TOTAL label.
+		c.Text(pBox, iy+1, 1, "-", th.Soft, true)
+		c.Text(pBox+2, iy+1, max(1, iw-(pBox-ix)-2), "PKR", th.Good, true)
 	}
-	c.Text(pBox, iy+1, max(1, iw-(pBox-ix)), amount, th.Good, true)
 }
 
 // inputRow draws one labelled field of an overlay form: a filled box, the text

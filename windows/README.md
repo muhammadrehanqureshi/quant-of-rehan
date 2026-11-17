@@ -1,10 +1,11 @@
-# Quant of Rehan for Windows (console edition), build 126
+# Quant of Rehan for Windows (console edition), build 127
 
 A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.21**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
 
-## What is new in build 126
+## What is new in build 127
 
+* **Build 127 (version 3.8.2).** A big-order flash leaves the top of the window after two seconds. ALERTS LOG puts its entries on consecutive rows, with no blank row between them, and carries each scrip's current day move as a green up arrow or a red down arrow. Every market day's stored session is cleared at 08:00, before the 09:00 pre-market. POSITION CALCULATOR stands on the left of the SCANNER's bottom row and PRICE DIFFERENCE on the right, with the page's one cell gutter. D opens PRICE DIFFERENCE, whose boxes are now `FIRST PRICE` and `SECOND PRICE`, both reading `Enter price` with one blank cell on each side. An empty POSITION CALCULATOR reads `TOTAL - PKR`, with the dash in the same soft ink as `TOTAL`.
 * **Build 126 (version 3.8.1).** The application icon is the owner's new `QoR.png` of 2026-11-17: 2048 by 2048, committed byte for byte as `assets/icon-source.png` and embedded from it, and the same bytes now stand as `assets/QoR.png`, the project's official mark in the README. The Go test pins the new source hash, so no later build can swap, recolour or redraw it.
 * **Build 125 (version 3.8.0).** PRICE DIFFERENCE stands in front of POSITION CALCULATOR, and the two tiles share one row across the full page width. Enter the first price in A and the second in B; the tile reads the percentage move from A to B, `+1.15%` for 78 to 78.9. F6 gives the tile the keys, or a click does. ALERTS LOG leaves one blank row between alerts instead of two. The red orb is one red, the shade most of its dots already used, including the outer side on a break or after hours.
 * **Build 124 (version 3.7.9).** POSITION CALCULATOR puts QUANTITY six cells after the PRICE box, with both labels and both boxes on one alignment. B, S, U and T read `B=...  S=...  U=...  &  T=...`, with two spaces around every field and around the ampersand. ORDER FLOW's third order chip reads `UNCLEAR` instead of `UNCLASSIFIED`. TELEMETRY's REQ row drops the word `today`. ORDER FLOW's footer reads `(total) large prints of QTY 50k and more.`

@@ -102,10 +102,11 @@ type App struct {
 
 	// The last stored market day, so a restart on a closed day starts with
 	// the table instead of empty panels. Build 26.
-	sessionAt       time.Time
-	sessionDate     string
-	sessionDirty    bool
-	lastSessionSave time.Time
+	sessionAt         time.Time
+	sessionDate       string
+	sessionDirty      bool
+	lastSessionSave   time.Time
+	sessionClearedDay string // the market day whose 08:00 clear has run
 
 	// scheduling
 	inflight map[string]bool
@@ -172,7 +173,7 @@ type App struct {
 	calcPrice string
 	calcQty   string
 
-	// the PRICE DIFFERENCE tile in front of it, F6: two prices and the
+	// the PRICE DIFFERENCE tile beside it, D: two prices and the
 	// percentage move from the first to the second.
 	pctOpen   bool
 	pctField  int // 0 the first price, 1 the second
@@ -1094,6 +1095,9 @@ func (a *App) watchQuotes(now time.Time) {
 func (a *App) onTick(now time.Time) {
 	a.now = now
 	a.syncReqCount()
+	// Owner order 2026-11-17: every market day's stored session is cleared at
+	// 08:00, before the pre-market begins at 09:00.
+	a.maybeClearSession(now)
 	for k, f := range a.flashes {
 		if !now.Before(f.until) {
 			delete(a.flashes, k)
@@ -1402,9 +1406,14 @@ func (a *App) keyScanner(k Key) {
 			return
 		}
 		// Owner order 2026-11-14: C opens the POSITION CALCULATOR on the
-		// SCANNER page, and F6 no longer does.
+		// SCANNER page, and F6 no longer does. Owner order 2026-11-17: D
+		// opens the PRICE DIFFERENCE tile beside it.
 		if r == 'C' {
 			a.openCalc()
+			return
+		}
+		if r == 'D' {
+			a.openPct()
 			return
 		}
 		if (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '.' || r == '-' || r == '_' {

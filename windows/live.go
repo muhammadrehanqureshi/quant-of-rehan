@@ -139,7 +139,9 @@ func (a *App) raiseFlag(fl Flag) {
 		return
 	}
 	a.bannerTitle, a.bannerBody = fl.Text, fl.Detail
-	a.bannerUntil = a.now.Add(25 * time.Second)
+	// Owner order 2026-11-17: a big-order flash stays on screen for two
+	// seconds only.
+	a.bannerUntil = a.now.Add(2 * time.Second)
 	a.bannerKind = "flow"
 	a.bannerSell = fl.Side == "SELL"
 	if a.bannerSell {
