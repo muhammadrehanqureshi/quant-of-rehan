@@ -102,8 +102,11 @@ const appVersion = "4.0.21"
 // fields, and the pre-open ORDER FLOW rows that keep every KMIALL scrip listed.
 // Build 130 is 3.8.5, the one dash on an empty PRICE DIFFERENCE, the KSE100
 // values written immediately after their '=' with the padding after them, and
-// the comma after S and U while their labels stay on the same cells.
-const hudBuild = "3.8.5"
+// the comma after S and U while their labels stay on the same cells. Build 131
+// is 3.8.6, the SEARCH and SECTORS boxes without the row above them, the three
+// scrips and six sorts at the owner's short window, the KSE100 B/S/U/T shape on
+// every list, and the stored session cleared only from 08:00 to 08:55.
+const hudBuild = "3.8.6"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no

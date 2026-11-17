@@ -54,7 +54,7 @@ func blankSearchRow(row string) bool {
 	return strings.TrimSpace(s) == ""
 }
 
-func checkSearchBoxGaps(t *testing.T, name string, rows []string, needle string) {
+func checkSearchBoxGaps(t *testing.T, name string, rows []string, needle string, before bool) {
 	t.Helper()
 	hits := 0
 	for i, row := range rows {
@@ -66,8 +66,12 @@ func checkSearchBoxGaps(t *testing.T, name string, rows []string, needle string)
 			t.Errorf("%s: the search box has no room for breathing rows", name)
 			continue
 		}
-		if !blankSearchRow(rows[i-1]) {
-			t.Errorf("%s: no blank row before the search box: %q", name, rows[i-1])
+		if before {
+			if !blankSearchRow(rows[i-1]) {
+				t.Errorf("%s: no blank row before the search box: %q", name, rows[i-1])
+			}
+		} else if blankSearchRow(rows[i-1]) {
+			t.Errorf("%s: the withdrawn row before the search box is still blank: %q", name, rows[i-1])
 		}
 		if !blankSearchRow(rows[i+1]) {
 			t.Errorf("%s: no blank row after the search box: %q", name, rows[i+1])
@@ -78,24 +82,25 @@ func checkSearchBoxGaps(t *testing.T, name string, rows []string, needle string)
 	}
 }
 
-// Owner order 2026-11-14 (latest): every search box in the build carries one
-// blank row before it and one after it.
+// Owner order 2026-11-17: the blank row before the SEARCH and SECTORS boxes is
+// withdrawn; ORDER FLOW and the ALERTS LOG keep their breathing row.
 func TestEverySearchBoxHasABlankRowOnEachSide(t *testing.T) {
 	cases := []struct {
 		name   string
 		screen screenID
 		w, h   int
 		needle string
+		before bool
 	}{
-		{"scanner", scrScanner, 120, 42, scripSearchHint},
-		{"sectors", scrScanner, 120, 42, "Search for a sector"},
-		{"order flow", scrOrderFlow, 120, 40, scripSearchHint},
-		{"alerts log", scrAlerts, 120, 34, scripSearchHint},
+		{"scanner", scrScanner, 120, 42, scripSearchHint, false},
+		{"sectors", scrScanner, 120, 42, "Search for a sector", false},
+		{"order flow", scrOrderFlow, 120, 40, scripSearchHint, true},
+		{"alerts log", scrAlerts, 120, 34, scripSearchHint, true},
 	}
 	for _, tc := range cases {
 		a := demoApp(t, tc.w, tc.h)
 		a.screen = tc.screen
-		checkSearchBoxGaps(t, tc.name, rowsOf(a), tc.needle)
+		checkSearchBoxGaps(t, tc.name, rowsOf(a), tc.needle, tc.before)
 	}
 }
 

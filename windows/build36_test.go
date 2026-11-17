@@ -101,8 +101,8 @@ func TestEmptyDifferenceKeepsOneDash(t *testing.T) {
 	}
 }
 
-// Owner order 2026-11-17: every market day's stored session is cleared at
-// 08:00, and a weekend keeps the last stored day.
+// Owner order 2026-11-17: every market day's stored session is cleared inside
+// the 08:00-08:55 window, and a weekend keeps the last stored day.
 func TestStoredSessionClearsAtEightOnMarketDays(t *testing.T) {
 	dir := t.TempDir()
 	cfgPath := filepath.Join(dir, "settings.json")
@@ -132,6 +132,18 @@ func TestStoredSessionClearsAtEightOnMarketDays(t *testing.T) {
 	}
 	if a.market != nil || a.sessionDate != "" || len(a.prices) != 0 {
 		t.Fatalf("the day is still in memory: market %v date %q prices %d", a.market, a.sessionDate, len(a.prices))
+	}
+
+	// A window opened after 08:55 keeps the last stored day: the clear window
+	// has passed, so a late start must not erase it.
+	late := NewApp(cfg, cfgPath, NewRelay(defaultRelay))
+	if err := saveSession(sessionPath(cfgPath), snap); err != nil {
+		t.Fatalf("save late: %v", err)
+	}
+	late.now = time.Date(2026, 11, 17, 8, 56, 0, 0, pkt)
+	late.maybeClearSession(late.now)
+	if loadSession(sessionPath(cfgPath)) == nil {
+		t.Fatal("the stored session was cleared after the 08:55 window")
 	}
 
 	// Saturday keeps the last stored day.

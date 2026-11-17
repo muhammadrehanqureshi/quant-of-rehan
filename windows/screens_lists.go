@@ -203,13 +203,21 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 	// 2026-11-13: the tile shows six groups at most; the rest scroll. A tapped
 	// sector opens its scrips inside this tile, and the CUSTOM SCRIPS tile below
 	// stays on screen, so the two lists can be read together.
-	sectorH := 7
+	sectorH := 6
 	if a.sectorOpen {
-		sectorH = min(max(len(a.visibleSectorMembers())+4, 9), 10)
+		sectorH = min(max(len(a.visibleSectorMembers())+3, 8), 9)
 	} else if n := len(a.visibleSectorIndices()); n > 0 {
-		// The field's two breathing rows take one row from the old tile, so
-		// the height grows by one and the six groups still fit.
-		sectorH = min(n+5, 11)
+		// Owner order 2026-11-17: the blank row before the search field is
+		// withdrawn, so the six groups fit one row lower than before. On a
+		// short window the tile gives one more row to CUSTOM SCRIPS so all
+		// three scrips and all six sorts fit.
+		if h < 35 {
+			// The short window spends its rows on CUSTOM SCRIPS: the field
+			// stands tight under the title and three groups remain visible.
+			sectorH = min(n+3, 6)
+		} else {
+			sectorH = min(n+4, 10)
+		}
 	}
 	// Owner order 2026-11-13: the calculator is a tile of its own under the
 	// CUSTOM SCRIPS tile. It takes four rows at the bottom of the page and the
@@ -447,7 +455,10 @@ func scanBSTCols(tbl map[string]Quote) bstCols {
 // more than a third of the screen.
 func (a *App) searchTileHeight(w, h int) int {
 	if a.searchText == "" && a.selectedSym == "" {
-		return 5 // one blank row before and after the field
+		if h < 35 {
+			return 3 // the field alone on a short window
+		}
+		return 4 // one blank row after the field; no row before it
 	}
 	m := len(a.matches())
 	need := max(m, 1)
@@ -457,7 +468,7 @@ func (a *App) searchTileHeight(w, h int) int {
 	if w < 64 {
 		need += 4 // the details go under the matches
 	}
-	return min(5+need, max(7, h/3+1))
+	return min(4+need, max(7, h/3+1))
 }
 
 // searchBox draws the one filled field every search uses: SEARCH on the
@@ -505,19 +516,19 @@ func (a *App) drawSearchTile(c *Canvas, x, y, w, h int) {
 		hint = "UP and DOWN choose, ENTER opens"
 	}
 	ix, iy, iw, ih := a.panel(c, x, y, w, h, "SEARCH", hint)
-	// Owner order 2026-11-14 (latest): every search box keeps one blank
-	// row before it and one after it.
-	a.searchBox(c, ix, iy+1, min(iw, 40), a.searchText, scripSearchHint, true)
+	// Owner order 2026-11-17: the blank row before the box is withdrawn, so
+	// the SEARCH tile is one row shorter; one blank row still follows it.
+	a.searchBox(c, ix, iy, min(iw, 40), a.searchText, scripSearchHint, true)
 	if a.searchText == "" && a.selectedSym == "" {
 		return
 	}
 	if len(a.symbols) == 0 {
-		c.Text(ix, iy+3, iw, "Symbols load with the next relay answer.", th.Soft, false)
+		c.Text(ix, iy+2, iw, "Symbols load with the next relay answer.", th.Soft, false)
 		return
 	}
 	m := a.matches()
 	q := strings.ToUpper(strings.TrimSpace(a.searchText))
-	row := iy + 3
+	row := iy + 2
 	if len(m) == 0 && q != "" {
 		c.Text(ix, row, iw, "No KMIALL scrip starts with "+q+".", th.Soft, false)
 		return
@@ -632,10 +643,14 @@ func (a *App) drawSectorTile(c *Canvas, x, y, w, h int) {
 	a.sectorY, a.sectorH = y, h
 	searchRows := 0
 	if ih > 0 {
-		// Owner order 2026-11-14 (latest): one blank row stands before and
-		// after every search box, the SECTORS field included.
-		a.drawSectorSearch(c, ix, iy+1, iw, false)
-		searchRows = 3
+		// Owner order 2026-11-17: the blank row before the SECTORS field is
+		// withdrawn; the box stands on the first inner row and one blank row
+		// still follows it.
+		a.drawSectorSearch(c, ix, iy, iw, false)
+		searchRows = 2
+		if h <= 6 {
+			searchRows = 1
+		}
 	}
 	listY := iy + searchRows
 	listRows := max(1, ih-searchRows)

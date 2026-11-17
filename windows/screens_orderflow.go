@@ -109,36 +109,25 @@ func (a *App) putBSUT(c *Canvas, x, y int, r FlowRow, keys ...string) int {
 	put := func(s string, fg RGB, bold bool) {
 		vx += a.flashText(c, vx, y, s, fg, bold, keys...)
 	}
-	num := func(p *int64) string {
-		if p == nil {
-			return "n/a"
-		}
-		return commaInt(*p)
-	}
 	switch {
 	case r.Measured():
-		put("B=", th.Soft, false)
-		put(num(r.Buy), th.Good, true)
-		put("  S=", th.Soft, false)
-		put(num(r.Sell), th.Bad, true)
-		put("  U=", th.Soft, false)
-		uc := th.Soft
-		if r.Unclassified != nil && *r.Unclassified > 0 {
-			uc = th.Warn
-		}
-		put(num(r.Unclassified), uc, r.Unclassified != nil && *r.Unclassified > 0)
-		put("  &  T=", th.Soft, false)
-		put(num(r.Volume), totalBlue, false)
+		// Owner order 2026-11-17: every inline B, S, U and T line uses the
+		// KSE100 alignment, including ORDER FLOW's narrow rows and its totals.
+		return a.putBST(c, x, y, r.Buy, r.Sell, r.Volume, keys...)
 	case r.Method == methodEstimated && r.Buy != nil && r.Sell != nil:
 		put("B~", th.Soft, false)
-		put(num(r.Buy), mix(th.Good, th.Soft, 0.5), false)
+		put(leaderVolumeField(*r.Buy), mix(th.Good, th.Soft, 0.5), false)
 		put("  S~", th.Soft, false)
-		put(num(r.Sell), mix(th.Bad, th.Soft, 0.5), false)
+		put(leaderVolumeFieldComma(*r.Sell), mix(th.Bad, th.Soft, 0.5), false)
 		put("  &  T=", th.Soft, false)
-		put(num(r.Volume), totalBlue, false)
+		put(leaderVolumeField(*r.Volume), totalBlue, false)
 	default:
 		put("T=", th.Soft, false)
-		put(num(r.Volume), totalBlue, false)
+		if r.Volume != nil {
+			put(leaderVolumeField(*r.Volume), totalBlue, false)
+		} else {
+			put("n/a", totalBlue, false)
+		}
 	}
 	return vx - x
 }
@@ -195,10 +184,10 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 
 	// Line 2: the measured totals, added up from the measured stocks only.
 	t2 := []Span{{"MEASURED ", th.Soft, false}, {fmt.Sprintf("%d stocks  ", tot.Measured), th.Text, true},
-		{"B=", th.Soft, false}, {commaInt(tot.Buy), th.Good, true},
-		{"  S=", th.Soft, false}, {commaInt(tot.Sell), th.Bad, true},
-		{"  U=", th.Soft, false}, {commaInt(tot.Unclassified), th.Warn, tot.Unclassified > 0},
-		{"  &  T=", th.Soft, false}, {commaInt(tot.MeasuredTotal), totalBlue, false}}
+		{"B=", th.Soft, false}, {leaderVolumeField(tot.Buy), th.Good, true},
+		{"  S=", th.Soft, false}, {leaderVolumeFieldComma(tot.Sell), th.Bad, true},
+		{"  U=", th.Soft, false}, {leaderVolumeFieldComma(tot.Unclassified), th.Warn, tot.Unclassified > 0},
+		{"  &  T=", th.Soft, false}, {leaderVolumeField(tot.MeasuredTotal), totalBlue, false}}
 	c.Spans(ix, row, iw, t2)
 	row++
 
