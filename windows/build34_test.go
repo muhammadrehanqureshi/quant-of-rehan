@@ -18,15 +18,15 @@ func TestCalculatorQuantityFollowsPriceBox(t *testing.T) {
 	if price < 0 || qty < 0 {
 		t.Fatalf("the calculator lost a field label: %q", row)
 	}
-	wantQty := price + 12 + 13 + 6
+	wantQty := price + 6 + 13 + 6
 	if qty != wantQty {
 		t.Fatalf("QUANTITY starts on cell %d, want %d (six cells after PRICE's box): %q", qty, wantQty, row)
 	}
-	if got := strings.Index(row, "Enter price"); got != price+13 {
-		t.Fatalf("PRICE's box starts on cell %d, want %d: %q", got, price+13, row)
+	if got := strings.Index(row, "Enter price"); got != price+7 {
+		t.Fatalf("PRICE's box starts on cell %d, want %d: %q", got, price+7, row)
 	}
-	if got := strings.Index(row, "Enter qty"); got != qty+13 {
-		t.Fatalf("QUANTITY's box starts on cell %d, want %d: %q", got, qty+13, row)
+	if got := strings.Index(row, "Enter qty"); got != qty+10 {
+		t.Fatalf("QUANTITY's box starts on cell %d, want %d: %q", got, qty+10, row)
 	}
 }
 

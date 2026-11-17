@@ -224,7 +224,7 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 		if y+h-sy-sectorH-1-calcH >= 17 {
 			calcReserve++
 		}
-		defer a.drawCalculatorTile(c, x, y+h-calcH, w, calcH)
+		defer a.drawCalcPair(c, x, y+h-calcH, w, calcH)
 	}
 	// The gap costs one row. On a short window, keep the ranked list at four
 	// stocks by letting the sector list scroll instead of taking that row. The
@@ -1361,7 +1361,10 @@ func (a *App) drawAlertLog(c *Canvas, x, y, w, h int) {
 	searchY := liy + 1
 	bw := a.searchBox(c, lx, searchY, min(liw, 40), a.alertQuery, scripSearchHint, a.alertSearch)
 	a.addHit(lx, searchY, bw, 1, func() { a.alertFocus, a.alertSearch = 2, true; a.lvLog.top() })
-	const per = 3 // a title and up to two lines of detail
+	// Owner order 2026-11-17: one blank row between alerts, not two. Each
+	// entry owns a title and at most one detail line, so the next title starts
+	// two rows below the previous one.
+	const per = 2
 	listY := searchY + 2
 	if lih < 4 {
 		return
@@ -1395,14 +1398,12 @@ func (a *App) drawAlertLog(c *Canvas, x, y, w, h int) {
 		}
 		c.Spans(lx, row, lw, sp)
 		row++
-		lines := wrap(f.Detail, lw-10)
-		for k := 0; k < len(lines) && k < 2; k++ {
-			ln := lines[k]
-			if k == 1 && len(lines) > 2 {
-				ln = fit(ln+" "+lines[2], lw-10)
+		if lines := wrap(f.Detail, lw-10); len(lines) > 0 {
+			ln := fit(lines[0], lw-10)
+			if len(lines) > 1 {
+				ln = fit(lines[0]+" "+lines[1], lw-10)
 			}
 			c.Text(lx+10, row, lw-10, ln, th.Soft, false)
-			row++
 		}
 		row = listY + (n+1)*per
 	}

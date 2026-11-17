@@ -87,8 +87,10 @@ const appVersion = "4.0.21"
 // CUSTOM SCRIPS and the two cell gutter after every B, S, U and T value.
 // Build 124 is 3.7.9, the calculator's six cell price-to-quantity gap, the
 // owner's B/S/U/T spacing, the UNCLEAR order chip, the shortened REQ row and
-// the quantity-based large-print footer.
-const hudBuild = "3.7.9"
+// the quantity-based large-print footer. Build 125 is 3.8.0, the PRICE
+// DIFFERENCE tile in front of POSITION CALCULATOR, the halved SCANNER row, the
+// one blank row between ALERTS LOG entries and the single shade red orb.
+const hudBuild = "3.8.0"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no

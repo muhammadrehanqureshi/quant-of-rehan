@@ -14,10 +14,12 @@ func TestOrbPalettesAreTheSources(t *testing.T) {
 		green.hot != (RGB{206, 255, 232}) || green.gain != 1 {
 		t.Errorf("the green palette drifted from the source: %+v", green)
 	}
+	// Owner order 2026-11-17: the red orb is one shade, the red most of its
+	// dots already used, so the outer side no longer differs.
 	red := ringPalette(false)
-	if red.dim != (RGB{86, 14, 22}) || red.mid != (RGB{255, 52, 66}) ||
-		red.hot != (RGB{255, 196, 202}) || red.gain != 0.9 {
-		t.Errorf("the red palette drifted from the source: %+v", red)
+	if red.dim != (RGB{255, 52, 66}) || red.mid != (RGB{255, 52, 66}) ||
+		red.hot != (RGB{255, 52, 66}) || red.gain != 1 {
+		t.Errorf("the red palette is not one shade: %+v", red)
 	}
 }
 
