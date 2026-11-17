@@ -996,10 +996,23 @@ func (a *App) marketNote() string {
 	return "Quant is sleeping till the next market day."
 }
 
-// putBST draws "B=1,234  S=5,678  U=12  &  T=6,912" at (x, y) the way every list on the
-// screen words it, with the live flash on each number. A part that is missing
-// is left out. It returns the width drawn.
+// putBST draws the KSE100 leader shape at (x, y): every value starts against
+// its '=' and the fixed nine digit field pads after it, so S, U and T hold the
+// same cells on every list, not only the KSE100 tile. A part that is missing is
+// left out. It returns the width drawn.
 func (a *App) putBST(c *Canvas, x, y int, buy, sell, total *int64, keys ...string) int {
+	// Owner order 2026-11-17: one alignment everywhere. The KSE100 writer
+	// already places every value against its '=' and pads after it, so every
+	// other B, S, U and T line delegates to it instead of repeating the older
+	// packed form.
+	return a.putBSTWide(c, x, y, buy, sell, total, keys...)
+}
+
+// putBSTPacked is the one fallback for a tile too narrow to hold the fixed nine
+// digit fields. The KSE100 tile uses it below 96 columns, where the wide field
+// would collide with its PKR group; every other list has the room for the one
+// alignment.
+func (a *App) putBSTPacked(c *Canvas, x, y int, buy, sell, total *int64, keys ...string) int {
 	th := a.th
 	vx := x
 	put := func(s string, fg RGB, bold bool) {
@@ -1011,9 +1024,6 @@ func (a *App) putBST(c *Canvas, x, y int, buy, sell, total *int64, keys ...strin
 		put("  S=", th.Soft, false)
 		put(commaInt(*sell), th.Bad, true)
 		if total != nil {
-			// Owner order 2026-11-10: U is on every B and S line, so B + S + U
-			// = T can be read at a glance. It is the volume the capture could
-			// not side, and it is never folded into B or S.
 			un := *total - *buy - *sell
 			if un < 0 {
 				un = 0
@@ -1373,7 +1383,7 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 		if iw >= 96 {
 			used = a.putBSTWide(c, ix+3, row, buy, sell, vol, volKey, pxKey)
 		} else {
-			used = a.putBST(c, ix+3, row, buy, sell, vol, volKey, pxKey)
+			used = a.putBSTPacked(c, ix+3, row, buy, sell, vol, volKey, pxKey)
 		}
 		// Owner order 2026-11-10 (latest): the price and the change are pushed
 		// to the tile's far right and right aligned at one edge, so all three

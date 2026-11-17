@@ -36,16 +36,22 @@ func sessionPath(cfgPath string) string {
 	return filepath.Join(filepath.Dir(cfgPath), "last-session.json")
 }
 
-// sessionClearMinute is 08:00, the owner's clear time on every market day. The
-// pre-market begins at 09:00, so the window is empty before it fills today.
-const sessionClearMinute = 8 * 60
+// Owner order 2026-11-17: the stored session is cleared only inside the
+// 08:00-08:55 window on a market day. The pre-market begins at 09:00, so the
+// window is empty before it fills today, and a window opened after 08:55 keeps
+// the last stored day rather than wiping it late.
+const (
+	sessionClearStartMinute = 8 * 60
+	sessionClearEndMinute   = 8*60 + 55
+)
 
 // maybeClearSession runs the owner's 08:00 clear once on each market day. A
 // weekend or a PSX holiday keeps the last stored day, because there is no
 // session to prepare for.
 func (a *App) maybeClearSession(now time.Time) {
 	p := now.In(pkt)
-	if !isMarketDay(p) || minuteOf(p) < sessionClearMinute {
+	minute := minuteOf(p)
+	if !isMarketDay(p) || minute < sessionClearStartMinute || minute > sessionClearEndMinute {
 		return
 	}
 	day := p.Format("2006-01-02")
