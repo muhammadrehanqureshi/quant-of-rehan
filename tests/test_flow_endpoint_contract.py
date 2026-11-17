@@ -85,6 +85,21 @@ class FlowEndpointContractTest(unittest.TestCase):
         self.assertIn("missing,", self.source)
         self.assertIn("a symbol with no frame that day", self.source)
 
+    def test_a_pre_open_frame_is_not_counted_as_session_flow(self):
+        """Before the open the hub holds yesterday's closing volume.
+
+        Counting that carried frame in the totals made the card show a whole
+        day of unclear volume before any trade, so a frame older than the
+        first regular band is reported in missing instead.
+        """
+        start = self.source.index("async function flowAnswer(env, now)")
+        end = self.source.index("async function applyLiveQuotes", start)
+        body = self.source[start:end]
+        self.assertIn("const sessionOpenMs = tradingToday && firstBandOpen",
+                      body)
+        self.assertIn("observedMs < sessionOpenMs", body)
+        self.assertIn('reason: "no regular-session frame since the open"', body)
+
     def test_the_universe_is_the_full_kmiall_file(self):
         start = self.source.index("const KMIALL_UNIVERSE = [")
         end = self.source.index("];", start)

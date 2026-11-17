@@ -2179,6 +2179,14 @@ async function flowAnswer(env, now) {
     : (snapshot.flow_day || quoteDay((snapshot.quotes || [])[0]) || null);
   const universe = new Set(KMIALL_UNIVERSE);
   const seenSymbols = new Set();
+  // The hub keeps each symbol's newest frame, and before the open that frame
+  // is still yesterday's closing volume. Counting it made the order-flow answer
+  // show a whole session of unclear volume before a single trade happened, so
+  // only frames from the day's first regular band onward are session flow.
+  const bands = marketState(now).bands || [];
+  const firstBandOpen = bands.length ? bands[0].open : null;
+  const sessionOpenMs = tradingToday && firstBandOpen
+    ? Date.parse(`${today}T${firstBandOpen}:00+05:00`) : NaN;
   const allRows = Array.from(newestQuoteRows(snapshot.quotes).values());
   const largePrints = Array.isArray(snapshot.large_prints)
     ? snapshot.large_prints : [];
@@ -2200,6 +2208,17 @@ async function flowAnswer(env, now) {
         last_observed_at: quote.observed_at || null,
         last_day: quoteDay(quote),
         reason: "no observed regular-session frame for this day",
+      });
+      continue;
+    }
+    const observedMs = Date.parse(quote.observed_at || "");
+    if (Number.isFinite(sessionOpenMs) && Number.isFinite(observedMs) &&
+        observedMs < sessionOpenMs) {
+      missing.push({
+        symbol,
+        last_observed_at: quote.observed_at || null,
+        last_day: quoteDay(quote),
+        reason: "no regular-session frame since the open",
       });
       continue;
     }
