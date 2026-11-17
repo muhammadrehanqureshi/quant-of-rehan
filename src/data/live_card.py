@@ -145,6 +145,13 @@ def tape_state(now: datetime | None = None) -> tuple[bool, str]:
     Windows and on Linux without a process-table probe.
     """
     moment = now or now_karachi()
+    from src.data import feed_capture
+
+    if feed_capture.capture_is_starting(moment):
+        # The recorder claims its lock before its first status write, which
+        # closes the window where a second recorder used to start and double
+        # the relay's one-second push cadence.
+        return True, "the broker tape is starting and holds its capture lock"
     if not STATUS_PATH.is_file():
         return False, "no broker tape is running (no status.json yet)"
     try:

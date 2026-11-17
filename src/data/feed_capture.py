@@ -145,6 +145,12 @@ HEARTBEAT_SECONDS = 5.0
 UNIVERSE_FILE = ROOT / "src" / "data" / "universe_kmiall.json"
 CAPTURE_DIR = ROOT / "data" / "feed_capture"
 STATUS_PATH = CAPTURE_DIR / "status.json"
+#: One recorder per runner. The band starts the daemon itself and the first
+#: scan also asks for a tape, so without this lock a slow publisher seed can
+#: leave no status.json yet and the scan starts a second recorder. Both then
+#: publish once a second, which is the owner's 2 to 3 requests a second.
+CAPTURE_LOCK = CAPTURE_DIR / "capture.lock"
+CAPTURE_LOCK_STALE_SECONDS = 70.0
 
 # Named tick fields (index -> name) per the field map above.
 #: The market a subscription must name to receive per-trade ticks. A tick
@@ -174,6 +180,59 @@ def guard(frame: str) -> str:
         f"READ-ONLY GUARD: refusing to send frame {frame[:60]!r}; "
         f"allowed prefixes are {ALLOWED_OUTGOING_PREFIXES}"
     )
+
+
+def capture_lock_age(now: datetime | None = None) -> float | None:
+    """Seconds since the recorder lock was last touched, or None if absent."""
+    try:
+        touched = CAPTURE_LOCK.stat().st_mtime
+    except OSError:
+        return None
+    moment = (now or now_karachi()).timestamp()
+    return max(0.0, moment - touched)
+
+
+def capture_is_starting(now: datetime | None = None) -> bool:
+    """True while a recorder owns a fresh lock, even before status.json."""
+    age = capture_lock_age(now)
+    return age is not None and age <= CAPTURE_LOCK_STALE_SECONDS
+
+
+def acquire_capture_lock() -> tuple[bool, str]:
+    """Claim the one recorder slot, replacing a lock left by a dead one."""
+    CAPTURE_DIR.mkdir(parents=True, exist_ok=True)
+    for _ in range(2):
+        try:
+            fd = os.open(CAPTURE_LOCK,
+                         os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        except FileExistsError:
+            if capture_is_starting():
+                return False, "another broker tape already holds the capture lock"
+            try:
+                CAPTURE_LOCK.unlink()
+            except OSError:
+                pass
+            continue
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(json.dumps({"pid": os.getpid(),
+                                     "at": now_karachi().isoformat()}))
+        return True, f"broker tape lock held by pid {os.getpid()}"
+    return False, "could not claim the broker tape lock"
+
+
+def touch_capture_lock() -> None:
+    """Refresh the lock with the recorder's own heartbeat."""
+    try:
+        os.utime(CAPTURE_LOCK, None)
+    except OSError:
+        pass
+
+
+def release_capture_lock() -> None:
+    try:
+        CAPTURE_LOCK.unlink()
+    except OSError:
+        pass
 
 
 def load_universe(path: Path = UNIVERSE_FILE) -> list[str]:
@@ -938,6 +997,7 @@ class CaptureSession:
         tmp = STATUS_PATH.with_suffix(".tmp")
         tmp.write_text(json.dumps(status, indent=1), encoding="utf-8")
         tmp.replace(STATUS_PATH)
+        touch_capture_lock()
 
     def close(self) -> None:
         self.running = False
@@ -1068,19 +1128,26 @@ def main(argv: list[str] | None = None) -> int:
         print("no status.json yet: the capture daemon has not run")
         return 1
 
-    symbols = load_universe(args.symbols_file)
-    session = CaptureSession(symbols, duration=args.duration)
-    print(f"{now_karachi():%Y-%m-%d %H:%M:%S} KST feed capture starting: "
-          f"{len(symbols)} KMIALL symbols")
+    claimed, claim_detail = acquire_capture_lock()
+    if not claimed:
+        print(f"{now_karachi():%H:%M:%S} not starting: {claim_detail}")
+        return 0
     try:
-        session.run()
-    except KeyboardInterrupt:
-        print(f"{now_karachi():%H:%M:%S} stopped by owner (Ctrl+C)")
+        symbols = load_universe(args.symbols_file)
+        session = CaptureSession(symbols, duration=args.duration)
+        print(f"{now_karachi():%Y-%m-%d %H:%M:%S} KST feed capture starting: "
+              f"{len(symbols)} KMIALL symbols")
+        try:
+            session.run()
+        except KeyboardInterrupt:
+            print(f"{now_karachi():%H:%M:%S} stopped by owner (Ctrl+C)")
+        finally:
+            session.close()
+        print(f"banked {session.counters['messages']} messages, "
+              f"{session.counters['ticks']} ticks")
+        return 0
     finally:
-        session.close()
-    print(f"banked {session.counters['messages']} messages, "
-          f"{session.counters['ticks']} ticks")
-    return 0
+        release_capture_lock()
 
 
 if __name__ == "__main__":

@@ -64,8 +64,12 @@ class ReadinessGateTest(unittest.TestCase):
                          "a default Python user agent is refused by the edge")
         self.assertIn("after three attempts", text,
                       "the alert states how often the relay was tried")
-        self.assertIn("preopen-ready:", text,
-                      "the alert is deduped per day, one email at most")
+        self.assertIn("minute < 8 * 60 + 40 or minute > 9 * 60 + 30", text,
+                      "a late fire outside the pre-open window does no check")
+        self.assertNotIn("owner_email", text,
+                         "owner order 2026-11-17: this gate emails nothing")
+        self.assertNotIn("preopen-ready:", text,
+                         "the readiness email marker is retired")
         self.assertNotIn("schtasks", text)
         self.assertNotIn("while true", text)
 
