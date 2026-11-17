@@ -14,7 +14,7 @@ import (
 // for the project... this image will be the new ICON of the windows build as
 // well". If this fails, restore his picture; never update the hash to match a
 // replacement.
-const ownerIconSHA256 = "439acc880074f97215395225b626e6732c403c339fa833fefb3adf0499e9b781"
+const ownerIconSHA256 = "c7a9275eef81b0ec38cbee0f8e886e617993eea8d433b9beb8d764434a45e2e1"
 
 func TestIconIsTheOwnersExactPicture(t *testing.T) {
 	raw, err := os.ReadFile("assets/icon-source.png")

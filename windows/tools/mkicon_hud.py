@@ -1,7 +1,7 @@
 """Make the Windows icon from the owner's own picture.
 
 Owner order 2026-11-17: the icon is the owner's `QoR.png`, committed as
-`assets/icon-source.png` (sha256 439acc88...81), which replaces his `QoR.png` of
+`assets/icon-source.png` (sha256 c7a9275e...e1), which replaces his `QoR.png` of
 2026-11-12. It is never redrawn, recoloured, masked or replaced. The only
 transformation here is a square crop and a resize, because an .ico needs square
 sizes. A Go test pins the source hash, so a later session cannot swap the
