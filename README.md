@@ -4,7 +4,7 @@
 
 <h1 align="center">Quant of Rehan</h1>
 
-<p align="center"><sub><code>assets/QoR.png</code> is the project's official mark: the owner's own picture, 2048 by 2048, and the same bytes are pinned as <code>windows/assets/icon-source.png</code>, so the README and the console's own icon carry one image (owner order 2026-11-12).</sub></p>
+<p align="center"><sub><code>assets/QoR.png</code> is the project's official mark: the owner's own picture, 2048 by 2048, refreshed on 2026-11-17, and the same bytes are pinned as <code>windows/assets/icon-source.png</code>, so the README and the console's own icon carry one image (owner orders 2026-11-12 and 2026-11-17). The Windows build embeds it from that pinned source.</sub></p>
 
 [![Governance Guard](https://github.com/muhammadrehanqureshi/quant-of-rehan/actions/workflows/governance-guard.yml/badge.svg)](https://github.com/muhammadrehanqureshi/quant-of-rehan/actions/workflows/governance-guard.yml)
 [![Android App](https://github.com/muhammadrehanqureshi/quant-of-rehan/actions/workflows/android-apk.yml/badge.svg)](https://github.com/muhammadrehanqureshi/quant-of-rehan/actions/workflows/android-apk.yml)

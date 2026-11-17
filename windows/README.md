@@ -1,10 +1,11 @@
-# Quant of Rehan for Windows (console edition), build 125
+# Quant of Rehan for Windows (console edition), build 126
 
 A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.21**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
 
-## What is new in build 125
+## What is new in build 126
 
+* **Build 126 (version 3.8.1).** The application icon is the owner's new `QoR.png` of 2026-11-17: 2048 by 2048, committed byte for byte as `assets/icon-source.png` and embedded from it, and the same bytes now stand as `assets/QoR.png`, the project's official mark in the README. The Go test pins the new source hash, so no later build can swap, recolour or redraw it.
 * **Build 125 (version 3.8.0).** PRICE DIFFERENCE stands in front of POSITION CALCULATOR, and the two tiles share one row across the full page width. Enter the first price in A and the second in B; the tile reads the percentage move from A to B, `+1.15%` for 78 to 78.9. F6 gives the tile the keys, or a click does. ALERTS LOG leaves one blank row between alerts instead of two. The red orb is one red, the shade most of its dots already used, including the outer side on a break or after hours.
 * **Build 124 (version 3.7.9).** POSITION CALCULATOR puts QUANTITY six cells after the PRICE box, with both labels and both boxes on one alignment. B, S, U and T read `B=...  S=...  U=...  &  T=...`, with two spaces around every field and around the ampersand. ORDER FLOW's third order chip reads `UNCLEAR` instead of `UNCLASSIFIED`. TELEMETRY's REQ row drops the word `today`. ORDER FLOW's footer reads `(total) large prints of QTY 50k and more.`
 * **Build 123 (version 3.7.8).** The FEED row follows the values, not only the relay's timestamp: a table that stands still for five seconds reads `LAGGING` with its age, and returns to `LIVE` on the next real price, volume or observed timestamp change. CUSTOM SCRIPS OF VOLUME carries one diamond, on the cursor's left edge. Every B, S, U and T field has the same two cell gutter after it, throughout the build, with no blanks before the next label and no field cut off.
