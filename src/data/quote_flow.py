@@ -41,6 +41,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
 
+# SO-8: the opening window is Asia/Karachi, UTC+5, never the host clock.
+from src.data.sessions import KARACHI
+
 METHOD_QUOTE_RULE = "quote_rule"
 SOURCE_QUOTE_RULE = (
     "every volume increment sided by the wire's own bid/ask at the poll")
@@ -171,7 +174,7 @@ class SymbolFlow:
         if self.buy > 0 or self.sell > 0 or total >= self.volume:
             return False
         try:
-            moment = datetime.fromisoformat(str(observed_at))
+            moment = datetime.fromisoformat(str(observed_at)).astimezone(KARACHI)
         except (TypeError, ValueError):
             return False
         minute = moment.hour * 60 + moment.minute
