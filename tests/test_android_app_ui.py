@@ -503,6 +503,12 @@ class SettingsControlTest(unittest.TestCase):
             self.layout.index("@+id/big_prints_panel"),
             self.layout.index("@+id/rule_between_flow"))
 
+    def test_the_big_prints_board_centres_every_order(self):
+        """Owner order 2026-11-17: every print on the BIG BUYING &
+        SELLING board is centred, heading and numbers alike."""
+        order = element(self.layout, 'android:id="@+id/big_prints_list"')
+        self.assertIn('android:gravity="center"', order)
+
     def test_the_big_prints_board_scrolls_the_whole_day(self):
         """Owner order 2026-11-05 ("add a scrolling feature on BIG BUYING
         & SELLING tile so I can scroll and look for the complete BIG
@@ -848,6 +854,16 @@ class SettingsControlTest(unittest.TestCase):
         # Owner order 2026-11-06, eleventh pass: the sectors and their
         # stocks carry their numbers in sequence.
         self.assertIn('String.format(Locale.US, "%d. %s", i + 1, symbol)',
+                      self.main)
+        # Owner order 2026-11-17: the closed SECTORS face centres its line,
+        # and the tile no longer waits for a tap to have something to show:
+        # the best sector is worn as soon as the list lands.
+        spinner = element(self.layout, 'android:id="@+id/sectors_spinner"')
+        self.assertIn('android:gravity="center"', spinner)
+        self.assertIn("String best = fillSectorMenu();", self.main)
+        self.assertIn("sectorChoice.isEmpty() && best != null", self.main)
+        # The diamond's range is read after the six-row window lays out.
+        self.assertIn("sectorsScroll.post(this::updateSectorScroller);",
                       self.main)
         # Owner order 2026-11-13: a tapped sector centres like KSE100.
         reveal = element(self.layout, 'android:id="@+id/sectors_reveal"')
@@ -2346,9 +2362,11 @@ class VersionTest(unittest.TestCase):
         # SCRIPS OF VOL. menu names all six sorts the console carries, and
         # it ships as 4.0.21.
         # Owner order 2026-11-16: the uniform centred menu rows and the
-        # uncut SECTORS window ship as 4.4.1, versionCode 134.
-        self.assertIn('android:versionName="4.4.1"', manifest)
-        self.assertIn('android:versionCode="134"', manifest)
+        # uncut SECTORS window ship as 4.4.1. Owner order 2026-11-17: the
+        # centred closed dropdown faces, the centred print board and the
+        # populated, scrolling SECTORS tile ship as 4.4.2, versionCode 135.
+        self.assertIn('android:versionName="4.4.2"', manifest)
+        self.assertIn('android:versionCode="135"', manifest)
         self.assertNotIn('android:versionName="4.0.15"', manifest)
         self.assertNotIn('android:versionName="4.0.14"', manifest)
         self.assertNotIn('android:versionName="3.7.5"', manifest)
@@ -2575,8 +2593,10 @@ class VersionTest(unittest.TestCase):
         # ship as 4.3.9. Owner order 2026-11-15: the tappable SECTORS face
         # and the KSE100 B/S fallback ship as 4.4.0. Owner order
         # 2026-11-16: the balanced, centred menu rows ship as 4.4.1.
-        self.assertIn('android:versionCode="134"', manifest)
-        self.assertIn('android:versionName="4.4.1"', manifest)
+        # 2026-11-17: the centred closed faces and the SECTORS fix ship as
+        # 4.4.2, versionCode 135.
+        self.assertIn('android:versionCode="135"', manifest)
+        self.assertIn('android:versionName="4.4.2"', manifest)
         self.assertNotIn('android:versionName="4.0.15"', manifest)
         self.assertNotIn('android:versionName="3.7.5"', manifest)
         self.assertNotIn('android:versionName="3.7.4"', manifest)
@@ -4548,7 +4568,12 @@ class ThinkingOrbPlanTest(unittest.TestCase):
                 self.assertIn('android:paddingBottom="3dp"', box)
                 self.assertIn(f'android:paddingLeft="{left}"', box)
                 self.assertIn('android:paddingRight="10dp"', box)
-                self.assertIn('android:gravity="center_vertical"', box)
+                # Owner order 2026-11-17: every closed dropdown face centres
+                # its own line, not only vertically. The search field keeps
+                # its leading text because it is typed into, not chosen.
+                expected = ("center_vertical" if view_id == "search_input"
+                            else "center")
+                self.assertIn(f'android:gravity="{expected}"', box)
                 self.assertIn('android:includeFontPadding="false"', box)
 
     def test_v2_3_16_the_dropdown_menu_opens_from_the_box_itself(self):
