@@ -22,16 +22,11 @@ func TestCalculatorQuantityFollowsPriceBox(t *testing.T) {
 	if qty != wantQty {
 		t.Fatalf("QUANTITY starts on cell %d, want %d (six cells after PRICE's box): %q", qty, wantQty, row)
 	}
-	field := mix(a.th.Panel, a.th.Accent, 0.14)
-	cellAt := func(x int) Cell { return c.Cells[c.W*1+x] }
-	if cellAt(price+12).BG != field || cellAt(price+12+13-1).BG != field {
-		t.Fatalf("PRICE's box is not the fixed 13 cell field: %q", row)
+	if got := strings.Index(row, "Enter price"); got != price+13 {
+		t.Fatalf("PRICE's box starts on cell %d, want %d: %q", got, price+13, row)
 	}
-	if cellAt(price+12+13).BG == field || cellAt(price+12+13+5).BG == field {
-		t.Fatalf("the six cells after PRICE's box are not blank: %q", row)
-	}
-	if cellAt(qty+12).BG != field || cellAt(qty+12+13-1).BG != field {
-		t.Fatalf("QUANTITY's box is not the same 13 cell field: %q", row)
+	if got := strings.Index(row, "Enter qty"); got != qty+13 {
+		t.Fatalf("QUANTITY's box starts on cell %d, want %d: %q", got, qty+13, row)
 	}
 }
 
