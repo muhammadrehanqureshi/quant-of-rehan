@@ -9,11 +9,12 @@ import (
 )
 
 // ownerIconSHA256 is the exact picture the owner chose, committed as
-// assets/icon-source.png, byte for byte his QoR.png (owner order 2026-11-12,
-// which replaces his QoR.png of 2026-11-10): "this is the new ICON picture of
-// the build and also the new official image for the project". If this fails,
-// restore his picture; never update the hash to match a replacement.
-const ownerIconSHA256 = "d1438738ae96aada771ed24ea31b9eee8a379a28552cd73d8f24a9130f673318"
+// assets/icon-source.png, byte for byte his QoR.png (owner order 2026-11-17,
+// which replaces his QoR.png of 2026-11-12): "this is the new/updated image
+// for the project... this image will be the new ICON of the windows build as
+// well". If this fails, restore his picture; never update the hash to match a
+// replacement.
+const ownerIconSHA256 = "c7a9275eef81b0ec38cbee0f8e886e617993eea8d433b9beb8d764434a45e2e1"
 
 func TestIconIsTheOwnersExactPicture(t *testing.T) {
 	raw, err := os.ReadFile("assets/icon-source.png")

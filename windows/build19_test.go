@@ -64,8 +64,8 @@ func TestPriceAlertsReadEmptyAndOpenOnA(t *testing.T) {
 	}
 }
 
-func TestWindowsBuildIs125(t *testing.T) {
-	if hudBuild != "3.8.0" {
-		t.Fatalf("hudBuild is %q, want 3.8.0", hudBuild)
+func TestWindowsBuildIs126(t *testing.T) {
+	if hudBuild != "3.8.1" {
+		t.Fatalf("hudBuild is %q, want 3.8.1", hudBuild)
 	}
 }

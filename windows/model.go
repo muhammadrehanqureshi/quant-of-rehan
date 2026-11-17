@@ -90,7 +90,8 @@ const appVersion = "4.0.21"
 // the quantity-based large-print footer. Build 125 is 3.8.0, the PRICE
 // DIFFERENCE tile in front of POSITION CALCULATOR, the halved SCANNER row, the
 // one blank row between ALERTS LOG entries and the single shade red orb.
-const hudBuild = "3.8.0"
+// Build 126 is 3.8.1, the owner's new QoR.png as the application icon.
+const hudBuild = "3.8.1"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no
