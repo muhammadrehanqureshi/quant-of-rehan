@@ -34,7 +34,7 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from src.data import live_card, market_snapshot  # noqa: E402
+from src.data import feed_capture, live_card, market_snapshot  # noqa: E402
 
 NOW = datetime.fromisoformat("2026-10-12T11:00:00+05:00")
 
@@ -46,10 +46,13 @@ class TapeStateTest(unittest.TestCase):
         self.status = Path(self._dir.name) / "status.json"
         self._real = live_card.STATUS_PATH
         live_card.STATUS_PATH = self.status
+        self._real_lock = feed_capture.CAPTURE_LOCK
+        feed_capture.CAPTURE_LOCK = Path(self._dir.name) / "capture.lock"
         self.addCleanup(self._restore)
 
     def _restore(self) -> None:
         live_card.STATUS_PATH = self._real
+        feed_capture.CAPTURE_LOCK = self._real_lock
 
     def write(self, **fields) -> None:
         self.status.write_text(json.dumps(fields), encoding="utf-8")

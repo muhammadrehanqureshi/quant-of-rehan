@@ -99,7 +99,9 @@ class WorkflowTest(unittest.TestCase):
         text = self.workflow("preopen-readiness.yml")
         self.assertIn("from src.data.relay_http import read_json", text)
         self.assertNotIn("urllib.request.urlopen(BASE", text)
-        self.assertIn("preopen-ready:", text)
+        self.assertNotIn("preopen-ready:", text,
+                         "owner order 2026-11-17: readiness emails are retired")
+        self.assertIn("minute < 8 * 60 + 40 or minute > 9 * 60 + 30", text)
 
     def test_the_budget_guard_reads_through_the_shared_reader(self):
         text = self.workflow("relay-budget-guard.yml")

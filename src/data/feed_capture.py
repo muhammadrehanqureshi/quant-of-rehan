@@ -189,13 +189,15 @@ def capture_lock_age(now: datetime | None = None) -> float | None:
     except OSError:
         return None
     moment = (now or now_karachi()).timestamp()
-    return max(0.0, moment - touched)
+    # Signed on purpose: a lock stamped after the caller's own clock is not
+    # evidence of a running recorder, so it must never count as fresh.
+    return moment - touched
 
 
 def capture_is_starting(now: datetime | None = None) -> bool:
     """True while a recorder owns a fresh lock, even before status.json."""
     age = capture_lock_age(now)
-    return age is not None and age <= CAPTURE_LOCK_STALE_SECONDS
+    return age is not None and 0.0 <= age <= CAPTURE_LOCK_STALE_SECONDS
 
 
 def acquire_capture_lock() -> tuple[bool, str]:
