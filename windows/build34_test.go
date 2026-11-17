@@ -9,7 +9,6 @@ import (
 // and both fields use the same label column and box width.
 func TestCalculatorQuantityFollowsPriceBox(t *testing.T) {
 	a := newTestApp(t)
-	a.calcOpen = true
 	c := NewCanvas(80, 4, a.th.Panel)
 	a.drawCalculatorTile(c, 0, 0, 80, 4)
 

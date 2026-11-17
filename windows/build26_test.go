@@ -77,7 +77,7 @@ func TestScannerValuesUseTheSameGutter(t *testing.T) {
 		n := 0
 		for _, row := range rows {
 			if !strings.Contains(row, "B=") || !strings.Contains(row, "S=") ||
-				!strings.Contains(row, "U=") || !strings.Contains(row, "& T=") {
+				!strings.Contains(row, "U=") || !strings.Contains(row, "&  T=") {
 				continue
 			}
 			n++

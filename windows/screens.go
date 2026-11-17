@@ -564,8 +564,8 @@ func (a *App) drawLeft(c *Canvas, x, y, w, h int) {
 	if buy+sell+unclear > 0 || a.cfg.BigBuy || a.cfg.BigSell {
 		label(8, "FLOW", []Span{
 			{"B=", th.Good, true}, {compactNum(float64(buy)), th.Text, false},
-			{"  S=", th.Bad, true}, {compactNum(float64(sell)), th.Text, false},
-			{"  &  U=", th.Warn, true}, {compactNum(float64(unclear)), th.Text, false},
+			{",  S=", th.Bad, true}, {compactNum(float64(sell)), th.Text, false},
+			{"  & U=", th.Warn, true}, {compactNum(float64(unclear)), th.Text, false},
 		})
 	} else {
 		label(8, "FLOW", []Span{{"OFF", th.Bad, true}})

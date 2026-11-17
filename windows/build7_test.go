@@ -87,7 +87,7 @@ func TestLeaderBarsAreOrderFlowBarsAndPriceFollowsT(t *testing.T) {
 		if !inMarket {
 			continue
 		}
-		ti, pi := strings.Index(r, "& T="), strings.Index(r, "PKR ")
+		ti, pi := strings.Index(r, "&  T="), strings.Index(r, "PKR ")
 		if ti < 0 || pi < 0 {
 			continue
 		}
@@ -130,7 +130,7 @@ func TestKSE100LeadersKeepPKR(t *testing.T) {
 			case strings.Contains(r, "BUYING NOW"):
 				inside = false
 			}
-			if !inside || !strings.Contains(r, "& T=") {
+			if !inside || !strings.Contains(r, "&  T=") {
 				continue
 			}
 			priced++
