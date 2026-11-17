@@ -12,7 +12,7 @@ import (
 // RIGHT) steps through them, and every chip is a click target. Owner order
 // 2026-11-13: NET DELTA is one of them, highest positive first, and ENTER on
 // the page puts the list in that order.
-var flowSorts = []string{"TOTAL VOLUME", "BUYING VOLUME", "SELLING VOLUME", "UNCLASSIFIED", "NET DELTA", "NET DELTA %", "CHANGE"}
+var flowSorts = []string{"TOTAL VOLUME", "BUYING VOLUME", "SELLING VOLUME", "UNCLEAR", "NET DELTA", "NET DELTA %", "CHANGE"}
 
 // flowSortNetDelta and flowSortNetDeltaPct are the two NET DELTA orders'
 // indexes in flowSorts.
@@ -98,7 +98,7 @@ func (a *App) sortedFlow() []FlowRow {
 	return rows
 }
 
-// putBSUT draws "B=1,234,  S=5,678,  U=12  & T=6,924" for one stock. The three
+// putBSUT draws "B=1,234  S=5,678  U=12  &  T=6,924" for one stock. The three
 // parts of a measured stock are written down exactly as the relay sent them
 // and U is always written, so B + S + U = T can be checked by eye. A stock whose
 // split is only an estimate has its B and S marked with a tilde, and a stock
@@ -119,22 +119,22 @@ func (a *App) putBSUT(c *Canvas, x, y int, r FlowRow, keys ...string) int {
 	case r.Measured():
 		put("B=", th.Soft, false)
 		put(num(r.Buy), th.Good, true)
-		put(",  S=", th.Soft, false)
+		put("  S=", th.Soft, false)
 		put(num(r.Sell), th.Bad, true)
-		put(",  U=", th.Soft, false)
+		put("  U=", th.Soft, false)
 		uc := th.Soft
 		if r.Unclassified != nil && *r.Unclassified > 0 {
 			uc = th.Warn
 		}
 		put(num(r.Unclassified), uc, r.Unclassified != nil && *r.Unclassified > 0)
-		put("  & T=", th.Soft, false)
+		put("  &  T=", th.Soft, false)
 		put(num(r.Volume), totalBlue, false)
 	case r.Method == methodEstimated && r.Buy != nil && r.Sell != nil:
 		put("B~", th.Soft, false)
 		put(num(r.Buy), mix(th.Good, th.Soft, 0.5), false)
-		put(",  S~", th.Soft, false)
+		put("  S~", th.Soft, false)
 		put(num(r.Sell), mix(th.Bad, th.Soft, 0.5), false)
-		put("  & T=", th.Soft, false)
+		put("  &  T=", th.Soft, false)
 		put(num(r.Volume), totalBlue, false)
 	default:
 		put("T=", th.Soft, false)
@@ -196,9 +196,9 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 	// Line 2: the measured totals, added up from the measured stocks only.
 	t2 := []Span{{"MEASURED ", th.Soft, false}, {fmt.Sprintf("%d stocks  ", tot.Measured), th.Text, true},
 		{"B=", th.Soft, false}, {commaInt(tot.Buy), th.Good, true},
-		{",  S=", th.Soft, false}, {commaInt(tot.Sell), th.Bad, true},
-		{",  U=", th.Soft, false}, {commaInt(tot.Unclassified), th.Warn, tot.Unclassified > 0},
-		{"  & T=", th.Soft, false}, {commaInt(tot.MeasuredTotal), totalBlue, false}}
+		{"  S=", th.Soft, false}, {commaInt(tot.Sell), th.Bad, true},
+		{"  U=", th.Soft, false}, {commaInt(tot.Unclassified), th.Warn, tot.Unclassified > 0},
+		{"  &  T=", th.Soft, false}, {commaInt(tot.MeasuredTotal), totalBlue, false}}
 	c.Spans(ix, row, iw, t2)
 	row++
 
@@ -452,7 +452,7 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 		// foot says UNCLEAR too and names the feed and both totals in full.
 		line := "U = UNCLEAR: The volume that the feed could not capture, U is never added to either B or S."
 		if of.LargeTotal > 0 {
-			more := fmt.Sprintf("  ·  %d large prints of PKR %s or more today", of.LargeTotal, compactNum(of.LargeThreshold))
+			more := fmt.Sprintf("  ·  %d large prints of QTY %s and more.", of.LargeTotal, compactNum(float64(boardFloorShares)))
 			if runeLen(line)+runeLen(more) <= iw {
 				line += more
 			}

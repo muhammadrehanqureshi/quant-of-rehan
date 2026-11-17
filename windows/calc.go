@@ -81,10 +81,21 @@ func (a *App) drawCalculatorTile(c *Canvas, x, y, w, h int) {
 	// tile's frame. The click still opens it and the boxes still take the keys.
 	ix, iy, iw, _ := a.panel(c, x, y, w, h, "POSITION CALCULATOR", hint)
 	a.addHit(x, y, w, h, func() { a.openCalc() })
-	gap := 2
-	half := (iw - gap) / 2
-	a.inputRow(c, ix, iy, half, "PRICE", a.calcPrice, "Enter price", a.calcOpen && a.calcField == 0, true)
-	a.inputRow(c, ix+half+gap, iy, iw-half-gap, "QUANTITY", a.calcQty, "Enter qty", a.calcOpen && a.calcField == 1, true)
+	// Owner order 2026-11-17: QUANTITY follows PRICE's box after six blank
+	// cells. Both labels keep the same ten cell label column and both boxes
+	// keep the same width, so the pair reads as one aligned group.
+	const (
+		calcBoxInset = 12
+		calcBoxW     = 13
+		calcBetween  = 6
+	)
+	qtyX := ix + calcBoxInset + calcBoxW + calcBetween
+	qtyW := iw - (qtyX - ix)
+	if qtyW < calcBoxInset+calcBoxW {
+		qtyW = calcBoxInset + calcBoxW
+	}
+	a.inputRowSized(c, ix, iy, calcBoxInset+calcBoxW, "PRICE", a.calcPrice, "Enter price", a.calcOpen && a.calcField == 0, true, calcBoxW)
+	a.inputRowSized(c, qtyX, iy, qtyW, "QUANTITY", a.calcQty, "Enter qty", a.calcOpen && a.calcField == 1, true, calcBoxW)
 	total, ok := calcAmount(a.calcPrice, a.calcQty)
 	c.Text(ix, iy+1, 12, "TOTAL", th.Soft, true)
 	amount := "PKR -"
@@ -97,11 +108,20 @@ func (a *App) drawCalculatorTile(c *Canvas, x, y, w, h int) {
 // inputRow draws one labelled field of an overlay form: a filled box, the text
 // in it and, while it has the keys, the blinking block at its end.
 func (a *App) inputRow(c *Canvas, x, y, w int, label, text, placeholder string, active bool, fitWords bool) {
+	a.inputRowSized(c, x, y, w, label, text, placeholder, active, fitWords, 0)
+}
+
+// inputRowSized is inputRow with an optional fixed box width. The calculator
+// uses it so PRICE and QUANTITY have exactly the same box width while the
+// other forms keep fitting their own words.
+func (a *App) inputRowSized(c *Canvas, x, y, w int, label, text, placeholder string, active bool, fitWords bool, fixedW int) {
 	th := a.th
 	c.Text(x, y, 10, label, th.Soft, false)
 	bx := x + 12
 	bw := max(6, min(w-12, 28))
-	if fitWords {
+	if fixedW > 0 {
+		bw = max(6, min(w-12, fixedW))
+	} else if fitWords {
 		// Owner order 2026-11-16: the calculator's boxes fit their words with
 		// exactly one blank cell on either side.
 		bw = max(6, min(w-12, runeLen(placeholder)+2))

@@ -77,16 +77,16 @@ func TestScannerValuesUseTheSameGutter(t *testing.T) {
 		n := 0
 		for _, row := range rows {
 			if !strings.Contains(row, "B=") || !strings.Contains(row, "S=") ||
-				!strings.Contains(row, "U=") || !strings.Contains(row, "& T=") {
+				!strings.Contains(row, "U=") || !strings.Contains(row, "&  T=") {
 				continue
 			}
 			n++
-			for _, want := range []string{",  S=", ",  U=", "  & T="} {
+			for _, want := range []string{"  S=", "  U=", "  &  T="} {
 				if !strings.Contains(row, want) {
 					t.Errorf("sort %d is missing the two cell gutter %q: %q", choice, want, row)
 				}
 			}
-			for _, label := range []string{"B=", "S=", "U=", "& T="} {
+			for _, label := range []string{"B=", "S=", "U=", "&  T="} {
 				at := strings.Index(row, label)
 				if at >= 0 && strings.HasPrefix(row[at+len(label):], " ") {
 					t.Errorf("sort %d writes a gap after %s: %q", choice, label, row)

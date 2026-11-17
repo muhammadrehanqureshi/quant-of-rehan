@@ -59,10 +59,10 @@ func TestAlertsBoardIsNumberedAndScrolls(t *testing.T) {
 // 2026-11-16: the fixed columns right align each number inside its own field, so
 // the fields carry padding spaces after their "=" signs.
 func TestBSTFormatEverywhere(t *testing.T) {
-	// Two readings are legal: the packed sentence the lists use, B=1, S=2,
-	// U=0 & T=3, and the fixed columns, where each number is right aligned in
-	// its own field and the labels start on their own cells.
-	good := regexp.MustCompile(`B=\s*[\d,]+[, ]+S=\s*[\d,]+[, ]+U=\s*[\d,]+[, ]+(?:& )?T=\s*[\d,]+`)
+	// Two readings are legal: the packed sentence the lists use,
+	// B=1  S=2  U=0  &  T=3, and the fixed columns, where each number is
+	// right aligned in its own field and the labels start on their own cells.
+	good := regexp.MustCompile(`B=\s*[\d,]+[ ,]+S=\s*[\d,]+[ ,]+U=\s*[\d,]+[ ]+&[ ]+T=\s*[\d,]+`)
 	bad := regexp.MustCompile(`\(B=|\)\s*$`)
 	for _, c := range []struct {
 		name string

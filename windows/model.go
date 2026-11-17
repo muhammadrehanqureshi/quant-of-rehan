@@ -85,7 +85,10 @@ const appVersion = "4.0.21"
 // fixed sector arrow column and the equal ALERT boards. Build 123 is 3.7.8,
 // the feed that says LAGGING when its values stand still, the one diamond in
 // CUSTOM SCRIPS and the two cell gutter after every B, S, U and T value.
-const hudBuild = "3.7.8"
+// Build 124 is 3.7.9, the calculator's six cell price-to-quantity gap, the
+// owner's B/S/U/T spacing, the UNCLEAR order chip, the shortened REQ row and
+// the quantity-based large-print footer.
+const hudBuild = "3.7.9"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no

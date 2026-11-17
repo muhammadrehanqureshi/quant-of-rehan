@@ -81,7 +81,7 @@ func TestCalculatorTileWording(t *testing.T) {
 // NET DELTA stand as one group at the right.
 func TestKSE100ColumnsAreTight(t *testing.T) {
 	a := busyApp(t, 158, 41, 3)
-	uToT := regexp.MustCompile(`U=\s*([\d,]+)( +)& T=`)
+	uToT := regexp.MustCompile(`U=\s*([\d,]+)( +)&( +)T=`)
 	inside := false
 	priced := 0
 	for _, row := range rowsOf(a) {
@@ -96,8 +96,8 @@ func TestKSE100ColumnsAreTight(t *testing.T) {
 			continue
 		}
 		if m := uToT.FindStringSubmatch(row); m != nil {
-			if len(m[2]) != 2 {
-				t.Errorf("U=%s leaves %d cells before & T=, want 2: %q", m[1], len(m[2]), row)
+			if len(m[2]) != 2 || len(m[3]) != 2 {
+				t.Errorf("U=%s leaves %d/%d cells around &, want 2 and 2: %q", m[1], len(m[2]), len(m[3]), row)
 			}
 		}
 		pkr := strings.Index(row, "PKR ")
