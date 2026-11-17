@@ -1641,6 +1641,16 @@ to sixty seconds. The status tile therefore also carries the app's own
      the orphan law stands so every dot still wears a filament.
   5. The version bump is versionCode 82 / versionName 2.3.15.
 
+**Version 4.4.2, versionCode 135.**
+
+  Owner order 2026-11-17. The closed dropdown faces for THEMES, CUSTOM SCRIPS
+  OF VOL. and SECTORS now centre their line instead of sitting on the left.
+  The BIG BUYING & SELLING board centres every print. SECTORS reads its list at
+  launch, wears its best sector and that sector's scrips before the first tap,
+  and the diamond scroller measures the finished six-row window instead of the
+  pre-layout height that left its range at zero. The version bump is versionCode
+  135 / versionName 4.4.2.
+
 **Version 4.4.1, versionCode 134.**
 
   Owner order 2026-11-16. Every dropdown and SECTORS option now carries one

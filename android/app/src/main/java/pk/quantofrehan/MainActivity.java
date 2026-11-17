@@ -797,6 +797,11 @@ public class MainActivity extends Activity {
         // (v2.2.1): nothing on the handset is scheduled any more, so Doze
         // has nothing to defer and there is nothing to plea for.
         Watcher.kick(this);
+        // Owner report 2026-11-17: the SECTORS box stood empty until it was
+        // tapped because the list only started loading with the search page.
+        // Read it once at launch, from the Watcher's own six-hour cache, so
+        // the box and its best sector are ready before the first tap.
+        refreshSectors();
     }
 
     // ----------------------------------------------------------------
@@ -3802,6 +3807,11 @@ public class MainActivity extends Activity {
                 fitSectorWindow();
                 if (sectorsScroll != null) {
                     sectorsScroll.scrollTo(0, 0);
+                    // The diamond needs the six-row window's final height, and
+                    // that height is only known after this frame lays out. A
+                    // range read before the layout is zero, which is why the
+                    // scroller stood still while the rows moved.
+                    sectorsScroll.post(this::updateSectorScroller);
                 }
                 revealMenu(sectorsMenu);
             }
@@ -3830,7 +3840,7 @@ public class MainActivity extends Activity {
             for (Watcher.Sector sector : sectors) {
                 sectorRows.put(sector.name, sector.symbols);
             }
-            fillSectorMenu();
+            String best = fillSectorMenu();
             if (sectorRows.isEmpty()) {
                 sectorMenuPending = false;
                 if (sectorsReveal != null) {
@@ -3838,6 +3848,18 @@ public class MainActivity extends Activity {
                     sectorsReveal.setVisibility(View.VISIBLE);
                 }
                 return;
+            }
+            // Owner report 2026-11-17: the tile stood empty until it was
+            // tapped, because only a tap ever made a choice. The best sector
+            // (the menu's own first row) is now worn by the closed box and
+            // its scrips print from the moment the list lands, so the tile
+            // answers before it is touched. A later tap still opens the full
+            // menu and a pick still replaces this default.
+            if (sectorChoice.isEmpty() && best != null) {
+                sectorChoice = best;
+                if (sectorsSpinner != null) {
+                    sectorsSpinner.setText(best);
+                }
             }
             if (sectorMenuPending) {
                 sectorMenuPending = false;
@@ -3855,9 +3877,9 @@ public class MainActivity extends Activity {
      * moves, with the up or down arrow; a sector whose scrips have no live
      * move is listed last and prints no invented percentage (SO-3).
      */
-    private void fillSectorMenu() {
+    private String fillSectorMenu() {
         if (sectorsMenu == null) {
-            return;
+            return null;
         }
         sectorsMenu.removeAllViews();
         padMenu(sectorsMenu);
@@ -3900,6 +3922,7 @@ public class MainActivity extends Activity {
             sectorsMenu.addView(row);
         }
         sectorsMenu.post(this::fitSectorWindow);
+        return names.isEmpty() ? null : names.get(0);
     }
 
     /** The equal-weight day move of one sector's quoted scrips. */
@@ -3974,6 +3997,10 @@ public class MainActivity extends Activity {
             lp.height = height;
             sectorsScroll.setLayoutParams(lp);
         }
+        // Measure the finished window, not the height it wore before the
+        // rows arrived: the diamond's range is child height minus window
+        // height, and reading that mid-layout left it with a zero range.
+        sectorsScroll.post(this::updateSectorScroller);
         updateSectorScroller();
     }
 

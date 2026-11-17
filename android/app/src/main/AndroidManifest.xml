@@ -580,11 +580,17 @@
      centred; the first and last options no longer carry taller padding, the
      menu's own edge air keeps the divider spacing, and the SECTORS window
      measures that edge air so its top and bottom rows are never clipped.
+
+     versionCode 135 / versionName 4.4.2 belong to the owner's order of
+     2026-11-17: the closed THEMES, CUSTOM SCRIPS OF VOL. and SECTORS faces
+     centre their line; the BIG BUYING & SELLING board centres every print;
+     SECTORS reads at launch and wears its best sector before the first tap;
+     and its diamond scroller measures the finished six-row window.
      -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="pk.quantofrehan"
-    android:versionCode="134"
-    android:versionName="4.4.1">
+    android:versionCode="135"
+    android:versionName="4.4.2">
 
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="30"/>
 
