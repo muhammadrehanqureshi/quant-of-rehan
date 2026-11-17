@@ -161,16 +161,31 @@ func (a *App) drawPercentTile(c *Canvas, x, y, w, h int) {
 	// SECOND PRICE, the same five the calculator keeps between PRICE and
 	// QUANTITY.
 	const secondGap = 5
-	if firstLabelLen, secondLabelLen := runeLen(firstLabel), runeLen(secondLabel); firstLabelLen+secondLabelLen+1+secondGap+1+2*bw > iw {
+	labelGap := 1
+	needs := func(a, b string, gap int) int {
+		return runeLen(a) + gap + bw + secondGap + runeLen(b) + gap + bw
+	}
+	if needs(firstLabel, secondLabel, labelGap) > iw {
+		// Keep the full names and the owner's five cell gap by setting the
+		// labels against their boxes.
+		labelGap = 0
+	}
+	if needs(firstLabel, secondLabel, labelGap) > iw {
 		// Keep both fields on the row on a narrower window, with short labels.
+		firstLabel, secondLabel = "FIRST", "SECOND"
+		labelGap = 1
+		bw = min(13, max(6, (iw-6)/2))
+	}
+	if needs(firstLabel, secondLabel, labelGap) > iw {
 		firstLabel, secondLabel = "1", "2"
+		labelGap = 1
 		bw = min(13, max(6, (iw-6)/2))
 	}
 	if bw < 6 {
 		return
 	}
-	fx := ix + runeLen(firstLabel) + 1
-	sx := fx + bw + secondGap + runeLen(secondLabel) + 1
+	fx := ix + runeLen(firstLabel) + labelGap
+	sx := fx + bw + secondGap + runeLen(secondLabel) + labelGap
 	if sx+bw > ix+iw {
 		return
 	}

@@ -1279,21 +1279,35 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 	// Owner order 2026-11-16: the PKR group, its percentage and the bar move
 	// one cell left, leaving one clear cell before the tile's inner edge.
 	edge := ix + iw - 2
-	barStart := edge - shareBarSpan + 1
-	chgRight := barStart - 3
-	chgX := chgRight - chgW + 1
-	pkrX := max(ix+3+usedMax+2, chgX-2-(4+pxW))
 	hasBar := false
 	for _, l := range leaders[:nL] {
 		if l.HasSplit() && *l.Buy+*l.Sell > 0 {
 			hasBar = true
 		}
 	}
-	barOnPrice := hasBar && barStart >= ix+3+usedMax+4 &&
-		chgX >= ix+3+usedMax+2 && pkrX+4+pxW <= chgX-2
+	// The fixed nine digit fields take more room than the old packed line. On
+	// a narrow KSE100 tile the bar gives cells until the PKR group, its change
+	// and the bar fit on one row; only when even eight cells do not fit does the
+	// bar move back to the name line.
+	barW := shareBarSpan
+	barStart, chgRight, chgX, pkrX := 0, 0, 0, 0
+	barOnPrice := false
+	for {
+		barStart = edge - barW + 1
+		chgRight = barStart - 3
+		chgX = chgRight - chgW + 1
+		pkrX = max(ix+3+usedMax+2, chgX-2-(4+pxW))
+		barOnPrice = hasBar && barStart >= ix+3+usedMax+4 &&
+			chgX >= ix+3+usedMax+2 && pkrX+4+pxW <= chgX-2
+		if barOnPrice || barW <= 8 {
+			break
+		}
+		barW--
+	}
 	if !barOnPrice {
 		// Narrow tile: keep the price group and its percentage on the price
 		// line and put the bar back on the name line, where the room is.
+		barStart = edge - shareBarSpan + 1
 		chgRight = edge
 		chgX = chgRight - chgW + 1
 		pkrX = max(ix+3+usedMax+2, chgX-2-(4+pxW))
@@ -1381,7 +1395,7 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 		// tile. NET DELTA is gone, so the bar sits beside the figure it splits
 		// instead of standing above it on the name line.
 		if barOnPrice && l.HasSplit() && *l.Buy+*l.Sell > 0 {
-			a.shareBarOnly(c, barStart, row, shareBarSpan, *l.Buy, *l.Sell)
+			a.shareBarOnly(c, barStart, row, barW, *l.Buy, *l.Sell)
 		}
 		row++
 		// Spare rows are shared out as a blank line between leaders.

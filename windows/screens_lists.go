@@ -194,7 +194,7 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 	// The new breathing rows inside the search tile cost two rows. On the
 	// shortest windows the gap between the search and sector tiles gives one
 	// back, so the ranked list keeps all three scrips.
-	if h-sh < 25 {
+	if h-sh < 26 {
 		sy = y + sh
 	}
 	// The sector tile sits between the search and the ranked list. It grows to
