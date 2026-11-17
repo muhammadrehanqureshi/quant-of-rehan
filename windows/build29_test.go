@@ -18,8 +18,8 @@ func TestAlertBoardsStayEmpty(t *testing.T) {
 	}
 }
 
-// Owner order 2026-11-17: every KSE100 volume keeps nine digit positions, so a
-// short U is padded with spaces and S, U and T stay on their own columns.
+// Owner order 2026-11-17: every KSE100 volume starts immediately after its '=',
+// the padding stands after the value, and the U value carries its own comma.
 func TestKSE100UValuesUseTheNineDigitField(t *testing.T) {
 	a := busyApp(t, 158, 41, 3)
 	inside, found := false, 0
@@ -35,7 +35,7 @@ func TestKSE100UValuesUseTheNineDigitField(t *testing.T) {
 			continue
 		}
 		i := strings.Index(row, "U=")
-		if i < 0 {
+		if i < 0 || !strings.Contains(row, "&  T=") {
 			continue
 		}
 		rest := row[i+2:]
@@ -43,8 +43,12 @@ func TestKSE100UValuesUseTheNineDigitField(t *testing.T) {
 			t.Errorf("the U field is shorter than nine digits: %q", row)
 			continue
 		}
-		if last := rest[10]; last < '0' || last > '9' {
-			t.Errorf("the U field is not right aligned in its nine digit width: %q", row)
+		if rest[0] < '0' || rest[0] > '9' {
+			t.Errorf("the U value does not start immediately after U=: %q", row)
+		}
+		end := strings.IndexByte(rest, ' ')
+		if end < 1 || rest[end-1] != ',' {
+			t.Errorf("the U value does not end with a comma: %q", row)
 		}
 		found++
 	}

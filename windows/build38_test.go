@@ -13,7 +13,7 @@ func TestKSE100VolumesKeepNineDigits(t *testing.T) {
 	a := busyApp(t, 158, 41, 3)
 	rows := rowsOf(a)
 	inside := false
-	field := regexp.MustCompile(`(?:B|S|U|T)= *([\d,]+)`)
+	field := regexp.MustCompile(`(?:B|S|U|T)=([\d,]+)`)
 	var sAt, uAt, tAt []int
 	checked := 0
 	for _, row := range rows {
@@ -40,6 +40,14 @@ func TestKSE100VolumesKeepNineDigits(t *testing.T) {
 			}
 			if digits > leaderVolDigits {
 				t.Fatalf("a volume field has %d digits, more than the fixed %d: %q", digits, leaderVolDigits, row)
+			}
+		}
+		for _, label := range []string{"S", "U"} {
+			at := strings.Index(row, label+"=")
+			v := row[at+2:]
+			end := strings.IndexByte(v, ' ')
+			if end < 0 || end == 0 || v[end-1] != ',' {
+				t.Fatalf("%s value does not end with a comma: %q", label, row)
 			}
 		}
 		sAt = append(sAt, col(row, "S="))

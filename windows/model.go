@@ -100,7 +100,10 @@ const appVersion = "4.0.21"
 // five space calculator gaps, the PKR dash order, the full PRICE DIFFERENCE
 // label, one blank row above the calculator pair, the nine digit KSE100 volume
 // fields, and the pre-open ORDER FLOW rows that keep every KMIALL scrip listed.
-const hudBuild = "3.8.4"
+// Build 130 is 3.8.5, the one dash on an empty PRICE DIFFERENCE, the KSE100
+// values written immediately after their '=' with the padding after them, and
+// the comma after S and U while their labels stay on the same cells.
+const hudBuild = "3.8.5"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no
