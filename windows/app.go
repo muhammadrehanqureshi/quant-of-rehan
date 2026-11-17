@@ -172,6 +172,13 @@ type App struct {
 	calcPrice string
 	calcQty   string
 
+	// the PRICE DIFFERENCE tile in front of it, F6: two prices and the
+	// percentage move from the first to the second.
+	pctOpen   bool
+	pctField  int // 0 the first price, 1 the second
+	pctFirst  string
+	pctSecond string
+
 	// mouse
 	hits           []hit
 	hoverX, hoverY int
@@ -1130,6 +1137,7 @@ func (a *App) setScreen(s screenID) {
 	a.sectorSearch = false
 	a.priceEdit, a.priceMsg = -1, ""
 	a.calcOpen = false
+	a.pctOpen = false
 	a.screen = s
 	switch s {
 	case scrScanner:
@@ -1156,6 +1164,10 @@ func (a *App) onKey(k Key) {
 		a.keyPriceEdit(k)
 		return
 	}
+	if a.pctOpen {
+		a.keyPct(k)
+		return
+	}
 	if a.calcOpen {
 		a.keyCalc(k)
 		return
@@ -1178,6 +1190,11 @@ func (a *App) onKey(k Key) {
 		return
 	case KF5:
 		a.setScreen(scrSettings)
+		return
+	case KF6:
+		if a.screen == scrScanner {
+			a.openPct()
+		}
 		return
 	case KMouse:
 		a.onMouse(k)
