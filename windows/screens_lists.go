@@ -194,7 +194,7 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 	// The new breathing rows inside the search tile cost two rows. On the
 	// shortest windows the gap between the search and sector tiles gives one
 	// back, so the ranked list keeps all three scrips.
-	if h-sh < 25 {
+	if h-sh < 28 {
 		sy = y + sh
 	}
 	// The sector tile sits between the search and the ranked list. It grows to
@@ -221,9 +221,9 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 	}
 	calcReserve := calcH
 	if calcH > 0 {
-		if y+h-sy-sectorH-1-calcH >= 17 {
-			calcReserve++
-		}
+		// Owner order 2026-11-17: one blank line always stands between CUSTOM
+		// SCRIPS OF VOLUME and the calculator pair.
+		calcReserve++
 		defer a.drawCalcPair(c, x, y+h-calcH, w, calcH)
 	}
 	// The gap costs one row. On a short window, keep the ranked list at four

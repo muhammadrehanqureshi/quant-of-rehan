@@ -157,26 +157,45 @@ func (a *App) drawPercentTile(c *Canvas, x, y, w, h int) {
 	// before and after the words, and their labels are the full field names.
 	firstLabel, secondLabel := "FIRST PRICE", "SECOND PRICE"
 	bw := 13
-	if firstLabelLen, secondLabelLen := runeLen(firstLabel), runeLen(secondLabel); firstLabelLen+secondLabelLen+3+2*bw > iw {
+	// Owner order 2026-11-17: five blank cells stand between the first box and
+	// SECOND PRICE, the same five the calculator keeps between PRICE and
+	// QUANTITY.
+	const secondGap = 5
+	labelGap := 1
+	needs := func(a, b string, gap int) int {
+		return runeLen(a) + gap + bw + secondGap + runeLen(b) + gap + bw
+	}
+	if needs(firstLabel, secondLabel, labelGap) > iw {
+		// Keep the full names and the owner's five cell gap by setting the
+		// labels against their boxes.
+		labelGap = 0
+	}
+	if needs(firstLabel, secondLabel, labelGap) > iw {
 		// Keep both fields on the row on a narrower window, with short labels.
+		firstLabel, secondLabel = "FIRST", "SECOND"
+		labelGap = 1
+		bw = min(13, max(6, (iw-6)/2))
+	}
+	if needs(firstLabel, secondLabel, labelGap) > iw {
 		firstLabel, secondLabel = "1", "2"
+		labelGap = 1
 		bw = min(13, max(6, (iw-6)/2))
 	}
 	if bw < 6 {
 		return
 	}
-	fx := ix + runeLen(firstLabel) + 1
-	sx := fx + bw + 1 + runeLen(secondLabel) + 1
+	fx := ix + runeLen(firstLabel) + labelGap
+	sx := fx + bw + secondGap + runeLen(secondLabel) + labelGap
 	if sx+bw > ix+iw {
 		return
 	}
 	c.Text(ix, iy, runeLen(firstLabel), firstLabel, th.Soft, true)
-	c.Text(fx+bw+1, iy, runeLen(secondLabel), secondLabel, th.Soft, true)
+	c.Text(fx+bw+secondGap, iy, runeLen(secondLabel), secondLabel, th.Soft, true)
 	a.drawInputBox(c, fx, iy, bw, a.pctFirst, "Enter price", a.pctOpen && a.pctField == 0)
 	a.drawInputBox(c, sx, iy, bw, a.pctSecond, "Enter price", a.pctOpen && a.pctField == 1)
-	label, col := "DIFF  --", th.Soft
+	label, col := "DIFFERENCE", th.Soft
 	if pct, ok := pctChange(a.pctFirst, a.pctSecond); ok {
-		label = "DIFF  " + signedPercent(pct)
+		label = "DIFFERENCE  " + signedPercent(pct)
 		switch {
 		case pct > 0:
 			col = th.Good
@@ -232,7 +251,7 @@ func (a *App) drawInputBox(c *Canvas, bx, y, bw int, text, placeholder string, a
 
 // drawCalculatorTile draws POSITION CALCULATOR in its half of the bottom row:
 // the price and the quantity side by side, the total under them. At the full
-// width it keeps the owner's six blank cells after the PRICE box; on the
+// width it keeps the owner's five blank cells after the PRICE box; on the
 // squeezed pair the same labels and equal boxes keep the one alignment.
 func (a *App) drawCalculatorTile(c *Canvas, x, y, w, h int) {
 	th := a.th
@@ -261,7 +280,9 @@ func (a *App) drawCalculatorTile(c *Canvas, x, y, w, h int) {
 	bw := (body - between) / 2
 	if bw > 13 {
 		bw = 13
-		between = min(6, body-2*bw)
+		// Owner order 2026-11-17: five blank cells stand between the PRICE box
+		// and QUANTITY, on every width that can hold them.
+		between = min(5, body-2*bw)
 	}
 	if bw < 6 || between < 1 {
 		return
@@ -281,10 +302,10 @@ func (a *App) drawCalculatorTile(c *Canvas, x, y, w, h int) {
 	if ok {
 		c.Text(pBox, iy+1, max(1, iw-(pBox-ix)), "PKR "+commaFloat(total, 2), th.Good, true)
 	} else {
-		// Owner order 2026-11-17: with nothing to calculate the dash stands in
-		// front of PKR, in the same soft ink as the TOTAL label.
-		c.Text(pBox, iy+1, 1, "-", th.Soft, true)
-		c.Text(pBox+2, iy+1, max(1, iw-(pBox-ix)-2), "PKR", th.Good, true)
+		// Owner order 2026-11-17: with nothing to calculate the dash stands
+		// after PKR, in the same soft ink as the TOTAL label.
+		c.Text(pBox, iy+1, 3, "PKR", th.Good, true)
+		c.Text(pBox+4, iy+1, 1, "-", th.Soft, true)
 	}
 }
 

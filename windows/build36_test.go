@@ -50,19 +50,24 @@ func TestPriceDifferenceFieldWords(t *testing.T) {
 	if got := strings.Count(row, " Enter price "); got != 2 {
 		t.Fatalf("the two boxes have %d padded Enter price hints, want two: %q", got, row)
 	}
+	firstBox := strings.Index(row, "Enter price")
+	secondLabel := strings.Index(row, "SECOND PRICE")
+	if firstBox < 0 || secondLabel != firstBox-1+13+5 {
+		t.Fatalf("SECOND PRICE starts on cell %d, want five cells after the first box at %d: %q", secondLabel, firstBox-1+13, row)
+	}
 }
 
-// Owner order 2026-11-17: an empty total reads - PKR, with the dash in the
-// same soft ink as TOTAL.
-func TestEmptyCalculatorDashIsSoftInFrontOfPKR(t *testing.T) {
+// Owner order 2026-11-17: an empty total reads PKR -, with the dash after PKR
+// in the same soft ink as TOTAL.
+func TestEmptyCalculatorDashIsSoftAfterPKR(t *testing.T) {
 	a := newTestApp(t)
 	c := NewCanvas(80, 4, a.th.Panel)
 	a.drawCalculatorTile(c, 0, 0, 80, 4)
 	row := c.PlainRows()[2]
 	dash := strings.Index(row, "-")
 	pkr := strings.Index(row, "PKR")
-	if dash < 0 || pkr < dash {
-		t.Fatalf("the empty total is not - PKR: %q", row)
+	if dash < 0 || pkr < 0 || dash != pkr+4 {
+		t.Fatalf("the empty total is not PKR -: %q", row)
 	}
 	// strings.Index counts bytes, while Cells is a flat row-major array. Find
 	// the dash on the total row itself, not on the title row above it.

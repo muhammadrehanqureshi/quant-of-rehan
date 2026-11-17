@@ -1075,13 +1075,28 @@ func bstLeaderCols(leaders []Leader) bstCols {
 	return c
 }
 
-// leaderBSTWidth is the cells putBST or putBSTCols will use for one leader. It
+// leaderVolDigits is the fixed digit field every KSE100 leader volume uses.
+// Owner order 2026-11-17: B, S, U and T each keep nine digit positions, commas
+// not counted, so S, U and T start on the same cell whatever digits a number
+// carries.
+const leaderVolDigits = 9
+
+// leaderVolumeField right aligns a volume in the fixed field nine digits and
+// two commas wide. A short number gets leading spaces, never leading zeros;
+// its own commas stay hard against its digits.
+func leaderVolumeField(v int64) string {
+	s := commaInt(v)
+	width := leaderVolDigits + 2
+	if n := runeLen(s); n < width {
+		return strings.Repeat(" ", width-n) + s
+	}
+	return s
+}
+
+// leaderBSTWidth is the cells putBST or putBSTWide will use for one leader. It
 // writes nothing, so the tile can set one price column for all three rows
 // before it paints the first of them.
 func leaderBSTWidth(l Leader, cols bstCols, wide bool) int {
-	// Owner order 2026-11-16: every pair of values is separated by the same
-	// two cell gutter, so the row is measured from its own digits, not from a
-	// fixed column table with blanks in it.
 	_ = cols
 	if !l.HasSplit() {
 		if l.HasVolume() {
@@ -1089,6 +1104,21 @@ func leaderBSTWidth(l Leader, cols bstCols, wide bool) int {
 		}
 		return 0
 	}
+	if wide {
+		w := 2 + runeLen(leaderVolumeField(*l.Buy)) +
+			4 + runeLen(leaderVolumeField(*l.Sell))
+		if l.HasVolume() {
+			un := *l.Volume - *l.Buy - *l.Sell
+			if un < 0 {
+				un = 0
+			}
+			w += 4 + runeLen(leaderVolumeField(un)) +
+				7 + runeLen(leaderVolumeField(*l.Volume))
+		}
+		return w
+	}
+	// The packed form, used only when the tile is too narrow for the fixed
+	// fields, keeps the same two cell gutter between every pair.
 	w := 2 + runeLen(commaInt(*l.Buy)) + 4 + runeLen(commaInt(*l.Sell))
 	if l.HasVolume() {
 		un := *l.Volume - *l.Buy - *l.Sell
@@ -1100,12 +1130,41 @@ func leaderBSTWidth(l Leader, cols bstCols, wide bool) int {
 	return w
 }
 
+// putBSTWide writes the KSE100 leaders' four fields with the owner's nine digit
+// volume positions. It is the wide tile's only volume writer; the packed
+// putBST still serves narrow tiles and every other list.
+func (a *App) putBSTWide(c *Canvas, x, y int, buy, sell, total *int64, keys ...string) int {
+	th := a.th
+	vx := x
+	put := func(s string, fg RGB, bold bool) {
+		vx += a.flashText(c, vx, y, s, fg, bold, keys...)
+	}
+	if buy != nil && sell != nil {
+		put("B=", th.Soft, false)
+		put(leaderVolumeField(*buy), th.Good, true)
+		put("  S=", th.Soft, false)
+		put(leaderVolumeField(*sell), th.Bad, true)
+		if total != nil {
+			un := *total - *buy - *sell
+			if un < 0 {
+				un = 0
+			}
+			put("  U=", th.Soft, false)
+			put(leaderVolumeField(un), th.Warn, un > 0)
+			put("  &  T=", th.Soft, false)
+			put(leaderVolumeField(*total), totalBlue, false)
+		}
+	} else if total != nil {
+		put("T=", th.Soft, false)
+		put(leaderVolumeField(*total), totalBlue, false)
+	}
+	return vx - x
+}
+
 // putBSTCols writes those four fields into their shared columns and returns the
-// cells the block used. A stock with no measured split falls back to putBST.
+// cells the block used. The scanner keeps the packed form; the KSE100 leaders
+// call putBSTWide for their fixed nine digit columns.
 func (a *App) putBSTCols(c *Canvas, x, y int, buy, sell, total *int64, cols bstCols, keys ...string) int {
-	// Owner order 2026-11-16: one fixed two cell gutter follows every value, in
-	// every tile, so no field floats away from the one before it. The fixed
-	// column table is withdrawn; the comma stays hard against its own number.
 	_ = cols
 	return a.putBST(c, x, y, buy, sell, total, keys...)
 }
@@ -1220,21 +1279,35 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 	// Owner order 2026-11-16: the PKR group, its percentage and the bar move
 	// one cell left, leaving one clear cell before the tile's inner edge.
 	edge := ix + iw - 2
-	barStart := edge - shareBarSpan + 1
-	chgRight := barStart - 3
-	chgX := chgRight - chgW + 1
-	pkrX := max(ix+3+usedMax+2, chgX-2-(4+pxW))
 	hasBar := false
 	for _, l := range leaders[:nL] {
 		if l.HasSplit() && *l.Buy+*l.Sell > 0 {
 			hasBar = true
 		}
 	}
-	barOnPrice := hasBar && barStart >= ix+3+usedMax+4 &&
-		chgX >= ix+3+usedMax+2 && pkrX+4+pxW <= chgX-2
+	// The fixed nine digit fields take more room than the old packed line. On
+	// a narrow KSE100 tile the bar gives cells until the PKR group, its change
+	// and the bar fit on one row; only when even eight cells do not fit does the
+	// bar move back to the name line.
+	barW := shareBarSpan
+	barStart, chgRight, chgX, pkrX := 0, 0, 0, 0
+	barOnPrice := false
+	for {
+		barStart = edge - barW + 1
+		chgRight = barStart - 3
+		chgX = chgRight - chgW + 1
+		pkrX = max(ix+3+usedMax+2, chgX-2-(4+pxW))
+		barOnPrice = hasBar && barStart >= ix+3+usedMax+4 &&
+			chgX >= ix+3+usedMax+2 && pkrX+4+pxW <= chgX-2
+		if barOnPrice || barW <= 8 {
+			break
+		}
+		barW--
+	}
 	if !barOnPrice {
 		// Narrow tile: keep the price group and its percentage on the price
 		// line and put the bar back on the name line, where the room is.
+		barStart = edge - shareBarSpan + 1
 		chgRight = edge
 		chgX = chgRight - chgW + 1
 		pkrX = max(ix+3+usedMax+2, chgX-2-(4+pxW))
@@ -1288,7 +1361,7 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 		// narrow tile falls back to the packed form.
 		used := 0
 		if iw >= 96 {
-			used = a.putBSTCols(c, ix+3, row, buy, sell, vol, cols, volKey, pxKey)
+			used = a.putBSTWide(c, ix+3, row, buy, sell, vol, volKey, pxKey)
 		} else {
 			used = a.putBST(c, ix+3, row, buy, sell, vol, volKey, pxKey)
 		}
@@ -1322,7 +1395,7 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 		// tile. NET DELTA is gone, so the bar sits beside the figure it splits
 		// instead of standing above it on the name line.
 		if barOnPrice && l.HasSplit() && *l.Buy+*l.Sell > 0 {
-			a.shareBarOnly(c, barStart, row, shareBarSpan, *l.Buy, *l.Sell)
+			a.shareBarOnly(c, barStart, row, barW, *l.Buy, *l.Sell)
 		}
 		row++
 		// Spare rows are shared out as a blank line between leaders.

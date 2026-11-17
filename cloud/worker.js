@@ -2212,19 +2212,16 @@ async function flowAnswer(env, now) {
       continue;
     }
     const observedMs = Date.parse(quote.observed_at || "");
-    if (Number.isFinite(sessionOpenMs) && Number.isFinite(observedMs) &&
-        observedMs < sessionOpenMs) {
-      missing.push({
-        symbol,
-        last_observed_at: quote.observed_at || null,
-        last_day: quoteDay(quote),
-        reason: "no regular-session frame since the open",
-      });
-      continue;
-    }
-    const volume = Number.isFinite(Number(quote.volume))
+    // Owner order 2026-11-17: a pre-open frame still belongs in the list. It
+    // carries yesterday's closing volume, so its session B, S, U and T are
+    // zero rather than the carried number; dropping the row made ORDER FLOW
+    // show only the scrips that had traded since the open (68 of 319).
+    const preOpen = Number.isFinite(sessionOpenMs) && Number.isFinite(observedMs) &&
+      observedMs < sessionOpenMs;
+    const rawVolume = Number.isFinite(Number(quote.volume))
       ? Math.max(0, Math.round(Number(quote.volume))) : null;
-    const split = splitFromQuote(quote);
+    const volume = preOpen ? 0 : rawVolume;
+    const split = preOpen ? null : splitFromQuote(quote);
     const buy = split ? Math.max(0, Math.round(Number(split.buy_volume))) : null;
     const sell = split ? Math.max(0, Math.round(Number(split.sell_volume))) : null;
     const classified = buy !== null && sell !== null ? buy + sell : null;
@@ -2235,12 +2232,12 @@ async function flowAnswer(env, now) {
       ? Math.round((10000 * buy) / classified) / 100 : null;
     const sellShare = classified && sell !== null
       ? Math.round((10000 * sell) / classified) / 100 : null;
-    const bid = Number.isFinite(Number(quote.bid)) ? Number(quote.bid) : null;
-    const ask = Number.isFinite(Number(quote.ask)) ? Number(quote.ask) : null;
-    const bidSize = quote.bid_size === null || quote.bid_size === undefined
+    const bid = !preOpen && Number.isFinite(Number(quote.bid)) ? Number(quote.bid) : null;
+    const ask = !preOpen && Number.isFinite(Number(quote.ask)) ? Number(quote.ask) : null;
+    const bidSize = preOpen || quote.bid_size === null || quote.bid_size === undefined
       ? null
       : (Number.isFinite(Number(quote.bid_size)) ? Number(quote.bid_size) : null);
-    const askSize = quote.ask_size === null || quote.ask_size === undefined
+    const askSize = preOpen || quote.ask_size === null || quote.ask_size === undefined
       ? null
       : (Number.isFinite(Number(quote.ask_size)) ? Number(quote.ask_size) : null);
     const large = largeStats.get(String(quote.symbol || "").toUpperCase()) || {};
@@ -2253,25 +2250,27 @@ async function flowAnswer(env, now) {
       ask_size: askSize,
       spread: bid !== null && ask !== null && ask >= bid
         ? Math.round((ask - bid) * 10000) / 10000 : null,
-      change_pct: Number.isFinite(Number(quote.change_pct))
+      change_pct: !preOpen && Number.isFinite(Number(quote.change_pct))
         ? Number(quote.change_pct) : null,
-      high: Number.isFinite(Number(quote.high)) ? Number(quote.high) : null,
-      low: Number.isFinite(Number(quote.low)) ? Number(quote.low) : null,
+      high: !preOpen && Number.isFinite(Number(quote.high)) ? Number(quote.high) : null,
+      low: !preOpen && Number.isFinite(Number(quote.low)) ? Number(quote.low) : null,
       volume,
       buy_volume: buy,
       sell_volume: sell,
       classified_volume: classified,
       unclassified_volume: unclassified,
-      flow_baseline: split && Number.isFinite(Number(split.flow_baseline))
+      flow_baseline: preOpen ? 0 : split && Number.isFinite(Number(split.flow_baseline))
         ? Math.max(0, Math.round(Number(split.flow_baseline))) : null,
       flow_baseline_at: quote.flow_baseline_at || null,
       flow_first_seen_at: quote.flow_first_seen_at || null,
       flow_baseline_reason: quote.flow_baseline_reason || null,
       buy_share_pct: buyShare,
       sell_share_pct: sellShare,
-      flow_complete: unclassified === null ? null : unclassified === 0,
+      flow_complete: preOpen ? false : unclassified === null ? null : unclassified === 0,
       split_method: split ? "quote_rule" : "unavailable",
-      split_source: split
+      split_source: preOpen
+        ? "pre-open frame: no regular-session volume has traded yet"
+        : split
         ? (split.split_source ||
            "every volume increment sided by the wire's own bid/ask")
         : "no measured order-flow pair; the total is unclassified",
@@ -2280,10 +2279,10 @@ async function flowAnswer(env, now) {
         ? Math.max(0, Math.round(Number(quote.age_seconds))) : null,
       tick_age_seconds: Number.isFinite(Number(quote.tick_age_seconds))
         ? Math.max(0, Math.round(Number(quote.tick_age_seconds))) : null,
-      fresh: Boolean(quote.fresh),
-      status: quote.status || null,
+      fresh: preOpen ? false : Boolean(quote.fresh),
+      status: preOpen ? "PRE_OPEN" : quote.status || null,
       source_tick_time: quote.source_tick_time || null,
-      flow_rules: quote.flow_rules && typeof quote.flow_rules === "object"
+      flow_rules: !preOpen && quote.flow_rules && typeof quote.flow_rules === "object"
         ? quote.flow_rules : null,
       large_buy_count: large.buy_count || 0,
       large_buy_shares: large.buy_shares || 0,
@@ -2358,7 +2357,7 @@ async function flowAnswer(env, now) {
     },
     basis: {
       split: "quote_rule: every observed increment of the venue counter is sided once by the bid/ask of the frame that carried it; buy and sell never decrease",
-      coverage: "regular-session frames for the named Karachi day; a symbol with no frame that day appears in missing, never with an invented number",
+      coverage: "frames for the named Karachi day; a pre-open frame is listed with zero session volume, and a symbol with no frame that day appears in missing, never with an invented number",
       unclassified: "shares traded before the capture or hub first observed the symbol, plus increments the wire did not decide; they are reported separately and never guessed into buy or sell",
       large: "one relay update carrying at least PKR 1,000,000 on one side; the broker wire has no individual order id, so this is a large observed increment, not a claimed order ticket",
     },
