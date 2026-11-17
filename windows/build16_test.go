@@ -96,8 +96,10 @@ func TestKSE100ColumnsAreTight(t *testing.T) {
 			continue
 		}
 		if m := uToT.FindStringSubmatch(row); m != nil {
-			if len(m[2]) != 2 || len(m[3]) != 2 {
-				t.Errorf("U=%s leaves %d/%d cells around &, want 2 and 2: %q", m[1], len(m[2]), len(m[3]), row)
+			// The U value now hugs its '=' and the fixed field pads after it,
+			// so only the gap after & is fixed; T itself must stay put.
+			if len(m[3]) != 2 {
+				t.Errorf("U=%s leaves %d cells after &, want two: %q", m[1], len(m[3]), row)
 			}
 		}
 		pkr := strings.Index(row, "PKR ")

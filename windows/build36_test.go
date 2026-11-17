@@ -86,6 +86,21 @@ func TestEmptyCalculatorDashIsSoftAfterPKR(t *testing.T) {
 	}
 }
 
+// Owner order 2026-11-17: the difference tile keeps one dash when there is no
+// percentage to calculate, not the old pair of placeholder dashes.
+func TestEmptyDifferenceKeepsOneDash(t *testing.T) {
+	a := demoApp(t, 120, 36)
+	c := NewCanvas(59, 4, a.th.Panel)
+	a.drawPercentTile(c, 0, 0, 59, 4)
+	row := c.PlainRows()[2]
+	if !strings.Contains(row, "DIFFERENCE  -") {
+		t.Fatalf("the empty difference does not carry a dash: %q", row)
+	}
+	if strings.Contains(row, "--") {
+		t.Fatalf("the empty difference carries two dashes: %q", row)
+	}
+}
+
 // Owner order 2026-11-17: every market day's stored session is cleared at
 // 08:00, and a weekend keeps the last stored day.
 func TestStoredSessionClearsAtEightOnMarketDays(t *testing.T) {

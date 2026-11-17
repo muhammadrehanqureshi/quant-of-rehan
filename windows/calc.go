@@ -193,7 +193,7 @@ func (a *App) drawPercentTile(c *Canvas, x, y, w, h int) {
 	c.Text(fx+bw+secondGap, iy, runeLen(secondLabel), secondLabel, th.Soft, true)
 	a.drawInputBox(c, fx, iy, bw, a.pctFirst, "Enter price", a.pctOpen && a.pctField == 0)
 	a.drawInputBox(c, sx, iy, bw, a.pctSecond, "Enter price", a.pctOpen && a.pctField == 1)
-	label, col := "DIFFERENCE", th.Soft
+	label, col := "DIFFERENCE  -", th.Soft
 	if pct, ok := pctChange(a.pctFirst, a.pctSecond); ok {
 		label = "DIFFERENCE  " + signedPercent(pct)
 		switch {
