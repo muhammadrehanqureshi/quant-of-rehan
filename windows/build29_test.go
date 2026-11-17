@@ -18,9 +18,9 @@ func TestAlertBoardsStayEmpty(t *testing.T) {
 	}
 }
 
-// Owner order 2026-11-16: every U value sits against its own label, so the top
-// row with U=0 reads the same way as the rows below it.
-func TestKSE100UValuesHugTheirLabel(t *testing.T) {
+// Owner order 2026-11-17: every KSE100 volume keeps nine digit positions, so a
+// short U is padded with spaces and S, U and T stay on their own columns.
+func TestKSE100UValuesUseTheNineDigitField(t *testing.T) {
 	a := busyApp(t, 158, 41, 3)
 	inside, found := false, 0
 	for _, row := range rowsOf(a) {
@@ -39,8 +39,12 @@ func TestKSE100UValuesHugTheirLabel(t *testing.T) {
 			continue
 		}
 		rest := row[i+2:]
-		if rest == "" || rest[0] == ' ' {
-			t.Errorf("U floats away from its label: %q", row)
+		if len(rest) < 11 {
+			t.Errorf("the U field is shorter than nine digits: %q", row)
+			continue
+		}
+		if last := rest[10]; last < '0' || last > '9' {
+			t.Errorf("the U field is not right aligned in its nine digit width: %q", row)
 		}
 		found++
 	}

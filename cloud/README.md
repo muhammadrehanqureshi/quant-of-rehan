@@ -112,7 +112,10 @@ own observed pair on every quote, so a hub that starts later adopts that pair
 instead of assigning shares it never saw. The capture carries a zero-volume
 pre-open frame into the flow even when the wire has no last print yet; that
 frame is the zero baseline, so the first auction increment is sided instead
-of becoming an unclear prefix. Symbols the feed did not publish are seeded
+of becoming an unclear prefix. A frame stamped before the regular open stays
+in the answer as a listed scrip with zero session B, S, U and T, so ORDER FLOW
+never shrinks to only the symbols that have already traded. Symbols the feed
+did not publish are seeded
 at zero at the 08:55 gate and stamped `preopen_zero_seed`; that seed is an
 explicit gate, never a trade. A non-zero total with no usable price is
 carried as flow-only, so it stays in the baseline and is never published.The capture also sends one zero-volume baseline per symbol per day: before

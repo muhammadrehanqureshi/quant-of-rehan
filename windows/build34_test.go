@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-// Owner order 2026-11-17: QUANTITY follows PRICE's box after six blank cells,
+// Owner order 2026-11-17: QUANTITY follows PRICE's box after five blank cells,
 // and both fields use the same label column and box width.
 func TestCalculatorQuantityFollowsPriceBox(t *testing.T) {
 	a := newTestApp(t)
@@ -18,9 +18,9 @@ func TestCalculatorQuantityFollowsPriceBox(t *testing.T) {
 	if price < 0 || qty < 0 {
 		t.Fatalf("the calculator lost a field label: %q", row)
 	}
-	wantQty := price + 6 + 13 + 6
+	wantQty := price + 6 + 13 + 5
 	if qty != wantQty {
-		t.Fatalf("QUANTITY starts on cell %d, want %d (six cells after PRICE's box): %q", qty, wantQty, row)
+		t.Fatalf("QUANTITY starts on cell %d, want %d (five cells after PRICE's box): %q", qty, wantQty, row)
 	}
 	if got := strings.Index(row, "Enter price"); got != price+7 {
 		t.Fatalf("PRICE's box starts on cell %d, want %d: %q", got, price+7, row)

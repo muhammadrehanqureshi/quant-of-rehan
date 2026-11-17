@@ -221,9 +221,9 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 	}
 	calcReserve := calcH
 	if calcH > 0 {
-		if y+h-sy-sectorH-1-calcH >= 17 {
-			calcReserve++
-		}
+		// Owner order 2026-11-17: one blank line always stands between CUSTOM
+		// SCRIPS OF VOLUME and the calculator pair.
+		calcReserve++
 		defer a.drawCalcPair(c, x, y+h-calcH, w, calcH)
 	}
 	// The gap costs one row. On a short window, keep the ranked list at four

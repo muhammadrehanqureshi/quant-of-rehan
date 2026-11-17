@@ -89,7 +89,7 @@ func TestF6OpensThePriceDifferenceTile(t *testing.T) {
 	for _, r := range "78.9" {
 		a.onKey(Key{Kind: KRune, R: r})
 	}
-	if s := plain(a); !strings.Contains(s, "DIFF  +1.15%") {
+	if s := plain(a); !strings.Contains(s, "DIFFERENCE  +1.15%") {
 		t.Fatalf("78 to 78.9 did not read +1.15%%:\n%s", s)
 	}
 	a.onKey(Key{Kind: KRune, R: 'c'})

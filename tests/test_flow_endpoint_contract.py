@@ -85,12 +85,12 @@ class FlowEndpointContractTest(unittest.TestCase):
         self.assertIn("missing,", self.source)
         self.assertIn("a symbol with no frame that day", self.source)
 
-    def test_a_pre_open_frame_is_not_counted_as_session_flow(self):
+    def test_a_pre_open_frame_stays_listed_without_carried_volume(self):
         """Before the open the hub holds yesterday's closing volume.
 
-        Counting that carried frame in the totals made the card show a whole
-        day of unclear volume before any trade, so a frame older than the
-        first regular band is reported in missing instead.
+        The frame still belongs in ORDER FLOW: dropping it left only the scrips
+        that had traded since the open on the page. Its session B, S, U and T
+        are zero, so the carried number never enters a total.
         """
         start = self.source.index("async function flowAnswer(env, now)")
         end = self.source.index("async function applyLiveQuotes", start)
@@ -98,7 +98,13 @@ class FlowEndpointContractTest(unittest.TestCase):
         self.assertIn("const sessionOpenMs = tradingToday && firstBandOpen",
                       body)
         self.assertIn("observedMs < sessionOpenMs", body)
-        self.assertIn('reason: "no regular-session frame since the open"', body)
+        self.assertIn("const preOpen = ", body)
+        self.assertIn("const volume = preOpen ? 0 : rawVolume", body)
+        self.assertIn('status: preOpen ? "PRE_OPEN"', body)
+        self.assertIn("pre-open frame: no regular-session volume has traded yet",
+                      body)
+        self.assertNotIn('reason: "no regular-session frame since the open"',
+                         body)
 
     def test_the_universe_is_the_full_kmiall_file(self):
         start = self.source.index("const KMIALL_UNIVERSE = [")

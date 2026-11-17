@@ -96,8 +96,11 @@ const appVersion = "4.0.21"
 // calculator pair's new order and gutter, D for PRICE DIFFERENCE and the new
 // FIRST PRICE and SECOND PRICE fields. Build 128 is 3.8.3, the three second
 // live poll, the slower metadata tiles, and a LIVE window that covers one
-// broker cycle instead of expiring after five seconds.
-const hudBuild = "3.8.3"
+// broker cycle instead of expiring after five seconds. Build 129 is 3.8.4, the
+// five space calculator gaps, the PKR dash order, the full PRICE DIFFERENCE
+// label, one blank row above the calculator pair, the nine digit KSE100 volume
+// fields, and the pre-open ORDER FLOW rows that keep every KMIALL scrip listed.
+const hudBuild = "3.8.4"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no
