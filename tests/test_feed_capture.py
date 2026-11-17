@@ -17,6 +17,7 @@ offline: no socket is opened and no recorder is started.
 
 from __future__ import annotations
 
+import os
 import socket
 import sys
 import tempfile
@@ -56,6 +57,11 @@ class PublisherRetryCapTest(unittest.TestCase):
     def test_a_success_resets_the_floor_below_the_cap(self):
         self.assertLess(feed_capture.RelayQuotePublisher.MIN_PUBLISH_SECONDS,
                         feed_capture.RelayQuotePublisher.MAX_RETRY_SECONDS)
+
+    def test_one_recorder_publishes_at_most_once_each_second(self):
+        self.assertEqual(
+            feed_capture.RelayQuotePublisher.MIN_PUBLISH_SECONDS, 1.0,
+            "one recorder's own floor is exactly one quote push each second")
 
     def test_the_publisher_reuses_one_http_connection(self):
         source = Path(feed_capture.__file__).read_text(encoding="utf-8")
@@ -292,6 +298,60 @@ class CaptureFlowSeedTest(unittest.TestCase):
             datetime(2026, 11, 6, 8, 59, tzinfo=tz)))
         self.assertTrue(feed_capture.session_has_opened(
             datetime(2026, 11, 6, 9, 0, tzinfo=tz)))
+
+
+class CaptureSingletonTest(unittest.TestCase):
+    """Owner report 2026-11-17: the relay saw 2 or 3 requests each second.
+
+    The band starts the recorder and the first scan also asks for a tape. A
+    recorder claims its lock before its publisher seed and its first status
+    write, so the scan sees a starting tape instead of starting a second one.
+    One recorder means one quote push each second, which is its own floor.
+    """
+
+    def test_the_lock_is_claimed_before_the_capture_session_starts(self):
+        source = Path(feed_capture.__file__).read_text(encoding="utf-8")
+        main = source[source.index("def main("):]
+        self.assertLess(main.index("acquire_capture_lock()"),
+                        main.index("CaptureSession("),
+                        "a second recorder must lose before it seeds or binds")
+        self.assertIn("release_capture_lock()", main)
+
+    def test_a_fresh_lock_blocks_a_second_recorder(self):
+        with tempfile.TemporaryDirectory() as folder:
+            lock = Path(folder) / "capture.lock"
+            with mock.patch.object(feed_capture, "CAPTURE_LOCK", lock), \
+                    mock.patch.object(feed_capture, "CAPTURE_DIR",
+                                      lock.parent):
+                won, _ = feed_capture.acquire_capture_lock()
+                self.assertTrue(won)
+                again, reason = feed_capture.acquire_capture_lock()
+                self.assertFalse(again)
+                self.assertIn("lock", reason)
+                feed_capture.release_capture_lock()
+                later, _ = feed_capture.acquire_capture_lock()
+                self.assertTrue(later)
+                feed_capture.release_capture_lock()
+
+    def test_a_stale_lock_is_replaced(self):
+        with tempfile.TemporaryDirectory() as folder:
+            lock = Path(folder) / "capture.lock"
+            lock.write_text("{}", encoding="utf-8")
+            old = datetime.now().timestamp() - 120
+            os.utime(lock, (old, old))
+            with mock.patch.object(feed_capture, "CAPTURE_LOCK", lock), \
+                    mock.patch.object(feed_capture, "CAPTURE_DIR",
+                                      lock.parent):
+                won, _ = feed_capture.acquire_capture_lock()
+                self.assertTrue(won, "a dead recorder's lock must not wedge the day")
+                feed_capture.release_capture_lock()
+
+    def test_the_tape_watcher_reads_the_lock_before_starting_another(self):
+        source = (ROOT / "src" / "data" / "live_card.py").read_text(
+            encoding="utf-8")
+        self.assertIn("if feed_capture.capture_is_starting(moment):", source)
+        self.assertIn("the broker tape is starting and holds its capture lock",
+                      source)
 
 
 class DefaultUniverseTest(unittest.TestCase):

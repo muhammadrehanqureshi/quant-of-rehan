@@ -11,9 +11,9 @@ name: Pre-open readiness
 #
 # The 2026-11-10 incident: every quote push was refused with a 400 for an hour
 # and the card read NO FEED while the index kept moving. A readiness gate that
-# reads the store it will trade from would have named that at 09:20. A failure
-# here sends one deduped owner email with the relay's own numbers and the check
-# that failed; a healthy morning sends nothing.
+# reads the store it will trade from would have named that at 09:20. The result
+# goes to the job summary only. Owner order 2026-11-17: no owner email from
+# this gate, and a fire delivered after the pre-open window does no check.
 on:
   schedule:
     - cron: "45 3 * * 1-5"   # 08:45 PKT
@@ -22,7 +22,6 @@ on:
 
 permissions:
   contents: read
-  issues: write
 
 jobs:
   ready:
@@ -39,10 +38,8 @@ jobs:
         run: pip install -r requirements.txt --retries 5 --timeout 60
 
       - name: Check the relay before the open
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          python - <<'PY' > /tmp/readiness
+          python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
           from datetime import datetime
           from zoneinfo import ZoneInfo
 
@@ -51,6 +48,12 @@ jobs:
           BASE = "https://quant-of-rehan-relay.mrmrehanqureshi.workers.dev"
           now = datetime.now(ZoneInfo("Asia/Karachi"))
           minute = now.hour * 60 + now.minute
+          # Owner order 2026-11-17: GitHub can deliver a schedule hours late.
+          # A fire outside the readiness window is not a pre-open check, so it
+          # does nothing instead of mailing a post-close verdict about the open.
+          if minute < 8 * 60 + 40 or minute > 9 * 60 + 30:
+              print("outside the pre-open readiness window; no check")
+              raise SystemExit(0)
           strict = minute >= 9 * 60 + 15  # 09:15 PKT onward: frames must exist
 
           # Owner report 2026-11-12: this check mailed "the relay did not answer
@@ -115,17 +118,3 @@ jobs:
           else:
               print("ready")
           PY
-          if [ -s /tmp/readiness ] && [ "$(cat /tmp/readiness)" != "ready" ]; then
-            python - <<'PY'
-          from datetime import datetime
-          from pathlib import Path
-          from zoneinfo import ZoneInfo
-
-          from src.notify.owner_email import send
-
-          text = Path("/tmp/readiness").read_text(encoding="utf-8").strip()
-          if text:
-              day = datetime.now(ZoneInfo("Asia/Karachi")).date().isoformat()
-              send(text, f"preopen-ready:{day}")
-          PY
-          fi
