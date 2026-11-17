@@ -1343,6 +1343,19 @@ func (a *App) alertLog() []Flag {
 	return kept
 }
 
+// alertPct is the current day move for a log row: the freshest broker reading
+// when there is one, otherwise the last price table, otherwise the move that
+// was current when the alert was raised.
+func (a *App) alertPct(f Flag) *float64 {
+	if q, ok := a.liveQuote(f.Symbol); ok && q.ChangePct != nil {
+		return q.ChangePct
+	}
+	if q, ok := a.prices[f.Symbol]; ok && q.ChangePct != nil {
+		return q.ChangePct
+	}
+	return f.ChangePct
+}
+
 // drawAlertLog is the log of every flag raised, buying and selling, newest first.
 func (a *App) drawAlertLog(c *Canvas, x, y, w, h int) {
 	th := a.th
@@ -1361,10 +1374,10 @@ func (a *App) drawAlertLog(c *Canvas, x, y, w, h int) {
 	searchY := liy + 1
 	bw := a.searchBox(c, lx, searchY, min(liw, 40), a.alertQuery, scripSearchHint, a.alertSearch)
 	a.addHit(lx, searchY, bw, 1, func() { a.alertFocus, a.alertSearch = 2, true; a.lvLog.top() })
-	// Owner order 2026-11-17: one blank row between alerts, not two. Each
-	// entry owns a title and at most one detail line, so the next title starts
-	// two rows below the previous one.
-	const per = 2
+	// Owner order 2026-11-17: alerts sit on consecutive rows, with no blank
+	// row between them. A price alert's detail sentence joins its title on the
+	// one row.
+	const per = 1
 	listY := searchY + 2
 	if lih < 4 {
 		return
@@ -1391,21 +1404,34 @@ func (a *App) drawAlertLog(c *Canvas, x, y, w, h int) {
 		case "price":
 			kind = "PRICE"
 		}
+		text := f.Text
+		if f.Detail != "" {
+			text += "  " + f.Detail
+		}
+		// The alert sentence already carries the move for an order flag. Split
+		// it off so the log can paint the current move green or red instead of
+		// printing the old one twice.
+		move, moveCol := "", th.Hot
+		if pct := a.alertPct(f); pct != nil {
+			if i := strings.LastIndexAny(text, "▲▼"); i >= 0 {
+				text = strings.TrimRight(text[:i], " ")
+			}
+			move = "  " + changeText(*pct)
+			moveCol = th.Good
+			if *pct < 0 {
+				moveCol = th.Bad
+			}
+		}
 		sp := []Span{{f.Time.In(pkt).Format("15:04:05") + "  ", th.Soft, false},
-			{padRight(f.Side+" "+kind, 11), sc, true}, {f.Text, th.Hot, true}}
+			{padRight(f.Side+" "+kind, 11), sc, true}, {text, th.Hot, true}}
+		if move != "" {
+			sp = append(sp, Span{move, moveCol, true})
+		}
 		if f.Silent {
 			sp = append(sp, Span{"  (silent)", th.Soft, false})
 		}
 		c.Spans(lx, row, lw, sp)
-		row++
-		if lines := wrap(f.Detail, lw-10); len(lines) > 0 {
-			ln := fit(lines[0], lw-10)
-			if len(lines) > 1 {
-				ln = fit(lines[0]+" "+lines[1], lw-10)
-			}
-			c.Text(lx+10, row, lw-10, ln, th.Soft, false)
-		}
-		row = listY + (n+1)*per
+		row += per
 	}
 	a.scrollbar(c, x+w-2, listY, a.lvLog.view*per, &a.lvLog)
 }

@@ -73,6 +73,12 @@ func isWeekend(p time.Time) bool {
 	return p.Weekday() == time.Saturday || p.Weekday() == time.Sunday
 }
 
+// isMarketDay is a Karachi weekday that is not a PSX holiday.
+func isMarketDay(p time.Time) bool {
+	p = p.In(pkt)
+	return !isWeekend(p) && !isPsxHoliday(p)
+}
+
 func minuteOf(p time.Time) int { return p.Hour()*60 + p.Minute() }
 
 func secondOf(p time.Time) int { return p.Hour()*3600 + p.Minute()*60 + p.Second() }

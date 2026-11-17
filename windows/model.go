@@ -91,7 +91,11 @@ const appVersion = "4.0.21"
 // DIFFERENCE tile in front of POSITION CALCULATOR, the halved SCANNER row, the
 // one blank row between ALERTS LOG entries and the single shade red orb.
 // Build 126 is 3.8.1, the owner's new QoR.png as the application icon.
-const hudBuild = "3.8.1"
+// Build 127 is 3.8.2, the two second big-order flash, consecutive ALERTS LOG
+// rows with the current day move, the 08:00 stored-session clear, the
+// calculator pair's new order and gutter, D for PRICE DIFFERENCE and the new
+// FIRST PRICE and SECOND PRICE fields.
+const hudBuild = "3.8.2"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no
