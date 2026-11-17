@@ -22,7 +22,7 @@ func TestScanClockOutranksMetadata(t *testing.T) {
 		if !a.scanning() {
 			t.Errorf("%s: scanning stopped despite the session clock", clock.Format("15:04"))
 		}
-		if w, _ := a.scanStatus(); w != "EVERY SECOND" {
+		if w, _ := a.scanStatus(); w != "EVERY 3 SECONDS" {
 			t.Errorf("%s: SCAN reads %q", clock.Format("15:04"), w)
 		}
 	}
@@ -43,7 +43,7 @@ func TestQuoteWatchdogKeepsTheFeedMoving(t *testing.T) {
 	a.link, a.checking = true, false
 	a.market = marketIn("OPEN")
 	a.now = time.Date(2026, 11, 2, 11, 0, 0, 0, pkt)
-	a.quotes = &Quotes{OK: true, FetchedAt: a.now.Add(-10 * time.Second)}
+	a.quotes = &Quotes{OK: true, FetchedAt: a.now.Add(-20 * time.Second)}
 	a.fails["quotes"] = 4
 	a.next["quotes"] = a.now.Add(time.Hour)
 
@@ -69,13 +69,13 @@ func TestQuoteWatchdogKeepsTheFeedMoving(t *testing.T) {
 	}
 }
 
-// While scanning, even a failed quotes answer waits only one second.
-func TestQuoteRetryIsOneSecondWhileScanning(t *testing.T) {
+// While scanning, a failed quotes answer retries at the live pace.
+func TestQuoteRetryUsesTheLivePace(t *testing.T) {
 	a := newTestApp(t)
 	a.market = marketIn("OPEN")
 	a.now = time.Date(2026, 11, 2, 11, 0, 0, 0, pkt)
 	a.fails["quotes"] = 6
-	if got := a.interval("quotes"); got != time.Second {
-		t.Fatalf("failed quotes retry is %v, want 1s while scanning", got)
+	if got := a.interval("quotes"); got != quoteRetry {
+		t.Fatalf("failed quotes retry is %v, want %v while scanning", got, quoteRetry)
 	}
 }

@@ -9,28 +9,28 @@ import (
 	"time"
 )
 
-// The flow engine watches the broker feed (/quotes) once a second and flags a
-// stock when a one-second volume step at or above the share threshold goes
+// The flow engine watches the broker feed (/quotes) at the live pace and flags
+// a stock when a poll's volume step at or above the share threshold goes
 // through the tape, on the side the tick rule gives it.
 //
 // What it can and cannot see. The feed gives each stock's last price and its
 // running volume for the day, with bid and ask at zero, so there is no order
 // book. A resting order that has not traded is invisible. What the engine
-// measures is executed volume: every second it takes the volume added since
-// the last look and classes it as buying when the price ticked up (or stayed
-// up after an uptick) and as selling when the price ticked down, the usual
-// tick rule. "Big buying orders" in an alert therefore means big executed
+// measures is executed volume: on every live poll it takes the volume added
+// since the last look and classes it as buying when the price ticked up (or
+// stayed up after an uptick) and as selling when the price ticked down, the
+// usual tick rule. "Big buying orders" in an alert therefore means big executed
 // buying, which is what an institution working an order leaves on the tape, and
 // "big selling orders" means the same on the other side. The ORDER FLOW screen
 // does not use this rule: it shows the relay's own quote-rule split.
 
 // FlowCfg holds the thresholds. Owner order 2026-11-16: big orders are
-// measured in shares, not PKR. MinShares is the smallest one-second volume
-// step that earns its own alert; 0 MaxPerMin means every such order is
-// announced, not only the first few in a minute.
+// measured in shares, not PKR. MinShares is the smallest volume step between
+// two live polls that earns its own alert; 0 MaxPerMin means every such order
+// is announced, not only the first few in a minute.
 type FlowCfg struct {
 	Window    time.Duration // how far back the buying board is added up
-	MinShares int64         // shares in one second to count as a big order
+	MinShares int64         // shares in one live poll to count as a big order
 	MaxPerMin int           // 0 means no announcement cap
 }
 

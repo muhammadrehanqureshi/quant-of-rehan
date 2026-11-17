@@ -351,7 +351,7 @@ func TestMarketFootnote(t *testing.T) {
 	a.market = marketIn("OPEN")
 	a.market.TradingDay = true
 	a.quotes = quotesAt(15, 1_000_000)
-	if got := a.marketNote(); got != "DATA FROM THE BROKER'S FEED IS BEING SCANNED EVERY SECOND." {
+	if got := a.marketNote(); got != "DATA FROM THE BROKER'S FEED IS BEING SCANNED EVERY 3 SECONDS." {
 		t.Errorf("live footnote: %q", got)
 	}
 	a.now = time.Date(2026, 11, 2, 9, 20, 0, 0, pkt)

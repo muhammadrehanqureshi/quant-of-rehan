@@ -219,10 +219,10 @@ func TestFeedAgeCountsUpEverySecond(t *testing.T) {
 	a.link, a.checking = true, false
 	a.now = flowT0
 	a.ingestQuotes(quotesAt(15, 1_000_000))
-	// Owner order 2026-11-12: the LIVE window is fifteen seconds, longer than
-	// the eleven second broker burst, so one cycle no longer flips the light.
-	for i, want := range []string{"LIVE", "LIVE", "LAGGING", "LAGGING"} {
-		a.now = flowT0.Add([]time.Duration{0, 4 * time.Second, 16 * time.Second, 45 * time.Second}[i])
+	// Owner order 2026-11-17: LIVE covers one full 24 second broker cycle, so
+	// a healthy burst feed no longer spends most of the cycle saying LAGGING.
+	for i, want := range []string{"LIVE", "LIVE", "LIVE", "LAGGING"} {
+		a.now = flowT0.Add([]time.Duration{0, 4 * time.Second, 26 * time.Second, 27 * time.Second}[i])
 		if got, _, _ := a.feedState(); got != want {
 			t.Errorf("after step %d: %s want %s", i, got, want)
 		}
@@ -237,12 +237,12 @@ func TestFeedAgeCountsUpEverySecond(t *testing.T) {
 	if _, age, _ := a.feedState(); age != 7 {
 		t.Errorf("age: %d", age)
 	}
-	a.now = flowT0.Add(16 * time.Second)
+	a.now = flowT0.Add(30 * time.Second)
 	light := ""
 	for _, sp := range a.feedLight() {
 		light += sp.S
 	}
-	if !strings.Contains(light, "LAGGING 16s") {
+	if !strings.Contains(light, "LAGGING 30s") {
 		t.Errorf("feed light: %q", light)
 	}
 }
@@ -274,16 +274,17 @@ func TestSnapshotIndexLandsOnTheCard(t *testing.T) {
 	}
 }
 
-// Polling is timed from when a request left, so one second is one second.
+// Polling is timed from when a request left, so the live pace is measured
+// from the send, not from the answer.
 func TestPollingIsTimedFromTheSend(t *testing.T) {
 	a := newTestApp(t)
 	a.sentAt["quotes"] = flowT0
 	a.now = flowT0.Add(300 * time.Millisecond) // the round trip
 	a.done("quotes", true)
-	if got := a.next["quotes"]; !got.Equal(flowT0.Add(time.Second)) {
-		t.Errorf("next quotes at +%v, want +1s", got.Sub(flowT0))
+	if got := a.next["quotes"]; !got.Equal(flowT0.Add(quoteEvery)) {
+		t.Errorf("next quotes at +%v, want +%v", got.Sub(flowT0), quoteEvery)
 	}
-	a.now = flowT0.Add(2500 * time.Millisecond) // a slow answer
+	a.now = flowT0.Add(4 * time.Second) // an answer slower than the pace
 	a.done("quotes", true)
 	if got := a.next["quotes"]; !got.Equal(a.now) {
 		t.Errorf("a slow answer must be followed at once: %v", got.Sub(flowT0))
@@ -595,7 +596,7 @@ func TestTelemetryTellsTheTruthAboutScanning(t *testing.T) {
 	a.w, a.h = 120, 30
 	a.link, a.checking = true, false
 	a.market = marketIn("CLOSED")
-	if w, _ := a.scanStatus(); w != "EVERY SECOND" {
+	if w, _ := a.scanStatus(); w != "EVERY 3 SECONDS" {
 		t.Errorf("10:00 on a Monday: %q", w)
 	}
 	a.now = time.Date(2026, 11, 7, 11, 0, 0, 0, pkt) // Saturday
