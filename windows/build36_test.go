@@ -64,7 +64,11 @@ func TestEmptyCalculatorDashIsSoftInFrontOfPKR(t *testing.T) {
 	if dash < 0 || pkr < dash {
 		t.Fatalf("the empty total is not - PKR: %q", row)
 	}
-	if got := c.Cells[dash].FG; got != a.th.Soft {
+	// strings.Index counts bytes, while Cells is indexed by display cell. The
+	// frame rune is three bytes, so convert the prefix to runes before reading
+	// the dash cell's ink.
+	dashCell := len([]rune(row[:dash]))
+	if got := c.Cells[dashCell].FG; got != a.th.Soft {
 		t.Fatalf("the dash is %v, want the TOTAL soft ink %v: %q", got, a.th.Soft, row)
 	}
 }

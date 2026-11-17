@@ -756,7 +756,9 @@ func TestKeyNavigation(t *testing.T) {
 	// Long input is capped, odd characters are ignored. C is the calculator
 	// key now, so the cap is filled with the other letters.
 	a.setScreen(scrScanner)
-	for _, c := range "abdefghijklmnopqrstuvwxyz" {
+	// C and D are the two calculator keys, so the cap is filled with the
+	// other letters.
+	for _, c := range "abefghijklmnopqrstuvwxyz" {
 		press(r(c))
 	}
 	press(r('!'))

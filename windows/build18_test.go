@@ -65,6 +65,11 @@ func TestAlertsLogLeavesOneBlankRowAfterTheSearchBox(t *testing.T) {
 		t.Fatal("the demo log is empty")
 	}
 	first := log[0].Text
+	// The log paints the day move as its own coloured span, so its text no
+	// longer stands as one string. Find the sentence before the arrow.
+	if i := strings.LastIndexAny(first, "▲▼"); i >= 0 {
+		first = strings.TrimRight(first[:i], " ")
+	}
 	entryAt := -1
 	for i := searchAt + 1; i < len(rows); i++ {
 		if strings.Contains(rows[i], first) {
