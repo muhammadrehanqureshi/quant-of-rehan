@@ -64,7 +64,9 @@ func TestSectorPercentagesUseArrows(t *testing.T) {
 		"BBB": {Price: 10, ChangePct: f64(2.5)},
 	}
 	s := plain(a)
-	for _, want := range []string{"▲ 2.50%", "▼ 1.50%"} {
+	// Owner order 2026-11-18: the percentage is right aligned, so the arrow
+	// and the figure no longer sit against each other.
+	for _, want := range []string{"▲", "▼", "2.50%", "1.50%"} {
 		if !strings.Contains(s, want) {
 			t.Errorf("the sector list is missing %q:\n%s", want, s)
 		}

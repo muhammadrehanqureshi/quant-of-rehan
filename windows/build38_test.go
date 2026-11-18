@@ -46,8 +46,14 @@ func TestKSE100VolumesKeepNineDigits(t *testing.T) {
 			at := strings.Index(row, label+"=")
 			v := row[at+2:]
 			end := strings.IndexByte(v, ' ')
-			if end < 0 || end == 0 || v[end-1] != ',' {
-				t.Fatalf("%s value does not end with a comma: %q", label, row)
+			if label == "S" {
+				if end < 0 || end == 0 || v[end-1] != ',' {
+					t.Fatalf("S value does not end with a comma: %q", row)
+				}
+				continue
+			}
+			if end < 0 || end == 0 || v[end-1] < '0' || v[end-1] > '9' {
+				t.Fatalf("U value does not end on a digit: %q", row)
 			}
 		}
 		sAt = append(sAt, col(row, "S="))

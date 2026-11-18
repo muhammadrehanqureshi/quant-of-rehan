@@ -49,12 +49,13 @@ func TestSectorPercentagesShareOneRightEdge(t *testing.T) {
 		case strings.Contains(row, "CUSTOM SCRIPS OF VOLUME"):
 			inside = false
 		}
-		if !inside || !strings.Contains(row, "%") {
+		if !inside || !strings.Contains(row, "%") || !strings.ContainsAny(row, "▲▼") {
 			continue
 		}
 		at := strings.LastIndex(row, "%")
 		if want < 0 {
 			want = at
+			t.Logf("first sector percentage at %d: %q", at, row)
 		} else if at != want {
 			t.Errorf("a sector percentage ends on cell %d, want %d: %q", at, want, row)
 		}

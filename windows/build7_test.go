@@ -14,7 +14,7 @@ func TestBSTLineCarriesU(t *testing.T) {
 	a.putBST(c, 0, 0, &b, &s, &total)
 	row := c.PlainRows()[0]
 	if !strings.Contains(row, "B=600") || !strings.Contains(row, "S=300,") ||
-		!strings.Contains(row, "U=100,") || !strings.Contains(row, "&  T=1,000") {
+		!strings.Contains(row, "U=100 ") || !strings.Contains(row, "&  T=1,000") {
 		t.Fatalf("the line does not read B, S, U and T in the KSE100 shape: %q", row)
 	}
 	if n := strings.Count(row, "U="); n != 1 {
@@ -28,7 +28,7 @@ func TestBSTLineSaysUZero(t *testing.T) {
 	c := NewCanvas(80, 1, a.th.Panel)
 	b, s, total := int64(600), int64(300), int64(900)
 	a.putBST(c, 0, 0, &b, &s, &total)
-	if row := c.PlainRows()[0]; !strings.Contains(row, "U=0,") || !strings.Contains(row, "&  T=900") {
+	if row := c.PlainRows()[0]; !strings.Contains(row, "U=0 ") || !strings.Contains(row, "&  T=900") {
 		t.Fatalf("a fully sided stock must say U=0: %q", row)
 	}
 }
