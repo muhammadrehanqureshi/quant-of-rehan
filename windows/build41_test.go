@@ -107,8 +107,8 @@ func TestCustomScripsRevealOnTheRight(t *testing.T) {
 }
 
 // Owner order 2026-11-18: the ALERTS LOG starts its PKR price, arrow and
-// percentage five cells after the word at.
-func TestAlertLogPriceStartsFiveCellsAfterAt(t *testing.T) {
+// percentage ten cells after the word bought or sold.
+func TestAlertLogPriceStartsTenCellsAfterSide(t *testing.T) {
 	a := demoApp(t, 140, 34)
 	a.flow.Log = []Flag{{
 		Time: a.now, Symbol: "PRL", Kind: "flow", Side: "BUY", Value: 100_000,
@@ -117,10 +117,11 @@ func TestAlertLogPriceStartsFiveCellsAfterAt(t *testing.T) {
 	c := NewCanvas(120, 8, a.th.Panel)
 	a.drawAlertLog(c, 0, 0, 120, 8)
 	s := strings.Join(c.PlainRows(), "\n")
-	if strings.Contains(s, " at PKR ") {
-		t.Fatalf("the log still starts the price one cell after at:\n%s", s)
+	gap := strings.Repeat(" ", 10)
+	if strings.Contains(s, " bought at PKR ") || strings.Contains(s, " bought     at PKR ") {
+		t.Fatalf("the log still starts the price too close to bought:\n%s", s)
 	}
-	if !strings.Contains(s, " at     PKR 114.65") {
-		t.Fatalf("the log does not start the price five cells after at:\n%s", s)
+	if !strings.Contains(s, " bought"+gap+"at PKR 114.65") {
+		t.Fatalf("the log does not start the price ten cells after bought:\n%s", s)
 	}
 }

@@ -265,13 +265,20 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 	if avail := y + h - sy; avail-sectorH-calcReserve < 6 {
 		sectorH = max(5, avail-calcReserve-6)
 	}
-	if y+h-sy >= sectorH+1+calcReserve+6 {
+	// Owner order 2026-11-18: the shortest window gives the gutter between the
+	// SECTORS and CUSTOM SCRIPS tiles to the three spaced scrips, after the gap
+	// between SEARCH and SECTORS has already gone.
+	tileGap := 1
+	if h < 28 {
+		tileGap = 0
+	}
+	if y+h-sy >= sectorH+tileGap+calcReserve+6 {
 		if a.sectorOpen {
 			a.drawSectorOpen(c, x, sy, w, sectorH)
 		} else {
 			a.drawSectorTile(c, x, sy, w, sectorH)
 		}
-		sy += sectorH + 1
+		sy += sectorH + tileGap
 	}
 	sh2 := y + h - sy - calcReserve
 	if sh2 < 6 {
@@ -327,21 +334,24 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 	}
 	head := iy + menu + 1 // the row after the menu, or the first row when it is hidden
 	listX, listW := ix, iw
-	rightList := false
+	rightList, showHead := false, true
 	if rx := ix + menuW + 3; ih >= 8 && iw-menuW-3 >= 72 {
 		// The sub menu's scrips stand on the right, beside the six sorts. Each
-		// scrip keeps its two rows; the price, its change and the bar share the
-		// name row, where the width now is.
+		// scrip keeps its three rows; the price, its change and the bar share
+		// the name row, where the width now is.
 		head, listX, listW, rightList = iy, rx, iw-menuW-3, true
-	} else if rows := iy + ih - (head + 1); rows/2 < 3 && head > iy+menu {
-		// Owner order 2026-11-12: when the blank row under the menu would leave
-		// fewer than three scrips, that row goes first.
-		head--
+	} else if rows := iy + ih - (head + 1); rows/3 < 3 && head > iy+menu {
+		// Owner order 2026-11-18: the blank row and the duplicate sort heading
+		// go before the third scrip does. The chosen sort already carries its
+		// mark in the menu above.
+		head, showHead = iy+menu-1, false
 	}
 	if a.scanChoice == 0 || head >= iy+ih {
 		return
 	}
-	c.Text(listX, head, listW, scanChoices[a.scanChoice-1], th.Accent, true)
+	if showHead {
+		c.Text(listX, head, listW, scanChoices[a.scanChoice-1], th.Accent, true)
+	}
 	top := head + 1
 	rows := iy + ih - top
 	if rows < 2 {
@@ -373,7 +383,9 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 		c.Text(listX, top, listW, "No scrip qualifies right now.", th.Soft, false)
 		return
 	}
-	a.lvScan.set(len(syms), rows/2)
+	// Owner order 2026-11-18: each CUSTOM SCRIPS scrip keeps one blank row
+	// between its name and its B, S, U and T values.
+	a.lvScan.set(len(syms), rows/3)
 	// Owner order 2026-11-12 (latest): the "1 to 3 of 3 scrips" count is
 	// withdrawn from the sort's heading line, which now carries the sort's own
 	// name and nothing else.
@@ -398,12 +410,12 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 		s := syms[i]
 		q := tbl[s]
 		pxKey, volKey := "px:"+s, "vol:"+s
-		a.zebra(c, listX, row, cw, 2, i, s)
+		a.zebra(c, listX, row, cw, 3, i, s)
 		c.Spans(listX, row, cw, []Span{{fmt.Sprintf("%d. ", i+1), th.Soft, false}, {s, th.Hot, true}})
 		if rightList {
 			a.drawScanQuote(c, listX, row, cw, listX+3+runeLen(s)+2, q, pxW, pxKey)
 		}
-		row++
+		row += 2 // one blank line, then the values row
 		// Owner order 2026-11-15: every sort uses one fixed set of B, S, U
 		// and T columns, at every window width. The old narrow fallback packed
 		// the values, so S, U and T started on different cells from row to row.
@@ -413,7 +425,7 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 		}
 		row++
 	}
-	a.scrollbar(c, x+w-2, top, a.lvScan.view*2, &a.lvScan)
+	a.scrollbar(c, x+w-2, top, a.lvScan.view*3, &a.lvScan)
 }
 
 // drawScanQuote draws a scanner scrip's PKR price, its change and its bar at
@@ -527,6 +539,11 @@ func (a *App) drawSearchTile(c *Canvas, x, y, w, h int) {
 	// Owner order 2026-11-18: the search tile carries no key instruction once
 	// there is something to choose; the list and the diamond say it.
 	hint := pressSearchHint
+	if a.screen == scrAlerts {
+		// Owner order 2026-11-18: the ALERTS page gives its SEARCH tile to
+		// the S key, while the log keeps the slash key for its own box.
+		hint = alertSearchHint
+	}
 	if a.searchText != "" {
 		hint = ""
 	}
@@ -581,7 +598,9 @@ func (a *App) drawSearchTile(c *Canvas, x, y, w, h int) {
 		return
 	}
 	// The details sit to the right of the matches, or under them in a narrow window.
-	dx, dy, dw := ix+listW+3, row, iw-listW-3
+	// Owner order 2026-11-18: the scrip detail starts on the search box's own
+	// row, so the SEARCH tile no longer leaves the top of the block empty.
+	dx, dy, dw := ix+listW+3, iy, iw-listW-3
 	if iw < 60 {
 		dx, dy, dw = ix, row+len(m)+1, iw
 	}
@@ -638,14 +657,14 @@ func (a *App) drawSearchTile(c *Canvas, x, y, w, h int) {
 		t := int64(math.Round(*in.Volume))
 		tot = &t
 	}
-	a.drawSearchLedger(c, dx, dy+2, dw, bottom, buy, sell, tot)
+	a.drawSearchLedger(c, dx, dy+2, dw, bottom, buy, sell, tot, a.screen == scrScanner)
 }
 
 // drawSearchLedger is the chosen scrip's volume block on the SEARCH tile.
-// Owner order 2026-11-18: B, S and U stand on one line, T stands below them,
-// and BARS, NET DELTA and NET DELTA % follow in their own aligned cells. The
-// block is compact enough for the ALERTS tile's right hand width.
-func (a *App) drawSearchLedger(c *Canvas, x, y, w, bottom int, buy, sell, tot *int64) {
+// Owner order 2026-11-18: the ALERTS tile keeps T below B, S and U and starts
+// the bar four cells after T, with no BARS word. The SCANNER tile puts T after
+// U, then the bar with NET DELTA and NET DELTA % on its own line below.
+func (a *App) drawSearchLedger(c *Canvas, x, y, w, bottom int, buy, sell, tot *int64, scanner bool) {
 	th := a.th
 	if y >= bottom {
 		return
@@ -657,6 +676,34 @@ func (a *App) drawSearchLedger(c *Canvas, x, y, w, bottom int, buy, sell, tot *i
 		return
 	}
 	b, s := *buy, *sell
+	if scanner {
+		// Owner order 2026-11-18: the SCANNER keeps all four volumes on one
+		// line, then the bar and both NET DELTA figures below it.
+		a.putBSTWide(c, x, y, buy, sell, tot)
+		if y+1 >= bottom || b+s <= 0 {
+			return
+		}
+		barW := min(shareBarSpan, w)
+		if barW < shareBarBoxes {
+			return
+		}
+		a.shareBarOnly(c, x, y+1, barW, b, s)
+		netX := x + barW + 2
+		if netX+9+6 > x+w {
+			return
+		}
+		net, ink, bold := a.searchNet(b, s)
+		c.Text(netX, y+1, 9, "NET DELTA", th.Soft, false)
+		rightAlign(c, netX+9, y+1, 6, []Span{{net, ink, bold}})
+		pctX := netX + 9 + 6 + 2
+		if pctX+11+7 > x+w {
+			return
+		}
+		pct := searchNetPct(b, s)
+		c.Text(pctX, y+1, 11, "NET DELTA %", th.Soft, false)
+		rightAlign(c, pctX+11, y+1, 7, []Span{{pct, ink, bold}})
+		return
+	}
 	sp := []Span{{"B=", th.Soft, false}}
 	sp = append(sp, volumeCommaSpans(b, th.Good, true, th.Soft)...)
 	sp = append(sp, Span{"  S=", th.Soft, false})
@@ -674,12 +721,10 @@ func (a *App) drawSearchLedger(c *Canvas, x, y, w, bottom int, buy, sell, tot *i
 
 	tY := y + 1
 	if tot != nil && tY < bottom {
-		c.Spans(x, tY, w, []Span{{"T=", th.Soft, false}, {leaderVolumeField(*tot), totalBlue, false}})
-		barX := x + w - shareBarSpan
-		if barX >= x+13+2+5 {
-			c.Text(barX-5, tY, 4, "BARS", th.Soft, false)
-		}
-		if b+s > 0 && barX >= x {
+		field := leaderVolumeField(*tot)
+		c.Spans(x, tY, w, []Span{{"T=", th.Soft, false}, {field, totalBlue, false}})
+		barX := x + 2 + runeLen(field) + 4
+		if b+s > 0 && barX+shareBarSpan <= x+w {
 			a.shareBarOnly(c, barX, tY, shareBarSpan, b, s)
 		}
 	}
@@ -688,25 +733,36 @@ func (a *App) drawSearchLedger(c *Canvas, x, y, w, bottom int, buy, sell, tot *i
 	if nY >= bottom {
 		return
 	}
-	total := b + s
-	net := b - s
-	ink, bold := th.Soft, false
-	switch {
-	case net > 0:
-		ink, bold = th.Good, true
-	case net < 0:
-		ink, bold = th.Bad, true
-	}
-	netText := compactNum(math.Abs(float64(net)))
-	pctText := "--"
-	if total > 0 {
-		pctText = fmt.Sprintf("%.2f%%", math.Abs(float64(net))/float64(total)*100)
-	}
+	net, ink, bold := a.searchNet(b, s)
+	pct := searchNetPct(b, s)
 	c.Text(x, nY, 9, "NET DELTA", th.Soft, false)
-	rightAlign(c, x+9, nY, 6, []Span{{netText, ink, bold}})
+	rightAlign(c, x+9, nY, 6, []Span{{net, ink, bold}})
 	pctX := x + 18
 	c.Text(pctX, nY, 11, "NET DELTA %", th.Soft, false)
-	rightAlign(c, pctX+11, nY, 7, []Span{{pctText, ink, bold}})
+	rightAlign(c, pctX+11, nY, 7, []Span{{pct, ink, bold}})
+}
+
+// searchNet is the NET DELTA on the SEARCH tile's bar line, as a magnitude in
+// the ink of the side that owns it.
+func (a *App) searchNet(buy, sell int64) (string, RGB, bool) {
+	net := buy - sell
+	ink, bold := a.th.Soft, false
+	switch {
+	case net > 0:
+		ink, bold = a.th.Good, true
+	case net < 0:
+		ink, bold = a.th.Bad, true
+	}
+	return compactNum(math.Abs(float64(net))), ink, bold
+}
+
+// searchNetPct is the NET DELTA as a percentage of the classified volume.
+func searchNetPct(buy, sell int64) string {
+	total := buy + sell
+	if total <= 0 {
+		return "--"
+	}
+	return fmt.Sprintf("%.2f%%", math.Abs(float64(buy-sell))/float64(total)*100)
 }
 
 // showing words which part of a list is on screen.
@@ -913,9 +969,13 @@ func (a *App) drawSectorOpen(c *Canvas, x, y, w, h int) {
 		a.selectRow(c, ix, ry, cw, false, func() { a.openSymbol(sym) })
 		c.Spans(ix+1, ry, cw-1, []Span{{fmt.Sprintf("%3d. %-9s", i+1, sym), th.Hot, true}})
 		if q, ok := tbl[sym]; ok && q.Price > 0 {
-			c.Spans(ix+16, ry, cw-16, []Span{{"PKR ", th.Soft, false}, {commaFloat(q.Price, 2), th.Text, true}})
+			px := commaFloat(q.Price, 2)
+			c.Spans(ix+16, ry, cw-16, []Span{{"PKR ", th.Soft, false}, {px, th.Text, true}})
 			if q.ChangePct != nil {
-				rightAlign(c, ix, ry, cw, []Span{{changeText(*q.ChangePct), a.dirColor(*q.ChangePct), true}})
+				// Owner order 2026-11-18: the percentage stands five cells after
+				// the price, so the price always reads before it.
+				pctX := ix + 16 + 4 + runeLen(px) + 5
+				c.Text(pctX, ry, cw-(pctX-ix), changeText(*q.ChangePct), a.dirColor(*q.ChangePct), true)
 			}
 		}
 	}
@@ -1527,10 +1587,11 @@ func (a *App) drawAlertLog(c *Canvas, x, y, w, h int) {
 		if f.Detail != "" {
 			text += "  " + f.Detail
 		}
-		// Owner order 2026-11-18: the PKR group starts five cells after the
-		// word at, so the price, its arrow and the percentage stand apart from
-		// the sentence that names the side.
-		text = strings.Replace(text, " at PKR ", " at     PKR ", 1)
+		// Owner order 2026-11-18: the PKR group starts ten cells after the
+		// word bought or sold, so the price, its arrow and the percentage
+		// stand apart from the sentence that names the side.
+		text = strings.Replace(text, " bought at PKR ", " bought          at PKR ", 1)
+		text = strings.Replace(text, " sold at PKR ", " sold          at PKR ", 1)
 		// The alert sentence already carries the move for an order flag. Split
 		// it off so the log can paint the current move green or red instead of
 		// printing the old one twice.

@@ -5,14 +5,14 @@ import (
 	"testing"
 )
 
-// Owner order 2026-11-16: the KSE100 price group, percentage and bar move one
-// cell left, leaving one clear cell before the tile's inner edge.
-func TestKSE100BarStopsOneCellBeforeTheInnerEdge(t *testing.T) {
+// Owner order 2026-11-18: the KSE100 bar stands above the price line, starts
+// on the current price's cell, and never reaches the tile's inner edge.
+func TestKSE100BarSitsAboveTheCurrentPrice(t *testing.T) {
 	a := busyApp(t, 158, 41, 3)
 	rows := rowsOf(a)
 	inside := false
 	found := 0
-	for _, row := range rows {
+	for i, row := range rows {
 		switch {
 		case strings.Contains(row, "KSE100 INDEX & THE TOP 3 SCRIPS OF VOLUME"):
 			inside = true
@@ -24,26 +24,29 @@ func TestKSE100BarStopsOneCellBeforeTheInnerEdge(t *testing.T) {
 			continue
 		}
 		pkr := strings.Index(row, "PKR ")
-		if pkr < 0 || !strings.Contains(row[pkr:], "%") {
+		if pkr < 0 || !strings.Contains(row[pkr:], "%") || i == 0 {
 			continue
 		}
-		border := strings.LastIndex(row, "│")
-		if border <= pkr {
+		nameRow := rows[i-1]
+		at := col(row, "PKR ")
+		barAt := col(nameRow, string(barBlock))
+		if barAt != at {
+			t.Errorf("the bar starts on cell %d, the current price on %d: %q", barAt, at, nameRow)
 			continue
 		}
-		barEnd := runeLen(strings.TrimRight(row[:border], " "))
-		borderCell := runeLen(row[:border])
-		// barEnd is one past the last bar cell, and the border is two cells
-		// after the last inner cell. One clear cell is left before the edge, so
-		// the bar ends on borderCell-2.
-		if barEnd != borderCell-2 {
-			t.Errorf("the bar ends on cell %d, want the cell before the tile's last inner cell %d: %q",
-				barEnd-1, borderCell-3, row)
+		border := strings.LastIndex(nameRow, "│")
+		if border < 0 {
+			continue
+		}
+		barEnd := barAt + strings.Count(nameRow, string(barBlock))
+		borderCell := runeLen(nameRow[:border])
+		if barEnd > borderCell-1 {
+			t.Errorf("the bar reaches cell %d, the tile's inner edge is %d: %q", barEnd-1, borderCell-1, nameRow)
 		}
 		found++
 	}
 	if found < 2 {
-		t.Fatalf("only %d leader percentage rows carried a bar:\n%s",
+		t.Fatalf("only %d leader name rows carried a bar:\n%s",
 			found, strings.Join(rows, "\n"))
 	}
 }
