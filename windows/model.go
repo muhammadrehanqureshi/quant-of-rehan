@@ -123,8 +123,11 @@ const appVersion = "4.0.21"
 // increment, and the boards use the relay's own measured pair. Build 139 is
 // 3.8.14, the one second live poll and the exact timing on the SCANNING tile:
 // the relay is read every second, and the broker refreshes one stock every
-// 23.98 seconds.
-const hudBuild = "3.8.14"
+// 23.98 seconds. Build 140 is 3.8.15, the ALERTS and SCANNER search ledgers
+// split by page, the S key on the ALERTS SEARCH tile, the five space sector
+// price gap, the scrip spacing on CUSTOM SCRIPS and the KSE100 bar above the
+// current price.
+const hudBuild = "3.8.15"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no
@@ -137,6 +140,11 @@ const scripSearchHint = "Search for a KMIALL scrip"
 // pressSearchHint names the key that gives a page's search box the keys, on
 // every page that has one (owner order 2026-11-12: the slash is that key).
 const pressSearchHint = "Press \"/\" to search"
+
+// alertSearchHint is the key that gives the ALERTS page's SEARCH tile the
+// keys. Owner order 2026-11-18: S opens it, while the ALERTS LOG keeps the
+// slash key for its own box.
+const alertSearchHint = `Press "S" to search`
 
 // sectorMoveHint names the keys that move the SECTORS selection, in the
 // owner's own words (order 2026-11-15).

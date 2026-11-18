@@ -84,17 +84,16 @@ func TestOrderFlowFootSaysUnclear(t *testing.T) {
 	}
 }
 
-// Owner order 2026-11-15: the bar and the percentage share the price line.
-// NET DELTA is gone from the KSE100 tile, so the bar sits beside the figure it
-// splits instead of above it on the name line. The price, the percentage and
-// the bar still line up on the same cells on every leader row.
+// Owner order 2026-11-18: each KSE100 bar stands above the price line and
+// starts on the current price's own cell. The price, the percentage and the
+// bar no longer compete for one row.
 func TestKSE100LeadersLineUpAndCarryTheirBar(t *testing.T) {
 	a := busyApp(t, 158, 41, 3)
 	rows := rowsOf(a)
 	inside := false
 	pkrAt := -1
-	priceRows, barRows, nameBars := 0, 0, 0
-	for _, r := range rows {
+	priceRows, barRows := 0, 0
+	for i, r := range rows {
 		switch {
 		case strings.Contains(r, "KSE100 INDEX & THE TOP 3 SCRIPS OF VOLUME"):
 			inside = true
@@ -107,12 +106,6 @@ func TestKSE100LeadersLineUpAndCarryTheirBar(t *testing.T) {
 		}
 		pkrByte := strings.Index(r, "PKR ")
 		if pkrByte < 0 {
-			// A leader name line must not carry the bar any more; the frame's
-			// own accent has no serial before it, so only a real name counts.
-			if barByte := strings.IndexRune(r, barBlock); barByte >= 0 &&
-				strings.Contains(r[:barByte], ". ") {
-				nameBars++
-			}
 			continue
 		}
 		priceRows++
@@ -129,22 +122,26 @@ func TestKSE100LeadersLineUpAndCarryTheirBar(t *testing.T) {
 		if !strings.Contains(rest, "%") {
 			continue
 		}
-		if !strings.ContainsRune(rest, barBlock) {
-			t.Errorf("the percentage row carries no bar: %q", r)
+		if i == 0 {
+			t.Errorf("the first leader price line has no name line above it: %q", r)
 			continue
 		}
+		barAt := col(rows[i-1], string(barBlock))
+		if barAt < 0 {
+			t.Errorf("the line above the price carries no bar: %q", rows[i-1])
+			continue
+		}
+		if barAt != at {
+			t.Errorf("the bar starts on cell %d, the current price on %d: %q", barAt, at, rows[i-1])
+		}
 		barRows++
-	}
-	if nameBars != 0 {
-		t.Errorf("%d leader name lines still carry the bar:\n%s", nameBars,
-			strings.Join(rows, "\n"))
 	}
 	if priceRows < 2 {
 		t.Fatalf("only %d leader price lines were found:\n%s", priceRows,
 			strings.Join(rows, "\n"))
 	}
 	if barRows < 2 {
-		t.Fatalf("only %d leader percentage rows carry a bar:\n%s", barRows,
+		t.Fatalf("only %d leader name lines carry a bar:\n%s", barRows,
 			strings.Join(rows, "\n"))
 	}
 	if pkrAt <= 0 {

@@ -1338,46 +1338,15 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 		usedMax = max(usedMax, leaderBSTWidth(l, cols, wide))
 	}
 	const chgW = 8
-	// Owner order 2026-11-15: NET DELTA is withdrawn from the KSE100 tile, so
-	// the bar takes the right edge of the percentage row. The bar and the
-	// percentage stand on the same line; only a window too narrow for the
-	// volumes, the PKR group and the bar keeps the bar on the name line above.
-	// Owner order 2026-11-16: the PKR group, its percentage and the bar move
-	// one cell left, leaving one clear cell before the tile's inner edge.
+	// Owner order 2026-11-18: the bar moves above the price line and starts on
+	// the cell where the current price begins. The percentage keeps the right
+	// hand edge, so the bar can no longer run into it or be cut off.
 	edge := ix + iw - 2
-	hasBar := false
-	for _, l := range leaders[:nL] {
-		if l.HasSplit() && *l.Buy+*l.Sell > 0 {
-			hasBar = true
-		}
-	}
-	// The fixed nine digit fields take more room than the old packed line. On
-	// a narrow KSE100 tile the bar gives cells until the PKR group, its change
-	// and the bar fit on one row; only when even eight cells do not fit does the
-	// bar move back to the name line.
-	barW := shareBarSpan
-	barStart, chgRight, chgX, pkrX := 0, 0, 0, 0
-	barOnPrice := false
-	for {
-		barStart = edge - barW + 1
-		chgRight = barStart - 3
-		chgX = chgRight - chgW + 1
-		pkrX = max(ix+3+usedMax+2, chgX-2-(4+pxW))
-		barOnPrice = hasBar && barStart >= ix+3+usedMax+4 &&
-			chgX >= ix+3+usedMax+2 && pkrX+4+pxW <= chgX-2
-		if barOnPrice || barW <= 8 {
-			break
-		}
-		barW--
-	}
-	if !barOnPrice {
-		// Narrow tile: keep the price group and its percentage on the price
-		// line and put the bar back on the name line, where the room is.
-		barStart = edge - shareBarSpan + 1
-		chgRight = edge
-		chgX = chgRight - chgW + 1
-		pkrX = max(ix+3+usedMax+2, chgX-2-(4+pxW))
-	}
+	chgRight := edge
+	chgX := chgRight - chgW + 1
+	pkrX := max(ix+3+usedMax+2, chgX-2-(4+pxW))
+	barStart := pkrX
+	barW := min(shareBarSpan, edge-barStart+1)
 
 	// The bottom of the tile, from the bottom up: the note, one blank line, and
 	// the BUYING NOW line. The blank line and the spacer under the index are
@@ -1404,12 +1373,11 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 		}
 		pxKey, volKey := "px:"+l.Symbol, "vol:"+l.Symbol
 		c.Spans(ix, row, textW, []Span{{strconv.Itoa(i+1) + ". ", th.Soft, false}, {l.Symbol, th.Hot, true}})
-		// Narrow tile only: the bar stands on the name line in the same cells on
-		// every leader row. On a wide tile it shares the percentage row below.
-		if !barOnPrice && l.HasSplit() && barStart > ix+3+runeLen(l.Symbol)+2 {
-			if *l.Buy+*l.Sell > 0 {
-				a.shareBarOnly(c, barStart, row, shareBarSpan, *l.Buy, *l.Sell)
-			}
+		// Owner order 2026-11-18: the bar stands on the name line, above the
+		// current price, and starts on the price's own cell.
+		if l.HasSplit() && barW >= shareBarBoxes &&
+			barStart > ix+3+runeLen(l.Symbol)+2 && *l.Buy+*l.Sell > 0 {
+			a.shareBarOnly(c, barStart, row, barW, *l.Buy, *l.Sell)
 		}
 		row++
 		var buy, sell *int64
@@ -1456,12 +1424,6 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 				c.Text(at, row, 3, "PKR", th.Soft, false)
 				a.flashText(c, at+4, row, px, th.Text, true, pxKey)
 			}
-		}
-		// Owner order 2026-11-15: the bar closes the percentage row on a wide
-		// tile. NET DELTA is gone, so the bar sits beside the figure it splits
-		// instead of standing above it on the name line.
-		if barOnPrice && l.HasSplit() && *l.Buy+*l.Sell > 0 {
-			a.shareBarOnly(c, barStart, row, barW, *l.Buy, *l.Sell)
 		}
 		row++
 		// Spare rows are shared out as a blank line between leaders.

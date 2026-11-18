@@ -1,10 +1,11 @@
-# Quant of Rehan for Windows (console edition), build 139
+# Quant of Rehan for Windows (console edition), build 140
 
 A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.21**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
 
-## What is new in build 139
+## What is new in build 140
 
+* **Build 140 (version 3.8.15).** The ALERTS SEARCH tile drops the BARS word, starts its bar four cells after T, opens with S, and names `Press "S" to search`. The SCANNER SEARCH tile puts T after U, drops BARS, starts its values on the search box row, and puts the bar with NET DELTA and NET DELTA % below the volumes. An open SECTORS group puts each price before its percentage with five cells between them. CUSTOM SCRIPS keeps one blank row between a scrip and its B, S, U and T values. ALERTS LOG starts `at PKR` ten cells after bought or sold. The KSE100 bars move above the price line and begin on the current price's cell. The executable's file version now matches the HUD build, `3.8.15.0`.
 * **Build 139 (version 3.8.14).** The live relay is read every 1 second instead of every 3 seconds, so a new broker snapshot waits at most 1 second for the client. The broker still refreshes each stock every 23.98 seconds; that is the wire's own cycle, and no client can make one stock update faster. The SCANNING tile now states both numbers.
 * **Build 138 (version 3.8.13).** The capture sides every volume increment against the book that stood before it, so a sell that knocks the ask down onto the old bid is still a sell and a buy that lifts the bid onto the old ask is still a buy. The Windows ALERTS boards now use the relay's own measured B and S pair, so heavy selling moves S even when the last price does not move between two broker frames.
 * **Build 137 (version 3.8.12).** ALERTS LOG carries its own search box again, beside the scanner's SEARCH tile. That tile now shows T below B, S and U, with BARS, NET DELTA and NET DELTA % in aligned cells. TELEMETRY's REQ count is saved as it changes, so a new build keeps the day's total. FEED stays LIVE for only five seconds; older values read LAGGING until the relay's ninety second boundary.

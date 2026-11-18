@@ -1292,6 +1292,12 @@ func (a *App) onKey(k Key) {
 				a.alertFocus, a.alertLogSearch = 2, true
 				a.lvLog.top()
 			}
+		case 's', 'S':
+			// Owner order 2026-11-18: S gives the ALERTS page's SEARCH tile
+			// the keys. The log keeps its own box on the slash key.
+			if a.screen == scrAlerts {
+				a.alertFocus = 4
+			}
 		case 'q', 'Q':
 			a.quit = true
 		case 'r', 'R':
