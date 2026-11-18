@@ -93,6 +93,22 @@ class QuoteFlowTest(unittest.TestCase):
         self.assertEqual(quote["buy_volume"], 0)
         self.assertEqual(quote["sell_volume"], 250)
 
+    def test_a_sell_at_the_old_bid_is_not_a_buy_when_the_ask_steps_down(self):
+        """The post-trade ask can land on the old bid; that is still a sell."""
+        self.flow.observe(row(10.0, 10.0, 10.1, 1000))
+        quote = self.flow.observe(row(10.0, 9.9, 10.0, 1300))
+        self.assertEqual(quote["buy_volume"], 0)
+        self.assertEqual(quote["sell_volume"], 300)
+        self.assertEqual(quote["flow_rules"].get("at_bid"), 1)
+
+    def test_a_buy_at_the_old_ask_is_not_a_sell_when_the_bid_steps_up(self):
+        """The post-trade bid can land on the old ask; that is still a buy."""
+        self.flow.observe(row(10.1, 10.0, 10.1, 1000))
+        quote = self.flow.observe(row(10.1, 10.1, 10.2, 1300))
+        self.assertEqual(quote["buy_volume"], 300)
+        self.assertEqual(quote["sell_volume"], 0)
+        self.assertEqual(quote["flow_rules"].get("at_ask"), 1)
+
     def test_inside_the_spread_the_midpoint_decides(self):
         self.flow.observe(row(86.0, 85.0, 87.0, 1000))
         up = self.flow.observe(row(86.8, 85.0, 87.0, 1100))

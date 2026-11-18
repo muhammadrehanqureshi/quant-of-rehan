@@ -169,6 +169,34 @@ class WindowClassificationTest(unittest.TestCase):
         self.assertFalse(flow.reconcilable)   # the tape started mid-session
         self.assertTrue(any("before the tape" in note for note in flow.notes))
 
+    def test_a_sell_at_the_old_bid_stays_a_sell(self):
+        """The new ask landed on the old bid; that does not make it a buy."""
+        flows = self.flow([
+            {"kind": "MKT-FEED", "ticks": [
+                row("OGDC", bid="10.00", ask="10.10", last="10.00",
+                    total="1000", when="10:00"),
+                row("OGDC", bid="9.90", ask="10.00", last="10.00",
+                    total="1300", when="10:01"),
+            ]},
+        ])
+        flow = flows["OGDC"]
+        self.assertEqual((flow.buy_volume, flow.sell_volume), (0, 300))
+        self.assertEqual(flow.windows_at_quote, 1)
+
+    def test_a_buy_at_the_old_ask_stays_a_buy(self):
+        """The new bid landed on the old ask; that does not make it a sell."""
+        flows = self.flow([
+            {"kind": "MKT-FEED", "ticks": [
+                row("OGDC", bid="10.00", ask="10.10", last="10.10",
+                    total="1000", when="10:00"),
+                row("OGDC", bid="10.10", ask="10.20", last="10.10",
+                    total="1300", when="10:01"),
+            ]},
+        ])
+        flow = flows["OGDC"]
+        self.assertEqual((flow.buy_volume, flow.sell_volume), (300, 0))
+        self.assertEqual(flow.windows_at_quote, 1)
+
     def test_the_print_sizes_are_not_the_split(self):
         """A 10 share print says nothing about the 600 shares traded."""
         flows = self.flow([

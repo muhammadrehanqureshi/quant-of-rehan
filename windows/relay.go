@@ -494,6 +494,16 @@ func ParseQuotes(o J) *Quotes {
 		}
 		lq := LiveQuote{Fresh: qo.boolean("fresh", false), ChangePct: qo.num("change_pct"), Change: qo.num("change"),
 			AgeSeconds: qo.intDef("age_seconds", -1), SourceTick: qo.str("source_tick_time", ""), ObservedAt: qo.str("observed_at", "")}
+		// Owner order 2026-11-18: use the relay capture's own quote-rule pair
+		// when the live feed carries it. The day's pair is exact; the Windows
+		// board must not invent a different split from a tick rule.
+		lq.FlowMethod = qo.str("flow_method", qo.str("split_method", ""))
+		if lq.FlowMethod == methodMeasured {
+			lq.MeasuredBuy, lq.MeasuredSell = qo.integer("measured_buy"), qo.integer("measured_sell")
+			if lq.MeasuredBuy == nil || lq.MeasuredSell == nil {
+				lq.MeasuredBuy, lq.MeasuredSell = qo.integer("buy_volume"), qo.integer("sell_volume")
+			}
+		}
 		if p := qo.num("price"); p != nil {
 			lq.Price = *p
 		}

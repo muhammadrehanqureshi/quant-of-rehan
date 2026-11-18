@@ -11,18 +11,17 @@ import (
 
 // The flow engine watches the broker feed (/quotes) at the live pace and flags
 // a stock when a poll's volume step at or above the share threshold goes
-// through the tape, on the side the tick rule gives it.
+// through the tape, on the side the relay measured.
 //
-// What it can and cannot see. The feed gives each stock's last price and its
-// running volume for the day, with bid and ask at zero, so there is no order
-// book. A resting order that has not traded is invisible. What the engine
-// measures is executed volume: on every live poll it takes the volume added
-// since the last look and classes it as buying when the price ticked up (or
-// stayed up after an uptick) and as selling when the price ticked down, the
-// usual tick rule. "Big buying orders" in an alert therefore means big executed
-// buying, which is what an institution working an order leaves on the tape, and
-// "big selling orders" means the same on the other side. The ORDER FLOW screen
-// does not use this rule: it shows the relay's own quote-rule split.
+// What it can and cannot see. The live feed carries each stock's last price,
+// its running volume for the day and the relay capture's own cumulative
+// quote-rule pair. A resting order that has not traded is invisible. What the
+// engine measures is executed volume: on every live poll it differences that
+// pair, so a heavy sell at the bid moves S even when the last price held. A
+// row without the pair, as an older relay sends, falls back to the usual tick
+// rule. "Big buying orders" in an alert therefore means big executed buying,
+// which is what an institution working an order leaves on the tape, and "big
+// selling orders" means the same on the other side.
 
 // FlowCfg holds the thresholds. Owner order 2026-11-16: big orders are
 // measured in shares, not PKR. MinShares is the smallest volume step between
@@ -65,6 +64,9 @@ type symFlow struct {
 	px    float64
 	vol   int64
 	side  int8
+	buy   int64
+	sell  int64
+	pair  bool // the relay supplied its own measured B/S pair
 	evts  []flowEvt
 	alert [2]alertMem // the last flag on each side
 }
@@ -146,6 +148,24 @@ func (f *Flow) Reset() {
 
 func (s *symFlow) set(now time.Time, q LiveQuote) {
 	s.have, s.t, s.px, s.vol = true, now, q.Price, q.Volume
+	s.buy, s.sell, s.pair = 0, 0, false
+	if b, sl, ok := relayPair(q); ok {
+		s.buy, s.sell, s.pair = b, sl, true
+	}
+}
+
+// relayPair is the relay capture's cumulative quote-rule pair. A row without
+// that pair keeps the older local rule, so an old relay still works.
+func relayPair(q LiveQuote) (int64, int64, bool) {
+	if q.FlowMethod != methodMeasured || q.MeasuredBuy == nil || q.MeasuredSell == nil {
+		return 0, 0, false
+	}
+	return *q.MeasuredBuy, *q.MeasuredSell, true
+}
+
+func pairAdvanced(sf *symFlow, q LiveQuote) bool {
+	b, s, ok := relayPair(q)
+	return ok && (!sf.pair || b != sf.buy || s != sf.sell)
 }
 
 // Observe takes one /quotes answer. trading must be true only while the
@@ -172,7 +192,7 @@ func (f *Flow) Observe(now time.Time, q *Quotes, trading bool) []Flag {
 			sf.set(now, lq)
 			continue
 		}
-		if lq.Volume == sf.vol && lq.Price == sf.px {
+		if lq.Volume == sf.vol && lq.Price == sf.px && !pairAdvanced(sf, lq) {
 			sf.t = now
 			continue
 		}
@@ -183,17 +203,45 @@ func (f *Flow) Observe(now time.Time, q *Quotes, trading bool) []Flag {
 			sf.set(now, lq)
 			continue
 		}
+		prevPx := sf.px
 		dv := lq.Volume - sf.vol
-		side := sf.side
-		switch {
-		case lq.Price > sf.px:
-			side = 1
-		case lq.Price < sf.px:
-			side = -1
-		}
-		sf.side, sf.t, sf.px, sf.vol = side, now, lq.Price, lq.Volume
-		if dv > 0 {
-			sf.evts = append(sf.evts, flowEvt{now, dv, lq.Price, side})
+		sf.t, sf.px, sf.vol = now, lq.Price, lq.Volume
+		if b, sl, ok := relayPair(lq); ok {
+			if !sf.pair {
+				// The first measured frame is a baseline, never a whole day of
+				// shares sided by the local rule.
+				sf.buy, sf.sell, sf.pair = b, sl, true
+			} else if db, ds := b-sf.buy, sl-sf.sell; db >= 0 && ds >= 0 {
+				// Exactly the shares the relay capture sided since the last
+				// frame. A heavy sell at the bid therefore moves S even when the
+				// last price did not move between the two frames.
+				if db > 0 {
+					sf.evts = append(sf.evts, flowEvt{now, db, lq.Price, 1})
+					sf.side = 1
+				}
+				if ds > 0 {
+					sf.evts = append(sf.evts, flowEvt{now, ds, lq.Price, -1})
+					sf.side = -1
+				}
+				sf.buy, sf.sell = b, sl
+			} else {
+				// The relay's own pair restarted (a session reset) or was
+				// corrected. Take the new pair as a baseline instead of
+				// freezing this scrip for the rest of the day.
+				sf.buy, sf.sell = b, sl
+			}
+		} else {
+			side := sf.side
+			switch {
+			case lq.Price > prevPx:
+				side = 1
+			case lq.Price < prevPx:
+				side = -1
+			}
+			sf.side = side
+			if dv > 0 {
+				sf.evts = append(sf.evts, flowEvt{now, dv, lq.Price, side})
+			}
 		}
 		cut := now.Add(-f.cfg.Window - 5*time.Second)
 		i := 0
@@ -286,17 +334,19 @@ func (f *Flow) WindowSides(now time.Time, window time.Duration) (buy, sell, uncl
 // evaluate decides whether one side of one stock earns an alert now.
 //
 // Owner order 2026-11-16: every one-second volume step at or above
-// MinShares is its own big order, on the side the tick rule gives it. There
-// is no minute aggregate, no relative multiple and no cooldown, so two large
-// orders in consecutive seconds produce two alerts.
+// MinShares is its own big order, on the side it printed. Owner order
+// 2026-11-18: when the relay carries its measured quote-rule pair, that pair
+// is the side; the local tick rule is only the fallback for an older relay.
+// There is no minute aggregate, no relative multiple and no cooldown, so two
+// large orders in consecutive seconds produce two alerts.
 func (f *Flow) evaluate(now time.Time, sym string, sf *symFlow, q LiveQuote, side int) *Flag {
-	last := lastEvt(sf)
-	if last == nil || now.Sub(last.t) > 2*time.Second {
-		return nil
-	}
 	want, word := int8(1), "BUY"
 	if side == sideSell {
 		want, word = -1, "SELL"
+	}
+	last := lastEvtFor(sf, want)
+	if last == nil || now.Sub(last.t) > 2*time.Second {
+		return nil
 	}
 	if last.side != want || last.dv < f.cfg.MinShares {
 		return nil
@@ -328,6 +378,17 @@ func lastEvt(sf *symFlow) *flowEvt {
 		return nil
 	}
 	return &sf.evts[len(sf.evts)-1]
+}
+
+// lastEvtFor finds the newest event on one side. A relay frame can add B and
+// S in the same poll, so the two sides must not share the single last event.
+func lastEvtFor(sf *symFlow, want int8) *flowEvt {
+	for i := len(sf.evts) - 1; i >= 0; i-- {
+		if sf.evts[i].side == want {
+			return &sf.evts[i]
+		}
+	}
+	return nil
 }
 
 // movedAgainst is true when the price at the end of the window is on the wrong

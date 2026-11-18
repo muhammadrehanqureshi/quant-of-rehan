@@ -309,7 +309,10 @@ def _trade_side(row: Mapping, previous: Mapping | None) -> tuple[str, str]:
       * QUOTE: the closing print traded at the ask (a buyer lifted the
         offer) or at the bid (a seller hit the bid). Only an exact match
         counts: a book that is inverted or a print that sits outside it
-        says nothing, and is not used.
+        says nothing, and is not used. The book from the previous row is
+        tried first, because the current frame's book can already be the
+        post-trade book: a seller who hits the bid can leave the new ask
+        on that old bid.
       * TICK: the last price moved up or down against the previous row's
         last price. This is the standard tick rule, applied to the shares
         the running total moved in the window.
@@ -318,14 +321,19 @@ def _trade_side(row: Mapping, previous: Mapping | None) -> tuple[str, str]:
     token: field [7] is the day's change sign (see the module docstring).
     """
     last = _num(row.get("last"))
-    bid = _num(row.get("bid"))
-    ask = _num(row.get("ask"))
-    if bid is not None and ask is not None and bid > ask:
-        bid = ask = None   # an inverted book is not evidence
-    if last is not None and ask is not None and ask > 0 and last == ask:
-        return "B", "quote: print at the ask"
-    if last is not None and bid is not None and bid > 0 and last == bid:
-        return "S", "quote: print at the bid"
+    # Previous book first, current book only as the fallback. An inverted or
+    # empty book is not evidence.
+    for book in (previous, row):
+        if book is None:
+            continue
+        bid = _num(book.get("bid"))
+        ask = _num(book.get("ask"))
+        if bid is None or ask is None or bid <= 0 or bid > ask:
+            continue
+        if last is not None and last == ask:
+            return "B", "quote: print at the ask"
+        if last is not None and last == bid:
+            return "S", "quote: print at the bid"
     previous_last = _num(previous.get("last")) if previous is not None else None
     if last is not None and previous_last is not None:
         if last > previous_last:

@@ -58,6 +58,19 @@ class WholeDayFlowContractTest(unittest.TestCase):
         self.assertNotIn("rangePositionSplit", body)
         self.assertIn('split_method: "quote_rule"', body)
 
+    def test_the_book_before_the_increment_is_tried_first(self):
+        """Owner report 2026-11-18: the frame's book can already be post-trade.
+
+        A seller who hits the bid can leave the new ask on that old bid. The
+        hub must read the previous book first, or that sell is called a buy.
+        """
+        start = self.source.index("async advanceFlow(quote)")
+        body = self.source[start:start + 6000]
+        self.assertIn("const previousBid = state.bid;", body)
+        self.assertIn("const previousAsk = state.ask;", body)
+        self.assertIn("[[previousBid, previousAsk], [state.bid, state.ask]]",
+                      body)
+
     def test_an_undecidable_increment_stays_unclassified(self):
         start = self.source.index("async advanceFlow(quote)")
         body = self.source[start:start + 6000]

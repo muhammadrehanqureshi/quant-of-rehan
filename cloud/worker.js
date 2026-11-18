@@ -3831,6 +3831,13 @@ export class QuoteHub {
             bid: 0, ask: 0, last: 0, side: "", rules: {} };
     }
     const previousLast = state.last;
+    // The book from the preceding push is the book that stood before this
+    // increment. The frame's own book can already be post-trade: after a
+    // seller hits the bid, the ask can step down onto that old bid. Reading
+    // only the current book called that sell a buy, which is the capture
+    // defect the owner reported on 2026-11-18.
+    const previousBid = state.bid;
+    const previousAsk = state.ask;
     if (Number.isFinite(price) && price > 0) state.last = price;
     if (Number.isFinite(bid) && bid > 0) state.bid = bid;
     if (Number.isFinite(ask) && ask > 0) state.ask = ask;
@@ -3850,16 +3857,20 @@ export class QuoteHub {
       if (delta > 0) {
         let rule = null;
         let side = null;
-        if (state.ask > 0 && state.last >= state.ask) {
-          rule = "at_ask"; side = "B";
-        } else if (state.bid > 0 && state.last <= state.bid) {
-          rule = "at_bid"; side = "S";
-        } else if (state.bid > 0 && state.ask > state.bid) {
-          const mid = (state.bid + state.ask) / 2;
-          if (state.last > mid) { rule = "above_mid"; side = "B"; }
-          else if (state.last < mid) { rule = "below_mid"; side = "S"; }
+        const hasPrice = Number.isFinite(price) && price > 0;
+        if (hasPrice) {
+          for (const [bookBid, bookAsk] of
+               [[previousBid, previousAsk], [state.bid, state.ask]]) {
+            if (!(bookBid > 0 && bookAsk > bookBid)) continue;
+            if (state.last >= bookAsk) { rule = "at_ask"; side = "B"; break; }
+            if (state.last <= bookBid) { rule = "at_bid"; side = "S"; break; }
+            const mid = (bookBid + bookAsk) / 2;
+            if (state.last > mid) { rule = "above_mid"; side = "B"; break; }
+            if (state.last < mid) { rule = "below_mid"; side = "S"; break; }
+          }
         }
-        if (!side && Number.isFinite(previousLast) && previousLast > 0) {
+        if (!side && hasPrice && Number.isFinite(previousLast) &&
+            previousLast > 0) {
           if (state.last > previousLast) { rule = "tick_up"; side = "B"; }
           else if (state.last < previousLast) { rule = "tick_down"; side = "S"; }
         }

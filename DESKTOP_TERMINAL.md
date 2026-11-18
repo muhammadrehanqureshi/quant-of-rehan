@@ -42,11 +42,11 @@ bitmap.
 - `/market` every five seconds: KSE100 and the volume leaders.
 - `/health` every fifteen seconds: the session law, the market feed's
   status and age, and the next event.
-- The sixty second board is computed from each poll: a positive
-  increment of the running volume is sided by the price move against the
-  previous poll (or keeps the last side when the price held) and valued at
-  the print price. The first sight of a scrip is its baseline, never a
-  trade.
+- The sixty second board is computed from each poll: the relay's own
+  measured B and S pair is differenced per poll, so a heavy sell at the
+  bid moves S even when the last price held between two broker frames.
+  The first sight of a scrip is its baseline, never a trade. A row the
+  relay sends without that pair falls back to the older tick rule.
 - Day buying and selling are the relay's current measured pair, so
   B + S + U always equals the row's total. The board says in words that a
   side appears only when the relay measured it. A row the relay sends
@@ -70,7 +70,13 @@ keeps the decision for the session:
 | last is inside the spread, below its midpoint | sell |
 | last rose from the previous row | buy |
 | last fell from the previous row | sell |
-| none of the above | the symbol's last decided side, counted |
+| none of the above | undecidable, kept in U |
+
+The book rules are tried first against the book from the preceding
+observation, then against the current frame. The frame's own book can
+already be the post-trade book: a seller who hits the bid can leave the ask
+on that old bid, and reading the current book alone would call that sell a
+buy. Tick evidence is the fallback when neither book is usable.
 
 The day's change sign is never consulted; it is the sign of the change, not
 the side of a trade. The invariant is that every observed share is sided
@@ -145,7 +151,8 @@ reads as the same HUD the owner runs on the phone and the console:
   B/S/T rows on Home come from `bridge.FlowMemory`, which classifies
   every positive increment of the venue's running total with the
   repository's own window rules (`src/data/tick_volume.py`: print at the
-  ask, print at the bid, else the tick rule) and accumulates. The owner's
+  ask or bid of the preceding row's book first, then the current frame,
+  else the tick rule) and accumulates. The owner's
   law of 2026-11-03 came from a real bug: the retired range-position
   estimate re-attributed the whole day's volume by where the price sat
   in the day's range, so a scrip printing at its high showed sell volume

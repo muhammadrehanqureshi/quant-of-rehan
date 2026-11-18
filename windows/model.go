@@ -116,10 +116,12 @@ const appVersion = "4.0.21"
 // withdrawn because the ampersand already separates U from T, the SEARCH tile
 // without its key instruction, the right aligned SECTORS percentages, the
 // CUSTOM SCRIPS scrips on the right of their menu, and the five space gap
-// before the ALERTS LOG price group. Build 137 is 3.8.12, the ALERTS LOG's own
+// before the ALERTS LOG price group. Build 137 is 3.8.12, the ALERTS LOG
 // search box restored, the SEARCH tile's T, BARS, NET DELTA and NET DELTA %
-// ledger, the persisted REQ total and the five second LIVE window.
-const hudBuild = "3.8.12"
+// ledger, the persisted REQ total and the five second LIVE window. Build 138
+// is 3.8.13, the side-capture correction: the previous book decides an
+// increment, and the boards use the relay's own measured pair.
+const hudBuild = "3.8.13"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no
@@ -255,9 +257,15 @@ type LiveQuote struct {
 	Volume     int64
 	High, Low  float64
 	Bid, Ask   float64
-	AgeSeconds int // age at the moment the relay answered, -1 when unknown
-	SourceTick string
-	ObservedAt string
+	// MeasuredBuy and MeasuredSell are the relay capture's own cumulative
+	// quote-rule pair. They are present on the live feed, so the ALERTS boards
+	// can use exactly the shares the relay already sided instead of guessing
+	// from the last price move.
+	MeasuredBuy, MeasuredSell *int64
+	FlowMethod                string
+	AgeSeconds                int // age at the moment the relay answered, -1 when unknown
+	SourceTick                string
+	ObservedAt                string
 }
 
 // RangeSplit is the relay's own buy and sell estimate: the share of the day's
