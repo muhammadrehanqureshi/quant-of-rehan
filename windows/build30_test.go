@@ -22,7 +22,7 @@ func TestScanClockOutranksMetadata(t *testing.T) {
 		if !a.scanning() {
 			t.Errorf("%s: scanning stopped despite the session clock", clock.Format("15:04"))
 		}
-		if w, _ := a.scanStatus(); w != "EVERY 3 SECONDS" {
+		if w, _ := a.scanStatus(); w != "EVERY 1 SECOND" {
 			t.Errorf("%s: SCAN reads %q", clock.Format("15:04"), w)
 		}
 	}

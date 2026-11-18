@@ -120,8 +120,11 @@ const appVersion = "4.0.21"
 // search box restored, the SEARCH tile's T, BARS, NET DELTA and NET DELTA %
 // ledger, the persisted REQ total and the five second LIVE window. Build 138
 // is 3.8.13, the side-capture correction: the previous book decides an
-// increment, and the boards use the relay's own measured pair.
-const hudBuild = "3.8.13"
+// increment, and the boards use the relay's own measured pair. Build 139 is
+// 3.8.14, the one second live poll and the exact timing on the SCANNING tile:
+// the relay is read every second, and the broker refreshes one stock every
+// 23.98 seconds.
+const hudBuild = "3.8.14"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no

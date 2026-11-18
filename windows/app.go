@@ -636,13 +636,16 @@ func (a *App) inUniverse(sym string) bool {
 	return ok
 }
 
-// quoteEvery is the live feed's pace while the scan is on. The broker's own
-// wire repeats one stock about every 24 seconds, so a faster poll only repeats
-// the same snapshot and spends the relay's daily request allowance.
-const quoteEvery = 3 * time.Second
+// quoteEvery is the live feed's pace while the scan is on. Owner order
+// 2026-11-18: read the relay every second so a fresh broker snapshot is never
+// held for more than one second by the client. The broker itself repeats one
+// stock about every 24 seconds, so this changes the client's added delay, not
+// the wire's per-stock refresh rate.
+const quoteEvery = 1 * time.Second
 
-// quoteRetry is the shortest retry after a failed quotes answer. It is the
-// same as the normal pace, so a failure cannot make the app hammer the relay.
+// quoteRetry is the shortest retry after a failed quotes answer. It is slower
+// than the one second live pace, so a failure cannot make the app hammer the
+// relay.
 const quoteRetry = 3 * time.Second
 
 // idleEvery is how often the app checks the relay outside the scanning
@@ -656,13 +659,14 @@ func (a *App) idleEvery() time.Duration {
 	return d
 }
 
-// interval says how long to wait before asking again. Owner order 2026-11-17:
-// the broker feed is read every three seconds while the PSX day is in its
-// scanning window, and the slower tiles are read at ten to thirty seconds.
-// The broker itself repeats a stock about every 24 seconds, so this loses no
-// real tick and cuts the request count by roughly three times. Outside the
-// window the app waits, so a console left open overnight does not spend the
-// free Cloudflare quota (100,000 requests a day, reset at 05:00 Karachi).
+// interval says how long to wait before asking again. Owner order 2026-11-18:
+// the broker feed is read every second while the PSX day is in its scanning
+// window, and the slower tiles are read at ten to thirty seconds. The broker
+// itself repeats a stock about every 24 seconds, so the one second poll is
+// the quickest the client can catch each new snapshot; it does not create a
+// new per-stock tick. Outside the window the app waits, so a console left open
+// overnight does not spend the free Cloudflare quota (100,000 requests a day,
+// reset at 05:00 Karachi).
 func (a *App) interval(name string) time.Duration {
 	base := time.Duration(a.cfg.PollMS) * time.Millisecond
 	scan := a.scanning()
@@ -672,7 +676,7 @@ func (a *App) interval(name string) time.Duration {
 	case "quotes":
 		d = idle
 		if scan {
-			// Owner order 2026-11-17: one live poll every three seconds.
+			// Owner order 2026-11-18: one live poll every second.
 			d = quoteEvery
 		}
 	case "market":

@@ -63,7 +63,7 @@ func TestTelemetryCarriesMarketHoursBreadthAndDelta(t *testing.T) {
 		}
 		return -1
 	}
-	if !(at("PHASE") < at("EVERY 3 SECONDS") && at("EVERY 3 SECONDS") < at("MARKET OPENING")) {
+	if !(at("PHASE") < at("EVERY 1 SECOND") && at("EVERY 1 SECOND") < at("MARKET OPENING")) {
 		t.Errorf("SCAN does not follow PHASE:\n%s", s)
 	}
 	// Owner order 2026-11-11 (tenth pass): FLOW stands directly before NET
