@@ -19,7 +19,8 @@ func TestAlertBoardsStayEmpty(t *testing.T) {
 }
 
 // Owner order 2026-11-17: every KSE100 volume starts immediately after its '=',
-// the padding stands after the value, and the U value carries its own comma.
+// the padding stands after the value, and U carries no comma because the
+// ampersand already separates it from T.
 func TestKSE100UValuesUseTheNineDigitField(t *testing.T) {
 	a := busyApp(t, 158, 41, 3)
 	inside, found := false, 0
@@ -47,8 +48,8 @@ func TestKSE100UValuesUseTheNineDigitField(t *testing.T) {
 			t.Errorf("the U value does not start immediately after U=: %q", row)
 		}
 		end := strings.IndexByte(rest, ' ')
-		if end < 1 || rest[end-1] != ',' {
-			t.Errorf("the U value does not end with a comma: %q", row)
+		if end < 1 || rest[end-1] < '0' || rest[end-1] > '9' {
+			t.Errorf("the U value does not end on a digit: %q", row)
 		}
 		found++
 	}

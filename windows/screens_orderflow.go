@@ -198,8 +198,10 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 	t2 = append(t2, volumeCommaSpans(tot.Buy, th.Good, true, th.Soft)...)
 	t2 = append(t2, Span{"  S=", th.Soft, false})
 	t2 = append(t2, volumeCommaSpans(tot.Sell, th.Bad, true, th.Soft)...)
+	// Owner order 2026-11-18: U carries no comma; the ampersand already
+	// separates it from T.
 	t2 = append(t2, Span{"  U=", th.Soft, false})
-	t2 = append(t2, volumeCommaSpans(tot.Unclassified, th.Warn, tot.Unclassified > 0, th.Soft)...)
+	t2 = append(t2, volumeFieldSpans(tot.Unclassified, th.Warn, tot.Unclassified > 0)...)
 	t2 = append(t2, Span{"  &  T=", th.Soft, false}, Span{leaderVolumeField(tot.MeasuredTotal), totalBlue, false})
 	c.Spans(ix, row, iw, t2)
 	row++

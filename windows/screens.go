@@ -1101,15 +1101,16 @@ func leaderVolumeField(v int64) string {
 	return leaderVolumeText(commaInt(v))
 }
 
-// leaderVolumeFieldComma is the B, S and U field: one comma follows the value,
-// then the same fixed width pads the rest of the field.
+// leaderVolumeFieldComma is the B and S field: one comma follows the value,
+// then the same fixed width pads the rest of the field. Owner order 2026-11-18:
+// U carries no comma, because the ampersand already separates it from T.
 func leaderVolumeFieldComma(v int64) string {
 	return leaderVolumeText(commaInt(v) + ",")
 }
 
-// volumeCommaParts splits a B, S or U field into its number, its trailing
-// comma and the fixed padding. The comma is painted in the label ink, so it
-// reads like the '=' instead of taking the value's colour.
+// volumeCommaParts splits a B or S field into its number, its trailing comma
+// and the fixed padding. The comma is painted in the label ink, so it reads
+// like the '=' instead of taking the value's colour.
 func volumeCommaParts(v int64) (value, comma, pad string) {
 	value = commaInt(v)
 	field := leaderVolumeFieldComma(v)
@@ -1131,6 +1132,13 @@ func volumeCommaSpans(v int64, fg RGB, bold bool, commaInk RGB) []Span {
 		sp = append(sp, Span{pad, fg, bold})
 	}
 	return sp
+}
+
+// volumeFieldSpans is the span form of a field with no comma after it. Owner
+// order 2026-11-18: U uses this form on every list, so its value ends before
+// the ampersand that separates it from T.
+func volumeFieldSpans(v int64, fg RGB, bold bool) []Span {
+	return []Span{{leaderVolumeField(v), fg, bold}}
 }
 
 func leaderVolumeText(s string) string {
@@ -1160,7 +1168,7 @@ func leaderBSTWidth(l Leader, cols bstCols, wide bool) int {
 			if un < 0 {
 				un = 0
 			}
-			w += 4 + runeLen(leaderVolumeFieldComma(un)) +
+			w += 4 + runeLen(leaderVolumeField(un)) +
 				7 + runeLen(leaderVolumeField(*l.Volume))
 		}
 		return w
@@ -1208,7 +1216,7 @@ func (a *App) putBSTWide(c *Canvas, x, y int, buy, sell, total *int64, keys ...s
 				un = 0
 			}
 			put("  U=", th.Soft, false)
-			putVolume(un, th.Warn, un > 0)
+			put(leaderVolumeField(un), th.Warn, un > 0)
 			put("  &  T=", th.Soft, false)
 			put(leaderVolumeField(*total), totalBlue, false)
 		}

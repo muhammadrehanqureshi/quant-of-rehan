@@ -55,7 +55,10 @@ func TestScannerOrdersSectorsByOverallPercentage(t *testing.T) {
 		t.Fatalf("sectors read %v, want %v (highest percentage first)", got, want)
 	}
 	s := plain(a)
-	for _, pct := range []string{"▲ 2.50%", "▲ 0.50%", "▼ 1.50%"} {
+	// Owner order 2026-11-18: the arrow and the percentage no longer stand
+	// against each other, because the percentage is right aligned beside its
+	// fixed arrow column.
+	for _, pct := range []string{"2.50%", "0.50%", "1.50%"} {
 		if !strings.Contains(s, pct) {
 			t.Errorf("the sector list is missing %q:\n%s", pct, s)
 		}
