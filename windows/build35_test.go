@@ -7,19 +7,19 @@ import (
 	"time"
 )
 
-// Owner order 2026-11-17: a second price tells the percentage move from the
-// first. 78 to 78.9 is +1.15%, and a fall is negative.
+// Owner order 2026-11-18: a second price tells the size of the move from the
+// first. 78 to 78.9 is 1.15%, and a fall is 10.00% in red ink.
 func TestPercentChangeFromTheFirstPrice(t *testing.T) {
 	got, ok := pctChange("78", "78.9")
 	if !ok || math.Abs(got-1.1538461538) > 1e-9 {
-		t.Fatalf("78 to 78.9 is %v (%v), want +1.1538%%", got, ok)
+		t.Fatalf("78 to 78.9 is %v (%v), want 1.1538%%", got, ok)
 	}
-	if signedPercent(got) != "+1.15%" {
-		t.Fatalf("the tile would read %q, want +1.15%%", signedPercent(got))
+	if absPercent(got) != "1.15%" {
+		t.Fatalf("the tile would read %q, want 1.15%%", absPercent(got))
 	}
 	fall, ok := pctChange("100", "90")
-	if !ok || math.Abs(fall+10) > 1e-9 || signedPercent(fall) != "-10.00%" {
-		t.Fatalf("100 to 90 is %v (%v), want -10.00%%", fall, ok)
+	if !ok || math.Abs(fall+10) > 1e-9 || absPercent(fall) != "10.00%" {
+		t.Fatalf("100 to 90 is %v (%v), want 10.00%%", fall, ok)
 	}
 	for _, pair := range [][2]string{{"", "78"}, {"78", ""}, {"0", "78"}, {"78", "0"}, {"x", "78"}} {
 		if _, ok := pctChange(pair[0], pair[1]); ok {
@@ -75,6 +75,26 @@ func TestCalculatorStandsBeforePriceDifference(t *testing.T) {
 
 // F6 gives the difference tile the keys, and C still gives them to the
 // calculator. The two forms never hold the keys together.
+func TestDifferenceIsUnsignedAndKeepsItsDirectionInk(t *testing.T) {
+	a := demoApp(t, 120, 36)
+	check := func(first, second, want string, ink RGB) {
+		t.Helper()
+		a.pctFirst, a.pctSecond = first, second
+		c := NewCanvas(59, 4, a.th.Panel)
+		a.drawPercentTile(c, 0, 0, 59, 4)
+		row := c.PlainRows()[2]
+		if !strings.Contains(row, "DIFFERENCE  "+want) || strings.Contains(row, "+") || strings.Contains(row, "-") {
+			t.Fatalf("%s to %s reads %q, want DIFFERENCE  %s with no sign", first, second, row, want)
+		}
+		at := strings.Index(row, "DIFFERENCE")
+		if at < 0 || c.Cells[2*c.W+at].FG != ink {
+			t.Fatalf("%s to %s carries the wrong ink: %v, want %v: %q", first, second, c.Cells[2*c.W+at].FG, ink, row)
+		}
+	}
+	check("78", "78.9", "1.15%", a.th.Good)
+	check("100", "90", "10.00%", a.th.Bad)
+}
+
 func TestF6OpensThePriceDifferenceTile(t *testing.T) {
 	a := demoApp(t, 122, 36)
 	a.screen = scrScanner
@@ -89,8 +109,8 @@ func TestF6OpensThePriceDifferenceTile(t *testing.T) {
 	for _, r := range "78.9" {
 		a.onKey(Key{Kind: KRune, R: r})
 	}
-	if s := plain(a); !strings.Contains(s, "DIFFERENCE  +1.15%") {
-		t.Fatalf("78 to 78.9 did not read +1.15%%:\n%s", s)
+	if s := plain(a); !strings.Contains(s, "DIFFERENCE  1.15%") {
+		t.Fatalf("78 to 78.9 did not read 1.15%%:\n%s", s)
 	}
 	a.onKey(Key{Kind: KRune, R: 'c'})
 	if !a.calcOpen || a.pctOpen {

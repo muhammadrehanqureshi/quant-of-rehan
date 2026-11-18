@@ -42,41 +42,51 @@ func TestTelemetryValuesEndOnTheRightEdge(t *testing.T) {
 	}
 }
 
-// Owner order 2026-11-11 (tenth pass): the ALERTS LOG carries its own SEARCH
-// box; typing a scrip keeps only that scrip's alerts, and ESC restores the log.
-func TestAlertsLogSearchesAScrip(t *testing.T) {
-	a := demoApp(t, 120, 32)
+// Owner order 2026-11-18: the ALERTS page carries the scanner's SEARCH tile on
+// the right and the whole log on the left. The search does not cut the log.
+func TestAlertsPageCarriesSearchTileOnTheRight(t *testing.T) {
+	a := demoApp(t, 120, 34)
 	a.screen = scrAlerts
-	a.alertFocus = 2
 	a.flow.Log = []Flag{
 		{Time: a.now, Symbol: "ECHO", Kind: "flow", Side: "BUY", Value: 12e6,
 			Text: "ECHO is getting big buying orders", Detail: "Bought PKR 12M (900K shares) in 60 seconds."},
 		{Time: a.now.Add(-time.Minute), Symbol: "XYZ", Kind: "flow", Side: "SELL", Value: 12e6,
 			Text: "XYZ is getting big selling orders", Detail: "Sold PKR 12M (900K shares) in 60 seconds."},
 	}
+	frame := ""
+	for _, row := range rowsOf(a) {
+		if strings.Contains(row, "ALERTS LOG") && strings.Contains(row, "SEARCH") {
+			frame = row
+			break
+		}
+	}
+	if frame == "" {
+		t.Fatalf("the log and the SEARCH tile do not share a row:\n%s", strings.Join(rowsOf(a), "\n"))
+	}
+	logAt, searchAt := strings.Index(frame, "ALERTS LOG"), strings.Index(frame, "SEARCH")
+	if logAt < 0 || searchAt < 0 || logAt >= searchAt {
+		t.Fatalf("the log is not left of SEARCH: log %d search %d in %q", logAt, searchAt, frame)
+	}
 	a.onKey(Key{Kind: KRune, R: '/'})
+	if a.alertFocus != 4 {
+		t.Fatalf("slash left the SEARCH tile at focus %d", a.alertFocus)
+	}
 	for _, r := range "ECHO" {
 		a.onKey(Key{Kind: KRune, R: r})
 	}
-	if a.alertQuery != "ECHO" || !a.alertSearch {
-		t.Fatalf("the search box holds %q, focused %v", a.alertQuery, a.alertSearch)
+	if a.searchText != "ECHO" {
+		t.Fatalf("the SEARCH tile holds %q, want ECHO", a.searchText)
 	}
 	s := plain(a)
-	if !strings.Contains(s, "ECHO is getting big buying orders") {
-		t.Fatalf("the matching alert is missing:\n%s", s)
+	if !strings.Contains(s, "ECHO") {
+		t.Fatalf("the SEARCH tile lost the typed scrip:\n%s", s)
 	}
-	if strings.Contains(s, "XYZ is getting big selling orders") {
-		t.Fatalf("an alert of another scrip is still in the log:\n%s", s)
-	}
-	if !strings.Contains(s, "ALERTS LOG (1 of 2)") {
-		t.Fatalf("the title does not count the match:\n%s", s)
+	if !strings.Contains(s, "XYZ is getting big selling orders") {
+		t.Fatalf("the search cut an alert out of the log:\n%s", s)
 	}
 	a.onKey(Key{Kind: KEsc})
-	if a.alertQuery != "" || a.alertSearch {
-		t.Fatalf("ESC left %q, focused %v", a.alertQuery, a.alertSearch)
-	}
-	if !strings.Contains(plain(a), "XYZ is getting big selling orders") {
-		t.Fatal("ESC did not restore the whole log")
+	if a.searchText != "" || a.alertFocus != 2 {
+		t.Fatalf("ESC left search %q at focus %d", a.searchText, a.alertFocus)
 	}
 }
 

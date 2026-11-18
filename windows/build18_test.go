@@ -44,41 +44,29 @@ func TestAlertsLogHasNoWordsUnderTheSearchBox(t *testing.T) {
 	}
 }
 
-// Owner order 2026-11-13: one blank row stands between the search box and the
-// first alert.
-func TestAlertsLogLeavesOneBlankRowAfterTheSearchBox(t *testing.T) {
+// Owner order 2026-11-18: the log has no search box of its own. Its first
+// alert starts on the first row under the ALERTS LOG title.
+func TestAlertsLogStartsUnderItsTitle(t *testing.T) {
 	a := demoApp(t, 120, 34)
 	a.screen = scrAlerts
 	rows := rowsOf(a)
-	searchAt := -1
+	titleAt := -1
 	for i, row := range rows {
-		if strings.Contains(row, scripSearchHint) {
-			searchAt = i
+		if strings.Contains(row, "ALERTS LOG") {
+			titleAt = i
 			break
 		}
 	}
-	if searchAt < 0 {
-		t.Fatal("the ALERTS LOG search box is missing")
+	if titleAt < 0 || titleAt+1 >= len(rows) {
+		t.Fatalf("the ALERTS LOG title is missing:\n%s", strings.Join(rows, "\n"))
 	}
 	log := a.flagLog()
 	if len(log) == 0 {
 		t.Fatal("the demo log is empty")
 	}
-	first := log[0].Text
-	// The log paints the day move as its own coloured span, so its text no
-	// longer stands as one string. Find the sentence before the arrow.
-	if i := strings.LastIndexAny(first, "▲▼"); i >= 0 {
-		first = strings.TrimRight(first[:i], " ")
-	}
-	entryAt := -1
-	for i := searchAt + 1; i < len(rows); i++ {
-		if strings.Contains(rows[i], first) {
-			entryAt = i
-			break
-		}
-	}
-	if entryAt != searchAt+2 {
-		t.Fatalf("the first alert starts %d rows under the search box, want one blank row", entryAt-searchAt)
+	stamp := log[0].Time.In(pkt).Format("15:04:05")
+	if !strings.Contains(rows[titleAt+1], stamp) {
+		t.Fatalf("the first alert does not start under the title: %q", rows[titleAt+1])
 	}
 }
 

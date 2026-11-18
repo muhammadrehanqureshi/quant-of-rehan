@@ -109,7 +109,10 @@ const appVersion = "4.0.21"
 // 132 is 3.8.7, the comma after B and S in their value ink and the ALERTS LOG
 // search box without the row above it. Build 133 is 3.8.8, the stored session
 // cleared at 08:55 on every market day, including on a window opened late.
-const hudBuild = "3.8.8"
+// Build 134 is 3.8.9, the ALERTS LOG beside the scanner's SEARCH tile, the
+// calculator's PKR only on a total, and the unsigned difference in its
+// direction ink.
+const hudBuild = "3.8.9"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no

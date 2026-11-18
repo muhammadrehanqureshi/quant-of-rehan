@@ -149,12 +149,15 @@ type App struct {
 	lvBoard     listView   // the Alerts screen's big buying list
 	lvSell      listView   // the Alerts screen's big selling list
 	lvLog       listView   // the Alerts screen's log
-	alertQuery  string     // the ALERTS LOG search text, upper case
-	alertSearch bool       // the ALERTS LOG search box has the keys
-	alertFocus  int        // 0 big buying list, 1 big selling list, 2 the log
+	alertFocus  int        // 0 buy, 1 sell, 2 log, 3 price alerts, 4 search tile
 	focusNext   bool       // the next panel drawn is the focused one
 	alertSplitX int        // the column where the selling list starts, for the wheel
 	alertSplit  int        // the row where the log panel starts, for the wheel
+	// the scanner's SEARCH tile beside the ALERTS LOG, for the wheel
+	alertSearchX int
+	alertSearchY int
+	alertSearchW int
+	alertSearchH int
 
 	// price alerts, owner order 2026-11-13: the three slots live in cfg, the
 	// cursor and the editor live here. priceEdit is -1 when the form is closed.
@@ -1233,8 +1236,11 @@ func (a *App) onKey(k Key) {
 		if a.screen == scrOrderFlow && (a.ofSearch || a.ofQuery != "") {
 			a.ofQuery, a.ofSearch = "", false
 			a.lvOF.top()
-		} else if a.screen == scrAlerts && (a.alertSearch || a.alertQuery != "") {
-			a.alertQuery, a.alertSearch = "", false
+		} else if a.screen == scrAlerts && a.alertFocus == 4 {
+			if a.searchText != "" || a.selectedSym != "" {
+				a.clearSearch()
+			}
+			a.alertFocus = 2
 			a.lvLog.top()
 		} else {
 			a.setScreen(scrHome)
@@ -1244,7 +1250,7 @@ func (a *App) onKey(k Key) {
 			a.keyOrderFlow(k)
 			return
 		}
-		if a.screen == scrAlerts && a.alertSearch {
+		if a.screen == scrAlerts && a.alertFocus == 4 {
 			a.keyAlerts(k)
 			return
 		}
@@ -1264,7 +1270,7 @@ func (a *App) onKey(k Key) {
 				a.ofSearch = true
 				a.lvOF.top()
 			} else if a.screen == scrAlerts {
-				a.alertSearch = true
+				a.alertFocus = 4
 				a.lvLog.top()
 			}
 		case 'q', 'Q':
@@ -1562,40 +1568,64 @@ func (a *App) alertList() *listView {
 }
 
 func (a *App) keyAlerts(k Key) {
-	// While the search box has the keys, letters and digits build the scrip
-	// filter, BACKSPACE and DEL edit it and ENTER puts the keys back on the log.
-	if a.alertSearch {
+	// Owner order 2026-11-18: the scanner's SEARCH tile stands on the right of
+	// the ALERTS LOG. While it has the keys, letters and digits build the
+	// search, BACKSPACE and DEL edit it, UP and DOWN move through the matches,
+	// ENTER opens one, and ESC clears it before it goes back to the log.
+	if a.alertFocus == 4 {
 		switch k.Kind {
-		case KEnter:
-			a.alertSearch = false
-			return
-		case KBackspace, KDel:
-			if r := []rune(a.alertQuery); len(r) > 0 {
-				a.alertQuery = string(r[:len(r)-1])
-			} else {
-				a.alertSearch = false
+		case KEsc:
+			if a.searchText != "" || a.selectedSym != "" {
+				a.clearSearch()
 			}
-			a.lvLog.top()
-			return
+			a.alertFocus = 2
+		case KLeft:
+			a.alertFocus = 2
+		case KEnter:
+			a.pickMatch()
+		case KBackspace, KDel:
+			if r := []rune(a.searchText); len(r) > 0 {
+				a.searchText = string(r[:len(r)-1])
+				a.searchCursor = 0
+				a.selectedSym, a.selectedSt, a.selectedInfo = "", "", nil
+			} else {
+				a.alertFocus = 2
+			}
+		case KUp:
+			a.searchCursor = max(0, a.searchCursor-1)
+		case KDown:
+			if n := len(a.matches()); n > 0 {
+				a.searchCursor = min(a.searchCursor+1, n-1)
+			}
+		case KHome:
+			a.searchCursor = 0
+		case KEnd:
+			if n := len(a.matches()); n > 0 {
+				a.searchCursor = n - 1
+			}
 		case KRune:
 			r := k.R
 			if r >= 'a' && r <= 'z' {
 				r -= 'a' - 'A'
 			}
-			if (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '.' || r == '-' || r == '_' {
-				if runeLen(a.alertQuery) < 12 {
-					a.alertQuery += string(r)
-				}
-				a.lvLog.top()
+			if r == '/' {
+				return
 			}
-			return
+			if (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '.' || r == '-' || r == '_' {
+				if runeLen(a.searchText) < 12 {
+					a.searchText += string(r)
+				}
+				a.searchCursor = 0
+				a.selectedSym, a.selectedSt, a.selectedInfo = "", "", nil
+			}
 		}
+		return
 	}
 	switch k.Kind {
 	case KLeft:
 		a.alertFocus = max(0, a.alertFocus-1)
 	case KRight:
-		a.alertFocus = min(3, a.alertFocus+1)
+		a.alertFocus = min(4, a.alertFocus+1)
 	case KUp:
 		if a.alertFocus == 3 {
 			a.priceCursor = max(0, a.priceCursor-1)

@@ -57,20 +57,16 @@ func TestPriceDifferenceFieldWords(t *testing.T) {
 	}
 }
 
-// Owner order 2026-11-17: an empty total reads PKR -, with the dash after PKR
-// in the same soft ink as TOTAL.
-func TestEmptyCalculatorDashIsSoftAfterPKR(t *testing.T) {
+// Owner order 2026-11-18: an empty total carries no PKR. The dash stands in
+// the same soft ink as TOTAL until both boxes hold a number.
+func TestEmptyCalculatorShowsNoPKR(t *testing.T) {
 	a := newTestApp(t)
 	c := NewCanvas(80, 4, a.th.Panel)
 	a.drawCalculatorTile(c, 0, 0, 80, 4)
 	row := c.PlainRows()[2]
-	dash := strings.Index(row, "-")
-	pkr := strings.Index(row, "PKR")
-	if dash < 0 || pkr < 0 || dash != pkr+4 {
-		t.Fatalf("the empty total is not PKR -: %q", row)
+	if strings.Contains(row, "PKR") {
+		t.Fatalf("the empty total still shows PKR: %q", row)
 	}
-	// strings.Index counts bytes, while Cells is a flat row-major array. Find
-	// the dash on the total row itself, not on the title row above it.
 	dashCell := -1
 	for i, r := range []rune(row) {
 		if r == '-' {

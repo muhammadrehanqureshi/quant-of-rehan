@@ -1,6 +1,7 @@
 package main
 
 import (
+	"math"
 	"strconv"
 	"strings"
 )
@@ -195,7 +196,7 @@ func (a *App) drawPercentTile(c *Canvas, x, y, w, h int) {
 	a.drawInputBox(c, sx, iy, bw, a.pctSecond, "Enter price", a.pctOpen && a.pctField == 1)
 	label, col := "DIFFERENCE  -", th.Soft
 	if pct, ok := pctChange(a.pctFirst, a.pctSecond); ok {
-		label = "DIFFERENCE  " + signedPercent(pct)
+		label = "DIFFERENCE  " + absPercent(pct)
 		switch {
 		case pct > 0:
 			col = th.Good
@@ -220,12 +221,11 @@ func pctChange(firstText, secondText string) (float64, bool) {
 	return (second - first) / first * 100, true
 }
 
-func signedPercent(pct float64) string {
-	s := strconv.FormatFloat(pct, 'f', 2, 64)
-	if pct > 0 {
-		s = "+" + s
-	}
-	return s + "%"
+// absPercent is the size of the move, without a sign. The tile's ink says
+// whether the difference is up or down, so the percentage never carries a
+// plus or a minus.
+func absPercent(pct float64) string {
+	return strconv.FormatFloat(math.Abs(pct), 'f', 2, 64) + "%"
 }
 
 // drawInputBox draws one filled field without its own label, so the compact
@@ -302,10 +302,9 @@ func (a *App) drawCalculatorTile(c *Canvas, x, y, w, h int) {
 	if ok {
 		c.Text(pBox, iy+1, max(1, iw-(pBox-ix)), "PKR "+commaFloat(total, 2), th.Good, true)
 	} else {
-		// Owner order 2026-11-17: with nothing to calculate the dash stands
-		// after PKR, in the same soft ink as the TOTAL label.
-		c.Text(pBox, iy+1, 3, "PKR", th.Good, true)
-		c.Text(pBox+4, iy+1, 1, "-", th.Soft, true)
+		// Owner order 2026-11-18: no PKR stands on an empty total. It appears
+		// with the amount only after both boxes hold a number.
+		c.Text(pBox, iy+1, 1, "-", th.Soft, true)
 	}
 }
 
