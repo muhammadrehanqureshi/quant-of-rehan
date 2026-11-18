@@ -16,11 +16,14 @@ without opening a socket, so the decision is testable on a fixed clock:
 
 The law:
 
-* outside a PSX trading day or a scan window nothing is dispatched, so a
+* outside a PSX trading day or a watched window nothing is dispatched, so a
   mistimed fire costs nothing;
-* the capture opens with the exchange's own pre-open (09:15 Monday to Thursday,
-  09:00 on Friday, owner order 2026-11-12), which the session law already calls
-  a scan window, so no lead time before it is a window of its own;
+* the recorder warm-up opens at 08:55 every trading day (owner order
+  2026-11-13), before the exchange's own pre-open at 09:15 Monday to Thursday
+  and 09:00 on Friday. That lead time is a watched window of its own, so a
+  schedule GitHub never delivered cannot leave the pre-open uncaptured until
+  the 09:20 backstop;
+* Friday's second recorder warm-up opens at 14:10, before the 14:15 pre-open;
 * a relay that did not answer at all is the one case that also alerts, because
   no scan can publish while the relay is down;
 * a feed whose newest frame is older than STALE_SECONDS inside a window is
@@ -37,6 +40,7 @@ from typing import Any, Mapping
 from src.data.sessions import (
     is_trading_day,
     market_state_at,
+    pre_market_window,
 )
 
 # A feed this old inside a scan window is dead. The band pushes every frame it
@@ -44,11 +48,14 @@ from src.data.sessions import (
 # capture and never a quiet symbol.
 STALE_SECONDS = 240.0
 
-# SO-8: the clock here is Asia/Karachi (UTC+5), and every window edge is
+# SO-8: the clock here is Asia/Karachi (UTC+5), and every exchange edge is
 # imported from src/data/sessions.py, the one place the pin lives.
-# Owner order 2026-11-12 (latest): the recorder starts with the exchange's own
-# pre-open, 09:15 Monday to Thursday and 09:00 on Friday, so there is no lead
-# window before it for a warmer-up band to cover.
+# Owner order 2026-11-13: the recorder opens at 08:55 every trading day, twenty
+# minutes before Monday to Thursday's 09:15 pre-open and five minutes before
+# Friday's 09:00 pre-open. Friday's second warm-up opens at 14:10, five minutes
+# before the 14:15 pre-open.
+WARMUP_OPEN = (8, 55)
+FRIDAY_SECOND_WARMUP_OPEN = (14, 10)
 
 # How long a dispatched band runs. Long enough for the pre-open window and for
 # the post-market window, and the loop's own pause table stops it scanning the
@@ -92,13 +99,28 @@ def flow_age_seconds(moment: datetime, health: Mapping[str, Any] | None,
 
 
 def capture_warmup(moment: datetime) -> bool:
-    """False at every moment: the recorder starts with the pre-open itself.
+    """True inside the recorder warm-up that precedes a pre-open window.
 
-    Owner order 2026-11-12 (latest): the capture begins at 09:15 Monday to
-    Thursday and at 09:00 on Friday, the exchange's own pre-open, so no minute
-    before it is a warm-up any more. The session law already treats those
-    pre-open windows as scan windows, which is what decide() reads.
+    Owner order 2026-11-13: the recorder starts at 08:55 on every trading day,
+    before the 09:15 pre-open Monday to Thursday and the 09:00 pre-open on
+    Friday. The session law calls those pre-open windows scan windows, so this
+    module only has to cover the lead time before the first one. Friday's
+    second recorder start is 14:10, before the 14:15 pre-open.
     """
+    if not is_trading_day(moment.date()):
+        return False
+    first = pre_market_window(moment.date())
+    if first is None:
+        return False
+    minute = moment.hour * 60 + moment.minute
+    first_open = first[0][0] * 60 + first[0][1]
+    if WARMUP_OPEN[0] * 60 + WARMUP_OPEN[1] <= minute < first_open:
+        return True
+    if moment.weekday() == 4:
+        second_open = 14 * 60 + 15
+        if FRIDAY_SECOND_WARMUP_OPEN[0] * 60 + FRIDAY_SECOND_WARMUP_OPEN[1] \
+                <= minute < second_open:
+            return True
     return False
 
 

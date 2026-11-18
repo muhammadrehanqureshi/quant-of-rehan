@@ -16,9 +16,11 @@ name: Session failsafe
 # master for thirty minutes. A healthy feed costs two HTTP reads and a GitHub
 # API call, and nothing is dispatched.
 #
-# 03:45 UTC = 08:45 PKT, before the 08:55 band, so a missing 08:55 fire is
-# caught inside the pre-open window rather than after the open.
-# 04:00-10:50 UTC = 09:00-15:50 PKT every ten minutes, the bands and the break.
+# 03:45 UTC = 08:45 PKT, before the 08:55 band, so the relay is watched from
+# before the recorder warm-up starts.
+# 04:00-10:50 UTC = 09:00-15:50 PKT every ten minutes, the bands, the recorder
+# warm-ups and the break. The 09:00 fire is the first one inside the 08:55
+# warm-up, so a dropped 08:55 schedule is recovered before the 09:15 pre-open.
 # 11:05-11:45 UTC = 16:05-16:45 PKT, the post-market tail.
 
 on:

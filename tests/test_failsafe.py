@@ -26,6 +26,7 @@ WORKFLOW = ROOT / ".github" / "workflows" / "session-failsafe.yml"
 GUARD = ROOT / ".github" / "workflows" / "relay-budget-guard.yml"
 
 WEDNESDAY = (2026, 11, 11)          # a PSX trading day
+FRIDAY = (2026, 11, 13)             # a PSX trading day with two sessions
 SATURDAY = (2026, 11, 14)
 
 
@@ -48,10 +49,40 @@ class FailsafeDecisionTest(unittest.TestCase):
         self.assertIn("not a PSX trading day", decision.reason)
 
     def test_outside_every_window_dispatches_nothing(self):
-        # 08:31 PKT is before the pre-open window starts.
+        # 08:31 PKT is before the 08:55 recorder warm-up starts.
         decision = failsafe.decide(at(WEDNESDAY, 8, 31), {}, {})
         self.assertFalse(decision.dispatch)
         self.assertIn("outside every scan window", decision.reason)
+
+    def test_the_last_minute_before_the_warmup_dispatches_nothing(self):
+        decision = failsafe.decide(at(WEDNESDAY, 8, 54), {}, {})
+        self.assertFalse(decision.dispatch)
+        self.assertIn("outside every scan window", decision.reason)
+
+    def test_a_stale_feed_in_the_recorder_warmup_dispatches(self):
+        """The 08:55 warm-up is the window a dropped schedule must be caught in.
+
+        A lost 08:55 fire used to wait for the 09:20 backstop, so the pre-open
+        started with no recorder. The warm-up is now watched from 08:55, and
+        the 09:00 failsafe fire recovers it without a manual dispatch.
+        """
+        for hour, minute in ((8, 55), (9, 0), (9, 14)):
+            moment = at(WEDNESDAY, hour, minute)
+            decision = failsafe.decide(
+                moment, {"market_feed": {"age_seconds": 900}},
+                flow_stamped(moment, 900))
+            self.assertTrue(decision.dispatch, f"{hour:02d}:{minute:02d}")
+            self.assertFalse(decision.alert)
+            self.assertIn("old inside capture warm-up", decision.reason)
+
+    def test_friday_morning_and_second_warmups_are_watched(self):
+        for hour, minute in ((8, 55), (14, 10), (14, 14)):
+            moment = at(FRIDAY, hour, minute)
+            decision = failsafe.decide(
+                moment, {"market_feed": {"age_seconds": 900}},
+                flow_stamped(moment, 900))
+            self.assertTrue(decision.dispatch, f"{hour:02d}:{minute:02d}")
+            self.assertIn("old inside capture warm-up", decision.reason)
 
     def test_a_stale_feed_in_the_pre_open_dispatches_without_an_email(self):
         moment = at(WEDNESDAY, 9, 20)
@@ -62,25 +93,14 @@ class FailsafeDecisionTest(unittest.TestCase):
         self.assertFalse(decision.alert)
         self.assertIn("old inside PRE_MARKET", decision.reason)
 
-    def test_nothing_dispatches_before_the_pre_open_opens(self):
-        # Owner order 2026-11-12 (latest): the capture starts with the 09:15
-        # pre-open, so 09:00 Wednesday is outside every window and a stale feed
-        # there starts no band.
-        moment = at(WEDNESDAY, 9, 0)
-        decision = failsafe.decide(
-            moment, {"market_feed": {"age_seconds": 900}},
-            flow_stamped(moment, 900))
-        self.assertFalse(decision.dispatch)
-        self.assertFalse(decision.alert)
-        self.assertIn("outside every scan window", decision.reason)
-
-    def test_a_fresh_capture_before_the_pre_open_dispatches_nothing(self):
+    def test_a_fresh_capture_in_the_warmup_dispatches_nothing(self):
         moment = at(WEDNESDAY, 9, 0)
         decision = failsafe.decide(
             moment, {"market_feed": {"age_seconds": 2}},
             flow_stamped(moment, 2))
         self.assertFalse(decision.dispatch)
-        self.assertIn("outside every scan window", decision.reason)
+        self.assertIn("the feed is 2 s old inside capture warm-up",
+                      decision.reason)
 
     def test_a_stale_feed_in_the_post_market_dispatches(self):
         moment = at(WEDNESDAY, 15, 45)
