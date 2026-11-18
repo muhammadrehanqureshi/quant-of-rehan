@@ -1,10 +1,11 @@
-# Quant of Rehan for Windows (console edition), build 135
+# Quant of Rehan for Windows (console edition), build 136
 
 A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.21**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
 
-## What is new in build 135
+## What is new in build 136
 
+* **Build 136 (version 3.8.11).** U no longer ends with a comma, because the ampersand already separates it from T. The SEARCH tile drops its `UP and DOWN choose, ENTER opens` line. The SECTORS percentages are right aligned on one edge beside their fixed arrow column. The chosen CUSTOM SCRIPS sort reveals its three scrips to the right of the six sorts, using the tile's spare width instead of the tight rows below. ALERTS LOG starts its PKR price, arrow and percentage five spaces after the word `at`.
 * **Build 135 (version 3.8.10).** The big-order banner at the top stays for four seconds. The comma after a B, S or U value wears the same soft ink as its `=` on ORDER FLOW, the KSE100 tile, CUSTOM SCRIPS OF VOLUME and SEARCH, including the packed narrow leader form.
 * **Build 134 (version 3.8.9).** ALERTS LOG keeps the left side of the page and the scanner's SEARCH tile stands on the right, with the same matches, selection and scrip detail. The POSITION CALCULATOR shows no PKR while it is empty; PKR appears with the amount only after both boxes hold a number. PRICE DIFFERENCE prints the size of the move without a plus or minus, in green for a rise and red for a fall.
 * **Build 133 (version 3.8.8).** Every market day's stored session is cleared at 08:55. A window opened after 08:55, such as 09:14, clears the previous day on its first tick instead of showing it through the pre-market. A stored session that already belongs to today is kept.

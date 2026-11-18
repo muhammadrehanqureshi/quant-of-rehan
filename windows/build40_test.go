@@ -5,15 +5,16 @@ import (
 	"testing"
 )
 
-// Owner order 2026-11-18: B, S and U values end with a comma, and that comma
-// wears the same soft ink as the '=' label, never the value's colour.
-func TestBSUCommasWearTheEqualsInk(t *testing.T) {
+// Owner order 2026-11-18: B and S values end with a comma in the same soft ink
+// as their '=' label, while U carries no comma because the ampersand already
+// separates it from T.
+func TestBSCommasWearTheEqualsInkAndUHasNone(t *testing.T) {
 	a := newTestApp(t)
 	c := NewCanvas(80, 1, a.th.Panel)
 	b, s, total := int64(600), int64(300), int64(1000)
 	a.putBST(c, 0, 0, &b, &s, &total)
 	row := c.PlainRows()[0]
-	for _, label := range []string{"B=", "S=", "U="} {
+	for _, label := range []string{"B=", "S="} {
 		at := strings.Index(row, label)
 		if at < 0 {
 			t.Fatalf("%s is missing from the line: %q", label, row)
@@ -25,6 +26,17 @@ func TestBSUCommasWearTheEqualsInk(t *testing.T) {
 		if c.Cells[comma].FG != c.Cells[at+1].FG {
 			t.Fatalf("%s comma ink differs from its '=' ink: %q", label, row)
 		}
+	}
+	at := strings.Index(row, "U=")
+	if at < 0 {
+		t.Fatalf("U= is missing from the line: %q", row)
+	}
+	amp := strings.Index(row[at+2:], "&")
+	if amp < 0 {
+		t.Fatalf("the ampersand is missing after U: %q", row)
+	}
+	if strings.Contains(row[at+2:at+2+amp], ",") {
+		t.Fatalf("U still ends with a comma: %q", row)
 	}
 }
 

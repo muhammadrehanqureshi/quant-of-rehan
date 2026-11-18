@@ -289,7 +289,10 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 	}
 	ix, iy, iw, ih := a.panel(c, x, sy, w, sh2, "CUSTOM SCRIPS OF VOLUME", hint)
 	// Owner order 2026-11-12 (latest): every sort stands in the one left hand
-	// column, the new ones under the two that were already there.
+	// column, the new ones under the two that were already there. Owner order
+	// 2026-11-18: that column is narrower, so the chosen sort reveals its three
+	// scrips on the right where the tile has room, not under the menu.
+	menuW := min(iw, 40)
 	menu := len(scanChoices)
 	if ih < menu+1 {
 		// Only a tile with no room left at all drops a sort row.
@@ -305,7 +308,7 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 		ry := iy + i
 		id := i + 1
 		cur := i == a.scanCursor
-		bg := a.selectRow(c, ix, ry, min(iw, 48), cur, func() { a.pickScan(id) })
+		bg := a.selectRow(c, ix, ry, menuW, cur, func() { a.pickScan(id) })
 		mark := " "
 		if cur {
 			// Owner order 2026-11-11: the sub menu cursor is the diamond,
@@ -320,20 +323,25 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 		// Owner order 2026-11-13: the six sorts carry their sequence numbers,
 		// the same `1.` to `6.` the SECTORS tile uses.
 		c.Text(ix+3, ry, 3, fmt.Sprintf("%2d.", id), th.Soft, false)
-		c.Text(ix+7, ry, max(1, min(44, iw-7)), name, th.Text, a.scanChoice == id)
+		c.Text(ix+7, ry, max(1, menuW-7), name, th.Text, a.scanChoice == id)
 	}
 	head := iy + menu + 1 // the row after the menu, or the first row when it is hidden
-	// Owner order 2026-11-12: each sort names three scrips and each scrip takes
-	// two rows, its name and its KSE100 style values. When the blank row under
-	// the menu would leave fewer than three, that row goes first, so the list
-	// keeps its three scrips and the sector tile keeps its groups.
-	if rows := iy + ih - (head + 1); rows/2 < 3 && head > iy+menu {
+	listX, listW := ix, iw
+	rightList := false
+	if rx := ix + menuW + 3; ih >= 8 && iw-menuW-3 >= 72 {
+		// The sub menu's scrips stand on the right, beside the six sorts. Each
+		// scrip keeps its two rows; the price, its change and the bar share the
+		// name row, where the width now is.
+		head, listX, listW, rightList = iy, rx, iw-menuW-3, true
+	} else if rows := iy + ih - (head + 1); rows/2 < 3 && head > iy+menu {
+		// Owner order 2026-11-12: when the blank row under the menu would leave
+		// fewer than three scrips, that row goes first.
 		head--
 	}
 	if a.scanChoice == 0 || head >= iy+ih {
 		return
 	}
-	c.Text(ix, head, iw, scanChoices[a.scanChoice-1], th.Accent, true)
+	c.Text(listX, head, listW, scanChoices[a.scanChoice-1], th.Accent, true)
 	top := head + 1
 	rows := iy + ih - top
 	if rows < 2 {
@@ -341,8 +349,8 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 	}
 	tbl := a.scanTable()
 	if len(tbl) == 0 {
-		for i, ln := range wrap("No live quotes yet. Quotes arrive when the market is live.", iw) {
-			c.Text(ix, top+i, iw, ln, th.Soft, false)
+		for i, ln := range wrap("No live quotes yet. Quotes arrive when the market is live.", listW) {
+			c.Text(listX, top+i, listW, ln, th.Soft, false)
 		}
 		return
 	}
@@ -362,7 +370,7 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 		syms = rankedUpperLockSymbols(tbl)
 	}
 	if len(syms) == 0 {
-		c.Text(ix, top, iw, "No scrip qualifies right now.", th.Soft, false)
+		c.Text(listX, top, listW, "No scrip qualifies right now.", th.Soft, false)
 		return
 	}
 	a.lvScan.set(len(syms), rows/2)
@@ -370,7 +378,7 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 	// withdrawn from the sort's heading line, which now carries the sort's own
 	// name and nothing else.
 	row := top
-	cw := contentW(&a.lvScan, iw)
+	cw := contentW(&a.lvScan, listW)
 	// Owner order 2026-11-12: the values on every scrip are the KSE100 tile's
 	// own, in its own columns. B, S, U and T start on the same cell on every
 	// scrip, the price follows the widest one, and the change and the bar close
@@ -390,53 +398,58 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 		s := syms[i]
 		q := tbl[s]
 		pxKey, volKey := "px:"+s, "vol:"+s
-		a.zebra(c, ix, row, cw, 2, i, s)
-		c.Spans(ix, row, cw, []Span{{fmt.Sprintf("%d. ", i+1), th.Soft, false}, {s, th.Hot, true}})
+		a.zebra(c, listX, row, cw, 2, i, s)
+		c.Spans(listX, row, cw, []Span{{fmt.Sprintf("%d. ", i+1), th.Soft, false}, {s, th.Hot, true}})
+		if rightList {
+			a.drawScanQuote(c, listX, row, cw, listX+3+runeLen(s)+2, q, pxW, pxKey)
+		}
 		row++
 		// Owner order 2026-11-15: every sort uses one fixed set of B, S, U
 		// and T columns, at every window width. The old narrow fallback packed
 		// the values, so S, U and T started on different cells from row to row.
-		used := a.putBSTCols(c, ix+3, row, q.Buy, q.Sell, q.Volume, cols, volKey, pxKey)
-		if q.Price > 0 {
-			const chgW = 8
-			// Owner order 2026-11-16: the current price, its percentage and
-			// the BARS move one cell left, and only one.
-			end := ix + cw - 2
-			// Owner order 2026-11-12 (latest): the bar carries its NET DELTA
-			// here too, so the field takes the bar and its figure at once.
-			barStart := end - shareBarWidth + 1
-			chgRight := barStart - 2
-			priceRight := chgRight - chgW - 2
-			px := commaFloat(q.Price, 2)
-			showPrice := func(pkr, pxAt, chgAt int) {
-				c.Text(pkr, row, 3, "PKR", th.Soft, false)
-				a.flashText(c, pxAt, row, px, th.Text, true, pxKey)
-				if q.ChangePct != nil {
-					// Owner report 2026-11-12 (latest): PIM's price and its percentage
-					// sat further apart than 14.00's, because the change was right
-					// aligned and a digit wider. It starts on a fixed cell now, so the
-					// gap after the price is the same on every row of the list.
-					a.flashText(c, chgAt-chgW, row, fit(changeText(*q.ChangePct), chgW), a.dirColor(*q.ChangePct), true, pxKey)
-				}
-			}
-			// Owner order 2026-11-12: the bar gives way first on a narrow row;
-			// PKR and its price never leave the line.
-			switch {
-			case priceRight-pxW-4 >= ix+3+used+1:
-				showPrice(priceRight-pxW-4, priceRight-pxW, chgRight)
-				if q.Buy != nil && q.Sell != nil {
-					if total := *q.Buy + *q.Sell; total > 0 {
-						a.shareBar(c, barStart, row, shareBarWidth, *q.Buy, *q.Sell)
-					}
-				}
-			case end-4-runeLen(px)-chgW-2 >= ix+3+used+1:
-				pkr := end - 4 - runeLen(px) - chgW - 2
-				showPrice(pkr, pkr+4, end)
-			}
+		used := a.putBSTCols(c, listX+3, row, q.Buy, q.Sell, q.Volume, cols, volKey, pxKey)
+		if !rightList {
+			a.drawScanQuote(c, listX, row, cw, listX+3+used+1, q, pxW, pxKey)
 		}
 		row++
 	}
 	a.scrollbar(c, x+w-2, top, a.lvScan.view*2, &a.lvScan)
+}
+
+// drawScanQuote draws a scanner scrip's PKR price, its change and its bar at
+// the right of one row. Owner order 2026-11-18: the scrip list on the right of
+// CUSTOM SCRIPS puts them on the scrip's name row, so the B, S, U and T line
+// below keeps its fixed columns. The bar gives way before the price does.
+func (a *App) drawScanQuote(c *Canvas, x, row, w, left int, q Quote, pxW int, pxKey string) {
+	if q.Price <= 0 {
+		return
+	}
+	th := a.th
+	const chgW = 8
+	end := x + w - 2
+	barStart := end - shareBarWidth + 1
+	chgRight := barStart - 2
+	priceRight := chgRight - chgW - 2
+	px := commaFloat(q.Price, 2)
+	showPrice := func(pkr, pxAt, chgAt int) {
+		c.Text(pkr, row, 3, "PKR", th.Soft, false)
+		a.flashText(c, pxAt, row, px, th.Text, true, pxKey)
+		if q.ChangePct != nil {
+			a.flashText(c, chgAt-chgW, row, fit(changeText(*q.ChangePct), chgW), a.dirColor(*q.ChangePct), true, pxKey)
+		}
+	}
+	switch {
+	case priceRight-pxW-4 >= left:
+		showPrice(priceRight-pxW-4, priceRight-pxW, chgRight)
+		if q.Buy != nil && q.Sell != nil {
+			if total := *q.Buy + *q.Sell; total > 0 {
+				a.shareBar(c, barStart, row, shareBarWidth, *q.Buy, *q.Sell)
+			}
+		}
+	case end-4-runeLen(px)-chgW-2 >= left:
+		pkr := end - 4 - runeLen(px) - chgW - 2
+		showPrice(pkr, pkr+4, end)
+	}
 }
 
 // scanBSTCols measures the whole scan table, not only the three scrips a sort
@@ -511,9 +524,11 @@ func (a *App) drawSearchTile(c *Canvas, x, y, w, h int) {
 	// Owner order 2026-11-12 (latest): the page's search box wears the key
 	// that puts the keys in it while it is empty, and the match count once
 	// there is something to choose.
+	// Owner order 2026-11-18: the search tile carries no key instruction once
+	// there is something to choose; the list and the diamond say it.
 	hint := pressSearchHint
 	if a.searchText != "" {
-		hint = "UP and DOWN choose, ENTER opens"
+		hint = ""
 	}
 	ix, iy, iw, ih := a.panel(c, x, y, w, h, "SEARCH", hint)
 	// Owner order 2026-11-17: the blank row before the box is withdrawn, so
@@ -716,13 +731,15 @@ func (a *App) drawSectorTile(c *Canvas, x, y, w, h int) {
 		// the far right of the tile, in the colour of its side, and the rows
 		// above it are the groups that percentage ranks higher.
 		pct, cnt := sectorChangeIn(tbl, g)
-		pctText, pctInk := "--", th.Soft
+		pctText, pctInk, pctArrow := "--", th.Soft, ""
 		if cnt > 0 {
-			// Owner order 2026-11-16: the direction arrow holds one fixed column,
-			// so a wider 10.00% cannot push its arrow one cell left of the rest.
-			pctText = changeText(pct)
+			// Owner order 2026-11-18: the arrow keeps its fixed column and the
+			// percentage is right aligned beside it, so every percentage ends on
+			// the same cell whatever digits it carries.
+			pctText = strconv.FormatFloat(math.Abs(pct), 'f', 2, 64) + "%"
+			pctArrow = "▲"
 			if pct < 0 {
-				pctInk = th.Bad
+				pctArrow, pctInk = "▼", th.Bad
 			} else if pct > 0 {
 				pctInk = th.Good
 			}
@@ -732,7 +749,8 @@ func (a *App) drawSectorTile(c *Canvas, x, y, w, h int) {
 		pctX := ix + cw - pctW
 		nameW := max(1, pctX-(ix+7)-2)
 		c.Text(ix+7, ry, nameW, fit(g.Name, nameW), th.Text, idx == a.sectorChoice)
-		c.Text(pctX, ry, pctW, pctText, pctInk, cnt > 0)
+		c.Text(pctX, ry, 1, pctArrow, pctInk, cnt > 0)
+		rightAlign(c, pctX+1, ry, pctW-1, []Span{{pctText, pctInk, cnt > 0}})
 
 	}
 	a.scrollbar(c, ix+iw-1, listY, a.lvSector.view, &a.lvSector)
@@ -1423,6 +1441,10 @@ func (a *App) drawAlertLog(c *Canvas, x, y, w, h int) {
 		if f.Detail != "" {
 			text += "  " + f.Detail
 		}
+		// Owner order 2026-11-18: the PKR group starts five cells after the
+		// word at, so the price, its arrow and the percentage stand apart from
+		// the sentence that names the side.
+		text = strings.Replace(text, " at PKR ", " at     PKR ", 1)
 		// The alert sentence already carries the move for an order flag. Split
 		// it off so the log can paint the current move green or red instead of
 		// printing the old one twice.

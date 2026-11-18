@@ -112,8 +112,12 @@ const appVersion = "4.0.21"
 // Build 134 is 3.8.9, the ALERTS LOG beside the scanner's SEARCH tile, the
 // calculator's PKR only on a total, and the unsigned difference in its
 // direction ink. Build 135 is 3.8.10, the four second big-order banner and the
-// soft comma after B, S and U on every list.
-const hudBuild = "3.8.10"
+// soft comma after B, S and U on every list. Build 136 is 3.8.11, the U comma
+// withdrawn because the ampersand already separates U from T, the SEARCH tile
+// without its key instruction, the right aligned SECTORS percentages, the
+// CUSTOM SCRIPS scrips on the right of their menu, and the five space gap
+// before the ALERTS LOG price group.
+const hudBuild = "3.8.11"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no
