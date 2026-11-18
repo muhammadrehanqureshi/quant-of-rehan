@@ -116,7 +116,7 @@ func (a *App) putBSUT(c *Canvas, x, y int, r FlowRow, keys ...string) int {
 		return a.putBST(c, x, y, r.Buy, r.Sell, r.Volume, keys...)
 	case r.Method == methodEstimated && r.Buy != nil && r.Sell != nil:
 		put("B~", th.Soft, false)
-		put(leaderVolumeField(*r.Buy), mix(th.Good, th.Soft, 0.5), false)
+		put(leaderVolumeFieldComma(*r.Buy), mix(th.Good, th.Soft, 0.5), false)
 		put("  S~", th.Soft, false)
 		put(leaderVolumeFieldComma(*r.Sell), mix(th.Bad, th.Soft, 0.5), false)
 		put("  &  T=", th.Soft, false)
@@ -184,7 +184,7 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 
 	// Line 2: the measured totals, added up from the measured stocks only.
 	t2 := []Span{{"MEASURED ", th.Soft, false}, {fmt.Sprintf("%d stocks  ", tot.Measured), th.Text, true},
-		{"B=", th.Soft, false}, {leaderVolumeField(tot.Buy), th.Good, true},
+		{"B=", th.Soft, false}, {leaderVolumeFieldComma(tot.Buy), th.Good, true},
 		{"  S=", th.Soft, false}, {leaderVolumeFieldComma(tot.Sell), th.Bad, true},
 		{"  U=", th.Soft, false}, {leaderVolumeFieldComma(tot.Unclassified), th.Warn, tot.Unclassified > 0},
 		{"  &  T=", th.Soft, false}, {leaderVolumeField(tot.MeasuredTotal), totalBlue, false}}

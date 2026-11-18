@@ -1,10 +1,11 @@
-# Quant of Rehan for Windows (console edition), build 131
+# Quant of Rehan for Windows (console edition), build 132
 
 A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.21**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
 
-## What is new in build 131
+## What is new in build 132
 
+* **Build 132 (version 3.8.7).** Every B and S value ends with a comma in the same green or red ink as the value itself, on the home FLOW row, the KSE100 leaders, the CUSTOM SCRIPS list, ORDER FLOW's rows and totals, and the narrow packed leader form. The ALERTS LOG search box loses the blank row above it, while one blank row still stands between the box and the first alert.
 * **Build 131 (version 3.8.6).** The SEARCH and SECTORS tiles lose the blank row above their search boxes, so both tiles are one row shorter; at 122 by 36 CUSTOM SCRIPS OF VOLUME now shows all six sorts and all three scrips. Every inline B, S, U and T line uses the KSE100 shape: the value starts against its `=`, the fixed nine digit field pads after it, and the S and U values carry their comma, so the labels hold their cells on every list. The stored session is cleared only inside the 08:00-08:55 window on a market day; a window opened after 08:55 keeps the last stored session.
 * **Build 130 (version 3.8.5).** An empty PRICE DIFFERENCE reads `DIFFERENCE  -`, with one dash while there is nothing to calculate. Every KSE100 leader volume now starts immediately after its `=` sign, and the fixed nine digit field pads after the number instead of before it; the S, U and T labels stay on exactly the same cells. One comma follows the S value and one follows the U value.
 * **Build 129 (version 3.8.4).** POSITION CALCULATOR keeps five blank cells between the PRICE box and QUANTITY, and PRICE DIFFERENCE keeps the same five between its first box and `SECOND PRICE`. An empty total reads `PKR -`, with the dash after PKR. The difference tile's label is `DIFFERENCE`, with no placeholder dashes. One blank row stands between CUSTOM SCRIPS OF VOLUME and the calculator pair. The KSE100 leaders keep nine digit positions for B, S, U and T, commas not counted, so S, U and T start on the same cells whatever the numbers. ORDER FLOW keeps every scrip whose pre-open frame the hub holds: the row is listed with its price, marked `PRE_OPEN`, and its carried volume is zero until the regular session trades it, instead of disappearing and leaving only the scrips that had already traded.

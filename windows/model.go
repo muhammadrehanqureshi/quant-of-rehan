@@ -105,8 +105,10 @@ const appVersion = "4.0.21"
 // the comma after S and U while their labels stay on the same cells. Build 131
 // is 3.8.6, the SEARCH and SECTORS boxes without the row above them, the three
 // scrips and six sorts at the owner's short window, the KSE100 B/S/U/T shape on
-// every list, and the stored session cleared only from 08:00 to 08:55.
-const hudBuild = "3.8.6"
+// every list, and the stored session cleared only from 08:00 to 08:55. Build
+// 132 is 3.8.7, the comma after B and S in their value ink and the ALERTS LOG
+// search box without the row above it.
+const hudBuild = "3.8.7"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no

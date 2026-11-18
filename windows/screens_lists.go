@@ -1376,8 +1376,8 @@ func (a *App) drawAlertLog(c *Canvas, x, y, w, h int) {
 	th := a.th
 	all := a.flagLog()
 	log := a.alertLog()
-	// Owner order 2026-11-14 (latest): one blank row stands before the ALERTS
-	// LOG search box as well as after it.
+	// Owner order 2026-11-18: the row before the ALERTS LOG search box is
+	// withdrawn; one blank row still stands between the box and the first alert.
 	hint := pressSearchHint
 	title := "ALERTS LOG (" + strconv.Itoa(len(log)) + ")"
 	if a.alertQuery != "" {
@@ -1386,7 +1386,7 @@ func (a *App) drawAlertLog(c *Canvas, x, y, w, h int) {
 	// Owner order 2026-11-15: the ALERTS LOG frame does not highlight on a click.
 	lx, liy, liw, lih := a.panel(c, x, y, w, h, title, hint)
 	a.addHit(x, y, w, h, func() { a.alertFocus = 2 })
-	searchY := liy + 1
+	searchY := liy
 	bw := a.searchBox(c, lx, searchY, min(liw, 40), a.alertQuery, scripSearchHint, a.alertSearch)
 	a.addHit(lx, searchY, bw, 1, func() { a.alertFocus, a.alertSearch = 2, true; a.lvLog.top() })
 	// Owner order 2026-11-17: alerts sit on consecutive rows, with no blank
@@ -1394,10 +1394,10 @@ func (a *App) drawAlertLog(c *Canvas, x, y, w, h int) {
 	// one row.
 	const per = 1
 	listY := searchY + 2
-	if lih < 4 {
+	if lih < 3 {
 		return
 	}
-	a.lvLog.set(len(log), (lih-3)/per)
+	a.lvLog.set(len(log), (lih-2)/per)
 	row := listY
 	lw := contentW(&a.lvLog, liw)
 	for n := 0; n < a.lvLog.view; n++ {

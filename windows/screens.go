@@ -564,8 +564,8 @@ func (a *App) drawLeft(c *Canvas, x, y, w, h int) {
 	if buy+sell+unclear > 0 || a.cfg.BigBuy || a.cfg.BigSell {
 		label(8, "FLOW", []Span{
 			{"B=", th.Good, true}, {compactNum(float64(buy)), th.Text, false},
-			{",  S=", th.Bad, true}, {compactNum(float64(sell)), th.Text, false},
-			{"  & U=", th.Warn, true}, {compactNum(float64(unclear)), th.Text, false},
+			{",", th.Good, true}, {"  S=", th.Bad, true}, {compactNum(float64(sell)), th.Text, false},
+			{",", th.Bad, true}, {"  & U=", th.Warn, true}, {compactNum(float64(unclear)), th.Text, false},
 		})
 	} else {
 		label(8, "FLOW", []Span{{"OFF", th.Bad, true}})
@@ -1020,9 +1020,9 @@ func (a *App) putBSTPacked(c *Canvas, x, y int, buy, sell, total *int64, keys ..
 	}
 	if buy != nil && sell != nil {
 		put("B=", th.Soft, false)
-		put(commaInt(*buy), th.Good, true)
+		put(commaInt(*buy)+",", th.Good, true)
 		put("  S=", th.Soft, false)
-		put(commaInt(*sell), th.Bad, true)
+		put(commaInt(*sell)+",", th.Bad, true)
 		if total != nil {
 			un := *total - *buy - *sell
 			if un < 0 {
@@ -1099,7 +1099,7 @@ func leaderVolumeField(v int64) string {
 	return leaderVolumeText(commaInt(v))
 }
 
-// leaderVolumeFieldComma is the S and U field: one comma follows the value,
+// leaderVolumeFieldComma is the B, S and U field: one comma follows the value,
 // then the same fixed width pads the rest of the field.
 func leaderVolumeFieldComma(v int64) string {
 	return leaderVolumeText(commaInt(v) + ",")
@@ -1125,7 +1125,7 @@ func leaderBSTWidth(l Leader, cols bstCols, wide bool) int {
 		return 0
 	}
 	if wide {
-		w := 2 + runeLen(leaderVolumeField(*l.Buy)) +
+		w := 2 + runeLen(leaderVolumeFieldComma(*l.Buy)) +
 			4 + runeLen(leaderVolumeFieldComma(*l.Sell))
 		if l.HasVolume() {
 			un := *l.Volume - *l.Buy - *l.Sell
@@ -1139,7 +1139,7 @@ func leaderBSTWidth(l Leader, cols bstCols, wide bool) int {
 	}
 	// The packed form, used only when the tile is too narrow for the fixed
 	// fields, keeps the same two cell gutter between every pair.
-	w := 2 + runeLen(commaInt(*l.Buy)) + 4 + runeLen(commaInt(*l.Sell))
+	w := 2 + runeLen(commaInt(*l.Buy)) + 1 + 4 + runeLen(commaInt(*l.Sell)) + 1
 	if l.HasVolume() {
 		un := *l.Volume - *l.Buy - *l.Sell
 		if un < 0 {
@@ -1161,7 +1161,7 @@ func (a *App) putBSTWide(c *Canvas, x, y int, buy, sell, total *int64, keys ...s
 	}
 	if buy != nil && sell != nil {
 		put("B=", th.Soft, false)
-		put(leaderVolumeField(*buy), th.Good, true)
+		put(leaderVolumeFieldComma(*buy), th.Good, true)
 		put("  S=", th.Soft, false)
 		put(leaderVolumeFieldComma(*sell), th.Bad, true)
 		if total != nil {
