@@ -1,10 +1,11 @@
-# Quant of Rehan for Windows (console edition), build 137
+# Quant of Rehan for Windows (console edition), build 138
 
 A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.21**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
 
-## What is new in build 137
+## What is new in build 138
 
+* **Build 138 (version 3.8.13).** The capture sides every volume increment against the book that stood before it, so a sell that knocks the ask down onto the old bid is still a sell and a buy that lifts the bid onto the old ask is still a buy. The Windows ALERTS boards now use the relay's own measured B and S pair, so heavy selling moves S even when the last price does not move between two broker frames.
 * **Build 137 (version 3.8.12).** ALERTS LOG carries its own search box again, beside the scanner's SEARCH tile. That tile now shows T below B, S and U, with BARS, NET DELTA and NET DELTA % in aligned cells. TELEMETRY's REQ count is saved as it changes, so a new build keeps the day's total. FEED stays LIVE for only five seconds; older values read LAGGING until the relay's ninety second boundary.
 * **Build 136 (version 3.8.11).** U no longer ends with a comma, because the ampersand already separates it from T. The SEARCH tile drops its `UP and DOWN choose, ENTER opens` line. The SECTORS percentages are right aligned on one edge beside their fixed arrow column. The chosen CUSTOM SCRIPS sort reveals its three scrips to the right of the six sorts, using the tile's spare width instead of the tight rows below. ALERTS LOG starts its PKR price, arrow and percentage five spaces after the word `at`.
 * **Build 135 (version 3.8.10).** The big-order banner at the top stays for four seconds. The comma after a B, S or U value wears the same soft ink as its `=` on ORDER FLOW, the KSE100 tile, CUSTOM SCRIPS OF VOLUME and SEARCH, including the packed narrow leader form.

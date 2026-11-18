@@ -23,6 +23,11 @@ day's range. The rules, in order, first match wins:
   5. otherwise                          -> no side; the increment stays
                                            in the unclassified baseline
 
+Rules 1 to 3 are tried first against the book from the preceding observation,
+then against the current frame. The frame's own book can already be the
+post-trade book: a seller who hits the bid can leave the new ask on that old
+bid, and reading the current book alone would call that sell a buy.
+
 Rule 5 never carries a side forward. An increment with no bid, ask or tick
 evidence is counted as undecidable and remains in the baseline, so the row
 reports it as U instead of guessing it into B or S.
@@ -92,6 +97,13 @@ class SymbolFlow:
         best_ask = _number(ask)
         total = _number(volume)
         previous_price = self.last_price
+        # The book from the preceding observation is the book that stood
+        # before this increment. The frame's own bid and ask may already be
+        # the post-trade book: after a seller hits the bid, the ask can step
+        # down onto the old bid, which made the old rule read that sell as a
+        # buy. Hold the previous book for the first decision, then fall back
+        # to the current book only when the previous one had no usable book.
+        previous_bid, previous_ask = self.bid, self.ask
         if last is not None and last > 0:
             self.last_price = last
         self.bid = best_bid if best_bid and best_bid > 0 else self.bid
@@ -149,7 +161,8 @@ class SymbolFlow:
             self.baseline_at = observed_at
             self.baseline_reason = "no_price"
             return
-        rule, side = self._side(last, previous_price)
+        rule, side = self._side(last, previous_price, previous_bid,
+                                previous_ask)
         if side is None:
             # No bid, ask or tick evidence decides this increment. It stays
             # visible in the unclear baseline and is never carried into a
@@ -187,13 +200,20 @@ class SymbolFlow:
         self.reset_pending = False
         return self.baseline_at
 
-    def _side(self, last: float, previous_price: float | None):
-        if self.ask and self.ask > 0 and last >= self.ask:
-            return RULE_ASK, "B"
-        if self.bid and self.bid > 0 and last <= self.bid:
-            return RULE_BID, "S"
-        if (self.bid and self.ask and 0 < self.bid < self.ask):
-            mid = (self.bid + self.ask) / 2.0
+    def _side(self, last: float, previous_price: float | None,
+              previous_bid: float | None, previous_ask: float | None):
+        # First the book that stood before the increment, then the frame's
+        # current book only when the previous one cannot decide. An inverted
+        # or empty book is not evidence.
+        for bid, ask in ((previous_bid, previous_ask),
+                         (self.bid, self.ask)):
+            if bid is None or ask is None or bid <= 0 or ask <= bid:
+                continue
+            if last >= ask:
+                return RULE_ASK, "B"
+            if last <= bid:
+                return RULE_BID, "S"
+            mid = (bid + ask) / 2.0
             if last > mid:
                 return RULE_ABOVE_MID, "B"
             if last < mid:

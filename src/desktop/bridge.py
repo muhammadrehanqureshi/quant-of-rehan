@@ -499,6 +499,7 @@ class FlowMemory:
             return
         prev_observed = state["observed"]
         prev_price = state["price"]
+        prev_bid, prev_ask = state["bid"], state["ask"]
         got_total = volume is not None and volume > 0
         if not got_total:
             # The row carries no running total: no window of its own, but
@@ -535,7 +536,7 @@ class FlowMemory:
 
             side, _how = tick_volume._trade_side(
                 {"last": price, "bid": bid, "ask": ask},
-                {"last": prev_price})
+                {"last": prev_price, "bid": prev_bid, "ask": prev_ask})
             if side == "B":
                 state["buy"] += delta
             elif side == "S":
