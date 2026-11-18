@@ -6,9 +6,9 @@ import (
 	"time"
 )
 
-// Owner order 2026-11-16: the FEED light must follow the values, not only the
-// relay's timestamp. A table that stops moving reads LAGGING after one full
-// broker wire cycle, even while every answer still calls its rows fresh.
+// Owner order 2026-11-18: the FEED light must follow the values, not only the
+// relay's timestamp. A table that stops moving reads LAGGING after five
+// seconds, even while every answer still calls its rows fresh.
 func TestFeedGoesLaggingWhenValuesStandStill(t *testing.T) {
 	a := newTestApp(t)
 	a.link, a.checking = true, false
@@ -19,9 +19,9 @@ func TestFeedGoesLaggingWhenValuesStandStill(t *testing.T) {
 		at   time.Duration
 		want string
 	}{
-		{20 * time.Second, "LIVE"},
-		{26 * time.Second, "LIVE"},
-		{27 * time.Second, "LAGGING"},
+		{4 * time.Second, "LIVE"},
+		{6 * time.Second, "LAGGING"},
+		{20 * time.Second, "LAGGING"},
 		{40 * time.Second, "LAGGING"},
 	}{
 		a.now = flowT0.Add(step.at)

@@ -638,12 +638,75 @@ func (a *App) drawSearchTile(c *Canvas, x, y, w, h int) {
 		t := int64(math.Round(*in.Volume))
 		tot = &t
 	}
-	used := a.putBST(c, dx, dy+2, buy, sell, tot)
-	// Owner order 2026-11-10 (latest): the chosen stock's bar is back on the
-	// search tile, at the right edge of its own volume row.
-	if buy != nil && sell != nil && *buy+*sell > 0 && dw-used-2 >= shareBarWidth {
-		a.shareBar(c, dx+dw-shareBarWidth, dy+2, shareBarWidth, *buy, *sell)
+	a.drawSearchLedger(c, dx, dy+2, dw, bottom, buy, sell, tot)
+}
+
+// drawSearchLedger is the chosen scrip's volume block on the SEARCH tile.
+// Owner order 2026-11-18: B, S and U stand on one line, T stands below them,
+// and BARS, NET DELTA and NET DELTA % follow in their own aligned cells. The
+// block is compact enough for the ALERTS tile's right hand width.
+func (a *App) drawSearchLedger(c *Canvas, x, y, w, bottom int, buy, sell, tot *int64) {
+	th := a.th
+	if y >= bottom {
+		return
 	}
+	if buy == nil || sell == nil {
+		if tot != nil {
+			c.Spans(x, y, w, []Span{{"T=", th.Soft, false}, {leaderVolumeField(*tot), totalBlue, false}})
+		}
+		return
+	}
+	b, s := *buy, *sell
+	sp := []Span{{"B=", th.Soft, false}}
+	sp = append(sp, volumeCommaSpans(b, th.Good, true, th.Soft)...)
+	sp = append(sp, Span{"  S=", th.Soft, false})
+	sp = append(sp, volumeCommaSpans(s, th.Bad, true, th.Soft)...)
+	sp = append(sp, Span{"  U=", th.Soft, false})
+	var un int64
+	if tot != nil {
+		un = *tot - b - s
+		if un < 0 {
+			un = 0
+		}
+	}
+	sp = append(sp, volumeFieldSpans(un, th.Warn, un > 0)...)
+	c.Spans(x, y, w, sp)
+
+	tY := y + 1
+	if tot != nil && tY < bottom {
+		c.Spans(x, tY, w, []Span{{"T=", th.Soft, false}, {leaderVolumeField(*tot), totalBlue, false}})
+		barX := x + w - shareBarSpan
+		if barX >= x+13+2+5 {
+			c.Text(barX-5, tY, 4, "BARS", th.Soft, false)
+		}
+		if b+s > 0 && barX >= x {
+			a.shareBarOnly(c, barX, tY, shareBarSpan, b, s)
+		}
+	}
+
+	nY := y + 2
+	if nY >= bottom {
+		return
+	}
+	total := b + s
+	net := b - s
+	ink, bold := th.Soft, false
+	switch {
+	case net > 0:
+		ink, bold = th.Good, true
+	case net < 0:
+		ink, bold = th.Bad, true
+	}
+	netText := compactNum(math.Abs(float64(net)))
+	pctText := "--"
+	if total > 0 {
+		pctText = fmt.Sprintf("%.2f%%", math.Abs(float64(net))/float64(total)*100)
+	}
+	c.Text(x, nY, 9, "NET DELTA", th.Soft, false)
+	rightAlign(c, x+9, nY, 6, []Span{{netText, ink, bold}})
+	pctX := x + 18
+	c.Text(pctX, nY, 11, "NET DELTA %", th.Soft, false)
+	rightAlign(c, pctX+11, nY, 7, []Span{{pctText, ink, bold}})
 }
 
 // showing words which part of a list is on screen.
@@ -1261,7 +1324,7 @@ func (a *App) drawAlerts(c *Canvas, x, y, w, h int) {
 		sw := w - gap - lw
 		a.drawAlertLog(c, x, ly, lw, lh)
 		a.alertSearchX, a.alertSearchY, a.alertSearchW, a.alertSearchH = sx, ly, sw, lh
-		a.addHit(sx, ly, sw, lh, func() { a.alertFocus = 4 })
+		a.addHit(sx, ly, sw, lh, func() { a.alertFocus, a.alertLogSearch = 4, false })
 		a.drawSearchTile(c, sx, ly, sw, lh)
 		return
 	}
@@ -1396,26 +1459,49 @@ func (a *App) alertPct(f Flag) *float64 {
 	return f.ChangePct
 }
 
+// alertLog is the flag log cut to the scrip typed in the ALERTS LOG's own
+// search box. Owner order 2026-11-18: that box is back inside the log, so this
+// filter is separate from the scanner's SEARCH tile beside it.
+func (a *App) alertLog() []Flag {
+	log := a.flagLog()
+	if a.alertQuery == "" {
+		return log
+	}
+	kept := log[:0]
+	for _, f := range log {
+		if strings.HasPrefix(f.Symbol, a.alertQuery) {
+			kept = append(kept, f)
+		}
+	}
+	return kept
+}
+
 // drawAlertLog is the log of every flag raised, buying and selling, newest first.
 func (a *App) drawAlertLog(c *Canvas, x, y, w, h int) {
 	th := a.th
-	log := a.flagLog()
-	// Owner order 2026-11-18: the ALERTS LOG loses its own search box. The
-	// scanner's SEARCH tile stands beside it on the right, and the log starts
-	// on the first row under its title.
+	all := a.flagLog()
+	log := a.alertLog()
+	// Owner order 2026-11-18: the ALERTS LOG carries its own search box again.
+	// One blank row stands between the box and the first alert.
 	title := "ALERTS LOG (" + strconv.Itoa(len(log)) + ")"
+	if a.alertQuery != "" {
+		title = "ALERTS LOG (" + strconv.Itoa(len(log)) + " of " + strconv.Itoa(len(all)) + ")"
+	}
 	// Owner order 2026-11-15: the ALERTS LOG frame does not highlight on a click.
-	lx, liy, liw, lih := a.panel(c, x, y, w, h, title, "")
-	a.addHit(x, y, w, h, func() { a.alertFocus = 2 })
+	lx, liy, liw, lih := a.panel(c, x, y, w, h, title, pressSearchHint)
+	a.addHit(x, y, w, h, func() { a.alertFocus, a.alertLogSearch = 2, false })
+	searchY := liy
+	bw := a.searchBox(c, lx, searchY, min(liw, 40), a.alertQuery, scripSearchHint, a.alertLogSearch)
+	a.addHit(lx, searchY, bw, 1, func() { a.alertFocus, a.alertLogSearch = 2, true; a.lvLog.top() })
 	// Owner order 2026-11-17: alerts sit on consecutive rows, with no blank
 	// row between them. A price alert's detail sentence joins its title on the
 	// one row.
 	const per = 1
-	listY := liy
+	listY := searchY + 2
 	if lih < 3 {
 		return
 	}
-	a.lvLog.set(len(log), lih/per)
+	a.lvLog.set(len(log), (lih-2)/per)
 	row := listY
 	lw := contentW(&a.lvLog, liw)
 	for n := 0; n < a.lvLog.view; n++ {

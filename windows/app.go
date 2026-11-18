@@ -149,7 +149,9 @@ type App struct {
 	lvBoard     listView   // the Alerts screen's big buying list
 	lvSell      listView   // the Alerts screen's big selling list
 	lvLog       listView   // the Alerts screen's log
-	alertFocus  int        // 0 buy, 1 sell, 2 log, 3 price alerts, 4 search tile
+	alertQuery     string // the ALERTS LOG's own search text, upper case
+	alertLogSearch bool   // the ALERTS LOG's search box has the keys
+	alertFocus     int    // 0 buy, 1 sell, 2 log, 3 price alerts, 4 search tile
 	focusNext   bool       // the next panel drawn is the focused one
 	alertSplitX int        // the column where the selling list starts, for the wheel
 	alertSplit  int        // the row where the log panel starts, for the wheel
@@ -1042,7 +1044,14 @@ func (a *App) syncReqCount() {
 		a.reqOffset = a.relay.Requests()
 		a.dirty = true
 	}
-	a.cfg.ReqCount = a.reqToday()
+	count := a.reqToday()
+	if a.cfg.ReqCount != count {
+		// Owner order 2026-11-18: the REQ total must survive a new build even
+		// when the window is closed without a graceful exit. A changed count
+		// marks the settings dirty, so the ten second save writes it down.
+		a.cfg.ReqCount = count
+		a.dirty = true
+	}
 }
 
 func (a *App) save() {
@@ -1236,6 +1245,10 @@ func (a *App) onKey(k Key) {
 		if a.screen == scrOrderFlow && (a.ofSearch || a.ofQuery != "") {
 			a.ofQuery, a.ofSearch = "", false
 			a.lvOF.top()
+		} else if a.screen == scrAlerts && (a.alertLogSearch || (a.alertQuery != "" && a.alertFocus == 2)) {
+			a.alertQuery, a.alertLogSearch = "", false
+			a.alertFocus = 2
+			a.lvLog.top()
 		} else if a.screen == scrAlerts && a.alertFocus == 4 {
 			if a.searchText != "" || a.selectedSym != "" {
 				a.clearSearch()
@@ -1250,7 +1263,7 @@ func (a *App) onKey(k Key) {
 			a.keyOrderFlow(k)
 			return
 		}
-		if a.screen == scrAlerts && a.alertFocus == 4 {
+		if a.screen == scrAlerts && (a.alertLogSearch || a.alertFocus == 4) {
 			a.keyAlerts(k)
 			return
 		}
@@ -1270,7 +1283,9 @@ func (a *App) onKey(k Key) {
 				a.ofSearch = true
 				a.lvOF.top()
 			} else if a.screen == scrAlerts {
-				a.alertFocus = 4
+				// Owner order 2026-11-18: the ALERTS LOG keeps its own box again,
+				// so the slash gives that box the keys.
+				a.alertFocus, a.alertLogSearch = 2, true
 				a.lvLog.top()
 			}
 		case 'q', 'Q':
@@ -1568,6 +1583,37 @@ func (a *App) alertList() *listView {
 }
 
 func (a *App) keyAlerts(k Key) {
+	// Owner order 2026-11-18: the ALERTS LOG has its own search box again. It
+	// filters the log by scrip prefix; ENTER puts the keys back on the log.
+	if a.alertLogSearch {
+		switch k.Kind {
+		case KEnter:
+			a.alertLogSearch = false
+		case KBackspace, KDel:
+			if r := []rune(a.alertQuery); len(r) > 0 {
+				a.alertQuery = string(r[:len(r)-1])
+			} else {
+				a.alertLogSearch = false
+				a.alertFocus = 2
+			}
+			a.lvLog.top()
+		case KRune:
+			r := k.R
+			if r >= 'a' && r <= 'z' {
+				r -= 'a' - 'A'
+			}
+			if r == '/' {
+				return
+			}
+			if (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '.' || r == '-' || r == '_' {
+				if runeLen(a.alertQuery) < 12 {
+					a.alertQuery += string(r)
+				}
+				a.lvLog.top()
+			}
+		}
+		return
+	}
 	// Owner order 2026-11-18: the scanner's SEARCH tile stands on the right of
 	// the ALERTS LOG. While it has the keys, letters and digits build the
 	// search, BACKSPACE and DEL edit it, UP and DOWN move through the matches,

@@ -42,9 +42,9 @@ func TestTelemetryValuesEndOnTheRightEdge(t *testing.T) {
 	}
 }
 
-// Owner order 2026-11-18: the ALERTS page carries the scanner's SEARCH tile on
-// the right and the whole log on the left. The search does not cut the log.
-func TestAlertsPageCarriesSearchTileOnTheRight(t *testing.T) {
+// Owner order 2026-11-18: the ALERTS LOG has its own search box again, while
+// the scanner's SEARCH tile stays on the right.
+func TestAlertsPageKeepsLogSearchAndRightSearchTile(t *testing.T) {
 	a := demoApp(t, 120, 34)
 	a.screen = scrAlerts
 	a.flow.Log = []Flag{
@@ -68,25 +68,29 @@ func TestAlertsPageCarriesSearchTileOnTheRight(t *testing.T) {
 		t.Fatalf("the log is not left of SEARCH: log %d search %d in %q", logAt, searchAt, frame)
 	}
 	a.onKey(Key{Kind: KRune, R: '/'})
-	if a.alertFocus != 4 {
-		t.Fatalf("slash left the SEARCH tile at focus %d", a.alertFocus)
+	if !a.alertLogSearch || a.alertFocus != 2 {
+		t.Fatalf("slash must focus the ALERTS LOG box: search %v focus %d", a.alertLogSearch, a.alertFocus)
 	}
 	for _, r := range "ECHO" {
 		a.onKey(Key{Kind: KRune, R: r})
 	}
-	if a.searchText != "ECHO" {
-		t.Fatalf("the SEARCH tile holds %q, want ECHO", a.searchText)
+	if a.alertQuery != "ECHO" || a.searchText != "" {
+		t.Fatalf("the log box holds %q, the right tile holds %q", a.alertQuery, a.searchText)
 	}
 	s := plain(a)
-	if !strings.Contains(s, "ECHO") {
-		t.Fatalf("the SEARCH tile lost the typed scrip:\n%s", s)
+	if !strings.Contains(s, "ECHO is getting big buying orders") {
+		t.Fatalf("the log search lost the ECHO alert:\n%s", s)
 	}
-	if !strings.Contains(s, "XYZ is getting big selling orders") {
-		t.Fatalf("the search cut an alert out of the log:\n%s", s)
+	if strings.Contains(s, "XYZ is getting big selling orders") {
+		t.Fatalf("the log search did not filter out XYZ:\n%s", s)
+	}
+	a.onKey(Key{Kind: KEnter})
+	if a.alertLogSearch {
+		t.Fatal("ENTER must put the keys back on the log")
 	}
 	a.onKey(Key{Kind: KEsc})
-	if a.searchText != "" || a.alertFocus != 2 {
-		t.Fatalf("ESC left search %q at focus %d", a.searchText, a.alertFocus)
+	if a.alertQuery != "" || a.alertFocus != 2 {
+		t.Fatalf("ESC left the log search %q at focus %d", a.alertQuery, a.alertFocus)
 	}
 }
 

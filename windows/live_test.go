@@ -219,10 +219,10 @@ func TestFeedAgeCountsUpEverySecond(t *testing.T) {
 	a.link, a.checking = true, false
 	a.now = flowT0
 	a.ingestQuotes(quotesAt(15, 1_000_000))
-	// Owner order 2026-11-17: LIVE covers one full 24 second broker cycle, so
-	// a healthy burst feed no longer spends most of the cycle saying LAGGING.
-	for i, want := range []string{"LIVE", "LIVE", "LIVE", "LAGGING"} {
-		a.now = flowT0.Add([]time.Duration{0, 4 * time.Second, 26 * time.Second, 27 * time.Second}[i])
+	// Owner order 2026-11-18: a feed that stands still for more than five
+	// seconds reads LAGGING, even while the broker calls its rows fresh.
+	for i, want := range []string{"LIVE", "LIVE", "LAGGING", "LAGGING"} {
+		a.now = flowT0.Add([]time.Duration{0, 4 * time.Second, 6 * time.Second, 27 * time.Second}[i])
 		if got, _, _ := a.feedState(); got != want {
 			t.Errorf("after step %d: %s want %s", i, got, want)
 		}
