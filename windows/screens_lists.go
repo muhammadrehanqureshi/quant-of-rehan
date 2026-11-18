@@ -265,13 +265,20 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 	if avail := y + h - sy; avail-sectorH-calcReserve < 6 {
 		sectorH = max(5, avail-calcReserve-6)
 	}
-	if y+h-sy >= sectorH+1+calcReserve+6 {
+	// Owner order 2026-11-18: the shortest window gives the gutter between the
+	// SECTORS and CUSTOM SCRIPS tiles to the three spaced scrips, after the gap
+	// between SEARCH and SECTORS has already gone.
+	tileGap := 1
+	if h < 28 {
+		tileGap = 0
+	}
+	if y+h-sy >= sectorH+tileGap+calcReserve+6 {
 		if a.sectorOpen {
 			a.drawSectorOpen(c, x, sy, w, sectorH)
 		} else {
 			a.drawSectorTile(c, x, sy, w, sectorH)
 		}
-		sy += sectorH + 1
+		sy += sectorH + tileGap
 	}
 	sh2 := y + h - sy - calcReserve
 	if sh2 < 6 {
