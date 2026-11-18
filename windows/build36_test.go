@@ -7,13 +7,13 @@ import (
 	"time"
 )
 
-// Owner order 2026-11-17: the big-order flash leaves the top of the window
-// after two seconds.
-func TestBigOrderFlashLastsTwoSeconds(t *testing.T) {
+// Owner order 2026-11-18: the big-order flash leaves the top of the window
+// after four seconds.
+func TestBigOrderFlashLastsFourSeconds(t *testing.T) {
 	a := demoApp(t, 120, 36)
 	a.raiseFlag(Flag{Time: a.now, Symbol: "PRL", Kind: "flow", Text: "BIG ORDER"})
-	if got := a.bannerUntil.Sub(a.now); got != 2*time.Second {
-		t.Fatalf("the banner stays for %v, want two seconds", got)
+	if got := a.bannerUntil.Sub(a.now); got != 4*time.Second {
+		t.Fatalf("the banner stays for %v, want four seconds", got)
 	}
 }
 

@@ -1020,9 +1020,11 @@ func (a *App) putBSTPacked(c *Canvas, x, y int, buy, sell, total *int64, keys ..
 	}
 	if buy != nil && sell != nil {
 		put("B=", th.Soft, false)
-		put(commaInt(*buy)+",", th.Good, true)
+		put(commaInt(*buy), th.Good, true)
+		put(",", th.Soft, false)
 		put("  S=", th.Soft, false)
-		put(commaInt(*sell)+",", th.Bad, true)
+		put(commaInt(*sell), th.Bad, true)
+		put(",", th.Soft, false)
 		if total != nil {
 			un := *total - *buy - *sell
 			if un < 0 {
@@ -1105,6 +1107,32 @@ func leaderVolumeFieldComma(v int64) string {
 	return leaderVolumeText(commaInt(v) + ",")
 }
 
+// volumeCommaParts splits a B, S or U field into its number, its trailing
+// comma and the fixed padding. The comma is painted in the label ink, so it
+// reads like the '=' instead of taking the value's colour.
+func volumeCommaParts(v int64) (value, comma, pad string) {
+	value = commaInt(v)
+	field := leaderVolumeFieldComma(v)
+	if len(field) > len(value) && field[len(value)] == ',' {
+		return value, ",", field[len(value)+1:]
+	}
+	return field, "", ""
+}
+
+// volumeCommaSpans is the span form of the same field, with the comma in the
+// label ink so a coloured value never colours its punctuation.
+func volumeCommaSpans(v int64, fg RGB, bold bool, commaInk RGB) []Span {
+	value, comma, pad := volumeCommaParts(v)
+	sp := []Span{{value, fg, bold}}
+	if comma != "" {
+		sp = append(sp, Span{comma, commaInk, false})
+	}
+	if pad != "" {
+		sp = append(sp, Span{pad, fg, bold})
+	}
+	return sp
+}
+
 func leaderVolumeText(s string) string {
 	width := leaderVolDigits + 2
 	if n := runeLen(s); n < width {
@@ -1159,18 +1187,28 @@ func (a *App) putBSTWide(c *Canvas, x, y int, buy, sell, total *int64, keys ...s
 	put := func(s string, fg RGB, bold bool) {
 		vx += a.flashText(c, vx, y, s, fg, bold, keys...)
 	}
+	putVolume := func(v int64, fg RGB, bold bool) {
+		value, comma, pad := volumeCommaParts(v)
+		put(value, fg, bold)
+		if comma != "" {
+			put(comma, th.Soft, false)
+		}
+		if pad != "" {
+			put(pad, fg, bold)
+		}
+	}
 	if buy != nil && sell != nil {
 		put("B=", th.Soft, false)
-		put(leaderVolumeFieldComma(*buy), th.Good, true)
+		putVolume(*buy, th.Good, true)
 		put("  S=", th.Soft, false)
-		put(leaderVolumeFieldComma(*sell), th.Bad, true)
+		putVolume(*sell, th.Bad, true)
 		if total != nil {
 			un := *total - *buy - *sell
 			if un < 0 {
 				un = 0
 			}
 			put("  U=", th.Soft, false)
-			put(leaderVolumeFieldComma(un), th.Warn, un > 0)
+			putVolume(un, th.Warn, un > 0)
 			put("  &  T=", th.Soft, false)
 			put(leaderVolumeField(*total), totalBlue, false)
 		}

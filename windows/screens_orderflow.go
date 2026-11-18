@@ -109,6 +109,16 @@ func (a *App) putBSUT(c *Canvas, x, y int, r FlowRow, keys ...string) int {
 	put := func(s string, fg RGB, bold bool) {
 		vx += a.flashText(c, vx, y, s, fg, bold, keys...)
 	}
+	putVolume := func(v int64, fg RGB, bold bool) {
+		value, comma, pad := volumeCommaParts(v)
+		put(value, fg, bold)
+		if comma != "" {
+			put(comma, th.Soft, false)
+		}
+		if pad != "" {
+			put(pad, fg, bold)
+		}
+	}
 	switch {
 	case r.Measured():
 		// Owner order 2026-11-17: every inline B, S, U and T line uses the
@@ -116,9 +126,9 @@ func (a *App) putBSUT(c *Canvas, x, y int, r FlowRow, keys ...string) int {
 		return a.putBST(c, x, y, r.Buy, r.Sell, r.Volume, keys...)
 	case r.Method == methodEstimated && r.Buy != nil && r.Sell != nil:
 		put("B~", th.Soft, false)
-		put(leaderVolumeFieldComma(*r.Buy), mix(th.Good, th.Soft, 0.5), false)
+		putVolume(*r.Buy, mix(th.Good, th.Soft, 0.5), false)
 		put("  S~", th.Soft, false)
-		put(leaderVolumeFieldComma(*r.Sell), mix(th.Bad, th.Soft, 0.5), false)
+		putVolume(*r.Sell, mix(th.Bad, th.Soft, 0.5), false)
 		put("  &  T=", th.Soft, false)
 		put(leaderVolumeField(*r.Volume), totalBlue, false)
 	default:
@@ -184,10 +194,13 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 
 	// Line 2: the measured totals, added up from the measured stocks only.
 	t2 := []Span{{"MEASURED ", th.Soft, false}, {fmt.Sprintf("%d stocks  ", tot.Measured), th.Text, true},
-		{"B=", th.Soft, false}, {leaderVolumeFieldComma(tot.Buy), th.Good, true},
-		{"  S=", th.Soft, false}, {leaderVolumeFieldComma(tot.Sell), th.Bad, true},
-		{"  U=", th.Soft, false}, {leaderVolumeFieldComma(tot.Unclassified), th.Warn, tot.Unclassified > 0},
-		{"  &  T=", th.Soft, false}, {leaderVolumeField(tot.MeasuredTotal), totalBlue, false}}
+		{"B=", th.Soft, false}}
+	t2 = append(t2, volumeCommaSpans(tot.Buy, th.Good, true, th.Soft)...)
+	t2 = append(t2, Span{"  S=", th.Soft, false})
+	t2 = append(t2, volumeCommaSpans(tot.Sell, th.Bad, true, th.Soft)...)
+	t2 = append(t2, Span{"  U=", th.Soft, false})
+	t2 = append(t2, volumeCommaSpans(tot.Unclassified, th.Warn, tot.Unclassified > 0, th.Soft)...)
+	t2 = append(t2, Span{"  &  T=", th.Soft, false}, Span{leaderVolumeField(tot.MeasuredTotal), totalBlue, false})
 	c.Spans(ix, row, iw, t2)
 	row++
 
