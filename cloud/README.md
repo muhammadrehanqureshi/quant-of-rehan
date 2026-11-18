@@ -99,7 +99,7 @@ shrinks the universe to only the symbols that happened to trade.
     ]
   },
   "basis": {
-    "split": "quote_rule: every observed increment of the venue counter is sided once by the bid/ask of the frame that carried it; buy and sell never decrease",
+    "split": "quote_rule: every observed increment of the venue counter is sided once by the book that stood before it, the previous frame's bid/ask first and the frame's own only when that book cannot decide; buy and sell never decrease",
     "unclassified": "shares traded before the capture or hub first observed the symbol; they are reported separately and never guessed into buy or sell",
     "large": "one relay update carrying at least PKR 1,000,000 on one side; the broker wire has no individual order id, so this is a large observed increment, not a claimed order ticket"
   }
