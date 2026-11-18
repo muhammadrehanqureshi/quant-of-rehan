@@ -478,7 +478,7 @@ func TestAlertsScreenListsTheLogAndBoard(t *testing.T) {
 	a := demoApp(t, 120, 30)
 	a.screen = scrAlerts
 	s := plain(a)
-	for _, want := range []string{"BIG BUYING NOW", "BIG SELLING NOW", "ALERTS LOG (", "shares of", "were bought at", "QTY 50k and above", "BUY ORDER"} {
+	for _, want := range []string{"BIG BUYING NOW", "BIG SELLING NOW", "ALERTS LOG (", "shares of", "were bought", "at PKR", "QTY 50k and above", "BUY ORDER"} {
 		if !strings.Contains(s, want) {
 			t.Errorf("alerts screen is missing %q", want)
 		}

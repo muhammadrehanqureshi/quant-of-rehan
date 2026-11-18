@@ -91,11 +91,11 @@ func TestCustomScripsKeepABlankRowBeforeTheValues(t *testing.T) {
 	}
 	want := "1. " + syms[0]
 	for i := start + 1; i+2 < len(rows); i++ {
-		if !strings.Contains(rows[i], want) {
+		if !strings.Contains(rows[i], want) || !strings.Contains(rows[i], "PKR ") {
 			continue
 		}
-		if !blankSearchRow(rows[i+1]) {
-			t.Fatalf("the scrip and its values have no blank row between them: %q then %q",
+		if strings.Contains(rows[i+1], "B=") {
+			t.Fatalf("the values still stand immediately under the scrip: %q then %q",
 				rows[i], rows[i+1])
 		}
 		if !strings.Contains(rows[i+2], "B=") {

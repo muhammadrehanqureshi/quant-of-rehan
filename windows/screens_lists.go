@@ -327,21 +327,24 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 	}
 	head := iy + menu + 1 // the row after the menu, or the first row when it is hidden
 	listX, listW := ix, iw
-	rightList := false
+	rightList, showHead := false, true
 	if rx := ix + menuW + 3; ih >= 8 && iw-menuW-3 >= 72 {
 		// The sub menu's scrips stand on the right, beside the six sorts. Each
-		// scrip keeps its two rows; the price, its change and the bar share the
-		// name row, where the width now is.
+		// scrip keeps its three rows; the price, its change and the bar share
+		// the name row, where the width now is.
 		head, listX, listW, rightList = iy, rx, iw-menuW-3, true
-	} else if rows := iy + ih - (head + 1); rows/2 < 3 && head > iy+menu {
-		// Owner order 2026-11-12: when the blank row under the menu would leave
-		// fewer than three scrips, that row goes first.
-		head--
+	} else if rows := iy + ih - (head + 1); rows/3 < 3 && head > iy+menu {
+		// Owner order 2026-11-18: the blank row and the duplicate sort heading
+		// go before the third scrip does. The chosen sort already carries its
+		// mark in the menu above.
+		head, showHead = iy+menu-1, false
 	}
 	if a.scanChoice == 0 || head >= iy+ih {
 		return
 	}
-	c.Text(listX, head, listW, scanChoices[a.scanChoice-1], th.Accent, true)
+	if showHead {
+		c.Text(listX, head, listW, scanChoices[a.scanChoice-1], th.Accent, true)
+	}
 	top := head + 1
 	rows := iy + ih - top
 	if rows < 2 {
