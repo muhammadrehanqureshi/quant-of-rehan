@@ -1,10 +1,11 @@
-# Quant of Rehan for Windows (console edition), build 134
+# Quant of Rehan for Windows (console edition), build 135
 
 A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.21**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
 
-## What is new in build 134
+## What is new in build 135
 
+* **Build 135 (version 3.8.10).** The big-order banner at the top stays for four seconds. The comma after a B, S or U value wears the same soft ink as its `=` on ORDER FLOW, the KSE100 tile, CUSTOM SCRIPS OF VOLUME and SEARCH, including the packed narrow leader form.
 * **Build 134 (version 3.8.9).** ALERTS LOG keeps the left side of the page and the scanner's SEARCH tile stands on the right, with the same matches, selection and scrip detail. The POSITION CALCULATOR shows no PKR while it is empty; PKR appears with the amount only after both boxes hold a number. PRICE DIFFERENCE prints the size of the move without a plus or minus, in green for a rise and red for a fall.
 * **Build 133 (version 3.8.8).** Every market day's stored session is cleared at 08:55. A window opened after 08:55, such as 09:14, clears the previous day on its first tick instead of showing it through the pre-market. A stored session that already belongs to today is kept.
 * **Build 132 (version 3.8.7).** Every B and S value ends with a comma in the same green or red ink as the value itself, on the home FLOW row, the KSE100 leaders, the CUSTOM SCRIPS list, ORDER FLOW's rows and totals, and the narrow packed leader form. The ALERTS LOG search box loses the blank row above it, while one blank row still stands between the box and the first alert.
