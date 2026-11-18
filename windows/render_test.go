@@ -121,8 +121,8 @@ func TestScreensShowTheAppsText(t *testing.T) {
 	for _, want := range []string{"RELAY STATUS", "NOTIFICATIONS", "JARVIS CYAN", "PURPLE & YELLOW", "BLACK & WHITE",
 		"NAVY BLUE & WHITE", "VERSION", appVersionLabel, "REQUESTS TODAY",
 		"The requests reset at 05:00 PKT.",
-		"Every second from 08:55 until the post-market closes.",
-		"That is at 15:49 from Monday to Thursday and at 16:49 on Friday.",
+		"1 second relay poll from 08:55 until 15:49 Mon-Thu, 16:49 Fri.",
+		"Broker refresh per stock: 23.98 seconds.",
 		"BIG BUYING FLAG", "BIG SELLING FLAG", "SOUND", "BIG ORDER SIZE", "TEST BUYING ALERT", "TEST SELLING ALERT"} {
 		if !strings.Contains(set, want) {
 			t.Errorf("settings is missing %q", want)

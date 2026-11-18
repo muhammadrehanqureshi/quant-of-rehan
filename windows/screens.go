@@ -390,7 +390,7 @@ func hintSpans(s string, th *Theme) []Span {
 func (a *App) scanStatus() (string, RGB) {
 	th := a.th
 	if a.scanning() {
-		return "EVERY 3 SECONDS", th.Good
+		return "EVERY 1 SECOND", th.Good
 	}
 	p := a.karachiNow().In(pkt)
 	if isWeekend(p) {
@@ -979,16 +979,16 @@ func (a *App) marketNote() string {
 	case a.demo:
 		return "Demo mode: every number here is invented."
 	case a.quotes != nil && a.scanning():
-		// Owner order 2026-11-17: while the quant is scanning, the pre and post
+		// Owner order 2026-11-18: while the quant is scanning, the pre and post
 		// market name themselves and the live session says the feed is read
-		// every three seconds. The stored-data line belongs only to shut hours.
+		// every second. The stored-data line belongs only to shut hours.
 		switch a.quantPhase() {
 		case qsPre:
 			return "Pre-market session is on and the quant is online now."
 		case qsPost:
 			return "Post-market session is on and the quant is online now."
 		}
-		return "DATA FROM THE BROKER'S FEED IS BEING SCANNED EVERY 3 SECONDS."
+		return "DATA FROM THE BROKER'S FEED IS BEING SCANNED EVERY 1 SECOND."
 	case a.quotes != nil:
 		return "LAST DATA FROM THE BROKER'S FEED."
 	}

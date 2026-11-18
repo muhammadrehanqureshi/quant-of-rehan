@@ -1,10 +1,11 @@
-# Quant of Rehan for Windows (console edition), build 138
+# Quant of Rehan for Windows (console edition), build 139
 
 A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.21**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
 
-## What is new in build 138
+## What is new in build 139
 
+* **Build 139 (version 3.8.14).** The live relay is read every 1 second instead of every 3 seconds, so a new broker snapshot waits at most 1 second for the client. The broker still refreshes each stock every 23.98 seconds; that is the wire's own cycle, and no client can make one stock update faster. The SCANNING tile now states both numbers.
 * **Build 138 (version 3.8.13).** The capture sides every volume increment against the book that stood before it, so a sell that knocks the ask down onto the old bid is still a sell and a buy that lifts the bid onto the old ask is still a buy. The Windows ALERTS boards now use the relay's own measured B and S pair, so heavy selling moves S even when the last price does not move between two broker frames.
 * **Build 137 (version 3.8.12).** ALERTS LOG carries its own search box again, beside the scanner's SEARCH tile. That tile now shows T below B, S and U, with BARS, NET DELTA and NET DELTA % in aligned cells. TELEMETRY's REQ count is saved as it changes, so a new build keeps the day's total. FEED stays LIVE for only five seconds; older values read LAGGING until the relay's ninety second boundary.
 * **Build 136 (version 3.8.11).** U no longer ends with a comma, because the ampersand already separates it from T. The SEARCH tile drops its `UP and DOWN choose, ENTER opens` line. The SECTORS percentages are right aligned on one edge beside their fixed arrow column. The chosen CUSTOM SCRIPS sort reveals its three scrips to the right of the six sorts, using the tile's spare width instead of the tight rows below. ALERTS LOG starts its PKR price, arrow and percentage five spaces after the word `at`.
@@ -295,7 +296,7 @@ Short answer: the app asks the relay once a second and shows every answer the in
 
 ## Requests and the free Cloudflare quota
 
-The free tier allows 100,000 requests per UTC day (the counter resets at 05:00 Karachi). The pace: `/quotes` every three seconds inside the scanning window, `/market` and `/signals` every 15 seconds, `/health` every 30 seconds, `/prices` and `/orderflow` every 10 seconds, and the slower checks every 30 seconds (never later than the next 08:55) outside the window or when the relay says it is not a trading day. The broker's own wire repeats a stock about every 24 seconds, so this pace still sees every real tick. A console left open for 24 hours uses roughly **34,000 requests** on a Monday to Thursday and **36,000** on a Friday. Telemetry shows today's count and turns amber at 80,000.
+The free tier allows 100,000 requests per UTC day (the counter resets at 05:00 Karachi). The pace: `/quotes` every 1 second inside the scanning window, `/market` and `/signals` every 15 seconds, `/health` every 30 seconds, `/prices` and `/orderflow` every 10 seconds, and the slower checks every 30 seconds (never later than the next 08:55) outside the window or when the relay says it is not a trading day. The broker's own wire repeats one stock every 23.98 seconds, so the one second poll reads the relay's cache and cannot create a new per-stock tick. A console left open for 24 hours uses roughly **42,000 requests** on a Monday to Thursday and **46,000** on a Friday. Telemetry shows today's count and turns amber at 80,000.
 
 The app stops itself at **90,000**. That is a hard stop, not a warning: once the count reaches it the app sends nothing at all until the counter resets at 05:00 PKT, keeps the last answer on screen and shows the cap in telemetry and in Settings. The remaining 10,000 of the day belong to the phone app and the relay's own work, so the allowance is never exhausted.
 

@@ -597,8 +597,8 @@ func TestAdaptivePolling(t *testing.T) {
 		t.Errorf("1 failure: %v", got)
 	}
 	a.fails["quotes"] = 1
-	if got := a.interval("quotes"); got != quoteEvery {
-		t.Errorf("1 failure: %v", got)
+	if got := a.interval("quotes"); got != quoteRetry {
+		t.Errorf("1 failure: %v, want the quotes retry %v", got, quoteRetry)
 	}
 	a.fails["quotes"] = 40
 	if got := a.interval("quotes"); got != quoteRetry {
