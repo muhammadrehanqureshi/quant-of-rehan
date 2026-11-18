@@ -16,7 +16,9 @@ on:
     branches: [master]
     paths:
       - "RUNBOOK.md"
+      - "QUICK_CHECK.md"
       - "docs/runbook-print.css"
+      - "docs/quick-check-print.css"
       - ".github/workflows/runbook-pdf.yml"
 
 permissions:
@@ -32,7 +34,7 @@ jobs:
       - name: Install pandoc and WeasyPrint
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends pandoc weasyprint
+          sudo apt-get install -y --no-install-recommends pandoc weasyprint poppler-utils
           pandoc --version | head -1
           weasyprint --version
 
@@ -55,8 +57,35 @@ jobs:
           head -c 5 RUNBOOK.pdf | grep -q '%PDF-' || {
             echo "RUNBOOK.pdf is not a PDF"; exit 1; }
 
+      - name: Build the quick check PDF
+        run: |
+          pandoc QUICK_CHECK.md \
+            --from=gfm \
+            --standalone \
+            --css=docs/quick-check-print.css \
+            --metadata pagetitle="Quant of Rehan: daily check and restart" \
+            --metadata lang=en \
+            -o QUICK_CHECK.html
+          weasyprint QUICK_CHECK.html QUICK_CHECK.pdf
+
+      - name: Check the quick check is one or two pages
+        run: |
+          ls -l QUICK_CHECK.pdf
+          head -c 5 QUICK_CHECK.pdf | grep -q '%PDF-' || {
+            echo "QUICK_CHECK.pdf is not a PDF"; exit 1; }
+          pages=$(pdfinfo QUICK_CHECK.pdf | awk '/^Pages:/ {print $2}')
+          echo "QUICK_CHECK.pdf has $pages page(s)"
+          test "$pages" -ge 1
+          test "$pages" -le 2
+
       - uses: actions/upload-artifact@v4
         with:
           name: runbook-pdf
           path: RUNBOOK.pdf
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: quick-check-pdf
+          path: QUICK_CHECK.pdf
           if-no-files-found: error
