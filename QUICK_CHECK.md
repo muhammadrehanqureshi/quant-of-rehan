@@ -2,7 +2,7 @@
 
 Keep this beside the HUD. All times are Karachi. Your PC can stay off.
 
-## A. Check the day (2 minutes, after 08:45)
+## A. Check the day (2 minutes, after 09:20)
 
 1. **Relay.** Open the [health page](https://quant-of-rehan-relay.mrmrehanqureshi.workers.dev/health).
    Healthy means `"ok": true` and, on a trading day, `"trading_day": true`.
@@ -33,8 +33,8 @@ Do one step, then check the quotes page again.
 3. **Quotes still empty or stale.** Actions, **KMIALL session scan loop**,
    **Run workflow**, leave seconds at `3600`, and run it. This restarts the
    feed for the current band.
-4. **Still not moving.** Actions, **Pre-open readiness**, **Run workflow**.
-   Open the newest run and read the last lines of its summary.
+4. **Still not moving after 2 minutes.** Open the newest **KMIALL intraday
+   momentum scan** run. Read the red step, then send me the run link.
 
 ## C. Healthy after a restart
 
