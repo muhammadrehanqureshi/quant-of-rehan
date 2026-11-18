@@ -251,8 +251,14 @@ func TestCalculatorNeedsBothBoxes(t *testing.T) {
 	if a.calcPrice != "" {
 		t.Fatalf("letters must not reach the price box: %q", a.calcPrice)
 	}
-	if !strings.Contains(plain(a), "PKR -") {
-		t.Fatal("an empty calculator must show no total")
+	c := NewCanvas(80, 4, a.th.Panel)
+	a.drawCalculatorTile(c, 0, 0, 80, 4)
+	row := c.PlainRows()[2]
+	if strings.Contains(row, "PKR") {
+		t.Fatalf("an empty calculator still shows PKR: %q", row)
+	}
+	if !strings.Contains(row, "TOTAL") || !strings.Contains(row, "-") {
+		t.Fatalf("an empty calculator must show TOTAL and its dash: %q", row)
 	}
 }
 

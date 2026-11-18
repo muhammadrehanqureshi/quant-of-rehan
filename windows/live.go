@@ -283,6 +283,9 @@ func (a *App) wheel(d int) {
 		case a.priceH > 0 && a.hoverY >= a.priceY && a.hoverY < a.priceY+a.priceH:
 			a.alertFocus = 3
 			a.priceCursor = min(max(0, a.priceCursor+d), priceAlertSlots-1)
+		case a.alertSearchH > 0 && a.hoverX >= a.alertSearchX && a.hoverX < a.alertSearchX+a.alertSearchW &&
+			a.hoverY >= a.alertSearchY && a.hoverY < a.alertSearchY+a.alertSearchH:
+			a.alertFocus = 4
 		case a.hoverY >= a.alertSplit:
 			a.alertFocus = 2
 		case a.hoverX >= a.alertSplitX:
@@ -290,7 +293,13 @@ func (a *App) wheel(d int) {
 		default:
 			a.alertFocus = 0
 		}
-		if a.alertFocus != 3 {
+		switch a.alertFocus {
+		case 3:
+		case 4:
+			if n := len(a.matches()); n > 0 {
+				a.searchCursor = min(max(0, a.searchCursor+d), n-1)
+			}
+		default:
 			a.alertList().scroll(d * 2)
 		}
 	case scrOrderFlow:

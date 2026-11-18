@@ -110,12 +110,12 @@ func TestSlashTakesTheKeysOnEverySearchPage(t *testing.T) {
 	if s := plain(a); !strings.Contains(s, pressSearchHint) || strings.Contains(s, "UP and DOWN scroll") {
 		t.Fatalf("ORDER FLOW's frame must name the key and not the arrows:\n%s", s)
 	}
-	// ALERTS: the same key, the same line.
+	// ALERTS: the same key opens the SEARCH tile on the right.
 	a.screen = scrAlerts
 	_ = a.render()
 	a.onKey(Key{Kind: KRune, R: '/'})
-	if !a.alertSearch {
-		t.Fatal("slash must give the ALERTS search box the keys")
+	if a.alertFocus != 4 {
+		t.Fatalf("slash must focus the ALERTS SEARCH tile, focus %d", a.alertFocus)
 	}
 	if s := plain(a); !strings.Contains(s, pressSearchHint) {
 		t.Fatalf("the ALERTS frame must name the key:\n%s", s)

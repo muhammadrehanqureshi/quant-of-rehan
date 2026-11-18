@@ -41,26 +41,19 @@ func TestPackedLeadersEndBAndSWithAComma(t *testing.T) {
 	}
 }
 
-// Owner order 2026-11-18: the ALERTS LOG search box loses the row above it. The
-// row under the title now holds the box, and one blank row still follows it.
-func TestAlertsLogSearchBoxHasNoRowAboveIt(t *testing.T) {
+// Owner order 2026-11-18: the ALERTS page puts the SEARCH box in the right
+// hand tile, not inside the log on the left.
+func TestAlertsSearchBoxIsOnTheRight(t *testing.T) {
 	a := demoApp(t, 120, 34)
 	a.screen = scrAlerts
 	rows := rowsOf(a)
-	searchAt := -1
-	for i, row := range rows {
-		if strings.Contains(row, scripSearchHint) {
-			searchAt = i
-			break
+	for _, row := range rows {
+		if at := strings.Index(row, scripSearchHint); at >= 0 {
+			if at < 60 {
+				t.Fatalf("the ALERTS SEARCH box starts on cell %d, want the right half: %q", at, row)
+			}
+			return
 		}
 	}
-	if searchAt < 1 {
-		t.Fatalf("the ALERTS LOG search box is missing:\n%s", strings.Join(rows, "\n"))
-	}
-	if blankSearchRow(rows[searchAt-1]) {
-		t.Fatalf("the row above the ALERTS LOG search box is still blank: %q", rows[searchAt-1])
-	}
-	if !blankSearchRow(rows[searchAt+1]) {
-		t.Fatalf("the row under the ALERTS LOG search box is not blank: %q", rows[searchAt+1])
-	}
+	t.Fatalf("the ALERTS SEARCH box is missing:\n%s", strings.Join(rows, "\n"))
 }

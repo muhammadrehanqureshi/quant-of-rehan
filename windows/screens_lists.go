@@ -518,7 +518,11 @@ func (a *App) drawSearchTile(c *Canvas, x, y, w, h int) {
 	ix, iy, iw, ih := a.panel(c, x, y, w, h, "SEARCH", hint)
 	// Owner order 2026-11-17: the blank row before the box is withdrawn, so
 	// the SEARCH tile is one row shorter; one blank row still follows it.
-	a.searchBox(c, ix, iy, min(iw, 40), a.searchText, scripSearchHint, true)
+	focused := true
+	if a.screen == scrAlerts {
+		focused = a.alertFocus == 4
+	}
+	a.searchBox(c, ix, iy, min(iw, 40), a.searchText, scripSearchHint, focused)
 	if a.searchText == "" && a.selectedSym == "" {
 		return
 	}
@@ -542,6 +546,9 @@ func (a *App) drawSearchTile(c *Canvas, x, y, w, h int) {
 		idx := i
 		bg := a.selectRow(c, ix, row+i, min(iw, listW), i == a.searchCursor, func() {
 			a.searchCursor = idx
+			if a.screen == scrAlerts {
+				a.alertFocus = 4
+			}
 			a.pickSymbol(sym)
 		})
 		// Owner order 2026-11-12 (latest): the row being scrolled through carries
@@ -1223,6 +1230,23 @@ func (a *App) drawAlerts(c *Canvas, x, y, w, h int) {
 	if lh < 5 {
 		return
 	}
+	a.alertSearchX, a.alertSearchY, a.alertSearchW, a.alertSearchH = 0, 0, 0, 0
+	if w >= 72 {
+		// Owner order 2026-11-18: the ALERTS LOG keeps the left side and the
+		// scanner's own SEARCH tile stands on the right, with the page's one
+		// cell gutter between them.
+		const gap = 1
+		// The log keeps the larger share, so its alert sentences stay whole;
+		// the SEARCH tile takes the remaining right hand side.
+		lw := (w - gap) * 3 / 5
+		sx := x + lw + gap
+		sw := w - gap - lw
+		a.drawAlertLog(c, x, ly, lw, lh)
+		a.alertSearchX, a.alertSearchY, a.alertSearchW, a.alertSearchH = sx, ly, sw, lh
+		a.addHit(sx, ly, sw, lh, func() { a.alertFocus = 4 })
+		a.drawSearchTile(c, sx, ly, sw, lh)
+		return
+	}
 	a.drawAlertLog(c, x, ly, w, lh)
 }
 
@@ -1341,23 +1365,6 @@ func (a *App) drawBoardPanel(c *Canvas, x, y, w, h int, side int) {
 	a.scrollbar(c, x+w-2, iy, ih, lv)
 }
 
-// alertLog is the flag log cut to the scrip being searched. Owner order
-// 2026-11-11 (tenth pass): the ALERTS LOG carries its own SEARCH box, and a
-// scrip typed there shows every alert it has.
-func (a *App) alertLog() []Flag {
-	log := a.flagLog()
-	if a.alertQuery == "" {
-		return log
-	}
-	kept := log[:0]
-	for _, f := range log {
-		if strings.HasPrefix(f.Symbol, a.alertQuery) {
-			kept = append(kept, f)
-		}
-	}
-	return kept
-}
-
 // alertPct is the current day move for a log row: the freshest broker reading
 // when there is one, otherwise the last price table, otherwise the move that
 // was current when the alert was raised.
@@ -1374,30 +1381,23 @@ func (a *App) alertPct(f Flag) *float64 {
 // drawAlertLog is the log of every flag raised, buying and selling, newest first.
 func (a *App) drawAlertLog(c *Canvas, x, y, w, h int) {
 	th := a.th
-	all := a.flagLog()
-	log := a.alertLog()
-	// Owner order 2026-11-18: the row before the ALERTS LOG search box is
-	// withdrawn; one blank row still stands between the box and the first alert.
-	hint := pressSearchHint
+	log := a.flagLog()
+	// Owner order 2026-11-18: the ALERTS LOG loses its own search box. The
+	// scanner's SEARCH tile stands beside it on the right, and the log starts
+	// on the first row under its title.
 	title := "ALERTS LOG (" + strconv.Itoa(len(log)) + ")"
-	if a.alertQuery != "" {
-		title = "ALERTS LOG (" + strconv.Itoa(len(log)) + " of " + strconv.Itoa(len(all)) + ")"
-	}
 	// Owner order 2026-11-15: the ALERTS LOG frame does not highlight on a click.
-	lx, liy, liw, lih := a.panel(c, x, y, w, h, title, hint)
+	lx, liy, liw, lih := a.panel(c, x, y, w, h, title, "")
 	a.addHit(x, y, w, h, func() { a.alertFocus = 2 })
-	searchY := liy
-	bw := a.searchBox(c, lx, searchY, min(liw, 40), a.alertQuery, scripSearchHint, a.alertSearch)
-	a.addHit(lx, searchY, bw, 1, func() { a.alertFocus, a.alertSearch = 2, true; a.lvLog.top() })
 	// Owner order 2026-11-17: alerts sit on consecutive rows, with no blank
 	// row between them. A price alert's detail sentence joins its title on the
 	// one row.
 	const per = 1
-	listY := searchY + 2
+	listY := liy
 	if lih < 3 {
 		return
 	}
-	a.lvLog.set(len(log), (lih-2)/per)
+	a.lvLog.set(len(log), lih/per)
 	row := listY
 	lw := contentW(&a.lvLog, liw)
 	for n := 0; n < a.lvLog.view; n++ {
