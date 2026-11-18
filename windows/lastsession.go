@@ -36,22 +36,18 @@ func sessionPath(cfgPath string) string {
 	return filepath.Join(filepath.Dir(cfgPath), "last-session.json")
 }
 
-// Owner order 2026-11-17: the stored session is cleared only inside the
-// 08:00-08:55 window on a market day. The pre-market begins at 09:00, so the
-// window is empty before it fills today, and a window opened after 08:55 keeps
-// the last stored day rather than wiping it late.
-const (
-	sessionClearStartMinute = 8 * 60
-	sessionClearEndMinute   = 8*60 + 55
-)
+// Owner order 2026-11-18: the stored session is cleared at 08:55 on each market
+// day. The clear runs once on that day, so a window opened at 09:14 clears the
+// previous day at once instead of showing it through the pre-market. A session
+// that already belongs to today is never cleared.
+const sessionClearMinute = 8*60 + 55
 
-// maybeClearSession runs the owner's 08:00 clear once on each market day. A
+// maybeClearSession runs the owner's 08:55 clear once on each market day. A
 // weekend or a PSX holiday keeps the last stored day, because there is no
 // session to prepare for.
 func (a *App) maybeClearSession(now time.Time) {
 	p := now.In(pkt)
-	minute := minuteOf(p)
-	if !isMarketDay(p) || minute < sessionClearStartMinute || minute > sessionClearEndMinute {
+	if !isMarketDay(p) || minuteOf(p) < sessionClearMinute {
 		return
 	}
 	day := p.Format("2006-01-02")
@@ -59,6 +55,9 @@ func (a *App) maybeClearSession(now time.Time) {
 		return
 	}
 	a.sessionClearedDay = day
+	if sameSessionDay(a.sessionDate, p) {
+		return
+	}
 	if a.cfgPath != "" {
 		path := sessionPath(a.cfgPath)
 		_ = os.Remove(path)

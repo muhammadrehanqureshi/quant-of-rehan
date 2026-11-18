@@ -101,9 +101,10 @@ func TestEmptyDifferenceKeepsOneDash(t *testing.T) {
 	}
 }
 
-// Owner order 2026-11-17: every market day's stored session is cleared inside
-// the 08:00-08:55 window, and a weekend keeps the last stored day.
-func TestStoredSessionClearsAtEightOnMarketDays(t *testing.T) {
+// Owner order 2026-11-18: every market day's stored session is cleared at
+// 08:55, and a late window clears yesterday on its first tick. Today's session
+// and a weekend keep the stored day.
+func TestStoredSessionClearsAtEightFiftyFiveOnMarketDays(t *testing.T) {
 	dir := t.TempDir()
 	cfgPath := filepath.Join(dir, "settings.json")
 	snap := &sessionSnapshot{
@@ -120,30 +121,57 @@ func TestStoredSessionClearsAtEightOnMarketDays(t *testing.T) {
 		t.Fatalf("save: %v", err)
 	}
 	a.restoreSession(snap)
-	a.now = time.Date(2026, 11, 17, 7, 59, 0, 0, pkt)
-	a.maybeClearSession(a.now)
-	if loadSession(sessionPath(cfgPath)) == nil {
-		t.Fatal("the stored session was cleared before 08:00")
-	}
 	a.now = time.Date(2026, 11, 17, 8, 0, 0, 0, pkt)
 	a.maybeClearSession(a.now)
+	if loadSession(sessionPath(cfgPath)) == nil {
+		t.Fatal("the stored session was cleared before 08:55")
+	}
+	a.now = time.Date(2026, 11, 17, 8, 54, 0, 0, pkt)
+	a.maybeClearSession(a.now)
+	if loadSession(sessionPath(cfgPath)) == nil {
+		t.Fatal("the stored session was cleared before 08:55")
+	}
+	a.now = time.Date(2026, 11, 17, 8, 55, 0, 0, pkt)
+	a.maybeClearSession(a.now)
 	if got := loadSession(sessionPath(cfgPath)); got != nil {
-		t.Fatalf("the stored session survived 08:00: %+v", got)
+		t.Fatalf("the stored session survived 08:55: %+v", got)
 	}
 	if a.market != nil || a.sessionDate != "" || len(a.prices) != 0 {
 		t.Fatalf("the day is still in memory: market %v date %q prices %d", a.market, a.sessionDate, len(a.prices))
 	}
 
-	// A window opened after 08:55 keeps the last stored day: the clear window
-	// has passed, so a late start must not erase it.
+	// A window opened at 09:14 clears yesterday at once, because the clear
+	// already fell due at 08:55.
 	late := NewApp(cfg, cfgPath, NewRelay(defaultRelay))
 	if err := saveSession(sessionPath(cfgPath), snap); err != nil {
 		t.Fatalf("save late: %v", err)
 	}
-	late.now = time.Date(2026, 11, 17, 8, 56, 0, 0, pkt)
+	late.restoreSession(snap)
+	late.now = time.Date(2026, 11, 17, 9, 14, 0, 0, pkt)
 	late.maybeClearSession(late.now)
+	if loadSession(sessionPath(cfgPath)) != nil {
+		t.Fatal("a window opened at 09:14 kept yesterday")
+	}
+	if late.sessionDate != "" || late.market != nil {
+		t.Fatalf("the late window still shows yesterday: date %q market %v", late.sessionDate, late.market)
+	}
+
+	// Today's stored session is never cleared by the 08:55 rule.
+	todaySnap := &sessionSnapshot{
+		Ver:     sessionVer,
+		SavedAt: time.Date(2026, 11, 17, 8, 50, 0, 0, pkt),
+		Session: "2026-11-17",
+		Market:  &Market{Date: "2026-11-17"},
+		Prices:  map[string]Quote{"KEL": {Price: 5.79}},
+	}
+	if err := saveSession(sessionPath(cfgPath), todaySnap); err != nil {
+		t.Fatalf("save today: %v", err)
+	}
+	today := NewApp(cfg, cfgPath, NewRelay(defaultRelay))
+	today.now = time.Date(2026, 11, 17, 9, 14, 0, 0, pkt)
+	today.maybeClearSession(today.now)
 	if loadSession(sessionPath(cfgPath)) == nil {
-		t.Fatal("the stored session was cleared after the 08:55 window")
+		t.Fatal("today's stored session was cleared at 09:14")
 	}
 
 	// Saturday keeps the last stored day.
@@ -151,7 +179,7 @@ func TestStoredSessionClearsAtEightOnMarketDays(t *testing.T) {
 	if err := saveSession(sessionPath(cfgPath), snap); err != nil {
 		t.Fatalf("save weekend: %v", err)
 	}
-	weekend.now = time.Date(2026, 11, 14, 8, 0, 0, 0, pkt)
+	weekend.now = time.Date(2026, 11, 14, 8, 55, 0, 0, pkt)
 	weekend.maybeClearSession(weekend.now)
 	if loadSession(sessionPath(cfgPath)) == nil {
 		t.Fatal("a weekend cleared the stored session")
