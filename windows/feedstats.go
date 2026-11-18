@@ -2,12 +2,11 @@ package main
 
 import "sort"
 
-// wireCycleSeconds is how often the broker's wire repeats one symbol. The
-// owner's own audit (reports/2026-11-03-eclear-order-flow.md, section 1)
-// measured a sweep of 23.98 seconds per symbol. The relay can pass on what the
-// wire carries and no faster, so the freshest stock is almost always seconds
-// old while a typical stock is about half a cycle old.
-const wireCycleSeconds = 24
+// feedLiveSeconds is how fresh the displayed values must be to call the feed
+// LIVE. Owner order 2026-11-18: a feed that only changes twice in eleven
+// seconds is LAGGING, even while the broker's own timestamps still call each
+// row fresh. LIVE is the last five seconds, not a whole wire cycle.
+const feedLiveSeconds = 5
 
 // feedStats describes how old the stocks in one /quotes answer are, at the
 // moment the relay answered.

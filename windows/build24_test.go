@@ -95,8 +95,8 @@ func TestEverySearchBoxHasABlankRowOnEachSide(t *testing.T) {
 		{"scanner", scrScanner, 120, 42, scripSearchHint, false},
 		{"sectors", scrScanner, 120, 42, "Search for a sector", false},
 		{"order flow", scrOrderFlow, 120, 40, scripSearchHint, true},
-		// Owner order 2026-11-18: ALERTS carries the SEARCH tile in its own
-		// right hand panel, checked by TestAlertsSearchBoxIsOnTheRight.
+		// Owner order 2026-11-18: the ALERTS page carries two search boxes.
+		// TestAlertsHasBothSearchBoxes checks both of them.
 	}
 	for _, tc := range cases {
 		a := demoApp(t, tc.w, tc.h)

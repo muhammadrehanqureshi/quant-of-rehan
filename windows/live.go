@@ -184,12 +184,11 @@ func (a *App) feedState() (word string, age int, ok bool) {
 	// 24 seconds, is LAGGING rather than a false STALE. A real outage still
 	// reaches STALE after the relay's own freshness window.
 	//
-	// Owner order 2026-11-17: the broker's wire repeats one stock about every
-	// 24 seconds. A LIVE light that expires after five seconds therefore spends
-	// most of every cycle saying LAGGING even though the feed is healthy. LIVE
-	// now covers one full wire cycle plus a small grace period; a real pause
-	// beyond that is LAGGING.
-	if age <= wireCycleSeconds+2 {
+	// Owner order 2026-11-18: the opposite of the 2026-11-17 rule. The owner
+	// sees the prices change only twice in eleven seconds, so the feed must not
+	// wear LIVE through that gap. LIVE is the last five seconds; anything older
+	// is LAGGING until the relay's ninety second freshness boundary.
+	if age <= feedLiveSeconds {
 		return "LIVE", age, true
 	}
 	if age <= 90 {

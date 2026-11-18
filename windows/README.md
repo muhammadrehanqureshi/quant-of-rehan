@@ -1,10 +1,11 @@
-# Quant of Rehan for Windows (console edition), build 136
+# Quant of Rehan for Windows (console edition), build 137
 
 A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.21**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
 
-## What is new in build 136
+## What is new in build 137
 
+* **Build 137 (version 3.8.12).** ALERTS LOG carries its own search box again, beside the scanner's SEARCH tile. That tile now shows T below B, S and U, with BARS, NET DELTA and NET DELTA % in aligned cells. TELEMETRY's REQ count is saved as it changes, so a new build keeps the day's total. FEED stays LIVE for only five seconds; older values read LAGGING until the relay's ninety second boundary.
 * **Build 136 (version 3.8.11).** U no longer ends with a comma, because the ampersand already separates it from T. The SEARCH tile drops its `UP and DOWN choose, ENTER opens` line. The SECTORS percentages are right aligned on one edge beside their fixed arrow column. The chosen CUSTOM SCRIPS sort reveals its three scrips to the right of the six sorts, using the tile's spare width instead of the tight rows below. ALERTS LOG starts its PKR price, arrow and percentage five spaces after the word `at`.
 * **Build 135 (version 3.8.10).** The big-order banner at the top stays for four seconds. The comma after a B, S or U value wears the same soft ink as its `=` on ORDER FLOW, the KSE100 tile, CUSTOM SCRIPS OF VOLUME and SEARCH, including the packed narrow leader form.
 * **Build 134 (version 3.8.9).** ALERTS LOG keeps the left side of the page and the scanner's SEARCH tile stands on the right, with the same matches, selection and scrip detail. The POSITION CALCULATOR shows no PKR while it is empty; PKR appears with the amount only after both boxes hold a number. PRICE DIFFERENCE prints the size of the move without a plus or minus, in green for a rise and red for a fall.

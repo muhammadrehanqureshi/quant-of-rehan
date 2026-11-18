@@ -73,19 +73,29 @@ func TestMeasuredTotalsCommasWearTheEqualsInk(t *testing.T) {
 	}
 }
 
-// Owner order 2026-11-18: the ALERTS page puts the SEARCH box in the right
-// hand tile, not inside the log on the left.
-func TestAlertsSearchBoxIsOnTheRight(t *testing.T) {
+// Owner order 2026-11-18: the ALERTS LOG keeps its own search box and the
+// scanner's SEARCH tile still stands on the right.
+func TestAlertsHasBothSearchBoxes(t *testing.T) {
 	a := demoApp(t, 120, 34)
 	a.screen = scrAlerts
 	rows := rowsOf(a)
+	left, right := false, false
 	for _, row := range rows {
-		if at := strings.Index(row, scripSearchHint); at >= 0 {
-			if at < 60 {
-				t.Fatalf("the ALERTS SEARCH box starts on cell %d, want the right half: %q", at, row)
+		for from := 0; ; {
+			i := strings.Index(row[from:], scripSearchHint)
+			if i < 0 {
+				break
 			}
-			return
+			at := from + i
+			if at < 60 {
+				left = true
+			} else {
+				right = true
+			}
+			from = at + 1
 		}
 	}
-	t.Fatalf("the ALERTS SEARCH box is missing:\n%s", strings.Join(rows, "\n"))
+	if !left || !right {
+		t.Fatalf("the ALERTS search boxes are left %v right %v:\n%s", left, right, strings.Join(rows, "\n"))
+	}
 }

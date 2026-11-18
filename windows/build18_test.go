@@ -44,8 +44,8 @@ func TestAlertsLogHasNoWordsUnderTheSearchBox(t *testing.T) {
 	}
 }
 
-// Owner order 2026-11-18: the log has no search box of its own. Its first
-// alert starts on the first row under the ALERTS LOG title.
+// Owner order 2026-11-18: the log has its own search box again. Its first
+// alert starts after the box and the one blank row under it.
 func TestAlertsLogStartsUnderItsTitle(t *testing.T) {
 	a := demoApp(t, 120, 34)
 	a.screen = scrAlerts
@@ -57,16 +57,23 @@ func TestAlertsLogStartsUnderItsTitle(t *testing.T) {
 			break
 		}
 	}
-	if titleAt < 0 || titleAt+1 >= len(rows) {
+	if titleAt < 0 || titleAt+3 >= len(rows) {
 		t.Fatalf("the ALERTS LOG title is missing:\n%s", strings.Join(rows, "\n"))
+	}
+	if !strings.Contains(rows[titleAt+1], scripSearchHint) {
+		t.Fatalf("the log search box is not under the title: %q", rows[titleAt+1])
+	}
+	blank := strings.TrimSpace(strings.ReplaceAll(rows[titleAt+2], "│", ""))
+	if blank != "" {
+		t.Fatalf("no blank row stands under the log search box: %q", rows[titleAt+2])
 	}
 	log := a.flagLog()
 	if len(log) == 0 {
 		t.Fatal("the demo log is empty")
 	}
 	stamp := log[0].Time.In(pkt).Format("15:04:05")
-	if !strings.Contains(rows[titleAt+1], stamp) {
-		t.Fatalf("the first alert does not start under the title: %q", rows[titleAt+1])
+	if !strings.Contains(rows[titleAt+3], stamp) {
+		t.Fatalf("the first alert does not start under the search box: %q", rows[titleAt+3])
 	}
 }
 

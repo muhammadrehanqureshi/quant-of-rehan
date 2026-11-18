@@ -26,8 +26,7 @@ func TestOrderFlowNetDeltaPercent(t *testing.T) {
 	}
 }
 
-// The column stands after NET DELTA, under its own heading, on the ORDER FLOW
-// table only.
+// The column stands after NET DELTA, under its own heading, and never on HOME.
 func TestOrderFlowNetDeltaPercentColumn(t *testing.T) {
 	a := orderFlowApp(t, 160, 45, sampleOrderFlow)
 	rows := rowsOf(a)

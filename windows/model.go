@@ -116,8 +116,10 @@ const appVersion = "4.0.21"
 // withdrawn because the ampersand already separates U from T, the SEARCH tile
 // without its key instruction, the right aligned SECTORS percentages, the
 // CUSTOM SCRIPS scrips on the right of their menu, and the five space gap
-// before the ALERTS LOG price group.
-const hudBuild = "3.8.11"
+// before the ALERTS LOG price group. Build 137 is 3.8.12, the ALERTS LOG's own
+// search box restored, the SEARCH tile's T, BARS, NET DELTA and NET DELTA %
+// ledger, the persisted REQ total and the five second LIVE window.
+const hudBuild = "3.8.12"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no
