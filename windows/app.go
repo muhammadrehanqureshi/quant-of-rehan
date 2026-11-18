@@ -106,7 +106,7 @@ type App struct {
 	sessionDate       string
 	sessionDirty      bool
 	lastSessionSave   time.Time
-	sessionClearedDay string // the market day whose 08:00 clear has run
+	sessionClearedDay string // the market day whose 08:55 clear has run
 
 	// scheduling
 	inflight map[string]bool
@@ -1104,8 +1104,8 @@ func (a *App) watchQuotes(now time.Time) {
 func (a *App) onTick(now time.Time) {
 	a.now = now
 	a.syncReqCount()
-	// Owner order 2026-11-17: every market day's stored session is cleared in
-	// the 08:00-08:55 window, before the pre-market begins at 09:00.
+	// Owner order 2026-11-18: every market day's stored session is cleared at
+	// 08:55, including on a window opened late.
 	a.maybeClearSession(now)
 	for k, f := range a.flashes {
 		if !now.Before(f.until) {
