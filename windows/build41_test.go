@@ -52,10 +52,16 @@ func TestSectorPercentagesShareOneRightEdge(t *testing.T) {
 		if !inside || !strings.Contains(row, "%") || !strings.ContainsAny(row, "▲▼") {
 			continue
 		}
-		at := strings.LastIndex(row, "%")
+		// Count cells, not bytes: the selected row's diamond is three bytes but
+		// one cell, and the row strings are compared by their cell position.
+		at := -1
+		for i, r := range []rune(row) {
+			if r == '%' {
+				at = i
+			}
+		}
 		if want < 0 {
 			want = at
-			t.Logf("first sector percentage at %d: %q", at, row)
 		} else if at != want {
 			t.Errorf("a sector percentage ends on cell %d, want %d: %q", at, want, row)
 		}
