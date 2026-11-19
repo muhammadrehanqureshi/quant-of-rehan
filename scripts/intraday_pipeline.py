@@ -911,8 +911,25 @@ def run_scan(slot: str, capture: Path | None = None,
                 f"{state.last_reason or 'position being monitored'}.")
             # Owner order 2026-11-05, eighth pass: the tile prints the score
             # of the pick under its name, so the daily-lock card carries it.
-            if state.entry_score is not None:
-                card_body = f"{card_body}\nScore: {state.entry_score:.0f}/100"
+            # Owner order 2026-11-19 (latest): that score is refreshed on every
+            # scan rather than standing at its entry value. The held name is
+            # scored again under the same law; when today's tape no longer
+            # gives it a legal score, the entry score stands and the line says
+            # that it is the entry's own.
+            score, basis = state.entry_score, "entry"
+            held_rows = session.bars.get(state.symbol or "")
+            if held_rows:
+                try:
+                    fresh = scanner.score_symbol(
+                        state.symbol, held_rows, session,
+                        frames=config.MTF_ENABLED)
+                except Exception:  # noqa: BLE001 - the card still goes out
+                    fresh = None
+                if fresh and fresh.get("score") is not None:
+                    score, basis = fresh["score"], "live"
+            if score is not None:
+                note = "" if basis == "entry" else " (live)"
+                card_body = f"{card_body}\nScore: {score:.0f}/100{note}"
             mtf_text = mtf_summary(observed)
             if mtf_text:
                 card_body = f"{card_body}\n{mtf_text}"

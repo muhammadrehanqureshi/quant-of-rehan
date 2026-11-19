@@ -34,24 +34,30 @@ func TestBuild144ScannerSearchJoinsNetDeltaWithAmpersand(t *testing.T) {
 	}
 }
 
-// Owner order 2026-11-19: the NET DELTA % label keeps exactly one cell before
-// its value, never the two the right aligned field used to leave.
+// Owner order 2026-11-19 (latest): the NET DELTA % label carries its equals
+// sign hard against it, and the figure starts on the very next cell.
 func TestBuild144ScannerSearchKeepsOneCellAfterNetDeltaPct(t *testing.T) {
 	a := demoApp(t, 140, 34)
 	c := NewCanvas(120, 6, a.th.Panel)
 	a.drawSearchLedger(c, 0, 0, 120, 6, i64(999_900), i64(0), i64(999_900), true)
+	found := 0
 	for _, row := range c.PlainRows() {
 		lbl := col(row, "NET DELTA %")
 		if lbl < 0 {
 			continue
 		}
+		found++
 		r := []rune(row)
-		if lbl+11 >= len(r) || r[lbl+11] != ' ' {
-			t.Errorf("NET DELTA %% and its value touch: %q", row)
+		if lbl+11 >= len(r) || r[lbl+11] != '=' {
+			t.Errorf("NET DELTA %% does not carry its equals sign: %q", row)
+			continue
 		}
 		if lbl+12 >= len(r) || r[lbl+12] == ' ' {
-			t.Errorf("NET DELTA %% leaves more than one cell before its value: %q", row)
+			t.Errorf("NET DELTA %% leaves a gap after its equals sign: %q", row)
 		}
+	}
+	if found == 0 {
+		t.Fatalf("the scanner ledger carries no NET DELTA percentage")
 	}
 }
 

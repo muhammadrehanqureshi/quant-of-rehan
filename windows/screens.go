@@ -13,9 +13,11 @@ const (
 	minW = 80
 	minH = 26
 	// Owner order 2026-11-11: the KSE100's own point move decides the
-	// telemetry breadth. Above +1500 points is BULLISH, below -500 is
-	// BEARISH, and the band between them is FLAT.
-	kseBullishPoints = 1500.0
+	// telemetry breadth, and the band between the two marks is FLAT.
+	// Owner order 2026-11-19 (latest): the index stood +1100 points up and the
+	// tile still read FLAT, so the bullish mark is +1000. The bearish mark
+	// stays at -500.
+	kseBullishPoints = 1000.0
 	kseBearishPoints = -500.0
 )
 
@@ -595,8 +597,9 @@ func (a *App) drawLeft(c *Canvas, x, y, w, h int) {
 	fullRow(4, "MARKET OPENING", []Span{{open, th.Text, false}})
 	fullRow(5, "MARKET CLOSING", []Span{{close, th.Text, false}})
 	// Owner order 2026-11-11: MARKET BREADTH is the KSE100's own point move.
-	// Above +1500 points is BULLISH, below -500 is BEARISH, and the band
-	// between them is FLAT. ADV/DEC still reads the whole market table.
+	// Owner order 2026-11-19 (latest): above +1000 points is BULLISH, below
+	// -500 is BEARISH, and the band between them is FLAT. ADV/DEC still reads
+	// the whole market table.
 	adv, dec := a.marketBreadth()
 	breadth, bc := "FLAT", th.Soft
 	if _, change, _, _, _, ok := a.effectiveIndex(); ok {
@@ -1465,11 +1468,14 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 	if stacked {
 		need = 3
 	}
-	pkrX := ix + 3 + usedMax + 2
+	// Owner order 2026-11-19 (latest): the current price, the bar, the
+	// percentage and NET DELTA stand together on the tile's right edge. The
+	// group is placed by its right end, so it never floats in the middle of
+	// the row, and every leader lands on the same cells.
+	pkrX := max(ix+3, edge-groupW+1)
 	barStart := pkrX
 	switch {
 	case stacked:
-		pkrX = ix + 3
 		barStart = ix + 3 + symW + 2
 	case narrow:
 		barStart = 0
