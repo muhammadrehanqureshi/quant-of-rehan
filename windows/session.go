@@ -184,8 +184,9 @@ func untilScanStart(t time.Time) time.Duration {
 
 // phaseAt names the part of the day Karachi time t falls in, in the five words
 // the status tile needs. The pre-market runs from 09:00 to the open (so the
-// two minute matching gap is part of it), and the post-market from the close
-// to its end (15:30 to 15:49 Monday to Thursday, 16:30 to 16:49 on Friday).
+// two minute matching gap is part of it), and the post-market from its own
+// start to its end (15:32 to 15:49 Monday to Thursday, 16:32 to 16:49 on
+// Friday). The two minutes after the trading close are not post-market.
 func phaseAt(t time.Time) string {
 	p := t.In(pkt)
 	if isWeekend(p) {
@@ -204,7 +205,7 @@ func phaseAt(t time.Time) string {
 	if isFriday(p) && m >= 12*60 && m < 14*60+32 {
 		return qsBreak
 	}
-	if last := wins[len(wins)-1]; m >= last.to && m < postWindow(p).to {
+	if post := postWindow(p); m >= post.from && m < post.to {
 		return qsPost
 	}
 	return qsClosed
