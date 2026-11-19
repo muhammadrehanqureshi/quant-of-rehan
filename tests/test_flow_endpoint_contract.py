@@ -1,10 +1,10 @@
-"""The cloud order-flow answer: complete rows and the PKR 1M large prints.
+"""The cloud order-flow answer: complete rows and the 100k-share large prints.
 
 The Worker cannot run on the owner's PC, so these tests pin the source that
 the deployed relay serves. They are the contract the owner's separate desktop
 build reads: /flow is a pure read, never an ACK write; every row carries the
 full split and its unclassified remainder; a large print is one relay update
-of at least PKR 1,000,000, labelled for exactly that limitation.
+of at least 100,000 shares, labelled for exactly that limitation.
 """
 
 import json
@@ -117,18 +117,25 @@ class FlowEndpointContractTest(unittest.TestCase):
         self.assertEqual(embedded, expected)
         self.assertIn("counts: {\n      universe: universe.size,", self.source)
 
-    def test_large_prints_are_one_million_rupees_and_labelled_honestly(self):
-        # Owner order 2026-11-15: the big-print board is above PKR 1,000,000
-        # in a single transaction, and the basis the relay serves says the
-        # same number the constant does.
-        self.assertIn("const LARGE_PRINT_PKR = 1_000_000;", self.source)
-        self.assertIn("if (value < LARGE_PRINT_PKR) return null;", self.source)
-        self.assertIn("one relay update carrying at least PKR 1,000,000",
+    def test_large_prints_are_100k_shares_and_labelled_honestly(self):
+        # Owner order 2026-11-19: the big-print board is 100,000 shares and
+        # above in a single transaction, and the basis the relay serves
+        # says the same number the constant does.
+        self.assertIn("const LARGE_PRINT_SHARES = 100_000;", self.source)
+        self.assertIn("if (measured.delta < LARGE_PRINT_SHARES) return null;",
+                      self.source)
+        self.assertIn("one relay update carrying at least 100,000 shares",
                       self.source)
         self.assertIn("the broker wire has no individual order id",
                       self.source)
+        self.assertIn("threshold_shares: LARGE_PRINT_SHARES,", self.source)
         self.assertIn("large_prints", self.source)
         self.assertIn("large_prints_total", self.source)
+        # Owner order 2026-11-19: the previous session survives until 08:55
+        # on the next market day, then the stored prints roll over.
+        self.assertIn("const SESSION_RESET_MINUTES = 8 * 60 + 55;",
+                      self.source)
+        self.assertIn("const flowDay = sessionDay(Date.now());", self.source)
 
     def test_the_large_board_has_both_raw_prints_and_stock_totals(self):
         self.assertIn("largeStatsBySymbol", self.source)

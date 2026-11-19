@@ -68,18 +68,16 @@
     <string name="volume_placeholder_scrips">SELECT CUSTOM SCRIPS</string>
 
     <!-- ══════════ THEMES tile (owner order 2026-10-23) ══════════
-         Five looks, each a (background, heading colour) pair read in the
-         same order he named them. The values MainActivity applies live
-         in one place (colors.xml, theme_*); the dropdown only names a
-         pair. THE SEQUENCE IS THE ORDER HE ASKED FOR: purple and yellow
-         first (the app's current look), then the four he added. -->
+         Two looks since owner order 2026-11-19 removed GREEN & YELLOW,
+         NAVY BLUE & WHITE and ORANGE & WHITE. Each is a (background,
+         heading colour) pair. The values MainActivity applies live in one
+         place (colors.xml, theme_*); the dropdown only names a pair. THE
+         SEQUENCE IS THE ORDER HE ASKED FOR: purple and yellow first (the
+         app's current look), then black and white. -->
     <string name="label_themes">THEMES</string>
     <string name="theme_prompt">THE APP\'S COVER &amp; HEADINGS.</string>
     <string name="theme_purple">PURPLE &amp; YELLOW</string>
     <string name="theme_black">BLACK &amp; WHITE</string>
-    <string name="theme_green">GREEN &amp; YELLOW</string>
-    <string name="theme_navy">NAVY BLUE &amp; WHITE</string>
-    <string name="theme_orange">ORANGE &amp; WHITE</string>
 
     <!-- ══════════ the greeting (owner orders 2026-10-23 and 2026-10-24) ══════════
          His exact sentences. The window owner order 2026-10-24 hardcoded:

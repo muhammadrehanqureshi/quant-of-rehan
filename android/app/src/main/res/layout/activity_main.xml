@@ -580,6 +580,19 @@
                             android:visibility="gone"/>
                     </FrameLayout>
 
+                    <!-- Owner order 2026-11-19: the SECTORS tile carries
+                         the THEMES tile's own caret, at the mount's
+                         trailing edge, down while closed and turned up
+                         while the list is open. -->
+                    <ImageView
+                        android:id="@+id/sectors_arrow"
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
+                        android:layout_gravity="end|top"
+                        android:layout_marginTop="11dp"
+                        android:layout_marginEnd="14dp"
+                        android:contentDescription="@string/cd_dropdown"
+                        android:src="@drawable/dropdown_arrow"/>
                 </FrameLayout>
             </LinearLayout>
 
@@ -1102,11 +1115,20 @@
                 android:layout_marginTop="10dp"
                 android:orientation="horizontal">
 
+                <!-- Owner order 2026-11-19: the RELAY STATUS box is the
+                     43dp THEMES box's own height, not the tile's. The
+                     12dp QorButton air is taken out vertically so the one
+                     13sp line still fits and centres in those 43dp. -->
                 <Button
                     android:id="@+id/btn_open"
                     style="@style/QorButton"
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
+                    android:layout_height="43dp"
+                    android:gravity="center"
+                    android:minHeight="0dp"
+                    android:minWidth="0dp"
+                    android:paddingTop="0dp"
+                    android:paddingBottom="0dp"
                     android:text="@string/btn_relay"/>
             </LinearLayout>
 

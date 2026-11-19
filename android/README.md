@@ -1641,6 +1641,21 @@ to sixty seconds. The status tile therefore also carries the app's own
      the orphan law stands so every dot still wears a filament.
   5. The version bump is versionCode 82 / versionName 2.3.15.
 
+**Version 4.4.3, versionCode 136.**
+
+  Owner order 2026-11-19. THEMES carries purple and black only: GREEN &
+  YELLOW, NAVY BLUE & WHITE and ORANGE & WHITE are removed, and a stored
+  removed theme opens on black. RELAY STATUS wears the 43dp THEMES box
+  height instead of the tile's. CUSTOM SCRIPS OF VOL. numbers its six sub
+  menus 1. to 6. The SEARCH row reads H=... & L=... The SECTORS tile lists
+  every sector as soon as the list lands, keeps that scrollable list after
+  a pick, and carries the THEMES tile's own pull-down caret. BIG BUYING &
+  SELLING stores and shows every print of 100,000 shares or more, and its
+  window measures the fifth order's wrapped last line so five complete
+  orders are never cut off. The relay clears the previous session at 08:55
+  PKT on each market day, so Thursday's session survives until Friday
+  08:55. The version bump is versionCode 136 / versionName 4.4.3.
+
 **Version 4.4.2, versionCode 135.**
 
   Owner order 2026-11-17. The closed dropdown faces for THEMES, CUSTOM SCRIPS

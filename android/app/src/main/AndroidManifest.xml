@@ -586,11 +586,20 @@
      centre their line; the BIG BUYING & SELLING board centres every print;
      SECTORS reads at launch and wears its best sector before the first tap;
      and its diamond scroller measures the finished six-row window.
+
+     versionCode 136 / versionName 4.4.3 belong to the owner's order of
+     2026-11-19: GREEN & YELLOW, NAVY BLUE & WHITE and ORANGE & WHITE leave
+     the THEMES menu; RELAY STATUS takes the 43dp THEMES box height; CUSTOM
+     SCRIPS OF VOL. numbers its six sub menus; the SEARCH row reads H & L;
+     SECTORS always lists its scrollable sectors and wears the THEMES caret;
+     BIG BUYING & SELLING stores and shows 100,000 shares and above with
+     five complete orders in its window; and the relay clears the previous
+     session at 08:55 on each market day.
      -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="pk.quantofrehan"
-    android:versionCode="135"
-    android:versionName="4.4.2">
+    android:versionCode="136"
+    android:versionName="4.4.3">
 
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="30"/>
 
