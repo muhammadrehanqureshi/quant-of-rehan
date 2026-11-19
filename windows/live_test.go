@@ -596,7 +596,7 @@ func TestTelemetryTellsTheTruthAboutScanning(t *testing.T) {
 	a.w, a.h = 120, 30
 	a.link, a.checking = true, false
 	a.market = marketIn("CLOSED")
-	if w, _ := a.scanStatus(); w != "EVERY 1 SECOND" {
+	if w, _ := a.scanStatus(); w != "EVERY SECOND" {
 		t.Errorf("10:00 on a Monday: %q", w)
 	}
 	a.now = time.Date(2026, 11, 7, 11, 0, 0, 0, pkt) // Saturday

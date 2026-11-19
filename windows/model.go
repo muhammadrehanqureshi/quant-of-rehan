@@ -126,8 +126,11 @@ const appVersion = "4.0.21"
 // 23.98 seconds. Build 140 is 3.8.15, the ALERTS and SCANNER search ledgers
 // split by page, the S key on the ALERTS SEARCH tile, the five space sector
 // price gap, the scrip spacing on CUSTOM SCRIPS and the KSE100 bar above the
-// current price.
-const hudBuild = "3.8.15"
+// current price. Build 141 is 3.8.16, the exact SCANNING sentence, the right
+// side open-sector price, the aligned down percentage, the CUSTOM SCRIPS quote
+// on the T column, the right side ALERTS LOG price and percentage, HIGH & LOW,
+// the left SEARCH bar and EVERY SECOND on TELEMETRY and KSE100.
+const hudBuild = "3.8.16"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no
