@@ -478,7 +478,7 @@ func TestAlertsScreenListsTheLogAndBoard(t *testing.T) {
 	a := demoApp(t, 120, 30)
 	a.screen = scrAlerts
 	s := plain(a)
-	for _, want := range []string{"BIG BUYING NOW", "BIG SELLING NOW", "ALERTS LOG (", "shares of", "were bought", "QTY 50k and above", "BUY ORDER"} {
+	for _, want := range []string{"BIG BUYING NOW", "BIG SELLING NOW", "ALERTS LOG (", "shares of", "QTY 50k and above", "BUY ORDER"} {
 		if !strings.Contains(s, want) {
 			t.Errorf("alerts screen is missing %q", want)
 		}
@@ -596,7 +596,7 @@ func TestTelemetryTellsTheTruthAboutScanning(t *testing.T) {
 	a.w, a.h = 120, 30
 	a.link, a.checking = true, false
 	a.market = marketIn("CLOSED")
-	if w, _ := a.scanStatus(); w != "EVERY 1 SECOND" {
+	if w, _ := a.scanStatus(); w != "EVERY SECOND" {
 		t.Errorf("10:00 on a Monday: %q", w)
 	}
 	a.now = time.Date(2026, 11, 7, 11, 0, 0, 0, pkt) // Saturday

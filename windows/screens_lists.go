@@ -413,7 +413,7 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 		a.zebra(c, listX, row, cw, 3, i, s)
 		c.Spans(listX, row, cw, []Span{{fmt.Sprintf("%d. ", i+1), th.Soft, false}, {s, th.Hot, true}})
 		if rightList {
-			a.drawScanQuote(c, listX, row, cw, listX+3+runeLen(s)+2, q, pxW, pxKey)
+			a.drawScanQuote(c, listX, row, cw, listX+3+scanTTextX, true, q, pxW, pxKey)
 		}
 		row += 2 // one blank line, then the values row
 		// Owner order 2026-11-15: every sort uses one fixed set of B, S, U
@@ -421,27 +421,31 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 		// the values, so S, U and T started on different cells from row to row.
 		used := a.putBSTCols(c, listX+3, row, q.Buy, q.Sell, q.Volume, cols, volKey, pxKey)
 		if !rightList {
-			a.drawScanQuote(c, listX, row, cw, listX+3+used+1, q, pxW, pxKey)
+			a.drawScanQuote(c, listX, row, cw, listX+3+used+1, false, q, pxW, pxKey)
 		}
 		row++
 	}
 	a.scrollbar(c, x+w-2, top, a.lvScan.view*3, &a.lvScan)
 }
 
+// scanTTextX is the cell the T label stands on, counted from the B block's
+// first cell. putBSTWide writes B, S and U in fixed eleven cell fields, so the
+// revealed CUSTOM SCRIPS list can start its quote group on that column.
+const scanTTextX = 48
+
 // drawScanQuote draws a scanner scrip's PKR price, its change and its bar at
 // the right of one row. Owner order 2026-11-18: the scrip list on the right of
 // CUSTOM SCRIPS puts them on the scrip's name row, so the B, S, U and T line
-// below keeps its fixed columns. The bar gives way before the price does.
-func (a *App) drawScanQuote(c *Canvas, x, row, w, left int, q Quote, pxW int, pxKey string) {
+// below keeps its fixed columns. Owner order 2026-11-19: that revealed list
+// starts the whole quote group on the T column instead of the far right. The
+// bar gives way before the price does.
+func (a *App) drawScanQuote(c *Canvas, x, row, w, left int, atT bool, q Quote, pxW int, pxKey string) {
 	if q.Price <= 0 {
 		return
 	}
 	th := a.th
 	const chgW = 8
 	end := x + w - 2
-	barStart := end - shareBarWidth + 1
-	chgRight := barStart - 2
-	priceRight := chgRight - chgW - 2
 	px := commaFloat(q.Price, 2)
 	showPrice := func(pkr, pxAt, chgAt int) {
 		c.Text(pkr, row, 3, "PKR", th.Soft, false)
@@ -450,6 +454,23 @@ func (a *App) drawScanQuote(c *Canvas, x, row, w, left int, q Quote, pxW int, px
 			a.flashText(c, chgAt-chgW, row, fit(changeText(*q.ChangePct), chgW), a.dirColor(*q.ChangePct), true, pxKey)
 		}
 	}
+	if atT {
+		chgAt := left + 4 + runeLen(px) + 2 + chgW
+		if chgAt > end {
+			return
+		}
+		showPrice(left, left+4, chgAt)
+		barStart := chgAt + 2
+		if q.Buy != nil && q.Sell != nil && barStart+shareBarWidth <= end+1 {
+			if total := *q.Buy + *q.Sell; total > 0 {
+				a.shareBar(c, barStart, row, shareBarWidth, *q.Buy, *q.Sell)
+			}
+		}
+		return
+	}
+	barStart := end - shareBarWidth + 1
+	chgRight := barStart - 2
+	priceRight := chgRight - chgW - 2
 	switch {
 	case priceRight-pxW-4 >= left:
 		showPrice(priceRight-pxW-4, priceRight-pxW, chgRight)
@@ -629,7 +650,7 @@ func (a *App) drawSearchTile(c *Canvas, x, y, w, h int) {
 			if lq.High > 0 && lq.Low > 0 {
 				put(dy+1, "HIGH ", th.Soft, false)
 				put(dy+1, commaFloat(lq.High, 2), th.Good, false)
-				put(dy+1, "   LOW ", th.Soft, false)
+				put(dy+1, "  &  LOW ", th.Soft, false)
 				put(dy+1, commaFloat(lq.Low, 2), th.Bad, false)
 			}
 		}
@@ -723,7 +744,7 @@ func (a *App) drawSearchLedger(c *Canvas, x, y, w, bottom int, buy, sell, tot *i
 	if tot != nil && tY < bottom {
 		field := leaderVolumeField(*tot)
 		c.Spans(x, tY, w, []Span{{"T=", th.Soft, false}, {field, totalBlue, false}})
-		barX := x + 2 + runeLen(field) + 4
+					barX := x + 2 + runeLen(field) + 2
 		if b+s > 0 && barX+shareBarSpan <= x+w {
 			a.shareBarOnly(c, barX, tY, shareBarSpan, b, s)
 		}
@@ -967,15 +988,28 @@ func (a *App) drawSectorOpen(c *Canvas, x, y, w, h int) {
 		sym := member[i]
 		ry := iy + 3 + n
 		a.selectRow(c, ix, ry, cw, false, func() { a.openSymbol(sym) })
-		c.Spans(ix+1, ry, cw-1, []Span{{fmt.Sprintf("%3d. %-9s", i+1, sym), th.Hot, true}})
+		pctW := shareNetW
+		pctX := ix + cw - pctW
+		priceW := 12
+		priceX := pctX - 2 - priceW
+		nameW := max(1, priceX-(ix+1)-2)
+		c.Text(ix+1, ry, nameW, fit(fmt.Sprintf("%3d. %-9s", i+1, sym), nameW), th.Hot, true)
 		if q, ok := tbl[sym]; ok && q.Price > 0 {
 			px := commaFloat(q.Price, 2)
-			c.Spans(ix+16, ry, cw-16, []Span{{"PKR ", th.Soft, false}, {px, th.Text, true}})
+			rightAlign(c, priceX, ry, priceW, []Span{{"PKR ", th.Soft, false}, {px, th.Text, true}})
 			if q.ChangePct != nil {
-				// Owner order 2026-11-18: the percentage stands five cells after
-				// the price, so the price always reads before it.
-				pctX := ix + 16 + 4 + runeLen(px) + 5
-				c.Text(pctX, ry, cw-(pctX-ix), changeText(*q.ChangePct), a.dirColor(*q.ChangePct), true)
+				// Owner order 2026-11-19: the open sector puts the price and the
+				// percentage on the right, like the closed group list. The arrow
+				// keeps one column and the percentage is right aligned beside it,
+				// so a fall no longer sits one cell to the right of a rise.
+				ink := a.dirColor(*q.ChangePct)
+				arrow := "▲"
+				if *q.ChangePct < 0 {
+					arrow = "▼"
+				}
+				pct := strconv.FormatFloat(math.Abs(*q.ChangePct), 'f', 2, 64) + "%"
+				c.Text(pctX, ry, 1, arrow, ink, true)
+				rightAlign(c, pctX+1, ry, pctW-1, []Span{{pct, ink, true}})
 			}
 		}
 	}
@@ -1583,38 +1617,47 @@ func (a *App) drawAlertLog(c *Canvas, x, y, w, h int) {
 		case "price":
 			kind = "PRICE"
 		}
+		// Owner order 2026-11-19: everything except the current price and the
+		// percentage stays on the left. Those two end on fixed right hand
+		// columns, so a long sentence can no longer cut either of them off and
+		// a fall ends on the same cell as a rise.
 		text := f.Text
-		if f.Detail != "" {
-			text += "  " + f.Detail
+		if at := strings.Index(text, " at PKR "); at >= 0 {
+			text = strings.TrimRight(text[:at], " .") + "."
 		}
-		// Owner order 2026-11-18: the PKR group starts ten cells after the
-		// word bought or sold, so the price, its arrow and the percentage
-		// stand apart from the sentence that names the side.
-		text = strings.Replace(text, " bought at PKR ", " bought          at PKR ", 1)
-		text = strings.Replace(text, " sold at PKR ", " sold          at PKR ", 1)
-		// The alert sentence already carries the move for an order flag. Split
-		// it off so the log can paint the current move green or red instead of
-		// printing the old one twice.
-		move, moveCol := "", th.Hot
-		if pct := a.alertPct(f); pct != nil {
-			if i := strings.LastIndexAny(text, "▲▼"); i >= 0 {
-				text = strings.TrimRight(text[:i], " ")
+		if f.Detail != "" {
+			detail := f.Detail
+			if at := strings.Index(detail, " at PKR "); at >= 0 {
+				detail = strings.TrimRight(detail[:at], " .") + "."
 			}
-			move = "  " + changeText(*pct)
-			moveCol = th.Good
-			if *pct < 0 {
-				moveCol = th.Bad
-			}
+			text += "  " + detail
+		}
+		if f.Silent {
+			text += "  (silent)"
+		}
+		// A flag without a price keeps the whole row for its sentence; only a
+		// priced flag gives the right hand columns their cells.
+		pct := a.alertPct(f)
+		const priceW, pctW, colGap = 10, 8, 1
+		groupX, leadW := lx+lw, lw
+		showGroup := f.Price > 0 || f.ChangePct != nil
+		if showGroup {
+			groupX = lx + lw - (priceW + colGap + pctW)
+			leadW = max(1, groupX-lx-1)
 		}
 		sp := []Span{{f.Time.In(pkt).Format("15:04:05") + "  ", th.Soft, false},
 			{padRight(f.Side+" "+kind, 11), sc, true}, {text, th.Hot, true}}
-		if move != "" {
-			sp = append(sp, Span{move, moveCol, true})
+		c.Spans(lx, row, leadW, sp)
+		if f.Price > 0 {
+			rightAlign(c, groupX, row, priceW, []Span{{"PKR " + commaFloat(f.Price, 2), th.Text, true}})
 		}
-		if f.Silent {
-			sp = append(sp, Span{"  (silent)", th.Soft, false})
+		if showGroup && pct != nil {
+			moveCol := th.Good
+			if *pct < 0 {
+				moveCol = th.Bad
+			}
+			rightAlign(c, groupX+priceW+colGap, row, pctW, []Span{{changeText(*pct), moveCol, true}})
 		}
-		c.Spans(lx, row, lw, sp)
 		row += per
 	}
 	a.scrollbar(c, x+w-2, listY, a.lvLog.view*per, &a.lvLog)

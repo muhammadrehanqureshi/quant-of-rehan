@@ -111,8 +111,8 @@ func TestAlertsSearchLedgerPutsBarAfterT(t *testing.T) {
 	if tAt < 0 || barAt < 0 {
 		t.Fatalf("the ALERTS T line carries no bar: %q", tRow)
 	}
-	if want := tAt + 2 + leaderVolDigits + 2 + 4; barAt != want {
-		t.Fatalf("the bar starts on cell %d, want four cells after T on %d: %q", barAt, want, tRow)
+	if want := tAt + 2 + leaderVolDigits + 2 + 2; barAt != want {
+		t.Fatalf("the bar starts on cell %d, want two cells after T on %d: %q", barAt, want, tRow)
 	}
 }
 

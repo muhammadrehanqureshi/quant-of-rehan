@@ -390,7 +390,7 @@ func hintSpans(s string, th *Theme) []Span {
 func (a *App) scanStatus() (string, RGB) {
 	th := a.th
 	if a.scanning() {
-		return "EVERY 1 SECOND", th.Good
+		return "EVERY SECOND", th.Good
 	}
 	p := a.karachiNow().In(pkt)
 	if isWeekend(p) {
@@ -988,7 +988,7 @@ func (a *App) marketNote() string {
 		case qsPost:
 			return "Post-market session is on and the quant is online now."
 		}
-		return "DATA FROM THE BROKER'S FEED IS BEING SCANNED EVERY 1 SECOND."
+		return "DATA FROM THE BROKER'S FEED IS BEING SCANNED EVERY SECOND."
 	case a.quotes != nil:
 		return "LAST DATA FROM THE BROKER'S FEED."
 	}

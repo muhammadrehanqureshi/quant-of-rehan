@@ -3,6 +3,7 @@ package main
 import (
 	"strings"
 	"testing"
+	"time"
 )
 
 // Owner order 2026-11-18: U ends without a comma, because the ampersand
@@ -106,22 +107,56 @@ func TestCustomScripsRevealOnTheRight(t *testing.T) {
 	t.Fatalf("the first sort did not reveal %q:\n%s", want, strings.Join(rows[start:], "\n"))
 }
 
-// Owner order 2026-11-18: the ALERTS LOG starts its PKR price, arrow and
-// percentage ten cells after the word bought or sold.
-func TestAlertLogPriceStartsTenCellsAfterSide(t *testing.T) {
+// Owner order 2026-11-19: the ALERTS LOG keeps everything else on the left and
+// puts the current price and the percentage on fixed right hand columns, so a
+// fall ends on the same cell as a rise and neither is cut off.
+func TestAlertLogPriceAndPercentageShareTheRightColumns(t *testing.T) {
 	a := demoApp(t, 140, 34)
-	a.flow.Log = []Flag{{
-		Time: a.now, Symbol: "PRL", Kind: "flow", Side: "BUY", Value: 100_000,
-		Price: 114.65, Text: "100k shares of PRL were bought at PKR 114.65.",
-	}}
+	a.flow.Log = []Flag{
+		{Time: a.now.Add(-time.Second), Symbol: "PRL", Kind: "flow", Side: "BUY", Value: 100_000,
+			Price: 114.65, ChangePct: f64(5.08), Text: "100k shares of PRL were bought at PKR 114.65 ▲ 5.08%."},
+		{Time: a.now, Symbol: "KEL", Kind: "flow", Side: "SELL", Value: 100_000,
+			Price: 9.05, ChangePct: f64(-1.25), Text: "100k shares of KEL were sold at PKR 9.05 ▼ 1.25%."},
+	}
 	c := NewCanvas(120, 8, a.th.Panel)
 	a.drawAlertLog(c, 0, 0, 120, 8)
-	s := strings.Join(c.PlainRows(), "\n")
-	gap := strings.Repeat(" ", 10)
-	if strings.Contains(s, " bought at PKR ") || strings.Contains(s, " bought     at PKR ") {
-		t.Fatalf("the log still starts the price too close to bought:\n%s", s)
+	rows := c.PlainRows()
+	s := strings.Join(rows, "\n")
+	if strings.Contains(s, " at PKR ") {
+		t.Fatalf("the log still keeps the old price sentence on the left:\n%s", s)
 	}
-	if !strings.Contains(s, " bought"+gap+"at PKR 114.65") {
-		t.Fatalf("the log does not start the price ten cells after bought:\n%s", s)
+	priceEnd, pctEnd, found := -1, -1, 0
+	for _, row := range rows {
+		pkrAt := col(row, "PKR ")
+		pctAt := col(row, "%")
+		if pkrAt < 0 || pctAt < 0 {
+			continue
+		}
+		arrowAt := col(row, "▲")
+		if arrowAt < 0 {
+			arrowAt = col(row, "▼")
+		}
+		if arrowAt < 0 {
+			continue
+		}
+		runes := []rune(row)
+		end := arrowAt
+		for end > pkrAt && runes[end-1] == ' ' {
+			end--
+		}
+		if priceEnd < 0 {
+			priceEnd = end
+		} else if end != priceEnd {
+			t.Errorf("a price ends on cell %d, want %d: %q", end, priceEnd, row)
+		}
+		if pctEnd < 0 {
+			pctEnd = pctAt
+		} else if pctAt != pctEnd {
+			t.Errorf("a percentage ends on cell %d, want %d: %q", pctAt, pctEnd, row)
+		}
+		found++
+	}
+	if found < 2 {
+		t.Fatalf("the log showed %d price and percentage rows, want two:\n%s", found, s)
 	}
 }

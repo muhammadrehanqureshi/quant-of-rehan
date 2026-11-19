@@ -28,9 +28,9 @@ func TestSearchTileValuesStartOnTheSearchBoxRow(t *testing.T) {
 	}
 }
 
-// Owner order 2026-11-18: an open sector puts the percentage five cells after
-// the price, with the price first.
-func TestOpenSectorPricesStandFiveCellsBeforeThePercentage(t *testing.T) {
+// Owner order 2026-11-19: an open sector puts the price and the percentage on
+// the right, and a fall ends on the same cell as a rise.
+func TestOpenSectorPriceAndPercentageStandOnTheRight(t *testing.T) {
 	a := demoApp(t, 158, 41)
 	a.screen = scrScanner
 	a.sectorOpen, a.sectorChoice = true, 1
@@ -38,28 +38,36 @@ func TestOpenSectorPricesStandFiveCellsBeforeThePercentage(t *testing.T) {
 	c := NewCanvas(120, 12, a.th.Panel)
 	a.drawSectorOpen(c, 0, 0, 120, 12)
 	found := 0
+	pctEnd, arrowCol := -1, -1
 	for _, row := range c.PlainRows() {
 		pkrAt := col(row, "PKR ")
 		if pkrAt < 0 {
 			continue
 		}
-		runes := []rune(row)
-		arrowAt := -1
-		for i := pkrAt; i < len(runes); i++ {
-			if runes[i] == '▲' || runes[i] == '▼' {
-				arrowAt = i
-				break
-			}
+		if pkrAt < 80 {
+			t.Errorf("the open sector price starts on cell %d, want the right side: %q", pkrAt, row)
 		}
-		if arrowAt < 0 {
+		pctAt := col(row, "%")
+		if pctAt < 0 {
 			continue
 		}
-		gap := 0
-		for i := arrowAt - 1; i >= pkrAt && runes[i] == ' '; i-- {
-			gap++
+		if arrowAt := col(row, "▲"); arrowAt >= 0 {
+			if arrowCol < 0 {
+				arrowCol = arrowAt
+			} else if arrowAt != arrowCol {
+				t.Errorf("a rise starts on cell %d, want %d: %q", arrowAt, arrowCol, row)
+			}
+		} else if arrowAt := col(row, "▼"); arrowAt >= 0 {
+			if arrowCol < 0 {
+				arrowCol = arrowAt
+			} else if arrowAt != arrowCol {
+				t.Errorf("a fall starts on cell %d, want %d: %q", arrowAt, arrowCol, row)
+			}
 		}
-		if gap != 5 {
-			t.Errorf("the open sector leaves %d cells after the price, want five: %q", gap, row)
+		if pctEnd < 0 {
+			pctEnd = pctAt
+		} else if pctAt != pctEnd {
+			t.Errorf("a percentage ends on cell %d, want %d: %q", pctAt, pctEnd, row)
 		}
 		found++
 	}
