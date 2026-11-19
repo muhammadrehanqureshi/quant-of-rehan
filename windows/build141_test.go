@@ -41,6 +41,7 @@ func TestBuild141OpenSectorDownPercentageAlignment(t *testing.T) {
 		"AAA": {Price: 10, ChangePct: f64(1.5)},
 		"BBB": {Price: 10, ChangePct: f64(-1.5)},
 	}
+	a.symbols = nil
 	a.sectorOpen, a.sectorChoice = true, 0
 	a.lvSectorStk.top()
 	c := NewCanvas(120, 12, a.th.Panel)

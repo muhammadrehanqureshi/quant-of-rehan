@@ -1635,21 +1635,27 @@ func (a *App) drawAlertLog(c *Canvas, x, y, w, h int) {
 		if f.Silent {
 			text += "  (silent)"
 		}
-		const priceW, pctW = 12, 9
-		groupX := lx + lw - (priceW + 2 + pctW)
-		leadW := max(1, groupX-lx-2)
+		// A flag without a price keeps the whole row for its sentence; only a
+		// priced flag gives the right hand columns their cells.
+		pct := a.alertPct(f)
+		const priceW, pctW, colGap = 10, 8, 1
+		groupX, leadW := lx+lw, lw
+		if f.Price > 0 || pct != nil {
+			groupX = lx + lw - (priceW + colGap + pctW)
+			leadW = max(1, groupX-lx-1)
+		}
 		sp := []Span{{f.Time.In(pkt).Format("15:04:05") + "  ", th.Soft, false},
 			{padRight(f.Side+" "+kind, 11), sc, true}, {text, th.Hot, true}}
 		c.Spans(lx, row, leadW, sp)
 		if f.Price > 0 {
 			rightAlign(c, groupX, row, priceW, []Span{{"PKR " + commaFloat(f.Price, 2), th.Text, true}})
 		}
-		if pct := a.alertPct(f); pct != nil {
+		if pct != nil {
 			moveCol := th.Good
 			if *pct < 0 {
 				moveCol = th.Bad
 			}
-			rightAlign(c, groupX+priceW+2, row, pctW, []Span{{changeText(*pct), moveCol, true}})
+			rightAlign(c, groupX+priceW+colGap, row, pctW, []Span{{changeText(*pct), moveCol, true}})
 		}
 		row += per
 	}

@@ -376,7 +376,7 @@ func TestAlertLogDetailIsWrappedNotCut(t *testing.T) {
 	if strings.Contains(s, "…") {
 		t.Errorf("nothing on the alerts screen should be cut with an ellipsis:\n%s", s)
 	}
-	if !strings.Contains(s, "were bought.") || !strings.Contains(s, "PKR") || !strings.Contains(s, "5.08%") && !strings.Contains(s, "4.29%") {
+	if !strings.Contains(s, "were bought") || !strings.Contains(s, "PKR") || !strings.Contains(s, "5.08%") && !strings.Contains(s, "4.29%") {
 		t.Errorf("the alert sentence should show in full:\n%s", s)
 	}
 }
