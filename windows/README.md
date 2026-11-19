@@ -1,10 +1,11 @@
-# Quant of Rehan for Windows (console edition), build 143
+# Quant of Rehan for Windows (console edition), build 144
 
 A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.21**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
 
-## What is new in build 143
+## What is new in build 144
 
+* **Build 144 (version 3.8.19).** The SCANNER SEARCH tile joins its two readings with `NET DELTA ...  &  NET DELTA % ...`: two cells either side of the ampersand and exactly one cell after the `NET DELTA %` label. The KSE100 leaders keep their NET DELTA and percentage at every width, so when the volumes and the quote no longer share one line the quote takes the line under the volumes instead of losing the two figures. The executable's file version is `3.8.19.0`.
 * **Build 143 (version 3.8.18).** Every tile shares one quote group: PKR holds its column, the price keeps its own field, and exactly one cell stands between the up or down arrow and the percentage. ALERTS SEARCH puts one cell between NET DELTA and its value. ALERTS LOG ends bought and sold with `at` instead of a full stop, so the sentence leads into its price. The KSE100 leaders move their price, percentage and bar left and carry NET DELTA before the percentage. The open SECTORS list aligns PKR, the price and the arrow on fixed columns, and CUSTOM SCRIPS OF VOLUME uses the same group. BIG BUYING NOW and BIG SELLING NOW carry the standard heading diamond, with only their words in green and red. The executable's file version is `3.8.18.0`.
 * **Build 142 (version 3.8.17).** The post-market phase now starts at 15:32 Monday to Thursday and 16:32 on Friday, not at the 15:30 and 16:30 trading close. The two-minute gap after the close is no longer labelled POST. The executable's file version is `3.8.17.0`.
 * **Build 141 (version 3.8.16).** The SETTINGS SCANNING line reads `1 second relay poll from 08:55 to 15:49 on Mon-Thu and on Friday till 16:49.` An open SECTORS group puts its price and percentage on the right, with the percentage right aligned so a fall no longer sits one cell to the right of a rise. The revealed CUSTOM SCRIPS list starts its price, percentage, bar and NET DELTA on the T column. ALERTS LOG keeps everything else on the left and puts the current price and percentage on fixed right hand columns, so neither is cut off. HIGH and LOW read as `HIGH ...  &  LOW ...`. The ALERTS SEARCH bar moves two cells left, and TELEMETRY and the KSE100 footer read `EVERY SECOND`. The executable's file version is `3.8.16.0`.

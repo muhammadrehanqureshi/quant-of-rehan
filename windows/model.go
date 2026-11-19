@@ -135,8 +135,11 @@ const appVersion = "4.0.21"
 // 3.8.18, one quote group on every tile: a spaced NET DELTA, the word at before
 // the ALERTS LOG price, the KSE100 NET DELTA in front of the percentage, the
 // SECTORS and CUSTOM SCRIPS price columns, and the standard heading diamond on
-// both big-order boards.
-const hudBuild = "3.8.18"
+// both big-order boards. Build 144 is 3.8.19, the SCANNER SEARCH tile joining
+// NET DELTA and NET DELTA % with an ampersand and exactly one cell after the
+// label, and the KSE100 quote keeping both figures on a tile too narrow to
+// hold them beside the price.
+const hudBuild = "3.8.19"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no

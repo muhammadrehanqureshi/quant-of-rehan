@@ -701,17 +701,23 @@ func (a *App) drawSearchLedger(c *Canvas, x, y, w, bottom int, buy, sell, tot *i
 		}
 		a.shareBarOnly(c, x, y+1, barW, b, s)
 		netX := x + barW + 2
-		if netX+quoteNetLabelW+1+quoteNetValW+quoteGap+11+1+7 > x+w {
+		// Owner order 2026-11-19 (latest): the NET DELTA and its percentage read
+		// as one figure, an ampersand between them with two cells on each side,
+		// and exactly one cell after the NET DELTA % label.
+		const netRowW = quoteNetLabelW + 1 + quoteNetValW + 5 + 11 + 1 + 7
+		if netX+netRowW > x+w {
 			return
 		}
 		net, ink, bold := a.searchNet(b, s)
 		c.Text(netX, y+1, quoteNetLabelW, "NET DELTA", th.Soft, false)
 		valX := netX + quoteNetLabelW + 1
 		rightAlign(c, valX, y+1, quoteNetValW, []Span{{net, ink, bold}})
-		pctX := valX + quoteNetValW + quoteGap
+		ampX := valX + quoteNetValW
+		c.Text(ampX, y+1, 5, "  &  ", th.Soft, false)
+		pctX := ampX + 5
 		pct := searchNetPct(b, s)
 		c.Text(pctX, y+1, 11, "NET DELTA %", th.Soft, false)
-		rightAlign(c, pctX+11+1, y+1, 7, []Span{{pct, ink, bold}})
+		c.Text(pctX+12, y+1, 7, pct, ink, bold)
 		return
 	}
 	sp := []Span{{"B=", th.Soft, false}}
@@ -749,8 +755,9 @@ func (a *App) drawSearchLedger(c *Canvas, x, y, w, bottom int, buy, sell, tot *i
 	valX := x + quoteNetLabelW + 1
 	rightAlign(c, valX, nY, quoteNetValW, []Span{{net, ink, bold}})
 	pctX := valX + quoteNetValW + quoteGap
-	c.Text(pctX, nY, 11, "NET DELTA %", th.Soft, false)
-	rightAlign(c, pctX+11+1, nY, 7, []Span{{pct, ink, bold}})
+			c.Text(pctX, nY, 11, "NET DELTA %", th.Soft, false)
+		// Owner order 2026-11-19: one cell after the label, never two.
+		c.Text(pctX+12, nY, 7, pct, ink, bold)
 }
 
 // searchNet is the NET DELTA on the SEARCH tile's bar line, as a magnitude in
