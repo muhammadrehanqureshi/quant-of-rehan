@@ -4286,9 +4286,9 @@ public class MainActivity extends Activity {
                 filtered.add(symbol);
             }
         }
-        if (q.isEmpty()) {
-            filtered.clear();
-        }
+        // Owner order 2026-11-19: the SEARCH tile's drop-down opens like
+        // the THEMES one, onto its options. An empty box lists the first
+        // eight scrips instead of hiding the list; typing narrows it.
         List<String> visible = filtered.subList(0, Math.min(filtered.size(), 8));
         // v1.8.4 (owner 13:30 report): the rows and the pinned line must be
         // VISIBLE exactly when there is something to show, because the

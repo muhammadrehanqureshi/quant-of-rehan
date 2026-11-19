@@ -2390,8 +2390,8 @@ class VersionTest(unittest.TestCase):
         # box, numbered sub menus, H & L, the always-listed SECTORS tile,
         # the 100k board and its five complete orders ship as 4.4.3,
         # versionCode 136.
-        self.assertIn('android:versionName="4.4.3"', manifest)
-        self.assertIn('android:versionCode="136"', manifest)
+        self.assertIn('android:versionName="4.4.4"', manifest)
+        self.assertIn('android:versionCode="137"', manifest)
         self.assertNotIn('android:versionName="4.0.15"', manifest)
         self.assertNotIn('android:versionName="4.0.14"', manifest)
         self.assertNotIn('android:versionName="3.7.5"', manifest)
@@ -2621,8 +2621,8 @@ class VersionTest(unittest.TestCase):
         # 2026-11-17: the centred closed faces and the SECTORS fix ship as
         # 4.4.2, versionCode 135. The owner's 2026-11-19 order ships as
         # 4.4.3, versionCode 136.
-        self.assertIn('android:versionCode="136"', manifest)
-        self.assertIn('android:versionName="4.4.3"', manifest)
+        self.assertIn('android:versionCode="137"', manifest)
+        self.assertIn('android:versionName="4.4.4"', manifest)
         self.assertNotIn('android:versionName="4.0.15"', manifest)
         self.assertNotIn('android:versionName="3.7.5"', manifest)
         self.assertNotIn('android:versionName="3.7.4"', manifest)

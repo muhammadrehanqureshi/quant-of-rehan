@@ -587,6 +587,10 @@
      SECTORS reads at launch and wears its best sector before the first tap;
      and its diamond scroller measures the finished six-row window.
 
+     versionCode 137 / versionName 4.4.4 belong to the owner's order of
+     2026-11-19, second pass: the SEARCH tile's empty drop-down lists its
+     first eight scrips like the THEMES menu lists its options.
+
      versionCode 136 / versionName 4.4.3 belong to the owner's order of
      2026-11-19: GREEN & YELLOW, NAVY BLUE & WHITE and ORANGE & WHITE leave
      the THEMES menu; RELAY STATUS takes the 43dp THEMES box height; CUSTOM
@@ -598,8 +602,8 @@
      -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="pk.quantofrehan"
-    android:versionCode="136"
-    android:versionName="4.4.3">
+    android:versionCode="137"
+    android:versionName="4.4.4">
 
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="30"/>
 

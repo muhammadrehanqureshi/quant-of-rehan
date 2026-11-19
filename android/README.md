@@ -1641,6 +1641,13 @@ to sixty seconds. The status tile therefore also carries the app's own
      the orphan law stands so every dot still wears a filament.
   5. The version bump is versionCode 82 / versionName 2.3.15.
 
+**Version 4.4.4, versionCode 137.**
+
+  Owner order 2026-11-19, second pass. The SEARCH tile's result drop-down now
+  behaves like the THEMES drop-down: with the box empty it lists the first
+  eight scrips instead of staying blank, and typing narrows that list. The
+  version bump is versionCode 137 / versionName 4.4.4.
+
 **Version 4.4.3, versionCode 136.**
 
   Owner order 2026-11-19. THEMES carries purple and black only: GREEN &
