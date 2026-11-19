@@ -1,19 +1,21 @@
 """The authoritative intraday scanner: one strategy, the one the owner named.
 
 Owner order 2026-11-16 (Karachi): the previous hybrid law is removed and the
-only strategy is the Kalman Trend with VWAP on the 5 minute and 15 minute
-charts and the z-score price-VWAP spread as its statistical base
+only strategy is the Kalman Trend with VWAP on the 5 minute, 15 minute and 30
+minute charts and the z-score price-VWAP spread as its statistical base
 (src/signals/kalman_zscore_vwap.py). The capture validation and the public
 SessionData/ScanResult contracts stay stable for all runners. The scanner
 builds its single entry through src/signals/kalman_trend.py's causal
-level+slope trend clock; the 15 minute frame confirms the regime and the 5
-minute spread is the z-scored dislocation.
+level+slope trend clock; the 15 and 30 minute frames confirm the regime and
+the 5 minute spread is the z-scored dislocation.
 
-Owner order 2026-11-19 (Karachi): a call must arrive at or around 10:00, the
-pick may not already be more than 2% up on the day, and its measured buyers
-must be at least twice its measured sellers. The 30 minute frame is withdrawn
-because it made the first call impossible before 10:32; the session carries
-the venue's previous close and the tape's buy/sell split so both gates read
+Owner order 2026-11-19 (Karachi), the later order: all three VWAP frames stay,
+the call must arrive early, the pick may not already be more than 2% up on
+the day, and its measured buyers must be at least twice its measured sellers.
+The
+shortened 5 minute history makes the fast frame ready early; the 30 minute
+frame's second completed bar is the binding clock. The session carries the
+venue's previous close and the tape's buy/sell split so both gates read
 measured facts.
 The old RSI diagnostic remains solely for reproducing the HCAR postmortem.
 Asia/Karachi, UTC+5. Signal-only, no broker orders and no assured returns.
@@ -674,8 +676,8 @@ def score_symbol(symbol: str, rows: list[MinuteBar], session: SessionData,
                  frames: bool = False) -> dict | None:
     """Score one symbol under the Kalman Trend and z-score spread law.
 
-    `frames` says whether this deployment reads the 5 minute and 15 minute
-    VWAP frames (src/signals/mtf_vwap.py). The one running law
+    `frames` says whether this deployment reads the 5 minute, 15 minute and
+    30 minute VWAP frames (src/signals/mtf_vwap.py). The one running law
     cannot be evaluated without them, so False means no entry at all and the
     reason is named; the live pipeline passes the deployment flag from
     src/config.py.
@@ -788,11 +790,11 @@ def signal_message(candidate: dict, market: dict, entry: float,
     z = zview.get("z")
     fast = (zview.get("frames") or {}).get("5m") or {}
     if z is not None and fast.get("vwap") is not None:
-        reason = (f"Kalman trend up with 5m and 15m aligned; the 5m "
+        reason = (f"Kalman trend up with 5m, 15m and 30m aligned; the 5m "
                   f"price-VWAP spread is {z:+.2f} sigma versus its own "
                   f"trailing mean (VWAP {fast['vwap']})")
     else:
-        reason = "Kalman trend up with the 5m and 15m VWAP frames aligned"
+        reason = "Kalman trend up with the 5m, 15m and 30m VWAP frames aligned"
     lines = [
         "QUANT LONG SIGNAL - PAPER REFERENCE",
         "",

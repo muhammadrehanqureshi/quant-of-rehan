@@ -1,4 +1,4 @@
-"""The one running intraday law: the Kalman Trend, the 5m/15m VWAP frames
+"""The one running intraday law: the Kalman Trend, the 5m/15m/30m VWAP frames
 and the z-score price-VWAP spread.
 
 Owner order 2026-11-16 (Karachi): the previous hybrid law is removed and the
@@ -120,8 +120,8 @@ def candidate(symbol: str, rows: list, session,
     turnover floors, freshness, no continuity across a gap) plus the owner's
     fixed +2% / -1% plan. The STRATEGY is the z-score spread law and only it.
 
-    `frames` says whether this deployment reads the 5 minute and 15 minute
-    VWAP frames (src/signals/mtf_vwap.py). The law cannot be evaluated
+    `frames` says whether this deployment reads the 5 minute, 15 minute and 30
+    minute VWAP frames (src/signals/mtf_vwap.py). The law cannot be evaluated
     without them, so a deployment that is not reading them (a replay or a
     unit fixture with no higher timeframe history) has no entry at all and
     names that reason; the live pipeline passes the deployment flag.
@@ -129,9 +129,9 @@ def candidate(symbol: str, rows: list, session,
     if config.is_etf_symbol(symbol) or session.as_of.tzinfo is None:
         _bump(tally, "etf_or_naive_tz")
         return None
-    # Keep the whole session before the current band's own rows are trimmed
-    # below: a Friday afternoon band must still see the morning's completed
-    # bars across the exchange's midday break.
+    # Keep the whole session for the 30 minute frame before the current
+    # band's own rows are trimmed below: a Friday afternoon band must still
+    # see the morning's completed bars across the exchange's midday break.
     mtf_rows = list(rows)
     band = current_band(session.as_of)
     if band is None:
@@ -261,8 +261,8 @@ def candidate(symbol: str, rows: list, session,
         "last_bar": last.timestamp.isoformat(), "bars": len(rows),
         "entry_basis": "latest completed close after the 5 minute price-VWAP "
                        "spread fell by the configured z score below its own "
-                       "trailing mean, with the 5m and 15m Kalman states up "
-                       "and the 15m frame above its VWAP, inside a day move of "
+                       "trailing mean, with 5m, 15m and 30m Kalman states up "
+                       "and the slower frames above VWAP, inside a day move of "
                        "at most 2% and a measured buy/sell split of at least "
                        "2:1; paper reference, not a fill",
     }

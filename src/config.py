@@ -284,19 +284,21 @@ KALMAN_MAX_SIGNAL_AGE_SECONDS = 60
 KALMAN_LAST_ENTRY_MINUTES = 30
 
 # ------------------------------------------------- multi-timeframe VWAP
-# Owner order 2026-11-16: VWAP joins the Kalman Trend on the 5 minute and 15
-# minute charts. The one minute tape stays the execution clock and the trend
-# gate; these frames are the regime the entry must agree with, each by its
-# own VWAP and Kalman state (src/signals/mtf_vwap.py).
+# Owner order 2026-11-16: VWAP joins the Kalman Trend on the 5 minute, 15
+# minute and 30 minute charts. The one minute tape stays the execution clock
+# and the trend gate; these three frames are the regime the entry must agree
+# with, each by its own VWAP and Kalman state (src/signals/mtf_vwap.py).
 #
-# Owner order 2026-11-19 (Karachi): a call must be possible in the first half
-# hour of every market session. The 30 minute frame is withdrawn by that order,
-# because two completed 30 minute bars cannot exist until more than an hour
-# into a session, which made the owner's time requirement impossible. The
-# lookbacks below are sized for the same order: three 5 minute bars is a 15
-# minute VWAP line and three earlier spreads are enough for the z, so the
-# law's first legal minute is seven completed 5m bars, thirty-five minutes
-# after the open (the tests and the docs carry the exact clock times).
+# Owner order 2026-11-19 (Karachi), the later order: all three frames stay, at
+# 5, 15 and 30 minutes, and the call must still arrive early in the session.
+# What makes it early is the 5 minute history, not a dropped frame: three
+# 5 minute bars is a 15 minute VWAP line and three earlier spreads are enough
+# for the z, so the fast frame and its z are ready seven completed 5m bars in.
+# The 30 minute frame is the binding clock and that is arithmetic, not a
+# choice: its Kalman state needs two completed bars of its own, so it can
+# first vote sixty minutes after the open (10:32 Mon-Thu, 10:17 Friday, and
+# Asia/Karachi UTC+5 is the one clock here). Every frame is still required, so
+# a call exists from that minute on, not before it.
 #
 # The 1 day frame and the data/mtf_daily.csv.gz file it needed are withdrawn
 # by the same order. The law now reads the session tape alone, so a missing
@@ -306,19 +308,19 @@ MTF_ENABLED = _flag("MTF_ENABLED", True)
 # It defaults off so an offline unit test or a replay without the higher
 # frames runs the one minute law it was written to test instead of failing
 # on frames that a short fixture cannot hold. The live pipeline passes this
-# flag to the scanner, so the two frame law is never half-applied.
+# flag to the scanner, so the three frame law is never half-applied.
 MTF_REQUIRE_FRAMES = _flag("MTF_REQUIRE_FRAMES", False)
-MTF_TIMEFRAMES = (5, 15)
-MTF_VWAP_LOOKBACK = {5: 3, 15: 12}
-MTF_MIN_BARS = {5: 3, 15: 2}
+MTF_TIMEFRAMES = (5, 15, 30)
+MTF_VWAP_LOOKBACK = {5: 3, 15: 12, 30: 12}
+MTF_MIN_BARS = {5: 3, 15: 2, 30: 2}
 
 # ------------------- the z-score price-VWAP spread strategy
-# Owner order 2026-11-16 (Karachi): the Kalman Trend with VWAP on the 5 and
-# 15 minute charts, and the z-score of the price minus VWAP spread as the
+# Owner order 2026-11-16 (Karachi): the Kalman Trend with VWAP on the 5, 15
+# and 30 minute charts, and the z-score of the price minus VWAP spread as the
 # mathematical base (src/signals/kalman_zscore_vwap.py). The one minute trend
-# is the execution clock; the 15 minute frame must stay above its VWAP with
-# Kalman state +1 while the 5 minute spread is stretched below its trailing
-# mean. The new law is the ONE entry law, not a second engine.
+# is the execution clock; the 15 and 30 minute frames must stay above their
+# VWAP with Kalman state +1 while the 5 minute spread is stretched below its
+# trailing mean. The new law is the ONE entry law, not a second engine.
 ZSCORE_ENABLED = _flag("ZSCORE_ENABLED", True)
 ZSCORE_STRATEGY_VERSION = "kalman_vwap_zscore_sa_v1"
 #: The frame whose price-VWAP spread is standardised for the entry.
@@ -666,8 +668,8 @@ def config_snapshot() -> dict:
             "min_spreads": ZSCORE_MIN_SPREADS,
             "basis": "z score of the current price minus rolling VWAP "
                      "spread against that spread's own trailing mean and "
-                     "standard deviation, with the 15 minute frame above "
-                     "VWAP and every Kalman state up",
+                     "standard deviation, with the 15 and 30 minute frames "
+                     "above VWAP and every Kalman state up",
         },
         "entry_gates": {
             "max_day_gain_pct": round(MAX_DAY_GAIN_PCT * 100, 4),
