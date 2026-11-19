@@ -1,10 +1,11 @@
-# Quant of Rehan for Windows (console edition), build 141
+# Quant of Rehan for Windows (console edition), build 142
 
 A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.21**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
 
-## What is new in build 141
+## What is new in build 142
 
+* **Build 142 (version 3.8.17).** The post-market phase now starts at 15:32 Monday to Thursday and 16:32 on Friday, not at the 15:30 and 16:30 trading close. The two-minute gap after the close is no longer labelled POST. The executable's file version is `3.8.17.0`.
 * **Build 141 (version 3.8.16).** The SETTINGS SCANNING line reads `1 second relay poll from 08:55 to 15:49 on Mon-Thu and on Friday till 16:49.` An open SECTORS group puts its price and percentage on the right, with the percentage right aligned so a fall no longer sits one cell to the right of a rise. The revealed CUSTOM SCRIPS list starts its price, percentage, bar and NET DELTA on the T column. ALERTS LOG keeps everything else on the left and puts the current price and percentage on fixed right hand columns, so neither is cut off. HIGH and LOW read as `HIGH ...  &  LOW ...`. The ALERTS SEARCH bar moves two cells left, and TELEMETRY and the KSE100 footer read `EVERY SECOND`. The executable's file version is `3.8.16.0`.
 * **Build 140 (version 3.8.15).** The ALERTS SEARCH tile drops the BARS word, starts its bar four cells after T, opens with S, and names `Press "S" to search`. The SCANNER SEARCH tile puts T after U, drops BARS, starts its values on the search box row, and puts the bar with NET DELTA and NET DELTA % below the volumes. An open SECTORS group puts each price before its percentage with five cells between them. CUSTOM SCRIPS keeps one blank row between a scrip and its B, S, U and T values. ALERTS LOG starts `at PKR` ten cells after bought or sold. The KSE100 bars move above the price line and begin on the current price's cell. The executable's file version now matches the HUD build, `3.8.15.0`.
 * **Build 139 (version 3.8.14).** The live relay is read every 1 second instead of every 3 seconds, so a new broker snapshot waits at most 1 second for the client. The broker still refreshes each stock every 23.98 seconds; that is the wire's own cycle, and no client can make one stock update faster. The SCANNING tile now states both numbers.
