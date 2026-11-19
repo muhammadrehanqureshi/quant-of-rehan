@@ -814,9 +814,10 @@ class SettingsControlTest(unittest.TestCase):
                      "@+id/sectors_scroller", "@+id/sectors_reveal",
                      "@+id/rule_sectors"):
             self.assertIn(view, self.layout)
-        # Owner order 2026-11-15: the SECTORS tile carries no caret.
-        self.assertNotIn("@+id/sectors_arrow", self.layout)
-        self.assertNotIn("sectorsArrow", self.main)
+        # Owner order 2026-11-19: the SECTORS tile carries the THEMES
+        # tile's own caret, so its dropdown reads and behaves alike.
+        self.assertIn("@+id/sectors_arrow", self.layout)
+        self.assertIn("sectorsArrow", self.main)
         self.assertGreater(self.layout.index("@+id/tile_sectors"),
                            self.layout.index("@+id/big_prints_panel"))
         strings = STRINGS.read_text(encoding="utf-8")
