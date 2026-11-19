@@ -214,12 +214,14 @@ class RoutingTest(unittest.TestCase):
         """
         from tests.kalman_fixture import setup_values
 
-        as_of = datetime(2026, 10, 8, 11, 43, tzinfo=KARACHI)
+        # 11:30 is inside the fixture's measured dip, where the 15 minute
+        # VWAP still sits above the price (the law's entry window).
+        as_of = datetime(2026, 10, 8, 11, 30, tzinfo=KARACHI)
         open_at = as_of.replace(hour=9, minute=32, second=0, microsecond=0)
         bars = {}
         for symbol in ["AAA"] + [f"QUIET{index:02d}" for index in range(70)]:
             rows = []
-            for index in range(131):
+            for index in range(118):
                 if symbol == "AAA":
                     op, hi, lo, close, volume = setup_values(index)
                 else:
@@ -227,9 +229,17 @@ class RoutingTest(unittest.TestCase):
                 rows.append(scanner.MinuteBar(open_at + timedelta(minutes=index),
                                               op, hi, lo, close, volume))
             bars[symbol] = rows
+        # Owner order 2026-11-19: the candidate path also gates on the day's
+        # move and on a measured buy/sell split. The venue's previous close is
+        # anchored at the latest close (a 0% day) and the buyers are twice the
+        # sellers, so any refusal below is the trend law's own.
         session = scanner.SessionData(
             day=as_of.date(), as_of=as_of, bars=bars, volume_available=True,
-            bars_seen=131 * len(bars), bars_rejected=0, duplicate_bars=0)
+            bars_seen=118 * len(bars), bars_rejected=0, duplicate_bars=0,
+            previous_close={symbol: rows[-1].close
+                            for symbol, rows in bars.items()},
+            buy_volume={symbol: 200_000 for symbol in bars},
+            sell_volume={symbol: 100_000 for symbol in bars})
         with patch.object(kalman_trend, "filter_series",
                           lambda closes, q, r, threshold: [
                               {"level": 0.0, "slope": 1e-4, "state": 1,

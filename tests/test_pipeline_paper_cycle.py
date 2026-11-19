@@ -223,18 +223,30 @@ def build_tape_window(path: Path, symbols: list[str], start: datetime,
     On-time captures start at the open; a fire GitHub delivered late banked
     only its own late minutes, and that shape is what the late-fire tests are
     about (owner defect 2026-10-28: slot label 11:30, tape starting 11:50).
+
+    Every row carries the venue's own previous close (owner order 2026-11-19:
+    the day's move is measured from it) and a two-sided book, so the measured
+    buy/sell split comes from the tape's one side rule. Print sizes are uneven
+    on purpose: the rising prints carry most of the minute and the falling one
+    little, which is what a buyer-led tape looks like.
     """
     with path.open("w", encoding="utf-8") as handle:
         for symbol in symbols:
             total = 0
+            reference = 103.0 if symbol == WINNER else 100.0
             for minute in range(minutes):
                 op, hi, lo, close, volume = (setup_values(minute) if symbol == WINNER
                                            else (100, 100.01, 99.99, 100, 5000))
-                for second, price in zip((0, 10, 20, 50), (op, hi, lo, close)):
-                    total += volume // 4
+                for second, price, part in zip((0, 10, 20, 50),
+                                               (op, hi, lo, close),
+                                               (2, 5, 1, 2)):
+                    total += volume * part // 10
                     stamp = start + timedelta(minutes=minute, seconds=second)
                     handle.write(json.dumps({"kind": "MKT-FEED|SUB%", "ts": stamp.isoformat(),
                         "ticks": [{"scrip": f"{symbol}:REG", "last": str(price),
+                                   "close": str(reference),
+                                   "bid": str(round(price - 0.02, 4)),
+                                   "ask": str(round(price + 0.02, 4)),
                                    "volume": str(total), "tick_time": stamp.strftime("%H:%M:%S"),
                                    "trades": str(minute * 4 + second + 1)}]}) + "\n")
     return path
@@ -245,7 +257,11 @@ class PipelineCycleTest(unittest.TestCase):
         self._dir = tempfile.TemporaryDirectory()
         self.addCleanup(self._dir.cleanup)
         root = Path(self._dir.name)
-        self.capture = build_capture(root / "capture.ndjson", self.symbols())
+        # The live bar source is the broker tape, and it is the only source
+        # that carries both facts owner order 2026-11-19 gates on: the venue's
+        # previous close and a measured buy/sell split. The poller capture has
+        # neither, so the cycle is driven on the tape here.
+        self.capture = build_tape(root / "capture.ndjson", self.symbols())
 
         # Point the state machine at the temporary directory so the test can
         # never touch a real session lock. The pipeline derives its forward
@@ -409,9 +425,9 @@ class PipelineCycleTest(unittest.TestCase):
         text.encode("ascii")
 
     def test_full_paper_cycle(self):
-        # 11:28 is the first slot with enough tape for the one hour frame and
-        # a price still stretched below the fifteen minute VWAP.
-        first = self.scan("11:28")
+        # 11:20 is a slot with enough tape for both frames and a price still
+        # stretched below the 15 minute VWAP (the fixture's measured dip).
+        first = self.scan("11:20")
         quality = first["data_quality"]
 
         self.assertEqual(quality["status"], "OK")
@@ -521,7 +537,7 @@ class PipelineCycleTest(unittest.TestCase):
         stop or target sentence, never on the entry sentence.
         """
         with patch.object(pipeline, "email_signal", return_value=True):
-            first = self.scan("11:28")
+            first = self.scan("11:20")
             self.assertEqual(first["status"], scanner.TRADE)
             entry = first["candidate"]["price"]["last"]
             stop = round(entry * (1 - config.KALMAN_STOP_PCT), 4)
@@ -533,7 +549,7 @@ class PipelineCycleTest(unittest.TestCase):
                 row = json.loads(line)
                 if row["symbol"] == WINNER:
                     for bar in row["bars"]:
-                        if bar["t"] == "11:28":
+                        if bar["t"] == "11:20":
                             bar.update(o=entry,
                                        h=round(entry * 1.005, 4),
                                        l=round(entry * 0.98, 4),
@@ -579,7 +595,7 @@ class PipelineCycleTest(unittest.TestCase):
         runner cannot rely on seeing the exit event again. It must bank the
         stored close before it reads a fresh tape, and only once.
         """
-        self.scan("11:28")
+        self.scan("11:20")
         state = trade_state.SessionState.load(FRIDAY, path=self.state_path)
         self.assertTrue(state.in_position())
         state.mark_stop_hit(state.entry_price * 0.99, FIXED_NOW)
@@ -613,7 +629,7 @@ class PipelineCycleTest(unittest.TestCase):
         precision the relay's research routes validate (the 30 second slot
         label is refused with 400 "invalid observation").
         """
-        first = self.scan("11:28")
+        first = self.scan("11:20")
         self.assertEqual(first["status"], scanner.TRADE)
         self.assertEqual(first["claim"]["ok"], True)
         self.assertEqual(first["claim"]["detail"], "claimed")
@@ -634,7 +650,7 @@ class PipelineCycleTest(unittest.TestCase):
         self.relay.claims = False
         with contextlib.redirect_stdout(io.StringIO()):
             with patch.object(pipeline, "email_signal") as mail:
-                result = run_scan("11:28", self.capture)
+                result = run_scan("11:20", self.capture)
 
         self.assertEqual(result["status"], State.DAILY_LOCKED)
         self.assertEqual(result["delivered"], "LOCKED")
@@ -652,7 +668,7 @@ class PipelineCycleTest(unittest.TestCase):
         """No answer, no entry: an unverifiable lock cannot promise one trade."""
         self.relay.refuse = ("/research/claim",)
         with contextlib.redirect_stdout(io.StringIO()):
-            result = run_scan("11:28", self.capture)
+            result = run_scan("11:20", self.capture)
 
         self.assertEqual(result["status"], State.DAILY_LOCKED)
         self.assertEqual(result["trade_state"]["trades_today"], 0)
@@ -676,10 +692,10 @@ class PipelineCycleTest(unittest.TestCase):
                     pipeline.relay_slot(bad)
 
         with contextlib.redirect_stdout(io.StringIO()):
-            result = run_scan("11:28:30", self.capture)
-        self.assertEqual(result["slot"], "11:28:30")
+            result = run_scan("11:20:30", self.capture)
+        self.assertEqual(result["slot"], "11:20:30")
         self.assertEqual(self.relay.payload_for("/research/observation")["slot"],
-                         "11:28", "a seconds slot was sent to the archive route")
+                         "11:20", "a seconds slot was sent to the archive route")
 
     def test_a_refused_notification_is_never_reported_as_a_delivered_trade(self):
         """Owner defect 2026-10-16: delivered said TRADE even when nothing was.
@@ -692,7 +708,7 @@ class PipelineCycleTest(unittest.TestCase):
         """
         with contextlib.redirect_stdout(io.StringIO()):
             with patch.object(pipeline, "email_signal", return_value=False):
-                result = run_scan("11:28", self.capture)
+                result = run_scan("11:20", self.capture)
 
         self.assertEqual(result["status"], scanner.TRADE)
         self.assertEqual(result["trade_state"]["trades_today"], 1)
@@ -710,7 +726,7 @@ class PipelineCycleTest(unittest.TestCase):
         """TEST 4 at pipeline level: no capture, no trade, honest reason."""
         missing = Path(self._dir.name) / "does_not_exist.ndjson"
         with contextlib.redirect_stdout(io.StringIO()):
-            result = run_scan("11:28", missing)
+            result = run_scan("11:20", missing)
 
         self.assertEqual(result["status"], scanner.DATA_BLOCKED)
         self.assertEqual(result["trade_state"]["trades_today"], 0)
@@ -765,7 +781,7 @@ class PipelineCycleTest(unittest.TestCase):
         app card and in the archive instead of the inbox.
         """
         with contextlib.redirect_stdout(io.StringIO()):
-            payload = run_scan("11:28", self.capture)
+            payload = run_scan("11:20", self.capture)
 
         self.assertTrue(payload.get("gate_tally"),
                         "the payload named no gate rejections"
@@ -784,7 +800,7 @@ class PipelineCycleTest(unittest.TestCase):
         the scan clock alone must never buy a write.
         """
         with contextlib.redirect_stdout(io.StringIO()):
-            first = run_scan("11:28", self.capture)      # TRADE: archived
+            first = run_scan("11:20", self.capture)      # TRADE: archived
             second = run_scan("11:40", self.capture)     # target hit: changed
 
         self.assertEqual(first["status"], scanner.TRADE)
@@ -825,7 +841,7 @@ class TapeBarCycleTest(PipelineCycleTest):
                                   self.symbols())
 
     def test_the_cycle_runs_on_tape_bars_and_says_so(self):
-        first = self.scan("11:28")
+        first = self.scan("11:20")
         quality = first["data_quality"]
 
         self.assertIn("MKT-FEED tape", quality["source"])
@@ -845,7 +861,7 @@ class TapeBarCycleTest(PipelineCycleTest):
         thin = build_tape(self.capture.parent / "thin.ndjson", self.symbols(),
                           minutes=5)
         with contextlib.redirect_stdout(io.StringIO()):
-            result = run_scan("11:28", thin)
+            result = run_scan("11:20", thin)
 
         self.assertEqual(result["status"], scanner.DATA_BLOCKED)
         self.assertIn("bar history", result["reason"])

@@ -343,6 +343,16 @@ def _trade_side(row: Mapping, previous: Mapping | None) -> tuple[str, str]:
     return "", ""
 
 
+def trade_side(row: Mapping, previous: Mapping | None) -> tuple[str, str]:
+    """The one side rule, public, for every reader of this tape.
+
+    src/data/tape_bars.py attributes each window's shares here when it builds
+    the bars, so the scanner's buyer gate and the phone's card are the same
+    measurement of the same tape rather than two rules that can drift.
+    """
+    return _trade_side(row, previous)
+
+
 def session_flow(path: Path,
                  symbols: Iterable[str] | None = None) -> dict[str, SymbolFlow]:
     """Buy/sell/total volume per symbol from one capture file.

@@ -1,4 +1,4 @@
-"""The one running intraday law: the Kalman Trend, the 5m/15m/30m VWAP frames
+"""The one running intraday law: the Kalman Trend, the 5m/15m VWAP frames
 and the z-score price-VWAP spread.
 
 Owner order 2026-11-16 (Karachi): the previous hybrid law is removed and the
@@ -86,6 +86,29 @@ def filter_series(closes: list[float], q: float, r: float,
     return out
 
 
+def day_gain_pct(session, symbol: str,
+                 entry: float) -> tuple[float | None, str, float | None]:
+    """The pick's day move, from the venue's own reference when it exists.
+
+    Owner order 2026-11-19 (Karachi): the pick may not already be more than
+    MAX_DAY_GAIN_PCT up on the day. A move measured from the session's own
+    first bar would call a name that gapped up at the open flat, which is
+    exactly the pick this gate exists to stop, so the tape's `close` field
+    (the venue's previous close) is the reference. Only a source that carries
+    no previous close at all falls back to the session's first bar, and the
+    basis travels with the number so a reader sees which was used.
+
+    Returns (gain as a fraction, basis, the reference price or None).
+    """
+    previous = (getattr(session, "previous_close", None) or {}).get(symbol)
+    if previous is not None and previous > 0:
+        return entry / previous - 1.0, "venue_previous_close", previous
+    rows = (getattr(session, "bars", None) or {}).get(symbol)
+    if rows and rows[0].open and rows[0].open > 0:
+        return entry / rows[0].open - 1.0, "session_first_bar", None
+    return None, "unmeasurable", None
+
+
 def candidate(symbol: str, rows: list, session,
               tally: dict | None = None,
               frames: bool = False) -> dict | None:
@@ -97,8 +120,8 @@ def candidate(symbol: str, rows: list, session,
     turnover floors, freshness, no continuity across a gap) plus the owner's
     fixed +2% / -1% plan. The STRATEGY is the z-score spread law and only it.
 
-    `frames` says whether this deployment reads the 5 minute, 15 minute and 30
-    minute VWAP frames (src/signals/mtf_vwap.py). The law cannot be evaluated
+    `frames` says whether this deployment reads the 5 minute and 15 minute
+    VWAP frames (src/signals/mtf_vwap.py). The law cannot be evaluated
     without them, so a deployment that is not reading them (a replay or a
     unit fixture with no higher timeframe history) has no entry at all and
     names that reason; the live pipeline passes the deployment flag.
@@ -106,9 +129,9 @@ def candidate(symbol: str, rows: list, session,
     if config.is_etf_symbol(symbol) or session.as_of.tzinfo is None:
         _bump(tally, "etf_or_naive_tz")
         return None
-    # Keep the whole session for the 30 minute frame before the current
-    # band's own rows are trimmed below: a Friday afternoon band must still
-    # see the morning's completed bars across the exchange's midday break.
+    # Keep the whole session before the current band's own rows are trimmed
+    # below: a Friday afternoon band must still see the morning's completed
+    # bars across the exchange's midday break.
     mtf_rows = list(rows)
     band = current_band(session.as_of)
     if band is None:
@@ -149,6 +172,28 @@ def candidate(symbol: str, rows: list, session,
     turnover = sum(b.close * b.volume for b in rows)
     if turnover < config.MIN_SESSION_TRADED_VALUE:
         _bump(tally, "under_min_session_traded_value")
+        return None
+
+    # Owner order 2026-11-19 (Karachi): a pick may not already be more than
+    # MAX_DAY_GAIN_PCT up on the day, and its measured buyers must be at
+    # least MIN_BUY_SELL_RATIO times its measured sellers. Both read the facts
+    # the tape pass measured (src/data/tape_bars.py), and a source that
+    # cannot answer either question fails closed and names it: an unmeasured
+    # pick is exactly what these two gates exist to stop (SO-3).
+    day_gain, gain_basis, reference = day_gain_pct(session, symbol, rows[-1].close)
+    if day_gain is None:
+        _bump(tally, "day_gain_unmeasurable")
+        return None
+    if day_gain > config.MAX_DAY_GAIN_PCT:
+        _bump(tally, "day_gain_over_max")
+        return None
+    buy = (getattr(session, "buy_volume", None) or {}).get(symbol)
+    sell = (getattr(session, "sell_volume", None) or {}).get(symbol)
+    if buy is None or sell is None or buy + sell <= 0:
+        _bump(tally, "buy_sell_split_unavailable")
+        return None
+    if buy < config.MIN_BUY_SELL_RATIO * sell:
+        _bump(tally, "buyers_not_dominant")
         return None
 
     closes_series = [b.close for b in rows]
@@ -209,10 +254,15 @@ def candidate(symbol: str, rows: list, session,
         },
         "volume": {"traded_value_estimate": turnover,
                    "volume_source": "captured bar volume"},
+        "day": {"gain_pct": round(day_gain * 100.0, 3),
+                "basis": gain_basis, "previous_close": reference},
+        "flow": {"buy_volume": int(buy), "sell_volume": int(sell),
+                 "buy_sell_ratio": round(buy / sell, 3) if sell else None},
         "last_bar": last.timestamp.isoformat(), "bars": len(rows),
         "entry_basis": "latest completed close after the 5 minute price-VWAP "
                        "spread fell by the configured z score below its own "
-                       "trailing mean, with 5m, 15m and 30m Kalman states up and "
-                       "the slower frames above VWAP; paper reference, not a "
-                       "fill",
+                       "trailing mean, with the 5m and 15m Kalman states up "
+                       "and the 15m frame above its VWAP, inside a day move of "
+                       "at most 2% and a measured buy/sell split of at least "
+                       "2:1; paper reference, not a fill",
     }

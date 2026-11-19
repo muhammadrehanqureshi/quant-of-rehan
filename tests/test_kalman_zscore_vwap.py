@@ -1,10 +1,15 @@
-"""Tests for the Kalman Trend, 5m/15m/30m VWAP and z-score spread law.
+"""Tests for the Kalman Trend, 5m/15m VWAP and z-score spread law.
 
 Owner order 2026-11-16 (Karachi): the running intraday strategy is the Kalman
-Trend with VWAP on the 5, 15 and 30 minute charts, and the mathematical base
-is the z-score of the price minus VWAP spread. The law is pure: completed
-bars, the session clock and measured spreads in, a view or a named refusal
-out. No network, no clock, no daily file.
+Trend with VWAP on the 5 and 15 minute charts, and the mathematical base is
+the z-score of the price minus VWAP spread. The law is pure: completed bars,
+the session clock and measured spreads in, a view or a named refusal out. No
+network, no clock, no daily file.
+
+Owner order 2026-11-19 (Karachi): the 30 minute frame is withdrawn so a call
+can exist at or around 10:00, the pick may not be more than 2% up on the day,
+and its buyers must be at least twice its sellers. The tests below pin the
+timing arithmetic and both gates.
 """
 
 from __future__ import annotations
@@ -52,11 +57,10 @@ def frame(close: float, vwap: float, state: int, z: float | None,
 
 
 def frames_ready(*, fast_state: int = 1, fast_z: float = -1.8,
-                 middle_state: int = 1, slow_state: int = 1) -> dict:
+                 middle_state: int = 1) -> dict:
     return {
         "5m": frame(103.45, 103.77, fast_state, fast_z),
         "15m": frame(103.45, 102.80, middle_state, 0.2),
-        "30m": frame(103.45, 102.60, slow_state, 0.1),
     }
 
 
@@ -80,11 +84,11 @@ class SpreadTest(unittest.TestCase):
 
 
 class FrameTest(unittest.TestCase):
-    def test_the_three_frames_are_the_5_15_and_30_minute_charts(self):
+    def test_the_frames_are_the_5_and_15_minute_charts(self):
         rows = series([100.0 + 0.03 * i for i in range(150)])
         views, reason = zlaw.frame_views(rows, session_of(rows))
         self.assertEqual(reason, "ok")
-        self.assertEqual(set(views), {"5m", "15m", "30m"})
+        self.assertEqual(set(views), {"5m", "15m"})
         for view in views.values():
             self.assertGreater(view["vwap"], 0.0)
             self.assertIn(view["kalman_state"], (-1, 1))
@@ -111,7 +115,6 @@ class EntryTest(unittest.TestCase):
         self.assertEqual(view["signal_minutes"], 5)
         self.assertLess(view["z"], 0.0)
         self.assertEqual(view["frames"]["15m"]["kalman_state"], 1)
-        self.assertEqual(view["frames"]["30m"]["kalman_state"], 1)
 
     def test_a_fast_frame_that_has_not_turned_up_is_refused(self):
         view, reason = self.build(frames=frames_ready(fast_state=-1))
@@ -120,15 +123,15 @@ class EntryTest(unittest.TestCase):
 
     def test_a_slow_frame_below_its_vwap_is_refused(self):
         frames = frames_ready()
-        frames["30m"] = frame(101.0, 102.0, 1, 0.0)
+        frames["15m"] = frame(101.0, 102.0, 1, 0.0)
         view, reason = self.build(frames=frames)
         self.assertIsNone(view)
-        self.assertEqual(reason, "zscore_30m_below_vwap")
+        self.assertEqual(reason, "zscore_15m_below_vwap")
 
     def test_a_slow_frame_trend_not_up_is_refused(self):
-        view, reason = self.build(frames=frames_ready(slow_state=-1))
+        view, reason = self.build(frames=frames_ready(middle_state=-1))
         self.assertIsNone(view)
-        self.assertEqual(reason, "zscore_30m_trend_not_up")
+        self.assertEqual(reason, "zscore_15m_trend_not_up")
 
     def test_an_unstretched_spread_is_refused(self):
         view, reason = self.build(frames=frames_ready(fast_z=-0.2))
@@ -146,14 +149,39 @@ class LabelTest(unittest.TestCase):
         self.assertEqual(zlaw.STRATEGY_VERSION, config.ZSCORE_STRATEGY_VERSION)
         self.assertTrue(config.ZSCORE_ENABLED)
         self.assertGreater(config.ZSCORE_Z_MIN, 0.0)
-        self.assertEqual(config.MTF_TIMEFRAMES, (5, 15, 30))
+        self.assertEqual(config.MTF_TIMEFRAMES, (5, 15))
 
     def test_the_summary_line_names_the_spread_and_the_frames(self):
         view, _ = EntryTest().build(frames=frames_ready())
         line = zlaw.summary(view)
         self.assertIn("Z-SPREAD", line)
         self.assertIn("5m VWAP", line)
-        self.assertIn("5m/15m/30m", line)
+        self.assertIn("5m/15m", line)
+        self.assertNotIn("30m", line)
+
+
+class TimingTest(unittest.TestCase):
+    """Owner order 2026-11-19 (Karachi): a call at or around 10:00.
+
+    The session opens at 09:32. The old law needed 17 completed 5 minute bars
+    (10:57) and a 30 minute frame (10:32), so the owner's time was impossible
+    by construction. The arithmetic is pinned here: the frame is ready at
+    10:02 and the 5 minute spread history at 10:07.
+    """
+
+    def test_the_laws_first_legal_minute_is_seven_past_ten(self):
+        lookback = config.MTF_VWAP_LOOKBACK[5]
+        need = lookback + config.ZSCORE_MIN_SPREADS + 1
+        self.assertEqual(need, 7, "the z-score history must fit by 10:07")
+        first_legal = SESSION_OPEN + timedelta(minutes=5 * need)
+        self.assertEqual(first_legal.strftime("%H:%M"), "10:07")
+
+    def test_the_slow_frame_is_ready_by_two_past_ten(self):
+        ready = SESSION_OPEN + timedelta(minutes=15 * config.MTF_MIN_BARS[15])
+        self.assertEqual(ready.strftime("%H:%M"), "10:02")
+
+    def test_the_thirty_minute_frame_is_withdrawn(self):
+        self.assertNotIn(30, config.MTF_TIMEFRAMES)
 
 
 if __name__ == "__main__":
