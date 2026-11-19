@@ -121,19 +121,35 @@ class LawTest(unittest.TestCase):
         self.assertIsNone(view)
         self.assertEqual(reason, "mtf_15m_not_ready")
 
-    def test_the_thirty_minute_frame_needs_two_completed_bars(self):
-        """Owner order 2026-11-19: all three frames stay, and this frame is
-        the binding clock: its Kalman state needs two completed bars of its
-        own, so it votes first sixty minutes after the open."""
-        rows = minute_rows(59)
-        view, reason = mtf_vwap.evaluate(rows, session_of(rows))
-        self.assertIsNone(view)
-        self.assertEqual(reason, "mtf_30m_not_ready")
+    def test_the_thirty_minute_frame_votes_on_its_first_completed_bar(self):
+        """Owner order 2026-11-19 (latest, the owner's own arithmetic): a
+        frame never waits for two of its own candles, because two 30 minute
+        candles are one hourly candle and the hourly candle is not part of
+        this strategy. The first 30 minute bar closes at 10:02 from the 09:32
+        open and is enough to vote."""
+        half = mtf_vwap.completed(minute_rows(29), 30, SESSION_OPEN,
+                                  SESSION_OPEN + timedelta(minutes=29))
+        self.assertEqual(half, [], "a forming 30 minute bucket is never read")
 
-        rows = minute_rows(60)
+        rows = minute_rows(30)
         view, reason = mtf_vwap.evaluate(rows, session_of(rows))
         self.assertEqual(reason, "ok", reason)
         self.assertEqual(set(view["frames"]), {"5m", "15m", "30m"})
+        self.assertEqual(view["frames"]["30m"]["bars"], 1)
+        self.assertEqual(view["frames"]["30m"]["kalman_state"], 1)
+
+    def test_a_lone_frame_bar_reads_its_own_open_and_close(self):
+        """The slow frame's first bar carries a state from two measured
+        prices: the venue's first minute open and the bar's close."""
+        bands = mtf_vwap.completed(minute_rows(30), 30, SESSION_OPEN,
+                                   SESSION_OPEN + timedelta(minutes=30))
+        self.assertEqual(len(bands), 1)
+        self.assertEqual(mtf_vwap.kalman_state(bands), 1)
+
+        falling = mtf_vwap.completed(minute_rows(30, step=-0.05), 30,
+                                     SESSION_OPEN,
+                                     SESSION_OPEN + timedelta(minutes=30))
+        self.assertEqual(mtf_vwap.kalman_state(falling), -1)
 
     def test_the_law_reads_the_session_tape_alone(self):
         """Owner order 2026-11-08: the 1 day frame and its file are gone."""
@@ -157,7 +173,10 @@ class CandidateContractTest(unittest.TestCase):
     def test_when_the_frames_are_read_a_short_session_fails_closed(self):
         from tests.kalman_fixture import setup_rows
 
-        rows = setup_rows(scanner, SESSION_OPEN, count=50)
+        # Owner order 2026-11-19 (latest): the 30 minute frame votes on its
+        # first completed bar, so a tape shorter than half an hour is what
+        # still fails closed here.
+        rows = setup_rows(scanner, SESSION_OPEN, count=25)
         tally: dict = {}
         result = kalman_trend.candidate("OGDC", rows, session_of(rows), tally,
                                         frames=True)

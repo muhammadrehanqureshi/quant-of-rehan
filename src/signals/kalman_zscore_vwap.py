@@ -9,11 +9,14 @@ Owner order 2026-11-19 (Karachi), the later order: all three frames stay, at
 5, 15 and 30 minutes, and the call must still arrive early in the session.
 The early call comes from the shortened 5 minute history (three bars is a 15
 minute VWAP line and three earlier spreads are enough for the z, so the fast
-frame is ready seven completed bars in). The 30 minute frame is the binding
-clock and that is arithmetic: its Kalman state needs two completed bars of
-its own, so it can first vote sixty minutes after the open (10:32 Mon-Thu,
-10:17 Friday). All session times here are Asia/Karachi, UTC+5 (SO-8); no
-frame ever reads a forming candle.
+frame is ready seven completed bars in).
+
+Owner order 2026-11-19 (latest, the owner's own arithmetic): a frame never
+waits for two of its own candles, so the 30 minute frame votes on its first
+completed bar, the one that closes at 10:02 from the 09:32 open (09:47 from
+Friday's 09:17 open). Two 30 minute bars are an hourly candle and the hourly
+candle is not part of this strategy. All session times here are
+Asia/Karachi, UTC+5 (SO-8); no frame ever reads a forming candle.
 
 The spread is measured, never eyeballed. For one frame, every completed bar
 has a spread of its close against the rolling VWAP that was available at that

@@ -13,8 +13,10 @@ Owner order 2026-11-19 (Karachi), the later order: all three VWAP frames stay,
 the call must arrive early, the pick may not already be more than 2% up on
 the day, and its measured buyers must be at least twice its measured sellers.
 The
-shortened 5 minute history makes the fast frame ready early; the 30 minute
-frame's second completed bar is the binding clock. The session carries the
+shortened 5 minute history makes the fast frame ready early, and (owner order
+2026-11-19, latest) the 30 minute frame votes on its first completed bar
+instead of its second, because two of its candles are an hourly candle the
+law does not read. The session carries the
 venue's previous close and the tape's buy/sell split so both gates read
 measured facts.
 The old RSI diagnostic remains solely for reproducing the HCAR postmortem.

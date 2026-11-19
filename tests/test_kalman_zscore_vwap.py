@@ -171,9 +171,9 @@ class TimingTest(unittest.TestCase):
 
     The session opens at 09:32. The old law needed 17 completed 5 minute bars
     before its z alone could exist (10:57), which is why the call was late;
-    that history is 7 bars now (10:07). The 30 minute frame is kept and is the
-    binding clock: its Kalman state needs two completed bars of its own, so it
-    votes first at 10:32 on a Mon-Thu day and 10:17 on Friday's earlier open.
+    that history is 7 bars now (10:07). The 30 minute frame is kept and (owner
+    order 2026-11-19, latest) votes on its first completed bar, the one that
+    closes at 10:02, so the fast frame's z history is the binding clock.
     """
 
     def test_the_fast_frame_and_its_z_are_ready_at_seven_past_ten(self):
@@ -185,12 +185,16 @@ class TimingTest(unittest.TestCase):
     def test_all_three_frames_are_kept(self):
         self.assertEqual(config.MTF_TIMEFRAMES, (5, 15, 30))
 
-    def test_the_thirty_minute_frame_is_the_binding_clock(self):
+    def test_the_thirty_minute_frame_votes_on_its_first_completed_bar(self):
+        """Owner order 2026-11-19 (latest): one completed bar, never two, so
+        the slow frame is ready at 10:02 and the z history sets the clock."""
+        self.assertEqual(config.MTF_MIN_BARS[30], 1)
         ready = SESSION_OPEN + timedelta(minutes=30 * config.MTF_MIN_BARS[30])
-        self.assertEqual(ready.strftime("%H:%M"), "10:32")
+        self.assertEqual(ready.strftime("%H:%M"), "10:02")
         fast = 5 * (config.MTF_VWAP_LOOKBACK[5] + config.ZSCORE_MIN_SPREADS + 1)
-        self.assertLess(fast, 30 * config.MTF_MIN_BARS[30],
-                        "the slow frame, not the z history, sets the clock")
+        self.assertEqual(fast, 35, "seven 5 minute bars is the binding history")
+        self.assertEqual(
+            (SESSION_OPEN + timedelta(minutes=fast)).strftime("%H:%M"), "10:07")
 
 
 if __name__ == "__main__":

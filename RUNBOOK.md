@@ -168,9 +168,11 @@ interchangeable.
 * **WARMING UP** is normal. The tape is alive and still filling. The strategy
   will not rank a symbol until it holds 20 completed one-minute bars inside the
   current band, so no entry can exist before about 09:52. A full entry also
-  needs the 60-minute VWAP frame, which cannot exist before about 10:32. The
-  card prints the minutes it still needs. Nothing is broken and nothing needs
-  starting.
+  needs the 5m, 15m and 30m frames; the 30 minute frame votes on its first
+  completed bar (10:02 from the 09:32 open), and the fast frame's three bar
+  VWAP plus three earlier spreads is the binding clock at 10:07. There is no
+  hourly frame and no two candle wait. The card prints the minutes it still
+  needs. Nothing is broken and nothing needs starting.
 * **SCAN BLOCKED** is a data fault. The card names the coverage and how many
   symbols hold the 20 bars. Check `/quotes` and `/flow` as in section 1, then
   look at the band run below. It never means the market was quiet.

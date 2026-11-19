@@ -29,9 +29,14 @@ VWAP. Owner order 2026-11-19 keeps all three frames and adds two rules: the
 pick may not already be more than 2% up on the day measured from the venue's
 previous close, and its measured buyers must be at least twice its measured
 sellers. The same order shortened the 5 minute history (a three bar VWAP plus
-three earlier spreads), so the fast frame is ready at 10:07 and what the call
-waits for is the 30 minute frame's second completed bar: 10:32 on a Mon-Thu
-day, 10:17 on Friday's earlier open. The 5 minute spread must then sit at
+three earlier spreads), so the fast frame is ready at 10:07. Owner order
+2026-11-19 (latest, the owner's own arithmetic) then took the doubt out of the
+slow frame: a frame never waits for two of its own candles, because two 30
+minute candles are one hourly candle and the hourly candle is not in this
+strategy, so the 30 minute frame votes on its first completed bar, at 10:02
+from the 09:32 open (09:47 on Friday's earlier open). The binding minute is
+now the fast frame's z history, 10:07 on a Mon-Thu day and 09:52 on Friday.
+The 5 minute spread must then sit at
 least `ZSCORE_Z_MIN`
 standard deviations below its own trailing mean, measured against that
 spread's own dispersion so a quiet scrip needs a smaller move than a violent
@@ -95,9 +100,9 @@ rather than inventing a fresher number.
   must come early, the pick may not already be more than 2% up on the day, and
   its measured buyers must be at least twice its measured sellers. The 5
   minute history is a three bar VWAP plus three earlier spreads, so the fast
-  frame is ready at 10:07; the 30 minute frame's Kalman state needs two
-  completed bars of its own and is therefore the binding clock (10:32 Mon-Thu,
-  10:17 Friday). The day gain is
+  frame is ready at 10:07. A frame waits for one completed bar of its own,
+  never two, so the 30 minute frame votes at 10:02 from the 09:32 open (09:47
+  on Friday) and the fast frame's z history is the binding clock. The day gain is
   measured from the venue's own previous close (the tape's `close` field), so
   a name that gapped up cannot pass as flat, and the split is attributed in
   the same tape pass that builds the bars. A source that cannot measure either
