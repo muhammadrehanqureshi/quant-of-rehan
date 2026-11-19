@@ -425,8 +425,10 @@ class PipelineCycleTest(unittest.TestCase):
         text.encode("ascii")
 
     def test_full_paper_cycle(self):
-        # 11:20 is a slot with enough tape for both frames and a price still
-        # stretched below the 15 minute VWAP (the fixture's measured dip).
+        # 11:20 is a slot with enough tape for all three frames (the 30 minute
+        # frame's second bar is complete well before the Friday open plus two
+        # hours) and a price still stretched below the 5 minute VWAP inside the
+        # fixture's measured dip.
         first = self.scan("11:20")
         quality = first["data_quality"]
 

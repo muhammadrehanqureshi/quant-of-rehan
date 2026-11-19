@@ -1,8 +1,8 @@
 """Synthetic tape for the one running law, used by plumbing tests only.
 
-Owner order 2026-11-16: the only strategy is the Kalman Trend with the 5 and
-15 minute VWAP frames (owner order 2026-11-19 withdrew the 30 minute frame)
-and the z-score price-VWAP spread. Its entry needs
+Owner order 2026-11-16: the only strategy is the Kalman Trend with the 5, 15
+and 30 minute VWAP frames (owner order 2026-11-19 keeps all three) and the
+z-score price-VWAP spread. Its entry needs
 the 5 minute spread stretched below its trailing mean while the slower frames
 remain above VWAP, so this tape is shaped for exactly that:
 
@@ -26,7 +26,7 @@ DROP_MINUTES = 30
 TURN_START = FLAT_UNTIL + DROP_MINUTES
 #: The first minute of the hard climb that reaches the paper target.
 TAIL_START = TURN_START + 10
-#: A capture long enough to hold the frames and the target run.
+#: A capture long enough to hold all three frames and the target run.
 FULL_MINUTES = 150
 
 

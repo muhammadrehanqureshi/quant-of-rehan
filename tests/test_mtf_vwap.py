@@ -1,4 +1,4 @@
-"""Tests for the 5m/15m VWAP plus Kalman frame law.
+"""Tests for the 5m/15m/30m VWAP plus Kalman frame law.
 
 The law is pure: completed one minute bars in, a frame agreement or a named
 refusal out. No network, no daily file and no clock.
@@ -100,17 +100,18 @@ class LawTest(unittest.TestCase):
 
         self.assertEqual(reason, "ok")
         self.assertEqual(view["rule"], mtf_vwap.MTF_VERSION)
-        self.assertEqual(set(view["frames"]), {"5m", "15m"})
+        self.assertEqual(set(view["frames"]), {"5m", "15m", "30m"})
         for frame in view["frames"].values():
             self.assertEqual(frame["kalman_state"], 1)
             self.assertTrue(frame["above_vwap"])
 
-    def test_the_card_line_names_both_states(self):
+    def test_the_card_line_names_all_three_states(self):
         rows = minute_rows(130)
         view, reason = mtf_vwap.evaluate(rows, session_of(rows))
         self.assertEqual(reason, "ok")
-        self.assertEqual(mtf_vwap.summary(view),
-                         "MTF 5m +1 above VWAP | 15m +1 above VWAP")
+        self.assertEqual(
+            mtf_vwap.summary(view),
+            "MTF 5m +1 above VWAP | 15m +1 above VWAP | 30m +1 above VWAP")
         self.assertEqual(mtf_vwap.summary(None), "")
         self.assertEqual(mtf_vwap.summary({"frames": {"5m": {}}}), "")
 
@@ -120,17 +121,19 @@ class LawTest(unittest.TestCase):
         self.assertIsNone(view)
         self.assertEqual(reason, "mtf_15m_not_ready")
 
-    def test_the_law_is_ready_at_or_around_ten(self):
-        """Owner order 2026-11-19: a call must exist at or around 10:00.
+    def test_the_thirty_minute_frame_needs_two_completed_bars(self):
+        """Owner order 2026-11-19: all three frames stay, and this frame is
+        the binding clock: its Kalman state needs two completed bars of its
+        own, so it votes first sixty minutes after the open."""
+        rows = minute_rows(59)
+        view, reason = mtf_vwap.evaluate(rows, session_of(rows))
+        self.assertIsNone(view)
+        self.assertEqual(reason, "mtf_30m_not_ready")
 
-        The 30 minute frame is gone because two completed bars of it cannot
-        exist before 10:32; from the 09:32 open the 15 minute frame is ready
-        at 10:02, and this fixture is the 10:07 tape.
-        """
-        rows = minute_rows(35)
+        rows = minute_rows(60)
         view, reason = mtf_vwap.evaluate(rows, session_of(rows))
         self.assertEqual(reason, "ok", reason)
-        self.assertEqual(set(view["frames"]), {"5m", "15m"})
+        self.assertEqual(set(view["frames"]), {"5m", "15m", "30m"})
 
     def test_the_law_reads_the_session_tape_alone(self):
         """Owner order 2026-11-08: the 1 day frame and its file are gone."""
@@ -138,7 +141,6 @@ class LawTest(unittest.TestCase):
         view, reason = mtf_vwap.evaluate(rows, session_of(rows))
         self.assertEqual(reason, "ok")
         self.assertNotIn("1d", view["frames"])
-        self.assertNotIn("30m", view["frames"])
 
 
 class CandidateContractTest(unittest.TestCase):

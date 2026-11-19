@@ -3,8 +3,9 @@
 ## Active strategy, 2026-11-16 (Karachi)
 
 The only intraday strategy is `kalman_vwap_zscore_sa_v1` (owner order
-2026-11-16, below): the Kalman Trend with VWAP on the 5 and 15 minute charts,
-and the z-score of the price minus VWAP spread as the mathematical base. The previous strategies are removed, not disabled: the
+2026-11-16, below): the Kalman Trend with VWAP on the 5, 15 and 30 minute
+charts, and the z-score of the price minus VWAP spread as the mathematical
+base. The previous strategies are removed, not disabled: the
 hybrid statistical arbitrage and mean reversion law, the market leg it read,
 the relative strength gate, the three frame VWAP pullback and the fresh one
 minute flip have no module, no constant and no code path left.
@@ -18,17 +19,21 @@ All tests, backtests and builds run in GitHub Actions, never on the owner's PC.
 The scheduled session loop requests one-second cycles and preserves one shared
 daily entry claim. No broker orders are transmitted.
 
-## Owner order 2026-11-19 (Karachi): earlier call, under 2% on the day, buyer-led
+## Owner order 2026-11-19 (Karachi): all three frames, earlier call, under 2% on the day, buyer-led
 
-Three rules, all enforced inside the one law:
+The owner's later order of the same day settles the frame question: the VWAP
+frames stay at 5, 15 and 30 minutes, all three of them. The earlier call comes
+from the 5 minute history, never from dropping a frame. Three rules, all
+enforced inside the one law:
 
-  * **A call at or around 10:00.** The 30 minute frame is withdrawn: two
-    completed 30 minute bars cannot exist before 10:32 from the 09:32 open,
-    and the old 5 minute spread history needed seventeen completed bars
-    (10:57), so the owner's time was impossible by construction. The 5 minute
-    VWAP lookback is 3 bars and the spread history needs 3 earlier spreads,
-    which is 7 completed 5 minute bars: the first legal minute is 10:07, with
-    the 15 minute frame ready at 10:02.
+  * **All three frames, and a call as early as they allow.** The old 5 minute
+    spread history needed seventeen completed bars (10:57), which is why the
+    call was late; the lookback is 3 bars and the history needs 3 earlier
+    spreads, so the fast frame and its z are ready at 10:07. The 30 minute
+    frame is kept and its Kalman state needs two completed bars of its own, so
+    by arithmetic it is the binding clock: the first minute all three frames
+    can vote is 10:32 on a Mon-Thu day and 10:17 on Friday's 09:17 open. The
+    15 minute frame is ready at 10:02. No partial 30 minute bar is ever read.
   * **Never more than 2% up on the day.** The pick's day gain is measured
     from the venue's own previous close, the tape's `close` field, never from
     the session's first bar: a name that gapped up at the open must not pass
@@ -47,15 +52,16 @@ servlet capture carries neither a previous close nor a print side, so the
 broker tape is the only source that can produce a pick now. The reason is
 reported per gate in the scan's own tally, never hidden.
 
-## Kalman Trend, VWAP 5m/15m and z-score spread, owner order 2026-11-16 (Karachi)
+## Kalman Trend, VWAP 5m/15m/30m and z-score spread, owner order 2026-11-16 (Karachi)
 
 The running intraday strategy, and the only strategy the scanner can build an
 entry from, is labelled `kalman_vwap_zscore_sa_v1` with the reader
 `kalman_zscore_vwap_v1` (src/signals/kalman_zscore_vwap.py). It keeps the
-Kalman Trend and the VWAP on the 5 and 15 minute charts and uses the z-score
-of the price minus VWAP spread as its statistical base. The one minute Kalman
-trend must be up, the 5 minute Kalman state must be up, and the 15 minute
-frame must have Kalman state up and a close above its own VWAP. The 5 minute spread must then sit at least `ZSCORE_Z_MIN`
+Kalman Trend and the VWAP on the 5, 15 and 30 minute charts and uses the
+z-score of the price minus VWAP spread as its statistical base. The one minute
+Kalman trend must be up, the 5 minute Kalman state must be up, and the 15 and
+30 minute frames must both have Kalman state up and a close above their own
+VWAP. The 5 minute spread must then sit at least `ZSCORE_Z_MIN`
 trailing standard deviations below its own mean, where every spread in that
 trailing series was measured against the rolling VWAP available at its bar.
 The owner's +2% target, -1% stop and one call a day are unchanged. A missing
