@@ -540,10 +540,16 @@ class SettingsControlTest(unittest.TestCase):
         self.assertIn("DIAMOND_SP = 10f", scroller)
         self.assertIn("COMPLEX_UNIT_SP, DIAMOND_SP", scroller)
         self.assertNotIn("dp(9f)", scroller)
-        self.assertIn("private static final int BIG_PRINTS_ROWS = 8;",
+        # Owner order 2026-11-19: five complete orders, measured through
+        # the fifth order's own wrapped line instead of a guessed count.
+        self.assertIn("private static final int BIG_PRINTS_ORDERS = 5;",
+                      self.main)
+        self.assertIn("private static final int BIG_PRINTS_ROWS = 5;",
                       self.main)
         self.assertIn("fitBigPrintsWindow();", self.main)
-        self.assertIn("BIG_PRINTS_ROWS * row", self.main)
+        self.assertIn("int height = rows * row", self.main)
+        self.assertIn("bigPrintEnds.add(sb.length());", self.main)
+        self.assertIn("text.getLineForOffset(end) + 1", self.main)
         self.assertIn("lp.height = height;", self.main)
         self.assertIn("bigPrintsScroll = findViewById(R.id.big_prints_scroll);",
                       self.main)
@@ -600,7 +606,7 @@ class SettingsControlTest(unittest.TestCase):
         """Owner order 2026-11-07: H= and L= on each search row, the high
         green and the low red, from the relay's own day range."""
         self.assertIn('built.append("  H=");', self.main)
-        self.assertIn('built.append("  L=");', self.main)
+        self.assertIn('built.append("  &  L=");', self.main)
         self.assertIn("quote.high != null", self.main)
         self.assertIn("quote.low != null", self.main)
         watcher = (ROOT / "android" / "app" / "src" / "main" / "java"
@@ -688,11 +694,14 @@ class SettingsControlTest(unittest.TestCase):
         worker = (ROOT / "cloud" / "worker.js").read_text(encoding="utf-8")
         self.assertIn("const LARGE_PRINT_MAX = 2000;", worker)
         self.assertNotIn("const LARGE_PRINT_MAX = 200;", worker)
-        # Owner order 2026-11-15: the big board is above PKR 1M.
-        self.assertIn("const LARGE_PRINT_PKR = 1_000_000;", worker)
-        self.assertIn("private static final long BIG_PRINT_FLOOR_PKR = 1_000_000L;",
-                      self.main)
-        self.assertIn("if (print.value <= BIG_PRINT_FLOOR_PKR)", self.main)
+        # Owner order 2026-11-19: the big board is 100k shares and above.
+        self.assertIn("const LARGE_PRINT_SHARES = 100_000;", worker)
+        self.assertIn("if (measured.delta < LARGE_PRINT_SHARES) return null;",
+                      worker)
+        self.assertIn(
+            "private static final long BIG_PRINT_FLOOR_SHARES = 100_000L;",
+            self.main)
+        self.assertIn("if (print.shares < BIG_PRINT_FLOOR_SHARES)", self.main)
         watcher = (ROOT / "android" / "app" / "src" / "main" / "java"
                    / "pk" / "quantofrehan" / "Watcher.java").read_text(
             encoding="utf-8")
@@ -790,7 +799,7 @@ class SettingsControlTest(unittest.TestCase):
         empty = empty[:empty.index("private void fitBigPrintsWindow(")]
         self.assertIn("wrapBigPrintsWindow();", empty)
         self.assertIn("fitBigPrintsWindow();", empty)
-        self.assertIn("BIG_PRINTS_ROWS * row", self.main)
+        self.assertIn("int height = rows * row", self.main)
 
     def test_the_sectors_tile_lists_only_the_kmi_all_scrips(self):
         """Owner order 2026-11-06: the SEARCH page carries a SECTORS tile,
@@ -862,6 +871,17 @@ class SettingsControlTest(unittest.TestCase):
         self.assertIn('android:gravity="center"', spinner)
         self.assertIn("String best = fillSectorMenu();", self.main)
         self.assertIn("sectorChoice.isEmpty() && best != null", self.main)
+        # Owner order 2026-11-19: the sector list is on the tile as soon as
+        # it arrives, is scrollable, and stays after a pick; the tile also
+        # wears the THEMES tile's own caret.
+        self.assertIn("sectorMenuPending = false;", self.main)
+        self.assertIn("showSectorMenu(true);", self.main)
+        self.assertIn("sectorsArrow = findViewById(R.id.sectors_arrow);",
+                      self.main)
+        self.assertIn("rotateDropdownArrow(sectorsArrow, open);", self.main)
+        sector_pick = self.main[self.main.index("private void chooseSector("):]
+        sector_pick = sector_pick[:sector_pick.index("private void renderSectorReveal(")]
+        self.assertIn("showSectorMenu(true);", sector_pick)
         # The diamond's range is read after the six-row window lays out.
         self.assertIn("sectorsScroll.post(this::updateSectorScroller);",
                       self.main)
@@ -2365,8 +2385,12 @@ class VersionTest(unittest.TestCase):
         # uncut SECTORS window ship as 4.4.1. Owner order 2026-11-17: the
         # centred closed dropdown faces, the centred print board and the
         # populated, scrolling SECTORS tile ship as 4.4.2, versionCode 135.
-        self.assertIn('android:versionName="4.4.2"', manifest)
-        self.assertIn('android:versionCode="135"', manifest)
+        # Owner order 2026-11-19: the two-theme menu, the 43dp RELAY STATUS
+        # box, numbered sub menus, H & L, the always-listed SECTORS tile,
+        # the 100k board and its five complete orders ship as 4.4.3,
+        # versionCode 136.
+        self.assertIn('android:versionName="4.4.3"', manifest)
+        self.assertIn('android:versionCode="136"', manifest)
         self.assertNotIn('android:versionName="4.0.15"', manifest)
         self.assertNotIn('android:versionName="4.0.14"', manifest)
         self.assertNotIn('android:versionName="3.7.5"', manifest)
@@ -2594,9 +2618,10 @@ class VersionTest(unittest.TestCase):
         # and the KSE100 B/S fallback ship as 4.4.0. Owner order
         # 2026-11-16: the balanced, centred menu rows ship as 4.4.1.
         # 2026-11-17: the centred closed faces and the SECTORS fix ship as
-        # 4.4.2, versionCode 135.
-        self.assertIn('android:versionCode="135"', manifest)
-        self.assertIn('android:versionName="4.4.2"', manifest)
+        # 4.4.2, versionCode 135. The owner's 2026-11-19 order ships as
+        # 4.4.3, versionCode 136.
+        self.assertIn('android:versionCode="136"', manifest)
+        self.assertIn('android:versionName="4.4.3"', manifest)
         self.assertNotIn('android:versionName="4.0.15"', manifest)
         self.assertNotIn('android:versionName="3.7.5"', manifest)
         self.assertNotIn('android:versionName="3.7.4"', manifest)
@@ -3212,13 +3237,15 @@ class MenuOrdersTest(unittest.TestCase):
                          "greeting_evening", "greeting_night"):
             self.assertIn(f"R.string.{resource}", block)
 
-    def test_the_themes_tile_carries_five_looks(self):
+    def test_the_themes_tile_carries_two_looks(self):
+        """Owner order 2026-11-19: GREEN & YELLOW, NAVY BLUE & WHITE and
+        ORANGE & WHITE are removed, leaving purple and black."""
         self.assertIn('name="label_themes">THEMES<', self.strings)
         self.assertIn('name="theme_purple">PURPLE &amp; YELLOW<', self.strings)
         self.assertIn('name="theme_black">BLACK &amp; WHITE<', self.strings)
-        self.assertIn('name="theme_green">GREEN &amp; YELLOW<', self.strings)
-        self.assertIn('name="theme_navy">NAVY BLUE &amp; WHITE<', self.strings)
-        self.assertIn('name="theme_orange">ORANGE &amp; WHITE<', self.strings)
+        self.assertNotIn('name="theme_green"', self.strings)
+        self.assertNotIn('name="theme_navy"', self.strings)
+        self.assertNotIn('name="theme_orange"', self.strings)
         spinner = element(self.layout, 'android:id="@+id/theme_spinner"')
         # v2.3.16: the closed box is its own one-line TextView at the
         # universal height, and its menu is the box's OWN inline list
@@ -3240,6 +3267,10 @@ class MenuOrdersTest(unittest.TestCase):
         for theme in ("black", "green", "navy", "orange"):
             self.assertIn(f"R.color.theme_{theme}_bg", self.main)
         self.assertIn("THEME_LABELS.length", self.main)
+        # The owner's 2026-11-19 order leaves two rows in the menu.
+        self.assertIn("R.string.theme_purple, R.string.theme_black};",
+                      self.main)
+        self.assertIn("if (themeIndex > 1) {", self.main)
 
     def test_every_dropdown_carries_a_state_arrow(self):
         """Owner order 2026-10-23 (2.0.0): the pull-down, pull-up arrow.
@@ -3262,7 +3293,7 @@ class MenuOrdersTest(unittest.TestCase):
             "Dropdown.java is retired with the platform popup window")
         self.assertNotIn("onDropdownOpenChange", self.main)
         self.assertNotIn("extends Spinner", self.main)
-        for view_id in ("volume_split_arrow", "theme_arrow"):
+        for view_id in ("volume_split_arrow", "theme_arrow", "sectors_arrow"):
             with self.subTest(arrow=view_id):
                 arrow = element(self.layout, f'android:id="@+id/{view_id}"')
                 # v3.7.2 (owner order 2026-11-01): the caret is back at
@@ -3298,9 +3329,9 @@ class MenuOrdersTest(unittest.TestCase):
         start = self.main.index("private void repaintDropdownArrows() {")
         block = self.main[start:start + 800]
         self.assertEqual(
-            block.count("ColorStateList.valueOf(themeAccentInk)"), 2)
+            block.count("ColorStateList.valueOf(themeAccentInk)"), 3)
         self.assertIn("volumeSplitArrow.setImageTintList", block)
-        self.assertNotIn("sectorsArrow.setImageTintList", block)
+        self.assertIn("sectorsArrow.setImageTintList", block)
         self.assertIn("themeArrow.setImageTintList", block)
         theme_pass = self.main[self.main.index(
             "private void applyTheme(int index) {"):]
@@ -3437,6 +3468,9 @@ class MenuOrdersTest(unittest.TestCase):
         self.assertIn("row.setGravity(Gravity.CENTER);", self.main)
         self.assertNotIn("first ? dp(10) : dp(5)", self.main)
         self.assertNotIn("last ? dp(10) : dp(5)", self.main)
+        self.assertIn('String numbered = String.format(Locale.US, "%d. %s",',
+                      self.main)
+        self.assertIn("i + 1, volumeChoices[index]);", self.main)
         for builder in ("buildThemeMenu", "buildVolumeMenu"):
             with self.subTest(menu=builder):
                 start = self.main.index(f"private void {builder}() {{")

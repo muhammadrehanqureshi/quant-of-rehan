@@ -85,10 +85,10 @@ shrinks the universe to only the symbols that happened to trade.
     {"symbol": "SGPL", "last_observed_at": "2026-10-22T20:48:37.469+05:00", "last_day": "2026-10-22", "reason": "no observed regular-session frame for this day"}
   ],
   "large": {
-    "threshold_pkr": 1000000,
+    "threshold_shares": 100000,
     "total": 3, "shown": 3, "truncated": false,
     "prints": [
-      {"symbol": "CNERGY", "side": "BUY", "shares": 90000, "price": 11.86, "value_pkr": 1067400,
+      {"symbol": "CNERGY", "side": "BUY", "shares": 100000, "price": 11.86, "value_pkr": 1186000,
        "at": "2026-11-04T10:30:55.000+05:00", "tick": "10:30:55", "rule": "at_ask"}
     ],
     "stocks": [
@@ -101,7 +101,7 @@ shrinks the universe to only the symbols that happened to trade.
   "basis": {
     "split": "quote_rule: every observed increment of the venue counter is sided once by the book that stood before it, the previous frame's bid/ask first and the frame's own only when that book cannot decide; buy and sell never decrease",
     "unclassified": "shares traded before the capture or hub first observed the symbol; they are reported separately and never guessed into buy or sell",
-    "large": "one relay update carrying at least PKR 1,000,000 on one side; the broker wire has no individual order id, so this is a large observed increment, not a claimed order ticket"
+    "large": "one relay update carrying at least 100,000 shares on one side; the broker wire has no individual order id, so this is a large observed increment, not a claimed order ticket"
   }
 }
 ```
@@ -158,7 +158,7 @@ keeps the market card, signals and acknowledged rows untouched.
 `large` is deliberately named as a large observed increment, not an order
 ticket. The MKT-FEED wire carries a per-symbol snapshot with a cumulative
 volume, bid and ask, and no individual order id. One relay update of at least
-PKR 1,000,000 on one side is the smallest honest unit this data can support.
+100,000 shares on one side is the smallest honest unit this data can support.
 
 ## Chart bars (`GET /bars`)
 

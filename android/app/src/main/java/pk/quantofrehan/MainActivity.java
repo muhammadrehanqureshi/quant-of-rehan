@@ -198,14 +198,16 @@ public class MainActivity extends Activity {
             "ASK QTY", "VOL"};
     private static final float[] FLOW_WEIGHTS = {
             1.25f, 0.95f, 0.72f, 1.0f, 0.92f, 0.92f, 1.0f, 1.05f};
-    /** Owner order 2026-11-05 (sixth pass, "only display 8 transactions
-     *  in the tile, and when i scroll I should be able to see more"): the
-     *  board's window holds exactly eight prints; the visible bar scrolls
-     *  the rest of the day into view. */
-    private static final int BIG_PRINTS_ROWS = 8;
-    /** Owner order 2026-11-15: the BIG BUYING & SELLING tile shows only
-     *  prints above PKR 1,000,000. */
-    private static final long BIG_PRINT_FLOOR_PKR = 1_000_000L;
+    /** Owner order 2026-11-19: the BIG BUYING & SELLING tile shows five
+     *  complete orders, with the visible bar scrolling the rest of the day
+     *  into view. The window measures the fifth order's own wrapped lines,
+     *  so a long sentence can never cut it off. */
+    private static final int BIG_PRINTS_ORDERS = 5;
+    /** The first layout's fallback before the fifth order is measured. */
+    private static final int BIG_PRINTS_ROWS = 5;
+    /** Owner order 2026-11-19: every print of 100,000 shares or more is
+     *  the tile's own law, buying or selling. */
+    private static final long BIG_PRINT_FLOOR_SHARES = 100_000L;
     /** The 3dp the board's text view puts between two prints. */
     private static final int BIG_PRINTS_ROW_AIR_DP = 3;
     /** Owner order 2026-11-13: the SECTORS window shows six rows before it
@@ -368,6 +370,9 @@ public class MainActivity extends Activity {
      *  order 2026-11-05, eighth pass). */
     private EditText bigPrintsInput;
     private List<Watcher.BigPrint> lastPrints = new ArrayList<>();
+    /** The text offset where each shown print ends, so the window can be
+     *  sized to the fifth complete order rather than a guessed line count. */
+    private final List<Integer> bigPrintEnds = new ArrayList<>();
     /** The day's order flow, kept so a keystroke filters without a fetch. */
     private List<Watcher.FlowRow> flowRows = new ArrayList<>();
     /** The SEARCH page's SECTORS tile (owner order 2026-11-06): a dropdown
@@ -379,6 +384,9 @@ public class MainActivity extends Activity {
     private LinearLayout sectorsMenu;
     private TextView sectorsReveal;
     private View sectorsFieldGroup;
+    /** Owner order 2026-11-19: the SECTORS tile carries the same pull-down
+     *  and pull-up caret as the THEMES tile. */
+    private ImageView sectorsArrow;
     /** Owner order 2026-11-13: the SECTORS menu is a fixed six-row window
      *  with the same diamond scroller the big prints board carries. */
     private ScrollView sectorsScroll;
@@ -636,9 +644,14 @@ public class MainActivity extends Activity {
         sectorsFieldGroup = findViewById(R.id.sectors_field_group);
         sectorsScroll = findViewById(R.id.sectors_scroll);
         sectorsScroller = findViewById(R.id.sectors_scroller);
+        sectorsArrow = findViewById(R.id.sectors_arrow);
         if (sectorsSpinner != null) {
             sectorsBoxLabel = sectorsSpinner.getText().toString();
             sectorsSpinner.setOnClickListener(v ->
+                    showSectorMenu(!sectorMenuOpen));
+        }
+        if (sectorsArrow != null) {
+            sectorsArrow.setOnClickListener(v ->
                     showSectorMenu(!sectorMenuOpen));
         }
         if (sectorsScroll != null) {
@@ -762,6 +775,12 @@ public class MainActivity extends Activity {
         // status badge, the search highlight plates and the rules keep the
         // inks of their own laws.
         themeIndex = prefs.getInt("theme", 0);
+        // Owner order 2026-11-19: the app carries two looks, purple and
+        // black. A theme remembered from the retired green, navy or orange
+        // rows opens on black rather than an index with no label.
+        if (themeIndex > 1) {
+            themeIndex = 1;
+        }
         buildThemeMenu();
         applyTheme(themeIndex);
 
@@ -936,15 +955,19 @@ public class MainActivity extends Activity {
         return copy;
     }
 
-    /** The two dropdown arrows ink from the worn theme (v2.3.21), the
-     *  same law the menu bar's icons follow: on navy they are white
-     *  beside his white headings, not the old gold. */
+    /** The dropdown arrows ink from the worn theme (v2.3.21), the same
+     *  law the menu bar's icons follow: on black they are white beside
+     *  his white headings, not the old gold. */
     private void repaintDropdownArrows() {
         if (volumeSplitArrow != null) {
             volumeSplitArrow.setImageTintList(
                     ColorStateList.valueOf(themeAccentInk));
         }	        if (themeArrow != null) {
 	            themeArrow.setImageTintList(
+	                    ColorStateList.valueOf(themeAccentInk));
+	        }
+	        if (sectorsArrow != null) {
+	            sectorsArrow.setImageTintList(
 	                    ColorStateList.valueOf(themeAccentInk));
 	        }
 	    }
@@ -1053,16 +1076,16 @@ public class MainActivity extends Activity {
     }
 
     /**
-     * THEMES (owner order 2026-10-23): a dropdown of five pairs, listed in
-     * the order he named them. The selection is remembered, so the app
+     * THEMES (owner order 2026-10-23): the dropdown he asked for, now two
+     * pairs since the 2026-11-19 order removed GREEN & YELLOW, NAVY BLUE &
+     * WHITE and ORANGE & WHITE. The selection is remembered, so the app
      * opens on the look he chose.
      */
-    // The five themes, in the owner's own order; index 0 is the app's
+    // The two themes, in the owner's own order; index 0 is the app's
     // current look and needs no repaint beyond identity, so the switch in
     // applyTheme falls through to it.
     private static final int[] THEME_LABELS = {
-            R.string.theme_purple, R.string.theme_black, R.string.theme_green,
-            R.string.theme_navy, R.string.theme_orange};
+            R.string.theme_purple, R.string.theme_black};
 
     /**
      * THEMES (owner order 2026-10-23): five pairs, listed in the order he
@@ -1553,7 +1576,11 @@ public class MainActivity extends Activity {
                 getString(R.string.volume_upper_lock_caption)};
         for (int i = 0; i < volumeChoices.length; i++) {
             final int index = i;
-            TextView row = menuRow(volumeChoices[index],
+            // Owner order 2026-11-19: every sub menu of CUSTOM SCRIPS OF
+            // VOL. carries its own sequence number, 1. to 6.
+            String numbered = String.format(Locale.US, "%d. %s",
+                    i + 1, volumeChoices[index]);
+            TextView row = menuRow(numbered,
                     i == 0, i == volumeChoices.length - 1);
             row.setOnClickListener(v -> {
                 volumeSplitChoice = index + 1;
@@ -3208,10 +3235,11 @@ public class MainActivity extends Activity {
             return;
         }
         lastPrints = prints == null ? new ArrayList<>() : new ArrayList<>(prints);
+        bigPrintEnds.clear();
         if (lastPrints.isEmpty()) {
             bigPrintsList.setText(R.string.big_prints_none);
             // Owner order 2026-11-06: an empty board is its own sentence,
-            // never eight blank rows. The eight print window returns with
+            // never eight blank rows. The five-order window returns with
             // the first print.
             wrapBigPrintsWindow();
             return;
@@ -3224,8 +3252,9 @@ public class MainActivity extends Activity {
         SpannableStringBuilder sb = new SpannableStringBuilder();
         int shown = 0;
         for (Watcher.BigPrint print : lastPrints) {
-            // Owner order 2026-11-15: this board is the above PKR 1M board.
-            if (print.value <= BIG_PRINT_FLOOR_PKR) {
+            // Owner order 2026-11-19: this board is the 100k shares and
+            // above board, measured by quantity, not by rupees.
+            if (print.shares < BIG_PRINT_FLOOR_SHARES) {
                 continue;
             }
             if (!query.isEmpty() && (print.symbol == null
@@ -3243,6 +3272,11 @@ public class MainActivity extends Activity {
             // Owner order 2026-11-13: both print boards use one sentence,
             // the quantity, scrip, side, price and the print's own time.
             appendPrintSentence(sb, print);
+            if (shown <= BIG_PRINTS_ORDERS) {
+                // Points at this print's closing full stop, the fifth
+                // order's own last character.
+                bigPrintEnds.add(sb.length());
+            }
         }
         if (shown == 0) {
             bigPrintsList.setText(query.isEmpty()
@@ -3256,21 +3290,31 @@ public class MainActivity extends Activity {
         }
         bigPrintsList.setText(sb);
         fitBigPrintsWindow();
+        // The fifth order's own wrapped lines are only known after the
+        // text lays out, so the measured pass follows this frame.
+        bigPrintsList.post(this::fitBigPrintsWindow);
     }
 
     /**
-     * The board's window is exactly eight prints tall at the body's own
-     * size, whatever the screen's density: one row is the text view's own
-     * line height plus its 3dp line gap, and the window is eight of them
-     * with the list's padding. The visible bar on the right says the rest
-     * of the day is a scroll away.
+     * The board's window is tall enough for five complete orders at the
+     * body's own size, whatever the screen's density. When an order wraps
+     * to two lines, the fifth order's last line is what decides the
+     * height, so no part of it is ever cut off. The visible bar on the
+     * right says the rest of the day is a scroll away.
      */
     private void fitBigPrintsWindow() {
         if (bigPrintsScroll == null || bigPrintsList == null) {
             return;
         }
+        int rows = BIG_PRINTS_ROWS;
+        android.text.Layout text = bigPrintsList.getLayout();
+        if (text != null && !bigPrintEnds.isEmpty()) {
+            int order = Math.min(BIG_PRINTS_ORDERS, bigPrintEnds.size()) - 1;
+            int end = Math.max(0, bigPrintEnds.get(order) - 1);
+            rows = Math.max(1, text.getLineForOffset(end) + 1);
+        }
         int row = bigPrintsList.getLineHeight() + dp(BIG_PRINTS_ROW_AIR_DP);
-        int height = BIG_PRINTS_ROWS * row
+        int height = rows * row
                 + bigPrintsList.getPaddingTop()
                 + bigPrintsList.getPaddingBottom() + dp(2);	        ViewGroup.LayoutParams lp = bigPrintsScroll.getLayoutParams();
 	        if (lp != null && lp.height != height) {
@@ -3813,12 +3857,23 @@ public class MainActivity extends Activity {
                     // scroller stood still while the rows moved.
                     sectorsScroll.post(this::updateSectorScroller);
                 }
-                revealMenu(sectorsMenu);
+                // The list is opened once when it lands, before the tile's
+                // page is necessarily showing. Only a visible tile asks the
+                // page to scroll to it; a hidden one would drag the home
+                // page to a menu nobody can see.
+                if (tileSectors != null
+                        && tileSectors.getVisibility() == View.VISIBLE) {
+                    revealMenu(sectorsMenu);
+                }
             }
         }
         if (sectorsSpinner != null) {
             sectorsSpinner.setVisibility(open ? View.GONE : View.VISIBLE);
+            if (!open && sectorsBoxLabel != null) {
+                sectorsSpinner.setText(sectorsBoxLabel);
+            }
         }
+        rotateDropdownArrow(sectorsArrow, open);
         if (open) {
             showVolumeMenu(false);
             showThemeMenu(false);
@@ -3861,10 +3916,11 @@ public class MainActivity extends Activity {
                     sectorsSpinner.setText(best);
                 }
             }
-            if (sectorMenuPending) {
-                sectorMenuPending = false;
-                showSectorMenu(true);
-            }
+            // Owner order 2026-11-19: the SECTORS tile lists every sector
+            // as soon as the answer lands, so the tile is never blank until
+            // it is tapped. The list is the tile's own scrollable window.
+            sectorMenuPending = false;
+            showSectorMenu(true);
             if (!sectorChoice.isEmpty() && sectorRows.containsKey(sectorChoice)) {
                 renderSectorReveal();
             }
@@ -4021,7 +4077,9 @@ public class MainActivity extends Activity {
         if (sectorsSpinner != null) {
             sectorsSpinner.setText(name);
         }
-        showSectorMenu(false);
+        // Owner order 2026-11-19: the sector list stays on the tile after
+        // a pick, so he can scroll to another sector without reopening it.
+        showSectorMenu(true);
         renderSectorReveal();
     }
 
@@ -4327,7 +4385,9 @@ public class MainActivity extends Activity {
                         highFrom, built.length(), 0);
             }
             if (quote.low != null) {
-                built.append("  L=");
+                // Owner order 2026-11-19: the search row reads H & L, the
+                // ampersand standing between the day's two sides.
+                built.append("  &  L=");
                 int lowFrom = built.length();
                 built.append(String.format(Locale.US, "%,.2f", quote.low));
                 built.setSpan(new ForegroundColorSpan(getColor(R.color.red)),

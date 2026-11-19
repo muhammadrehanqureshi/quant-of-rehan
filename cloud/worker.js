@@ -402,6 +402,26 @@ function isTradingDay(k) {
   return !PSX_HOLIDAYS_2026.has(dayStamp(k));
 }
 
+// Owner order 2026-11-19: the last session's stored prints are cleared at
+// 08:55 PKT on the next market day, never at midnight. A Thursday session
+// therefore stays readable through Friday morning and is cleared at 08:55
+// on Friday. Before 08:55, and all weekend, the answer is the previous
+// trading day's stamp; at 08:55 on a trading day it rolls to today.
+const SESSION_RESET_MINUTES = 8 * 60 + 55;
+
+function sessionDay(instantMs) {
+  const k = karachiView(instantMs);
+  const minute = k.getUTCHours() * 60 + k.getUTCMinutes();
+  if (isTradingDay(k) && minute >= SESSION_RESET_MINUTES) {
+    return dayStamp(k);
+  }
+  const previous = new Date(k.getTime());
+  do {
+    previous.setUTCDate(previous.getUTCDate() - 1);
+  } while (!isTradingDay(previous));
+  return dayStamp(previous);
+}
+
 // Owner's session law (SO-8), mirroring src/data/sessions.py exactly.
 // Monday to Thursday is ONE band; Friday is TWO, with the exchange's real
 // midday break between them (09:17-12:00 and 14:32-16:30). Before this the
@@ -898,13 +918,14 @@ const MARKET_TTL_MS = 5 * 60 * 1000;
 
 // Owner order 2026-11-04: show the stocks receiving a large buy or sell.
 // The wire is a snapshot cycle with no order id, so the smallest honest
-// unit is one relay update: an increase of at least this much value in the
+// unit is one relay update: an increase of at least this many shares in the
 // venue counter, sided by the quote that arrived with it. The label on the
 // answer says exactly that; it never claims an individual broker order.
-// Owner order 2026-11-15: the BIG BUYING & SELLING board is every print
-// above PKR 1,000,000 spent in a SINGLE transaction, buying or selling. The
-// relay keeps the floor at 1,000,000 and the app filters strictly above it.
-const LARGE_PRINT_PKR = 1_000_000;
+// Owner order 2026-11-19: the BIG BUYING & SELLING board is every print of
+// 100,000 shares or more in a SINGLE transaction, buying or selling. The
+// quantity is the law now, not the rupees spent, so a 100k order of a low
+// priced scrip reaches the phone too.
+const LARGE_PRINT_SHARES = 100_000;
 // Owner order 2026-11-13: the morning's prints disappeared once 200 had
 // accumulated, so the board now keeps the whole day's 2,000 print window.
 const LARGE_PRINT_MAX = 2000;
@@ -999,7 +1020,7 @@ function largePrintFrom(quote, measured) {
   const price = Number(quote.price);
   if (!Number.isFinite(price) || price <= 0) return null;
   const value = Math.round(measured.delta * price);
-  if (value < LARGE_PRINT_PKR) return null;
+  if (measured.delta < LARGE_PRINT_SHARES) return null;
   const at = Date.parse(quote.observed_at || "");
   if (!Number.isFinite(at)) return null;
   return {
@@ -2164,7 +2185,7 @@ async function flowAnswer(env, now) {
       counts: { universe: 0, included: 0, missing: 0, fresh: 0 },
       totals: { volume: 0, buy: 0, sell: 0, unclassified: 0 },
       rows: [], missing: [],
-      large: { threshold_pkr: LARGE_PRINT_PKR, total: 0, shown: 0,
+      large: { threshold_shares: LARGE_PRINT_SHARES, total: 0, shown: 0,
         truncated: false, prints: [], stocks: [] },
       basis: {
         split: "no quote snapshot yet",
@@ -2348,7 +2369,7 @@ async function flowAnswer(env, now) {
     rows,
     missing,
     large: {
-      threshold_pkr: LARGE_PRINT_PKR,
+      threshold_shares: LARGE_PRINT_SHARES,
       total: Number(snapshot.large_prints_total) || dayPrints.length,
       shown: prints.length,
       truncated: (Number(snapshot.large_prints_total) || dayPrints.length) > prints.length,
@@ -2359,7 +2380,7 @@ async function flowAnswer(env, now) {
       split: "quote_rule: every observed increment of the venue counter is sided once by the book that stood before it, the previous frame's bid/ask first and the frame's own only when that book cannot decide; buy and sell never decrease",
       coverage: "frames for the named Karachi day; a pre-open frame is listed with zero session volume, and a symbol with no frame that day appears in missing, never with an invented number",
       unclassified: "shares traded before the capture or hub first observed the symbol, plus increments the wire did not decide; they are reported separately and never guessed into buy or sell",
-      large: "one relay update carrying at least PKR 1,000,000 on one side; the broker wire has no individual order id, so this is a large observed increment, not a claimed order ticket",
+      large: "one relay update carrying at least 100,000 shares on one side; the broker wire has no individual order id, so this is a large observed increment, not a claimed order ticket",
     },
   };
 }
@@ -4856,7 +4877,7 @@ export class QuoteHub {
       // While this push is being assembled the previous snapshot stays in
       // memory: a reading poll that lands mid-push must keep seeing the
       // last accepted snapshot, never a blank.
-    const flowDay = dayStamp(karachiView(Date.now()));
+    const flowDay = sessionDay(Date.now());
     let largePrints = previous && previous.flow_day === flowDay &&
       Array.isArray(previous.large_prints)
       ? previous.large_prints.slice() : [];
