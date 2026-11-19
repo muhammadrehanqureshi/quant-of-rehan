@@ -701,23 +701,10 @@ func (a *App) drawSearchLedger(c *Canvas, x, y, w, bottom int, buy, sell, tot *i
 		}
 		a.shareBarOnly(c, x, y+1, barW, b, s)
 		netX := x + barW + 2
-		// Owner order 2026-11-19 (latest): the NET DELTA and its percentage read
-		// as one figure, an ampersand between them with two cells on each side,
-		// and exactly one cell after the NET DELTA % label.
-		const netRowW = quoteNetLabelW + 1 + quoteNetValW + 5 + 11 + 1 + 7
 		if netX+netRowW > x+w {
 			return
 		}
-		net, ink, bold := a.searchNet(b, s)
-		c.Text(netX, y+1, quoteNetLabelW, "NET DELTA", th.Soft, false)
-		valX := netX + quoteNetLabelW + 1
-		rightAlign(c, valX, y+1, quoteNetValW, []Span{{net, ink, bold}})
-		ampX := valX + quoteNetValW
-		c.Text(ampX, y+1, 5, "  &  ", th.Soft, false)
-		pctX := ampX + 5
-		pct := searchNetPct(b, s)
-		c.Text(pctX, y+1, 11, "NET DELTA %", th.Soft, false)
-		c.Text(pctX+12, y+1, 7, pct, ink, bold)
+		a.drawNetRow(c, netX, y+1, b, s)
 		return
 	}
 	sp := []Span{{"B=", th.Soft, false}}
@@ -749,15 +736,9 @@ func (a *App) drawSearchLedger(c *Canvas, x, y, w, bottom int, buy, sell, tot *i
 	if nY >= bottom {
 		return
 	}
-	net, ink, bold := a.searchNet(b, s)
-	pct := searchNetPct(b, s)
-	c.Text(x, nY, quoteNetLabelW, "NET DELTA", th.Soft, false)
-	valX := x + quoteNetLabelW + 1
-	rightAlign(c, valX, nY, quoteNetValW, []Span{{net, ink, bold}})
-	pctX := valX + quoteNetValW + quoteGap
-			c.Text(pctX, nY, 11, "NET DELTA %", th.Soft, false)
-		// Owner order 2026-11-19: one cell after the label, never two.
-		c.Text(pctX+12, nY, 7, pct, ink, bold)
+	// Owner order 2026-11-19 (latest): this line is the SCANNER tile's own line,
+	// so the two pages read the same figures the same way.
+	a.drawNetRow(c, x, nY, b, s)
 }
 
 // searchNet is the NET DELTA on the SEARCH tile's bar line, as a magnitude in
@@ -772,6 +753,30 @@ func (a *App) searchNet(buy, sell int64) (string, RGB, bool) {
 		ink, bold = a.th.Bad, true
 	}
 	return compactNum(math.Abs(float64(net))), ink, bold
+}
+
+// Owner order 2026-11-19 (latest): the two NET DELTA figures read as one line on
+// the SEARCH tile of both pages. "NET DELTA=" and "NET DELTA %=" carry their
+// equals sign hard against the label, the figures take six and seven cells, and
+// "  &  " stands between them with two cells on each side.
+const (
+	netLabelEq    = quoteNetLabelW + 1
+	netPctLabelEq = 11 + 1
+	netAmpW       = 5
+	netRowW       = netLabelEq + quoteNetValW + netAmpW + netPctLabelEq + 7
+)
+
+// drawNetRow writes that one line, in the ink of the side that is in front.
+func (a *App) drawNetRow(c *Canvas, x, y int, buy, sell int64) {
+	net, ink, bold := a.searchNet(buy, sell)
+	c.Text(x, y, netLabelEq, "NET DELTA=", a.th.Soft, false)
+	valX := x + netLabelEq
+	rightAlign(c, valX, y, quoteNetValW, []Span{{net, ink, bold}})
+	ampX := valX + quoteNetValW
+	c.Text(ampX, y, netAmpW, "  &  ", a.th.Soft, false)
+	pctX := ampX + netAmpW
+	c.Text(pctX, y, netPctLabelEq, "NET DELTA %=", a.th.Soft, false)
+	c.Text(pctX+netPctLabelEq, y, 7, searchNetPct(buy, sell), ink, bold)
 }
 
 // searchNetPct is the NET DELTA as a percentage of the classified volume.
@@ -796,9 +801,9 @@ func (a *App) showing(l *listView, noun string) string {
 func (a *App) drawSectorTile(c *Canvas, x, y, w, h int) {
 	th := a.th
 	ix, iy, iw, ih := a.panel(c, x, y, w, h, "SECTORS", sectorMoveHint)
-	// Owner order 2026-11-11: the SECTORS title carries no diamond logo; the
-	// thin rule of the frame takes its place.
-	c.Put(x+2, y, '─', th.Line, false)
+	// Owner order 2026-11-19 (latest): the SECTORS title carries the panel's own
+	// hot diamond, like every other tile.
+	c.Put(x+2, y, '◆', th.Hot, false)
 	a.sectorY, a.sectorH = y, h
 	searchRows := 0
 	if ih > 0 {
@@ -925,6 +930,9 @@ func (a *App) inKMIALLSHR(sym string) bool {
 	return false
 }
 
+// sectorStockRows is the rows an opened sector shows before it scrolls.
+const sectorStockRows = 5
+
 // drawSectorOpen is a tapped sector, shown inside the SECTORS tile: every one
 // of its scrips that is in KMIALLSHR, with the live price when the feed has
 // one. The CUSTOM SCRIPS tile below stays on screen. The wheel or the
@@ -937,8 +945,9 @@ func (a *App) drawSectorOpen(c *Canvas, x, y, w, h int) {
 		return
 	}
 	ix, iy, iw, ih := a.panel(c, x, y, w, h, "SECTORS", sectorMoveHint)
-	// Owner order 2026-11-11: the SECTORS title carries no diamond logo.
-	c.Put(x+2, y, '─', th.Line, false)
+	// Owner order 2026-11-19 (latest): the SECTORS title carries the panel's own
+	// hot diamond, like every other tile.
+	c.Put(x+2, y, '◆', th.Hot, false)
 	a.drawSectorSearch(c, ix, iy+1, iw, true)
 	// The field is on iy+1, iy+2 is the blank separator, and the table starts
 	// on iy+3.
@@ -969,7 +978,10 @@ func (a *App) drawSectorOpen(c *Canvas, x, y, w, h int) {
 		c.Text(ix, iy+3, iw, "No scrip in this sector starts with "+a.sectorQueryText()+".", th.Soft, false)
 		return
 	}
-	rows := ih - 3
+	// Owner order 2026-11-19 (latest): an opened sector always shows five
+	// scrips, so one selection reads the same height as the next, and the rest
+	// of its scrips are a scroll away.
+	rows := min(sectorStockRows, ih-3)
 	if rows < 1 {
 		return
 	}

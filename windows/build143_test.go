@@ -25,26 +25,36 @@ func TestBuild143AlertLogSaysAtBeforePrice(t *testing.T) {
 	}
 }
 
-// Owner order 2026-11-19: the ALERTS SEARCH ledger keeps one cell between the
-// NET DELTA labels and their values, even when the value fills its field.
+// Owner order 2026-11-19 (latest): each NET DELTA label on the ALERTS SEARCH
+// ledger is followed hard by its equals sign, and the figure starts on the next
+// cell even when it fills its field.
 func TestBuild143SearchLedgerSpacesNetDeltaValues(t *testing.T) {
 	a := demoApp(t, 140, 34)
 	c := NewCanvas(100, 6, a.th.Panel)
 	a.drawSearchLedger(c, 0, 0, 100, 6, i64(999_900), i64(0), i64(999_900), false)
 	rows := c.PlainRows()
+	checked := 0
 	for _, row := range rows {
 		if at := col(row, "NET DELTA %"); at >= 0 {
+			checked++
 			r := []rune(row)
-			if at+11 >= len(r) || r[at+11] != ' ' {
-				t.Fatalf("NET DELTA %% and its value touch: %q", row)
+			if at+11 >= len(r) || r[at+11] != '=' {
+				t.Fatalf("NET DELTA %% does not carry its equals sign: %q", row)
+			}
+			if at+12 >= len(r) || r[at+12] == ' ' {
+				t.Fatalf("NET DELTA %% leaves a gap after its equals sign: %q", row)
 			}
 		}
 		if at := col(row, "NET DELTA"); at >= 0 && col(row, "NET DELTA %") < 0 {
+			checked++
 			r := []rune(row)
-			if at+9 >= len(r) || r[at+9] != ' ' {
-				t.Fatalf("NET DELTA and its value touch: %q", row)
+			if at+9 >= len(r) || r[at+9] != '=' {
+				t.Fatalf("NET DELTA does not carry its equals sign: %q", row)
 			}
 		}
+	}
+	if checked < 1 {
+		t.Fatalf("the ALERTS ledger carries no NET DELTA line:\n%s", strings.Join(rows, "\n"))
 	}
 }
 

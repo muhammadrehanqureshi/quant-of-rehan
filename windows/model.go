@@ -138,8 +138,13 @@ const appVersion = "4.0.21"
 // both big-order boards. Build 144 is 3.8.19, the SCANNER SEARCH tile joining
 // NET DELTA and NET DELTA % with an ampersand and exactly one cell after the
 // label, and the KSE100 quote keeping both figures on a tile too narrow to
-// hold them beside the price.
-const hudBuild = "3.8.19"
+// hold them beside the price. Build 145 is 3.8.20, the KSE100 quote group on
+// the tile's right edge, both SEARCH tiles reading NET DELTA= and NET DELTA %=
+// with an ampersand between them, five scrips in an open SECTORS list with the
+// rest a scroll away, the diamond back on the SECTORS heading, the LATEST
+// SIGNAL score re-scored on every scan, and MARKET BREADTH's bullish mark at
+// +1000 points.
+const hudBuild = "3.8.20"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no
