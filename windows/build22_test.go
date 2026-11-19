@@ -5,9 +5,10 @@ import (
 	"testing"
 )
 
-// Owner order 2026-11-15: NET DELTA is withdrawn from the KSE100 tile. The
-// bar takes the right edge of the percentage row in its place.
-func TestKSE100LeadersCarryNoNetDelta(t *testing.T) {
+// Owner order 2026-11-19: NET DELTA is back on the KSE100 tile, between the
+// current price and the percentage, on the same quote group as every other
+// tile.
+func TestKSE100LeadersCarryNetDeltaBeforePercentage(t *testing.T) {
 	a := busyApp(t, 158, 41, 3)
 	inside := false
 	found := 0
@@ -22,13 +23,18 @@ func TestKSE100LeadersCarryNoNetDelta(t *testing.T) {
 		if !inside {
 			continue
 		}
-		pkr := strings.Index(row, "PKR ")
-		if pkr < 0 {
+		if !strings.Contains(row, "PKR ") || !strings.Contains(row, "%") {
 			continue
 		}
 		found++
-		if strings.Contains(row[pkr:], "NET DELTA") {
-			t.Errorf("the KSE100 leader still carries NET DELTA: %q", row)
+		rest := row[col(row, "PKR "):]
+		netAt, pctAt := col(rest, "NET DELTA"), col(rest, "%")
+		if netAt < 0 {
+			t.Errorf("the KSE100 leader carries no NET DELTA: %q", row)
+			continue
+		}
+		if netAt > pctAt {
+			t.Errorf("NET DELTA and the percentage are out of order: %q", row)
 		}
 	}
 	if found < 2 {
