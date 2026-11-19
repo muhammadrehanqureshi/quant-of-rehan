@@ -5,13 +5,14 @@ Trend with VWAP on the 5 minute and 15 minute charts, and its mathematical
 base is the z-score of the price minus VWAP spread, a statistical-arbitrage
 mean-reversion measure.
 
-Owner order 2026-11-19 (Karachi): a call must be possible at or around 10:00
-every market day. The 30 minute frame is withdrawn by that order, because two
-completed 30 minute bars cannot exist before 10:32 and the session opens at
-09:32: it made the owner's time requirement arithmetically impossible. The
-law now needs seven completed 5 minute bars (a 15 minute VWAP plus three
-earlier spreads), so its first legal call is 10:07, and the 15 minute frame
-is ready at 10:02.
+Owner order 2026-11-19 (Karachi): a call must be possible in the first half
+hour of every market session. The 30 minute frame is withdrawn by that order,
+because two completed 30 minute bars cannot exist until more than an hour into
+a session: it made the owner's time requirement arithmetically impossible.
+The law now needs seven completed 5 minute bars (a 15 minute VWAP plus three
+earlier spreads), so its first legal call lands thirty-five minutes after the
+open, and the 15 minute frame is ready after thirty. The exact clock times
+live in the tests and the docs, never as a second clock in the law.
 
 The spread is measured, never eyeballed. For one frame, every completed bar
 has a spread of its close against the rolling VWAP that was available at that

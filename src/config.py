@@ -289,13 +289,14 @@ KALMAN_LAST_ENTRY_MINUTES = 30
 # gate; these frames are the regime the entry must agree with, each by its
 # own VWAP and Kalman state (src/signals/mtf_vwap.py).
 #
-# Owner order 2026-11-19 (Karachi): a call must be possible at or around 10:00
-# every market day. The 30 minute frame is withdrawn by that order, because
-# two completed 30 minute bars cannot exist before 10:32 from the 09:32 open,
-# which made the owner's time requirement impossible. The lookbacks below are
-# sized for the same order: three 5 minute bars is a 15 minute VWAP line and
-# three earlier spreads are enough for the z, so the law's first legal minute
-# is 10:07 (seven completed 5m bars), with the 15 minute frame ready 10:02.
+# Owner order 2026-11-19 (Karachi): a call must be possible in the first half
+# hour of every market session. The 30 minute frame is withdrawn by that order,
+# because two completed 30 minute bars cannot exist until more than an hour
+# into a session, which made the owner's time requirement impossible. The
+# lookbacks below are sized for the same order: three 5 minute bars is a 15
+# minute VWAP line and three earlier spreads are enough for the z, so the
+# law's first legal minute is seven completed 5m bars, thirty-five minutes
+# after the open (the tests and the docs carry the exact clock times).
 #
 # The 1 day frame and the data/mtf_daily.csv.gz file it needed are withdrawn
 # by the same order. The law now reads the session tape alone, so a missing

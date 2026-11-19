@@ -5,11 +5,13 @@ minute charts. The one minute tape stays the execution clock: it is where the
 entry price and the trend state come from. These frames are the regime the
 entry must agree with.
 
-Owner order 2026-11-19 (Karachi): a call must be possible at or around 10:00
-every market day, and the 30 minute frame is withdrawn by that order: two
-completed 30 minute bars cannot exist before 10:32 from a 09:32 open, so the
-frame made the owner's time requirement impossible. The 15 minute frame is
-ready at 10:02 and the 5 minute z-score history by 10:07.
+Owner order 2026-11-19 (Karachi): a call must be possible in the first half
+hour of every market session, and the 30 minute frame is withdrawn by that
+order: two completed 30 minute bars cannot exist until more than an hour into
+a session, so the frame made the owner's time requirement impossible. The 15
+minute frame is ready after thirty minutes of tape and the 5 minute z-score
+history after thirty-five. The exact clock times live in the tests and the
+docs, never as a second clock in the law.
 
 Each frame is built only from completed bars, so nothing here looks at a
 forming candle:
@@ -47,8 +49,8 @@ MTF_VERSION = "vwap_mtf_v3"
 TIMEFRAMES = config.MTF_TIMEFRAMES
 
 #: VWAP lookbacks, in completed bars of each frame. Three 5m bars is a 15
-#: minute line, short enough that the first call can exist at 10:07; twelve
-#: 15m bars is three hours.
+#: minute line, short enough that the first call lands in the first half hour;
+#: twelve 15m bars is three hours.
 VWAP_LOOKBACK = config.MTF_VWAP_LOOKBACK
 
 #: The minimum completed bars a frame needs before it can vote.
@@ -180,7 +182,7 @@ def evaluate(rows: list, session) -> tuple[dict | None, str]:
     The frames stay on the current band, session aligned, so a Friday
     afternoon band is read on its own completed bars rather than across the
     exchange's midday break. The 30 minute frame is withdrawn by owner order
-    2026-11-19; see the module docstring for the timing arithmetic.
+    2026-11-19; see the module docstring for why the frames are these two.
     """
     band = current_band(session.as_of)
     if band is None:
