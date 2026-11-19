@@ -42,7 +42,8 @@ OPEN = datetime(2026, 10, 12, 9, 32, tzinfo=KARACHI)
 
 
 def tick(symbol: str, price, volume, at: datetime,
-         tick_time: str | None = None, high=None, low=None) -> dict:
+         tick_time: str | None = None, high=None, low=None,
+         close=None, bid=None, ask=None) -> dict:
     """One MKT-FEED row in the shape src/data/feed_capture.py banks."""
     row = {
         "scrip": f"{symbol}:REG",
@@ -54,6 +55,12 @@ def tick(symbol: str, price, volume, at: datetime,
         row["high"] = str(high)
     if low is not None:
         row["low"] = str(low)
+    if close is not None:
+        row["close"] = str(close)
+    if bid is not None:
+        row["bid"] = str(bid)
+    if ask is not None:
+        row["ask"] = str(ask)
     return row
 
 
@@ -471,6 +478,43 @@ class TestTheAlertQuotesItsSource(unittest.TestCase):
 
         self.assertIn("No scan or outcome ran for this slot", text)
         self.assertNotIn("Measured cause:", text)
+
+
+class TestOwnerDayAndFlowFacts(TapeCaptureFixture):
+    """Owner order 2026-11-19: the one tape pass also measures the facts the
+    day-gain and buyer-dominance gates read, so neither gate needs a second
+    read of the tape."""
+
+    PRICES = (100.0, 100.5, 101.0, 100.9, 101.4, 101.9)
+    TOTALS = (1000, 3000, 5000, 5100, 7100, 9100)
+
+    def records(self) -> list[dict]:
+        return [frame(OPEN + timedelta(seconds=30 * index),
+                      tick("OGDC", price, total,
+                           at=OPEN + timedelta(seconds=30 * index),
+                           close=99.0))
+                for index, (price, total) in enumerate(zip(self.PRICES,
+                                                           self.TOTALS))]
+
+    def test_the_pass_carries_the_previous_close_and_the_split(self):
+        tape = self.build(self.records(), ["OGDC"], OPEN + timedelta(minutes=5))
+
+        self.assertEqual(tape.previous_close.get("OGDC"), 99.0)
+        # Four rising windows and one small falling window: the rising print
+        # sizes are attributed to buyers, the falling one to sellers.
+        self.assertEqual(tape.buy_volume.get("OGDC"), 8000)
+        self.assertEqual(tape.sell_volume.get("OGDC"), 100)
+        self.assertGreater(tape.buy_volume["OGDC"],
+                           2 * tape.sell_volume.get("OGDC", 0))
+
+    def test_the_session_carries_them_to_the_entry_gates(self):
+        path = self.write(self.records())
+        session = scanner.load_tape_bars(path, ["OGDC"],
+                                         OPEN + timedelta(minutes=5))
+
+        self.assertEqual(session.previous_close.get("OGDC"), 99.0)
+        self.assertEqual(session.buy_volume.get("OGDC"), 8000)
+        self.assertEqual(session.sell_volume.get("OGDC"), 100)
 
 
 if __name__ == "__main__":

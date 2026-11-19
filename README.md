@@ -21,11 +21,15 @@ No order placement, no broker trading integration: signals and research only.
 ## The strategy in one paragraph
 
 Scan the current KMIALL universe for one setup, the one the owner named: the
-Kalman Trend with VWAP on the 5 minute, 15 minute and 30 minute charts, with
-the z-score of the price minus VWAP spread as the mathematical base. The one
-minute Kalman trend must be up, the 5 minute Kalman state must be up, and the
-15 and 30 minute frames must both have Kalman state up and a close above
-their own VWAP. The 5 minute spread must then sit at least `ZSCORE_Z_MIN`
+Kalman Trend with VWAP on the 5 and 15 minute charts, with the z-score of the
+price minus VWAP spread as the mathematical base. The one minute Kalman trend
+must be up, the 5 minute Kalman state must be up, and the 15 minute frame
+must have Kalman state up and a close above its own VWAP. Owner order
+2026-11-19 adds three rules: the call must exist at or around 10:00 (the 30
+minute frame is withdrawn, so the first legal minute is 10:07), the pick may
+not already be more than 2% up on the day measured from the venue's previous
+close, and its measured buyers must be at least twice its measured sellers.
+The 5 minute spread must then sit at least `ZSCORE_Z_MIN`
 standard deviations below its own trailing mean, measured against that
 spread's own dispersion so a quiet scrip needs a smaller move than a violent
 one. That is the statistical-arbitrage entry: buy a measured dislocation
@@ -73,20 +77,31 @@ rather than inventing a fresher number.
   any fallback signal.
 - **The one strategy**: [src/signals/kalman_zscore_vwap.py](src/signals/kalman_zscore_vwap.py)
   is the running law (`kalman_vwap_zscore_sa_v1`, owner order 2026-11-16):
-  the Kalman Trend with VWAP on the 5, 15 and 30 minute charts and the z-score
-  of the price minus VWAP spread as its statistical base. The 15 and 30 minute
-  frames must stay above VWAP with Kalman state up, and the 5 minute spread
-  must be at least `ZSCORE_Z_MIN` trailing standard deviations below its own
-  mean. The owner's order of 2026-11-16 removed the previous hybrid statistical
+  the Kalman Trend with VWAP on the 5 and 15 minute charts and the z-score
+  of the price minus VWAP spread as its statistical base. The 15 minute frame
+  must stay above VWAP with Kalman state up, and the 5 minute spread must be
+  at least `ZSCORE_Z_MIN` trailing standard deviations below its own mean.
+  The owner's order of 2026-11-16 removed the previous hybrid statistical
   arbitrage and mean reversion law, the market leg it read, the relative
   strength gate, the three frame pullback and the fresh one minute flip: their
   modules and constants are gone and `kalman_trend.py` builds no entry from
-  them. The 5 minute, 15 minute and 30 minute frames are read from the session
-  tape alone; the 1 day frame and its daily file remain withdrawn.
+  them. The 5 and 15 minute frames are read from the session tape alone; the
+  1 day frame and its daily file remain withdrawn.
+- **Owner order 2026-11-19 (Karachi)**: a call must be possible at or around
+  10:00 every market day, the pick may not already be more than 2% up on the
+  day, and its measured buyers must be at least twice its measured sellers.
+  The 30 minute frame is withdrawn because two completed bars of it cannot
+  exist before 10:32 from the 09:32 open; with a three bar 5 minute VWAP and
+  three earlier spreads the first legal minute is 10:07. The day gain is
+  measured from the venue's own previous close (the tape's `close` field), so
+  a name that gapped up cannot pass as flat, and the split is attributed in
+  the same tape pass that builds the bars. A source that cannot measure either
+  fact (the servlet capture) fails closed with a named refusal.
 - **One configuration surface**: [src/config.py](src/config.py) holds the
   target, the coverage floor, the Kalman and VWAP parameters, the z-score
   thresholds (`ZSCORE_Z_MIN`, `ZSCORE_SIGNAL_FRAME_MINUTES`,
-  `ZSCORE_MIN_SPREADS` and the three frame choices), the scan cadence and the
+  `ZSCORE_MIN_SPREADS`, `MAX_DAY_GAIN_PCT`, `MIN_BUY_SELL_RATIO` and the two
+  frame choices), the scan cadence and the
   paper/live switch. Paper is the default; live is off.
 - **One daily trade state**: [src/signals/trade_state.py](src/signals/trade_state.py),
   with a hard one-trade-per-day lock that survives a restart.
@@ -234,9 +249,9 @@ Full detail in [charts/README.md](charts/README.md) and
 ```
 src/config.py                     the ONE configuration surface
 src/signals/momentum_scanner.py   the ONE scanner (one law, one winner)
-src/signals/kalman_zscore_vwap.py the ONE strategy: Kalman, 5m/15m/30m VWAP and the z-score spread
+src/signals/kalman_zscore_vwap.py the ONE strategy: Kalman, 5m/15m VWAP and the z-score spread
 src/signals/kalman_trend.py       the causal trend clock and the one entry builder
-src/signals/mtf_vwap.py           the 5 minute, 15 minute and 30 minute VWAP frames
+src/signals/mtf_vwap.py           the 5 and 15 minute VWAP frames
 src/signals/trade_state.py        the persisted daily state and trade lock
 src/signals/contracts.py          the typed boundary: models, faults, ingest guard
 src/data/sessions.py              Karachi-pinned clock, session law, owner texts
@@ -324,9 +339,10 @@ python scripts/intraday_pipeline.py --finalize
 - **One strategy only**: the hybrid statistical arbitrage and mean reversion
   law, the market leg it read, the relative strength gate, the three frame
   VWAP pullback and the fresh one minute flip are removed. The only entry law
-  is the Kalman Trend with the 5, 15 and 30 minute VWAP frames and the
-  z-score price-VWAP spread (`kalman_vwap_zscore_sa_v1`), and the scan always
-  reads its frames.
+  is the Kalman Trend with the 5 and 15 minute VWAP frames and the z-score
+  price-VWAP spread (`kalman_vwap_zscore_sa_v1`), and the scan always reads its
+  frames. Owner order 2026-11-19 withdrew the 30 minute frame so a call can
+  exist at or around 10:00, and added the 2% day-gain and 2:1 buyer gates.
 - **Suite green**: every pull request runs `governance-guard` (the governance
   check, the whole unit suite, the worker's JavaScript) and the HUD's own
   `build` job, and it merges only when all of them pass.

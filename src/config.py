@@ -256,7 +256,7 @@ def is_etf_symbol(symbol: str) -> bool:
 
 # The scanner's identity is the one law it runs. Owner order 2026-11-16
 # (Karachi): the previous hybrid law is removed, and the only strategy is the
-# Kalman Trend with the 5 minute, 15 minute and 30 minute VWAP frames and the
+# Kalman Trend with the 5 minute and 15 minute VWAP frames and the
 # z-score price-VWAP spread as its statistical-arbitrage base
 # (src/signals/kalman_zscore_vwap.py). The name is kept as a constant because
 # the relay, the journal and the research gate file every signal under it.
@@ -284,10 +284,18 @@ KALMAN_MAX_SIGNAL_AGE_SECONDS = 60
 KALMAN_LAST_ENTRY_MINUTES = 30
 
 # ------------------------------------------------- multi-timeframe VWAP
-# Owner order 2026-11-16: VWAP joins the Kalman Trend on the 5 minute, 15
-# minute and 30 minute charts. The one minute tape stays the execution clock
-# and the trend gate; these three frames are the regime the entry must agree
-# with, each by its own VWAP and Kalman state (src/signals/mtf_vwap.py).
+# Owner order 2026-11-16: VWAP joins the Kalman Trend on the 5 minute and 15
+# minute charts. The one minute tape stays the execution clock and the trend
+# gate; these frames are the regime the entry must agree with, each by its
+# own VWAP and Kalman state (src/signals/mtf_vwap.py).
+#
+# Owner order 2026-11-19 (Karachi): a call must be possible at or around 10:00
+# every market day. The 30 minute frame is withdrawn by that order, because
+# two completed 30 minute bars cannot exist before 10:32 from the 09:32 open,
+# which made the owner's time requirement impossible. The lookbacks below are
+# sized for the same order: three 5 minute bars is a 15 minute VWAP line and
+# three earlier spreads are enough for the z, so the law's first legal minute
+# is 10:07 (seven completed 5m bars), with the 15 minute frame ready 10:02.
 #
 # The 1 day frame and the data/mtf_daily.csv.gz file it needed are withdrawn
 # by the same order. The law now reads the session tape alone, so a missing
@@ -297,19 +305,19 @@ MTF_ENABLED = _flag("MTF_ENABLED", True)
 # It defaults off so an offline unit test or a replay without the higher
 # frames runs the one minute law it was written to test instead of failing
 # on frames that a short fixture cannot hold. The live pipeline passes this
-# flag to the scanner, so the three frame law is never half-applied.
+# flag to the scanner, so the two frame law is never half-applied.
 MTF_REQUIRE_FRAMES = _flag("MTF_REQUIRE_FRAMES", False)
-MTF_TIMEFRAMES = (5, 15, 30)
-MTF_VWAP_LOOKBACK = {5: 12, 15: 12, 30: 12}
-MTF_MIN_BARS = {5: 3, 15: 2, 30: 2}
+MTF_TIMEFRAMES = (5, 15)
+MTF_VWAP_LOOKBACK = {5: 3, 15: 12}
+MTF_MIN_BARS = {5: 3, 15: 2}
 
 # ------------------- the z-score price-VWAP spread strategy
-# Owner order 2026-11-16 (Karachi): the Kalman Trend with VWAP on the 5, 15
-# and 30 minute charts, and the z-score of the price minus VWAP spread as the
+# Owner order 2026-11-16 (Karachi): the Kalman Trend with VWAP on the 5 and
+# 15 minute charts, and the z-score of the price minus VWAP spread as the
 # mathematical base (src/signals/kalman_zscore_vwap.py). The one minute trend
-# is the execution clock; the 15 and 30 minute frames must stay above their
-# VWAP with Kalman state +1 while the 5 minute spread is stretched below its
-# trailing mean. The new law is the ONE entry law, not a second engine.
+# is the execution clock; the 15 minute frame must stay above its VWAP with
+# Kalman state +1 while the 5 minute spread is stretched below its trailing
+# mean. The new law is the ONE entry law, not a second engine.
 ZSCORE_ENABLED = _flag("ZSCORE_ENABLED", True)
 ZSCORE_STRATEGY_VERSION = "kalman_vwap_zscore_sa_v1"
 #: The frame whose price-VWAP spread is standardised for the entry.
@@ -318,7 +326,17 @@ ZSCORE_SIGNAL_FRAME_MINUTES = int(_number("ZSCORE_SIGNAL_FRAME_MINUTES", 5))
 #: frame must sit before the dislocation counts.
 ZSCORE_Z_MIN = _number("ZSCORE_Z_MIN", 1.0)
 #: The minimum number of earlier spreads used for the mean and sigma.
-ZSCORE_MIN_SPREADS = int(_number("ZSCORE_MIN_SPREADS", 4))
+ZSCORE_MIN_SPREADS = int(_number("ZSCORE_MIN_SPREADS", 3))
+# Owner order 2026-11-19 (Karachi): the pick's day gain may not be more than
+# 2%. The reference is the venue's own previous close (the tape's `close`
+# field), never the session's first bar: a name that gapped up at the open
+# must not pass as flat, which is the case the owner named.
+MAX_DAY_GAIN_PCT = _number("MAX_DAY_GAIN_PCT", 0.02)
+# Owner order 2026-11-19 (Karachi): the pick's buyers must be significantly
+# dominant, at least twice its measured sellers. Both sides come from the one
+# side rule in src/data/tick_volume.py, attributed in the same tape pass that
+# builds the bars, so the gate and the phone card read one measurement.
+MIN_BUY_SELL_RATIO = _number("MIN_BUY_SELL_RATIO", 2.0)
 # Legacy momentum constants above are retained only by historical daily-bar
 # research. They have no decision path in the intraday scanner.
 
@@ -647,8 +665,17 @@ def config_snapshot() -> dict:
             "min_spreads": ZSCORE_MIN_SPREADS,
             "basis": "z score of the current price minus rolling VWAP "
                      "spread against that spread's own trailing mean and "
-                     "standard deviation, with the 15 and 30 minute "
-                     "frames above VWAP and every Kalman state up",
+                     "standard deviation, with the 15 minute frame above "
+                     "VWAP and every Kalman state up",
+        },
+        "entry_gates": {
+            "max_day_gain_pct": round(MAX_DAY_GAIN_PCT * 100, 4),
+            "min_buy_sell_ratio": MIN_BUY_SELL_RATIO,
+            "day_gain_basis": "the venue's previous close (the tape's close "
+                              "field); the session's first bar only when no "
+                              "previous close exists",
+            "buy_sell_source": "the one tape pass, by the side rule in "
+                               "src/data/tick_volume.py",
         },
         "min_relative_volume": MIN_RELATIVE_VOLUME,
         "min_session_traded_value": MIN_SESSION_TRADED_VALUE,

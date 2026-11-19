@@ -1,14 +1,20 @@
 """Multi-timeframe VWAP and Kalman confirmation for the intraday signal.
 
-Owner order 2026-11-16: the intraday signal is read on the 5 minute, 15
-minute and 30 minute charts. The one minute tape stays the execution clock:
-it is where the entry price and the trend state come from. The three higher
-timeframes are the regime the entry must agree with.
+Owner order 2026-11-16: the intraday signal is read on the 5 minute and 15
+minute charts. The one minute tape stays the execution clock: it is where the
+entry price and the trend state come from. These frames are the regime the
+entry must agree with.
+
+Owner order 2026-11-19 (Karachi): a call must be possible at or around 10:00
+every market day, and the 30 minute frame is withdrawn by that order: two
+completed 30 minute bars cannot exist before 10:32 from a 09:32 open, so the
+frame made the owner's time requirement impossible. The 15 minute frame is
+ready at 10:02 and the 5 minute z-score history by 10:07.
 
 Each frame is built only from completed bars, so nothing here looks at a
 forming candle:
 
-  * 5m, 15m and 30m are strict session-aligned aggregations of the one minute
+  * 5m and 15m are strict session-aligned aggregations of the one minute
     bars. A bucket with a missing minute is a hole, never a padded bar.
 
 The 1 day frame and the daily history file it needed remain withdrawn: the
@@ -29,19 +35,20 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from datetime import datetime, time, timedelta
+from datetime import datetime, timedelta
 
 from src import config
-from src.data.sessions import band_bounds, current_band, open_time
+from src.data.sessions import band_bounds, current_band
 from src.signals.kalman_trend import filter_series
 
 MTF_VERSION = "vwap_mtf_v3"
 
-#: The three frames the owner named, in minutes.
+#: The frames the owner named, in minutes (owner order 2026-11-19: 5 and 15).
 TIMEFRAMES = config.MTF_TIMEFRAMES
 
-#: VWAP lookbacks, in completed bars of each frame. Twelve 5m bars is one
-#: hour, twelve 15m bars is three hours and twelve 30m bars is six hours.
+#: VWAP lookbacks, in completed bars of each frame. Three 5m bars is a 15
+#: minute line, short enough that the first call can exist at 10:07; twelve
+#: 15m bars is three hours.
 VWAP_LOOKBACK = config.MTF_VWAP_LOOKBACK
 
 #: The minimum completed bars a frame needs before it can vote.
@@ -167,24 +174,21 @@ def _view(bars: list[Frame], minutes: int) -> tuple[dict | None, str]:
     return view, "ok"
 
 
-def evaluate(rows: list, session,
-             hourly_rows: list | None = None) -> tuple[dict | None, str]:
-    """Read the three frames and return the agreement, or the first refusal.
+def evaluate(rows: list, session) -> tuple[dict | None, str]:
+    """Read the frames and return the agreement, or the first refusal.
 
-    *hourly_rows* is the whole session's one minute tape, so the 30 minute
-    bars still carry the morning block after a Friday midday break. The 5 and
-    15 minute frames stay on the current band; when the tape is not supplied
-    they use the same rows as the faster frames.
+    The frames stay on the current band, session aligned, so a Friday
+    afternoon band is read on its own completed bars rather than across the
+    exchange's midday break. The 30 minute frame is withdrawn by owner order
+    2026-11-19; see the module docstring for the timing arithmetic.
     """
     band = current_band(session.as_of)
     if band is None:
         return None, "mtf_no_market_band"
     session_open, _session_close = band_bounds(session.day, band)
-    day_open = datetime.combine(session.day, time(*open_time(session.day)),
-                                tzinfo=session.as_of.tzinfo)
 
     frames: dict[str, dict] = {}
-    for minutes in (5, 15):
+    for minutes in TIMEFRAMES:
         bars = completed(rows, minutes, session_open, session.as_of)
         view, reason = _view(bars, minutes)
         if view is None:
@@ -192,15 +196,6 @@ def evaluate(rows: list, session,
         frames[f"{minutes}m"] = view
         if reason != "ok":
             return None, reason
-
-    slow_bars = completed(hourly_rows if hourly_rows is not None else rows,
-                          30, day_open, session.as_of)
-    view, reason = _view(slow_bars, 30)
-    if view is None:
-        return None, reason
-    frames["30m"] = view
-    if reason != "ok":
-        return None, reason
 
     return {
         "rule": MTF_VERSION,
@@ -210,16 +205,16 @@ def evaluate(rows: list, session,
 
 
 def summary(view: dict | None) -> str:
-    """One ASCII line naming all three frame states, or empty when incomplete.
+    """One ASCII line naming every frame state, or empty when incomplete.
 
     The line is the display contract for the cloud card and the owner email.
     It never invents a frame: a missing frame returns empty rather than a
-    partial claim, because a reader must not see two states and assume the
-    third agreed.
+    partial claim, because a reader must not see one state and assume the
+    other agreed.
     """
     frames = (view or {}).get("frames") or {}
     parts = []
-    for key, label in (("5m", "5m"), ("15m", "15m"), ("30m", "30m")):
+    for key, label in (("5m", "5m"), ("15m", "15m")):
         frame = frames.get(key)
         if not isinstance(frame, dict):
             return ""

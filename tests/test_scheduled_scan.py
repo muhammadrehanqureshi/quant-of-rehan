@@ -98,6 +98,12 @@ class GrowingTape:
         self.symbols = symbols
         self._totals = {sym: 0.0 for sym in symbols}
         self._minutes = 0
+        #: The venue's own previous close, carried on every row (owner order
+        #: 2026-11-19: the day's move is measured from it, never from the
+        #: session's first bar). The winner sits just above it, so the day
+        #: gain gate can pass while the tape is genuinely moving.
+        self._reference = {sym: 100.0 for sym in symbols}
+        self._reference[WINNER] = 103.0
 
     def advance_to(self, moment: datetime) -> None:
         """Append one row per symbol for every minute up to `moment`."""
@@ -109,11 +115,19 @@ class GrowingTape:
                 for symbol in self.symbols:
                     op, hi, lo, close, volume = (setup_values(minute - 1) if symbol == WINNER
                                                else (100, 100.01, 99.99, 100, 5000))
-                    for second, price in zip((0, 10, 20, 50), (op, hi, lo, close)):
-                        self._totals[symbol] += volume // 4
+                    # Uneven print sizes, so the measured buy/sell split is a
+                    # real ratio rather than a fixture tie: the two rising
+                    # prints carry most of the minute, the falling one little.
+                    for second, price, part in zip((0, 10, 20, 50),
+                                                   (op, hi, lo, close),
+                                                   (2, 5, 1, 2)):
+                        self._totals[symbol] += volume * part // 10
                         stamp = OPEN_AT + timedelta(minutes=minute, seconds=second)
                         handle.write(json.dumps({"kind": "MKT-FEED|SUB%", "ts": stamp.isoformat(),
                             "ticks": [{"scrip": f"{symbol}:REG", "last": str(price),
+                                       "close": str(self._reference[symbol]),
+                                       "bid": str(round(price - 0.02, 4)),
+                                       "ask": str(round(price + 0.02, 4)),
                                        "volume": str(int(self._totals[symbol])),
                                        "tick_time": stamp.strftime("%H:%M:%S"),
                                        "trades": str(minute * 4 + second + 1)}]}) + "\n")

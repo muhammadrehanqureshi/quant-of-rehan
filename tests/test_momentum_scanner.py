@@ -67,10 +67,17 @@ def minute_rows(count: int, start_price: float = 100.0, step: float = 0.0,
 def session_of(bars: dict[str, list[scanner.MinuteBar]], minutes: int,
                volume_available: bool = True) -> scanner.SessionData:
     as_of = SESSION_OPEN + timedelta(minutes=minutes)
+    # Owner order 2026-11-19: the candidate path gates on the day's move and on
+    # a measured buy/sell split. The fixture anchors the venue's previous close
+    # at each symbol's latest close (a 0% day) and measures twice the buyers,
+    # so a refusal a test asserts is the law's own and nothing else.
+    last = {symbol: rows[-1].close for symbol, rows in bars.items() if rows}
     return scanner.SessionData(
         day=WEDNESDAY, as_of=as_of, bars=bars, volume_available=volume_available,
         bars_seen=sum(len(rows) for rows in bars.values()), bars_rejected=0,
-        duplicate_bars=0,
+        duplicate_bars=0, previous_close=last,
+        buy_volume={symbol: 200_000 for symbol in bars},
+        sell_volume={symbol: 100_000 for symbol in bars},
     )
 
 
@@ -435,7 +442,9 @@ class TestOwnerOrderedCallWatch(unittest.TestCase):
         # tail beside the one name the fixture moves.
         for index in range(70):
             bars[f"QUIET{index:02d}"] = minute_rows(150)
-        session = session_of(bars, 131)
+        # 118 minutes is inside the fixture's measured dip, where the 15 minute
+        # VWAP still sits above the price (the law's entry window).
+        session = session_of(bars, 118)
         quality = scanner.assess_quality(session, list(bars))
         assert quality.status != scanner.DATA_BLOCKED, quality.reason
         scanner.market_context = lambda s: {
@@ -498,6 +507,75 @@ class TestOwnerOrderedCallWatch(unittest.TestCase):
         # ranked table is never mailed as extra calls.
         self.assertNotIn("ECHO", text)
         self.assertNotIn("FABL", text)
+
+
+class TestOwnerDayAndFlowGates(unittest.TestCase):
+    """Owner order 2026-11-19 (Karachi): under 2% on the day, buyers 2:1.
+
+    The pick may not already be more than 2% up on the day, measured from the
+    venue's own previous close, and its measured buyers must be at least twice
+    its measured sellers. Both gates read the facts the tape pass measured, so
+    a source that cannot answer either question refuses rather than guessing.
+    """
+
+    def session(self, rows, *, previous_close=None, buy=200_000,
+                sell=100_000):
+        session = session_of({"OGDC": rows}, len(rows))
+        session.previous_close = previous_close or {}
+        session.buy_volume = {} if buy is None else {"OGDC": buy}
+        session.sell_volume = {} if sell is None else {"OGDC": sell}
+        return session
+
+    def tally_for(self, session, rows):
+        tally: dict = {}
+        kalman_trend.candidate("OGDC", rows, session, tally, frames=True)
+        return tally
+
+    def test_a_pick_already_five_percent_up_on_the_day_is_refused(self):
+        rows = minute_rows(40, step=0.01)
+        entry = rows[-1].close
+        session = self.session(rows,
+                               previous_close={"OGDC": round(entry / 1.05, 4)})
+        self.assertIn("day_gain_over_max", self.tally_for(session, rows))
+
+    def test_a_gap_up_name_is_measured_from_the_venue_previous_close(self):
+        """One percent above its first bar, but eight above the previous close.
+
+        This is the ORM case the order names: a move read from the session's
+        own first bar would call the gapped name flat and pass it.
+        """
+        rows = minute_rows(40, step=0.005)
+        entry = rows[-1].close
+        session = self.session(rows,
+                               previous_close={"OGDC": round(entry / 1.08, 4)})
+        self.assertIn("day_gain_over_max", self.tally_for(session, rows))
+
+    def test_an_unmeasured_day_move_is_refused_and_named(self):
+        rows = minute_rows(40, step=0.01)
+        session = self.session(rows, previous_close=None)
+        session.bars = {}
+        self.assertIn("day_gain_unmeasurable", self.tally_for(session, rows))
+
+    def test_buyers_that_do_not_double_the_sellers_are_refused(self):
+        rows = minute_rows(40, step=0.01)
+        session = self.session(rows, previous_close={"OGDC": rows[-1].close},
+                               buy=150_000, sell=100_000)
+        self.assertIn("buyers_not_dominant", self.tally_for(session, rows))
+
+    def test_an_unmeasured_split_is_refused_and_named(self):
+        rows = minute_rows(40, step=0.01)
+        session = self.session(rows, previous_close={"OGDC": rows[-1].close},
+                               buy=None, sell=None)
+        self.assertIn("buy_sell_split_unavailable", self.tally_for(session, rows))
+
+    def test_double_the_buyers_inside_two_percent_passes_both_gates(self):
+        rows = minute_rows(40, step=0.01)
+        session = self.session(
+            rows, previous_close={"OGDC": round(rows[-1].close / 1.01, 4)})
+        tally = self.tally_for(session, rows)
+        for gate in ("day_gain_over_max", "day_gain_unmeasurable",
+                     "buyers_not_dominant", "buy_sell_split_unavailable"):
+            self.assertNotIn(gate, tally)
 
 
 if __name__ == "__main__":

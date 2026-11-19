@@ -50,8 +50,8 @@ MAX_MONITOR_LOSING_STREAK = 8
 #: interval. Adding it makes the family-wise correction STRICTER (the alpha
 #: is divided across the registered rules), never weaker.
 LIVE_RULE = config.SCANNER_VERSION
-# Owner order 2026-11-16: the one running law is the Kalman Trend with the 5,
-# 15 and 30 minute VWAP frames and the z-score price-VWAP spread
+# Owner order 2026-11-16: the one running law is the Kalman Trend with the 5
+# and 15 minute VWAP frames and the z-score price-VWAP spread
 # (`kalman_vwap_zscore_sa_v1`). Every previous strategy is removed, so only
 # the live rule is registered beside the frozen historical cohorts, and a row
 # is always scored under the scanner version that produced it.

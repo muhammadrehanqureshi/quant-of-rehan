@@ -1,13 +1,20 @@
 """The authoritative intraday scanner: one strategy, the one the owner named.
 
 Owner order 2026-11-16 (Karachi): the previous hybrid law is removed and the
-only strategy is the Kalman Trend with VWAP on the 5 minute, 15 minute and 30
-minute charts and the z-score price-VWAP spread as its statistical base
+only strategy is the Kalman Trend with VWAP on the 5 minute and 15 minute
+charts and the z-score price-VWAP spread as its statistical base
 (src/signals/kalman_zscore_vwap.py). The capture validation and the public
 SessionData/ScanResult contracts stay stable for all runners. The scanner
 builds its single entry through src/signals/kalman_trend.py's causal
-level+slope trend clock; the 15 and 30 minute frames confirm the regime and
-the 5 minute spread is the z-scored dislocation.
+level+slope trend clock; the 15 minute frame confirms the regime and the 5
+minute spread is the z-scored dislocation.
+
+Owner order 2026-11-19 (Karachi): a call must arrive at or around 10:00, the
+pick may not already be more than 2% up on the day, and its measured buyers
+must be at least twice its measured sellers. The 30 minute frame is withdrawn
+because it made the first call impossible before 10:32; the session carries
+the venue's previous close and the tape's buy/sell split so both gates read
+measured facts.
 The old RSI diagnostic remains solely for reproducing the HCAR postmortem.
 Asia/Karachi, UTC+5. Signal-only, no broker orders and no assured returns.
 """
@@ -72,6 +79,16 @@ class SessionData:
     duplicate_bars: int
     source: str = SOURCE_NAME
     notes: tuple[str, ...] = ()
+    #: The venue's own previous close per symbol, from the tape's `close`
+    #: field, and the shares the same tape pass attributed to buyers and to
+    #: sellers. Owner order 2026-11-19: a pick may not already be more than
+    #: 2% up on the day, and its buyers must be at least twice its sellers,
+    #: so both facts travel with the session the scan reads. A source that
+    #: cannot measure one of them leaves its map empty and the gate refuses
+    #: rather than guessing (SO-3).
+    previous_close: dict[str, float] = field(default_factory=dict)
+    buy_volume: dict[str, int] = field(default_factory=dict)
+    sell_volume: dict[str, int] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -353,6 +370,9 @@ def load_tape_bars(path: Path, symbols: list[str],
         duplicate_bars=tape.repeated_rows,
         source=tape.source,
         notes=tuple(tape.notes),
+        previous_close=dict(tape.previous_close),
+        buy_volume=dict(tape.buy_volume),
+        sell_volume=dict(tape.sell_volume),
     )
 
 
@@ -654,8 +674,8 @@ def score_symbol(symbol: str, rows: list[MinuteBar], session: SessionData,
                  frames: bool = False) -> dict | None:
     """Score one symbol under the Kalman Trend and z-score spread law.
 
-    `frames` says whether this deployment reads the 5 minute, 15 minute and
-    30 minute VWAP frames (src/signals/mtf_vwap.py). The one running law
+    `frames` says whether this deployment reads the 5 minute and 15 minute
+    VWAP frames (src/signals/mtf_vwap.py). The one running law
     cannot be evaluated without them, so False means no entry at all and the
     reason is named; the live pipeline passes the deployment flag from
     src/config.py.
@@ -768,11 +788,11 @@ def signal_message(candidate: dict, market: dict, entry: float,
     z = zview.get("z")
     fast = (zview.get("frames") or {}).get("5m") or {}
     if z is not None and fast.get("vwap") is not None:
-        reason = (f"Kalman trend up with 5m, 15m and 30m aligned; the 5m "
+        reason = (f"Kalman trend up with 5m and 15m aligned; the 5m "
                   f"price-VWAP spread is {z:+.2f} sigma versus its own "
                   f"trailing mean (VWAP {fast['vwap']})")
     else:
-        reason = "Kalman trend up with the 5m, 15m and 30m VWAP frames aligned"
+        reason = "Kalman trend up with the 5m and 15m VWAP frames aligned"
     lines = [
         "QUANT LONG SIGNAL - PAPER REFERENCE",
         "",
@@ -784,6 +804,20 @@ def signal_message(candidate: dict, market: dict, entry: float,
         f"Reason: {reason}",
         f"Strategy: {strategy}",
     ]
+    day = candidate.get("day") or {}
+    flow = candidate.get("flow") or {}
+    if day.get("gain_pct") is not None:
+        basis = ("the venue's previous close"
+                 if day.get("basis") == "venue_previous_close"
+                 else "the session's first bar")
+        lines.append(f"Day move: {day['gain_pct']:+.2f}% from {basis}")
+    if flow.get("buy_volume") is not None and flow.get("sell_volume") is not None:
+        ratio = flow.get("buy_sell_ratio")
+        text = (f"Measured flow: {flow['buy_volume']:,} bought versus "
+                f"{flow['sell_volume']:,} sold")
+        if ratio is not None:
+            text += f" ({ratio:.2f}x the sellers)"
+        lines.append(text)
     lines += [
         f"Entry time: {entry_time:%H:%M:%S} PKT",
         "Entry is the last completed minute close, not a confirmed fill.",

@@ -1,9 +1,17 @@
-"""The Kalman Trend, the 5m/15m/30m VWAP frames and the z-score spread law.
+"""The Kalman Trend, the 5m/15m VWAP frames and the z-score spread law.
 
 Owner order 2026-11-16 (Karachi): the running intraday strategy is the Kalman
-Trend with VWAP on the 5 minute, 15 minute and 30 minute charts, and its
-mathematical base is the z-score of the price minus VWAP spread, a
-statistical-arbitrage mean-reversion measure.
+Trend with VWAP on the 5 minute and 15 minute charts, and its mathematical
+base is the z-score of the price minus VWAP spread, a statistical-arbitrage
+mean-reversion measure.
+
+Owner order 2026-11-19 (Karachi): a call must be possible at or around 10:00
+every market day. The 30 minute frame is withdrawn by that order, because two
+completed 30 minute bars cannot exist before 10:32 and the session opens at
+09:32: it made the owner's time requirement arithmetically impossible. The
+law now needs seven completed 5 minute bars (a 15 minute VWAP plus three
+earlier spreads), so its first legal call is 10:07, and the 15 minute frame
+is ready at 10:02.
 
 The spread is measured, never eyeballed. For one frame, every completed bar
 has a spread of its close against the rolling VWAP that was available at that
@@ -16,8 +24,8 @@ Entry law:
 
   * the one minute Kalman trend must be up (the caller owns that clock);
   * the 5 minute frame's Kalman state must be +1, so the fast chart has turned;
-  * the 15 minute and 30 minute frames must both have Kalman state +1 and a
-    close above their own VWAP, so the slower regime still supports the trade;
+  * the 15 minute frame must have Kalman state +1 and a close above its own
+    VWAP, so the slower regime still supports the trade;
   * the 5 minute price-VWAP spread must sit at least ZSCORE_Z_MIN standard
     deviations below its own trailing mean, so the entry buys a measured
     statistical dislocation inside that rising regime.
@@ -111,11 +119,11 @@ def _frame(bars: list, minutes: int) -> dict | None:
 
 def frame_views(rows: list, session, session_rows: list | None = None
                 ) -> tuple[dict | None, str]:
-    """The 5, 15 and 30 minute frames, or the first frame that cannot vote.
+    """The 5 and 15 minute frames, or the first frame that cannot vote.
 
-    *session_rows* is the whole session's one minute tape. All three frames
-    are built from it, so the afternoon still has the morning's completed
-    bars and the 30 minute frame is not blind after a Friday midday break.
+    *session_rows* is the whole session's one minute tape. Both frames are
+    built from it, so the afternoon still has the morning's completed bars
+    and neither frame is blind after a Friday midday break.
     """
     if current_band(session.as_of) is None:
         return None, "zscore_no_market_band"
@@ -141,21 +149,17 @@ def entry_view(symbol: str, rows: list, session,
 
     fast = frames.get("5m")
     middle = frames.get("15m")
-    slow = frames.get("30m")
     if fast is None:
         return None, "zscore_5m_missing"
     if middle is None:
         return None, "zscore_15m_missing"
-    if slow is None:
-        return None, "zscore_30m_missing"
 
     if fast.get("kalman_state") != 1:
         return None, "zscore_fast_frame_not_up"
-    for key, frame in (("15m", middle), ("30m", slow)):
-        if frame.get("kalman_state") != 1:
-            return None, f"zscore_{key}_trend_not_up"
-        if not frame.get("above_vwap"):
-            return None, f"zscore_{key}_below_vwap"
+    if middle.get("kalman_state") != 1:
+        return None, "zscore_15m_trend_not_up"
+    if not middle.get("above_vwap"):
+        return None, "zscore_15m_below_vwap"
 
     z = fast.get("spread_z")
     if z is None:
@@ -189,7 +193,7 @@ def score(view: dict | None, reward_risk: float) -> float:
         return 0.0
     z = abs(float(view.get("z") or 0.0))
     frames = view.get("frames") or {}
-    aligned = sum(1 for key in ("15m", "30m")
+    aligned = sum(1 for key in ("15m",)
                   if (frames.get(key) or {}).get("kalman_state") == 1)
     return round(min(100.0, 50 + min(25.0, 10.0 * z)
                      + min(15.0, 5.0 * reward_risk)
@@ -206,4 +210,4 @@ def summary(view: dict | None) -> str:
     if z is None or vwap is None:
         return ""
     return (f"Z-SPREAD {z:+.2f} sigma versus the 5m VWAP {vwap}, "
-            f"with 5m/15m/30m Kalman aligned")
+            f"with 5m/15m Kalman aligned")

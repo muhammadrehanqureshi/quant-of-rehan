@@ -210,6 +210,17 @@ class TapeBars:
     #: The venue's own day low and high per symbol, used to test a suspicious
     #: print against the exchange's range instead of against a guess.
     venue_extremes: dict[str, tuple[float, float]] = field(default_factory=dict)
+    #: The venue's own previous close per symbol: the wire's `close` field,
+    #: the price the day's change is measured from. Owner order 2026-11-19:
+    #: a pick may not already be more than 2% up on the day, and a move read
+    #: from the session's first bar would call a gap-up name flat.
+    previous_close: dict[str, float] = field(default_factory=dict)
+    #: The shares this same pass attributed to buyers and to sellers, by the
+    #: one side rule src/data/tick_volume.py owns. Owner order 2026-11-19:
+    #: buyers must be at least twice the sellers for a pick to be selected,
+    #: so the split is measured where the bars already read the tape.
+    buy_volume: dict[str, int] = field(default_factory=dict)
+    sell_volume: dict[str, int] = field(default_factory=dict)
     #: Symbols whose series holds a hole wider than the carry bound: an outage
     #: or a stopped tape, left as a hole rather than filled with a flat line.
     hole_symbols: tuple[str, ...] = ()
@@ -278,6 +289,11 @@ class TapeBars:
             "started_after_open": list(self.started_after_open[:20]),
             "started_after_open_count": len(self.started_after_open),
             "venue_extreme_violations": self.venue_extreme_violations,
+            "previous_close_symbols": len(self.previous_close),
+            "buy_sell_split_symbols": sum(
+                1 for symbol in self.buy_volume
+                if self.buy_volume.get(symbol, 0)
+                + self.sell_volume.get(symbol, 0) > 0),
             "hole_symbols": list(self.hole_symbols[:20]),
             "hole_symbol_count": len(self.hole_symbols),
             "notes": list(self.notes),
@@ -308,6 +324,9 @@ def build(path: Path, symbols: Iterable[str], as_of: datetime,
 
     minutes: dict[str, dict[datetime, dict]] = {}
     previous: dict[str, Mapping] = {}
+    #: When the tape last observed each symbol, so a window the tape slept
+    #: through is never attributed to one side.
+    previous_moment: dict[str, datetime] = {}
     venue_high: dict[str, float] = {}
     venue_low: dict[str, float] = {}
     for row in tick_volume.iter_ticks(path):
@@ -346,10 +365,31 @@ def build(path: Path, symbols: Iterable[str], as_of: datetime,
                 tape.counter_gaps += 1
             elif total >= prior_total:
                 delta = float(int(total) - int(prior_total))
+                # The same window carries the split: the shares this counter
+                # moved are attributed to a side by the one rule the card
+                # uses, and a window the tape was not watching is left out
+                # rather than called a side (see tick_volume.MAX_WINDOW_SECONDS).
+                gap = ((moment - previous_moment[symbol]).total_seconds()
+                       if symbol in previous_moment else None)
+                side = ""
+                if gap is not None and gap <= tick_volume.MAX_WINDOW_SECONDS:
+                    side, _how = tick_volume.trade_side(row, prior)
+                if side == "B":
+                    tape.buy_volume[symbol] = (tape.buy_volume.get(symbol, 0)
+                                               + int(delta))
+                elif side == "S":
+                    tape.sell_volume[symbol] = (tape.sell_volume.get(symbol, 0)
+                                                + int(delta))
             else:
                 # A running total cannot go backwards: report it instead of
                 # reading a fall as negative volume.
                 tape.counter_resets += 1
+
+        # The venue's own previous close, carried on every row: the day's
+        # change is measured from it, so a gap-up name keeps its real move.
+        reference = _number(row.get("close"))
+        if reference is not None and reference > 0:
+            tape.previous_close[symbol] = reference
 
         if tape.first_observation is None or moment < tape.first_observation:
             tape.first_observation = moment
@@ -362,6 +402,7 @@ def build(path: Path, symbols: Iterable[str], as_of: datetime,
 
         price = _number(row.get("last"))
         previous[symbol] = row
+        previous_moment[symbol] = moment
         if price is None or price <= 0:
             tape.priceless_rows += 1
             continue
@@ -512,6 +553,16 @@ def _note(tape: TapeBars) -> None:
             f"{tape.venue_extreme_violations} symbol(s) hold a bar above the "
             f"venue's own day high or below its day low: the bar path and the "
             f"wire disagree about those prints"
+        )
+    if not tape.previous_close:
+        tape.notes.append(
+            "the capture carried no previous close on any row, so a pick's "
+            "day gain cannot be measured from the venue's own reference"
+        )
+    if not tape.buy_volume and not tape.sell_volume:
+        tape.notes.append(
+            "the capture attributed no shares to a side, so no pick has a "
+            "measured buy/sell split"
         )
     if tape.hole_symbols:
         tape.notes.append(
