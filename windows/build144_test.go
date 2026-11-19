@@ -55,11 +55,40 @@ func TestBuild144ScannerSearchKeepsOneCellAfterNetDeltaPct(t *testing.T) {
 	}
 }
 
+// Owner order 2026-11-19: a tile too short for a quote line of its own keeps
+// NET DELTA and the percentage on the leader's name line.
+func TestBuild144KSE100KeepsTheQuoteOnAShortTile(t *testing.T) {
+	a := busyApp(t, 120, 30, 3)
+	inside, found := false, 0
+	for _, row := range rowsOf(a) {
+		switch {
+		case strings.Contains(row, "KSE100 INDEX & THE TOP 3 SCRIPS OF VOLUME"):
+			inside = true
+			continue
+		case strings.Contains(row, "BUYING NOW"):
+			inside = false
+		}
+		if !inside || !strings.Contains(row, "1. ") {
+			continue
+		}
+		found++
+		if !strings.Contains(row, "NET DELTA") {
+			t.Errorf("the short tile lost NET DELTA: %q", row)
+		}
+		if !strings.Contains(row, "%") {
+			t.Errorf("the short tile lost the percentage: %q", row)
+		}
+	}
+	if found == 0 {
+		t.Fatalf("no leader name line was found:\n%s", plain(a))
+	}
+}
+
 // Owner order 2026-11-19: every KSE100 leader keeps NET DELTA and the
 // percentage after its price. A tile too narrow to hold the group beside the
 // volumes puts the quote on the line under them instead of dropping it.
 func TestBuild144KSE100KeepsTheQuoteWhenTheTileIsTight(t *testing.T) {
-	for _, sz := range [][2]int{{158, 41}, {140, 41}, {120, 34}} {
+	for _, sz := range [][2]int{{158, 41}, {140, 41}, {130, 41}} {
 		a := busyApp(t, sz[0], sz[1], 3)
 		inside, found := false, 0
 		for _, row := range rowsOf(a) {

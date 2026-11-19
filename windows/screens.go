@@ -213,20 +213,26 @@ func (a *App) drawQuote(c *Canvas, pkrX, y, pxW int, px string, pct *float64, px
 // percentage. net reserves the NET DELTA columns even on a row whose leader
 // carries no split, so every row's percentage lands on the same cell.
 func (a *App) drawQuoteGroup(c *Canvas, pkrX, y, pxW int, px, pxKey string, net bool, buy, sell *int64, pct *float64) int {
-	next := a.drawQuoteStart(c, pkrX, y, pxW, px, pxKey)
+	return a.drawQuoteTail(c, a.drawQuoteStart(c, pkrX, y, pxW, px, pxKey), y, net, buy, sell, pct)
+}
+
+// drawQuoteTail writes NET DELTA and the percentage after a price that ends on
+// pxEnd, on the one quote rule every tile uses.
+func (a *App) drawQuoteTail(c *Canvas, pxEnd, y int, net bool, buy, sell *int64, pct *float64) int {
+	x := pxEnd
 	if net {
-		netX := next + quoteGap
+		x += quoteGap
 		if buy != nil && sell != nil {
 			val, ink, bold := a.searchNet(*buy, *sell)
-			c.Text(netX, y, quoteNetLabelW, "NET DELTA", a.th.Soft, false)
-			rightAlign(c, netX+quoteNetLabelW+1, y, quoteNetValW, []Span{{val, ink, bold}})
+			c.Text(x, y, quoteNetLabelW, "NET DELTA", a.th.Soft, false)
+			rightAlign(c, x+quoteNetLabelW+1, y, quoteNetValW, []Span{{val, ink, bold}})
 		}
-		next = netX + quoteNetLabelW + 1 + quoteNetValW
+		x += quoteNetLabelW + 1 + quoteNetValW
 	}
 	if pct != nil {
-		next = a.drawQuotePct(c, next+quoteGap, y, *pct)
+		x = a.drawQuotePct(c, x+quoteGap, y, *pct)
 	}
-	return next
+	return x
 }
 
 func rightAlign(c *Canvas, x, y, w int, spans []Span) {
@@ -1429,16 +1435,7 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 	for _, l := range leaders[:nL] {
 		symW = max(symW, runeLen(l.Symbol))
 	}
-	pkrX := ix + 3 + usedMax + 2
-	stacked := pkrX+groupW-1 > edge
-	if stacked {
-		pkrX = ix + 3
-	}
-	barStart := pkrX
-	if stacked {
-		barStart = ix + 3 + symW + 2
-	}
-	barW := min(shareBarSpan, edge-barStart+1)
+	inline := ix+3+usedMax+2+groupW-1 <= edge
 
 	// The bottom of the tile, from the bottom up: the note, one blank line, and
 	// the BUYING NOW line. The blank line and the spacer under the index are
@@ -1459,13 +1456,25 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 	if len(board) > 0 {
 		limit--
 	}
-	// A stacked quote takes a third line per leader on top of the name and the
-	// volumes, so a short tile shows one fewer leader rather than dropping the
-	// price's figures.
+	// Three ways to keep the price's figures. Beside the volumes when they fit
+	// there, on a line of their own under the volumes when the tile has one to
+	// give, and on the name line when the tile is too short for a third line.
+	stacked := !inline && limit-row >= 3*nL
+	narrow := !inline && !stacked
 	need := 2
 	if stacked {
 		need = 3
 	}
+	pkrX := ix + 3 + usedMax + 2
+	barStart := pkrX
+	switch {
+	case stacked:
+		pkrX = ix + 3
+		barStart = ix + 3 + symW + 2
+	case narrow:
+		barStart = 0
+	}
+	barW := min(shareBarSpan, edge-barStart+1)
 	for i, l := range leaders {
 		if row+2 > limit {
 			break
@@ -1477,6 +1486,15 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 		if l.HasSplit() && barW >= shareBarBoxes &&
 			barStart >= ix+3+runeLen(l.Symbol)+2 && *l.Buy+*l.Sell > 0 {
 			a.shareBarOnly(c, barStart, row, barW, *l.Buy, *l.Sell)
+		}
+		if narrow {
+			// A tile too short for a quote line of its own keeps NET DELTA and
+			// the percentage on the name line, so neither leaves the screen.
+			var buy, sell *int64
+			if l.HasSplit() {
+				buy, sell = l.Buy, l.Sell
+			}
+			a.drawQuoteTail(c, ix+3+symW+2, row, netGroup > 0, buy, sell, l.ChangePct)
 		}
 		row++
 		var buy, sell *int64
@@ -1508,21 +1526,23 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 		// land on the same cells on every leader row.
 		if l.Price != nil {
 			px := commaFloat(*l.Price, 2)
-			// The stacked quote keeps its own line under the volumes when the
-			// tile has one to give, so even the last leader on a short tile
-			// holds PKR and its price.
-			if pkrX+groupW-1 <= edge && (!stacked || row+1 < limit) {
+			switch {
+			case inline:
 				// Owner order 2026-11-13: PKR and its price start on the same cells
 				// on all three rows, because the label sits on the column the
 				// widest volume line leaves and the field is the widest price.
-				if stacked {
-					row++
-				}
 				a.drawQuoteGroup(c, pkrX, row, pxW, px, pxKey, netGroup > 0, buy, sell, l.ChangePct)
-			} else if at := ix + 3 + used + 2; at+quoteLabelW+runeLen(px)-1 <= edge {
-				// A tile too narrow, or too short, for the stacked group keeps PKR
-				// and the price after the volumes.
-				a.drawQuoteStart(c, at, row, pxW, px, pxKey)
+			case stacked && row+1 < limit:
+				// The quote takes the line under the volumes, so the price keeps
+				// NET DELTA and the percentage in front of it.
+				row++
+				a.drawQuoteGroup(c, pkrX, row, pxW, px, pxKey, netGroup > 0, buy, sell, l.ChangePct)
+			default:
+				// A tile too short for a third line keeps PKR and the price after
+				// the volumes, where NET DELTA and the percentage stand above.
+				if at := ix + 3 + used + 2; at+quoteLabelW+runeLen(px)-1 <= edge {
+					a.drawQuoteStart(c, at, row, pxW, px, pxKey)
+				}
 			}
 		}
 		row++
