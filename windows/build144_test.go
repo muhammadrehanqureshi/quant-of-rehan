@@ -19,7 +19,7 @@ func TestBuild144ScannerSearchJoinsNetDeltaWithAmpersand(t *testing.T) {
 		}
 	}
 	if row == "" {
-		t.Fatalf("the scanner ledger carries no NET DELTA %:\n%s", strings.Join(rows, "\n"))
+		t.Fatalf("the scanner ledger carries no NET DELTA percentage:\n%s", strings.Join(rows, "\n"))
 	}
 	r := []rune(row)
 	at := col(row, "&")
