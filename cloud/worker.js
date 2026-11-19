@@ -271,7 +271,27 @@ const TRADE_OUTCOME_LABELS = new Set([
   "TARGET_HIT", "STOP_HIT", "STOP_AMBIGUOUS", "CLOSED_AT_SESSION_END",
 ]);
 
-function winLossFromSessions(sessions) {
+// Owner order 2026-11-19 (latest): "clear/reset the LATEST SIGNAL history".
+// The reset never deletes a banked day: RESEARCH:OUTCOME and RESEARCH:CLOSE
+// keep every closed trade, and this row names the Karachi day the record
+// counts from. A day before it is archive, not record.
+const WINLOSS_SINCE_KEY = "RESEARCH:WINLOSS:SINCE";
+
+async function winLossSince(env) {
+  try {
+    const raw = await relayRead(env, WINLOSS_SINCE_KEY);
+    if (!raw) return "";
+    const row = JSON.parse(raw);
+    const since = String((row && row.since) || "");
+    return /^\d{4}-\d{2}-\d{2}$/.test(since) ? since : "";
+  } catch (_) {
+    return "";
+  }
+}
+
+function winLossFromSessions(sessions, since) {
+  const cut = /^\d{4}-\d{2}-\d{2}$/.test(String(since || ""))
+    ? String(since) : "";
   const byDate = new Map();
   for (const session of sessions) {
     const label = String((session && session.outcome) || "").toUpperCase();
@@ -279,6 +299,10 @@ function winLossFromSessions(sessions) {
     const net = Number(session.net_return);
     if (!Number.isFinite(net)) continue;
     const day = String((session && (session.date || session.day)) || "");
+    // A day banked before the owner's reset stays in the archive and is not
+    // part of the record. A row with no date cannot be proven to fall after
+    // the cut, so it is not counted either.
+    if (cut && (!day || day < cut)) continue;
     const key = day || `${(session && session.symbol) || ""}|${label}|${net}`;
     // Owner order 2026-11-05 (fifth pass, "what signal hit TP that you
     // made it the winner?"): only a call that reached its take profit is
@@ -330,10 +354,12 @@ async function winLossSnapshot(env) {
       } catch (_) { /* unreadable row: never counted */ }
     }
   }
-  const { wins, losses } = winLossFromSessions(sessions);
+  const since = await winLossSince(env);
+  const { wins, losses } = winLossFromSessions(sessions, since);
   const total = wins + losses;
   const row = {
     computed_at: new Date().toISOString(),
+    since,
     wins,
     losses,
     closed: total,
@@ -3411,6 +3437,27 @@ export default {
 
     if (path.startsWith("/research/") && !adminOk(request, env)) {
       return json({ ok: false, error: "admin token required" }, 403);
+    }
+
+    // Owner order 2026-11-19 (latest): "clear/reset the LATEST SIGNAL
+    // history". The archive is untouched; the record starts again on the
+    // Karachi day this route banks, which defaults to the next session so a
+    // streak that already stands today is cleared now. A body may name any
+    // day ("since": "YYYY-MM-DD") to move the cut.
+    if (request.method === "POST" && path === "/research/winloss/reset") {
+      const body = await request.json().catch(() => null);
+      const asked = String((body && body.since) || "").trim();
+      const since = asked ||
+        dayStamp(karachiView(Date.now() + 24 * 60 * 60 * 1000));
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(since)) {
+        return json({ ok: false, error: "invalid since date" }, 400);
+      }
+      await kvPut(env, WINLOSS_SINCE_KEY,
+        JSON.stringify({ since, reset_at: new Date().toISOString() }));
+      await kvDelete(env, "RESEARCH:WINLOSS");
+      winLossMemo = { at: 0, value: null };
+      const row = await winLossSnapshot(env);
+      return json({ ok: true, since, win_loss: row });
     }
 
     if (request.method === "POST" && path === "/research/observation") {

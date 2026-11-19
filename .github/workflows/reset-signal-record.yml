@@ -1,0 +1,66 @@
+name: Reset the closed signal record
+
+# Owner order 2026-11-19 (latest): "clear/reset the LATEST SIGNAL history".
+#
+# One run clears the W/L & W/L RATE row on the LATEST SIGNAL tile. The relay
+# keeps every banked day in its archive (RESEARCH:OUTCOME:<date> and
+# RESEARCH:CLOSE:<date> are never deleted); the record simply starts again on
+# the Karachi day this run banks. The default is the next session, so a
+# streak that already stands today is cleared now. Pass `since` to count from
+# an earlier or later day instead.
+#
+# The admin token rides as the repository secret the other workflows already
+# use, so no value is written to a file, a log or the pull request.
+
+on:
+  workflow_dispatch:
+    inputs:
+      since:
+        description: "Karachi day the record counts from (YYYY-MM-DD, blank means the next session)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: reset-signal-record
+  cancel-in-progress: false
+
+jobs:
+  reset:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      RELAY_ADMIN_TOKEN: ${{ secrets.RELAY_ADMIN_TOKEN }}
+    steps:
+      - name: Check the token is set
+        run: |
+          [ -n "$RELAY_ADMIN_TOKEN" ] || { echo "::error::RELAY_ADMIN_TOKEN secret missing"; exit 1; }
+
+      - name: Clear the record
+        env:
+          SINCE: ${{ inputs.since }}
+        run: |
+          body="{}"
+          if [ -n "$SINCE" ]; then
+            body=$(printf '{"since":"%s"}' "$SINCE")
+          fi
+          # A browser style user agent: Cloudflare's browser integrity check
+          # refuses curl's own signature with HTTP 403 and error code 1010,
+          # which would read as a failed reset.
+          curl -fsS --max-time 30 \
+            -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) QuantOfRehan-RelayWriter/1.0" \
+            -H "Accept: application/json" \
+            -H "Content-Type: application/json" \
+            -H "x-admin-token: $RELAY_ADMIN_TOKEN" \
+            -X POST --data "$body" \
+            https://quant-of-rehan-relay.mrmrehanqureshi.workers.dev/research/winloss/reset
+
+      - name: Show the record the relay now answers
+        run: |
+          curl -fsS --max-time 30 \
+            -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) QuantOfRehan-RelayReader/1.0" \
+            -H "Accept: application/json" \
+            https://quant-of-rehan-relay.mrmrehanqureshi.workers.dev/market \
+            | python3 -c 'import json,sys; d=json.load(sys.stdin); print(json.dumps(d.get("win_loss"), sort_keys=True))'

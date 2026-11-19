@@ -276,6 +276,30 @@ class RelayWorkerContractTest(unittest.TestCase):
         self.assertIn("marketWinLoss(env)", route)
         self.assertIn("win_loss: winLoss,", route)
 
+    def test_the_owner_can_clear_the_record_without_losing_the_archive(self):
+        """Owner order 2026-11-19 (latest): "clear/reset the LATEST SIGNAL
+        history". The reset never deletes a banked day: it moves the Karachi
+        day the record counts from, so a standing 0/10 clears and the archive
+        keeps every closed trade behind it.
+        """
+        self.assertIn('const WINLOSS_SINCE_KEY = "RESEARCH:WINLOSS:SINCE";',
+                      self.source)
+        self.assertIn("winLossFromSessions(sessions, since)", self.source)
+        self.assertIn("if (cut && (!day || day < cut)) continue;", self.source)
+        reset = self.source[self.source.index(
+            'path === "/research/winloss/reset"'):]
+        reset = reset[:reset.index('path === "/research/observation"')]
+        # The cut defaults to the next session, so today's streak clears now.
+        self.assertIn(
+            "dayStamp(karachiView(Date.now() + 24 * 60 * 60 * 1000))", reset)
+        # The route drops the cached count and answers the fresh row.
+        self.assertIn('kvDelete(env, "RESEARCH:WINLOSS")', reset)
+        self.assertIn("winLossMemo = { at: 0, value: null };", reset)
+        self.assertIn("win_loss: row", reset)
+        # No banked day is deleted by the reset.
+        self.assertNotIn("RESEARCH:OUTCOME", reset)
+        self.assertNotIn("RESEARCH:CLOSE", reset)
+
     def test_an_uncounted_day_may_be_upgraded_by_its_closed_record(self):
         """Owner order 2026-11-05 ("always update the signal at the end of
         the day whether it's winning or losing"): the store's first-write
