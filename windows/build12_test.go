@@ -116,11 +116,15 @@ func TestKSE100LeadersLineUpAndCarryTheirBar(t *testing.T) {
 			t.Errorf("a leader price starts at %d, the first at %d: %q", at, pkrAt, r)
 		}
 		rest := r[pkrByte:]
-		if strings.Contains(rest, "NET DELTA") {
-			t.Errorf("the KSE100 leader still carries NET DELTA: %q", r)
+		if !strings.Contains(rest, "NET DELTA") {
+			t.Errorf("the KSE100 leader carries no NET DELTA: %q", r)
 		}
 		if !strings.Contains(rest, "%") {
 			continue
+		}
+		netAt, pctAt := col(rest, "NET DELTA"), col(rest, "%")
+		if netAt < 0 || pctAt < 0 || netAt > pctAt {
+			t.Errorf("the KSE100 NET DELTA does not stand before the percentage: %q", r)
 		}
 		if i == 0 {
 			t.Errorf("the first leader price line has no name line above it: %q", r)

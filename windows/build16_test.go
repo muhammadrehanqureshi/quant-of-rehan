@@ -77,8 +77,9 @@ func TestCalculatorTileWording(t *testing.T) {
 }
 
 // Owner order 2026-11-13: the unclassified column keeps its own width, so the
-// total no longer follows a full-volume blank, and PKR, the change and the
-// NET DELTA stand as one group at the right.
+// total no longer follows a full-volume blank, and PKR, NET DELTA and the
+// change stand as one group at the right. Owner order 2026-11-19: NET DELTA
+// stands between the price and the percentage, so that group is wider.
 func TestKSE100ColumnsAreTight(t *testing.T) {
 	a := busyApp(t, 158, 41, 3)
 	uToT := regexp.MustCompile(`U=\s*([\d,]+)( +)&( +)T=`)
@@ -106,7 +107,11 @@ func TestKSE100ColumnsAreTight(t *testing.T) {
 		arrow := strings.IndexAny(row, "▲▼")
 		if pkr >= 0 && arrow > pkr {
 			priced++
-			if arrow-pkr > 18 {
+			rest := row[pkr:]
+			if net := col(rest, "NET DELTA"); net < 0 || net > arrow-pkr {
+				t.Errorf("NET DELTA does not stand between PKR and the change: %q", row)
+			}
+			if arrow-pkr > 40 {
 				t.Errorf("the change floats %d cells from PKR: %q", arrow-pkr, row)
 			}
 		}

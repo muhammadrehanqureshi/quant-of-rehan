@@ -161,6 +161,54 @@ func (a *App) panel(c *Canvas, x, y, w, h int, title, hint string) (ix, iy, iw, 
 	return x + 2, y + 1, w - 4, h - 2
 }
 
+// Owner order 2026-11-19: one quote group on every tile. PKR keeps its own
+// column, the price is right aligned in a shared field, one cell follows, then
+// the arrow and exactly one cell before the percentage. The percentage starts
+// on the same cell whether the move is a rise or a fall, so every tile reads
+// with the same spaces and nothing floats to a different column.
+const (
+	quoteLabelW    = 4 // "PKR "
+	quoteGap       = 1
+	quotePctW      = 6 // "99.99%"
+	quoteNetLabelW = 9
+	quoteNetValW   = 6
+)
+
+func quoteWidth(pxW int) int {
+	return quoteLabelW + pxW + quoteGap + 1 + 1 + quotePctW
+}
+
+func quoteNetWidth(pxW int) int {
+	return quoteWidth(pxW) + quoteGap + quoteNetLabelW + 1 + quoteNetValW
+}
+
+func pctFixed(pct float64) string {
+	return strconv.FormatFloat(math.Abs(pct), 'f', 2, 64) + "%"
+}
+
+// drawQuoteStart writes PKR and its price, and returns the cell after the price
+// field. The caller adds NET DELTA and the percentage from that cell, so every
+// group shares one rule.
+func (a *App) drawQuoteStart(c *Canvas, pkrX, y, pxW int, px, pxKey string) int {
+	c.Text(pkrX, y, 3, "PKR", a.th.Soft, false)
+	a.flashText(c, pkrX+quoteLabelW, y, padLeft(px, pxW), a.th.Text, true, pxKey)
+	return pkrX + quoteLabelW + pxW
+}
+
+func (a *App) drawQuotePct(c *Canvas, x, y int, pct float64) int {
+	ink := a.dirColor(pct)
+	c.Text(x, y, 1, arrow(pct), ink, true)
+	c.Text(x+2, y, quotePctW, pctFixed(pct), ink, true)
+	return x + 1 + 1 + quotePctW
+}
+
+func (a *App) drawQuote(c *Canvas, pkrX, y, pxW int, px string, pct *float64, pxKey string) {
+	x := a.drawQuoteStart(c, pkrX, y, pxW, px, pxKey)
+	if pct != nil {
+		a.drawQuotePct(c, x+quoteGap, y, *pct)
+	}
+}
+
 func rightAlign(c *Canvas, x, y, w int, spans []Span) {
 	n := 0
 	for _, s := range spans {
@@ -1337,14 +1385,23 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 	for _, l := range leaders[:nL] {
 		usedMax = max(usedMax, leaderBSTWidth(l, cols, wide))
 	}
-	const chgW = 8
-	// Owner order 2026-11-18: the bar moves above the price line and starts on
-	// the cell where the current price begins. The percentage keeps the right
-	// hand edge, so the bar can no longer run into it or be cut off.
+	// Owner order 2026-11-19: the price, the percentage, NET DELTA and the bar
+	// move left together. NET DELTA stands between the price and the
+	// percentage, on the one quote rule every tile uses, so the three leaders
+	// keep their columns and the bar starts on the price's own cell.
 	edge := ix + iw - 2
-	chgRight := edge
-	chgX := chgRight - chgW + 1
-	pkrX := max(ix+3+usedMax+2, chgX-2-(4+pxW))
+	netGroup := 0
+	for _, l := range leaders[:nL] {
+		if l.HasSplit() {
+			netGroup = quoteGap + quoteNetLabelW + 1 + quoteNetValW
+			break
+		}
+	}
+	groupW := quoteWidth(pxW)
+	if netGroup > 0 {
+		groupW = quoteNetWidth(pxW)
+	}
+	pkrX := max(ix+3+usedMax+2, edge-groupW+1)
 	barStart := pkrX
 	barW := min(shareBarSpan, edge-barStart+1)
 
@@ -1409,20 +1466,27 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 		// land on the same cells on every leader row.
 		if l.Price != nil {
 			px := commaFloat(*l.Price, 2)
-			if pkrX+4+pxW <= edge {
+			if pkrX+groupW-1 <= edge {
 				// Owner order 2026-11-13: PKR and its price start on the same cells
 				// on all three rows, because the label sits on the column the
 				// widest volume line leaves and the field is the widest price.
-				c.Text(pkrX, row, 3, "PKR", th.Soft, false)
-				a.flashText(c, pkrX+4, row, px, th.Text, true, pxKey)
-				if l.ChangePct != nil && chgX > pkrX+4+pxW {
-					a.flashRight(c, chgRight, row, changeText(*l.ChangePct), a.dirColor(*l.ChangePct), true, pxKey)
+				next := a.drawQuoteStart(c, pkrX, row, pxW, px, pxKey)
+				if netGroup > 0 {
+					netX := next + quoteGap
+					if l.HasSplit() {
+						net, ink, bold := a.searchNet(*l.Buy, *l.Sell)
+						c.Text(netX, row, quoteNetLabelW, "NET DELTA", th.Soft, false)
+						rightAlign(c, netX+quoteNetLabelW+1, row, quoteNetValW, []Span{{net, ink, bold}})
+					}
+					next = netX + quoteNetLabelW + 1 + quoteNetValW
 				}
-			} else if at := ix + 3 + used + 2; at+4+runeLen(px) <= edge {
+				if l.ChangePct != nil {
+					a.drawQuotePct(c, next+quoteGap, row, *l.ChangePct)
+				}
+			} else if at := ix + 3 + used + 2; at+quoteLabelW+runeLen(px)-1 <= edge {
 				// A window too narrow for both: PKR and the price follow the
 				// volumes, as they always have, and the change gives way first.
-				c.Text(at, row, 3, "PKR", th.Soft, false)
-				a.flashText(c, at+4, row, px, th.Text, true, pxKey)
+				a.drawQuoteStart(c, at, row, pxW, px, pxKey)
 			}
 		}
 		row++

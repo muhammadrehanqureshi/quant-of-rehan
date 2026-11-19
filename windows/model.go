@@ -131,8 +131,12 @@ const appVersion = "4.0.21"
 // on the T column, the right side ALERTS LOG price and percentage, HIGH & LOW,
 // the left SEARCH bar and EVERY SECOND on TELEMETRY and KSE100. Build 142 is
 // 3.8.17, the post-market phase starting at 15:32 Monday to Thursday and 16:32
-// on Friday instead of the trading close two minutes earlier.
-const hudBuild = "3.8.17"
+// on Friday instead of the trading close two minutes earlier. Build 143 is
+// 3.8.18, one quote group on every tile: a spaced NET DELTA, the word at before
+// the ALERTS LOG price, the KSE100 NET DELTA in front of the percentage, the
+// SECTORS and CUSTOM SCRIPS price columns, and the standard heading diamond on
+// both big-order boards.
+const hudBuild = "3.8.18"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no

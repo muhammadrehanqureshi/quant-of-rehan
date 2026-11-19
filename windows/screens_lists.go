@@ -443,24 +443,15 @@ func (a *App) drawScanQuote(c *Canvas, x, row, w, left int, atT bool, q Quote, p
 	if q.Price <= 0 {
 		return
 	}
-	th := a.th
-	const chgW = 8
 	end := x + w - 2
 	px := commaFloat(q.Price, 2)
-	showPrice := func(pkr, pxAt, chgAt int) {
-		c.Text(pkr, row, 3, "PKR", th.Soft, false)
-		a.flashText(c, pxAt, row, px, th.Text, true, pxKey)
-		if q.ChangePct != nil {
-			a.flashText(c, chgAt-chgW, row, fit(changeText(*q.ChangePct), chgW), a.dirColor(*q.ChangePct), true, pxKey)
-		}
-	}
+	groupW := quoteWidth(pxW)
 	if atT {
-		chgAt := left + 4 + runeLen(px) + 2 + chgW
-		if chgAt > end {
+		if left+groupW-1 > end {
 			return
 		}
-		showPrice(left, left+4, chgAt)
-		barStart := chgAt + 2
+		a.drawQuote(c, left, row, pxW, px, q.ChangePct, pxKey)
+		barStart := left + groupW + quoteGap
 		if q.Buy != nil && q.Sell != nil && barStart+shareBarWidth <= end+1 {
 			if total := *q.Buy + *q.Sell; total > 0 {
 				a.shareBar(c, barStart, row, shareBarWidth, *q.Buy, *q.Sell)
@@ -469,19 +460,19 @@ func (a *App) drawScanQuote(c *Canvas, x, row, w, left int, atT bool, q Quote, p
 		return
 	}
 	barStart := end - shareBarWidth + 1
-	chgRight := barStart - 2
-	priceRight := chgRight - chgW - 2
-	switch {
-	case priceRight-pxW-4 >= left:
-		showPrice(priceRight-pxW-4, priceRight-pxW, chgRight)
-		if q.Buy != nil && q.Sell != nil {
-			if total := *q.Buy + *q.Sell; total > 0 {
-				a.shareBar(c, barStart, row, shareBarWidth, *q.Buy, *q.Sell)
-			}
+	pkrX := barStart - quoteGap - groupW
+	if pkrX < left {
+		pkrX = end - groupW + 1
+		barStart = 0
+	}
+	if pkrX < left {
+		return
+	}
+	a.drawQuote(c, pkrX, row, pxW, px, q.ChangePct, pxKey)
+	if barStart > 0 && q.Buy != nil && q.Sell != nil {
+		if total := *q.Buy + *q.Sell; total > 0 {
+			a.shareBar(c, barStart, row, shareBarWidth, *q.Buy, *q.Sell)
 		}
-	case end-4-runeLen(px)-chgW-2 >= left:
-		pkr := end - 4 - runeLen(px) - chgW - 2
-		showPrice(pkr, pkr+4, end)
 	}
 }
 
@@ -710,19 +701,17 @@ func (a *App) drawSearchLedger(c *Canvas, x, y, w, bottom int, buy, sell, tot *i
 		}
 		a.shareBarOnly(c, x, y+1, barW, b, s)
 		netX := x + barW + 2
-		if netX+9+6 > x+w {
+		if netX+quoteNetLabelW+1+quoteNetValW+quoteGap+11+1+7 > x+w {
 			return
 		}
 		net, ink, bold := a.searchNet(b, s)
-		c.Text(netX, y+1, 9, "NET DELTA", th.Soft, false)
-		rightAlign(c, netX+9, y+1, 6, []Span{{net, ink, bold}})
-		pctX := netX + 9 + 6 + 2
-		if pctX+11+7 > x+w {
-			return
-		}
+		c.Text(netX, y+1, quoteNetLabelW, "NET DELTA", th.Soft, false)
+		valX := netX + quoteNetLabelW + 1
+		rightAlign(c, valX, y+1, quoteNetValW, []Span{{net, ink, bold}})
+		pctX := valX + quoteNetValW + quoteGap
 		pct := searchNetPct(b, s)
 		c.Text(pctX, y+1, 11, "NET DELTA %", th.Soft, false)
-		rightAlign(c, pctX+11, y+1, 7, []Span{{pct, ink, bold}})
+		rightAlign(c, pctX+11+1, y+1, 7, []Span{{pct, ink, bold}})
 		return
 	}
 	sp := []Span{{"B=", th.Soft, false}}
@@ -756,11 +745,12 @@ func (a *App) drawSearchLedger(c *Canvas, x, y, w, bottom int, buy, sell, tot *i
 	}
 	net, ink, bold := a.searchNet(b, s)
 	pct := searchNetPct(b, s)
-	c.Text(x, nY, 9, "NET DELTA", th.Soft, false)
-	rightAlign(c, x+9, nY, 6, []Span{{net, ink, bold}})
-	pctX := x + 18
+	c.Text(x, nY, quoteNetLabelW, "NET DELTA", th.Soft, false)
+	valX := x + quoteNetLabelW + 1
+	rightAlign(c, valX, nY, quoteNetValW, []Span{{net, ink, bold}})
+	pctX := valX + quoteNetValW + quoteGap
 	c.Text(pctX, nY, 11, "NET DELTA %", th.Soft, false)
-	rightAlign(c, pctX+11, nY, 7, []Span{{pct, ink, bold}})
+	rightAlign(c, pctX+11+1, nY, 7, []Span{{pct, ink, bold}})
 }
 
 // searchNet is the NET DELTA on the SEARCH tile's bar line, as a magnitude in
@@ -873,9 +863,8 @@ func (a *App) drawSectorTile(c *Canvas, x, y, w, h int) {
 		pct, cnt := sectorChangeIn(tbl, g)
 		pctText, pctInk, pctArrow := "--", th.Soft, ""
 		if cnt > 0 {
-			// Owner order 2026-11-18: the arrow keeps its fixed column and the
-			// percentage is right aligned beside it, so every percentage ends on
-			// the same cell whatever digits it carries.
+			// Owner order 2026-11-19: one cell stands between the arrow and the
+			// percentage, the same gutter every quote group uses.
 			pctText = strconv.FormatFloat(math.Abs(pct), 'f', 2, 64) + "%"
 			pctArrow = "▲"
 			if pct < 0 {
@@ -885,12 +874,12 @@ func (a *App) drawSectorTile(c *Canvas, x, y, w, h int) {
 			}
 		}
 		c.Text(ix+3, ry, 3, fmt.Sprintf("%2d.", i+1), th.Soft, false)
-		pctW := shareNetW
+		pctW := 1 + 1 + quotePctW
 		pctX := ix + cw - pctW
 		nameW := max(1, pctX-(ix+7)-2)
 		c.Text(ix+7, ry, nameW, fit(g.Name, nameW), th.Text, idx == a.sectorChoice)
 		c.Text(pctX, ry, 1, pctArrow, pctInk, cnt > 0)
-		rightAlign(c, pctX+1, ry, pctW-1, []Span{{pctText, pctInk, cnt > 0}})
+		c.Text(pctX+2, ry, quotePctW, pctText, pctInk, cnt > 0)
 
 	}
 	a.scrollbar(c, ix+iw-1, listY, a.lvSector.view, &a.lvSector)
@@ -988,29 +977,15 @@ func (a *App) drawSectorOpen(c *Canvas, x, y, w, h int) {
 		sym := member[i]
 		ry := iy + 3 + n
 		a.selectRow(c, ix, ry, cw, false, func() { a.openSymbol(sym) })
-		pctW := shareNetW
-		pctX := ix + cw - pctW
-		priceW := 12
-		priceX := pctX - 2 - priceW
+		const priceW = 8
+		priceX := ix + cw - quoteWidth(priceW)
 		nameW := max(1, priceX-(ix+1)-2)
 		c.Text(ix+1, ry, nameW, fit(fmt.Sprintf("%3d. %-9s", i+1, sym), nameW), th.Hot, true)
 		if q, ok := tbl[sym]; ok && q.Price > 0 {
-			px := commaFloat(q.Price, 2)
-			rightAlign(c, priceX, ry, priceW, []Span{{"PKR ", th.Soft, false}, {px, th.Text, true}})
-			if q.ChangePct != nil {
-				// Owner order 2026-11-19: the open sector puts the price and the
-				// percentage on the right, like the closed group list. The arrow
-				// keeps one column and the percentage is right aligned beside it,
-				// so a fall no longer sits one cell to the right of a rise.
-				ink := a.dirColor(*q.ChangePct)
-				arrow := "▲"
-				if *q.ChangePct < 0 {
-					arrow = "▼"
-				}
-				pct := strconv.FormatFloat(math.Abs(*q.ChangePct), 'f', 2, 64) + "%"
-				c.Text(pctX, ry, 1, arrow, ink, true)
-				rightAlign(c, pctX+1, ry, pctW-1, []Span{{pct, ink, true}})
-			}
+			// Owner order 2026-11-19: PKR holds one column, the price its own
+			// field, and the arrow keeps one cell before the percentage, exactly
+			// as the quote group does on every other tile.
+			a.drawQuote(c, priceX, ry, priceW, commaFloat(q.Price, 2), q.ChangePct, "px:"+sym)
 		}
 	}
 	a.scrollbar(c, ix+iw-1, iy+3, a.lvSectorStk.view, &a.lvSectorStk)
@@ -1452,8 +1427,10 @@ func (a *App) drawBoardPanel(c *Canvas, x, y, w, h int, side int) {
 	ix, iy, iw, ih := a.panel(c, x, y, w, h, title, hint)
 	// Owner order 2026-11-07: the buying heading is green and the selling
 	// heading is red, even when the focused panel would otherwise be hot.
+	// Owner order 2026-11-19: the diamond is the panel's own hot mark, the same
+	// glyph in the same cell every other tile carries; only the words are
+	// green or red.
 	titleInk := good
-	c.Put(x+2, y, '◆', titleInk, false)
 	c.Text(x+4, y, w-8, fit(title, w-12), titleInk, true)
 	a.addHit(x, y, w, h, func() { a.alertFocus = focus })
 	if !on {
@@ -1621,14 +1598,30 @@ func (a *App) drawAlertLog(c *Canvas, x, y, w, h int) {
 		// percentage stays on the left. Those two end on fixed right hand
 		// columns, so a long sentence can no longer cut either of them off and
 		// a fall ends on the same cell as a rise.
+		pct := a.alertPct(f)
+		// A flag reserves the right hand columns only when it brings its own
+		// price or move. A live quote alone must not narrow a plain sentence.
+		showGroup := f.Price > 0 || f.ChangePct != nil
 		text := f.Text
 		if at := strings.Index(text, " at PKR "); at >= 0 {
-			text = strings.TrimRight(text[:at], " .") + "."
+			stem := strings.TrimRight(text[:at], " .")
+			if showGroup {
+				// Owner order 2026-11-19: bought and sold lead into the price
+				// column with the word at, never a full stop.
+				text = stem + " at"
+			} else {
+				text = stem + "."
+			}
 		}
 		if f.Detail != "" {
 			detail := f.Detail
 			if at := strings.Index(detail, " at PKR "); at >= 0 {
-				detail = strings.TrimRight(detail[:at], " .") + "."
+				stem := strings.TrimRight(detail[:at], " .")
+				if showGroup {
+					detail = stem + " at"
+				} else {
+					detail = stem + "."
+				}
 			}
 			text += "  " + detail
 		}
@@ -1637,26 +1630,21 @@ func (a *App) drawAlertLog(c *Canvas, x, y, w, h int) {
 		}
 		// A flag without a price keeps the whole row for its sentence; only a
 		// priced flag gives the right hand columns their cells.
-		pct := a.alertPct(f)
-		const priceW, pctW, colGap = 10, 8, 1
+		const priceW = 8
 		groupX, leadW := lx+lw, lw
-		showGroup := f.Price > 0 || f.ChangePct != nil
 		if showGroup {
-			groupX = lx + lw - (priceW + colGap + pctW)
+			groupX = lx + lw - quoteWidth(priceW)
 			leadW = max(1, groupX-lx-1)
 		}
 		sp := []Span{{f.Time.In(pkt).Format("15:04:05") + "  ", th.Soft, false},
 			{padRight(f.Side+" "+kind, 11), sc, true}, {text, th.Hot, true}}
 		c.Spans(lx, row, leadW, sp)
-		if f.Price > 0 {
-			rightAlign(c, groupX, row, priceW, []Span{{"PKR " + commaFloat(f.Price, 2), th.Text, true}})
-		}
-		if showGroup && pct != nil {
-			moveCol := th.Good
-			if *pct < 0 {
-				moveCol = th.Bad
+		if showGroup {
+			if f.Price > 0 {
+				a.drawQuote(c, groupX, row, priceW, commaFloat(f.Price, 2), pct, "px:"+f.Symbol)
+			} else if pct != nil {
+				a.drawQuotePct(c, groupX+quoteLabelW+priceW+quoteGap, row, *pct)
 			}
-			rightAlign(c, groupX+priceW+colGap, row, pctW, []Span{{changeText(*pct), moveCol, true}})
 		}
 		row += per
 	}
