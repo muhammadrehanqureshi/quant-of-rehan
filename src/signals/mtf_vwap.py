@@ -8,11 +8,15 @@ timeframes are the regime the entry must agree with.
 Owner order 2026-11-19 (Karachi), the later order: all three frames stay, and
 the call must still arrive early in the session. The 5 minute history is what
 makes it early (three 5 minute bars is a 15 minute VWAP line and three
-earlier spreads are enough for the z, seven completed bars in). The 30 minute
-frame is the binding clock and that is arithmetic: its Kalman state needs two
-completed bars of its own, so it votes first sixty minutes after the open
-(10:32 Mon-Thu, 10:17 Friday). All session times here are Asia/Karachi, UTC+5
-(SO-8); no frame ever reads a forming candle.
+earlier spreads are enough for the z, seven completed bars in).
+
+Owner order 2026-11-19 (latest, the owner's own arithmetic): a frame never
+waits for two of its own candles, because two candles of one frame is the
+next timeframe up, and the hourly candle is not part of this strategy. The 30
+minute frame therefore votes on its first completed bar, the one that closes
+at 10:02 from the 09:32 open (09:47 from Friday's 09:17 open), and a lone
+bar's own open is the first measured price of its series. All session times
+here are Asia/Karachi, UTC+5 (SO-8); no frame ever reads a forming candle.
 
 Each frame is built only from completed bars, so nothing here looks at a
 forming candle:
@@ -44,7 +48,7 @@ from src import config
 from src.data.sessions import band_bounds, current_band, open_time
 from src.signals.kalman_trend import filter_series
 
-MTF_VERSION = "vwap_mtf_v3"
+MTF_VERSION = "vwap_mtf_v4"
 
 #: The three frames the owner named, in minutes (owner order 2026-11-19 keeps
 #: all three).
@@ -139,8 +143,18 @@ def rolling_vwap(bars: list[Frame], lookback: int) -> float | None:
 
 
 def kalman_state(bars: list[Frame]) -> int | None:
-    """The Kalman state on this frame's completed closes, or None."""
+    """The Kalman state on this frame's completed closes, or None.
+
+    Owner order 2026-11-19 (latest): the slow frame votes on its first
+    completed bar, so a lone bar still carries a state. That bar's own open
+    is the first measured price of its series (the venue's first minute of
+    the bucket) and its close is the second, so both points come from the
+    tape and nothing is invented. Two or more bars read their closes, as
+    before.
+    """
     closes = [bar.close for bar in bars]
+    if len(closes) == 1:
+        closes = [bars[0].open, bars[0].close]
     if len(closes) < 2:
         return None
     if any(not math.isfinite(close) or close <= 0 for close in closes):

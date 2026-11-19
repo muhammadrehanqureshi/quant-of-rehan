@@ -294,11 +294,16 @@ KALMAN_LAST_ENTRY_MINUTES = 30
 # What makes it early is the 5 minute history, not a dropped frame: three
 # 5 minute bars is a 15 minute VWAP line and three earlier spreads are enough
 # for the z, so the fast frame and its z are ready seven completed 5m bars in.
-# The 30 minute frame is the binding clock and that is arithmetic, not a
-# choice: its Kalman state needs two completed bars of its own, so it can
-# first vote sixty minutes after the open (10:32 Mon-Thu, 10:17 Friday, and
-# Asia/Karachi UTC+5 is the one clock here). Every frame is still required, so
-# a call exists from that minute on, not before it.
+# Owner order 2026-11-19 (latest, the owner's own arithmetic): a frame never
+# waits for two of its own candles, because two candles of one frame is the
+# next timeframe up, and the hourly candle is not part of this strategy. The
+# 30 minute frame therefore votes on its first completed bar, the one that
+# closes at 10:02 from the 09:32 open (09:47 from Friday's 09:17 open), and
+# that lone bar's own open and close are the two measured prices of its state.
+# With the slow frame no longer the clock, the binding minute is the fast
+# frame's z history (10:07 Mon-Thu, 09:52 Friday). Every frame is still
+# required, so a call exists from that minute on, not before it. Asia/Karachi
+# UTC+5 is the one clock here.
 #
 # The 1 day frame and the data/mtf_daily.csv.gz file it needed are withdrawn
 # by the same order. The law now reads the session tape alone, so a missing
@@ -312,7 +317,12 @@ MTF_ENABLED = _flag("MTF_ENABLED", True)
 MTF_REQUIRE_FRAMES = _flag("MTF_REQUIRE_FRAMES", False)
 MTF_TIMEFRAMES = (5, 15, 30)
 MTF_VWAP_LOOKBACK = {5: 3, 15: 12, 30: 12}
-MTF_MIN_BARS = {5: 3, 15: 2, 30: 2}
+# Owner order 2026-11-19 (latest): one completed bar is enough for the slow
+# frame. Two 30 minute bars are an hourly candle, and an hourly candle is not
+# in this strategy. The 5 minute frame keeps its three bars because that is
+# the 15 minute VWAP line, and the 15 minute frame keeps two because that is
+# the 30 minute window the law reads anyway.
+MTF_MIN_BARS = {5: 3, 15: 2, 30: 1}
 
 # ------------------- the z-score price-VWAP spread strategy
 # Owner order 2026-11-16 (Karachi): the Kalman Trend with VWAP on the 5, 15

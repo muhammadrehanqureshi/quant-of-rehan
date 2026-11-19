@@ -30,10 +30,12 @@ enforced inside the one law:
     spread history needed seventeen completed bars (10:57), which is why the
     call was late; the lookback is 3 bars and the history needs 3 earlier
     spreads, so the fast frame and its z are ready at 10:07. The 30 minute
-    frame is kept and its Kalman state needs two completed bars of its own, so
-    by arithmetic it is the binding clock: the first minute all three frames
-    can vote is 10:32 on a Mon-Thu day and 10:17 on Friday's 09:17 open. The
-    15 minute frame is ready at 10:02. No partial 30 minute bar is ever read.
+    frame is kept and (owner order 2026-11-19, latest) votes on its first
+    completed bar, not its second: two of its candles are an hourly candle the
+    law does not read, so it is ready at 10:02 from the 09:32 open and at
+    09:47 from Friday's 09:17 open, the same minute the 15 minute frame
+    completes. The binding minute is the fast frame's z history, 10:07 on a
+    Mon-Thu day and 09:52 on Friday. No partial 30 minute bar is ever read.
   * **Never more than 2% up on the day.** The pick's day gain is measured
     from the venue's own previous close, the tape's `close` field, never from
     the session's first bar: a name that gapped up at the open must not pass
@@ -120,9 +122,10 @@ frame had to be +1. The 1 day frame read `data/mtf_daily.csv.gz`, built once
 per Karachi day by a preparation script and restored by the session workflows
 from the Actions cache; when the file was absent the scan was DATA BLOCKED.
 The owner's order of 2026-11-08 above withdrew that frame and its file, so the
-running law is the three frame one. The 1 hour frame still needs two completed
-hours, so the first legal intraday minute is after 11:32 on a Monday-Thursday
-session. The +2% target, the -1% stop, the one call a day and every
+running law is the three frame one. The 1 hour frame is not read at all: the
+slow frame is the 30 minute one, and it votes on its first completed bar, so
+the first legal intraday minute is 10:07 on a Monday-Thursday session (09:52
+on Friday). The +2% target, the -1% stop, the one call a day and every
 data-honesty gate are unchanged.
 
 That order carried four states as one ASCII line, for example `MTF 5m +1
