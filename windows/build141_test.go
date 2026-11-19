@@ -49,6 +49,9 @@ func TestBuild141OpenSectorDownPercentageAlignment(t *testing.T) {
 	pctEnd, arrowCol := -1, -1
 	up, down := false, false
 	for _, row := range c.PlainRows() {
+		if col(row, "PKR ") < 0 {
+			continue
+		}
 		pctAt := col(row, "%")
 		if pctAt < 0 {
 			continue

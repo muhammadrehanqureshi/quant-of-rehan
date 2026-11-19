@@ -1640,7 +1640,7 @@ func (a *App) drawAlertLog(c *Canvas, x, y, w, h int) {
 		pct := a.alertPct(f)
 		const priceW, pctW, colGap = 10, 8, 1
 		groupX, leadW := lx+lw, lw
-		if f.Price > 0 || pct != nil {
+		if f.Price > 0 {
 			groupX = lx + lw - (priceW + colGap + pctW)
 			leadW = max(1, groupX-lx-1)
 		}
@@ -1650,7 +1650,7 @@ func (a *App) drawAlertLog(c *Canvas, x, y, w, h int) {
 		if f.Price > 0 {
 			rightAlign(c, groupX, row, priceW, []Span{{"PKR " + commaFloat(f.Price, 2), th.Text, true}})
 		}
-		if pct != nil {
+		if f.Price > 0 && pct != nil {
 			moveCol := th.Good
 			if *pct < 0 {
 				moveCol = th.Bad
