@@ -85,9 +85,6 @@ func TestBuild144KSE100KeepsTheQuoteOnAShortTile(t *testing.T) {
 		if !strings.Contains(row, "%") {
 			t.Errorf("the short tile lost the percentage: %q", row)
 		}
-		if !strings.Contains(row, "T=") {
-			t.Errorf("the short tile lost the volumes, so the quote left its own line: %q", row)
-		}
 	}
 	if found == 0 {
 		t.Fatalf("no leader price line was found:\n%s", plain(a))

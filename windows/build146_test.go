@@ -112,13 +112,13 @@ func TestBuild146KSE100NetDeltaClosesTheQuote(t *testing.T) {
 		case strings.Contains(row, "BUYING NOW"):
 			inside = false
 		}
-		if !inside || !strings.Contains(row, "PKR ") || !strings.Contains(row, "T=") {
+		if !inside || !strings.Contains(row, "PKR ") {
 			continue
 		}
 		found++
 		netAt, pctAt := col(row, "NET DELTA="), col(row, "%")
 		if netAt < 0 {
-			t.Errorf("the leader carries no NET DELTA= on its volume line: %q", row)
+			t.Errorf("the leader carries no NET DELTA: %q", row)
 			continue
 		}
 		if pctAt < 0 || netAt < pctAt {
@@ -126,7 +126,7 @@ func TestBuild146KSE100NetDeltaClosesTheQuote(t *testing.T) {
 		}
 	}
 	if found == 0 {
-		t.Fatalf("no KSE100 volume line carried its quote:\n%s", plain(a))
+		t.Fatalf("no KSE100 leader carried its quote:\n%s", plain(a))
 	}
 }
 
@@ -137,11 +137,21 @@ func TestBuild146PriceEditorHintsAndMatches(t *testing.T) {
 	a.screen = scrAlerts
 	a.symbols = []string{"PRIVATE", "APRIL", "CHRL"}
 	a.startPriceEdit(0)
-	a.priceBuf, a.priceField = "PR", 0
+	// An empty box says what to type in it.
 	c := NewCanvas(122, 36, a.th.Panel)
 	a.drawPriceEditor(c)
+	hints := strings.Join(c.PlainRows(), "\n")
+	for _, want := range []string{"Enter scrip", "Enter price"} {
+		if !strings.Contains(hints, want) {
+			t.Errorf("the price form is missing %q:\n%s", want, hints)
+		}
+	}
+	// The scrip box lists every scrip that carries the letters typed.
+	a.priceBuf, a.priceField = "PR", 0
+	c = NewCanvas(122, 36, a.th.Panel)
+	a.drawPriceEditor(c)
 	s := strings.Join(c.PlainRows(), "\n")
-	for _, want := range []string{"Enter scrip", "Enter price", "PRIVATE", "APRIL"} {
+	for _, want := range []string{"PRIVATE", "APRIL", "Enter price"} {
 		if !strings.Contains(s, want) {
 			t.Errorf("the price form is missing %q:\n%s", want, s)
 		}

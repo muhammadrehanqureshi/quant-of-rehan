@@ -53,9 +53,11 @@ func TestBuild145KSE100QuotesStandOnTheRightEdge(t *testing.T) {
 		}
 		found++
 		last := len([]rune(strings.TrimRight(row, " "))) - 1
-		// The tile's inner right edge is cell 116 on a 120 wide frame.
-		if last < 115 {
-			t.Errorf("the leader quote ends on cell %d, not on the tile's right edge: %q", last, row)
+		// The tile's inner right edge is cell 116 on a 120 wide frame. Owner
+		// order 2026-11-20: the figure follows its equals sign instead of taking
+		// a fixed field, so the row may end up to five cells inside the edge.
+		if last < 111 {
+			t.Errorf("the leader quote ends on cell %d, short of the tile's right edge: %q", last, row)
 		}
 		if at < 70 {
 			t.Errorf("PKR starts on cell %d, so the group is not on the right: %q", at, row)

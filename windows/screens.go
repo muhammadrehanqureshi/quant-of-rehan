@@ -1458,7 +1458,17 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 	// three rows never need a third line. The group is placed by its left edge,
 	// the same column on all three rows, so nothing floats.
 	pkrX := max(ix+3, edge-groupW+1)
-	useWide := iw >= 96 && ix+3+usedMax+2 <= pkrX
+	// Owner order 2026-11-20: the group shares the volume line when the tile has
+	// the room for both. A narrower tile keeps the group on the name line after
+	// the symbol, where it stood before, so no figure is ever painted over the
+	// volumes: the owner read "U=176,063 PKR" and "T=PKR1 7.740" when the two
+	// rows met in the middle.
+	useWide := iw >= 96
+	inlineQuote := ix+3+usedMax+2 <= pkrX
+	symW := 0
+	for _, l := range leaders[:nL] {
+		symW = max(symW, runeLen(l.Symbol))
+	}
 
 	// The bottom of the tile, from the bottom up: the note, one blank line, and
 	// the BUYING NOW line. The blank line and the spacer under the index are
@@ -1493,10 +1503,11 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 		c.Spans(ix, row, textW, []Span{{strconv.Itoa(i+1) + ". ", th.Soft, false}, {l.Symbol, th.Hot, true}})
 		// Owner order 2026-11-18: the bar stands on the name line, above the
 		// current price, and starts on the price's own cell.
-		if l.HasSplit() && barW >= shareBarBoxes &&
+		if inlineQuote && l.HasSplit() && barW >= shareBarBoxes &&
 			barStart >= ix+3+runeLen(l.Symbol)+2 && *l.Buy+*l.Sell > 0 {
 			a.shareBarOnly(c, barStart, row, barW, *l.Buy, *l.Sell)
 		}
+		nameRow := row
 		row++
 		var buy, sell *int64
 		if l.HasSplit() {
@@ -1527,7 +1538,15 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 		if l.Price != nil {
 			// Owner order 2026-11-20: PKR, the price, the percentage and NET
 			// DELTA close the volume line, in that order, on all three rows.
-			a.drawQuoteNetLast(c, pkrX, row, pxW, commaFloat(*l.Price, 2), pxKey, buy, sell, l.ChangePct)
+			px := commaFloat(*l.Price, 2)
+			switch {
+			case inlineQuote:
+				a.drawQuoteNetLast(c, pkrX, row, pxW, px, pxKey, buy, sell, l.ChangePct)
+			case ix+3+symW+2+groupW-1 <= edge:
+				// No room beside the volumes: the group takes the name line, so
+				// the price never leaves the tile and the volumes stay whole.
+				a.drawQuoteNetLast(c, ix+3+symW+2, nameRow, pxW, px, pxKey, buy, sell, l.ChangePct)
+			}
 		}
 		row++
 		// Spare rows are shared out as a blank line between leaders.
