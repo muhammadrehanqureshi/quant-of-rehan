@@ -3587,7 +3587,13 @@ export default {
           !/^\d{2}:\d{2}(:\d{2})?$/.test(String(body.slot || ""))) {
         return json({ ok: false, error: "invalid signal claim" }, 400);
       }
-      const key = `RESEARCH:SENT:${body.date}`;
+      // Owner order 2026-11-20: the day allows four calls, so a claim names
+      // which of them it is and the key carries that number. A runner that
+      // does not send `n` keeps the old one-claim-a-day key exactly as before.
+      const n = Number(body.n);
+      const perCall = Number.isInteger(n) && n >= 1 && n <= 10;
+      const key = perCall ? `RESEARCH:SENT:${body.date}:${n}`
+                          : `RESEARCH:SENT:${body.date}`;
       if (await relayRead(env, key)) return json({ ok: true, claimed: false });
       await kvPut(env, key, String(body.slot), { expirationTtl: 86400 });
       return json({ ok: true, claimed: true });

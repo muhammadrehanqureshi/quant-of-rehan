@@ -342,7 +342,8 @@ class TestMessages(unittest.TestCase):
         text = scanner.signal_message(candidate, {"status": "SUPPORTIVE"},
                                       123.45, SESSION_OPEN)
         for needle in ("QUANT LONG SIGNAL", "Symbol: OGDC", "Entry price: 123.4500",
-                       "Target: 125.9190", "ONE TRADE ONLY", "+2.0%"):
+                       "Target: 125.9190", "AT MOST FOUR CALLS A DAY",
+                       "+2.0%"):
             self.assertIn(needle, text)
 
     def test_blocked_message_says_it_is_data_not_a_decision(self):
@@ -412,6 +413,52 @@ class TestHighestScoreSelection(unittest.TestCase):
             ranked = scanner.rank_candidates(session, frames=True)
 
         self.assertEqual([row["symbol"] for row in ranked], ["ZZZ", "AAA"])
+
+    def test_a_name_at_the_call_floor_is_not_called(self):
+        """Owner order 2026-11-20: a call must score more than 89 out of 100."""
+        symbols = [f"LIQ{index:03d}" for index in range(3)]
+        bars = {symbol: minute_rows(40, step=0.01) for symbol in symbols}
+        session = session_of(bars, 39)
+        quality = scanner.assess_quality(session, symbols)
+        at_floor = {"LIQ001": self.row("LIQ001", config.MIN_CALL_SCORE, -2.6)}
+        above = {"LIQ001": self.row("LIQ001", config.MIN_CALL_SCORE + 0.5, -2.6)}
+
+        with patch.object(scanner, "score_symbol",
+                          side_effect=lambda symbol, *a, **k: at_floor.get(symbol)), \
+                patch.object(scanner, "market_context",
+                             return_value={"median_return": 0.01}):
+            refused = scanner.select_one(session, quality, frames=True)
+        with patch.object(scanner, "score_symbol",
+                          side_effect=lambda symbol, *a, **k: above.get(symbol)), \
+                patch.object(scanner, "market_context",
+                             return_value={"median_return": 0.01}):
+            called = scanner.select_one(session, quality, frames=True)
+
+        self.assertEqual(refused.status, scanner.NO_TRADE)
+        self.assertIn("scored above", refused.reason)
+        self.assertEqual(refused.gate_tally.get("call_score_under_min"), 1)
+        self.assertEqual(called.status, scanner.TRADE)
+        self.assertEqual(called.candidate["symbol"], "LIQ001")
+
+    def test_a_name_already_called_today_is_not_called_again(self):
+        """Owner order 2026-11-20: four calls a day means four names."""
+        symbols = [f"LIQ{index:03d}" for index in range(3)]
+        bars = {symbol: minute_rows(40, step=0.01) for symbol in symbols}
+        session = session_of(bars, 39)
+        quality = scanner.assess_quality(session, symbols)
+        rows = {"LIQ001": self.row("LIQ001", 93.0, -2.6)}
+
+        with patch.object(scanner, "score_symbol",
+                          side_effect=lambda symbol, *a, **k: rows.get(symbol)), \
+                patch.object(scanner, "market_context",
+                             return_value={"median_return": 0.01}):
+            again = scanner.select_one(session, quality, frames=True,
+                                       exclude={"LIQ001"})
+
+        self.assertEqual(again.status, scanner.NO_TRADE)
+        self.assertIn("already called today", again.reason)
+        self.assertEqual(again.gate_tally.get("already_called_today"), 1)
+        self.assertIsNone(again.candidate)
 
 
 class TestOwnerOrderedCallWatch(unittest.TestCase):

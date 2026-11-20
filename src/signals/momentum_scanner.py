@@ -726,7 +726,8 @@ def rank_candidates(session: SessionData,
 def select_one(session: SessionData, quality: QualityReport,
                ai_prior: dict[str, float] | None = None,
                ai_status: dict | None = None,
-               frames: bool = False) -> ScanResult:
+               frames: bool = False,
+               exclude: set[str] | None = None) -> ScanResult:
     """At most one fully confirmed long, never a momentum/RSI fallback."""
     coverage = f"{quality.symbols_with_bars}/{quality.symbols_expected} ({quality.coverage:.1%})"
     if quality.status == DATA_BLOCKED:
@@ -735,6 +736,14 @@ def select_one(session: SessionData, quality: QualityReport,
     context["ai"] = {"active": False, "reason": "Kalman and z-score spread rules do not use the daily momentum prior"}
     tally: dict = {}
     ranked = rank_candidates(session, tally=tally, frames=frames)
+    # Owner order 2026-11-20: four calls a day means four names, never the same
+    # name four times, so a name already called today is not the call again.
+    called = set(exclude or ())
+    if called:
+        fresh = [row for row in ranked if row.get("symbol") not in called]
+        if len(fresh) != len(ranked):
+            tally["already_called_today"] = len(ranked) - len(fresh)
+        ranked = fresh
     # Broad panic is a risk veto; ordinary weak breadth is not a momentum
     # entry filter on this reversal strategy.
     if context.get("median_return") is None or context["median_return"] < config.MAX_MARKET_DROP:
@@ -756,12 +765,35 @@ def select_one(session: SessionData, quality: QualityReport,
         # This stays a NO TRADE under every owner order: there is no setup
         # to carry, and naming a symbol with none would be a fabricated
         # signal (SO-3), not a watch. The strict law is untouched.
-        return ScanResult(NO_TRADE, "no symbol passed the Kalman Trend entry gates",
+        reason = "no symbol passed the Kalman Trend entry gates"
+        if tally.get("already_called_today"):
+            reason = ("every name that passed the entry gates was already "
+                      "called today, and a name is called once a day")
+        return ScanResult(NO_TRADE, reason,
                           quality, context, ranked=[], coverage_text=coverage,
                           gate_tally=dict(tally))
+    # Owner order 2026-11-20: a call must score more than MIN_CALL_SCORE out
+    # of 100. The rank table is untouched, so the report still shows what the
+    # law measured on every name; what the floor decides is which row may
+    # become one of the day's calls. A day with setups but no score above the
+    # floor is a NO TRADE that names the best measured score, never a weaker
+    # setup promoted to fill a card.
+    floor = config.MIN_CALL_SCORE
+    qualified = [row for row in ranked
+                 if float(row.get("score") or 0.0) > floor]
+    if not qualified:
+        best_score = float(ranked[0].get("score") or 0.0)
+        tally["call_score_under_min"] = len(ranked)
+        return ScanResult(
+            NO_TRADE,
+            (f"no name scored above {floor:g}/100: the best of "
+             f"{len(ranked)} rankable name(s) read {best_score:.2f}/100"),
+            quality, context, ranked=ranked, coverage_text=coverage,
+            gate_tally=dict(tally))
     # rank_candidates orders the whole scanned KMIALL universe, so the first
-    # row is the highest score and its tie-break is the stronger spread.
-    best = ranked[0]
+    # row above the floor is the highest score and its tie-break is the
+    # stronger spread.
+    best = qualified[0]
     return ScanResult(
         TRADE,
         f"confirmed {best.get('strategy') or config.SCANNER_VERSION} entry",
@@ -825,7 +857,7 @@ def signal_message(candidate: dict, market: dict, entry: float,
     lines += [
         f"Entry time: {entry_time:%H:%M:%S} PKT",
         "Entry is the last completed minute close, not a confirmed fill.",
-        "ONE TRADE ONLY. Target is not a guaranteed return.",
+        "AT MOST FOUR CALLS A DAY. Target is not a guaranteed return.",
     ]
     return "\n".join(lines)
 

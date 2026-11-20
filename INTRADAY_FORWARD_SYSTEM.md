@@ -66,7 +66,7 @@ Kalman trend must be up, the 5 minute Kalman state must be up, and the 15 and
 VWAP. The 5 minute spread must then sit at least `ZSCORE_Z_MIN`
 trailing standard deviations below its own mean, where every spread in that
 trailing series was measured against the rolling VWAP available at its bar.
-The owner's +2% target, -1% stop and one call a day are unchanged. A missing
+The owner's +2% target, -1% stop and four calls a day (each above 89 out of 100) are unchanged. A missing
 frame or an unmeasurable spread fails closed with its reason named; the
 frames and the z score are measured from completed bars of the session tape
 alone, so no daily history returns.
@@ -79,7 +79,7 @@ and relative strength. It is the three frame law below plus one more measured
 gate, labelled `kalman_vwap_rs_v3` with the reader `rs_session_v1`
 (src/signals/kalman_vwap_rs.py). Both entry paths, the fresh one minute flip
 and the pullback resumption, still apply, and the owner's +2% target, -1%
-stop, one call a day and every data-honesty gate are unchanged. The live scan
+stop, four calls a day (each above 89 out of 100) and every data-honesty gate are unchanged. The live scan
 measures the market leg once per scan and hands the same number to every
 name, so one scan never compares two names against two different markets.
 
@@ -109,7 +109,7 @@ high and low, so the call is nearer the daily low than the daily high. The
 session tape alone, the daily cache steps leave both session workflows, and
 a missing cache can no longer block the scan. The strategy label is now
 `kalman_vwap_pullback_v2` and the frame reader is `vwap_mtf_v2`. The owner's
-+2% target, -1% stop, one call a day and every data-honesty gate are
++2% target, -1% stop, four calls a day (each above 89 out of 100) and every data-honesty gate are
 unchanged. The first legal 1 hour frame still completes after two hours of
 tape, so the earliest signal is after 11:32 on a Monday-Thursday session.
 
@@ -125,7 +125,7 @@ The owner's order of 2026-11-08 above withdrew that frame and its file, so the
 running law is the three frame one. The 1 hour frame is not read at all: the
 slow frame is the 30 minute one, and it votes on its first completed bar, so
 the first legal intraday minute is 10:07 on a Monday-Thursday session (09:52
-on Friday). The +2% target, the -1% stop, the one call a day and every
+on Friday). The +2% target, the -1% stop, the four calls a day (each above 89 out of 100) and every
 data-honesty gate are unchanged.
 
 That order carried four states as one ASCII line, for example `MTF 5m +1
@@ -152,7 +152,7 @@ strategy label is `kalman_vwap_pullback_v2` after the 2026-11-08 frame update;
 it rides the candidate, the
 session state and the owner email. When both entries are legal the higher
 score is carried and the flip keeps an exact tie. The +2% target, the -1%
-stop, the one call a day and every data-honesty gate are unchanged. The frame
+stop, the four calls a day (each above 89 out of 100) and every data-honesty gate are unchanged. The frame
 list was updated to the owner's three frame order of 2026-11-08 above; the
 pullback, resumption and daily-low location rules are unchanged.
 

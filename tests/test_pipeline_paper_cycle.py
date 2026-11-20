@@ -620,7 +620,7 @@ class PipelineCycleTest(unittest.TestCase):
             "the same stored stop was banked twice")
 
     def test_the_days_one_signal_is_claimed_before_any_entry(self):
-        """Owner order 2026-10-16: one accepted BUY per Karachi day.
+        """Owner order 2026-10-16, extended to four calls on 2026-11-20.
 
         The local session file cannot see another runner, and the cloud runs a
         band loop plus backstop slots from a restored copy of the day's state,
@@ -634,7 +634,7 @@ class PipelineCycleTest(unittest.TestCase):
         first = self.scan("11:20")
         self.assertEqual(first["status"], scanner.TRADE)
         self.assertEqual(first["claim"]["ok"], True)
-        self.assertEqual(first["claim"]["detail"], "claimed")
+        self.assertEqual(first["claim"]["detail"], "claimed call 1 of 4")
 
         routes = self.relay.routes()
         self.assertIn("/research/claim", routes)

@@ -477,7 +477,7 @@ class ScanOutcome:
 
     @property
     def is_monitoring(self) -> bool:
-        """The day already has its one trade; this cycle only watched it."""
+        """The day's calls are spent; this cycle only watched the position."""
         return self.verdict is Verdict.MONITORING
 
     def summary(self) -> str:
