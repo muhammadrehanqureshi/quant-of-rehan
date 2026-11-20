@@ -35,17 +35,20 @@ func TestBuild150OrderFlowHasNoSerialColumn(t *testing.T) {
 	if at := col(rows[head], "#"); at >= 0 {
 		t.Errorf("the # heading is still on the page at cell %d: %q", at, rows[head])
 	}
-	if got := strings.TrimLeft(rows[head], " "); !strings.HasPrefix(got, "SYMBOL") {
+	// The panel's left border and its one cell of pad come before the table,
+	// and after them the first thing on the page is SYMBOL.
+	if body := strings.TrimLeft(rows[head], " │"); !strings.HasPrefix(body, "SYMBOL") {
 		t.Errorf("the table does not start on SYMBOL: %q", rows[head])
 	}
 	seen := 0
 	for _, row := range rows[head+1:] {
-		body := strings.TrimLeft(row, " ")
+		body := strings.TrimLeft(row, " │")
 		if !strings.HasPrefix(body, "AAA") && !strings.HasPrefix(body, "BBB") {
 			continue
 		}
-		if at := col(row, "1."); at >= 0 {
-			t.Errorf("a serial number is still drawn at cell %d: %q", at, row)
+		// The serial was drawn as "1.", "2." on the row's first cell.
+		if len(body) > 1 && body[0] >= '1' && body[0] <= '9' && body[1] == '.' {
+			t.Errorf("a serial number is still drawn on the row: %q", row)
 		}
 		seen++
 	}
