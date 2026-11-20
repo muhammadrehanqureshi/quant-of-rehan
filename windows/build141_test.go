@@ -94,9 +94,10 @@ func TestBuild141HighAndLowUseAmpersand(t *testing.T) {
 	}
 }
 
-// Owner order 2026-11-19: the revealed CUSTOM SCRIPS list starts its quote
-// group on the T column rather than the far right.
-func TestBuild141CustomScripsQuoteStartsOnT(t *testing.T) {
+// Owner order 2026-11-20: the revealed CUSTOM SCRIPS list carries its price, its
+// percentage, its bar and the bar's NET DELTA on the scrip's own row, against
+// the tile's right edge, instead of starting on the T column in the middle.
+func TestBuild141CustomScripsQuoteStandsOnTheRight(t *testing.T) {
 	a := demoApp(t, 158, 41)
 	a.screen = scrScanner
 	a.scanChoice = 1
@@ -111,17 +112,23 @@ func TestBuild141CustomScripsQuoteStartsOnT(t *testing.T) {
 	if start < 0 {
 		t.Fatal("the CUSTOM SCRIPS tile is missing")
 	}
-	for i := start + 1; i+2 < len(rows); i++ {
-		if !strings.Contains(rows[i], "PKR ") {
+	tChecked := 0
+	for i := start + 1; i+1 < len(rows); i++ {
+		if !strings.Contains(rows[i], "PKR ") || !strings.Contains(rows[i], "1. ") {
 			continue
 		}
-		if !strings.Contains(rows[i+2], "T=") {
-			continue
+		// The values stay on the row under the scrip, where their B, S, U and T
+		// columns are.
+		if !strings.Contains(rows[i+1], "T=") {
+			t.Fatalf("the values left the row under the scrip: %q then %q", rows[i], rows[i+1])
 		}
-		if got, want := col(rows[i], "PKR"), col(rows[i+2], "T="); got != want {
-			t.Fatalf("the quote starts on cell %d, want the T column %d: %q and %q", got, want, rows[i], rows[i+2])
+		tAt := col(rows[i+1], "T=")
+		if got := col(rows[i], "PKR"); got <= tAt {
+			t.Fatalf("the quote starts on cell %d, which is not right of the T column %d: %q", got, tAt, rows[i])
 		}
-		return
+		tChecked++
 	}
-	t.Fatalf("the revealed list showed no price row above its T row:\n%s", strings.Join(rows[start:], "\n"))
+	if tChecked == 0 {
+		t.Fatalf("the revealed list showed no priced scrip row:\n%s", strings.Join(rows[start:], "\n"))
+	}
 }

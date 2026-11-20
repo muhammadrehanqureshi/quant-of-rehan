@@ -61,8 +61,9 @@ func TestBuild144ScannerSearchKeepsOneCellAfterNetDeltaPct(t *testing.T) {
 	}
 }
 
-// Owner order 2026-11-19: a tile too short for a quote line of its own keeps
-// NET DELTA and the percentage on the leader's name line.
+// Owner order 2026-11-20: a short KSE100 tile keeps the price, the percentage
+// and NET DELTA on the leader's volume line. Nothing wraps to a third line and
+// no figure leaves the tile.
 func TestBuild144KSE100KeepsTheQuoteOnAShortTile(t *testing.T) {
 	a := busyApp(t, 120, 30, 3)
 	inside, found := false, 0
@@ -74,19 +75,22 @@ func TestBuild144KSE100KeepsTheQuoteOnAShortTile(t *testing.T) {
 		case strings.Contains(row, "BUYING NOW"):
 			inside = false
 		}
-		if !inside || !strings.Contains(row, "1. ") {
+		if !inside || !strings.Contains(row, "PKR ") {
 			continue
 		}
 		found++
-		if !strings.Contains(row, "NET DELTA") {
+		if !strings.Contains(row, "NET DELTA=") {
 			t.Errorf("the short tile lost NET DELTA: %q", row)
 		}
 		if !strings.Contains(row, "%") {
 			t.Errorf("the short tile lost the percentage: %q", row)
 		}
+		if !strings.Contains(row, "T=") {
+			t.Errorf("the short tile lost the volumes, so the quote left its own line: %q", row)
+		}
 	}
 	if found == 0 {
-		t.Fatalf("no leader name line was found:\n%s", plain(a))
+		t.Fatalf("no leader price line was found:\n%s", plain(a))
 	}
 }
 

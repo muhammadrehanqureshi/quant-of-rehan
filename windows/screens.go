@@ -237,6 +237,27 @@ func (a *App) drawQuoteTail(c *Canvas, pxEnd, y int, net bool, buy, sell *int64,
 	return x
 }
 
+// drawQuoteNetLast is the KSE100 tile's quote group. Owner order 2026-11-20: on
+// that tile NET DELTA stands at the end of the group, after the percentage, its
+// equals sign hard against the label and its figure on the cell after it. The
+// rest of the group keeps the one rule every tile uses: PKR, its price field,
+// one cell, the arrow, one cell, the percentage, then a gutter before NET DELTA.
+func (a *App) drawQuoteNetLast(c *Canvas, pkrX, y, pxW int, px, pxKey string, buy, sell *int64, pct *float64) int {
+	x := a.drawQuoteStart(c, pkrX, y, pxW, px, pxKey)
+	if pct != nil {
+		x = a.drawQuotePct(c, x+quoteGap, y, *pct)
+	}
+	if buy != nil && sell != nil {
+		x += quoteGap
+		val, ink, bold := a.searchNet(*buy, *sell)
+		c.Text(x, y, quoteNetLabelW, "NET DELTA", a.th.Soft, false)
+		c.Text(x+quoteNetLabelW, y, 1, "=", a.th.Soft, false)
+		c.Text(x+quoteNetLabelW+1, y, runeLen(val), val, ink, bold)
+		x += quoteNetLabelW + 1 + quoteNetValW
+	}
+	return x
+}
+
 func rightAlign(c *Canvas, x, y, w int, spans []Span) {
 	n := 0
 	for _, s := range spans {
@@ -1430,15 +1451,14 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 	if netGroup > 0 {
 		groupW = quoteNetWidth(pxW)
 	}
-	// Owner order 2026-11-19 (latest): the price keeps NET DELTA and the
-	// percentage on every tile. When the volumes and the group no longer share
-	// one line, the quote takes the line under the volumes instead of losing
-	// the figures. A narrow tile and a four digit price both reach it.
-	symW := 0
-	for _, l := range leaders[:nL] {
-		symW = max(symW, runeLen(l.Symbol))
-	}
-	inline := ix+3+usedMax+2+groupW-1 <= edge
+	// Owner order 2026-11-20: the price, the percentage and NET DELTA stand on
+	// the volume line on every leader at every width, with NET DELTA last, and
+	// the bar stands on the name line above the price. The wide nine digit
+	// volume fields give way to the packed ones before a leader wraps, so the
+	// three rows never need a third line. The group is placed by its left edge,
+	// the same column on all three rows, so nothing floats.
+	pkrX := max(ix+3, edge-groupW+1)
+	useWide := iw >= 96 && ix+3+usedMax+2 <= pkrX
 
 	// The bottom of the tile, from the bottom up: the note, one blank line, and
 	// the BUYING NOW line. The blank line and the spacer under the index are
@@ -1459,27 +1479,11 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 	if len(board) > 0 {
 		limit--
 	}
-	// Three ways to keep the price's figures. Beside the volumes when they fit
-	// there, on a line of their own under the volumes when the tile has one to
-	// give, and on the name line when the tile is too short for a third line.
-	stacked := !inline && limit-row >= 3*nL
-	narrow := !inline && !stacked
+	// Owner order 2026-11-20: one layout on every width. The name and its bar on
+	// the first row, the volumes and the whole quote group on the second, so a
+	// leader is two rows tall and nothing wraps to a third.
 	need := 2
-	if stacked {
-		need = 3
-	}
-	// Owner order 2026-11-19 (latest): the current price, the bar, the
-	// percentage and NET DELTA stand together on the tile's right edge. The
-	// group is placed by its right end, so it never floats in the middle of
-	// the row, and every leader lands on the same cells.
-	pkrX := max(ix+3, edge-groupW+1)
 	barStart := pkrX
-	switch {
-	case stacked:
-		barStart = ix + 3 + symW + 2
-	case narrow:
-		barStart = 0
-	}
 	barW := min(shareBarSpan, edge-barStart+1)
 	for i, l := range leaders {
 		if row+2 > limit {
@@ -1492,15 +1496,6 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 		if l.HasSplit() && barW >= shareBarBoxes &&
 			barStart >= ix+3+runeLen(l.Symbol)+2 && *l.Buy+*l.Sell > 0 {
 			a.shareBarOnly(c, barStart, row, barW, *l.Buy, *l.Sell)
-		}
-		if narrow {
-			// A tile too short for a quote line of its own keeps NET DELTA and
-			// the percentage on the name line, so neither leaves the screen.
-			var buy, sell *int64
-			if l.HasSplit() {
-				buy, sell = l.Buy, l.Sell
-			}
-			a.drawQuoteTail(c, ix+3+symW+2, row, netGroup > 0, buy, sell, l.ChangePct)
 		}
 		row++
 		var buy, sell *int64
@@ -1516,11 +1511,10 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 		// Owner order 2026-11-10 (latest): B, S, U and T each start on the same
 		// cell on every row, and each number sits hard against its own "=". A
 		// narrow tile falls back to the packed form.
-		used := 0
-		if iw >= 96 {
-			used = a.putBSTWide(c, ix+3, row, buy, sell, vol, volKey, pxKey)
+		if useWide {
+			a.putBSTWide(c, ix+3, row, buy, sell, vol, volKey, pxKey)
 		} else {
-			used = a.putBSTPacked(c, ix+3, row, buy, sell, vol, volKey, pxKey)
+			a.putBSTPacked(c, ix+3, row, buy, sell, vol, volKey, pxKey)
 		}
 		// Owner order 2026-11-10 (latest): the price and the change are pushed
 		// to the tile's far right and right aligned at one edge, so all three
@@ -1531,25 +1525,9 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 		// has a fixed width from that edge, so the price, the change and the bar
 		// land on the same cells on every leader row.
 		if l.Price != nil {
-			px := commaFloat(*l.Price, 2)
-			switch {
-			case inline:
-				// Owner order 2026-11-13: PKR and its price start on the same cells
-				// on all three rows, because the label sits on the column the
-				// widest volume line leaves and the field is the widest price.
-				a.drawQuoteGroup(c, pkrX, row, pxW, px, pxKey, netGroup > 0, buy, sell, l.ChangePct)
-			case stacked && row+1 < limit:
-				// The quote takes the line under the volumes, so the price keeps
-				// NET DELTA and the percentage in front of it.
-				row++
-				a.drawQuoteGroup(c, pkrX, row, pxW, px, pxKey, netGroup > 0, buy, sell, l.ChangePct)
-			default:
-				// A tile too short for a third line keeps PKR and the price after
-				// the volumes, where NET DELTA and the percentage stand above.
-				if at := ix + 3 + used + 2; at+quoteLabelW+runeLen(px)-1 <= edge {
-					a.drawQuoteStart(c, at, row, pxW, px, pxKey)
-				}
-			}
+			// Owner order 2026-11-20: PKR, the price, the percentage and NET
+			// DELTA close the volume line, in that order, on all three rows.
+			a.drawQuoteNetLast(c, pkrX, row, pxW, commaFloat(*l.Price, 2), pxKey, buy, sell, l.ChangePct)
 		}
 		row++
 		// Spare rows are shared out as a blank line between leaders.
