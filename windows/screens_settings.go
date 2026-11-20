@@ -136,6 +136,5 @@ func (a *App) drawSettings(c *Canvas, x, y, w, h int) {
 	info("REQUESTS TODAY", commaInt(a.reqToday())+" of 100,000.", th.Text)
 	info("", "The requests reset at 05:00 PKT.", th.Text)
 	info("SCANNING", "1 second relay poll from 08:55 to 15:49 on Mon-Thu and on Friday till 16:49.", th.Text)
-	info("", "Broker refresh per stock: 23.98 seconds.", th.Text)
 	info("SETTINGS FILE", settingsPath(), th.Soft)
 }

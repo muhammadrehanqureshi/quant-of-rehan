@@ -231,14 +231,22 @@ func (a *App) raisePriceAlert(p PriceAlert) {
 	if a.cfg.Notify {
 		sendToast("PRICE ALERT", body)
 	}
+	// Owner order 2026-11-20: the ALERTS LOG keeps the price and the percentage
+	// of the moment the alert was raised, so the row is written once with the
+	// move the market carried then.
+	var pct *float64
+	if q, ok := a.liveQuote(p.Symbol); ok && q.ChangePct != nil {
+		pct = q.ChangePct
+	}
 	a.flow.addFlag(Flag{
-		Time:   a.now,
-		Symbol: p.Symbol,
-		Kind:   "price",
-		Side:   side,
-		Price:  p.Hit,
-		Text:   p.Symbol + " hit its price alert",
-		Detail: body,
+		Time:      a.now,
+		Symbol:    p.Symbol,
+		Kind:      "price",
+		Side:      side,
+		Price:     p.Hit,
+		ChangePct: pct,
+		Text:      p.Symbol + " hit its price alert",
+		Detail:    body,
 	})
 }
 
@@ -267,18 +275,17 @@ func (a *App) drawPriceTile(c *Canvas, x, y, w, h int) {
 		}
 		c.Text(ix+7, ry, 9, p.Symbol, th.Hot, true)
 		c.Text(ix+17, ry, 14, "PKR "+p.TargetText(), th.Text, true)
-		state, ink := "ARMED", th.Soft
+		// Owner order 2026-11-20: the RISES TO TARGET and FALLS TO TARGET words are
+		// withdrawn. A slot that is armed says nothing; only a hit or a slot still
+		// waiting for its first price writes on that column.
+		state, ink := "", th.Soft
 		switch {
 		case p.Fired:
 			state, ink = "HIT "+p.HitAt, th.Warn
 		case p.Wait:
 			state = "WAITING FOR A PRICE"
-		case p.Rises:
-			state = "RISES TO TARGET"
-		default:
-			state = "FALLS TO TARGET"
 		}
-		if iw > 32 {
+		if state != "" && iw > 32 {
 			c.Text(ix+32, ry, min(iw-32, 21), fit(state, min(iw-32, 21)), ink, p.Fired)
 		}
 		if px, ok := a.priceOf(p.Symbol); ok {
@@ -290,28 +297,66 @@ func (a *App) drawPriceTile(c *Canvas, x, y, w, h int) {
 	}
 }
 
+// priceMatches lists the KMIALL scrips that carry the letters typed in the
+// scrip box, the way the SEARCH tile lists its own matches, so a scrip can be
+// found from the middle of its name as well as its start.
+func (a *App) priceMatches() []string {
+	q := strings.ToUpper(strings.TrimSpace(a.priceBuf))
+	if q == "" {
+		return nil
+	}
+	var out []string
+	for _, s := range a.symbols {
+		if strings.Contains(s, q) {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
 // drawPriceEditor is the two field form that sets one slot: the scrip, then the
-// price. It floats over the screen so it fits any window.
+// price. It floats over the screen so it fits any window. Owner order
+// 2026-11-20: both boxes say what to type, and the scrip box lists the scrips
+// that carry the letters typed so far.
 func (a *App) drawPriceEditor(c *Canvas) {
 	if a.priceEdit < 0 {
 		return
 	}
+	var matches []string
+	if a.priceField == 0 {
+		matches = a.priceMatches()
+	}
+	shown := min(len(matches), 8)
 	w := min(54, a.w-4)
-	h := 6
+	h := 6 + shown
 	if w < 24 || h > a.h-2 {
 		return
 	}
 	x, y := (a.w-w)/2, (a.h-h)/2
 	title := fmt.Sprintf("PRICE ALERT %d OF %d", a.priceEdit+1, priceAlertSlots)
-	ix, iy, iw, _ := a.panel(c, x, y, w, h, title, "")
+	ix, iy, iw, ih := a.panel(c, x, y, w, h, title, "")
 	sym, price := a.priceSym, a.storedTarget()
 	if a.priceField == 0 {
 		sym = a.priceBuf
 	} else {
 		price = a.priceBuf
 	}
-	a.inputRow(c, ix, iy, iw, "SCRIP", sym, "Type here", a.priceField == 0, false)
-	a.inputRow(c, ix, iy+2, iw, "PRICE", price, "Type here", a.priceField == 1, false)
+	a.inputRow(c, ix, iy, iw, "SCRIP", sym, "Enter scrip", a.priceField == 0, false)
+	row := iy + 1
+	for i := 0; i < shown; i++ {
+		// The first match is the one ENTER takes when the whole name is typed.
+		mark := "  "
+		if i == 0 {
+			mark = "◆ "
+		}
+		c.Text(ix+1, row, 3, mark, a.th.Accent, true)
+		c.Text(ix+3, row, max(1, iw-4), fit(matches[i], max(1, iw-4)), a.th.Text, i == 0)
+		row++
+	}
+	if more := len(matches) - shown; more > 0 && row < iy+ih-2 {
+		c.Text(ix+3, row, max(1, iw-4), fmt.Sprintf("and %d more", more), a.th.Soft, false)
+	}
+	a.inputRow(c, ix, iy+ih-1, iw, "PRICE", price, "Enter price", a.priceField == 1, false)
 }
 
 // storedTarget is the slot's price as text, for the row that is not in hand.

@@ -122,9 +122,11 @@ func TestKSE100LeadersLineUpAndCarryTheirBar(t *testing.T) {
 		if !strings.Contains(rest, "%") {
 			continue
 		}
-		netAt, pctAt := col(rest, "NET DELTA"), col(rest, "%")
-		if netAt < 0 || pctAt < 0 || netAt > pctAt {
-			t.Errorf("the KSE100 NET DELTA does not stand before the percentage: %q", r)
+		// Owner order 2026-11-20: on the KSE100 tile NET DELTA closes the quote
+		// group, after the percentage, with its own equals sign.
+		netAt, pctAt := col(rest, "NET DELTA="), col(rest, "%")
+		if netAt < 0 || pctAt < 0 || netAt < pctAt {
+			t.Errorf("the KSE100 NET DELTA does not stand after the percentage with its equals sign: %q", r)
 		}
 		if i == 0 {
 			t.Errorf("the first leader price line has no name line above it: %q", r)

@@ -383,9 +383,10 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 		c.Text(listX, top, listW, "No scrip qualifies right now.", th.Soft, false)
 		return
 	}
-	// Owner order 2026-11-18: each CUSTOM SCRIPS scrip keeps one blank row
-	// between its name and its B, S, U and T values.
-	a.lvScan.set(len(syms), rows/3)
+	// Owner order 2026-11-20: a CUSTOM SCRIPS scrip reads on two rows, its name
+	// and its values, with no blank row between them, so the tile shows more
+	// scrips and no scrip is pushed out by an empty line.
+	a.lvScan.set(len(syms), rows/2)
 	// Owner order 2026-11-12 (latest): the "1 to 3 of 3 scrips" count is
 	// withdrawn from the sort's heading line, which now carries the sort's own
 	// name and nothing else.
@@ -410,12 +411,15 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 		s := syms[i]
 		q := tbl[s]
 		pxKey, volKey := "px:"+s, "vol:"+s
-		a.zebra(c, listX, row, cw, 3, i, s)
+		a.zebra(c, listX, row, cw, 2, i, s)
 		c.Spans(listX, row, cw, []Span{{fmt.Sprintf("%d. ", i+1), th.Soft, false}, {s, th.Hot, true}})
 		if rightList {
-			a.drawScanQuote(c, listX, row, cw, listX+3+scanTTextX, true, q, pxW, pxKey)
+			// Owner order 2026-11-20: the price, the percentage, the bar and
+			// its NET DELTA move to the tile's right edge, on the scrip's own
+			// row, instead of starting on the T column in the middle.
+			a.drawScanQuote(c, listX, row, cw, listX+3+runeLen(s)+2, false, q, pxW, pxKey)
 		}
-		row += 2 // one blank line, then the values row
+		row++ // the values row, on the row under the name
 		// Owner order 2026-11-15: every sort uses one fixed set of B, S, U
 		// and T columns, at every window width. The old narrow fallback packed
 		// the values, so S, U and T started on different cells from row to row.
@@ -425,7 +429,7 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 		}
 		row++
 	}
-	a.scrollbar(c, x+w-2, top, a.lvScan.view*3, &a.lvScan)
+	a.scrollbar(c, x+w-2, top, a.lvScan.view*2, &a.lvScan)
 }
 
 // scanTTextX is the cell the T label stands on, counted from the B block's
@@ -767,16 +771,23 @@ const (
 )
 
 // drawNetRow writes that one line, in the ink of the side that is in front.
+// Owner order 2026-11-20: the owner still saw a gap between each label and its
+// figure, because the figure was right aligned in a fixed six cell field. Each
+// figure now stands on the cell after its own equals sign, on both SEARCH
+// tiles, so the line reads NET DELTA=<net>  &  NET DELTA %=<pct> with no cell
+// left empty in between.
 func (a *App) drawNetRow(c *Canvas, x, y int, buy, sell int64) {
 	net, ink, bold := a.searchNet(buy, sell)
 	c.Text(x, y, netLabelEq, "NET DELTA=", a.th.Soft, false)
 	valX := x + netLabelEq
-	rightAlign(c, valX, y, quoteNetValW, []Span{{net, ink, bold}})
-	ampX := valX + quoteNetValW
+	valW := runeLen(net)
+	c.Text(valX, y, valW, net, ink, bold)
+	ampX := valX + valW
 	c.Text(ampX, y, netAmpW, "  &  ", a.th.Soft, false)
 	pctX := ampX + netAmpW
 	c.Text(pctX, y, netPctLabelEq, "NET DELTA %=", a.th.Soft, false)
-	c.Text(pctX+netPctLabelEq, y, 7, searchNetPct(buy, sell), ink, bold)
+	pct := searchNetPct(buy, sell)
+	c.Text(pctX+netPctLabelEq, y, runeLen(pct), pct, ink, bold)
 }
 
 // searchNetPct is the NET DELTA as a percentage of the classified volume.
@@ -949,8 +960,10 @@ func (a *App) drawSectorOpen(c *Canvas, x, y, w, h int) {
 	// hot diamond, like every other tile.
 	c.Put(x+2, y, '◆', th.Hot, false)
 	a.drawSectorSearch(c, ix, iy+1, iw, true)
-	// The field is on iy+1, iy+2 is the blank separator, and the table starts
-	// on iy+3.
+	// Owner order 2026-11-20: the field is on iy+1 and the table starts on the
+	// row under it. The blank separator row is gone, so an opened sector shows
+	// four of its scrips in the height the scanner gives this tile, and the
+	// owner no longer scrolls to read the fourth.
 	groups := a.sectorGroups()
 	if a.sectorChoice < 0 || a.sectorChoice >= len(groups) {
 		a.sectorOpen = false
@@ -971,17 +984,17 @@ func (a *App) drawSectorOpen(c *Canvas, x, y, w, h int) {
 	spans = append(spans, Span{"  ·  ", th.Soft, false}, Span{detail, th.Soft, false})
 	c.Spans(ix, iy, iw, spans)
 	if len(all) == 0 {
-		c.Text(ix, iy+3, iw, "None of this sector's scrips is in KMIALLSHR right now.", th.Soft, false)
+		c.Text(ix, iy+2, iw, "None of this sector's scrips is in KMIALLSHR right now.", th.Soft, false)
 		return
 	}
 	if len(member) == 0 {
-		c.Text(ix, iy+3, iw, "No scrip in this sector starts with "+a.sectorQueryText()+".", th.Soft, false)
+		c.Text(ix, iy+2, iw, "No scrip in this sector starts with "+a.sectorQueryText()+".", th.Soft, false)
 		return
 	}
 	// Owner order 2026-11-19 (latest): an opened sector always shows five
 	// scrips, so one selection reads the same height as the next, and the rest
 	// of its scrips are a scroll away.
-	rows := min(sectorStockRows, ih-3)
+	rows := min(sectorStockRows, ih-2)
 	if rows < 1 {
 		return
 	}
@@ -990,11 +1003,11 @@ func (a *App) drawSectorOpen(c *Canvas, x, y, w, h int) {
 	cw := contentW(&a.lvSectorStk, iw)
 	for n := 0; n < a.lvSectorStk.view; n++ {
 		i := a.lvSectorStk.off + n
-		if i >= len(member) || iy+3+n >= iy+ih {
+		if i >= len(member) || iy+2+n >= iy+ih {
 			break
 		}
 		sym := member[i]
-		ry := iy + 3 + n
+		ry := iy + 2 + n
 		a.selectRow(c, ix, ry, cw, false, func() { a.openSymbol(sym) })
 		const priceW = 8
 		priceX := ix + cw - quoteWidth(priceW)
@@ -1007,7 +1020,7 @@ func (a *App) drawSectorOpen(c *Canvas, x, y, w, h int) {
 			a.drawQuote(c, priceX, ry, priceW, commaFloat(q.Price, 2), q.ChangePct, "px:"+sym)
 		}
 	}
-	a.scrollbar(c, ix+iw-1, iy+3, a.lvSectorStk.view, &a.lvSectorStk)
+	a.scrollbar(c, ix+iw-1, iy+2, a.lvSectorStk.view, &a.lvSectorStk)
 }
 
 // moveSectorChoice moves the SECTORS selection by d rows of the visible list,
@@ -1490,7 +1503,11 @@ func (a *App) drawBoardPanel(c *Canvas, x, y, w, h int, side int) {
 		c.Text(ix+4, ry, 2, star, th.Warn, true)
 		c.Text(ix+6, ry, 8, b.Symbol, th.Hot, true)
 		// Owner order 2026-11-16: both boards name the current price with PKR.
-		a.flashText(c, ix+15, ry, padRight("PKR "+commaFloat(b.Price, 2), 13), th.Text, true, pxKey)
+		// Owner order 2026-11-20: the price ends on one fixed cell instead of
+		// starting on one, so the percentage stands two cells after every price
+		// however many digits it carries, and both columns stay put down the
+		// board.
+		a.flashRight(c, ix+28, ry, fit("PKR "+commaFloat(b.Price, 2), 14), th.Text, true, pxKey)
 		// Owner order 2026-11-16: both boards carry the side's share quantity and
 		// its bar. The bar keeps the row's right edge, the quantity stands on the
 		// same two cell gutter to its left, and the change steps out first when
@@ -1536,16 +1553,11 @@ func (a *App) drawBoardPanel(c *Canvas, x, y, w, h int, side int) {
 	a.scrollbar(c, x+w-2, iy, ih, lv)
 }
 
-// alertPct is the current day move for a log row: the freshest broker reading
-// when there is one, otherwise the last price table, otherwise the move that
-// was current when the alert was raised.
+// alertPct is the move the alert was raised at. Owner order 2026-11-20: the
+// ALERTS LOG is the record of what was bought or sold, so it keeps the price and
+// the percentage of that moment and no longer follows the live quote after the
+// row is written.
 func (a *App) alertPct(f Flag) *float64 {
-	if q, ok := a.liveQuote(f.Symbol); ok && q.ChangePct != nil {
-		return q.ChangePct
-	}
-	if q, ok := a.prices[f.Symbol]; ok && q.ChangePct != nil {
-		return q.ChangePct
-	}
 	return f.ChangePct
 }
 
@@ -1660,7 +1672,9 @@ func (a *App) drawAlertLog(c *Canvas, x, y, w, h int) {
 		c.Spans(lx, row, leadW, sp)
 		if showGroup {
 			if f.Price > 0 {
-				a.drawQuote(c, groupX, row, priceW, commaFloat(f.Price, 2), pct, "px:"+f.Symbol)
+				// Owner order 2026-11-20: the log's figures are written once, so
+				// they carry no live flash key.
+				a.drawQuote(c, groupX, row, priceW, commaFloat(f.Price, 2), pct, "")
 			} else if pct != nil {
 				a.drawQuotePct(c, groupX+quoteLabelW+priceW+quoteGap, row, *pct)
 			}

@@ -28,12 +28,14 @@ func TestKSE100LeadersCarryNetDeltaBeforePercentage(t *testing.T) {
 		}
 		found++
 		rest := row[col(row, "PKR "):]
-		netAt, pctAt := col(rest, "NET DELTA"), col(rest, "%")
+		// Owner order 2026-11-20: NET DELTA stands at the end of the leader's
+		// quote, after the percentage.
+		netAt, pctAt := col(rest, "NET DELTA="), col(rest, "%")
 		if netAt < 0 {
 			t.Errorf("the KSE100 leader carries no NET DELTA: %q", row)
 			continue
 		}
-		if netAt > pctAt {
+		if netAt < pctAt {
 			t.Errorf("NET DELTA and the percentage are out of order: %q", row)
 		}
 	}

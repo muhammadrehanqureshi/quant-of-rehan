@@ -131,16 +131,27 @@ func TestKSE100LeadersKeepPKR(t *testing.T) {
 			case strings.Contains(r, "BUYING NOW"):
 				inside = false
 			}
-			if !inside || !strings.Contains(r, "&  T=") {
+			if !inside {
 				continue
 			}
-			priced++
-			if !strings.Contains(r, "PKR ") {
-				t.Errorf("%dx%d: a leader price lost its PKR: %q", sz[0], sz[1], r)
+			// Owner order 2026-11-20: the price shares the volume line when the tile
+			// has the room and takes the name line when it does not, so a leader row
+			// carries PKR exactly where it carries its price.
+			for at := strings.Index(r, "PKR "); at >= 0; {
+				priced++
+				rest := r[at+4:]
+				if rest == "" || (rest[0] < '0' || rest[0] > '9') && !strings.HasPrefix(rest, " ") {
+					t.Errorf("%dx%d: a leader price lost its PKR: %q", sz[0], sz[1], r)
+				}
+				next := strings.Index(r[at+4:], "PKR ")
+				if next < 0 {
+					break
+				}
+				at += 4 + next
 			}
 		}
 		if priced == 0 {
-			t.Fatalf("%dx%d: no leader row carries a T volume", sz[0], sz[1])
+			t.Fatalf("%dx%d: no leader row carries a PKR price", sz[0], sz[1])
 		}
 	}
 }

@@ -108,8 +108,9 @@ func TestKSE100ColumnsAreTight(t *testing.T) {
 		if pkr >= 0 && arrow > pkr {
 			priced++
 			rest := row[pkr:]
-			if net := col(rest, "NET DELTA"); net < 0 || net > arrow-pkr {
-				t.Errorf("NET DELTA does not stand between PKR and the change: %q", row)
+			// Owner order 2026-11-20: NET DELTA closes the group, after the change.
+			if net := col(rest, "NET DELTA="); net < 0 || net < arrow-pkr {
+				t.Errorf("NET DELTA does not close the quote after the change: %q", row)
 			}
 			if arrow-pkr > 40 {
 				t.Errorf("the change floats %d cells from PKR: %q", arrow-pkr, row)

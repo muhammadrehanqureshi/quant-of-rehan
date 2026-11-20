@@ -76,9 +76,9 @@ func TestOpenSectorPriceAndPercentageStandOnTheRight(t *testing.T) {
 	}
 }
 
-// Owner order 2026-11-18: CUSTOM SCRIPS keeps one blank row between a scrip's
-// name and its B, S, U and T values.
-func TestCustomScripsKeepABlankRowBeforeTheValues(t *testing.T) {
+// Owner order 2026-11-20: a CUSTOM SCRIPS scrip stands on two rows, its name and
+// the row of its values, with no blank line between them.
+func TestCustomScripsKeepTheirValuesOnTheNextRow(t *testing.T) {
 	a := demoApp(t, 158, 41)
 	a.screen = scrScanner
 	a.scanChoice = 1
@@ -98,16 +98,13 @@ func TestCustomScripsKeepABlankRowBeforeTheValues(t *testing.T) {
 		t.Fatal("the CUSTOM SCRIPS tile is missing")
 	}
 	want := "1. " + syms[0]
-	for i := start + 1; i+2 < len(rows); i++ {
-		if !strings.Contains(rows[i], want) || !strings.Contains(rows[i], "PKR ") {
+	for i := start + 1; i+1 < len(rows); i++ {
+		if !strings.Contains(rows[i], want) {
 			continue
 		}
-		if strings.Contains(rows[i+1], "B=") {
-			t.Fatalf("the values still stand immediately under the scrip: %q then %q",
+		if !strings.Contains(rows[i+1], "B=") {
+			t.Fatalf("the values do not stand on the row under the scrip: %q then %q",
 				rows[i], rows[i+1])
-		}
-		if !strings.Contains(rows[i+2], "B=") {
-			t.Fatalf("the B, S, U and T row is not under the blank row: %q", rows[i+2])
 		}
 		return
 	}

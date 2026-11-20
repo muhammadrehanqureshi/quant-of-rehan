@@ -6,18 +6,22 @@ import (
 	"time"
 )
 
-// Owner order 2026-11-14: the PRICE ALERTS form leaves its boxes to say
-// "Type here", carries no ESC line and no words along its bottom.
+// Owner order 2026-11-14: the PRICE ALERTS form leaves its boxes to say what to
+// type, carries no ESC line and no words along its bottom. Owner order
+// 2026-11-20: the two boxes name the scrip and the price they take.
 func TestPriceAlertFormIsQuiet(t *testing.T) {
 	a := demoApp(t, 120, 30)
 	a.screen = scrAlerts
 	a.startPriceEdit(0)
 	s := plain(a)
-	if n := strings.Count(s, "Type here"); n != 2 {
-		t.Fatalf("want Type here in both boxes, got %d:\n%s", n, s)
+	if n := strings.Count(s, "Enter scrip"); n != 1 {
+		t.Fatalf("want Enter scrip in the scrip box, got %d:\n%s", n, s)
 	}
-	if strings.Contains(s, "type here") {
-		t.Fatal("the form still carries the lower case placeholder")
+	if n := strings.Count(s, "Enter price"); n != 1 {
+		t.Fatalf("want Enter price in the price box, got %d:\n%s", n, s)
+	}
+	if strings.Contains(s, "Type here") {
+		t.Fatal("the form still carries the old placeholder")
 	}
 	for _, gone := range []string{
 		"ESC cancels",
