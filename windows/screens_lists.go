@@ -1025,7 +1025,9 @@ func (a *App) drawSectorOpen(c *Canvas, x, y, w, h int) {
 
 // moveSectorChoice moves the SECTORS selection by d rows of the visible list,
 // keeping the selected group inside the six-row window. Owner order
-// 2026-11-15: the SECTORS selection is moved by UP and DOWN only.
+// 2026-11-15: the SECTORS selection is moved by UP and DOWN only. Owner order
+// 2026-11-20 (latest): the list wraps, so DOWN on the last sector lands on the
+// first and UP on the first lands on the last.
 func (a *App) moveSectorChoice(d int) {
 	vis := a.visibleSectorIndices()
 	if len(vis) == 0 {
@@ -1038,7 +1040,13 @@ func (a *App) moveSectorChoice(d int) {
 			break
 		}
 	}
-	pos = min(max(0, pos+d), len(vis)-1)
+	pos += d
+	if pos < 0 {
+		pos = len(vis) - 1
+	}
+	if pos >= len(vis) {
+		pos = 0
+	}
 	a.sectorChoice = vis[pos]
 	if a.lvSector.view > 0 {
 		if pos < a.lvSector.off {
@@ -1170,20 +1178,6 @@ func (a *App) visibleSectorMembers() []string {
 		}
 	}
 	return out
-}
-
-// hoveredSector is the group row under the pointer in the closed sector tile,
-// or -1. It lets ENTER open the row the owner is pointing at.
-func (a *App) hoveredSector() int {
-	if a.sectorOpen || a.sectorH <= 0 || a.hoverY < a.sectorY+2 || a.hoverY >= a.sectorY+a.sectorH-1 {
-		return -1
-	}
-	i := a.lvSector.off + a.hoverY - (a.sectorY + 2)
-	vis := a.visibleSectorIndices()
-	if i < 0 || i >= len(vis) {
-		return -1
-	}
-	return vis[i]
 }
 
 // demoSectorGroups gives the demo scanner a real-looking set of groups, so the

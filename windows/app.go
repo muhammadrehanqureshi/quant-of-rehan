@@ -1407,8 +1407,10 @@ func (a *App) keyScanner(k Key) {
 			a.pickMatch()
 		case a.scanFocus == 1 && len(scanChoices) > 0:
 			a.pickScan(min(a.scanCursor, len(scanChoices)-1) + 1)
-		case a.hoveredSector() >= 0:
-			a.openSector(a.hoveredSector())
+		// Owner order 2026-11-20 (latest): ENTER opens the sector the arrows
+		// marked. The pointer's row is the mouse's own business, so a pointer
+		// left resting over another row can no longer open that row instead and
+		// read as "every sector opens the same one".
 		case !a.sectorOpen && len(a.sectorGroups()) > 0:
 			a.openSector(a.sectorChoice)
 		}
