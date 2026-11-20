@@ -146,7 +146,12 @@ const appVersion = "4.0.21"
 // +1000 points. Build 148 is 3.8.23, the SECTORS tile opening the group the
 // arrows marked instead of the row under a resting pointer, its list wrapping
 // from the last sector to the first, and the PRICE ALERTS number and EMPTY word
-// standing on the BIG BUYING NOW board's own cells. Build 147 is 3.8.22, the KSE100 quote group on the line that
+// standing on the BIG BUYING NOW board's own cells. Build 149 is 3.8.24, both
+// ALERTS boards holding PKR on one column with the price right aligned in its
+// own field, the CUSTOM SCRIPS quote group standing on the tile's own right
+// edge, and ORDER FLOW ending PRICE, CHANGE, HIGH, LOW, BID and ASK on their
+// column's right edge so the two cells a short figure left behind are gone.
+// Build 147 is 3.8.22, the KSE100 quote group on the line that
 // carries T at the owner's own window with its bar above the price, the volumes
 // giving up their thousands commas there rather than any digit, and ORDER FLOW
 // keeping its BARS, NET DELTA and NET DELTA % columns with one cell between the
@@ -158,7 +163,7 @@ const appVersion = "4.0.21"
 // broker refresh line on the BUILD VERSION & RELAY tile, the boards putting the
 // percentage beside the price, and an ALERTS LOG that keeps the price and the
 // percentage it was written with.
-const hudBuild = "3.8.23"
+const hudBuild = "3.8.24"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no
