@@ -330,7 +330,16 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 			// cells on every row, and the heading sits over that edge.
 			// Owner order 2026-11-11: every heading starts on its column's first
 			// cell, so the table reads from the left edge.
-			c.Text(ix+cols[k].x, row, cols[k].w, hd, th.Soft, false)
+			// Owner order 2026-11-20 (latest): the six price columns read from
+			// their right edge, heading and value alike, so the two cells a shorter
+			// figure used to leave behind come out of PRICE and CHANGE, HIGH and
+			// LOW, LOW and BID, BID and ASK, and ASK and BUYING, and the heading
+			// still stands over the figure it names.
+			lab := hd
+			if k <= 5 {
+				lab = padLeft(hd, cols[k].w)
+			}
+			c.Text(ix+cols[k].x, row, cols[k].w, lab, th.Soft, false)
 		}
 		if iw-barX >= barFieldW {
 			// Owner order 2026-11-12 (latest): the bar's own column, then a NET
@@ -425,14 +434,18 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 			// first cell, under its own heading.
 			// Owner order 2026-11-11: every value starts on its column's first
 			// cell too, BID and ASK included, so no column floats right.
-			a.flashText(c, ix+cols[0].x, row, commaFloat(px, 2), th.Text, true, pxKey)
-			a.flashText(c, ix+cols[1].x, row, chg, chgCol, true, pxKey)
+			// Owner order 2026-11-20 (latest): PRICE, CHANGE, HIGH, LOW, BID and
+			// ASK end on their column's right edge, so the gap that follows each of
+			// them is the one cell of the gutter instead of three, and the two cells
+			// a short figure leaves behind no longer widen the column.
+			a.flashRight(c, ix+cols[0].x+cols[0].w, row, commaFloat(px, 2), th.Text, true, pxKey)
+			a.flashRight(c, ix+cols[1].x+cols[1].w, row, chg, chgCol, true, pxKey)
 			if !flowDropHL {
-				c.Text(ix+cols[2].x, row, cols[2].w, bidAsk(r.High), th.Good, false)
-				c.Text(ix+cols[3].x, row, cols[3].w, bidAsk(r.Low), th.Bad, false)
+				c.Text(ix+cols[2].x, row, cols[2].w, padLeft(bidAsk(r.High), cols[2].w), th.Good, false)
+				c.Text(ix+cols[3].x, row, cols[3].w, padLeft(bidAsk(r.Low), cols[3].w), th.Bad, false)
 			}
-			c.Text(ix+cols[4].x, row, cols[4].w, bidAsk(r.Bid), th.Text, false)
-			c.Text(ix+cols[5].x, row, cols[5].w, bidAsk(r.Ask), th.Text, false)
+			c.Text(ix+cols[4].x, row, cols[4].w, padLeft(bidAsk(r.Bid), cols[4].w), th.Text, false)
+			c.Text(ix+cols[5].x, row, cols[5].w, padLeft(bidAsk(r.Ask), cols[5].w), th.Text, false)
 			a.drawFlowCols(c, ix, row, r, cols, volKey)
 			if iw-barX >= barFieldW && r.Measured() && *r.Buy+*r.Sell > 0 {
 				// Owner order 2026-11-10 (latest): the bar is back on ORDER FLOW,

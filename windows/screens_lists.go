@@ -417,7 +417,7 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 			// Owner order 2026-11-20: the price, the percentage, the bar and
 			// its NET DELTA move to the tile's right edge, on the scrip's own
 			// row, instead of starting on the T column in the middle.
-			a.drawScanQuote(c, listX, row, cw, listX+3+runeLen(s)+2, false, q, pxW, pxKey)
+			a.drawScanQuote(c, row, x+w-2, listX+3+runeLen(s)+2, false, q, pxW, pxKey)
 		}
 		row++ // the values row, on the row under the name
 		// Owner order 2026-11-15: every sort uses one fixed set of B, S, U
@@ -425,7 +425,7 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 		// the values, so S, U and T started on different cells from row to row.
 		used := a.putBSTCols(c, listX+3, row, q.Buy, q.Sell, q.Volume, cols, volKey, pxKey)
 		if !rightList {
-			a.drawScanQuote(c, listX, row, cw, listX+3+used+1, false, q, pxW, pxKey)
+			a.drawScanQuote(c, row, x+w-2, listX+3+used+1, false, q, pxW, pxKey)
 		}
 		row++
 	}
@@ -442,12 +442,14 @@ const scanTTextX = 48
 // CUSTOM SCRIPS puts them on the scrip's name row, so the B, S, U and T line
 // below keeps its fixed columns. Owner order 2026-11-19: that revealed list
 // starts the whole quote group on the T column instead of the far right. The
-// bar gives way before the price does.
-func (a *App) drawScanQuote(c *Canvas, x, row, w, left int, atT bool, q Quote, pxW int, pxKey string) {
+// bar gives way before the price does. Owner order 2026-11-20 (latest): end is
+// the tile's own right edge, so every sub menu's price, percentage, bar and NET
+// DELTA stand on one cell two places further right than the old scrollbar aware
+// edge, whatever the list's row count does to the scrollbar.
+func (a *App) drawScanQuote(c *Canvas, row, end, left int, atT bool, q Quote, pxW int, pxKey string) {
 	if q.Price <= 0 {
 		return
 	}
-	end := x + w - 2
 	px := commaFloat(q.Price, 2)
 	groupW := quoteWidth(pxW)
 	if atT {
@@ -1479,6 +1481,22 @@ func (a *App) drawBoardPanel(c *Canvas, x, y, w, h int, side int) {
 	}
 	lv.set(len(board), ih)
 	cw := contentW(lv, iw)
+	// Owner order 2026-11-20 (latest): the board writes the one quote group
+	// every other tile uses, so PKR holds one column down the board and the
+	// price is right aligned in its own field. The field is measured on the rows
+	// the board is showing, because the label may not step left for a scrip that
+	// carries fewer digits; the field still ends on the cell the old right
+	// aligned blob ended on, so the percentage keeps its own column.
+	pxW := 6
+	for n := 0; n < lv.view; n++ {
+		i := lv.off + n
+		if i >= len(board) {
+			break
+		}
+		pxW = max(pxW, runeLen(commaFloat(board[i].Price, 2)))
+	}
+	const priceEnd = 28
+	priceX := ix + priceEnd - quoteLabelW - pxW
 	// Owner order 2026-11-13: one bar pair for the whole build. The boards
 	// rank their rows on the last minute, but each bar reads the measured day
 	// B and S pair the scanner, the search tile and the KSE100 leaders use.
@@ -1500,11 +1518,10 @@ func (a *App) drawBoardPanel(c *Canvas, x, y, w, h int, side int) {
 		c.Text(ix+4, ry, 2, star, th.Warn, true)
 		c.Text(ix+6, ry, 8, b.Symbol, th.Hot, true)
 		// Owner order 2026-11-16: both boards name the current price with PKR.
-		// Owner order 2026-11-20: the price ends on one fixed cell instead of
-		// starting on one, so the percentage stands two cells after every price
-		// however many digits it carries, and both columns stay put down the
-		// board.
-		a.flashRight(c, ix+28, ry, fit("PKR "+commaFloat(b.Price, 2), 14), th.Text, true, pxKey)
+		// Owner order 2026-11-20 (latest): PKR stands on one column and the price
+		// is right aligned in its own field, so the three rows read as one quote
+		// group and the label no longer floats with the number of digits.
+		a.drawQuoteStart(c, priceX, ry, pxW, commaFloat(b.Price, 2), pxKey)
 		// Owner order 2026-11-16: both boards carry the side's share quantity and
 		// its bar. The bar keeps the row's right edge, the quantity stands on the
 		// same two cell gutter to its left, and the change steps out first when
