@@ -267,14 +267,17 @@ func (a *App) drawPriceTile(c *Canvas, x, y, w, h int) {
 		if cur {
 			mark = '◆'
 		}
-		c.Set(ix+1, ry, mark, th.Accent, bg, true)
-		c.Text(ix+3, ry, 3, strconv.Itoa(i+1)+".", th.Soft, false)
+		// Owner order 2026-11-20 (latest): the slot number, the mark and the EMPTY
+		// word stand on the same cells as the BIG BUYING NOW tile's number, mark
+		// and symbol, so the tiles stacked above each other read as one column.
+		c.Text(ix, ry, 4, fmt.Sprintf("%2d.", i+1), th.Soft, false)
+		c.Set(ix+4, ry, mark, th.Accent, bg, true)
 		if !p.Set() {
-			c.Text(ix+7, ry, max(1, iw-7), fit("EMPTY", max(1, iw-7)), th.Soft, false)
+			c.Text(ix+6, ry, max(1, iw-6), fit("EMPTY", max(1, iw-6)), th.Soft, false)
 			continue
 		}
-		c.Text(ix+7, ry, 9, p.Symbol, th.Hot, true)
-		c.Text(ix+17, ry, 14, "PKR "+p.TargetText(), th.Text, true)
+		c.Text(ix+6, ry, 9, p.Symbol, th.Hot, true)
+		c.Text(ix+16, ry, 14, "PKR "+p.TargetText(), th.Text, true)
 		// Owner order 2026-11-20: the RISES TO TARGET and FALLS TO TARGET words are
 		// withdrawn. A slot that is armed says nothing; only a hit or a slot still
 		// waiting for its first price writes on that column.
@@ -285,12 +288,12 @@ func (a *App) drawPriceTile(c *Canvas, x, y, w, h int) {
 		case p.Wait:
 			state = "WAITING FOR A PRICE"
 		}
-		if state != "" && iw > 32 {
-			c.Text(ix+32, ry, min(iw-32, 21), fit(state, min(iw-32, 21)), ink, p.Fired)
+		if state != "" && iw > 31 {
+			c.Text(ix+31, ry, min(iw-31, 21), fit(state, min(iw-31, 21)), ink, p.Fired)
 		}
 		if px, ok := a.priceOf(p.Symbol); ok {
 			txt := "NOW PKR " + commaFloat(px, 2)
-			if n := runeLen(txt); iw-n-1 > 32+21 {
+			if n := runeLen(txt); iw-n-1 > 31+21 {
 				c.Text(ix+iw-n-1, ry, n, txt, th.Soft, false)
 			}
 		}

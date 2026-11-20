@@ -86,11 +86,20 @@ func TestScannerShowsSectorsAndCyclesThem(t *testing.T) {
 			t.Errorf("after BACKSPACE the sector list is missing %q:\n%s", want, restored)
 		}
 	}
-	// ENTER opens the group under the pointer, not only a click.
-	a.hoverX, a.hoverY = 10, a.sectorY+2+2
+	// Owner order 2026-11-20 (latest): ENTER opens the sector the arrows marked,
+	// even when the pointer is resting over another row, and the pointer keeps
+	// its own row for the click. A pointer left on CEMENT's row must not take
+	// the selection away from the group the arrows are on.
+	a.sectorChoice = 0
+	a.hoverX, a.hoverY = 10, a.sectorY+2+1
 	a.onKey(Key{Kind: KEnter})
-	if !a.sectorOpen || a.sectorChoice != 2 {
-		t.Errorf("ENTER must open the pointed sector: open %v choice %d", a.sectorOpen, a.sectorChoice)
+	if !a.sectorOpen || a.sectorChoice != 0 {
+		t.Errorf("ENTER must open the marked sector: open %v choice %d", a.sectorOpen, a.sectorChoice)
+	}
+	a.sectorOpen = false
+	clickText(t, a, "CEMENT")
+	if !a.sectorOpen || a.sectorChoice != 1 {
+		t.Errorf("a click must still open its own row: open %v choice %d", a.sectorOpen, a.sectorChoice)
 	}
 }
 
