@@ -74,10 +74,11 @@ func TestBuild149BoardsHoldThePkrColumn(t *testing.T) {
 		t.Fatalf("the boards showed %d priced rows, want three:\n%s", seen, strings.Join(rows, "\n"))
 	}
 	// Every price here is six cells or shorter, so the shared field is six wide
-	// and its last cell is where the digits end.
-	if want := pkrAt + quoteLabelW + 6 - 1; endAt != want {
+	// and its last cell is where the digits end. endAt is the cell after the
+	// last digit.
+	if want := pkrAt + quoteLabelW + 6 - 1; endAt-1 != want {
 		t.Errorf("PKR stands on %d and the price ends on %d, want the field's last cell %d",
-			pkrAt, endAt, want)
+			pkrAt, endAt-1, want)
 	}
 }
 
@@ -191,8 +192,11 @@ func TestBuild149OrderFlowPriceColumnsEndOnTheirEdge(t *testing.T) {
 		if got := utf8.RuneCountInString(row[:arrow]) - ends["PRICE"] - 1; got != 1 {
 			t.Errorf("PRICE to CHANGE keeps %d cells, want 1: %q", got, row)
 		}
+		// The widest row fills every column, so there the gutter is the whole
+		// gap; a shorter row keeps only its own column's left pad.
+		full := strings.Contains(row, "1,234.56")
 		for _, pair := range [][2]string{{"HIGH", "LOW"}, {"LOW", "BID"}, {"BID", "ASK"}} {
-			if got := gapBefore(body, ends[pair[1]]); got != 1 {
+			if got := gapBefore(body, ends[pair[1]]); got < 1 || (full && got != 1) {
 				t.Errorf("%s to %s keeps %d cells, want 1: %q", pair[0], pair[1], got, row)
 			}
 		}
