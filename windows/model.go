@@ -143,8 +143,15 @@ const appVersion = "4.0.21"
 // with an ampersand between them, five scrips in an open SECTORS list with the
 // rest a scroll away, the diamond back on the SECTORS heading, the LATEST
 // SIGNAL score re-scored on every scan, and MARKET BREADTH's bullish mark at
-// +1000 points.
-const hudBuild = "3.8.20"
+// +1000 points. Build 146 is 3.8.21, HIGH and LOW on ORDER FLOW after CHANGE,
+// four scrips in an open SECTORS list, the CUSTOM SCRIPS scrip on two rows with
+// its quote against the tile's right edge, the KSE100 quote group on the volume
+// line with NET DELTA last and its bar above the price, the PRICE ALERTS boxes
+// naming the scrip and the price with the scrip box listing every match, no
+// broker refresh line on the BUILD VERSION & RELAY tile, the boards putting the
+// percentage beside the price, and an ALERTS LOG that keeps the price and the
+// percentage it was written with.
+const hudBuild = "3.8.21"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no
