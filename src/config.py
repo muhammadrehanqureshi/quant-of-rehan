@@ -345,11 +345,13 @@ ZSCORE_SIGNAL_FRAME_MINUTES = int(_number("ZSCORE_SIGNAL_FRAME_MINUTES", 5))
 ZSCORE_Z_MIN = _number("ZSCORE_Z_MIN", 1.0)
 #: The minimum number of earlier spreads used for the mean and sigma.
 ZSCORE_MIN_SPREADS = int(_number("ZSCORE_MIN_SPREADS", 3))
-# Owner order 2026-11-20: a call must score MORE than this out of 100, so the
-# day's four calls are its four deepest measured dislocations rather than the
-# first four names that reach the law. The floor is checked where the call is
-# chosen (src/signals/momentum_scanner.select_one), never inside the entry
-# law, so every refusal keeps its own measured reason.
+# Owner order 2026-11-20: a call must score MORE than this out of 100. The
+# score's fixed part is anchored to this floor (the law's own minimum
+# dislocation prints 89.1 and a deeper one ranks higher), so the floor never
+# refuses the setup the entry law itself accepts and the day can still carry
+# its four calls. The floor is checked where the call is chosen
+# (src/signals/momentum_scanner.select_one), never inside the entry law, so
+# every refusal keeps its own measured reason.
 MIN_CALL_SCORE = _number("MIN_CALL_SCORE", 89.0)
 # Owner order 2026-11-19 (Karachi): the pick's day gain may not be more than
 # 2%. The reference is the venue's own previous close (the tape's `close`

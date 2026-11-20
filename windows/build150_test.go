@@ -99,30 +99,31 @@ func TestBuild150SectorPercentageMovesOneCellRight(t *testing.T) {
 	a.symbols = nil
 	a.prices = map[string]Quote{"AAA": {Price: 10, ChangePct: f64(1.5)}}
 	rows := rowsOf(a)
-	frame, pctAt, row := -1, -1, ""
+	scrAt, pctAt, row := -1, -1, ""
 	for _, line := range rows {
-		if strings.Contains(line, "SECTORS") && strings.Contains(line, "┓") {
-			frame = col(line, "┓")
-			continue
-		}
-		if frame < 0 || !strings.Contains(line, "%") || !strings.ContainsAny(line, "▲▼") {
+		if !strings.Contains(line, "GROUP") || !strings.Contains(line, "%") ||
+			!strings.ContainsAny(line, "▲▼") {
 			continue
 		}
 		for i, r := range []rune(line) {
 			if r == '%' {
 				pctAt = i
 			}
+			if r == '┃' && scrAt < 0 {
+				scrAt = i
+			}
 		}
 		row = line
 		break
 	}
-	if frame < 0 || pctAt < 0 {
+	if scrAt < 0 || pctAt < 0 {
 		t.Fatalf("the closed SECTORS tile carries no percentage:\n%s", strings.Join(rows, "\n"))
 	}
-	// The tile's content ends two cells inside its right frame while the list
-	// scrolls, because the scrollbar owns the last inner column.
-	if want := frame - 2; pctAt != want {
-		t.Errorf("the sector percentage ends on %d, want the content's last cell %d: %q",
+	// The scrollbar owns the tile's last inner column and the two cells before
+	// it are the tile's right pad, so the order's one cell takes the figure from
+	// four cells left of the scrollbar to three.
+	if want := scrAt - 3; pctAt != want {
+		t.Errorf("the sector percentage ends on %d, want %d, three cells left of the scrollbar: %q",
 			pctAt, want, row)
 	}
 }

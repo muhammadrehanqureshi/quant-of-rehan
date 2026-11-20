@@ -235,7 +235,11 @@ class SessionState:
             self.symbols_scanned = scanned
         if expected is not None:
             self.symbols_expected = expected
-        if not self.trade_taken:
+        # Owner order 2026-11-20: with four calls a day an open position is not
+        # a spent allowance, so `trade_taken` alone can no longer protect it.
+        # A data failure in a later slot must never erase a position that is
+        # still open, or its exit would never be monitored again.
+        if not self.trade_taken and not self.in_position():
             self.state = State.DATA_BLOCKED
 
     def no_trade(self, reason: str, coverage: float | None = None,

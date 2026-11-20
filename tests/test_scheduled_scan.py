@@ -293,19 +293,23 @@ class ScheduledScanTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn(scanner.TRADE, self.statuses,
                       f"no fire produced a signal: {self.statuses}")
         entry = self.statuses.index(scanner.TRADE)
-        locked = self.statuses[entry + 1:]
-        self.assertTrue(locked, "the schedule stopped at the entry")
-        for status in locked:
-            # One trade a day: after the entry the day can only be monitored,
-            # and a taken trade is never reported as a market NO TRADE.
-            self.assertIn(status, ("TARGET_MONITORING", "DAILY_LOCKED"),
-                          self.statuses)
-        self.assertNotIn(scanner.NO_TRADE, locked)
+        after = self.statuses[entry + 1:]
+        self.assertTrue(after, "the schedule stopped at the entry")
+        for status in after:
+            # Owner order 2026-11-20: four calls a day, so the first entry does
+            # not lock the day. While that call's position is open the verdict
+            # is monitoring; once it closes the scan carries on for the next
+            # call and may read a market NO TRADE. What the day can never do is
+            # call the same name twice, so this tape sees no second TRADE.
+            self.assertIn(status, ("TARGET_MONITORING", "DAILY_LOCKED",
+                                   "NO_TRADE"), self.statuses)
+        self.assertNotIn(scanner.TRADE, after)
 
         state = json.loads((self.forward / "session_state.json")
                            .read_text(encoding="utf-8"))
         self.assertEqual(state["trades_today"], 1)
         self.assertEqual(state["symbol"], WINNER)
+        self.assertEqual(state["symbols_called"], [WINNER])
 
         alerts = [payload["signals"] for _, route, payload in self.calls
                   if route == "/signals" and "INTRADAY ALERT" in payload["signals"]]

@@ -566,7 +566,9 @@ class PipelineCycleTest(unittest.TestCase):
         self.assertTrue(cards, "the stop never reached the app card")
         self.assertIn("STOP HIT", cards[-1])
         self.assertIn(f"{stop:.4f}", cards[-1])
-        self.assertNotIn("One trade already taken today", cards[-1])
+        # The defect's signature is the entry sentence reappearing on the card,
+        # not the locked card's own wording (owner order 2026-11-20 changed it).
+        self.assertNotIn("entered at", cards[-1])
         self.assert_real_forward_untouched()
 
     def test_a_blocked_finalize_is_recorded_as_data_blocked(self):
