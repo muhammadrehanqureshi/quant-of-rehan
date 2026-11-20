@@ -899,8 +899,14 @@ def no_trade_message(quality: QualityReport, market: dict,
              f"({quality.leaders_fresh}/{quality.leader_symbols} leaders fresh)\n"
              f"Market: {market.get('status', 'UNKNOWN')}\n"
              f"Market context: {market.get('reason', 'unavailable')}\n"
-             "Reason: no actionable Kalman Trend or VWAP pullback entry with "
-             "the 2% target room.\n"
+             # Owner order 2026-11-16 withdrew the VWAP pullback and the fresh
+             # one minute flip, so the card may not name either of them. What
+             # the scan actually refused is the running law: the three frames
+             # never lined up with the 5m price-VWAP spread stretched below its
+             # own trailing mean inside the 2% target room.
+             "Reason: no 5m/15m/30m Kalman and VWAP entry: the 5m price-VWAP "
+             "spread was not stretched below its own mean with the 2% target "
+             "room.\n"
              f"Source: {quality.source}")
     if gate_tally:
         lines += "\nWhy nothing passed, measured per gate:\n"
