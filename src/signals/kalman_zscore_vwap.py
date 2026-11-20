@@ -36,7 +36,8 @@ Entry law:
     statistical dislocation inside that rising regime.
 
 Exit and risk are the owner's unchanged paper law: entry at the latest
-completed close, a fixed -1% stop and a +2% target, one call a day.
+completed close, a fixed -1% stop and a +2% target, four calls a day, each of
+which must score above config.MIN_CALL_SCORE out of 100.
 
 Nothing here executes, sleeps or touches a network. A missing frame, an
 unmeasurable spread or a thin tape fails closed with its reason named (SO-3).
@@ -197,14 +198,23 @@ def entry_view(symbol: str, rows: list, session,
 
 
 def score(view: dict | None, reward_risk: float) -> float:
-    """A ranking number for a z-score spread setup, never a probability."""
+    """A ranking number for a z-score spread setup, never a probability.
+
+    Owner order 2026-11-20: the fixed part is 63, so the law's own minimum
+    dislocation (|z| at ZSCORE_Z_MIN, the 1% stop and the 2% target, both slow
+    frames aligned) prints 89.1 and a call the law accepts clears the 89 point
+    floor (config.MIN_CALL_SCORE). A deeper dislocation ranks higher, and the
+    number stays a ranking number, never a probability. Without that anchor the
+    floor would demand a 2 sigma dislocation and the day would never carry the
+    four calls the owner asked for.
+    """
     if not isinstance(view, dict):
         return 0.0
     z = abs(float(view.get("z") or 0.0))
     frames = view.get("frames") or {}
     aligned = sum(1 for key in ("15m", "30m")
                   if (frames.get(key) or {}).get("kalman_state") == 1)
-    return round(min(100.0, 50 + min(25.0, 10.0 * z)
+    return round(min(100.0, 63 + min(30.0, 12.0 * z)
                      + min(15.0, 5.0 * reward_risk)
                      + 5.0 * aligned), 2)
 

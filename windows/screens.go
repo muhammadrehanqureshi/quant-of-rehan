@@ -14,11 +14,13 @@ const (
 	minH = 26
 	// Owner order 2026-11-11: the KSE100's own point move decides the
 	// telemetry breadth, and the band between the two marks is FLAT.
-	// Owner order 2026-11-19 (latest): the index stood +1100 points up and the
-	// tile still read FLAT, so the bullish mark is +1000. The bearish mark
-	// stays at -500.
+	// Owner order 2026-11-19: the index stood +1100 points up and the tile
+	// still read FLAT, so the bullish mark became +1000.
+	// Owner order 2026-11-20 (latest): the marks are the owner's own numbers,
+	// both inclusive. At or over +1000 points the breadth is BULLISH, at or
+	// under -1 point it is BEARISH, and every point between is FLAT.
 	kseBullishPoints = 1000.0
-	kseBearishPoints = -500.0
+	kseBearishPoints = -1.0
 )
 
 func (a *App) animSeconds() float64 {
@@ -618,16 +620,16 @@ func (a *App) drawLeft(c *Canvas, x, y, w, h int) {
 	fullRow(4, "MARKET OPENING", []Span{{open, th.Text, false}})
 	fullRow(5, "MARKET CLOSING", []Span{{close, th.Text, false}})
 	// Owner order 2026-11-11: MARKET BREADTH is the KSE100's own point move.
-	// Owner order 2026-11-19 (latest): above +1000 points is BULLISH, below
-	// -500 is BEARISH, and the band between them is FLAT. ADV/DEC still reads
-	// the whole market table.
+	// Owner order 2026-11-20 (latest): at or over +1000 points is BULLISH, at
+	// or under -1 point is BEARISH, and every point between them is FLAT.
+	// ADV/DEC still reads the whole market table.
 	adv, dec := a.marketBreadth()
 	breadth, bc := "FLAT", th.Soft
 	if _, change, _, _, _, ok := a.effectiveIndex(); ok {
 		switch {
-		case change > kseBullishPoints:
+		case change >= kseBullishPoints:
 			breadth, bc = "BULLISH", th.Good
-		case change < kseBearishPoints:
+		case change <= kseBearishPoints:
 			breadth, bc = "BEARISH", th.Bad
 		}
 	}

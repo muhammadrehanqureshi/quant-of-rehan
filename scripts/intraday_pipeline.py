@@ -22,7 +22,8 @@ Honesty rules enforced here:
   * the scanner never runs outside the configured Karachi session (SO-8);
   * a data failure is reported as SCAN BLOCKED with measured coverage and
     never as a market NO TRADE;
-  * one trade per market day, persisted on disk, so a restart cannot reset it;
+  * four calls per market day, each scored above MIN_CALL_SCORE, persisted on
+    disk, so a restart cannot reset the count;
   * live trading stays disabled; this script can only record paper outcomes;
   * the decision time is the time the CAPTURE can actually speak for: when the
     capture holds no bar at or before a slot, the as_of the observation carries
@@ -353,8 +354,8 @@ def archive(route: str, payload: dict) -> bool:
         return False
 
 
-def claim_signal(day, slot: str) -> tuple[bool, str]:
-    """Take the day's one signal claim from the relay. The authoritative lock.
+def claim_signal(day, slot: str, call_no: int = 1) -> tuple[bool, str]:
+    """Take the day's next call claim from the relay. The authoritative lock.
 
     The local session file (src/signals/trade_state.py) is a per-machine lock:
     it cannot see another runner, and the cloud runs a band loop plus scheduled
@@ -365,8 +366,13 @@ def claim_signal(day, slot: str) -> tuple[bool, str]:
     today's signal already been claimed" across machines, and until now nothing
     called it.
 
+    Owner order 2026-11-20: the day allows four calls, so the claim names
+    which of them it is. The relay keys each call separately, so a runner that
+    restores an older copy of the day's state still cannot speak for a call
+    another runner has already made.
+
     Returns (claimed, detail). Fails CLOSED: a relay that cannot answer means
-    no entry, because an unverifiable lock cannot promise the one-trade rule
+    no entry, because an unverifiable lock cannot promise the allowance
     (SO-3: the honest outcome is a refusal that says why).
     """
     if not config.SIGNAL_CLAIM_REQUIRED:
@@ -374,14 +380,15 @@ def claim_signal(day, slot: str) -> tuple[bool, str]:
     try:
         answer = relay_request("POST", "/research/claim",
                               {"date": day.isoformat(),
-                               "slot": relay_slot(slot)})
+                               "slot": relay_slot(slot),
+                               "n": int(call_no)})
     except (requests.RequestException, RuntimeError, ValueError) as exc:
-        return False, (f"the day's signal claim could not be taken "
+        return False, (f"call {call_no}'s claim could not be taken "
                        f"({type(exc).__name__}): no entry without it")
     if answer.get("claimed"):
-        return True, "claimed"
-    return False, ("today's one signal was already claimed by another "
-                   "runner; no further entry is possible")
+        return True, f"claimed call {call_no} of {config.MAX_TRADES_PER_DAY}"
+    return False, (f"call {call_no} of {config.MAX_TRADES_PER_DAY} was already "
+                   "claimed by another runner; no further entry at that call")
 
 
 def mtf_summary(candidate: dict | None) -> str:
@@ -734,8 +741,11 @@ def run_scan(slot: str, capture: Path | None = None,
     # The only strategy reads the three VWAP frames, so the frames are always
     # read here: passing the deployment flag would let a scan run a law it
     # cannot evaluate (owner order 2026-11-12).
+    # Owner order 2026-11-20: the day's four calls are four names, so the
+    # names already called today are kept out of the call.
     result = scanner.select_one(session, quality,
-                                frames=config.MTF_ENABLED)
+                                frames=config.MTF_ENABLED,
+                                exclude=set(state.symbols_called))
     context = result.market
 
     # Owner order 2026-10-31 ("ML engine/concept that will be self learning.
@@ -783,9 +793,11 @@ def run_scan(slot: str, capture: Path | None = None,
     except Exception as exc:  # noqa: BLE001 - the scan outlives the memory
         adaptive_note["error"] = f"{type(exc).__name__}: {exc}"
 
+    closed_now = False
     if state.in_position():
         exit_event = monitor_exit(state, session)
         if exit_event is not None:
+            closed_now = True
             _, price, stamp = exit_event
             state.save()
             archive_exit_close(state)
@@ -793,7 +805,8 @@ def run_scan(slot: str, capture: Path | None = None,
                                                state.target_price or 0.0, price, stamp)
                     if state.target_hit else
                     f"STOP HIT\nSymbol: {state.symbol}\nExit reference: {price:.4f}\n"
-                    f"Stop Loss: {state.stop_loss:.4f}\nDaily lock remains engaged.")
+                    f"Stop Loss: {state.stop_loss:.4f}\nCalls taken today: "
+                    f"{state.trades_today} of {config.MAX_TRADES_PER_DAY}.")
             accepted = email_signal(text, f"signal-exit:{day.isoformat()}")
             delivery = {"channel": "owner-email", "kind": "signal-exit",
                         "ok": accepted,
@@ -808,10 +821,10 @@ def run_scan(slot: str, capture: Path | None = None,
     delivered = None
     entered = None
     observed = result.candidate
-    if result.status == scanner.TRADE and state.can_enter():
+    if result.status == scanner.TRADE and state.can_enter() and not closed_now:
         # The shared, cross-runner lock first: the local state file cannot see
         # another runner, and the cloud runs a band loop plus backstop slots.
-        claimed, claim_note = claim_signal(day, slot)
+        claimed, claim_note = claim_signal(day, slot, state.trades_today + 1)
         claim_record = {"channel": "relay:/research/claim", "ok": claimed,
                         "detail": claim_note}
         if not claimed:
@@ -854,12 +867,13 @@ def run_scan(slot: str, capture: Path | None = None,
                           f"did NOT confirm the delivery")
                 state.last_reason = reason
                 state.save()
-    elif result.status == scanner.CALL_WATCH and not state.trade_taken:
+    elif (result.status == scanner.CALL_WATCH and not state.trade_taken
+          and not state.in_position()):
         # Owner order 2026-10-29: a scan whose rank table is non-empty is
         # DELIVERED end-to-end even when the market veto kept it from being
         # a paper entry. The watch is NOT a trade: no paper position opens,
-        # no ONE TRADE claim is taken, and a later fully confirmed entry can
-        # still open the same day. What is delivered is the ranked top with
+        # no call claim is taken, and a later fully confirmed entry can still
+        # open one of the day's calls. What is delivered is the ranked top with
         # its measured setup and the veto that explains why it is a watch.
         status = result.status
         reason = result.reason
@@ -878,12 +892,35 @@ def run_scan(slot: str, capture: Path | None = None,
         state.last_reason = f"call watch delivered instead of entry: {reason}"
         state.save()
         delivered = "CALL_WATCH" if sent else "CALL_WATCH_UNDELIVERED"
+    elif state.in_position() or closed_now:
+        # A paper position is open on one of the day's calls, or this scan just
+        # banked its close, so this scan may not enter. Owner order 2026-11-20:
+        # with four calls a day the day is not locked, so the report says
+        # monitoring, never a fresh TRADE, and a candidate this scan found is
+        # reported as observed and refused. The scan after the close decides
+        # whether another name is the next call, so the terminal STOP or TARGET
+        # card is never replaced by an entry on the same scan that banked it.
+        status = State.TARGET_MONITORING
+        if closed_now and not state.in_position():
+            reason = (f"call {state.trades_today} of "
+                      f"{config.MAX_TRADES_PER_DAY} closed on this scan; the "
+                      "next scan decides the day's next call")
+        else:
+            reason = (f"call {state.trades_today} of "
+                      f"{config.MAX_TRADES_PER_DAY} is open and its position "
+                      "is being monitored")
+        if observed is not None:
+            reason += "; a fresh candidate was observed and refused"
+            state.last_reason = reason
+            state.save()
+        delivered = "LOCKED"
     elif state.trade_taken:
-        # The day already has its one trade. A taken trade is NEVER reported as
-        # NO TRADE, and a second candidate is never presented as actionable.
+        # All the day's calls are spent. A taken trade is NEVER reported as
+        # NO TRADE, and a further candidate is never presented as actionable.
         status = (State.TARGET_MONITORING if state.in_position()
                   else State.DAILY_LOCKED)
-        reason = "one trade already taken today; no further entry is possible"
+        reason = (f"{state.trades_today} of {config.MAX_TRADES_PER_DAY} calls "
+                  "already taken today; no further entry is possible")
         if observed is not None:
             reason += "; a fresh candidate was observed and refused"
             state.last_reason = reason
@@ -905,7 +942,8 @@ def run_scan(slot: str, capture: Path | None = None,
                 except ValueError:
                     entry_clock = ""
             card_body = (
-                f"One trade already taken today: {state.symbol} entered at "
+                f"All {config.MAX_TRADES_PER_DAY} calls already taken today: "
+                f"{state.symbol} entered at "
                 f"{state.entry_price}, target {state.target_price}, "
                 f"stop loss {state.stop_loss}. {entry_clock}"
                 f"{state.last_reason or 'position being monitored'}.")
@@ -948,7 +986,11 @@ def run_scan(slot: str, capture: Path | None = None,
                                                      result.gate_tally)
             # Owner order 2026-10-15: a market NO TRADE is not a signal. The
             # verdict is written, archived and carded, never messaged.
-            push_card(card_text(day, slot, no_trade_text, alert=False), state, signature=f"{day}|{no_trade_text}")
+            # Owner order 2026-11-20: a scan that banked a stop or a target
+            # leaves that terminal card in place; the NO TRADE verdict below
+            # it must not overwrite the sentence the owner was just told.
+            if not closed_now:
+                push_card(card_text(day, slot, no_trade_text, alert=False), state, signature=f"{day}|{no_trade_text}")
             delivered = "NO_TRADE"
 
     payload = {

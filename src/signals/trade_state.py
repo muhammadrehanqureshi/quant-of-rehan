@@ -1,9 +1,12 @@
-"""Explicit, persisted trade state machine with the one-trade-per-day lock.
+"""Explicit, persisted trade state machine with the day's call allowance.
 
-Owner spec (2026-10-09): one trade per market day, and a process restart must
-never let the bot forget that it already traded. The state therefore lives on
-disk (data/forward/session_state.json) and is keyed by the Karachi trading
-date. A new Karachi trading date starts a fresh state; history is preserved by
+Owner spec (2026-10-09): the day's calls are capped, and a process restart
+must never let the bot forget what it already did. Owner order 2026-11-20:
+the cap is four calls a day instead of one, each of them a score above
+config.MIN_CALL_SCORE, so the state keeps a count and the relay claims each
+call by its own number. The state therefore lives on disk
+(data/forward/session_state.json) and is keyed by the Karachi trading date. A
+new Karachi trading date starts a fresh state; history is preserved by
 appending every finished session to data/forward/session_journal.jsonl.
 
 States:
@@ -13,9 +16,11 @@ States:
                   -> TRADE_CLOSED -> DAILY_LOCKED
     any state     -> DATA_BLOCKED (data failure, no trade, retried next slot)
 
-Only one transition into TRADE_ENTERED is allowed per trading day, and once
-the day is DAILY_LOCKED no further entry is possible until the next session.
-Nothing here can place an order: it records a paper position only.
+A position that is still open blocks a second entry, and a paper position that
+has closed (target hit or stop) reopens the scan for the day's next call while
+fewer than MAX_TRADES_PER_DAY calls have been made. Once the allowance is used
+the day is DAILY_LOCKED. Nothing here can place an order: it records a paper
+position only.
 """
 
 from __future__ import annotations
@@ -46,14 +51,17 @@ class State:
     ALL = (MARKET_CLOSED, MARKET_OPEN, SCANNING, CANDIDATE_FOUND, TRADE_ENTERED,
            TARGET_MONITORING, TARGET_HIT, TRADE_CLOSED, DAILY_LOCKED, DATA_BLOCKED)
 
-    # States in which a new entry is allowed (subject to the daily lock).
-    ENTRY_OPEN = (MARKET_OPEN, SCANNING, CANDIDATE_FOUND)
+    # States in which a new entry is allowed, subject to the day's allowance.
+    # Owner order 2026-11-20: a paper position that has already closed leaves
+    # the scan open for the day's next call.
+    ENTRY_OPEN = (MARKET_OPEN, SCANNING, CANDIDATE_FOUND, TARGET_HIT,
+                  TRADE_CLOSED)
 
     # States that represent a position that is open or was taken today.
     IN_POSITION = (TRADE_ENTERED, TARGET_MONITORING)
 
-    # Terminal for the day.
-    TERMINAL = (TRADE_CLOSED, DAILY_LOCKED)
+    # Terminal for the day: nothing after it can trade again.
+    TERMINAL = (DAILY_LOCKED,)
 
 
 @dataclass
@@ -63,6 +71,9 @@ class SessionState:
     day: str
     state: str = State.MARKET_CLOSED
     trades_today: int = 0
+    #: Every name already called today, so the day's four calls are four
+    #: names and never the same name four times (owner order 2026-11-20).
+    symbols_called: list[str] = field(default_factory=list)
     symbol: str | None = None
     entry_price: float | None = None
     entry_time: str | None = None
@@ -224,7 +235,11 @@ class SessionState:
             self.symbols_scanned = scanned
         if expected is not None:
             self.symbols_expected = expected
-        if not self.trade_taken:
+        # Owner order 2026-11-20: with four calls a day an open position is not
+        # a spent allowance, so `trade_taken` alone can no longer protect it.
+        # A data failure in a later slot must never erase a position that is
+        # still open, or its exit would never be monitored again.
+        if not self.trade_taken and not self.in_position():
             self.state = State.DATA_BLOCKED
 
     def no_trade(self, reason: str, coverage: float | None = None,
@@ -243,11 +258,10 @@ class SessionState:
     def enter(self, symbol: str, entry_price: float, entry_time: datetime,
               score: float, stop_loss: float | None = None,
               strategy: str | None = None) -> None:
-        """Record the paper entry and lock the day to this one trade.
+        """Record one paper entry and spend one of the day's calls.
 
-        `strategy` is the entry law that actually spoke (the fresh flip or the
-        three frame pullback); None keeps the flip's own label, which is what
-        every caller before 2026-11-06 meant.
+        `strategy` is the entry law that actually spoke (the z-score spread law
+        today); None keeps the scanner's own label.
         """
         import math
 
@@ -262,6 +276,8 @@ class SessionState:
                 f"{self.trades_today} of {config.MAX_TRADES_PER_DAY}")
         self.state = State.TRADE_ENTERED
         self.trades_today += 1
+        if symbol not in self.symbols_called:
+            self.symbols_called.append(symbol)
         self.symbol = symbol
         self.entry_price = float(entry_price)
         self.entry_time = entry_time.isoformat()
@@ -272,7 +288,8 @@ class SessionState:
         self.stop_hit = False
         self.exit_reason = None
         self.scanner_version = strategy or config.SCANNER_VERSION
-        self.last_reason = "entered one KMIALL long, daily lock engaged"
+        self.last_reason = (f"entered call {self.trades_today} of "
+                            f"{config.MAX_TRADES_PER_DAY}, paper position open")
         self.state = State.TARGET_MONITORING
 
     def mark_target_hit(self, exit_price: float, hit_at: datetime) -> None:
@@ -287,7 +304,7 @@ class SessionState:
 
     def mark_stop_hit(self, exit_price: float, hit_at: datetime,
                       ambiguous: bool = False) -> None:
-        """A structural failure closes the paper position, never resets its lock."""
+        """A structural failure closes the paper position; its call stays spent."""
         self.state = State.TRADE_CLOSED
         self.stop_hit = True
         self.exit_reason = "STOP_AMBIGUOUS" if ambiguous else "STOP_HIT"
@@ -318,6 +335,7 @@ class SessionState:
         return {
             "date": self.day,
             "trades_taken": self.trades_today,
+            "symbols_called": list(self.symbols_called),
             "trade_status": self.state,
             "symbol": self.symbol,
             "entry": self.entry_price,

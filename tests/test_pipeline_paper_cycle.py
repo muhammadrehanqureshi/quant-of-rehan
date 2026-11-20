@@ -566,7 +566,9 @@ class PipelineCycleTest(unittest.TestCase):
         self.assertTrue(cards, "the stop never reached the app card")
         self.assertIn("STOP HIT", cards[-1])
         self.assertIn(f"{stop:.4f}", cards[-1])
-        self.assertNotIn("One trade already taken today", cards[-1])
+        # The defect's signature is the entry sentence reappearing on the card,
+        # not the locked card's own wording (owner order 2026-11-20 changed it).
+        self.assertNotIn("entered at", cards[-1])
         self.assert_real_forward_untouched()
 
     def test_a_blocked_finalize_is_recorded_as_data_blocked(self):
@@ -620,7 +622,7 @@ class PipelineCycleTest(unittest.TestCase):
             "the same stored stop was banked twice")
 
     def test_the_days_one_signal_is_claimed_before_any_entry(self):
-        """Owner order 2026-10-16: one accepted BUY per Karachi day.
+        """Owner order 2026-10-16, extended to four calls on 2026-11-20.
 
         The local session file cannot see another runner, and the cloud runs a
         band loop plus backstop slots from a restored copy of the day's state,
@@ -634,7 +636,7 @@ class PipelineCycleTest(unittest.TestCase):
         first = self.scan("11:20")
         self.assertEqual(first["status"], scanner.TRADE)
         self.assertEqual(first["claim"]["ok"], True)
-        self.assertEqual(first["claim"]["detail"], "claimed")
+        self.assertEqual(first["claim"]["detail"], "claimed call 1 of 4")
 
         routes = self.relay.routes()
         self.assertIn("/research/claim", routes)

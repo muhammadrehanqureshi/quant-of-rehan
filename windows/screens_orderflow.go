@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -291,36 +292,25 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 	pctX := 0
 	barFieldW := 0
 	showNetPct := false
-	// How far the table has stepped left because the serial column stepped out.
-	flowSerOff := 0
 	flowDropHL = false
 	// Column header for the one-line table.
 	if wide {
 		// Owner order 2026-11-10 (latest): every heading sits on the very first
 		// cell of its own column, which is exactly where that column's data
 		// starts, because every column is left aligned on that cell.
-		cols, barX = flowColumns(rows, 0)
+		// Owner order 2026-11-20 (latest): the serial column is gone, so the
+		// table starts on SYMBOL on the panel's first cell and every column
+		// that carries data keeps its cells.
+		cols, barX = flowColumns(rows)
 		barFieldW, pctX, showNetPct = flowTail(iw, barX)
-		// Owner order 2026-11-20 (latest): NET DELTA and NET DELTA % stay on the
-		// page. When the serial column is the only thing pushing them past the
-		// right edge, the serial steps out and the table starts on SYMBOL; every
-		// column that carries data keeps its cells.
-		if !showNetPct {
-			flowSerOff = flowSerW + flowGutter
-			cols, barX = flowColumns(rows, flowSerOff)
-			barFieldW, pctX, showNetPct = flowTail(iw, barX)
-		}
 		if !showNetPct {
 			// Owner order 2026-11-20 (latest): the last thing to give way is HIGH
 			// and LOW, so the bar keeps its cells and both NET DELTA columns stay.
 			flowDropHL = true
-			cols, barX = flowColumns(rows, flowSerOff)
+			cols, barX = flowColumns(rows)
 			barFieldW, pctX, showNetPct = flowTail(iw, barX)
 		}
-		if flowSerOff == 0 {
-			c.Text(ix+flowSerX, row, flowSerW, "#", th.Soft, false)
-		}
-		c.Text(ix+flowSymX-flowSerOff, row, flowSymW, "SYMBOL", th.Soft, false)
+		c.Text(ix+flowSymX, row, flowSymW, "SYMBOL", th.Soft, false)
 		for k, hd := range flowHeads {
 			if flowDropHL && (k == 2 || k == 3) {
 				continue
@@ -397,7 +387,7 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 			if p == nil {
 				return "n/a"
 			}
-			return commaFloat(*p, 2)
+			return flowPrice(*p)
 		}
 		// Owner report 2026-11-12 (latest): PIM read one price on the scanner and
 		// another here, because each page read its own feed. A fresh broker quote
@@ -424,12 +414,9 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 			warn = " STALE"
 		}
 		if wide {
-			// Owner order 2026-11-10 (latest): the serial is left aligned on the
-			// panel edge, so the # heading sits on the first digit of the number.
-			if flowSerOff == 0 {
-				c.Text(ix+flowSerX, row, flowSerW, fmt.Sprintf("%d.", i+1), th.Soft, false)
-			}
-			c.Text(ix+flowSymX-flowSerOff, row, flowSymW, r.Symbol, symCol, true)
+			// Owner order 2026-11-20 (latest): no serial column, so the symbol
+			// starts on the panel's first cell.
+			c.Text(ix+flowSymX, row, flowSymW, r.Symbol, symCol, true)
 			// Owner order 2026-11-10 (latest): every value starts on its column's
 			// first cell, under its own heading.
 			// Owner order 2026-11-11: every value starts on its column's first
@@ -438,7 +425,7 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 			// ASK end on their column's right edge, so the gap that follows each of
 			// them is the one cell of the gutter instead of three, and the two cells
 			// a short figure leaves behind no longer widen the column.
-			a.flashRight(c, ix+cols[0].x+cols[0].w, row, commaFloat(px, 2), th.Text, true, pxKey)
+			a.flashRight(c, ix+cols[0].x+cols[0].w, row, flowPrice(px), th.Text, true, pxKey)
 			a.flashRight(c, ix+cols[1].x+cols[1].w, row, chg, chgCol, true, pxKey)
 			if !flowDropHL {
 				c.Text(ix+cols[2].x, row, cols[2].w, padLeft(bidAsk(r.High), cols[2].w), th.Good, false)
@@ -537,11 +524,31 @@ const flowGutter = 1
 // widest thing the column holds.
 const flowNetPctW = 11
 
-// The serial and the symbol columns, and the headings of the eight that follow.
+// The symbol column, and the headings of the ten that follow it. Owner order
+// 2026-11-20 (latest): the serial column is gone, so the symbol takes the
+// panel's first cell.
 const (
-	flowSerX, flowSerW = 0, 4
-	flowSymX, flowSymW = flowSerX + flowSerW + flowGutter, 8
+	flowSymX, flowSymW = 0, 8
 )
+
+// flowPriceW is the widest figure an ORDER FLOW price field carries before its
+// thousands separator is the thing that goes. Owner order 2026-11-20 (latest):
+// the five price columns are measured on this field, so the widest quote in the
+// answer holds them at eight cells instead of nine and SYMBOL to PRICE, CHANGE
+// to HIGH, HIGH to LOW, LOW to BID and BID to ASK each stand one cell closer.
+const flowPriceW = 8
+
+// flowPrice is one price as the relay sent it, two decimals with its thousands
+// separator, and without the separator only when that form is wider than the
+// field. No digit is ever dropped: a figure too wide for the field loses its
+// separator and nothing else.
+func flowPrice(v float64) string {
+	s := commaFloat(v, 2)
+	if runeLen(s) > flowPriceW {
+		s = strconv.FormatFloat(v, 'f', 2, 64)
+	}
+	return s
+}
 
 // Owner order 2026-11-12 (latest): the unclassified column is written in full.
 // Owner order 2026-11-20: HIGH and LOW stand after CHANGE, before BID, so the
@@ -558,7 +565,7 @@ var flowDropHL bool
 
 // flowColumns measures the whole answer and returns the ten columns and the
 // cell the bar column starts on. A column is never narrower than its heading.
-func flowColumns(rows []FlowRow, shift int) ([10]flowCell, int) {
+func flowColumns(rows []FlowRow) ([10]flowCell, int) {
 	var w [10]int
 	for i, hd := range flowHeads {
 		w[i] = runeLen(hd)
@@ -575,10 +582,10 @@ func flowColumns(rows []FlowRow, shift int) ([10]flowCell, int) {
 			set(i, "n/a")
 			return
 		}
-		set(i, commaFloat(*p, 2))
+		set(i, flowPrice(*p))
 	}
 	for _, r := range rows {
-		set(0, commaFloat(r.Price, 2))
+		set(0, flowPrice(r.Price))
 		if r.ChangePct != nil {
 			set(1, changeText(*r.ChangePct))
 		} else {
@@ -607,7 +614,7 @@ func flowColumns(rows []FlowRow, shift int) ([10]flowCell, int) {
 	if flowDropHL {
 		w[2], w[3] = 0, 0
 	}
-	x := flowSymX + flowSymW + flowGutter - shift
+	x := flowSymX + flowSymW + flowGutter
 	var cols [10]flowCell
 	for i := 0; i < 10; i++ {
 		if w[i] == 0 && (i == 2 || i == 3) {

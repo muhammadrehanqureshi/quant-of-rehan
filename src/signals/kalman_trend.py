@@ -20,7 +20,7 @@ What is left is the engine the law needs:
   * one entry: the z-score spread law, measured on the session tape alone.
 
 The owner's TP/SL law is the whole plan: entry at the latest completed close,
-stop at the owner's fixed -1% under it, target at his +2%, one call a day
+stop at the owner's fixed -1% under it, target at his +2%, four calls a day
 (src/signals/trade_state.py). There is no second strategy, no fallback and no
 hidden prior: when the z-score law has no legal entry the scanner answers no
 entry, with the refusing gate named (SO-3).
@@ -203,7 +203,8 @@ def candidate(symbol: str, rows: list, session,
     entry = last.close
     # The owner's fixed -1% stop under the entry, the same number for every
     # name, and the +2% target measured from that same entry (owner answer
-    # 2026-10-30: 2% TP / -1% SL, one call a day).
+    # 2026-10-30: 2% TP / -1% SL; owner order 2026-11-20 sets four calls a day,
+    # each scored more than 89 out of 100).
     stop = round(entry * (1 - config.KALMAN_STOP_PCT), 4)
     if entry <= stop or entry <= 0:
         _bump(tally, "stop_not_below_entry")

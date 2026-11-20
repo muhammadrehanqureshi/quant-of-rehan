@@ -54,15 +54,19 @@ def _number(name: str, default: float) -> float:
 # ---------------------------------------------------------------- hard limits
 PAPER_TRADING_ENABLED = _flag("PAPER_TRADING_ENABLED", True)
 LIVE_TRADING_ENABLED = _flag("LIVE_TRADING_ENABLED", False)
-MAX_TRADES_PER_DAY = 1
+# Owner order 2026-11-20: four calls a day instead of one, each of them a
+# score above MIN_CALL_SCORE out of 100. The allowance is per Karachi trading
+# day and survives a restart the way the old one-trade lock did.
+MAX_TRADES_PER_DAY = 4
 
-# The one signal a Karachi day is allowed, enforced where it can actually be
+# Each call a Karachi day is allowed, enforced where it can actually be
 # enforced. A local state file (src/signals/trade_state.py) is a per-machine
 # lock; the cloud runs a band loop plus scheduled backstop slots, each starting
 # from a restored copy of the day's state, so two runs can both decide to enter
-# and emit two accepted BUY candidates for the same day. The relay's
-# /research/claim is the one shared answer to "is today's signal already
-# spoken for", and scripts/intraday_pipeline.run_scan asks it before entering.
+# and emit two accepted BUY candidates for the same call. The relay's
+# /research/claim is the one shared answer to "has this call already been
+# spoken for", and scripts/intraday_pipeline.run_scan asks it, by call number,
+# before entering.
 # Kept as a switch for one reason: with the relay unreachable the claim fails
 # closed (no entry, reported), and an owner who wants paper observation to
 # continue without the relay can turn the requirement off deliberately.
@@ -79,8 +83,8 @@ SIGNAL_CLAIM_REQUIRED = _flag("SIGNAL_CLAIM_REQUIRED", True)
 # ENGINE CALL, UNVALIDATED (SO-3: no implied certainty), and carrying the
 # paper law's own target/stop math so the call includes its measured plan.
 # Honesty laws are untouched: no broker order ever exists (SO-1), and the
-# paper one-trade claim law is untouched (a watch never seizes the day's
-# one trade, so a real confirmed flip entry may still open the same day).
+# paper call allowance is untouched (a watch never seizes one of the day's
+# calls, so a real confirmed entry may still open later in the day).
 OWNER_ORDERED_CALLS = _flag("OWNER_ORDERED_CALLS", False)
 TARGET_PCT = _number("TARGET_PCT", 2.0) / 100.0
 KMIALL_ONLY = True
@@ -277,8 +281,9 @@ KALMAN_SETUP_BARS = 40          # a signal's upward flip may be at most this old
 # The MAXIMUM below still refuses a stop absurdly far away.
 KALMAN_MAX_RISK_PCT = _number("KALMAN_MAX_RISK_PCT", 0.012)
 # The owner's TP/SL law (owner answer 2026-10-30: "I only one call a day
-# with 2% TP and -1% SL"). The stop is a FIXED percent under the entry,
-# not a chart level, so it is the same honest number for every name.
+# with 2% TP and -1% SL"; owner order 2026-11-20 raises that to four calls a
+# day, each scored above MIN_CALL_SCORE). The stop is a FIXED percent under
+# the entry, not a chart level, so it is the same honest number for every name.
 KALMAN_STOP_PCT = 0.01
 KALMAN_MAX_SIGNAL_AGE_SECONDS = 60
 KALMAN_LAST_ENTRY_MINUTES = 30
@@ -340,6 +345,14 @@ ZSCORE_SIGNAL_FRAME_MINUTES = int(_number("ZSCORE_SIGNAL_FRAME_MINUTES", 5))
 ZSCORE_Z_MIN = _number("ZSCORE_Z_MIN", 1.0)
 #: The minimum number of earlier spreads used for the mean and sigma.
 ZSCORE_MIN_SPREADS = int(_number("ZSCORE_MIN_SPREADS", 3))
+# Owner order 2026-11-20: a call must score MORE than this out of 100. The
+# score's fixed part is anchored to this floor (the law's own minimum
+# dislocation prints 89.1 and a deeper one ranks higher), so the floor never
+# refuses the setup the entry law itself accepts and the day can still carry
+# its four calls. The floor is checked where the call is chosen
+# (src/signals/momentum_scanner.select_one), never inside the entry law, so
+# every refusal keeps its own measured reason.
+MIN_CALL_SCORE = _number("MIN_CALL_SCORE", 89.0)
 # Owner order 2026-11-19 (Karachi): the pick's day gain may not be more than
 # 2%. The reference is the venue's own previous close (the tape's `close`
 # field), never the session's first bar: a name that gapped up at the open
@@ -658,6 +671,7 @@ def config_snapshot() -> dict:
         "close_friday": list(MARKET_CLOSE_FRIDAY),
         "target_pct": round(TARGET_PCT * 100, 4),
         "max_trades_per_day": MAX_TRADES_PER_DAY,
+        "min_call_score": MIN_CALL_SCORE,
         "min_coverage_pct": MIN_COVERAGE_PCT,
         "min_signal_score": None,  # retired momentum threshold, not a gate
         "secondary_confirmation": {"rule": SCANNER_VERSION},

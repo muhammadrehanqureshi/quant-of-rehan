@@ -900,7 +900,13 @@ func (a *App) drawSectorTile(c *Canvas, x, y, w, h int) {
 		}
 		c.Text(ix+3, ry, 3, fmt.Sprintf("%2d.", i+1), th.Soft, false)
 		pctW := 1 + 1 + quotePctW
-		pctX := ix + cw - pctW
+		// Owner order 2026-11-20 (latest): with the groups alone on the tile,
+		// the overall percentage moves one cell right, and never into the frame
+		// when the list is short enough to need no scrollbar.
+		pctX := ix + cw - pctW + 1
+		if pctX+pctW > ix+cw {
+			pctX = ix + cw - pctW
+		}
 		nameW := max(1, pctX-(ix+7)-2)
 		c.Text(ix+7, ry, nameW, fit(g.Name, nameW), th.Text, idx == a.sectorChoice)
 		c.Text(pctX, ry, 1, pctArrow, pctInk, cnt > 0)

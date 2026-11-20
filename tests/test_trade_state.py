@@ -58,7 +58,7 @@ class TestDailyLock(StateTestCase):
         self.assertEqual(state.state, State.TARGET_MONITORING)
 
     def test_second_entry_is_refused(self):
-        """TEST 9: one trade per market day, enforced by the state itself."""
+        """TEST 9: a position still open blocks a second entry."""
         state = self.fresh()
         state.enter("OGDC", 100.0, ENTRY_AT, 70.0)
 
@@ -68,8 +68,8 @@ class TestDailyLock(StateTestCase):
         self.assertEqual(state.trades_today, 1)
         self.assertEqual(state.symbol, "OGDC")
 
-    def test_target_hit_keeps_the_bot_online_but_locked(self):
-        """TEST 10."""
+    def test_target_hit_keeps_the_bot_online_and_opens_the_next_call(self):
+        """TEST 10, owner order 2026-11-20: a closed call frees the next one."""
         state = self.fresh()
         state.enter("OGDC", 100.0, ENTRY_AT, 70.0)
         state.mark_target_hit(102.0, LATER)
@@ -77,9 +77,10 @@ class TestDailyLock(StateTestCase):
         self.assertEqual(state.state, State.TARGET_HIT)
         self.assertTrue(state.target_hit)
         self.assertAlmostEqual(state.return_pct, 0.02, places=6)
-        self.assertFalse(state.can_enter())
-        self.assertTrue(state.locked_for_day())
-        # the session is closed out later, still online, still locked
+        # one call of four is spent, so the day itself is not locked
+        self.assertTrue(state.can_enter())
+        self.assertFalse(state.locked_for_day())
+        # the session is closed out later, still online, then locked
         state.close_day(None, LATER)
         self.assertEqual(state.state, State.DAILY_LOCKED)
         self.assertFalse(state.can_enter())
@@ -160,14 +161,15 @@ class TestConfiguration(StateTestCase):
         self.assertFalse(config.live_trading_enabled())
         self.assertFalse(config.LIVE_TRADING_ENABLED)
         self.assertTrue(config.PAPER_TRADING_ENABLED)
-        self.assertEqual(config.MAX_TRADES_PER_DAY, 1)
+        self.assertEqual(config.MAX_TRADES_PER_DAY, 4)
 
     def test_config_snapshot_is_honest(self):
         snapshot = config.config_snapshot()
 
         self.assertEqual(snapshot["timezone"], "Asia/Karachi")
         self.assertEqual(snapshot["target_pct"], 2.0)
-        self.assertEqual(snapshot["max_trades_per_day"], 1)
+        self.assertEqual(snapshot["max_trades_per_day"], 4)
+        self.assertEqual(snapshot["min_call_score"], config.MIN_CALL_SCORE)
         self.assertFalse(snapshot["live_trading_enabled"])
         self.assertEqual(sum(snapshot["score_weights"].values()), 1.0)
         self.assertEqual(snapshot["scanner_version"], config.SCANNER_VERSION)
@@ -195,6 +197,39 @@ class TestConfiguration(StateTestCase):
         lines = self.journal_path.read_text(encoding="utf-8").strip().splitlines()
         self.assertEqual(len(lines), 2)
         self.assertEqual(json.loads(lines[1])["outcome"], "TARGET_HIT")
+
+
+class TestFourCallsADay(StateTestCase):
+    """Owner order 2026-11-20: four calls a day, each spending one of them."""
+
+    def test_a_closed_call_opens_the_next_and_the_fourth_locks_the_day(self):
+        state = self.fresh()
+        for call in range(1, config.MAX_TRADES_PER_DAY + 1):
+            self.assertTrue(state.can_enter(), f"call {call} must be open")
+            state.enter("OGDC", 100.0, ENTRY_AT, 92.0)
+            self.assertEqual(state.trades_today, call)
+            # a position still open blocks a second entry on that allowance
+            self.assertFalse(state.can_enter())
+            state.mark_target_hit(102.0, LATER)
+
+        self.assertTrue(state.trade_taken)
+        self.assertFalse(state.can_enter())
+        self.assertEqual(state.symbols_called, ["OGDC"])
+        with self.assertRaises(RuntimeError):
+            state.enter("OGDC", 100.0, LATER, 92.0)
+
+    def test_a_stop_spends_its_call_and_the_allowance_survives_a_restart(self):
+        state = self.fresh()
+        state.enter("OGDC", 100.0, ENTRY_AT, 92.0)
+        state.mark_stop_hit(99.0, LATER)
+        state.save(self.state_path)
+
+        reloaded = SessionState.load(WEDNESDAY, path=self.state_path)
+
+        self.assertEqual(reloaded.trades_today, 1)
+        self.assertEqual(reloaded.state, State.TRADE_CLOSED)
+        self.assertTrue(reloaded.can_enter())
+        self.assertFalse(reloaded.locked_for_day())
 
 
 if __name__ == "__main__":
