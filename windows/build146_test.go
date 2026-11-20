@@ -27,7 +27,7 @@ func TestBuild146BuildTileDropsTheBrokerRefreshLine(t *testing.T) {
 func TestBuild146SearchTilesHugTheirEqualsSigns(t *testing.T) {
 	a := demoApp(t, 140, 34)
 	c := NewCanvas(120, 6, a.th.Panel)
-	a.drawNetRow(c, 0, 0, i64(1_200_000), i64(400_000))
+	a.drawNetRow(c, 0, 0, 1_200_000, 400_000)
 	row := string([]rune(c.PlainRows()[0]))
 	netAt := col(row, "NET DELTA=")
 	pctAt := col(row, "NET DELTA %=")
