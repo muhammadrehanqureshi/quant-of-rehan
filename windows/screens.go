@@ -1140,6 +1140,70 @@ func (a *App) putBSTPacked(c *Canvas, x, y int, buy, sell, total *int64, keys ..
 	return vx - x
 }
 
+// The three ways a KSE100 leader can write its volumes, widest first. Owner
+// order 2026-11-20 (latest): the price group shares the volume line on every
+// width the tile can hold it at, so the volumes step down through these forms
+// before the group gives up the line.
+const (
+	bstWideForm = iota
+	bstPackedForm
+	bstBareForm
+)
+
+// putBSTBare writes the leaders' four fields with their thousands commas
+// withdrawn and one cell between the fields, every digit still written. Owner
+// order 2026-11-20 (latest): on the owner's window the KSE100 tile is about 76
+// cells wide and the price group must still sit on the line that carries T. The
+// commas and the second gutter are the only things that give way there, so
+// nothing is rounded, no digit is lost and no column leaves the line.
+func (a *App) putBSTBare(c *Canvas, x, y int, buy, sell, total *int64, keys ...string) int {
+	th := a.th
+	vx := x
+	put := func(s string, fg RGB, bold bool) {
+		vx += a.flashText(c, vx, y, s, fg, bold, keys...)
+	}
+	if buy != nil && sell != nil {
+		put("B=", th.Soft, false)
+		put(strconv.FormatInt(*buy, 10), th.Good, true)
+		put(" S=", th.Soft, false)
+		put(strconv.FormatInt(*sell, 10), th.Bad, true)
+		if total != nil {
+			un := *total - *buy - *sell
+			if un < 0 {
+				un = 0
+			}
+			put(" U=", th.Soft, false)
+			put(strconv.FormatInt(un, 10), th.Warn, un > 0)
+			put(" & T=", th.Soft, false)
+			put(strconv.FormatInt(*total, 10), totalBlue, false)
+		}
+	} else if total != nil {
+		put("T=", th.Soft, false)
+		put(strconv.FormatInt(*total, 10), totalBlue, false)
+	}
+	return vx - x
+}
+
+// leaderBSTBareWidth is the cells putBSTBare uses for one leader.
+func leaderBSTBareWidth(l Leader) int {
+	digits := func(v int64) int { return len(strconv.FormatInt(v, 10)) }
+	if !l.HasSplit() {
+		if l.HasVolume() {
+			return 2 + digits(*l.Volume)
+		}
+		return 0
+	}
+	w := 2 + digits(*l.Buy) + 3 + digits(*l.Sell)
+	if l.HasVolume() {
+		un := *l.Volume - *l.Buy - *l.Sell
+		if un < 0 {
+			un = 0
+		}
+		w += 3 + digits(un) + 5 + digits(*l.Volume)
+	}
+	return w
+}
+
 // bstCols are the leader row's four field offsets, as cells from the row's
 // first cell. Owner order 2026-11-10 (latest): the leaders read exactly like
 // every other B, S, U and T line, with its commas and its "& T=", and each
@@ -1430,41 +1494,62 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 	// the label, the price and its change stand on the same cells on all three
 	// rows whatever digits they carry. On a wide tile the bar shares the price
 	// line; a narrow tile keeps it on the name line, where the room is.
-	wide := iw >= 96
-	usedMax := 0
+	// Owner order 2026-11-20 (latest): the owner's window gives the KSE100 tile
+	// about 76 cells, and there the price, its percentage and NET DELTA must
+	// stand on the line that carries T, with the bar on the line above the
+	// price. Three exact volume forms are measured and the widest one that
+	// leaves room in front of the quote wins: the nine digit fields, the packed
+	// form, and the packed form with its thousands commas withdrawn. The last
+	// one still writes every digit, so nothing is rounded and no value is cut;
+	// only the punctuation gives way, and only on a tile this narrow.
+	usedWide, usedPacked, usedBare := 0, 0, 0
 	for _, l := range leaders[:nL] {
-		usedMax = max(usedMax, leaderBSTWidth(l, cols, wide))
+		usedWide = max(usedWide, leaderBSTWidth(l, cols, true))
+		usedPacked = max(usedPacked, leaderBSTWidth(l, cols, false))
+		usedBare = max(usedBare, leaderBSTBareWidth(l))
 	}
-	// Owner order 2026-11-19: the price, the percentage, NET DELTA and the bar
-	// move left together. NET DELTA stands between the price and the
-	// percentage, on the one quote rule every tile uses, so the three leaders
-	// keep their columns and the bar starts on the price's own cell.
 	edge := ix + iw - 2
-	netGroup := 0
+	// The group's own width, measured from what drawQuoteNetLast writes: PKR, its
+	// price field, one cell, the arrow, one cell, the percentage, one cell, NET
+	// DELTA, its equals sign and its figure. Measuring it instead of reserving
+	// the old fixed fields is what buys the cells that put the group on the T
+	// line at the owner's window.
+	pctW, netW := 1, 0
 	for _, l := range leaders[:nL] {
+		if l.ChangePct != nil {
+			pctW = max(pctW, runeLen(pctFixed(*l.ChangePct)))
+		}
 		if l.HasSplit() {
-			netGroup = quoteGap + quoteNetLabelW + 1 + quoteNetValW
-			break
+			v, _, _ := a.searchNet(*l.Buy, *l.Sell)
+			netW = max(netW, runeLen(v))
 		}
 	}
-	groupW := quoteWidth(pxW)
-	if netGroup > 0 {
-		groupW = quoteNetWidth(pxW)
+	groupW := quoteLabelW + pxW + quoteGap + 1 + 1 + pctW
+	if netW > 0 {
+		groupW += quoteGap + quoteNetLabelW + 1 + netW
 	}
-	// Owner order 2026-11-20: the price, the percentage and NET DELTA stand on
-	// the volume line on every leader at every width, with NET DELTA last, and
-	// the bar stands on the name line above the price. The wide nine digit
-	// volume fields give way to the packed ones before a leader wraps, so the
-	// three rows never need a third line. The group is placed by its left edge,
-	// the same column on all three rows, so nothing floats.
+	// Owner order 2026-11-20: the group is placed by its right end, so it never
+	// floats in the middle of the row, and every leader lands on the same cells.
 	pkrX := max(ix+3, edge-groupW+1)
-	// Owner order 2026-11-20: the group shares the volume line when the tile has
-	// the room for both. A narrower tile keeps the group on the name line after
-	// the symbol, where it stood before, so no figure is ever painted over the
-	// volumes: the owner read "U=176,063 PKR" and "T=PKR1 7.740" when the two
-	// rows met in the middle.
-	useWide := iw >= 96
-	inlineQuote := ix+3+usedMax+2 <= pkrX
+	// The widest form that still leaves the price group its room on the same
+	// line wins; when none does, the volumes keep the widest form their own line
+	// can hold and the group takes the name line after the symbol, where it stood
+	// before, rather than painting over a figure. One cell between the last
+	// figure and PKR, because at the owner's window the bare form lands one cell
+	// past a two cell gutter.
+	volForm, quoteOnT := bstBareForm, false
+	switch {
+	case iw >= 96 && ix+3+usedWide+1 <= pkrX:
+		volForm, quoteOnT = bstWideForm, true
+	case ix+3+usedPacked+1 <= pkrX:
+		volForm, quoteOnT = bstPackedForm, true
+	case ix+3+usedBare+1 <= pkrX:
+		quoteOnT = true
+	case iw >= 96 && 3+usedWide <= iw-2:
+		volForm = bstWideForm
+	case 3+usedPacked <= iw-2:
+		volForm = bstPackedForm
+	}
 	symW := 0
 	for _, l := range leaders[:nL] {
 		symW = max(symW, runeLen(l.Symbol))
@@ -1503,7 +1588,10 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 		c.Spans(ix, row, textW, []Span{{strconv.Itoa(i+1) + ". ", th.Soft, false}, {l.Symbol, th.Hot, true}})
 		// Owner order 2026-11-18: the bar stands on the name line, above the
 		// current price, and starts on the price's own cell.
-		if inlineQuote && l.HasSplit() && barW >= shareBarBoxes &&
+		// Owner order 2026-11-20 (latest): the bar stands on the name line above
+		// the current price whenever the quote shares the volume line, which is
+		// every width the tile can hold it at.
+		if quoteOnT && l.HasSplit() && barW >= shareBarBoxes &&
 			barStart >= ix+3+runeLen(l.Symbol)+2 && *l.Buy+*l.Sell > 0 {
 			a.shareBarOnly(c, barStart, row, barW, *l.Buy, *l.Sell)
 		}
@@ -1522,10 +1610,13 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 		// Owner order 2026-11-10 (latest): B, S, U and T each start on the same
 		// cell on every row, and each number sits hard against its own "=". A
 		// narrow tile falls back to the packed form.
-		if useWide {
+		switch volForm {
+		case bstWideForm:
 			a.putBSTWide(c, ix+3, row, buy, sell, vol, volKey, pxKey)
-		} else {
+		case bstPackedForm:
 			a.putBSTPacked(c, ix+3, row, buy, sell, vol, volKey, pxKey)
+		case bstBareForm:
+			a.putBSTBare(c, ix+3, row, buy, sell, vol, volKey, pxKey)
 		}
 		// Owner order 2026-11-10 (latest): the price and the change are pushed
 		// to the tile's far right and right aligned at one edge, so all three
@@ -1540,7 +1631,7 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 			// DELTA close the volume line, in that order, on all three rows.
 			px := commaFloat(*l.Price, 2)
 			switch {
-			case inlineQuote:
+			case quoteOnT:
 				a.drawQuoteNetLast(c, pkrX, row, pxW, px, pxKey, buy, sell, l.ChangePct)
 			case ix+3+symW+2+groupW-1 <= edge:
 				// No room beside the volumes: the group takes the name line, so

@@ -1243,9 +1243,12 @@ const shareBarSpan = shareBarBoxes * 16 / 10
 const shareNetW = 9
 
 // shareBarGap is the gutter between two columns. Owner order 2026-11-12
-// (latest): every column on ORDER FLOW is separated by the same two cells, the
+// (latest): every column on ORDER FLOW is separated by the same gutter, the
 // bar's own NET DELTA included, so no pair of columns is tighter than another.
-const shareBarGap = 2
+// Owner order 2026-11-20 (latest): that gutter is one cell, so the two NET DELTA
+// columns fit beside the bar on the owner's window.
+const shareBarGap = 1
+
 
 // shareBarWidth is the field a labelled bar asks for: its span, the gutter and
 // the NET DELTA after it.

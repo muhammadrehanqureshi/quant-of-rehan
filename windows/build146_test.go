@@ -64,7 +64,8 @@ func TestBuild146OrderFlowCarriesHighAndLow(t *testing.T) {
 		High: f64(11), Low: f64(9), Bid: f64(9.9), Ask: f64(10.1),
 		Buy: i64(100), Sell: i64(50), Volume: i64(200), Method: methodMeasured,
 	}}
-	cols, barX := flowColumns(rows)
+	flowDropHL = false
+	cols, barX := flowColumns(rows, 0)
 	for i := 1; i < len(cols); i++ {
 		if cols[i].x <= cols[i-1].x {
 			t.Fatalf("column %d starts on cell %d, not right of column %d on %d",

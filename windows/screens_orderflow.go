@@ -291,24 +291,40 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 	pctX := 0
 	barFieldW := 0
 	showNetPct := false
+	// How far the table has stepped left because the serial column stepped out.
+	flowSerOff := 0
+	flowDropHL = false
 	// Column header for the one-line table.
 	if wide {
 		// Owner order 2026-11-10 (latest): every heading sits on the very first
 		// cell of its own column, which is exactly where that column's data
 		// starts, because every column is left aligned on that cell.
-		cols, barX = flowColumns(rows)
-		// Owner order 2026-11-16: NET DELTA % must be on screen. When the
-		// columns and the full bar leave no room, the bar gives cells until
-		// the percentage column fits, instead of dropping the percentage.
-		barFieldW = shareBarWidth
-		if room := iw - 2 - barX - shareBarGap - flowNetPctW; room >= shareNetW+shareBarGap+shareBarBoxes && room < barFieldW {
-			barFieldW = room
+		cols, barX = flowColumns(rows, 0)
+		barFieldW, pctX, showNetPct = flowTail(iw, barX)
+		// Owner order 2026-11-20 (latest): NET DELTA and NET DELTA % stay on the
+		// page. When the serial column is the only thing pushing them past the
+		// right edge, the serial steps out and the table starts on SYMBOL; every
+		// column that carries data keeps its cells.
+		if !showNetPct {
+			flowSerOff = flowSerW + flowGutter
+			cols, barX = flowColumns(rows, flowSerOff)
+			barFieldW, pctX, showNetPct = flowTail(iw, barX)
 		}
-		pctX = barX + barFieldW + shareBarGap
-		showNetPct = iw-barX >= barFieldW && pctX+flowNetPctW <= iw-2
-		c.Text(ix+flowSerX, row, flowSerW, "#", th.Soft, false)
-		c.Text(ix+flowSymX, row, flowSymW, "SYMBOL", th.Soft, false)
+		if !showNetPct {
+			// Owner order 2026-11-20 (latest): the last thing to give way is HIGH
+			// and LOW, so the bar keeps its cells and both NET DELTA columns stay.
+			flowDropHL = true
+			cols, barX = flowColumns(rows, flowSerOff)
+			barFieldW, pctX, showNetPct = flowTail(iw, barX)
+		}
+		if flowSerOff == 0 {
+			c.Text(ix+flowSerX, row, flowSerW, "#", th.Soft, false)
+		}
+		c.Text(ix+flowSymX-flowSerOff, row, flowSymW, "SYMBOL", th.Soft, false)
 		for k, hd := range flowHeads {
+			if flowDropHL && (k == 2 || k == 3) {
+				continue
+			}
 			// Owner order 2026-11-10 (latest): every value ends on its own
 			// column's right edge, so the gap to the next column is the same two
 			// cells on every row, and the heading sits over that edge.
@@ -401,16 +417,20 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 		if wide {
 			// Owner order 2026-11-10 (latest): the serial is left aligned on the
 			// panel edge, so the # heading sits on the first digit of the number.
-			c.Text(ix+flowSerX, row, flowSerW, fmt.Sprintf("%d.", i+1), th.Soft, false)
-			c.Text(ix+flowSymX, row, flowSymW, r.Symbol, symCol, true)
+			if flowSerOff == 0 {
+				c.Text(ix+flowSerX, row, flowSerW, fmt.Sprintf("%d.", i+1), th.Soft, false)
+			}
+			c.Text(ix+flowSymX-flowSerOff, row, flowSymW, r.Symbol, symCol, true)
 			// Owner order 2026-11-10 (latest): every value starts on its column's
 			// first cell, under its own heading.
 			// Owner order 2026-11-11: every value starts on its column's first
 			// cell too, BID and ASK included, so no column floats right.
 			a.flashText(c, ix+cols[0].x, row, commaFloat(px, 2), th.Text, true, pxKey)
 			a.flashText(c, ix+cols[1].x, row, chg, chgCol, true, pxKey)
-			c.Text(ix+cols[2].x, row, cols[2].w, bidAsk(r.High), th.Good, false)
-			c.Text(ix+cols[3].x, row, cols[3].w, bidAsk(r.Low), th.Bad, false)
+			if !flowDropHL {
+				c.Text(ix+cols[2].x, row, cols[2].w, bidAsk(r.High), th.Good, false)
+				c.Text(ix+cols[3].x, row, cols[3].w, bidAsk(r.Low), th.Bad, false)
+			}
 			c.Text(ix+cols[4].x, row, cols[4].w, bidAsk(r.Bid), th.Text, false)
 			c.Text(ix+cols[5].x, row, cols[5].w, bidAsk(r.Ask), th.Text, false)
 			a.drawFlowCols(c, ix, row, r, cols, volKey)
@@ -476,13 +496,29 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 	}
 }
 
+// flowTail is the bar column and the NET DELTA % column at the right of the
+// table. Owner order 2026-11-20 (latest): the bar gives cells down to
+// shareBarMinSpan before either NET DELTA column is dropped, so both figures
+// stay on the page on the owner's window.
+func flowTail(iw, barX int) (barFieldW, pctX int, showNetPct bool) {
+	barFieldW = shareBarWidth
+	if room := iw - 2 - barX - shareBarGap - flowNetPctW; room >= shareNetW+shareBarGap+shareBarBoxes && room < barFieldW {
+		barFieldW = room
+	}
+	pctX = barX + barFieldW + shareBarGap
+	showNetPct = iw-barX >= barFieldW && pctX+flowNetPctW <= iw-2
+	return barFieldW, pctX, showNetPct
+}
+
 // The one-line table's geometry. Owner order 2026-11-10 (latest): every column
 // is as wide as its own heading or the widest value it carries, whichever is
 // wider, and every pair of columns is separated by the same two cells. Every
 // value is right aligned on its column's right edge, so the visible gap from
 // one column to the next is those same two cells on every row, not a wider one
 // after a short number and a narrower one after a long one.
-const flowGutter = 2
+// Owner order 2026-11-20 (latest): one cell between the columns, not two, so the
+// bar and both NET DELTA columns fit beside the ten columns the owner asked for.
+const flowGutter = 1
 
 // flowNetPctW is the width of the NET DELTA % column. Its heading is the
 // widest thing the column holds.
@@ -502,9 +538,14 @@ var flowHeads = [10]string{"PRICE", "CHANGE", "HIGH", "LOW", "BID", "ASK", "BUYI
 // flowCell is one column of the table: the cell it starts on and its width.
 type flowCell struct{ x, w int }
 
+// flowDropHL is set for a frame when the window cannot hold every column.
+// Owner order 2026-11-20 (latest): NET DELTA and NET DELTA % outrank HIGH and
+// LOW, which step out on a narrow window and come back when the room returns.
+var flowDropHL bool
+
 // flowColumns measures the whole answer and returns the ten columns and the
 // cell the bar column starts on. A column is never narrower than its heading.
-func flowColumns(rows []FlowRow) ([10]flowCell, int) {
+func flowColumns(rows []FlowRow, shift int) ([10]flowCell, int) {
 	var w [10]int
 	for i, hd := range flowHeads {
 		w[i] = runeLen(hd)
@@ -550,9 +591,17 @@ func flowColumns(rows []FlowRow) ([10]flowCell, int) {
 			set(9, num(r.Volume))
 		}
 	}
-	x := flowSymX + flowSymW + flowGutter
+	if flowDropHL {
+		w[2], w[3] = 0, 0
+	}
+	x := flowSymX + flowSymW + flowGutter - shift
 	var cols [10]flowCell
 	for i := 0; i < 10; i++ {
+		if w[i] == 0 && (i == 2 || i == 3) {
+			// The column has stepped out: its cell goes to the one after it.
+			cols[i] = flowCell{x: x, w: 0}
+			continue
+		}
 		cols[i] = flowCell{x: x, w: w[i]}
 		x += w[i] + flowGutter
 	}
