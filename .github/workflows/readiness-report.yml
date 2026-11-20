@@ -41,6 +41,33 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt --retries 5 --timeout 60
 
+      # Owner report 2026-11-20: yesterday's post-market left no run because
+      # the relay's own dispatch answered 401 Bad credentials, and nothing said
+      # so until the next morning. The 401 is the one failure that silently
+      # removes the backup path, so this reads the token once a run. It never
+      # dispatches anything: a GET on the workflow list only proves the token
+      # can still reach the endpoint the relay posts to.
+      - name: Check the relay's dispatch token
+        env:
+          GH_DISPATCH_TOKEN: ${{ secrets.GH_DISPATCH_TOKEN }}
+        run: |
+          set -uo pipefail
+          if [ -z "${GH_DISPATCH_TOKEN:-}" ]; then
+            echo "DISPATCH TOKEN missing: the GH_DISPATCH_TOKEN repository secret is empty"
+            exit 0
+          fi
+          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 \
+            -H "authorization: Bearer $GH_DISPATCH_TOKEN" \
+            -H "accept: application/vnd.github+json" \
+            -H "x-github-api-version: 2022-11-28" \
+            -H "user-agent: quant-of-rehan-relay" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/intraday-session.yml")
+          case "$code" in
+            200) echo "DISPATCH TOKEN ok: the relay can still start a band" ;;
+            401) echo "DISPATCH TOKEN EXPIRED: HTTP 401, so the relay's band dispatch cannot start anything and only GitHub's own schedule and the session failsafe remain. Renew the PAT and run Bind the relay's dispatch token." ;;
+            *) echo "DISPATCH TOKEN unproven: HTTP $code from the workflow read" ;;
+          esac
+
       - name: Read the relay, the store and the day's runs
         run: |
           python - <<'PY'
