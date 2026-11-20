@@ -1,0 +1,142 @@
+name: Session readiness report
+
+# Owner order 2026-11-20: "check if the quant of Rehan is ready for today's
+# pre/live and post market. Make sure cloudflare and github actions/crons are
+# working. You didn't scan the post market yesterday."
+#
+# The 2026-11-19 report: the relay deployed and answered, but between 13:11 and
+# 17:07 PKT no scan run was created at all, so the 15:32 to 15:49 post-market
+# window and its 15:47 finalize both left no run and the day's last prices were
+# never refreshed. This job makes that visible on the day it happens: it prints
+# the relay's own answer, the store's freshness, and every scan run started
+# today, and it names each band edge that left no run within 25 minutes.
+#
+# It prints to stdout, not only to the job summary, so `gh run view --log` shows
+# the whole answer. It never mails the owner and never touches the store.
+
+on:
+  schedule:
+    - cron: "52 3 * * 1-5"    # 08:52 PKT, before the 08:55 warm-up
+    - cron: "52 10 * * 1-4"   # 15:52 PKT, after the Mon-Thu post-market
+    - cron: "52 11 * * 5"     # 16:52 PKT, after Friday's post-market
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt --retries 5 --timeout 60
+
+      - name: Read the relay, the store and the day's runs
+        run: |
+          python - <<'PY'
+          import json
+          import subprocess
+          from datetime import datetime, time, timedelta
+          from zoneinfo import ZoneInfo
+
+          from src.data.relay_http import read_json
+          from src.data.sessions import (band_bounds, close_time, is_trading_day,
+                                         open_time, session_bands)
+
+          BASE = "https://quant-of-rehan-relay.mrmrehanqureshi.workers.dev"
+          PKT = ZoneInfo("Asia/Karachi")
+          now = datetime.now(PKT)
+          day = now.date()
+          print(f"KARACHI NOW   {now:%Y-%m-%d %H:%M:%S} PKT ({now:%A})")
+          print(f"TRADING DAY   {is_trading_day(day)}  "
+                f"open {open_time(day)[0]:02d}:{open_time(day)[1]:02d}  "
+                f"close {close_time(day)[0]:02d}:{close_time(day)[1]:02d}")
+
+          health, trouble = read_json(BASE, "/health", attempts=3)
+          if health is None:
+              print(f"RELAY         DOWN: /health did not answer ({trouble})")
+              raise SystemExit(0)
+          state = health.get("market_state") or {}
+          print("RELAY         " + json.dumps({
+              "version": health.get("version"),
+              "phase": state.get("phase"),
+              "trading_day": state.get("trading_day"),
+              "relay_clock": health.get("karachi_now"),
+          }, sort_keys=True))
+          print("DISPATCH      " + json.dumps(health.get("last_dispatch"),
+                                             sort_keys=True))
+
+          quotes, trouble = read_json(BASE, "/quotes", attempts=3)
+          if quotes is None:
+              print(f"QUOTES        unreadable ({trouble})")
+          else:
+              rows = quotes.get("quotes") or []
+              priced = [row for row in rows if (row.get("volume") or 0) > 0]
+              stamps = sorted(str(row.get("observed_at") or row.get("at") or "")
+                              for row in rows)
+              print("QUOTES        " + json.dumps({
+                  "updated_at": quotes.get("updated_at"),
+                  "stale": quotes.get("stale"),
+                  "rows": len(rows),
+                  "with_volume": len(priced),
+                  "newest_stamp": stamps[-1] if stamps else "",
+              }, sort_keys=True))
+
+          market, trouble = read_json(BASE, "/market", attempts=3)
+          if market is None:
+              print(f"MARKET        unreadable ({trouble})")
+          else:
+              print("MARKET        " + json.dumps({
+                  "market_feed": market.get("market_feed"),
+                  "win_loss": market.get("win_loss"),
+              }, sort_keys=True))
+
+          raw = subprocess.run(
+              ["gh", "run", "list", "--limit", "60", "--json",
+               "workflowName,createdAt,conclusion,status"],
+              capture_output=True, text=True, check=True).stdout
+          loops = {"KMIALL session scan loop", "KMIALL intraday momentum scan"}
+          starts = []
+          for run in json.loads(raw):
+              if run.get("workflowName") not in loops:
+                  continue
+              at = datetime.fromisoformat(
+                  run["createdAt"].replace("Z", "+00:00")).astimezone(PKT)
+              print(f"RUN           {at:%Y-%m-%d %H:%M} PKT  "
+                    f"{run['workflowName']:<32} {run.get('status')} "
+                    f"{run.get('conclusion') or ''}")
+              starts.append(at)
+
+          bands = session_bands(day)
+          edges = [("warm-up 08:55", datetime.combine(day, time(8, 55), PKT))]
+          for band in bands:
+              start, _end = band_bounds(day, band)
+              edges.append((f"band open {start:%H:%M}", start))
+          last_close = band_bounds(day, bands[-1])[1]
+          edges.append((f"post-market {last_close:%H:%M}+2",
+                        last_close + timedelta(minutes=2)))
+          edges.append((f"finalize {last_close:%H:%M}+17",
+                        last_close + timedelta(minutes=17)))
+          for label, when in edges:
+              if when > now:
+                  print(f"PENDING       {label}: not due yet")
+                  continue
+              hit = [at for at in starts
+                     if timedelta(minutes=-5) <= at - when
+                     <= timedelta(minutes=25)]
+              if hit:
+                  print(f"OK            {label}: run at {hit[0]:%H:%M} PKT")
+              else:
+                  print(f"MISSING       {label}: no scan run started within "
+                        "25 minutes of the edge")
+          PY
