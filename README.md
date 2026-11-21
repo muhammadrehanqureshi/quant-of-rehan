@@ -43,7 +43,7 @@ spread's own dispersion so a quiet scrip needs a smaller move than a violent
 one. That is the statistical-arbitrage entry: buy a measured dislocation
 inside a rising multi-timeframe regime. The plan is the owner's law either
 way: paper entry at the last completed close, stop at entry minus 1%, target
-at entry plus 2%, four calls a day each scored above 89 out of 100, and no
+at entry plus 2%, three calls a day each scored above 80 out of 100, and no
 trade after a broad selloff. A
 candidate only exists on completed minutes; there is no momentum fallback, no
 RSI fallback and no second strategy. Entry and exit intent only: nothing

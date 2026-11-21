@@ -1,7 +1,11 @@
-# Quant of Rehan for Windows (console edition), build 145
+# Quant of Rehan for Windows (console edition), build 152
 
 A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.21**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
+
+## What is new in build 152
+
+* **Build 152 (version 3.8.27).** The day allows three calls, each with a score above 80 out of 100. ORDER FLOW starts on SYMBOL with no serial column, and the five named price gaps stand two cells closer than build 149 left them. The closed SECTORS tile puts its overall percentage one cell further right. MARKET BREADTH reads BULLISH at or over +1000 points and BEARISH at or under -1, with FLAT between. The Friday break's banner and Windows notification both say `Market is on a break. Quant is sleeping till 14:15.`, and only Friday uses those words. The red globe wears one red from its middle to its edge. The executable's file version is `3.8.27.0`, stamped from the HUD build instead of the fixed `3.8.20.0` every earlier build carried.
 
 ## What is new in build 145
 

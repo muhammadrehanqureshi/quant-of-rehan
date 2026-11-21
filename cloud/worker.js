@@ -3618,7 +3618,7 @@ export default {
           !/^\d{2}:\d{2}(:\d{2})?$/.test(String(body.slot || ""))) {
         return json({ ok: false, error: "invalid signal claim" }, 400);
       }
-      // Owner order 2026-11-20: the day allows four calls, so a claim names
+      // Owner order 2026-11-21: the day allows three calls, so a claim names
       // which of them it is and the key carries that number. A runner that
       // does not send `n` keeps the old one-claim-a-day key exactly as before.
       const n = Number(body.n);

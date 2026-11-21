@@ -342,7 +342,7 @@ class TestMessages(unittest.TestCase):
         text = scanner.signal_message(candidate, {"status": "SUPPORTIVE"},
                                       123.45, SESSION_OPEN)
         for needle in ("QUANT LONG SIGNAL", "Symbol: OGDC", "Entry price: 123.4500",
-                       "Target: 125.9190", "AT MOST FOUR CALLS A DAY",
+                       "Target: 125.9190", "AT MOST THREE CALLS A DAY",
                        "+2.0%"):
             self.assertIn(needle, text)
 
@@ -415,7 +415,7 @@ class TestHighestScoreSelection(unittest.TestCase):
         self.assertEqual([row["symbol"] for row in ranked], ["ZZZ", "AAA"])
 
     def test_a_name_at_the_call_floor_is_not_called(self):
-        """Owner order 2026-11-20: a call must score more than 89 out of 100."""
+        """Owner order 2026-11-21: a call must score more than 80 out of 100."""
         symbols = [f"LIQ{index:03d}" for index in range(3)]
         bars = {symbol: minute_rows(40, step=0.01) for symbol in symbols}
         session = session_of(bars, 39)
@@ -441,7 +441,7 @@ class TestHighestScoreSelection(unittest.TestCase):
         self.assertEqual(called.candidate["symbol"], "LIQ001")
 
     def test_a_name_already_called_today_is_not_called_again(self):
-        """Owner order 2026-11-20: four calls a day means four names."""
+        """Owner order 2026-11-21: three calls a day means three names."""
         symbols = [f"LIQ{index:03d}" for index in range(3)]
         bars = {symbol: minute_rows(40, step=0.01) for symbol in symbols}
         session = session_of(bars, 39)

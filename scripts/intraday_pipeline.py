@@ -22,7 +22,7 @@ Honesty rules enforced here:
   * the scanner never runs outside the configured Karachi session (SO-8);
   * a data failure is reported as SCAN BLOCKED with measured coverage and
     never as a market NO TRADE;
-  * four calls per market day, each scored above MIN_CALL_SCORE, persisted on
+  * three calls per market day, each scored above MIN_CALL_SCORE, persisted on
     disk, so a restart cannot reset the count;
   * live trading stays disabled; this script can only record paper outcomes;
   * the decision time is the time the CAPTURE can actually speak for: when the
@@ -366,7 +366,7 @@ def claim_signal(day, slot: str, call_no: int = 1) -> tuple[bool, str]:
     today's signal already been claimed" across machines, and until now nothing
     called it.
 
-    Owner order 2026-11-20: the day allows four calls, so the claim names
+    Owner order 2026-11-21: the day allows three calls, so the claim names
     which of them it is. The relay keys each call separately, so a runner that
     restores an older copy of the day's state still cannot speak for a call
     another runner has already made.
@@ -741,7 +741,7 @@ def run_scan(slot: str, capture: Path | None = None,
     # The only strategy reads the three VWAP frames, so the frames are always
     # read here: passing the deployment flag would let a scan run a law it
     # cannot evaluate (owner order 2026-11-12).
-    # Owner order 2026-11-20: the day's four calls are four names, so the
+    # Owner order 2026-11-21: the day's three calls are three names, so the
     # names already called today are kept out of the call.
     result = scanner.select_one(session, quality,
                                 frames=config.MTF_ENABLED,
@@ -895,7 +895,7 @@ def run_scan(slot: str, capture: Path | None = None,
     elif state.in_position() or closed_now:
         # A paper position is open on one of the day's calls, or this scan just
         # banked its close, so this scan may not enter. Owner order 2026-11-20:
-        # with four calls a day the day is not locked, so the report says
+        # with three calls a day the day is not locked, so the report says
         # monitoring, never a fresh TRADE, and a candidate this scan found is
         # reported as observed and refused. The scan after the close decides
         # whether another name is the next call, so the terminal STOP or TARGET
