@@ -96,7 +96,15 @@ func TestBuild153CustomScripsNetDeltaEndsOnOneCell(t *testing.T) {
 	a.shareBarNetRight(c, 0, 0, shareBarWidth, 5_000_000, 200_000) // 4.8M
 	a.shareBarNetRight(c, 0, 1, shareBarWidth, 3_200_000, 200_000) // 3M
 	rows := c.PlainRows()
-	at := func(row string) int { return strings.Index(row, "M") }
+	// The bar's block is three bytes, so the unit's cell is its rune index.
+	at := func(row string) int {
+		for i, r := range []rune(row) {
+			if r == 'M' {
+				return i
+			}
+		}
+		return -1
+	}
 	one, two := at(rows[0]), at(rows[1])
 	if one < 0 || two < 0 {
 		t.Fatalf("a NET DELTA unit is missing:\n%q\n%q", rows[0], rows[1])
