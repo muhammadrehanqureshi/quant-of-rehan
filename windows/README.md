@@ -1,7 +1,11 @@
-# Quant of Rehan for Windows (console edition), build 154
+# Quant of Rehan for Windows (console edition), build 155
 
 A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.21**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
+
+## What is new in build 155
+
+* **Build 155 (version 3.8.30).** The console window wears the build's own icon while it runs: the title bar, Alt+Tab and the taskbar show the Quant of Rehan logo instead of the PowerShell icon the console host was born with, and the icons the window had are put back when the build quits. The icon is read from the exe's own resource, so it is the same picture Explorer shows. A console hosted by Windows Terminal keeps Terminal's own taskbar icon, which Microsoft's terminal does not let any app change; the title bar, Alt+Tab and the tab carry the build's name there. The executable's file version is `3.8.30.0`.
 
 ## What is new in build 154
 
@@ -363,6 +367,8 @@ B and S there come from the relay's method: the share of the day's volume counte
 Built and tested on Linux, because there is no Windows machine in this workspace. Tested: thousands of screen renders across sizes, states, themes and screens; the flow detector with buying, selling, blocks, gaps and cooldowns; the scan window and the request budget; mouse decoding from the Windows record fields and from terminal reports; and the real binary run in a terminal emulator against a mock relay that bursts one stock. The Windows only parts compile and pass `go vet` but have never run on Windows: console mode, key and **mouse input**, the **Beep tone**, the toast, opening the browser, and how the **icon** looks in Explorer and the taskbar, and the ring's roundness on your screen (it assumes a 9 by 20 pixel cell, 2.22). Windows Terminal tabs show the profile's icon, not the exe's. The ring needs 24 bit colour and the quadrant block characters (U+2596 to U+259F), which Windows Terminal draws itself. If the ring ever looks broken or has gaps in your font, start the app with `-halfblock` and it draws the plainer half block ring instead, and tell me. The first build's diamond `◆` is used again on purpose; if your font cuts it off, tell me and I will swap only that glyph.
 
 Also not checked from here: whether Cloudflare accepts this program's User-Agent from your network. `-selftest` tells you in a second.
+
+The window icon is set from the exe at startup, so a console the exe opens for itself shows the build's logo on the taskbar. A console started by PowerShell shows the logo too while the build runs, and gets PowerShell's icon back when it quits; the window is PowerShell's, shared with its own prompt history. Windows Terminal, when it hosts the console, draws its own taskbar icon and no program can change that. Launching the exe by double-click, from its pinned taskbar button, or in Windows Console Host gives the build's own icon.
 
 ## Build and test from source
 

@@ -1972,6 +1972,11 @@ func (a *App) run(t Term) error {
 	}
 	defer t.Restore()
 	_, _ = io.WriteString(t, escAltOn+escHide+mouseOnSeq+escTitle("Quant of Rehan"))
+	// Owner order 2026-11-21: the window wears the build's own icon while it
+	// runs, on the title bar, in Alt+Tab and on the taskbar, instead of the icon
+	// of the program that opened the console.
+	restoreIcon := brandConsoleWindow()
+	defer restoreIcon()
 	defer func() { _, _ = io.WriteString(t, mouseOffSeq+escReset+escShow+escAltOff) }()
 
 	keys := t.Keys()

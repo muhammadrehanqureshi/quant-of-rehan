@@ -172,6 +172,9 @@ const appVersion = "4.0.21"
 // the CUSTOM SCRIPS NET DELTA in a field only as wide as its widest figure and
 // two cells inside the tile, and the STALE words dropped from ORDER FLOW's
 // rows.
+// Build 155 is 3.8.30, the console window wearing the build's own icon on the
+// title bar, in Alt+Tab and on the taskbar while it runs, with the icons it had
+// put back on exit.
 // Build 147 is 3.8.22, the KSE100 quote group on the line that
 // carries T at the owner's own window with its bar above the price, the volumes
 // giving up their thousands commas there rather than any digit, and ORDER FLOW
@@ -184,7 +187,7 @@ const appVersion = "4.0.21"
 // broker refresh line on the BUILD VERSION & RELAY tile, the boards putting the
 // percentage beside the price, and an ALERTS LOG that keeps the price and the
 // percentage it was written with.
-const hudBuild = "3.8.29"
+const hudBuild = "3.8.30"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no
