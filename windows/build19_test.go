@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os"
 	"strings"
 	"testing"
 )
@@ -64,8 +65,23 @@ func TestPriceAlertsReadEmptyAndOpenOnA(t *testing.T) {
 	}
 }
 
-func TestWindowsBuildIs145(t *testing.T) {
-	if hudBuild != "3.8.26" {
-		t.Fatalf("hudBuild is %q, want 3.8.26", hudBuild)
+func TestWindowsBuildIsCurrent(t *testing.T) {
+	if hudBuild != "3.8.27" {
+		t.Fatalf("hudBuild is %q, want 3.8.27", hudBuild)
+	}
+}
+
+// Owner report 2026-11-21: every build shipped as Windows file version
+// 3.8.20.0, because the workflow called mksyso with that fixed number instead
+// of the HUD build, so the desktop could not tell one build from another. The
+// stamp is the HUD build now, and this test keeps the two from drifting apart.
+func TestTheWorkflowStampsTheHudBuild(t *testing.T) {
+	body, err := os.ReadFile("../.github/workflows/windows-desktop.yml")
+	if err != nil {
+		t.Fatalf("the Windows workflow is unreadable: %v", err)
+	}
+	want := "mksyso.py assets/QuantOfRehan.ico rsrc_windows_amd64.syso " + hudBuild + ".0"
+	if !strings.Contains(string(body), want) {
+		t.Fatalf("the workflow does not stamp %s.0; want %q", hudBuild, want)
 	}
 }

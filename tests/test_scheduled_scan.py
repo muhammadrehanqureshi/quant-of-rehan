@@ -296,7 +296,7 @@ class ScheduledScanTest(unittest.IsolatedAsyncioTestCase):
         after = self.statuses[entry + 1:]
         self.assertTrue(after, "the schedule stopped at the entry")
         for status in after:
-            # Owner order 2026-11-20: four calls a day, so the first entry does
+            # Owner order 2026-11-21: three calls a day, so the first entry does
             # not lock the day. While that call's position is open the verdict
             # is monitoring; once it closes the scan carries on for the next
             # call and may read a market NO TRADE. What the day can never do is

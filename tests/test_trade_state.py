@@ -161,14 +161,14 @@ class TestConfiguration(StateTestCase):
         self.assertFalse(config.live_trading_enabled())
         self.assertFalse(config.LIVE_TRADING_ENABLED)
         self.assertTrue(config.PAPER_TRADING_ENABLED)
-        self.assertEqual(config.MAX_TRADES_PER_DAY, 4)
+        self.assertEqual(config.MAX_TRADES_PER_DAY, 3)
 
     def test_config_snapshot_is_honest(self):
         snapshot = config.config_snapshot()
 
         self.assertEqual(snapshot["timezone"], "Asia/Karachi")
         self.assertEqual(snapshot["target_pct"], 2.0)
-        self.assertEqual(snapshot["max_trades_per_day"], 4)
+        self.assertEqual(snapshot["max_trades_per_day"], 3)
         self.assertEqual(snapshot["min_call_score"], config.MIN_CALL_SCORE)
         self.assertFalse(snapshot["live_trading_enabled"])
         self.assertEqual(sum(snapshot["score_weights"].values()), 1.0)
@@ -199,10 +199,10 @@ class TestConfiguration(StateTestCase):
         self.assertEqual(json.loads(lines[1])["outcome"], "TARGET_HIT")
 
 
-class TestFourCallsADay(StateTestCase):
-    """Owner order 2026-11-20: four calls a day, each spending one of them."""
+class TestThreeCallsADay(StateTestCase):
+    """Owner order 2026-11-21: three calls a day, each spending one of them."""
 
-    def test_a_closed_call_opens_the_next_and_the_fourth_locks_the_day(self):
+    def test_a_closed_call_opens_the_next_and_the_third_locks_the_day(self):
         state = self.fresh()
         for call in range(1, config.MAX_TRADES_PER_DAY + 1):
             self.assertTrue(state.can_enter(), f"call {call} must be open")

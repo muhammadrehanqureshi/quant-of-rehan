@@ -736,8 +736,8 @@ def select_one(session: SessionData, quality: QualityReport,
     context["ai"] = {"active": False, "reason": "Kalman and z-score spread rules do not use the daily momentum prior"}
     tally: dict = {}
     ranked = rank_candidates(session, tally=tally, frames=frames)
-    # Owner order 2026-11-20: four calls a day means four names, never the same
-    # name four times, so a name already called today is not the call again.
+    # Owner order 2026-11-21: three calls a day means three names, never the
+    # same name twice, so a name already called today is not the call again.
     called = set(exclude or ())
     if called:
         fresh = [row for row in ranked if row.get("symbol") not in called]
@@ -772,7 +772,7 @@ def select_one(session: SessionData, quality: QualityReport,
         return ScanResult(NO_TRADE, reason,
                           quality, context, ranked=[], coverage_text=coverage,
                           gate_tally=dict(tally))
-    # Owner order 2026-11-20: a call must score more than MIN_CALL_SCORE out
+    # Owner order 2026-11-21: a call must score more than MIN_CALL_SCORE out
     # of 100. The rank table is untouched, so the report still shows what the
     # law measured on every name; what the floor decides is which row may
     # become one of the day's calls. A day with setups but no score above the
@@ -857,7 +857,7 @@ def signal_message(candidate: dict, market: dict, entry: float,
     lines += [
         f"Entry time: {entry_time:%H:%M:%S} PKT",
         "Entry is the last completed minute close, not a confirmed fill.",
-        "AT MOST FOUR CALLS A DAY. Target is not a guaranteed return.",
+        "AT MOST THREE CALLS A DAY. Target is not a guaranteed return.",
     ]
     return "\n".join(lines)
 

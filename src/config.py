@@ -54,10 +54,10 @@ def _number(name: str, default: float) -> float:
 # ---------------------------------------------------------------- hard limits
 PAPER_TRADING_ENABLED = _flag("PAPER_TRADING_ENABLED", True)
 LIVE_TRADING_ENABLED = _flag("LIVE_TRADING_ENABLED", False)
-# Owner order 2026-11-20: four calls a day instead of one, each of them a
+# Owner order 2026-11-21: three calls a day, each of them a
 # score above MIN_CALL_SCORE out of 100. The allowance is per Karachi trading
 # day and survives a restart the way the old one-trade lock did.
-MAX_TRADES_PER_DAY = 4
+MAX_TRADES_PER_DAY = 3
 
 # Each call a Karachi day is allowed, enforced where it can actually be
 # enforced. A local state file (src/signals/trade_state.py) is a per-machine
@@ -281,7 +281,7 @@ KALMAN_SETUP_BARS = 40          # a signal's upward flip may be at most this old
 # The MAXIMUM below still refuses a stop absurdly far away.
 KALMAN_MAX_RISK_PCT = _number("KALMAN_MAX_RISK_PCT", 0.012)
 # The owner's TP/SL law (owner answer 2026-10-30: "I only one call a day
-# with 2% TP and -1% SL"; owner order 2026-11-20 raises that to four calls a
+# with 2% TP and -1% SL"; owner order 2026-11-21 sets three calls a
 # day, each scored above MIN_CALL_SCORE). The stop is a FIXED percent under
 # the entry, not a chart level, so it is the same honest number for every name.
 KALMAN_STOP_PCT = 0.01
@@ -345,14 +345,13 @@ ZSCORE_SIGNAL_FRAME_MINUTES = int(_number("ZSCORE_SIGNAL_FRAME_MINUTES", 5))
 ZSCORE_Z_MIN = _number("ZSCORE_Z_MIN", 1.0)
 #: The minimum number of earlier spreads used for the mean and sigma.
 ZSCORE_MIN_SPREADS = int(_number("ZSCORE_MIN_SPREADS", 3))
-# Owner order 2026-11-20: a call must score MORE than this out of 100. The
-# score's fixed part is anchored to this floor (the law's own minimum
-# dislocation prints 89.1 and a deeper one ranks higher), so the floor never
-# refuses the setup the entry law itself accepts and the day can still carry
-# its four calls. The floor is checked where the call is chosen
-# (src/signals/momentum_scanner.select_one), never inside the entry law, so
-# every refusal keeps its own measured reason.
-MIN_CALL_SCORE = _number("MIN_CALL_SCORE", 89.0)
+# Owner order 2026-11-21: a call must score MORE than this out of 100. The
+# law's own minimum dislocation prints 89.1 and a deeper one ranks higher, so
+# the 80 point floor never refuses the setup the entry law itself accepts and
+# the day can still carry its three calls. The floor is checked where the call
+# is chosen (src/signals/momentum_scanner.select_one), never inside the entry
+# law, so every refusal keeps its own measured reason.
+MIN_CALL_SCORE = _number("MIN_CALL_SCORE", 80.0)
 # Owner order 2026-11-19 (Karachi): the pick's day gain may not be more than
 # 2%. The reference is the venue's own previous close (the tape's `close`
 # field), never the session's first bar: a name that gapped up at the open

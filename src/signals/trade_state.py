@@ -2,7 +2,7 @@
 
 Owner spec (2026-10-09): the day's calls are capped, and a process restart
 must never let the bot forget what it already did. Owner order 2026-11-20:
-the cap is four calls a day instead of one, each of them a score above
+the cap is three calls a day, each of them a score above
 config.MIN_CALL_SCORE, so the state keeps a count and the relay claims each
 call by its own number. The state therefore lives on disk
 (data/forward/session_state.json) and is keyed by the Karachi trading date. A
@@ -71,8 +71,8 @@ class SessionState:
     day: str
     state: str = State.MARKET_CLOSED
     trades_today: int = 0
-    #: Every name already called today, so the day's four calls are four
-    #: names and never the same name four times (owner order 2026-11-20).
+    #: Every name already called today, so the day's three calls are three
+    #: names and never the same name three times (owner order 2026-11-21).
     symbols_called: list[str] = field(default_factory=list)
     symbol: str | None = None
     entry_price: float | None = None
@@ -235,7 +235,7 @@ class SessionState:
             self.symbols_scanned = scanned
         if expected is not None:
             self.symbols_expected = expected
-        # Owner order 2026-11-20: with four calls a day an open position is not
+        # Owner order 2026-11-21: with three calls a day an open position is not
         # a spent allowance, so `trade_taken` alone can no longer protect it.
         # A data failure in a later slot must never erase a position that is
         # still open, or its exit would never be monitored again.

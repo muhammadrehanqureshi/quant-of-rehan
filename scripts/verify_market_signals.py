@@ -5,7 +5,7 @@ Rebuild 2026-10-10. One command that answers "is this thing actually working,
 and how do I know?" It checks the parts that can silently rot:
 
   1. CONFIG      the hard limits are what they are supposed to be: paper only,
-                 live trading off, four calls a day, a +2% target, one universe.
+                 live trading off, three calls a day, a +2% target, one universe.
   2. TESTS       the whole suite, run as a subprocess with its real exit code.
   3. UNIVERSE    the tracked KMIALL snapshot resolves and has a fingerprint.
   4. RELAY       the live Cloudflare relay: health and pairing, the published
@@ -128,8 +128,8 @@ def check_config(report: Report) -> None:
                str(config.PAPER_TRADING_ENABLED))
     report.add(s, "live trading disabled", PASS if not snap["live_trading_enabled"] else FAIL,
                f"live={snap['live_trading_enabled']}")
-    report.add(s, "four calls per day",
-               PASS if config.MAX_TRADES_PER_DAY == 4 else FAIL,
+    report.add(s, "three calls per day",
+               PASS if config.MAX_TRADES_PER_DAY == 3 else FAIL,
                str(config.MAX_TRADES_PER_DAY))
     report.add(s, "+2.0% target", PASS if abs(config.TARGET_PCT - 0.02) < 1e-9 else FAIL,
                f"{config.TARGET_PCT * 100:.2f}%")
