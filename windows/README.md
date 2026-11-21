@@ -5,7 +5,7 @@ One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of 
 
 ## What is new in build 155
 
-* **Build 155 (version 3.8.30).** The console window wears the build's own icon while it runs: the title bar, Alt+Tab and the taskbar show the Quant of Rehan logo instead of the PowerShell icon the console host was born with, and the icons the window had are put back when the build quits. The icon is read from the exe's own resource, so it is the same picture Explorer shows. A console hosted by Windows Terminal keeps Terminal's own taskbar icon, which Microsoft's terminal does not let any app change; the title bar, Alt+Tab and the tab carry the build's name there. The executable's file version is `3.8.30.0`.
+* **Build 155 (version 3.8.30).** A build started from a PowerShell or Command Prompt window now leaves that console and opens one of its own, so its taskbar button carries the Quant of Rehan logo instead of PowerShell's icon. Windows gives a console window the icon of the program the console was made for, and the exe has always carried the logo; a console the build makes for itself wears it on the title bar, in Alt+Tab and on the taskbar. The shell keeps its own window with its prompt back, and the build's own console closes when the build quits. A console hosted by Windows Terminal keeps Terminal's taskbar icon, which Microsoft's terminal does not let any program change. The executable's file version is `3.8.30.0`.
 
 ## What is new in build 154
 
@@ -368,7 +368,7 @@ Built and tested on Linux, because there is no Windows machine in this workspace
 
 Also not checked from here: whether Cloudflare accepts this program's User-Agent from your network. `-selftest` tells you in a second.
 
-The window icon is set from the exe at startup, so a console the exe opens for itself shows the build's logo on the taskbar. A console started by PowerShell shows the logo too while the build runs, and gets PowerShell's icon back when it quits; the window is PowerShell's, shared with its own prompt history. Windows Terminal, when it hosts the console, draws its own taskbar icon and no program can change that. Launching the exe by double-click, from its pinned taskbar button, or in Windows Console Host gives the build's own icon.
+The taskbar icon follows the window: a console the system makes for this exe wears the exe's logo, and a console that belongs to a shell wears the shell's. That is why a build started from a PowerShell window opens its own console instead. Windows Terminal, when it hosts the console, draws its own taskbar icon and no program can change that; launching the exe by double-click, from its pinned taskbar button, or in Windows Console Host gives the build's own icon.
 
 ## Build and test from source
 

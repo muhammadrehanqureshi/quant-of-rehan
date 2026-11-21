@@ -109,6 +109,13 @@ func main() {
 		app.enableDemo(time.Now())
 	}
 
+	// Owner order 2026-11-21: a build started from a shell's console opens a
+	// console of its own, so its taskbar button carries its own icon. The shell
+	// keeps its window and its prompt.
+	if openOwnConsole() {
+		return
+	}
+
 	t := newTerm()
 	if err := app.run(t); err != nil {
 		fmt.Fprintln(os.Stderr, "could not start the console UI:", err)
