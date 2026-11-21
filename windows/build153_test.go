@@ -28,7 +28,7 @@ func TestBuild153OrderFlowStartsWithTheNumbering(t *testing.T) {
 	if len(h) < ix+flowNumW+flowGutter+len("SYMBOL") {
 		t.Fatalf("the heading row is too short to carry the table: %q", rows[head])
 	}
-	if got := string(h[ix : ix+flowNumW]); got != "#   " {
+	if got := string(h[ix : ix+flowNumW]); got != "#  " {
 		t.Errorf("the first column reads %q, want the # heading on its first cell: %q", got, rows[head])
 	}
 	if got := string(h[ix+flowNumW+flowGutter : ix+flowNumW+flowGutter+len("SYMBOL")]); got != "SYMBOL" {
@@ -48,7 +48,7 @@ func TestBuild153OrderFlowStartsWithTheNumbering(t *testing.T) {
 	if len(serials) < 2 {
 		t.Fatalf("the two stock rows are missing:\n%s", strings.Join(rows[head:], "\n"))
 	}
-	for _, want := range []string{"1.  ", "2.  "} {
+	for _, want := range []string{"1. ", "2. "} {
 		found := false
 		for _, got := range serials {
 			if got == want {

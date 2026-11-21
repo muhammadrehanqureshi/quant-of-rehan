@@ -82,8 +82,13 @@ func TestBuild154OrderFlowNumbersLineUpUnderTheHash(t *testing.T) {
 	if got := string(tn[ix : ix+3]); got != "10." {
 		t.Errorf("the tenth row reads %q, want 10. starting on the # cell: %q", got, tenth)
 	}
-	if got := string(f[ix : ix+flowNumW]); got != "1.  " {
+	if got := string(f[ix : ix+flowNumW]); got != "1. " {
 		t.Errorf("the first number field reads %q, want the full stop beside the digit", got)
+	}
+	// The digits themselves start on one cell, so 1. and 10. line up under the
+	// # instead of each figure ending on one cell.
+	if f[ix] == ' ' || tn[ix] == ' ' {
+		t.Errorf("a number does not start on the # cell: %q / %q", first, tenth)
 	}
 }
 

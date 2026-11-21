@@ -419,8 +419,9 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 		if wide {
 			// Owner order 2026-11-21 (second pass): the row's own number starts on
 			// the "#"'s cell, so every number lines up under the heading, and a
-			// full stop follows it. The symbol follows one gutter after the field.
-			c.Text(ix+flowNumX, row, flowNumW, fmt.Sprintf("%d.", i+1), th.Soft, false)
+			// full stop follows it. The dot of a three digit number takes the
+			// gutter, which is blank on every row, so the field never cuts it.
+			c.Text(ix+flowNumX, row, flowNumW+flowGutter, fmt.Sprintf("%d.", i+1), th.Soft, false)
 			// A name longer than the heading borrows the two cells the field gave
 			// up, so an eight letter ticker is never cut. The price field is right
 			// aligned, so a short quote leaves those cells blank.
@@ -540,10 +541,11 @@ const flowNetPctW = 11
 // so it is never cut.
 // Owner order 2026-11-21 (second pass): every row's number starts on the "#"'s
 // own cell and carries a full stop after it, so 1., 10. and 311. read down one
-// line instead of ending on one. Four cells hold the longest number an answer
-// can carry, 311.
+// line instead of ending on one. The field stays three cells, so no column of
+// the table moves; the full stop of a three digit row, the widest an answer can
+// carry, borrows the gutter beside it and never overlaps SYMBOL.
 const (
-	flowNumX, flowNumW = 0, 4
+	flowNumX, flowNumW = 0, 3
 	flowNumHeading     = "#"
 	flowSymX           = flowNumX + flowNumW + flowGutter
 	flowSymW           = 6 // the cells between SYMBOL and PRICE
