@@ -1,7 +1,11 @@
-# Quant of Rehan for Windows (console edition), build 153
+# Quant of Rehan for Windows (console edition), build 154
 
 A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.21**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
+
+## What is new in build 154
+
+* **Build 154 (version 3.8.29).** NAVY BLUE & WHITE is deleted from THEMES, so the palette is the same three the phone already shows. ORDER FLOW's numbers start on the `#`'s own cell and carry a full stop, so `1.`, `10.` and `311.` read down one line. CUSTOM SCRIPS OF VOLUME writes its NET DELTA in a field only as wide as the widest figure the list carries, two cells inside the tile's frame, so a short 3M stands beside its bar instead of at the border and every unit still ends on one cell. ORDER FLOW's rows no longer write STALE after the NET DELTA values; a frame the relay has not refreshed still dims its symbol. The executable's file version is `3.8.29.0`.
 
 ## What is new in build 153
 
@@ -258,7 +262,7 @@ One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of 
 | 2 ALERTS | 2, F2 | BIG BUYING NOW in green and BIG SELLING NOW in red, side by side (stacked when narrow), and the ALERT LOG with times, BUY or SELL and the sentence. LEFT and RIGHT pick the list the keys scroll | |
 | 3 ORDER FLOW | 3, F3 | Every KMIALL stock with price, change, bid, ask, B, S, U and T. `/` focuses the search box and filters the list as you type, ESC clears it. O (or a click on the heading chips) changes the order. UP, DOWN, PAGE UP, PAGE DOWN and the wheel scroll |
 | 4 SCANNER | 4, F4 | The SEARCH tile, then the numbered SECTORS, then the scanner: PRICES RISING FAST, MORE BUYERS & LESS SELLERS and BIG BUYING & SELLING NOW (LIVE FLOW). The sector tile grows to show every group it can and the wheel scrolls the rest; every group and every scrip carries its number. The search box says `Search for a KMIALL scrip`. Type to search, UP and DOWN choose a match, ENTER opens it in the tile. A clicked sector lists its scrips in place; BACKSPACE brings all sectors back. With the box empty, LEFT and RIGHT change the sort |
-| 5 SETTINGS | 5, F5 | Relay status, notifications, big buying flag, big selling flag, sound, big order size, test buying alert, test selling alert, six themes, version, request counter |
+| 5 SETTINGS | 5, F5 | Relay status, notifications, big buying flag, big selling flag, sound, big order size, test buying alert, test selling alert, three themes, version, request counter |
 
 Other keys: TAB and SHIFT+TAB switch screens, R refresh now, D flip the signal card to raw text (Home), `[` and `]` mark roundness (Home), ESC clears the search or goes Home, Q quits, CTRL+C quits anywhere. The sound and alert flags are changed only on SETTINGS. On the Scanner letters and digits go into the search box; with the box empty a digit still jumps to that tab, and CTRL+C always quits. On ALERTS, ENTER plays a test. DEL clears only the price-alert slot in hand.
 
@@ -333,7 +337,7 @@ B and S there come from the relay's method: the share of the day's volume counte
 -poll MS         scan interval, 1000 to 60000
 -cell WxH        size of one terminal cell in pixels for this run, for example 10x19 (the default is 9x20, a shape of 2.22; ] and [ keep your own choice)
 -feedwatch N     record the live feed for N seconds (10 to 900), write qor-feedwatch.txt and say what the lag is
--theme N         theme 0 to 5 for this run
+-theme N         theme 0 to 2 for this run
 -no-notify       no Windows notifications this run
 -no-sound        no tones this run
 -halfblock       draw the ring with half blocks (only if the quadrant ring looks broken in your font)

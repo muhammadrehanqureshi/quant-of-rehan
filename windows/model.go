@@ -167,6 +167,11 @@ const appVersion = "4.0.21"
 // DELTA right aligned so every M ends on one cell, the green orb in one shade
 // like the red one, and the FEED row reading NO FEED when the relay answers
 // without any quotes table.
+// Build 154 is 3.8.29, NAVY BLUE & WHITE deleted so the palette is the phone's
+// own three, ORDER FLOW's numbers on the "#" cell with a full stop after each,
+// the CUSTOM SCRIPS NET DELTA in a field only as wide as its widest figure and
+// two cells inside the tile, and the STALE words dropped from ORDER FLOW's
+// rows.
 // Build 147 is 3.8.22, the KSE100 quote group on the line that
 // carries T at the owner's own window with its bar above the price, the volumes
 // giving up their thousands commas there rather than any digit, and ORDER FLOW
@@ -179,7 +184,7 @@ const appVersion = "4.0.21"
 // broker refresh line on the BUILD VERSION & RELAY tile, the boards putting the
 // percentage beside the price, and an ALERTS LOG that keeps the price and the
 // percentage it was written with.
-const hudBuild = "3.8.28"
+const hudBuild = "3.8.29"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no

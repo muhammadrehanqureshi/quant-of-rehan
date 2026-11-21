@@ -84,7 +84,9 @@ func TestBuild149BoardsHoldThePkrColumn(t *testing.T) {
 
 // Owner order 2026-11-20 (latest): a CUSTOM SCRIPS sub menu puts its price, its
 // percentage, its bar and the bar's NET DELTA on the tile's own right edge, two
-// cells further right than the scrollbar aware edge it used to stand on.
+// cells further right than the scrollbar aware edge it used to stand on. Owner
+// order 2026-11-21 (second pass): the group stops two cells inside the frame,
+// and the NET DELTA field is only as wide as its widest figure.
 func TestBuild149CustomScripsQuoteHoldsTheTileEdge(t *testing.T) {
 	a := demoApp(t, 158, 41)
 	a.screen = scrScanner
@@ -104,9 +106,9 @@ func TestBuild149CustomScripsQuoteHoldsTheTileEdge(t *testing.T) {
 	if frame < 0 {
 		t.Fatalf("the tile's own right edge is missing: %q", rows[top])
 	}
-	// The group ends on the padding cell inside the frame, so the bar starts on
-	// the tile's right edge less its own width.
-	want := frame - shareBarWidth
+	// The group ends two cells inside the frame, so the NET DELTA's last cell
+	// stands on frame-3 and the bar begins one gutter and one span before it.
+	want := frame - 3
 	seen := 0
 	for _, row := range rows[top+1:] {
 		if col(row, "┛") >= 0 {
@@ -115,8 +117,28 @@ func TestBuild149CustomScripsQuoteHoldsTheTileEdge(t *testing.T) {
 		if !strings.Contains(row, "PKR") || !strings.Contains(row, string(barBlock)) {
 			continue
 		}
-		if got := col(row, string(barBlock)); got != want {
-			t.Errorf("the scrip's bar starts on %d, want the tile's edge %d: %q", got, want, row)
+		r := []rune(row)
+		last := want
+		for last > 0 && r[last] == ' ' {
+			last--
+		}
+		if last != want {
+			t.Fatalf("the NET DELTA ends on cell %d, want %d inside the frame: %q", last, want, row)
+		}
+		start := last
+		for start > 0 && r[start-1] != ' ' {
+			start--
+		}
+		// The bar keeps its sixteen cells and the figure's field follows one
+		// gutter later. A shorter figure is right aligned in that field, so its
+		// ink starts inside it and never on the bar.
+		barStart := col(row, string(barBlock))
+		if barStart < 0 {
+			t.Fatalf("the scrip's bar is missing: %q", row)
+		}
+		barEnd := barStart + shareBarSpan - 1
+		if barEnd >= start || start-barEnd > shareNetW {
+			t.Errorf("the bar ends on %d and the NET DELTA starts on %d: %q", barEnd, start, row)
 		}
 		seen++
 	}

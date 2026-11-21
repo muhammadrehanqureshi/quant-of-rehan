@@ -409,17 +409,19 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 		if pct != nil {
 			chg, chgCol = changeText(*pct), a.dirColor(*pct)
 		}
+		// Owner order 2026-11-21: the row no longer writes STALE after its NET
+		// DELTA values. A frame the relay has not refreshed still reads as one:
+		// the symbol turns to the soft ink, the same as every other stale row.
 		warn := ""
 		if !r.Balanced() {
 			warn = " CHECK"
-		} else if !r.Fresh {
-			warn = " STALE"
 		}
 		if wide {
-			// Owner order 2026-11-21: the row's own number stands right aligned
-			// in the "#" column on the panel's first cell, and the symbol follows
-			// one gutter after it.
-			c.Text(ix+flowNumX, row, flowNumW, padLeft(strconv.Itoa(i+1), flowNumW), th.Soft, false)
+			// Owner order 2026-11-21 (second pass): the row's own number starts on
+			// the "#"'s cell, so every number lines up under the heading, and a
+			// full stop follows it. The dot of a three digit number takes the
+			// gutter, which is blank on every row, so the field never cuts it.
+			c.Text(ix+flowNumX, row, flowNumW+flowGutter, fmt.Sprintf("%d.", i+1), th.Soft, false)
 			// A name longer than the heading borrows the two cells the field gave
 			// up, so an eight letter ticker is never cut. The price field is right
 			// aligned, so a short quote leaves those cells blank.
@@ -537,6 +539,11 @@ const flowNetPctW = 11
 // cells, two fewer than build 152's eight, so the gap before PRICE is one cell
 // instead of three; a longer name is drawn into those two cells and the gutter
 // so it is never cut.
+// Owner order 2026-11-21 (second pass): every row's number starts on the "#"'s
+// own cell and carries a full stop after it, so 1., 10. and 311. read down one
+// line instead of ending on one. The field stays three cells, so no column of
+// the table moves; the full stop of a three digit row, the widest an answer can
+// carry, borrows the gutter beside it and never overlaps SYMBOL.
 const (
 	flowNumX, flowNumW = 0, 3
 	flowNumHeading     = "#"

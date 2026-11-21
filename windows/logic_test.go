@@ -310,12 +310,12 @@ func TestSettingsRoundTripAndClamp(t *testing.T) {
 	dir := t.TempDir()
 	p := dir + "/sub/settings.json"
 	s := defaultSettings()
-	s.Theme, s.Notify, s.PollMS, s.LastSignal, s.LastMarketEvent = 3, false, 4000, "body", "online"
+	s.Theme, s.Notify, s.PollMS, s.LastSignal, s.LastMarketEvent = 2, false, 4000, "body", "online"
 	if err := saveSettings(p, s); err != nil {
 		t.Fatal(err)
 	}
 	got := loadSettings(p)
-	if got.Theme != 3 || got.Notify || got.PollMS != 4000 || got.LastSignal != "body" || got.LastMarketEvent != "online" {
+	if got.Theme != 2 || got.Notify || got.PollMS != 4000 || got.LastSignal != "body" || got.LastMarketEvent != "online" {
 		t.Errorf("round trip: %+v", got)
 	}
 	bad := Settings{Theme: 99, PollMS: 10}
@@ -338,7 +338,7 @@ func TestSettingsRoundTripAndClamp(t *testing.T) {
 // flag and the tone on, and keep what the user chose, such as the theme.
 func TestSettingsFromBuildOneAreMigrated(t *testing.T) {
 	p := t.TempDir() + "/settings.json"
-	old := `{"theme": 3, "relay_url": "", "notify": false, "poll_ms": 2000, "last_signal": "x"}`
+	old := `{"theme": 2, "relay_url": "", "notify": false, "poll_ms": 2000, "last_signal": "x"}`
 	if err := os.WriteFile(p, []byte(old), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -346,7 +346,7 @@ func TestSettingsFromBuildOneAreMigrated(t *testing.T) {
 	if got.PollMS != 1000 || !got.BigBuy || !got.Sound || got.BigOrderQty != 100_000 || got.Ver != settingsVer {
 		t.Errorf("not migrated: %+v", got)
 	}
-	if got.Theme != 3 || got.Notify || got.LastSignal != "x" {
+	if got.Theme != 2 || got.Notify || got.LastSignal != "x" {
 		t.Errorf("a choice was lost: %+v", got)
 	}
 }

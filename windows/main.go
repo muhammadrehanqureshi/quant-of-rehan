@@ -24,7 +24,7 @@ Flags:
 func main() {
 	var (
 		relayURL  = flag.String("relay", "", "relay address for this run only (the default is the relay built into the app)")
-		theme     = flag.Int("theme", -1, "theme number, 0 to 5, for this run only (choose one in Settings to keep it)")
+		theme     = flag.Int("theme", -1, "theme number, 0 to 2, for this run only (choose one in Settings to keep it)")
 		pollMS    = flag.Int("poll", 0, "scan interval in milliseconds for this run, at least 1000 (the default is 1000)")
 		noNotify  = flag.Bool("no-notify", false, "no Windows notifications for this run (Settings keeps your choice)")
 		noSound   = flag.Bool("no-sound", false, "no alert tones for this run (Settings keeps your choice)")

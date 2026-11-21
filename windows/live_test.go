@@ -407,8 +407,8 @@ func TestMouseOnListsAndSettings(t *testing.T) {
 	if !a.cfg.Notify || a.setCursor != 1 {
 		t.Errorf("notifications row: %v cursor %d", a.cfg.Notify, a.setCursor)
 	}
-	clickText(t, a, "NAVY BLUE & WHITE")
-	if a.cfg.Theme != 3 || a.th != themeAt(3) {
+	clickText(t, a, "BLACK & WHITE")
+	if a.cfg.Theme != 2 || a.th != themeAt(2) {
 		t.Errorf("theme by click: %d", a.cfg.Theme)
 	}
 	before := a.cfg.BigOrderQty

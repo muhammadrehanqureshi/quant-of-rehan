@@ -6,8 +6,8 @@ import (
 )
 
 // Owner order 2026-11-21: ORDER FLOW carries its numbering again, as a "#"
-// column on the panel's very first cell, with each row's own number right
-// aligned in it.
+// column on the panel's very first cell. Owner order 2026-11-21 (second pass):
+// every number starts on the "#"'s own cell and carries a full stop after it.
 func TestBuild153OrderFlowStartsWithTheNumbering(t *testing.T) {
 	a := orderFlowApp(t, 200, 50, flowSample150)
 	rows := rowsOf(a)
@@ -48,7 +48,7 @@ func TestBuild153OrderFlowStartsWithTheNumbering(t *testing.T) {
 	if len(serials) < 2 {
 		t.Fatalf("the two stock rows are missing:\n%s", strings.Join(rows[head:], "\n"))
 	}
-	for _, want := range []string{"  1", "  2"} {
+	for _, want := range []string{"1. ", "2. "} {
 		found := false
 		for _, got := range serials {
 			if got == want {
@@ -56,7 +56,7 @@ func TestBuild153OrderFlowStartsWithTheNumbering(t *testing.T) {
 			}
 		}
 		if !found {
-			t.Errorf("no row carried %q, want the number right aligned in the # column: %v", want, serials)
+			t.Errorf("no row carried %q, want the number on the # cell with a full stop: %v", want, serials)
 		}
 	}
 }
