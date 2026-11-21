@@ -236,32 +236,47 @@
                  above and below the line, the side padding and the one
                  body ink stay, and the line centres in the 43dp it
                  gets. -->
-            <EditText
-                android:id="@+id/search_input"
-                android:layout_width="match_parent"
-                android:layout_height="43dp"
-                android:background="@drawable/field_bg"
-                android:gravity="center_vertical"
-                android:hint="@string/search_hint"
-                android:imeOptions="actionSearch"
-                android:includeFontPadding="false"
-                android:inputType="textCapCharacters"
-                android:maxLines="1"
-                android:paddingLeft="10dp"
-                android:paddingRight="10dp"
-                android:paddingTop="3dp"
-                android:paddingBottom="3dp"
-                android:textColor="@color/text_bright"
-                android:textColorHint="@color/text_soft"
-                android:textSize="13sp"/>
-
+            <!-- Owner order 2026-11-21: the box and its results are ONE
+                 field plate, the same group every dropdown expands from.
+                 The box face wears nothing and the results stand inside
+                 the group, so a keystroke opens the box's own plate
+                 instead of drawing a second, differently styled window. -->
             <LinearLayout
-                android:id="@+id/search_results"
+                android:id="@+id/search_field_group"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
-                android:orientation="vertical"
-                android:visibility="gone"/>
+                android:background="@drawable/field_bg"
+                android:orientation="vertical">
+
+                <EditText
+                    android:id="@+id/search_input"
+                    android:layout_width="match_parent"
+                    android:layout_height="43dp"
+                    android:background="@null"
+                    android:gravity="center_vertical"
+                    android:hint="@string/search_hint"
+                    android:imeOptions="actionSearch"
+                    android:includeFontPadding="false"
+                    android:inputType="textCapCharacters"
+                    android:maxLines="1"
+                    android:paddingLeft="10dp"
+                    android:paddingRight="10dp"
+                    android:paddingTop="3dp"
+                    android:paddingBottom="3dp"
+                    android:textColor="@color/text_bright"
+                    android:textColorHint="@color/text_soft"
+                    android:textSize="13sp"/>
+
+                <LinearLayout
+                    android:id="@+id/search_results"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:paddingTop="5dp"
+                    android:paddingBottom="5dp"
+                    android:visibility="gone"/>
+
+            </LinearLayout>
 
             <TextView
                 android:id="@+id/search_status"
@@ -517,8 +532,9 @@
 
             <!-- The box and its menu are ONE plate, the law every dropdown on
                  the console keeps: the closed face steps aside while the
-                 rows stand in its own space, and the caret stays the
-                 roll-up tap. -->
+                 rows stand in its own space. Owner order 2026-11-21: there
+                 is no caret here; the diamond scroller is the tile's own
+                 scroll cue and the sector rows are its permanent face. -->
             <LinearLayout
                 android:id="@+id/sectors_field_group"
                 android:layout_width="match_parent"
@@ -580,19 +596,6 @@
                             android:visibility="gone"/>
                     </FrameLayout>
 
-                    <!-- Owner order 2026-11-19: the SECTORS tile carries
-                         the THEMES tile's own caret, at the mount's
-                         trailing edge, down while closed and turned up
-                         while the list is open. -->
-                    <ImageView
-                        android:id="@+id/sectors_arrow"
-                        android:layout_width="20dp"
-                        android:layout_height="20dp"
-                        android:layout_gravity="end|top"
-                        android:layout_marginTop="11dp"
-                        android:layout_marginEnd="14dp"
-                        android:contentDescription="@string/cd_dropdown"
-                        android:src="@drawable/dropdown_arrow"/>
                 </FrameLayout>
             </LinearLayout>
 

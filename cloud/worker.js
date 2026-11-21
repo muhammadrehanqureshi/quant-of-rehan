@@ -535,9 +535,22 @@ const SCAN_DISPATCH_TIMEOUT_MS = 10000;
 /** The runnable window whose open edge this wake is standing on, or null. */
 function bandOpenAt(k) {
   const mins = minutesOf(k);
+  const bands = bandsFor(k);
+  const lastBandClose = bands.length
+    ? bands[bands.length - 1][1][0] * 60 + bands[bands.length - 1][1][1]
+    : -1;
   for (const band of dispatchWindowsFor(k)) {
     const open = band[0][0] * 60 + band[0][1];
-    if (mins >= open && mins - open <= SCAN_DISPATCH_GRACE_MINUTES) {
+    const close = band[1][0] * 60 + band[1][1];
+    // Owner order 2026-11-21: the post-close window (15:32 to 15:49 Monday
+    // to Thursday, 16:32 to 16:49 on Friday) starts after the last band has
+    // closed. Its own wakes land at :33, :40 and :45 and can arrive late, so
+    // any wake inside the window may start the loop and bank the window's
+    // last prints; a regular band keeps its three minute edge.
+    const postClose = lastBandClose > 0 && open >= lastBandClose;
+    const grace = postClose
+      ? Math.max(0, close - 1 - open) : SCAN_DISPATCH_GRACE_MINUTES;
+    if (mins >= open && mins <= open + grace && mins < close) {
       return band;
     }
   }
@@ -801,6 +814,24 @@ async function ensureFeedAlive(env, now) {
   const windowOpen = window[0][0] * 60 + window[0][1];
   if (mins - windowOpen <= FEED_WATCHDOG_OPEN_GUARD_MINUTES) {
     return { dispatched: false, reason: "band just opened" };
+  }
+  // Owner order 2026-11-21: the runnable window can open long before the
+  // exchange does (Friday's second window opens at 14:10 for the 14:32
+  // band), so the guard above missed the first minutes of the real band.
+  // Measured 2026-11-20: two loops were dispatched at 14:33 PKT, the second
+  // by this watchdog, and that overlap held the session queue past the
+  // 16:32 post-close window. The live band's own open is the edge that must
+  // never be dispatched twice.
+  const live = bandsFor(k).find((b) => {
+    const from = b[0][0] * 60 + b[0][1];
+    const to = b[1][0] * 60 + b[1][1];
+    return mins >= from && mins < to;
+  });
+  if (live) {
+    const bandOpen = live[0][0] * 60 + live[0][1];
+    if (mins - bandOpen <= FEED_WATCHDOG_OPEN_GUARD_MINUTES) {
+      return { dispatched: false, reason: "band just opened" };
+    }
   }
   // The cooldown is read first so a poll in a live window costs one KV read,
   // not a snapshot read, while nothing is wrong.

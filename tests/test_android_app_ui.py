@@ -540,11 +540,11 @@ class SettingsControlTest(unittest.TestCase):
         self.assertIn("DIAMOND_SP = 10f", scroller)
         self.assertIn("COMPLEX_UNIT_SP, DIAMOND_SP", scroller)
         self.assertNotIn("dp(9f)", scroller)
-        # Owner order 2026-11-19: five complete orders, measured through
-        # the fifth order's own wrapped line instead of a guessed count.
-        self.assertIn("private static final int BIG_PRINTS_ORDERS = 5;",
+        # Owner order 2026-11-21: six complete orders, measured through
+        # the sixth order's own wrapped line instead of a guessed count.
+        self.assertIn("private static final int BIG_PRINTS_ORDERS = 6;",
                       self.main)
-        self.assertIn("private static final int BIG_PRINTS_ROWS = 5;",
+        self.assertIn("private static final int BIG_PRINTS_ROWS = 6;",
                       self.main)
         self.assertIn("fitBigPrintsWindow();", self.main)
         self.assertIn("int height = rows * row", self.main)
@@ -814,10 +814,10 @@ class SettingsControlTest(unittest.TestCase):
                      "@+id/sectors_scroller", "@+id/sectors_reveal",
                      "@+id/rule_sectors"):
             self.assertIn(view, self.layout)
-        # Owner order 2026-11-19: the SECTORS tile carries the THEMES
-        # tile's own caret, so its dropdown reads and behaves alike.
-        self.assertIn("@+id/sectors_arrow", self.layout)
-        self.assertIn("sectorsArrow", self.main)
+        # Owner order 2026-11-21: the caret left the tile. The diamond
+        # scroller is its scroll cue and the sector rows are its face.
+        self.assertNotIn("@+id/sectors_arrow", self.layout)
+        self.assertNotIn("sectorsArrow", self.main)
         self.assertGreater(self.layout.index("@+id/tile_sectors"),
                            self.layout.index("@+id/big_prints_panel"))
         strings = STRINGS.read_text(encoding="utf-8")
@@ -865,24 +865,26 @@ class SettingsControlTest(unittest.TestCase):
         # stocks carry their numbers in sequence.
         self.assertIn('String.format(Locale.US, "%d. %s", i + 1, symbol)',
                       self.main)
-        # Owner order 2026-11-17: the closed SECTORS face centres its line,
-        # and the tile no longer waits for a tap to have something to show:
-        # the best sector is worn as soon as the list lands.
+        # Owner order 2026-11-21: the sector list is the tile's permanent
+        # face, left aligned, and no sector is chosen for him. A tap is the
+        # only thing that reveals scrips, and the list never jumps back.
         spinner = element(self.layout, 'android:id="@+id/sectors_spinner"')
         self.assertIn('android:gravity="center"', spinner)
-        self.assertIn("String best = fillSectorMenu();", self.main)
-        self.assertIn("sectorChoice.isEmpty() && best != null", self.main)
-        # Owner order 2026-11-19: the sector list is on the tile as soon as
-        # it arrives, is scrollable, and stays after a pick; the tile also
-        # wears the THEMES tile's own caret.
+        self.assertIn("fillSectorMenu();", self.main)
+        self.assertNotIn("sectorChoice.isEmpty() && best != null", self.main)
+        self.assertIn('sectorChoice = "";', self.main)
         self.assertIn("sectorMenuPending = false;", self.main)
         self.assertIn("showSectorMenu(true);", self.main)
-        self.assertIn("sectorsArrow = findViewById(R.id.sectors_arrow);",
+        self.assertIn("row.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);",
                       self.main)
-        self.assertIn("rotateDropdownArrow(sectorsArrow, open);", self.main)
         sector_pick = self.main[self.main.index("private void chooseSector("):]
         sector_pick = sector_pick[:sector_pick.index("private void renderSectorReveal(")]
-        self.assertIn("showSectorMenu(true);", sector_pick)
+        self.assertNotIn("showSectorMenu(true);", sector_pick)
+        # No scrips show until that tap: the landing list hides the reveal.
+        refresh = self.main[self.main.index("private void refreshSectors()"):]
+        refresh = refresh[:refresh.index("private String fillSectorMenu()")]
+        self.assertNotIn("renderSectorReveal();", refresh)
+        self.assertIn("sectorsReveal.setVisibility(View.GONE);", refresh)
         # The diamond's range is read after the six-row window lays out.
         self.assertIn("sectorsScroll.post(this::updateSectorScroller);",
                       self.main)
@@ -2390,8 +2392,8 @@ class VersionTest(unittest.TestCase):
         # box, numbered sub menus, H & L, the always-listed SECTORS tile,
         # the 100k board and its five complete orders ship as 4.4.3,
         # versionCode 136.
-        self.assertIn('android:versionName="4.4.4"', manifest)
-        self.assertIn('android:versionCode="137"', manifest)
+        self.assertIn('android:versionName="4.4.5"', manifest)
+        self.assertIn('android:versionCode="138"', manifest)
         self.assertNotIn('android:versionName="4.0.15"', manifest)
         self.assertNotIn('android:versionName="4.0.14"', manifest)
         self.assertNotIn('android:versionName="3.7.5"', manifest)
@@ -2621,8 +2623,8 @@ class VersionTest(unittest.TestCase):
         # 2026-11-17: the centred closed faces and the SECTORS fix ship as
         # 4.4.2, versionCode 135. The owner's 2026-11-19 order ships as
         # 4.4.3, versionCode 136.
-        self.assertIn('android:versionCode="137"', manifest)
-        self.assertIn('android:versionName="4.4.4"', manifest)
+        self.assertIn('android:versionCode="138"', manifest)
+        self.assertIn('android:versionName="4.4.5"', manifest)
         self.assertNotIn('android:versionName="4.0.15"', manifest)
         self.assertNotIn('android:versionName="3.7.5"', manifest)
         self.assertNotIn('android:versionName="3.7.4"', manifest)
@@ -2725,6 +2727,33 @@ class SearchPanelStabilityTest(unittest.TestCase):
         self.assertEqual(main.count("searchResults.removeAllViews();"), 1)
         self.assertIn("boolean rebuild = !q.equals(renderedQuery)", main)
         self.assertIn("styleSearchRow(entry.getValue(), entry.getKey(), q);", main)
+
+    def test_an_empty_box_lists_nothing_until_he_types(self):
+        """Owner order 2026-11-21: the SEARCH page opens on an empty box
+        that lists no scrip at all. The first letter opens its matches, and
+        clearing the box closes the list again."""
+        main = MAIN.read_text(encoding="utf-8")
+        start = main.index("private void renderSearchResults(")
+        block = main[start:main.index("private void styleSearchRow(", start)]
+        self.assertIn("if (q.isEmpty()) {", block)
+        self.assertIn("searchResults.setVisibility(View.GONE);", block)
+        self.assertIn("renderedQuery = \"\";", block)
+        self.assertNotIn("An empty box lists the first", main)
+
+    def test_the_search_menu_is_the_apps_own_dropdown(self):
+        """Owner order 2026-11-21: the results are the same dropdown every
+        other box on the console opens: one field plate around the box and
+        its options, divided rows, the app's own option geometry."""
+        layout = LAYOUT.read_text(encoding="utf-8")
+        group = element(layout, 'android:id="@+id/search_field_group"')
+        self.assertIn('android:background="@drawable/field_bg"', group)
+        self.assertIn('android:orientation="vertical"', group)
+        box = element(layout, 'android:id="@+id/search_input"')
+        self.assertIn('android:background="@null"', box)
+        main = MAIN.read_text(encoding="utf-8")
+        self.assertIn('TextView row = menuRow("");', main)
+        self.assertIn("searchResults.addView(menuDivider());", main)
+        self.assertIn("searchFieldGroup.setBackground(fieldPlate(index));", main)
 
     def test_the_tapped_symbol_stays_pinned_across_ticks(self):
         main = MAIN.read_text(encoding="utf-8")
@@ -3294,7 +3323,9 @@ class MenuOrdersTest(unittest.TestCase):
             "Dropdown.java is retired with the platform popup window")
         self.assertNotIn("onDropdownOpenChange", self.main)
         self.assertNotIn("extends Spinner", self.main)
-        for view_id in ("volume_split_arrow", "theme_arrow", "sectors_arrow"):
+        # Owner order 2026-11-21: SECTORS has no caret any more; only the
+        # two choosing dropdowns keep one.
+        for view_id in ("volume_split_arrow", "theme_arrow"):
             with self.subTest(arrow=view_id):
                 arrow = element(self.layout, f'android:id="@+id/{view_id}"')
                 # v3.7.2 (owner order 2026-11-01): the caret is back at
@@ -3330,9 +3361,9 @@ class MenuOrdersTest(unittest.TestCase):
         start = self.main.index("private void repaintDropdownArrows() {")
         block = self.main[start:start + 800]
         self.assertEqual(
-            block.count("ColorStateList.valueOf(themeAccentInk)"), 3)
+            block.count("ColorStateList.valueOf(themeAccentInk)"), 2)
         self.assertIn("volumeSplitArrow.setImageTintList", block)
-        self.assertIn("sectorsArrow.setImageTintList", block)
+        self.assertNotIn("sectorsArrow", block)
         self.assertIn("themeArrow.setImageTintList", block)
         theme_pass = self.main[self.main.index(
             "private void applyTheme(int index) {"):]
@@ -4517,8 +4548,14 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         for name in ("theme_black_field", "theme_green_field",
                      "theme_navy_field", "theme_orange_field"):
             self.assertIn(f'<color name="{name}">', colors)
-        # The search box rides the same pass.
-        self.assertIn("themedInputs.add(searchInput);", main)
+        # Owner order 2026-11-21: the search box and its results are one
+        # field plate like every dropdown, so the group is painted and the
+        # box itself no longer rides the per-box list.
+        self.assertIn(
+            "searchFieldGroup = findViewById(R.id.search_field_group);", main)
+        self.assertIn("searchFieldGroup.setBackground(fieldPlate(index));",
+                      main)
+        self.assertNotIn("themedInputs.add(searchInput);", main)
         # v2.3.20: the RELAY STATUS button is a themed field too, so its
         # plate follows the worn theme instead of the static purple.
         self.assertIn("View relayButton = findViewById(R.id.btn_open);", main)

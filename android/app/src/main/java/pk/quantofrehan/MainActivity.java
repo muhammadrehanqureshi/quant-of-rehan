@@ -198,13 +198,13 @@ public class MainActivity extends Activity {
             "ASK QTY", "VOL"};
     private static final float[] FLOW_WEIGHTS = {
             1.25f, 0.95f, 0.72f, 1.0f, 0.92f, 0.92f, 1.0f, 1.05f};
-    /** Owner order 2026-11-19: the BIG BUYING & SELLING tile shows five
+    /** Owner order 2026-11-21: the BIG BUYING & SELLING tile shows six
      *  complete orders, with the visible bar scrolling the rest of the day
-     *  into view. The window measures the fifth order's own wrapped lines,
+     *  into view. The window measures the sixth order's own wrapped lines,
      *  so a long sentence can never cut it off. */
-    private static final int BIG_PRINTS_ORDERS = 5;
-    /** The first layout's fallback before the fifth order is measured. */
-    private static final int BIG_PRINTS_ROWS = 5;
+    private static final int BIG_PRINTS_ORDERS = 6;
+    /** The first layout's fallback before the sixth order is measured. */
+    private static final int BIG_PRINTS_ROWS = 6;
     /** Owner order 2026-11-19: every print of 100,000 shares or more is
      *  the tile's own law, buying or selling. */
     private static final long BIG_PRINT_FLOOR_SHARES = 100_000L;
@@ -384,9 +384,6 @@ public class MainActivity extends Activity {
     private LinearLayout sectorsMenu;
     private TextView sectorsReveal;
     private View sectorsFieldGroup;
-    /** Owner order 2026-11-19: the SECTORS tile carries the same pull-down
-     *  and pull-up caret as the THEMES tile. */
-    private ImageView sectorsArrow;
     /** Owner order 2026-11-13: the SECTORS menu is a fixed six-row window
      *  with the same diamond scroller the big prints board carries. */
     private ScrollView sectorsScroll;
@@ -410,6 +407,9 @@ public class MainActivity extends Activity {
     private boolean orderFlowOpen;
     private View settingsPanel;
     private View searchPanel;
+    /** Owner order 2026-11-21: the search box and its results are ONE field
+     *  plate, the same group the app's dropdowns expand from. */
+    private View searchFieldGroup;
     private EditText searchInput;
     private LinearLayout searchResults;
     private TextView searchStatus;
@@ -569,15 +569,15 @@ public class MainActivity extends Activity {
         ruleSearch = findViewById(R.id.rule_search);
         ruleVolume = findViewById(R.id.rule_volume);
         themesHolder = findViewById(R.id.themes_holder);
+        searchFieldGroup = findViewById(R.id.search_field_group);
         searchInput = findViewById(R.id.search_input);
         searchResults = findViewById(R.id.search_results);
         searchStatus = findViewById(R.id.search_status);
 
-        // The search box: the theme paints it with the same field plate
-        // the dropdowns' closed rows wear (v2.2.5 owner order 2026-10-24,
-        // fourth note, "the drop down and the search boxes are still
-        // purple, make them match the app's current theme").
-        themedInputs.add(searchInput);
+        // Owner order 2026-11-21: the box and its results wear ONE plate,
+        // the group's own, exactly as the volume, theme and sectors
+        // dropdowns do. The box face itself is @null, so the theme pass
+        // paints the group (applyThemeToInputs) and never a second plate.
 
         // The menu tile at the very bottom (owner order 2026-10-23): the
         // icon of the page he is on is circled, and a tap opens that page.
@@ -644,14 +644,9 @@ public class MainActivity extends Activity {
         sectorsFieldGroup = findViewById(R.id.sectors_field_group);
         sectorsScroll = findViewById(R.id.sectors_scroll);
         sectorsScroller = findViewById(R.id.sectors_scroller);
-        sectorsArrow = findViewById(R.id.sectors_arrow);
         if (sectorsSpinner != null) {
             sectorsBoxLabel = sectorsSpinner.getText().toString();
             sectorsSpinner.setOnClickListener(v ->
-                    showSectorMenu(!sectorMenuOpen));
-        }
-        if (sectorsArrow != null) {
-            sectorsArrow.setOnClickListener(v ->
                     showSectorMenu(!sectorMenuOpen));
         }
         if (sectorsScroll != null) {
@@ -966,10 +961,6 @@ public class MainActivity extends Activity {
 	            themeArrow.setImageTintList(
 	                    ColorStateList.valueOf(themeAccentInk));
 	        }
-	        if (sectorsArrow != null) {
-	            sectorsArrow.setImageTintList(
-	                    ColorStateList.valueOf(themeAccentInk));
-	        }
 	    }
 
     /** Owner order 2026-11-01: every diamond rule wears the theme's
@@ -1199,6 +1190,15 @@ public class MainActivity extends Activity {
         }
         if (sectorsFieldGroup != null) {
             sectorsFieldGroup.setBackground(fieldPlate(index));
+        }
+        // Owner order 2026-11-21: the search box and its results are one
+        // plate, so the group is painted and the box's hint keeps the ink
+        // every other field's hint wears.
+        if (searchFieldGroup != null) {
+            searchFieldGroup.setBackground(fieldPlate(index));
+        }
+        if (searchInput != null) {
+            searchInput.setHintTextColor(getColor(bodyInkFor(index)));
         }
         repaintDropdownArrows();
     }
@@ -3273,7 +3273,7 @@ public class MainActivity extends Activity {
             // the quantity, scrip, side, price and the print's own time.
             appendPrintSentence(sb, print);
             if (shown <= BIG_PRINTS_ORDERS) {
-                // Points at this print's closing full stop, the fifth
+                // Points at this print's closing full stop, the sixth
                 // order's own last character.
                 bigPrintEnds.add(sb.length());
             }
@@ -3290,15 +3290,15 @@ public class MainActivity extends Activity {
         }
         bigPrintsList.setText(sb);
         fitBigPrintsWindow();
-        // The fifth order's own wrapped lines are only known after the
+        // The sixth order's own wrapped lines are only known after the
         // text lays out, so the measured pass follows this frame.
         bigPrintsList.post(this::fitBigPrintsWindow);
     }
 
     /**
-     * The board's window is tall enough for five complete orders at the
+     * The board's window is tall enough for six complete orders at the
      * body's own size, whatever the screen's density. When an order wraps
-     * to two lines, the fifth order's last line is what decides the
+     * to two lines, the sixth order's last line is what decides the
      * height, so no part of it is ever cut off. The visible bar on the
      * right says the rest of the day is a scroll away.
      */
@@ -3873,7 +3873,6 @@ public class MainActivity extends Activity {
                 sectorsSpinner.setText(sectorsBoxLabel);
             }
         }
-        rotateDropdownArrow(sectorsArrow, open);
         if (open) {
             showVolumeMenu(false);
             showThemeMenu(false);
@@ -3895,7 +3894,7 @@ public class MainActivity extends Activity {
             for (Watcher.Sector sector : sectors) {
                 sectorRows.put(sector.name, sector.symbols);
             }
-            String best = fillSectorMenu();
+            fillSectorMenu();
             if (sectorRows.isEmpty()) {
                 sectorMenuPending = false;
                 if (sectorsReveal != null) {
@@ -3904,26 +3903,16 @@ public class MainActivity extends Activity {
                 }
                 return;
             }
-            // Owner report 2026-11-17: the tile stood empty until it was
-            // tapped, because only a tap ever made a choice. The best sector
-            // (the menu's own first row) is now worn by the closed box and
-            // its scrips print from the moment the list lands, so the tile
-            // answers before it is touched. A later tap still opens the full
-            // menu and a pick still replaces this default.
-            if (sectorChoice.isEmpty() && best != null) {
-                sectorChoice = best;
-                if (sectorsSpinner != null) {
-                    sectorsSpinner.setText(best);
-                }
-            }
-            // Owner order 2026-11-19: the SECTORS tile lists every sector
-            // as soon as the answer lands, so the tile is never blank until
-            // it is tapped. The list is the tile's own scrollable window.
+            // Owner order 2026-11-21: no sector is chosen for him and no
+            // scrips print until he taps one. The sector list stands on the
+            // tile the moment the answer lands; a tap reveals that sector's
+            // scrips, and nothing else is shown.
+            sectorChoice = "";
             sectorMenuPending = false;
-            showSectorMenu(true);
-            if (!sectorChoice.isEmpty() && sectorRows.containsKey(sectorChoice)) {
-                renderSectorReveal();
+            if (sectorsReveal != null) {
+                sectorsReveal.setVisibility(View.GONE);
             }
+            showSectorMenu(true);
         }));
     }
 
@@ -3974,6 +3963,9 @@ public class MainActivity extends Activity {
             // their number in sequence too, 1. to n.
             TextView row = menuRow(sectorMenuLabel(++number, name,
                     performance.get(name)));
+            // Owner order 2026-11-21: the sectors themselves read from the
+            // left of the tile; the scrips a tap reveals keep their centre.
+            row.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
             row.setOnClickListener(v -> chooseSector(name));
             sectorsMenu.addView(row);
         }
@@ -4077,9 +4069,9 @@ public class MainActivity extends Activity {
         if (sectorsSpinner != null) {
             sectorsSpinner.setText(name);
         }
-        // Owner order 2026-11-19: the sector list stays on the tile after
-        // a pick, so he can scroll to another sector without reopening it.
-        showSectorMenu(true);
+        // Owner order 2026-11-21: the list stays exactly where he scrolled
+        // it. A pick only reveals that sector's scrips; it never refills the
+        // menu or jumps it back to the top.
         renderSectorReveal();
     }
 
@@ -4268,6 +4260,20 @@ public class MainActivity extends Activity {
         }
         List<String> symbols = Watcher.symbols();
         String q = query == null ? "" : query.trim().toUpperCase(Locale.US);
+        // Owner order 2026-11-21: the box answers nothing until he types.
+        // An empty box lists no scrip at all; the first letter opens the
+        // dropdown onto its own matches.
+        if (q.isEmpty()) {
+            searchRows.clear();
+            renderedQuery = "";
+            searchResults.setVisibility(View.GONE);
+            if (selectedSymbol != null) {
+                selectSymbol(null);
+            }
+            searchStatus.setText("");
+            searchStatus.setVisibility(View.GONE);
+            return;
+        }
         // The rows carry a state (a tapped symbol stays pinned), so they are
         // only rebuilt when the query or the visible set actually changes; a
         // price tick restyles the SAME views in place. Owner report 2026-10-20:
@@ -4286,9 +4292,9 @@ public class MainActivity extends Activity {
                 filtered.add(symbol);
             }
         }
-        // Owner order 2026-11-19: the SEARCH tile's drop-down opens like
-        // the THEMES one, onto its options. An empty box lists the first
-        // eight scrips instead of hiding the list; typing narrows it.
+        // Owner order 2026-11-21: eight matches at most, and only while he
+        // is typing. The list is the app's own dropdown, not a separate
+        // window of plain rows.
         List<String> visible = filtered.subList(0, Math.min(filtered.size(), 8));
         // v1.8.4 (owner 13:30 report): the rows and the pinned line must be
         // VISIBLE exactly when there is something to show, because the
@@ -4306,7 +4312,12 @@ public class MainActivity extends Activity {
             // so the list answers "which one" before a tap does. A symbol with
             // no fresh quote is listed bare rather than with a guessed number.
             for (String symbol : visible) {
-                TextView row = new TextView(this);
+                // Owner order 2026-11-21: one option of the app's own
+                // dropdown, divided like every other menu row.
+                if (!searchRows.isEmpty()) {
+                    searchResults.addView(menuDivider());
+                }
+                TextView row = menuRow("");
                 styleSearchRow(row, symbol, q);
                 row.setOnClickListener(v -> selectSymbol(symbol));
                 searchResults.addView(row);
@@ -4407,7 +4418,9 @@ public class MainActivity extends Activity {
         // other line on the console, its symbols read as the body reads.
         row.setTextSize(13f);
         row.setTextColor(themeBodyInk);
-        row.setPadding(dp(10), dp(9), dp(10), dp(9));
+        // The row's geometry is menuRow's own 14dp sides and 5dp air, the
+        // dropdown option's measure, so a search row is never padded
+        // differently from the rest of the app's dropdown.
         // Owner order 2026-10-22 (the search highlight): every row whose
         // symbol STARTS with what is typed lights up while it matches.
         // Typing H lights every H..., typing HU narrows the light, and the
