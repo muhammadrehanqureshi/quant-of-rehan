@@ -1582,7 +1582,7 @@ func (a *App) drawBoardPanel(c *Canvas, x, y, w, h int, side int) {
 		// because that board's own side is selling, and the pair is the same
 		// measured day pair every other page prints for the scrip.
 		barBuy, barSell := barPair(tbl, b.Symbol, b.BuyShares, b.SellShares)
-		a.drawShareBar(c, barX, ry, barW, barBuy, barSell, false)
+		a.drawShareBar(c, barX, ry, barW, barBuy, barSell, false, false)
 	}
 	a.scrollbar(c, x+w-2, iy, ih, lv)
 }
