@@ -119,7 +119,7 @@ func TestScreensShowTheAppsText(t *testing.T) {
 	a.screen = scrSettings
 	set := plain(a)
 	for _, want := range []string{"RELAY STATUS", "NOTIFICATIONS", "JARVIS CYAN", "PURPLE & YELLOW", "BLACK & WHITE",
-		"NAVY BLUE & WHITE", "VERSION", appVersionLabel, "REQUESTS TODAY",
+		"VERSION", appVersionLabel, "REQUESTS TODAY",
 		"The requests reset at 05:00 PKT.",
 		"1 second relay poll from 08:55 to 15:49 on Mon-Thu and on Friday till 16:49.",
 		"BIG BUYING FLAG", "BIG SELLING FLAG", "SOUND", "BIG ORDER SIZE", "TEST BUYING ALERT", "TEST SELLING ALERT"} {
