@@ -1,7 +1,11 @@
-# Quant of Rehan for Windows (console edition), build 152
+# Quant of Rehan for Windows (console edition), build 153
 
 A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.21**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
+
+## What is new in build 153
+
+* **Build 153 (version 3.8.28).** ORDER FLOW carries its `#` numbering again, on the panel's very first cell, with each row's number right aligned. The SYMBOL field is only as wide as its heading or the longest ticker in the answer, which takes the two spare cells out of the gap before PRICE, so SYMBOL to PRICE now reads one blank cell; a longer name widens the field instead of being cut. CUSTOM SCRIPS OF VOLUME right aligns its NET DELTA, so 4.8M and 3M end with their M on the same cell at the tile's right edge. The green orb wears one green from its middle to its edge, exactly as the red orb already wears one red. The FEED row reads `NO FEED` when the relay answers but sends no quotes table at all, instead of a dash. The executable's file version is `3.8.28.0`.
 
 ## What is new in build 152
 

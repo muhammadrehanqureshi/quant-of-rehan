@@ -17,45 +17,9 @@ const flowSample150 = `{"ok":true,"day":"2026-11-20","as_of":"2026-11-20T10:15:0
  {"symbol":"BBB","price":27.26,"high":27.4,"low":26.6,"bid":27.27,"ask":27.28,"change_pct":1.2,"volume":1000,"buy_volume":600,"sell_volume":300,"classified_volume":900,"unclassified_volume":100,"split_method":"quote_rule","fresh":true}
 ]}`
 
-// Owner order 2026-11-20 (latest): the ORDER FLOW serial column is gone, so the
-// table starts on SYMBOL on the panel's first cell and no row carries a number.
-func TestBuild150OrderFlowHasNoSerialColumn(t *testing.T) {
-	a := orderFlowApp(t, 200, 50, flowSample150)
-	rows := rowsOf(a)
-	head := -1
-	for i, row := range rows {
-		if strings.Contains(row, "SYMBOL") && strings.Contains(row, "BUYING (B)") {
-			head = i
-			break
-		}
-	}
-	if head < 0 {
-		t.Fatalf("the ORDER FLOW heading is missing:\n%s", strings.Join(rows, "\n"))
-	}
-	if at := col(rows[head], "#"); at >= 0 {
-		t.Errorf("the # heading is still on the page at cell %d: %q", at, rows[head])
-	}
-	// The panel's left border and its one cell of pad come before the table,
-	// and after them the first thing on the page is SYMBOL.
-	if body := strings.TrimLeft(rows[head], " │"); !strings.HasPrefix(body, "SYMBOL") {
-		t.Errorf("the table does not start on SYMBOL: %q", rows[head])
-	}
-	seen := 0
-	for _, row := range rows[head+1:] {
-		body := strings.TrimLeft(row, " │")
-		if !strings.HasPrefix(body, "AAA") && !strings.HasPrefix(body, "BBB") {
-			continue
-		}
-		// The serial was drawn as "1.", "2." on the row's first cell.
-		if len(body) > 1 && body[0] >= '1' && body[0] <= '9' && body[1] == '.' {
-			t.Errorf("a serial number is still drawn on the row: %q", row)
-		}
-		seen++
-	}
-	if seen < 2 {
-		t.Fatalf("the two stock rows are missing:\n%s", strings.Join(rows[head:], "\n"))
-	}
-}
+// Owner order 2026-11-21 withdraws the 2026-11-20 no-serial order: ORDER FLOW
+// carries its "#" numbering again, and TestBuild153OrderFlowStartsWithTheNumbering
+// keeps it there.
 
 // Owner order 2026-11-20 (latest): a price field is eight cells wide, so the
 // widest quote in the answer keeps every digit and simply gives up its

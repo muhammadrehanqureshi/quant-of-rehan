@@ -298,9 +298,10 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 		// Owner order 2026-11-10 (latest): every heading sits on the very first
 		// cell of its own column, which is exactly where that column's data
 		// starts, because every column is left aligned on that cell.
-		// Owner order 2026-11-20 (latest): the serial column is gone, so the
-		// table starts on SYMBOL on the panel's first cell and every column
-		// that carries data keeps its cells.
+		// Owner order 2026-11-21: the numbering is back as a "#" column on the
+		// panel's first cell, and the SYMBOL field is the heading's own six cells
+		// instead of build 152's eight, which takes the two spare cells out of
+		// the gap before PRICE.
 		cols, barX = flowColumns(rows)
 		barFieldW, pctX, showNetPct = flowTail(iw, barX)
 		if !showNetPct {
@@ -310,7 +311,8 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 			cols, barX = flowColumns(rows)
 			barFieldW, pctX, showNetPct = flowTail(iw, barX)
 		}
-		c.Text(ix+flowSymX, row, flowSymW, "SYMBOL", th.Soft, false)
+		c.Text(ix+flowNumX, row, flowNumW, flowNumHeading, th.Soft, false)
+		c.Text(ix+flowSymX, row, flowSymW, flowSymHeading, th.Soft, false)
 		for k, hd := range flowHeads {
 			if flowDropHL && (k == 2 || k == 3) {
 				continue
@@ -414,9 +416,14 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 			warn = " STALE"
 		}
 		if wide {
-			// Owner order 2026-11-20 (latest): no serial column, so the symbol
-			// starts on the panel's first cell.
-			c.Text(ix+flowSymX, row, flowSymW, r.Symbol, symCol, true)
+			// Owner order 2026-11-21: the row's own number stands right aligned
+			// in the "#" column on the panel's first cell, and the symbol follows
+			// one gutter after it.
+			c.Text(ix+flowNumX, row, flowNumW, padLeft(strconv.Itoa(i+1), flowNumW), th.Soft, false)
+			// A name longer than the heading borrows the two cells the field gave
+			// up, so an eight letter ticker is never cut. The price field is right
+			// aligned, so a short quote leaves those cells blank.
+			c.Text(ix+flowSymX, row, flowSymDrawW, r.Symbol, symCol, true)
 			// Owner order 2026-11-10 (latest): every value starts on its column's
 			// first cell, under its own heading.
 			// Owner order 2026-11-11: every value starts on its column's first
@@ -524,11 +531,19 @@ const flowGutter = 1
 // widest thing the column holds.
 const flowNetPctW = 11
 
-// The symbol column, and the headings of the ten that follow it. Owner order
-// 2026-11-20 (latest): the serial column is gone, so the symbol takes the
-// panel's first cell.
+// The number column and the symbol column that follows it. Owner order
+// 2026-11-21: "#" stands on the panel's very first cell with the row's own
+// number, and SYMBOL follows one gutter later. Its field is the heading's six
+// cells, two fewer than build 152's eight, so the gap before PRICE is one cell
+// instead of three; a longer name is drawn into those two cells and the gutter
+// so it is never cut.
 const (
-	flowSymX, flowSymW = 0, 8
+	flowNumX, flowNumW = 0, 3
+	flowNumHeading     = "#"
+	flowSymX           = flowNumX + flowNumW + flowGutter
+	flowSymW           = 6 // the cells between SYMBOL and PRICE
+	flowSymDrawW       = 8 // the cells a long ticker may use without being cut
+	flowSymHeading     = "SYMBOL"
 )
 
 // flowPriceW is the widest figure an ORDER FLOW price field carries before its

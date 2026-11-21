@@ -5,14 +5,14 @@ import (
 	"time"
 )
 
-// Owner order 2026-11-10 (latest): the mark is the owner's own orb source, so
-// its colours are the source's two palettes, untouched: three stops each, the
-// dim line work, the main ink and the highlight.
+// Owner order 2026-11-10 (latest): the mark is the owner's own orb source.
+// Owner order 2026-11-21: the green orb wears one green from its middle to its
+// edge, exactly as the red orb already does, so it no longer shows three tones.
 func TestOrbPalettesAreTheSources(t *testing.T) {
 	green := ringPalette(true)
-	if green.dim != (RGB{6, 92, 56}) || green.mid != (RGB{22, 238, 134}) ||
-		green.hot != (RGB{206, 255, 232}) || green.gain != 1 {
-		t.Errorf("the green palette drifted from the source: %+v", green)
+	if green.dim != (RGB{22, 238, 134}) || green.mid != (RGB{22, 238, 134}) ||
+		green.hot != (RGB{22, 238, 134}) || green.gain != 1 {
+		t.Errorf("the green palette is not one shade: %+v", green)
 	}
 	// Owner order 2026-11-17: the red orb is one shade, the red most of its
 	// dots already used, so the outer side no longer differs.

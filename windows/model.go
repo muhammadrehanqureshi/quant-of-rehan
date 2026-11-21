@@ -162,6 +162,11 @@ const appVersion = "4.0.21"
 // Build 152 is 3.8.27, the day's three calls each scored above 80 out of 100,
 // and the executable's file version stamped from the HUD build instead of the
 // fixed 3.8.20.0 every earlier build carried.
+// Build 153 is 3.8.28, ORDER FLOW's "#" numbering back on the panel's first
+// cell with the SYMBOL to PRICE gap two cells tighter, the CUSTOM SCRIPS NET
+// DELTA right aligned so every M ends on one cell, the green orb in one shade
+// like the red one, and the FEED row reading NO FEED when the relay answers
+// without any quotes table.
 // Build 147 is 3.8.22, the KSE100 quote group on the line that
 // carries T at the owner's own window with its bar above the price, the volumes
 // giving up their thousands commas there rather than any digit, and ORDER FLOW
@@ -174,7 +179,7 @@ const appVersion = "4.0.21"
 // broker refresh line on the BUILD VERSION & RELAY tile, the boards putting the
 // percentage beside the price, and an ALERTS LOG that keeps the price and the
 // percentage it was written with.
-const hudBuild = "3.8.27"
+const hudBuild = "3.8.28"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no
