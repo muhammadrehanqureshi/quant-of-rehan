@@ -3,20 +3,29 @@ package main
 import (
 	"encoding/xml"
 	"strings"
+	"time"
 )
 
 // Titles for market events, taken from the app's string resources.
 const (
-	textMarketOpen   = "Market is open. Quant is online now."
-	textMarketBreak  = "Market is on a break. Quant is offline until the market reopens."
-	textMarketClosed = "Market is closed. Quant is sleeping now."
+	textMarketOpen = "Market is open. Quant is online now."
+	// Owner order 2026-11-21: the Friday midday break, and only that break,
+	// names the 14:15 restart in the banner and the Windows notification.
+	textMarketBreakFriday = "Market is on a break. Quant is sleeping till 14:15."
+	textMarketBreak       = "Market is on a break. Quant is offline until the market reopens."
+	textMarketClosed      = "Market is closed. Quant is sleeping now."
 )
 
-func marketEventTitle(ev string) string {
+func marketEventTitle(ev string, p time.Time) string {
 	switch ev {
 	case "online":
 		return textMarketOpen
 	case "break":
+		// The PSX midday break is Friday's, so the owner's sentence stands on a
+		// Friday and the general one covers any break the relay reports elsewhere.
+		if isFriday(p.In(pkt)) {
+			return textMarketBreakFriday
+		}
 		return textMarketBreak
 	}
 	return textMarketClosed

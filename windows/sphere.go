@@ -99,7 +99,9 @@ func drawSphere(c *Canvas, x0, y0, w, h int, t float64, green bool, th *Theme) {
 	}
 	near, mid, far := th.Good, mix(th.Good, th.Soft, 0.45), mix(th.Good, th.Soft, 0.78)
 	if !green {
-		near, mid, far = th.Bad, mix(th.Bad, th.Soft, 0.45), mix(th.Bad, th.Soft, 0.78)
+		// Owner order 2026-11-21: the red globe is one red, the shade its
+		// middle already used, so the outer dots no longer wear a paler red.
+		near, mid, far = th.Bad, th.Bad, th.Bad
 	}
 	sin, cos := math.Sincos(t * 2 * math.Pi / sphereTurnSeconds)
 	dots := spherePoints()
