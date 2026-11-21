@@ -585,6 +585,11 @@ func (a *App) drawLeft(c *Canvas, x, y, w, h int) {
 		if state == "NO FEED" {
 			feed = []Span{{state, th.Warn, true}}
 		}
+	} else if !a.checking {
+		// Owner order 2026-11-21: a relay that answers but sends no quotes
+		// table at all is NO FEED, not a dash. There is no frame to age, so the
+		// row must not read as if the feed were fine.
+		feed = []Span{{"NO FEED", th.Warn, true}}
 	}
 	label(1, "FEED", feed)
 	// PHASE. Owner order 2026-11-11: OPEN while the exchange trades, and PRE

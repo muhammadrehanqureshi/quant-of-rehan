@@ -460,7 +460,7 @@ func (a *App) drawScanQuote(c *Canvas, row, end, left int, atT bool, q Quote, px
 		barStart := left + groupW + quoteGap
 		if q.Buy != nil && q.Sell != nil && barStart+shareBarWidth <= end+1 {
 			if total := *q.Buy + *q.Sell; total > 0 {
-				a.shareBar(c, barStart, row, shareBarWidth, *q.Buy, *q.Sell)
+				a.shareBarNetRight(c, barStart, row, shareBarWidth, *q.Buy, *q.Sell)
 			}
 		}
 		return
@@ -477,7 +477,7 @@ func (a *App) drawScanQuote(c *Canvas, row, end, left int, atT bool, q Quote, px
 	a.drawQuote(c, pkrX, row, pxW, px, q.ChangePct, pxKey)
 	if barStart > 0 && q.Buy != nil && q.Sell != nil {
 		if total := *q.Buy + *q.Sell; total > 0 {
-			a.shareBar(c, barStart, row, shareBarWidth, *q.Buy, *q.Sell)
+			a.shareBarNetRight(c, barStart, row, shareBarWidth, *q.Buy, *q.Sell)
 		}
 	}
 }
@@ -1260,14 +1260,22 @@ const shareBarWidth = shareBarSpan + shareBarGap + shareNetW
 // exact share, then one gutter, then the NET DELTA, so the two sides' strength
 // and the difference between them read in one glance.
 func (a *App) shareBar(c *Canvas, x, y, w int, buy, sell int64) {
-	a.drawShareBar(c, x, y, w, buy, sell, true)
+	a.drawShareBar(c, x, y, w, buy, sell, true, false)
+}
+
+// shareBarNetRight is the bar with its NET DELTA right aligned in its own
+// field, for CUSTOM SCRIPS OF VOLUME. Owner order 2026-11-21: every unit of
+// that tile's NET DELTA ends on one cell, so 4.8M and 3M stand with their M on
+// the same column instead of each figure starting on the same one.
+func (a *App) shareBarNetRight(c *Canvas, x, y, w int, buy, sell int64) {
+	a.drawShareBar(c, x, y, w, buy, sell, true, true)
 }
 
 // shareBarOnly draws the same bar with no NET DELTA after it, for the leaders
 // card and the scanner, where the row already carries its own volumes. It
 // returns the cells used.
 func (a *App) shareBarOnly(c *Canvas, x, y, w int, buy, sell int64) int {
-	return a.drawShareBar(c, x, y, w, buy, sell, false)
+	return a.drawShareBar(c, x, y, w, buy, sell, false, false)
 }
 
 // drawShareBar is the one buy versus sell bar the whole build draws. Owner
@@ -1280,7 +1288,7 @@ func (a *App) shareBarOnly(c *Canvas, x, y, w int, buy, sell int64) int {
 // 2026-11-13: the minus is gone from the whole build. Owner order 2026-11-11 (third
 // pass): one shade of green and one shade of red, no paler step, and no cell
 // drawn between the boxes.
-func (a *App) drawShareBar(c *Canvas, x, y, w int, buy, sell int64, label bool) int {
+func (a *App) drawShareBar(c *Canvas, x, y, w int, buy, sell int64, label, netRight bool) int {
 	th := a.th
 	total := buy + sell
 	if total <= 0 {
@@ -1329,7 +1337,13 @@ func (a *App) drawShareBar(c *Canvas, x, y, w int, buy, sell int64, label bool) 
 		// first cell, like every other value on ORDER FLOW, one full gutter after
 		// the bar, so the gap between the bar and its figure is the same two
 		// cells as the gap between every other pair of columns.
-		c.Text(x+width+shareBarGap, y, shareNetW, signedCompact(net), ink, bold)
+		// Owner order 2026-11-21: CUSTOM SCRIPS asks for the same field with the
+		// figure right aligned, so every compact unit ends on one cell.
+		field := signedCompact(net)
+		if netRight {
+			field = padLeft(field, shareNetW)
+		}
+		c.Text(x+width+shareBarGap, y, shareNetW, field, ink, bold)
 	}
 	return width
 }
@@ -1568,7 +1582,7 @@ func (a *App) drawBoardPanel(c *Canvas, x, y, w, h int, side int) {
 		// because that board's own side is selling, and the pair is the same
 		// measured day pair every other page prints for the scrip.
 		barBuy, barSell := barPair(tbl, b.Symbol, b.BuyShares, b.SellShares)
-		a.drawShareBar(c, barX, ry, barW, barBuy, barSell, false)
+		a.drawShareBar(c, barX, ry, barW, barBuy, barSell, false, false)
 	}
 	a.scrollbar(c, x+w-2, iy, ih, lv)
 }

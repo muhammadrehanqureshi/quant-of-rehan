@@ -396,12 +396,15 @@ func ringStateFor(t float64, green bool) radarState {
 	return radarState{t: t, moving: true}
 }
 
-// ringPalette is the source's green set untouched. Owner order 2026-11-17:
-// every red dot, the outer side included, is the same red the majority of the
-// red orb already used, so the dim, mid and hot stops are that one colour.
+// ringPalette is the orb's one ink per state. Owner order 2026-11-17: every
+// red dot, the outer side included, is the same red the majority of the red
+// orb already used, so the dim, mid and hot stops are that one colour.
+// Owner order 2026-11-21: the green orb wears one green the same way, its own
+// middle green, so its edge dots are no paler or brighter than its centre.
 func ringPalette(green bool) radarPal {
 	if green {
-		return radarPal{dim: RGB{6, 92, 56}, mid: RGB{22, 238, 134}, hot: RGB{206, 255, 232}, gain: 1}
+		one := RGB{22, 238, 134}
+		return radarPal{dim: one, mid: one, hot: one, gain: 1}
 	}
 	red := RGB{255, 52, 66}
 	return radarPal{dim: red, mid: red, hot: red, gain: 1}
