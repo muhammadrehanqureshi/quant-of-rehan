@@ -172,3 +172,47 @@ func TestRedOrbUsesOneShade(t *testing.T) {
 		t.Fatal("the red orb painted no dots")
 	}
 }
+
+// Owner order 2026-11-21: the red globe is one red at its edges as in its
+// middle, with no paler red on the outer dots.
+func TestRedGlobeUsesOneShade(t *testing.T) {
+	a := demoApp(t, 122, 36)
+	c := NewCanvas(38, 14, a.th.Panel)
+	drawSphere(c, 0, 0, 38, 14, 3.0, false, a.th)
+	want := a.th.Bad
+	lit := 0
+	for _, ce := range c.Cells {
+		if ce.Ch < 0x2800 || ce.Ch > 0x28ff {
+			continue
+		}
+		lit++
+		if ce.FG != want {
+			t.Fatalf("a red globe dot is %v, want the one shade %v", ce.FG, want)
+		}
+	}
+	if lit == 0 {
+		t.Fatal("the red globe painted no dots")
+	}
+}
+
+// Owner order 2026-11-21: the Friday midday break's banner and Windows toast
+// name the 14:15 restart, and that sentence stands on no other day.
+func TestFridayBreakNamesTheRestart(t *testing.T) {
+	fri := time.Date(2026, 11, 6, 13, 0, 0, 0, pkt) // a Friday
+	mon := time.Date(2026, 11, 2, 13, 0, 0, 0, pkt) // a Monday
+	if got := marketEventTitle("break", fri); got != textMarketBreakFriday {
+		t.Fatalf("the Friday break reads %q, want %q", got, textMarketBreakFriday)
+	}
+	if got := marketEventTitle("break", mon); got == textMarketBreakFriday {
+		t.Fatalf("a Monday break names the Friday restart: %q", got)
+	}
+	a := newTestApp(t)
+	a.now = fri
+	a.market = marketIn("OPEN")
+	a.beat() // the first phase only sets the baseline
+	a.market = marketIn("BREAK")
+	a.beat()
+	if a.bannerTitle != textMarketBreakFriday {
+		t.Fatalf("the Friday break banner reads %q", a.bannerTitle)
+	}
+}

@@ -1013,7 +1013,7 @@ func (a *App) beat() {
 			if a.head != nil {
 				detail = strings.TrimSpace(a.head.Detail)
 			}
-			a.alert(marketEventTitle(ev), detail)
+			a.alert(marketEventTitle(ev, a.karachiNow()), detail)
 			a.cfg.LastMarketEvent, a.dirty = ev, true
 		}
 	}
