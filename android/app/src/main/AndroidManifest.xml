@@ -595,15 +595,17 @@
      2026-11-19: GREEN & YELLOW, NAVY BLUE & WHITE and ORANGE & WHITE leave
      the THEMES menu; RELAY STATUS takes the 43dp THEMES box height; CUSTOM
      SCRIPS OF VOL. numbers its six sub menus; the SEARCH row reads H & L;
-     SECTORS always lists its scrollable sectors and wears the THEMES caret;
-     BIG BUYING & SELLING stores and shows 100,000 shares and above with
-     five complete orders in its window; and the relay clears the previous
-     session at 08:55 on each market day.
+     SECTORS always lists its scrollable, left aligned sectors with no caret,
+     and a tap on a sector is the only thing that reveals its scrips; the
+     SEARCH box lists nothing until a key is typed and wears the app's own
+     dropdown; BIG BUYING & SELLING stores and shows 100,000 shares and
+     above with six complete orders in its window; and the relay clears the
+     previous session at 08:55 on each market day.
      -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="pk.quantofrehan"
-    android:versionCode="137"
-    android:versionName="4.4.4">
+    android:versionCode="138"
+    android:versionName="4.4.5">
 
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="30"/>
 

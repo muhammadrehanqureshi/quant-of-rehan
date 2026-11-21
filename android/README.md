@@ -1641,6 +1641,18 @@ to sixty seconds. The status tile therefore also carries the app's own
      the orphan law stands so every dot still wears a filament.
   5. The version bump is versionCode 82 / versionName 2.3.15.
 
+**Version 4.4.5, versionCode 138.**
+
+  Owner order 2026-11-21. The SEARCH page opens on an empty box that lists no
+  scrip at all; options appear only once a key is typed. The result list is the
+  app's own dropdown, one field plate around the box and its divided option
+  rows, instead of a separate block of plain rows. BIG BUYING & SELLING is one
+  order taller, so the sixth transaction's wrapped line is never cut off and
+  the rest of the day is a scroll away. SECTORS loses its caret, its rows read
+  from the left, and the list stands on the tile without a tap; no scrips print
+  until a sector is tapped. The version bump is versionCode 138 /
+  versionName 4.4.5.
+
 **Version 4.4.4, versionCode 137.**
 
   Owner order 2026-11-19, second pass. The SEARCH tile's result drop-down now

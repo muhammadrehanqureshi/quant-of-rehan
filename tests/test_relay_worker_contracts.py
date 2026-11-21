@@ -423,6 +423,16 @@ class RelayWorkerContractTest(unittest.TestCase):
         # a second loop before the first band has published a frame.
         self.assertIn("const FEED_WATCHDOG_OPEN_GUARD_MINUTES = 3;", self.source)
         self.assertIn("const FEED_WATCHDOG_DISPATCH_GRACE_MS", self.source)
+        # Owner order 2026-11-21: the guard follows the LIVE band's open, not
+        # only the runnable window's. Friday's window opens at 14:10 for the
+        # 14:32 band, so the window guard could not see the band's first
+        # minutes and the watchdog started a second, overlapping loop at
+        # 14:33 PKT on 2026-11-20. The overlap held the session queue past
+        # the 16:32 post-close window, so the day's last prices were never
+        # banked.
+        self.assertIn("const live = bandsFor(k).find((b) => {", self.source)
+        self.assertIn("const bandOpen = live[0][0] * 60 + live[0][1];",
+                      self.source)
         self.assertIn('reason: "band just opened"', self.source)
         self.assertIn('reason: "dispatch is fresh"', self.source)
         # A queued run is in flight too: GitHub cancels the older pending run
@@ -814,6 +824,14 @@ class RelayWorkerContractTest(unittest.TestCase):
         # 2026-11-13: that 08:55 start is every trading day's, Monday to
         # Thursday included, and the table carries the owner's 15:32 to 15:49
         # scanning window as its third entry.
+        # Owner order 2026-11-21: the post-close window opens after the last
+        # band, so a wake anywhere inside it, not only in its first three
+        # minutes, may still start the loop and bank the last prints. Measured
+        # 2026-11-20: the day's :33, :40 and :45 wakes left no dispatch and no
+        # post-market scan ran.
+        self.assertIn("const postClose = lastBandClose > 0 && open >= lastBandClose;",
+                      self.source)
+        self.assertIn("const grace = postClose", self.source)
         self.assertIn("const WEEKDAY_WINDOWS = [[[8, 55], [12, 30]], [[12, 30], [15, 30]],",
                       self.source)
         self.assertIn("const FRIDAY_WINDOWS = [[[8, 55], [12, 30]],",
