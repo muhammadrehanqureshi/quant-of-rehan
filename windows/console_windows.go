@@ -27,21 +27,21 @@ var (
 // The two structures CreateProcessW fills. Their field order and types are the
 // Windows ones, so the size this program passes is the size Windows expects.
 type startupInfo struct {
-	cb            uint32
-	reserved      *uint16
-	desktop       *uint16
-	title         *uint16
-	x, y          uint32
-	xSize, ySize  uint32
+	cb             uint32
+	reserved       *uint16
+	desktop        *uint16
+	title          *uint16
+	x, y           uint32
+	xSize, ySize   uint32
 	xChars, yChars uint32
-	fillAttribute uint32
-	flags         uint32
-	showWindow    uint16
-	cbReserved2   uint16
-	reserved2     *byte
-	stdInput      syscall.Handle
-	stdOutput     syscall.Handle
-	stdErr        syscall.Handle
+	fillAttribute  uint32
+	flags          uint32
+	showWindow     uint16
+	cbReserved2    uint16
+	reserved2      *byte
+	stdInput       syscall.Handle
+	stdOutput      syscall.Handle
+	stdErr         syscall.Handle
 }
 
 type processInfo struct {
@@ -90,7 +90,6 @@ func startInNewConsole(exe string, args []string) bool {
 	si.cb = uint32(unsafe.Sizeof(si))
 	var pi processInfo
 	ok, _, _ := pCreateProcessW.Call(
-		0,
 		uintptr(unsafe.Pointer(app)),
 		uintptr(unsafe.Pointer(&cmdline[0])),
 		0, 0, // no inherited handles
