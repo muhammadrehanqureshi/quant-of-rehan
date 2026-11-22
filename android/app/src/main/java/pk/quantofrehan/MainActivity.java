@@ -188,16 +188,20 @@ public class MainActivity extends Activity {
      * thread, so the frames cost this thread nothing.
      */
     private static final long BREATH_MS = 2200L;
-    /** How many stocks the ORDER FLOW page lists before it stops. */
-    /** How many big prints the tile lists, latest first. */
-    /** How many scrips the search shows at once. */
+    /** How many filled orders the tapped scrip's own board lists. */
     private static final int FLOW_RESULTS_SHOWN = 8;
-    /** The ORDER FLOW table: eight real fields from the broker snapshot. */
+    /** Owner order 2026-11-22 ("it's showing so much info without me even
+     *  tapping on a particular stock"): the ORDER FLOW list is the scrip and
+     *  its quote alone. The book's BID and ASK columns, their sizes and the
+     *  B/S/U/T split are the tapped scrip's own answer, never the list's. */
     private static final String[] FLOW_COLUMNS = {
-            "SYMBOL", "LAST", "CHG%", "BID QTY", "BID", "ASK",
-            "ASK QTY", "VOL"};
-    private static final float[] FLOW_WEIGHTS = {
-            1.25f, 0.95f, 0.72f, 1.0f, 0.92f, 0.92f, 1.0f, 1.05f};
+            "SYMBOL", "LAST", "CHG%", "VOL"};
+    private static final float[] FLOW_WEIGHTS = {1.12f, 0.88f, 0.92f, 1.0f};
+    /** Owner order 2026-11-22: the ORDER FLOW list shows six scrips in its
+     *  window, the rest a scroll away, the SECTORS tile's own law. */
+    private static final int FLOW_ROWS = 6;
+    /** The SEARCH list's window: six scrips, the rest a scroll away. */
+    private static final int SEARCH_ROWS = 6;
     /** Owner order 2026-11-21: the BIG BUYING & SELLING tile shows six
      *  complete orders, with the visible bar scrolling the rest of the day
      *  into view. The window measures the sixth order's own wrapped lines,
@@ -352,6 +356,9 @@ public class MainActivity extends Activity {
     private View orderFlowRule;
     private View ruleBetweenFlow;
     private EditText orderFlowInput;
+    private View orderFlowFieldGroup;
+    private ScrollView orderFlowScroll;
+    private OrnamentScroller orderFlowScroller;
     private LinearLayout orderFlowResults;
     private TextView orderFlowSelected;
     /** Owner order 2026-11-07: the two-column BID | ASK book and the
@@ -359,6 +366,20 @@ public class MainActivity extends Activity {
     private LinearLayout orderFlowBook;
     private TextView orderFlowPrints;
     private String orderFlowBookSymbol;
+    /** Owner order 2026-11-22: the ORDER FLOW list's own open state. A pick
+     *  closes it, a tap on the box or a keystroke opens it again. */
+    private boolean flowListOpen = true;
+    /** True while the tick restamps a tapped scrip, so the reopen of the
+     *  list by his own tap is never undone by the refresh. */
+    private boolean flowKeepList;
+    private String flowRenderedQuery = "";
+    private int flowRenderedCount = -1;
+    /** The SECTORS window's range as its rows state it, so the diamond
+     *  stands on the first drawn frame instead of after a layout. */
+    private int sectorRange;
+    private String flowBookNumbers;
+    private final java.util.Map<String, TextView[]> flowRowCells =
+            new java.util.LinkedHashMap<>();
     private View bigPrintsPanel;
     private TextView bigPrintsList;
     private ScrollView bigPrintsScroll;
@@ -410,6 +431,8 @@ public class MainActivity extends Activity {
     /** Owner order 2026-11-21: the search box and its results are ONE field
      *  plate, the same group the app's dropdowns expand from. */
     private View searchFieldGroup;
+    private ScrollView searchScroll;
+    private OrnamentScroller searchScroller;
     private EditText searchInput;
     private LinearLayout searchResults;
     private TextView searchStatus;
@@ -572,7 +595,18 @@ public class MainActivity extends Activity {
         searchFieldGroup = findViewById(R.id.search_field_group);
         searchInput = findViewById(R.id.search_input);
         searchResults = findViewById(R.id.search_results);
+        searchScroll = findViewById(R.id.search_scroll);
+        searchScroller = findViewById(R.id.search_scroller);
         searchStatus = findViewById(R.id.search_status);
+        if (searchScroll != null) {
+            searchScroll.setOnTouchListener((v, event) -> {
+                v.getParent().requestDisallowInterceptTouchEvent(true);
+                return false;
+            });
+            searchScroll.setOnScrollChangeListener(
+                    (v, sx, sy, ox, oy) -> updateMenuScroller(searchScroll,
+                            searchScroller));
+        }
 
         // Owner order 2026-11-21: the box and its results wear ONE plate,
         // the group's own, exactly as the volume, theme and sectors
@@ -593,11 +627,25 @@ public class MainActivity extends Activity {
         orderFlowRule = findViewById(R.id.rule_order_flow);
         ruleBetweenFlow = findViewById(R.id.rule_between_flow);
         orderFlowInput = findViewById(R.id.order_flow_input);
+        orderFlowFieldGroup = findViewById(R.id.order_flow_field_group);
+        orderFlowScroll = findViewById(R.id.order_flow_scroll);
+        orderFlowScroller = findViewById(R.id.order_flow_scroller);
         orderFlowResults = findViewById(R.id.order_flow_results);
         orderFlowSelected = findViewById(R.id.order_flow_selected);
         orderFlowBook = findViewById(R.id.order_flow_book);
         orderFlowPrints = findViewById(R.id.order_flow_prints);
-        themedInputs.add(orderFlowInput);
+        // Owner order 2026-11-22: the box and its list are one plate, the
+        // search box's own law, so the group carries the face and the box
+        // itself wears nothing.
+        if (orderFlowScroll != null) {
+            orderFlowScroll.setOnTouchListener((v, event) -> {
+                v.getParent().requestDisallowInterceptTouchEvent(true);
+                return false;
+            });
+            orderFlowScroll.setOnScrollChangeListener(
+                    (v, sx, sy, ox, oy) -> updateMenuScroller(orderFlowScroll,
+                            orderFlowScroller));
+        }
         bigPrintsPanel = findViewById(R.id.big_prints_panel);
         bigPrintsList = findViewById(R.id.big_prints_list);
         bigPrintsScroll = findViewById(R.id.big_prints_scroll);
@@ -660,6 +708,9 @@ public class MainActivity extends Activity {
         // Owner order 2026-11-04: he types a scrip and reads its flow, so
         // the list filters on every keystroke, the search page's own law.
         if (orderFlowInput != null) {
+            // Owner order 2026-11-22: a tap on the box opens the scrip list
+            // the way the volume box opens its menu, minus the caret.
+            orderFlowInput.setOnClickListener(v -> showFlowList(true));
             orderFlowInput.addTextChangedListener(new android.text.TextWatcher() {
                 @Override
                 public void beforeTextChanged(CharSequence s, int a, int b, int c) {
@@ -671,6 +722,7 @@ public class MainActivity extends Activity {
 
                 @Override
                 public void afterTextChanged(android.text.Editable s) {
+                    flowListOpen = true;
                     renderFlowResults(s.toString().trim().toUpperCase(Locale.US));
                 }
             });
@@ -1200,6 +1252,15 @@ public class MainActivity extends Activity {
         if (searchInput != null) {
             searchInput.setHintTextColor(getColor(bodyInkFor(index)));
         }
+        // Owner order 2026-11-22: the ORDER FLOW box and its list wear the
+        // one plate the search box wears, so the face is @null and this
+        // group is what the theme pass paints.
+        if (orderFlowFieldGroup != null) {
+            orderFlowFieldGroup.setBackground(fieldPlate(index));
+        }
+        if (orderFlowInput != null) {
+            orderFlowInput.setHintTextColor(getColor(bodyInkFor(index)));
+        }
         repaintDropdownArrows();
     }
 
@@ -1447,6 +1508,12 @@ public class MainActivity extends Activity {
 	        }
 	        if (sectorsScroller != null) {
 	            sectorsScroller.setInk(themeAccentInk);
+        }
+        if (searchScroller != null) {
+            searchScroller.setInk(themeAccentInk);
+        }
+        if (orderFlowScroller != null) {
+            orderFlowScroller.setInk(themeAccentInk);
 	        }
 	        repaintDropdownArrows();
 	        pinNavTile();
@@ -2112,6 +2179,109 @@ public class MainActivity extends Activity {
         for (View line : menuDividers) {
             line.setBackgroundColor(ink);
         }
+    }
+
+    /**
+     * Owner order 2026-11-22 ("everything is so far apart"): a list row's
+     * dividing line keeps the menu's own 14dp column but takes 2dp of air
+     * instead of an open menu's 5dp, so six rows read as one list.
+     */
+    private View tightDivider() {
+        View line = new View(this);
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(1));
+        params.setMargins(dp(14), dp(2), dp(14), dp(2));
+        line.setLayoutParams(params);
+        line.setBackgroundColor(edgeInk());
+        menuDividers.add(line);
+        return line;
+    }
+
+    /**
+     * Owner order 2026-11-22: every scrip list is a fixed window of whole
+     * rows with the diamond's track beside it, exactly the SECTORS tile's
+     * law. The window is as tall as `wanted` rows and the diamond's range
+     * is what the window cannot show, so the bar is drawn the moment the
+     * list opens instead of appearing out of nowhere on a scroll.
+     */
+    private void fitMenuWindow(ScrollView scroll, LinearLayout list,
+                               OrnamentScroller bar, int wanted) {
+        if (scroll == null || list == null) {
+            return;
+        }
+        if (list.getVisibility() != View.VISIBLE) {
+            scroll.setVisibility(View.GONE);
+            if (bar != null) {
+                bar.setVisibility(View.GONE);
+            }
+            return;
+        }
+        int window = 0;
+        int total = 0;
+        int seen = 0;
+        for (int i = 0; i < list.getChildCount(); i++) {
+            View child = list.getChildAt(i);
+            if (child.getVisibility() != View.VISIBLE) {
+                continue;
+            }
+            int measured = child.getMeasuredHeight();
+            if (measured <= 0) {
+                measured = child instanceof TextView ? dp(30) : dp(8);
+            }
+            int air = 0;
+            ViewGroup.LayoutParams lp = child.getLayoutParams();
+            if (lp instanceof LinearLayout.LayoutParams) {
+                air = ((LinearLayout.LayoutParams) lp).topMargin
+                        + ((LinearLayout.LayoutParams) lp).bottomMargin;
+            }
+            total += measured + air;
+            if (seen < wanted) {
+                window += measured + air;
+                if (child instanceof TextView) {
+                    seen++;
+                }
+            }
+        }
+        int padding = list.getPaddingTop() + list.getPaddingBottom();
+        window += padding;
+        total += padding;
+        if (window <= 0) {
+            window = dp(30) * Math.max(1, wanted);
+        }
+        ViewGroup.LayoutParams lp = scroll.getLayoutParams();
+        if (lp != null && lp.height != window) {
+            lp.height = window;
+            scroll.setLayoutParams(lp);
+        }
+        scroll.setVisibility(View.VISIBLE);
+        if (bar != null) {
+            bar.setScroll(0, Math.max(0, total - window));
+            bar.setVisibility(total > window ? View.VISIBLE : View.GONE);
+        }
+        scroll.post(() -> updateMenuScroller(scroll, bar));
+    }
+
+    /** Places a list's diamond at its own scroll fraction. */
+    private void updateMenuScroller(ScrollView scroll, OrnamentScroller bar) {
+        if (scroll == null || bar == null) {
+            return;
+        }
+        View child = scroll.getChildAt(0);
+        int range = child == null ? 0
+                : Math.max(0, child.getHeight() - scroll.getHeight());
+        bar.setScroll(scroll.getScrollY(), range);
+        bar.setVisibility(range > 0 ? View.VISIBLE : View.GONE);
+    }
+
+    /** The ORDER FLOW list's own six-row window. */
+    private void fitFlowWindow() {
+        fitMenuWindow(orderFlowScroll, orderFlowResults, orderFlowScroller,
+                FLOW_ROWS);
+    }
+
+    /** The SEARCH list's own six-row window. */
+    private void fitSearchWindow() {
+        fitMenuWindow(searchScroll, searchResults, searchScroller, SEARCH_ROWS);
     }
 
     // Owner order 2026-11-16: the first and last options no longer carry
@@ -3185,11 +3355,11 @@ public class MainActivity extends Activity {
         }
         paintNavSelection();
         if (open) {
+            // Owner order 2026-11-22: the page opens on its scrip list, the
+            // dropdown's own law, and a scrip's book waits for his tap.
+            flowListOpen = true;
             if (orderFlowInput != null) {
                 orderFlowInput.setText("");
-            }
-            if (orderFlowResults != null) {
-                orderFlowResults.setVisibility(View.GONE);
             }
             if (orderFlowSelected != null) {
                 // Owner order 2026-11-05, tenth pass: the question line is
@@ -3197,6 +3367,9 @@ public class MainActivity extends Activity {
                 orderFlowSelected.setVisibility(View.GONE);
             }
             hideFlowBook();
+            if (orderFlowInput != null) {
+                renderFlowResults("");
+            }
             if (bigPrintsScroll != null) {
                 // Owner order 2026-11-05: a freshly opened page reads the
                 // board from the top; the owner's scroll stays wherever he
@@ -3395,60 +3568,84 @@ public class MainActivity extends Activity {
         return raw.length() == 8 ? raw : "";
     }
 
-    /** The scrips whose ticker starts with what he typed, as tappable rows. */
+    /**
+     * Owner order 2026-11-05 (sixth pass): the tile is a SEARCH, never a
+     * ranking of its own. Owner order 2026-11-22: the box opens the app's
+     * own list the way CUSTOM SCRIPS OF VOLUME's menu does, minus the
+     * caret, so an empty box lists every scrip the flow answer carries and
+     * a typed ticker narrows it. The list is a six-row window with the
+     * diamond beside it, and a scrip's own book waits for his tap.
+     */
     private void renderFlowResults(String query) {
         if (orderFlowResults == null) {
             return;
         }
-        orderFlowResults.removeAllViews();
-        hideFlowBook();
-        // Owner order 2026-11-05 (sixth pass, "right now order flow tile is
-        // wrong, you got random scrips there, I should be able to search for
-        // a scrip there"): the tile is a SEARCH and nothing else. An empty
-        // box asks for the scrip, and a typed ticker answers with only the
-        // scrips whose own ticker starts with it. No ranking of its own is
-        // ever printed.
-        if (query.isEmpty()) {
+        if (flowRows.isEmpty()) {
+            // No answer yet: the tile shows its box and nothing else.
+            orderFlowResults.removeAllViews();
+            flowRowCells.clear();
+            flowRenderedQuery = "";
+            flowRenderedCount = -1;
             orderFlowResults.setVisibility(View.GONE);
             if (orderFlowSelected != null) {
                 orderFlowSelected.setVisibility(View.GONE);
             }
+            fitFlowWindow();
             return;
         }
         for (Watcher.FlowRow row : flowRows) {
-            if (row.symbol.equals(query)) {
+            if (!query.isEmpty() && row.symbol.equals(query)) {
                 // The whole ticker he typed: its own book, no list to read.
                 selectFlow(query);
                 return;
             }
         }
-        orderFlowResults.addView(flowTableHeader());
-        int shown = 0;
+        List<Watcher.FlowRow> visible = new ArrayList<>();
         for (Watcher.FlowRow row : flowRows) {
-            if (!row.symbol.startsWith(query)) {
-                continue;
-            }
-            // Each row is the scrip's live book as eight columns: symbol,
-            // last, change, bid quantity, bid, ask, ask quantity and total
-            // volume. Its B/S/U and T lines follow underneath.
-            orderFlowResults.addView(flowTableRow(row, query));
-            if (++shown >= FLOW_RESULTS_SHOWN) {
-                break;
+            if (query.isEmpty() || row.symbol.startsWith(query)) {
+                visible.add(row);
             }
         }
-        orderFlowResults.setVisibility(shown > 0 ? View.VISIBLE : View.GONE);
-        if (orderFlowSelected != null) {
-            if (shown == 0) {
-                orderFlowSelected.setText(R.string.order_flow_none);
-                orderFlowSelected.setVisibility(View.VISIBLE);
-            } else {
-                orderFlowSelected.setVisibility(View.GONE);
+        // The rows are rebuilt only when what is visible changes; a tick
+        // restyles the same rows in place, the search list's own law.
+        boolean rebuild = !query.equals(flowRenderedQuery)
+                || visible.size() != flowRenderedCount;
+        if (rebuild) {
+            orderFlowResults.removeAllViews();
+            flowRowCells.clear();
+            if (!visible.isEmpty()) {
+                orderFlowResults.addView(flowTableHeader());
             }
+            for (Watcher.FlowRow row : visible) {
+                // The list's own line between two scrips, the search
+                // list's own tighter air, one law for both lists.
+                if (orderFlowResults.getChildCount() > 1) {
+                    orderFlowResults.addView(tightDivider());
+                }
+                orderFlowResults.addView(flowTableRow(row, query));
+            }
+            flowRenderedQuery = query;
+            flowRenderedCount = visible.size();
+            orderFlowResults.post(this::fitFlowWindow);
+        } else {
+            for (Watcher.FlowRow row : visible) {
+                paintFlowRow(flowRowCells.get(row.symbol), row);
+            }
+        }
+        orderFlowResults.setVisibility(
+                visible.isEmpty() || !flowListOpen ? View.GONE : View.VISIBLE);
+        if (orderFlowSelected != null && visible.isEmpty() && flowListOpen) {
+            orderFlowSelected.setText(R.string.order_flow_none);
+            orderFlowSelected.setVisibility(View.VISIBLE);
+        }
+        refreshFlowSelection();
+        fitFlowWindow();
+        if (!query.isEmpty() && orderFlowScroll != null) {
+            orderFlowScroll.scrollTo(0, 0);
         }
     }
 
-    /** One searched scrip's live book, as one search result row says it. */
-    /** The header for the eight-column ORDER FLOW table. */
+    /** The header for the four-column ORDER FLOW list. */
     private View flowTableHeader() {
         LinearLayout header = new LinearLayout(this);
         header.setOrientation(LinearLayout.HORIZONTAL);
@@ -3465,15 +3662,21 @@ public class MainActivity extends Activity {
         return header;
     }
 
-    /** One searched scrip's live book, as eight real columns plus its split. */
+    /**
+     * Owner order 2026-11-22 ("it's showing so much info without me even
+     * tapping on a particular stock"): the list row is the scrip and its
+     * quote alone, four columns, so nothing is truncated and every row reads
+     * the same shape. Its bid, ask, sizes and the B/S/U/T split print only
+     * once he taps the scrip.
+     */
     private View flowTableRow(Watcher.FlowRow row, String query) {
         LinearLayout wrap = new LinearLayout(this);
         wrap.setOrientation(LinearLayout.VERTICAL);
         wrap.setLayoutParams(new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT));
-        wrap.setPadding(0, dp(3), 0, dp(3));
-        wrap.setOnClickListener(v -> selectFlow(row.symbol));
+        wrap.setPadding(0, dp(2), 0, dp(2));
+        wrap.setOnClickListener(v -> pickFlow(row.symbol));
         if (query != null && !query.isEmpty() && row.symbol.startsWith(query)) {
             wrap.setBackground(highlightPlate(row.symbol.length() == query.length()));
         }
@@ -3482,48 +3685,99 @@ public class MainActivity extends Activity {
         columns.setLayoutParams(new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT));
-        columns.setPadding(dp(10), dp(2), dp(10), dp(1));
+        columns.setPadding(dp(10), dp(2), dp(10), dp(2));
+        TextView symbol = flowCell(row.symbol, FLOW_WEIGHTS[0], themeBodyInk,
+                9f, android.view.Gravity.LEFT, true);
+        TextView last = flowCell("", FLOW_WEIGHTS[1], themeBodyInk, 9f,
+                android.view.Gravity.RIGHT, false);
+        TextView move = flowCell("", FLOW_WEIGHTS[2], themeBodyInk, 9f,
+                android.view.Gravity.RIGHT, false);
+        TextView volume = flowCell("", FLOW_WEIGHTS[3], themeBodyInk, 9f,
+                android.view.Gravity.RIGHT, false);
+        columns.addView(symbol);
+        columns.addView(last);
+        columns.addView(move);
+        columns.addView(volume);
+        wrap.addView(columns);
+        TextView[] cells = new TextView[]{last, move, volume};
+        flowRowCells.put(row.symbol, cells);
+        paintFlowRow(cells, row);
+        return wrap;
+    }
+
+    /** One list row's quote, restamped in place on every tick. */
+    private void paintFlowRow(TextView[] cells, Watcher.FlowRow row) {
+        if (cells == null || cells.length < 3) {
+            return;
+        }
         int priceColor = row.changePct == null ? themeBodyInk
                 : getColor(row.changePct >= 0 ? R.color.green : R.color.red);
-        columns.addView(flowCell(row.symbol, FLOW_WEIGHTS[0], themeBodyInk,
-                9f, android.view.Gravity.LEFT, true));
-        columns.addView(flowCell(row.price != null
-                        ? String.format(Locale.US, "%,.2f", row.price) : "n/a",
-                FLOW_WEIGHTS[1], priceColor, 9f,
-                android.view.Gravity.RIGHT, false));
-        columns.addView(flowCell(row.changePct != null
-                        ? String.format(Locale.US, "%s%.2f%%",
-                        row.changePct >= 0 ? "▲" : "▼",
-                        Math.abs(row.changePct)) : "n/a",
-                FLOW_WEIGHTS[2], priceColor, 8f,
-                android.view.Gravity.RIGHT, false));
-        columns.addView(flowCell(flowCount(row.bidSize), FLOW_WEIGHTS[3],
-                getColor(R.color.green), 9f,
-                android.view.Gravity.RIGHT, false));
-        columns.addView(flowCell(row.bid != null
-                        ? String.format(Locale.US, "%,.2f", row.bid) : "n/a",
-                FLOW_WEIGHTS[4], getColor(R.color.green), 9f,
-                android.view.Gravity.RIGHT, false));
-        columns.addView(flowCell(row.ask != null
-                        ? String.format(Locale.US, "%,.2f", row.ask) : "n/a",
-                FLOW_WEIGHTS[5], getColor(R.color.red), 9f,
-                android.view.Gravity.RIGHT, false));
-        columns.addView(flowCell(flowCount(row.askSize), FLOW_WEIGHTS[6],
-                getColor(R.color.red), 9f,
-                android.view.Gravity.RIGHT, false));
-        columns.addView(flowCell(flowCount(row.volume), FLOW_WEIGHTS[7],
-                themeBodyInk, 9f, android.view.Gravity.RIGHT, false));
-        wrap.addView(columns);
-        CharSequence split = flowSplitText(row);
-        if (split.length() > 0) {
-            TextView detail = new TextView(this);
-            detail.setText(split);
-            detail.setTextSize(13f);
-            detail.setTextColor(themeBodyInk);
-            detail.setPadding(dp(10), dp(2), dp(10), dp(2));
-            wrap.addView(detail);
+        String last = row.price != null
+                ? String.format(Locale.US, "%,.2f", row.price) : "n/a";
+        String move = row.changePct != null
+                ? String.format(Locale.US, "%s%.2f%%",
+                row.changePct >= 0 ? "▲" : "▼",
+                Math.abs(row.changePct)) : "n/a";
+        String volume = flowCount(row.volume);
+        if (!cells[0].getText().toString().equals(last)) {
+            cells[0].setText(last);
         }
-        return wrap;
+        if (!cells[1].getText().toString().equals(move)) {
+            cells[1].setText(move);
+        }
+        if (!cells[2].getText().toString().equals(volume)) {
+            cells[2].setText(volume);
+        }
+        cells[0].setTextColor(priceColor);
+        cells[1].setTextColor(priceColor);
+    }
+
+    /** The tapped scrip, its own answer, and the list closing behind it. */
+    private void pickFlow(String symbol) {
+        flowListOpen = false;
+        selectFlow(symbol);
+        if (orderFlowResults != null) {
+            orderFlowResults.setVisibility(View.GONE);
+        }
+        fitFlowWindow();
+    }
+
+    /** A tap on the box opens the list again, its current text and all. */
+    private void showFlowList(boolean open) {
+        if (open) {
+            flowListOpen = true;
+            if (orderFlowInput != null) {
+                renderFlowResults(orderFlowInput.getText().toString().trim()
+                        .toUpperCase(Locale.US));
+            }
+            return;
+        }
+        flowListOpen = false;
+        if (orderFlowResults != null) {
+            orderFlowResults.setVisibility(View.GONE);
+        }
+        fitFlowWindow();
+    }
+
+    /**
+     * Owner order 2026-11-22: the tapped scrip's answer is restamped from
+     * the tick's own frame, so its book can never freeze at the tap's
+     * numbers while the list around it moves.
+     */
+    private void refreshFlowSelection() {
+        if (orderFlowSelected == null || orderFlowBookSymbol == null) {
+            return;
+        }
+        String symbol = orderFlowBookSymbol;
+        flowKeepList = true;
+        selectFlow(symbol);
+        flowKeepList = false;
+    }
+
+    /** The book's own numbers, so a tick repaints it only when they move. */
+    private String flowBookKey(Watcher.FlowRow row) {
+        return row.symbol + "|" + row.bid + "|" + row.ask + "|"
+                + row.bidSize + "|" + row.askSize;
     }
 
     private TextView flowCell(String text, float weight, int color,
@@ -3656,19 +3910,36 @@ public class MainActivity extends Activity {
         if (split.length() > 0) {
             sb.append('\n').append(split);
         }
-        if (orderFlowResults != null) {
-            orderFlowResults.setVisibility(View.GONE);
+        // Owner order 2026-11-22: a pick closes the list, the dropdown's own
+        // law, unless the one-second tick is restamping the answer he has.
+        if (!flowKeepList) {
+            flowListOpen = false;
+            if (orderFlowResults != null) {
+                orderFlowResults.setVisibility(View.GONE);
+            }
         }
         orderFlowSelected.setVisibility(View.VISIBLE);
         orderFlowSelected.setText(sb);
         orderFlowBookSymbol = symbol;
-        fillFlowBook(found);
+        String key = flowBookKey(found);
+        if (flowKeepList && flowBookNumbers != null
+                && flowBookNumbers.equals(key)) {
+            // The book's numbers did not move: the columns stand as they are.
+            flowBookNumbers = key;
+        } else {
+            fillFlowBook(found);
+            flowBookNumbers = key;
+        }
         fillFlowPrints(symbol);
+        if (!flowKeepList) {
+            fitFlowWindow();
+        }
     }
 
     /** Clear the two-column book and the fills below it. */
     private void hideFlowBook() {
         orderFlowBookSymbol = null;
+        flowBookNumbers = null;
         if (orderFlowBook != null) {
             orderFlowBook.removeAllViews();
             orderFlowBook.setVisibility(View.GONE);
@@ -3966,6 +4237,14 @@ public class MainActivity extends Activity {
             // Owner order 2026-11-21: the sectors themselves read from the
             // left of the tile; the scrips a tap reveals keep their centre.
             row.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
+            // Owner order 2026-11-22 ("Reduce the font size of the SECTORS
+            // sub menus as they are not fitting in their respective drop
+            // down boxes"): a sector reads at 11sp on one line, so the
+            // longest name and its move fit their own row.
+            row.setTextSize(11f);
+            row.setSingleLine(true);
+            row.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            row.setPadding(dp(10), dp(3), dp(10), dp(3));
             row.setOnClickListener(v -> chooseSector(name));
             sectorsMenu.addView(row);
         }
@@ -4040,6 +4319,32 @@ public class MainActivity extends Activity {
             height = dp(32) * Math.max(1, rows);
         }
         height += sectorsMenu.getPaddingTop() + sectorsMenu.getPaddingBottom();
+        // Owner order 2026-11-22 ("I couldn't even see the scroll feature
+        // and then it appeared out of nowhere"): the diamond's whole range
+        // is read from the rows the menu already holds, so the track stands
+        // the moment the list opens instead of after a scroll.
+        int content = 0;
+        for (int i = 0; i < sectorsMenu.getChildCount(); i++) {
+            View child = sectorsMenu.getChildAt(i);
+            if (child.getVisibility() != View.VISIBLE) {
+                continue;
+            }
+            int measured = child.getMeasuredHeight();
+            if (measured <= 0) {
+                measured = child instanceof TextView ? dp(32) : dp(15);
+            }
+            content += measured;
+            ViewGroup.LayoutParams childParams = child.getLayoutParams();
+            if (childParams instanceof LinearLayout.LayoutParams) {
+                content += ((LinearLayout.LayoutParams) childParams).topMargin
+                        + ((LinearLayout.LayoutParams) childParams).bottomMargin;
+            }
+        }
+        content += sectorsMenu.getPaddingTop() + sectorsMenu.getPaddingBottom();
+        sectorRange = Math.max(0, content - height);
+        if (sectorsScroller != null) {
+            sectorsScroller.setScroll(0, sectorRange);
+        }
         ViewGroup.LayoutParams lp = sectorsScroll.getLayoutParams();
         if (lp != null && lp.height != height) {
             lp.height = height;
@@ -4060,6 +4365,11 @@ public class MainActivity extends Activity {
         View child = sectorsScroll.getChildAt(0);
         int range = child == null ? 0
                 : Math.max(0, child.getHeight() - sectorsScroll.getHeight());
+        if (range <= 0) {
+            // Before the first layout the child has no height yet, and the
+            // range its rows stated is the honest one for that frame.
+            range = sectorRange;
+        }
         sectorsScroller.setScroll(sectorsScroll.getScrollY(), range);
     }
 
@@ -4253,26 +4563,25 @@ public class MainActivity extends Activity {
         }
     }
 
-    /** Filter the relay's symbol list by prefix and draw up to eight rows. */
+    /**
+     * The relay's symbol list in its own window: every scrip while the box
+     * is empty, the matches of what he typed otherwise.
+     */
     private void renderSearchResults(String query) {
         if (searchResults == null || searchStatus == null) {
             return;
         }
         List<String> symbols = Watcher.symbols();
         String q = query == null ? "" : query.trim().toUpperCase(Locale.US);
-        // Owner order 2026-11-21: the box answers nothing until he types.
-        // An empty box lists no scrip at all; the first letter opens the
-        // dropdown onto its own matches.
-        if (q.isEmpty()) {
-            searchRows.clear();
-            renderedQuery = "";
-            searchResults.setVisibility(View.GONE);
-            if (selectedSymbol != null) {
-                selectSymbol(null);
-            }
+        // Owner order 2026-11-22 ("There is not a proper search function for
+        // stocks"): the box opens the app's own list the way CUSTOM SCRIPS OF
+        // VOLUME's menu does, minus the caret. An empty box lists every
+        // scrip in its window and a typed letter narrows that list, so a
+        // scrip is reachable by browsing or by its ticker.
+        if (q.isEmpty() && selectedSymbol != null) {
+            selectSymbol(null);
             searchStatus.setText("");
             searchStatus.setVisibility(View.GONE);
-            return;
         }
         // The rows carry a state (a tapped symbol stays pinned), so they are
         // only rebuilt when the query or the visible set actually changes; a
@@ -4283,19 +4592,21 @@ public class MainActivity extends Activity {
             searchRows.clear();
             renderedQuery = q;
             selectSymbol(null);
+            searchResults.setVisibility(View.GONE);
+            fitSearchWindow();
             searchStatus.setText(getString(R.string.search_waiting));
             return;
         }
         List<String> filtered = new java.util.ArrayList<>();
         for (String symbol : symbols) {
-            if (symbol.startsWith(q)) {
+            if (q.isEmpty() || symbol.startsWith(q)) {
                 filtered.add(symbol);
             }
         }
-        // Owner order 2026-11-21: eight matches at most, and only while he
-        // is typing. The list is the app's own dropdown, not a separate
-        // window of plain rows.
-        List<String> visible = filtered.subList(0, Math.min(filtered.size(), 8));
+        // Owner order 2026-11-22: every match is in the list, and the
+        // window's six rows plus the diamond are what keep the tile one
+        // size, so a long list is a scroll rather than a taller tile.
+        List<String> visible = filtered;
         // v1.8.4 (owner 13:30 report): the rows and the pinned line must be
         // VISIBLE exactly when there is something to show, because the
         // panel's gap law needs the empty views gone but the populated panel
@@ -4315,7 +4626,7 @@ public class MainActivity extends Activity {
                 // Owner order 2026-11-21: one option of the app's own
                 // dropdown, divided like every other menu row.
                 if (!searchRows.isEmpty()) {
-                    searchResults.addView(menuDivider());
+                    searchResults.addView(tightDivider());
                 }
                 TextView row = menuRow("");
                 styleSearchRow(row, symbol, q);
@@ -4346,6 +4657,13 @@ public class MainActivity extends Activity {
             // prints a sentence under the box any more; the box's own hint
             // and the rows are the whole answer.
             searchStatus.setText("");
+        }
+        // Owner order 2026-11-22: the list is a fixed six-row window with
+        // the diamond beside it, so a long answer is a scroll, never a
+        // taller tile.
+        fitSearchWindow();
+        if (!q.isEmpty() && searchScroll != null) {
+            searchScroll.scrollTo(0, 0);
         }
     }
 
@@ -4389,7 +4707,7 @@ public class MainActivity extends Activity {
             // the search row, the high in green and the low in red. A side
             // the relay did not report is not invented (SO-3).
             if (quote.high != null) {
-                built.append("  H=");
+                built.append(" H=");
                 int highFrom = built.length();
                 built.append(String.format(Locale.US, "%,.2f", quote.high));
                 built.setSpan(new ForegroundColorSpan(getColor(R.color.green_hi)),
@@ -4398,7 +4716,7 @@ public class MainActivity extends Activity {
             if (quote.low != null) {
                 // Owner order 2026-11-19: the search row reads H & L, the
                 // ampersand standing between the day's two sides.
-                built.append("  &  L=");
+                built.append(" & L=");
                 int lowFrom = built.length();
                 built.append(String.format(Locale.US, "%,.2f", quote.low));
                 built.setSpan(new ForegroundColorSpan(getColor(R.color.red)),
@@ -4418,9 +4736,13 @@ public class MainActivity extends Activity {
         // other line on the console, its symbols read as the body reads.
         row.setTextSize(13f);
         row.setTextColor(themeBodyInk);
-        // The row's geometry is menuRow's own 14dp sides and 5dp air, the
-        // dropdown option's measure, so a search row is never padded
-        // differently from the rest of the app's dropdown.
+        // Owner order 2026-11-22 ("everything is so far apart"): a scrip
+        // and its quote are one line, so the row carries the list's own 2dp
+        // air and a 26dp floor instead of an open menu's 5dp.
+        row.setPadding(dp(14), dp(2), dp(14), dp(2));
+        row.setMinHeight(dp(26));
+        // The row keeps menuRow's 14dp column, because the dividing lines
+        // above and below it are cut to that same column.
         // Owner order 2026-10-22 (the search highlight): every row whose
         // symbol STARTS with what is typed lights up while it matches.
         // Typing H lights every H..., typing HU narrows the light, and the

@@ -601,11 +601,20 @@
      dropdown; BIG BUYING & SELLING stores and shows 100,000 shares and
      above with six complete orders in its window; and the relay clears the
      previous session at 08:55 on each market day.
+
+     versionCode 139 / versionName 4.4.6 belong to the owner's order of
+     2026-11-22: every tile that names a volume ranking spells VOLUME; the
+     SEARCH box opens the scrip list in a six-row window without a caret,
+     with rows at the list's own tighter air; the ORDER FLOW list shows a
+     scrip's ticker, last, move and total volume alone until he taps that
+     scrip, and its box opens the same list; and the SECTORS rows read at
+     11sp on one line with the diamond standing from the moment the list
+     opens.
      -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="pk.quantofrehan"
-    android:versionCode="138"
-    android:versionName="4.4.5">
+    android:versionCode="139"
+    android:versionName="4.4.6">
 
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="30"/>
 

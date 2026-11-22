@@ -267,14 +267,41 @@
                     android:textColorHint="@color/text_soft"
                     android:textSize="13sp"/>
 
-                <LinearLayout
-                    android:id="@+id/search_results"
+                <!-- Owner order 2026-11-22 ("everything is so far apart"):
+                     the scrips stand in a fixed window of six rows with the
+                     diamond's own track beside them, the SECTORS tile's law,
+                     so the whole list never stretches the tile. -->
+                <FrameLayout
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:paddingTop="5dp"
-                    android:paddingBottom="5dp"
-                    android:visibility="gone"/>
+                    android:layout_height="wrap_content">
+
+                    <ScrollView
+                        android:id="@+id/search_scroll"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:nestedScrollingEnabled="false"
+                        android:paddingLeft="4dp"
+                        android:paddingRight="4dp"
+                        android:scrollbars="none"
+                        android:visibility="gone">
+
+                        <LinearLayout
+                            android:id="@+id/search_results"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:paddingTop="3dp"
+                            android:paddingBottom="3dp"
+                            android:visibility="gone"/>
+                    </ScrollView>
+
+                    <pk.quantofrehan.OrnamentScroller
+                        android:id="@+id/search_scroller"
+                        android:layout_width="14dp"
+                        android:layout_height="match_parent"
+                        android:layout_gravity="end|top"
+                        android:visibility="gone"/>
+                </FrameLayout>
 
             </LinearLayout>
 
@@ -323,32 +350,67 @@
                 android:layout_marginBottom="10dp"
                 android:text="@string/label_order_flow"/>
 
-            <EditText
-                android:id="@+id/order_flow_input"
-                android:layout_width="match_parent"
-                android:layout_height="43dp"
-                android:background="@drawable/field_bg"
-                android:gravity="center_vertical"
-                android:hint="@string/order_flow_hint"
-                android:imeOptions="actionSearch"
-                android:includeFontPadding="false"
-                android:inputType="textCapCharacters"
-                android:maxLines="1"
-                android:paddingLeft="10dp"
-                android:paddingRight="10dp"
-                android:paddingTop="3dp"
-                android:paddingBottom="3dp"
-                android:textColor="@color/text_bright"
-                android:textColorHint="@color/text_soft"
-                android:textSize="13sp"/>
-
+            <!-- Owner order 2026-11-22: the box and its scrip list are ONE
+                 plate, the search box's own law, so the box expands into
+                 its own list instead of drawing a second window. -->
             <LinearLayout
-                android:id="@+id/order_flow_results"
+                android:id="@+id/order_flow_field_group"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
-                android:orientation="vertical"
-                android:visibility="gone"/>
+                android:background="@drawable/field_bg"
+                android:orientation="vertical">
+
+                <EditText
+                    android:id="@+id/order_flow_input"
+                    android:layout_width="match_parent"
+                    android:layout_height="43dp"
+                    android:background="@null"
+                    android:gravity="center_vertical"
+                    android:hint="@string/order_flow_hint"
+                    android:imeOptions="actionSearch"
+                    android:includeFontPadding="false"
+                    android:inputType="textCapCharacters"
+                    android:maxLines="1"
+                    android:paddingLeft="10dp"
+                    android:paddingRight="10dp"
+                    android:paddingTop="3dp"
+                    android:paddingBottom="3dp"
+                    android:textColor="@color/text_bright"
+                    android:textColorHint="@color/text_soft"
+                    android:textSize="13sp"/>
+
+                <FrameLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content">
+
+                    <ScrollView
+                        android:id="@+id/order_flow_scroll"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:nestedScrollingEnabled="false"
+                        android:paddingLeft="4dp"
+                        android:paddingRight="4dp"
+                        android:scrollbars="none"
+                        android:visibility="gone">
+
+                        <LinearLayout
+                            android:id="@+id/order_flow_results"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:paddingTop="3dp"
+                            android:paddingBottom="3dp"
+                            android:visibility="gone"/>
+                    </ScrollView>
+
+                    <pk.quantofrehan.OrnamentScroller
+                        android:id="@+id/order_flow_scroller"
+                        android:layout_width="14dp"
+                        android:layout_height="match_parent"
+                        android:layout_gravity="end|top"
+                        android:visibility="gone"/>
+                </FrameLayout>
+            </LinearLayout>
 
             <TextView
                 android:id="@+id/order_flow_selected"

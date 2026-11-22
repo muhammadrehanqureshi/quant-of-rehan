@@ -1641,6 +1641,27 @@ to sixty seconds. The status tile therefore also carries the app's own
      the orphan law stands so every dot still wears a filament.
   5. The version bump is versionCode 82 / versionName 2.3.15.
 
+**Version 4.4.6, versionCode 139.**
+
+  Owner order 2026-11-22, on the phone's screenshots. Every tile that names a
+  volume ranking spells the word out, so CUSTOM SCRIPS OF VOLUME and KSE100
+  INDEX & THE TOP 3 SCRIPS OF VOLUME replace the old VOL. The SEARCH box is a
+  real search again: tapping it opens the app's own scrip list, the CUSTOM
+  SCRIPS OF VOLUME menu's own law minus the caret, and typing narrows that
+  list. The list is a fixed six-row window with the diamond's track, and its
+  rows sit at the list's own 2dp air instead of an open menu's 5dp, so six
+  scrips fill the tile instead of stretching it. ORDER FLOW stops reading out
+  every number before he asks: its rows carry the scrip, its last price, its
+  move and its total volume, four columns that never truncate, and its box
+  opens the same six-row scrip list. The BID and ASK book, the sizes and the
+  B/S/U/T split print only for the scrip he taps, and that answer is restamped
+  every tick so it can never freeze at the tap's numbers. The SECTORS sub
+  menus read at 11sp on one line, so the longest sector name and its move fit
+  their own row, and the diamond's range is read from the rows the menu holds,
+  so the scroll cue stands from the moment the list opens instead of appearing
+  out of nowhere on a scroll. The version bump is versionCode 139 /
+  versionName 4.4.6.
+
 **Version 4.4.5, versionCode 138.**
 
   Owner order 2026-11-21. The SEARCH page opens on an empty box that lists no

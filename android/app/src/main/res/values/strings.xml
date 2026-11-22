@@ -48,7 +48,8 @@
          prompts retired with the second dropdown. All of it states what
          the ranking is, never that a split is order flow (SO-3); the
          split's method stays labelled on the relay's own answer. -->
-    <string name="label_volume">CUSTOM SCRIPS OF VOL.</string>
+    <!-- Owner order 2026-11-22: the tile's heading spells the word out. -->
+    <string name="label_volume">CUSTOM SCRIPS OF VOLUME</string>
     <!-- v2.2.5 (owner order 2026-10-24, fourth note): the menu's first
          row is now the SCANNER's own entry - "PRICES RISING FAST", the
          three fast risers the day's tape carries, capped scrips out -
@@ -122,7 +123,9 @@
          over them. The settings_hint string stays declared, so the help
          copy keeps one home but never paints itself back onto the tile. -->
     <string name="label_search">SEARCH</string>
-    <string name="label_market">KSE100 INDEX &amp; THE TOP 3 SCRIPS OF VOL.</string>
+    <!-- Owner order 2026-11-22: the market tile spells the word out too, a
+         volume ranking named VOLUME on every tile that names one. -->
+    <string name="label_market">KSE100 INDEX &amp; THE TOP 3 SCRIPS OF VOLUME</string>
     <string name="label_order_flow">ORDER FLOW</string>
     <string name="label_big_prints">BIG BUYING &amp; SELLING</string>
     <string name="order_flow_hint">Search for a KMIALL scrip</string>
