@@ -3212,7 +3212,7 @@ class HeadingGrowthTest(unittest.TestCase):
         self.assertIn('style="@style/QorLabel"', block)
         # Owner order 2026-11-04: the tile names the index it follows by its
         # own name, KSE100, in place of the generic word THE INDEX.
-                self.assertIn('name="label_market">KSE100 INDEX &amp; THE TOP 3 '
+        self.assertIn('name="label_market">KSE100 INDEX &amp; THE TOP 3 '
                       'SCRIPS OF VOLUME<', strings)
 
     def test_the_existing_headings_keep_their_words(self):
@@ -5525,7 +5525,7 @@ class MarketHeadingWordTest(unittest.TestCase):
         strings = STRINGS.read_text(encoding="utf-8")
         # Owner order 2026-11-04: the tile names the index it follows by its
         # own name, KSE100, in place of the generic word THE INDEX.
-                self.assertIn('name="label_market">KSE100 INDEX &amp; THE TOP 3 '
+        self.assertIn('name="label_market">KSE100 INDEX &amp; THE TOP 3 '
                       'SCRIPS OF VOLUME<', strings)
         self.assertNotIn('INDEX &amp; TOP 3 SCRIPS', strings)
 
