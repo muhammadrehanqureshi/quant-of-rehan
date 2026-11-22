@@ -1095,7 +1095,9 @@ func (a *App) marketNote() string {
 		}
 		return "DATA FROM THE BROKER'S FEED IS BEING SCANNED EVERY SECOND."
 	case a.quotes != nil:
-		return "LAST DATA FROM THE BROKER'S FEED."
+		// Owner order 2026-11-22: after the last close the foot names the day
+		// the numbers belong to, not only the feed they came from.
+		return "LAST SESSION'S DATA FROM THE BROKER'S FEED."
 	}
 	// Owner order 2026-11-09: the idle line under the KSE100 tile.
 	return "Quant is sleeping till the next market day."

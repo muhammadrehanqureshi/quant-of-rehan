@@ -1,7 +1,11 @@
-# Quant of Rehan for Windows (console edition), build 155
+# Quant of Rehan for Windows (console edition), build 156
 
 A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.21**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
+
+## What is new in build 156
+
+* **Build 156 (version 3.8.31).** CUSTOM SCRIPS OF VOLUME's revealed price, percentage, bar and NET DELTA stand two cells further left, so the group no longer clings to the tile's frame. Every value on ORDER FLOW is drawn in the thick cut: HIGH, LOW, BID, ASK, UNCLEAR, TOTAL, both NET DELTA columns and the estimate marks no longer read lighter than PRICE and CHANGE. After the last close the KSE100 foot reads `LAST SESSION'S DATA FROM THE BROKER'S FEED.` A build whose console Windows Terminal hosts now moves itself to the classic Windows Console Host for the console of its own, so the title bar and the taskbar both wear the Quant of Rehan logo; the delegation pair Windows reads to choose a host is borrowed for that one launch and put back exactly as it was found the moment the new console exists, and a run killed in between is repaired by the next start. The executable's file version is `3.8.31.0`.
 
 ## What is new in build 155
 

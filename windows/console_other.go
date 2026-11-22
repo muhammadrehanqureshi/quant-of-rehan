@@ -5,3 +5,7 @@ package main
 // openOwnConsole has nothing to do here: the window a terminal gives a program
 // is the terminal's, and its icon belongs to that terminal's own profile.
 func openOwnConsole() bool { return false }
+
+// repairDelegation has nothing to put back here: the delegation pair is a
+// Windows Console setting, and no other system has one.
+func repairDelegation() {}

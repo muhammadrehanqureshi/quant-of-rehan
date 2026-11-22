@@ -367,7 +367,7 @@ func TestMarketFootnote(t *testing.T) {
 		t.Errorf("post-market footnote: %q", got)
 	}
 	a.now = time.Date(2026, 11, 2, 20, 0, 0, 0, pkt)
-	if got := a.marketNote(); got != "LAST DATA FROM THE BROKER'S FEED." {
+	if got := a.marketNote(); got != "LAST SESSION'S DATA FROM THE BROKER'S FEED." {
 		t.Errorf("closed footnote: %q", got)
 	}
 	a.quotes = nil
