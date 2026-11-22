@@ -22,6 +22,17 @@ Flags:
 `
 
 func main() {
+	// Owner order 2026-11-22: every run is written down before the console is
+	// touched, and a panic is written down with its stack, so a build that will
+	// not open leaves evidence in startup.log instead of a flash.
+	noteStartup()
+	defer func() {
+		if r := recover(); r != nil {
+			noteCrash(r)
+			os.Exit(1)
+		}
+	}()
+
 	var (
 		relayURL  = flag.String("relay", "", "relay address for this run only (the default is the relay built into the app)")
 		theme     = flag.Int("theme", -1, "theme number, 0 to 2, for this run only (choose one in Settings to keep it)")
@@ -109,15 +120,9 @@ func main() {
 		app.enableDemo(time.Now())
 	}
 
-	// Owner order 2026-11-22: a run killed while it opened its own console is
-	// repaired first, so the owner's default terminal is never left changed.
-	repairDelegation()
-
 	// Owner order 2026-11-21: a build started from a shell's console opens a
 	// console of its own, so its taskbar button carries its own icon. The shell
-	// keeps its window and its prompt. Owner order 2026-11-22: a console hosted
-	// by Windows Terminal is moved to the classic host, which draws the icon
-	// this exe carries on the title bar and on the taskbar alike.
+	// keeps its window and its prompt.
 	if openOwnConsole() {
 		return
 	}
