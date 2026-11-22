@@ -106,9 +106,10 @@ func TestBuild149CustomScripsQuoteHoldsTheTileEdge(t *testing.T) {
 	if frame < 0 {
 		t.Fatalf("the tile's own right edge is missing: %q", rows[top])
 	}
-	// The group ends two cells inside the frame, so the NET DELTA's last cell
-	// stands on frame-3 and the bar begins one gutter and one span before it.
-	want := frame - 3
+	// Owner order 2026-11-22: the group stands two cells further left, so it ends
+	// four cells inside the frame, the NET DELTA's last cell stands on frame-5
+	// and the bar begins one gutter and one span before it.
+	want := frame - 5
 	seen := 0
 	for _, row := range rows[top+1:] {
 		if col(row, "┛") >= 0 {

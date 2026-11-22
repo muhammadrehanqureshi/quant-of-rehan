@@ -421,7 +421,9 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 			// Owner order 2026-11-20: the price, the percentage, the bar and
 			// its NET DELTA move to the tile's right edge, on the scrip's own
 			// row, instead of starting on the T column in the middle.
-			a.drawScanQuote(c, row, x+w-4, listX+3+runeLen(s)+2, false, q, pxW, netW, pxKey)
+			// Owner order 2026-11-22: the group stands two cells further left,
+			// so it no longer clings to the tile's frame.
+			a.drawScanQuote(c, row, x+w-6, listX+3+runeLen(s)+2, false, q, pxW, netW, pxKey)
 		}
 		row++ // the values row, on the row under the name
 		// Owner order 2026-11-15: every sort uses one fixed set of B, S, U
@@ -429,7 +431,9 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 		// the values, so S, U and T started on different cells from row to row.
 		used := a.putBSTCols(c, listX+3, row, q.Buy, q.Sell, q.Volume, cols, volKey, pxKey)
 		if !rightList {
-			a.drawScanQuote(c, row, x+w-4, listX+3+used+1, false, q, pxW, netW, pxKey)
+			// Owner order 2026-11-22: the same two cells back apply when the
+			// group follows the volumes on one row.
+			a.drawScanQuote(c, row, x+w-6, listX+3+used+1, false, q, pxW, netW, pxKey)
 		}
 		row++
 	}

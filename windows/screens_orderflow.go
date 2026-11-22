@@ -127,17 +127,17 @@ func (a *App) putBSUT(c *Canvas, x, y int, r FlowRow, keys ...string) int {
 		return a.putBST(c, x, y, r.Buy, r.Sell, r.Volume, keys...)
 	case r.Method == methodEstimated && r.Buy != nil && r.Sell != nil:
 		put("B~", th.Soft, false)
-		putVolume(*r.Buy, mix(th.Good, th.Soft, 0.5), false)
+		putVolume(*r.Buy, mix(th.Good, th.Soft, 0.5), true)
 		put("  S~", th.Soft, false)
-		putVolume(*r.Sell, mix(th.Bad, th.Soft, 0.5), false)
+		putVolume(*r.Sell, mix(th.Bad, th.Soft, 0.5), true)
 		put("  &  T=", th.Soft, false)
-		put(leaderVolumeField(*r.Volume), totalBlue, false)
+		put(leaderVolumeField(*r.Volume), totalBlue, true)
 	default:
 		put("T=", th.Soft, false)
 		if r.Volume != nil {
-			put(leaderVolumeField(*r.Volume), totalBlue, false)
+			put(leaderVolumeField(*r.Volume), totalBlue, true)
 		} else {
-			put("n/a", totalBlue, false)
+			put("n/a", totalBlue, true)
 		}
 	}
 	return vx - x
@@ -437,11 +437,13 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 			a.flashRight(c, ix+cols[0].x+cols[0].w, row, flowPrice(px), th.Text, true, pxKey)
 			a.flashRight(c, ix+cols[1].x+cols[1].w, row, chg, chgCol, true, pxKey)
 			if !flowDropHL {
-				c.Text(ix+cols[2].x, row, cols[2].w, padLeft(bidAsk(r.High), cols[2].w), th.Good, false)
-				c.Text(ix+cols[3].x, row, cols[3].w, padLeft(bidAsk(r.Low), cols[3].w), th.Bad, false)
+				// Owner order 2026-11-22: every value on the table is drawn in
+				// the thick cut, so no column reads lighter than its neighbour.
+				c.Text(ix+cols[2].x, row, cols[2].w, padLeft(bidAsk(r.High), cols[2].w), th.Good, true)
+				c.Text(ix+cols[3].x, row, cols[3].w, padLeft(bidAsk(r.Low), cols[3].w), th.Bad, true)
 			}
-			c.Text(ix+cols[4].x, row, cols[4].w, padLeft(bidAsk(r.Bid), cols[4].w), th.Text, false)
-			c.Text(ix+cols[5].x, row, cols[5].w, padLeft(bidAsk(r.Ask), cols[5].w), th.Text, false)
+			c.Text(ix+cols[4].x, row, cols[4].w, padLeft(bidAsk(r.Bid), cols[4].w), th.Text, true)
+			c.Text(ix+cols[5].x, row, cols[5].w, padLeft(bidAsk(r.Ask), cols[5].w), th.Text, true)
 			a.drawFlowCols(c, ix, row, r, cols, volKey)
 			if iw-barX >= barFieldW && r.Measured() && *r.Buy+*r.Sell > 0 {
 				// Owner order 2026-11-10 (latest): the bar is back on ORDER FLOW,
@@ -451,7 +453,7 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 				a.shareBar(c, ix+barX, row, barFieldW, *r.Buy, *r.Sell)
 			}
 			if showNetPct {
-				txt, ink, bold := "--", th.Soft, false
+				txt, ink, bold := "--", th.Soft, true
 				if pct, ok := netDeltaPct(r); ok {
 					txt = fmt.Sprintf("%.2f%%", math.Abs(pct))
 					ink, bold = th.Soft, true
@@ -476,10 +478,10 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 			// Owner order 2026-11-20: the two row form carries HIGH and LOW too,
 			// in the same order the one line table uses.
 			vx += 2
-			vx += a.flashText(c, vx, row, "HIGH "+bidAsk(r.High), th.Good, false)
+			vx += a.flashText(c, vx, row, "HIGH "+bidAsk(r.High), th.Good, true)
 			vx += 2
-			vx += a.flashText(c, vx, row, "LOW "+bidAsk(r.Low), th.Bad, false)
-			c.Spans(vx+2, row, max(0, ix+cw-vx-2), []Span{{"BID ", th.Soft, false}, {bidAsk(r.Bid), th.Text, false}, {"  ASK ", th.Soft, false}, {bidAsk(r.Ask), th.Text, false}})
+			vx += a.flashText(c, vx, row, "LOW "+bidAsk(r.Low), th.Bad, true)
+			c.Spans(vx+2, row, max(0, ix+cw-vx-2), []Span{{"BID ", th.Soft, false}, {bidAsk(r.Bid), th.Text, true}, {"  ASK ", th.Soft, false}, {bidAsk(r.Ask), th.Text, true}})
 			if warn != "" {
 				c.Text(ix+cw-len(warn), row, len(warn), warn, th.Warn, true)
 			}
@@ -666,20 +668,20 @@ func (a *App) drawFlowCols(c *Canvas, ix, y int, r FlowRow, cols [10]flowCell, v
 	case r.Measured():
 		cell(6, r.Buy, th.Good, true, "")
 		cell(7, r.Sell, th.Bad, true, "")
-		uc, ub := th.Soft, false
+		uc, ub := th.Soft, true
 		if r.Unclassified != nil && *r.Unclassified > 0 {
 			uc, ub = th.Warn, true
 		}
 		cell(8, r.Unclassified, uc, ub, "")
-		cell(9, r.Volume, totalBlue, false, "")
+		cell(9, r.Volume, totalBlue, true, "")
 	case r.Method == methodEstimated && r.Buy != nil && r.Sell != nil:
-		cell(6, r.Buy, mix(th.Good, th.Soft, 0.5), false, "~")
-		cell(7, r.Sell, mix(th.Bad, th.Soft, 0.5), false, "~")
-		c.Text(ix+cols[8].x, y, cols[8].w, padLeft("estimate", cols[8].w), th.Soft, false)
-		cell(9, r.Volume, totalBlue, false, "")
+		cell(6, r.Buy, mix(th.Good, th.Soft, 0.5), true, "~")
+		cell(7, r.Sell, mix(th.Bad, th.Soft, 0.5), true, "~")
+		c.Text(ix+cols[8].x, y, cols[8].w, padLeft("estimate", cols[8].w), th.Soft, true)
+		cell(9, r.Volume, totalBlue, true, "")
 	default:
-		c.Text(ix+cols[6].x, y, cols[6].w, "no split", th.Soft, false)
-		cell(9, r.Volume, totalBlue, false, "")
+		c.Text(ix+cols[6].x, y, cols[6].w, "no split", th.Soft, true)
+		cell(9, r.Volume, totalBlue, true, "")
 	}
 }
 
