@@ -1,11 +1,15 @@
-# Quant of Rehan for Windows (console edition), build 156
+# Quant of Rehan for Windows (console edition), build 157
 
 A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.21**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
 
+## What is new in build 157
+
+* **Build 157 (version 3.8.32).** The Windows Terminal handoff is withdrawn. Build 156 borrowed Windows' default terminal registry pair for one launch so its own console would wear the Quant of Rehan logo under Windows Terminal, and the build then closed the moment it started. The pair is not this program's to change, so the build uses the console Windows gives it again: a build started from PowerShell or Command Prompt still opens one of its own, exactly as build 155 did, and the owner's terminal setting is never written. The icon under Windows Terminal is the one-time Windows setting in Settings, System, For developers, Terminal, Windows Console Host. Every run now writes one line to `startup.log` beside `settings.json` before the console is touched, and a panic writes its reason and stack there too, so a build that will not open is read from that file instead of guessed at. The executable's file version is `3.8.32.0`. Build 156 is not to be used.
+
 ## What is new in build 156
 
-* **Build 156 (version 3.8.31).** CUSTOM SCRIPS OF VOLUME's revealed price, percentage, bar and NET DELTA stand two cells further left, so the group no longer clings to the tile's frame. Every value on ORDER FLOW is drawn in the thick cut: HIGH, LOW, BID, ASK, UNCLEAR, TOTAL, both NET DELTA columns and the estimate marks no longer read lighter than PRICE and CHANGE. After the last close the KSE100 foot reads `LAST SESSION'S DATA FROM THE BROKER'S FEED.` A build whose console Windows Terminal hosts now moves itself to the classic Windows Console Host for the console of its own, so the title bar and the taskbar both wear the Quant of Rehan logo; the delegation pair Windows reads to choose a host is borrowed for that one launch and put back exactly as it was found the moment the new console exists, and a run killed in between is repaired by the next start. The executable's file version is `3.8.31.0`.
+* **Build 156 (version 3.8.31).** CUSTOM SCRIPS OF VOLUME's revealed price, percentage, bar and NET DELTA stand two cells further left, so the group no longer clings to the tile's frame. Every value on ORDER FLOW is drawn in the thick cut: HIGH, LOW, BID, ASK, UNCLEAR, TOTAL, both NET DELTA columns and the estimate marks no longer read lighter than PRICE and CHANGE. After the last close the KSE100 foot reads `LAST SESSION'S DATA FROM THE BROKER'S FEED.` A build whose console Windows Terminal hosts now moves itself to the classic Windows Console Host for the console of its own, so the title bar and the taskbar both wear the Quant of Rehan logo; the delegation pair Windows reads to choose a host is borrowed for that one launch and put back exactly as it was found the moment the new console exists, and a run killed in between is repaired by the next start. The executable's file version is `3.8.31.0`. **Withdrawn: this build closed as soon as it started, and build 157 removes the terminal handoff that caused it.**
 
 ## What is new in build 155
 
