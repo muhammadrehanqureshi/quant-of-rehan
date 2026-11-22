@@ -572,15 +572,15 @@ class SettingsControlTest(unittest.TestCase):
         self.assertIn("private View flowTableRow(", self.main)
         self.assertIn("private TextView flowCell(", self.main)
         self.assertIn("private View flowTableHeader()", self.main)
-        self.assertIn("flowSplitText(row)", self.main)
-        for label in ("SYMBOL", "LAST", "CHG%", "BID QTY", "BID", "ASK",
-                      "ASK QTY", "VOL"):
+        # Owner order 2026-11-22 ("it's showing so much info without me even
+        # tapping on a particular stock"): the list is four columns, and the
+        # B/S/U/T split belongs to the scrip he taps.
+        for label in ("SYMBOL", "LAST", "CHG%", "VOL"):
             with self.subTest(column=label):
                 self.assertIn('"' + label + '"', self.main)
-        self.assertIn("flowCount(row.bidSize)", self.main)
-        self.assertIn("flowCount(row.askSize)", self.main)
-        self.assertIn("columns.addView(flowCell(row.bid", self.main)
-        self.assertIn("columns.addView(flowCell(row.ask", self.main)
+        self.assertNotIn('"BID QTY", "BID", "ASK"', self.main)
+        self.assertIn("flowSplitText(found)", self.main)
+        self.assertIn("private void paintFlowRow(TextView[] cells", self.main)
         # Owner order 2026-11-07: the selected scrip's book is the two
         # column one below, so the old single line " & " sentence is gone.
         self.assertIn("fillFlowBook(found);", self.main)
@@ -605,8 +605,8 @@ class SettingsControlTest(unittest.TestCase):
     def test_the_search_row_carries_the_days_high_and_low(self):
         """Owner order 2026-11-07: H= and L= on each search row, the high
         green and the low red, from the relay's own day range."""
-        self.assertIn('built.append("  H=");', self.main)
-        self.assertIn('built.append("  &  L=");', self.main)
+        self.assertIn('built.append(" H=");', self.main)
+        self.assertIn('built.append(" & L=");', self.main)
         self.assertIn("quote.high != null", self.main)
         self.assertIn("quote.low != null", self.main)
         watcher = (ROOT / "android" / "app" / "src" / "main" / "java"
@@ -2392,8 +2392,10 @@ class VersionTest(unittest.TestCase):
         # box, numbered sub menus, H & L, the always-listed SECTORS tile,
         # the 100k board and its five complete orders ship as 4.4.3,
         # versionCode 136.
-        self.assertIn('android:versionName="4.4.5"', manifest)
-        self.assertIn('android:versionCode="138"', manifest)
+        # Owner order 2026-11-22: the spelled-out VOLUME headings, the search
+        # and flow scrip lists and the SECTORS line ship as 4.4.6.
+        self.assertIn('android:versionName="4.4.6"', manifest)
+        self.assertIn('android:versionCode="139"', manifest)
         self.assertNotIn('android:versionName="4.0.15"', manifest)
         self.assertNotIn('android:versionName="4.0.14"', manifest)
         self.assertNotIn('android:versionName="3.7.5"', manifest)
@@ -2623,8 +2625,8 @@ class VersionTest(unittest.TestCase):
         # 2026-11-17: the centred closed faces and the SECTORS fix ship as
         # 4.4.2, versionCode 135. The owner's 2026-11-19 order ships as
         # 4.4.3, versionCode 136.
-        self.assertIn('android:versionCode="138"', manifest)
-        self.assertIn('android:versionName="4.4.5"', manifest)
+        self.assertIn('android:versionCode="139"', manifest)
+        self.assertIn('android:versionName="4.4.6"', manifest)
         self.assertNotIn('android:versionName="4.0.15"', manifest)
         self.assertNotIn('android:versionName="3.7.5"', manifest)
         self.assertNotIn('android:versionName="3.7.4"', manifest)
@@ -2728,17 +2730,25 @@ class SearchPanelStabilityTest(unittest.TestCase):
         self.assertIn("boolean rebuild = !q.equals(renderedQuery)", main)
         self.assertIn("styleSearchRow(entry.getValue(), entry.getKey(), q);", main)
 
-    def test_an_empty_box_lists_nothing_until_he_types(self):
-        """Owner order 2026-11-21: the SEARCH page opens on an empty box
-        that lists no scrip at all. The first letter opens its matches, and
-        clearing the box closes the list again."""
+    def test_the_empty_box_opens_the_scrip_list_without_a_caret(self):
+        """Owner order 2026-11-22 ("There is not a proper search function for
+        stocks. There should be function just like there is drop down feature
+        on CUSTOM SCRIPS OF VOLUME but without an actual drop down/up icon"):
+        the empty box lists every scrip in its own six-row window, typing
+        narrows that list, and the tile carries no caret."""
         main = MAIN.read_text(encoding="utf-8")
         start = main.index("private void renderSearchResults(")
         block = main[start:main.index("private void styleSearchRow(", start)]
-        self.assertIn("if (q.isEmpty()) {", block)
-        self.assertIn("searchResults.setVisibility(View.GONE);", block)
-        self.assertIn("renderedQuery = \"\";", block)
-        self.assertNotIn("An empty box lists the first", main)
+        self.assertNotIn("if (q.isEmpty()) {", block)
+        self.assertIn("if (q.isEmpty() || symbol.startsWith(q)) {", block)
+        self.assertIn("fitSearchWindow();", block)
+        self.assertIn("private void fitSearchWindow() {", main)
+        self.assertIn("fitMenuWindow(searchScroll, searchResults, "
+                      "searchScroller, SEARCH_ROWS)", main)
+        layout = LAYOUT.read_text(encoding="utf-8")
+        self.assertIn("@+id/search_scroll", layout)
+        self.assertIn("@+id/search_scroller", layout)
+        self.assertNotIn("@+id/search_arrow", layout)
 
     def test_the_search_menu_is_the_apps_own_dropdown(self):
         """Owner order 2026-11-21: the results are the same dropdown every
@@ -2752,7 +2762,7 @@ class SearchPanelStabilityTest(unittest.TestCase):
         self.assertIn('android:background="@null"', box)
         main = MAIN.read_text(encoding="utf-8")
         self.assertIn('TextView row = menuRow("");', main)
-        self.assertIn("searchResults.addView(menuDivider());", main)
+        self.assertIn("searchResults.addView(tightDivider());", main)
         self.assertIn("searchFieldGroup.setBackground(fieldPlate(index));", main)
 
     def test_the_tapped_symbol_stays_pinned_across_ticks(self):
@@ -3202,9 +3212,8 @@ class HeadingGrowthTest(unittest.TestCase):
         self.assertIn('style="@style/QorLabel"', block)
         # Owner order 2026-11-04: the tile names the index it follows by its
         # own name, KSE100, in place of the generic word THE INDEX.
-        self.assertIn(
-            'name="label_market">KSE100 INDEX &amp; THE TOP 3 SCRIPS OF VOL.<',
-            strings)
+                self.assertIn('name="label_market">KSE100 INDEX &amp; THE TOP 3 '
+                      'SCRIPS OF VOLUME<', strings)
 
     def test_the_existing_headings_keep_their_words(self):
         strings = STRINGS.read_text(encoding="utf-8")
@@ -3715,7 +3724,7 @@ class MenuOrdersTest(unittest.TestCase):
         page's content: it lives and dies with `scannerOpen` in
         MainActivity the way the panels do, and nothing else about the
         v2.2.1 tile changed."""
-        self.assertIn('name="label_volume">CUSTOM SCRIPS OF VOL.<',
+        self.assertIn('name="label_volume">CUSTOM SCRIPS OF VOLUME<',
                       self.strings)
         # v2.1.0: the two dropdowns are named the owner's own way, and the
         # ranking follows the words (see the ranking test below).
@@ -5516,9 +5525,8 @@ class MarketHeadingWordTest(unittest.TestCase):
         strings = STRINGS.read_text(encoding="utf-8")
         # Owner order 2026-11-04: the tile names the index it follows by its
         # own name, KSE100, in place of the generic word THE INDEX.
-        self.assertIn(
-            'name="label_market">KSE100 INDEX &amp; THE TOP 3 SCRIPS OF VOL.<',
-            strings)
+                self.assertIn('name="label_market">KSE100 INDEX &amp; THE TOP 3 '
+                      'SCRIPS OF VOLUME<', strings)
         self.assertNotIn('INDEX &amp; TOP 3 SCRIPS', strings)
 
 
